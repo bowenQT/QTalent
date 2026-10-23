@@ -27,8 +27,11 @@
   .ds-grid { display: grid; gap: var(--s-4); }
   .ds-grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ds-grid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
   .ds-stage { padding: var(--s-6); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
   .ds-stage.is-paper { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+  .doc-desk { padding: var(--s-8) var(--s-6); }
+  .doc-desk > .ds-stage { max-width: 760px; margin: 0 auto; box-shadow: var(--e-2); }
   .ds-caption { margin-top: var(--s-2); font-size: var(--t-xs); color: var(--ink-3); line-height: 1.6; }
   .quad-layout { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
   .states-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
@@ -65,10 +68,10 @@
   .hand p { margin: 0; font-size: var(--t-sm); color: var(--ink-2); line-height: 1.7; }
 
   /* 尺度 */
-  .space-bar { display: grid; grid-template-columns: 4em auto 1fr; gap: var(--s-3); align-items: center; font-size: var(--t-xs); color: var(--ink-3); padding: 3px 0; }
+  .space-bar { display: grid; grid-template-columns: 2.5em 56px 1fr; gap: var(--s-3); align-items: center; font-size: var(--t-xs); color: var(--ink-3); padding: 3px 0; }
   .space-bar i { display: block; height: 10px; border-radius: 2px; background: var(--light); opacity: .8; }
   .radii { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-3); }
-  .radii div { height: 72px; background: var(--sheet); box-shadow: var(--e-1); display: grid; place-items: end start; padding: var(--s-2) var(--s-3); font-size: var(--t-xs); color: var(--ink-3); }
+  .radii div { min-height: 72px; background: var(--sheet); box-shadow: var(--e-1); display: grid; place-items: end start; padding: var(--s-2) var(--s-3); font-size: var(--t-xs); color: var(--ink-3); }
   .elev { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-5); }
   .elev div { height: 88px; border-radius: var(--r-card); background: var(--sheet); padding: var(--s-3); font-size: var(--t-xs); color: var(--ink-2); }
 
@@ -106,9 +109,9 @@
   .src-card--fact { box-shadow: inset 0 0 0 1.5px var(--src-fact); }
   .src-card--self { box-shadow: var(--e-1); }
   .src-card--self p::before { content: "「"; color: var(--src-self); } .src-card--self p::after { content: "」"; color: var(--src-self); }
-  .src-card--obs { box-shadow: var(--e-1), inset 3px 0 0 var(--src-obs); }
+  .src-card--obs { background: var(--src-obs-soft); }
   .src-card--ai { background: var(--foil), var(--sheet); background-size: 300% 100%; animation: foil-drift 7s linear infinite; box-shadow: inset 0 0 0 1px rgb(61 85 214 / .14); color: #2d3a73; }
-  .src-card--human { box-shadow: var(--e-1), inset 3px 0 0 var(--ink); color: var(--ink); }
+  .src-card--human { box-shadow: var(--e-1); color: var(--ink); }
   .src-card p { margin: 0; }
   .src-card .ink-hand { display: block; margin-top: var(--s-2); font-size: var(--t-md); }
   .state-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
@@ -122,7 +125,7 @@
   .ip-seg button[aria-pressed="true"] { background: var(--sheet); color: var(--ink); font-weight: 600; box-shadow: var(--e-1); }
   .ip-show { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--s-8); align-items: center; padding: var(--s-6); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
   .ip-show__stage { display: grid; place-items: center; min-height: 280px; border-radius: var(--r-card); background: radial-gradient(circle at 50% 58%, #fff 0 30%, var(--paper) 72%); }
-  .ip-spec { display: grid; grid-template-columns: 6.5em 1fr; gap: var(--s-2) var(--s-4); margin: var(--s-5) 0 var(--s-4); font-size: var(--t-sm); line-height: 1.65; }
+  .ip-spec { display: grid; grid-template-columns: 7.5em 1fr; gap: var(--s-2) var(--s-4); margin: var(--s-5) 0 var(--s-4); font-size: var(--t-sm); line-height: 1.65; }
   .ip-spec dt { color: var(--ink-3); }
   .ip-spec dd { margin: 0; color: var(--ink); }
   .ip-anatomy { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: var(--s-8); align-items: center; }
@@ -163,6 +166,8 @@
     .curves, .elev, .radii { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 760px) {
+    .doc-desk { padding: var(--s-3); }
+    .doc-desk > .ds-stage { padding: var(--s-4); }
     .ds { grid-template-columns: minmax(0, 1fr); }
     .ds-nav { position: sticky; z-index: 40; height: auto; display: flex; gap: var(--s-2); overflow-x: auto; padding: var(--s-2) var(--s-4); background: rgb(243 244 241 / .92); backdrop-filter: blur(10px); border-right: 0; border-bottom: 1px solid var(--line); }
     .ds-nav ol { display: flex; }
@@ -170,11 +175,15 @@
     .ds-nav a { white-space: nowrap; }
     .ds-main { padding: 0 var(--s-4) var(--s-14); }
     .hero h1 { font-size: var(--t-3xl); }
-    .ds-grid.c2, .ds-grid.c3, .hands, .src-cards, .quad-layout { grid-template-columns: 1fr; }
+    .ds-grid.c2, .ds-grid.c3, .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout, .hands, .src-cards, .quad-layout { grid-template-columns: 1fr; }
     .n-calib__pair { grid-template-columns: 1fr; }
     .type-row { grid-template-columns: 1fr; gap: 2px; }
     .ip-strip { grid-template-columns: repeat(3, 1fr); }
   }
+.avatar-spec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-6); align-items: end; margin-bottom: var(--s-6); }
+.avatar-spec > div { display: flex; align-items: flex-end; gap: var(--s-3); flex-wrap: wrap; }
+.avatar-spec > div p { flex-basis: 100%; margin: 0; font-size: var(--t-xs); color: var(--ink-3); }
+.avatar-spec .ds-caption { grid-column: 1 / -1; margin: 0; }
 </style>
 </head>
 <body>
@@ -204,6 +213,22 @@
     <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></symbol>
     <symbol id="i-wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 6.5v11M12 9v6M16 4.5v15M20 10v4"/></symbol>
     <symbol id="i-retry" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5M4 4v4.5h4.5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 11 12 4l8 7v9h-5.5v-5.5h-5V20H4z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 5.2a3.5 3.5 0 0 1 0 6.6M18 14.8c1.8.7 3 2.4 3.5 5.2"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3.5 9 4.5-9 4.5L3 8z"/><path d="m3 12.5 9 4.5 9-4.5M3 16.5l9 4.5 9-4.5"/></symbol>
+    <symbol id="i-up-r" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 18 6M9 6h9v9"/></symbol>
+    <symbol id="i-down-r" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 9v9H9"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M4 15v4.5h16V15"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 5h17v4h-17zM5 9v10.5h14V9M10 13h4"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1-4 4-6 7.5-6s6.5 2 7.5 6"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.5v17M3.5 12h17"/><rect x="3.5" y="3.5" width="17" height="17" rx="3"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-6 5 12 2.5-6h4"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.2"/></symbol>
   </defs>
 </svg>
 
@@ -218,15 +243,30 @@
       <li><a href="#scale">间距、圆角、层级</a></li>
       <li><a href="#motion">动效</a></li>
       <li><a href="#material">来源与状态</a></li>
-      <li class="grp">组件</li>
+      <li class="grp">外壳与工作台</li>
+      <li><a href="#c-shell">应用外壳与视角</a></li>
+      <li><a href="#c-controls">通用控件</a></li>
+      <li><a href="#c-desk">工作台</a></li>
+      <li class="grp">记录与核对</li>
       <li><a href="#c-input">输入与过程</a></li>
       <li><a href="#c-doc">活文档与引用</a></li>
       <li><a href="#c-event">关键事件与打分</a></li>
-      <li><a href="#c-quad">能力象限</a></li>
+      <li><a href="#c-tags">标签库</a></li>
+      <li><a href="#c-rec">录音</a></li>
+      <li><a href="#c-verify">核对与校准</a></li>
+      <li class="grp">人员</li>
+      <li><a href="#c-timeline">档案版本与时间线</a></li>
+      <li><a href="#c-profile">个人能力谱</a></li>
+      <li><a href="#c-signal">值得聊一聊</a></li>
+      <li><a href="#c-track">重点跟踪</a></li>
+      <li><a href="#c-quad">能力象限（校准会）</a></li>
+      <li class="grp">批次、项目与方案</li>
+      <li><a href="#c-landing">Landing 批次</a></li>
+      <li><a href="#c-review">盘点与调整方案</a></li>
       <li><a href="#c-project">人与项目</a></li>
       <li><a href="#c-plan">找人与方案</a></li>
-      <li><a href="#c-verify">核对与校准</a></li>
-      <li><a href="#c-rec">录音</a></li>
+      <li><a href="#c-action">行动与复盘</a></li>
+      <li class="grp">反馈</li>
       <li><a href="#c-feedback">反馈与状态</a></li>
       <li class="grp">形象</li>
       <li><a href="#ip">IP：小犇</a></li>
@@ -243,7 +283,7 @@
       </div>
       <article class="hero-doc" aria-live="polite">
         <div class="hero-doc__top">
-          <span class="n-avatar" style="--hue:200">林</span>
+          <span class="n-avatar" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span>
           <h3>林知远 <span class="n-badge n-badge--demo">演示</span></h3>
           <span class="n-badge" style="margin-left:auto">Landing 第三期 · W2 对人复盘</span>
         </div>
@@ -318,7 +358,7 @@
         <div class="hand">
           <span class="n-src n-src--human"><svg><use href="#i-pen"/></svg>人的笔迹</span>
           <div class="hand__big ink-hand">霞鹜文楷</div>
-          <p><span class="ink-hand" style="font-size:var(--t-md);color:var(--ink)">"两次复盘都主动给出备选方案，判断力在线。" —— 叶青</span></p>
+          <p><span class="ink-hand" style="font-size:var(--t-md);color:var(--ink)">"两次复盘都主动给出备选方案，判断力在线。" <span style="white-space:nowrap">—— 叶青</span></span></p>
         </div>
       </div>
       <h3 class="ds-sub">字号阶梯</h3>
@@ -384,7 +424,7 @@
           <button class="n-btn n-btn--sm" type="button" id="fly-run">演示</button>
           <div class="moment__stage" id="fly-stage">
             <div class="fly-card" id="fly-card"><b>主动补上联调文档</b><br><span style="color:var(--ink-3)">W2 复盘 · 03:12</span></div>
-            <div class="fly-target"><span class="n-avatar" id="fly-avatar" style="--hue:200">林</span>林知远<span class="fly-count" id="fly-count">5</span></div>
+            <div class="fly-target"><span class="n-avatar" id="fly-avatar" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span>林知远<span class="fly-count" id="fly-count">5</span></div>
           </div>
         </div>
         <div class="moment">
@@ -393,8 +433,8 @@
           <div class="moment__stage">
             <div style="font-size:var(--t-xs);color:var(--ink-3);margin-bottom:6px">要求：<b id="rank-req" style="color:var(--ink)">有跨团队推进经历</b></div>
             <ol class="rank" id="rank">
-              <li data-id="a"><span class="n-avatar n-avatar--sm" style="--hue:30">周</span>周屿<span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span></li>
-              <li data-id="b"><span class="n-avatar n-avatar--sm" style="--hue:200">林</span>林知远<span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></li>
+              <li data-id="a"><span class="n-avatar n-avatar--sm" style="--hue:30"><img src="assets/avatars/zhou-yu.jpg" alt="">周</span>周屿<span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span></li>
+              <li data-id="b"><span class="n-avatar n-avatar--sm" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span>林知远<span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></li>
               <li data-id="c"><span class="n-avatar n-avatar--sm" style="--hue:150">陈</span>陈一禾<span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不支持</span></li>
             </ol>
           </div>
@@ -405,7 +445,7 @@
     <!-- ═════════ 来源与状态 ═════════ -->
     <section class="ds-sec" id="material">
       <h2>来源与状态</h2>
-      <p class="lead">同一个人身上的五种信息，必须一眼分得清。材质比颜色更重要：事实有实线框，自述带引号，观察有左侧青线，AI 推断是流光，人工结论是墨线加签名。</p>
+      <p class="lead">同一个人身上的五种信息，必须一眼分得清。材质比颜色更重要：事实有实线框，自述带引号，观察是淡青底加眼形标，AI 推断是流光，人工结论是墨色正文加楷体签名。</p>
       <div class="src-cards">
         <div class="src-card src-card--fact"><span class="n-src n-src--fact"><svg><use href="#i-doc"/></svg>原始事实</span><h4>可核查的记录</h4><p>W2 合入 PR 11 个，其中 9 个有非作者人工 Review。</p></div>
         <div class="src-card src-card--self"><span class="n-src n-src--self"><svg><use href="#i-quote"/></svg>本人自述</span><h4>本人说的</h4><p>我更想做离客户近一点的事情，下个阶段想试试售前。</p></div>
@@ -434,6 +474,208 @@
         <div class="n-score" data-state="calibrated"><span class="n-score__dim">已校准</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span><span class="n-score__note"><span class="ink-hand">苏晚</span>末尾加一个朱点，可展开修订历史</span></div>
         <div class="n-score" data-state="unknown"><span class="n-score__dim">资料不足</span><span class="n-score__dots"></span><span class="n-score__empty n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span><span class="n-score__note">涉及但缺少行为或结果，不出分</span></div>
         <div class="n-score" data-state="absent"><span class="n-score__dim">未体现</span><span class="n-score__dots"></span><span class="n-score__empty n-badge">未体现</span><span class="n-score__note">事件没有涉及这个维度</span></div>
+      </div>
+    </section>
+
+    <!-- ═════════ 外壳：应用外壳、视角、⌘K ═════════ -->
+    <section class="ds-sec" id="c-shell">
+      <h2>应用外壳与视角</h2>
+      <p class="lead">桌面只有三个主入口：工作台、人才、盘点，项目和方案从工作台与上下文进入。顶栏有全局搜索（⌘K）和演示视角切换。视角切换只是原型的演示手段，真实权限由服务端判断。</p>
+      <div class="n-shell" id="shell">
+        <aside class="n-shell__side">
+          <div class="n-shell__brand"><span data-ip-s="rest" data-ip-size="22"></span>Niu-Talent</div>
+          <button class="n-navitem" type="button" aria-current="page"><svg><use href="#i-home"/></svg>工作台<span class="n-count">6</span></button>
+          <button class="n-navitem" type="button"><svg><use href="#i-users"/></svg>人才</button>
+          <button class="n-navitem" type="button"><svg><use href="#i-layers"/></svg>盘点<span class="n-count is-quiet">1</span></button>
+          <div class="n-shell__recent">最近
+            <a href="#c-project">项目 · 海外加速搜索体验</a>
+            <a href="#c-review">盘点 · 增长产品部 2026 H2</a>
+            <a href="#c-landing">批次 · Landing 第三期</a>
+          </div>
+        </aside>
+        <div class="n-shell__main">
+          <div class="n-shell__top">
+            <button class="n-search" type="button" id="cmdk-open"><svg><use href="#i-search"/></svg>搜人、项目，或输入要做的事<kbd>⌘K</kbd></button>
+            <div class="n-roles"><span>演示视角</span>
+              <div class="n-seg" role="group" aria-label="演示视角" id="roles">
+                <button type="button" data-r="ceo" aria-pressed="false">CEO</button>
+                <button type="button" data-r="hrbp" aria-pressed="true">HRBP</button>
+                <button type="button" data-r="lead" aria-pressed="false">部门负责人</button>
+                <button type="button" data-r="mentor" aria-pressed="false">导师</button>
+                <button type="button" data-r="self" aria-pressed="false">员工</button>
+              </div>
+            </div>
+          </div>
+          <div class="n-shell__body">
+            <div class="n-person" style="margin-bottom: var(--s-4)"><span class="n-avatar" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><div><div class="n-person__name">林知远 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta" id="role-who">以 HRBP 苏晚的身份查看 · 归属人员</div></div></div>
+            <div class="n-vis" id="vis" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+      <p class="ds-caption">切换视角，看同一份档案里哪些内容可见。员工和导师看不到象限；员工看不到本人的维度分。</p>
+
+      <h3 class="ds-sub">手机底部导航</h3>
+      <p>手机端只保留高频的事：工作台、看人、记录（居中，按住即可说话）、待办、我的。待办有新事项时显示一个朱点。</p>
+      <div style="max-width: 360px">
+        <nav class="n-tabbar is-standalone" aria-label="手机导航">
+          <button type="button" aria-current="page"><svg><use href="#i-home"/></svg>工作台</button>
+          <button type="button"><svg><use href="#i-users"/></svg>人才</button>
+          <button type="button" class="n-tabbar__rec" aria-label="记录"><svg><use href="#i-mic"/></svg></button>
+          <button type="button"><span class="dot"><svg><use href="#i-check"/></svg></span>待办</button>
+          <button type="button"><svg><use href="#i-user"/></svg>我的</button>
+        </nav>
+      </div>
+
+      <dialog class="n-cmdk" id="cmdk" aria-label="命令面板">
+        <div class="n-cmdk__input"><svg><use href="#i-search"/></svg><input id="cmdk-q" placeholder="搜人、项目，或输入要做的事" autocomplete="off" aria-controls="cmdk-list"><kbd class="n-kbd">esc</kbd></div>
+        <div class="n-cmdk__list" id="cmdk-list" role="listbox"></div>
+        <div class="n-cmdk__foot"><span>↑↓ 选择</span><span>↵ 打开</span><span style="margin-left:auto">只搜索你有权限查看的人员</span></div>
+      </dialog>
+    </section>
+
+    <!-- ═════════ 通用控件 ═════════ -->
+    <section class="ds-sec" id="c-controls">
+      <h2>通用控件</h2>
+      <p class="lead">表单尽量少：能从上下文带入的不让人重填。字段有明确标签；出错时说清楚错在哪、怎么改。弹窗只用在后果明确、需要停一下的地方，其余操作直接做，给撤销。</p>
+      <div class="ds-grid c2">
+        <div class="ds-stage ds-grid">
+          <label class="n-field"><span class="n-field__label">项目名称</span><input class="n-input" value="海外加速搜索体验"></label>
+          <div class="ds-grid c2">
+            <label class="n-field"><span class="n-field__label">项目类型</span><select class="n-select"><option>业务项目</option><option>Landing 议题</option><option>训练营课题</option><option>黑客松</option><option>专项</option></select></label>
+            <label class="n-field"><span class="n-field__label">计划结束</span><input class="n-input" type="date" value="2026-12-20"></label>
+          </div>
+          <label class="n-field is-error"><span class="n-field__label">校准理由 <small>必填</small></span><textarea class="n-textarea" placeholder="写一句为什么这样校准"></textarea><span class="n-field__hint">校准分数需要写理由，原分和原评分人会一起保留。</span></label>
+          <label class="n-field"><span class="n-field__label">owner</span><input class="n-input" value="由方案确认后写入" disabled><span class="n-field__hint">owner 来自已确认的项目用人方案，不能在这里直接改。</span></label>
+          <label class="n-check"><input type="checkbox" checked>保存后通知项目 owner</label>
+        </div>
+        <div class="ds-grid">
+          <div class="ds-stage">
+            <div class="n-tabs" role="tablist" id="tabs-demo">
+              <button role="tab" type="button" aria-selected="true" aria-controls="tp-1" id="tb-1">纪要</button>
+              <button role="tab" type="button" aria-selected="false" aria-controls="tp-2" id="tb-2" tabindex="-1">文字记录</button>
+              <button role="tab" type="button" aria-selected="false" aria-controls="tp-3" id="tb-3" tabindex="-1">待核对<span class="n-count">2</span></button>
+            </div>
+            <div class="n-tabpanel" role="tabpanel" id="tp-1" aria-labelledby="tb-1"><p class="ds-caption" style="margin:0">标签页切换同一对象的不同视图；左右方向键可以切换。</p></div>
+            <div class="n-tabpanel" role="tabpanel" id="tp-2" aria-labelledby="tb-2" hidden><p class="ds-caption" style="margin:0">带说话人和时间点的逐句记录。</p></div>
+            <div class="n-tabpanel" role="tabpanel" id="tp-3" aria-labelledby="tb-3" hidden><p class="ds-caption" style="margin:0">2 处人名指代需要你选一下。</p></div>
+          </div>
+          <div class="ds-stage">
+            <div class="ds-row" style="justify-content: space-between">
+              <div class="n-seg n-seg--md" role="group" aria-label="比较基准"><button type="button" aria-pressed="true">近 3 个月</button><button type="button" aria-pressed="false">上一档案版本</button></div>
+              <div class="n-menuwrap">
+                <button class="n-btn n-btn--icon n-btn--ghost" type="button" aria-label="更多操作" aria-haspopup="menu" aria-expanded="false" id="menu-btn"><svg><use href="#i-more"/></svg></button>
+                <div class="n-menu" role="menu" id="menu" hidden>
+                  <button role="menuitem" type="button"><svg width="15" height="15"><use href="#i-pen"/></svg>编辑项目</button>
+                  <button role="menuitem" type="button"><svg width="15" height="15"><use href="#i-archive"/></svg>归档</button>
+                  <hr>
+                  <button role="menuitem" type="button" class="is-danger" data-open="dlg-delete"><svg width="15" height="15"><use href="#i-x"/></svg>删除项目</button>
+                </div>
+              </div>
+            </div>
+            <p class="ds-caption">分段控件用于互斥的视图切换；「更多」里的删除会先检查关联，有关联时引导为归档。</p>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="ds-sub">弹窗与底部弹层</h3>
+      <p>桌面用居中弹窗，手机用底部弹层。确认强度跟后果相称：删除有关联的项目被引导为归档；冻结方案说明冻结了什么、不代表人事已执行。</p>
+      <div class="ds-grid c2">
+        <div class="ds-stage">
+          <div class="ds-row"><button class="n-btn" type="button" data-open="dlg-delete">删除「海外加速搜索体验」</button><button class="n-btn n-btn--seal" type="button" data-open="dlg-freeze">确认 v3 并冻结</button></div>
+          <p class="ds-caption" id="dlg-result">点开看两种弹窗。下面是删除弹窗的静态样张。</p>
+          <div class="n-dialog n-dialog--static" aria-hidden="true">
+            <h3>这个项目不能删除</h3>
+            <p>它已经被事件和方案引用，删除会让这些记录失去出处。可以改为归档：成员、事件和方案都保留。</p>
+            <ul class="n-dialog__facts"><li>关联事件 6 条</li><li>已确认方案 1 个（v2，10-20）</li></ul>
+            <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink">改为归档</span></div>
+          </div>
+        </div>
+        <div class="n-sheetdemo" aria-label="手机底部弹层示意">
+          <div class="n-sheet">
+            <div class="n-sheet__grip"></div>
+            <h4>确认项目用人方案 v3</h4>
+            <p class="n-sheet__sub">基于 v2 · 改了 2 处 · 涉及 3 人</p>
+            <div class="n-diff" style="font-size:var(--t-sm);line-height:1.9;margin-bottom:var(--s-4)">owner：<del>待定</del> <ins>周屿</ins><br>前端：<ins>林知远（兼职）</ins></div>
+            <button class="n-btn n-btn--seal" type="button">确认此版本</button>
+            <p class="ds-caption" style="text-align:center">确认后冻结快照；不代表任命已经执行</p>
+          </div>
+        </div>
+      </div>
+
+      <dialog class="n-dialog" id="dlg-delete" aria-labelledby="dlg-delete-t">
+        <h3 id="dlg-delete-t">这个项目不能删除</h3>
+        <p>它已经被事件和方案引用，删除会让这些记录失去出处。可以改为归档：成员、事件和方案都保留，项目不再出现在进行中列表里。</p>
+        <ul class="n-dialog__facts"><li>关联事件 6 条</li><li>已确认方案 1 个（v2，10-20）</li></ul>
+        <div class="n-dialog__bar"><button class="n-btn n-btn--ghost" type="button" value="cancel" data-close>取消</button><button class="n-btn n-btn--ink" type="button" data-close="archived"><svg><use href="#i-archive"/></svg>改为归档</button></div>
+      </dialog>
+      <dialog class="n-dialog" id="dlg-freeze" aria-labelledby="dlg-freeze-t">
+        <h3 id="dlg-freeze-t">确认方案 v3</h3>
+        <p>确认后会冻结这一版的人员范围、主要依据、人工结论和后续行动。之后再改会生成 v4，v3 不会被覆盖。</p>
+        <ul class="n-dialog__facts"><li>涉及 3 人，都在你的授权范围内</li><li>后续行动 2 项，进入行动列表</li><li>确认不等于任命已经执行</li></ul>
+        <div class="n-dialog__bar"><button class="n-btn n-btn--ghost" type="button" data-close>再看看</button><button class="n-btn n-btn--seal" type="button" data-close="frozen">确认并冻结</button></div>
+      </dialog>
+    </section>
+
+    <!-- ═════════ 工作台：变化、待办、任务、上传 ═════════ -->
+    <section class="ds-sec" id="c-desk">
+      <h2>工作台：变化、待办与任务</h2>
+      <p class="lead">打开工作台，第一眼看到的是「变化」：谁的能力走向变了、谁很久没有新事件、谁的参考位置离开了正式象限、哪个团队的分布变了。命中规则的变化写明是哪条规则；变化按发生时间排列，不按幅度给人排名。下面才是待办、进行中的任务和上传。</p>
+
+      <article class="n-card n-changes" id="changes">
+        <header class="n-changes__head">
+          <h3>变化</h3>
+          <span class="n-changes__meta">增长产品部 · <span id="chg-count">6</span> 条，其中 <span id="chg-hit">4</span> 条命中规则 · 规则版本 change-v1</span>
+          <div class="n-seg" role="group" aria-label="比较基准" id="chg-base">
+            <button type="button" data-b="win" aria-pressed="true">近 3 个月 vs 之前</button>
+            <button type="button" data-b="ver" aria-pressed="false">vs 2026 H1 档案版本</button>
+          </div>
+        </header>
+        <div class="n-chips" role="group" aria-label="按类型筛选" id="chg-filter">
+          <button class="n-chip" type="button" data-t="all" aria-pressed="true">全部</button>
+          <button class="n-chip" type="button" data-t="trend" aria-pressed="false">能力走向</button>
+          <button class="n-chip" type="button" data-t="activity" aria-pressed="false">活跃度与安排</button>
+          <button class="n-chip" type="button" data-t="quad" aria-pressed="false">象限偏移</button>
+          <button class="n-chip" type="button" data-t="team" aria-pressed="false">团队分布</button>
+        </div>
+        <div id="chg-list"></div>
+        <p class="ds-caption">只统计已确认的事件和分数，AI 建议分不会触发变化。资料从无到有不算上升；没有新事件不等于能力下降。</p>
+      </article>
+
+      <div class="ds-grid c2" style="margin-top: var(--s-4)">
+        <article class="n-card">
+          <h3 class="n-section-title">待办<span class="n-count">6</span></h3>
+          <ul class="n-todo">
+            <li><a href="#c-verify"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待核对</span><span>录音里的「小王」指谁<small>W2 导师团复盘 · 2 处</small></span><span class="due">今天</span></a></li>
+            <li><a href="#c-verify"><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>待校准</span><span>智慧力分差 2 分<small>林知远 · 叶青 4 / 宋川 2</small></span><span class="due">3 条</span></a></li>
+            <li><a href="#c-signal"><span class="n-badge">待跟进</span><span>和沈砚聊一次<small>来自「值得聊一聊」· 周屿</small></span><span class="due is-late">逾期 2 天</span></a></li>
+            <li><a href="#c-track"><span class="n-badge">跟踪到期</span><span>何以宁的观察问题<small>下次对人复盘前补一条观察</small></span><span class="due">11-06</span></a></li>
+            <li><a href="#c-plan"><span class="n-badge n-badge--seal">待确认</span><span>项目用人方案 v3<small>海外加速搜索体验 · 改了 2 处</small></span><span class="due">CEO</span></a></li>
+          </ul>
+        </article>
+        <article class="n-card">
+          <h3 class="n-section-title">进行中的任务</h3>
+          <div id="tasks">
+            <div class="n-task" data-state="uploading"><span class="n-task__icon"><svg><use href="#i-upload"/></svg></span><div><div class="n-task__name">W3 导师团复盘.m4a</div><div class="n-task__state"><b>上传中</b> · 182 MB 中的 113 MB · 上传完成前别关页面</div><div class="n-progress"><i style="width:62%"></i></div></div><div class="n-task__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button">取消</button></div></div>
+            <div class="n-task" data-state="queued"><span class="n-task__icon"><svg><use href="#i-clock"/></svg></span><div><div class="n-task__name">客户转化组周会.m4a</div><div class="n-task__state"><b>已提交，排队中</b> · 10:42 提交 · 可以离开，结果会回到这里</div></div><div></div></div>
+            <div class="n-task" data-state="transcribing"><span class="n-task__icon"><svg><use href="#i-wave"/></svg></span><div><div class="n-task__name">W2 导师团复盘.m4a <span class="n-badge n-badge--preset">预先处理的演示任务</span></div><div class="n-task__state"><b>转写中</b> · 正在区分说话人</div><div class="n-progress is-indeterminate"><i></i></div></div><div></div></div>
+            <div class="n-task" data-state="shaping"><span class="n-task__icon"><svg><use href="#i-spark"/></svg></span><div><div class="n-task__name">Landing W2 周报.docx</div><div class="n-task__state"><b>整理中</b> · 转写已完成，正在提取人员和事件</div></div><div class="n-task__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button">看转写</button></div></div>
+            <div class="n-task" data-state="partial"><span class="n-task__icon"><svg><use href="#i-split"/></svg></span><div><div class="n-task__name">W1 对事复盘.m4a</div><div class="n-task__state"><b>部分待核对</b> · 9 条事件已归档，2 处人名待确认</div></div><div class="n-task__acts"><button class="n-btn n-btn--sm" type="button">去核对</button></div></div>
+            <div class="n-task" data-state="done"><span class="n-task__icon"><svg><use href="#i-check"/></svg></span><div><div class="n-task__name">实训营评审表.xlsx</div><div class="n-task__state"><b>已完成</b> · 新增 6 条训练营评审，涉及 6 人</div></div><div class="n-task__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button">查看</button></div></div>
+            <div class="n-task" data-state="failed"><span class="n-task__icon"><svg><use href="#i-x"/></svg></span><div><div class="n-task__name">导师访谈.m4a</div><div class="n-task__state"><b>整理失败</b> · 转写已保留，人员和事件提取没有完成</div></div><div class="n-task__acts"><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-retry"/></svg>重试整理</button></div></div>
+          </div>
+        </article>
+      </div>
+
+      <h3 class="ds-sub">上传材料</h3>
+      <p>从人员页、项目页或工作台上传，当前上下文自动带入。解析结果写明能定位到哪一层（段落、页、单元格、时间点）；不能处理的文件说清原因和下一步。</p>
+      <div class="ds-stage">
+        <button class="n-drop" type="button" id="drop"><svg><use href="#i-upload"/></svg><b>拖入文件，或点这里选择</b><small>TXT、MD、DOCX、PPTX、XLSX 和录音 · 单个文件上限以联调为准 · 会关联到「Landing 第三期」</small></button>
+        <ul class="n-files" id="files">
+          <li class="n-file"><span class="n-file__ext">DOCX</span><div style="min-width:0"><div class="n-file__name">Landing W2 周报.docx</div><div class="n-file__state"><span class="ok">已解析</span> · 12 段，定位到段落 · 提取 3 条事件待确认</div></div><button class="n-btn n-btn--sm" type="button">确认事件</button></li>
+          <li class="n-file"><span class="n-file__ext">XLSX</span><div style="min-width:0"><div class="n-file__name">实训营评审表.xlsx</div><div class="n-file__state"><span class="ok">已解析</span> · 2 个工作表，定位到单元格 · 作为「训练营评审」导入，保留原量表</div></div><button class="n-btn n-btn--sm n-btn--ghost" type="button">查看</button></li>
+          <li class="n-file"><span class="n-file__ext">PDF</span><div style="min-width:0"><div class="n-file__name">候选人简历.pdf</div><div class="n-file__state"><span class="err">暂不支持 PDF</span> · 本期只处理文字、Office 文件和录音。可以另存为 DOCX，或直接粘贴文字</div></div><button class="n-btn n-btn--sm n-btn--ghost" type="button">粘贴文字</button></li>
+          <li class="n-file"><span class="n-file__ext">PPTX</span><div style="min-width:0"><div class="n-file__name">Milestone 述职.pptx</div><div class="n-file__state"><span class="err">读不出内容</span> · 文件设置了打开密码。去掉密码后重新上传</div></div><button class="n-btn n-btn--sm n-btn--ghost" type="button">重新上传</button></li>
+        </ul>
       </div>
     </section>
 
@@ -481,7 +723,7 @@
     <section class="ds-sec" id="c-doc">
       <h2>活文档与引用</h2>
       <p class="lead">文档由块组成，每块要么是光（AI 建议），要么是墨（人确认）。关键判断后面跟着引用角标：悬停看原文，录音来源可以就地播放那一段。</p>
-      <div class="ds-stage" style="max-width: 760px">
+      <div class="ds-stage is-paper doc-desk"><div class="ds-stage">
         <div class="n-block" data-state="ink">
           需求变更后第二天，他带着两个备选方案来找导师，并说明了各自的验收标准<span class="n-cite"><button class="n-cite__mark" data-kind="audio" type="button" aria-label="引用 1：复盘录音">1</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src"><svg width="14" height="14"><use href="#i-wave"/></svg>W2 导师团复盘 · 03:12–03:28 · 叶青</span><p class="n-cite__quote">"……他没等我安排，第二天就拿了 A、B 两个方案过来，<mark>每个方案的验收标准都写清楚了</mark>，这个我挺意外的。"</p><span class="n-cite__foot"><span class="n-player__play" style="width:26px;height:26px"><svg width="10" height="10"><use href="#i-play"/></svg></span><a href="#c-doc" style="font-size:var(--t-xs);color:var(--light)">打开完整纪要</a></span></span></span>。导师选了方案 B，他据此重排了剩余任务<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 2：周报">2</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src"><svg width="14" height="14"><use href="#i-doc"/></svg>Landing W2 周报 · 第 3 段</span><p class="n-cite__quote">剩余任务按方案 B 重新拆分为 5 个 Issue，<mark>原 #14、#15 关闭</mark>。</p></span></span>。
           <div class="n-block__by"><span class="n-block__sig">叶青</span>导师 · 10-21 确认</div>
@@ -495,33 +737,55 @@
           <button class="n-btn n-btn--sm" type="button"><svg><use href="#i-pen"/></svg>改写</button>
           <button class="n-btn n-btn--sm n-btn--ghost" type="button">删去</button>
         </div>
-      </div>
+      </div></div>
     </section>
 
     <!-- ═════════ 组件：关键事件与打分 ═════════ -->
     <section class="ds-sec" id="c-event">
       <h2>关键事件与打分</h2>
-      <p class="lead">一条关键事件写清背景、行为、结果和来源。AI 只给事件涉及的维度打建议分；录入人点一下就能确认或改分，改过的分会留下 AI 原分的淡影。</p>
+      <p class="lead">导师或 HRBP 先写原话，也可以按住说话；AI 整理成背景、行为、结果，并只给涉及的维度打建议分。录入人可以直接改文字、点圆点改分，改分时可以顺手写一句理由；改过的分会留下 AI 原分的淡影。标签也由 AI 顺手打上：标签库里有的直接生效，不对就删；库里没有的标成候选，等 HRBP 收录。标签只用来检索和找人，不参与打分。</p>
       <div class="ds-grid c2">
-        <article class="n-card n-event" id="event-demo">
+        <article class="n-card n-event" id="event-demo" data-step="write">
           <div class="n-event__head">
-            <span class="n-src n-src--obs"><svg><use href="#i-eye"/></svg>导师评价</span>
-            <span>10-21</span>
+            <span class="n-avatar n-avatar--sm" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><b class="n-event__who">林知远</b>
             <span class="n-badge"><svg><use href="#i-folder"/></svg>议题：工单检索</span>
+            <span class="n-badge">W2 对人复盘</span>
             <span class="n-badge n-badge--demo">演示</span>
+            <span class="n-event__ip" id="event-ip"></span>
           </div>
-          <h3 class="n-event__title">需求变更后主动给出两个备选方案</h3>
-          <dl class="n-event__sbar">
-            <dt>背景</dt><dd>W2 中途，客户反馈搜索结果看不懂内部标识，原方案需要调整。</dd>
-            <dt>行为</dt><dd>第二天带着方案 A、B 找导师，各自写清验收标准与风险。</dd>
-            <dt>结果</dt><dd>方案 B 被采纳，剩余任务重新拆分为 5 个 Issue。</dd>
-          </dl>
-          <div class="n-event__scores" id="scores">
-            <!-- 由脚本渲染 -->
+
+          <div id="event-in">
+            <label class="n-eventin__label" for="event-text">说说他这次做了什么</label>
+            <textarea class="n-eventin__field" id="event-text" rows="5">W2 中途客户说搜索结果看不懂内部标识，原方案得改。他第二天就带着 A、B 两个方案来找我，每个都写了验收标准和风险。我选了 B，他自己把剩下的活重新拆成了 5 个 Issue。</textarea>
+            <div class="n-eventin__bar">
+              <button class="n-btn n-btn--ghost n-btn--icon" type="button" aria-label="按住说话"><svg><use href="#i-mic"/></svg></button>
+              <button class="n-btn n-btn--ghost n-btn--icon" type="button" aria-label="添加附件"><svg><use href="#i-clip"/></svg></button>
+              <span class="n-eventin__hint">写原话就行，不用分段</span>
+              <button class="n-btn n-btn--light" type="button" id="event-shape"><svg><use href="#i-spark"/></svg>整理成关键事件</button>
+            </div>
           </div>
-          <div class="ds-row" style="margin-top: var(--s-4)">
-            <button class="n-btn n-btn--sm n-btn--ink" type="button" id="score-confirm"><svg><use href="#i-check"/></svg>确认全部分数</button>
-            <span style="font-size:var(--t-xs);color:var(--ink-3)" id="score-hint">点圆点即可改分</span>
+
+          <div id="event-body" hidden>
+            <h3 class="n-event__title"><span class="n-edit" data-k="title" contenteditable="plaintext-only" spellcheck="false"></span></h3>
+            <dl class="n-event__sbar">
+              <dt>背景</dt><dd><span class="n-edit" data-k="bg" contenteditable="plaintext-only" spellcheck="false"></span></dd>
+              <dt>行为</dt><dd><span class="n-edit" data-k="act" contenteditable="plaintext-only" spellcheck="false"></span></dd>
+              <dt>结果</dt><dd><span class="n-edit" data-k="res" contenteditable="plaintext-only" spellcheck="false"></span></dd>
+            </dl>
+            <div class="n-tags" id="event-tags" hidden>
+              <span class="n-tags__label">标签</span>
+              <span class="n-tags__list" id="tag-list"></span>
+              <button class="n-tag n-tag--add" type="button" id="tag-add"><svg><use href="#i-plus"/></svg>加标签</button>
+              <span class="n-tags__undo" id="tag-undo" hidden></span>
+            </div>
+            <details class="n-event__raw"><summary>原话</summary><p id="event-raw"></p></details>
+            <div class="n-event__scores" id="scores"></div>
+            <div class="n-event__sign" id="event-sign" hidden></div>
+            <div class="ds-row" style="margin-top: var(--s-4)" id="event-actions">
+              <button class="n-btn n-btn--sm n-btn--ink" type="button" id="score-confirm"><svg><use href="#i-check"/></svg>确认并保存</button>
+              <button class="n-btn n-btn--sm n-btn--ghost" type="button" id="event-back">改原话</button>
+              <span class="n-eventin__hint" id="score-hint">文字可以直接改；点圆点改分</span>
+            </div>
           </div>
         </article>
         <div class="ds-grid">
@@ -547,138 +811,62 @@
       </div>
     </section>
 
-    <!-- ═════════ 组件：能力象限 ═════════ -->
-    <section class="ds-sec" id="c-quad">
-      <h2>能力象限</h2>
-      <p class="lead">纸面上只有两笔墨。小犇根据已确认的维度分算出每个人的参考位置，化作光点落下；人把头像拖到自己判断的位置，光点留在原处，中间连一道由光到墨的痕迹。拖到另一个象限时，小犇会问一句理由；全部确认后光点消散、盖印冻结。</p>
-      <div class="ds-grid c2 quad-layout">
-        <div class="n-quad" id="quad-wrap">
-          <span class="n-seal n-quad__seal" id="quad-seal">冻<br>结</span>
-          <div class="n-quad__frame">
-            <div class="n-quad__y">潜力 →</div>
-            <div class="n-quad__plane" id="quad">
-              <div class="n-quad__cell" data-q="hl">高潜待练</div>
-              <div class="n-quad__cell" data-q="hh">双高</div>
-              <div class="n-quad__cell" data-q="ll">待观察</div>
-              <div class="n-quad__cell" data-q="lh">专业骨干</div>
-              <span class="n-quad__axis n-quad__axis--h" aria-hidden="true"></span>
-              <span class="n-quad__axis n-quad__axis--v" aria-hidden="true"></span>
-              <svg class="n-quad__trail" id="quad-trail" aria-hidden="true"></svg>
-            </div>
-            <div class="n-quad__x">专业度（对标当前职级）→</div>
-          </div>
-          <div class="n-quad__foot">
-            <span id="quad-ip"></span>
-            <div class="n-quad__say" id="quad-say" aria-live="polite">
-              <span id="quad-say-text">参考位置还没有给出。</span>
-              <textarea id="quad-reason" hidden placeholder="写一句理由" aria-label="和参考位置不同的理由"></textarea>
-            </div>
-            <div class="n-quad__wait">
-              <b>还在等材料 · 3 人</b>
-              <span class="chip"><span class="n-avatar n-avatar--sm" style="--hue:280">顾</span>顾南 <small>潜力轴缺 2 条事件</small></span>
-              <span class="chip"><span class="n-avatar n-avatar--sm" style="--hue:60">宋</span>宋小满 <small>入职 3 周</small></span>
-              <span class="chip"><span class="n-avatar n-avatar--sm" style="--hue:340">沈</span>沈星河 <small>专业度无评分</small></span>
-            </div>
-          </div>
-        </div>
-        <div class="n-card" style="padding: var(--s-5)" id="quad-panel">
-          <div class="n-person" style="margin-bottom: var(--s-3)"><span class="n-avatar n-avatar--lg" style="--hue:200">林</span><div><div class="n-person__name">林知远 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">增长产品部 / 业务成功部 · N3 · Landing 第三期</div></div></div>
-          <div class="n-score" data-state="confirmed"><span class="n-score__dim">专业度</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i><i class="n-score__dot"></i></span><span class="n-score__note">均值 3.0 · 4 条</span></div>
-          <div class="n-score" data-state="confirmed"><span class="n-score__dim">潜力核心</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span><span class="n-score__note">均值 3.8 · 6 条</span></div>
-          <div class="n-score" data-state="confirmed"><span class="n-score__dim">开放性</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span><span class="n-score__note">加分项 ≥ 4</span></div>
-          <div class="ds-row" style="margin-top: var(--s-5)">
-            <button class="n-btn n-btn--ink" type="button" id="quad-confirm">确认校准</button>
-            <button class="n-btn n-btn--ghost" type="button" id="quad-reset"><svg><use href="#i-retry"/></svg>重新给出参考位置</button>
-          </div>
-          <p class="ds-caption">选中头像后可以用方向键移动。资料不足的人不进象限，也不会被放在左下角。</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═════════ 组件：人与项目 ═════════ -->
-    <section class="ds-sec" id="c-project">
-      <h2>人与项目</h2>
-      <p class="lead">人和项目是多对多关系。人员行只放识别所需的最少信息；项目卡显示目标、状态、owner 和成员，成员的进出都留有记录。</p>
+    <!-- ═════════ 组件：标签库 ═════════ -->
+    <section class="ds-sec" id="c-tags">
+      <h2>标签库与候选标签</h2>
+      <p class="lead">标签有两个来源：一部分由 HRBP 预先定义，其余从事件里提取。模型读完上下文把相近的说法归拢，交给 Jev 判断：库里已有的直接打上，库里没有的列成候选，由 HRBP 决定收录、并入已有标签，还是不要。标签只用来检索和找人，不参与打分。</p>
       <div class="ds-grid c2">
-        <div class="ds-stage" style="padding: var(--s-3)">
-          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:200">林</span><div style="min-width:0"><div class="n-person__name">林知远 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">业务成功部 · 初级产品架构师 · 2 个项目</div></div></div><span class="n-badge" style="background:var(--q-hl);color:var(--q-hl-ink)">高潜待练</span></div>
-          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:30">周</span><div style="min-width:0"><div class="n-person__name">周屿 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">增长产品部 · 高级后端工程师 · 3 个项目</div></div></div><span class="n-badge" style="background:var(--q-hh);color:var(--q-hh-ink)">双高</span></div>
-          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:280">顾</span><div style="min-width:0"><div class="n-person__name">顾南 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">技术支持部 · 技术支持工程师 · 1 个项目</div></div></div><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></div>
-          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:150">陈</span><div style="min-width:0"><div class="n-person__name">陈一禾 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">员工视角下，看不到象限与分数</div></div></div><span class="n-lock"><svg><use href="#i-lock"/></svg>仅本人资料</span></div>
-        </div>
-        <article class="n-card n-project">
-          <div class="n-project__head">
-            <span class="n-avatar" style="--hue:220;border-radius:10px"><svg width="16" height="16"><use href="#i-folder"/></svg></span>
-            <div style="flex:1;min-width:0">
-              <h3 class="n-project__name">海外加速搜索体验</h3>
-              <p class="n-project__goal">让海外客户在控制台里一次搜到加速相关的全部入口，Q4 上线。</p>
-            </div>
-            <span class="n-badge n-badge--yes">进行中</span>
-          </div>
-          <ul class="n-members" style="margin-top: var(--s-4)">
-            <li><div class="n-person"><span class="n-avatar n-avatar--sm" style="--hue:30">周</span><span class="n-person__name">周屿</span></div><span class="n-members__role">owner</span><span class="n-members__when">10-08 起</span></li>
-            <li><div class="n-person"><span class="n-avatar n-avatar--sm" style="--hue:200">林</span><span class="n-person__name">林知远</span></div><span class="n-members__role">前端 · 兼职</span><span class="n-members__when">10-15 起</span></li>
-            <li class="is-left"><div class="n-person"><span class="n-avatar n-avatar--sm" style="--hue:150">陈</span><span class="n-person__name">陈一禾</span></div><span class="n-members__role">后端</span><span class="n-members__when">10-08 – 10-20</span></li>
-          </ul>
-          <div class="ds-row" style="margin-top: var(--s-4)">
-            <button class="n-btn n-btn--sm" type="button"><svg><use href="#i-plus"/></svg>添加成员</button>
-            <button class="n-btn n-btn--sm n-btn--ghost" type="button">编辑</button>
-            <button class="n-btn n-btn--sm n-btn--ghost" type="button" title="已有关联事件，只能归档">归档</button>
+        <article class="n-card n-taglib">
+          <header class="n-taglib__head">
+            <h3>标签库</h3>
+            <span class="n-taglib__meta"><span id="taglib-total"></span> 个标签 · 按事件数排序</span>
+          </header>
+          <div id="taglib-groups"></div>
+          <div class="n-taglib__legend">
+            <span><i class="k-pre"></i>预定义</span>
+            <span><svg><use href="#i-spark"/></svg>从事件提取，已收录</span>
+            <span>数字是用到这个标签的事件数</span>
           </div>
         </article>
-      </div>
-    </section>
 
-    <!-- ═════════ 组件：找人与方案 ═════════ -->
-    <section class="ds-sec" id="c-plan">
-      <h2>找人与方案</h2>
-      <p class="lead">候选卡逐项列出要求和证据状态，不出现总分；相关维度的已确认分数可以展示，但列表不按分数排序。把候选人拖进角色槽位，槽位会显示这个角色还缺哪些证据。</p>
-      <div class="ds-grid c2">
-        <article class="n-card n-candidate" draggable="true" id="cand" aria-describedby="cand-tip">
-          <div class="n-person"><span class="n-avatar" style="--hue:30">周</span><div><div class="n-person__name">周屿 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">增长产品部 · N5 · 当前在 3 个项目</div></div></div>
-          <ul class="n-reqs">
-            <li><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span><span>主导过跨团队交付：融合线路配置改造<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用">1</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src"><svg width="14" height="14"><use href="#i-doc"/></svg>项目复盘文档 · 第 2 节</span><p class="n-cite__quote">协调了运维与销售两条线，<mark>按期交付并把耗时降低一半</mark>。</p></span></span></span></li>
-            <li><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突</span><span>海外客户经验：简历有，近两年事件里没有</span></li>
-            <li><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span><span>Q4 是否有余量：本人意愿未知</span></li>
-          </ul>
-          <div class="ds-row" style="margin-top: var(--s-3)"><button class="n-btn n-btn--sm" type="button" id="cand-put">放入方案</button><span id="cand-tip" style="font-size:var(--t-xs);color:var(--ink-3)">或直接拖到右侧槽位</span></div>
-        </article>
-        <div class="ds-grid">
-          <div class="n-slot" id="slot" aria-live="polite">
-            <span class="n-slot__empty"><svg width="14" height="14"><use href="#i-plus"/></svg></span>
-            <div><div class="n-slot__role">角色</div><b>项目 owner</b></div>
+        <article class="n-card n-cand" id="tagcand">
+          <header class="n-taglib__head">
+            <h3>待决定的候选标签</h3>
+            <span class="n-taglib__meta" id="cand-left">3 个</span>
+          </header>
+          <div class="n-cand__item is-open" id="cand-main">
+            <div class="n-cand__title">
+              <span class="n-tag is-candidate" id="cand-chip">客户视角</span>
+              <span class="n-cand__src">Jev 提出 · 10-22 · 出现在 4 个人的 6 条事件里</span>
+            </div>
+            <dl class="n-cand__body">
+              <dt>草拟定义</dt>
+              <dd><span class="n-edit is-light" contenteditable="plaintext-only" spellcheck="false" id="cand-def">从客户实际的使用场景出发重新理解需求，而不是只照着需求文档执行。</span></dd>
+              <dt>出现在</dt>
+              <dd>
+                <ul class="n-cand__ev">
+                  <li><span class="n-avatar n-avatar--sm" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span>林知远 · 需求变更后主动给出两个备选方案<small>10-21</small></li>
+                  <li><span class="n-avatar n-avatar--sm" style="--hue:250"><img src="assets/avatars/he-yining.jpg" alt="">何</span>何以宁 · 客户现场演示后改了搜索结果的展示方式<small>10-15</small></li>
+                  <li class="more">还有 4 条，来自周屿、陈一禾</li>
+                </ul>
+              </dd>
+              <dt>Jev 的判断</dt>
+              <dd class="n-cand__why">库里最接近的是「需求理解」，但它的定义偏向读懂文档；这 6 条都在讲站到客户的场景里想问题，建议单独收录。</dd>
+            </dl>
+            <div class="n-cand__actions" id="cand-actions">
+              <button class="n-btn n-btn--sm n-btn--ink" type="button" data-act="keep"><svg><use href="#i-check"/></svg>收录</button>
+              <button class="n-btn n-btn--sm" type="button" data-act="merge">并入「需求理解」</button>
+              <button class="n-btn n-btn--sm n-btn--ghost" type="button" data-act="drop">不要</button>
+            </div>
+            <div class="n-cand__done" id="cand-done" hidden></div>
           </div>
-          <div class="n-slot"><span class="n-slot__empty"><svg width="14" height="14"><use href="#i-plus"/></svg></span><div><div class="n-slot__role">角色</div><b>前端</b></div></div>
-          <div class="n-version"><span class="n-version__tag is-draft">草稿 v3</span><span style="color:var(--ink-3)">基于 v2 · 改了 2 处</span><span style="margin-left:auto" class="n-diff">owner：<del>待定</del> <ins>周屿</ins></span></div>
-          <div class="n-version"><span class="n-version__tag is-frozen">v2 已确认</span><span style="color:var(--ink-3)">程远 · CEO · 10-20 · 快照已冻结</span><span class="n-seal n-seal--sm" style="margin-left:auto">定</span></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═════════ 组件：核对与校准 ═════════ -->
-    <section class="ds-sec" id="c-verify">
-      <h2>核对与校准</h2>
-      <p class="lead">AI 拿不准的地方交给人，一次只问一件事。选完立刻生效，证据飞入对应档案。</p>
-      <div class="ds-grid c2">
-        <article class="n-card n-verify">
-          <span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>待核对 · W2 复盘录音 05:40</span>
-          <p class="n-verify__q" style="margin-top: var(--s-2)">录音里的 <q>小王</q> 指的是谁？</p>
-          <div class="n-choices" id="verify">
-            <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:100">王</span>王一舟<small>同议题组员 · 可能性高</small></button>
-            <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:320">王</span>王蔓<small>业务成功部</small></button>
-            <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>都不是，稍后处理<small></small></button>
+          <div class="n-cand__item">
+            <div class="n-cand__title"><span class="n-tag is-candidate">灰度发布</span><span class="n-cand__src">出现在 2 个人的 3 条事件里</span></div>
           </div>
-        </article>
-        <article class="n-card n-calib">
-          <span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突 · 智慧力</span>
-          <p style="margin: var(--s-2) 0 0; font-weight: 600">林知远在 W2 导师团复盘中的表现</p>
-          <div class="n-calib__pair">
-            <div class="n-calib__side"><span style="color:var(--ink-3)">叶青 · 导师</span><b>4</b>"方案对比清楚，结论→依据→取舍都有。"</div>
-            <div class="n-calib__side"><span style="color:var(--ink-3)">宋川 · 助教</span><b>2</b>"排查问题靠试，不是系统性收敛。"</div>
+          <div class="n-cand__item">
+            <div class="n-cand__title"><span class="n-tag is-candidate">带新人</span><span class="n-cand__src">Jev 建议并入「导师带教」</span></div>
           </div>
-          <label for="calib-reason" style="font-size:var(--t-xs);color:var(--ink-3)">校准为 3 分，理由</label>
-          <textarea class="n-calib__reason" id="calib-reason">方案表达到位，排查过程确实发散，各取一半。</textarea>
-          <div class="ds-row" style="margin-top: var(--s-3)"><button class="n-btn n-btn--ink" type="button">校准为 3 分</button><button class="n-btn n-btn--ghost" type="button">稍后</button></div>
+          <div class="n-lock"><svg><use href="#i-lock"/></svg>只有 HRBP 和 CEO 能决定候选标签；导师和部门负责人能看到标签，也能给自己录的事件加删标签。</div>
         </article>
       </div>
     </section>
@@ -716,6 +904,583 @@
           <div class="n-lock"><svg><use href="#i-lock"/></svg>手机锁屏或切到后台会暂停录音。已录的分段已上传，回来后可以接着录。</div>
         </div>
       </div>
+      <h3 class="ds-sub">开始前与结束后</h3>
+      <p>开始前在底部面板选模式，面板上写明时长上限和语言；麦克风被拒时退回文字和上传，输入不丢。结束后是人才纪要：摘要、涉及人员、新事件、待核对，另一个标签页是逐句文字记录，底部有推荐追问。</p>
+      <div class="ds-grid c2">
+        <div class="ds-grid" style="align-content:start">
+          <div class="ds-stage">
+            <div class="n-modes" role="group" aria-label="录音模式" id="modes">
+              <button class="n-mode" type="button" aria-pressed="true"><span class="n-mode__icon"><svg><use href="#i-mic"/></svg></span><span>观察速记<small>一个人说，记一条或几条事件</small></span><span class="n-mode__limit">≤ 10 分钟</span></button>
+              <button class="n-mode" type="button" aria-pressed="false"><span class="n-mode__icon"><svg><use href="#i-users"/></svg></span><span>多人会议<small>复盘会、一对一，区分说话人</small></span><span class="n-mode__limit">≤ 2 小时</span></button>
+              <button class="n-mode" type="button" aria-pressed="false"><span class="n-mode__icon"><svg><use href="#i-upload"/></svg></span><span>上传录音文件<small>已经录好的会议</small></span><span class="n-mode__limit">以联调为准</span></button>
+            </div>
+            <div class="ds-row" style="margin-top: var(--s-3)"><label class="n-field" style="flex:1"><span class="n-field__label">语言</span><select class="n-select"><option>普通话</option><option>普通话 + 英文</option></select></label></div>
+            <p class="ds-caption">时长上限为占位值，联调后按真实规格填写。</p>
+          </div>
+          <div class="n-notice is-deny"><svg><use href="#i-mic"/></svg><div><b>浏览器没有给麦克风权限。</b>可以先打字记下来，或者上传已有录音；之后在浏览器设置里打开麦克风再录。<div class="ds-row"><button class="n-btn n-btn--sm n-btn--ink" type="button">改为打字</button><button class="n-btn n-btn--sm" type="button">上传录音</button></div></div></div>
+        </div>
+        <article class="n-card">
+          <div class="n-tabs" role="tablist" id="tabs-min">
+            <button role="tab" type="button" aria-selected="true" aria-controls="mp-1" id="mb-1">纪要</button>
+            <button role="tab" type="button" aria-selected="false" aria-controls="mp-2" id="mb-2" tabindex="-1">文字记录</button>
+          </div>
+          <div class="n-tabpanel" role="tabpanel" id="mp-1" aria-labelledby="mb-1">
+            <p class="n-minutes__sum">W2 导师团复盘，42 分钟。重点讨论了工单检索议题的方案变更和两位新人的排查方式；一处「小王」需要确认是谁。</p>
+            <div class="n-minutes__people"><span><span class="n-avatar n-avatar--sm" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span>林知远 · 3 条</span><span><span class="n-avatar n-avatar--sm" style="--hue:250"><img src="assets/avatars/he-yining.jpg" alt="">何</span>何以宁 · 2 条</span><span><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>小王 · 待核对</span></div>
+            <div class="n-minievent"><div>需求变更后主动给出两个备选方案<small>林知远 · 智慧力 4、内生动力 4（AI 建议）· 03:12</small></div><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待确认</span></div>
+            <div class="n-minievent"><div>排查缓存问题靠试，没有系统收敛<small>林知远 · 智慧力 2（AI 建议）· 18:40</small></div><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待确认</span></div>
+          </div>
+          <div class="n-tabpanel" role="tabpanel" id="mp-2" aria-labelledby="mb-2" hidden>
+            <ol class="n-transcript">
+              <li class="is-flag"><time>03:12</time><div><b>叶青 · 导师</b>他没等我安排，第二天就拿了两个方案过来，<mark>每个方案的验收标准都写清楚了</mark>。</div></li>
+              <li><time>05:40</time><div><b>宋川 · 助教</b>小王那边也是，联调的时候他先把日志都拉出来了。</div></li>
+              <li><time>18:40</time><div><b>宋川 · 助教</b>缓存那个问题，他主要是一个个试，没先缩小范围。</div></li>
+            </ol>
+          </div>
+          <div style="margin-top: var(--s-4); padding-top: var(--s-3); border-top: 1px dashed var(--line)">
+            <div class="n-asks"><button class="n-ask" type="button">谁在这次会议里展现了推动力？</button><button class="n-ask" type="button">有要跟进的事吗？</button><button class="n-ask" type="button">何以宁的坚毅力有证据吗？</button></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：核对与校准 ═════════ -->
+    <section class="ds-sec" id="c-verify">
+      <h2>核对与校准</h2>
+      <p class="lead">AI 拿不准的地方交给人，一次只问一件事。选完立刻生效，证据飞入对应档案。</p>
+      <div class="ds-grid c2">
+        <article class="n-card n-verify">
+          <span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>待核对 · W2 复盘录音 05:40</span>
+          <p class="n-verify__q" style="margin-top: var(--s-2)">录音里的 <q>小王</q> 指的是谁？</p>
+          <div class="n-choices" id="verify">
+            <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:100">王</span>王一舟<small>同议题组员 · 可能性高</small></button>
+            <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:320">王</span>王蔓<small>业务成功部</small></button>
+            <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>都不是，稍后处理<small></small></button>
+          </div>
+        </article>
+        <article class="n-card n-calib">
+          <span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突 · 智慧力</span>
+          <p style="margin: var(--s-2) 0 0; font-weight: 600">林知远在 W2 导师团复盘中的表现</p>
+          <div class="n-calib__pair">
+            <div class="n-calib__side"><span style="color:var(--ink-3)">叶青 · 导师</span><b>4</b>"方案对比清楚，结论→依据→取舍都有。"</div>
+            <div class="n-calib__side"><span style="color:var(--ink-3)">宋川 · 助教</span><b>2</b>"排查问题靠试，不是系统性收敛。"</div>
+          </div>
+          <label for="calib-reason" style="font-size:var(--t-xs);color:var(--ink-3)">校准为 3 分，理由</label>
+          <textarea class="n-calib__reason" id="calib-reason">方案表达到位，排查过程确实发散，各取一半。</textarea>
+          <div class="ds-row" style="margin-top: var(--s-3)"><button class="n-btn n-btn--ink" type="button">校准为 3 分</button><button class="n-btn n-btn--ghost" type="button">稍后</button></div>
+        </article>
+      </div>
+      <article class="n-card" style="margin-top: var(--s-4)">
+        <h3 class="n-section-title">HRBP 校准队列<span class="n-count">3</span></h3>
+        <ul class="n-queue">
+          <li><div><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突</span> 林知远 · 智慧力 · W2 导师团复盘<small>两位评价人分差 ≥ 2</small></div><span class="n-queue__pair">4 / 2</span></li>
+          <li><div><span class="n-badge">与 AI 分差大</span> 何以宁 · 内生动力 · 客户现场演示<small>导师改分 5，AI 建议 2，导师没写理由</small></div><span class="n-queue__pair">5 / <span style="color:var(--light)">2</span></span></li>
+          <li><div><span class="n-badge n-badge--recal">可能需要重新校准</span> 周屿 · 参考位置从双高移到专业骨干<small>新事件 3 条 · 正式位置不会自动移动</small></div><span class="n-queue__pair">去象限</span></li>
+        </ul>
+      </article>
+    </section>
+
+    <!-- ═════════ 档案：版本与时间线 ═════════ -->
+    <section class="ds-sec" id="c-timeline">
+      <h2>档案：版本与时间线</h2>
+      <p class="lead">每次盘点批次确认时，为范围内每个人冻结一份档案版本，之后的新事件不会改写它；档案页可以切到历史版本，和当前对比。时间线用事件真实发生的时间，不知道时间的单独列出；历史资料保留原量表，不换算成维度分。</p>
+      <div class="n-pver" id="pver">
+        <span class="n-pver__label">档案版本</span>
+        <div class="n-seg" role="group" aria-label="档案版本" id="pver-seg">
+          <button type="button" data-v="now" aria-pressed="true">当前</button>
+          <button type="button" data-v="h1" aria-pressed="false">2026 H1 · 已冻结</button>
+          <button type="button" data-v="land" aria-pressed="false">Landing 结营 · 已冻结</button>
+        </div>
+        <span class="n-pver__label" id="pver-note">实时更新 · 包含 10-23 前已确认的事件</span>
+        <div class="n-pver__cmp" id="pver-cmp" hidden></div>
+      </div>
+
+      <div class="ds-grid c2 tl-layout" style="margin-top: var(--s-4)">
+        <article class="n-card">
+          <ol class="n-tl">
+            <li class="n-tl__month">2026 年 10 月</li>
+            <li class="n-tl__item"><span class="n-tl__date">10-22</span><span class="n-tl__dot is-change"></span><div class="n-tl__body"><div class="n-tl__title">内生动力走高</div><div class="n-tl__meta"><span class="n-delta"><s>3.2</s><svg><use href="#i-up-r"/></svg>4.4</span>近 3 个月 4 条 · 对比之前 9 个月 <span class="n-rule"><svg><use href="#i-flag"/></svg>均值变化 ≥ 1.5</span></div></div></li>
+            <li class="n-tl__item"><span class="n-tl__date">10-21</span><span class="n-tl__dot"></span><div class="n-tl__body"><div class="n-tl__title">需求变更后主动给出两个备选方案</div><div class="n-tl__meta"><span class="n-src n-src--obs"><svg><use href="#i-eye"/></svg>管理观察</span>叶青 · 导师 · <b style="color:var(--ink-2)">2 个来源</b>：复盘录音 03:12、W2 周报第 3 段（同一件事，只计一次）</div></div></li>
+            <li class="n-tl__item"><span class="n-tl__date">10-15</span><span class="n-tl__dot"></span><div class="n-tl__body"><div class="n-tl__title">客户现场演示后调整搜索结果展示</div><div class="n-tl__meta">多人事件 · 何以宁（主讲、提出改法）· 林知远（搭演示环境）· 各自按本人行为打分</div></div></li>
+            <li class="n-tl__month">2026 年 9 月</li>
+            <li class="n-tl__item"><span class="n-tl__date">09-28</span><span class="n-tl__dot is-self"></span><div class="n-tl__body"><div class="n-tl__title">「下个阶段想离客户近一点，试试售前。」</div><div class="n-tl__meta"><span class="n-src n-src--self"><svg><use href="#i-quote"/></svg>本人自述</span>季度复盘录音 12:31</div></div></li>
+            <li class="n-tl__item"><span class="n-tl__date">09-02</span><span class="n-tl__dot is-hist"></span><div class="n-tl__body"><div class="n-tl__title">训练营评审</div><div class="n-tl__meta"><span class="n-src n-src--fact"><svg><use href="#i-doc"/></svg>历史资料</span>实训营评审表 · C14 单元格</div><div class="n-scale"><span>作品分 86</span><span>个人分 B+</span><span>能力等级 A</span></div><div class="n-tl__note">保留原量表，不换算成 1–5 的维度分，也不参与象限。AI 打分时可以引用其中的文字评价。</div></div></li>
+            <li class="n-tl__item"><span class="n-tl__date">08-20</span><span class="n-tl__dot is-hist"></span><div class="n-tl__body"><div class="n-tl__title">工程规范评分 · 小组级</div><div class="n-tl__meta"><span class="n-src n-src--fact"><svg><use href="#i-doc"/></svg>项目情境</span>挂在项目「海外加速搜索体验」上</div><div class="n-scale"><span>PR A</span><span>Issue B</span><span>CI A</span><span>AI 使用 B</span></div><div class="n-tl__note">这是小组的评分，不复制成每位成员的个人分。</div></div></li>
+            <li class="n-tl__month">更早</li>
+            <li class="n-tl__item"><span class="n-tl__date">2026-07</span><span class="n-tl__dot is-hist"></span><div class="n-tl__body"><div class="n-tl__title">招聘评估</div><div class="n-tl__meta"><span class="n-src n-src--fact"><svg><use href="#i-doc"/></svg>历史资料</span>社招面试评价表 · 2 位面试官</div><div class="n-scale"><span>专业能力 4</span><span>潜力 4</span><span>沟通协作 3</span><span>建议职级 N3</span></div></div></li>
+            <li class="n-tl__item"><span class="n-tl__date">H1</span><span class="n-tl__dot is-hist"></span><div class="n-tl__body"><div class="n-tl__title">绩效等级</div><div class="n-tl__meta"><span class="n-badge"><svg><use href="#i-lock"/></svg>管理受限</span><span class="n-badge">含评价成分</span>不当作客观事实</div><div class="n-scale"><span>B+</span></div></div></li>
+            <li class="n-tl__month">时间未知</li>
+            <li class="n-tl__item is-unknown"><span class="n-tl__date">未知</span><span class="n-tl__dot"></span><div class="n-tl__body"><div class="n-tl__title">联调时独立定位缓存问题</div><div class="n-tl__meta">周屿 · 一对一记录里提到，没有说是哪一次 · <button class="n-btn n-btn--sm n-btn--ghost" type="button" style="min-height:22px;padding:0 6px">补上时间</button></div></div></li>
+          </ol>
+        </article>
+
+        <div class="ds-grid" style="align-content:start">
+          <article class="n-card">
+            <h3 class="n-section-title">员工本人看到的</h3>
+            <p class="ds-caption" style="margin:0">员工只看本人经历和发布给本人的行动；能补充，能纠错，不能改别人的观察和管理结论。</p>
+            <div class="n-self__acts">
+              <button class="n-btn n-btn--sm" type="button"><svg><use href="#i-plus"/></svg>补充经历</button>
+              <button class="n-btn n-btn--sm" type="button"><svg><use href="#i-quote"/></svg>写意愿</button>
+              <button class="n-btn n-btn--sm n-btn--ghost" type="button"><svg><use href="#i-pen"/></svg>提出纠错</button>
+            </div>
+            <div class="n-pubaction"><div>参加 11 月客户现场轮岗<small>苏晚发布给你 · 10-20</small></div><span class="n-astate" data-s="todo">待安排</span></div>
+            <div class="n-lock" style="margin-top: var(--s-3)"><svg><use href="#i-lock"/></svg>维度分、象限、他人的评价和「值得聊一聊」对本人不可见。</div>
+          </article>
+          <article class="n-card">
+            <h3 class="n-section-title">本人纠错</h3>
+            <div class="n-notice is-plain"><svg><use href="#i-info"/></svg><div><b>林知远提出：</b>10-15 的演示环境是和陈一禾一起搭的，不是我一个人。<div class="ds-row"><button class="n-btn n-btn--sm n-btn--ink" type="button">按纠错修改归属</button><button class="n-btn n-btn--sm n-btn--ghost" type="button">回复说明</button></div></div></div>
+            <p class="ds-caption">纠错进入录入人的待办；修改后保留原记录和修改理由。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：个人能力谱 ═════════ -->
+    <section class="ds-sec" id="c-profile">
+      <h2>个人能力谱</h2>
+      <p class="lead">放在人员档案里，看的是一个人。每个维度一条 1–5 的刻度，事件按分值聚合：每个刻度上一个墨点，外圈越大事件越多，实心部分是近 3 个月的，竖线是均值。事件再多，每行也只有 5 个位置；墨点分散说明评价不稳，实心偏向哪边说明最近的走向。资料不足的维度画斜纹并写明缺什么，不会被画成低分。右上角的小象限是这个人历次校准的位置。员工本人和导师看不到这张图。</p>
+      <article class="n-card n-spectrum" id="spectrum">
+        <div class="n-spectrum__head">
+          <div class="n-person"><span class="n-avatar n-avatar--lg" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><div><div class="n-person__name">林知远 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">增长产品部 / 业务成功部 · N3 · Landing 第三期</div><div class="n-person__meta">近 12 个月 · 已确认 <span id="spectrum-total"></span> 条事件分 · rubric-v1</div></div></div>
+          <div class="n-miniquad" aria-label="历次校准：W2 复盘在待观察，结营在高潜待练">
+            <div class="n-miniquad__plane"></div>
+            <svg aria-hidden="true"><path d="M30 60 Q34 34 44 22"/></svg>
+            <span class="n-miniquad__pt" style="left:23%;top:75%" title="W2 复盘：待观察"></span>
+            <span class="n-miniquad__pt is-now" style="left:33%;top:27%" title="结营：高潜待练"></span>
+            <span class="n-miniquad__cap">W2 → 结营 · 高潜待练</span>
+          </div>
+        </div>
+        <div class="n-spectrum__scale"><span></span><div class="n-spectrum__ticks"><span style="left:0%">1</span><span style="left:25%">2</span><span style="left:50%">3</span><span style="left:75%">4</span><span style="left:100%">5</span></div><span></span></div>
+        <div id="spectrum-rows"></div>
+        <div class="n-spectrum__legend">
+          <span><i class="k-all"></i>外圈：这个分值的全部事件</span>
+          <span><i class="k-recent"></i>实心：其中近 3 个月</span>
+          <span><i class="k-mean"></i>均值</span>
+          <span><i class="k-unknown"></i>资料不足</span>
+          <span>点一行展开事件</span>
+        </div>
+      </article>
+    </section>
+
+    <!-- ═════════ 组件：值得聊一聊 ═════════ -->
+    <section class="ds-sec" id="c-signal">
+      <h2>值得聊一聊</h2>
+      <p class="lead">人员档案里单独一块，用来接住"老员工是不是没有新鲜感了"这类关心。不给状态打分，也不下结论，只列出能核实的信号，每条都能点开来源；处理方式只有两种：安排一次沟通，或写明原因暂不处理。小犇不出现在这里。</p>
+      <div class="ds-grid c2 signal-layout">
+        <article class="n-card n-signal" id="signal">
+          <header class="n-signal__head">
+            <div class="n-person"><span class="n-avatar" style="--hue:60">沈</span><div><div class="n-person__name">沈砚 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">存储平台部 · N5 · 入职 6 年</div></div></div>
+            <span class="n-signal__vis"><svg><use href="#i-lock"/></svg>CEO、归属 HRBP、直属负责人可见</span>
+          </header>
+          <h3 class="n-signal__title">值得聊一聊</h3>
+          <p class="n-signal__sub">下面 3 条信号都能核实，放在一起看，可能值得找他聊一次。这不是对他心态的判断。</p>
+          <ul class="n-signal__list">
+            <li>
+              <span class="n-src n-src--fact"><svg><use href="#i-doc"/></svg>原始事实</span>
+              <span class="n-signal__text">职级 38 个月没有变化</span>
+              <button class="n-signal__from" type="button" aria-expanded="false">任职记录</button>
+              <div class="n-signal__detail" hidden>在职人员信息表 · 职级列 · 2023-08 定级 N5，之后无变更（截至 10-23）</div>
+            </li>
+            <li>
+              <span class="n-src n-src--fact"><svg><use href="#i-doc"/></svg>原始事实</span>
+              <span class="n-signal__text">近 6 个月没有加入新项目</span>
+              <button class="n-signal__from" type="button" aria-expanded="false">项目成员记录</button>
+              <div class="n-signal__detail" hidden>最近一次加入项目：对象存储冷数据迁移（4 月），目前仍在该项目</div>
+            </li>
+            <li>
+              <span class="n-src n-src--self"><svg><use href="#i-quote"/></svg>本人自述</span>
+              <span class="n-signal__text ink-hand">"做的事情挺熟了，没什么新鲜感。"</span>
+              <button class="n-signal__from" type="button" aria-expanded="false">9 月复盘 · 12:40</button>
+              <div class="n-signal__detail" hidden><svg><use href="#i-play"/></svg>9 月季度复盘录音 12:31–12:52 · 录入人 苏晚</div>
+            </li>
+          </ul>
+
+          <div class="n-signal__actions" id="signal-actions">
+            <button class="n-btn n-btn--ink" type="button" id="signal-talk">安排一次沟通</button>
+            <button class="n-btn n-btn--ghost" type="button" id="signal-hold">暂不处理</button>
+          </div>
+
+          <form class="n-signal__form" id="signal-talk-form" hidden>
+            <label>谁来聊<select id="signal-who"><option>周屿（直属负责人）</option><option>苏晚（HRBP）</option></select></label>
+            <label>什么时候前<select id="signal-when"><option>11-06 前</option><option>11-13 前</option><option>本月内</option></select></label>
+            <div class="n-signal__formbar">
+              <button class="n-btn n-btn--sm n-btn--ink" type="submit">创建跟进</button>
+              <button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button>
+            </div>
+          </form>
+
+          <form class="n-signal__form" id="signal-hold-form" hidden>
+            <label class="is-wide">为什么暂不处理<input class="n-score__why" id="signal-reason" placeholder="写一句原因，比如：上周刚聊过，他在准备转岗" required></label>
+            <div class="n-signal__formbar">
+              <button class="n-btn n-btn--sm n-btn--ink" type="submit" id="signal-hold-ok" disabled>确认暂不处理</button>
+              <button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button>
+            </div>
+          </form>
+
+          <div class="n-signal__result" id="signal-result" hidden></div>
+        </article>
+
+        <aside class="n-card n-signal-rule">
+          <h4>什么能算信号</h4>
+          <ul>
+            <li><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>可以</span>任职、调岗、项目进出等记录</li>
+            <li><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>可以</span>本人在复盘、一对一里说过的话，带录音时间点</li>
+            <li><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>可以</span>负责人写下的具体行为，比如"连续两次评审没有提方案"</li>
+            <li><span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不可以</span>从语气、作息、回消息快慢推断心态</li>
+            <li><span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不可以</span>"倦怠""离职风险""成就感低"这类结论词</li>
+            <li><span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不可以</span>给状态打分，或让信号进入象限、影响找人排序</li>
+          </ul>
+          <div class="n-lock"><svg><use href="#i-lock"/></svg>导师和员工本人在任何入口都看不到这一块。</div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ═════════ 重点跟踪 ═════════ -->
+    <section class="ds-sec" id="c-track">
+      <h2>重点跟踪</h2>
+      <p class="lead">跟踪不是收藏：要写清为什么关注、具体想观察什么、谁负责、下次什么时候看。新材料进来时，卡片上显示「上次之后新增了什么」。停止跟踪不删除历史。</p>
+      <div class="ds-grid c2">
+        <article class="n-card n-track" id="trackcard">
+          <div class="n-track__head">
+            <div class="n-person"><span class="n-avatar" style="--hue:250"><img src="assets/avatars/he-yining.jpg" alt="">何</span><div><div class="n-person__name">何以宁 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">Landing 第三期 · 增长产品部</div></div></div>
+            <span class="n-badge" id="track-state"><svg><use href="#i-target"/></svg>跟踪中</span>
+          </div>
+          <dl class="n-track__dl">
+            <dt>为什么关注</dt><dd>结营落位「高潜待练」，判断力的证据都发生在导师在场时</dd>
+            <dt>想观察</dt><dd class="n-track__q">没有导师在场时，能不能独立做方案取舍？</dd>
+            <dt>负责人</dt><dd>苏晚 · HRBP；叶青 · 导师协助</dd>
+            <dt>下次</dt><dd>11-06 前，或下一次对人复盘</dd>
+          </dl>
+          <div class="n-track__new"><h5>上次（10-09）之后新增</h5>
+            <span class="n-diff"><ins>2 条事件</ins>：客户现场演示后调整展示方式（智慧力 4，叶青确认）；独立排查告警噪音（资料不足：只写了参与）</span>
+          </div>
+          <div class="n-track__acts">
+            <button class="n-btn n-btn--sm n-btn--ink" type="button"><svg><use href="#i-plus"/></svg>记一条观察</button>
+            <button class="n-btn n-btn--sm" type="button">改观察问题</button>
+            <button class="n-btn n-btn--sm n-btn--ghost" type="button" id="track-stop">停止跟踪</button>
+          </div>
+        </article>
+        <div class="ds-grid" style="align-content:start">
+          <div class="n-card">
+            <h3 class="n-section-title">从哪里发起</h3>
+            <p class="ds-caption" style="margin:0 0 var(--s-3)">人员页、候选名单、盘点清单，或者一句话：「持续关注何以宁独立做方案取舍的表现」。系统带入人员和已有材料，只追问还缺的观察问题。</p>
+            <div class="n-composer" style="box-shadow: var(--e-1)"><span data-ip-s="listening" data-ip-size="36"></span><textarea class="n-composer__field" rows="2" aria-label="一句话发起跟踪">持续关注何以宁独立做方案取舍的表现</textarea></div>
+          </div>
+          <div class="n-notice is-plain"><svg><use href="#i-info"/></svg><div>停止跟踪后，卡片收起到「已结束的跟踪」，观察问题和期间的事件都还在档案里。</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：能力象限 ═════════ -->
+    <section class="ds-sec" id="c-quad">
+      <h2>能力象限（校准会）</h2>
+      <p class="lead">用在盘点批次或 Landing 结营的校准会上：HRBP 和部门负责人一起，把一个团队的人逐个落到象限里。纸面上只有两笔墨。小犇根据已确认的维度分算出每个人的参考位置，化作光点落下；人把头像拖到自己判断的位置，光点留在原处，中间连一道由光到墨的痕迹。拖到另一个象限时，小犇会问一句理由；全部确认后光点消散、盖印冻结。</p>
+      <div class="ds-grid c2 quad-layout">
+        <div class="n-quad" id="quad-wrap">
+          <span class="n-seal n-quad__seal" id="quad-seal">冻<br>结</span>
+          <div class="n-quad__frame">
+            <div class="n-quad__y">潜力 →</div>
+            <div class="n-quad__plane" id="quad">
+              <div class="n-quad__cell" data-q="hl">高潜待练</div>
+              <div class="n-quad__cell" data-q="hh">双高</div>
+              <div class="n-quad__cell" data-q="ll">待观察</div>
+              <div class="n-quad__cell" data-q="lh">专业骨干</div>
+              <span class="n-quad__axis n-quad__axis--h" aria-hidden="true"></span>
+              <span class="n-quad__axis n-quad__axis--v" aria-hidden="true"></span>
+              <svg class="n-quad__trail" id="quad-trail" aria-hidden="true"></svg>
+            </div>
+            <div class="n-quad__x">专业度（对标当前职级）→</div>
+          </div>
+          <div class="n-quad__foot">
+            <span id="quad-ip"></span>
+            <div class="n-quad__say" id="quad-say" aria-live="polite">
+              <span id="quad-say-text">参考位置还没有给出。</span>
+              <textarea id="quad-reason" hidden placeholder="写一句理由" aria-label="和参考位置不同的理由"></textarea>
+            </div>
+            <div class="n-quad__wait">
+              <b>还在等材料 · 3 人</b>
+              <span class="chip"><span class="n-avatar n-avatar--sm" style="--hue:280"><img src="assets/avatars/gu-nan.jpg" alt="">顾</span>顾南 <small>潜力轴缺 2 条事件</small></span>
+              <span class="chip"><span class="n-avatar n-avatar--sm" style="--hue:60"><img src="assets/avatars/song-xiaoman.jpg" alt="">宋</span>宋小满 <small>入职 3 周</small></span>
+              <span class="chip"><span class="n-avatar n-avatar--sm" style="--hue:340">沈</span>沈星河 <small>专业度无评分</small></span>
+            </div>
+          </div>
+        </div>
+        <div class="n-card" style="padding: var(--s-5)" id="quad-panel">
+          <div class="n-person" style="margin-bottom: var(--s-3)"><span class="n-avatar n-avatar--lg" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><div><div class="n-person__name">林知远 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">增长产品部 / 业务成功部 · N3 · Landing 第三期</div></div></div>
+          <div class="n-score" data-state="confirmed"><span class="n-score__dim">专业度</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i><i class="n-score__dot"></i></span><span class="n-score__note">均值 3.0 · 4 条</span></div>
+          <div class="n-score" data-state="confirmed"><span class="n-score__dim">潜力核心</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span><span class="n-score__note">均值 3.8 · 6 条</span></div>
+          <div class="n-score" data-state="confirmed"><span class="n-score__dim">开放性</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span><span class="n-score__note">加分项 ≥ 4</span></div>
+          <div class="ds-row" style="margin-top: var(--s-5)">
+            <button class="n-btn n-btn--ink" type="button" id="quad-confirm">确认校准</button>
+            <button class="n-btn n-btn--ghost" type="button" id="quad-reset"><svg><use href="#i-retry"/></svg>重新给出参考位置</button>
+          </div>
+          <p class="ds-caption">选中头像后可以用方向键移动。资料不足的人不进象限，也不会被放在左下角。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ Landing 批次与双周对人复盘 ═════════ -->
+    <section class="ds-sec" id="c-landing">
+      <h2>Landing 批次与双周对人复盘</h2>
+      <p class="lead">一个批次 = 期次 + 新人 + 议题 + 导师和助教 + 复盘节奏。每周对事复盘，每两周对人复盘，W4 结营形成第一份档案。对人复盘按维度组织；CEO 关心的「判断力、推动力」作为观察主题挂在对应维度下，不改维度名。</p>
+      <article class="n-card">
+        <div class="n-batch__head">
+          <span class="n-avatar n-avatar--lg" style="--hue:220;border-radius:14px"><svg width="22" height="22"><use href="#i-users"/></svg></span>
+          <div><h3 class="n-batch__title">Landing 第三期</h3><div class="n-batch__meta">增长产品部 · 10-08 – 11-02 · 6 名新人 · 4 个议题 · 导师 3 位、助教 1 位</div></div>
+          <span class="n-badge n-badge--yes">进行中 · W3</span>
+        </div>
+        <div class="n-weeks">
+          <div class="n-week is-done"><b>W1 进组</b>对事复盘<div class="tags"><span>已完成</span></div></div>
+          <div class="n-week is-done"><b>W2</b>对事 + 对人复盘<div class="tags"><span>对人复盘 5/6 已确认</span></div></div>
+          <div class="n-week is-now"><b>W3 本周</b>对事复盘<div class="tags"><span>周五 16:00</span></div></div>
+          <div class="n-week"><b>W4 结营</b>对人复盘 + 结营评估<div class="tags"><span>第一次象限校准</span></div></div>
+        </div>
+        <ul class="n-roster">
+          <li><span class="n-avatar n-avatar--sm" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><div>林知远<small>工单检索 · 叶青</small></div><span class="n-badge n-badge--yes">已确认</span></li>
+          <li><span class="n-avatar n-avatar--sm" style="--hue:250"><img src="assets/avatars/he-yining.jpg" alt="">何</span><div>何以宁<small>客户演示 · 叶青</small></div><span class="n-badge n-badge--conflict">待校准</span></li>
+          <li><span class="n-avatar n-avatar--sm" style="--hue:100">王</span><div>王一舟<small>工单检索 · 宋川</small></div><span class="n-badge">待导师确认</span></li>
+          <li><span class="n-avatar n-avatar--sm" style="--hue:60"><img src="assets/avatars/song-xiaoman.jpg" alt="">宋</span><div>宋小满<small>采购流程 · 孟夏</small></div><span class="n-badge n-badge--unknown">资料不足</span></li>
+        </ul>
+      </article>
+
+      <h3 class="ds-sub">W2 对人复盘</h3>
+      <p>一份活文档：自动带入两周内的事件、录音证据和导师评价。导师逐项确认分数，HRBP 处理冲突后整份复盘确认。</p>
+      <article class="n-card n-review">
+        <div class="n-batch__head" style="margin-bottom: var(--s-4)">
+          <div class="n-person"><span class="n-avatar" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><div><div class="n-person__name">林知远 · W2 对人复盘 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">10-08 – 10-21 · 带入 5 条事件、1 段录音 · 导师叶青、助教宋川</div></div></div>
+        </div>
+        <div class="n-review__dim">
+          <div class="n-review__dimhead"><h4>智慧力</h4><span class="n-theme">判断力</span><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突 4 / 2</span></div>
+          <div class="n-review__ev">需求变更后带着 A、B 两个方案来，每个写了验收标准和风险<span class="n-cite"><button class="n-cite__mark" data-kind="audio" type="button" aria-label="引用：复盘录音">1</button></span>；排查缓存问题时主要靠试，没有系统性收敛<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用：助教评价">2</button></span>。</div>
+        </div>
+        <div class="n-review__dim">
+          <div class="n-review__dimhead"><h4>内生动力</h4><span class="n-theme">推动力</span><span class="n-score" data-state="confirmed" style="min-height:0"><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span></span><span class="n-badge">叶青已确认</span></div>
+          <div class="n-review__ev">没等安排，第二天就把剩下的活拆成 5 个 Issue 并认领。</div>
+        </div>
+        <div class="n-review__dim">
+          <div class="n-review__dimhead"><h4>坚毅力</h4><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></div>
+          <div class="n-review__ev" style="color:var(--ink-3)">这两周没有受挫后的反应记录。下次复盘可以留意：方案被否之后他怎么做。</div>
+        </div>
+        <div class="n-review__foot">导师确认 2/3 · 1 项冲突在 HRBP 校准队列<button class="n-btn n-btn--ink" type="button" disabled title="还有 1 项冲突未校准">确认这次复盘</button></div>
+      </article>
+    </section>
+
+    <!-- ═════════ 盘点批次与组织调整方案 ═════════ -->
+    <section class="ds-sec" id="c-review">
+      <h2>盘点批次与组织调整方案</h2>
+      <p class="lead">盘点先固定范围和证据截止时间，范围变动留记录；资料不足的人单独列出，不默认归为低潜。团队分布和上一期对比，只看数量变化，不给人排名。调整方案逐条写清动作、依据、意愿、可否释放和对两边团队的影响。</p>
+      <article class="n-card">
+        <div class="n-batch__head">
+          <div><h3 class="n-batch__title">增长产品部 · 2026 H2 盘点</h3><div class="n-batch__meta">苏晚发起 · 与 2026 H1 档案版本对比</div></div>
+          <span class="n-badge n-version__tag is-draft" style="background:var(--light-soft)">草稿</span>
+        </div>
+        <div class="n-scope">
+          <div>范围<b>48 人 · 6 个二级团队</b></div>
+          <div>证据截止<b>10-31</b></div>
+          <div>资料不足<b>13 人（27%）</b></div>
+          <div>已写逐人结论<b>21 / 48</b></div>
+        </div>
+        <ul class="n-log"><li>10-20 苏晚：加入 SDR 并入的 6 人（组织调整已公开宣布）</li><li>10-18 苏晚：证据截止时间从 10-25 改为 10-31</li></ul>
+        <div>
+          <div>
+            <h4 class="n-section-title" style="font-size:var(--t-sm)">团队分布 · 本期（上期）</h4>
+            <div class="n-dist">
+              <div>高潜待练 <b>7 <small style="color:var(--ink-3);font-weight:400">(5)</small></b></div>
+              <div>双高 <b>6 <small style="color:var(--ink-3);font-weight:400">(6)</small></b></div>
+              <div>待观察 <b>8 <small style="color:var(--ink-3);font-weight:400">(9)</small></b></div>
+              <div>专业骨干 <b>14 <small style="color:var(--ink-3);font-weight:400">(13)</small></b></div>
+              <div class="na">资料不足 <b>13 <small style="color:var(--ink-3);font-weight:400">(9)</small></b></div>
+            </div>
+            <p class="ds-caption">资料不足上升主要来自新并入的 6 人：他们的事件还在原系统里，需要补录。</p>
+          </div>
+          <div class="n-rollwrap" style="margin-top:var(--s-4)">
+            <table class="n-roll">
+              <thead><tr><th>人员</th><th>资料</th><th>变化</th><th>结论</th></tr></thead>
+              <tbody>
+                <tr><td>何以宁<small>客户转化组</small></td><td>9 条 · 维度齐</td><td><span class="n-rule"><svg><use href="#i-flag"/></svg>智慧力 ↓</span></td><td><span class="n-badge">未写</span></td></tr>
+                <tr><td>周屿<small>后端组</small></td><td>14 条 · 维度齐</td><td><span class="n-badge n-badge--recal">可能需要重新校准</span></td><td><span class="n-badge n-badge--yes">已写</span></td></tr>
+                <tr><td>沈星河<small>SDR 并入</small></td><td>1 条 · 缺潜力证据</td><td>—</td><td><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <h3 class="ds-sub">组织调整方案</h3>
+      <p>每一条动作都能回到依据；本人意愿和可否释放未知时写「未知」，不默认同意或空闲。确认方案不等于调岗已经执行，后续以行动跟踪。</p>
+      <article class="n-card">
+        <div class="n-move">
+          <div class="n-move__head"><span class="n-move__type">负责人安排</span><b>周屿</b><span class="n-move__path">后端组高级工程师<svg><use href="#i-chev"/></svg>新转化团队 owner</span></div>
+          <div class="n-move__grid">
+            <div>依据<b>主导过跨团队交付<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用">1</button></span>；双高（2026 H1 校准）</b></div>
+            <div>缺口<b>海外客户经验证据冲突</b></div>
+            <div>本人意愿<b>已沟通 · 愿意</b></div>
+            <div>可否释放<b>需交接 2 周，后端组同意</b></div>
+            <div>影响<b>后端组少 1 名高级；新团队有了 owner</b></div>
+          </div>
+        </div>
+        <div class="n-move">
+          <div class="n-move__head"><span class="n-move__type">调岗</span><b>沈砚</b><span class="n-move__path">存储平台部<svg><use href="#i-chev"/></svg>灰度发布平台（试任 3 个月）</span><span class="n-kind">激活</span></div>
+          <div class="n-move__grid">
+            <div>依据<b>来自「值得聊一聊」后的沟通，本人想换方向</b></div>
+            <div>缺口<b>灰度发布相关经历资料不足</b></div>
+            <div>本人意愿<b>已沟通 · 主动提出</b></div>
+            <div>可否释放<b class="unknown" style="color:var(--unknown)">未知 · 待和存储平台部确认</b></div>
+            <div>影响<b>存储平台部冷数据迁移需要新 owner</b></div>
+          </div>
+        </div>
+        <div class="n-move">
+          <div class="n-move__head"><span class="n-move__type is-watch">继续观察</span><b>沈星河</b><span class="n-move__path">资料不足，本期不做调整</span></div>
+          <div class="n-move__grid"><div>下次补什么<b>补录原系统里的客户跟进记录</b></div><div>负责人<b>苏晚 · 12-15 前</b></div></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ═════════ 组件：人与项目 ═════════ -->
+    <section class="ds-sec" id="c-project">
+      <h2>人与项目</h2>
+      <p class="lead">人和项目是多对多关系。人员行只放识别所需的最少信息；项目卡显示目标、状态、owner 和成员，成员的进出都留有记录。</p>
+      <div class="ds-stage avatar-spec">
+        <div><span class="n-avatar n-avatar--lg" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><span class="n-avatar" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><span class="n-avatar n-avatar--sm" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><p>已上传照片</p></div>
+        <div><span class="n-avatar n-avatar--lg" style="--hue:150">陈</span><span class="n-avatar" style="--hue:150">陈</span><span class="n-avatar n-avatar--sm" style="--hue:150">陈</span><p>未上传：姓氏 + 底色</p></div>
+        <p class="ds-caption">头像只用于认人，48 / 32 / 24 三档。没有照片时显示姓氏，底色按人固定，不随状态或分数变化；照片加载失败也回到这个样子。</p>
+      </div>
+      <div class="ds-grid c2">
+        <div class="ds-stage" style="padding: var(--s-3)">
+          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><div style="min-width:0"><div class="n-person__name">林知远 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">业务成功部 · 初级产品架构师 · 2 个项目</div></div></div><span class="n-badge" style="background:var(--q-hl);color:var(--q-hl-ink)">高潜待练</span></div>
+          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:30"><img src="assets/avatars/zhou-yu.jpg" alt="">周</span><div style="min-width:0"><div class="n-person__name">周屿 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">增长产品部 · 高级后端工程师 · 3 个项目</div></div></div><span class="n-badge" style="background:var(--q-hh);color:var(--q-hh-ink)">双高</span></div>
+          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:280"><img src="assets/avatars/gu-nan.jpg" alt="">顾</span><div style="min-width:0"><div class="n-person__name">顾南 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">技术支持部 · 技术支持工程师 · 1 个项目</div></div></div><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></div>
+          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:150">陈</span><div style="min-width:0"><div class="n-person__name">陈一禾 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">员工视角下，看不到象限与分数</div></div></div><span class="n-lock"><svg><use href="#i-lock"/></svg>仅本人资料</span></div>
+        </div>
+        <article class="n-card n-project">
+          <div class="n-project__head">
+            <span class="n-avatar" style="--hue:220;border-radius:10px"><svg width="16" height="16"><use href="#i-folder"/></svg></span>
+            <div style="flex:1;min-width:0">
+              <h3 class="n-project__name">海外加速搜索体验</h3>
+              <p class="n-project__goal">让海外客户在控制台里一次搜到加速相关的全部入口，Q4 上线。</p>
+            </div>
+            <span class="n-badge n-badge--yes">进行中</span>
+          </div>
+          <ul class="n-members" style="margin-top: var(--s-4)">
+            <li><div class="n-person"><span class="n-avatar n-avatar--sm" style="--hue:30"><img src="assets/avatars/zhou-yu.jpg" alt="">周</span><span class="n-person__name">周屿</span></div><span class="n-members__role">owner</span><span class="n-members__when">10-08 起</span></li>
+            <li><div class="n-person"><span class="n-avatar n-avatar--sm" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><span class="n-person__name">林知远</span></div><span class="n-members__role">前端 · 兼职</span><span class="n-members__when">10-15 起</span></li>
+            <li class="is-left"><div class="n-person"><span class="n-avatar n-avatar--sm" style="--hue:150">陈</span><span class="n-person__name">陈一禾</span></div><span class="n-members__role">后端</span><span class="n-members__when">10-08 – 10-20</span></li>
+          </ul>
+          <div class="ds-row" style="margin-top: var(--s-4)">
+            <button class="n-btn n-btn--sm" type="button"><svg><use href="#i-plus"/></svg>添加成员</button>
+            <button class="n-btn n-btn--sm n-btn--ghost" type="button">编辑</button>
+            <button class="n-btn n-btn--sm n-btn--ghost" type="button" title="已有关联事件，只能归档">归档</button>
+          </div>
+        </article>
+      </div>
+      <div class="ds-grid c2" style="margin-top: var(--s-4)">
+        <div class="ds-stage">
+          <h4 class="n-section-title" style="font-size:var(--t-sm)">项目状态</h4>
+          <div class="n-pstates"><span class="n-badge n-badge--prep">筹备中</span><span class="n-badge n-badge--yes">进行中</span><span class="n-badge n-badge--ended">已结束</span><span class="n-badge n-badge--archived"><svg><use href="#i-archive"/></svg>已归档</span></div>
+          <p class="ds-caption">没有关联事件和方案的项目可以删除（5 秒撤销）；已有关联的只能归档，因为事件和方案快照引用了它。</p>
+          <div class="n-ownerless" style="margin-top: var(--s-4)"><span class="n-slot__empty"><svg width="14" height="14"><use href="#i-plus"/></svg></span><div><b>新转化团队</b><div style="font-size:var(--t-xs);color:var(--ink-3)">筹备中 · owner 待定</div></div><button class="n-btn n-btn--sm n-btn--light" type="button"><svg><use href="#i-spark"/></svg>发起找 owner</button></div>
+        </div>
+        <div class="ds-stage">
+          <h4 class="n-section-title" style="font-size:var(--t-sm)">成员变动记录</h4>
+          <ul class="n-mhist">
+            <li><time>10-22</time>林知远：前端 · 兼职 → 前端 · 全职 · 周屿修改</li>
+            <li><time>10-20</time>陈一禾退出：转入后端组 · 苏晚记录</li>
+            <li><time>10-15</time>林知远加入：前端 · 兼职 · 周屿添加</li>
+            <li><time>10-08</time>周屿成为 owner：来自项目用人方案 v2</li>
+          </ul>
+          <p class="ds-caption">加入、退出、改角色都记时间和操作人，任用后复盘会用到。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：找人与方案 ═════════ -->
+    <section class="ds-sec" id="c-plan">
+      <h2>找人与方案</h2>
+      <p class="lead">候选卡逐项列出要求和证据状态，不出现总分；相关维度的已确认分数可以展示，但列表不按分数排序。把候选人拖进角色槽位，槽位会显示这个角色还缺哪些证据。</p>
+      <div class="ds-grid c2">
+        <article class="n-card n-candidate" draggable="true" id="cand" aria-describedby="cand-tip">
+          <div class="n-person"><span class="n-avatar" style="--hue:30"><img src="assets/avatars/zhou-yu.jpg" alt="">周</span><div><div class="n-person__name">周屿 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">增长产品部 · N5 · 当前在 3 个项目</div></div></div>
+          <ul class="n-reqs">
+            <li><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span><span>主导过跨团队交付：融合线路配置改造<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用">1</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src"><svg width="14" height="14"><use href="#i-doc"/></svg>项目复盘文档 · 第 2 节</span><p class="n-cite__quote">协调了运维与销售两条线，<mark>按期交付并把耗时降低一半</mark>。</p></span></span></span></li>
+            <li><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突</span><span>海外客户经验：简历有，近两年事件里没有</span></li>
+            <li><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span><span>Q4 是否有余量：本人意愿未知</span></li>
+          </ul>
+          <dl class="n-cmeta">
+            <dt>本人意愿</dt><dd class="unknown">未知 · 还没问过</dd>
+            <dt>可否释放</dt><dd>后端组：需交接 2 周</dd>
+            <dt>当前安排</dt><dd>3 个项目，其中 1 个 12 月结束</dd>
+            <dt>下一步</dt><dd>和他确认 Q4 余量与意愿</dd>
+          </dl>
+          <div class="ds-row" style="margin-top: var(--s-3)"><button class="n-btn n-btn--sm" type="button" id="cand-put">放入方案</button><span id="cand-tip" style="font-size:var(--t-xs);color:var(--ink-3)">或直接拖到右侧槽位</span></div>
+        </article>
+        <div class="ds-grid">
+          <div class="n-slot" id="slot" aria-live="polite">
+            <span class="n-slot__empty"><svg width="14" height="14"><use href="#i-plus"/></svg></span>
+            <div><div class="n-slot__role">角色</div><b>项目 owner</b></div>
+          </div>
+          <div class="n-slot"><span class="n-slot__empty"><svg width="14" height="14"><use href="#i-plus"/></svg></span><div><div class="n-slot__role">角色</div><b>前端</b></div></div>
+          <div class="n-version"><span class="n-version__tag is-draft">草稿 v3</span><span style="color:var(--ink-3)">基于 v2 · 改了 2 处</span><span style="margin-left:auto" class="n-diff">owner：<del>待定</del> <ins>周屿</ins></span></div>
+          <div class="n-version"><span class="n-version__tag is-frozen">v2 已确认</span><span style="color:var(--ink-3)">程远 · CEO · 10-20 · 快照已冻结</span><span class="n-seal n-seal--sm" style="margin-left:auto">定</span></div>
+        </div>
+      </div>
+      <div class="ds-grid c3" style="margin-top: var(--s-4)">
+        <article class="n-card">
+          <div class="n-person"><span class="n-avatar" style="--hue:320">韩</span><div><div class="n-person__name">韩策 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">客户成功部 · 部门负责人</div></div></div>
+          <div class="ds-row" style="margin-top: var(--s-2)"><span class="n-manual"><svg width="11" height="11"><use href="#i-user"/></svg>程远手动补入</span></div>
+          <p class="ds-caption">人工补入的人单独标注，不冒充模型推荐；要求逐项照样核对。</p>
+        </article>
+        <article class="n-card">
+          <h4 class="n-section-title" style="font-size:var(--t-sm)">条件待确认 · 3 人</h4>
+          <ul class="n-pending">
+            <li><span class="n-avatar n-avatar--sm" style="--hue:100">王</span>王一舟<small>意愿未知</small></li>
+            <li><span class="n-avatar n-avatar--sm" style="--hue:280"><img src="assets/avatars/gu-nan.jpg" alt="">顾</span>顾南<small>可否释放未知</small></li>
+            <li><span class="n-avatar n-avatar--sm" style="--hue:60"><img src="assets/avatars/song-xiaoman.jpg" alt="">宋</span>宋小满<small>海外经验资料不足</small></li>
+          </ul>
+          <p class="ds-caption">资料还缺的人放在这里，不当作「不满足」。进入正式方案前再核对关键条件。</p>
+        </article>
+        <article class="n-card n-state" style="padding: var(--s-6) var(--s-4)">
+          <span data-ip="confirm"></span>
+          <p class="n-state__title">没有找到合适的「海外渠道负责人」</p>
+          <p class="n-state__text">有 2 人只差海外客户经验的证据。可以先补材料，或者放宽这一项。</p>
+          <div class="ds-row" style="justify-content:center"><button class="n-btn n-btn--sm" type="button">看 2 人的缺口</button><button class="n-btn n-btn--sm n-btn--ghost" type="button">修改要求</button></div>
+        </article>
+      </div>
+      <div class="ds-grid c2" style="margin-top: var(--s-4)">
+        <div class="n-notice is-deny" id="deny"><svg><use href="#i-lock"/></svg><div><b>你没有确认方案的权限。</b>部门负责人可以起草和提出修改；确认需要 CEO 或指定的 HRBP。<div class="ds-row"><button class="n-btn n-btn--sm" type="button">请程远确认</button></div></div></div>
+        <div class="n-notice"><svg><use href="#i-split"/></svg><div><b>苏晚刚刚也改了这份方案。</b>她把前端改成了「王一舟」，和你的修改冲突。<div class="ds-row"><button class="n-btn n-btn--sm" type="button">看两边的差异</button><button class="n-btn n-btn--sm n-btn--ghost" type="button">保留她的版本</button></div></div></div>
+      </div>
+      <div class="ds-stage" style="margin-top: var(--s-4)">
+        <h4 class="n-section-title" style="font-size:var(--t-sm)">差异视图 · v3 对比 v2</h4>
+        <p class="n-diff" style="margin:0;font-size:var(--t-sm);line-height:2">owner：<del>待定</del> <ins>周屿</ins>。前端：<ins>林知远（兼职，观察到 12-15）</ins>。关键要求：<del>有海外客户经验</del> <ins>有海外客户经验，或愿意在 Q4 跟一次海外交付</ins>。依据新增 <ins>1 条</ins>：融合线路配置改造复盘。</p>
+      </div>
+    </section>
+
+    <!-- ═════════ 行动与复盘 ═════════ -->
+    <section class="ds-sec" id="c-action">
+      <h2>行动与复盘</h2>
+      <p class="lead">方案确认后的每件事都是一条行动，有五种状态。预计日期和实际日期分开记；没执行要写原因，不算员工的失败。复盘时左边是当时的判断（冻结的版本），右边是后来的事实，结论只有继续、调整、撤回三种。</p>
+      <div class="ds-grid c2">
+        <article class="n-card">
+          <h3 class="n-section-title">行动</h3>
+          <div class="n-action"><div><div class="n-action__title">周屿接任新转化团队 owner</div><div class="n-action__meta">来自方案 v3 · 预计 11-01 · 负责人 苏晚</div></div><span class="n-astate" data-s="todo">待沟通</span></div>
+          <div class="n-action"><div><div class="n-action__title">沈砚试任灰度发布平台 <span class="n-kind">激活</span></div><div class="n-action__meta">来自「值得聊一聊」· 预计 11-10 · 观察 3 个月</div></div><span class="n-astate" data-s="doing">进行中</span></div>
+          <div class="n-action"><div><div class="n-action__title">林知远加入海外加速搜索体验</div><div class="n-action__meta">预计 10-15 · 实际 10-15 · 观察到 12-15</div></div><span class="n-astate" data-s="done">已执行待观察</span></div>
+          <div class="n-action"><div><div class="n-action__title">陈一禾转入后端组</div><div class="n-action__meta">预计 08-01 · 实际 08-04 · 10-20 已复盘：继续</div></div><span class="n-astate" data-s="reviewed">已复盘</span></div>
+          <div class="n-action"><div><div class="n-action__title">王一舟负责采购流程议题</div><div class="n-action__meta">未执行 · <span class="why">议题优先级下调，换到下一期，不是个人原因</span></div></div><span class="n-astate" data-s="cancel">未执行</span></div>
+        </article>
+        <article class="n-card">
+          <h3 class="n-section-title">任用后复盘 · 陈一禾转入后端组</h3>
+          <div class="n-retro">
+            <div class="n-retro__col n-retro__then"><h5>当时的判断 · 方案 v1 · 07-20 冻结</h5><ul><li>目标：补上后端组的存储经验</li><li>假设：他在实训营做过存储相关课题</li><li>观察：3 个月内独立负责一个模块</li></ul></div>
+            <div class="n-retro__col n-retro__now"><h5>后来的事实 · 08-04 至今</h5><ul><li>独立负责缓存模块，2 次上线无回滚<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用">1</button></span></li><li>背景变化：Q4 预算削减，模块范围缩小</li></ul></div>
+            <div class="n-retro__foot">
+              <div class="n-seg n-seg--md" role="group" aria-label="复盘结论"><button type="button" aria-pressed="true">继续</button><button type="button" aria-pressed="false">调整</button><button type="button" aria-pressed="false">撤回</button></div>
+              <textarea class="n-calib__reason" aria-label="复盘说明">范围缩小是预算原因；在缩小后的范围内达成了观察目标。</textarea>
+              <div class="ds-row"><button class="n-btn n-btn--ink" type="button">记录复盘</button><span class="ds-caption" style="margin:0">结果回到陈一禾的档案时间线</span></div>
+            </div>
+          </div>
+        </article>
+      </div>
     </section>
 
     <!-- ═════════ 组件：反馈与状态 ═════════ -->
@@ -739,6 +1504,14 @@
         <div class="n-card n-state"><span data-ip="listening"></span><p class="n-state__title">还没有关键事件</p><p class="n-state__text">说一句他最近做的事，或者上传一段复盘录音。</p><button class="n-btn n-btn--sm n-btn--ink" type="button">记录第一条</button></div>
         <div class="n-card n-state"><span data-ip="error"></span><p class="n-state__title">转写没有完成</p><p class="n-state__text">第 3 段音频上传中断。已完成的 2 段保留着，可以只重传这一段。</p><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-retry"/></svg>重传第 3 段</button></div>
         <div class="n-card n-state"><span class="n-avatar n-avatar--lg" style="--hue:0;background:var(--sheet-sunk);box-shadow:none"><svg width="20" height="20" style="color:var(--ink-3)"><use href="#i-lock"/></svg></span><p class="n-state__title">这部分资料不对你开放</p><p class="n-state__text">盘点结论只对相关 HRBP 和部门负责人可见。如有需要，请联系苏晚。</p></div>
+      </div>
+      <h3 class="ds-sub">AI 与来源出问题时</h3>
+      <p>失败要说清哪一步没完成、保留了什么、下一步能做什么。不拿别的模型的结果冒充 Jev，不补写看起来合理的经历。</p>
+      <div class="ds-grid c2">
+        <div class="n-fail"><div class="n-fail__head"><svg><use href="#i-info"/></svg>Jev 的判断暂未生成</div><p>「有海外客户经验」这一项还没有判断结果。证据已经整理好，不受影响。</p><div class="n-fail__kept">已保留：周屿相关事件 4 条 · 简历第 2 段</div><div class="ds-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-retry"/></svg>重新判断</button><button class="n-btn n-btn--sm n-btn--ghost" type="button">我自己判断</button></div></div>
+        <div class="n-fail"><div class="n-fail__head"><svg><use href="#i-clock"/></svg>整理超时</div><p>你的原话已经保存，还没整理成事件。可以再试一次，或者自己填背景、行为、结果。</p><div class="n-fail__kept">已保存的原话：「W2 中途客户说搜索结果看不懂内部标识……」</div><div class="ds-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-retry"/></svg>再整理一次</button><button class="n-btn n-btn--sm n-btn--ghost" type="button">自己填写</button></div></div>
+        <div class="n-fail"><div class="n-fail__head"><svg><use href="#i-quote"/></svg>来源受限的引用</div><p>判断依据来自一份你无权查看全文的材料<span class="n-cite"><button class="n-cite__mark" data-kind="locked" type="button" aria-label="引用 3：来源受限">3</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src"><svg width="14" height="14"><use href="#i-doc"/></svg>2026 H1 盘点讨论纪要 · 第 4 段</span><span class="n-cite__locked"><svg><use href="#i-lock"/></svg>这份材料含其他人的管理评价，你只能看到它被引用了，看不到原文。</span></span></span>。悬停角标只显示出处，不显示原文。</p></div>
+        <div class="n-fail"><div class="n-fail__head"><svg><use href="#i-dash"/></svg>规则待定的标签</div><p>模型提出了新说法，但还没有定义和判断标准；它只能用于检索，不显示为 Jev 判断。</p><div class="ds-row" style="margin-top:var(--s-3)"><span class="n-tag is-pending">交付节奏感 · 规则待定</span><span class="n-tag is-candidate">客户视角<small>候选</small></span><span class="n-tag">方案对比</span></div></div>
       </div>
     </section>
 
@@ -799,6 +1572,10 @@
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const wait = ms => new Promise(r => setTimeout(r, reduced ? 0 : ms));
+  // 演示头像：已上传照片的人用照片，其余用姓氏 + 底色（未上传时的默认样子）
+  const photos = { 林: 'lin-zhiyuan', 何: 'he-yining', 周: 'zhou-yu', 顾: 'gu-nan', 宋: 'song-xiaoman' };
+  const avatar = (n, hue, cls = '') => `<span class="n-avatar${cls}" style="--hue:${hue}">${photos[n] ? `<img src="assets/avatars/${photos[n]}.jpg" alt="">` : ''}${n}</span>`;
+  const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
   /* ── IP 挂载 ── */
   const brandIp = NiuIP.mount($('#brand-ip'), { state: 'rest', size: 28 });
@@ -938,33 +1715,141 @@
     });
   });
 
-  /* ── 维度打分 ── */
+  /* ── 关键事件：录入 → 整理 → 确认 ── */
+  const ev = $('#event-demo'), evIp = NiuIP.mount($('#event-ip'), { state: 'rest', size: 28 });
+  const shaped = {
+    title: '需求变更后主动给出两个备选方案',
+    bg: 'W2 中途，客户反馈搜索结果看不懂内部标识，原方案需要调整。',
+    act: '第二天带着方案 A、B 找导师，各自写清验收标准与风险。',
+    res: '方案 B 被采纳，他把剩余任务重新拆分为 5 个 Issue。',
+  };
   const dims = [
-    { name: '智慧力', ai: 4, note: '锚点 4 · 引用录音 03:12' },
-    { name: '内生动力', ai: 4, note: '锚点 4 · 引用周报第 3 段' },
-    { name: '坚毅力', ai: null, state: 'unknown', note: '涉及但没有受挫后的行为' },
+    { name: '智慧力', ai: 4, note: '锚点 4 · 引用原话"每个都写了验收标准和风险"' },
+    { name: '内生动力', ai: 4, note: '锚点 4 · 引用原话"他第二天就带着"' },
+    { name: '坚毅力', ai: null, state: 'unknown', note: '涉及方案被改，但没写他受挫后的反应' },
     { name: '领导力', ai: null, state: 'absent', note: '' },
   ];
+  // 标签：库里已有的由 AI 直接打上，可删；库里没有的作为候选，交给 HRBP 决定是否收录
+  const tags = [
+    { name: '需求变更' }, { name: '方案对比' }, { name: '主动推进' }, { name: '任务拆解' },
+    { name: '客户视角', candidate: true },
+  ];
   const scores = $('#scores');
-  dims.forEach((d, i) => {
-    const row = document.createElement('div');
-    row.className = 'n-score';
-    row.dataset.state = d.state || 'ai';
-    d.value = d.ai;
-    row.innerHTML = `<span class="n-score__dim">${d.name}</span>
-      <span class="n-score__dots" role="radiogroup" aria-label="${d.name}分数">${[1, 2, 3, 4, 5].map(v => `<button type="button" class="n-score__dot" role="radio" aria-label="${v} 分" data-v="${v}"></button>`).join('')}</span>
-      ${d.state === 'unknown' ? '<span class="n-score__empty n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span>' : ''}
-      ${d.state === 'absent' ? '<span class="n-score__empty n-badge">未体现</span>' : ''}
-      <span class="n-score__note">${d.note}</span>`;
-    scores.appendChild(row);
-    d.row = row;
-    paint(d);
-    $$('.n-score__dot', row).forEach(btn => {
-      btn.addEventListener('click', () => { d.value = +btn.dataset.v; d.edited = d.value !== d.ai; row.dataset.state = 'confirmed'; paint(d); hint(); });
-      btn.addEventListener('mouseenter', () => anchorHit(+btn.dataset.v));
-      btn.addEventListener('focus', () => anchorHit(+btn.dataset.v));
-    });
+
+  $('#event-shape').addEventListener('click', async () => {
+    const raw = $('#event-text').value.trim();
+    if (!raw) { $('#event-text').focus(); return; }
+    $('#event-raw').textContent = raw;
+    $('#event-in').hidden = true; $('#event-body').hidden = false;
+    ev.dataset.step = 'shaped';
+    NiuIP.setState(evIp, 'thinking');
+    $('#tag-list').innerHTML = ''; $('#event-tags').hidden = true; $('#tag-undo').hidden = true;
+    scores.innerHTML = ''; $('#event-sign').hidden = true; $('#event-actions').hidden = true;
+    for (const el of $$('.n-edit', ev)) {
+      el.textContent = ''; el.classList.add('is-light');
+      for (const ch of shaped[el.dataset.k]) { el.textContent += ch; await wait(22); }
+      await wait(120);
+    }
+    await buildTags();
+    buildScores();
+    NiuIP.setState(evIp, 'confirm');
+    $('#event-actions').hidden = false;
+    hint();
   });
+  $$('.n-edit', ev).forEach(el => el.addEventListener('input', () => el.classList.remove('is-light')));
+  $('#event-back').addEventListener('click', () => {
+    $('#event-body').hidden = true; $('#event-in').hidden = false; ev.dataset.step = 'write';
+    $('#tag-add').hidden = false;
+    NiuIP.setState(evIp, 'rest'); $('#event-text').focus();
+  });
+
+  function tagChip(t) {
+    const chip = document.createElement('span');
+    chip.className = 'n-tag' + (t.candidate ? ' is-candidate' : t.human ? '' : ' is-ai');
+    chip.textContent = t.name;
+    if (t.candidate) {
+      chip.title = '标签库里还没有这个标签，Jev 已把它列为候选，等 HRBP 决定是否收录';
+      chip.insertAdjacentHTML('beforeend', '<small>候选</small>');
+    } else {
+      const x = document.createElement('button');
+      x.type = 'button'; x.className = 'n-tag__x'; x.setAttribute('aria-label', `移除标签「${t.name}」`);
+      x.innerHTML = '<svg><use href="#i-x"/></svg>';
+      x.addEventListener('click', () => removeTag(chip, t));
+      chip.appendChild(x);
+    }
+    return chip;
+  }
+  async function buildTags() {
+    $('#event-tags').hidden = false;
+    for (const t of tags) {
+      const chip = tagChip(t);
+      $('#tag-list').appendChild(chip);
+      chip.animate([{ opacity: 0, transform: 'scale(.85)' }, { opacity: 1, transform: 'none' }], { duration: reduced ? 1 : 260, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      await wait(90);
+    }
+  }
+  function removeTag(chip, t) {
+    const next = chip.nextSibling;
+    chip.remove();
+    const undo = $('#tag-undo');
+    undo.innerHTML = `已移除「${esc(t.name)}」<button type="button">撤销</button>`;
+    undo.hidden = false;
+    $('button', undo).onclick = () => { $('#tag-list').insertBefore(chip, next); undo.hidden = true; };
+  }
+  $('#tag-add').addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.className = 'n-tag__input'; input.placeholder = '搜索或新建标签';
+    input.setAttribute('aria-label', '加标签');
+    $('#tag-add').hidden = true;
+    $('#tag-add').before(input); input.focus();
+    const done = add => {
+      const name = input.value.trim();
+      if (add && name) $('#tag-list').appendChild(tagChip({ name, human: true }));
+      input.remove(); $('#tag-add').hidden = false;
+    };
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); done(true); } if (e.key === 'Escape') done(false); });
+    input.addEventListener('blur', () => done(true));
+  });
+
+  function buildScores() {
+    dims.forEach(d => {
+      const row = document.createElement('div');
+      row.className = 'n-score';
+      row.dataset.state = d.state || 'ai';
+      d.value = d.ai; d.edited = false;
+      row.innerHTML = `<span class="n-score__dim">${d.name}</span>
+        <span class="n-score__dots" role="radiogroup" aria-label="${d.name}分数">${[1, 2, 3, 4, 5].map(v => `<button type="button" class="n-score__dot" role="radio" aria-label="${v} 分" data-v="${v}"></button>`).join('')}</span>
+        ${d.state === 'unknown' ? '<span class="n-score__empty n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span>' : ''}
+        ${d.state === 'absent' ? '<span class="n-score__empty n-badge">未体现</span>' : ''}
+        <span class="n-score__note"></span>`;
+      $('.n-score__note', row).textContent = d.note;
+      scores.appendChild(row);
+      d.row = row;
+      paint(d);
+      $$('.n-score__dot', row).forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (ev.dataset.step === 'done') return;
+          d.value = +btn.dataset.v; d.edited = d.value !== d.ai; row.dataset.state = 'confirmed';
+          paint(d); why(d); hint();
+        });
+        btn.addEventListener('mouseenter', () => anchorHit(+btn.dataset.v));
+        btn.addEventListener('focus', () => anchorHit(+btn.dataset.v));
+      });
+    });
+  }
+  // 改了 AI 的分时，在这一行下面给一个可选的理由输入
+  function why(d) {
+    let input = $('.n-score__why', d.row);
+    if (!d.edited) { input && input.remove(); return; }
+    if (!input) {
+      input = document.createElement('input');
+      input.className = 'n-score__why';
+      input.placeholder = `为什么改成 ${d.value} 分？（可选）`;
+      input.setAttribute('aria-label', `${d.name}改分理由`);
+      d.row.appendChild(input);
+      input.focus({ preventScroll: true });
+    } else input.placeholder = `为什么改成 ${d.value} 分？（可选）`;
+  }
   function paint(d) {
     $$('.n-score__dot', d.row).forEach(b => {
       const v = +b.dataset.v;
@@ -974,18 +1859,158 @@
     });
     const note = $('.n-score__note', d.row);
     if (d.row.dataset.state === 'confirmed') {
-      note.innerHTML = `<span class="ink-hand">叶青</span>${d.edited ? `<span class="n-score__delta">${d.value > d.ai ? '+' : ''}${d.value - d.ai}</span>AI 原为 ${d.ai}` : '已确认'}`;
+      note.innerHTML = d.edited ? `<span class="n-score__delta">${d.value > d.ai ? '+' : ''}${d.value - d.ai}</span>AI 原为 ${d.ai}` : '已确认';
     }
   }
   function anchorHit(v) { $$('#anchor li').forEach(li => li.classList.toggle('is-hit', +li.dataset.v === v)); }
   anchorHit(4);
   function hint() {
-    const left = dims.filter(d => d.row.dataset.state === 'ai').length;
-    $('#score-hint').textContent = left ? `还有 ${left} 项 AI 建议未确认` : '全部已确认，已计入档案';
+    const left = dims.filter(d => d.row && d.row.dataset.state === 'ai').length;
+    $('#score-hint').textContent = left ? `文字可以直接改；还有 ${left} 项 AI 建议分，保存时一并确认` : '分数都已由你确认';
   }
   $('#score-confirm').addEventListener('click', () => {
-    dims.forEach(d => { if (d.row.dataset.state === 'ai') { d.row.dataset.state = 'confirmed'; paint(d); } });
-    hint();
+    dims.forEach(d => { if (d.row.dataset.state === 'ai') d.row.dataset.state = 'confirmed'; paint(d); });
+    $$('.n-edit', ev).forEach(el => { el.classList.remove('is-light'); el.removeAttribute('contenteditable'); });
+    $$('.n-tag', $('#tag-list')).forEach(c => { c.classList.remove('is-ai'); $('.n-tag__x', c)?.remove(); });
+    $('#tag-add').hidden = true; $('#tag-undo').hidden = true;
+    $$('.n-score__why', ev).forEach(i => { i.blur(); if (!i.value.trim()) i.remove(); else i.readOnly = true; });
+    ev.dataset.step = 'done';
+    const sign = $('#event-sign');
+    sign.innerHTML = '<span class="ink-hand">叶青</span>导师 · 刚刚保存到林知远的档案';
+    sign.hidden = false; $('#event-actions').hidden = true;
+    NiuIP.setState(evIp, 'done');
+  });
+
+  /* ── 标签库与候选 ── */
+  const taglib = [
+    { group: '做事方式', tags: [['方案对比', 41], ['主动推进', 36], ['任务拆解', 28, 1], ['需求理解', 22], ['复盘习惯', 9, 1]] },
+    { group: '场景', tags: [['需求变更', 23], ['线上故障', 17], ['跨团队协作', 14, 1], ['客户现场', 6, 1]] },
+    { group: '技术方向', tags: [['存储', 31], ['音视频', 19], ['搜索与检索', 12], ['数据平台', 8, 1]] },
+  ];
+  const libHost = $('#taglib-groups');
+  const renderLib = () => {
+    libHost.innerHTML = taglib.map(g => `<div class="n-taglib__group"><h4>${g.group}</h4><div class="n-taglib__tags">${[...g.tags].sort((a, b) => b[1] - a[1]).map(([n, c, ex]) =>
+      `<span class="n-tag${ex ? ' is-extracted' : ''}${n === '客户视角' ? ' is-new' : ''}">${ex ? '<svg><use href="#i-spark"/></svg>' : ''}${n}<b>${c}</b></span>`).join('')}</div></div>`).join('');
+    $('#taglib-total').textContent = taglib.reduce((a, g) => a + g.tags.length, 0);
+  };
+  renderLib();
+  const candActions = $('#cand-actions'), candDone = $('#cand-done'), candChip = $('#cand-chip');
+  candActions.addEventListener('click', e => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    const act = btn.dataset.act, def = $('#cand-def');
+    def.classList.remove('is-light'); def.removeAttribute('contenteditable');
+    candActions.hidden = true;
+    if (act === 'keep') {
+      taglib[0].tags.push(['客户视角', 6, 1]); renderLib();
+      candChip.className = 'n-tag';
+      candDone.innerHTML = '<span class="ink-hand">苏晚</span>HRBP 收录 · 刚刚。6 条事件已打上这个标签。';
+    } else if (act === 'merge') {
+      const t = taglib[0].tags.find(t => t[0] === '需求理解'); t[1] += 6; renderLib();
+      candChip.className = 'n-tag is-merged';
+      candDone.innerHTML = '<span class="ink-hand">苏晚</span>HRBP 并入「需求理解」· 刚刚。6 条事件改用这个标签，「客户视角」作为它的别名，之后再出现会直接归过去。';
+    } else {
+      candChip.className = 'n-tag is-dropped';
+      candDone.innerHTML = '<span class="ink-hand">苏晚</span>HRBP 决定不收录 · 刚刚。这 6 条事件不加标签，Jev 之后不再提这个词。';
+    }
+    candDone.insertAdjacentHTML('beforeend', '<button type="button">撤销</button>');
+    candDone.hidden = false;
+    $('#cand-left').textContent = '还有 2 个';
+    $('button', candDone).onclick = () => {
+      if (act === 'keep') taglib[0].tags.pop();
+      if (act === 'merge') taglib[0].tags.find(t => t[0] === '需求理解')[1] -= 6;
+      renderLib();
+      candChip.className = 'n-tag is-candidate';
+      def.classList.add('is-light'); def.setAttribute('contenteditable', 'plaintext-only');
+      candDone.hidden = true; candActions.hidden = false; $('#cand-left').textContent = '3 个';
+    };
+  });
+
+  /* ── 个人能力谱 ── */
+  // bins: 分值 → [更早的条数, 近 3 个月的条数]；ev: 展开时列出的事件（示例只列一部分）
+  const spectrum = [
+    { group: '专业度（对标 N3）' },
+    { dim: '专业度', bins: { 2: [1, 0], 3: [3, 1], 4: [1, 2] }, ev: [[4, '10-22', '叶青', '结营评审：接口设计清楚'], [4, '10-16', '周屿', '联调时独立定位缓存问题'], [3, '10-09', '叶青', '搜索接口联调'], [2, '08-30', '宋川', '排查问题靠试错']] },
+    { group: '潜力 · 核心' },
+    { dim: '内生动力', bins: { 3: [2, 1], 4: [5, 3], 5: [1, 2] }, ev: [[5, '10-22', '叶青', '结营后继续跟进客户反馈'], [4, '10-21', '叶青', '需求变更后主动给出两个备选方案'], [5, '10-12', '苏晚', '周会主动认领没人接的联调文档'], [3, '10-03', '宋川', '有一次等待安排'], [4, '09-18', '叶青', '主动补上测试用例']] },
+    { dim: '智慧力', bins: { 2: [1, 1], 3: [2, 1], 4: [3, 3], 5: [0, 1] }, ev: [[4, '10-21', '叶青', '方案对比：结论→依据→取舍'], [2, '10-21', '宋川', '排查问题不够系统'], [5, '10-14', '叶青', '用最小验证路径确认需求'], [3, '09-25', '叶青', '需求拆解偏粗']] },
+    { dim: '坚毅力', unknown: '资料不足 · 还没有受挫后如何反应的事件' },
+    { group: '潜力 · 加分项' },
+    { dim: '领导力', bins: { 3: [1, 0] }, ev: [[3, '09-20', '叶青', '组内对齐进度']] },
+    { dim: '开放性', bins: { 4: [2, 1], 5: [0, 1] }, ev: [[5, '10-21', '叶青', '方案被选 B 后迅速调整计划'], [4, '10-12', '叶青', '采纳客户反馈'], [4, '09-19', '苏晚', '借鉴别组的评审做法']] },
+  ];
+  const at = v => (v - 1) / 4 * 100;
+  const host = $('#spectrum-rows');
+  let total = 0;
+  spectrum.forEach(r => {
+    if (r.group) { const g = document.createElement('div'); g.className = 'n-spectrum__group'; g.textContent = r.group; host.appendChild(g); return; }
+    if (r.unknown) {
+      const row = document.createElement('div');
+      row.className = 'n-spectrum__row';
+      row.innerHTML = `<span class="n-spectrum__dim">${r.dim}</span><div class="n-spectrum__track is-unknown">${r.unknown}</div><span class="n-spectrum__stat"><span class="cnt">0 条</span></span>`;
+      host.appendChild(row); return;
+    }
+    let n = 0, sum = 0;
+    Object.entries(r.bins).forEach(([v, [o, c]]) => { n += o + c; sum += v * (o + c); });
+    total += n;
+    const mean = sum / n;
+    const bins = Object.entries(r.bins).map(([v, [o, c]]) => {
+      const all = o + c, d = Math.min(30, 10 + 6 * Math.sqrt(all - 1)), inner = c ? Math.max(6, d * Math.sqrt(c / all)) : 0;
+      return `<span class="n-spectrum__bin" style="left:${at(+v)}%;width:${d}px;height:${d}px" title="${v} 分：${all} 条，其中近 3 个月 ${c} 条"><i style="width:${inner}px;height:${inner}px"></i></span>${all > 1 ? `<em class="n-spectrum__count" style="left:${at(+v)}%">${all}</em>` : ''}`;
+    }).join('');
+    const row = document.createElement('button');
+    row.type = 'button'; row.className = 'n-spectrum__row';
+    row.setAttribute('aria-expanded', 'false');
+    row.innerHTML = `<span class="n-spectrum__dim"><svg><use href="#i-chev"/></svg>${r.dim}</span>
+      <span class="n-spectrum__track" aria-hidden="true">
+        ${[1, 2, 3, 4, 5].map(v => `<i class="n-spectrum__tick" style="left:${at(v)}%"></i>`).join('')}
+        ${bins}<i class="n-spectrum__mean" style="left:${at(mean)}%"></i>
+      </span>
+      <span class="n-spectrum__stat"><b>${mean.toFixed(1)}</b><span class="cnt">${n} 条${n < 2 ? ' · 证据少' : ''}</span></span>`;
+    row.setAttribute('aria-label', `${r.dim}，均值 ${mean.toFixed(1)}，${n} 条事件，点开查看`);
+    const list = document.createElement('ul');
+    list.className = 'n-spectrum__list'; list.hidden = true;
+    list.innerHTML = r.ev.map(([v, d, by, t]) => `<li class="${d < '10-01' ? 'is-old' : ''}"><b>${v}</b><span>${d}</span><span>${by}</span><span>${t}</span></li>`).join('')
+      + (n > r.ev.length ? `<li class="more">还有 ${n - r.ev.length} 条，打开档案时间线查看</li>` : '');
+    row.addEventListener('click', () => {
+      const open = row.getAttribute('aria-expanded') !== 'true';
+      row.setAttribute('aria-expanded', open); list.hidden = !open;
+    });
+    host.append(row, list);
+  });
+  $('#spectrum-total').textContent = total;
+
+  /* ── 值得聊一聊 ── */
+  const sig = $('#signal');
+  $$('.n-signal__from', sig).forEach(b => b.addEventListener('click', () => {
+    const open = b.getAttribute('aria-expanded') !== 'true';
+    b.setAttribute('aria-expanded', open); b.nextElementSibling.hidden = !open;
+  }));
+  const sigActions = $('#signal-actions'), talkForm = $('#signal-talk-form'), holdForm = $('#signal-hold-form'), sigResult = $('#signal-result');
+  const showForm = f => { sigActions.hidden = true; talkForm.hidden = f !== talkForm; holdForm.hidden = f !== holdForm; $('select, input', f).focus(); };
+  const backToActions = () => { talkForm.hidden = holdForm.hidden = sigResult.hidden = true; sigActions.hidden = false; sig.classList.remove('is-resolved'); };
+  $('#signal-talk').addEventListener('click', () => showForm(talkForm));
+  $('#signal-hold').addEventListener('click', () => showForm(holdForm));
+  $$('[data-cancel]', sig).forEach(b => b.addEventListener('click', backToActions));
+  $('#signal-reason').addEventListener('input', e => { $('#signal-hold-ok').disabled = !e.target.value.trim(); });
+  const resolve = html => {
+    talkForm.hidden = holdForm.hidden = true;
+    sigResult.innerHTML = html + '<button type="button" class="n-signal__undo">撤销</button>';
+    sigResult.hidden = false; sig.classList.add('is-resolved');
+    $('.n-signal__undo', sigResult).onclick = backToActions;
+  };
+  talkForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const who = $('#signal-who').value.replace(/（.*）/, '');
+    resolve(`<div class="n-signal__todo"><span class="n-badge">待沟通</span><b>${who}和沈砚聊一次</b><span>${$('#signal-when').value}</span></div>
+      <p>聊完在这里记一笔，沟通结果会作为一条事件回到沈砚的档案，这几条信号随之收起。</p>
+      <div class="n-block__by"><span class="n-block__sig">苏晚</span>HRBP 创建 · 刚刚</div>`);
+  });
+  holdForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const reason = $('#signal-reason').value.trim(); if (!reason) return;
+    resolve(`<p class="n-signal__reason"><span class="n-badge">暂不处理</span><span class="ink-hand">${esc(reason)}</span></p>
+      <p>信号保留在档案里；有新的信号出现时会重新提示。</p>
+      <div class="n-block__by"><span class="n-block__sig">苏晚</span>HRBP · 刚刚</div>`);
   });
 
   /* ── 能力象限：光点落位 ── */
@@ -1008,7 +2033,7 @@
     p.light = document.createElement('span'); p.light.className = 'n-quad__light';
     p.dot = document.createElement('button'); p.dot.type = 'button'; p.dot.className = 'n-quad__dot';
     p.dot.dataset.bonus = !!p.bonus;
-    p.dot.innerHTML = `<span class="n-avatar" style="--hue:${p.hue}">${p.n}</span>`;
+    p.dot.innerHTML = `${avatar(p.n, p.hue)}`;
     plane.append(p.light, p.dot);
     place(p); drag(p);
   });
@@ -1126,7 +2151,6 @@
     const seal = $('#quad-seal'); seal.style.opacity = 1; seal.classList.remove('is-stamping'); void seal.offsetWidth; seal.classList.add('is-stamping');
     NiuIP.setState(quadIp, 'done');
     say.classList.add('is-ink');
-    const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     const moved = people.filter(p => p.reason.trim()).map(p => `${p.name}（${esc(p.reason.trim())}）`);
     sayText.innerHTML = `已冻结快照 · <span class="ink-hand">苏晚</span> · 10-23。${moved.length ? '调整：' + moved.join('；') + '。' : ''}之后有新证据时，我只提示可能需要重新校准，不会挪动位置。`;
   });
@@ -1135,7 +2159,7 @@
   const cand = $('#cand'), slot = $('#slot');
   function fill() {
     slot.classList.add('is-filled');
-    slot.innerHTML = `<span class="n-avatar" style="--hue:30">周</span><div><div class="n-slot__role">项目 owner</div><b>周屿</b></div>
+    slot.innerHTML = `<span class="n-avatar" style="--hue:30"><img src="assets/avatars/zhou-yu.jpg" alt="">周</span><div><div class="n-slot__role">项目 owner</div><b>周屿</b></div>
       <div class="n-slot__gap"><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>海外客户经验待核实</span><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>本人意愿未知</span></div>`;
     slot.animate([{ transform: 'scale(.97)' }, { transform: 'scale(1.02)' }, { transform: 'none' }], { duration: reduced ? 1 : 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
   }
@@ -1236,6 +2260,185 @@
     d.innerHTML = `<div class="label">${label}</div><div style="display:flex;align-items:center;gap:var(--s-3)"><span></span><span>${text}</span></div>`;
     inuse.appendChild(d);
     NiuIP.mount($('span', d), { state: s, size: 36 });
+  });
+
+  /* ══════════ 外壳、控件与新增组件 ══════════ */
+  $$('[data-ip-s]').forEach(el => NiuIP.mount(el, { state: el.dataset.ipS, size: +(el.dataset.ipSize || 22) }));
+  $$('.n-state [data-ip]').forEach(el => { if (!el.closest('#states')) NiuIP.mount(el, { state: el.dataset.ip, size: 56 }); });
+
+  // 分段控件与模式选择：组内单选
+  $$('.n-seg, .n-modes').forEach(g => g.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || !g.contains(b)) return;
+    $$('button', g).forEach(x => x.setAttribute('aria-pressed', x === b));
+  }));
+
+  // 演示视角：同一份档案在不同视角下的可见内容
+  const roleData = {
+    ceo: ['以 CEO 程远的身份查看 · 全公司', 1, 1, 1, 1],
+    hrbp: ['以 HRBP 苏晚的身份查看 · 归属人员', 1, 1, 1, 1],
+    lead: ['以部门负责人韩策的身份查看 · 范围内人员', 1, 1, 1, 1],
+    mentor: ['以导师叶青的身份查看 · 所带学员', 1, 0, 0, 0],
+    self: ['以林知远本人的身份查看', 0, 0, 0, 0],
+  };
+  const dots = n => `<span class="n-score" data-state="confirmed" style="min-height:0"><span class="n-score__dots">${[1, 2, 3, 4, 5].map(v => `<i class="n-score__dot${v <= n ? ' is-on' : ''}"></i>`).join('')}</span></span>`;
+  const locked = t => `<span class="n-lock"><svg><use href="#i-lock"/></svg>${t}</span>`;
+  function renderRole(r) {
+    const [who, score, quad, signal, change] = roleData[r];
+    $('#role-who').textContent = who;
+    $('#vis').innerHTML = [
+      ['经历与事件', '<span>12 条事件 · 3 个项目</span>'],
+      ['维度分', score ? `<span style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px">智慧力 ${dots(4)} 内生动力 ${dots(4)}</span>` : locked('本人看不到自己的维度分')],
+      ['象限', quad ? '<span>正式位置：高潜待练 · 2026 H1 校准</span>' : locked(r === 'self' ? '本人看不到象限' : '导师看不到象限')],
+      ['值得聊一聊', signal ? '<span>没有信号</span>' : locked('只对 CEO、归属 HRBP、直属负责人可见')],
+      ['变化', change ? '<span class="n-delta">内生动力 <s>3.2</s><svg><use href="#i-up-r"/></svg>4.4</span>' : locked('只对 CEO、HRBP、范围内负责人可见')],
+    ].map(([k, v]) => `<div class="n-vis__row"><span>${k}</span>${v}</div>`).join('');
+  }
+  $('#roles').addEventListener('click', e => { const b = e.target.closest('button'); if (b) renderRole(b.dataset.r); });
+  renderRole('hrbp');
+
+  // ⌘K 命令面板
+  const cmdk = $('#cmdk'), cq = $('#cmdk-q'), clist = $('#cmdk-list');
+  const cmds = [
+    ['做事', 'i-pen', '记一条关键事件', '一句话或按住说话'], ['做事', 'i-spark', '为一个项目找人', '会先建项目和需求卡'], ['做事', 'i-layers', '发起一次盘点', '选团队和时间范围'], ['做事', 'i-upload', '上传材料', 'Office 文件或录音'],
+    ['人员', 'i-user', '林知远', '业务成功部 · Landing 第三期'], ['人员', 'i-user', '何以宁', '增长产品部 · Landing 第三期'], ['人员', 'i-user', '周屿', '增长产品部 · 后端组'],
+    ['项目', 'i-folder', '海外加速搜索体验', '进行中 · owner 周屿'], ['项目', 'i-folder', '新转化团队', '筹备中 · owner 待定'],
+  ];
+  let cSel = 0, cShown = [];
+  function renderCmdk() {
+    const q = cq.value.trim();
+    cShown = cmds.filter(c => !q || (c[2] + c[3]).includes(q));
+    cSel = Math.min(cSel, Math.max(0, cShown.length - 1));
+    if (!cShown.length) { clist.innerHTML = `<div class="n-cmdk__empty">没有找到「${esc(q)}」。可以直接回车，把它当作一句话交给 AI。</div>`; return; }
+    let g = '';
+    clist.innerHTML = cShown.map((c, i) => (c[0] !== g ? `<div class="n-cmdk__grp">${(g = c[0])}</div>` : '') +
+      `<button class="n-cmdk__item" type="button" role="option" aria-selected="${i === cSel}" data-i="${i}"><svg><use href="#${c[1]}"/></svg>${c[2]}<small>${c[3]}</small></button>`).join('');
+  }
+  const openCmdk = () => { cq.value = ''; cSel = 0; renderCmdk(); cmdk.showModal(); cq.focus(); };
+  $('#cmdk-open').addEventListener('click', openCmdk);
+  document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); cmdk.open ? cmdk.close() : openCmdk(); } });
+  cq.addEventListener('input', () => { cSel = 0; renderCmdk(); });
+  cq.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); cSel = (cSel + (e.key === 'ArrowDown' ? 1 : -1) + cShown.length) % Math.max(1, cShown.length); renderCmdk(); $('[aria-selected="true"]', clist)?.scrollIntoView({ block: 'nearest' }); }
+    if (e.key === 'Enter') { e.preventDefault(); cmdk.close(); }
+  });
+  clist.addEventListener('click', e => { if (e.target.closest('.n-cmdk__item')) cmdk.close(); });
+  cmdk.addEventListener('click', e => { if (e.target === cmdk) cmdk.close(); });
+
+  // 标签页：点击与左右方向键
+  $$('[role="tablist"]').forEach(list => {
+    const tabs = $$('[role="tab"]', list);
+    const pick = t => tabs.forEach(x => { const on = x === t; x.setAttribute('aria-selected', on); x.tabIndex = on ? 0 : -1; $('#' + x.getAttribute('aria-controls')).hidden = !on; });
+    list.addEventListener('click', e => { const t = e.target.closest('[role="tab"]'); if (t) pick(t); });
+    list.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const i = tabs.indexOf(document.activeElement), n = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+      pick(n); n.focus();
+    });
+  });
+
+  // 更多菜单
+  const menuBtn = $('#menu-btn'), menu = $('#menu');
+  const setMenu = open => { menu.hidden = !open; menuBtn.setAttribute('aria-expanded', open); if (open) $('button', menu).focus(); };
+  menuBtn.addEventListener('click', () => setMenu(menu.hidden));
+  menu.addEventListener('keydown', e => { if (e.key === 'Escape') { setMenu(false); menuBtn.focus(); } });
+  document.addEventListener('click', e => { if (!menu.hidden && !e.target.closest('.n-menuwrap')) setMenu(false); });
+  menu.addEventListener('click', e => { if (e.target.closest('button')) setMenu(false); });
+
+  // 弹窗
+  $$('[data-open]').forEach(b => b.addEventListener('click', () => $('#' + b.dataset.open).showModal()));
+  $$('.n-dialog').forEach(d => {
+    $$('[data-close]', d).forEach(b => b.addEventListener('click', () => d.close(b.dataset.close || 'cancel')));
+    d.addEventListener('close', () => {
+      const msg = { archived: '已改为归档。成员、事件和方案都保留。', frozen: '已确认 v3 并冻结。后续行动进入行动列表。' }[d.returnValue];
+      if (msg) $('#dlg-result').textContent = msg;
+    });
+  });
+
+  // 变化流
+  const changes = [
+    { t: 'trend', hit: 1, icon: 'i-down-r', who: '何以宁', hue: 250, what: '智慧力走低', win: [3.8, 2.3, 3], ver: [3.9, 2.3, 3], rule: '均值变化 ≥ 1.5', when: '10-21',
+      before: [['4', '需求拆解清楚，先做最小验证', '07-30 · 叶青'], ['4', '对比两种埋点方案', '08-12 · 叶青']],
+      after: [['2', '排查告警噪音时反复试，没有收敛', '10-09 · 宋川'], ['2', '客户反馈后直接改了实现，没有比较方案', '10-14 · 叶青'], ['3', '复盘时说清了取舍', '10-21 · 叶青']],
+      why: '近 3 个月 3 条已确认的智慧力分，均值 2.3；之前 9 个月 2 条，均值 3.8。下降可能和她换到客户演示议题、情境更模糊有关，建议先看事件再判断。', acts: ['转为跟踪', '和导师聊聊'] },
+    { t: 'activity', hit: 1, icon: 'i-clock', who: '沈砚', hue: 60, what: '90 天没有新事件', win: null, rule: '90 天无新事件', when: '10-20',
+      sub: '最近一条：07-22 冷数据迁移方案评审 · 4 月后没有加入新项目',
+      why: '没有新事件只说明没有被记录，不代表表现下降。和「值得聊一聊」里的两条信号一致。', acts: ['看「值得聊一聊」', '提醒负责人记录'] },
+    { t: 'quad', hit: 1, icon: 'i-grid', who: '周屿', hue: 30, what: '参考位置离开正式象限', win: null, rule: '参考位置跨象限', when: '10-18',
+      sub: '正式位置：双高（2026 H1 校准）→ 参考位置：专业骨干 · 新事件 3 条',
+      why: '新事件里潜力维度的分偏低（坚毅力 3、开放性 3），专业度不变。正式位置不会自动移动，需要在下一次校准时处理。', acts: ['加入下次校准'] },
+    { t: 'team', hit: 1, icon: 'i-layers', who: '客户转化组', team: 1, what: '资料不足比例上升', win: [21, 45, 0], ver: [18, 45, 0], unit: '%', rule: '资料不足 +20 个百分点', when: '10-20',
+      sub: '11 人中 5 人资料不足 · SDR 并入的 4 人还没有事件', why: '主要来自新并入的人员：他们的记录还在原系统里。这不是团队能力的变化。', acts: ['发起补录'] },
+    { t: 'trend', hit: 1, icon: 'i-up-r', who: '林知远', hue: 200, what: '内生动力走高', win: [3.2, 4.4, 4], ver: [3.0, 4.4, 4], rule: '均值变化 ≥ 1.5', when: '10-22',
+      before: [['3', '按安排完成联调', '06-18 · 周屿']], after: [['4', '没等安排，把剩下的活拆成 5 个 Issue', '10-21 · 叶青'], ['5', '周会主动认领没人接的联调文档', '10-12 · 苏晚']],
+      why: '上升和下降一样按规则提示，便于在盘点里及时看到。', acts: ['加入盘点关注'] },
+    { t: 'activity', hit: 0, icon: 'i-swap', who: '陈一禾', hue: 150, what: '退出「海外加速搜索体验」，转入后端组', win: null, when: '10-20', sub: '项目成员记录 · 苏晚', acts: [] },
+  ];
+  let chgType = 'all', chgBase = 'win';
+  function renderChanges() {
+    const list = changes.filter(c => chgType === 'all' || c.t === chgType).sort((a, b) => b.when.localeCompare(a.when)); // 按发生时间，不按幅度
+    $('#chg-count').textContent = list.length; $('#chg-hit').textContent = list.filter(c => c.hit).length;
+    $('#chg-list').innerHTML = list.map((c, i) => {
+      const v0 = c[chgBase] || c.win, u = c.unit || '';
+      const v = v0 && [u ? v0[0] : v0[0].toFixed(1), u ? v0[1] : v0[1].toFixed(1), v0[2]];
+      const delta = v ? `<span class="n-delta"><s>${v[0]}${u}</s><svg><use href="#${v0[1] > v0[0] ? 'i-up-r' : 'i-down-r'}"/></svg>${v[1]}${u}</span>` : '';
+      const mini = v0 && !c.unit ? `<span class="n-mini" aria-hidden="true"><i class="was" style="left:${(v0[0] - 1) / 4 * 100}%"></i><i class="now" style="left:${(v0[1] - 1) / 4 * 100}%"></i></span>` : '';
+      const ava = c.team ? `<span class="n-change__icon"><svg><use href="#${c.icon}"/></svg></span>` : `${avatar(c.who[0], c.hue)}`;
+      const sub = c.sub || (v ? `近 3 个月 ${v[2]} 条 · ${chgBase === 'win' ? '对比之前 9 个月' : '对比 2026 H1 档案版本'}${v[2] < 2 ? ' · 证据少' : ''}` : '');
+      const detail = c.before ? `<div class="n-change__detail" hidden>
+          <div><h5>${chgBase === 'win' ? '之前 9 个月' : '2026 H1 档案版本'}</h5><ul>${c.before.map(e => `<li><b>${e[0]}</b>${e[1]} <small>${e[2]}</small></li>`).join('')}</ul></div>
+          <div><h5>近 3 个月</h5><ul>${c.after.map(e => `<li><b>${e[0]}</b>${e[1]} <small>${e[2]}</small></li>`).join('')}</ul></div>
+          <p class="n-change__why">${c.why}</p><div class="n-change__acts">${c.acts.map((a, k) => `<button class="n-btn n-btn--sm${k ? ' n-btn--ghost' : ''}" type="button">${a}</button>`).join('')}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-seen>标为已看过</button></div></div>`
+        : `<div class="n-change__detail" hidden><p class="n-change__why" style="border:0;padding:0">${c.why || '这是一条记录层面的变化，没有命中规则。'}</p><div class="n-change__acts">${c.acts.map((a, k) => `<button class="n-btn n-btn--sm${k ? ' n-btn--ghost' : ''}" type="button">${a}</button>`).join('')}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-seen>标为已看过</button></div></div>`;
+      return `<div class="n-change" data-i="${i}"><button class="n-change__row" type="button" aria-expanded="false">${ava}
+        <span class="n-change__what"><span class="n-change__line"><b>${c.who}</b>${c.what}${delta}${mini}${c.hit ? `<span class="n-rule"><svg><use href="#i-flag"/></svg>${c.rule}</span>` : ''}</span><span class="n-change__sub">${sub}</span></span>
+        <span class="n-change__side">${c.when}<svg><use href="#i-chev"/></svg></span></button>${detail}</div>`;
+    }).join('');
+  }
+  $('#chg-list').addEventListener('click', e => {
+    const row = e.target.closest('.n-change__row');
+    if (row) { const open = row.getAttribute('aria-expanded') !== 'true'; row.setAttribute('aria-expanded', open); row.nextElementSibling.hidden = !open; return; }
+    const seen = e.target.closest('[data-seen]');
+    if (seen) { const c = seen.closest('.n-change'); const on = c.classList.toggle('is-seen'); seen.textContent = on ? '取消已看过' : '标为已看过'; }
+  });
+  $('#chg-filter').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $$('button', e.currentTarget).forEach(x => x.setAttribute('aria-pressed', x === b)); chgType = b.dataset.t; renderChanges(); });
+  $('#chg-base').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; chgBase = b.dataset.b; renderChanges(); });
+  renderChanges();
+
+  // 上传：模拟一个文件从上传到解析
+  $('#drop').addEventListener('click', async () => {
+    const li = document.createElement('li'); li.className = 'n-file';
+    li.innerHTML = `<span class="n-file__ext">DOCX</span><div style="min-width:0"><div class="n-file__name">W3 对事复盘纪要.docx</div><div class="n-file__state">上传中</div><div class="n-progress"><i style="width:0%"></i></div></div><span></span>`;
+    $('#files').prepend(li);
+    const bar = $('.n-progress i', li), st = $('.n-file__state', li);
+    for (const p of [18, 46, 73, 100]) { await wait(260); bar.style.width = p + '%'; }
+    st.textContent = '解析中 · 正在按段落提取'; $('.n-progress', li).classList.add('is-indeterminate'); bar.style.width = '';
+    await wait(1200);
+    $('.n-progress', li).remove();
+    st.innerHTML = '<span class="ok">已解析</span> · 8 段，定位到段落 · 提取 2 条事件待确认';
+    li.lastElementChild.outerHTML = '<button class="n-btn n-btn--sm" type="button">确认事件</button>';
+  });
+
+  // 档案版本切换
+  const pv = {
+    now: ['实时更新 · 包含 10-23 前已确认的事件', null],
+    h1: ['2026-06-30 冻结 · 2026 H1 盘点批次 · rubric-v1', [['正式象限', '高潜待练', '高潜待练'], ['已确认事件', '9 条', '18 条'], ['内生动力均值', '3.2', '3.9'], ['智慧力均值', '3.5', '3.5']]],
+    land: ['2025-11-02 冻结 · Landing 第二期结营 · rubric-v0', [['正式象限', '资料不足', '高潜待练'], ['已确认事件', '4 条', '18 条'], ['内生动力均值', '—', '3.9'], ['规则版本', 'rubric-v0', 'rubric-v1']]],
+  };
+  $('#pver-seg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const [note, cmp] = pv[b.dataset.v];
+    $('#pver-note').textContent = note;
+    $('#pver-cmp').hidden = !cmp;
+    if (cmp) $('#pver-cmp').innerHTML = cmp.map(([k, a, n]) => `<div>${k}<b>${a === n ? a : `<span class="n-diff"><del>${a}</del> → <ins>${n}</ins></span>`}</b></div>`).join('') +
+      '<div style="grid-column:1/-1;background:transparent;padding:0">左边是冻结时的值，右边是当前。冻结版本不会被新事件改写。</div>';
+  });
+
+  // 停止跟踪：保留历史
+  $('#track-stop').addEventListener('click', e => {
+    const t = $('#trackcard'), on = !t.classList.contains('is-stopped');
+    t.classList.toggle('is-stopped', on);
+    $('#track-state').innerHTML = on ? '已结束 · 历史保留' : '<svg><use href="#i-target"/></svg>跟踪中';
+    e.currentTarget.textContent = on ? '恢复跟踪' : '停止跟踪';
   });
 
   /* ── 目录高亮 ── */
