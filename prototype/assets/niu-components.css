@@ -527,6 +527,7 @@ button.n-score__dot:hover { transform: scale(1.18); }
 button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 .n-spectrum__row[aria-expanded="true"] { background: rgb(27 30 37 / .035); }
 .n-spectrum__dim { display: flex; align-items: center; gap: 6px; font-size: var(--t-sm); color: var(--ink); }
+.n-spectrum__row:not(button) .n-spectrum__dim { padding-left: 18px; }
 .n-spectrum__dim svg { width: 12px; height: 12px; color: var(--ink-3); transition: transform var(--d-quick) var(--ease-out); }
 .n-spectrum__row[aria-expanded="true"] .n-spectrum__dim svg { transform: rotate(90deg); }
 .n-spectrum__stat { font-size: var(--t-xs); color: var(--ink-3); text-align: right; white-space: nowrap; padding-right: var(--s-2); }
@@ -874,10 +875,11 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 .n-dist .na { grid-column: 1 / -1; background: repeating-linear-gradient(-45deg, var(--unknown-soft) 0 5px, #e6e8e3 5px 6px); }
 
 /* 待办 */
-.n-todo { list-style: none; margin: 0; padding: 0; }
-.n-todo li { border-top: 1px solid var(--line); }
+/* 各行共用一套列（subgrid），徽标长短不一时标题仍然对齐 */
+.n-todo { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr) auto; column-gap: var(--s-3); }
+.n-todo li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; border-top: 1px solid var(--line); }
 .n-todo li:first-child { border-top: 0; }
-.n-todo a, .n-todo button { display: grid; grid-template-columns: 5.4em minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); width: 100%; padding: var(--s-3) var(--s-1); border: 0; background: transparent; color: inherit; text-align: left; text-decoration: none; font-size: var(--t-sm); }
+.n-todo a, .n-todo button { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; row-gap: var(--s-2); width: 100%; padding: var(--s-3) var(--s-1); border: 0; background: transparent; color: inherit; text-align: left; text-decoration: none; font-size: var(--t-sm); }
 .n-todo a:hover, .n-todo button:hover { background: rgb(27 30 37 / .025); }
 .n-todo small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
 .n-todo .due { font-size: var(--t-xs); color: var(--ink-3); white-space: nowrap; }
@@ -1113,7 +1115,7 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
   .n-changes__head .n-seg { margin-left: 0; }
   .n-retro { grid-template-columns: 1fr; }
   .n-weeks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .n-todo a, .n-todo button { grid-template-columns: minmax(0, 1fr) auto; }
+  .n-todo { grid-template-columns: minmax(0, 1fr) auto; }
   .n-todo a > .n-badge, .n-todo button > .n-badge { grid-column: 1 / -1; justify-self: start; }
   .n-tl__item { grid-template-columns: 3.8em 14px minmax(0, 1fr); }
   .n-tl__item::before { left: calc(3.8em + var(--s-2) + 6px); }
