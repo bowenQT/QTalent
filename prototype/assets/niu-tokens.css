@@ -1,0 +1,114 @@
+/* Niu-Talent design tokens — 「光与墨」
+   AI 的建议是光：半透明、流动、可被改写；
+   人的判断是墨：落定、署名、可追溯；正式确认盖朱印。 */
+
+@import url("https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/lxgwwenkai-regular.css");
+
+:root {
+  /* ── 纸面与墨色 ───────────────────────── */
+  --paper: #f3f4f1;          /* 页面底色：宣纸灰，略带青 */
+  --sheet: #ffffff;          /* 文档与卡片 */
+  --sheet-sunk: #eceee9;     /* 凹陷区：输入槽、代码、轨道 */
+  --line: #dfe1db;           /* 分隔线 */
+  --line-strong: #c9ccc4;
+
+  --ink: #1b1e25;            /* 松烟墨：正文、已确认内容 */
+  --ink-2: #474c56;          /* 次级正文 */
+  --ink-3: #7d828c;          /* 注释、占位 */
+  --ink-4: #a9adb4;          /* 禁用 */
+
+  /* ── 流光：AI 生成内容 ───────────────────── */
+  --light: #3d55d6;          /* AI 实色：图标、AI 署名、进行中 */
+  --light-soft: #e9ecfd;
+  --foil-1: #8fa0ff;         /* 流光由四种低饱和色调交替 */
+  --foil-2: #6fd6e2;
+  --foil-3: #c8ef95;
+  --foil-4: #ffc9e6;
+  --foil: linear-gradient(110deg,
+            rgb(143 160 255 / .16) 0%,
+            rgb(111 214 226 / .16) 30%,
+            rgb(200 239 149 / .14) 55%,
+            rgb(255 201 230 / .16) 80%,
+            rgb(143 160 255 / .16) 100%);
+  --foil-edge: linear-gradient(110deg, var(--foil-1), var(--foil-2), var(--foil-3), var(--foil-4), var(--foil-1));
+
+  /* ── 朱印：只用于正式确认、冻结快照 ─────────── */
+  --seal: #c23b22;
+  --seal-soft: #fbe9e4;
+
+  /* ── 判断状态（颜色之外必须配图形） ───────── */
+  --yes: #2c7a52;      --yes-soft: #e3f1e8;       /* 支持 */
+  --no: #a8463d;       --no-soft: #f6e6e3;        /* 不支持 */
+  --unknown: #7d828c;  --unknown-soft: #eef0ec;   /* 资料不足：灰 + 斜纹 */
+  --conflict: #b07a0c; --conflict-soft: #fbf1d9;  /* 证据冲突：琥珀 + 分裂 */
+
+  /* ── 来源材质 ─────────────────────────── */
+  --src-fact: #4a5d6e;       /* 原始事实：石青，实线框 */
+  --src-self: #7a5a9a;       /* 本人自述：紫，引号 */
+  --src-obs: #2f6f7a;        /* 管理观察：青，眼形标 */
+  --src-ai: var(--light);    /* AI 推断：流光 */
+  --src-human: var(--ink);   /* 人工结论：墨 + 签名 */
+
+  /* ── 能力象限：四色只作区域底色，不含褒贬 ────── */
+  --q-hh: #e4ecfb;  --q-hh-ink: #2f4fa8;   /* 双高 */
+  --q-hl: #efe6f8;  --q-hl-ink: #6a4596;   /* 高潜待练 */
+  --q-lh: #e2f1ec;  --q-lh-ink: #2c6b57;   /* 专业骨干 */
+  --q-ll: #f1efe8;  --q-ll-ink: #6d6553;   /* 待观察 */
+
+  /* ── 字体 ─────────────────────────────── */
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC",
+               "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-ink: "LXGW WenKai", "Kaiti SC", "STKaiti", "KaiTi", serif;   /* 人的笔迹：签名、批注、理由 */
+
+  /* 字号阶梯：以 15px 正文为基准，约 1.2 倍递进 */
+  --t-xs: 12px;
+  --t-sm: 13px;
+  --t-body: 15px;
+  --t-md: 17px;
+  --t-lg: 20px;
+  --t-xl: 24px;
+  --t-2xl: 32px;
+  --t-3xl: 44px;
+  --t-hero: 64px;
+
+  --lh-tight: 1.25;
+  --lh-ui: 1.5;
+  --lh-read: 1.75;           /* 中文长段阅读 */
+
+  /* ── 间距（4 基数） ────────────────────── */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px; --s-5: 20px;
+  --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-14: 56px; --s-20: 80px;
+
+  /* ── 圆角：按层级而不是一刀切 ──────────────── */
+  --r-chip: 6px;      /* 徽标、标签、小按钮 */
+  --r-field: 10px;    /* 输入、按钮 */
+  --r-card: 14px;     /* 事件卡、人员卡 */
+  --r-sheet: 22px;    /* 文档面、底部弹层、录音面板 */
+  --r-pill: 999px;
+
+  /* ── 层级 ─────────────────────────────── */
+  --e-0: 0 0 0 1px var(--line);
+  --e-1: 0 0 0 1px var(--line), 0 1px 2px rgb(27 30 37 / .05);
+  --e-2: 0 0 0 1px rgb(27 30 37 / .06), 0 12px 32px -12px rgb(27 30 37 / .22);
+  --e-3: 0 0 0 1px rgb(27 30 37 / .06), 0 28px 72px -20px rgb(27 30 37 / .34);
+
+  /* ── 动效 ─────────────────────────────── */
+  --ease-out: cubic-bezier(.2, .8, .2, 1);       /* 出现、展开 */
+  --ease-in-out: cubic-bezier(.65, 0, .35, 1);   /* 位移、重排 */
+  --ease-ink: cubic-bezier(.7, 0, .15, 1);       /* 落墨：先慢后沉 */
+  --ease-spring: linear(0, .009, .035 2.1%, .141, .281 6.7%, .723 12.9%, .938 16.7%, 1.017, 1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%, 1.051 39.6%, 1.017 43.1%, .991, .977 51%, .974 53.8%, .975 57.1%, .997 69.8%, 1.003 76.9%, 1);
+
+  --d-instant: 120ms;  /* 悬停、按下 */
+  --d-quick: 200ms;    /* 浮层、徽标切换 */
+  --d-base: 320ms;     /* 展开、面板 */
+  --d-settle: 640ms;   /* 落墨、证据飞入 */
+  --d-ceremony: 960ms; /* 压印、冻结快照 */
+
+  --focus: 0 0 0 2px var(--sheet), 0 0 0 4px var(--light);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --d-quick: 1ms; --d-base: 1ms; --d-settle: 1ms; --d-ceremony: 1ms;
+  }
+}

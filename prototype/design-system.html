@@ -1,0 +1,1250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niu-Talent 设计系统</title>
+<link rel="stylesheet" href="assets/niu-tokens.css">
+<link rel="stylesheet" href="assets/niu-components.css">
+<style>
+  /* ── 样张页面布局（只属于本页） ── */
+  .ds { display: grid; grid-template-columns: 216px minmax(0, 1fr); min-height: 100vh; }
+  .ds-nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: var(--s-6) var(--s-4) var(--s-6) var(--s-5); border-right: 1px solid var(--line); }
+  .ds-brand { display: flex; align-items: center; gap: var(--s-2); margin-bottom: var(--s-6); font-weight: 700; }
+  .ds-brand small { display: block; font-weight: 400; font-size: var(--t-xs); color: var(--ink-3); }
+  .ds-nav ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+  .ds-nav a { display: block; padding: 6px 10px; border-radius: var(--r-chip); color: var(--ink-2); text-decoration: none; font-size: var(--t-sm); }
+  .ds-nav a:hover { background: rgb(27 30 37 / .05); }
+  .ds-nav a.is-here { background: var(--sheet); color: var(--ink); font-weight: 600; box-shadow: var(--e-1); }
+  .ds-nav .grp { margin: var(--s-4) 0 var(--s-1) 10px; font-size: var(--t-xs); color: var(--ink-3); }
+
+  .ds-main { padding: 0 var(--s-10) var(--s-20); max-width: 1120px; }
+  .ds-sec { padding-top: var(--s-14); scroll-margin-top: var(--s-4); }
+  .ds-sec > h2 { margin: 0 0 var(--s-2); font-size: var(--t-2xl); line-height: var(--lh-tight); letter-spacing: -.01em; }
+  .ds-sec > .lead { margin: 0 0 var(--s-6); max-width: 40em; color: var(--ink-2); line-height: var(--lh-read); }
+  .ds-sub { margin: var(--s-10) 0 var(--s-3); font-size: var(--t-lg); }
+  .ds-sub + p { margin: 0 0 var(--s-4); color: var(--ink-2); max-width: 42em; line-height: var(--lh-read); font-size: var(--t-sm); }
+  .ds-grid { display: grid; gap: var(--s-4); }
+  .ds-grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ds-grid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ds-stage { padding: var(--s-6); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
+  .ds-stage.is-paper { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+  .ds-caption { margin-top: var(--s-2); font-size: var(--t-xs); color: var(--ink-3); line-height: 1.6; }
+  .quad-layout { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
+  .states-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .ds-row { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+
+  /* 开篇 */
+  .hero { padding: var(--s-14) 0 var(--s-6); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: var(--s-10); align-items: center; }
+  .hero h1 { margin: 0; font-size: var(--t-hero); line-height: 1.05; letter-spacing: -.02em; font-weight: 800; }
+  .hero h1 .l { background: linear-gradient(110deg, #5468ff, #19b2c6, #7cc43a, #f06fb4, #5468ff); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: foil-drift 6s linear infinite; }
+  .hero h1 .i { font-family: var(--font-ink); font-weight: 400; }
+  .hero p { margin: var(--s-5) 0 0; font-size: var(--t-md); line-height: var(--lh-read); color: var(--ink-2); max-width: 22em; }
+  .hero-doc { position: relative; padding: var(--s-6); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-2); }
+  .hero-doc__top { display: flex; align-items: center; gap: var(--s-3); margin-bottom: var(--s-4); }
+  .hero-doc__top h3 { margin: 0; font-size: var(--t-md); }
+  .hero-doc__top .n-badge--demo { margin-left: 2px; }
+  .hero-doc__actions { display: flex; gap: var(--s-2); margin-top: var(--s-4); min-height: 36px; align-items: center; }
+  .hero-doc .n-seal { position: absolute; right: var(--s-6); bottom: var(--s-6); opacity: 0; }
+
+  /* 色板 */
+  .sw { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s-3); }
+  .sw-item { border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); overflow: hidden; font-size: var(--t-xs); }
+  .sw-chip { height: 64px; }
+  .sw-item div:last-child { padding: var(--s-2) var(--s-3) var(--s-3); line-height: 1.5; }
+  .sw-item b { display: block; font-size: var(--t-sm); }
+  .sw-item code { color: var(--ink-3); font-family: inherit; }
+
+  /* 字体 */
+  .type-row { display: grid; grid-template-columns: 9em 1fr; gap: var(--s-4); align-items: baseline; padding: var(--s-3) 0; border-bottom: 1px dashed var(--line); }
+  .type-row:last-child { border-bottom: 0; }
+  .type-row code { font-family: inherit; font-size: var(--t-xs); color: var(--ink-3); }
+  .hands { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4); }
+  .hand { padding: var(--s-5); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
+  .hand__big { font-size: var(--t-3xl); line-height: 1.1; margin: var(--s-2) 0 var(--s-3); }
+  .hand p { margin: 0; font-size: var(--t-sm); color: var(--ink-2); line-height: 1.7; }
+
+  /* 尺度 */
+  .space-bar { display: grid; grid-template-columns: 4em auto 1fr; gap: var(--s-3); align-items: center; font-size: var(--t-xs); color: var(--ink-3); padding: 3px 0; }
+  .space-bar i { display: block; height: 10px; border-radius: 2px; background: var(--light); opacity: .8; }
+  .radii { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-3); }
+  .radii div { height: 72px; background: var(--sheet); box-shadow: var(--e-1); display: grid; place-items: end start; padding: var(--s-2) var(--s-3); font-size: var(--t-xs); color: var(--ink-3); }
+  .elev { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-5); }
+  .elev div { height: 88px; border-radius: var(--r-card); background: var(--sheet); padding: var(--s-3); font-size: var(--t-xs); color: var(--ink-2); }
+
+  /* 动效 */
+  .curves { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-3); }
+  .curve { padding: var(--s-3); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-xs); color: var(--ink-3); }
+  .curve b { display: block; color: var(--ink); font-size: var(--t-sm); }
+  .curve__track { position: relative; height: 34px; margin: var(--s-3) 0 var(--s-2); border-radius: var(--r-chip); background: var(--sheet-sunk); }
+  .curve__ball { position: absolute; left: 4px; top: 7px; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); }
+  .curve.is-run .curve__ball { left: calc(100% - 24px); }
+  .durs { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
+  .durs span { padding: 4px 10px; border-radius: var(--r-chip); background: var(--sheet-sunk); font-size: var(--t-xs); color: var(--ink-2); }
+  .moment { display: grid; grid-template-columns: 1fr auto; gap: var(--s-4); align-items: center; padding: var(--s-4) var(--s-5); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
+  .moment h4 { margin: 0; font-size: var(--t-body); }
+  .moment p { margin: 2px 0 0; font-size: var(--t-xs); color: var(--ink-3); line-height: 1.6; }
+  .moment__stage { grid-column: 1 / -1; position: relative; min-height: 110px; padding: var(--s-3); border-radius: var(--r-field); background: var(--paper); overflow: hidden; }
+
+  /* 证据飞入 */
+  .fly-target { position: absolute; right: var(--s-4); top: 50%; translate: 0 -50%; display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-sm); }
+  .fly-count { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--r-pill); background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; }
+  .fly-count.is-bump { animation: bump var(--d-base) var(--ease-spring); }
+  @keyframes bump { 40% { transform: scale(1.35); } }
+  .fly-card { position: absolute; left: var(--s-4); top: 50%; translate: 0 -50%; width: 200px; padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet); box-shadow: var(--e-2); font-size: var(--t-xs); line-height: 1.5; }
+
+  /* 重排 */
+  .rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .rank li { display: flex; align-items: center; gap: var(--s-3); padding: 6px var(--s-3); border-radius: var(--r-field); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-sm); }
+  .rank li .n-badge { margin-left: auto; }
+  .rank li.is-changed { box-shadow: var(--e-1), 0 0 0 2px var(--light-soft); }
+
+  /* 来源 */
+  .src-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: var(--s-3); }
+  .src-card { padding: var(--s-4); border-radius: var(--r-card); background: var(--sheet); font-size: var(--t-sm); line-height: 1.65; color: var(--ink-2); min-height: 170px; }
+  .src-card h4 { margin: var(--s-2) 0 var(--s-2); font-size: var(--t-body); color: var(--ink); }
+  .src-card--fact { box-shadow: inset 0 0 0 1.5px var(--src-fact); }
+  .src-card--self { box-shadow: var(--e-1); }
+  .src-card--self p::before { content: "「"; color: var(--src-self); } .src-card--self p::after { content: "」"; color: var(--src-self); }
+  .src-card--obs { box-shadow: var(--e-1), inset 3px 0 0 var(--src-obs); }
+  .src-card--ai { background: var(--foil), var(--sheet); background-size: 300% 100%; animation: foil-drift 7s linear infinite; box-shadow: inset 0 0 0 1px rgb(61 85 214 / .14); color: #2d3a73; }
+  .src-card--human { box-shadow: var(--e-1), inset 3px 0 0 var(--ink); color: var(--ink); }
+  .src-card p { margin: 0; }
+  .src-card .ink-hand { display: block; margin-top: var(--s-2); font-size: var(--t-md); }
+  .state-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+  .state-table th, .state-table td { text-align: left; padding: var(--s-3) var(--s-3); border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.6; }
+  .state-table th { font-weight: 600; color: var(--ink-3); font-size: var(--t-xs); }
+  .state-table td:first-child { white-space: nowrap; }
+
+  /* IP */
+  .ip-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: var(--r-field); background: var(--sheet-sunk); }
+  .ip-seg button { border: 0; padding: 6px 12px; border-radius: 7px; background: transparent; font-size: var(--t-sm); color: var(--ink-2); }
+  .ip-seg button[aria-pressed="true"] { background: var(--sheet); color: var(--ink); font-weight: 600; box-shadow: var(--e-1); }
+  .ip-show { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--s-8); align-items: center; padding: var(--s-6); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
+  .ip-show__stage { display: grid; place-items: center; min-height: 280px; border-radius: var(--r-card); background: radial-gradient(circle at 50% 58%, #fff 0 30%, var(--paper) 72%); }
+  .ip-spec { display: grid; grid-template-columns: 6.5em 1fr; gap: var(--s-2) var(--s-4); margin: var(--s-5) 0 var(--s-4); font-size: var(--t-sm); line-height: 1.65; }
+  .ip-spec dt { color: var(--ink-3); }
+  .ip-spec dd { margin: 0; color: var(--ink); }
+  .ip-anatomy { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: var(--s-8); align-items: center; }
+  .ip-anatomy__fig { display: grid; place-items: center; height: 260px; border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
+  .ip-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3); font-size: var(--t-sm); line-height: 1.65; color: var(--ink-2); }
+  .ip-parts b { color: var(--ink); margin-right: var(--s-2); }
+  .ip-sizes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s-6); padding: var(--s-6); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
+  .ip-sizes figure { margin: 0; display: grid; justify-items: center; gap: var(--s-2); font-size: var(--t-xs); color: var(--ink-3); text-align: center; max-width: 9.5em; }
+  .ip-sizes figure b { color: var(--ink); font-size: var(--t-sm); }
+  .ip-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--s-2); margin-bottom: var(--s-5); }
+  .ip-strip button { display: grid; justify-items: center; gap: var(--s-2); padding: var(--s-4) 0 var(--s-3); border: 0; border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-xs); color: var(--ink-2); }
+  .ip-strip button[aria-pressed="true"] { box-shadow: var(--e-1), 0 0 0 2px var(--ink); color: var(--ink); font-weight: 600; }
+  .ip-table-wrap { overflow-x: auto; border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
+  .ip-table-wrap .state-table { min-width: 760px; }
+  .ip-table-wrap .state-table th:first-child, .ip-table-wrap .state-table td:first-child { padding-left: var(--s-5); }
+  .ip-inuse { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s-4); margin-top: var(--s-4); }
+  .ip-inuse > div { padding: var(--s-4); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-sm); }
+  .ip-inuse .label { font-size: var(--t-xs); color: var(--ink-3); margin-bottom: var(--s-3); }
+
+  /* 手机录音面板示意 */
+  .phone { width: 300px; border-radius: 38px; padding: 10px; background: var(--ink); box-shadow: var(--e-3); }
+  .phone__screen { position: relative; height: 560px; border-radius: 30px; overflow: hidden; background: var(--paper); }
+  .phone__sheet { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--s-5) var(--s-4) var(--s-6); border-radius: var(--r-sheet) var(--r-sheet) 0 0; background: var(--sheet); box-shadow: var(--e-3); }
+  .phone__live { padding: var(--s-5) var(--s-4); font-size: var(--t-body); line-height: 1.8; }
+  .phone__live .pending { color: var(--ink-4); }
+  .phone__live .speaker { font-size: var(--t-xs); color: var(--ink-3); margin-top: var(--s-3); }
+  .phone__tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2); margin: var(--s-4) 0; }
+  .phone__tools button { display: grid; justify-items: center; gap: 4px; padding: var(--s-2) 0; border: 0; border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-xs); color: var(--ink-2); }
+  .phone__tools svg { width: 18px; height: 18px; }
+  .rec-main { display: flex; align-items: center; justify-content: space-between; }
+  .rec-stop { width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--ink); display: grid; place-items: center; }
+  .rec-stop i { width: 20px; height: 20px; border-radius: 5px; background: #ff5a4a; }
+
+  @media (max-width: 1080px) {
+    .hero { grid-template-columns: 1fr; }
+    .src-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ip-show, .ip-anatomy { grid-template-columns: 1fr; }
+    .curves, .elev, .radii { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 760px) {
+    .ds { grid-template-columns: minmax(0, 1fr); }
+    .ds-nav { position: sticky; z-index: 40; height: auto; display: flex; gap: var(--s-2); overflow-x: auto; padding: var(--s-2) var(--s-4); background: rgb(243 244 241 / .92); backdrop-filter: blur(10px); border-right: 0; border-bottom: 1px solid var(--line); }
+    .ds-nav ol { display: flex; }
+    .ds-nav .grp, .ds-brand { display: none; }
+    .ds-nav a { white-space: nowrap; }
+    .ds-main { padding: 0 var(--s-4) var(--s-14); }
+    .hero h1 { font-size: var(--t-3xl); }
+    .ds-grid.c2, .ds-grid.c3, .hands, .src-cards, .quad-layout { grid-template-columns: 1fr; }
+    .n-calib__pair { grid-template-columns: 1fr; }
+    .type-row { grid-template-columns: 1fr; gap: 2px; }
+    .ip-strip { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- 图标 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11.5 12.5 19a5 5 0 0 1-7-7l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-dash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 12h2.5M10.75 12h2.5M17.5 12H20"/></symbol>
+    <symbol id="i-split" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6l-6 6v6M12 9l6 6v6"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+    <symbol id="i-quote" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 7h4v4c0 3-1.5 5-4 6M14 7h4v4c0 3-1.5 5-4 6"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 3h8l5 5v13H6zM14 3v5h5"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5c.6 5 2.8 7.5 8.5 8.5-5.7 1-7.9 3.5-8.5 8.5-.6-5-2.8-7.5-8.5-8.5 5.7-1 7.9-3.5 8.5-8.5Z"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 21V4h12l-2.5 4.5L17 13H5"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 4h14v11l-5 5H5zM14 20v-5h5"/></symbol>
+    <symbol id="i-at" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"/><path d="M15.5 8.5v5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.5 6.9"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 6.5v11M12 9v6M16 4.5v15M20 10v4"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5M4 4v4.5h4.5"/></symbol>
+  </defs>
+</svg>
+
+<div class="ds">
+  <nav class="ds-nav" aria-label="设计系统目录">
+    <div class="ds-brand"><span id="brand-ip"></span><div>Niu-Talent<small>设计系统 v0.1</small></div></div>
+    <ol>
+      <li><a href="#top">光与墨</a></li>
+      <li class="grp">基础</li>
+      <li><a href="#color">颜色</a></li>
+      <li><a href="#type">字体</a></li>
+      <li><a href="#scale">间距、圆角、层级</a></li>
+      <li><a href="#motion">动效</a></li>
+      <li><a href="#material">来源与状态</a></li>
+      <li class="grp">组件</li>
+      <li><a href="#c-input">输入与过程</a></li>
+      <li><a href="#c-doc">活文档与引用</a></li>
+      <li><a href="#c-event">关键事件与打分</a></li>
+      <li><a href="#c-quad">能力象限</a></li>
+      <li><a href="#c-project">人与项目</a></li>
+      <li><a href="#c-plan">找人与方案</a></li>
+      <li><a href="#c-verify">核对与校准</a></li>
+      <li><a href="#c-rec">录音</a></li>
+      <li><a href="#c-feedback">反馈与状态</a></li>
+      <li class="grp">形象</li>
+      <li><a href="#ip">IP：小犇</a></li>
+    </ol>
+  </nav>
+
+  <main class="ds-main">
+
+    <!-- ═════════ 开篇 ═════════ -->
+    <section class="hero" id="top">
+      <div>
+        <h1><span class="l">光</span>与<span class="i">墨</span></h1>
+        <p>AI 写下的是光：可以改写，也可能出错。人看过、确认之后，它才落成墨，带上名字；正式定下的方案再盖一方朱印。整套界面只讲这一件事。</p>
+      </div>
+      <article class="hero-doc" aria-live="polite">
+        <div class="hero-doc__top">
+          <span class="n-avatar" style="--hue:200">林</span>
+          <h3>林知远 <span class="n-badge n-badge--demo">演示</span></h3>
+          <span class="n-badge" style="margin-left:auto">Landing 第三期 · W2 对人复盘</span>
+        </div>
+        <div class="n-trail" id="hero-trail" data-open="true">
+          <button class="n-trail__head" type="button" aria-expanded="true"><svg class="n-trail__chev"><use href="#i-chev"/></svg><span id="hero-trail-label">正在整理</span></button>
+          <ol class="n-trail__steps">
+            <li class="n-trail__step" data-state="pending">读取两周内的 6 条关键事件</li>
+            <li class="n-trail__step" data-state="pending">对照导师复盘录音 <small>03:12–05:40</small></li>
+            <li class="n-trail__step" data-state="pending">按智慧力、坚毅力整理观察</li>
+          </ol>
+        </div>
+        <div class="n-block" id="hero-block" data-state="light" style="margin-top: var(--s-3)">
+          <span id="hero-text"></span><span class="n-caret" id="hero-caret"></span>
+          <div class="n-block__by" id="hero-by" hidden></div>
+        </div>
+        <div class="hero-doc__actions" id="hero-actions">
+          <span id="hero-ip"></span>
+        </div>
+        <span class="n-seal" id="hero-seal">确<br>认</span>
+      </article>
+    </section>
+
+    <!-- ═════════ 颜色 ═════════ -->
+    <section class="ds-sec" id="color">
+      <h2>颜色</h2>
+      <p class="lead">底色是略带青的宣纸灰，正文是松烟墨。彩色只用于说明信息的来源与状态：流光专属 AI，朱红专属正式确认，四种判断状态各配一个图形，不单靠颜色区分。</p>
+
+      <h3 class="ds-sub">纸与墨</h3>
+      <div class="sw">
+        <div class="sw-item"><div class="sw-chip" style="background:var(--paper);box-shadow:inset 0 -1px 0 var(--line)"></div><div><b>纸</b><code>#F3F4F1</code> 页面底色</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--sheet);box-shadow:inset 0 -1px 0 var(--line)"></div><div><b>页</b><code>#FFFFFF</code> 文档、卡片</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--sheet-sunk)"></div><div><b>槽</b><code>#ECEEE9</code> 输入槽、轨道</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--line)"></div><div><b>线</b><code>#DFE1DB</code> 分隔</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--ink)"></div><div><b>墨</b><code>#1B1E25</code> 正文、已确认</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--ink-2)"></div><div><b>淡墨</b><code>#474C56</code> 次级正文</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--ink-3)"></div><div><b>枯墨</b><code>#7D828C</code> 注释、占位</div></div>
+      </div>
+
+      <h3 class="ds-sub">流光与朱印</h3>
+      <p>流光是四种低饱和色调缓慢流动的渐变，只出现在 AI 生成、尚未被人确认的内容上。朱印只出现在正式确认与冻结快照上，一个页面通常只有一处。</p>
+      <div class="sw">
+        <div class="sw-item"><div class="sw-chip is-foil" style="background-color:#fff"></div><div><b>流光底</b>AI 建议中的内容</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--foil-edge)"></div><div><b>流光边</b>AI 进行中、光标</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--light)"></div><div><b>靛</b><code>#3D55D6</code> AI 署名、焦点</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--seal)"></div><div><b>朱</b><code>#C23B22</code> 确认与冻结</div></div>
+      </div>
+
+      <h3 class="ds-sub">判断状态与象限底色</h3>
+      <div class="sw">
+        <div class="sw-item"><div class="sw-chip" style="background:var(--yes-soft);display:grid;place-items:center;color:var(--yes)"><svg width="22" height="22"><use href="#i-check"/></svg></div><div><b>支持</b><code>#2C7A52</code></div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--no-soft);display:grid;place-items:center;color:var(--no)"><svg width="22" height="22"><use href="#i-x"/></svg></div><div><b>不支持</b><code>#A8463D</code></div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:repeating-linear-gradient(-45deg,var(--unknown-soft) 0 6px,#e3e5e0 6px 7px);display:grid;place-items:center;color:var(--unknown)"><svg width="22" height="22"><use href="#i-dash"/></svg></div><div><b>资料不足</b>灰 + 斜纹</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--conflict-soft);display:grid;place-items:center;color:var(--conflict)"><svg width="22" height="22"><use href="#i-split"/></svg></div><div><b>证据冲突</b><code>#B07A0C</code></div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--q-hh)"></div><div><b>双高</b><code>#E4ECFB</code></div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--q-hl)"></div><div><b>高潜待练</b><code>#EFE6F8</code></div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--q-lh)"></div><div><b>专业骨干</b><code>#E2F1EC</code></div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--q-ll)"></div><div><b>待观察</b><code>#F1EFE8</code></div></div>
+      </div>
+      <p class="ds-caption">象限四色只做区域底色，彼此明度接近，避免"红灯区"式的褒贬暗示。</p>
+    </section>
+
+    <!-- ═════════ 字体 ═════════ -->
+    <section class="ds-sec" id="type">
+      <h2>字体</h2>
+      <p class="lead">两种笔迹，各有职责。界面与 AI 的文字用系统黑体，清楚、中性；人的笔迹用霞鹜文楷，只出现在签名、批注、校准理由这些"有人负责"的地方。看到楷体，就知道这句话是人写的。</p>
+      <div class="hands">
+        <div class="hand">
+          <span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>界面与 AI</span>
+          <div class="hand__big" style="font-weight:700">苹方 / 系统黑体</div>
+          <p>PingFang SC，Windows 回落到微软雅黑。数字一律等宽，表格和时间码对齐。</p>
+        </div>
+        <div class="hand">
+          <span class="n-src n-src--human"><svg><use href="#i-pen"/></svg>人的笔迹</span>
+          <div class="hand__big ink-hand">霞鹜文楷</div>
+          <p><span class="ink-hand" style="font-size:var(--t-md);color:var(--ink)">"两次复盘都主动给出备选方案，判断力在线。" —— 叶青</span></p>
+        </div>
+      </div>
+      <h3 class="ds-sub">字号阶梯</h3>
+      <div class="ds-stage">
+        <div class="type-row"><code>Hero 64 / 800</code><span style="font-size:var(--t-hero);font-weight:800;line-height:1;letter-spacing:-.02em">光与墨</span></div>
+        <div class="type-row"><code>3XL 44 / 700</code><span style="font-size:var(--t-3xl);font-weight:700;line-height:1.1">增长产品部 盘点</span></div>
+        <div class="type-row"><code>2XL 32 / 700</code><span style="font-size:var(--t-2xl);font-weight:700">谁来 owner 新转化团队</span></div>
+        <div class="type-row"><code>XL 24 / 650</code><span style="font-size:var(--t-xl);font-weight:650">林知远 · 第一份档案</span></div>
+        <div class="type-row"><code>LG 20 / 600</code><span style="font-size:var(--t-lg);font-weight:600">两周内的关键事件</span></div>
+        <div class="type-row"><code>MD 17 / 600</code><span style="font-size:var(--t-md);font-weight:600">主动补上联调文档并推动闭环</span></div>
+        <div class="type-row"><code>Body 15 / 1.75</code><span style="max-width:36em;line-height:var(--lh-read)">在需求变更后第二天给出两个备选方案，并说明各自的验收标准与风险；导师选择了方案 B，他据此重排了剩余任务。</span></div>
+        <div class="type-row"><code>SM 13</code><span style="font-size:var(--t-sm);color:var(--ink-2)">来源：W2 导师团复盘录音 03:12</span></div>
+        <div class="type-row"><code>XS 12</code><span style="font-size:var(--t-xs);color:var(--ink-3)">规则版本 rubric-v1 · AI 建议于 10-23 14:02</span></div>
+      </div>
+    </section>
+
+    <!-- ═════════ 尺度 ═════════ -->
+    <section class="ds-sec" id="scale">
+      <h2>间距、圆角、层级</h2>
+      <p class="lead">间距以 4 为基数。圆角按层级取值：越是独立、越像"一张纸"的对象圆角越大；徽标和输入这类附着在纸上的元素圆角小。阴影只分四级，大多数东西用一条细线就够了。</p>
+      <div class="ds-grid c2">
+        <div class="ds-stage">
+          <div class="space-bar"><span>4</span><i style="width:4px"></i><span>图标与文字</span></div>
+          <div class="space-bar"><span>8</span><i style="width:8px"></i><span>同组元素</span></div>
+          <div class="space-bar"><span>12</span><i style="width:12px"></i><span>列表行内</span></div>
+          <div class="space-bar"><span>16</span><i style="width:16px"></i><span>卡片内边距</span></div>
+          <div class="space-bar"><span>24</span><i style="width:24px"></i><span>文档块之间</span></div>
+          <div class="space-bar"><span>40</span><i style="width:40px"></i><span>小节之间</span></div>
+          <div class="space-bar"><span>56</span><i style="width:56px"></i><span>大节之间</span></div>
+        </div>
+        <div class="radii">
+          <div style="border-radius:var(--r-chip)">6 徽标</div>
+          <div style="border-radius:var(--r-field)">10 输入、按钮</div>
+          <div style="border-radius:var(--r-card)">14 卡片</div>
+          <div style="border-radius:var(--r-sheet)">22 文档面</div>
+        </div>
+      </div>
+      <div class="elev" style="margin-top:var(--s-5)">
+        <div style="box-shadow:var(--e-0)">0 · 细线<br><span style="color:var(--ink-3)">列表、分区</span></div>
+        <div style="box-shadow:var(--e-1)">1 · 贴纸<br><span style="color:var(--ink-3)">卡片</span></div>
+        <div style="box-shadow:var(--e-2)">2 · 浮起<br><span style="color:var(--ink-3)">输入框、浮层</span></div>
+        <div style="box-shadow:var(--e-3)">3 · 悬空<br><span style="color:var(--ink-3)">弹层、Toast</span></div>
+      </div>
+    </section>
+
+    <!-- ═════════ 动效 ═════════ -->
+    <section class="ds-sec" id="motion">
+      <h2>动效</h2>
+      <p class="lead">动效只回应人的动作，或说明 AI 正在做什么。四条曲线、五档时长。系统设置了"减少动态效果"时，位移和循环动画全部关闭，状态变化直接呈现。</p>
+      <div class="curves" id="curves">
+        <div class="curve" data-ease="var(--ease-out)"><b>出现</b>ease-out · 展开、浮层<div class="curve__track"><span class="curve__ball"></span></div></div>
+        <div class="curve" data-ease="var(--ease-in-out)"><b>位移</b>in-out · 重排、拖动归位<div class="curve__track"><span class="curve__ball"></span></div></div>
+        <div class="curve" data-ease="var(--ease-ink)"><b>落墨</b>先慢后沉 · 确认<div class="curve__track"><span class="curve__ball"></span></div></div>
+        <div class="curve" data-ease="var(--ease-spring)"><b>回弹</b>spring · 吸附、计数<div class="curve__track"><span class="curve__ball"></span></div></div>
+      </div>
+      <div class="ds-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm" type="button" id="curve-run">播放曲线</button></div>
+      <div class="durs"><span>120 悬停、按下</span><span>200 浮层、徽标</span><span>320 展开、面板</span><span>640 落墨、飞入</span><span>960 压印</span></div>
+
+      <h3 class="ds-sub">关键时刻</h3>
+      <div class="ds-grid c2">
+        <div class="moment">
+          <div><h4>证据飞入</h4><p>核对归属后，事件卡沿弧线飞向人员头像，计数 +1。</p></div>
+          <button class="n-btn n-btn--sm" type="button" id="fly-run">演示</button>
+          <div class="moment__stage" id="fly-stage">
+            <div class="fly-card" id="fly-card"><b>主动补上联调文档</b><br><span style="color:var(--ink-3)">W2 复盘 · 03:12</span></div>
+            <div class="fly-target"><span class="n-avatar" id="fly-avatar" style="--hue:200">林</span>林知远<span class="fly-count" id="fly-count">5</span></div>
+          </div>
+        </div>
+        <div class="moment">
+          <div><h4>需求即时重排</h4><p>需求卡里改一项要求，候选人按新的满足情况做位置过渡。</p></div>
+          <button class="n-btn n-btn--sm" type="button" id="rank-run">改要求</button>
+          <div class="moment__stage">
+            <div style="font-size:var(--t-xs);color:var(--ink-3);margin-bottom:6px">要求：<b id="rank-req" style="color:var(--ink)">有跨团队推进经历</b></div>
+            <ol class="rank" id="rank">
+              <li data-id="a"><span class="n-avatar n-avatar--sm" style="--hue:30">周</span>周屿<span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span></li>
+              <li data-id="b"><span class="n-avatar n-avatar--sm" style="--hue:200">林</span>林知远<span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></li>
+              <li data-id="c"><span class="n-avatar n-avatar--sm" style="--hue:150">陈</span>陈一禾<span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不支持</span></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 来源与状态 ═════════ -->
+    <section class="ds-sec" id="material">
+      <h2>来源与状态</h2>
+      <p class="lead">同一个人身上的五种信息，必须一眼分得清。材质比颜色更重要：事实有实线框，自述带引号，观察有左侧青线，AI 推断是流光，人工结论是墨线加签名。</p>
+      <div class="src-cards">
+        <div class="src-card src-card--fact"><span class="n-src n-src--fact"><svg><use href="#i-doc"/></svg>原始事实</span><h4>可核查的记录</h4><p>W2 合入 PR 11 个，其中 9 个有非作者人工 Review。</p></div>
+        <div class="src-card src-card--self"><span class="n-src n-src--self"><svg><use href="#i-quote"/></svg>本人自述</span><h4>本人说的</h4><p>我更想做离客户近一点的事情，下个阶段想试试售前。</p></div>
+        <div class="src-card src-card--obs"><span class="n-src n-src--obs"><svg><use href="#i-eye"/></svg>管理观察</span><h4>别人看到的</h4><p>需求变更后第二天带着两个备选方案来找我，没有等安排。</p></div>
+        <div class="src-card src-card--ai"><span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>AI 推断</span><h4>尚待确认</h4><p>两次复盘都出现"带着假设求助"，可能体现内生动力。</p></div>
+        <div class="src-card src-card--human"><span class="n-src n-src--human"><svg><use href="#i-pen"/></svg>人工结论</span><h4>有人负责</h4><p>结营时落位"高潜待练"。<span class="ink-hand">—— 苏晚，10-23</span></p></div>
+      </div>
+
+      <h3 class="ds-sub">判断状态</h3>
+      <p>用于项目要求匹配。"资料不足"永远不能当作反向证据。</p>
+      <table class="state-table">
+        <thead><tr><th>状态</th><th>什么时候用</th><th>不能这样用</th></tr></thead>
+        <tbody>
+          <tr><td><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span></td><td>材料对这项要求有明确支持</td><td>只因"参加过"就判支持</td></tr>
+          <tr><td><span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不支持</span></td><td>有足够信息表明这次没有满足，或存在明确反例</td><td>外推为稳定能力结论</td></tr>
+          <tr><td><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></td><td>缺少行为、结果或情境，无法评价</td><td>排在"不支持"后面、默认归为低潜力</td></tr>
+          <tr><td><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突</span></td><td>不同材料方向不一致，或两位评价人分差 ≥ 2</td><td>取平均掩盖分歧</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="ds-sub">分数状态</h3>
+      <p>维度分只有 1–5 五档，每一档都对应一条行为锚点。</p>
+      <div class="ds-stage">
+        <div class="n-score" data-state="ai"><span class="n-score__dim">AI 建议</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span><span class="n-score__note">空心流光，尚未计入档案</span></div>
+        <div class="n-score" data-state="confirmed"><span class="n-score__dim">已确认</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i><i class="n-score__dot"></i></span><span class="n-score__note"><span class="ink-hand">叶青</span>实心墨点，署名</span></div>
+        <div class="n-score" data-state="calibrated"><span class="n-score__dim">已校准</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span><span class="n-score__note"><span class="ink-hand">苏晚</span>末尾加一个朱点，可展开修订历史</span></div>
+        <div class="n-score" data-state="unknown"><span class="n-score__dim">资料不足</span><span class="n-score__dots"></span><span class="n-score__empty n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span><span class="n-score__note">涉及但缺少行为或结果，不出分</span></div>
+        <div class="n-score" data-state="absent"><span class="n-score__dim">未体现</span><span class="n-score__dots"></span><span class="n-score__empty n-badge">未体现</span><span class="n-score__note">事件没有涉及这个维度</span></div>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：输入与过程 ═════════ -->
+    <section class="ds-sec" id="c-input">
+      <h2>输入与过程</h2>
+      <p class="lead">一切从一句话开始。输入框支持文字、按住说话、附件和斜杠命令；AI 开始工作后，步骤收成一行可展开的轨迹。</p>
+      <div class="ds-grid c2">
+        <div>
+          <div class="n-composer">
+            <span id="composer-ip"></span>
+            <textarea class="n-composer__field" rows="2" id="composer-field" aria-label="描述你要做的事" placeholder="说一件事，或描述一个项目要找谁。输入 / 查看命令"></textarea>
+            <div class="n-composer__bar">
+              <button class="n-btn n-btn--ghost n-btn--icon" type="button" aria-label="添加附件"><svg><use href="#i-clip"/></svg></button>
+              <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="composer-mic" aria-label="按住说话" aria-pressed="false"><svg><use href="#i-mic"/></svg></button>
+              <span class="spacer"></span>
+              <span class="n-composer__hint">⌘ ↵ 发送</span>
+              <button class="n-btn n-btn--ink n-btn--icon" type="button" aria-label="发送"><svg><use href="#i-up"/></svg></button>
+            </div>
+          </div>
+          <div class="n-slash" id="slash" role="listbox" aria-label="命令" hidden>
+            <div class="n-slash__item" role="option" aria-selected="true"><svg width="16" height="16"><use href="#i-note"/></svg>记录关键事件<kbd>/记</kbd></div>
+            <div class="n-slash__item" role="option"><svg width="16" height="16"><use href="#i-folder"/></svg>为项目找 owner<kbd>/找</kbd></div>
+            <div class="n-slash__item" role="option"><svg width="16" height="16"><use href="#i-eye"/></svg>发起盘点<kbd>/盘</kbd></div>
+            <div class="n-slash__item" role="option"><svg width="16" height="16"><use href="#i-wave"/></svg>开始录音<kbd>/录</kbd></div>
+          </div>
+          <p class="ds-caption">输入 / 打开命令；点麦克风切到倾听状态。</p>
+        </div>
+        <div class="ds-stage">
+          <div class="n-trail" id="trail-demo" data-open="true">
+            <button class="n-trail__head" type="button" aria-expanded="true"><svg class="n-trail__chev"><use href="#i-chev"/></svg>为「海外加速搜索」找 owner · 3 步</button>
+            <ol class="n-trail__steps">
+              <li class="n-trail__step" data-state="done">读取需求，拆出 4 项要求</li>
+              <li class="n-trail__step" data-state="done">检索你有权限查看的 38 人 <small>增长产品部、业务成功部</small></li>
+              <li class="n-trail__step" data-state="active">逐项核对证据</li>
+              <li class="n-trail__step" data-state="pending">生成候选与缺口</li>
+            </ol>
+          </div>
+          <p class="ds-caption">点标题收起。进行中的步骤用靛色脉冲点；完成的步骤变成实心墨点。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：活文档与引用 ═════════ -->
+    <section class="ds-sec" id="c-doc">
+      <h2>活文档与引用</h2>
+      <p class="lead">文档由块组成，每块要么是光（AI 建议），要么是墨（人确认）。关键判断后面跟着引用角标：悬停看原文，录音来源可以就地播放那一段。</p>
+      <div class="ds-stage" style="max-width: 760px">
+        <div class="n-block" data-state="ink">
+          需求变更后第二天，他带着两个备选方案来找导师，并说明了各自的验收标准<span class="n-cite"><button class="n-cite__mark" data-kind="audio" type="button" aria-label="引用 1：复盘录音">1</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src"><svg width="14" height="14"><use href="#i-wave"/></svg>W2 导师团复盘 · 03:12–03:28 · 叶青</span><p class="n-cite__quote">"……他没等我安排，第二天就拿了 A、B 两个方案过来，<mark>每个方案的验收标准都写清楚了</mark>，这个我挺意外的。"</p><span class="n-cite__foot"><span class="n-player__play" style="width:26px;height:26px"><svg width="10" height="10"><use href="#i-play"/></svg></span><a href="#c-doc" style="font-size:var(--t-xs);color:var(--light)">打开完整纪要</a></span></span></span>。导师选了方案 B，他据此重排了剩余任务<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 2：周报">2</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src"><svg width="14" height="14"><use href="#i-doc"/></svg>Landing W2 周报 · 第 3 段</span><p class="n-cite__quote">剩余任务按方案 B 重新拆分为 5 个 Issue，<mark>原 #14、#15 关闭</mark>。</p></span></span>。
+          <div class="n-block__by"><span class="n-block__sig">叶青</span>导师 · 10-21 确认</div>
+        </div>
+        <div class="n-block" data-state="light" style="margin-top: var(--s-3)">
+          两次复盘都出现"带着假设求助"的行为，可能体现内生动力；但两次都发生在导师在场时，独立情境下的证据还不够。
+          <div class="n-block__by"><span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>AI 建议</span>依据 2 条事件 · 规则 rubric-v1</div>
+        </div>
+        <div class="ds-row" style="margin-top: var(--s-3); padding-left: var(--s-5)">
+          <button class="n-btn n-btn--sm n-btn--ink" type="button"><svg><use href="#i-check"/></svg>采纳</button>
+          <button class="n-btn n-btn--sm" type="button"><svg><use href="#i-pen"/></svg>改写</button>
+          <button class="n-btn n-btn--sm n-btn--ghost" type="button">删去</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：关键事件与打分 ═════════ -->
+    <section class="ds-sec" id="c-event">
+      <h2>关键事件与打分</h2>
+      <p class="lead">一条关键事件写清背景、行为、结果和来源。AI 只给事件涉及的维度打建议分；录入人点一下就能确认或改分，改过的分会留下 AI 原分的淡影。</p>
+      <div class="ds-grid c2">
+        <article class="n-card n-event" id="event-demo">
+          <div class="n-event__head">
+            <span class="n-src n-src--obs"><svg><use href="#i-eye"/></svg>导师评价</span>
+            <span>10-21</span>
+            <span class="n-badge"><svg><use href="#i-folder"/></svg>议题：工单检索</span>
+            <span class="n-badge n-badge--demo">演示</span>
+          </div>
+          <h3 class="n-event__title">需求变更后主动给出两个备选方案</h3>
+          <dl class="n-event__sbar">
+            <dt>背景</dt><dd>W2 中途，客户反馈搜索结果看不懂内部标识，原方案需要调整。</dd>
+            <dt>行为</dt><dd>第二天带着方案 A、B 找导师，各自写清验收标准与风险。</dd>
+            <dt>结果</dt><dd>方案 B 被采纳，剩余任务重新拆分为 5 个 Issue。</dd>
+          </dl>
+          <div class="n-event__scores" id="scores">
+            <!-- 由脚本渲染 -->
+          </div>
+          <div class="ds-row" style="margin-top: var(--s-4)">
+            <button class="n-btn n-btn--sm n-btn--ink" type="button" id="score-confirm"><svg><use href="#i-check"/></svg>确认全部分数</button>
+            <span style="font-size:var(--t-xs);color:var(--ink-3)" id="score-hint">点圆点即可改分</span>
+          </div>
+        </article>
+        <div class="ds-grid">
+          <div class="n-anchor" id="anchor">
+            <b>智慧力 · 1–5 分锚点</b> <span class="n-badge" style="margin-left:6px">rubric-v1</span>
+            <ol>
+              <li data-v="1"><b>1</b>本次出现与该维度相反的明确行为</li>
+              <li data-v="2"><b>2</b>相关行为偶发，需要他人推动</li>
+              <li data-v="3"><b>3</b>常规情境下稳定表现</li>
+              <li data-v="4"><b>4</b>有难度或模糊的情境下主动表现，并有可见结果</li>
+              <li data-v="5"><b>5</b>高难情境下突出，并带动他人或形成可复用方法</li>
+            </ol>
+          </div>
+          <div class="n-card" style="padding: var(--s-4) var(--s-5)">
+            <b style="font-size:var(--t-sm)">内生动力 · 修订历史</b>
+            <ul class="n-history" style="margin-top: var(--s-2)">
+              <li><span class="n-history__v">4</span><div><span class="n-history__why">两周内三次主动补位，不止这一次。</span><small>苏晚 · HRBP 校准 · 10-23</small></div></li>
+              <li><span class="n-history__v">3</span><div>确认<small>叶青 · 导师 · 10-21</small></div></li>
+              <li><span class="n-history__v is-ai">4</span><div>AI 建议 · 锚点 4 · 引用录音 03:12<small>模型 qwen-max · rubric-v1 · 10-21</small></div></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：能力象限 ═════════ -->
+    <section class="ds-sec" id="c-quad">
+      <h2>能力象限</h2>
+      <p class="lead">纸面上只有两笔墨。小犇根据已确认的维度分算出每个人的参考位置，化作光点落下；人把头像拖到自己判断的位置，光点留在原处，中间连一道由光到墨的痕迹。拖到另一个象限时，小犇会问一句理由；全部确认后光点消散、盖印冻结。</p>
+      <div class="ds-grid c2 quad-layout">
+        <div class="n-quad" id="quad-wrap">
+          <span class="n-seal n-quad__seal" id="quad-seal">冻<br>结</span>
+          <div class="n-quad__frame">
+            <div class="n-quad__y">潜力 →</div>
+            <div class="n-quad__plane" id="quad">
+              <div class="n-quad__cell" data-q="hl">高潜待练</div>
+              <div class="n-quad__cell" data-q="hh">双高</div>
+              <div class="n-quad__cell" data-q="ll">待观察</div>
+              <div class="n-quad__cell" data-q="lh">专业骨干</div>
+              <span class="n-quad__axis n-quad__axis--h" aria-hidden="true"></span>
+              <span class="n-quad__axis n-quad__axis--v" aria-hidden="true"></span>
+              <svg class="n-quad__trail" id="quad-trail" aria-hidden="true"></svg>
+            </div>
+            <div class="n-quad__x">专业度（对标当前职级）→</div>
+          </div>
+          <div class="n-quad__foot">
+            <span id="quad-ip"></span>
+            <div class="n-quad__say" id="quad-say" aria-live="polite">
+              <span id="quad-say-text">参考位置还没有给出。</span>
+              <textarea id="quad-reason" hidden placeholder="写一句理由" aria-label="和参考位置不同的理由"></textarea>
+            </div>
+            <div class="n-quad__wait">
+              <b>还在等材料 · 3 人</b>
+              <span class="chip"><span class="n-avatar n-avatar--sm" style="--hue:280">顾</span>顾南 <small>潜力轴缺 2 条事件</small></span>
+              <span class="chip"><span class="n-avatar n-avatar--sm" style="--hue:60">宋</span>宋小满 <small>入职 3 周</small></span>
+              <span class="chip"><span class="n-avatar n-avatar--sm" style="--hue:340">沈</span>沈星河 <small>专业度无评分</small></span>
+            </div>
+          </div>
+        </div>
+        <div class="n-card" style="padding: var(--s-5)" id="quad-panel">
+          <div class="n-person" style="margin-bottom: var(--s-3)"><span class="n-avatar n-avatar--lg" style="--hue:200">林</span><div><div class="n-person__name">林知远 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">增长产品部 / 业务成功部 · N3 · Landing 第三期</div></div></div>
+          <div class="n-score" data-state="confirmed"><span class="n-score__dim">专业度</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i><i class="n-score__dot"></i></span><span class="n-score__note">均值 3.0 · 4 条</span></div>
+          <div class="n-score" data-state="confirmed"><span class="n-score__dim">潜力核心</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span><span class="n-score__note">均值 3.8 · 6 条</span></div>
+          <div class="n-score" data-state="confirmed"><span class="n-score__dim">开放性</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span><span class="n-score__note">加分项 ≥ 4</span></div>
+          <div class="ds-row" style="margin-top: var(--s-5)">
+            <button class="n-btn n-btn--ink" type="button" id="quad-confirm">确认校准</button>
+            <button class="n-btn n-btn--ghost" type="button" id="quad-reset"><svg><use href="#i-retry"/></svg>重新给出参考位置</button>
+          </div>
+          <p class="ds-caption">选中头像后可以用方向键移动。资料不足的人不进象限，也不会被放在左下角。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：人与项目 ═════════ -->
+    <section class="ds-sec" id="c-project">
+      <h2>人与项目</h2>
+      <p class="lead">人和项目是多对多关系。人员行只放识别所需的最少信息；项目卡显示目标、状态、owner 和成员，成员的进出都留有记录。</p>
+      <div class="ds-grid c2">
+        <div class="ds-stage" style="padding: var(--s-3)">
+          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:200">林</span><div style="min-width:0"><div class="n-person__name">林知远 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">业务成功部 · 初级产品架构师 · 2 个项目</div></div></div><span class="n-badge" style="background:var(--q-hl);color:var(--q-hl-ink)">高潜待练</span></div>
+          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:30">周</span><div style="min-width:0"><div class="n-person__name">周屿 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">增长产品部 · 高级后端工程师 · 3 个项目</div></div></div><span class="n-badge" style="background:var(--q-hh);color:var(--q-hh-ink)">双高</span></div>
+          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:280">顾</span><div style="min-width:0"><div class="n-person__name">顾南 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">技术支持部 · 技术支持工程师 · 1 个项目</div></div></div><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></div>
+          <div class="n-person-row"><div class="n-person"><span class="n-avatar" style="--hue:150">陈</span><div style="min-width:0"><div class="n-person__name">陈一禾 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">员工视角下，看不到象限与分数</div></div></div><span class="n-lock"><svg><use href="#i-lock"/></svg>仅本人资料</span></div>
+        </div>
+        <article class="n-card n-project">
+          <div class="n-project__head">
+            <span class="n-avatar" style="--hue:220;border-radius:10px"><svg width="16" height="16"><use href="#i-folder"/></svg></span>
+            <div style="flex:1;min-width:0">
+              <h3 class="n-project__name">海外加速搜索体验</h3>
+              <p class="n-project__goal">让海外客户在控制台里一次搜到加速相关的全部入口，Q4 上线。</p>
+            </div>
+            <span class="n-badge n-badge--yes">进行中</span>
+          </div>
+          <ul class="n-members" style="margin-top: var(--s-4)">
+            <li><div class="n-person"><span class="n-avatar n-avatar--sm" style="--hue:30">周</span><span class="n-person__name">周屿</span></div><span class="n-members__role">owner</span><span class="n-members__when">10-08 起</span></li>
+            <li><div class="n-person"><span class="n-avatar n-avatar--sm" style="--hue:200">林</span><span class="n-person__name">林知远</span></div><span class="n-members__role">前端 · 兼职</span><span class="n-members__when">10-15 起</span></li>
+            <li class="is-left"><div class="n-person"><span class="n-avatar n-avatar--sm" style="--hue:150">陈</span><span class="n-person__name">陈一禾</span></div><span class="n-members__role">后端</span><span class="n-members__when">10-08 – 10-20</span></li>
+          </ul>
+          <div class="ds-row" style="margin-top: var(--s-4)">
+            <button class="n-btn n-btn--sm" type="button"><svg><use href="#i-plus"/></svg>添加成员</button>
+            <button class="n-btn n-btn--sm n-btn--ghost" type="button">编辑</button>
+            <button class="n-btn n-btn--sm n-btn--ghost" type="button" title="已有关联事件，只能归档">归档</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：找人与方案 ═════════ -->
+    <section class="ds-sec" id="c-plan">
+      <h2>找人与方案</h2>
+      <p class="lead">候选卡逐项列出要求和证据状态，不出现总分；相关维度的已确认分数可以展示，但列表不按分数排序。把候选人拖进角色槽位，槽位会显示这个角色还缺哪些证据。</p>
+      <div class="ds-grid c2">
+        <article class="n-card n-candidate" draggable="true" id="cand" aria-describedby="cand-tip">
+          <div class="n-person"><span class="n-avatar" style="--hue:30">周</span><div><div class="n-person__name">周屿 <span class="n-badge n-badge--demo">演示</span></div><div class="n-person__meta">增长产品部 · N5 · 当前在 3 个项目</div></div></div>
+          <ul class="n-reqs">
+            <li><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span><span>主导过跨团队交付：融合线路配置改造<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用">1</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src"><svg width="14" height="14"><use href="#i-doc"/></svg>项目复盘文档 · 第 2 节</span><p class="n-cite__quote">协调了运维与销售两条线，<mark>按期交付并把耗时降低一半</mark>。</p></span></span></span></li>
+            <li><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突</span><span>海外客户经验：简历有，近两年事件里没有</span></li>
+            <li><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span><span>Q4 是否有余量：本人意愿未知</span></li>
+          </ul>
+          <div class="ds-row" style="margin-top: var(--s-3)"><button class="n-btn n-btn--sm" type="button" id="cand-put">放入方案</button><span id="cand-tip" style="font-size:var(--t-xs);color:var(--ink-3)">或直接拖到右侧槽位</span></div>
+        </article>
+        <div class="ds-grid">
+          <div class="n-slot" id="slot" aria-live="polite">
+            <span class="n-slot__empty"><svg width="14" height="14"><use href="#i-plus"/></svg></span>
+            <div><div class="n-slot__role">角色</div><b>项目 owner</b></div>
+          </div>
+          <div class="n-slot"><span class="n-slot__empty"><svg width="14" height="14"><use href="#i-plus"/></svg></span><div><div class="n-slot__role">角色</div><b>前端</b></div></div>
+          <div class="n-version"><span class="n-version__tag is-draft">草稿 v3</span><span style="color:var(--ink-3)">基于 v2 · 改了 2 处</span><span style="margin-left:auto" class="n-diff">owner：<del>待定</del> <ins>周屿</ins></span></div>
+          <div class="n-version"><span class="n-version__tag is-frozen">v2 已确认</span><span style="color:var(--ink-3)">程远 · CEO · 10-20 · 快照已冻结</span><span class="n-seal n-seal--sm" style="margin-left:auto">定</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：核对与校准 ═════════ -->
+    <section class="ds-sec" id="c-verify">
+      <h2>核对与校准</h2>
+      <p class="lead">AI 拿不准的地方交给人，一次只问一件事。选完立刻生效，证据飞入对应档案。</p>
+      <div class="ds-grid c2">
+        <article class="n-card n-verify">
+          <span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>待核对 · W2 复盘录音 05:40</span>
+          <p class="n-verify__q" style="margin-top: var(--s-2)">录音里的 <q>小王</q> 指的是谁？</p>
+          <div class="n-choices" id="verify">
+            <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:100">王</span>王一舟<small>同议题组员 · 可能性高</small></button>
+            <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:320">王</span>王蔓<small>业务成功部</small></button>
+            <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>都不是，稍后处理<small></small></button>
+          </div>
+        </article>
+        <article class="n-card n-calib">
+          <span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突 · 智慧力</span>
+          <p style="margin: var(--s-2) 0 0; font-weight: 600">林知远在 W2 导师团复盘中的表现</p>
+          <div class="n-calib__pair">
+            <div class="n-calib__side"><span style="color:var(--ink-3)">叶青 · 导师</span><b>4</b>"方案对比清楚，结论→依据→取舍都有。"</div>
+            <div class="n-calib__side"><span style="color:var(--ink-3)">宋川 · 助教</span><b>2</b>"排查问题靠试，不是系统性收敛。"</div>
+          </div>
+          <label for="calib-reason" style="font-size:var(--t-xs);color:var(--ink-3)">校准为 3 分，理由</label>
+          <textarea class="n-calib__reason" id="calib-reason">方案表达到位，排查过程确实发散，各取一半。</textarea>
+          <div class="ds-row" style="margin-top: var(--s-3)"><button class="n-btn n-btn--ink" type="button">校准为 3 分</button><button class="n-btn n-btn--ghost" type="button">稍后</button></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：录音 ═════════ -->
+    <section class="ds-sec" id="c-rec">
+      <h2>录音</h2>
+      <p class="lead">对标「得到」：底部面板里实时转写逐句出现，未定稿的字是浅墨；三个工具是打标记、随手记、@某人。最小化后变成悬浮条，可以继续浏览其他页面。</p>
+      <div style="display:flex;gap:var(--s-8);flex-wrap:wrap;align-items:flex-start">
+        <div class="phone">
+          <div class="phone__screen">
+            <div class="phone__live" id="live">
+              <div class="speaker">叶青 · 03:12</div>
+              <div>他没等我安排，第二天就拿了两个方案过来，</div>
+              <div class="pending" id="live-pending">每个方案的验收标准都写清楚了</div>
+            </div>
+            <div class="phone__sheet">
+              <div style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--t-xs);color:var(--ink-3)"><span class="n-recbar__dot"></span>多人会议 · 普通话<span style="margin-left:auto" id="rec-time-2">03:28</span> / 120:00</div>
+              <div class="phone__tools">
+                <button type="button"><svg><use href="#i-flag"/></svg>打标记</button>
+                <button type="button"><svg><use href="#i-note"/></svg>随手记</button>
+                <button type="button"><svg><use href="#i-at"/></svg>@某人</button>
+              </div>
+              <div class="rec-main">
+                <button class="n-btn n-btn--ghost" type="button">暂停</button>
+                <button class="rec-stop" type="button" aria-label="完成录音"><i></i></button>
+                <button class="n-btn n-btn--ghost" type="button">收起</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ds-grid" style="flex:1;min-width:280px;max-width:460px">
+          <div><div class="n-recbar"><span class="n-recbar__dot"></span><span class="n-recbar__time" id="rec-time">03:28</span><span class="n-wave" aria-hidden="true"><i></i><i style="animation-delay:.15s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.45s"></i><i style="animation-delay:.6s"></i></span><span style="opacity:.7">W2 对人复盘</span><button class="n-btn n-btn--sm" type="button" style="background:rgb(255 255 255 / .14);color:#fff;box-shadow:none">展开</button></div><p class="ds-caption">悬浮录音条：最小化后停在页面底部。</p></div>
+          <div><div class="n-player"><button class="n-player__play" type="button" aria-label="播放"><svg><use href="#i-play"/></svg></button><div class="n-player__track" id="track"></div><span>03:12 / 42:10</span></div><p class="ds-caption">纪要顶部的播放器：蓝色刻度是录音中打的标记，点证据会跳到对应时间点。</p></div>
+          <div class="n-lock"><svg><use href="#i-lock"/></svg>手机锁屏或切到后台会暂停录音。已录的分段已上传，回来后可以接着录。</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 组件：反馈与状态 ═════════ -->
+    <section class="ds-sec" id="c-feedback">
+      <h2>反馈与状态</h2>
+      <p class="lead">按钮写清动作；直接保存的操作给 5 秒撤销；加载、空、失败、无权限分开说，不把未知写成 0。</p>
+      <div class="ds-row" style="margin-bottom: var(--s-5)">
+        <button class="n-btn n-btn--ink" type="button">保存事件</button>
+        <button class="n-btn" type="button">添加成员</button>
+        <button class="n-btn n-btn--light" type="button"><svg><use href="#i-spark"/></svg>让 AI 整理</button>
+        <button class="n-btn n-btn--seal" type="button">确认 v3 并冻结</button>
+        <button class="n-btn n-btn--ghost" type="button">取消</button>
+        <button class="n-btn" type="button" disabled>无权限确认</button>
+      </div>
+      <div class="ds-row" style="margin-bottom: var(--s-5)">
+        <button class="n-btn n-btn--sm" type="button" id="toast-run">保存一条记录</button>
+        <span id="toast-slot"></span>
+      </div>
+      <div class="ds-grid states-grid" id="states">
+        <div class="n-card n-state"><span data-ip="searching"></span><p class="n-state__title">正在检索</p><p class="n-state__text">在你有权限查看的 38 人中核对证据。</p></div>
+        <div class="n-card n-state"><span data-ip="listening"></span><p class="n-state__title">还没有关键事件</p><p class="n-state__text">说一句他最近做的事，或者上传一段复盘录音。</p><button class="n-btn n-btn--sm n-btn--ink" type="button">记录第一条</button></div>
+        <div class="n-card n-state"><span data-ip="error"></span><p class="n-state__title">转写没有完成</p><p class="n-state__text">第 3 段音频上传中断。已完成的 2 段保留着，可以只重传这一段。</p><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-retry"/></svg>重传第 3 段</button></div>
+        <div class="n-card n-state"><span class="n-avatar n-avatar--lg" style="--hue:0;background:var(--sheet-sunk);box-shadow:none"><svg width="20" height="20" style="color:var(--ink-3)"><use href="#i-lock"/></svg></span><p class="n-state__title">这部分资料不对你开放</p><p class="n-state__text">盘点结论只对相关 HRBP 和部门负责人可见。如有需要，请联系苏晚。</p></div>
+      </div>
+    </section>
+
+    <!-- ═════════ IP ═════════ -->
+    <section class="ds-sec" id="ip">
+      <h2>IP：小犇</h2>
+      <p class="lead">小犇是一头由光织成的小牛犊：脸是流光，牛角和额前一撮是墨。名字取「犇」，三牛并行，既暗合七牛，也是"一起往前跑"。它只表达 AI 此刻在做什么，不替人下结论。</p>
+      <div class="ip-show">
+        <div class="ip-show__stage"><span id="ip-big"></span></div>
+        <div>
+          <div class="ip-seg" role="group" aria-label="切换状态" id="ip-seg"></div>
+          <dl class="ip-spec" id="ip-spec" aria-live="polite"></dl>
+          <button class="n-btn n-btn--sm" type="button" id="ip-replay"><svg><use href="#i-retry"/></svg>重播这个状态</button>
+        </div>
+      </div>
+
+      <h3 class="ds-sub">造型</h3>
+      <p>用光做身体，用墨勾线和点睛，和整套视觉语言同源。表情只靠眼睛、嘴和耳朵，不加手脚和道具，小尺寸也认得出来。</p>
+      <div class="ip-anatomy">
+        <div class="ip-anatomy__fig"><span id="ip-anat"></span></div>
+        <ul class="ip-parts">
+          <li><b>牛角 · 墨</b>笔锋由粗到细，是全身最重的两笔。任何尺寸都保留，是小犇的识别点。</li>
+          <li><b>额前一撮 · 墨</b>一笔带过的毛旋。小于 48px 时省略。</li>
+          <li><b>脸与耳朵 · 流光</b>与 AI 内容同一组四色渐变，说明它是"光"做的。耳朵的转轴贴着脸，倾听时竖起，出错时耷拉。</li>
+          <li><b>眼睛 · 墨</b>竖椭圆带一点高光。会眨眼、扫视、眯成弯月、变成 &gt; &lt;。</li>
+          <li><b>鼻口 · 白</b>全身最亮的区域，在流光底上也能看清；嘴随状态变化。</li>
+          <li><b>腮红</b>唯一的暖色。小于 48px 时省略。</li>
+          <li><b>描边</b>2.2 / 64，各尺寸按比例缩放，不另做细线版本。</li>
+        </ul>
+      </div>
+
+      <h3 class="ds-sub">尺寸</h3>
+      <p>三档细节：48px 及以上完整；28–47px 去掉腮红和额前墨；27px 及以下只留脸、角和眼睛，状态特效只保留确认角标。最小 16px。</p>
+      <div class="ip-sizes" id="ip-sizes"></div>
+
+      <h3 class="ds-sub">六种状态</h3>
+      <p>状态跟随真实进度切换，不为了好看拖长。一个页面同时最多一个小犇在动，其余保持静止。完成只播一次；需要你确认、出错会一直保持，直到事项被处理。</p>
+      <div class="ip-strip" id="ip-strip" role="group" aria-label="六种状态"></div>
+      <div class="ip-table-wrap">
+        <table class="state-table">
+          <thead><tr><th>状态</th><th>什么时候</th><th>动作</th><th>时长与曲线</th><th>循环</th><th>减少动态效果时</th></tr></thead>
+          <tbody id="ip-table"></tbody>
+        </table>
+      </div>
+
+      <h3 class="ds-sub">出现在哪里</h3>
+      <p>只在四处出现：输入框左侧、处理状态、空状态，以及能力象限里给出参考位置。它不坐在结论、分数和人员卡旁边，也不代替错误说明的文字。</p>
+      <div class="ip-inuse" id="ip-inuse"></div>
+    </section>
+
+  </main>
+</div>
+
+<script src="assets/niu-ip.js"></script>
+<script>
+(function () {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const wait = ms => new Promise(r => setTimeout(r, reduced ? 0 : ms));
+
+  /* ── IP 挂载 ── */
+  const brandIp = NiuIP.mount($('#brand-ip'), { state: 'rest', size: 28 });
+  const heroIp = NiuIP.mount($('#hero-ip'), { state: 'thinking', size: 40 });
+  const composerIp = NiuIP.mount($('#composer-ip'), { state: 'confirm', size: 36 });
+  $$('#states [data-ip]').forEach(el => NiuIP.mount(el, { state: el.dataset.ip, size: 56 }));
+
+  /* ── 开篇：光 → 墨 ── */
+  const heroText = '两次复盘里，他都在需求变化后主动给出备选方案，并说明各自的验收标准。智慧力建议 4 分，坚毅力资料不足。';
+  async function runHero() {
+    const steps = $$('#hero-trail .n-trail__step');
+    const block = $('#hero-block'), text = $('#hero-text'), caret = $('#hero-caret'), by = $('#hero-by'), actions = $('#hero-actions'), seal = $('#hero-seal');
+    block.dataset.state = 'light'; block.classList.remove('is-settling');
+    text.textContent = ''; caret.hidden = false; by.hidden = true; seal.classList.remove('is-stamping'); seal.style.opacity = 0;
+    $$('button', actions).forEach(b => b.remove());
+    $('#hero-trail-label').textContent = '正在整理';
+    steps.forEach(s => s.dataset.state = 'pending');
+    NiuIP.setState(heroIp, 'searching');
+    for (const s of steps) { s.dataset.state = 'active'; await wait(700); s.dataset.state = 'done'; }
+    $('#hero-trail-label').textContent = '已整理 · 3 步';
+    NiuIP.setState(heroIp, 'thinking');
+    for (let i = 0; i < heroText.length; i++) {
+      text.textContent += heroText[i];
+      if (!reduced) await new Promise(r => setTimeout(r, heroText[i] === '，' || heroText[i] === '。' ? 160 : 34));
+    }
+    caret.hidden = true;
+    by.innerHTML = '<span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>AI 建议</span>依据 6 条事件 · 1 段录音';
+    by.hidden = false;
+    NiuIP.setState(heroIp, 'confirm');
+    const ok = button('采纳', 'n-btn n-btn--ink', '#i-check');
+    const edit = button('改写', 'n-btn', '#i-pen');
+    actions.prepend(ok, edit);
+    ok.focus({ preventScroll: true });
+    ok.onclick = async () => {
+      ok.remove(); edit.remove();
+      block.classList.add('is-settling');
+      block.dataset.state = 'ink';
+      by.innerHTML = '<span class="n-block__sig">苏晚</span>HRBP · 刚刚确认';
+      await wait(480);
+      seal.style.opacity = 1; seal.classList.add('is-stamping');
+      NiuIP.setState(heroIp, 'done');
+      const again = button('重放', 'n-btn n-btn--ghost n-btn--sm', '#i-retry');
+      again.onclick = runHero;
+      actions.prepend(again);
+    };
+    edit.onclick = () => { text.setAttribute('contenteditable', 'true'); text.focus(); };
+  }
+  function button(label, cls, icon) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = cls;
+    b.innerHTML = `<svg><use href="${icon}"/></svg>${label}`;
+    return b;
+  }
+  runHero();
+
+  /* ── 轨迹折叠 ── */
+  $$('.n-trail__head').forEach(h => h.addEventListener('click', () => {
+    const t = h.closest('.n-trail');
+    const open = t.dataset.open !== 'true';
+    t.dataset.open = open; h.setAttribute('aria-expanded', open);
+  }));
+
+  /* ── 输入框 ── */
+  const field = $('#composer-field'), slash = $('#slash');
+  field.addEventListener('input', () => {
+    slash.hidden = !field.value.startsWith('/');
+    NiuIP.setState(composerIp, field.value ? 'listening' : 'confirm');
+  });
+  $('#composer-mic').addEventListener('click', e => {
+    const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+    e.currentTarget.setAttribute('aria-pressed', on);
+    e.currentTarget.classList.toggle('n-btn--light', on);
+    NiuIP.setState(composerIp, on ? 'listening' : 'confirm');
+  });
+
+  /* ── 引用：触屏点按 ── */
+  $$('.n-cite__mark').forEach(m => m.addEventListener('click', e => {
+    e.stopPropagation();
+    const c = m.closest('.n-cite');
+    $$('.n-cite.is-open').forEach(o => o !== c && o.classList.remove('is-open'));
+    c.classList.toggle('is-open');
+  }));
+  document.addEventListener('click', () => $$('.n-cite.is-open').forEach(o => o.classList.remove('is-open')));
+
+  /* ── 曲线 ── */
+  $('#curve-run').addEventListener('click', () => {
+    $$('#curves .curve').forEach(c => {
+      const ball = $('.curve__ball', c);
+      ball.style.transition = `left var(--d-settle) ${c.dataset.ease}`;
+      c.classList.toggle('is-run');
+    });
+  });
+
+  /* ── 证据飞入 ── */
+  $('#fly-run').addEventListener('click', () => {
+    const card = $('#fly-card'), av = $('#fly-avatar'), count = $('#fly-count');
+    const a = card.getBoundingClientRect(), b = av.getBoundingClientRect();
+    const dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2);
+    const anim = card.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx * .5}px, ${dy - 46}px) scale(.6)`, opacity: 1, offset: .55 },
+      { transform: `translate(${dx}px, ${dy}px) scale(.12)`, opacity: 0 }
+    ], { duration: reduced ? 1 : 640, easing: 'cubic-bezier(.7,0,.15,1)' });
+    anim.onfinish = () => {
+      count.textContent = +count.textContent + 1;
+      count.classList.remove('is-bump'); void count.offsetWidth; count.classList.add('is-bump');
+      card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: reduced ? 1 : 320, delay: 500, fill: 'backwards' });
+    };
+  });
+
+  /* ── 需求重排（FLIP） ── */
+  const reqs = [
+    { label: '有跨团队推进经历', order: ['a', 'b', 'c'], st: { a: 'yes', b: 'unknown', c: 'no' } },
+    { label: '近半年做过客户访谈', order: ['b', 'c', 'a'], st: { a: 'unknown', b: 'yes', c: 'yes' } },
+  ];
+  const badge = {
+    yes: '<span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span>',
+    no: '<span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不支持</span>',
+    unknown: '<span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span>',
+  };
+  let rq = 0;
+  $('#rank-run').addEventListener('click', () => {
+    rq = (rq + 1) % reqs.length;
+    const r = reqs[rq], list = $('#rank'), items = $$('li', list);
+    const first = new Map(items.map(li => [li, li.getBoundingClientRect().top]));
+    $('#rank-req').textContent = r.label;
+    r.order.forEach(id => {
+      const li = $(`[data-id="${id}"]`, list);
+      const prev = li.querySelector('.n-badge').outerHTML;
+      li.querySelector('.n-badge').outerHTML = badge[r.st[id]];
+      li.classList.toggle('is-changed', prev !== badge[r.st[id]]);
+      list.appendChild(li);
+    });
+    items.forEach(li => {
+      const d = first.get(li) - li.getBoundingClientRect().top;
+      if (d) li.animate([{ transform: `translateY(${d}px)` }, { transform: 'none' }], { duration: reduced ? 1 : 420, easing: 'cubic-bezier(.65,0,.35,1)' });
+    });
+  });
+
+  /* ── 维度打分 ── */
+  const dims = [
+    { name: '智慧力', ai: 4, note: '锚点 4 · 引用录音 03:12' },
+    { name: '内生动力', ai: 4, note: '锚点 4 · 引用周报第 3 段' },
+    { name: '坚毅力', ai: null, state: 'unknown', note: '涉及但没有受挫后的行为' },
+    { name: '领导力', ai: null, state: 'absent', note: '' },
+  ];
+  const scores = $('#scores');
+  dims.forEach((d, i) => {
+    const row = document.createElement('div');
+    row.className = 'n-score';
+    row.dataset.state = d.state || 'ai';
+    d.value = d.ai;
+    row.innerHTML = `<span class="n-score__dim">${d.name}</span>
+      <span class="n-score__dots" role="radiogroup" aria-label="${d.name}分数">${[1, 2, 3, 4, 5].map(v => `<button type="button" class="n-score__dot" role="radio" aria-label="${v} 分" data-v="${v}"></button>`).join('')}</span>
+      ${d.state === 'unknown' ? '<span class="n-score__empty n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span>' : ''}
+      ${d.state === 'absent' ? '<span class="n-score__empty n-badge">未体现</span>' : ''}
+      <span class="n-score__note">${d.note}</span>`;
+    scores.appendChild(row);
+    d.row = row;
+    paint(d);
+    $$('.n-score__dot', row).forEach(btn => {
+      btn.addEventListener('click', () => { d.value = +btn.dataset.v; d.edited = d.value !== d.ai; row.dataset.state = 'confirmed'; paint(d); hint(); });
+      btn.addEventListener('mouseenter', () => anchorHit(+btn.dataset.v));
+      btn.addEventListener('focus', () => anchorHit(+btn.dataset.v));
+    });
+  });
+  function paint(d) {
+    $$('.n-score__dot', d.row).forEach(b => {
+      const v = +b.dataset.v;
+      b.classList.toggle('is-on', d.value != null && v <= d.value);
+      b.classList.toggle('is-ghost', !!d.edited && v <= d.ai && v > d.value);
+      b.setAttribute('aria-checked', v === d.value);
+    });
+    const note = $('.n-score__note', d.row);
+    if (d.row.dataset.state === 'confirmed') {
+      note.innerHTML = `<span class="ink-hand">叶青</span>${d.edited ? `<span class="n-score__delta">${d.value > d.ai ? '+' : ''}${d.value - d.ai}</span>AI 原为 ${d.ai}` : '已确认'}`;
+    }
+  }
+  function anchorHit(v) { $$('#anchor li').forEach(li => li.classList.toggle('is-hit', +li.dataset.v === v)); }
+  anchorHit(4);
+  function hint() {
+    const left = dims.filter(d => d.row.dataset.state === 'ai').length;
+    $('#score-hint').textContent = left ? `还有 ${left} 项 AI 建议未确认` : '全部已确认，已计入档案';
+  }
+  $('#score-confirm').addEventListener('click', () => {
+    dims.forEach(d => { if (d.row.dataset.state === 'ai') { d.row.dataset.state = 'confirmed'; paint(d); } });
+    hint();
+  });
+
+  /* ── 能力象限：光点落位 ── */
+  const plane = $('#quad'), trail = $('#quad-trail'), say = $('#quad-say'), sayText = $('#quad-say-text'), reason = $('#quad-reason');
+  const quadIp = NiuIP.mount($('#quad-ip'), { state: 'rest', size: 48 });
+  const people = [
+    { n: '林', name: '林知远', hue: 200, ref: [.32, .28], bonus: true },
+    { n: '周', name: '周屿', hue: 30, ref: [.8, .2] },
+    { n: '何', name: '何以宁', hue: 250, ref: [.63, .4] },
+    { n: '陈', name: '陈一禾', hue: 150, ref: [.72, .72] },
+    { n: '王', name: '王一舟', hue: 100, ref: [.2, .76] },
+  ];
+  const quadName = { hl: '高潜待练', hh: '双高', ll: '待观察', lh: '专业骨干' };
+  const qOf = ([x, y]) => (y < .5 ? 'h' : 'l') + (x < .5 ? 'l' : 'h');
+  const clamp = v => Math.min(.95, Math.max(.05, v));
+  let asking = null;
+
+  people.forEach(p => {
+    p.pos = p.ref.slice(); p.reason = '';
+    p.light = document.createElement('span'); p.light.className = 'n-quad__light';
+    p.dot = document.createElement('button'); p.dot.type = 'button'; p.dot.className = 'n-quad__dot';
+    p.dot.dataset.bonus = !!p.bonus;
+    p.dot.innerHTML = `<span class="n-avatar" style="--hue:${p.hue}">${p.n}</span>`;
+    plane.append(p.light, p.dot);
+    place(p); drag(p);
+  });
+
+  function place(p) {
+    p.light.style.left = p.ref[0] * 100 + '%'; p.light.style.top = p.ref[1] * 100 + '%';
+    p.dot.style.left = p.pos[0] * 100 + '%'; p.dot.style.top = p.pos[1] * 100 + '%';
+    p.dot.setAttribute('aria-label', `${p.name}，在${quadName[qOf(p.pos)]}；参考位置是${quadName[qOf(p.ref)]}`);
+    drawTrails();
+  }
+  // 光到墨的痕迹：从光点到头像，颜色由流光渐变为墨
+  function drawTrails() {
+    const w = plane.clientWidth, h = plane.clientHeight;
+    const moved = people.filter(p => p.dot && Math.hypot(p.pos[0] - p.ref[0], p.pos[1] - p.ref[1]) > .03);
+    trail.innerHTML = '<defs>' + moved.map((p, i) => {
+      const [x1, y1, x2, y2] = [p.ref[0] * w, p.ref[1] * h, p.pos[0] * w, p.pos[1] * h];
+      return `<linearGradient id="qt${i}" gradientUnits="userSpaceOnUse" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><stop offset="0" stop-color="#8fa0ff" stop-opacity=".7"/><stop offset=".45" stop-color="#6fd6e2" stop-opacity=".6"/><stop offset="1" stop-color="#1b1e25" stop-opacity=".75"/></linearGradient>`;
+    }).join('') + '</defs>' + moved.map((p, i) => {
+      const [x1, y1, x2, y2] = [p.ref[0] * w, p.ref[1] * h, p.pos[0] * w, p.pos[1] * h];
+      const mx = (x1 + x2) / 2 - (y2 - y1) * .18, my = (y1 + y2) / 2 + (x2 - x1) * .18;
+      return `<path d="M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}" stroke="url(#qt${i})"/>`;
+    }).join('');
+  }
+  addEventListener('resize', drawTrails);
+
+  function drag(p) {
+    let rect;
+    p.dot.addEventListener('pointerdown', e => {
+      if (plane.dataset.frozen) return;
+      rect = plane.getBoundingClientRect();
+      p.dot.setPointerCapture(e.pointerId); p.dot.classList.add('is-dragging');
+      people.forEach(o => o.dot.classList.toggle('is-selected', o === p));
+    });
+    p.dot.addEventListener('pointermove', e => {
+      if (!p.dot.classList.contains('is-dragging')) return;
+      p.pos = [clamp((e.clientX - rect.left) / rect.width), clamp((e.clientY - rect.top) / rect.height)];
+      place(p); target(qOf(p.pos));
+    });
+    const end = () => { if (!p.dot.classList.contains('is-dragging')) return; p.dot.classList.remove('is-dragging'); target(null); settle(p); };
+    p.dot.addEventListener('pointerup', end); p.dot.addEventListener('pointercancel', end);
+    p.dot.addEventListener('keydown', e => {
+      const k = { ArrowLeft: [-.05, 0], ArrowRight: [.05, 0], ArrowUp: [0, -.05], ArrowDown: [0, .05] }[e.key];
+      if (!k || plane.dataset.frozen) return;
+      e.preventDefault();
+      p.pos = [clamp(p.pos[0] + k[0]), clamp(p.pos[1] + k[1])];
+      place(p); settle(p);
+    });
+  }
+  function target(q) { $$('.n-quad__cell', plane).forEach(c => c.classList.toggle('is-target', c.dataset.q === q)); }
+  const pending = () => people.filter(p => qOf(p.pos) !== qOf(p.ref) && !p.reason.trim());
+
+  function ask(p) {
+    asking = p;
+    NiuIP.setState(quadIp, 'confirm');
+    sayText.textContent = `你把${p.name}从「${quadName[qOf(p.ref)]}」放到了「${quadName[qOf(p.pos)]}」，和我给的参考不同。为什么？`;
+    reason.hidden = false; reason.value = p.reason;
+    reason.focus({ preventScroll: true });
+  }
+  function settle(p) {
+    if (qOf(p.pos) !== qOf(p.ref)) { ask(p); return; }
+    if (asking === p) { asking = null; reason.hidden = true; }
+    const next = pending()[0];
+    if (next) { ask(next); return; }
+    NiuIP.setState(quadIp, 'rest');
+    const n = people.filter(o => Math.hypot(o.pos[0] - o.ref[0], o.pos[1] - o.ref[1]) > .03).length;
+    sayText.textContent = n ? `已调整 ${n} 人的位置，都还在参考象限内。确认后冻结。` : '参考位置已给出。把头像拖到你判断的位置；同意的人不用动。';
+  }
+  reason.addEventListener('input', () => {
+    if (!asking) return;
+    asking.reason = reason.value;
+    NiuIP.setState(quadIp, reason.value.trim() ? 'listening' : 'confirm');
+  });
+
+  async function intro() {
+    delete plane.dataset.frozen;
+    say.classList.remove('is-ink'); reason.hidden = true; asking = null;
+    $('#quad-seal').style.opacity = 0; $('#quad-seal').classList.remove('is-stamping');
+    people.forEach(p => { p.pos = p.ref.slice(); p.reason = ''; p.light.classList.remove('is-gone'); p.dot.classList.remove('is-confirmed', 'is-selected'); p.light.style.opacity = 0; p.dot.style.opacity = 0; place(p); });
+    NiuIP.setState(quadIp, 'searching');
+    sayText.textContent = '正在根据 38 条已确认的维度分计算参考位置……';
+    await wait(900);
+    const pr = plane.getBoundingClientRect(), ir = $('#quad-ip').getBoundingClientRect();
+    const ix = ir.left + ir.width / 2 - pr.left, iy = ir.top + ir.height / 3 - pr.top;
+    people.forEach((p, i) => {
+      const fx = p.ref[0] * pr.width, fy = p.ref[1] * pr.height, dx = ix - fx, dy = iy - fy;
+      p.light.style.opacity = '';
+      p.light.animate([
+        { transform: `translate(${dx}px, ${dy}px) scale(.25)`, opacity: 0 },
+        { transform: `translate(${dx * .45}px, ${dy * .45 - 70}px) scale(.9)`, opacity: 1, offset: .55 },
+        { transform: 'none', opacity: 1 }
+      ], { duration: reduced ? 1 : 720, delay: reduced ? 0 : i * 150, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
+      p.dot.style.opacity = '';
+      p.dot.animate([
+        { opacity: 0, transform: 'scale(1.6)', filter: 'blur(3px)' },
+        { opacity: 1, transform: 'none', filter: 'none' }
+      ], { duration: reduced ? 1 : 520, delay: reduced ? 0 : i * 150 + 640, easing: 'cubic-bezier(.7,0,.15,1)', fill: 'backwards' });
+    });
+    await wait(people.length * 150 + 1200);
+    NiuIP.setState(quadIp, 'rest');
+    sayText.textContent = '参考位置已给出。把头像拖到你判断的位置；同意的人不用动。';
+  }
+  let introDone = false;
+  new IntersectionObserver((es, o) => es.forEach(e => {
+    if (e.isIntersecting && !introDone) { introDone = true; o.disconnect(); intro(); }
+  }), { threshold: .45 }).observe($('#quad-wrap'));
+
+  $('#quad-reset').addEventListener('click', intro);
+  $('#quad-confirm').addEventListener('click', () => {
+    const next = pending()[0];
+    if (next) { ask(next); return; }
+    plane.dataset.frozen = 'true';
+    reason.hidden = true;
+    people.forEach(p => { p.light.classList.add('is-gone'); p.dot.classList.add('is-confirmed'); p.dot.classList.remove('is-selected'); });
+    $$('path', trail).forEach(t => t.style.opacity = 0);
+    const seal = $('#quad-seal'); seal.style.opacity = 1; seal.classList.remove('is-stamping'); void seal.offsetWidth; seal.classList.add('is-stamping');
+    NiuIP.setState(quadIp, 'done');
+    say.classList.add('is-ink');
+    const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const moved = people.filter(p => p.reason.trim()).map(p => `${p.name}（${esc(p.reason.trim())}）`);
+    sayText.innerHTML = `已冻结快照 · <span class="ink-hand">苏晚</span> · 10-23。${moved.length ? '调整：' + moved.join('；') + '。' : ''}之后有新证据时，我只提示可能需要重新校准，不会挪动位置。`;
+  });
+
+  /* ── 拖入槽位 ── */
+  const cand = $('#cand'), slot = $('#slot');
+  function fill() {
+    slot.classList.add('is-filled');
+    slot.innerHTML = `<span class="n-avatar" style="--hue:30">周</span><div><div class="n-slot__role">项目 owner</div><b>周屿</b></div>
+      <div class="n-slot__gap"><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>海外客户经验待核实</span><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>本人意愿未知</span></div>`;
+    slot.animate([{ transform: 'scale(.97)' }, { transform: 'scale(1.02)' }, { transform: 'none' }], { duration: reduced ? 1 : 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  }
+  cand.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'zhou'));
+  slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('is-over'); });
+  slot.addEventListener('dragleave', () => slot.classList.remove('is-over'));
+  slot.addEventListener('drop', e => { e.preventDefault(); slot.classList.remove('is-over'); fill(); });
+  $('#cand-put').addEventListener('click', fill);
+
+  /* ── 核对 ── */
+  $$('#verify .n-choice').forEach(c => c.addEventListener('click', () => {
+    $$('#verify .n-choice').forEach(o => o.classList.toggle('is-picked', o === c));
+  }));
+
+  /* ── 撤销 Toast ── */
+  $('#toast-run').addEventListener('click', () => {
+    const slotEl = $('#toast-slot');
+    slotEl.innerHTML = `<div class="n-toast" role="status">已保存到 林知远 的档案<button class="n-toast__undo" type="button"><svg class="n-toast__ring" viewBox="0 0 20 20"><circle class="track" cx="10" cy="10" r="8"/><circle class="run" cx="10" cy="10" r="8"/></svg>撤销</button></div>`;
+    const t = $('.n-toast', slotEl);
+    t.animate([{ transform: 'translateY(8px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: reduced ? 1 : 240, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    requestAnimationFrame(() => t.classList.add('is-counting'));
+    const timer = setTimeout(() => t.remove(), 5000);
+    $('.n-toast__undo', t).onclick = () => { clearTimeout(timer); t.innerHTML = '已撤销，记录没有保存'; setTimeout(() => t.remove(), 1600); };
+  });
+
+  /* ── 录音 ── */
+  let sec = 208;
+  const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  if (!reduced) setInterval(() => { sec++; $('#rec-time').textContent = fmt(sec); $('#rec-time-2').textContent = fmt(sec); }, 1000);
+  const pendings = ['每个方案的验收标准都写清楚了', '每个方案的验收标准都写清楚了，这个我挺意外的。'];
+  setTimeout(() => { const p = $('#live-pending'); p.textContent = pendings[1]; p.classList.remove('pending'); }, reduced ? 0 : 2600);
+  const track = $('#track');
+  for (let i = 0; i < 64; i++) {
+    const h = 20 + Math.abs(Math.sin(i * 1.7) * 60 + Math.cos(i * .6) * 20);
+    const bar = document.createElement('i');
+    bar.style.height = Math.min(100, h) + '%';
+    if (i < 18) bar.classList.add('is-played');
+    if (i === 18 || i === 41) bar.classList.add('is-mark');
+    track.appendChild(bar);
+  }
+
+  /* ── IP：小犇 ── */
+  const seg = $('#ip-seg'), strip = $('#ip-strip'), spec = $('#ip-spec');
+  const states = Object.keys(NiuIP.SPEC);
+  const big = NiuIP.mount($('#ip-big'), { state: 'listening', size: 200 });
+  let current = 'listening';
+  states.forEach(s => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = NiuIP.SPEC[s].name; b.dataset.s = s;
+    b.onclick = () => show(s);
+    seg.appendChild(b);
+    const c = document.createElement('button');
+    c.type = 'button'; c.dataset.s = s;
+    c.innerHTML = '<span></span>' + NiuIP.SPEC[s].name;
+    c.onclick = () => show(s);
+    strip.appendChild(c);
+    NiuIP.mount($('span', c), { state: s, size: 64 });
+  });
+  function show(s) {
+    current = s;
+    NiuIP.setState(big, s);
+    $$('button', seg).forEach(b => b.setAttribute('aria-pressed', b.dataset.s === s));
+    $$('button', strip).forEach(b => b.setAttribute('aria-pressed', b.dataset.s === s));
+    const v = NiuIP.SPEC[s];
+    spec.innerHTML = '';
+    [['什么时候', v.when], ['动作', v.motion], ['时长与曲线', v.timing], ['循环', v.loop], ['减少动态效果时', v.reduced]].forEach(([k, t]) => {
+      const dt = document.createElement('dt'); dt.textContent = k;
+      const dd = document.createElement('dd'); dd.textContent = t;
+      spec.append(dt, dd);
+    });
+  }
+  $('#ip-replay').addEventListener('click', () => NiuIP.setState(big, current));
+  show(current);
+
+  NiuIP.mount($('#ip-anat'), { state: 'rest', size: 200 });
+
+  [[120, '展示'], [56, '空状态'], [36, '输入框、处理状态'], [24, '行内状态'], [16, '最小尺寸']].forEach(([px, use]) => {
+    const f = document.createElement('figure');
+    f.innerHTML = `<span></span><figcaption><b>${px}px</b><br>${use}</figcaption>`;
+    $('#ip-sizes').appendChild(f);
+    NiuIP.mount($('span', f), { state: 'rest', size: px });
+  });
+
+  states.forEach(s => {
+    const v = NiuIP.SPEC[s], tr = document.createElement('tr');
+    [v.name, v.when, v.motion, v.timing, v.loop, v.reduced].forEach((t, i) => {
+      const td = document.createElement('td');
+      if (i === 0) { td.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px"><span></span><b></b></span>'; $('b', td).textContent = t; NiuIP.mount($('span span', td), { state: s, size: 32 }); }
+      else td.textContent = t;
+      tr.appendChild(td);
+    });
+    $('#ip-table').appendChild(tr);
+  });
+
+  const inuse = $('#ip-inuse');
+  [['输入框左侧', 'listening', '在听你说'], ['处理状态', 'searching', '转写与整理中，可以直接返回'], ['空状态', 'confirm', '有 2 条记录需要你确认归属'], ['能力象限', 'rest', '参考位置已给出']].forEach(([label, s, text]) => {
+    const d = document.createElement('div');
+    d.innerHTML = `<div class="label">${label}</div><div style="display:flex;align-items:center;gap:var(--s-3)"><span></span><span>${text}</span></div>`;
+    inuse.appendChild(d);
+    NiuIP.mount($('span', d), { state: s, size: 36 });
+  });
+
+  /* ── 目录高亮 ── */
+  const links = $$('.ds-nav a');
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) links.forEach(a => a.classList.toggle('is-here', a.getAttribute('href') === '#' + e.target.id));
+  }), { rootMargin: '-30% 0px -60% 0px' });
+  $$('main section[id]').forEach(s => io.observe(s));
+})();
+</script>
+</body>
+</html>
