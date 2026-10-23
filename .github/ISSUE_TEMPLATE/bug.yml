@@ -1,0 +1,41 @@
+name: 缺陷报告
+description: 记录实际行为、复现条件与预期结果
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先搜索已有事项。请使用化名并标「演示」，只附脱敏证据；真实员工材料、凭证或疑似泄露细节通过私下渠道联系项目负责人。
+        无法稳定复现时写明已知条件，不必猜根因。协作流程见仓库 CONTRIBUTING.md；阶段和隐私约束见 AGENTS.md。
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 实际行为与影响
+      description: 在做什么时遇到了什么问题，影响哪些操作或使用者？
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果与依据
+      description: 正确行为是什么？链接相关需求条目或已确认设计；尚不明确时如实说明。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤或已知触发条件
+      description: 最少的操作步骤和必要数据条件；偶发问题可写尚不能稳定复现及已排查范围。
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 版本与环境
+      description: 提交 SHA 或原型版本、浏览器与视口、相关环境；不知道的项写未知，无需填写无关工具版本。
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 补充证据与关联事项
+      description: 可选，附脱敏截图、关键错误摘要、相关 issue / PR；不要粘贴完整敏感日志。

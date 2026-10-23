@@ -1,0 +1,37 @@
+name: 功能、工程任务或方案讨论
+description: 记录要解决的问题、完成条件和必要依赖
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先搜索已有事项；已有需求、设计或 proposal 请链接引用。只用演示数据，不填写真实员工评价或原文。
+        方向未定时先记录要作出的决策，不把候选方案写成已接受需求。协作流程见仓库 CONTRIBUTING.md；阶段和隐私约束见 AGENTS.md。
+  - type: dropdown
+    id: category
+    attributes:
+      label: 事项类型
+      options:
+        - 功能需求
+        - 工程或文档任务
+        - 方案讨论
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题与目标
+      description: 当前有什么问题，完成后希望发生什么变化？已有依据直接链接。
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 本次范围与完成条件
+      description: 写清本次交付和可核对的完成条件；需要部署或人工验收时注明。方案讨论可把记录决策作为完成条件。
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 依赖、方案或待决问题
+      description: 可选，链接已有 proposal / issue，说明已知阻塞或待确认事项，不重复抄写正文。
