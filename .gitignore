@@ -33,3 +33,7 @@ yarn-debug.log*
 
 # Agent 本地状态
 .claude/settings.local.json
+
+# Cloudflare 本地调试
+.dev.vars
+.wrangler/

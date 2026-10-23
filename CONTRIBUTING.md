@@ -84,7 +84,8 @@ fix(prototype): 保留取消弹窗前的输入
 - 合并只启用 Squash；默认标题取 PR 标题、正文取 PR 描述，合并者按上文精简；合并后删除任务分支。自动合并、Wiki 和 Projects 未启用。
 - **分支保护未启用，当前为人工检查、无平台强制。** 规则集读取和 `main` 分支保护设置均被 GitHub 以 HTTP 403 拒绝，要求升级套餐或公开仓库；本仓库保持私有，不升级套餐。仍按上述 PR、审查和合并规则工作，由仓库负责人或其明确授权的 Agent 执行。
 - `.github/` 模板已随默认分支推送；模板文件存在不代表表单必填或审批已经受平台强制。使用时核对实际页面和信息完整性。
-- 正式工程、CI、required checks、部署与发布尚未建立；建仓不自动触发这些工作。
+- 正式工程、CI、required checks 与发布尚未建立；建仓不自动触发这些工作。
+- 原型评审站：`review-site/` 以 Cloudflare Worker + D1 部署到 workers.dev，由 Cloudflare Access 限定 `@qiniu.com` 登录，Worker 二次校验凭证。部署与读取评论的命令见 [review-site/README.md](review-site/README.md)；部署须经仓库负责人授权，Access 应用由其在 Zero Trust 中创建。
 
 后续维护：
 
