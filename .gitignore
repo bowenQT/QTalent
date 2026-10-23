@@ -1,0 +1,34 @@
+# 原始材料含真实人名与内部信息，仅本地保留
+docs/sources/
+
+# 密钥与本地环境
+.env
+.env.*
+!.env.example
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# 依赖与构建产物
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# 日志
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Agent 本地状态
+.claude/settings.local.json
