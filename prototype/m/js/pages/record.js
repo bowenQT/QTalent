@@ -48,9 +48,8 @@
         <label class="n-field"><span class="n-field__label">语言</span><select class="n-select" id="lang"><option ${lang === '普通话' ? 'selected' : ''}>普通话</option><option ${lang === '普通话 + 英文' ? 'selected' : ''}>普通话 + 英文</option></select></label>
         <label class="n-field"><span class="n-field__label">关联到</span><select class="n-select" id="rel"><option>Landing 第三期 · W2 导师团复盘</option><option>不关联</option></select></label>
       </div>
-      <p class="nt-muted" style="text-align:center;margin:var(--s-2) 0 0">时长上限为占位值，联调后按真实规格填写。</p>
       <div class="m-actions">
-        ${deny && mode !== 'upload' ? html`<div class="n-notice is-deny">${icon('mic')}<div><b>浏览器没有给麦克风权限。</b>可以先打字记下来，或者上传已有录音；之后在浏览器设置里打开麦克风再录。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm n-btn--ink" href="quick.html">改为打字</a><button class="n-btn n-btn--sm" type="button" data-mode="upload">上传录音</button></div></div></div>`
+        ${deny && mode !== 'upload' ? html`<div class="n-notice is-deny">${icon('mic')}<div><b>麦克风权限待开启。</b>可以先打字记下来，或者上传已有录音；在浏览器设置里打开麦克风后再录。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm n-btn--ink" href="quick.html">改为打字</a><button class="n-btn n-btn--sm" type="button" data-mode="upload">上传录音</button></div></div></div>`
           : mode === 'upload' ? html`<button class="n-btn n-btn--ink m-big" type="button" id="pick">${icon('upload')}选择录音文件</button>`
             : html`<button class="m-recbtn" type="button" id="start" aria-label="开始录音"><i></i></button>`}
       </div>`);
@@ -73,7 +72,7 @@
 
   // 上传：选文件 → 上传进度 → 进入处理中
   async function upload(main) {
-    mount(main, html`<div class="m-card" style="margin-top:var(--s-4)"><div class="n-task" data-state="uploading"><span class="n-task__icon">${icon('upload')}</span><div style="min-width:0"><div class="n-task__name">W2 导师团复盘.m4a</div><div class="n-task__state"><b>上传中</b> · <span id="up-n">0</span> MB / 182 MB · 上传完成前别关页面</div><div class="n-progress"><i id="up-bar" style="width:0%"></i></div></div><div class="n-task__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="up-x">取消</button></div></div></div>`);
+    mount(main, html`<div class="m-card" style="margin-top:var(--s-4)"><div class="n-task" data-state="uploading"><span class="n-task__icon">${icon('upload')}</span><div style="min-width:0"><div class="n-task__name">W2 导师团复盘.m4a</div><div class="n-task__state"><b>上传中</b> · <span id="up-n">0</span> MB / 182 MB · 上传时请保持页面打开</div><div class="n-progress"><i id="up-bar" style="width:0%"></i></div></div><div class="n-task__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="up-x">取消上传</button></div></div></div>`);
     let pct = 0, stop = false;
     $('#up-x').onclick = () => { stop = true; NT.toast('已取消上传'); renderMode(main); };
     while (pct < 100 && !stop) { await NT.wait(120); pct = Math.min(100, pct + 7); if (!$('#up-bar')) return; $('#up-bar').style.width = `${pct}%`; $('#up-n').textContent = Math.round(182 * pct / 100); }
@@ -90,7 +89,7 @@
     el.className = 'm-rec'; el.setAttribute('aria-label', '录制中');
     el.innerHTML = String(html`
       <div class="m-rec__top"><span class="n-recbar__dot"></span><b>${r.title}</b><span class="nt-muted">${MODES.find((x) => x.id === r.mode).name} · ${r.lang}</span></div>
-      <div class="n-lock m-rec__awake">${icon('lock')}请保持亮屏：锁屏或切到后台会暂停录音，已录的分段已上传，回来可以接着录。</div>
+      <div class="n-lock m-rec__awake">${icon('lock')}录音时保持亮屏。切到后台会暂停，回来接着录，已录内容都已保存。</div>
       <div class="m-live" id="live" aria-live="polite"></div>
       <div class="m-recsheet">
         <div class="m-recsheet__meta"><span class="n-wave" aria-hidden="true">${[0, 1, 2, 3, 4].map((i) => html`<i style="animation-delay:${i * 0.15}s"></i>`)}</span><span id="rec-state">${r.paused ? '已暂停' : '录制中'}</span><span style="margin-left:auto"><b id="rec-time">00:00</b> / ${r.mode === 'obs' ? '10:00' : '120:00'}</span></div>
@@ -194,15 +193,15 @@
     task.state = 'partial'; task.note = '9 条事件已整理，3 处待核对'; delete task.readyAt; st.save();
     NT.ipState($('#proc-ip'), 'done');
     $('#proc-t').textContent = '人才纪要已生成';
-    $('#proc-s').textContent = '9 条事件已整理，3 处需要你确认是谁。演示里使用预先处理好的 W2 导师团复盘纪要。';
+    $('#proc-s').textContent = '9 条事件已整理，3 处需要你确认是谁。';
     mount($('.m-actions', main), html`<a class="n-btn n-btn--ink m-big" href="record.html?m=w2">查看人才纪要</a><a class="n-btn n-btn--ghost" href="index.html">回到工作台</a>`);
   }
 
   // ---------- 人才纪要 ----------
   function renderMinutes(main) {
     const m = NT.SEED.MINUTES[minutesId];
-    if (!m) { mount(main, UI.state({ ip: 'confirm', title: '没有找到这份纪要' })); return; }
-    if (!st.canOpenMinutes(minutesId)) { mount(main, UI.state({ ip: 'confirm', title: '这个视角看不到这份纪要', text: '会议纪要只对录入人、该批次的导师、学员的归属 HRBP 和 CEO 可见。' })); return; }
+    if (!m) { mount(main, UI.state({ ip: 'confirm', title: '纪要链接失效' })); return; }
+    if (!st.canOpenMinutes(minutesId)) { mount(main, UI.state({ ip: 'confirm', title: '这份纪要属于其他视角', text: '会议纪要仅录入人、这一批的导师、学员的归属 HRBP 和 CEO 可见。' })); return; }
     const S = st.get();
     const evs = m.events.map((id) => st.event(id)).filter(Boolean);
     const verify = S.inbox.filter((i) => i.src === m.title);
@@ -257,7 +256,7 @@
       $('#answers').append(box);
       box.scrollIntoView({ block: 'end', behavior: NT.reduced ? 'auto' : 'smooth' });
       await NT.wait(500);
-      await NT.stream($('.a', box), m.answers[q] || '这次会议里没有找到直接相关的内容。可以换个问法，或者试试下面推荐的问题。', 20);
+      await NT.stream($('.a', box), m.answers[q] || '换个问法试试，或者点下面推荐的问题。', 20);
       $('.n-caret', box)?.remove();
       box.insertAdjacentHTML('beforeend', '<div class="n-block__by"><span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>AI 回答</span>只引用这次会议里你有权限查看的内容</div>');
       box.scrollIntoView({ block: 'end', behavior: NT.reduced ? 'auto' : 'smooth' });

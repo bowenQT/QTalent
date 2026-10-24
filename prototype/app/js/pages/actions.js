@@ -54,7 +54,7 @@
 
   async function setState(a, s) {
     if (s === 'cancel') {
-      const r = await NT.dialog({ title: '为什么没有执行？', body: html`<p>没执行要写原因；这不算员工的失败。</p><textarea class="n-calib__reason" id="why" style="margin-top:var(--s-3)" placeholder="比如：项目优先级下调，换到下一期，不是个人原因"></textarea>`,
+      const r = await NT.dialog({ title: '记录未执行的原因', body: html`<p>写一句原因。</p><textarea class="n-calib__reason" id="why" style="margin-top:var(--s-3)" placeholder="比如：项目优先级下调，换到下一期"></textarea>`,
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '记录', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#why').value.trim(), read: (d) => d.querySelector('#why').value.trim() }] });
       if (r?.value !== 'ok') return;
       a.why = r.data;
@@ -72,7 +72,7 @@
     return html`<article class="n-card"><h3 class="n-section-title">任用后复盘 · ${a.title}</h3>
       <div class="n-retro">
         <div class="n-retro__col n-retro__then"><h5>当时的判断 · ${plan ? `${plan.kind === 'org' ? '组织调整方案' : '用人方案'} v${plan.version} · ${NT.md(plan.confirmedAt || plan.at)} 冻结` : st.pushOf(a.from) ? `CEO 推动 · ${NT.md(st.pushOf(a.from).at)} 发起` : '冻结的版本'}</h5><ul>${a.then.map((t) => html`<li>${t}</li>`)}</ul></div>
-        <div class="n-retro__col n-retro__now"><h5>后来的事实 · ${NT.md(a.did || a.due)} 至今</h5>${nowFacts.length ? html`<ul>${nowFacts.map(([t, ev]) => html`<li>${t}${ev ? UI.cite(st.event(ev)?.srcs[0] || { type: 'note', label: st.event(ev)?.title, loc: NT.md(st.event(ev)?.date) }, 1) : ''}</li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">还没有新的事实。可以先记一条观察再复盘。</p>`}</div>
+        <div class="n-retro__col n-retro__now"><h5>后来的事实 · ${NT.md(a.did || a.due)} 至今</h5>${nowFacts.length ? html`<ul>${nowFacts.map(([t, ev]) => html`<li>${t}${ev ? UI.cite(st.event(ev)?.srcs[0] || { type: 'note', label: st.event(ev)?.title, loc: NT.md(st.event(ev)?.date) }, 1) : ''}</li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">新的事实会出现在这里。可以先记一条观察再复盘。</p>`}</div>
         <div class="n-retro__foot">
           ${r ? html`<div class="n-block" data-state="ink"><span class="n-badge n-badge--seal" style="margin-right:6px">${r.verdict}</span>${r.text}<div class="n-block__by"><span class="n-block__sig">${st.person(r.by).name}</span>${NT.md(r.at)} 复盘 · 已回到${a.person ? `${st.person(a.person).name}的档案时间线` : '档案'}</div></div>`
             : html`<div class="n-seg n-seg--md" role="group" aria-label="复盘结论" id="verdict">${['继续', '调整', '撤回'].map((v, i) => html`<button type="button" aria-pressed="${i === 0}">${v}</button>`)}</div>

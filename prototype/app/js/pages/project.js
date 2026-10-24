@@ -12,7 +12,7 @@
   };
   NT.shell({
     nav: 'projects', title: st.project(id)?.name || '项目', crumbs: [['项目', 'projects.html']],
-    allow: visible, denyTitle: '你看不到这个项目', denyText: '员工只能看到本人参与的项目，导师只能看到所带批次的议题。',
+    allow: visible, denyTitle: '这个项目在你的查看范围之外', denyText: '员工只能看到本人参与的项目，导师只能看到所带批次的议题。',
     view: () => `项目 · ${st.project(id)?.status}`,
     render,
   });
@@ -45,11 +45,11 @@
           </article>
           ${!basic ? html`<article class="n-card"><h3 class="n-section-title">关联事件<span class="n-count is-quiet">${evs.length}</span></h3>
             ${evs.length ? html`<ul class="nt-list">${evs.map((e) => html`<li><div class="nt-row" style="justify-content:space-between"><a class="nt-plink" href="person.html?id=${e.people[0]}#ev-${e.id}"><b>${e.title}</b></a><span class="nt-muted">${e.date ? NT.md(e.date) : '时间未知'}</span></div><div class="nt-muted">${e.people.map((x) => st.person(x).name).join('、')} · ${st.person(e.recorder).name}记录${e.scores.some((s) => s.st === 'ai') ? ' · 有 AI 建议分待确认' : ''}</div></li>`)}</ul>` : html`<div class="nt-empty">还没有挂在这个项目上的事件。</div>`}
-          </article>` : html`<div class="n-lock">${icon('lock')}关联事件和用人方案对员工不可见。</div>`}
+          </article>` : ''}
         </div>
         <aside class="nt-grid">
           ${!basic && staff && (need || plans.length || !p.owner) ? html`<article class="n-card"><h3 class="n-section-title">用人需求与方案</h3>
-            ${need ? html`<ul class="n-reqs" style="margin:0 0 var(--s-3)">${(plans.filter((x) => x.reqs).pop()?.reqs || need.reqs).map((r) => html`<li><span class="n-badge">${r.must ? '必须' : '加分'}</span><span>${r.text}</span></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0 0 var(--s-3)">还没有用人需求。</p>`}
+            ${need ? html`<ul class="n-reqs" style="margin:0 0 var(--s-3)">${(plans.filter((x) => x.reqs).pop()?.reqs || need.reqs).map((r) => html`<li><span class="n-badge">${r.must ? '必须' : '加分'}</span><span>${r.text}</span></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0 0 var(--s-3)">用人需求会出现在这里。</p>`}
             ${plans.slice().reverse().map((pl) => html`<div class="n-version" style="margin-bottom:6px"><span class="n-version__tag ${pl.status === 'draft' ? 'is-draft' : pl.status === 'confirmed' ? 'is-frozen' : ''}">${pl.status === 'draft' ? '草稿' : pl.status === 'confirmed' ? '已确认' : '已被替代'} v${pl.version}</span><span style="color:var(--ink-3)">${st.person(pl.by).name} · ${NT.md(pl.at)}</span>${pl.status === 'confirmed' ? html`<span class="n-seal n-seal--sm" style="margin-left:auto">定</span>` : ''}</div>`)}
             ${st.can('findOwner') ? html`<a class="n-btn n-btn--sm ${need ? '' : 'n-btn--light'}" href="staffing.html?project=${id}" style="margin-top:var(--s-2)">${icon('spark')}${need ? '打开找人文档' : '发起找 owner'}</a>` : ''}
           </article>` : ''}
@@ -98,9 +98,9 @@
   }
   async function archive(fromDelete) {
     const p = st.project(id);
-    const v = await NT.dialog({ title: fromDelete ? '这个项目不能删除，只能归档' : `归档「${p.name}」？`,
-      body: html`<p>${fromDelete ? '已有关联的事件或方案快照引用了它，删除会让这些记录失去出处。' : ''}归档后项目不再出现在进行中的列表里，成员、事件和方案都保留，可以随时查看。</p>`,
-      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '归档', value: 'ok', cls: 'n-btn--ink', icon: 'archive' }] });
+    const v = await NT.dialog({ title: fromDelete ? '改为归档？' : `归档「${p.name}」？`,
+      body: html`<p>${fromDelete ? '事件和方案引用了这个项目，归档能保留这些记录的出处。' : ''}归档后，成员、事件和方案都保留，项目移到「已归档」，可以随时查看。</p>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: fromDelete ? '改为归档' : '归档', value: 'ok', cls: 'n-btn--ink', icon: 'archive' }] });
     if (v !== 'ok') return;
     const prev = p.status; p.status = '已归档'; st.save(); render($('#main'));
     NT.toast('已归档。成员、事件和方案都保留', { undo: () => { p.status = prev; st.save(); render($('#main')); } });

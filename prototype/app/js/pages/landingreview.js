@@ -73,7 +73,7 @@
       return html`<div class="n-review__dim" data-dim="${d.id}"><div class="n-review__dimhead"><h4>${d.name}</h4>${theme}${UI.dotsInline(Math.round(st.mean(counted.map((x) => x.s.v))), last.st === 'calibrated' ? 'calibrated' : 'confirmed')}<span class="n-badge">${[...new Set(counted.map((x) => st.person(x.s.by).name))].join('、')}${last.st === 'calibrated' ? '校准' : '已确认'}</span></div>${evText(counted)}</div>`;
     }
     if (row.state === 'unknown') {
-      return html`<div class="n-review__dim" data-dim="${d.id}"><div class="n-review__dimhead"><h4>${d.name}</h4>${theme}${UI.na()}</div><div class="n-review__ev" style="color:var(--ink-3)">${d.id === 'grit' ? '这两周没有受挫后的反应记录。下次复盘可以留意：方案被否之后他怎么做。' : `这两周的记录里${row.items.length ? '只写了参与，没有具体行为' : '没有相关行为'}。资料不足不出分，也不算反向证据。`}</div></div>`;
+      return html`<div class="n-review__dim" data-dim="${d.id}"><div class="n-review__dimhead"><h4>${d.name}</h4>${theme}${UI.na()}</div><div class="n-review__ev" style="color:var(--ink-3)">${d.id === 'grit' ? '这两周待补受挫后的反应。下次复盘可以留意：方案被否之后怎么做。' : `${row.items.length ? '这两周只记到参与，待补具体行为' : '这两周的记录待补相关行为'}。`}</div></div>`;
     }
     return html`<div class="n-review__dim" data-dim="${d.id}"><div class="n-review__dimhead"><h4>${d.name}</h4>${theme}<span class="n-badge">未体现</span></div><div class="n-review__ev" style="color:var(--ink-3)">这两周没有涉及这一项的事件。加分项不体现不扣分。</div></div>`;
   }
@@ -130,7 +130,7 @@
     mount($('#after'), html`<div class="n-block" data-state="light" style="margin-top:var(--s-4)">${ref.na
       ? `复盘已确认。${st.person(pid).name}还在「资料不足」区：${ref.miss}。结营复盘时再看。`
       : `复盘已确认。${st.person(pid).name}现在满足落位门槛，参考位置在「${st.QN[ref.q]}」。正式位置在 W4 结营校准时由 HRBP 确认。`}
-      <div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}参考位置</span>导师看不到这一段 · rubric-v1</div></div>
+      <div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}参考位置</span>导师视角已隐藏这一段</div></div>
       ${!ref.na ? html`<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm" href="calibrate.html?id=b-land3">${icon('grid')}预演结营校准</a></div>` : ''}`);
   }
 })();

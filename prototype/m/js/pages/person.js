@@ -9,8 +9,8 @@
   NT.mshell({
     tab: 'people', title: st.person(pid)?.name || '人员档案', back: st.role() === 'self' ? false : 'people.html',
     allow: () => !!st.scope(pid),
-    denyTitle: '你没有查看这个人的权限',
-    denyText: '档案只对 CEO、归属 HRBP、范围内的负责人和所带学员的导师开放。在左侧切换演示视角试试。',
+    denyTitle: '这个人在你的查看范围之外',
+    denyText: '只有 CEO、归属 HRBP、范围内的负责人和所带学员的导师能看这份档案。在「我的」里切换演示视角。',
     demos: [['HRBP 看林知远', 'person.html?id=p-lin&as=hrbp'], ['导师看林知远', 'person.html?id=p-lin&as=mentor'], ['林知远看自己', 'person.html?id=p-lin&as=self'], ['部门负责人看林知远', 'person.html?id=p-lin&as=lead']],
     view: () => `档案 · ${st.roles[st.role()].label}视角`,
     render,
@@ -42,8 +42,8 @@
         <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)}<div class="nt-muted">${f.snap.label} · ${NT.md(f.snap.at)} ${st.person(f.snap.by).name}确认</div>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
           <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()}<div class="nt-muted">${ref.miss}</div>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''}`}</dd></dl>
         ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后的新事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。</div></div>` : ''}
-        ${ref.na ? html`<p class="nt-caption">资料不足不等于能力低，也不会被放进低潜力。</p>` : ''}
-      </div>` : role === 'mentor' ? html`<div class="n-lock m-lockline">${icon('lock')}导师看不到象限、变化和「值得聊一聊」。</div>` : ''}
+        
+      </div>` : ''}
 
       ${summary(p, obs, canScore, ref, canQuad)}
       <div style="margin-top:var(--s-3)">${UI.directionBlock(pid)}</div>
@@ -59,7 +59,7 @@
 
       <h3 class="m-h" id="timeline">时间线<span class="nt-muted" style="font-weight:400">${obs.length} 条关键事件 · 按真实发生时间</span></h3>
       <div class="m-tl">${timeline(events)}</div>
-      ${hidden ? html`<div class="n-lock m-lockline">${icon('lock')}另有 ${hidden} 条${role === 'mentor' ? '管理观察或管理受限资料，对导师不可见' : '与你负责的项目无关的资料，不在你的查看范围'}。</div>` : ''}
+      ${hidden ? html`<div class="n-lock m-lockline">${icon('lock')}${role === 'mentor' ? `另有 ${hidden} 条管理观察和受限资料，导师视角已隐藏` : `另有 ${hidden} 条资料属于你负责范围以外的项目，已隐藏`}。</div>` : ''}
 
       <h3 class="m-h">参与的项目</h3>
       ${st.projectsOf(pid, true).length ? html`<ul class="m-list">${st.projectsOf(pid, true).map((m) => M.row(`project.html?id=${m.p.id}`, icon('folder'), m.p.name, `${m.role} · ${m.mode} · ${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}`))}</ul>` : html`<div class="nt-empty">还没有参与项目。</div>`}`);
@@ -139,8 +139,7 @@
         ${own.map((e) => html`<div class="m-card m-tlmini"><b>${e.title}</b><div class="n-tl__meta">${NT.md(e.date)} · ${UI.src('self')}${e.srcs[0]?.label}</div></div>`)}
         ${st.projectsOf(p.id, true).map((m) => html`<div class="m-card m-tlmini"><b>${m.to ? '参与' : '加入'}「${m.p.name}」</b><div class="n-tl__meta">${NT.md(m.from)} · ${UI.src('fact')}项目成员记录 · ${m.role}</div></div>`)}
         ${corr.map((c) => html`<div class="m-card m-tlmini"><b>我提出的纠错：${c.text}</b><div class="n-tl__meta">${NT.md(c.at)} · ${c.done ? '已处理' : '等录入人处理'}</div></div>`)}
-      </div>
-      <div class="n-lock m-lockline">${icon('lock')}维度分、象限、他人的评价和「值得聊一聊」对本人不可见。</div>`);
+      </div>`);
     const dir = NT.$('#mydir');
     UI.wireDirection(dir, p.id, () => mount(dir, UI.directionBlock(p.id, { canWrite: 'self' })));
   }

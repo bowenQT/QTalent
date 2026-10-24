@@ -480,7 +480,7 @@
       moves: [
         { type: '负责人安排', person: null, pending: 'pr-newconv', from: '', to: '新转化团队 owner', basis: '组织调整后需要新的转化团队负责人', gap: '人选来自项目用人方案', will: '未知', release: '未知', impact: '新团队有了 owner' },
         { type: '调岗', kind: '激活', person: 'p-shenyan', from: '增长中台数据迁移 owner', to: '灰度发布平台（试任 3 个月）', basis: '来自「值得聊一聊」，待沟通确认本人意愿', ev: 'e-sy-self', gap: '灰度发布相关经历资料不足', will: '未知 · 待沟通', release: '未知 · 待和孟夏确认', impact: '数据迁移需要新 owner' },
-        { type: '继续观察', person: 'p-shenxh', from: '', to: '资料不足，本期不做调整', basis: '并入后只有 1 条导入事件', next: '补录原系统里的客户跟进记录', owner: 'p-suwan', due: '2026-12-15' },
+        { type: '继续观察', person: 'p-shenxh', from: '', to: '资料不足，本期维持现状', basis: '并入后只有 1 条导入事件', next: '补录原系统里的客户跟进记录', owner: 'p-suwan', due: '2026-12-15' },
       ] },
   ];
 
@@ -493,7 +493,7 @@
     { id: 'a-luoyi', title: '罗伊参与存量客户召回议题的带教', kind: '激活', from: 'signal', person: 'p-luoyi', owner: 'p-jianning', due: '2026-10-20', did: '2026-10-20', state: 'doing', observe: '2026-12-31' },
     { id: 'a-xe-v2', title: '修订入营选拔标准：内驱力必须写出具体行为与结果（xe-select-v2）', kind: '修订评价标准', from: 'jr-xe1', owner: 'p-suwan', due: '2026-06-30', did: '2026-07-01', state: 'done', observe: '2026-10-31',
       then: ['目标：内驱力的前段偏高人数减少', '依据：XEngineer 第一期判断复盘，内驱力 8 人中 6 人前段偏高，5 人的入营记录只有「有热情」一类描述', '观察：第二期按 v2 入营，看第二期判断复盘的内驱力偏差'],
-      now: [['第二期判断复盘：内驱力 8 人中 2 人前段偏高（第一期 6 人）', null], ['样本只有一期 8 人，还不能下「改进有效」的结论', null]] },
+      now: [['第二期判断复盘：内驱力 8 人中 2 人前段偏高（第一期 6 人）', null], ['样本不足：只有一期 8 人，下一期再看改进效果', null]] },
     { id: 'a-wang', title: '王一舟牵头黑客松项目的后续落地', person: 'p-wangyz', owner: 'p-baizhi', due: '2026-10-08', state: 'cancel', why: '项目优先级下调，换到下一期，不是个人原因' },
   ];
 
@@ -583,7 +583,7 @@
 
   // ---------- 进行中的任务 ----------
   const TASKS = [
-    { id: 'tk-w3', name: 'W3 导师团复盘.m4a', state: 'uploading', progress: 62, note: '182 MB 中的 113 MB · 上传完成前别关页面' },
+    { id: 'tk-w3', name: 'W3 导师团复盘.m4a', state: 'uploading', progress: 62, note: '182 MB 中的 113 MB · 上传时请保持页面打开' },
     { id: 'tk-conv', name: '客户转化部周会.m4a', state: 'queued', note: '10:42 提交 · 可以离开，结果会回到这里' },
     { id: 'tk-w2', name: 'W2 导师团复盘.m4a', state: 'partial', preset: true, minutes: 'w2', by: 'p-yeqing', note: '9 条事件已整理，3 处待核对', link: 'record.html?m=w2' },
     { id: 'tk-report', name: 'Landing W2 周报.docx', state: 'shaping', note: '转写已完成，正在提取人员和事件' },
@@ -713,9 +713,9 @@
     // AI 提出的归因假设（脚本化 mock）：每条引用案例与标准版本；未确认不能生成动作
     // basis：假设正文里的统计依赖的完整范围（批次 × 维度 / 评价人）；其中任何案例被标为不可比，假设都要复核
     hyps: {
-      'jr-xe1': [{ id: 'h-xe1-1', basis: [{ batch: 'jr-xe1', dim: 'drive' }], cats: ['method'], text: '内驱力 8 人中 6 人前段偏高；其中 5 人的入营记录只写了「有热情」一类描述，没有具体行为。v1 标准对内驱力的评语没有要求。', cases: ['jr-xe1:p-xe-wenxi:drive', 'jr-xe1:p-xe-chuhe:drive', 'jr-xe1:p-xe-luming:drive', 'jr-xe1:p-xe-chengmo:drive', 'jr-xe1:p-xe-yezhou:drive'], std: 'xe-select-v1' }],
+      'jr-xe1': [{ id: 'h-xe1-1', basis: [{ batch: 'jr-xe1', dim: 'drive' }], cats: ['method'], text: '内驱力 8 人中 6 人前段偏高；其中 5 人的入营记录只写了「有热情」一类描述，缺具体行为。v1 标准对内驱力评语缺少写法要求。', cases: ['jr-xe1:p-xe-wenxi:drive', 'jr-xe1:p-xe-chuhe:drive', 'jr-xe1:p-xe-luming:drive', 'jr-xe1:p-xe-chengmo:drive', 'jr-xe1:p-xe-yezhou:drive'], std: 'xe-select-v1' }],
       'jr-xe2': [
-        { id: 'h-xe2-1', basis: [{ batch: 'jr-xe2', dim: 'drive' }, { batch: 'jr-xe1', dim: 'drive' }], cats: ['method'], text: '内驱力仍有 2 人前段偏高（第一期 6 人）。这 2 人的入营记录都按 v2 写了行为，但各只有一个例子，也没有追问之后是否持续。v2 要求写行为，没有要求追问持续性。', cases: ['jr-xe2:p-xe-zhuyu:drive', 'jr-xe2:p-xe-bailu:drive'], std: 'xe-select-v2' },
+        { id: 'h-xe2-1', basis: [{ batch: 'jr-xe2', dim: 'drive' }, { batch: 'jr-xe1', dim: 'drive' }], cats: ['method'], text: '内驱力仍有 2 人前段偏高（第一期 6 人）。这 2 人的入营记录都按 v2 写了行为，但各只有一个例子，之后是否持续缺少追问。v2 要求写行为，追问持续性的要求待补上。', cases: ['jr-xe2:p-xe-zhuyu:drive', 'jr-xe2:p-xe-bailu:drive'], std: 'xe-select-v2' },
         { id: 'h-xe2-2', basis: [{ batch: 'jr-xe1', dim: 'drive' }, { batch: 'jr-xe2', dim: 'drive' }], cats: ['rater'], text: '两期合计，江屿白面试的 6 位学员中有 5 位内驱力前段偏高，方向一致；同期另两位面试官的 10 个内驱力案例中 3 个偏高。样本达到 5 个案例的门槛。', cases: ['jr-xe1:p-xe-wenxi:drive', 'jr-xe1:p-xe-chuhe:drive', 'jr-xe1:p-xe-jianghe:drive', 'jr-xe2:p-xe-zhuyu:drive', 'jr-xe2:p-xe-bailu:drive'], rater: 'p-jiangyb' },
       ],
       'jr-hire26': [
@@ -727,7 +727,7 @@
     // 已确认的归因（第一期为历史；社招批次已确认两条）
     attribs: {
       'jr-xe1': { hyp: 'h-xe1-1', cats: ['method'], reason: '入营面试只问了兴趣，没有追问具体行为；先修订标准，下一期验证。', by: 'p-suwan', at: '2026-06-15', actions: ['a-xe-v2'] },
-      'jr-hire26:h-hire-2': { hyp: 'h-hire-2', cats: ['env'], reason: '项目取消和团队调整是事实，后段任务性质变了，不修正面试标准，记录情境。', by: 'p-suwan', at: '2026-10-22', actions: [] },
+      'jr-hire26:h-hire-2': { hyp: 'h-hire-2', cats: ['env'], reason: '项目取消和团队调整是事实，后段任务性质变了，面试标准保持原样，记录情境。', by: 'p-suwan', at: '2026-10-22', actions: [] },
       'jr-hire26:h-hire-3': { hyp: 'h-hire-3', cats: ['later'], reason: '后段两条分证据少且和复盘文档冲突，先请记录人补充证据，再看是否需要校准。', by: 'p-suwan', at: '2026-10-22', actions: [] },
     },
   };

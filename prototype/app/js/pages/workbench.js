@@ -41,7 +41,7 @@
             ${[['all', '全部'], ['trend', '能力走向'], ['activity', '活跃度与安排'], ['quad', '象限偏移'], ['team', '团队分布']].map(([k, l]) => html`<button class="n-chip" type="button" data-t="${k}" aria-pressed="${k === type}">${l}<b data-n="${k}"></b></button>`)}
           </div>
           <div id="chg-list"></div>
-          <p class="nt-caption">只统计已确认的事件和分数，AI 建议分不会触发变化。资料从无到有不算上升；没有新事件不等于能力下降。变化按发生时间排列，不按幅度给人排名。</p>
+          <p class="nt-caption">按时间列出已确认的变化。</p>
         </article>` : '';
       const composer = html`
         <div class="n-composer" id="composer" style="margin-bottom:var(--s-2)">
@@ -156,7 +156,7 @@
       if (g) { openGroup = g.dataset.grp; redraw(); return; }
       if (e.target.closest('#todo-handled')) { showHandled = !showHandled; redraw(); return; }
       const un = e.target.closest('[data-cun]');
-      if (un) { st.unverifyClue(un.dataset.cun); redraw(); NT.toast('已改回待核实，CEO 暂时看不到这条'); return; }
+      if (un) { st.unverifyClue(un.dataset.cun); redraw(); NT.toast('已改回待核实，已从 CEO 的「值得关注」移出'); return; }
       const b = e.target.closest('[data-plog],[data-pres],[data-cok],[data-cno],[data-pact],[data-pcancel]'); if (!b) return;
       if (b.dataset.pact) UI.pushActionDialog(b.dataset.pact, redraw);
       if (b.dataset.pcancel) UI.pushCancelDialog(b.dataset.pcancel, redraw);
@@ -167,7 +167,7 @@
         NT.toast(`已核实，${st.person(c.person).name}会出现在 CEO 的「值得关注」`, { undo: () => { st.unverifyClue(c.id); redraw(); } });
       }
       if (b.dataset.cno) {
-        const r = await NT.dialog({ title: '不采纳这条线索', body: html`<label class="n-field"><span class="n-field__label">理由（必填）</span><textarea class="n-textarea" rows="2" id="cn-why" placeholder="比如：周报里说的是同一件事，只能算一条证据"></textarea></label><p class="nt-caption">线索保留在你这里，CEO 看不到。</p>`,
+        const r = await NT.dialog({ title: '不采纳这条线索', body: html`<label class="n-field"><span class="n-field__label">理由（必填）</span><textarea class="n-textarea" rows="2" id="cn-why" placeholder="比如：周报里说的是同一件事，只能算一条证据"></textarea></label><p class="nt-caption">这条线索只留在你的处理记录里。</p>`,
           actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '不采纳', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#cn-why').value.trim(), read: (d) => d.querySelector('#cn-why').value.trim() }] });
         if (r?.value !== 'ok') return;
         const c = st.verifyClue(b.dataset.cno, false, r.data); redraw();
@@ -190,9 +190,9 @@
     $$('#chg-filter button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === type));
     const list = all.filter((c) => type === 'all' || c.t === type);
     const scope = st.role() === 'ceo' ? '全公司' : st.role() === 'lead' ? '业务成功部' : '增长产品部、产品市场部';
-    $('#chg-meta').textContent = `${scope} · ${list.length} 条，其中 ${list.filter((c) => c.hit).length} 条命中规则 · 规则版本 change-v1`;
+    $('#chg-meta').textContent = `${scope} · ${list.length} 条，其中 ${list.filter((c) => c.hit).length} 条命中规则`;
     const cut = expanded ? list.length : 6;
-    mount(host, list.length ? html`${list.slice(0, cut).map((c) => UI.change(c, base))}${list.length > cut ? html`<button class="n-btn n-btn--ghost n-btn--sm" type="button" id="chg-more" style="margin-top:var(--s-2)">再看 ${list.length - cut} 条</button>` : ''}` : html`<div class="nt-empty">这个类型下没有变化。</div>`);
+    mount(host, list.length ? html`${list.slice(0, cut).map((c) => UI.change(c, base))}${list.length > cut ? html`<button class="n-btn n-btn--ghost n-btn--sm" type="button" id="chg-more" style="margin-top:var(--s-2)">再看 ${list.length - cut} 条</button>` : ''}` : html`<div class="nt-empty">这一类的变化会出现在这里。</div>`);
     $('#chg-more')?.addEventListener('click', () => { expanded = true; renderChanges(); });
   }
 
@@ -270,7 +270,7 @@
       const mb = Math.round(182 * t.progress / 100);
       const el = $(`.n-task[data-id="${t.id}"]`);
       if (t.progress >= 100) { t.state = 'queued'; t.note = `${NT.nowStamp().slice(6)} 提交 · 可以离开，结果会回到这里`; st.save(); ticking = false; renderTasks(); return; }
-      if (el) { $('.n-progress i', el).style.width = `${t.progress}%`; $('.n-task__state', el).innerHTML = `<b>上传中</b> · 182 MB 中的 ${mb} MB · 上传完成前别关页面`; }
+      if (el) { $('.n-progress i', el).style.width = `${t.progress}%`; $('.n-task__state', el).innerHTML = `<b>上传中</b> · 182 MB 中的 ${mb} MB · 上传时请保持页面打开`; }
       setTimeout(loop, 700);
     };
     setTimeout(loop, 700);
@@ -303,11 +303,11 @@
     // 一次可以拖入多个；格式与「记录关键事件」的附件同一口径（v1.5 3.34）
     $('#drop').addEventListener('drop', (e) => {
       const list = [...e.dataTransfer.files];
-      if (list.length > UI.ATT_MAX) NT.toast(`一次最多 ${UI.ATT_MAX} 个文件，多出的 ${list.length - UI.ATT_MAX} 个没有加入`);
+      if (list.length > UI.ATT_MAX) NT.toast(`已加入前 ${UI.ATT_MAX} 个文件，其余 ${list.length - UI.ATT_MAX} 个请再选一次`);
       list.slice(0, UI.ATT_MAX).forEach((f) => {
         const k = UI.attachKind(f.name), err = UI.attachCheck(f);
         if (err) add(f.name, k.ext, [], [`<span class="err">${NT.esc(err)}</span>`, '<span></span>']);
-        else add(f.name, k.ext, [k.unit === '时' ? '转写中' : '解析中 · 识别文字', '整理中 · 提取人员和事件'], [`<span class="ok">已解析</span> · ${k.label} · 原型不读取真实文件内容，这里只演示状态流转`, '<span></span>']);
+        else add(f.name, k.ext, [k.unit === '时' ? '转写中' : '解析中 · 识别文字', '整理中 · 提取人员和事件'], [`<span class="ok">已解析</span> · ${k.label} <span class="n-badge n-badge--demo">演示</span>`, '<span></span>']);
       });
     });
   }
@@ -386,9 +386,9 @@
         <button class="n-chip" type="button" data-wf="all" aria-pressed="${watchCat === 'all'}">全部<b>${all.length}</b></button>
         ${st.WATCH_CATS.map(([k, l]) => { const n = all.filter((w) => w.cat === k).length; return html`<button class="n-chip" type="button" data-wf="${k}" aria-pressed="${watchCat === k}">${l}<b>${n ? `${n} 人` : '暂无'}</b></button>`; })}
       </div>
-      ${!list.length ? html`<div class="nt-empty">这一类暂时没有人。没有命中规则不代表有问题。</div>` : watchBy === 'project' ? byProject(list) : html`<ul class="n-watch__list">${shown.map(watchItem)}</ul>`}
+      ${!list.length ? html`<div class="nt-empty">这一类入选的人会出现在这里。</div>` : watchBy === 'project' ? byProject(list) : html`<ul class="n-watch__list">${shown.map(watchItem)}</ul>`}
       ${watchBy === 'person' && list.length > 4 ? html`<button class="n-btn n-btn--ghost n-btn--sm" type="button" id="watch-more" aria-expanded="${watchAll}" style="margin-top:var(--s-2)">${watchAll ? '收起' : `查看全部 ${list.length} 人`}</button>` : ''}
-      <p class="nt-caption">按写明的规则入选、按时间排列，不按分数挑人；资料不足不算需要介入。AI 线索和提名经 HRBP 核实后才会出现在这里。点人名看依据。</p>`);
+      <p class="nt-caption">按入选时间排列，点人名看依据。</p>`);
   }
 
   // 按项目看：同一批入选的人，按依据事件所在的项目或批次分组；Landing 议题归到所在批次（v1.4 3.20.2）。点项目名拉起项目速览
@@ -450,7 +450,7 @@
       ${!list.length ? html`<div class="nt-empty">在值得关注或速览里点「加关注」，之后他们的新进展会出现在这里。</div>`
         : followView === 'list' ? html`<ul class="n-follows__list">${list.map((f) => { const x = fresh(f.person); return html`<li><a href="person.html?id=${f.person}" ${raw(peekP(f.person))}>${UI.avatar(f.person, 'sm')}<span><b>${st.person(f.person).name}</b><small>${NT.md(f.at)} 关注${f.via ? ' · 发起推动时加入' : ''}${x ? ` · 最近：${NT.md(x.at)} ${x.text}` : ''}</small></span></a><button class="n-link" type="button" data-unf="${f.person}">取消关注</button></li>`; })}</ul>`
         : feed.length ? html`<ol class="n-feed">${feed.map((x) => html`<li><a href="person.html?id=${x.person}" ${raw(peekP(x.person))}>${UI.avatar(x.person, 'sm')}<span><b>${st.person(x.person).name}</b> ${x.text}<small>${NT.md(x.at)} · ${FEED_KIND[x.kind]}${x.by ? ` · ${st.person(x.by)?.name}` : ''}</small></span></a></li>`)}</ol>`
-          : html`<div class="nt-empty">关注之后还没有新的已确认进展。一段时间没有动态不代表有问题。</div>`}`);
+          : html`<div class="nt-empty">关注以来的新进展会出现在这里。</div>`}`);
   }
   function wireFollows() {
     $('#follows').addEventListener('click', (e) => {
@@ -513,7 +513,6 @@
         <article class="n-card"><h3 class="n-section-title">我参与的项目</h3>
           <ul class="n-members">${projs.map((m) => html`<li><a class="nt-plink" href="project.html?id=${m.p.id}"><b>${m.p.name}</b></a><span class="n-members__role">${m.role} · ${m.mode}</span><span class="n-members__when">${NT.md(m.from)} 起</span></li>`)}</ul>
         </article>
-      </div>
-      <div class="n-lock" style="margin-top:var(--s-4)">${icon('lock')}维度分、象限、他人的评价、变化和「值得聊一聊」对本人不可见。</div>`);
+      </div>`);
   }
 })();

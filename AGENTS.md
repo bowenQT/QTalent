@@ -82,6 +82,7 @@ Niu-Talent：七牛云内部的人才识别、追踪与盘点工作台，用于�
 | 任务 | 读取位置 |
 | --- | --- |
 | 设计系统、独立 HTML 原型、UI 实现或审查 | [设计与 UI 规范](docs/engineering.md#设计ui-实现与验证)、[按阶段验证](docs/engineering.md#检查与交付门槛) |
+| 撰写或审查界面文案 | [界面文案规范](docs/ui-copy.md) |
 | 编写或审查代码、测试、依赖、工程配置 | [工程规范](docs/engineering.md)，按影响面读取职责、契约、依赖或测试章节；正式开发覆盖率基线也在此维护 |
 | 建立 / 处理 issue、写 proposal、提交代码、创建 / 审查 / 合并 PR | [贡献与协作规范](CONTRIBUTING.md) 中对应章节；模板从该文档进入 |
 | 获准调整仓库配置 | [远端配置与复核](CONTRIBUTING.md#远端配置与复核) |

@@ -23,7 +23,7 @@
     mount(main, html`
       <h3 class="m-h" style="margin-top:0">草稿 · 待确认</h3>
       ${drafts.length ? html`<ul class="m-list">${drafts.map((p) => M.row(`plan.html?id=${p.id}`, icon(p.kind === 'org' ? 'layers' : 'folder'), nameOf(p), `v${p.version} · ${st.person(p.by).name}起草 · ${NT.md(p.at)}`, html`<span class="n-version__tag is-draft">草稿</span>`))}</ul>`
-        : html`<div class="nt-empty">没有待确认的方案。</div>`}
+        : html`<div class="nt-empty">待确认的方案会出现在这里。</div>`}
       <h3 class="m-h">最近确认</h3>
       <ul class="m-list">${confirmed.map((p) => M.row(`plan.html?id=${p.id}`, icon(p.kind === 'org' ? 'layers' : 'folder'), nameOf(p), `v${p.version} · ${st.person(p.confirmedBy).name} ${NT.md(p.confirmedAt || p.at)} 确认`, html`<span class="n-seal n-seal--sm">定</span>`))}</ul>`);
   }
@@ -34,7 +34,7 @@
 
   function renderOne(main) {
     const p = st.plan(id);
-    if (!p) { mount(main, UI.state({ ip: 'confirm', title: '没有找到这份方案', actions: html`<a class="n-btn n-btn--sm" href="plan.html">回到方案列表</a>` })); return; }
+    if (!p) { mount(main, UI.state({ ip: 'confirm', title: '方案链接失效', actions: html`<a class="n-btn n-btn--sm" href="plan.html">回到方案列表</a>` })); return; }
     const prev = prevOf(p);
     const done = p.status !== 'draft';
     const body = p.kind === 'org' ? orgBody(p, prev) : staffingBody(p, prev);
@@ -49,7 +49,7 @@
       </article>
       ${p.kind === 'staffing' ? html`<a class="m-link m-card" style="margin-top:var(--s-3);border:0" href="staffing.html?project=${p.project}">${icon('spark')}在桌面版看需求卡、候选人与证据${icon('chev')}</a>` : html`<a class="m-link m-card" style="margin-top:var(--s-3);border:0" href="../app/plan.html?id=${p.batch}">${icon('layers')}在桌面版编辑这份方案${icon('chev')}</a>`}
       <div id="deny"></div>
-      <div class="m-actions">${done ? doneFoot(p) : html`<p class="nt-muted" style="margin:0;text-align:center">确认后冻结快照，之后的修改进入新草稿。确认方案不等于人事动作已经执行。</p>
+      <div class="m-actions">${done ? doneFoot(p) : html`<p class="nt-muted" style="margin:0;text-align:center">确认后冻结快照并生成跟进行动，之后的修改进入新草稿。</p>
         <button class="n-btn n-btn--seal m-big" type="button" id="confirm">${icon('stamp')}确认并冻结 v${p.version}</button>`}</div>`);
     $('#confirm')?.addEventListener('click', () => confirm(main, p));
   }
@@ -81,7 +81,7 @@
   function orgBody(p) {
     const val = (t) => (/^未知/.test(t || '') ? html`<span class="n-badge n-badge--unknown">${icon('dash')}${t}</span>` : t || '—');
     const hiddenN = p.moves.filter((m) => !st.canSeeMove(m)).length;
-    return { changed: null, html: html`${hiddenN ? html`<p class="nt-muted">另有 ${hiddenN} 条动作涉及你范围外的人，不在这里显示。</p>` : ''}<div class="m-moves">${p.moves.filter((m) => st.canSeeMove(m)).map((m) => html`<div class="m-move">
+    return { changed: null, html: html`${hiddenN ? html`<p class="nt-muted">另有 ${hiddenN} 条动作涉及你范围以外的人，已隐藏。</p>` : ''}<div class="m-moves">${p.moves.filter((m) => st.canSeeMove(m)).map((m) => html`<div class="m-move">
       <div class="nt-row"><span class="n-badge ${m.type === '继续观察' ? '' : 'n-badge--seal'}">${m.kind || m.type}</span><b>${m.person ? UI.plink(m.person) : html`<span class="nt-muted">人选待定</span>`}</b>${m.pending && !m.person ? html`<span class="nt-muted">等「${st.project(m.pending)?.name || m.to.replace(/ owner$/, '')}」的用人方案确认</span>` : ''}</div>
       <div class="m-move__path">${m.from ? html`${m.from} → ` : ''}<b>${m.to}</b></div>
       <dl class="nt-dl"><dt>依据</dt><dd>${m.basis}${m.ev && st.event(m.ev) ? UI.cite(st.event(m.ev).srcs[0], 1) : ''}</dd>
@@ -92,7 +92,7 @@
   async function confirm(main, p) {
     if (!st.can('confirmPlan')) {
       const who = p.kind === 'org' ? '苏晚' : '程远';
-      mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>你没有确认方案的权限。</b>${p.kind === 'org' ? '部门负责人可以查看涉及本部门的动作；修改和确认由 CEO 或指定的 HRBP 负责。' : '部门负责人可以起草和提出修改；确认需要 CEO 或指定的 HRBP。'}<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="ask">请${who}确认</button></div></div></div>`);
+      mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>方案由 CEO 或指定的 HRBP 确认。</b>${p.kind === 'org' ? '部门负责人可以查看涉及本部门的动作。' : '部门负责人可以起草和提出修改。'}<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="ask">请${who}确认</button></div></div></div>`);
       $('#ask').onclick = () => { NT.toast(`已发给${who}确认，会出现在对方的待办里`); $('#deny').innerHTML = ''; };
       $('#deny').scrollIntoView({ block: 'nearest' });
       return;
@@ -102,7 +102,7 @@
       : [...st.slotRoles(p).map((r) => html`${r.name}：<b>${p.slots[r.id] ? st.person(p.slots[r.id]).name : '待定'}</b>`), html`写入项目成员，生成跟进行动`];
     const v = await NT.dialog({
       title: `确认 v${p.version} 并冻结？`, sub: nameOf(p), facts,
-      body: html`<p style="margin:0">确认后冻结快照，之后的修改自动进入新草稿。确认方案不等于人事动作已经执行，接下来以行动跟踪。</p>`,
+      body: html`<p style="margin:0">确认后冻结快照并生成跟进行动，之后的修改进入新草稿。</p>`,
       actions: [{ label: `确认并冻结 v${p.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }, { label: '再看看', value: 'cancel', cls: 'n-btn--ghost' }],
     });
     if (v !== 'ok') return;

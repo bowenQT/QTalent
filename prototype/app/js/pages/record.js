@@ -25,7 +25,7 @@
     const q = NT.param('q') || '';
     const pre = NT.param('person');
     mount(main, html`
-      <header class="nt-head"><div><h1>记录关键事件</h1><p>写原话就行，不用分段。AI 按情境、行为、影响（SBI）整理，只给涉及的维度打建议分；你可以直接改文字、点圆点改分。保存后 5 秒内可以撤销。</p></div></header>
+      <header class="nt-head"><div><h1>记录关键事件</h1><p>写原话就行。AI 按情境、行为、影响整理，给涉及的维度打建议分，文字和分数都可以直接改。保存后 5 秒内可以撤销。</p></div></header>
       <div class="nt-split">
         <article class="n-card n-event" id="ev" data-step="write">
           <div class="n-event__head" id="ev-head"><span>谁</span><select class="n-select" id="ev-person" style="width:auto;min-height:30px" aria-label="记录给谁">
@@ -47,7 +47,7 @@
         <aside class="nt-grid nt-sticky">
           <div class="n-anchor" id="anchor"><b id="anchor-t">锚点</b> <span class="n-badge" style="margin-left:6px">rubric-v1</span><ol>${raw(SEED_ANCHORS('pot'))}</ol></div>
           <div class="n-card" style="padding:var(--s-4) var(--s-5)"><b style="font-size:var(--t-sm)">怎么算一条关键事件</b>
-            <p class="nt-caption">一件具体的事，按 SBI 讲：在什么情境下（S）、本人做了什么（B）、带来什么影响（I）。只写「参与了」的地方会标为资料不足，不出分。多人参与的事各自按本人行为打分。</p></div>
+            <p class="nt-caption">一件具体的事，按 SBI 讲：在什么情境下（S）、本人做了什么（B）、带来什么影响（I）。只写了「参与」的地方标为资料不足。多人参与的事，按各自的行为打分。</p></div>
         </aside>
       </div>`);
     // 附件：「改原话」或撤销保存回到这页时保留已解析的附件
@@ -76,8 +76,8 @@
     const found = findPeople(text);
     if (!pid) {
       if (found.hit.length) pid = found.hit[0].id;
-      else if (found.hidden.length) { $('#ev-hint').innerHTML = `<span style="color:var(--no)">你没有给${NT.esc(found.hidden[0].name)}记录的权限。</span>换一个人，或请对方的负责人记录`; return; }
-      else { $('#ev-hint').innerHTML = '<span style="color:var(--conflict)">没认出是谁。</span>在上面选一下，或在原话里写上名字'; $('#ev-person').focus(); return; }
+      else if (found.hidden.length) { $('#ev-hint').innerHTML = `<span style="color:var(--no)">${NT.esc(found.hidden[0].name)}的事件由所属负责人记录。</span>换一个人，或请对方的负责人来记`; return; }
+      else { $('#ev-hint').innerHTML = '<span style="color:var(--conflict)">这句话说的是谁？</span>在上面选一下，或在原话里写上名字'; $('#ev-person').focus(); return; }
     }
     const ev = $('#ev'), ip = $('#ev-ip');
     const proj = findProject(text);
@@ -110,7 +110,7 @@
     $('#ev-att-slot').append($('#ev-atts'));
     const trail = $('.n-trail', body);
     const trailRun = NT.runTrail(trail, 520);
-    const ph = { bg: '原话没写情境，可以补上', res: '原话没写影响，可以补上' };
+    const ph = { bg: '补充情境', res: '补充影响' };
     for (const el of $$('.n-edit', body)) {
       const t = s[el.dataset.k];
       if (!t) { el.textContent = ph[el.dataset.k] || ''; el.classList.remove('is-light'); el.style.color = 'var(--ink-3)'; el.dataset.empty = 1; continue; }
@@ -178,7 +178,7 @@
       sc.row.append(input); input.focus({ preventScroll: true });
       input.addEventListener('input', () => { sc.why = input.value; });
     }
-    input.placeholder = `为什么改成 ${sc.v} 分？（可选）${Math.abs(sc.v - sc.ai) >= 2 ? ' 和 AI 差 2 分以上，不写理由会进 HRBP 校准队列' : ''}`;
+    input.placeholder = `为什么改成 ${sc.v} 分？（可选）${Math.abs(sc.v - sc.ai) >= 2 ? ' 和 AI 差 2 分以上，请写一句理由；留空会进 HRBP 校准队列' : ''}`;
   }
   function paint(sc) {
     $$('.n-score__dot', sc.row).forEach((b) => {
@@ -221,7 +221,7 @@
   // ---------- 员工本人：补充经历与自述 ----------
   function renderSelfNote(main) {
     const me = st.me();
-    mount(main, html`<header class="nt-head"><div><h1>补充经历</h1><p>你写下的内容作为「本人自述」进入你的档案，和他人的观察分开呈现，不打分。</p></div></header>
+    mount(main, html`<header class="nt-head"><div><h1>补充经历</h1><p>你写下的内容作为「本人自述」进入档案，和他人的观察分开呈现。</p></div></header>
       <article class="n-card" style="max-width:640px"><label class="n-eventin__label" for="self-text">想补充什么</label>
         <textarea class="n-eventin__field" id="self-text" placeholder="比如：10-15 的演示环境是我和陈一禾一起搭的。"></textarea>
         <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--ink n-btn--sm" type="button" id="self-save">保存到我的档案</button><span class="nt-muted">保存后录入人和 HRBP 能看到</span></div></article>`);
@@ -237,7 +237,7 @@
 
   function renderMinutes(main) {
     const m = NT.SEED.MINUTES[minutesId];
-    if (!m || !st.canOpenMinutes(minutesId)) { mount(main, UI.state({ ip: 'confirm', title: '这个视角看不到这份纪要', text: '会议纪要只对录入人、该批次的导师、学员的归属 HRBP 和 CEO 可见。' })); return; }
+    if (!m || !st.canOpenMinutes(minutesId)) { mount(main, UI.state({ ip: 'confirm', title: '这份纪要属于其他视角', text: '会议纪要仅录入人、这一批的导师、学员的归属 HRBP 和 CEO 可见。' })); return; }
     const S = st.get();
     const evs = m.events.map((id) => st.event(id)).filter(Boolean);
     const verify = S.inbox.filter((i) => i.src === m.title);

@@ -32,12 +32,12 @@
     const hiddenN = p.moves.filter((m) => !st.canSeeMove(m)).length;
     const diff = draft && prev ? diffOf(prev, p) : null;
     mount(main, html`
-      <header class="nt-head"><div><h1>组织调整方案</h1><p>${b.name}。每一条动作都能回到依据；确认方案不等于调岗已经执行，后续以行动跟踪。</p></div>
+      <header class="nt-head"><div><h1>组织调整方案</h1><p>${b.name}。每条动作都能回到依据，确认后生成跟进行动。</p></div>
         <div class="nt-head__acts">${draft && canEdit ? html`<button class="n-btn n-btn--sm" type="button" id="add">${icon('plus')}加一条动作</button>` : ''}</div></header>
       <div class="nt-split">
         <article class="n-card" id="doc" style="position:relative">
           ${!draft ? html`<span class="n-seal" style="position:absolute;right:22px;top:18px" id="seal">定</span>` : ''}
-          ${hiddenN ? html`<p class="nt-muted" style="margin:0 0 var(--s-3)">另有 ${hiddenN} 条动作涉及你范围外的人，不在这里显示。</p>` : ''}
+          ${hiddenN ? html`<p class="nt-muted" style="margin:0 0 var(--s-3)">另有 ${hiddenN} 条动作涉及你范围以外的人，已隐藏。</p>` : ''}
           ${p.moves.length ? p.moves.map((m, i) => (st.canSeeMove(m) ? move(m, i, draft && canEdit, diff) : '')) : html`<div class="nt-empty">还没有动作。从盘点清单和象限校准的结论出发，加第一条。</div>`}
           ${diff?.removed.length ? html`<div class="n-move"><div class="n-move__head"><span class="n-move__type is-watch">已删去</span><span class="n-diff">${diff.removed.map((m) => html`<del>${m.type} · ${m.person ? st.person(m.person).name : m.to}</del> `)}</span></div></div>` : ''}
         </article>
@@ -50,7 +50,7 @@
           </article>
           <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">写方案时的规则</h3>
             <ul class="nt-list" style="font-size:var(--t-sm);color:var(--ink-2)">
-              <li>本人意愿、可否释放不知道时写「未知」，不默认同意或空闲。</li><li>资料不足的人放「继续观察」，写清下次补什么、谁负责。</li><li>动作来自「值得聊一聊」的，标为「激活」。</li></ul></article>
+              <li>本人意愿、可否释放待了解时写「未知」。</li><li>资料不足的人放「继续观察」，写清下次补什么、谁负责。</li><li>动作来自「值得聊一聊」的，标为「激活」。</li></ul></article>
         </aside>
       </div>`);
     wire(main, p);
@@ -136,15 +136,15 @@
 
   async function confirm(p) {
     if (!st.can('confirmPlan')) {
-      mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>你没有确认方案的权限。</b>部门负责人可以查看涉及本部门的动作；修改和确认由 CEO 或指定的 HRBP 负责。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="ask">请苏晚确认</button></div></div></div>`);
+      mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>方案由 CEO 或指定的 HRBP 修改和确认。</b>部门负责人可以查看涉及本部门的动作。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="ask">请苏晚确认</button></div></div></div>`);
       $('#ask').onclick = () => { NT.toast('已发给苏晚确认'); $('#deny').innerHTML = ''; };
       return;
     }
     const pending = p.moves.filter((m) => !m.person && m.type !== '继续观察');
     const v = await NT.dialog({
       title: `确认组织调整方案 v${p.version}？`,
-      body: html`<p>确认后冻结快照，每条动作生成一条行动；方案不等于人事动作已经执行。</p>`,
-      facts: [html`${p.moves.length} 条动作：${p.moves.map((m) => `${m.kind || m.type}${m.person ? ` · ${st.person(m.person).name}` : ''}`).join('、')}`, pending.length ? html`<span style="color:var(--conflict)">${pending.length} 条还没有人选，确认后在行动里继续跟进</span>` : html`意愿或释放为「未知」的，行动会先从沟通开始`],
+      body: html`<p>确认后冻结快照，每条动作生成一条跟进行动。</p>`,
+      facts: [html`${p.moves.length} 条动作：${p.moves.map((m) => `${m.kind || m.type}${m.person ? ` · ${st.person(m.person).name}` : ''}`).join('、')}`, pending.length ? html`<span style="color:var(--conflict)">${pending.length} 条人选待定，确认后在行动里继续跟进</span>` : html`意愿或释放为「未知」的，行动会先从沟通开始`],
       actions: [{ label: '再看看', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并冻结 v${p.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
     if (v !== 'ok') return;
