@@ -33,7 +33,7 @@
   function draw() {
     const host = $('#plist'); if (!host) return;
     const list = st.search('').projects.filter((p) => status === 'all' || p.status === status);
-    mount(host, list.length ? list.map(card) : html`<div class="nt-empty" style="grid-column:1/-1">没有这个状态的项目。</div>`);
+    mount(host, list.length ? list.map(card) : html`<div class="nt-empty" style="grid-column:1/-1">这个状态的项目会出现在这里。</div>`);
   }
   function card(p) {
     const ms = st.membersOf(p.id);

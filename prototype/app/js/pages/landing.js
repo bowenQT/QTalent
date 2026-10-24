@@ -38,7 +38,7 @@
             const badge = r.state === 'confirmed' ? html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>` : r.conflicts ? html`<span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : r.ai ? html`<span class="n-badge">待导师确认 ${r.ai} 项</span>` : !r.total ? UI.na() : html`<span class="n-badge">待整份确认</span>`;
             return html`<li><a class="nt-plink" href="landing-review.html?id=${pid}" style="display:contents">${UI.avatar(pid, 'sm')}<div>${st.person(pid).name}<small>${st.project(topic).name} · ${ms.map((m) => st.person(m).name).join('、')}</small></div>${badge}</a></li>`;
           })}</ul>
-          ${others ? html`<p class="nt-caption">另外 ${others} 名学员由其他导师负责，你看不到他们的评价。</p>` : ''}
+          ${others ? html`<p class="nt-caption">另外 ${others} 名学员由其他导师负责。</p>` : ''}
         </article>
 
         <div class="nt-cols" style="margin-top:var(--s-4)">
@@ -58,7 +58,7 @@
             ${quad ? html`<article class="n-card"><h3 class="n-section-title">结营</h3>
               <p style="margin:0;font-size:var(--t-sm);line-height:1.7;color:var(--ink-2)">W4 结营时做第一次象限校准，形成每个人的第一份档案。现在 ${b.newcomers.length} 人中 ${placed} 人满足落位门槛，其余在「资料不足」区，说明还缺哪类证据。</p>
               <div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm ${placed ? 'n-btn--ink' : ''}" href="calibrate.html?id=b-land3">${icon('grid')}预演结营校准</a><span class="nt-muted">演示用：可以提前走一遍</span></div>
-            </article>` : html`<div class="n-lock">${icon('lock')}结营校准和象限对导师不可见。导师负责评价和确认分数。</div>`}
+            </article>` : html`<div class="n-lock">${icon('lock')}导师负责评价和确认分数。结营校准和象限由 HRBP 和负责人完成。</div>`}
           </div>
         </div>`);
     },

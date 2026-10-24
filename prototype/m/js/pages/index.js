@@ -111,7 +111,7 @@
 
       <h3 class="m-h">判断提醒</h3>
       ${sigs.length ? html`<ul class="m-list">${sigs.map((g) => M.row(`../app/judge.html?id=${g.b.id}`, icon('swap'), g.b.name.replace('判断复盘', ''), UI.judgeTipText(g)))}</ul>`
-        : html`<div class="nt-empty">最近的判断复盘没有需要复核的差异。</div>`}`);
+        : html`<div class="nt-empty">需要复核的差异会出现在这里。</div>`}`);
     NT.$('#m-find').addEventListener('submit', (e) => {
       e.preventDefault();
       const q = NT.$('#m-find-q').value.trim();
@@ -131,7 +131,6 @@
         <a href="quick.html?k=will">${icon('quote')}<b>写意愿</b><small>下一步想做什么</small></a>
       </div>
       <h3 class="m-h">发布给你的</h3>
-      ${todos.length ? html`<ul class="m-list">${todos.map((t) => M.row(`person.html?id=${me.id}`, icon('check2'), t.title, t.sub, html`<span class="n-astate" data-s="todo">${t.due}</span>`))}</ul>` : html`<div class="nt-empty">还没有。</div>`}
-      <div class="n-lock" style="margin-top:var(--s-4)">${icon('lock')}维度分、象限和他人的评价对本人不可见。</div>`);
+      ${todos.length ? html`<ul class="m-list">${todos.map((t) => M.row(`person.html?id=${me.id}`, icon('check2'), t.title, t.sub, html`<span class="n-astate" data-s="todo">${t.due}</span>`))}</ul>` : html`<div class="nt-empty">还没有。</div>`}`);
   }
 })();

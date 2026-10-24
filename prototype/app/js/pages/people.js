@@ -47,14 +47,14 @@
       const groups = teams.filter((t) => list.some((p) => p.org === t));
       mount($('#plist'), list.length ? groups.map((t) => html`<div class="nt-h2" style="font-size:var(--t-xs);color:var(--ink-3);font-weight:500;margin:var(--s-4) 0 var(--s-1)">${st.orgPath(t)} · ${list.filter((p) => p.org === t).length} 人</div>
         <div class="n-card" style="padding:var(--s-1)">${list.filter((p) => p.org === t).sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((p) => row(p, quad))}</div>`)
-        : html`<div class="nt-empty">没有符合条件的人。</div>`);
+        : html`<div class="nt-empty">换个筛选条件试试。</div>`);
     };
     mount(host, html`<div class="nt-filter">
         <input class="n-input" type="search" placeholder="按姓名或岗位筛选" aria-label="按姓名或岗位筛选" id="pq" value="${q}">
         ${teams.length > 1 ? html`<select class="n-select" id="porg" aria-label="团队"><option value="all">全部团队</option>${teams.map((t) => html`<option value="${t}" ${org === t ? 'selected' : ''}>${st.orgShort(t)}</option>`)}</select>` : ''}
         <div class="n-chips" style="margin:0" role="group" aria-label="筛选">${kinds.map(([k, l]) => html`<button class="n-chip" type="button" data-k="${k}" aria-pressed="${k === kind}">${l}</button>`)}</div>
       </div><div id="plist"></div>
-      ${quad ? html`<p class="nt-caption">右侧是正式位置（最近一次冻结的校准）；没有正式位置的人显示参考位置，带光点标记。资料不足的人不会被放进低潜力。</p>` : role === 'lead' ? '' : html`<p class="nt-caption">${UI.lock('导师看不到象限')}</p>`}`);
+      ${quad ? html`<p class="nt-caption">右侧是正式位置（最近一次冻结的校准），待校准的人显示参考位置，带光点标记。</p>` : role === 'lead' ? '' : html`<p class="nt-caption">${UI.lock('导师看不到象限')}</p>`}`);
     $('#pq').addEventListener('input', (e) => { q = e.target.value.trim(); draw(); });
     $('#porg')?.addEventListener('change', (e) => { org = e.target.value; draw(); });
     host.querySelector('.n-chips').addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (!b) return; kind = b.dataset.k; $$('[data-k]', host).forEach((x) => x.setAttribute('aria-pressed', x === b)); draw(); });

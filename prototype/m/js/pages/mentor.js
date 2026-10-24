@@ -97,9 +97,9 @@
       return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(html`${UI.dotsInline(Math.round(st.mean(counted.map((x) => x.s.v))), last.st === 'calibrated' ? 'calibrated' : 'confirmed')}<span class="n-badge">${[...new Set(counted.map((x) => st.person(x.s.by).name))].join('、')}${last.st === 'calibrated' ? '校准' : '已确认'}</span>`)}${counted.map(evLine)}</div>`;
     }
     if (row.state === 'unknown') {
-      return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(UI.na())}<div class="n-review__ev" style="color:var(--ink-3)">${d.id === 'grit' ? '这两周没有受挫后的反应记录。可以留意：方案被否之后他怎么做。' : '这两周的记录里没有具体行为。资料不足不出分，也不算反向证据。'}</div></div>`;
+      return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(UI.na())}<div class="n-review__ev" style="color:var(--ink-3)">${d.id === 'grit' ? '这两周待补受挫后的反应。可以留意：方案被否之后怎么做。' : '这两周的记录待补具体行为。'}</div></div>`;
     }
-    return html`<div class="n-review__dim m-card is-quiet" data-dim="${d.id}">${head(html`<span class="n-badge">未体现</span>`)}<div class="n-review__ev" style="color:var(--ink-3)">加分项不体现不扣分。</div></div>`;
+    return html`<div class="n-review__dim m-card is-quiet" data-dim="${d.id}">${head(html`<span class="n-badge">未体现</span>`)}<div class="n-review__ev" style="color:var(--ink-3)">加分项只在有对应行为时计入。</div></div>`;
   }
 
   function wire(main) {
@@ -151,11 +151,11 @@
       <b class="m-sayev__t" id="say-t"></b>
       <dl class="n-event__sbar"><dt>背景</dt><dd id="say-bg"></dd><dt>行为</dt><dd id="say-act"></dd><dt>结果</dt><dd id="say-res"></dd></dl>
       <div class="m-sayev__scores" id="say-sc"></div>
-      <div class="nt-row" id="say-acts" hidden><button class="n-btn n-btn--sm n-btn--ink" type="button" id="say-add">加入复盘，逐项确认</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="say-x">不要了</button></div>
+      <div class="nt-row" id="say-acts" hidden><button class="n-btn n-btn--sm n-btn--ink" type="button" id="say-add">加入复盘，逐项确认</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="say-x">删掉这条</button></div>
     </div>`);
     UI.mountIPs(out);
     await NT.stream($('#say-t'), s.title, 16);
-    for (const k of ['bg', 'act', 'res']) { if (s[k]) await NT.stream($(`#say-${k}`), s[k], 12); else $(`#say-${k}`).innerHTML = '<span class="nt-muted">原话没写</span>'; }
+    for (const k of ['bg', 'act', 'res']) { if (s[k]) await NT.stream($(`#say-${k}`), s[k], 12); else $(`#say-${k}`).innerHTML = '<span class="nt-muted">待补充</span>'; }
     mount($('#say-sc'), s.scores.map((x) => (x.v == null ? html`<span class="n-badge n-badge--unknown">${icon('dash')}${st.dim(x.d).name} 资料不足</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.dim(x.d).name} ${x.ai}</span>`)));
     NT.ipState($('#say-ip'), 'confirm');
     $('#say-acts').hidden = false;

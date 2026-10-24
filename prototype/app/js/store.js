@@ -221,7 +221,7 @@
     const potEvents = new Set(core.flatMap((c) => c.list.map((s) => s.ev.id)));
     const profEvents = new Set(prof.map((s) => s.ev.id));
     const miss = [];
-    if (profEvents.size < 2) miss.push(profEvents.size ? '专业度缺 1 条事件' : '专业度还没有评分');
+    if (profEvents.size < 2) miss.push(profEvents.size ? '专业度缺 1 条事件' : '专业度待评分');
     if (potEvents.size < 2) miss.push(potEvents.size ? '潜力轴缺 1 条事件' : '潜力轴缺 2 条事件');
     else if (coreScored.length < 2) miss.push(`潜力核心只有${store.dim(coreScored[0].d).name}有分`);
     const px = mean(prof.map((s) => s.v));
@@ -323,7 +323,7 @@
         const merged = now.filter((p) => p.merged).length;
         const newbies = all.length - now.length;
         out.push({ id: `team-${t.id}`, t: 'team', hit: true, team: t.id, what: '资料不足比例上升', from: Math.round(rPrev * 100), to: Math.round(rNow * 100), unit: '%', when: merged ? '2026-10-20' : NT.TODAY,
-          rule: '资料不足 +20 个百分点', sub: `${now.length} 人中 ${naNow} 人资料不足${merged ? ` · 并入的 ${merged} 人还没有本系统的事件` : ''}${newbies ? ` · 另有 ${newbies} 名入职不到 3 个月的新人未计入` : ''}`, merged, newbies });
+          rule: '资料不足 +20 个百分点', sub: `${now.length} 人中 ${naNow} 人资料不足${merged ? ` · 并入的 ${merged} 人事件待补录` : ''}${newbies ? ` · 入职 3 个月内的 ${newbies} 名新人另计` : ''}`, merged, newbies });
       });
     }
     return out.sort((a, b) => b.when.localeCompare(a.when)); // 按发生时间，不按幅度
@@ -500,7 +500,7 @@
       }
       // 行动带上冻结的判断，到期后可以进入任用后复盘
       S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title: `${name}${r.id === 'owner' ? `接任${p.name} owner` : `加入${p.name}（${r.name}）`}`, from: plan.id, person: pid, owner: 'p-suwan', due: '2026-11-01', state: 'todo', observe: '2027-01-31',
-        then: [`目标：${r.id === 'owner' ? `负责${p.name}` : `在${p.name}承担${r.name}`}`, `依据：用人方案 v${plan.version}${musts.length ? `，必须项：${musts.join('、')}` : ''}`, `缺口：${plan.slotNote?.[r.id] || '方案里没有写，复盘时补充'}`] });
+        then: [`目标：${r.id === 'owner' ? `负责${p.name}` : `在${p.name}承担${r.name}`}`, `依据：用人方案 v${plan.version}${musts.length ? `，必须项：${musts.join('、')}` : ''}`, `缺口：${plan.slotNote?.[r.id] || '待复盘时补充'}`] });
     });
     // 只回填还能改的草稿；已确认的组织方案是冻结快照，人选由上面生成的行动跟进
     S.plans.filter((x) => x.kind === 'org' && x.status === 'draft').forEach((op) => op.moves.forEach((m) => { if (m.pending === plan.project && !m.person && plan.slots.owner) { m.person = plan.slots.owner; m.will = '未知 · 待沟通'; } }));
@@ -595,7 +595,7 @@
     const to = [NT.addDays(p.joined, chain.window), NT.TODAY].sort()[0];
     const list = dims.flatMap((d) => store.scoresOf(pid, { dim: d, from: p.joined, to }));
     const evs = [...new Set(list.map((x) => x.ev.id))];
-    if (evs.length < 2) return { na: true, n: list.length, evs, to, miss: list.length ? '只有 1 条事件的已确认分' : '窗口内没有已确认分' };
+    if (evs.length < 2) return { na: true, n: list.length, evs, to, miss: list.length ? '只有 1 条事件的已确认分' : '资料不足：窗口内缺已确认分' };
     const m = store.mean(list.map((x) => x.v));
     return { v: Math.round(m), mean: m, n: list.length, evs, to, by: [...new Set(list.map((x) => x.by))] };
   };
@@ -619,13 +619,13 @@
       g.rows.forEach(([pid, by, fr, fnote, bk, bnote], i) => chain.dims.forEach((d) => push({
         person: pid, dim: d.id,
         front: { by, v: fr[d.id] ?? null, r: chain.grades.indexOf(fr[d.id]), note: fnote, std: b.std, src: cell(g.src.front, i + 2, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${fr[d.id] ?? '—'}：${fnote}`, by) },
-        back: bk[d.id] ? { by: [g.back], v: bk[d.id], r: chain.grades.indexOf(bk[d.id]), note: bnote, src: cell(g.src.back, i + 2, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${bk[d.id]}：${bnote}`, g.back) } : { by: [g.back], na: true, note: bnote, miss: '训练营评审没有这个维度的等级', src: cell(g.src.back, i + 2, [g.src.cols.note], bnote, g.back) },
+        back: bk[d.id] ? { by: [g.back], v: bk[d.id], r: chain.grades.indexOf(bk[d.id]), note: bnote, src: cell(g.src.back, i + 2, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${bk[d.id]}：${bnote}`, g.back) } : { by: [g.back], na: true, note: bnote, miss: '训练营评审未体现这个维度', src: cell(g.src.back, i + 2, [g.src.cols.note], bnote, g.back) },
       })));
     } else {
       J.hire[batchId].forEach(([pid, by, ev, fr, fnote]) => chain.dims.forEach((d) => {
         const bk = hireBack(pid, map.back[d.id], chain);
         push({ person: pid, dim: d.id,
-          front: { by, v: fr[d.id] ?? null, r: fr[d.id] ?? null, note: fnote, std: b.std, ev, miss: fr[d.id] == null ? '面试没有给这个维度的结论' : '' },
+          front: { by, v: fr[d.id] ?? null, r: fr[d.id] ?? null, note: fnote, std: b.std, ev, miss: fr[d.id] == null ? '面试评价未体现这个维度' : '' },
           back: bk.na ? { na: true, n: bk.n, evs: bk.evs, miss: bk.miss, to: bk.to } : { by: bk.by, v: bk.v, r: bk.v, mean: bk.mean, n: bk.n, evs: bk.evs, to: bk.to } });
       }));
     }
@@ -847,7 +847,7 @@
       if (w && w.when >= f.at) out.push({ person: p, at: w.when, ts: w.ts, kind: 'watch', text: `进入值得关注：${w.why}`, cat: w.cat });
       S.pushes.filter((x) => x.person === p && x.by === me).forEach((x) => x.log.filter((l) => l.at >= f.at).forEach((l) => out.push({ person: p, at: l.at, ts: l.ts, kind: 'push', text: `${PUSH_KINDS[x.kind].label}：${l.text}`, by: l.by })));
       // 行动（管理资料）：新生成的和状态变化；重点跟踪：开始、改观察问题、停止
-      const ALABEL = { todo: '待沟通', doing: '进行中', done: '已执行', cancel: '没有执行', reviewed: '已复盘' };
+      const ALABEL = { todo: '待沟通', doing: '进行中', done: '已执行', cancel: '未执行', reviewed: '已复盘' };
       if (store.can('mgmt', p)) S.actions.filter((a) => a.person === p).forEach((a) => {
         if (a.at && a.at >= f.at) out.push({ person: p, at: a.at, ts: a.ts, kind: 'action', text: `新行动：${a.title}`, by: a.owner });
         if (a.stateAt && a.stateAt >= f.at) out.push({ person: p, at: a.stateAt, ts: a.stateTs, kind: 'action', text: `行动「${a.title}」${ALABEL[a.state] || ''}`, by: a.owner });
@@ -1043,7 +1043,7 @@
 
   S = load();
   if (upgradedFrom != null) NT.ready(() => setTimeout(() => NT.toast(keepOld
-    ? '演示数据已更新到新版本，但浏览器存储已满，旧的演示数据没能备份。为了不覆盖它，这次的操作只在本页生效；需要保存时请先清理本站存储'
+    ? '演示数据已更新到新版本。浏览器存储已满，旧数据备份失败，为了保留它，这次的操作只在本页生效。要保存，请先清理本站存储'
     : '演示数据已更新到新版本，你之前在本浏览器里做的演示操作已重置，旧数据另存了一份备份'), 600));
   store.save();
 })();

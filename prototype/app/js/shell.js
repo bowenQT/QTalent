@@ -88,7 +88,7 @@
 
     const main = NT.$('#main');
     if (cfg.allow && !cfg.allow(role)) {
-      mount(main, NT.ui.state({ ip: 'confirm', title: cfg.denyTitle || '这个视角看不到这一页', text: cfg.denyText || `${st.roles[role].label}没有这部分内容的权限。切换到其他演示视角，或回到工作台。`, actions: html`<a class="n-btn n-btn--sm" href="index.html">回到工作台</a>` }));
+      mount(main, NT.ui.state({ ip: 'confirm', title: cfg.denyTitle || '这一页属于其他视角', text: cfg.denyText || '切换演示视角，或回到工作台。', actions: html`<a class="n-btn n-btn--sm" href="index.html">回到工作台</a>` }));
       NT.ui.mountIPs(main);
     } else {
       cfg.render(main);
@@ -124,7 +124,7 @@
         ...projects.slice(0, 6).map((p) => ['项目', 'folder', p.name, `${p.status}${p.owner ? ` · owner ${st.person(p.owner).name}` : ' · owner 待定'}`, `project.html?id=${p.id}`]),
       ];
       sel = Math.min(sel, Math.max(0, shown.length - 1));
-      if (!shown.length) { list.innerHTML = `<div class="n-cmdk__empty">没有找到「${NT.esc(q)}」。按回车，把它当作一句话交给 AI 记录。</div>`; return; }
+      if (!shown.length) { list.innerHTML = `<div class="n-cmdk__empty">按回车，把「${NT.esc(q)}」交给 AI 记录</div>`; return; }
       let g = '';
       list.innerHTML = shown.map((c, i) => (c[0] !== g ? `<div class="n-cmdk__grp">${(g = c[0])}</div>` : '')
         + `<a class="n-cmdk__item" role="option" aria-selected="${i === sel}" href="${c[4]}"><svg><use href="#i-${c[1]}"/></svg>${NT.esc(c[2])}<small>${NT.esc(c[3])}</small></a>`).join('');

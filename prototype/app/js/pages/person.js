@@ -84,7 +84,7 @@
           <article class="n-card" id="timeline">
             <h3 class="n-section-title">时间线<small class="nt-muted" style="font-weight:400;margin-left:auto">${obsN} 条关键事件 · 按事件真实发生的时间</small></h3>
             ${timeline(events, changes, verSnap)}
-            ${hiddenN ? html`<div class="n-lock" style="margin-top:var(--s-3)">${icon('lock')}另有 ${hiddenN} 条${role === 'mentor' ? '管理观察或管理受限资料，对导师不可见' : '与你负责的项目无关的资料，不在你的查看范围'}。</div>` : ''}
+            ${hiddenN ? html`<div class="n-lock" style="margin-top:var(--s-3)">${icon('lock')}${role === 'mentor' ? `另有 ${hiddenN} 条管理观察和受限资料，导师视角已隐藏` : `另有 ${hiddenN} 条资料属于你负责范围以外的项目，已隐藏`}。</div>` : ''}
           </article>
         </div>
 
@@ -97,8 +97,8 @@
             <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)} <span class="nt-muted">${f.snap.label} 校准 · ${NT.md(f.snap.at)} · ${st.person(f.snap.by).name}确认</span>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
               <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted">规则 rubric-v1</span>`}</dd></dl>
             ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后新增的已确认事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm" href="calibrate.html?id=b-h2&team=${p.org}">加入下次校准</a></div></div></div>` : ''}
-            ${ref.na ? html`<p class="nt-caption">资料不足不等于能力低，不会被放进低潜力。落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分。</p>` : ''}
-          </article>` : role === 'mentor' ? html`<div class="n-lock">${icon('lock')}导师看不到象限、变化和「值得聊一聊」。</div>` : ''}
+            ${ref.na ? html`<p class="nt-caption">落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分。</p>` : ''}
+          </article>` : ''}
 
           <article class="n-card"><h3 class="n-section-title">参与的项目</h3>
             ${projs.length ? html`<ul class="n-members">${projs.map((m) => html`<li class="${m.to ? 'is-left' : ''}"><a class="nt-plink" href="project.html?id=${m.p.id}"><b>${m.p.name}</b></a><span class="n-members__role">${m.role} · ${m.mode}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}</span></li>`)}</ul>` : html`<div class="nt-empty">还没有参与项目。</div>`}
@@ -206,7 +206,7 @@
     return out.length ? html`<ol class="n-tl">${out}</ol>` : html`<div class="nt-empty">还没有记录。</div>`;
   }
   function item(it, after) {
-    const style = after ? raw(' style="opacity:.4" title="这条在所选档案版本冻结之后，不在该版本里"') : '';
+    const style = after ? raw(' style="opacity:.4" title="这条记在所选档案版本冻结之后"') : '';
     if (it.c) {
       const c = it.c;
       return html`<li class="n-tl__item"${style}><span class="n-tl__date">${NT.md(c.when)}</span><span class="n-tl__dot is-change"></span><div class="n-tl__body"><div class="n-tl__title">${c.what}</div><div class="n-tl__meta">${c.from != null ? html`<span class="n-delta"><s>${c.from.toFixed(1)}</s>${icon(c.up ? 'up-r' : 'down-r')}${c.to.toFixed(1)}</span>近 3 个月 ${c.n} 条 · 对比之前 9 个月` : c.sub} <span class="n-rule">${icon('flag')}${c.rule}</span></div></div></li>`;
@@ -224,7 +224,7 @@
     return html`<li class="n-tl__item ${isUnknown ? 'is-unknown' : ''}" id="ev-${e.id}"${style}><span class="n-tl__date">${isUnknown ? '未知' : e.kind === 'hist' && e.restricted ? 'H1' : NT.md(e.date)}</span><span class="n-tl__dot ${dot}"></span><div class="n-tl__body">
       <div class="n-tl__title">${e.kind === 'obs' ? html`<button class="nt-tl-open" type="button" aria-expanded="false">${e.title}</button>` : e.title}${pending ? html` <span class="n-badge n-badge--ai">${icon('spark')}${pending} 项待确认</span>` : ''}${conflict ? html` <span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : ''}</div>
       <div class="n-tl__meta">${meta}${isUnknown && st.can('record', pid) ? html` · <button class="n-btn n-btn--sm n-btn--ghost" type="button" data-date="${e.id}" style="min-height:22px;padding:0 6px">补上时间</button>` : ''}</div>
-      ${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${v}</span>`)}</div>${e.kind === 'hist' && !e.restricted ? html`<div class="n-tl__note">${e.group ? '这是小组的评分，不复制成每位成员的个人分。' : '保留原量表，不换算成 1–5 的维度分，也不参与象限。AI 打分时可以引用其中的文字评价。'}</div>` : ''}` : ''}
+      ${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${v}</span>`)}</div>${e.kind === 'hist' && !e.restricted ? html`<div class="n-tl__note">${e.group ? '这是小组的评分。' : '保留原量表，AI 打分时可以引用其中的文字评价。'}</div>` : ''}` : ''}
       ${e.kind === 'obs' ? html`<div class="nt-tl-card" hidden>${UI.eventCard(e, { for: pid })}</div>` : ''}
     </div></li>`;
   }
@@ -302,8 +302,7 @@
         <aside class="nt-grid">
           <div id="dirwrap">${UI.directionBlock(p.id, { canWrite: 'self' })}</div>
           <article class="n-card"><h3 class="n-section-title">发布给你的</h3>${pub.map((a) => html`<div class="n-pubaction" style="margin-bottom:var(--s-2)"><div>${a.title}<small>${st.person(a.by).name}发布给你 · ${NT.md(a.at)}</small></div><span class="n-astate" data-s="todo">待安排</span></div>`)}</article>
-          <div class="n-lock">${icon('lock')}维度分、象限、他人的评价和「值得聊一聊」对本人不可见。</div>
-          <article class="n-card"><h3 class="n-section-title">你问「我在哪个象限」</h3><div class="n-block" data-state="light" style="font-size:var(--t-sm)">象限信息对本人不可见，我不能回答这个问题。你可以看自己的经历和发布给你的安排，或者和 HRBP 聊聊。<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 回答</span>权限在服务端判断</div></div></article>
+          <article class="n-card"><h3 class="n-section-title">你问「我在哪个象限」</h3><div class="n-block" data-state="light" style="font-size:var(--t-sm)">象限在盘点时由 HRBP 和负责人使用。你可以看自己的经历和发布给你的安排，有疑问可以找 HRBP 聊聊。<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 回答</span></div></div></article>
         </aside>
       </div>`);
     UI.wireDirection($('#dirwrap'), p.id, () => render(main));

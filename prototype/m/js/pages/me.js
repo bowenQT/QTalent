@@ -17,7 +17,7 @@
       <div class="m-card">${UI.person(me.id, { size: 'lg', link: false, meta: `${st.roles[role].label} · ${me.title}`, meta2: st.roles[role].scope })}</div>
       ${role === 'self' ? html`<div id="mydir" style="margin-top:var(--s-3)">${UI.directionBlock(me.id, { canWrite: 'self' })}</div>` : ''}
       <h3 class="m-h">演示视角</h3>
-      <p class="nt-muted" style="margin:-4px 0 var(--s-2)">切换后整页按新身份重新加载。正式产品里权限由服务端判断，这里只是演示手段。</p>
+      <p class="nt-muted" style="margin:-4px 0 var(--s-2)">切换后整页按新视角加载。</p>
       <ul class="m-list" role="radiogroup" aria-label="演示视角">${ORDER.map((r) => html`<li><button class="m-row m-rolebtn" type="button" role="radio" aria-checked="${r === role}" data-r="${r}">${UI.avatar(st.roles[r].person, 'sm')}<span>${st.person(st.roles[r].person).name} · ${st.roles[r].label}<small>${st.roles[r].scope}</small></span>${r === role ? icon('check') : html`<span></span>`}</button></li>`)}</ul>
       <h3 class="m-h">更多</h3>
       <ul class="m-list">

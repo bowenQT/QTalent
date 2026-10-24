@@ -177,7 +177,7 @@
 <script>
   if (window.NiuIP) NiuIP.mount(document.getElementById('ip'), { state: 'rest', size: 88 });
   document.getElementById('reset').addEventListener('click', (e) => {
-    if (!confirm('清空你在本浏览器里做过的确认、校准和记录，回到初始演示数据？评论不受影响。')) return;
+    if (!confirm('清空你在本浏览器里做过的确认、校准和记录，回到初始演示数据？评论会保留。')) return;
     try { localStorage.removeItem('nt-demo'); localStorage.removeItem('nt-role'); sessionStorage.clear(); } catch (err) { /* 浏览器禁用了存储时无需清理 */ }
     e.target.textContent = '已重置';
   });

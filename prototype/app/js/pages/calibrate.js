@@ -18,7 +18,7 @@
   NT.shell({
     nav: isLanding ? 'landing' : 'review', title: `${LABEL} · 象限校准`, crumbs: isLanding ? [['Landing 第三期', 'landing.html']] : [['盘点', 'reviews.html'], [b?.name || '', `review.html?id=${id}`]],
     allow: (r) => ['ceo', 'hrbp', 'lead'].includes(r) && !!b,
-    denyText: '象限对导师和员工不可见。',
+    denyText: '象限仅 CEO、HRBP 和部门负责人可见。',
     view: () => `象限校准 · ${isLanding ? '新人' : st.orgShort(team)}${frozen() ? ' · 已冻结' : ''}`,
     state: () => ({ team }),
     restore: (s) => { if (s.team) { team = s.team; render($('#main')); } },
@@ -46,7 +46,7 @@
     ids.forEach((pid) => {
       // 冻结后整份读快照：位置、维度均值、证据条数都是冻结那一刻的，不随新事件变化
       const e = isFrozen ? sn.entries[pid] : null;
-      if (isFrozen && !e) { na.push({ pid, miss: '冻结后加入，不在这份快照里' }); return; }
+      if (isFrozen && !e) { na.push({ pid, miss: '快照冻结后加入' }); return; }
       const r = e ? { ...e, q: e.ref } : st.refPos(pid);
       if (r.na) { na.push({ pid, miss: r.miss }); return; }
       const prev = st.formal(pid);
@@ -87,8 +87,8 @@
           <div class="n-card">
             ${isFrozen ? html`<p class="nt-muted" style="margin:0">${NT.md(sn.at)} 由${st.person(sn.by).name}确认冻结。之后有新证据时，只提示「可能需要重新校准」，不会挪动位置。</p>`
               : html`<div class="nt-row"><button class="n-btn n-btn--ink" type="button" id="quad-confirm" ${NT.raw(canConfirm ? '' : 'disabled')}>${icon('stamp')}确认并冻结${isLanding ? '' : `「${st.orgShort(team)}」`}</button><button class="n-btn n-btn--ghost" type="button" id="quad-reset">${icon('retry')}重新给出参考位置</button></div>
-              ${!canConfirm ? html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>部门负责人可以参与校准、提出调整。</b>确认冻结需要 HRBP 或 CEO。你的拖动和理由会作为建议留给苏晚。</div></div>` : ''}
-              <p class="nt-caption">选中头像后可以用方向键移动。图上只显示头像和姓名，不显示精确的轴数值；点头像在这里看维度分和证据。资料不足的人不进象限，也不会被放在左下角。</p>`}
+              ${!canConfirm ? html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>部门负责人可以参与校准、提出调整。</b>由 HRBP 或 CEO 确认冻结，你的拖动和理由会作为建议交给苏晚。</div></div>` : ''}
+              <p class="nt-caption">选中头像后可以用方向键移动，点头像查看维度分和证据。</p>`}
           </div>
         </aside>
       </div>`);
@@ -182,7 +182,7 @@
     const shift = people.filter((x) => x.prevQ && x.prevQ !== x.refQ);
     const sg = st.can('quadConfirm') ? people.filter((x) => x.sug).length : 0;
     $('#quad-say-text').textContent = sg && !n ? `部门负责人对 ${sg} 人提了建议，点头像查看，可以按建议放。` : n ? `已调整 ${n} 人的位置。确认后冻结。`
-      : `参考位置已给出。把头像拖到你判断的位置；同意的人不用动。${shift.length ? `${shift.map((x) => `${x.p.name}的参考位置离开了上次的正式位置（${QN[x.prevQ]}）`).join('；')}，需要你判断。` : ''}`;
+      : `参考位置已给出。把头像拖到你判断的位置，同意参考位置的人保持原位。${shift.length ? `${shift.map((x) => `${x.p.name}的参考位置移出了上次的正式位置（${QN[x.prevQ]}）`).join('；')}，请你判断。` : ''}`;
   }
 
   async function intro() {
@@ -210,7 +210,7 @@
   }
 
   function select(x) {
-    if (!x) { mount($('#panel'), html`<p class="nt-muted" style="margin:0">这个团队还没有人满足落位门槛。</p>`); return; }
+    if (!x) { mount($('#panel'), html`<p class="nt-muted" style="margin:0">满足落位门槛的人会出现在象限里。</p>`); return; }
     selected = x;
     people.forEach((o) => o.dot.classList.toggle('is-selected', o === x));
     const r = x.r;

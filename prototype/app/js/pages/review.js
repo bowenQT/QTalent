@@ -67,7 +67,7 @@
       <div class="nt-cols" style="margin-top:var(--s-4)">
         <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">团队分布 · 本期${prev ? '（上期）' : ''}</h3>
           <div class="n-dist">${[['hl', '高潜待练'], ['hh', '双高'], ['ll', '待观察'], ['lh', '专业骨干']].map(([k, l]) => html`<div>${l} <b>${now[k]}${prev ? html` <small style="color:var(--ink-3);font-weight:400">(${prev[k]})</small>` : ''}</b></div>`)}<div class="na">资料不足 <b>${now.na}${prev ? html` <small style="color:var(--ink-3);font-weight:400">(${prev.na})</small>` : ''}</b></div></div>
-          <p class="nt-caption">${conf ? (list.some((p) => snap?.entries[p.id]?.uncal) ? '冻结时的位置：已校准的团队是正式位置，未校准的是冻结时的参考位置。' : '冻结时的正式位置。') : '已校准的团队按校准结果，其余按当前参考位置。'}${prev && now.na > prev.na ? '资料不足上升主要来自新并入的人和 Landing 新人：他们的事件还在原系统里或刚开始积累，需要补录，不是团队能力的变化。' : ''}只看数量变化，不给人排名。</p>
+          <p class="nt-caption">${conf ? (list.some((p) => snap?.entries[p.id]?.uncal) ? '冻结时的位置：已校准的团队是正式位置，未校准的是冻结时的参考位置。' : '冻结时的正式位置。') : '已校准的团队按校准结果，其余按当前参考位置。'}${prev && now.na > prev.na ? '资料不足上升主要来自新并入的人和 Landing 新人，他们的事件待补录。' : ''}</p>
           ${!conf ? html`<div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm n-btn--ink" href="calibrate.html?id=${id}">${icon('grid')}去象限校准</a><a class="n-btn n-btn--sm" href="plan.html?id=${id}">调整方案${opPlan ? ` v${opPlan.version}` : ''}</a></div>` : html`<div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm" href="plan.html?id=${id}">看组织调整方案</a></div>`}
         </article>
         <article class="n-card" id="gaps"><h3 class="n-section-title" style="font-size:var(--t-sm)">资料缺口 · ${na.length} 人</h3>
@@ -89,7 +89,7 @@
               <td>${ps.na ? UI.na() : (ps.frozen && !ps.ref) || isCal(p.id) ? UI.qBadge(ps.q) : html`<span class="n-badge n-badge--ai">${icon('spark')}参考：${st.QN[ps.q]}</span>`}</td>
               <td>${c ? html`<span class="ink-hand" style="font-size:var(--t-body)">${c.text}</span><small>${st.person(c.by).name} · ${NT.md(c.at)}${canEdit ? html` · <button class="n-link" type="button" data-con="${p.id}">改</button>` : ''}</small>` : canEdit ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-con="${p.id}">${icon('pen')}写结论</button>` : html`<span class="n-badge">未写</span>`}</td></tr>`;
           })}</tbody></table></div>
-        ${!shown.length ? html`<div class="nt-empty">没有符合条件的人。</div>` : ''}
+        ${!shown.length ? html`<div class="nt-empty">换个筛选条件试试。</div>` : ''}
         <p class="nt-caption">按团队和姓名排列，不按分数排序。结论是人写的判断，用楷体呈现；AI 不替人写结论。</p>
       </article>`);
 

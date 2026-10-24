@@ -14,7 +14,7 @@
 
   NT.mshell({
     tab: 'work', title: st.role() === 'self' ? '补充到我的档案' : '一句话记录', back: true, noTabbar: true,
-    demos: [['按住说话', 'quick.html?hold=1'], ['没认出是谁', `quick.html?q=${encodeURIComponent('今天联调时他先把日志都拉出来了。')}`]],
+    demos: [['按住说话', 'quick.html?hold=1'], ['确认说的是谁', `quick.html?q=${encodeURIComponent('今天联调时他先把日志都拉出来了。')}`]],
     view: () => `快速记录 · ${step}`,
     render(main) { if (st.role() === 'self') renderSelf(main); else renderWrite(main); },
   });
@@ -29,7 +29,7 @@
         <label class="m-qin__label" for="q-text">说说这次发生了什么</label>
         <div class="m-chips" role="group" aria-label="记录给谁"><span class="nt-muted">给</span><button type="button" class="n-chip" aria-pressed="${!pre}" data-p="">从原话识别</button>${recent.map((id) => html`<button type="button" class="n-chip" aria-pressed="${pre === id}" data-p="${id}">${st.person(id).name}</button>`)}</div>
         <textarea class="n-eventin__field m-qin__field" id="q-text" rows="6" placeholder="写原话就行，不用分段。比如：唐果今天方案被问住了，第二天主动约了客服再访谈一次。">${NT.param('q') || ''}</textarea>
-        <p class="nt-muted" id="q-hint">谁、在什么情境下、做了什么、结果如何。只写「参与了」的地方会标为资料不足，不出分。</p>
+        <p class="nt-muted" id="q-hint">谁、在什么情境下、做了什么、结果如何。只写了「参与」的地方标为资料不足。</p>
         <div class="m-qatt">${UI.attachButton('添加附件')}<span class="nt-muted">PDF、PPT、文档、表格、录音或视频，可多选</span></div>
         <ul id="q-atts" hidden></ul>
       </div>
@@ -62,8 +62,8 @@
     const found = NT.parse.findPeople(text);
     if (!pid) {
       if (found.hit.length) pid = found.hit[0].id;
-      else if (found.hidden.length) { hint.innerHTML = `<span style="color:var(--no)">你没有给${NT.esc(found.hidden[0].name)}记录的权限。</span>换一个人，或请对方的负责人记录。`; return; }
-      else { hint.innerHTML = '<span style="color:var(--conflict)">没认出是谁。</span>在上面点一个人，或在原话里写上名字。'; $('.m-chips').classList.add('nt-flash'); return; }
+      else if (found.hidden.length) { hint.innerHTML = `<span style="color:var(--no)">${NT.esc(found.hidden[0].name)}的事件由所属负责人记录。</span>换一个人，或请对方的负责人来记。`; return; }
+      else { hint.innerHTML = '<span style="color:var(--conflict)">这句话说的是谁？</span>在上面点一个人，或在原话里写上名字。'; $('.m-chips').classList.add('nt-flash'); return; }
     }
     step = 'shaping';
     const proj = NT.parse.findProject(text);

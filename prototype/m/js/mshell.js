@@ -83,7 +83,7 @@
 
     const main = NT.$('#main');
     if (cfg.allow && !cfg.allow(role)) {
-      mount(main, UI.state({ ip: 'confirm', size: 56, title: cfg.denyTitle || '这个视角看不到这一页', text: cfg.denyText || `${st.roles[role].label}没有这部分内容的权限。在「我的」里切换演示视角，或回到工作台。`, actions: html`<a class="n-btn n-btn--sm" href="index.html">回到工作台</a>` }));
+      mount(main, UI.state({ ip: 'confirm', size: 56, title: cfg.denyTitle || '这一页属于其他视角', text: cfg.denyText || '在「我的」里切换演示视角，或回到工作台。', actions: html`<a class="n-btn n-btn--sm" href="index.html">回到工作台</a>` }));
     } else cfg.render(main);
     UI.mountIPs(main);
     NT.applyRestore();
@@ -199,7 +199,7 @@
       let why = el.querySelector('.n-score__why');
       if (edited && Math.abs(sc.v - sc.ai) >= 2) {
         if (!why) { why = document.createElement('input'); why.className = 'n-score__why'; why.setAttribute('aria-label', `${d.name}改分理由`); why.oninput = () => { sc.why = why.value; }; el.append(why); }
-        why.placeholder = `为什么改成 ${sc.v} 分？不写会进 HRBP 校准队列`;
+        why.placeholder = `为什么改成 ${sc.v} 分？留空会进 HRBP 校准队列`;
       } else why?.remove();
     };
     row.addEventListener('click', (e) => {

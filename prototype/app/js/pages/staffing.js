@@ -110,7 +110,7 @@
   function render(main) {
     if (!sc) {
       const T = st.templates(), tv = tpl && st.tplVersion(tpl);
-      mount(main, html`<header class="nt-head"><div><h1>为一个项目或关键岗位找人</h1><p>说一句要做什么、要什么样的人，或者从目标角色模板开始。系统会建项目、生成需求卡，再按你有权限查看的人逐项核对证据。</p></div></header>
+      mount(main, html`<header class="nt-head"><div><h1>为一个项目或关键岗位找人</h1><p>说一句要做什么、要什么样的人，或者从目标角色模板开始。</p></div></header>
         <div class="n-tpls" role="group" aria-label="目标角色模板" style="margin-bottom:var(--s-4)">${T.map((t) => html`<a class="n-tpl" href="staffing.html?tpl=${t.id}" aria-pressed="${t.id === tplId}">${UI.tplTitle(t)}<small>v${st.tplVersion(t).v}</small></a>`)}</div>
         ${tpl ? html`<article class="n-card" style="max-width:720px;margin-bottom:var(--s-4)">
           <div class="nt-row" style="justify-content:space-between"><h3 class="n-section-title" style="margin:0">目标角色模板 · ${tpl.name}</h3><span class="n-tplver">v${tv.v} · ${st.person(tv.by).name} ${NT.md(tv.at)} 更新</span></div>
@@ -130,7 +130,7 @@
       };
       return;
     }
-    if (!isNew && !st.project(projectId)) return mount(main, UI.state({ ip: 'confirm', title: '没有找到这个项目', text: '它可能还没创建，或者已经删除。', actions: html`<a class="n-btn n-btn--sm" href="staffing.html?new=1">为新项目找人</a>` }));
+    if (!isNew && !st.project(projectId)) return mount(main, UI.state({ ip: 'confirm', title: '项目链接失效', text: '可能已删除，或链接有误。回到项目列表重新进入。', actions: html`<a class="n-btn n-btn--sm" href="staffing.html?new=1">为新项目找人</a>` }));
     if (isNew && key === 'newconv' && !st.project('pr-newconv')) return runNew(main);
     if (isNew) { projectId = sc.project.id; history.replaceState(null, '', `staffing.html?project=${projectId}`); }
     loadPlan();
@@ -223,7 +223,7 @@
       <ul class="n-reqs" id="reqs">${reqs.map((r, i) => html`<li><button class="n-badge ${r.must ? '' : 'n-badge--demo'}" type="button" data-must="${i}" style="border:0;cursor:pointer" aria-label="切换为${r.must ? '加分项' : '必须项'}">${r.must ? '必须' : '加分'}</button><span>${r.alt ? html`<button class="nt-req ${r.useAlt ? 'is-alt' : ''}" type="button" data-alt="${i}" title="点一下改写">${r.useAlt ? r.alt : r.text}</button>` : r.text}</span></li>`)}</ul>
       <div class="nt-row" style="margin-top:var(--s-3)"><input class="n-input" id="reqadd" style="flex:1;min-width:12em;height:32px" placeholder="补一句要求，比如：11 月能到岗" aria-label="补一句要求"><button class="n-btn n-btn--sm" type="button" id="reqadd-go">${icon('plus')}加上</button>
         ${!reqs.some((r) => r.id === 'r3') && key === 'newconv' ? html`<button class="n-ask" type="button" data-addreq="11 月能到岗">11 月能到岗</button>` : ''}</div>
-      <p class="nt-caption">资料不足不当作「不满足」。改了要求，候选人会按新的要求重新核对。</p>`;
+      <p class="nt-caption">改了要求，候选人会按新要求重新核对。</p>`;
   }
   // 就地补的要求：只有和预置证据意思一致的到岗时间（11 月到岗 / 12 月前到岗）复用 r3 的核对结果，
   // 其他要求（含「到岗后必须全职」这类）一律先按资料不足核对，不凭关键词共享证据
@@ -282,7 +282,7 @@
           <button class="n-btn n-btn--ink" type="button" id="confirm">${icon('stamp')}确认 v${ver}</button>
           <button class="n-btn n-btn--ghost" type="button" id="savedraft">保存草稿</button>
         </div>
-        ${canConfirm ? html`<p class="nt-caption">确认后冻结快照，owner 和成员写入项目；确认方案不等于人事动作已执行，后续以行动跟踪。</p>` : ''}
+        ${canConfirm ? html`<p class="nt-caption">确认后冻结快照，owner 和成员写入项目，并生成跟进行动，执行情况在「行动与复盘」里跟踪。</p>` : ''}
         <div id="deny"></div>`}
     </article>
     <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">手动补入</h3>
@@ -298,7 +298,7 @@
     const host = $('#cands');
     const old = $$('.n-candidate', host);
     const render = () => {
-      mount(host, main.length ? main.map((c) => candCard(c.pid)) : UI.state({ ip: 'confirm', title: '没有找到合适的人选', text: '可以先补材料，或者放宽一项要求。' }));
+      mount(host, main.length ? main.map((c) => candCard(c.pid)) : UI.state({ ip: 'confirm', title: '换个条件再找', text: '可以先补材料，或者放宽一项要求。' }));
       mount($('#pending'), html`<h4 class="n-section-title" style="font-size:var(--t-sm)">条件待确认 · ${pend.length} 人</h4>${pend.length ? html`<ul class="n-pending">${pend.map((c) => html`<li>${UI.avatar(c.pid, 'sm')}${UI.plink(c.pid)}<small>${reqs.filter((r) => r.must && evOf(c.pid, r)[0] === 'unknown').map((r) => (r.useAlt ? r.alt : r.text)).join('、')}资料不足</small></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">没有。</p>`}<p class="nt-caption">资料还缺的人放在这里，不当作「不满足」。进入正式方案前再核对关键条件。</p>`);
     };
     if (old.length && changedReq) {
@@ -313,7 +313,7 @@
         if (li && prevS.get(el.dataset.pid) !== li.dataset.s) li.classList.add('nt-changed');
       });
     } else render();
-    $('#cand-meta').textContent = `检索你有权限查看的 ${sc.pool || st.visiblePeople().length} 人 · ${main.length} 人进入候选 · 按必须项的证据排列，不按分数，也不按发展方向排序`;
+    $('#cand-meta').textContent = `检索 ${sc.pool || st.visiblePeople().length} 人 · ${main.length} 人进入候选 · 按必须项的证据排列`;
     mount($('#plan'), planPanel());
     UI.mountIPs($('#main'));
   }
@@ -364,7 +364,7 @@
     if (sc.roles[0] && !slots[sc.roles[0].id]) { NT.toast(`「${sc.roles[0].name}」还空着`); $(`[data-slot="${sc.roles[0].id}"]`)?.classList.add('nt-flash'); return; }
     if (!st.can('confirmPlan')) {
       saveDraft();
-      mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>你没有确认方案的权限。</b>部门负责人可以起草和提出修改；确认需要 CEO 或指定的 HRBP。草稿已保存。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="askceo">请程远确认</button></div></div></div>`);
+      mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>方案由 CEO 或指定的 HRBP 确认。</b>部门负责人可以起草和提出修改。草稿已保存。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="askceo">请程远确认</button></div></div></div>`);
       $('#askceo').onclick = () => { NT.toast('已发给程远确认，会出现在他的待办里'); $('#deny').innerHTML = ''; };
       return;
     }
@@ -372,7 +372,7 @@
     const d = saveDraft();
     const v = await NT.dialog({
       title: `确认「${p.name}」用人方案 v${d.version}？`,
-      body: html`<p>确认后冻结快照，之后的修改自动进入新草稿。确认方案不等于人事动作已经执行，接下来以行动跟踪。</p>`,
+      body: html`<p>确认后冻结快照并生成跟进行动，之后的修改进入新草稿。</p>`,
       facts: [...sc.roles.map((r) => html`${r.name}：<b>${slots[r.id] ? st.person(slots[r.id]).name : '待定'}</b>`), empty.length ? html`<span style="color:var(--conflict)">${empty.map((r) => r.name).join('、')}还空着，之后可以再补</span>` : html`写入项目成员，生成跟进行动`],
       actions: [{ label: '再看看', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并冻结 v${d.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
