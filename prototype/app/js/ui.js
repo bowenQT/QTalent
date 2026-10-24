@@ -205,7 +205,7 @@
     return html`<div class="n-score" data-state="${state}" ${raw(o.hist && s.hist ? `data-hist="1"` : '')}><span class="n-score__dim">${d.name}</span>${UI.dots(s.v, { ghost: s.ai != null && s.ai > s.v && state !== 'ai' ? s.ai : null })}${empty}<span class="n-score__note">${note}${o.hist && s.hist ? html` <button class="n-link nt-hist" type="button">修订历史</button>` : ''}</span></div>`;
   };
   UI.history = (s, e) => {
-    const rows = (s.hist || []).map((h) => html`<li><span class="n-history__v ${h.kind === 'ai' ? 'is-ai' : ''}">${h.v}</span><div>${h.why ? html`<span class="n-history__why">${h.why}</span>` : h.kind === 'ai' ? 'AI 建议' : h.kind === 'edit' ? '改分' : '确认'}<small>${h.kind === 'ai' ? `rubric-v1 · ${NT.md(h.at)}` : `${st.person(h.by)?.name} · ${{ calib: 'HRBP 校准', confirm: '确认', edit: '改分' }[h.kind]} · ${NT.md(h.at)}`}</small></div></li>`);
+    const rows = (s.hist || []).map((h) => html`<li><span class="n-history__v ${h.kind === 'ai' ? 'is-ai' : ''}">${h.v}</span><div>${h.why ? html`<span class="n-history__why">${h.why}</span>` : h.kind === 'ai' ? 'AI 建议' : h.kind === 'edit' ? '改分' : '确认'}<small>${h.kind === 'ai' ? `${st.eventRubric(e).v} · ${NT.md(h.at)}` : `${st.person(h.by)?.name} · ${{ calib: 'HRBP 校准', confirm: '确认', edit: '改分' }[h.kind]} · ${NT.md(h.at)}`}</small></div></li>`);
     return html`<ul class="n-history">${rows}</ul>`;
   };
 
@@ -239,6 +239,7 @@
     const from = NT.addDays(NT.TODAY, -365), recent = NT.addDays(NT.TODAY, -90);
     const groups = [['专业度', ['prof']], ['潜力 · 核心', ['mot', 'wis', 'grit']], ['潜力 · 加分项', ['lead', 'open']]];
     let total = 0;
+    const vers = new Set(); // 这些分各自保存时的维度与锚点版本
     const rows = groups.map(([g, ids]) => html`<div class="n-spectrum__group">${g === '专业度' ? `专业度（对标 ${st.person(pid).level}）` : g}</div>${ids.map((id) => {
       const d = st.dim(id);
       const list = st.scoresOf(pid, { dim: id, from, visible: true });
@@ -246,6 +247,7 @@
         return html`<div class="n-spectrum__row"><span class="n-spectrum__dim">${d.name}</span><div class="n-spectrum__track is-unknown">资料不足 · ${UI.missText(pid, id)}</div><span class="n-spectrum__stat"><span class="cnt">0 条</span></span></div>`;
       }
       total += list.length;
+      list.forEach((s) => vers.add(s.ver));
       const bins = {};
       list.forEach((s) => { bins[s.v] = bins[s.v] || [0, 0]; bins[s.v][s.date >= recent ? 1 : 0] += 1; });
       const m = st.mean(list.map((s) => s.v));
@@ -259,7 +261,7 @@
         <span class="n-spectrum__stat"><b>${m.toFixed(1)}</b><span class="cnt">${list.length} 条${list.length < 2 ? ' · 证据少' : ''}</span></span></button>
         <ul class="n-spectrum__list" hidden>${list.slice(0, 6).map((s) => html`<li class="${s.date < recent ? 'is-old' : ''}"><b>${s.v}</b><span>${NT.md(s.date)}</span><span>${st.person(s.by)?.name || ''}</span><span><a href="#ev-${s.ev.id}">${s.ev.title}</a>${s.st === 'calibrated' ? ' · 已校准' : ''}</span></li>`)}${list.length > 6 ? html`<li class="more">还有 ${list.length - 6} 条，在下方时间线查看</li>` : ''}</ul>`;
     })}`);
-    return { html: rows, total };
+    return { html: rows, total, vers: [...vers].sort() };
   };
   UI.missText = (pid, dimId) => {
     const any = NT.store.visibleEvents(pid).events.some((e) => e.scores.some((s) => s.p === pid && s.d === dimId));
@@ -643,12 +645,14 @@
   const appHref = (h) => (mob() && !/^(person|index|people)\.html/.test(h) ? `../app/${h}` : h);
   const capLines = (pid) => {
     if (!st.can('scores', pid)) return null;
+    // 与档案同一取数口径（含复核暂停）；锚点按最高分所用的版本（复核过的按复核版本）
     const by = {};
-    st.visibleEvents(pid).events.filter((e) => e.kind === 'obs').forEach((e) => e.scores.filter((x) => x.p === pid && ['confirmed', 'calibrated'].includes(x.st) && x.v).forEach((x) => {
-      const d = (by[x.d] = by[x.d] || { evs: new Set(), top: 0 }); d.evs.add(e.id); d.top = Math.max(d.top, x.v);
-    }));
+    st.scoresOf(pid, { visible: true }).forEach((x) => {
+      const d = (by[x.d] = by[x.d] || { evs: new Set(), top: 0 }); d.evs.add(x.ev.id);
+      if (x.v > d.top) { d.top = x.v; d.ver = x.ver; }
+    });
     const dims = SEED_DIMS().filter((d) => by[d.id]);
-    return { dims: dims.map((d) => ({ name: d.name, n: by[d.id].evs.size, anchor: NT.SEED.ANCHORS[d.axis === 'prof' ? 'prof' : 'pot'][by[d.id].top - 1] })), rest: SEED_DIMS().length - dims.length };
+    return { dims: dims.map((d) => ({ name: d.name, n: by[d.id].evs.size, anchor: st.anchors(d.id, pid, st.ruleVer(by[d.id].ver)).list[by[d.id].top - 1] })), rest: SEED_DIMS().length - dims.length };
   };
   const SEED_DIMS = () => NT.SEED.DIMS;
   UI.peekPerson = (pid) => {

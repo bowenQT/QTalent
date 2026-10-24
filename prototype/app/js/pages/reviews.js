@@ -51,8 +51,7 @@
     });
     if (r?.value !== 'ok') return;
     if (r.data.org === 'gp') { location.href = 'review.html?id=b-h2'; return; }
-    const b = { id: NT.uid('b'), kind: 'inventory', name: `${st.orgShort(r.data.org)} · 2026 H2 盘点`, org: r.data.org, status: 'draft', starter: st.me().id, startedAt: NT.TODAY, cutoff: r.data.cutoff, rubric: 'rubric-v1', log: [[NT.TODAY, st.me().id, '发起盘点，固定范围']] };
-    st.get().batches.unshift(b); st.save();
+    const b = st.startInventory({ id: NT.uid('b'), kind: 'inventory', name: `${st.orgShort(r.data.org)} · 2026 H2 盘点`, org: r.data.org, status: 'draft', starter: st.me().id, startedAt: NT.TODAY, cutoff: r.data.cutoff, log: [[NT.TODAY, st.me().id, '发起盘点，固定范围']] });
     location.href = `review.html?id=${b.id}`;
   }
 })();

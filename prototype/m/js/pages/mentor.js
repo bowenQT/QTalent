@@ -107,7 +107,7 @@
     $$('.m-pick', main).forEach((el) => {
       const e = st.event(el.dataset.ev), s = e.scores[+el.dataset.i];
       const sc = { d: s.d, v: s.ai, ai: s.ai, note: s.note };
-      const r = M.scoreRow(sc, { onChange: () => { const b = el.nextElementSibling; if (b?.dataset.ok) b.innerHTML = `<svg><use href="#i-check"/></svg>确认 ${sc.v} 分`; } });
+      const r = M.scoreRow(sc, { pid: () => s.p, ver: () => st.eventRubric(e), onChange: () => { const b = el.nextElementSibling; if (b?.dataset.ok) b.innerHTML = `<svg><use href="#i-check"/></svg>确认 ${sc.v} 分`; } });
       picks[`${el.dataset.ev}:${el.dataset.i}`] = sc;
       el.append(r.el);
       const b = el.nextElementSibling; if (b?.dataset.ok) b.innerHTML = `<svg><use href="#i-check"/></svg>确认 ${sc.v} 分`;

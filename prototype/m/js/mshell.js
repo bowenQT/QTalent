@@ -205,8 +205,9 @@
     row.addEventListener('click', (e) => {
       const b = e.target.closest('.n-score__dot'); if (!b || el.dataset.locked) return;
       sc.v = +b.dataset.v; sc.touched = true; row.dataset.state = 'confirmed';
-      const kind = sc.d === 'prof' ? 'prof' : 'pot';
-      anchor.hidden = false; anchor.innerHTML = `<b>${sc.v} 分锚点</b>${NT.esc(NT.SEED.ANCHORS[kind][sc.v - 1])}`;
+      // 专业度按被记录人的岗位族锚点（v1.6 3.36）；已保存的事件按保存时的版本（o.ver），写出所用版本
+      const pid = o.pid?.(), a = st.anchors(sc.d, pid, o.ver?.()), fam = sc.d === 'prof' && pid ? ` · ${st.familyName(st.familyOf(pid))}族${a.fam ? '' : '按通用锚点'}` : '';
+      anchor.hidden = false; anchor.innerHTML = `<b>${sc.v} 分锚点</b><small> ${NT.esc(a.v + fam)}</small><br>${NT.esc(a.list[sc.v - 1])}`;
       paint(); o.onChange && o.onChange(sc);
     });
     paint();

@@ -64,7 +64,7 @@
     <span id="ip"></span>
     <div>
       <h1>Niu-Talent 评审原型</h1>
-      <p>七牛内部的人才识别、追踪与盘点工作台。下面四条叙事和一条 CEO 首页走查按真实顺序排好，每一步都会用对应的身份打开页面；看到哪里有问题，<span class="ink-hand">直接划线写评论</span>。</p>
+      <p>七牛内部的人才识别、追踪与盘点工作台。下面四条叙事、一条 CEO 首页走查和评价体系的修订流程按真实顺序排好，每一步都会用对应的身份打开页面；看到哪里有问题，<span class="ink-hand">直接划线写评论</span>。</p>
     </div>
   </header>
 
@@ -142,6 +142,23 @@
         <li><div><b><span class="g-role">部门负责人</span>本团队的 CEO 视角</b><span>先看本团队已核实的值得关注，可以加关注；之后是「变化」、待办和我的关注。没有推动入口。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=lead">打开</a></li>
         <li class="is-phone"><div><b><span class="g-role">CEO · 手机</span>手机上看同样的内容</b><span>顺序是找人、需要我看、我的关注、值得关注、判断提醒；点人是底部速览，可以加关注，推动在电脑上发起。</span></div><a class="n-btn n-btn--sm" href="m/index.html?as=ceo">打开</a></li>
         <li><div><b><span class="g-role">员工</span>本人看不到</b><span>林知远的档案里没有被关注、被推荐、被推动的任何痕迹；导师也看不到推动的结果和值得关注。</span></div><a class="n-btn n-btn--sm" href="app/person.html?id=p-lin&amp;as=self">打开</a></li>
+      </ol>
+    </section>
+
+    <section class="g-story" aria-labelledby="s6">
+      <h2 id="s6">评价体系：修订规则，保留历史</h2>
+      <p>人才判断用到的规则都按版本保存。HRBP 起草修订、写理由、看影响，CEO 确认发布；已经确认的分数、冻结的快照和档案版本保留原来的版本。原型里值得关注、维度与锚点可以修订，其余四类只读。</p>
+      <ol class="g-steps">
+        <li><div><b><span class="g-role">HRBP</span>打开评价体系，看到值得关注的修订信号</b><span>六类规则各一张卡；值得关注的卡上写着：入职半年内有 1 人同一维度已有 2 件事印证，第一件早于近 90 天，N1 把这人排除在外。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?as=hrbp">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>起草 watch-v3：N1 时间窗从近 90 天改为近 120 天</b><span>点「起草修订」，在原处改参数，改过的行写出原值、可以还原；写修订理由，「关联依据」里选你的核对结果。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?r=watch&amp;as=hrbp">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>预览影响，提交 CEO 确认</b><span>值得关注 9 → 10 人，进入的是存量经营部的柏舟，按团队写增减。改了参数要重新预览；四项检查都满足才能提交，提交后修改入口关闭，可以撤回到草稿。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?r=watch&amp;as=hrbp">打开</a></li>
+        <li><div><b><span class="g-role">CEO</span>在「需要我看」里确认发布</b><span>点「评价规则修订待你确认」：看改了什么、理由、依据和影响人数，进出名单只对 HRBP 展开；确认发布时盖朱印，5 秒内可以撤销，也可以写一句理由退回。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo">打开</a></li>
+        <li><div><b><span class="g-role">CEO</span>回到首页，值得关注按新版本计算</b><span>筛「新发现」能看到柏舟；点「查看依据」，速览「为什么关注」里写的是 watch-v3。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo#watch">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>维度与锚点：rubric-v2 的工程族锚点</b><span>工程族锚点首次启用，兼容声明锁定为不兼容；增长产品部 2026 H2 盘点进行中，生效点只能选下一个盘点批次。预览写出将生成多少条复核任务、分给哪些评分人。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?r=rubric&amp;as=hrbp">打开</a></li>
+        <li><div><b><span class="g-role">导师</span>在记录页的锚点面板提修订建议</b><span>锚点面板写着岗位族和版本；点「提修订建议」，选维度和锚点、写一句理由，可以引用一件事。建议只用于修订规则，分数保持原样。</span></div><a class="n-btn n-btn--sm" href="app/record.html?as=mentor">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>待办里出现「规则修订建议」</b><span>在维度与锚点的修订页里纳入草稿，或写理由不采纳；导师在记录页能看到处理结果。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=hrbp#todo">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>判断复盘里的「起草修订」</b><span>归因确认后，「修订评价标准」这一项的按钮是「起草修订」，打开评价体系里对应的前段标准；XEngineer 入营选拔的 xe-select-v3 已经预置为待确认。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;as=hrbp#attrib">打开</a></li>
+        <li class="is-phone"><div><b><span class="g-role">CEO · 手机</span>手机上看待确认的修订</b><span>「需要我看」里点修订，看理由、生效点和影响人数；确认发布在电脑上完成。</span></div><a class="n-btn n-btn--sm" href="m/index.html?as=ceo">打开</a></li>
       </ol>
     </section>
   </div>

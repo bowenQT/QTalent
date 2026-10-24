@@ -99,6 +99,8 @@
     P('p-ningxi', '宁希', 'gp-conv', '客户经理', 'N3', '2026-03-09', 284, null, { hire: 'social' }),
     P('p-zhuoran', '卓然', 'gp-ai', '算法工程师', 'N4', '2026-03-16', 196, null, { hire: 'social' }),
     P('p-weilan', '魏岚', 'gp-ret', '运营经理', 'N4', '2026-04-07', 330, null, { hire: 'social' }),
+    // 评价体系演示：第一件事在 90 天之前，值得关注的 N1 时间窗改为 120 天后进入「新发现」
+    P('p-baizhou', '柏舟', 'gp-ret', '客户成功经理', 'N3', '2026-06-08', 120, null),
   ];
   // XEngineer 训练营学员：只出现在判断复盘里，不进入人才盘点和人员列表
   [['p-xe-wenxi', '闻溪', 'gp-ops'], ['p-xe-chuhe', '楚河', 'gp-ai'], ['p-xe-jianghe', '姜禾', 'gp-ops'], ['p-xe-luming', '鹿鸣', 'gp-cs'],
@@ -440,6 +442,8 @@
     E({ id: 'e-wl-1', date: '2026-05-12', recorder: 'p-jianning', people: ['p-weilan'], title: '会员活动方案按期交付', act: '方案按期交付，带着 2 名同事完成了执行排期。', scores: [s('p-weilan', 'prof', 3, 'confirmed', 'p-jianning'), s('p-weilan', 'lead', 4, 'confirmed', 'p-jianning')] }),
     E({ id: 'e-wl-2', date: '2026-07-02', recorder: 'p-jianning', people: ['p-weilan'], title: '项目取消后接手存量客户的过渡运营', act: '6 月中会员项目取消、团队调整，她接手过渡期的存量运营，按交接清单执行。', scores: [s('p-weilan', 'prof', 3, 'confirmed', 'p-jianning'), s('p-weilan', 'mot', 3, 'confirmed', 'p-jianning')] }),
     E({ id: 'e-wl-3', date: '2026-08-26', recorder: 'p-luoyi', people: ['p-weilan'], title: '过渡期按清单完成客户迁移', act: '按清单完成 120 家客户迁移，没有新增投诉。', scores: [s('p-weilan', 'grit', 3, 'confirmed', 'p-luoyi'), s('p-weilan', 'lead', 4, 'confirmed', 'p-luoyi')] }),
+    E({ id: 'e-bz-1', date: '2026-07-14', recorder: 'p-jianning', people: ['p-baizhou'], title: '接手 30 家续费预警客户的回访', act: '没等分配话术，自己把前两周的回访问题归成 6 类，整理成回访清单给组里用。', scores: [s('p-baizhou', 'mot', 4, 'confirmed', 'p-jianning'), s('p-baizhou', 'prof', 3, 'confirmed', 'p-jianning')] }),
+    E({ id: 'e-bz-2', date: '2026-09-22', recorder: 'p-luoyi', people: ['p-baizhou'], title: '客户拒绝整包续费后重新拆分报价', act: '客户拒绝整包续费后，她主动约了客户的财务和使用方，按用量拆成两档报价，客户签了第一档。', scores: [s('p-baizhou', 'mot', 4, 'confirmed', 'p-luoyi'), s('p-baizhou', 'grit', 3, 'confirmed', 'p-luoyi')] }),
   );
 
   // ---------- 2026 H1 盘点（已确认，06-30 冻结）：正式位置的覆盖（其余按当时的参考位置） ----------
@@ -732,8 +736,57 @@
     },
   };
 
+
+  // ---------- 评价体系（v1.6 3.35）：六类规则各自的版本 ----------
+  // 岗位族（3.36）：商业、设计、工程三族，每人归属一族；演示里按职位归入，HRBP 维护
+  const FAMILIES = [['biz', '商业'], ['design', '设计'], ['eng', '工程']];
+  const FAMILY_BY_TITLE = [[/工程师|后端|前端|FED|算法|SRE|测试|技术专家|技术支持/, 'eng'], [/产品|设计|架构/, 'design']];
+  PEOPLE.forEach((p) => { p.family = p.family || (FAMILY_BY_TITLE.find(([re]) => re.test(p.title))?.[1] ?? 'biz'); });
+  // 工程族的专业度锚点与观察主题：起草的演示内容，HR 确认前不作为正式版本
+  const ENG_ANCHORS = ['拆解和方案常需要他人重做，代码返工多', '能完成拆好的任务，方案和质量要他人把关', '独立完成一个模块的方案、实现和测试', '主导跨模块的技术方案，主动补上工程规范和质量保障', '能为团队定技术方向和规范，带着他人交付'];
+  const ENG_THEMES = ['问题拆解', '技术方案', '代码实现', '工程规范', '质量保障', '协作交付'];
+  const WATCH_PARAMS = { n1Days: 90, n1Count: 2, n1Min: 4, i2Days: 14 };
+  const RULES = {
+    rubric: [
+      { v: 'rubric-v1', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-01-05', effect: 'now', effAt: '2026-01-05', demo: true,
+        why: '第一版：心性维度一套锚点，专业度按当前职级预期一套锚点', content: { pot: ANCHORS.pot, prof: { all: ANCHORS.prof } } },
+      { v: 'rubric-v2', state: 'draft', base: 'rubric-v1', by: 'p-suwan', at: '2026-10-23', effect: 'next', compat: 'break', demoEng: true,
+        why: '专业度按岗位族分锚点，工程族先启用；工程族下设六个观察主题，用于整理和找人',
+        basis: [{ type: 'note', text: '人才发展大图把专业能力分成商业、设计、工程三类' }],
+        content: { pot: ANCHORS.pot, prof: { all: ANCHORS.prof, eng: ENG_ANCHORS }, themes: { eng: ENG_THEMES } } },
+    ],
+    place: [
+      { v: 'place-v1', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-01-05', effect: 'now', effAt: '2026-01-05', from: 'rubric-v1', demo: true,
+        why: '由 rubric-v1 拆出，内容保持原样', content: { window: 365, cut: 3.5, profMin: 2, potMin: 2, coreMin: 2, bonus: 4 } },
+    ],
+    watch: [
+      { v: 'watch-v1', state: 'old', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-09-01', effect: 'now', effAt: '2026-09-01', demo: true,
+        why: '第一版：七条入选规则，提名来自负责人和 HRBP', params: WATCH_PARAMS, t2: '负责人或 HRBP 的提名，经 HRBP 核实' },
+      { v: 'watch-v2', state: 'live', base: 'watch-v1', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-10-20', effect: 'now', effAt: '2026-10-20',
+        why: '提名来源加入导师 / 助教的推荐方向', params: WATCH_PARAMS, t2: '负责人、导师 / 助教或 HRBP 的提名与推荐，经 HRBP 核实' },
+    ],
+    // 前段评价标准与对应表：本期只读；xe-select-v3 是 XEngineer 第二期判断复盘之后起草、待 CEO 确认的预置草稿
+    front: [
+      { v: 'xe-select-v1', line: 'xe-select', state: 'old', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-03-01', effect: 'now', effAt: '2026-03-01', why: '第一版：入营选拔按 S / A / B 评三个维度', note: '内驱力：面试官按印象给 S / A / B，评语不限' },
+      { v: 'xe-select-v2', line: 'xe-select', state: 'live', base: 'xe-select-v1', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-07-01', effect: 'now', effAt: '2026-07-01',
+        why: '第一期判断复盘：内驱力 8 人中 6 人前段偏高，入营记录缺具体行为', basis: [{ type: 'judge', batch: 'jr-xe1', hyp: 'h-xe1-1', dim: '内驱力', n: '8 人中 6 人前段偏高', cat: '评价方式与信息不足' }], note: '内驱力：必须写出一个具体行为及结果，才能给 S' },
+      { v: 'xe-select-v3', line: 'xe-select', state: 'pending', base: 'xe-select-v2', by: 'p-suwan', at: '2026-10-22', effect: 'next', compat: 'ok',
+        why: '第二期仍有 2 人内驱力前段偏高，入营面试增加行为追问：这件事之后有没有持续', basis: [{ type: 'judge', batch: 'jr-xe2', hyp: 'h-xe2-1', dim: '内驱力', n: '8 人中 2 人前段偏高', cat: '评价方式与信息不足' }],
+        note: '内驱力：写出一个具体行为及结果，并追问之后是否持续，才能给 S', preview: { kind: 'map', cells: 8 } },
+      { v: 'hire-v1', line: 'hire', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2025-12-01', effect: 'now', effAt: '2025-12-01', why: '社招面试评价表 2025 版', note: '四个维度 1–5 分，附综合评价' },
+      { v: 'map-xe-v1', line: 'map-xe', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-03-20', effect: 'now', effAt: '2026-03-20', why: 'XEngineer 前后两段同名同级对应', note: '产品设计力、工程能力、内驱力：同名同级' },
+      { v: 'map-hire-v1', line: 'map-hire', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-09-30', effect: 'now', effAt: '2026-09-30', why: '社招面试评价与入职后维度分的对应', note: '专业能力 ↔ 专业度；潜力 ↔ 内生动力、智慧力、坚毅力；沟通协作、管理能力 ↔ 领导力' },
+    ],
+  };
+  // 修订建议（3.35.8）：负责人、导师 / 助教在锚点处提出，进 HRBP 待办
+  const RULE_SUGS = [
+    { id: 'rs-yq-grit', rule: 'rubric', dim: 'grit', level: 3, by: 'p-yeqing', at: '2026-10-21', state: 'open', ev: 'e-lin-3',
+      text: '锚点 3「常规情境下稳定表现」太宽：按期交付和遇到阻碍后坚持到有结果，都能落到 3 分，建议写清楚' },
+  ];
+
   NT.SEED = {
-    version: 7, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
+    version: 8, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES, FOLLOWS,
+    FAMILIES, ENG_THEMES, RULES, RULE_SUGS,
   };
 })();

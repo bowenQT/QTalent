@@ -45,7 +45,8 @@
           <ul id="ev-atts" hidden></ul>
         </article>
         <aside class="nt-grid nt-sticky">
-          <div class="n-anchor" id="anchor"><b id="anchor-t">锚点</b> <span class="n-badge" style="margin-left:6px">rubric-v1</span><ol>${raw(SEED_ANCHORS('pot'))}</ol></div>
+          <div class="n-anchor" id="anchor"><b id="anchor-t">锚点</b> <span class="n-badge" style="margin-left:6px" id="anchor-v"></span><p class="nt-muted" id="anchor-fam" style="margin:4px 0 0" hidden></p><ol></ol>
+            ${st.canSuggestRule() ? html`<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="anchor-sug">${icon('note')}提修订建议</button></div><div id="my-sugs"></div>` : ''}</div>
           <div class="n-card" style="padding:var(--s-4) var(--s-5)"><b style="font-size:var(--t-sm)">怎么算一条关键事件</b>
             <p class="nt-caption">一件具体的事，按 SBI 讲：在什么情境下（S）、本人做了什么（B）、带来什么影响（I）。只写了「参与」的地方标为资料不足。多人参与的事，按各自的行为打分。</p></div>
         </aside>
@@ -59,13 +60,47 @@
       NT.stream(f, '唐果今天方案被问住了，第二天主动约了客服再访谈一次，周五带着新结构来评审，结构清楚多了。', 38).then(() => NT.ipState($('#ev-ip'), 'confirm'));
     });
     if (q) setTimeout(() => doShape(), 300);
+    anchorFor('mot');
+    $('#anchor-sug')?.addEventListener('click', suggest);
+    mySugs();
   }
-  function SEED_ANCHORS(kind) { return NT.SEED.ANCHORS[kind].map((t, i) => `<li data-v="${i + 1}"><b>${i + 1}</b>${NT.esc(t)}</li>`).join(''); }
+  // 锚点面板：心性维度全公司一套；专业度按被记录人的岗位族，显示所用版本（v1.6 3.36）
+  let anchorDim = 'mot', anchorV = null;
   function anchorFor(dimId, v) {
-    const d = st.dim(dimId);
+    anchorDim = dimId; anchorV = v ?? null;
+    const d = st.dim(dimId), pid = draft?.pid || $('#ev-person')?.value || null, a = st.anchors(dimId, pid);
     $('#anchor-t').textContent = `${d.name} · 1–5 分锚点`;
-    $('#anchor ol').innerHTML = SEED_ANCHORS(dimId === 'prof' ? 'prof' : 'pot');
-    $$('#anchor li').forEach((li) => li.classList.toggle('is-hit', +li.dataset.v === v));
+    $('#anchor-v').textContent = a.v;
+    const fam = $('#anchor-fam');
+    fam.hidden = dimId !== 'prof' || !pid;
+    if (!fam.hidden) fam.textContent = `${st.person(pid).name}属于${st.familyName(st.familyOf(pid))}族 · ${a.fam ? `${st.familyName(a.fam)}族锚点` : '这一版按通用锚点'}`;
+    mount($('#anchor ol'), a.list.map((t, i) => html`<li data-v="${i + 1}" class="${v === i + 1 ? 'is-hit' : ''}"><b>${i + 1}</b>${t}</li>`));
+  }
+  // 提修订建议（v1.6 3.35.8）：选维度与锚点、写一句理由，可以引用一件事；进 HRBP 待办，不改变任何分数
+  async function suggest() {
+    const pid = draft?.pid || $('#ev-person')?.value || null;
+    const evs = pid ? st.visibleEvents(pid).events.filter((e) => e.kind === 'obs').slice(0, 8) : [];
+    const v = await NT.dialog({
+      title: '提修订建议',
+      body: html`<p>建议会进 HRBP 的待办，处理结果在这里能看到。分数保持原样。</p>
+        <div class="nt-row" style="margin-top:var(--s-3)"><label class="nt-muted" for="sg-d">维度</label><select class="n-select" id="sg-d" style="width:auto">${st.dims.map((d) => html`<option value="${d.id}" ${NT.raw(d.id === anchorDim ? 'selected' : '')}>${d.name}</option>`)}</select>
+          <label class="nt-muted" for="sg-l">锚点</label><select class="n-select" id="sg-l" style="width:auto">${[1, 2, 3, 4, 5].map((n) => html`<option value="${n}" ${NT.raw(n === (anchorV || 3) ? 'selected' : '')}>${n} 分</option>`)}</select></div>
+        <label class="nt-muted" for="sg-t" style="display:block;margin-top:var(--s-3)">理由</label><textarea class="n-textarea" id="sg-t" rows="3" placeholder="比如：按期交付和遇到阻碍后坚持到有结果，都能落到 3 分"></textarea>
+        ${evs.length ? html`<label class="nt-muted" for="sg-e" style="display:block;margin-top:var(--s-3)">引用一件事（可选）</label><select class="n-select" id="sg-e"><option value="">先空着</option>${evs.map((e) => html`<option value="${e.id}">${NT.md(e.date)} · ${e.title}</option>`)}</select>` : ''}`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '提交建议', value: 'ok', cls: 'n-btn--ink',
+        validate: (dl) => { const ok = !!$('#sg-t', dl).value.trim(); if (!ok) $('#sg-t', dl).focus(); return ok; },
+        read: (dl) => ({ dim: $('#sg-d', dl).value, level: +$('#sg-l', dl).value, text: $('#sg-t', dl).value.trim(), ev: $('#sg-e', dl)?.value || null }) }],
+    });
+    if (v?.value !== 'ok') return;
+    const sg = st.addRuleSug(v.data);
+    mySugs();
+    NT.toast(`已提交给${st.person(st.roles.hrbp.person).name}，处理结果会显示在锚点下面`, { undo: () => { st.removeRuleSug(sg.id); mySugs(); } });
+  }
+  function mySugs() {
+    const host = $('#my-sugs'); if (!host) return;
+    const list = st.ruleSugs({ by: st.me().id });
+    const S = { open: '待 HRBP 处理', adopted: '已纳入修订草稿', rejected: '不采纳' };
+    mount(host, list.length ? html`<div style="margin-top:var(--s-2)">${list.map((x) => html`<div style="padding:var(--s-2) 0;border-top:1px solid var(--line);font-size:var(--t-xs);color:var(--ink-2)"><b>你的建议 · ${st.dim(x.dim).name}锚点 ${x.level} 分</b> · ${S[x.state]}${x.state === 'rejected' && x.why ? `：${x.why}` : ''}<div class="nt-muted">「${x.text}」</div></div>`)}</div>` : '');
   }
 
   let draft = null, att = null;
