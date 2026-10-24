@@ -591,7 +591,8 @@
   const TEMPLATES = [
     { id: 'tpl-biz', name: '业务负责人', ch: 'biz', duties: '对一条业务线或一个团队的结果负责，带团队、定节奏、对客户负责。', dims: ['lead', 'wis'],
       versions: [
-        { v: 1, by: 'p-suwan', at: '2026-06-02', reqs: [{ id: 'r1', text: '带过 3 人以上的团队', must: true }, { id: 'r2', text: '对一条业务线的结果负责过', must: true }] },
+        // 同一个 id 在各版本里必须是同一个意思；v1 的「带过 3 人以上」对应 v2 r1 的放宽表述，证据键指过去；「对业务线结果负责」是 v1 独有，换 id
+        { v: 1, by: 'p-suwan', at: '2026-06-02', reqs: [{ id: 'r1', text: '带过 3 人以上的团队', must: true, ev: 'r1alt' }, { id: 'r5', text: '对一条业务线的结果负责过', must: true }] },
         { v: 2, by: 'p-suwan', at: '2026-10-12', note: '「带过 3 人以上的团队」改为「带过销售或转化团队」，原要求保留为放宽表述；补了客户首次跟进和跨部门协作',
           reqs: [{ id: 'r1', text: '带过销售或转化团队', must: true, alt: '带过 3 人以上的团队' }, { id: 'r2', text: '熟悉所负责业务的客户首次跟进', must: true, alt: '熟悉线索转化的全流程' }, { id: 'r4', text: '有跨部门协作经验', must: false }] },
       ] },

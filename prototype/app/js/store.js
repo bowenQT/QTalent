@@ -23,10 +23,17 @@
     s.snaps.push(buildSnap({ id: 's-h1', batch: 'b-h1', label: '2026 H1', org: 'gp', cutoff: '2026-06-20', at: '2026-06-30', by: 'p-suwan' }));
     return s;
   }
+  // 演示数据版本变了就从新的种子开始；旧的演示操作先备份到 nt-demo-prev，并提示一次，不静默覆盖
+  let upgradedFrom = null;
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { const s = JSON.parse(raw); if (s && s.v === SEED.version) return s; }
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s && s.v === SEED.version) return s;
+        localStorage.setItem(`${KEY}-prev`, raw);
+        upgradedFrom = s?.v ?? '?';
+      }
     } catch (e) { /* 隐私模式或存储被禁用时退回内存状态 */ }
     return fresh();
   }
@@ -629,11 +636,28 @@
   };
   store.judgeHyps = (batchId) => J.hyps[batchId] || [];
   store.judgeAttrib = (hypId) => S.judgeAttribs[hypId] || null;
-  store.confirmAttrib = (batchId, hyp, a) => { S.judgeAttribs[hyp.id] = { hyp: hyp.id, batch: batchId, ...a, by: store.me().id, at: NT.TODAY, actions: [] }; store.save(); };
+  // 假设的依据会随标注变化：引用的案例被标为不可比或资料不足、涉及的评价人可对照案例跌破门槛时，
+  // 这条假设不能再按原文确认，已确认的结论也不能再生成新动作，要先复核
+  store.hypCheck = (h) => {
+    const bids = [...new Set(h.cases.map((cid) => cid.split(':')[0]))];
+    const units = bids.flatMap((bid) => store.judgeUnits(bid));
+    const byId = new Map(units.map((u) => [u.id, u]));
+    const dropped = h.cases.filter((cid) => !byId.has(cid) || !store.judgeComparable(byId.get(cid)));
+    const few = !!h.rater && !store.raterStats(units, h.rater).enough;
+    return { ok: !dropped.length && !few, dropped, few };
+  };
+  store.confirmAttrib = (batchId, hyp, a) => {
+    if (!store.hypCheck(hyp).ok) return false;
+    S.judgeAttribs[hyp.id] = { hyp: hyp.id, batch: batchId, ...a, by: store.me().id, at: NT.TODAY, actions: [] };
+    store.save();
+    return true;
+  };
   store.unmarkJudge = (uid) => { delete S.judgeMarks[uid]; store.save(); };
   store.markJudge = (uid, reason) => { S.judgeMarks[uid] = { reason, by: store.me().id, at: NT.TODAY }; store.save(); };
   // 改进动作沿用「行动与复盘」；修订评价标准要产生新版本，在动作里写明
   store.addJudgeAction = (batchId, hypId, a) => {
+    const h = store.judgeHyps(batchId).find((x) => x.id === hypId);
+    if (!h || !S.judgeAttribs[hypId] || !store.hypCheck(h).ok) return null;
     const act = { id: NT.uid('a'), from: batchId, person: null, owner: store.me().id, due: NT.addDays(NT.TODAY, 30), state: 'todo', observe: NT.addDays(NT.TODAY, 120), ...a };
     S.actions.unshift(act);
     S.judgeAttribs[hypId].actions.push(act.id);
@@ -654,5 +678,6 @@
   };
 
   S = load();
+  if (upgradedFrom != null) NT.ready(() => setTimeout(() => NT.toast('演示数据已更新到新版本，你之前在本浏览器里做的演示操作已重置，旧数据另存了一份备份'), 600));
   store.save();
 })();

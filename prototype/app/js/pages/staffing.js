@@ -79,9 +79,11 @@
   // 从模板生成的需求卡：要求取自生成时的模板版本，之后就地补的要求也存在需求卡上
   const need0 = sc && st.get().needs.find((n) => n.project === (projectId || sc.project.id));
   let reqs = (need0?.tpl ? NT.clone(need0.reqs) : sc ? NT.clone(sc.reqs) : []).map((r) => ({ ...r, useAlt: false }));
-  // 草稿里保存过改动后的要求，回来时按草稿恢复
+  const insertReq = (r) => { const at = reqs.findIndex((x) => !x.must); if (r.must && at >= 0) reqs.splice(at, 0, r); else reqs.push(r); }; // 必须项排在加分项前面
+  // 草稿里保存过改动后的要求，回来时按草稿恢复；就地补过的要求（需求卡或草稿上有、预置场景里没有的）一并补回
   const draftReqs = st.get().plans.find((p) => p.project === projectId && p.status === 'draft')?.reqs;
-  if (draftReqs) draftReqs.forEach((x) => { const r = reqs.find((y) => y.id === x.id); if (r) { r.must = x.must; r.useAlt = x.useAlt; } });
+  [...(need0?.tpl ? [] : need0?.reqs || []), ...(draftReqs || [])].forEach((x) => { if (!reqs.some((r) => r.id === x.id)) insertReq({ id: x.id, text: x.text, must: x.must, ...(x.alt ? { alt: x.alt } : {}), useAlt: false }); });
+  if (draftReqs) draftReqs.forEach((x) => { const r = reqs.find((y) => y.id === x.id); if (r) { r.must = x.must; r.useAlt = !!(x.useAlt && r.alt); } });
   let manual = [];
   let slots = {};
   let note = '';
@@ -180,7 +182,8 @@
 
   // ---------- 证据与排列 ----------
   const STATUS = { yes: ['n-badge--yes', 'check', '支持'], no: ['n-badge--no', 'x', '不支持'], unknown: ['n-badge--unknown', 'dash', '资料不足'], conflict: ['n-badge--conflict', 'split', '证据冲突'] };
-  const evOf = (pid, r) => { const c = sc.cands[pid] || sc.manual[pid]; return (r.useAlt && c[`${r.id}alt`]) || c[r.id] || ['unknown', '资料不足']; };
+  // 证据按要求声明的证据键取（ev / evAlt，默认是 id）：模板改版后旧需求卡的要求意思不同，不能套用新版的核对结果
+  const evOf = (pid, r) => { const c = sc.cands[pid] || sc.manual[pid]; return (r.useAlt && c[r.evAlt || `${r.id}alt`]) || c[r.ev || r.id] || ['unknown', '资料不足']; };
   const pool = () => [...Object.keys(sc.cands), ...manual].filter((pid) => st.scope(pid) === 'full' || manual.includes(pid));
   const tally = (pid) => { const must = reqs.filter((r) => r.must).map((r) => evOf(pid, r)[0]); return { yes: must.filter((s) => s === 'yes').length, no: must.filter((s) => s === 'no').length, unk: must.filter((s) => s === 'unknown').length }; };
   function ordered() {
@@ -212,8 +215,7 @@
   function addReq(text) {
     const t = text.trim(); if (!t || reqs.some((r) => r.text === t)) return;
     const r = /到岗/.test(t) && !reqs.some((x) => x.id === 'r3') ? { id: 'r3', text: t, must: true, alt: '12 月前能到岗', useAlt: false } : { id: NT.uid('c'), text: t, must: true, useAlt: false };
-    const at = reqs.findIndex((x) => !x.must); // 必须项排在加分项前面
-    if (at < 0) reqs.push(r); else reqs.splice(at, 0, r);
+    insertReq(r);
     if (need0) { need0.reqs = reqs.map(({ useAlt, ...x }) => x); st.save(); }
     drawAll(r.id);
     NT.toast(`已加上「${t}」，候选人按新的要求重新核对`);

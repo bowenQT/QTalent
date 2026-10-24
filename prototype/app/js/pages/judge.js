@@ -241,28 +241,34 @@
     return html`<div class="nt-grid">${hyps.map((h) => (st.judgeAttrib(h.id) ? conclusion(h, chain, false) : hypBlock(h, chain)))}</div>
       <p class="nt-caption">AI 只提出带证据的假设；归因由 HRBP 选择类别、写理由并确认。结论只作用于评价体系，不写回被评价人。</p>`;
   }
-  function caseChips(h) {
-    return html`<div class="n-attrib__cases">${h.cases.map((cid) => { const [bid, pid, dim] = cid.split(':'); const u = st.judgeUnits(bid).find((x) => x.id === cid); return html`<button class="n-casechip" type="button" data-case="${cid}">${name(pid)} · ${u?.dimName || dim}${bid !== id ? ` · ${st.judgeBatch(bid).name.replace(/判断复盘|XEngineer /g, '')}` : ''}</button>`; })}${h.std ? html`<span class="n-casechip" style="cursor:default">标准 ${h.std}</span>` : ''}</div>`;
+  // 依据变化的说明：评价人只在 HRBP 视角下点名
+  const checkText = (h, chk, forCeo) => [chk.dropped.length && `${chk.dropped.length} 个引用案例已标为不可比或资料不足`, chk.few && (forCeo ? '涉及的评价人可对照案例不到门槛，样本不足' : `${name(h.rater)}的可对照案例不到 ${st.RATER_MIN} 个，样本不足`)].filter(Boolean).join('；');
+  function caseChips(h, chk) {
+    return html`<div class="n-attrib__cases">${h.cases.map((cid) => { const [bid, pid, dim] = cid.split(':'); const u = st.judgeUnits(bid).find((x) => x.id === cid); const out = chk?.dropped.includes(cid); return html`<button class="n-casechip ${out ? 'is-out' : ''}" type="button" data-case="${cid}" ${NT.raw(out ? 'title="已标为不可比或资料不足，不再作为依据"' : '')}>${name(pid)} · ${u?.dimName || dim}${bid !== id ? ` · ${st.judgeBatch(bid).name.replace(/判断复盘|XEngineer /g, '')}` : ''}${out ? '（已排除）' : ''}</button>`; })}${h.std ? html`<span class="n-casechip" style="cursor:default">标准 ${h.std}</span>` : ''}</div>`;
   }
   function hypBlock(h, chain) {
-    const isDraft = drafting?.id === h.id;
+    const chk = st.hypCheck(h);
+    const isDraft = chk.ok && drafting?.id === h.id;
     return html`<div class="n-attrib" data-hyp="${h.id}">
-      <div class="n-block" data-state="light"><span class="nt-hyp-text">${isDraft ? drafting.text : h.text}</span>${caseChips(h)}
+      <div class="n-block" data-state="light"><span class="nt-hyp-text">${isDraft ? drafting.text : h.text}</span>${caseChips(h, chk)}
         <div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 假设</span>建议归为${h.cats.map((c) => `「${CAT[c]}」`).join('')} · 依据 ${h.cases.length} 个案例</div></div>
       ${isDraft ? html`<div class="n-card" style="box-shadow:var(--e-0)">
           <div class="n-field__label" id="cats-${h.id}">归为哪一类（可多选）</div>
           <div class="n-attrib__cats" role="group" aria-labelledby="cats-${h.id}">${Object.entries(CAT).map(([k, l]) => html`<button class="n-chip" type="button" data-cat="${k}" aria-pressed="${drafting.cats.includes(k)}">${l}</button>`)}</div>
           <label class="n-field" style="margin-top:var(--s-3)"><span class="n-field__label">理由（必填，会署名留档）</span><textarea class="n-textarea" id="why-${h.id}" rows="2" placeholder="比如：两期都偏高，记录多是印象描述；先培训，再看下一期">${drafting.reason}</textarea></label>
-          <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-confirm="${h.id}">${icon('check')}确认归因</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button><span class="nt-muted">确认后署名留档，之后从这条结论生成改进动作</span></div></div>`
+          <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-confirm="${h.id}">${icon('check')}确认归因</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button><span class="nt-muted">确认后署名留档，之后从这条结论生成改进动作${h.rater || drafting.cats.includes('rater') ? '；涉及评价人，CEO 只看到类别和动作' : '；结论和理由 CEO 可见'}</span></div></div>`
+        : !chk.ok ? html`<div class="n-notice">${icon('split')}<div><b>依据变了，这条假设不能按原文确认。</b>${checkText(h, chk, false)}。撤销相关标注后可以继续；否则等 AI 按现在的案例重新整理。</div></div>`
         : html`<div class="nt-row"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-adopt="${h.id}">${icon('check')}采纳并归因</button><button class="n-btn n-btn--sm" type="button" data-rewrite="${h.id}">${icon('pen')}改写</button><span class="nt-muted">未确认的假设不能生成改进动作</span></div>`}
     </div>`;
   }
   function conclusion(h, chain, forCeo) {
     const a = st.judgeAttrib(h.id), S = st.get();
     const acts = a.actions.map((x) => S.actions.find((y) => y.id === x)).filter(Boolean);
-    const hideRater = forCeo && a.cats.includes('rater');
+    // 涉及具体评价人的假设，CEO 一律只看类别和动作，不随 HRBP 改动类别而解除
+    const hideRater = forCeo && (!!h.rater || a.cats.includes('rater'));
+    const chk = st.hypCheck(h);
     const made = acts.map((x) => x.kind);
-    const sug = forCeo ? [] : suggestionsFor(a.cats).filter((k) => !made.includes(k));
+    const sug = forCeo || !chk.ok ? [] : suggestionsFor(a.cats).filter((k) => !made.includes(k));
     const dim = hypDim(h);
     return html`<div class="n-attrib" data-hyp="${h.id}">
       <div class="n-block" data-state="ink" style="padding-left:0;padding-right:0">
@@ -271,7 +277,8 @@
         <div class="n-block__by"><span class="n-block__sig">${name(a.by)}</span>${NT.md(a.at)} 确认归因${a.text && a.text !== h.text ? ' · 改写过 AI 假设' : ''}</div>
       </div>
       ${acts.length ? html`<div class="nt-row">${acts.map((x) => html`<a class="n-badge" href="actions.html#${x.id}">${icon('check2')}${x.title}</a>`)}</div>` : ''}
-      ${a.cats.includes('env') && !sug.length && !acts.length ? html`<p class="nt-caption" style="margin:0">本人或环境变化：不修正评价标准，记录情境；需要时转为跟踪或沟通。</p>` : ''}
+      ${!chk.ok ? html`<p class="nt-caption" style="margin:0">确认后依据有变化：${checkText(h, chk, forCeo)}。这条结论需要复核，暂不能生成新的改进动作。</p>` : ''}
+      ${chk.ok && a.cats.includes('env') && !sug.length && !acts.length ? html`<p class="nt-caption" style="margin:0">本人或环境变化：不修正评价标准，记录情境；需要时转为跟踪或沟通。</p>` : ''}
       ${sug.length ? html`<div class="nt-row">${sug.map((k) => html`<button class="n-btn n-btn--sm" type="button" data-act="${h.id}" data-kind="${k}">${icon('plus')}生成「${k}」动作</button>`)}</div>` : ''}
     </div>`;
   }
@@ -298,7 +305,7 @@
       }
       const um = e.target.closest('[data-unmark]'); if (um) { st.unmarkJudge(um.dataset.unmark); render(main); return; }
       const ad = e.target.closest('[data-adopt]');
-      if (ad) { const h = st.judgeHyps(id).find((x) => x.id === ad.dataset.adopt); drafting = { id: h.id, text: h.text, cats: h.cats.slice(), reason: '' }; render(main); $(`#why-${h.id}`)?.focus(); return; }
+      if (ad) { const h = st.judgeHyps(id).find((x) => x.id === ad.dataset.adopt); if (!st.hypCheck(h).ok) { render(main); return; } drafting = { id: h.id, text: h.text, cats: h.cats.slice(), reason: '' }; render(main); $(`#why-${h.id}`)?.focus(); return; }
       const rw = e.target.closest('[data-rewrite]');
       if (rw) {
         const box = rw.closest('[data-hyp]'), t = $('.nt-hyp-text', box);
@@ -317,7 +324,7 @@
         const reason = $(`#why-${h.id}`).value.trim();
         if (!drafting.cats.length) { NT.toast('至少选一个归因类别'); return; }
         if (!reason) { $(`#why-${h.id}`).focus(); NT.toast('写一句理由再确认'); return; }
-        st.confirmAttrib(id, h, { cats: drafting.cats, reason, text: drafting.text });
+        if (!st.confirmAttrib(id, h, { cats: drafting.cats, reason, text: drafting.text })) { drafting = null; render(main); NT.toast('依据已经变化，这条假设不能按原文确认'); return; }
         drafting = null; render(main);
         $(`[data-hyp="${h.id}"] .n-block`)?.classList.add('is-settling');
         NT.toast('归因已确认并署名。结论只作用于评价体系，不改变被评价人的档案');
@@ -330,6 +337,7 @@
         const a = st.addJudgeAction(id, h.id, { title: actTitle(kind, chain, dim), kind,
           then: [`目标：下一批判断复盘里「${dim}」前段偏差的人数减少`, `依据：${b.name}，${dim} ${t.high + t.low} 人有偏差（${CAT[st.judgeAttrib(h.id).cats[0]]}）`, '观察：下一批判断复盘按标准版本分组对比；样本不足时只提示，不下「改进有效」的结论'] });
         render(main);
+        if (!a) { NT.toast('依据已经变化，这条结论要先复核，暂不能生成动作'); return; }
         NT.toast(`已生成「${a.title}」，在「行动与复盘」里跟进`);
       }
     };
