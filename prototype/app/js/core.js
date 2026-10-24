@@ -93,6 +93,8 @@
     book: '<symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></symbol>',
     trash: '<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5h15M9.5 6.5V4h5v2.5M6.5 6.5l1 13.5h9l1-13.5"/></symbol>',
     check2: '<symbol id="i-check2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="m8 12.5 3 3 5-6"/></symbol>',
+    star: '<symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></symbol>',
+    'star-on': '<symbol id="i-star-on" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></symbol>',
     stamp: '<symbol id="i-stamp" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M9 3.5h6l-1 7h3.5a2 2 0 0 1 2 2V16h-15v-3.5a2 2 0 0 1 2-2H10zM5 19.5h14"/></symbol>',
   };
   function injectSprite() {
@@ -206,13 +208,37 @@
     anim.onfinish = () => { ghost.remove(); onDone && onDone(); };
   };
 
+  // 引用浮层按视口定位：在速览、可滚动的卡片、手机框和屏幕边缘都不被裁掉；上方放不下就放到角标下方
+  const placeCite = (c) => {
+    const pop = c?.querySelector('.n-cite__pop'), mark = c?.querySelector('.n-cite__mark');
+    if (!pop || !mark) return;
+    // 窄屏用贴底浮层（CSS）：清掉宽屏时写上的定位
+    if (matchMedia('(max-width: 760px)').matches) { pop.classList.remove('is-placed'); pop.style.removeProperty('width'); pop.style.removeProperty('left'); pop.style.removeProperty('top'); return; }
+    const box = c.closest('.m-screen')?.getBoundingClientRect() || { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+    const pad = 8, gap = 10, m = mark.getBoundingClientRect();
+    pop.classList.add('is-placed');
+    pop.style.width = `${Math.min(320, box.right - box.left - pad * 2)}px`;
+    const w = pop.offsetWidth, h = pop.offsetHeight;
+    const left = Math.min(Math.max(m.left + m.width / 2 - w / 2, box.left + pad), box.right - w - pad);
+    const above = m.top - gap - h >= box.top + pad || m.bottom + gap + h > box.bottom - pad;
+    pop.style.left = `${left}px`;
+    pop.style.top = `${above ? m.top - gap - h : m.bottom + gap}px`;
+  };
+  NT.placeCite = placeCite;
+
   // ---------- 通用交互 ----------
   function wireGlobal() {
+    document.addEventListener('mouseover', (e) => { const c = e.target.closest?.('.n-cite'); if (c && !c.contains(e.relatedTarget)) placeCite(c); });
+    document.addEventListener('focusin', (e) => { const c = e.target.closest?.('.n-cite'); if (c) placeCite(c); });
+    // 滚动时跟着角标走（只重算正在显示的）
+    document.addEventListener('scroll', () => NT.$$('.n-cite.is-open, .n-cite:hover, .n-cite:focus-within').forEach(placeCite), { capture: true, passive: true });
+    // 视口变化（含跨过窄屏断点）时，已经放置过的浮层全部按新视口重算或复位
+    addEventListener('resize', () => new Set([...NT.$$('.n-cite__pop.is-placed'), ...NT.$$('.n-cite.is-open .n-cite__pop, .n-cite:hover .n-cite__pop, .n-cite:focus-within .n-cite__pop')]).forEach((p) => placeCite(p.closest('.n-cite'))));
     // 引用角标：触屏点按展开
     document.addEventListener('click', (e) => {
       const mark = e.target.closest('.n-cite__mark');
       NT.$$('.n-cite.is-open').forEach((o) => { if (!mark || o !== mark.closest('.n-cite')) o.classList.remove('is-open'); });
-      if (mark) { e.stopPropagation(); mark.closest('.n-cite').classList.toggle('is-open'); }
+      if (mark) { e.stopPropagation(); const c = mark.closest('.n-cite'); c.classList.toggle('is-open'); placeCite(c); }
       const head = e.target.closest('.n-trail__head');
       if (head) {
         const t = head.closest('.n-trail'); const open = t.dataset.open !== 'true';

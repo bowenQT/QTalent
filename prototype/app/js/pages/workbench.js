@@ -1,10 +1,11 @@
 /* 工作台：按视角呈现。
-   - CEO（v1.4 3.19）：找人、值得关注、我推动的事项、判断提醒四块，不放变化、任务队列和上传。
+   - CEO（v1.5 3.26）：找人、值得关注、需要我看、我的关注，判断提醒在右栏最后；不放变化、任务队列和上传。
+   - 部门负责人（3.29）：本团队的值得关注与我的关注，之后是变化与待办；导师（3.30）：先列所带学员，记一件事、推荐。
    - 其他视角：首屏「变化」，然后是一句话输入、待办、进行中的任务与上传。 */
 (function () {
   'use strict';
   const NT = window.NT, st = NT.store, UI = NT.ui;
-  const { html, icon, mount, $, $$ } = NT;
+  const { html, raw, icon, mount, $, $$ } = NT;
   let base = 'win', type = 'all', expanded = false, watchCat = 'all', watchAll = false, watchBy = 'person';
 
   const SUGGEST = {
@@ -26,7 +27,8 @@
     restore: (s) => { base = s.base || base; type = s.type || type; watchCat = s.watchCat || watchCat; watchAll = !!s.watchAll; watchBy = s.watchBy || watchBy; renderChanges(); drawWatch(); },
     render(main) {
       const role = st.role(), me = st.me();
-      if (role === 'self') return renderSelf(main, me);
+      main.dataset.peekScope = ''; // 工作台上的人名先拉起速览（v1.5 3.27）
+      if (role === 'self') { delete main.dataset.peekScope; return renderSelf(main, me); }
       if (role === 'ceo') return renderCeo(main, me);
       const todos = st.todos();
       const changesCard = st.can('changes') ? html`<article class="n-card n-changes" id="changes" style="margin-bottom:var(--s-5)">
@@ -44,7 +46,7 @@
       const composer = html`
         <div class="n-composer" id="composer" style="margin-bottom:var(--s-2)">
           <span class="nt-ip" data-ip="rest" data-size="36" id="composer-ip"></span>
-          <textarea class="n-composer__field" rows="2" id="composer-field" aria-label="描述你要做的事" placeholder="${role === 'mentor' ? '说一件学员这周做的事，或输入 / 查看命令' : '说一件事，或描述一个项目要找谁。输入 / 查看命令'}"></textarea>
+          <textarea class="n-composer__field" rows="2" id="composer-field" aria-label="描述你要做的事" placeholder="${role === 'mentor' ? '按情境、行为、影响说一件学员做的事：在什么情况下、做了什么、带来什么影响' : role === 'lead' ? '记一件团队成员做的事，或描述一个项目要找谁。输入 / 查看命令' : '说一件事，或描述一个项目要找谁。输入 / 查看命令'}"></textarea>
           <div class="n-composer__bar">
             <a class="n-btn n-btn--ghost n-btn--icon" href="#upload" aria-label="上传材料">${icon('clip')}</a>
             <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="composer-mic" aria-label="按住说话" aria-pressed="false">${icon('mic')}</button>
@@ -56,8 +58,37 @@
           ${[['note', '记录关键事件', '/记', 'record.html'], st.can('findOwner') && ['folder', '为项目找 owner', '/找', 'staffing.html?new=1'], st.can('review') && role !== 'lead' && ['eye', '发起盘点', '/盘', 'reviews.html#new'], st.canOpenMinutes('w2') && ['wave', '打开会议人才纪要', '/录', 'record.html?m=w2']].filter(Boolean).map(([ic, l, k, h], i) => html`<a class="n-slash__item" role="option" aria-selected="${i === 0}" href="${h}">${icon(ic, 16)}${l}<kbd>${k}</kbd></a>`)}
         </div>
         <div class="n-asks" style="margin:var(--s-2) 0 var(--s-6)">${(SUGGEST[role] || []).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>`;
+      const head = html`<header class="nt-head"><div><h1>${greet(me)}</h1><p>10 月 23 日 · 周五 · ${role === 'mentor' ? 'Landing 第三期 W3 · 本周五 16:00 对事复盘' : `${st.roles[role].scope}`}</p></div></header>`;
+      // 负责人、导师：进行中的任务和上传材料收进「材料与任务」，默认折叠（v1.5 3.29、3.30）
+      const fold = html`<details class="n-card nt-fold" id="fold" ${raw(location.hash === '#upload' ? 'open' : '')}><summary><h3 class="n-section-title">材料与任务</h3><span class="nt-muted">${st.visibleTasks().filter((t) => t.state !== 'done').length} 个在处理</span>${icon('chev')}</summary>
+          <div id="tasks"></div>
+          <div id="upload" style="margin-top:var(--s-4)"><button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>${UI.ATT_TYPES}，可以一次拖入多个 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button><ul class="n-files" id="files"></ul></div></details>`;
+      if (role === 'lead' || role === 'mentor') {
+        mount(main, role === 'lead' ? html`${head}${composer}
+          <div class="nt-ceo">
+            <div class="nt-grid"><article class="n-card n-watch" id="watch" aria-labelledby="watch-h"></article>${changesCard}</div>
+            <div class="nt-grid"><article class="n-card" id="todo">${todoBlock(role, todos)}</article><article class="n-card n-follows" id="follows" aria-labelledby="follows-h"></article><article class="n-card n-recos" id="recos" aria-labelledby="recos-h"></article>${fold}</div>
+          </div>` : html`${head}${composer}
+          <div class="nt-ceo">
+            <div class="nt-grid"><article class="n-card n-students" id="students" aria-labelledby="stu-h"></article><article class="n-card" id="todo">${todoBlock(role, todos)}</article></div>
+            <div class="nt-grid"><article class="n-card n-recos" id="recos" aria-labelledby="recos-h"></article>${fold}</div>
+          </div>`);
+        wireComposer(role); wireTodos(); renderTasks(); wireUpload();
+        $('a[href="#upload"]', main)?.addEventListener('click', () => { $('#fold').open = true; });
+        if (role === 'lead') {
+          drawLead(); wireWatch(); wireFollows();
+          renderChanges(); UI.wireChanges($('#chg-list'));
+          $('#chg-base').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; base = b.dataset.b; renderChanges(); });
+          $('#chg-filter').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; type = b.dataset.t; renderChanges(); });
+          UI.peek.changed = drawLead;
+        } else {
+          drawMentor(); wireMentor();
+          UI.peek.changed = drawMentor;
+        }
+        return;
+      }
       mount(main, html`
-        <header class="nt-head"><div><h1>${greet(me)}</h1><p>10 月 23 日 · 周五 · ${role === 'mentor' ? 'Landing 第三期 W3 · 本周五 16:00 对事复盘' : `${st.roles[role].scope}`}</p></div></header>
+        ${head}
         ${changesCard}${composer}
         <div class="nt-cols">
           <article class="n-card" id="todo">${todoBlock(role, todos)}</article>
@@ -65,7 +96,7 @@
             ${role === 'hrbp' ? judgeCard() : ''}
             <article class="n-card"><h3 class="n-section-title">进行中的任务</h3><div id="tasks"></div></article>
             <article class="n-card" id="upload"><h3 class="n-section-title">上传材料</h3>
-              <button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>TXT、MD、DOCX、PPTX、XLSX 和录音 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button>
+              <button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>${UI.ATT_TYPES}，可以一次拖入多个 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button>
               <ul class="n-files" id="files"></ul>
             </article>
           </div>
@@ -92,8 +123,10 @@
     grow: x.action ? html`<a class="n-btn n-btn--sm" href="actions.html#${x.action}">${icon('check2')}看行动</a>` : html`<button class="n-btn n-btn--sm" type="button" data-pact="${x.id}">${icon('plus')}生成行动</button>`,
     staff: x.project ? html`<a class="n-btn n-btn--sm" href="staffing.html?project=${x.project}&push=${x.id}">${icon('folder')}去找人补入</a>` : '',
   }[x.kind] || '');
-  const todoActs = (t) => (t.kind === 'push' ? html`<div class="n-todo__acts">${pushKindActs(st.pushOf(t.push))}<button class="n-btn n-btn--sm" type="button" data-pres="${t.push}">${icon('check')}确认结果，写进档案</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-plog="${t.push}">记一笔进展</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-pcancel="${t.push}">取消推动</button></div>`
-    : t.kind === 'clue' ? html`<div class="n-todo__acts">${clueSrc(t.clue)}<button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，给 CEO 看</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
+  // 「CEO 请你」和待核实线索先看这个人的速览再办（v1.5 3.27.1）
+  const peekBtn = (pid) => (pid ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-peek="p:${pid}">${icon('user')}看速览</button>` : '');
+  const todoActs = (t) => (t.kind === 'push' ? html`<div class="n-todo__acts">${peekBtn(st.pushOf(t.push)?.person)}${pushKindActs(st.pushOf(t.push))}<button class="n-btn n-btn--sm" type="button" data-pres="${t.push}">${icon('check')}确认结果，写进档案</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-plog="${t.push}">记一笔进展</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-pcancel="${t.push}">取消推动</button></div>`
+    : t.kind === 'clue' ? html`<div class="n-todo__acts">${clueSrc(t.clue)}${peekBtn(st.get().watchClues.find((c) => c.id === t.clue)?.person)}<button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，给 CEO 看</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
   const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li class="${t.kind === 'push' || t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
   const GROUPS = [['ceo', 'CEO 请你', ['push', 'jask']], ['verify', '待核对', ['verify']], ['clue', '待核实线索', ['clue']], ['calib', '待校准', ['calib']], ['plan', '待确认', ['plan']], ['follow', '待跟进', ['track', 'talk']]];
   let openGroup = null, showHandled = false;
@@ -267,16 +300,20 @@
       ['<span class="ok">已解析</span> · 9 段，定位到段落 · 提取 2 条事件待确认 · 已关联「Landing 第三期」', '<a class="n-btn n-btn--sm" href="record.html?q=W3%20对事复盘：唐果主动约了客服再访谈一次">确认事件</a>']));
     ['dragover', 'dragenter'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.add('is-over'); }));
     ['dragleave', 'drop'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.remove('is-over'); }));
+    // 一次可以拖入多个；格式与「记录关键事件」的附件同一口径（v1.5 3.34）
     $('#drop').addEventListener('drop', (e) => {
-      const f = e.dataTransfer.files[0]; if (!f) return;
-      const ext = (f.name.split('.').pop() || '').toUpperCase();
-      if (ext === 'PDF') add(f.name, 'PDF', [], ['<span class="err">暂不支持 PDF</span> · 本期只处理文字、Office 文件和录音。可以另存为 DOCX，或直接粘贴文字', '<a class="n-btn n-btn--sm n-btn--ghost" href="record.html">粘贴文字</a>']);
-      else add(f.name, ext.slice(0, 4), ['解析中', '整理中 · 提取人员和事件'], ['<span class="ok">已解析</span> · 原型不读取真实文件内容，这里只演示状态流转', '<span></span>']);
+      const list = [...e.dataTransfer.files];
+      if (list.length > UI.ATT_MAX) NT.toast(`一次最多 ${UI.ATT_MAX} 个文件，多出的 ${list.length - UI.ATT_MAX} 个没有加入`);
+      list.slice(0, UI.ATT_MAX).forEach((f) => {
+        const k = UI.attachKind(f.name), err = UI.attachCheck(f);
+        if (err) add(f.name, k.ext, [], [`<span class="err">${NT.esc(err)}</span>`, '<span></span>']);
+        else add(f.name, k.ext, [k.unit === '时' ? '转写中' : '解析中 · 识别文字', '整理中 · 提取人员和事件'], [`<span class="ok">已解析</span> · ${k.label} · 原型不读取真实文件内容，这里只演示状态流转`, '<span></span>']);
+      });
     });
   }
 
 
-  // ---------- CEO 首页（v1.4 3.19） ----------
+  // ---------- CEO 首页（v1.5 3.26）：看人，而不是处理流程 ----------
   function renderCeo(main, me) {
     mount(main, html`
       <header class="nt-head"><div><h1>${greet(me)}</h1><p>10 月 23 日 · 周五 · 全公司</p></div></header>
@@ -298,43 +335,52 @@
       </section>
       <div class="nt-ceo">
         <article class="n-card n-watch" id="watch" aria-labelledby="watch-h"></article>
-        <div class="nt-grid"><article class="n-card n-mine" id="mine" aria-labelledby="mine-h"></article><article class="n-card n-jtip" id="jsig" aria-labelledby="jsig-h"></article></div>
+        <div class="nt-grid"><article class="n-card n-need" id="need" aria-labelledby="need-h"></article><article class="n-card n-follows" id="follows" aria-labelledby="follows-h"></article><article class="n-card n-jtip" id="jsig" aria-labelledby="jsig-h"></article></div>
       </div>`);
     wireComposer('ceo');
     drawCeo();
+    wireWatch();
+    wireNeed();
+    wireFollows();
+    UI.peek.changed = drawCeo;
+  }
+  function drawCeo() { drawWatch(); drawJudge(); drawNeed(); drawFollows(); }
+
+  // 值得关注：类别计数 + 最近 4 条；按规则入选、按触发时间排，不显示分数。首页不写规则编号和系统解释，放进速览（v1.5 D-54）
+  const CAT = () => Object.fromEntries(st.WATCH_CATS);
+  const peekP = (pid) => `data-peek="p:${pid}"`;
+  function watchItem(w) {
+    const p = st.person(w.person), fresh = st.freshFor(w.person);
+    const cites = w.srcs ? UI.cites(w.srcs) : (w.evs || []).slice(0, 3).map((id, i) => UI.evCite(id, i + 1));
+    return html`<li class="n-watch__item" data-cat="${w.cat}">
+      <a class="n-watch__ava" href="person.html?id=${w.person}" ${raw(peekP(w.person))} tabindex="-1" aria-hidden="true">${UI.avatar(w.person)}</a>
+      <div class="n-watch__body">
+        <div class="n-watch__who"><a class="nt-plink" href="person.html?id=${w.person}" ${raw(peekP(w.person))}><b>${p.name}</b></a><span class="nt-muted">${st.orgShort(p.org)} · ${p.title}</span><span class="n-watch__cat" data-cat="${w.cat}">${CAT()[w.cat]}</span><span class="n-watch__when">${NT.md(w.when)}</span></div>
+        <div class="n-watch__why">${w.why}${cites}</div>
+        ${fresh ? html`<div class="n-watch__fresh">${icon('clock')}<span>${fresh.text}</span></div>` : ''}
+      </div>
+      <div class="n-watch__acts">${UI.followBtn(w.person)}<a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${w.person}" ${raw(peekP(w.person))}>查看依据</a></div>
+    </li>`;
+  }
+  function wireWatch() {
     $('#watch').addEventListener('click', (e) => {
       const c = e.target.closest('[data-wf]');
       if (c) { watchCat = c.dataset.wf; watchAll = false; drawWatch(); return; }
       const v = e.target.closest('[data-by]');
       if (v) { watchBy = v.dataset.by; drawWatch(); return; }
-      if (e.target.closest('#watch-more')) { watchAll = !watchAll; drawWatch(); }
+      if (e.target.closest('#watch-more')) { watchAll = !watchAll; drawWatch(); return; }
+      const f = e.target.closest('[data-follow]');
+      if (f) UI.toggleFollow(f.dataset.follow, drawCeoOrLead);
     });
   }
-  function drawCeo() { drawWatch(); drawJudge(); drawMine(); }
-
-  // 值得关注：类别计数 + 最近 4 条；按规则入选、按触发时间排，不显示分数
-  const CAT = () => Object.fromEntries(st.WATCH_CATS);
-  function watchItem(w) {
-    const p = st.person(w.person), r = st.WATCH_RULES[w.rule];
-    const cites = w.srcs ? UI.cites(w.srcs) : (w.evs || []).slice(0, 3).map((id, i) => UI.evCite(id, i + 1));
-    const source = w.verifiedBy ? `${w.by === 'ai' ? 'AI 发现' : `${st.person(w.by).name}提名`} · ${st.person(w.verifiedBy).name}核实` : '按规则算出';
-    return html`<li class="n-watch__item" data-cat="${w.cat}">
-      ${UI.avatar(w.person)}
-      <div class="n-watch__body">
-        <div class="n-watch__who"><a class="nt-plink" href="person.html?id=${w.person}"><b>${p.name}</b></a><span class="nt-muted">${st.orgShort(p.org)} · ${p.title}</span><span class="n-watch__cat" data-cat="${w.cat}">${CAT()[w.cat]}</span><span class="n-watch__when">${NT.md(w.when)}</span></div>
-        <div class="n-watch__why">${w.why}${cites}</div>
-        <div class="n-watch__meta"><span class="n-rule" title="${r.text}">${icon('flag')}${w.rule}</span><span>${w.verifiedBy ? source : `${r.text} · ${source}`}</span>${w.also.length ? html`<span>也命中 ${w.also.map((a) => a.rule).join('、')}</span>` : ''}</div>
-        ${w.doing.length ? html`<div class="n-watch__doing">${icon('clock')}<span>${w.doing.join('；')}</span></div>` : ''}
-      </div>
-      <div class="n-watch__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${w.person}">查看人员与证据</a><span class="n-menuwrap"><button class="n-btn n-btn--sm" type="button" data-push="${w.person}">推动${icon('chev')}</button></span></div>
-    </li>`;
-  }
+  const drawCeoOrLead = () => (st.role() === 'ceo' ? drawCeo() : drawLead());
   function drawWatch() {
     const host = $('#watch'); if (!host) return;
     const all = st.watch();
     const list = all.filter((w) => watchCat === 'all' || w.cat === watchCat);
     const shown = watchAll ? list : list.slice(0, 4);
-    mount(host, html`<div class="n-watch__head"><h3 class="n-section-title" id="watch-h">值得关注<span class="n-count is-quiet">${all.length} 人</span></h3>
+    const lead = st.role() === 'lead';
+    mount(host, html`<div class="n-watch__head"><h3 class="n-section-title" id="watch-h">值得关注${lead ? html`<small class="nt-muted" style="font-weight:400;margin-left:6px">本团队</small>` : ''}<span class="n-count is-quiet">${all.length} 人</span></h3>
         <span class="n-seg n-watch__by" role="group" aria-label="查看方式" data-manual><button type="button" data-by="person" aria-pressed="${watchBy === 'person'}">按人看</button><button type="button" data-by="project" aria-pressed="${watchBy === 'project'}">按项目看</button></span></div>
       <div class="n-chips" role="group" aria-label="按类别筛选">
         <button class="n-chip" type="button" data-wf="all" aria-pressed="${watchCat === 'all'}">全部<b>${all.length}</b></button>
@@ -342,13 +388,10 @@
       </div>
       ${!list.length ? html`<div class="nt-empty">这一类暂时没有人。没有命中规则不代表有问题。</div>` : watchBy === 'project' ? byProject(list) : html`<ul class="n-watch__list">${shown.map(watchItem)}</ul>`}
       ${watchBy === 'person' && list.length > 4 ? html`<button class="n-btn n-btn--ghost n-btn--sm" type="button" id="watch-more" aria-expanded="${watchAll}" style="margin-top:var(--s-2)">${watchAll ? '收起' : `查看全部 ${list.length} 人`}</button>` : ''}
-      <p class="nt-caption">按写明的规则入选，按触发时间排列，不按分数挑人；资料不足不算需要介入。AI 线索和提名经 HRBP 核实后才会出现在这里。规则版本 watch-v1</p>`);
-    // 推动带上这条关注的规则、原因和证据，作为发起依据交给负责人
-    const byId = Object.fromEntries(all.map((w) => [w.person, w]));
-    $$('[data-push]', host).forEach((b) => { const w = byId[b.dataset.push]; UI.pushMenu(b, w.person, drawCeo, { rule: w.rule, why: w.why, evs: w.evs, srcs: w.srcs, clue: w.clue }); });
+      <p class="nt-caption">按写明的规则入选、按时间排列，不按分数挑人；资料不足不算需要介入。AI 线索和提名经 HRBP 核实后才会出现在这里。点人名看依据。</p>`);
   }
 
-  // 按项目看：同一批入选的人，按依据事件所在的项目或批次分组；Landing 议题归到所在批次（v1.4 3.20.2）
+  // 按项目看：同一批入选的人，按依据事件所在的项目或批次分组；Landing 议题归到所在批次（v1.4 3.20.2）。点项目名拉起项目速览
   function byProject(list) {
     const groups = new Map();
     const put = (key, head, w, note) => { if (!groups.has(key)) groups.set(key, { ...head, items: [], when: '' }); const g = groups.get(key); if (!g.items.some((x) => x.w.person === w.person)) g.items.push({ w, note }); if (w.when > g.when) g.when = w.when; };
@@ -357,14 +400,14 @@
       if (!projs.length) put('none', { name: '不在具体项目里', sub: '日常工作中的事件或信号' }, w);
       projs.forEach((pj) => {
         const b = pj.batch && st.batch(pj.batch);
-        if (b) put(b.id, { name: b.name, href: 'landing.html', sub: 'Landing 批次' }, w, pj.name);
-        else put(pj.id, { name: pj.name, href: `project.html?id=${pj.id}`, sub: pj.type }, w);
+        if (b) put(b.id, { name: b.name, href: 'landing.html', peek: b.id, sub: 'Landing 批次' }, w, pj.name);
+        else put(pj.id, { name: pj.name, href: `project.html?id=${pj.id}`, peek: pj.id, sub: pj.type }, w);
       });
     });
     const gs = [...groups.entries()].sort(([a, x], [b, y]) => (a === 'none') - (b === 'none') || y.when.localeCompare(x.when));
     return html`<ul class="n-wgroup">${gs.map(([, g]) => html`<li>
-      <div class="n-wgroup__head">${g.href ? html`<a class="nt-plink" href="${g.href}"><b>${g.name}</b></a>` : html`<b>${g.name}</b>`}<span class="nt-muted">${g.sub} · ${g.items.length} 人 · 最近 ${NT.md(g.when)}</span></div>
-      <div class="n-wgroup__people">${g.items.map(({ w, note }) => html`<a class="n-wperson" href="person.html?id=${w.person}">${UI.avatar(w.person, 'sm')}<b>${st.person(w.person).name}</b><span class="n-watch__cat" data-cat="${w.cat}">${CAT()[w.cat]}</span>${note ? html`<small>${note}</small>` : ''}</a>`)}</div>
+      <div class="n-wgroup__head">${g.href ? html`<a class="nt-plink" href="${g.href}" data-peek="pr:${g.peek}"><b>${g.name}</b></a>` : html`<b>${g.name}</b>`}<span class="nt-muted">${g.sub} · ${g.items.length} 人 · 最近 ${NT.md(g.when)}</span></div>
+      <div class="n-wgroup__people">${g.items.map(({ w, note }) => html`<a class="n-wperson" href="person.html?id=${w.person}" ${raw(peekP(w.person))}>${UI.avatar(w.person, 'sm')}<b>${st.person(w.person).name}</b><span class="n-watch__cat" data-cat="${w.cat}">${CAT()[w.cat]}</span>${note ? html`<small>${note}</small>` : ''}</a>`)}</div>
     </li>`)}</ul>`;
   }
 
@@ -382,16 +425,73 @@
         : html`<div class="nt-empty">最近的判断复盘没有需要复核的差异。</div>`}`);
   }
 
-  // 我推动的事项：待你确认的置顶，其后是你发起、还在推进的
-  function drawMine() {
-    const host = $('#mine'); if (!host) return;
-    const m = st.myPushes();
+  // 需要我看：只放需要 CEO 本人决定的事；CEO 发起、还在推进的事折叠在下面（v1.5 3.26.1）
+  let needOpen = false;
+  function drawNeed() {
+    const host = $('#need'); if (!host) return;
+    const m = st.myPushes(), n = m.doing.length + m.done.length;
     const row = (it) => html`<li><a href="${it.href}"><span class="n-mine__title">${it.title}<small>${it.sub}</small></span><span class="n-mine__meta">${it.owner ? html`${UI.avatar(it.owner, 'sm')}<span>${st.person(it.owner).name}</span>` : ''}<span class="n-astate" data-s="${ASTATE[it.state] || 'todo'}">${it.state}</span></span></a></li>`;
-    mount(host, html`<h3 class="n-section-title" id="mine-h">我推动的事项</h3>
-      ${m.confirm.length ? html`<div class="n-mine__pin"><h4>待你确认<span class="n-count">${m.confirm.length}</span></h4><ul class="n-mine__list">${m.confirm.map(row)}</ul></div>` : ''}
-      <h4 class="n-mine__sub">在推进<span>${m.doing.length || ''}</span></h4>
-      ${m.doing.length ? html`<ul class="n-mine__list">${m.doing.map(row)}</ul>` : html`<div class="nt-empty">你发起的找人、推动和复核请求会出现在这里。</div>`}
-      ${m.done.length ? html`<h4 class="n-mine__sub">近 7 天有结果</h4><ul class="n-mine__list">${m.done.map(row)}</ul>` : ''}`);
+    mount(host, html`<h3 class="n-section-title" id="need-h">需要我看${m.confirm.length ? html`<span class="n-count is-seal">${m.confirm.length}</span>` : ''}</h3>
+      ${m.confirm.length ? html`<ul class="n-mine__list n-need__list">${m.confirm.map((it) => html`<li><a href="${it.href}"><span class="n-mine__title">${it.title}<small>${it.sub}</small></span><span class="n-need__go">去确认${icon('chev')}</span></a></li>`)}</ul>` : html`<div class="nt-empty">暂时没有要你决定的事。</div>`}
+      ${n ? html`<button class="n-todomore" type="button" id="need-more" aria-expanded="${needOpen}">${icon('clock')}你发起的 ${m.doing.length} 件在推进${m.done.length ? `，近 7 天有结果 ${m.done.length} 件` : ''}<span style="margin-left:auto">${needOpen ? '收起' : '展开'}</span></button>
+        ${needOpen ? html`${m.doing.length ? html`<ul class="n-mine__list">${m.doing.map(row)}</ul>` : ''}${m.done.length ? html`<h4 class="n-mine__sub">近 7 天有结果</h4><ul class="n-mine__list">${m.done.map(row)}</ul>` : ''}` : ''}` : ''}`);
+  }
+  function wireNeed() { $('#need').addEventListener('click', (e) => { if (e.target.closest('#need-more')) { needOpen = !needOpen; drawNeed(); } }); }
+
+  // 我的关注：动态（关注之后的已确认进展）和名单两种看法；只对本人可见（v1.5 3.26.2）
+  let followView = 'feed';
+  const FEED_KIND = { event: '关键事件', push: '推动', watch: '值得关注', action: '行动', track: '重点跟踪', reco: '推荐方向' };
+  function drawFollows() {
+    const host = $('#follows'); if (!host) return;
+    const list = st.followList(), feed = st.followFeed().slice(0, 5);
+    const fresh = (pid) => st.followFeed(pid)[0];
+    mount(host, html`<div class="n-follows__head"><h3 class="n-section-title" id="follows-h">我的关注<span class="n-count is-quiet">${list.length} 人</span></h3>
+        ${list.length ? html`<span class="n-seg" role="group" aria-label="查看方式" data-manual><button type="button" data-fv="feed" aria-pressed="${followView === 'feed'}">动态</button><button type="button" data-fv="list" aria-pressed="${followView === 'list'}">名单</button></span>` : ''}</div>
+      ${!list.length ? html`<div class="nt-empty">在值得关注或速览里点「加关注」，之后他们的新进展会出现在这里。</div>`
+        : followView === 'list' ? html`<ul class="n-follows__list">${list.map((f) => { const x = fresh(f.person); return html`<li><a href="person.html?id=${f.person}" ${raw(peekP(f.person))}>${UI.avatar(f.person, 'sm')}<span><b>${st.person(f.person).name}</b><small>${NT.md(f.at)} 关注${f.via ? ' · 发起推动时加入' : ''}${x ? ` · 最近：${NT.md(x.at)} ${x.text}` : ''}</small></span></a><button class="n-link" type="button" data-unf="${f.person}">取消关注</button></li>`; })}</ul>`
+        : feed.length ? html`<ol class="n-feed">${feed.map((x) => html`<li><a href="person.html?id=${x.person}" ${raw(peekP(x.person))}>${UI.avatar(x.person, 'sm')}<span><b>${st.person(x.person).name}</b> ${x.text}<small>${NT.md(x.at)} · ${FEED_KIND[x.kind]}${x.by ? ` · ${st.person(x.by)?.name}` : ''}</small></span></a></li>`)}</ol>`
+          : html`<div class="nt-empty">关注之后还没有新的已确认进展。一段时间没有动态不代表有问题。</div>`}`);
+  }
+  function wireFollows() {
+    $('#follows').addEventListener('click', (e) => {
+      const v = e.target.closest('[data-fv]');
+      if (v) { followView = v.dataset.fv; drawFollows(); return; }
+      const u = e.target.closest('[data-unf]');
+      if (u) UI.toggleFollow(u.dataset.unf, drawCeoOrLead);
+    });
+  }
+
+  // ---------- 部门负责人（v1.5 3.29）：本团队范围内的 CEO 视角 ----------
+  function drawLead() { drawWatch(); drawFollows(); drawRecos(); }
+
+  // ---------- 导师 / 助教（v1.5 3.30）：我带的学员 → 记一件事（SBI）→ 在事件里评 → 推荐 ----------
+  function drawMentor() {
+    const me = st.me().id, since = NT.addDays(NT.TODAY, -6), S = st.get();
+    const list = st.visiblePeople().filter((p) => st.scope(p.id) === 'mentor');
+    const row = (p) => {
+      const land = st.landingOf(p.id), topic = land && st.project(land.row[1]);
+      const mine = S.events.filter((e) => e.kind === 'obs' && e.people.includes(p.id) && e.recorder === me && e.date).sort((a, b) => b.date.localeCompare(a.date));
+      const week = mine.filter((e) => e.date >= since).length;
+      return html`<li>${raw(`<a href="person.html?id=${p.id}" data-peek="p:${p.id}" tabindex="-1" aria-hidden="true">`)}${UI.avatar(p.id)}</a>
+        <div><a class="nt-plink" href="person.html?id=${p.id}" data-peek="p:${p.id}"><b>${p.name}</b></a><small>${topic ? `议题「${topic.name}」 · ` : ''}${week ? `本周记了 ${week} 件` : '本周还没记'}${mine[0] ? ` · 最近 ${NT.md(mine[0].date)}` : ''}</small></div>
+        <div class="n-students__acts"><a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${p.id}">${icon('pen')}记一件事</a>${st.canRecommend(p.id) ? html`<button class="n-btn n-btn--sm" type="button" data-reco="${p.id}">${icon('target')}推荐</button>` : ''}</div></li>`;
+    };
+    mount($('#students'), html`<h3 class="n-section-title" id="stu-h">我带的学员<span class="n-count is-quiet">${list.length} 人</span></h3>
+      ${list.length ? html`<ul class="n-students__list">${list.map(row)}</ul>` : html`<div class="nt-empty">还没有分配给你的学员。</div>`}
+      <p class="nt-caption">每件事按情境、行为、影响记下来；分数只在事件里给，对照行为锚点。「本周还没记」只是提醒你，不会出现在学员的档案里。</p>`);
+    drawRecos();
+  }
+  // 我的推荐：本人提交的推荐与处理状态（v1.5 3.31），导师和部门负责人共用；负责人没有推荐时不占位
+  function drawRecos() {
+    const host = $('#recos'); if (!host) return;
+    const recos = st.myRecos(), ST = { pending: ['HRBP 核实中', 'doing'], verified: ['已核实', 'done'], rejected: ['不采纳', 'cancel'] };
+    host.hidden = st.role() === 'lead' && !recos.length;
+    mount(host, html`<h3 class="n-section-title" id="recos-h">我的推荐${recos.length ? html`<span class="n-count is-quiet">${recos.length}</span>` : ''}</h3>
+      ${recos.length ? html`<ul class="n-mine__list">${recos.map((c) => html`<li><a href="person.html?id=${c.person}" data-peek="p:${c.person}"><span class="n-mine__title">${st.person(c.person).name} · ${st.fitText(c.dir)}<small>${c.state === 'rejected' ? `${st.person(c.verifiedBy).name}不采纳：${c.rejectWhy}` : c.state === 'verified' ? `${st.person(c.verifiedBy).name} ${NT.md(c.verifiedAt)} 核实，已进入档案的发展方向` : `${NT.md(c.at)} 提交 · ${c.why}`}</small></span><span class="n-mine__meta"><span class="n-astate" data-s="${ST[c.state][1]}">${ST[c.state][0]}</span></span></a></li>`)}</ul>`
+        : html`<div class="nt-empty">在学员那一行点「推荐」，写理由并引用两件事；HRBP 核实后会进入学员档案的发展方向。</div>`}`);
+  }
+  function wireMentor() {
+    $('#students').addEventListener('click', (e) => { const r = e.target.closest('[data-reco]'); if (r) UI.recoDialog(r.dataset.reco, drawMentor); });
   }
 
   // 员工本人：只看本人经历、参与的项目和发布给本人的行动

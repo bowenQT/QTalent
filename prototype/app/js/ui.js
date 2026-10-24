@@ -49,12 +49,144 @@
   UI.cite = (src, n) => {
     if (!src) return '';
     citeN += 1;
-    const audio = src.type === 'audio';
-    const ic = { audio: 'wave', doc: 'doc', sheet: 'doc', note: 'note' }[src.type] || 'doc';
+    // 有时间段的录音（含附件里的录音、视频音轨）可以就地播放那一段
+    const audio = (src.type === 'audio' || src.type === 'video') && /\d:\d\d/.test(src.loc || '');
+    const ic = { audio: 'wave', video: 'play', doc: 'doc', slide: 'doc', sheet: 'doc', note: 'note' }[src.type] || 'doc';
     const quote = src.quote ? html`<p class="n-cite__quote">${src.quote}</p>` : '';
-    return html`<span class="n-cite"><button class="n-cite__mark" ${raw(audio ? 'data-kind="audio"' : '')} type="button" aria-label="引用 ${n}：${src.label}">${n}</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src">${icon(ic, 14)}${src.label} · ${src.loc}${src.by ? ` · ${st.person(src.by)?.name}` : ''}</span>${quote}${audio ? html`<span class="n-cite__foot"><button class="n-player__play nt-play" type="button" style="width:26px;height:26px" aria-label="播放这一段">${icon('play', 10)}</button><span style="font-size:var(--t-xs);color:var(--ink-3)">播放 ${src.loc.split('–')[0]} 起的 10 秒</span></span>` : ''}</span></span>`;
+    return html`<span class="n-cite"><button class="n-cite__mark" ${raw(audio ? 'data-kind="audio"' : '')} type="button" aria-label="引用 ${n}：${src.label}">${n}</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src">${icon(ic, 14)}${src.label} · ${src.loc}${src.by ? ` · ${st.person(src.by)?.name}` : ''}</span>${quote}${audio ? html`<span class="n-cite__foot"><button class="n-player__play nt-play" type="button" style="width:26px;height:26px" aria-label="播放这一段">${icon('play', 10)}</button><span style="font-size:var(--t-xs);color:var(--ink-3)">播放 ${src.loc.match(/\d+:\d\d/)[0]} 起的 10 秒</span></span>` : ''}</span></span>`;
   };
   UI.cites = (srcs) => (srcs || []).map((s, i) => UI.cite(s, i + 1));
+
+  // ---------- 附件（v1.5 3.34）：记一件事时附上多个文件，解析完成后作为这件事的出处一起保存 ----------
+  // 原型不读取真实文件内容：上传、解析、失败只演示状态，引用位置按文件名生成示意；文件名含「扫描」的 PDF 演示识别不出文字
+  const ATT_KINDS = [
+    [['pdf'], 'doc', 'PDF', '页'],
+    [['doc', 'docx', 'txt', 'md'], 'doc', '文档', '段'],
+    [['ppt', 'pptx'], 'slide', '演示文稿', '页'],
+    [['xls', 'xlsx', 'csv'], 'sheet', '表格', '格'],
+    [['mp3', 'm4a', 'wav', 'aac'], 'audio', '录音', '时'],
+    [['mp4', 'mov', 'webm', 'm4v'], 'video', '视频', '时'],
+  ];
+  const ATT_SIZE = 2 * 1024 ** 3;
+  UI.ATT_MAX = 10;
+  UI.ATT_ACCEPT = ATT_KINDS.flatMap(([exts]) => exts.map((x) => `.${x}`)).join(',');
+  UI.ATT_TYPES = 'PDF、Word、PPT、Excel、TXT / MD、音频和视频';
+  UI.attachKind = (name) => {
+    const ext = (name.includes('.') ? name.split('.').pop() : '').toLowerCase();
+    const k = ATT_KINDS.find(([exts]) => exts.includes(ext));
+    return { ext: (ext || '?').toUpperCase().slice(0, 4), type: k?.[1], label: k?.[2], unit: k?.[3], ok: !!k };
+  };
+  // 不能加入的原因；能加入返回空。记录页的附件和工作台的上传材料共用
+  UI.attachCheck = (f) => {
+    const k = UI.attachKind(f.name);
+    return !k.ok ? `不支持 .${k.ext.toLowerCase()} 格式，可以上传 ${UI.ATT_TYPES}` : (f.size || 0) > ATT_SIZE ? '超过 2 GB，传不上来；可以先剪成几段再传' : '';
+  };
+  // 解析后的引用位置（示意）：文档到段，PDF 与演示文稿到页，表格到单元格，音视频到时间段
+  UI.attachLoc = (name, unit) => {
+    const h = [...name].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const t = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+    return unit === '页' ? `第 ${2 + (h % 9)} 页` : unit === '段' ? `第 ${3 + (h % 12)} 段` : unit === '格' ? `「汇总」表 ${'BCDEF'[h % 5]}${4 + (h % 20)}`
+      : `${t(180 + (h % 1500))}–${t(180 + (h % 1500) + 25)}`;
+  };
+  const attSize = (b) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+  UI.attachButton = (label) => (label
+    ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-att-pick>${icon('clip')}${label}</button>`
+    : html`<button class="n-btn n-btn--ghost n-btn--icon" type="button" data-att-pick aria-label="添加附件" title="添加附件：${UI.ATT_TYPES}">${icon('clip')}</button>`);
+  // att = UI.attach({ key })：att.list(ul) 绑定列表，att.pick(btn) 绑定选择，att.drop(el) 绑定拖入；
+  // att.srcs() 取已解析的出处，att.pending() 还在上传或解析的个数，att.lock() 保存后只读，keep / restore 跨「改原话」和撤销保留
+  UI.attach = ({ key = 'rec' } = {}) => {
+    let items = [], ul = null, locked = false, picker = null, fallback = null;
+    const SKEY = `nt-att:${key}`;
+    const input = document.createElement('input');
+    Object.assign(input, { type: 'file', multiple: true, accept: UI.ATT_ACCEPT, hidden: true });
+    document.body.append(input);
+    const stateLine = (it) => (it.st === 'up' ? `上传中 · ${attSize(it.size)}`
+      : it.st === 'parse' ? (it.unit === '时' ? '转写中…' : '解析中 · 识别文字')
+        : it.st === 'err' ? html`<span class="err">${it.err}</span>`
+          : it.scan ? html`<span class="ok">已上传</span> · 扫描件，未识别出文字，只作附件保存`
+            : html`<span class="ok">已解析</span> · ${it.label} · ${attSize(it.size)} · 位置：${it.loc}`);
+    // 按行更新：上传进度刷新时不重建整行，键盘焦点留在移除按钮上
+    const paint = (li, it) => {
+      const sig = `${it.st}|${it.pct}|${locked}`;
+      if (li.dataset.sig === sig) return;
+      li.dataset.sig = sig;
+      mount(li.querySelector('.n-file__state'), stateLine(it));
+      mount(li.querySelector('.n-file__prog'), it.st === 'up' ? html`<div class="n-progress"><i style="width:${it.pct}%"></i></div>` : it.st === 'parse' ? html`<div class="n-progress is-indeterminate"><i></i></div>` : '');
+      if (locked) li.querySelector('.n-file__rm')?.remove();
+    };
+    const draw = () => {
+      if (!ul) return;
+      ul.hidden = !items.length;
+      const ids = new Set(items.map((x) => x.id));
+      [...ul.children].forEach((li) => { if (!ids.has(li.dataset.att)) li.remove(); });
+      items.forEach((it, i) => {
+        let li = [...ul.children].find((x) => x.dataset.att === it.id);
+        if (!li) {
+          li = document.createElement('li'); li.className = 'n-file'; li.dataset.att = it.id;
+          mount(li, html`<span class="n-file__ext">${it.ext}</span><div style="min-width:0"><div class="n-file__name" title="${it.name}">${it.name}</div><div class="n-file__state"></div><div class="n-file__prog"></div></div><span>${locked ? '' : html`<button class="n-btn n-btn--ghost n-btn--icon n-file__rm" type="button" data-att-rm="${it.id}" aria-label="移除附件「${it.name}」">${icon('x')}</button>`}</span>`);
+        }
+        if (ul.children[i] !== li) ul.insertBefore(li, ul.children[i] || null);
+        paint(li, it);
+      });
+    };
+    const run = async (it) => {
+      for (it.pct = 0; it.pct <= 100; it.pct += 25) { if (!items.includes(it)) return; draw(); await NT.wait(140); }
+      it.st = 'parse'; draw();
+      await NT.wait(it.unit === '时' ? 1600 : 1000);
+      if (!items.includes(it)) return;
+      if (it.ext === 'PDF' && /扫描/.test(it.name)) it.scan = true;
+      else it.loc = UI.attachLoc(it.name, it.unit);
+      it.st = 'ok'; draw();
+    };
+    const add = (files) => {
+      const room = Math.max(UI.ATT_MAX - items.length, 0), list = [...files];
+      if (list.length > room) NT.toast(`一条记录最多 ${UI.ATT_MAX} 个附件，多出的 ${list.length - room} 个没有加入`);
+      list.slice(0, room).forEach((f) => {
+        if (items.some((x) => x.name === f.name && x.size === f.size)) { NT.toast(`「${f.name}」已经加过了`); return; }
+        const k = UI.attachKind(f.name), err = UI.attachCheck(f);
+        const it = { id: NT.uid('att'), name: f.name, size: f.size || 0, ext: k.ext, type: k.type, label: k.label, unit: k.unit, st: err ? 'err' : 'up', err, pct: 0 };
+        items.push(it);
+        if (!err) run(it);
+      });
+      draw();
+    };
+    input.addEventListener('change', () => { add(input.files); input.value = ''; });
+    const api = {
+      list(el) {
+        ul = el; ul.replaceChildren(); ul.classList.add('n-files', 'n-attach'); ul.setAttribute('aria-live', 'polite');
+        ul.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-att-rm]'); if (!b || locked) return;
+          const i = items.findIndex((x) => x.id === b.dataset.attRm); if (i < 0) return;
+          const [gone] = items.splice(i, 1); draw();
+          // 焦点落到同一位置的下一个附件的移除按钮；没有了回到看得见的「添加附件」，整理确认页里回到页面给的落点
+          const rms = ul.querySelectorAll('[data-att-rm]'), seen = (b) => b?.isConnected && b.getClientRects().length > 0;
+          (rms[Math.min(i, rms.length - 1)] || (seen(picker) ? picker : fallback?.()))?.focus();
+          NT.toast(`已移除「${gone.name}」`);
+        });
+        draw(); return api;
+      },
+      pick(btn) { picker = btn || picker; btn?.addEventListener('click', () => input.click()); return api; },
+      fallback(fn) { fallback = fn; return api; },
+      drop(el) {
+        if (!el) return api;
+        ['dragenter', 'dragover'].forEach((t) => el.addEventListener(t, (e) => { if (locked || !e.dataTransfer?.types.includes('Files')) return; e.preventDefault(); el.classList.add('is-dropping'); }));
+        ['dragleave', 'drop'].forEach((t) => el.addEventListener(t, (e) => { if (t === 'dragleave' && el.contains(e.relatedTarget)) return; el.classList.remove('is-dropping'); }));
+        el.addEventListener('drop', (e) => { if (locked || !e.dataTransfer?.files.length) return; e.preventDefault(); add(e.dataTransfer.files); });
+        return api;
+      },
+      add,
+      pending: () => items.filter((x) => x.st === 'up' || x.st === 'parse').length,
+      // 出处：已解析的给到具体位置和原文示意；扫描件只作附件，不给位置
+      srcs: () => items.filter((x) => x.st === 'ok').map((x) => (x.scan
+        ? { type: x.type, att: 1, label: `附件：${x.name}`, loc: '扫描件，未识别出文字' }
+        : { type: x.type, att: 1, label: `附件：${x.name}`, loc: x.loc, quote: `（原型示意）正式版在这里显示${x.loc}的原文。` })),
+      lock() { locked = true; items = items.filter((x) => x.st === 'ok'); draw(); },
+      keep() { try { sessionStorage.setItem(SKEY, JSON.stringify(items.filter((x) => x.st === 'ok'))); } catch (e) { /* 存不下就不保留 */ } },
+      restore() { try { const v = JSON.parse(sessionStorage.getItem(SKEY) || '[]'); if (Array.isArray(v)) items = v.filter((x) => x && x.id && x.st === 'ok'); } catch (e) { /* 忽略 */ } api.clear(); draw(); return api; },
+      clear() { try { sessionStorage.removeItem(SKEY); } catch (e) { /* 忽略 */ } },
+    };
+    return api;
+  };
 
   UI.scoreState = (s) => (s.st === 'calibrated' ? 'calibrated' : s.st === 'ai' ? 'ai' : s.st === 'unknown' ? 'unknown' : s.st === 'absent' ? 'absent' : 'confirmed');
   // 只读的一行维度分
@@ -94,7 +226,7 @@
         ${proj ? html`<a class="n-badge" href="project.html?id=${proj.id}">${icon('folder')}${proj.type === 'Landing 议题' ? '议题' : '项目'}：${proj.name}</a>` : ''}${who}${roleNote}</div>
       <h3 class="n-event__title">${e.title}${e.kind !== 'hist' ? UI.cites(e.srcs) : ''}</h3>
       ${e.push ? UI.pushBasis(st.pushBasis(st.pushOf(e.push))) : ''}
-      ${e.bg ? html`<dl class="n-event__sbar"><dt>背景</dt><dd>${e.bg}</dd><dt>行为</dt><dd>${e.act}</dd><dt>结果</dt><dd>${e.res}</dd></dl>` : ''}
+      ${e.bg ? html`<dl class="n-event__sbar"><dt>情境</dt><dd>${e.bg}</dd><dt>行为</dt><dd>${e.act}</dd><dt>影响</dt><dd>${e.res}</dd></dl>` : ''}
       ${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${v}</span>`)}</div><div class="n-tl__note">保留原量表，不换算成 1–5 的维度分，也不参与象限。${e.srcs?.[0] ? ` 来源：${e.srcs[0].label} · ${e.srcs[0].loc}` : ''}</div>` : ''}
       ${tags.length ? html`<div class="n-tags"><span class="n-tags__label">标签</span>${tags}</div>` : ''}
       ${scores.length ? (canScore ? html`<div class="n-event__scores">${scores.map((s) => UI.scoreLine(s, { hist: true }))}</div>` : html`<div class="n-event__scores">${UI.lock('维度分对本人不可见')}</div>`) : ''}
@@ -223,14 +355,14 @@
     const S = st.get();
     const stop = e.target.closest('[data-stop]'), edit = e.target.closest('[data-edit]'), resume = e.target.closest('[data-resume]');
     if (stop) {
-      const t = S.tracks.find((x) => x.id === stop.dataset.stop); t.state = 'stopped'; t.stoppedAt = NT.TODAY; st.save(); rerender();
+      const t = S.tracks.find((x) => x.id === stop.dataset.stop); t.state = 'stopped'; t.stoppedAt = NT.TODAY; t.stoppedTs = Date.now(); st.save(); rerender();
       NT.toast(`已停止跟踪${st.person(t.person).name}`, { undo: () => { t.state = 'on'; st.save(); rerender(); } });
     }
     if (resume) { const t = S.tracks.find((x) => x.id === resume.dataset.resume); t.state = 'on'; st.save(); rerender(); }
     if (edit) {
       const t = S.tracks.find((x) => x.id === edit.dataset.edit);
       const r = await UI.trackDialog(t.person, t);
-      if (r) { Object.assign(t, r); st.save(); rerender(); NT.toast('观察问题已更新'); }
+      if (r) { Object.assign(t, r, { editedAt: NT.TODAY, editedTs: Date.now() }); st.save(); rerender(); NT.toast('观察问题已更新'); }
     }
   });
   UI.trackDialog = async (pid, t) => {
@@ -261,9 +393,12 @@
       : mg ? html`<div class="n-dir__side is-mgmt"><span class="n-dir__label"><span class="n-src n-src--obs">${icon('eye')}管理判断</span>${st.person(mg.by).name} · ${NT.md(mg.at)}</span><b class="n-dir__ch">${ch(mg.ch)}</b><span class="n-dir__note">依据：${mg.basis}${mg.ev && st.event(mg.ev) ? UI.cite({ ...st.event(mg.ev).srcs[0], quote: st.event(mg.ev).srcs[0]?.quote || st.event(mg.ev).act || st.event(mg.ev).title }, 1) : ''}</span>${older(d.mgmt, (x) => `${st.person(x.by).name} ${NT.md(x.at)}`)}</div>`
         : html`<div class="n-dir__side is-unknown"><span class="n-dir__label">管理判断</span><b class="n-dir__ch">未知</b><span class="n-dir__note">还没有人写过，不当作「不适合」</span></div>`;
     const differ = self && mg && self.ch !== mg.ch;
+    // 已核实的推荐方向（v1.5 3.31）：推荐人与核实人都写出来，不打分、不参与排序
+    const recos = st.recosFor(pid).map((c) => html`<div class="n-dir__reco">${icon('target')}<span><b>推荐${st.fitText(c.dir)}</b>${c.why}<small>${st.person(c.by).name}推荐 · ${st.person(c.verifiedBy).name}核实 · ${NT.md(c.verifiedAt)}</small></span></div>`);
     return html`<article class="n-card" id="direction"><h3 class="n-section-title n-dirhead">发展方向<small class="nt-muted">通道取自人才发展大图 · 不打分，不进象限，不参与排序</small></h3>
       <div class="n-dir" ${raw(st.role() === 'self' ? 'style="grid-template-columns:1fr"' : '')}>${selfSide}${st.role() === 'self' ? '' : mgSide}</div>
       ${differ ? html`<p class="nt-caption">本人意愿和管理判断不一致，两边如实并列，不合成一个结论。</p>` : ''}
+      ${recos.length ? html`<div class="n-dir__recos">${recos}</div>` : ''}
       ${o.canWrite ? html`<div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm" type="button" data-dir="${o.canWrite}">${icon('pen')}${o.canWrite === 'self' ? '写下或修改我的意愿' : '写管理判断'}</button></div>` : ''}
       <div data-dir-form></div></article>`;
   };
@@ -374,7 +509,7 @@
       title: `${k.label}：${p.name}`,
       body: html`<p style="margin:0 0 var(--s-3)">${k.task}。负责人会在待办里看到你的说明和这条关注的依据；结果由负责人确认后，作为管理观察进${p.name}的档案。</p>${UI.pushBasis(basis)}
         <fieldset class="n-field n-owners"><legend class="n-field__label">交给谁</legend>${owners.map((o, i) => html`<label class="n-owner"><input type="radio" name="pu-owner" value="${o.id}" ${raw(i === 0 ? 'checked' : '')}>${UI.avatar(o.id, 'sm')}<span>${st.person(o.id).name}<small>${o.why}</small></span></label>`)}</fieldset>
-        ${kind === 'staff' ? html`<label class="n-field"><span class="n-field__label">带进哪次找人</span><select class="n-select" id="pu-proj">${projs.map((x) => html`<option value="${x.id}">${x.name}</option>`)}<option value="">还没定，先讨论</option></select></label><p class="nt-caption" id="pu-err" role="alert" hidden style="color:var(--no)"></p>` : ''}
+        ${kind === 'staff' ? html`<label class="n-field"><span class="n-field__label">带进哪次找人</span><select class="n-select" id="pu-proj">${projs.map((x) => html`<option value="${x.id}">${x.name}</option>`)}<option value="">还没定，先讨论</option></select></label><p class="n-field__err" id="pu-err" role="alert" hidden></p>` : ''}
         <label class="n-field"><span class="n-field__label">说明<small>可以不写</small></span><textarea class="n-textarea" rows="2" id="pu-note" placeholder="${PUSH_HINT[kind]}"></textarea></label>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '交给负责人', value: 'ok', cls: 'n-btn--ink',
         // 任用讨论：负责人要能打开所选项目的找人，否则换负责人或换项目
@@ -389,14 +524,14 @@
     if (r?.value !== 'ok') return null;
     const x = st.addPush({ person: pid, kind, owner: r.data.owner, note: r.data.note, ...(r.data.project ? { project: r.data.project } : {}), ...(basis ? { basis: NT.clone(basis) } : {}) });
     rerender && rerender();
-    NT.toast(`已交给${st.person(x.owner).name}，进展会出现在「我推动的事项」`, { undo: () => { st.removePush(x.id); rerender && rerender(); } });
+    NT.toast(`已交给${st.person(x.owner).name}，${p.name}已在你的关注里，进展会出现在「我的关注」`, { undo: () => { st.removePush(x.id); rerender && rerender(); } });
     return x;
   };
   // 负责人处理推动：记一笔进展，或确认结果写进档案
   UI.pushLogDialog = async (id, rerender) => {
     const x = st.get().pushes.find((y) => y.id === id), p = st.person(x.person);
     const r = await NT.dialog({ title: `记一笔进展：${st.PUSH_KINDS[x.kind].verb}${p.name}`,
-      body: html`${UI.pushBasis(st.pushBasis(x))}<label class="n-field"><span class="n-field__label">进展</span><input class="n-input" id="pl-t" placeholder="比如：已约 10-28 沟通"></label><p class="nt-caption">CEO 在「我推动的事项」里能看到最近一笔进展。</p>`,
+      body: html`${UI.pushBasis(st.pushBasis(x))}<label class="n-field"><span class="n-field__label">进展</span><input class="n-input" id="pl-t" placeholder="比如：已约 10-28 沟通"></label><p class="nt-caption">CEO 在「我的关注」里能看到这笔进展。</p>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '保存', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#pl-t').value.trim(), read: (d) => d.querySelector('#pl-t').value.trim() }] });
     if (r?.value !== 'ok') return;
     st.logPush(id, r.data); rerender && rerender(); NT.toast('进展已更新，CEO 能看到');
@@ -457,9 +592,166 @@
     if (r?.value !== 'ok') return null;
     const a = st.addJudgeAsk(batchId, r.data);
     rerender && rerender();
-    NT.toast(`已请${st.person(a.owner).name}复核，进展会出现在「我推动的事项」`, { undo: () => { st.removeJudgeAsk(a.id); rerender && rerender(); } });
+    NT.toast(`已请${st.person(a.owner).name}复核，进展在「需要我看」的「在推进」里`, { undo: () => { st.removeJudgeAsk(a.id); rerender && rerender(); } });
     return a;
   };
+
+  // ---------- 关注（v1.5 3.26.2）：个人的观察名单 ----------
+  UI.followBtn = (pid, o = {}) => {
+    if (!st.canFollow(pid)) return '';
+    const on = st.isFollowing(pid);
+    return html`<button class="n-btn n-btn--sm ${o.ghost ? 'n-btn--ghost' : ''} n-follow" type="button" data-follow="${pid}" aria-pressed="${on}">${icon(on ? 'star-on' : 'star')}${on ? '已关注' : '加关注'}</button>`;
+  };
+  UI.toggleFollow = (pid, rerender) => {
+    const name = st.person(pid).name;
+    if (st.isFollowing(pid)) {
+      const undo = st.unfollow(pid); rerender && rerender();
+      NT.toast(`已取消关注${name}`, { undo: () => { undo(); rerender && rerender(); } });
+    } else {
+      st.follow(pid); rerender && rerender();
+      NT.toast(`已关注${name}，之后的新进展会出现在「我的关注」`, { undo: () => { st.unfollow(pid); rerender && rerender(); } });
+    }
+  };
+
+  // ---------- 推荐方向（v1.5 3.31）：目标角色 + 理由 + 至少 2 件不同的已确认事件，HRBP 核实 ----------
+  UI.recoDialog = async (pid, rerender) => {
+    const p = st.person(pid), evs = st.recoEvidence(pid), self = st.role() === 'hrbp';
+    const r = await NT.dialog({ title: `推荐方向：${p.name}`,
+      body: html`<p style="margin:0 0 var(--s-3)">推荐${p.name}往一个目标角色发展，写理由并勾选至少 2 件不同的事作为依据。${self ? '你是 HRBP，提交后直接记入档案的发展方向。' : 'HRBP 核实后，会进入档案的发展方向。'}推荐不产生分数，也不改变找人时候选人的排序。</p>
+        <label class="n-field"><span class="n-field__label">适合做</span><select class="n-select" id="rc-dir">${st.templates().map((t) => html`<option value="${t.id}">${t.name}</option>`)}</select></label>
+        <label class="n-field"><span class="n-field__label">理由</span><textarea class="n-textarea" rows="2" id="rc-why" placeholder="比如：联调时能独立定位问题，也会主动接没人认领的事"></textarea></label>
+        <fieldset class="n-field n-recoevs"><legend class="n-field__label">依据（至少 2 件不同的事）</legend>${evs.length ? evs.slice(0, 8).map((e) => html`<label class="n-check"><input type="checkbox" value="${e.id}"><span>${e.title}<small>${NT.md(e.date)}${e.project ? ` · ${st.project(e.project)?.name}` : ''}</small></span></label>`) : html`<p class="nt-muted">还没有已确认的关键事件，先记一件事再推荐。</p>`}</fieldset>
+        <p class="n-field__err" id="rc-err" role="alert" hidden></p>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: self ? '记入档案' : '提交给 HRBP', value: 'ok', cls: 'n-btn--ink',
+        validate: (d) => {
+          const why = d.querySelector('#rc-why').value.trim(), n = d.querySelectorAll('.n-recoevs input:checked').length, err = d.querySelector('#rc-err');
+          const msg = !why ? '写一句理由。' : n < 2 ? '至少勾选 2 件不同的事。' : '';
+          err.hidden = !msg; err.textContent = msg; return !msg;
+        },
+        read: (d) => ({ dir: d.querySelector('#rc-dir').value, why: d.querySelector('#rc-why').value.trim(), evs: [...d.querySelectorAll('.n-recoevs input:checked')].map((x) => x.value) }) }] });
+    if (r?.value !== 'ok') return null;
+    const c = st.addReco(pid, r.data.dir, r.data.why, r.data.evs);
+    if (!c) { NT.toast('这条推荐的依据不完整，没有提交'); return null; }
+    rerender && rerender();
+    NT.toast(c.state === 'verified' ? `已记入${p.name}档案的发展方向` : '已提交，HRBP 核实后会进入档案的发展方向', { undo: () => { st.removeReco(c.id); rerender && rerender(); } });
+    return c;
+  };
+
+  // ---------- 速览（v1.5 3.27）：点人或项目先看 30 秒的关键信息，想深入再进详情 ----------
+  // 桌面是右侧栏，侧栏开着时点另一个人直接切换；手机是屏内的底部弹层。内容与详情页同一套权限
+  const mob = () => !!document.getElementById('m-screen');
+  const appHref = (h) => (mob() && !/^(person|index|people)\.html/.test(h) ? `../app/${h}` : h);
+  const capLines = (pid) => {
+    if (!st.can('scores', pid)) return null;
+    const by = {};
+    st.visibleEvents(pid).events.filter((e) => e.kind === 'obs').forEach((e) => e.scores.filter((x) => x.p === pid && ['confirmed', 'calibrated'].includes(x.st) && x.v).forEach((x) => {
+      const d = (by[x.d] = by[x.d] || { evs: new Set(), top: 0 }); d.evs.add(e.id); d.top = Math.max(d.top, x.v);
+    }));
+    const dims = SEED_DIMS().filter((d) => by[d.id]);
+    return { dims: dims.map((d) => ({ name: d.name, n: by[d.id].evs.size, anchor: NT.SEED.ANCHORS[d.axis === 'prof' ? 'prof' : 'pot'][by[d.id].top - 1] })), rest: SEED_DIMS().length - dims.length };
+  };
+  const SEED_DIMS = () => NT.SEED.DIMS;
+  UI.peekPerson = (pid) => {
+    const p = st.person(pid), role = st.role(), sc = st.scope(pid);
+    if (!p || !sc) return html`<div class="nt-empty">你没有查看这个人的权限。</div>`;
+    const w = st.watch().find((x) => x.person === pid), rule = w && st.WATCH_RULES[w.rule], cat = w && Object.fromEntries(st.WATCH_CATS)[w.cat];
+    const facts = st.visibleEvents(pid).events.filter((e) => e.kind === 'obs' && e.date && !e.scores.some((x) => x.p === pid && x.st === 'ai')).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+    const cap = capLines(pid), recos = st.recosFor(pid), doing = st.doingFor(pid);
+    const src = w && (w.verifiedBy ? `${w.by === 'ai' ? 'AI 从材料里发现' : `${st.person(w.by).name}${w.dir ? '推荐' : '提名'}`} · ${st.person(w.verifiedBy).name}核实` : '按写明的规则得出');
+    const href = `person.html?id=${pid}`;
+    return html`<header class="n-peek__head">${UI.avatar(pid, 'lg')}<div><h2 id="peek-h">${p.name}</h2><p>${st.orgShort(p.org)} · ${p.title} · ${st.tenure(p)}</p></div></header>
+      ${st.canFollow(pid) ? html`<div class="n-peek__acts">${UI.followBtn(pid)}</div>` : ''}
+      ${w ? html`<section class="n-peek__sec"><h3>为什么值得关注</h3><div class="n-peek__why"><span class="n-watch__cat">${cat}</span>${w.why}${w.srcs ? UI.cites(w.srcs) : (w.evs || []).slice(0, 3).map((id, i) => UI.evCite(id, i + 1))}</div>
+        <p class="n-peek__src">${src}${w.also.length ? ` · 也命中 ${w.also.map((a) => a.rule).join('、')}` : ''}</p><p class="n-peek__rule">规则 ${w.rule}：${rule.text} · ${st.WATCH_VER}</p></section>` : ''}
+      <section class="n-peek__sec"><h3>关键事实${facts.length ? html`<a class="n-link" href="${href}#timeline">查看全部</a>` : ''}</h3>
+        ${facts.length ? html`<ol class="n-peek__facts">${facts.map((e) => html`<li><span class="n-peek__date">${NT.md(e.date)}</span><span>${e.title}${UI.evCite(e.id, '原文')}<small>${[e.project && st.project(e.project)?.name, `${st.person(e.recorder)?.name}记录`].filter(Boolean).join(' · ')}</small></span></li>`)}</ol>` : html`<p class="nt-muted">还没有你能看到的关键事件。</p>`}</section>
+      ${cap ? html`<section class="n-peek__sec"><h3>能力线索</h3>${cap.dims.length ? html`<ul class="n-peek__caps">${cap.dims.map((d) => html`<li><b>${d.name}</b><span>${d.n} 件事</span><small>${d.anchor}</small></li>`)}</ul>` : ''}
+        <p class="nt-muted">${cap.dims.length ? (cap.rest ? `其余 ${cap.rest} 个维度资料不足，不代表能力低。` : '') : '还没有已确认的维度分，资料不足不代表能力低。'}</p></section>` : ''}
+      ${recos.length ? html`<section class="n-peek__sec"><h3>推荐方向</h3>${recos.map((c) => html`<p class="n-peek__reco"><b>${st.fitText(c.dir)}</b>${c.why}<small>${st.person(c.by).name}推荐 · ${st.person(c.verifiedBy).name}核实 · ${NT.md(c.verifiedAt)}</small></p>`)}</section>` : ''}
+      ${doing.length ? html`<section class="n-peek__sec"><h3>已经在做的事</h3><ul class="n-peek__doing">${doing.map((t) => html`<li>${t}</li>`)}</ul></section>` : ''}
+      <footer class="n-peek__foot">${!mob() && st.canPush() ? html`<span class="n-menuwrap"><button class="n-btn n-btn--sm n-btn--menu" type="button" data-pk-push="${pid}">推动${icon('chev')}</button></span>` : ''}
+        ${!mob() && st.can('record', pid) ? html`<a class="n-btn n-btn--sm" href="record.html?person=${pid}">${icon('pen')}记一件事</a>` : ''}
+        ${!mob() && st.canRecommend(pid) ? html`<button class="n-btn n-btn--sm" type="button" data-pk-reco="${pid}">${icon('target')}推荐方向</button>` : ''}
+        <a class="n-btn n-btn--sm n-btn--ink" href="${href}">打开档案</a></footer>`;
+  };
+  UI.peekProject = (id) => {
+    const S = st.get(), b = st.batch(id), pj = !b && st.project(id);
+    if (!b && !pj) return html`<div class="nt-empty">找不到这个项目。</div>`;
+    const pids = b ? S.projects.filter((x) => x.batch === b.id).map((x) => x.id) : [pj.id];
+    const inProj = (eid) => pids.includes(st.event(eid)?.project);
+    const people = st.watch().filter((w) => (w.evs || []).some(inProj));
+    const evs = S.events.filter((e) => e.kind === 'obs' && e.date && pids.includes(e.project) && e.people.some((x) => st.scope(x) && st.visibleEvents(x).events.some((y) => y.id === e.id))).sort((a, c) => c.date.localeCompare(a.date)).slice(0, 3);
+    const needs = !b && st.canStaff(pj.id) ? S.needs.filter((n) => n.project === pj.id) : [];
+    const plans = !b && st.canStaff(pj.id) ? S.plans.filter((x) => x.kind === 'staffing' && x.project === pj.id) : [];
+    const href = appHref(b ? 'landing.html' : `project.html?id=${pj.id}`);
+    return html`<header class="n-peek__head"><span class="n-peek__icon">${icon(b ? 'book' : 'folder')}</span><div><h2 id="peek-h">${b ? b.name : pj.name}</h2><p>${b ? `Landing 批次 · ${b.newcomers.length} 位新人 · ${pids.length} 个议题` : `${pj.type} · ${pj.status} · ${NT.md(pj.from)} – ${NT.md(pj.to)} · owner ${pj.owner ? st.person(pj.owner).name : '待定'}`}</p></div></header>
+      ${pj ? html`<section class="n-peek__sec"><h3>目标</h3><p>${pj.goal}</p></section>` : ''}
+      ${people.length ? html`<section class="n-peek__sec"><h3>值得关注的人</h3><ul class="n-peek__people">${people.map((w) => html`<li><a href="person.html?id=${w.person}" data-peek="p:${w.person}">${UI.avatar(w.person, 'sm')}<b>${st.person(w.person).name}</b></a><span>${w.why}</span></li>`)}</ul></section>` : ''}
+      ${needs.length || plans.length ? html`<section class="n-peek__sec"><h3>找人</h3><p>${plans.length ? plans.map((x) => `用人方案 v${x.version} · ${x.status === 'draft' ? '待确认' : '已确认'}`).join('；') : '候选人核对中，还没有用人方案'}</p></section>` : ''}
+      <section class="n-peek__sec"><h3>最近的关键事件</h3>${evs.length ? html`<ol class="n-peek__facts">${evs.map((e) => html`<li><span class="n-peek__date">${NT.md(e.date)}</span><span>${e.title}<small>${e.people.map((x) => st.person(x).name).join('、')}</small></span></li>`)}</ol>` : html`<p class="nt-muted">还没有你能看到的关键事件。</p>`}</section>
+      <footer class="n-peek__foot"><a class="n-btn n-btn--sm n-btn--ink" href="${href}">打开${b ? '批次' : '项目'}</a></footer>`;
+  };
+  UI.peek = (() => {
+    let el = null, scrim = null, cur = null, from = null;
+    const body = () => (cur.t === 'p' ? UI.peekPerson(cur.id) : UI.peekProject(cur.id));
+    // 速览里的操作完成后：速览还开着就重绘，已经关了也照样刷新页面（撤销可能在关闭之后才点）
+    const after = () => { if (el) draw(); UI.peek.changed(); };
+    const draw = () => {
+      if (!el) return;
+      NT.mount(el.querySelector('.n-peek__body'), body()); UI.mountIPs(el);
+      // 推动菜单在渲染时绑定（NT.menu 自己处理开合）
+      const pu = el.querySelector('[data-pk-push]');
+      if (pu) { const w = st.watch().find((x) => x.person === pu.dataset.pkPush); UI.pushMenu(pu, pu.dataset.pkPush, after, w ? { rule: w.rule, why: w.why, evs: w.evs, srcs: w.srcs, clue: w.clue } : undefined); }
+    };
+    const close = () => {
+      if (!el) return;
+      const node = el, sc = scrim; el = null; scrim = null; cur = null;
+      node.classList.remove('is-open');
+      setTimeout(() => { node.remove(); sc?.remove(); }, NT.reduced ? 0 : 220);
+      // 触发元素可能已随页面重绘被替换：按同一个 data-peek 找回来再还焦点
+      const back = from?.isConnected ? from : from?.dataset?.peek && document.querySelector(`[data-peek="${from.dataset.peek}"]`);
+      back?.focus?.(); from = null;
+    };
+    const open = (key, trigger) => {
+      const [t, id] = key.split(':');
+      if (el && cur && cur.t === t && cur.id === id) { close(); return; }
+      cur = { t, id }; if (trigger) from = trigger;
+      if (!el) {
+        el = document.createElement('aside');
+        el.className = `n-peek ${mob() ? 'is-sheet' : ''}`;
+        el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', mob() ? 'true' : 'false'); el.setAttribute('aria-labelledby', 'peek-h'); el.tabIndex = -1;
+        el.innerHTML = `${mob() ? '<div class="n-sheet__grip"></div>' : ''}<button class="n-btn n-btn--ghost n-btn--icon n-peek__x" type="button" aria-label="关闭速览"><svg><use href="#i-x"/></svg></button><div class="n-peek__body"></div>`;
+        const host = document.getElementById('m-screen') || document.body;
+        if (mob()) { scrim = document.createElement('div'); scrim.className = 'm-scrim'; scrim.addEventListener('click', close); host.append(scrim); }
+        host.append(el);
+        el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('.n-peek__x')) { close(); return; }
+          const f = e.target.closest('[data-follow]');
+          if (f) { UI.toggleFollow(f.dataset.follow, after); return; }
+          const rc = e.target.closest('[data-pk-reco]');
+          if (rc) { UI.recoDialog(rc.dataset.pkReco, after); return; }
+        });
+        requestAnimationFrame(() => el?.classList.add('is-open'));
+      }
+      draw();
+      el.focus();
+    };
+    // 页面里带 data-peek 的人名、头像、项目名：普通点击拉起速览，⌘ / Ctrl 点击照常打开详情页
+    document.addEventListener('click', (e) => {
+      // 工作台（带 data-peek-scope 的区域）里的人名链接也拉起速览
+      const t = e.target.closest('[data-peek]') || e.target.closest('[data-peek-scope] a.nt-plink[href^="person.html?id="]');
+      if (t) {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault(); open(t.dataset.peek || `p:${new URLSearchParams(t.getAttribute('href').split('?')[1]).get('id')}`, t); return;
+      }
+      // 用事件派发时的原始路径判断里外：速览里的按钮点完会被重绘替换，不能再用 target 判断
+      const inside = e.composedPath().some((n) => n.nodeType === 1 && n.matches('.n-peek, .n-menu, dialog, .n-toast, .n-cite__pop'));
+      if (el && !mob() && !inside) close();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el && !document.querySelector('dialog[open]')) close(); });
+    return { open, close, changed: () => {}, isOpen: () => !!el };
+  })();
 
   // 重置演示数据：只清本浏览器里的演示状态，评审评论在服务器上不受影响
   NT.resetDemo = async () => {

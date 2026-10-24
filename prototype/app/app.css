@@ -51,7 +51,6 @@ body.nt-desk { min-height: 100vh; }
 .nt-sec > h2, .nt-h2 { display: flex; align-items: center; gap: var(--s-2); margin: 0 0 var(--s-3); font-size: var(--t-md); font-weight: 650; }
 .nt-h2 small, .nt-sec > h2 small { font-size: var(--t-xs); font-weight: 400; color: var(--ink-3); }
 .nt-muted { color: var(--ink-3); font-size: var(--t-xs); line-height: 1.6; }
-.nt-caption { margin: var(--s-2) 0 0; font-size: var(--t-xs); color: var(--ink-3); line-height: 1.6; }
 .nt-plink { color: inherit; text-decoration: none; }
 .nt-plink:hover { text-decoration: underline; text-underline-offset: 3px; }
 a.n-badge { text-decoration: none; }
@@ -85,9 +84,10 @@ a.n-btn { text-decoration: none; }
 
 @media (max-width: 1080px) {
   .nt-split, .nt-split--wide, .nt-ceo { grid-template-columns: 1fr; }
-  /* 单列时按手机顺序：我推动的事项（含待你确认）→ 值得关注 → 判断提醒 */
+  /* 单列时按手机顺序：需要我看 → 我的关注 → 值得关注 → 判断提醒（v1.5 3.26.1） */
   .nt-ceo > .nt-grid { display: contents; }
-  .nt-ceo .n-mine { order: -1; }
+  .nt-ceo .n-need { order: -2; }
+  .nt-ceo .n-follows { order: -1; }
   .nt-ceo .n-jtip { order: 1; }
   .nt-sticky { position: static; }
 }
@@ -142,3 +142,17 @@ a.n-btn { text-decoration: none; }
 .n-queue li { grid-template-columns: 1fr; }
 .nt-qdetail { margin-top: var(--s-3); padding: var(--s-4); border-radius: var(--r-card); background: var(--sheet-sunk); font-size: var(--t-sm); }
 .nt-qdetail .n-calib__side { background: var(--sheet); }
+/* 项目与批次（CEO）：Landing 批次放在项目列表上方 */
+.nt-batches { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--s-3); margin-bottom: var(--s-4); }
+.n-batchlink { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); color: var(--ink); text-decoration: none; }
+.n-batchlink > svg { width: 18px; height: 18px; color: var(--ink-3); flex: none; }
+.n-batchlink > svg:last-child { margin-left: auto; width: 14px; height: 14px; }
+.n-batchlink small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
+.n-batchlink:hover { box-shadow: var(--e-2); }
+/* 材料与任务：负责人、导师的工作台里默认折叠（v1.5 3.29、3.30） */
+.nt-fold > summary { display: flex; align-items: center; gap: var(--s-2); list-style: none; cursor: pointer; }
+.nt-fold > summary::-webkit-details-marker { display: none; }
+.nt-fold > summary .n-section-title { margin: 0; }
+.nt-fold > summary > svg { width: 14px; height: 14px; margin-left: auto; color: var(--ink-3); rotate: 90deg; transition: rotate var(--d-quick) var(--ease-out); }
+.nt-fold[open] > summary > svg { rotate: -90deg; }
+.nt-fold[open] > summary { margin-bottom: var(--s-3); }

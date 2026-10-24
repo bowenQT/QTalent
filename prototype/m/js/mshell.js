@@ -239,5 +239,14 @@
     btn.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') end(); });
   };
 
+  // 人的行：点一下拉起速览（底部弹层），速览里再打开档案（v1.5 3.27）
+  M.prow = (pid, title, sub, tail) => html`<li><a href="person.html?id=${pid}" data-peek="p:${pid}">${UI.avatar(pid, 'sm')}<span>${title}${sub ? html`<small>${sub}</small>` : ''}</span>${tail ?? icon('chev')}</a></li>`;
+  // 一行待办：「CEO 请你」和「待核实线索」旁边可以先看这个人的速览，行本身仍去办理（v1.5 3.27.1）
+  M.todoRow = (t) => {
+    const lead = html`<span class="n-badge ${t.cls || ''}" style="flex:none">${t.icon ? icon(t.icon) : ''}${t.badge}</span>`;
+    const pid = t.kind === 'push' ? st.pushOf(t.push)?.person : t.kind === 'clue' ? st.get().watchClues.find((c) => c.id === t.clue)?.person : null;
+    if (!pid) return M.row(M.todoHref(t), lead, t.title, t.sub);
+    return html`<li class="has-act"><a href="${M.todoHref(t)}">${lead}<span>${t.title}${t.sub ? html`<small>${t.sub}</small>` : ''}</span></a><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-peek="p:${pid}" aria-label="看${st.person(pid).name}的速览">速览</button></li>`;
+  };
   M.row = (href, lead, title, sub, tail) => html`<li><a href="${href}">${lead}<span>${title}${sub ? html`<small>${sub}</small>` : ''}</span>${tail ?? icon('chev')}</a></li>`;
 })();

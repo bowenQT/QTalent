@@ -1,4 +1,4 @@
-/* 手机快速记录：一句话或按住说话 → AI 整理成背景、行为、结果，只给涉及的维度打建议分 → 点圆点确认或改分 → 保存（5 秒撤销）。
+/* 手机快速记录：一句话或按住说话 → AI 整理成情境、行为、影响（SBI），只给涉及的维度打建议分 → 点圆点确认或改分 → 保存（5 秒撤销）。
    员工本人在这里补充经历、写意愿或提出纠错，作为本人自述保存，不打分。 */
 (function () {
   'use strict';
@@ -10,7 +10,7 @@
     hrbp: '陆川这周发现转化漏斗的口径各团队不一致。他主动拉上三个团队对齐，还整理成文档发了出来。下周起三个团队都按这份口径出数。',
     ceo: '海外搜索的延迟一直降不下来。周屿在周会上把问题拆成三段，先做最小验证再决定要不要换方案。两周后延迟降了四成。',
   };
-  let step = 'write';
+  let step = 'write', att = null;
 
   NT.mshell({
     tab: 'work', title: st.role() === 'self' ? '补充到我的档案' : '一句话记录', back: true, noTabbar: true,
@@ -30,6 +30,8 @@
         <div class="m-chips" role="group" aria-label="记录给谁"><span class="nt-muted">给</span><button type="button" class="n-chip" aria-pressed="${!pre}" data-p="">从原话识别</button>${recent.map((id) => html`<button type="button" class="n-chip" aria-pressed="${pre === id}" data-p="${id}">${st.person(id).name}</button>`)}</div>
         <textarea class="n-eventin__field m-qin__field" id="q-text" rows="6" placeholder="写原话就行，不用分段。比如：唐果今天方案被问住了，第二天主动约了客服再访谈一次。">${NT.param('q') || ''}</textarea>
         <p class="nt-muted" id="q-hint">谁、在什么情境下、做了什么、结果如何。只写「参与了」的地方会标为资料不足，不出分。</p>
+        <div class="m-qatt">${UI.attachButton('添加附件')}<span class="nt-muted">PDF、PPT、文档、表格、录音或视频，可多选</span></div>
+        <ul id="q-atts" hidden></ul>
       </div>
       <div class="m-actions">
         <button class="m-hold" type="button" id="q-hold" aria-label="按住说话，松开结束">${icon('mic')}</button>
@@ -37,6 +39,9 @@
         <button class="n-btn n-btn--light m-big" type="button" id="q-shape">${icon('spark')}整理成关键事件</button>
       </div>`);
     let who = pre || '';
+    // 附件跟着这次记录走：整理后挪到原话下面，「改原话」回来时保留已解析的
+    att = UI.attach({ key: 'quick' }).list($('#q-atts')).pick($('[data-att-pick]', main)).fallback(() => $('#ev-back'));
+    if (NT.param('q')) att.restore(); else att.clear();
     $('.m-chips').addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (!b) return; who = b.dataset.p; $$('.m-chips [data-p]').forEach((x) => x.setAttribute('aria-pressed', x === b)); });
     const field = $('#q-text');
     M.hold($('#q-hold'), field, SCRIPT[st.role()] || SCRIPT.mentor, {
@@ -68,11 +73,12 @@
       <article class="m-card n-event" id="ev">
         <div class="n-event__head">${UI.avatar(pid, 'sm')}<b class="n-event__who">${st.person(pid).name}</b>${UI.demo()}<span class="n-event__ip nt-ip" data-ip="thinking" data-size="32" id="ev-ip"></span></div>
         ${proj ? html`<span class="n-badge" style="margin-top:var(--s-2)">${icon('folder')}${proj.type === 'Landing 议题' ? '议题' : '项目'}：${proj.name}</span>` : ''}
-        <div style="margin:var(--s-3) 0">${UI.trail('整理这条记录 · 4 步', ['识别人员与项目', '拆出背景、行为、结果', '从标签库里打标签', '对照锚点给涉及的维度打建议分'])}</div>
+        <div style="margin:var(--s-3) 0">${UI.trail('整理这条记录 · 4 步', ['识别人员与项目', '拆出情境、行为、影响', '从标签库里打标签', '对照锚点给涉及的维度打建议分'])}</div>
         <h3 class="n-event__title"><span class="n-edit is-light" data-k="title" contenteditable="plaintext-only" spellcheck="false"></span></h3>
-        <dl class="n-event__sbar">${['bg', 'act', 'res'].map((k) => html`<dt>${{ bg: '背景', act: '行为', res: '结果' }[k]}</dt><dd><span class="n-edit is-light" data-k="${k}" contenteditable="plaintext-only" spellcheck="false"></span></dd>`)}</dl>
+        <dl class="n-event__sbar">${['bg', 'act', 'res'].map((k) => html`<dt>${{ bg: '情境', act: '行为', res: '影响' }[k]}</dt><dd><span class="n-edit is-light" data-k="${k}" contenteditable="plaintext-only" spellcheck="false"></span></dd>`)}</dl>
         <div class="n-tags" id="ev-tags" hidden><span class="n-tags__label">标签</span><span class="n-tags__list" id="tag-list"></span></div>
         <details class="n-event__raw"><summary>原话</summary><p>${text}</p></details>
+        <ul id="q-atts" hidden></ul>
         <div id="scores" style="margin-top:var(--s-3)"></div>
         <div class="n-event__sign" id="ev-sign" hidden></div>
       </article>
@@ -82,8 +88,9 @@
         <button class="n-btn n-btn--ghost" type="button" id="ev-back">改原话</button>
       </div>`);
     UI.mountIPs(main);
+    att.list($('#q-atts'));
     const trailRun = NT.runTrail($('.n-trail', main), 480);
-    const ph = { bg: '原话没写背景，可以补上', res: '原话没写结果，可以补上' };
+    const ph = { bg: '原话没写情境，可以补上', res: '原话没写影响，可以补上' };
     for (const el of $$('.n-edit', main)) {
       const t = s[el.dataset.k];
       if (!t) { el.textContent = ph[el.dataset.k] || ''; el.classList.remove('is-light'); el.style.color = 'var(--ink-3)'; el.dataset.empty = 1; continue; }
@@ -104,15 +111,18 @@
     NT.ipState($('#ev-ip'), 'confirm');
     step = 'shaped';
     $('#ev-actions').hidden = false; hintText();
-    $('#ev-back').onclick = () => { location.href = NT.link('quick.html', { q: text, ...(who ? { person: who } : {}) }); };
+    $('#ev-back').onclick = () => { att.keep(); location.href = NT.link('quick.html', { q: text, ...(who ? { person: who } : {}) }); };
     $('#ev-save').onclick = () => save(main, draft, rows);
   }
 
   function save(main, draft, rows) {
     const me = st.me();
+    const wait = att.pending();
+    if (wait) { $('#score-hint').innerHTML = `<span style="color:var(--conflict)">还有 ${wait} 个附件在上传或解析，</span>完成后再保存`; return; }
     const val = (k) => { const el = $(`.n-edit[data-k="${k}"]`); return el.dataset.empty ? '' : el.textContent.trim(); };
-    const { e, big } = NT.parse.commit({ ...draft, title: val('title'), bg: val('bg'), act: val('act'), res: val('res'), tags: $$('#tag-list .n-tag:not(.is-candidate)').map((c) => c.textContent), cand: $$('#tag-list .is-candidate').map((c) => c.firstChild.textContent) });
+    const { e, big } = NT.parse.commit({ ...draft, title: val('title'), bg: val('bg'), act: val('act'), res: val('res'), tags: $$('#tag-list .n-tag:not(.is-candidate)').map((c) => c.textContent), cand: $$('#tag-list .is-candidate').map((c) => c.firstChild.textContent), atts: att.srcs() });
     step = 'saved';
+    att.lock();
     rows.forEach((r) => r.settle());
     const ev = $('#ev');
     $$('.n-edit', ev).forEach((el) => { el.classList.remove('is-light'); el.removeAttribute('contenteditable'); });
@@ -124,7 +134,7 @@
     sign.hidden = false;
     mount($('#ev-actions'), html`<a class="n-btn n-btn--ink m-big" href="person.html?id=${draft.pid}#ev-${e.id}">去${st.person(draft.pid).name}的档案看看</a><a class="n-btn n-btn--ghost" href="quick.html">再记一条</a>`);
     NT.toast(`已保存到${st.person(draft.pid).name}的档案${big ? `，${big} 项进了校准队列` : ''}`, {
-      undo: () => { st.removeEvent(e.id); location.href = NT.link('quick.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销，这条记录没有保存',
+      undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('quick.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销，这条记录没有保存',
     });
   }
 

@@ -59,8 +59,8 @@
       if (r?.value !== 'ok') return;
       a.why = r.data;
     }
-    const prev = { state: a.state, did: a.did };
-    a.state = s; if (s === 'done' && !a.did) a.did = NT.TODAY;
+    const prev = { state: a.state, did: a.did, stateAt: a.stateAt, stateTs: a.stateTs };
+    a.state = s; a.stateAt = NT.TODAY; a.stateTs = Date.now(); if (s === 'done' && !a.did) a.did = NT.TODAY; // stateAt：关注动态里的行动状态变化（v1.5 3.26.2）
     st.save(); render($('#main'));
     NT.toast(`已改为「${LABEL[s]}」`, { undo: () => { Object.assign(a, prev); st.save(); render($('#main')); } });
   }
@@ -87,7 +87,7 @@
     const text = $('#retro-text').value.trim();
     if (!text) { $('#retro-text').focus(); return; }
     const verdict = NT.$('#verdict [aria-pressed="true"]').textContent;
-    a.retro = { verdict, text, by: st.me().id, at: NT.TODAY }; a.state = 'reviewed';
+    a.retro = { verdict, text, by: st.me().id, at: NT.TODAY }; a.state = 'reviewed'; a.stateAt = NT.TODAY; a.stateTs = Date.now();
     if (a.person) st.addEvent({ id: NT.uid('e'), kind: 'obs', date: NT.TODAY, recorder: st.me().id, people: [a.person], title: `任用后复盘：${a.title}（${verdict}）`, bg: '方案确认后按约定时间复盘。', act: text, res: `结论：${verdict}`, srcs: [{ type: 'note', label: '任用后复盘', loc: NT.md(NT.TODAY), quote: text }], tags: [], scores: [] });
     st.save(); render(main);
     NT.toast(`复盘已记录：${verdict}`);

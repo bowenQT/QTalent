@@ -530,6 +530,21 @@
     { id: 'wc-xiayao', person: 'p-xiayao', rule: 'N2', by: 'ai', at: '2026-10-22', state: 'pending',
       why: '三份周报里都提到她在联调延期时主动补位',
       srcs: [{ type: 'doc', label: '召回项目周报 W2', loc: '第 2 段', quote: '联调延期两天，夏遥主动加了两个晚上补上。' }], evs: ['e-xy-3'] },
+    { id: 'wc-chengnuo', person: 'p-chengnuo', rule: 'T2', by: 'p-hance', at: '2026-10-16', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-10-17',
+      why: '带新同事完成第一次上线，灰度发布失败后又补上回滚开关并复盘', evs: ['e-g-p-chengnuo-2', 'e-g-p-chengnuo-4'] },
+    // 推荐方向（v1.5 3.31）：带目标角色的提名，核实后进档案的发展方向，也作为 T2 进入值得关注
+    { id: 'wc-reco-lin', person: 'p-lin', rule: 'T2', by: 'p-yeqing', dir: 'tpl-fde', at: '2026-10-21', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-10-22',
+      why: '联调时能独立定位跨域问题，也会主动接没人认领的联调文档，适合往 FDE 方向练', evs: ['e-lin-1', 'e-lin-2'] },
+    { id: 'wc-reco-tg', person: 'p-tangguo', rule: 'T2', by: 'p-yeqing', dir: 'tpl-pa', at: '2026-10-23', state: 'pending',
+      why: '先访谈客服再定知识库结构，方案被否两天就拿出新版本，适合往产品架构师方向练', evs: ['e-tg-2', 'e-tg-3'] },
+  ];
+
+  // ---------- 我的关注（v1.5 3.26.2）：个人的观察名单，只对本人可见；via 记推动 id，表示发起推动时自动加入 ----------
+  const FOLLOWS = [
+    { by: 'p-cheng', person: 'p-xuqh', at: '2026-10-21', via: 'pu-xuqh' },
+    { by: 'p-cheng', person: 'p-chenyh', at: '2026-10-12', via: 'pu-chenyh' },
+    { by: 'p-cheng', person: 'p-xieling', at: '2026-10-05' },
+    { by: 'p-hance', person: 'p-gunan', at: '2026-09-01' },
   ];
 
   // ---------- CEO 推动（v1.4 3.21）：结果由负责人确认后作为管理观察进档案 ----------
@@ -718,7 +733,7 @@
   };
 
   NT.SEED = {
-    version: 6, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
-    NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES,
+    version: 7, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
+    NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES, FOLLOWS,
   };
 })();

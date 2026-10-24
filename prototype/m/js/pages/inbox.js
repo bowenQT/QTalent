@@ -22,7 +22,7 @@
         <p class="nt-muted" style="margin:-4px 0 var(--s-3)">录音和文档里有几处 AI 拿不准是谁、是哪个项目。选一下就生效。</p>
         ${verify.length ? verify.map(card) : html`<div class="m-card">${UI.state({ ip: 'done', size: 40, title: '都核对完了', text: '新的录音或文档里有拿不准的地方时，会出现在这里。' })}</div>`}` : ''}
 
-      ${others.length ? html`<h3 class="m-h">${role === 'self' ? '发布给你的' : '其他待办'}</h3><ul class="m-list">${others.map((t) => M.row(M.todoHref(t), html`<span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span>`, t.title, t.sub))}</ul>`
+      ${others.length ? html`<h3 class="m-h">${role === 'self' ? '发布给你的' : '其他待办'}</h3><ul class="m-list">${others.map(M.todoRow)}</ul>`
         : !verify.length ? html`<div class="m-card" style="margin-top:var(--s-3)">${UI.state({ ip: 'rest', size: 40, title: '没有待办', text: role === 'self' ? '发布给你的安排会出现在这里。' : '新的待确认、待校准会出现在这里。' })}</div>` : ''}
 
       ${done.length ? html`<h3 class="m-h">已核对</h3><ul class="m-list">${done.map((i) => html`<li><div class="m-row">${icon('check')}<span>${i.q.replace(/？$/, '')}<small>→ ${i.choice === 'skip' ? '稍后处理' : (st.person(i.choice)?.name || st.project(i.choice)?.name)}</small></span><button class="n-link" type="button" data-undo="${i.id}">撤销</button></div></li>`)}</ul>` : ''}`);

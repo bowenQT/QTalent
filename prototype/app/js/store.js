@@ -17,7 +17,7 @@
       needs: SEED.NEEDS, plans: SEED.PLANS, actions: SEED.ACTIONS, tracks: SEED.TRACKS, signals: SEED.SIGNALS, inbox: SEED.INBOX,
       tasks: SEED.TASKS, batches: SEED.BATCHES, conclusions: SEED.CONCLUSIONS, tagCands: SEED.TAG_CANDIDATES, taglibAdd: [],
       seen: {}, snaps: [], reviews: {}, corrections: [], selfNotes: [], directions: SEED.DIRECTIONS,
-      watchClues: SEED.WATCH_CLUES, pushes: SEED.PUSHES, judgeAsks: [],
+      watchClues: SEED.WATCH_CLUES, pushes: SEED.PUSHES, follows: SEED.FOLLOWS, judgeAsks: [],
       judgeMarks: {}, judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])), pubActions: [{ person: 'p-lin', title: '参加 11 月客户现场轮岗', by: 'p-suwan', at: '2026-10-20', state: 'todo' }],
     });
     S = s;
@@ -25,22 +25,23 @@
     return s;
   }
   // 演示数据版本变了就从新的种子开始；旧的演示操作先备份到 nt-demo-prev，并提示一次，不静默覆盖
-  let upgradedFrom = null;
+  // 备份写不进去（存储已满）时不覆盖旧数据：新版本只在本页内存里运行，旧数据原样留在 nt-demo
+  let upgradedFrom = null, keepOld = false;
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const s = JSON.parse(raw);
         if (s && s.v === SEED.version) return s;
-        localStorage.setItem(`${KEY}-prev`, raw);
         upgradedFrom = s?.v ?? '?';
+        try { localStorage.setItem(`${KEY}-prev`, raw); } catch (e) { keepOld = true; }
       }
     } catch (e) { /* 隐私模式或存储被禁用时退回内存状态 */ }
     return fresh();
   }
   const store = (NT.store = {});
-  store.save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 存不下时只在本页生效 */ } };
-  store.reset = () => { try { localStorage.removeItem(KEY); } catch (e) { /* 忽略 */ } fresh(); store.save(); };
+  store.save = () => { if (keepOld) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 存不下时只在本页生效 */ } };
+  store.reset = () => { keepOld = false; try { localStorage.removeItem(KEY); } catch (e) { /* 忽略 */ } fresh(); store.save(); };
   store.get = () => S;
 
   // ---------- 基础查询 ----------
@@ -357,7 +358,7 @@
     });
     if (role === 'hrbp') {
       S.judgeAsks.filter((a) => a.owner === me && a.state === 'open').forEach((a) => list.push({ kind: 'jask', badge: 'CEO 请你', cls: 'n-badge--seal', title: `复核「${store.judgeBatch(a.batch).name}」`, sub: `「${a.note}」`, due: NT.md(a.at), href: `judge.html?id=${a.batch}#ask` }));
-      store.watchPending().forEach((c) => list.push({ kind: 'clue', clue: c.id, badge: '待核实', cls: 'n-badge--ai', icon: 'spark', title: `${store.person(c.person).name}：${c.why}`, sub: `${c.by === 'ai' ? 'AI 线索' : `${store.person(c.by).name}提名`} · 核实后进入 CEO 的「值得关注」`, due: NT.md(c.at), href: `person.html?id=${c.person}` }));
+      store.watchPending().forEach((c) => list.push({ kind: 'clue', clue: c.id, badge: '待核实', cls: 'n-badge--ai', icon: 'spark', title: `${store.person(c.person).name}：${c.why}`, sub: c.dir ? `${store.person(c.by).name}推荐${store.fitText(c.dir)} · 核实后进入档案的发展方向和 CEO 的「值得关注」` : `${c.by === 'ai' ? 'AI 线索' : `${store.person(c.by).name}提名`} · 核实后进入 CEO 的「值得关注」`, due: NT.md(c.at), href: `person.html?id=${c.person}` }));
     }
     if (role === 'self') {
       S.pubActions.filter((a) => a.person === me).forEach((a) => list.push({ kind: 'pub', badge: '发布给你', title: a.title, sub: `${store.person(a.by).name} · ${NT.md(a.at)}`, due: '待安排', href: 'person.html?id=p-lin#self' }));
@@ -451,7 +452,7 @@
   };
 
   // ---------- 写入 ----------
-  store.addEvent = (e) => { S.events.unshift(e); store.save(); return e; };
+  store.addEvent = (e) => { e.ts ??= Date.now(); S.events.unshift(e); store.save(); return e; }; // ts：同一天内的先后
   store.removeEvent = (id) => { S.events = S.events.filter((e) => e.id !== id); store.save(); };
   store.confirmScore = (evId, idx, v, why) => {
     const e = store.event(evId), s = e.scores[idx];
@@ -498,7 +499,7 @@
         S.memberLog.unshift({ project: plan.project, at: NT.TODAY, text: `${name}${r.id === 'owner' ? '成为 owner' : `加入：${r.name}`}：来自项目用人方案 v${plan.version}`, by: me });
       }
       // 行动带上冻结的判断，到期后可以进入任用后复盘
-      S.actions.unshift({ id: NT.uid('a'), title: `${name}${r.id === 'owner' ? `接任${p.name} owner` : `加入${p.name}（${r.name}）`}`, from: plan.id, person: pid, owner: 'p-suwan', due: '2026-11-01', state: 'todo', observe: '2027-01-31',
+      S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title: `${name}${r.id === 'owner' ? `接任${p.name} owner` : `加入${p.name}（${r.name}）`}`, from: plan.id, person: pid, owner: 'p-suwan', due: '2026-11-01', state: 'todo', observe: '2027-01-31',
         then: [`目标：${r.id === 'owner' ? `负责${p.name}` : `在${p.name}承担${r.name}`}`, `依据：用人方案 v${plan.version}${musts.length ? `，必须项：${musts.join('、')}` : ''}`, `缺口：${plan.slotNote?.[r.id] || '方案里没有写，复盘时补充'}`] });
     });
     // 只回填还能改的草稿；已确认的组织方案是冻结快照，人选由上面生成的行动跟进
@@ -527,7 +528,7 @@
       const title = m.type === '继续观察' ? `${store.person(m.person)?.name || ''}：${m.next}` : `${m.person ? store.person(m.person).name : '人选待定'}${m.type === '负责人安排' ? `接任${m.to}` : `：${m.from ? `${m.from} → ` : ''}${m.to}`}`;
       if (S.actions.some((a) => a.title === title)) return;
       created += 1;
-      S.actions.unshift({ id: NT.uid('a'), title, kind: m.kind, from: plan.id, person: m.person, owner: m.owner || 'p-suwan', due: m.due || '2026-11-15', state: 'todo', observe: m.type === '继续观察' ? null : '2027-02-15', then: m.type === '继续观察' ? null : [`目标：${m.to}`, `依据：${m.basis}`, `缺口：${m.gap || '—'}`] });
+      S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title, kind: m.kind, from: plan.id, person: m.person, owner: m.owner || 'p-suwan', due: m.due || '2026-11-15', state: 'todo', observe: m.type === '继续观察' ? null : '2027-02-15', then: m.type === '继续观察' ? null : [`目标：${m.to}`, `依据：${m.basis}`, `缺口：${m.gap || '—'}`] });
     });
     store.save();
     return created;
@@ -694,7 +695,7 @@
   store.addJudgeAction = (batchId, hypId, a) => {
     const h = store.judgeHyps(batchId).find((x) => x.id === hypId);
     if (!h || !S.judgeAttribs[hypId] || !store.hypCheck(h).ok) return null;
-    const act = { id: NT.uid('a'), from: batchId, person: null, owner: store.me().id, due: NT.addDays(NT.TODAY, 30), state: 'todo', observe: NT.addDays(NT.TODAY, 120), ...a };
+    const act = { id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), from: batchId, person: null, owner: store.me().id, due: NT.addDays(NT.TODAY, 30), state: 'todo', observe: NT.addDays(NT.TODAY, 120), ...a };
     S.actions.unshift(act);
     S.judgeAttribs[hypId].actions.push(act.id);
     store.save();
@@ -706,14 +707,16 @@
     N1: { cat: 'new', text: '资料从无到有，同一维度已有 2 件不同的事印证' },
     N2: { cat: 'new', text: 'AI 从材料里发现的线索，经 HRBP 核实' },
     T1: { cat: 'top', text: '能力走向走高（与「变化」同口径）' },
-    T2: { cat: 'top', text: '负责人或 HRBP 提名，经 HRBP 核实' },
+    T2: { cat: 'top', text: '负责人、导师 / 助教或 HRBP 的提名与推荐，经 HRBP 核实' },
     I1: { cat: 'act', text: '能力走向走低（与「变化」同口径）' },
     I2: { cat: 'act', text: '「值得聊一聊」打开 14 天以上还没人处理' },
     I3: { cat: 'act', text: '重点跟踪过了约定日期还没有更新' },
   };
   store.WATCH_RULES = WATCH_RULES;
   store.WATCH_CATS = [['new', '新发现'], ['top', '突出表现'], ['act', '需要介入']];
-  store.canWatch = (role = store.role()) => ['ceo', 'hrbp'].includes(role);
+  store.WATCH_VER = 'watch-v2'; // v1.5 3.31：T2 的来源扩到导师 / 助教的推荐
+  // 部门负责人看本团队（完整查看范围内）的值得关注（v1.5 D-57）
+  store.canWatch = (role = store.role()) => ['ceo', 'hrbp', 'lead'].includes(role);
   const byDate = (a, b) => (b.date || '').localeCompare(a.date || '');
   store.watch = () => {
     const role = store.role();
@@ -727,11 +730,11 @@
       const recent = store.scoresOf(p.id, { from: RECENT });
       SEED.DIMS.forEach((d) => {
         const evs = [...new Set(recent.filter((s) => s.d === d.id && s.v >= 4).map((s) => s.ev.id))].map(store.event).sort(byDate);
-        if (evs.length >= 2) hits.push({ person: p.id, rule: 'N1', when: evs[0].date, why: `${store.tenure(p)}，${d.name}已有 ${evs.length} 件不同的事可以印证`, evs: evs.map((e) => e.id) });
+        if (evs.length >= 2) hits.push({ person: p.id, rule: 'N1', when: evs[0].date, ts: evs[0].ts, why: `${store.tenure(p)}，${d.name}已有 ${evs.length} 件不同的事可以印证`, evs: evs.map((e) => e.id) });
       });
     });
     store.changes().filter((c) => c.t === 'trend' && ids.has(c.person)).forEach((c) => hits.push({
-      person: c.person, rule: c.up ? 'T1' : 'I1', when: c.when, why: `${store.dim(c.dim).name}近 3 个月明显${c.up ? '走高' : '走低'}，有 ${c.n} 件事`, evs: c.after.map((s) => s.ev.id),
+      person: c.person, rule: c.up ? 'T1' : 'I1', when: c.when, ts: c.after[0]?.ev?.ts, why: `${store.dim(c.dim).name}近 3 个月明显${c.up ? '走高' : '走低'}，有 ${c.n} 件事`, evs: c.after.map((s) => s.ev.id),
     }));
     S.signals.filter((g) => g.state === 'open' && g.since && NT.days(g.since) >= 14 && ids.has(g.person)).forEach((g) => hits.push({
       person: g.person, rule: 'I2', when: NT.addDays(g.since, 14), why: `「值得聊一聊」已经打开 ${NT.days(g.since)} 天：${g.items.filter((i) => i.src === 'fact').map((i) => i.text).join('，')}`, signal: true,
@@ -742,36 +745,124 @@
       person: t.person, rule: 'I3', when: t.next, why: `重点跟踪约定 ${NT.md(t.next)} 回看，还没有更新`, track: t.id,
     }));
     S.watchClues.filter((c) => c.state === 'verified' && ids.has(c.person)).forEach((c) => hits.push({
-      person: c.person, rule: c.rule, when: c.verifiedAt, why: c.why, evs: c.evs, srcs: c.srcs, by: c.by, verifiedBy: c.verifiedBy, clue: c.id,
+      person: c.person, rule: c.rule, when: c.verifiedAt, ts: c.verifiedTs, why: c.dir ? `${store.person(c.by).name}推荐${store.fitText(c.dir)}：${c.why}` : c.why, evs: c.evs, srcs: c.srcs, by: c.by, verifiedBy: c.verifiedBy, clue: c.id, dir: c.dir,
     }));
     // 同一个人只出现一次，归到最近触发的那一类，其余命中的规则并列写出
     const byPerson = new Map();
-    hits.sort((a, b) => b.when.localeCompare(a.when)).forEach((h) => {
+    hits.sort((a, b) => b.when.localeCompare(a.when) || (b.ts || 0) - (a.ts || 0)).forEach((h) => {
       const cur = byPerson.get(h.person);
       if (!cur) byPerson.set(h.person, { ...h, id: `w-${h.person}`, cat: WATCH_RULES[h.rule].cat, also: [] });
       else if (cur.rule !== h.rule) cur.also.push(h);
     });
     return [...byPerson.values()].map((w) => ({ ...w, doing: store.doingFor(w.person) }));
   };
-  // 已经在做的事：重点跟踪、行动、CEO 推动
-  store.doingFor = (pid) => {
-    const out = [];
-    S.tracks.filter((t) => t.person === pid && t.state === 'on').forEach((t) => out.push(`${store.person(t.owner).name}在重点跟踪 · ${NT.md(t.next)} 回看`));
+  // 已经在做的事：重点跟踪、行动、CEO 推动，按视角过滤（v1.5 3.27.2）
+  // 行动是管理资料，只给能看管理资料的视角；推动只给 CEO 和被指派的负责人；导师只看到自己负责或协助的跟踪
+  store.doingFor = (pid, role = store.role()) => {
+    const out = [], me = ROLES[role].person, mgmt = store.can('mgmt', pid, role);
+    S.tracks.filter((t) => t.person === pid && t.state === 'on' && (mgmt || t.owner === me || t.helper === me)).forEach((t) => out.push(`${store.person(t.owner).name}在重点跟踪 · ${NT.md(t.next)} 回看`));
     // 行动：还在推进的，或已执行、还在观察期里的（v1.4 3.20.2）
-    S.actions.filter((x) => x.person === pid && (['todo', 'doing'].includes(x.state) || (x.state === 'done' && x.observe && x.observe >= NT.TODAY))).forEach((x) => out.push(`行动：${x.title} · ${store.person(x.owner).name}负责 · ${x.state === 'done' ? `已执行，观察到 ${NT.md(x.observe)}` : x.state === 'todo' ? '待沟通' : '进行中'}`));
-    S.pushes.filter((x) => x.person === pid && x.state !== 'cancel').forEach((x) => out.push(`已推动：${PUSH_KINDS[x.kind].label} · ${store.person(x.owner).name} · ${PUSH_STATE[x.state]}`));
+    if (mgmt) S.actions.filter((x) => x.person === pid && (['todo', 'doing'].includes(x.state) || (x.state === 'done' && x.observe && x.observe >= NT.TODAY))).forEach((x) => out.push(`行动：${x.title} · ${store.person(x.owner).name}负责 · ${x.state === 'done' ? `已执行，观察到 ${NT.md(x.observe)}` : x.state === 'todo' ? '待沟通' : '进行中'}`));
+    S.pushes.filter((x) => x.person === pid && x.state !== 'cancel' && (role === 'ceo' || x.owner === me)).forEach((x) => out.push(`已推动：${PUSH_KINDS[x.kind].label} · ${store.person(x.owner).name} · ${PUSH_STATE[x.state]}`));
     return out;
+  };
+  // 行内的一行新进展：7 天内的推动进展、新生成的行动、新开始的重点跟踪，取最近一条（v1.5 D-54）
+  store.freshFor = (pid) => {
+    const me = store.me().id, role = store.role(), since = NT.addDays(NT.TODAY, -7), out = [];
+    S.pushes.filter((x) => x.person === pid && x.state !== 'cancel' && (role === 'ceo' ? x.by === me : x.owner === me)).forEach((x) => {
+      const k = PUSH_KINDS[x.kind], who = store.person(x.owner).name;
+      out.push({ at: x.at, ts: x.ts, text: `已推动：${k.label} · ${who}` });
+      x.log.forEach((l) => out.push({ at: l.at, ts: l.ts, text: `已推动：${k.label} · ${who} · ${NT.md(l.at)} ${l.text}` }));
+      if (x.resultAt) out.push({ at: x.resultAt, ts: x.resultTs, text: `推动有结果：${x.result}` });
+    });
+    S.actions.filter((a) => a.person === pid && a.at).forEach((a) => out.push({ at: a.at, ts: a.ts, text: `行动：${a.title} · ${store.person(a.owner).name}负责` }));
+    S.tracks.filter((t) => t.person === pid && t.state === 'on' && t.since).forEach((t) => out.push({ at: t.since, ts: t.ts, text: `${store.person(t.owner).name}开始重点跟踪 · ${NT.md(t.next)} 回看` }));
+    // 同一天的多条按记录时刻（ts）取最新；演示种子没有 ts，排在当天新记录之后
+    return out.filter((x) => x.at >= since).sort((a, b) => b.at.localeCompare(a.at) || (b.ts || 0) - (a.ts || 0))[0] || null;
   };
   store.watchPending = () => S.watchClues.filter((c) => c.state === 'pending' && store.scope(c.person) === 'full');
   // 已处理的线索留在 HRBP 视图里：核实的、不采纳的连同理由（v1.4 3.20.3），CEO 不经过这里
   store.watchHandled = () => (store.role() === 'hrbp' ? S.watchClues.filter((c) => ['verified', 'rejected'].includes(c.state) && store.scope(c.person) === 'full').sort((a, b) => (b.verifiedAt || '').localeCompare(a.verifiedAt || '')) : []);
   store.verifyClue = (id, ok, why) => {
     const c = S.watchClues.find((x) => x.id === id); if (!c) return null;
-    Object.assign(c, ok ? { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY } : { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
+    Object.assign(c, ok ? { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now() } : { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
     store.save();
     return c;
   };
-  store.unverifyClue = (id) => { const c = S.watchClues.find((x) => x.id === id); c.state = 'pending'; delete c.verifiedBy; delete c.verifiedAt; delete c.rejectWhy; store.save(); };
+  store.unverifyClue = (id) => { const c = S.watchClues.find((x) => x.id === id); c.state = 'pending'; delete c.verifiedBy; delete c.verifiedAt; delete c.verifiedTs; delete c.rejectWhy; store.save(); };
+
+  // ---------- 推荐方向（v1.5 3.31）：带目标角色的提名，走值得关注的核实流程 ----------
+  // 「适合做 FDE」「适合做产品架构师」：中英文之间留空格，中文之间不留
+  store.fitText = (dir) => { const n = store.template(dir)?.name || ''; return `适合做${/^[A-Za-z]/.test(n) ? ' ' : ''}${n}`; };
+  store.canRecommend = (pid, role = store.role()) => {
+    const sc = store.scope(pid, role);
+    return (role === 'mentor' && sc === 'mentor') || (['lead', 'hrbp'].includes(role) && sc === 'full');
+  };
+  // 可以引用的证据：本视角能看到、已确认的关键事件（有本人的已确认或已校准分，与 COUNTED 同口径）
+  store.recoEvidence = (pid) => store.visibleEvents(pid).events.filter((e) => e.kind === 'obs' && e.date && e.scores.some((x) => x.p === pid && COUNTED.includes(x.st)));
+  store.addReco = (pid, dir, why, evs) => {
+    const ok = store.canRecommend(pid) && store.template(dir) && why && new Set(evs).size >= 2 && evs.every((id) => store.recoEvidence(pid).some((e) => e.id === id));
+    if (!ok) return null;
+    const me = store.me().id, self = store.role() === 'hrbp'; // HRBP 本人提交的直接视为已核实
+    const c = { id: NT.uid('wc'), person: pid, rule: 'T2', by: me, dir, at: NT.TODAY, why, evs: [...new Set(evs)], state: self ? 'verified' : 'pending', ...(self ? { verifiedBy: me, verifiedAt: NT.TODAY, verifiedTs: Date.now() } : {}) };
+    S.watchClues.unshift(c); store.save();
+    return c;
+  };
+  store.removeReco = (id) => { S.watchClues = S.watchClues.filter((c) => c.id !== id); store.save(); };
+  store.myRecos = () => S.watchClues.filter((c) => c.dir && c.by === store.me().id).sort((a, b) => b.at.localeCompare(a.at));
+  // 档案与速览里的推荐方向：已核实的，按权限；推荐人能看到自己提交的那条
+  store.recosFor = (pid, role = store.role()) => S.watchClues.filter((c) => c.dir && c.person === pid && c.state === 'verified'
+    && (['ceo', 'hrbp', 'lead'].includes(role) ? store.scope(pid, role) === 'full' : c.by === ROLES[role].person));
+
+  // ---------- 我的关注（v1.5 3.26.2）：个人的观察名单，只对本人可见，不产生分数 ----------
+  store.canFollow = (pid, role = store.role()) => role === 'ceo' || (role === 'lead' && (!pid || store.scope(pid, role) === 'full'));
+  store.followList = () => {
+    if (!store.canFollow()) return [];
+    const me = store.me().id;
+    return S.follows.filter((f) => f.by === me && store.canFollow(f.person)).sort((a, b) => b.at.localeCompare(a.at));
+  };
+  store.isFollowing = (pid) => store.followList().some((f) => f.person === pid);
+  store.follow = (pid, via) => {
+    if (!store.canFollow(pid) || store.isFollowing(pid)) return null;
+    const f = { by: store.me().id, person: pid, at: NT.TODAY, ...(via ? { via } : {}) };
+    S.follows.unshift(f); store.save();
+    return f;
+  };
+  store.unfollow = (pid) => {
+    const me = store.me().id, i = S.follows.findIndex((f) => f.by === me && f.person === pid);
+    if (i < 0) return null;
+    const [f] = S.follows.splice(i, 1); store.save();
+    // 撤销时如果这期间已经重新关注过，就不再补一条，关注关系按人唯一
+    return () => { if (!S.follows.some((x) => x.by === f.by && x.person === f.person)) { S.follows.splice(Math.min(i, S.follows.length), 0, f); store.save(); } };
+  };
+  // 关注动态：关注之后、本人有权限看到的已确认进展；不含未核实线索、分数和象限变化
+  store.followFeed = (pid) => {
+    const me = store.me().id, out = [];
+    const watch = Object.fromEntries(store.watch().map((w) => [w.person, w]));
+    store.followList().filter((f) => !pid || f.person === pid).forEach((f) => {
+      const p = f.person;
+      store.visibleEvents(p).events.filter((e) => e.kind === 'obs' && e.date && e.date >= f.at && !e.scores.some((x) => x.p === p && x.st === 'ai'))
+        .forEach((e) => out.push({ person: p, at: e.date, ts: e.ts, kind: e.push ? 'push' : 'event', text: e.push ? `推动有结果：${e.title}` : e.title, ev: e.id, by: e.recorder }));
+      const w = watch[p];
+      if (w && w.when >= f.at) out.push({ person: p, at: w.when, ts: w.ts, kind: 'watch', text: `进入值得关注：${w.why}`, cat: w.cat });
+      S.pushes.filter((x) => x.person === p && x.by === me).forEach((x) => x.log.filter((l) => l.at >= f.at).forEach((l) => out.push({ person: p, at: l.at, ts: l.ts, kind: 'push', text: `${PUSH_KINDS[x.kind].label}：${l.text}`, by: l.by })));
+      // 行动（管理资料）：新生成的和状态变化；重点跟踪：开始、改观察问题、停止
+      const ALABEL = { todo: '待沟通', doing: '进行中', done: '已执行', cancel: '没有执行', reviewed: '已复盘' };
+      if (store.can('mgmt', p)) S.actions.filter((a) => a.person === p).forEach((a) => {
+        if (a.at && a.at >= f.at) out.push({ person: p, at: a.at, ts: a.ts, kind: 'action', text: `新行动：${a.title}`, by: a.owner });
+        if (a.stateAt && a.stateAt >= f.at) out.push({ person: p, at: a.stateAt, ts: a.stateTs, kind: 'action', text: `行动「${a.title}」${ALABEL[a.state] || ''}`, by: a.owner });
+      });
+      S.tracks.filter((t) => t.person === p && (store.can('mgmt', p) || t.owner === me || t.helper === me)).forEach((t) => {
+        if (t.since >= f.at) out.push({ person: p, at: t.since, ts: t.ts, kind: 'track', text: `开始重点跟踪：${t.q}`, by: t.owner });
+        if (t.editedAt && t.editedAt >= f.at) out.push({ person: p, at: t.editedAt, ts: t.editedTs, kind: 'track', text: `重点跟踪改了观察问题：${t.q}`, by: t.owner });
+        if (t.state !== 'on' && t.stoppedAt && t.stoppedAt >= f.at) out.push({ person: p, at: t.stoppedAt, ts: t.stoppedTs, kind: 'track', text: '停止重点跟踪', by: t.owner });
+      });
+      store.recosFor(p).filter((c) => c.verifiedAt >= f.at).forEach((c) => out.push({ person: p, at: c.verifiedAt, ts: c.verifiedTs, kind: 'reco', text: `${store.person(c.by).name}推荐${store.fitText(c.dir)}`, by: c.verifiedBy }));
+    });
+    // 同一天按记录时刻（ts）从新到旧；推动结果本身也是一条事件，同一天的同一件事只留一条
+    const seen = new Set();
+    return out.sort((a, b) => b.at.localeCompare(a.at) || (b.ts || 0) - (a.ts || 0)).filter((x) => { const k = `${x.person}|${x.at}|${x.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  };
 
   // ---------- CEO 推动（v1.4 3.21） ----------
   const PUSH_KINDS = {
@@ -805,13 +896,23 @@
     const c = x.from && S.watchClues.find((y) => y.id === x.from);
     return c ? { rule: c.rule, why: c.why, evs: c.evs, srcs: c.srcs, clue: c.id } : null;
   };
+  // 发起推动时自动加入「我的关注」，推动的进展作为关注动态出现（v1.5 D-53）
   store.addPush = (x) => {
-    const push = { id: NT.uid('pu'), by: store.me().id, at: NT.TODAY, state: 'todo', log: [], ...x };
-    S.pushes.unshift(push); store.save();
+    const push = { id: NT.uid('pu'), by: store.me().id, at: NT.TODAY, ts: Date.now(), state: 'todo', log: [], ...x };
+    S.pushes.unshift(push);
+    if (!store.isFollowing(push.person)) store.follow(push.person, push.id);
+    store.save();
     return push;
   };
-  store.removePush = (id) => { S.pushes = S.pushes.filter((x) => x.id !== id); store.save(); };
-  store.logPush = (id, text) => { const x = S.pushes.find((y) => y.id === id); x.log.push({ at: NT.TODAY, by: store.me().id, text }); if (x.state === 'todo') x.state = 'doing'; store.save(); };
+  // 撤销推动：自动加的关注只在这个人没有我的其他推动时一起去掉，否则转给剩下的推动
+  store.removePush = (id) => {
+    const x = S.pushes.find((y) => y.id === id);
+    S.pushes = S.pushes.filter((y) => y.id !== id);
+    const other = x && S.pushes.find((y) => y.person === x.person && y.by === x.by);
+    S.follows = other ? S.follows.map((f) => (f.via === id ? { ...f, via: other.id } : f)) : S.follows.filter((f) => f.via !== id);
+    store.save();
+  };
+  store.logPush = (id, text) => { const x = S.pushes.find((y) => y.id === id); x.log.push({ at: NT.TODAY, ts: Date.now(), by: store.me().id, text }); if (x.state === 'todo') x.state = 'doing'; store.save(); };
   // 负责人确认结果：作为管理观察进档案时间线（不产生维度分，员工和导师看不到）
   store.resolvePush = (id, text) => {
     const x = S.pushes.find((y) => y.id === id);
@@ -819,17 +920,17 @@
     const k = PUSH_KINDS[x.kind];
     const e = store.addEvent({ id: NT.uid('e'), kind: 'obs', date: NT.TODAY, recorder: x.owner, people: [x.person], restricted: true, push: x.id, title: text,
       srcs: [{ type: 'note', label: `CEO 推动 · ${k.label}`, loc: `${store.person(x.owner).name}确认 · ${NT.md(NT.TODAY)}`, quote: text }], tags: [], scores: [] });
-    Object.assign(x, { state: 'done', result: text, resultAt: NT.TODAY, ev: e.id });
+    Object.assign(x, { state: 'done', result: text, resultAt: NT.TODAY, resultTs: Date.now(), ev: e.id });
     store.save();
     return x;
   };
   store.unresolvePush = (id) => {
     const x = S.pushes.find((y) => y.id === id);
     store.removeEvent(x.ev);
-    x.state = x.log.length ? 'doing' : 'todo'; delete x.result; delete x.resultAt; delete x.ev;
+    x.state = x.log.length ? 'doing' : 'todo'; delete x.result; delete x.resultAt; delete x.resultTs; delete x.ev;
     store.save();
   };
-  // 取消推动：负责人或发起人写理由后结束，记录保留，CEO 在「我推动的事项」里看到理由（v1.4 3.21.2）
+  // 取消推动：负责人或发起人写理由后结束，记录保留，CEO 在「需要我看」的「在推进」里看到理由（v1.4 3.21.2）
   store.cancelPush = (id, why) => {
     const x = S.pushes.find((y) => y.id === id), me = store.me().id;
     if (!x || ![x.owner, x.by].includes(me) || !['todo', 'doing'].includes(x.state)) return null;
@@ -845,9 +946,9 @@
     const basis = store.pushBasis(x), obs = a.observe || NT.addDays(NT.TODAY, 90);
     const then = [`目标：${a.title}`, `依据：CEO 推动${basis ? `（${basis.rule}：${basis.why}）` : ''}${x.note ? `；CEO 的说明「${x.note}」` : ''}`, `观察：${a.watch || '这次机会里能不能独立做成'}（观察到 ${NT.md(obs)}）`];
     const { watch, ...rest } = a;
-    const act = { id: NT.uid('a'), from: x.id, person: x.person, owner: me, due: NT.addDays(NT.TODAY, 14), state: 'todo', observe: obs, then, ...rest };
+    const act = { id: NT.uid('a'), from: x.id, person: x.person, owner: me, at: NT.TODAY, ts: Date.now(), due: NT.addDays(NT.TODAY, 14), state: 'todo', observe: obs, then, ...rest };
     S.actions.unshift(act);
-    x.action = act.id; x.log.push({ at: NT.TODAY, by: me, text: `已生成行动「${act.title}」`, action: act.id }); if (x.state === 'todo') x.state = 'doing';
+    x.action = act.id; x.log.push({ at: NT.TODAY, ts: Date.now(), by: me, text: `已生成行动「${act.title}」`, action: act.id }); if (x.state === 'todo') x.state = 'doing';
     store.save();
     return act;
   };
@@ -892,7 +993,7 @@
     return a;
   };
 
-  // ---------- 我推动的事项（CEO）：待本人确认的置顶，其后是本人发起、仍在推进的 ----------
+  // ---------- 需要我看（CEO，v1.5 3.26.1）：待本人确认的事，其后折叠本人发起、仍在推进的 ----------
   store.myPushes = () => {
     const me = store.me().id, out = { confirm: [], doing: [], done: [] };
     const recent = (d) => d && NT.days(d) <= 7;
@@ -941,6 +1042,8 @@
   };
 
   S = load();
-  if (upgradedFrom != null) NT.ready(() => setTimeout(() => NT.toast('演示数据已更新到新版本，你之前在本浏览器里做的演示操作已重置，旧数据另存了一份备份'), 600));
+  if (upgradedFrom != null) NT.ready(() => setTimeout(() => NT.toast(keepOld
+    ? '演示数据已更新到新版本，但浏览器存储已满，旧的演示数据没能备份。为了不覆盖它，这次的操作只在本页生效；需要保存时请先清理本站存储'
+    : '演示数据已更新到新版本，你之前在本浏览器里做的演示操作已重置，旧数据另存了一份备份'), 600));
   store.save();
 })();
