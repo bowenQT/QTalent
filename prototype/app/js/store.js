@@ -841,7 +841,11 @@
   store.addPushAction = (id, a) => {
     const x = S.pushes.find((y) => y.id === id), me = store.me().id;
     if (!x || x.owner !== me || x.action) return null;
-    const act = { id: NT.uid('a'), from: x.id, person: x.person, owner: me, due: NT.addDays(NT.TODAY, 14), state: 'todo', observe: NT.addDays(NT.TODAY, 90), ...a };
+    // 复盘基线（then）：目标、发起依据、要观察什么，复盘时左边对照用
+    const basis = store.pushBasis(x), obs = a.observe || NT.addDays(NT.TODAY, 90);
+    const then = [`目标：${a.title}`, `依据：CEO 推动${basis ? `（${basis.rule}：${basis.why}）` : ''}${x.note ? `；CEO 的说明「${x.note}」` : ''}`, `观察：${a.watch || '这次机会里能不能独立做成'}（观察到 ${NT.md(obs)}）`];
+    const { watch, ...rest } = a;
+    const act = { id: NT.uid('a'), from: x.id, person: x.person, owner: me, due: NT.addDays(NT.TODAY, 14), state: 'todo', observe: obs, then, ...rest };
     S.actions.unshift(act);
     x.action = act.id; x.log.push({ at: NT.TODAY, by: me, text: `已生成行动「${act.title}」`, action: act.id }); if (x.state === 'todo') x.state = 'doing';
     store.save();

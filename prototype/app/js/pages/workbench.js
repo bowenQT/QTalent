@@ -169,8 +169,9 @@
       const q = field.value.trim();
       if (!q) { field.focus(); return; }
       NT.ipState(ipEl, 'thinking');
-      // CEO 首页的输入框主讲找人：除非明显在记一件刚发生的事，都交给找人
-      const find = (role === 'ceo' ? !/(今天|昨天|这周|刚才|刚刚)/.test(q) : /找|owner|负责人|谁来/.test(q)) && st.can('findOwner');
+      // CEO 首页的输入框主讲找人：明确的找人请求优先；没有找人字眼、又明显在记一件刚发生的事时才去记录，其余都交给找人
+      const askFind = /找|owner|负责人|谁来|人选/.test(q);
+      const find = (role === 'ceo' ? askFind || !/(今天|昨天|这周|刚才|刚刚)/.test(q) : askFind) && st.can('findOwner');
       const inv = /盘点/.test(q) && st.can('review');
       setTimeout(() => { location.href = inv ? 'reviews.html' : NT.link(find ? 'staffing.html' : 'record.html', find ? { new: 1, q } : { q }); }, NT.reduced ? 0 : 450);
     };

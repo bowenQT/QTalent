@@ -71,7 +71,7 @@
     const plan = st.plan(a.from);
     return html`<article class="n-card"><h3 class="n-section-title">任用后复盘 · ${a.title}</h3>
       <div class="n-retro">
-        <div class="n-retro__col n-retro__then"><h5>当时的判断 · ${plan ? `${plan.kind === 'org' ? '组织调整方案' : '用人方案'} v${plan.version} · ${NT.md(plan.confirmedAt || plan.at)} 冻结` : '冻结的版本'}</h5><ul>${a.then.map((t) => html`<li>${t}</li>`)}</ul></div>
+        <div class="n-retro__col n-retro__then"><h5>当时的判断 · ${plan ? `${plan.kind === 'org' ? '组织调整方案' : '用人方案'} v${plan.version} · ${NT.md(plan.confirmedAt || plan.at)} 冻结` : st.pushOf(a.from) ? `CEO 推动 · ${NT.md(st.pushOf(a.from).at)} 发起` : '冻结的版本'}</h5><ul>${a.then.map((t) => html`<li>${t}</li>`)}</ul></div>
         <div class="n-retro__col n-retro__now"><h5>后来的事实 · ${NT.md(a.did || a.due)} 至今</h5>${nowFacts.length ? html`<ul>${nowFacts.map(([t, ev]) => html`<li>${t}${ev ? UI.cite(st.event(ev)?.srcs[0] || { type: 'note', label: st.event(ev)?.title, loc: NT.md(st.event(ev)?.date) }, 1) : ''}</li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">还没有新的事实。可以先记一条观察再复盘。</p>`}</div>
         <div class="n-retro__foot">
           ${r ? html`<div class="n-block" data-state="ink"><span class="n-badge n-badge--seal" style="margin-right:6px">${r.verdict}</span>${r.text}<div class="n-block__by"><span class="n-block__sig">${st.person(r.by).name}</span>${NT.md(r.at)} 复盘 · 已回到${a.person ? `${st.person(a.person).name}的档案时间线` : '档案'}</div></div>`

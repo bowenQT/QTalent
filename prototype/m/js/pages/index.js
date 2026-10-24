@@ -50,7 +50,7 @@
     const cat = Object.fromEntries(st.WATCH_CATS);
     const STATE_S = { 待你确认: 'todo', 待处理: 'todo', 进行中: 'doing', 'HRBP 复核中': 'doing', 已有结果: 'done', 已复核: 'done', 已取消: 'cancel' };
     const mineHref = (it) => (it.kind === 'plan' ? `plan.html?id=${it.plan}` : it.kind === 'push' ? `person.html?id=${it.person}` : `../app/${it.href}`);
-    const mine = [...m.confirm, ...m.doing].slice(0, 4);
+    const mine = [...m.confirm, ...m.doing]; // 手机上是 CEO 查看推动进展的唯一入口，不截断
     mount(main, html`
       <h2 class="m-hello">${hello}，${me.name}<small>${NT.md(NT.TODAY)} 周五 · 全公司</small></h2>
       <form class="m-find" id="m-find" role="search"><span class="nt-ip" data-ip="rest" data-size="28"></span><input class="m-find__input" id="m-find-q" aria-label="描述你要找什么样的人" placeholder="描述你需要什么样的人"><button class="n-btn n-btn--sm n-btn--ink" type="submit">开始找人</button></form>

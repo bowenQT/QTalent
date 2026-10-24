@@ -424,10 +424,11 @@
     const x = st.pushOf(id), p = st.person(x.person);
     const r = await NT.dialog({ title: `生成行动：培养${p.name}`,
       body: html`${UI.pushBasis(st.pushBasis(x))}<label class="n-field"><span class="n-field__label">行动</span><input class="n-input" id="pa-t" value="给${p.name}安排一次发展机会"></label>
+        <label class="n-field"><span class="n-field__label">想观察什么</span><input class="n-input" id="pa-q" placeholder="比如：没有导师在场时，能不能独立把分享讲清楚" value="这次机会里能不能独立做成"></label>
         <div class="nt-row" style="gap:var(--s-3)"><label class="n-field" style="flex:1"><span class="n-field__label">预计执行</span><input class="n-input" type="date" id="pa-due" value="${NT.addDays(NT.TODAY, 14)}"></label><label class="n-field" style="flex:1"><span class="n-field__label">观察到</span><input class="n-input" type="date" id="pa-obs" value="${NT.addDays(NT.TODAY, 90)}"></label></div>
-        <p class="nt-caption">行动进入「行动与复盘」，标「来自 CEO 推动」；执行后到期复盘，结论只有继续、调整、撤回三种。</p>`,
+        <p class="nt-caption">行动进入「行动与复盘」，标「来自 CEO 推动」；目标、发起依据和想观察的事记为复盘基线，执行后到期复盘，结论只有继续、调整、撤回三种。</p>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '生成行动', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#pa-t').value.trim(),
-        read: (d) => ({ title: d.querySelector('#pa-t').value.trim(), due: d.querySelector('#pa-due').value, observe: d.querySelector('#pa-obs').value }) }] });
+        read: (d) => ({ title: d.querySelector('#pa-t').value.trim(), watch: d.querySelector('#pa-q').value.trim(), due: d.querySelector('#pa-due').value, observe: d.querySelector('#pa-obs').value }) }] });
     if (r?.value !== 'ok') return;
     const act = st.addPushAction(id, r.data);
     if (!act) { NT.toast('只有被指派的负责人能生成行动'); return; }
