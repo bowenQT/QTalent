@@ -35,17 +35,11 @@
     const spec = canScore ? UI.spectrum(pid) : null;
     const obsN = events.filter((e) => e.kind === 'obs').length;
 
-    mount(main, html`
-      <header class="nt-head" style="align-items:center">
-        ${UI.person(pid, { size: 'lg', link: false, meta: `${st.orgPath(p.org)} · ${p.title} · ${p.level}`, meta2: `${st.tenure(p)}${land ? ` · ${land.batch.name} · 议题「${st.project(land.row[1]).name}」 · 导师 ${land.row[2].map((m) => st.person(m).name).join('、')}` : ''}${p.merged ? ' · SDR 与 SMB 并入（10-20）' : ''}` })}
-        <div class="nt-head__acts">
-          ${st.can('record', pid) ? html`<a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${pid}">${icon('pen')}记一条事件</a>` : ''}
-          ${canQuad && !tracks.some((t) => t.state === 'on') ? html`<button class="n-btn n-btn--sm" type="button" id="btn-track">${icon('target')}重点跟踪</button>` : ''}
-          ${st.can('record', pid) ? html`<a class="n-btn n-btn--sm n-btn--ghost" href="index.html#upload">${icon('upload')}上传材料</a>` : ''}
-        </div>
-      </header>
-
-      ${canQuad && snapsWith.length ? html`<div class="n-pver" style="margin-bottom:var(--s-4)">
+    const w = st.watch().find((x) => x.person === pid);
+    // 判断变化只放能力走向和象限偏移；活跃度与安排、团队分布另放
+    const jchg = changes.filter((c) => c.t === 'trend' || c.t === 'quad'), achg = changes.filter((c) => c.t !== 'trend' && c.t !== 'quad');
+    const facts = events.filter((e) => e.kind === 'obs' && e.date && !e.scores.some((x) => x.p === pid && x.st === 'ai')).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+    const pverBar = canQuad && snapsWith.length ? html`<div class="n-pver">
         <span class="n-pver__label">档案版本</span>
         <div class="n-seg" role="group" aria-label="档案版本" data-manual id="pver">
           <button type="button" data-v="now" aria-pressed="${ver === 'now'}">当前</button>
@@ -53,14 +47,35 @@
         </div>
         <span class="n-pver__label">${verSnap ? `${NT.md(verSnap.at)} 冻结 · 包含 ${NT.md(verSnap.cutoff)} 前已确认的事件 · 之后的新事件不会改写它` : `实时更新 · 包含 ${NT.md(NT.TODAY)} 前已确认的事件`}</span>
         ${verSnap ? html`<div class="n-pver__cmp">${verCompare(verSnap.entries[pid], ref, f)}</div>` : ''}
-      </div>` : ''}
+      </div>` : '';
+
+    // 第一屏依次回答：为什么值得关注、发生过什么、有什么证据、判断有什么变化；能力谱与象限在第二层（v1.5 3.28）
+    mount(main, html`
+      <header class="nt-head" style="align-items:center">
+        ${UI.person(pid, { size: 'lg', link: false, meta: `${st.orgPath(p.org)} · ${p.title} · ${p.level}`, meta2: `${st.tenure(p)}${land ? ` · ${land.batch.name} · 议题「${st.project(land.row[1]).name}」 · 导师 ${land.row[2].map((m) => st.person(m).name).join('、')}` : ''}${p.merged ? ' · SDR 与 SMB 并入（10-20）' : ''}` })}
+        <div class="nt-head__acts">
+          ${st.can('record', pid) ? html`<a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${pid}">${icon('pen')}记一件事</a>` : ''}
+          ${UI.followBtn(pid)}
+          ${st.canPush() ? html`<span class="n-menuwrap"><button class="n-btn n-btn--sm n-btn--menu" type="button" id="btn-push">推动${icon('chev')}</button></span>` : ''}
+          ${st.canRecommend(pid) ? html`<button class="n-btn n-btn--sm" type="button" id="btn-reco">${icon('target')}推荐方向</button>` : ''}
+          ${canQuad && !tracks.some((t) => t.state === 'on') ? html`<button class="n-btn n-btn--sm" type="button" id="btn-track">${icon('target')}重点跟踪</button>` : ''}
+          ${st.can('record', pid) ? html`<a class="n-btn n-btn--sm n-btn--ghost" href="index.html#upload">${icon('upload')}上传材料</a>` : ''}
+        </div>
+      </header>
 
       <div class="nt-split nt-split--wide">
         <div class="nt-grid">
+          ${w ? whyBlock(w) : ''}
+          <article class="n-card" id="facts"><h3 class="n-section-title">关键事件与证据${events.some((e) => e.kind === 'obs') ? html`<a class="n-link" href="#timeline">查看全部</a>` : ''}</h3>
+            ${facts.length ? html`<ol class="n-peek__facts n-pfacts">${facts.map((e) => html`<li><span class="n-peek__date">${NT.md(e.date)}</span><span><a class="nt-plink" href="#ev-${e.id}">${e.title}</a>${UI.evCite(e.id, '原文')}<small>${[e.project && st.project(e.project)?.name, `${st.person(e.recorder)?.name}记录`].filter(Boolean).join(' · ')}</small></span></li>`)}</ol>` : html`<div class="nt-empty">还没有已确认的关键事件。</div>`}
+          </article>
+          ${pverBar || jchg.length ? html`<article class="n-card" id="judgechg"><h3 class="n-section-title">判断变化</h3>
+            ${pverBar}
+            ${jchg.length ? html`<div id="pchanges" ${raw(pverBar ? 'style="margin-top:var(--s-3)"' : '')}>${jchg.map((c) => UI.change(c, 'win'))}</div>` : html`<p class="nt-caption">近 3 个月能力走向和象限没有命中规则的变化。没有变化不等于没有成长。</p>`}
+          </article>` : ''}
           ${summaryBlock(p, events, canScore, ref, f, canQuad)}
-          <div id="dirwrap">${UI.directionBlock(pid, { canWrite: mgmt ? 'mgmt' : '' })}</div>
           ${spec ? html`<article class="n-card n-spectrum" id="spectrum">
-            <div class="n-spectrum__head"><div><h3 class="n-section-title" style="margin:0">个人能力谱</h3><div class="nt-muted">近 12 个月 · 已确认 ${spec.total} 条事件分 · rubric-v1</div></div>${canQuad ? UI.miniquad(pid) : ''}</div>
+            <div class="n-spectrum__head"><div><h3 class="n-section-title" style="margin:0">个人能力谱</h3><div class="nt-muted">详细维度 · 近 12 个月 · 已确认 ${spec.total} 条事件分 · rubric-v1</div></div>${canQuad ? UI.miniquad(pid) : ''}</div>
             <div class="n-spectrum__scale"><span></span><div class="n-spectrum__ticks">${[1, 2, 3, 4, 5].map((v, i) => html`<span style="left:${i * 25}%">${v}</span>`)}</div><span></span></div>
             <div id="spec-rows">${spec.html}</div>
             <div class="n-spectrum__legend"><span><i class="k-all"></i>外圈：这个分值的全部事件</span><span><i class="k-recent"></i>实心：其中近 3 个月</span><span><i class="k-mean"></i>均值</span><span><i class="k-unknown"></i>资料不足</span><span>点一行展开事件</span></div>
@@ -74,16 +89,16 @@
         </div>
 
         <aside class="nt-grid">
+          <div id="dirwrap">${UI.directionBlock(pid, { canWrite: mgmt ? 'mgmt' : '' })}</div>
+          ${tracks.length ? html`<div id="trackwrap" class="nt-grid">${tracks.map((t) => UI.trackCard(t))}</div>` : ''}
+          ${achg.length ? html`<article class="n-card"><h3 class="n-section-title">活跃度与安排</h3><div id="pachanges">${achg.map((c) => UI.change(c, 'win'))}</div></article>` : ''}
+          ${sig ? html`<div id="sigwrap">${UI.signalBlock(sig)}</div>` : ''}
           ${canQuad ? html`<article class="n-card"><h3 class="n-section-title">能力象限</h3>
             <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)} <span class="nt-muted">${f.snap.label} 校准 · ${NT.md(f.snap.at)} · ${st.person(f.snap.by).name}确认</span>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
-              <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''}`}</dd></dl>
+              <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted">规则 rubric-v1</span>`}</dd></dl>
             ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后新增的已确认事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm" href="calibrate.html?id=b-h2&team=${p.org}">加入下次校准</a></div></div></div>` : ''}
             ${ref.na ? html`<p class="nt-caption">资料不足不等于能力低，不会被放进低潜力。落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分。</p>` : ''}
           </article>` : role === 'mentor' ? html`<div class="n-lock">${icon('lock')}导师看不到象限、变化和「值得聊一聊」。</div>` : ''}
-
-          ${changes.length ? html`<article class="n-card"><h3 class="n-section-title">变化标记</h3><div id="pchanges">${changes.map((c) => UI.change(c, 'win'))}</div></article>` : ''}
-          ${sig ? html`<div id="sigwrap">${UI.signalBlock(sig)}</div>` : ''}
-          ${tracks.length ? html`<div id="trackwrap" class="nt-grid">${tracks.map((t) => UI.trackCard(t))}</div>` : ''}
 
           <article class="n-card"><h3 class="n-section-title">参与的项目</h3>
             ${projs.length ? html`<ul class="n-members">${projs.map((m) => html`<li class="${m.to ? 'is-left' : ''}"><a class="nt-plink" href="project.html?id=${m.p.id}"><b>${m.p.name}</b></a><span class="n-members__role">${m.role} · ${m.mode}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}</span></li>`)}</ul>` : html`<div class="nt-empty">还没有参与项目。</div>`}
@@ -92,9 +107,14 @@
         </aside>
       </div>`);
 
+    const rr = () => render($('#main'));
+    $('[data-follow]', main)?.addEventListener('click', (e) => UI.toggleFollow(e.currentTarget.dataset.follow, rr));
+    if ($('#btn-push')) UI.pushMenu($('#btn-push'), pid, rr, w ? { rule: w.rule, why: w.why, evs: w.evs, srcs: w.srcs, clue: w.clue } : undefined);
+    $('#btn-reco')?.addEventListener('click', () => UI.recoDialog(pid, rr));
     if (spec) UI.wireSpectrum($('#spec-rows'));
     UI.wireDirection($('#dirwrap'), pid, () => render(main));
     if ($('#pchanges')) UI.wireChanges($('#pchanges'));
+    if ($('#pachanges')) UI.wireChanges($('#pachanges'));
     if ($('#sigwrap')) UI.wireSignal($('#sigwrap'), () => render(main));
     if ($('#trackwrap')) UI.wireTracks($('#trackwrap'), () => render(main));
     $('#pver')?.addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; ver = b.dataset.v; render(main); });
@@ -103,6 +123,16 @@
     wireSummary(main);
     UI.mountIPs(main);
     if (NT.param('track') && !tracks.some((t) => t.state === 'on') && !render.asked) { render.asked = true; startTrack(); }
+  }
+
+  // 为什么值得关注：与首页那一行、速览里的说法一致，规则编号与版本放在末尾供追溯
+  function whyBlock(w) {
+    const rule = st.WATCH_RULES[w.rule], cat = Object.fromEntries(st.WATCH_CATS)[w.cat];
+    const src = w.verifiedBy ? `${w.by === 'ai' ? 'AI 从材料里发现' : `${st.person(w.by).name}${w.dir ? '推荐' : '提名'}`} · ${st.person(w.verifiedBy).name}核实` : '按写明的规则得出';
+    return html`<article class="n-card n-pwhy" id="why"><h3 class="n-section-title">为什么值得关注</h3>
+      <div class="n-peek__why"><span class="n-watch__cat">${cat}</span>${w.why}${w.srcs ? UI.cites(w.srcs) : (w.evs || []).slice(0, 3).map((id, i) => UI.evCite(id, i + 1))}</div>
+      <p class="n-peek__src">${src} · ${NT.md(w.when)}${w.also.length ? ` · 也命中 ${w.also.map((a) => `${a.rule}（${a.why}）`).join('、')}` : ''}</p>
+      <p class="n-peek__rule">规则 ${w.rule}：${rule.text} · ${st.WATCH_VER}</p></article>`;
   }
 
   async function startTrack() {

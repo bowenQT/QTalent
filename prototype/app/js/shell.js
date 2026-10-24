@@ -13,7 +13,7 @@
   ];
   const MORE = [
     { id: 'projects', label: '项目', icon: 'folder', href: 'projects.html' },
-    { id: 'landing', label: 'Landing 第三期', icon: 'book', href: 'landing.html', roles: ['ceo', 'hrbp', 'lead', 'mentor'] },
+    { id: 'landing', label: 'Landing 第三期', icon: 'book', href: 'landing.html', roles: ['ceo', 'hrbp', 'lead', 'mentor'], hideFor: ['ceo'] },
     { id: 'actions', label: '行动与复盘', icon: 'check2', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'] },
     { id: 'queue', label: '校准队列', icon: 'split', href: 'queue.html', roles: ['ceo', 'hrbp'], hideFor: ['ceo'] },
     { id: 'judge', label: '判断复盘', icon: 'swap', href: 'judge.html', roles: ['ceo', 'hrbp'] },
@@ -34,7 +34,8 @@
     const drafts = role === 'ceo' ? 0 : st.get().batches.filter((b) => b.kind === 'inventory' && b.status === 'draft').length;
     // 判断复盘：CEO、HRBP 看汇总；其他视角只有本人做过评价时才有「我的判断复盘」，员工没有这个入口
     const allow = (n) => (!n.roles || n.roles.includes(role) || (n.id === 'judge' && st.isRater())) && !(n.hideFor || []).includes(role);
-    const more = MORE.map((n) => (n.id === 'judge' && !st.canJudge() ? { ...n, label: '我的判断复盘', href: 'judge.html?rater=me' } : n));
+    // CEO 视角：项目与 Landing 批次合并成一个入口，侧栏不放「最近」（v1.5 3.26.4）
+    const more = MORE.map((n) => (n.id === 'judge' && !st.canJudge() ? { ...n, label: '我的判断复盘', href: 'judge.html?rater=me' } : n.id === 'projects' && role === 'ceo' ? { ...n, label: '项目与批次' } : n));
     const navItem = (n) => html`<a class="n-navitem" href="${n.href}" ${NT.raw(cfg.nav === n.id ? 'aria-current="page"' : '')}>${icon(n.icon)}${n.label}${n.id === 'work' && todos ? html`<span class="n-count">${todos}</span>` : ''}${n.id === 'review' && drafts ? html`<span class="n-count is-quiet">${drafts}</span>` : ''}</a>`;
     const people = role === 'self' ? { ...NAV[1], label: '我的档案', href: `person.html?id=${me.id}` } : role === 'mentor' ? { ...NAV[1], label: '所带学员' } : NAV[1];
     const recent = [
@@ -42,7 +43,7 @@
       ['盘点 · 增长产品部 2026 H2', 'review.html?id=b-h2', ['ceo', 'hrbp', 'lead']],
       ['批次 · Landing 第三期', 'landing.html', ['ceo', 'hrbp', 'lead', 'mentor']],
       ['人员 · 林知远', 'person.html?id=p-lin', ['ceo', 'hrbp', 'mentor', 'self']],
-    ].filter((r) => r[2].includes(role));
+    ].filter((r) => r[2].includes(role) && role !== 'ceo');
 
     document.body.classList.add('nt-desk');
     const root = document.getElementById('app');

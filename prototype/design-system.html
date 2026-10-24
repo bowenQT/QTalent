@@ -230,6 +230,8 @@
     <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1-4 4-6 7.5-6s6.5 2 7.5 6"/></symbol>
     <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></symbol>
+    <symbol id="i-star-on" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></symbol>
     <symbol id="i-check2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="m8 12.5 3 3 5-6"/></symbol>
     <symbol id="i-swap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/></symbol>
     <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.5v17M3.5 12h17"/><rect x="3.5" y="3.5" width="17" height="17" rx="3"/></symbol>
@@ -254,6 +256,8 @@
       <li><a href="#c-controls">通用控件</a></li>
       <li><a href="#c-desk">工作台</a></li>
       <li><a href="#c-ceo">CEO 首页</a></li>
+      <li><a href="#c-peek">速览</a></li>
+      <li><a href="#c-mentor">导师工作台与推荐</a></li>
       <li class="grp">记录与核对</li>
       <li><a href="#c-input">输入与过程</a></li>
       <li><a href="#c-doc">活文档与引用</a></li>
@@ -319,7 +323,7 @@
     <!-- ═════════ 颜色 ═════════ -->
     <section class="ds-sec" id="color">
       <h2>颜色</h2>
-      <p class="lead">底色是略带青的宣纸灰，正文是松烟墨。彩色只用于说明信息的来源与状态：流光专属 AI，朱红专属正式确认，四种判断状态各配一个图形，不单靠颜色区分。</p>
+      <p class="lead">底色是略带青的宣纸灰，正文是松烟墨，绝大部分界面只用这两样。彩色只有三类：AI 光蓝与流光是唯一的强调色；朱印只给正式确认、冻结快照和「需要你决定」的计数；判断状态只在匹配和冲突处以小标记出现，各配一个图形。头像、标签、来源都不再逐个着色，活力留在小犇的状态动效、流光和落墨压印这些操作反馈上。</p>
 
       <h3 class="ds-sub">纸与墨</h3>
       <div class="sw">
@@ -457,7 +461,7 @@
     <!-- ═════════ 来源与状态 ═════════ -->
     <section class="ds-sec" id="material">
       <h2>来源与状态</h2>
-      <p class="lead">同一个人身上的五种信息，必须一眼分得清。材质比颜色更重要：事实有实线框，自述带引号，观察是淡青底加眼形标，AI 推断是流光，人工结论是墨色正文加楷体签名。</p>
+      <p class="lead">同一个人身上的五种信息，必须一眼分得清。靠材质和图形区分，不靠颜色：事实有实线框，自述带引号，观察带眼形标，AI 推断是流光，人工结论是墨色正文加楷体签名。前三种统一用次级墨色。</p>
       <div class="src-cards">
         <div class="src-card src-card--fact"><span class="n-src n-src--fact"><svg><use href="#i-doc"/></svg>原始事实</span><h4>可核查的记录</h4><p>W2 合入 PR 11 个，其中 9 个有非作者人工 Review。</p></div>
         <div class="src-card src-card--self"><span class="n-src n-src--self"><svg><use href="#i-quote"/></svg>本人自述</span><h4>本人说的</h4><p>我更想做离客户近一点的事情，下个阶段想试试售前。</p></div>
@@ -707,7 +711,7 @@
         <div class="ds-grid" style="align-content:start">
           <article class="n-card">
             <h3 class="n-section-title">推动的发起依据</h3>
-            <p class="nt-caption" style="margin-top:0">CEO 从「值得关注」发起推动时，那一条的规则、原因和证据随推动保存。负责人在待办、记进展和确认结果的弹窗里都能看到；结果写进档案后，事件卡下方同样带着它，可以回到发起时的证据。</p>
+            <p class="nt-caption" style="margin-top:0">CEO 从速览或档案发起推动时，那一条「值得关注」的规则、原因和证据随推动保存。负责人在待办、记进展和确认结果的弹窗里都能看到；结果写进档案后，事件卡下方同样带着它，可以回到发起时的证据。</p>
             <div class="n-pushbasis"><span class="n-rule"><svg><use href="#i-flag"/></svg>N2</span><span><b>发起依据</b>入职两个月，两场跨团队会议里都被不同的人提到「把口径讲清楚了」</span></div>
           </article>
           <article class="n-card">
@@ -718,8 +722,8 @@
       </div>
 
 
-      <h3 class="ds-sub" id="c-ceo">CEO 首页（v1.4）</h3>
-      <p>CEO 首页只有四块：找人、值得关注、我推动的事项、判断提醒。找人输入框仍是首屏第一视觉重点，但做得更紧凑，提示和示例只讲找人，目标角色模板是次要入口。变化、任务队列、上传材料和其他人的待办都不在这里。</p>
+      <h3 class="ds-sub" id="c-ceo">CEO 首页（v1.5）</h3>
+      <p>CEO 首页是看人的地方，不是流程处理台：找人、值得关注、需要我看、我的关注，判断提醒退到右栏最后。每行只留「加关注」和「查看依据」，推动在速览和档案里发起；规则编号和系统解释不上首页，放进速览的「为什么关注」。</p>
       <div class="n-find" style="margin-bottom:var(--s-4)">
         <div class="n-composer is-hero">
           <span data-ip-s="rest" data-ip-size="36"></span>
@@ -730,34 +734,69 @@
       </div>
       <div class="ds-grid ceo-layout">
         <article class="n-card n-watch">
-          <div class="n-watch__head"><h3 class="n-section-title">值得关注<span class="n-count is-quiet">8 人</span></h3><span class="n-seg n-watch__by" role="group" aria-label="查看方式"><button type="button" aria-pressed="true">按人看</button><button type="button" aria-pressed="false">按项目看</button></span></div>
-          <div class="n-chips" role="group" aria-label="按类别筛选"><button class="n-chip" type="button" aria-pressed="true">全部<b>8</b></button><button class="n-chip" type="button" aria-pressed="false">新发现<b>3 人</b></button><button class="n-chip" type="button" aria-pressed="false">突出表现<b>3 人</b></button><button class="n-chip" type="button" aria-pressed="false">需要介入<b>2 人</b></button></div>
+          <div class="n-watch__head"><h3 class="n-section-title">值得关注<span class="n-count is-quiet">9 人</span></h3><span class="n-seg n-watch__by" role="group" aria-label="查看方式"><button type="button" aria-pressed="true">按人看</button><button type="button" aria-pressed="false">按项目看</button></span></div>
+          <div class="n-chips" role="group" aria-label="按类别筛选"><button class="n-chip" type="button" aria-pressed="true">全部<b>9</b></button><button class="n-chip" type="button" aria-pressed="false">新发现<b>2 人</b></button><button class="n-chip" type="button" aria-pressed="false">突出表现<b>5 人</b></button><button class="n-chip" type="button" aria-pressed="false">需要介入<b>2 人</b></button></div>
           <ul class="n-watch__list">
-            <li class="n-watch__item"><span class="n-avatar" style="--hue:200">林</span><div class="n-watch__body"><div class="n-watch__who"><b>林知远</b><span style="font-size:var(--t-xs);color:var(--ink-3)">业务成功部 · 初级产品架构师</span><span class="n-watch__cat" data-cat="new">新发现</span><span class="n-watch__when">10-21</span></div><div class="n-watch__why">入职 3 个月，内生动力已有 2 件不同的事可以印证</div><div class="n-watch__meta"><span class="n-rule"><svg><use href="#i-flag"/></svg>N1</span><span>资料从无到有，同一维度已有 2 件不同的事印证 · 按规则算出</span></div><div class="n-watch__doing"><svg><use href="#i-clock"/></svg><span>叶青在重点跟踪 · 11-02 回看</span></div></div><div class="n-watch__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="#c-timeline">查看人员与证据</a><button class="n-btn n-btn--sm" type="button">推动<svg><use href="#i-chev"/></svg></button></div></li>
-            <li class="n-watch__item"><span class="n-avatar" style="--hue:150">许</span><div class="n-watch__body"><div class="n-watch__who"><b>许清和</b><span style="font-size:var(--t-xs);color:var(--ink-3)">增长获客部 · 增长分析师</span><span class="n-watch__cat" data-cat="new">新发现</span><span class="n-watch__when">10-21</span></div><div class="n-watch__why">入职两个月，两场跨团队会议里都被不同的人提到「把口径讲清楚了」</div><div class="n-watch__meta"><span class="n-rule"><svg><use href="#i-flag"/></svg>N2</span><span>AI 发现 · 苏晚核实</span></div><div class="n-watch__doing"><svg><use href="#i-clock"/></svg><span>已推动：进一步了解 · 苏晚 · 进行中</span></div></div><div class="n-watch__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="#c-timeline">查看人员与证据</a><button class="n-btn n-btn--sm" type="button">推动<svg><use href="#i-chev"/></svg></button></div></li>
-            <li class="n-watch__item"><span class="n-avatar" style="--hue:30">何</span><div class="n-watch__body"><div class="n-watch__who"><b>何以宁</b><span style="font-size:var(--t-xs);color:var(--ink-3)">客户转化部 · 客户转化经理</span><span class="n-watch__cat" data-cat="act">需要介入</span><span class="n-watch__when">10-15</span></div><div class="n-watch__why">智慧力近 3 个月明显走低，有 3 件事</div><div class="n-watch__meta"><span class="n-rule"><svg><use href="#i-flag"/></svg>I1</span><span>能力走向走低（与「变化」同口径）· 按规则算出</span></div></div><div class="n-watch__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="#c-timeline">查看人员与证据</a><button class="n-btn n-btn--sm" type="button">推动<svg><use href="#i-chev"/></svg></button></div></li>
+            <li class="n-watch__item"><span class="n-avatar"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><div class="n-watch__body"><div class="n-watch__who"><b>林知远</b><span style="font-size:var(--t-xs);color:var(--ink-3)">业务成功部 · 初级产品架构师</span><span class="n-watch__cat">突出表现</span><span class="n-watch__when">10-22</span></div><div class="n-watch__why">叶青推荐适合做 FDE：联调时能独立定位跨域问题，也会主动接没人认领的联调文档<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 1">1</button></span><span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 2">2</button></span></div><div class="n-watch__fresh"><svg><use href="#i-clock"/></svg><span>叶青开始重点跟踪 · 11-02 回看</span></div></div><div class="n-watch__acts"><button class="n-btn n-btn--sm n-follow" type="button" aria-pressed="false"><svg><use href="#i-star"/></svg>加关注</button><a class="n-btn n-btn--sm n-btn--ghost" href="#c-peek">查看依据</a></div></li>
+            <li class="n-watch__item"><span class="n-avatar">许</span><div class="n-watch__body"><div class="n-watch__who"><b>许清和</b><span style="font-size:var(--t-xs);color:var(--ink-3)">增长获客部 · 增长分析师</span><span class="n-watch__cat">新发现</span><span class="n-watch__when">10-21</span></div><div class="n-watch__why">入职两个月，两场跨团队会议里都被不同的人提到「把口径讲清楚了」<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 1">1</button></span><span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 2">2</button></span></div><div class="n-watch__fresh"><svg><use href="#i-clock"/></svg><span>已推动：进一步了解 · 苏晚 · 10-22 已约 10-28 沟通</span></div></div><div class="n-watch__acts"><button class="n-btn n-btn--sm n-follow" type="button" aria-pressed="true"><svg><use href="#i-star-on"/></svg>已关注</button><a class="n-btn n-btn--sm n-btn--ghost" href="#c-peek">查看依据</a></div></li>
+            <li class="n-watch__item"><span class="n-avatar">何</span><div class="n-watch__body"><div class="n-watch__who"><b>何以宁</b><span style="font-size:var(--t-xs);color:var(--ink-3)">客户转化部 · 客户转化经理</span><span class="n-watch__cat">需要介入</span><span class="n-watch__when">10-15</span></div><div class="n-watch__why">智慧力近 3 个月明显走低，有 3 件事<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 1">1</button></span><span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 2">2</button></span><span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 3">3</button></span></div></div><div class="n-watch__acts"><button class="n-btn n-btn--sm n-follow" type="button" aria-pressed="false"><svg><use href="#i-star"/></svg>加关注</button><a class="n-btn n-btn--sm n-btn--ghost" href="#c-peek">查看依据</a></div></li>
           </ul>
-          <p class="ds-caption">按写明的规则入选，按触发时间排列，不按分数挑人；资料不足不算需要介入。AI 线索和提名经 HRBP 核实后才会出现在这里。规则版本 watch-v1</p>
+          <p class="ds-caption">按写明的规则入选、按时间排列，不按分数挑人；资料不足不算需要介入。AI 线索和提名经 HRBP 核实后才会出现在这里。点人名看依据。</p>
         </article>
         <div class="ds-grid">
-          <article class="n-card n-mine"><h3 class="n-section-title">我推动的事项</h3>
-            <div class="n-mine__pin"><h4>待你确认<span class="n-count">2</span></h4><ul class="n-mine__list"><li><a href="#c-plan"><span class="n-mine__title">海外加速搜索体验 · 用人方案 v3<small>韩策起草 · 10-22</small></span><span class="n-mine__meta"><span class="n-avatar n-avatar--sm" style="--hue:320">韩</span><span>韩策</span><span class="n-astate" data-s="todo">待你确认</span></span></a></li><li><a href="#c-review"><span class="n-mine__title">增长产品部 · 2026 H2 盘点 · 组织调整方案 v1<small>苏晚起草 · 10-22</small></span><span class="n-mine__meta"><span class="n-avatar n-avatar--sm" style="--hue:340">苏</span><span>苏晚</span><span class="n-astate" data-s="todo">待你确认</span></span></a></li></ul></div>
-            <h4 class="n-mine__sub">在推进<span>2</span></h4>
-            <ul class="n-mine__list"><li><a href="#c-plan"><span class="n-mine__title">新转化团队 · 找人<small>候选人核对中，还没有用人方案</small></span><span class="n-mine__meta"><span class="n-astate" data-s="doing">进行中</span></span></a></li><li><a href="#c-ceo"><span class="n-mine__title">进一步了解许清和<small>10-22 已约 10-28 沟通</small></span><span class="n-mine__meta"><span class="n-avatar n-avatar--sm" style="--hue:340">苏</span><span>苏晚</span><span class="n-astate" data-s="doing">进行中</span></span></a></li></ul>
-            <h4 class="n-mine__sub">近 7 天有结果</h4>
-            <ul class="n-mine__list"><li><a href="#c-timeline"><span class="n-mine__title">培养陈一禾<small>结果：在运营平台部技术分享会讲了缓存模块的取舍</small></span><span class="n-mine__meta"><span class="n-avatar n-avatar--sm" style="--hue:340">苏</span><span>苏晚</span><span class="n-astate" data-s="done">已有结果</span></span></a></li></ul>
+          <article class="n-card n-need"><h3 class="n-section-title">需要我看<span class="n-count is-seal">2</span></h3>
+            <ul class="n-mine__list n-need__list"><li><a href="#c-plan"><span class="n-mine__title">海外加速搜索体验 · 用人方案 v3<small>韩策起草 · 10-22</small></span><span class="n-need__go">去确认<svg><use href="#i-chev"/></svg></span></a></li><li><a href="#c-review"><span class="n-mine__title">增长产品部 · 2026 H2 盘点 · 组织调整方案 v1<small>苏晚起草 · 10-22</small></span><span class="n-need__go">去确认<svg><use href="#i-chev"/></svg></span></a></li></ul>
+            <button class="n-todomore" type="button" aria-expanded="false"><svg><use href="#i-clock"/></svg>你发起的 1 件在推进，近 7 天有结果 1 件<span style="margin-left:auto">展开</span></button>
+          </article>
+          <article class="n-card n-follows"><div class="n-follows__head"><h3 class="n-section-title">我的关注<span class="n-count is-quiet">3 人</span></h3><span class="n-seg" role="group" aria-label="查看方式"><button type="button" aria-pressed="true">动态</button><button type="button" aria-pressed="false">名单</button></span></div>
+            <ol class="n-feed"><li><a href="#c-peek"><span class="n-avatar n-avatar--sm">许</span><span><b>许清和</b> 进一步了解：已约 10-28 沟通<small>10-22 · 推动 · 苏晚</small></span></a></li><li><a href="#c-timeline"><span class="n-avatar n-avatar--sm">陈</span><span><b>陈一禾</b> 推动有结果：在运营平台部技术分享会讲了缓存模块的取舍<small>10-22 · 推动 · 苏晚</small></span></a></li><li><a href="#c-peek"><span class="n-avatar n-avatar--sm">谢</span><span><b>谢灵</b> 进入值得关注：客户投诉第一时间到场并补上流程<small>10-20 · 值得关注</small></span></a></li></ol>
           </article>
           <article class="n-card n-jtip"><h3 class="n-section-title">判断提醒<a class="n-link" href="#c-judge">去判断复盘</a></h3>
-            <ul class="n-jtip__list"><li><a href="#c-judge"><span><b>XEngineer 第二期</b><small>内驱力 8 人中 2 人前段偏高</small></span><span class="n-astate" data-s="todo">待 HRBP 归因</span></a></li><li><a href="#c-judge"><span><b>2026 年 2–8 月社招入职</b><small>潜力 6 人中 4 人前段偏高 等 2 个维度</small></span><span class="n-astate" data-s="todo">待 HRBP 归因</span></a></li></ul>
+            <ul class="n-jtip__list"><li><a href="#c-judge"><span><b>XEngineer 第二期</b><small>内驱力 8 人中 2 人前段偏高</small></span><span class="n-astate" data-s="todo">待 HRBP 归因</span></a></li></ul>
             <p class="ds-caption">差异需要复核，不代表员工退步，也不直接认定标准或评价人有错。</p>
           </article>
         </div>
       </div>
       <div class="ds-rules">
-        <div class="ds-rule"><b>值得关注</b><p>新发现（N1 资料从无到有、N2 AI 线索）、突出表现（T1 走向走高、T2 提名）、需要介入（I1 走向走低、I2 值得聊一聊未处理、I3 跟踪逾期）。每条写规则编号和证据；类别是文字标签，不是分数，不显示均值和排名。AI 线索和提名经 HRBP 核实后才出现；同一人只出现一次。</p></div>
-        <div class="ds-rule"><b>按项目看</b><p>同一批人按依据事件所在的项目分组，Landing 议题归到所在批次；组内不排序。不另设「最近关键事件」一块。</p></div>
-        <div class="ds-rule"><b>推动</b><p>四种动作：进一步了解、验证、培养、任用讨论；必须选负责人（HRBP 或部门负责人）。负责人确认的结果作为管理观察进档案，标「来自 CEO 推动」，不产生分数，员工和导师看不到。</p></div>
-        <div class="ds-rule"><b>我推动的事项与判断提醒</b><p>待你确认的事置顶，用印章色底；其后是你发起、还在推进的事。判断提醒最多 2 条，一行一条，只有批次级差异；请 HRBP 复核在判断复盘页发起。</p></div>
+        <div class="ds-rule"><b>两个集合</b><p>「值得关注」是系统按规则列出的候选名单，「我的关注」是自己点「加关注」保存的人，人数分开写。关注只对本人可见，被关注的人和导师看不到；不产生分数，不改变档案。</p></div>
+        <div class="ds-rule"><b>每行最多两个标签</b><p>关注原因（灰色细框）加证据角标；规则编号、版本和「按规则算出」放进速览。「已关注」「已推动」用按钮文字和一行提示表达，7 天内有新进展才显示那一行。</p></div>
+        <div class="ds-rule"><b>需要我看</b><p>只放需要 CEO 本人决定的事，计数用朱印色；CEO 发起、还在推进的事折叠在下面，展开写负责人、状态和最近进展。</p></div>
+        <div class="ds-rule"><b>推动</b><p>四种动作不变，在速览和档案里发起；发起时此人自动进入「我的关注」，进展作为关注动态出现。负责人确认的结果作为管理观察进档案，员工和导师看不到。</p></div>
+      </div>
+
+      <h3 class="ds-sub" id="c-peek">速览（v1.5）</h3>
+      <p>所有工作台上点人或项目，先拉起速览：桌面是右侧栏，侧栏开着时点另一个人直接切换；手机是屏内的底部弹层。依次是为什么关注、关键事实、能力线索、已经在做的事，30 秒读完；想深入再打开档案。内容与详情页同一套权限，导师看到的速览里没有象限和值得关注。</p>
+      <div class="ds-grid c2">
+        <aside class="n-peek is-demo is-open" aria-label="速览样张"><div class="n-peek__body">
+          <header class="n-peek__head"><span class="n-avatar n-avatar--lg"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><div><h2>林知远</h2><p>业务成功部 · 初级产品架构师 · 入职 3 个月</p></div></header>
+          <div class="n-peek__acts"><button class="n-btn n-btn--sm n-follow" type="button" aria-pressed="false"><svg><use href="#i-star"/></svg>加关注</button></div>
+          <section class="n-peek__sec"><h3>为什么值得关注</h3><div class="n-peek__why"><span class="n-watch__cat">突出表现</span>叶青推荐适合做 FDE：联调时能独立定位跨域问题，也会主动接没人认领的联调文档<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 1">1</button></span><span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 2">2</button></span></div><p class="n-peek__src">叶青推荐 · 苏晚核实 · 也命中 N1</p><p class="n-peek__rule">规则 T2：负责人、导师 / 助教或 HRBP 的提名与推荐，经 HRBP 核实 · watch-v2</p></section>
+          <section class="n-peek__sec"><h3>关键事实<a class="n-link" href="#c-timeline">查看全部</a></h3><ol class="n-peek__facts"><li><span class="n-peek__date">10-15</span><span>客户现场演示后调整搜索结果的展示方式<small>海外加速搜索体验 · 周屿记录</small></span></li><li><span class="n-peek__date">10-12</span><span>周会主动认领没人接的联调文档<small>韩策记录</small></span></li></ol></section>
+          <section class="n-peek__sec"><h3>能力线索</h3><ul class="n-peek__caps"><li><b>内生动力</b><span>2 件事</span><small>高难情境下表现突出，并带动他人或形成可复用的方法</small></li><li><b>智慧力</b><span>1 件事</span><small>常规情境下稳定表现出该维度的行为</small></li></ul><p class="nt-muted">其余 2 个维度资料不足，不代表能力低。</p></section>
+          <section class="n-peek__sec"><h3>已经在做的事</h3><ul class="n-peek__doing"><li>叶青在重点跟踪 · 11-02 回看</li></ul></section>
+          <footer class="n-peek__foot"><button class="n-btn n-btn--sm n-btn--menu" type="button">推动<svg><use href="#i-chev"/></svg></button><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-pen"/></svg>记一件事</button><a class="n-btn n-btn--sm n-btn--ink" href="#c-timeline">打开档案</a></footer>
+        </div></aside>
+        <div class="ds-grid" style="align-content:start">
+          <div class="ds-rules" style="margin:0">
+            <div class="ds-rule"><b>为什么关注</b><p>与首页那一行同一句话，后面写来源（按规则得出，或谁提名、谁核实）；规则编号与版本放在这一段末尾，供追溯。</p></div>
+            <div class="ds-rule"><b>关键事实</b><p>最近 3 件已确认的关键事件：日期、一句话、项目、记录人、原文角标。有待确认 AI 建议分的事件不算。</p></div>
+            <div class="ds-rule"><b>能力线索</b><p>有证据的维度写「几件事」和最高一档行为锚点的说法，不写均值；没有证据的维度合并成一句「资料不足」，不当作负面。</p></div>
+            <div class="ds-rule"><b>交互</b><p>Esc 或关闭按钮收起，焦点回到触发处；⌘ / Ctrl 点击照常打开详情页。减少动态效果时直接出现。</p></div>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="ds-sub" id="c-mentor">导师工作台与推荐方向（v1.5）</h3>
+      <p>导师首页以所带学员为主线：观察、按情境 · 行为 · 影响（SBI）记一件事、在事件里给维度分、推荐方向。推荐要选目标角色、写理由、引用两件不同的已确认事件，HRBP 核实后进入档案的发展方向，也作为一次提名进入 CEO 的值得关注；推荐不改变找人排序，也不产生分数。</p>
+      <div class="ds-grid c2">
+        <article class="n-card n-students"><h3 class="n-section-title">我带的学员<span class="n-count is-quiet">3 人</span></h3>
+          <ul class="n-students__list"><li><span class="n-avatar"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><div><b>林知远</b><small>议题「工单检索」 · 本周记了 1 件 · 最近 10-21</small></div><div class="n-students__acts"><button class="n-btn n-btn--sm n-btn--ink" type="button"><svg><use href="#i-pen"/></svg>记一件事</button><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-target"/></svg>推荐</button></div></li><li><span class="n-avatar">王</span><div><b>王一舟</b><small>议题「工单检索」 · 本周还没记</small></div><div class="n-students__acts"><button class="n-btn n-btn--sm n-btn--ink" type="button"><svg><use href="#i-pen"/></svg>记一件事</button><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-target"/></svg>推荐</button></div></li></ul>
+          <p class="ds-caption">「本周还没记」只是提醒记录人，不会出现在学员的档案里。</p>
+        </article>
+        <article class="n-card"><h3 class="n-section-title">推荐方向在档案里</h3>
+          <div class="n-dir__recos" style="margin-top:0"><div class="n-dir__reco"><svg><use href="#i-target"/></svg><span><b>推荐适合做 FDE</b>联调时能独立定位跨域问题，也会主动接没人认领的联调文档，适合往 FDE 方向练<small>叶青推荐 · 苏晚核实 · 10-22</small></span></div></div>
+          <ul class="n-mine__list" style="margin-top:var(--s-3)"><li><a href="#c-mentor"><span class="n-mine__title">唐果 · 适合做产品架构师<small>10-23 提交 · 先访谈客服再定知识库结构，方案被否两天就拿出新版本</small></span><span class="n-mine__meta"><span class="n-astate" data-s="doing">HRBP 核实中</span></span></a></li></ul>
+        </article>
       </div>
 
       <h3 class="ds-sub">上传材料</h3>
@@ -837,7 +876,7 @@
     <!-- ═════════ 组件：关键事件与打分 ═════════ -->
     <section class="ds-sec" id="c-event">
       <h2>关键事件与打分</h2>
-      <p class="lead">导师或 HRBP 先写原话，也可以按住说话；AI 整理成背景、行为、结果，并只给涉及的维度打建议分。录入人可以直接改文字、点圆点改分，改分时可以顺手写一句理由；改过的分会留下 AI 原分的淡影。标签也由 AI 顺手打上：标签库里有的直接生效，不对就删；库里没有的标成候选，等 HRBP 收录。标签只用来检索和找人，不参与打分。</p>
+      <p class="lead">导师或 HRBP 先写原话，也可以按住说话；AI 按情境、行为、影响（SBI）整理，并只给涉及的维度打建议分。录入人可以直接改文字、点圆点改分，改分时可以顺手写一句理由；改过的分会留下 AI 原分的淡影。标签也由 AI 顺手打上：标签库里有的直接生效，不对就删；库里没有的标成候选，等 HRBP 收录。标签只用来检索和找人，不参与打分。</p>
       <div class="ds-grid c2">
         <article class="n-card n-event" id="event-demo" data-step="write">
           <div class="n-event__head">
@@ -862,9 +901,9 @@
           <div id="event-body" hidden>
             <h3 class="n-event__title"><span class="n-edit" data-k="title" contenteditable="plaintext-only" spellcheck="false"></span></h3>
             <dl class="n-event__sbar">
-              <dt>背景</dt><dd><span class="n-edit" data-k="bg" contenteditable="plaintext-only" spellcheck="false"></span></dd>
+              <dt>情境</dt><dd><span class="n-edit" data-k="bg" contenteditable="plaintext-only" spellcheck="false"></span></dd>
               <dt>行为</dt><dd><span class="n-edit" data-k="act" contenteditable="plaintext-only" spellcheck="false"></span></dd>
-              <dt>结果</dt><dd><span class="n-edit" data-k="res" contenteditable="plaintext-only" spellcheck="false"></span></dd>
+              <dt>影响</dt><dd><span class="n-edit" data-k="res" contenteditable="plaintext-only" spellcheck="false"></span></dd>
             </dl>
             <div class="n-tags" id="event-tags" hidden>
               <span class="n-tags__label">标签</span>

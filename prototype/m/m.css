@@ -53,6 +53,9 @@ body.nt-mob { min-height: 100vh; background: var(--paper); }
 .m-list { list-style: none; margin: 0; padding: 0; border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
 .m-list > li + li { border-top: 1px solid var(--line); }
 .m-list a, .m-list .m-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); color: inherit; text-decoration: none; font-size: var(--t-sm); }
+.m-list > li.has-act { display: flex; align-items: center; padding-right: var(--s-3); }
+.m-list > li.has-act > a { flex: 1; min-width: 0; }
+.m-list > li.has-act > .n-btn { flex: none; min-height: 32px; }
 .m-list small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
 .m-list .chev { width: 14px; height: 14px; color: var(--ink-4); }
 .m-big { width: 100%; min-height: 48px; font-size: var(--t-body); border-radius: var(--r-card); }

@@ -1,4 +1,4 @@
-/* 记录关键事件：一句话 → AI 整理成背景、行为、结果 → 建议分逐项出现 → 确认或改分 → 保存（5 秒撤销）。
+/* 记录关键事件：一句话 → AI 整理成情境、行为、影响（SBI）→ 建议分逐项出现 → 确认或改分 → 保存（5 秒撤销）。
    ?m=w2 打开会议人才纪要（预先处理的演示任务）。员工视角只能补充本人自述，不打分。 */
 (function () {
   'use strict';
@@ -25,7 +25,7 @@
     const q = NT.param('q') || '';
     const pre = NT.param('person');
     mount(main, html`
-      <header class="nt-head"><div><h1>记录关键事件</h1><p>写原话就行，不用分段。AI 整理成背景、行为、结果，只给涉及的维度打建议分；你可以直接改文字、点圆点改分。保存后 5 秒内可以撤销。</p></div></header>
+      <header class="nt-head"><div><h1>记录关键事件</h1><p>写原话就行，不用分段。AI 按情境、行为、影响（SBI）整理，只给涉及的维度打建议分；你可以直接改文字、点圆点改分。保存后 5 秒内可以撤销。</p></div></header>
       <div class="nt-split">
         <article class="n-card n-event" id="ev" data-step="write">
           <div class="n-event__head" id="ev-head"><span>谁</span><select class="n-select" id="ev-person" style="width:auto;min-height:30px" aria-label="记录给谁">
@@ -45,7 +45,7 @@
         <aside class="nt-grid nt-sticky">
           <div class="n-anchor" id="anchor"><b id="anchor-t">锚点</b> <span class="n-badge" style="margin-left:6px">rubric-v1</span><ol>${SEED_ANCHORS('pot')}</ol></div>
           <div class="n-card" style="padding:var(--s-4) var(--s-5)"><b style="font-size:var(--t-sm)">怎么算一条关键事件</b>
-            <p class="nt-caption">一件具体的事：谁、在什么情境下、做了什么、结果如何。只写「参与了」的地方会标为资料不足，不出分。多人参与的事各自按本人行为打分。</p></div>
+            <p class="nt-caption">一件具体的事，按 SBI 讲：在什么情境下（S）、本人做了什么（B）、带来什么影响（I）。只写「参与了」的地方会标为资料不足，不出分。多人参与的事各自按本人行为打分。</p></div>
         </aside>
       </div>`);
     $('#ev-shape').addEventListener('click', () => doShape());
@@ -85,12 +85,12 @@
     mount($('#ev-head'), html`${UI.avatar(pid, 'sm')}<b class="n-event__who">${st.person(pid).name}</b>${proj ? html`<span class="n-badge">${icon('folder')}${proj.type === 'Landing 议题' ? '议题' : '项目'}：${proj.name}</span>` : ''}${UI.demo()}${found.hit.length > 1 ? html`<span class="n-badge">也提到了${found.hit.slice(1).map((p) => p.name).join('、')} · 可另记一条</span>` : ''}<span class="n-event__ip nt-ip" data-ip="thinking" data-size="36" id="ev-ip"></span>`);
     UI.mountIPs($('#ev-head'));
     mount(body, html`
-      <div style="margin:var(--s-3) 0">${UI.trail('整理这条记录 · 4 步', ['识别人员与项目', '拆出背景、行为、结果', '从标签库里打标签', '对照锚点给涉及的维度打建议分'])}</div>
+      <div style="margin:var(--s-3) 0">${UI.trail('整理这条记录 · 4 步', ['识别人员与项目', '拆出情境、行为、影响', '从标签库里打标签', '对照锚点给涉及的维度打建议分'])}</div>
       <h3 class="n-event__title"><span class="n-edit is-light" data-k="title" contenteditable="plaintext-only" spellcheck="false"></span></h3>
       <dl class="n-event__sbar">
-        <dt>背景</dt><dd><span class="n-edit is-light" data-k="bg" contenteditable="plaintext-only" spellcheck="false"></span></dd>
+        <dt>情境</dt><dd><span class="n-edit is-light" data-k="bg" contenteditable="plaintext-only" spellcheck="false"></span></dd>
         <dt>行为</dt><dd><span class="n-edit is-light" data-k="act" contenteditable="plaintext-only" spellcheck="false"></span></dd>
-        <dt>结果</dt><dd><span class="n-edit is-light" data-k="res" contenteditable="plaintext-only" spellcheck="false"></span></dd>
+        <dt>影响</dt><dd><span class="n-edit is-light" data-k="res" contenteditable="plaintext-only" spellcheck="false"></span></dd>
       </dl>
       <div class="n-tags" id="ev-tags" hidden><span class="n-tags__label">标签</span><span class="n-tags__list" id="tag-list"></span><span class="n-tags__undo" id="tag-undo" hidden></span></div>
       <details class="n-event__raw"><summary>原话</summary><p>${text}</p></details>
@@ -103,7 +103,7 @@
       </div>`);
     const trail = $('.n-trail', body);
     const trailRun = NT.runTrail(trail, 520);
-    const ph = { bg: '原话没写背景，可以补上', res: '原话没写结果，可以补上' };
+    const ph = { bg: '原话没写情境，可以补上', res: '原话没写影响，可以补上' };
     for (const el of $$('.n-edit', body)) {
       const t = s[el.dataset.k];
       if (!t) { el.textContent = ph[el.dataset.k] || ''; el.classList.remove('is-light'); el.style.color = 'var(--ink-3)'; el.dataset.empty = 1; continue; }

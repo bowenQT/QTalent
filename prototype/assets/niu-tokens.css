@@ -32,21 +32,21 @@
             rgb(143 160 255 / .16) 100%);
   --foil-edge: linear-gradient(110deg, var(--foil-1), var(--foil-2), var(--foil-3), var(--foil-4), var(--foil-1));
 
-  /* ── 朱印：只用于正式确认、冻结快照 ─────────── */
+  /* ── 朱印：只用于正式确认、冻结快照和「需要你决定」的计数，不做大面积底色 ── */
   --seal: #c23b22;
   --seal-soft: #fbe9e4;
 
-  /* ── 判断状态（颜色之外必须配图形） ───────── */
+  /* ── 判断状态（颜色之外必须配图形；只做小标记，不用于关注原因等标签） ── */
   --yes: #2c7a52;      --yes-soft: #e3f1e8;       /* 支持 */
   --no: #a8463d;       --no-soft: #f6e6e3;        /* 不支持 */
   --unknown: #7d828c;  --unknown-soft: #eef0ec;   /* 资料不足：灰 + 斜纹 */
   --conflict: #b07a0c; --conflict-soft: #fbf1d9;  /* 证据冲突：琥珀 + 分裂 */
 
-  /* ── 来源材质 ─────────────────────────── */
-  --src-fact: #4a5d6e;       /* 原始事实：石青，实线框 */
-  --src-self: #7a5a9a;       /* 本人自述：紫，引号 */
-  --src-obs: #2f6f7a;        /* 管理观察：青，眼形标 + 淡青底 */
-  --src-obs-soft: #eaf3f2;
+  /* ── 来源材质：靠图标形状和文字区分，颜色统一为次级墨色，只有 AI 推断用光（v1.5 3.32） ── */
+  --src-fact: var(--ink-2);  /* 原始事实：实线框 */
+  --src-self: var(--ink-2);  /* 本人自述：引号、方点 */
+  --src-obs: var(--ink-2);   /* 管理观察：眼形标 */
+  --src-obs-soft: var(--sheet-sunk);
   --src-ai: var(--light);    /* AI 推断：流光 */
   --src-human: var(--ink);   /* 人工结论：墨色正文 + 楷体签名 */
 

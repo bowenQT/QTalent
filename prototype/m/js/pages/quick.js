@@ -1,4 +1,4 @@
-/* 手机快速记录：一句话或按住说话 → AI 整理成背景、行为、结果，只给涉及的维度打建议分 → 点圆点确认或改分 → 保存（5 秒撤销）。
+/* 手机快速记录：一句话或按住说话 → AI 整理成情境、行为、影响（SBI），只给涉及的维度打建议分 → 点圆点确认或改分 → 保存（5 秒撤销）。
    员工本人在这里补充经历、写意愿或提出纠错，作为本人自述保存，不打分。 */
 (function () {
   'use strict';
@@ -68,9 +68,9 @@
       <article class="m-card n-event" id="ev">
         <div class="n-event__head">${UI.avatar(pid, 'sm')}<b class="n-event__who">${st.person(pid).name}</b>${UI.demo()}<span class="n-event__ip nt-ip" data-ip="thinking" data-size="32" id="ev-ip"></span></div>
         ${proj ? html`<span class="n-badge" style="margin-top:var(--s-2)">${icon('folder')}${proj.type === 'Landing 议题' ? '议题' : '项目'}：${proj.name}</span>` : ''}
-        <div style="margin:var(--s-3) 0">${UI.trail('整理这条记录 · 4 步', ['识别人员与项目', '拆出背景、行为、结果', '从标签库里打标签', '对照锚点给涉及的维度打建议分'])}</div>
+        <div style="margin:var(--s-3) 0">${UI.trail('整理这条记录 · 4 步', ['识别人员与项目', '拆出情境、行为、影响', '从标签库里打标签', '对照锚点给涉及的维度打建议分'])}</div>
         <h3 class="n-event__title"><span class="n-edit is-light" data-k="title" contenteditable="plaintext-only" spellcheck="false"></span></h3>
-        <dl class="n-event__sbar">${['bg', 'act', 'res'].map((k) => html`<dt>${{ bg: '背景', act: '行为', res: '结果' }[k]}</dt><dd><span class="n-edit is-light" data-k="${k}" contenteditable="plaintext-only" spellcheck="false"></span></dd>`)}</dl>
+        <dl class="n-event__sbar">${['bg', 'act', 'res'].map((k) => html`<dt>${{ bg: '情境', act: '行为', res: '影响' }[k]}</dt><dd><span class="n-edit is-light" data-k="${k}" contenteditable="plaintext-only" spellcheck="false"></span></dd>`)}</dl>
         <div class="n-tags" id="ev-tags" hidden><span class="n-tags__label">标签</span><span class="n-tags__list" id="tag-list"></span></div>
         <details class="n-event__raw"><summary>原话</summary><p>${text}</p></details>
         <div id="scores" style="margin-top:var(--s-3)"></div>
@@ -83,7 +83,7 @@
       </div>`);
     UI.mountIPs(main);
     const trailRun = NT.runTrail($('.n-trail', main), 480);
-    const ph = { bg: '原话没写背景，可以补上', res: '原话没写结果，可以补上' };
+    const ph = { bg: '原话没写情境，可以补上', res: '原话没写影响，可以补上' };
     for (const el of $$('.n-edit', main)) {
       const t = s[el.dataset.k];
       if (!t) { el.textContent = ph[el.dataset.k] || ''; el.classList.remove('is-light'); el.style.color = 'var(--ink-3)'; el.dataset.empty = 1; continue; }
