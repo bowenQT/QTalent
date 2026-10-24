@@ -631,8 +631,9 @@
         people: ['p-gengyu', 'p-ningxi', 'p-zhuoran', 'p-weilan', 'p-lin', 'p-xuqh'] },
     ],
     // XEngineer：前后两段都是 S / A / B 的人工判断。[学员, 入营面试官, 入营 {维度: 等级}, 入营评语, 训练营评审 {维度: 等级}, 评审评语]
+    // src：两段原始记录所在的表格，第 n 条记录在第 n+1 行，维度按 cols 落在列上，引用定位到单元格
     xe: {
-      'jr-xe1': { back: 'p-songchuan', rows: [
+      'jr-xe1': { back: 'p-songchuan', src: { front: ['XEngineer 第一期入营选拔表.xlsx', '入营评级', '03-02'], back: ['XEngineer 第一期训练营评审表.xlsx', '结营评审', '05-29'], cols: { pd: 'C', eng: 'D', drive: 'E', note: 'F' } }, rows: [
         ['p-xe-wenxi', 'p-jiangyb', { pd: 'A', eng: 'A', drive: 'S' }, '有热情，学习意愿强。', { pd: 'A', eng: 'A', drive: 'A' }, '课题按期完成，遇到阻塞多等导师安排。'],
         ['p-xe-chuhe', 'p-jiangyb', { pd: 'B', eng: 'A', drive: 'S' }, '对技术很感兴趣。', { pd: 'B', eng: 'A', drive: 'A' }, '工程实现扎实，方案讨论参与少。'],
         ['p-xe-jianghe', 'p-jiangyb', { pd: 'A', eng: 'S', drive: 'A' }, '积极。', { pd: 'B', eng: 'S', drive: 'B' }, '存储课题完成得最好；需求理解偏窄，主动性一般。'],
@@ -642,7 +643,7 @@
         ['p-xe-chengmo', 'p-yeqing', { pd: 'A', eng: 'A', drive: 'S' }, '很有热情。', { pd: 'A', eng: 'A', drive: 'A' }, '按期完成，复盘写得认真。'],
         ['p-xe-wenyu', 'p-yeqing', { pd: 'A', eng: 'B', drive: 'A' }, '入营前主动问清了训练营的课题安排，并提前读了相关代码。', { pd: 'A', eng: 'B', drive: 'A' }, '方案表达清楚，工程上还需要练。'],
       ] },
-      'jr-xe2': { back: 'p-songchuan', rows: [
+      'jr-xe2': { back: 'p-songchuan', src: { front: ['XEngineer 第二期入营选拔表.xlsx', '入营评级', '07-06'], back: ['XEngineer 第二期训练营评审表.xlsx', '结营评审', '10-17'], cols: { pd: 'C', eng: 'D', drive: 'E', note: 'F' } }, rows: [
         ['p-xe-zhuyu', 'p-jiangyb', { pd: 'A', eng: 'A', drive: 'S' }, '做过一次开源贡献并被合并。', { pd: 'A', eng: 'A', drive: 'A' }, '课题按期完成；被合并的那次贡献之后没有再跟进。'],
         ['p-xe-bailu', 'p-jiangyb', { pd: 'A', eng: 'B', drive: 'A' }, '大学社团里牵头办过一次比赛。', { pd: 'A', eng: 'B', drive: 'B' }, '分配的任务都完成了，很少主动提出新做法。'],
         ['p-xe-jiangfan', 'p-jiangyb', { pd: 'B', eng: 'A', drive: 'A' }, '实习时主动把团队的部署脚本整理成文档，被后来的人沿用。', { pd: 'B', eng: 'A', drive: 'A' }, '主动补了课题的部署文档。'],
@@ -665,14 +666,15 @@
       ],
     },
     // AI 提出的归因假设（脚本化 mock）：每条引用案例与标准版本；未确认不能生成动作
+    // basis：假设正文里的统计依赖的完整范围（批次 × 维度 / 评价人）；其中任何案例被标为不可比，假设都要复核
     hyps: {
-      'jr-xe1': [{ id: 'h-xe1-1', cats: ['method'], text: '内驱力 8 人中 6 人前段偏高；其中 5 人的入营记录只写了「有热情」一类描述，没有具体行为。v1 标准对内驱力的评语没有要求。', cases: ['jr-xe1:p-xe-wenxi:drive', 'jr-xe1:p-xe-chuhe:drive', 'jr-xe1:p-xe-luming:drive', 'jr-xe1:p-xe-chengmo:drive', 'jr-xe1:p-xe-yezhou:drive'], std: 'xe-select-v1' }],
+      'jr-xe1': [{ id: 'h-xe1-1', basis: [{ batch: 'jr-xe1', dim: 'drive' }], cats: ['method'], text: '内驱力 8 人中 6 人前段偏高；其中 5 人的入营记录只写了「有热情」一类描述，没有具体行为。v1 标准对内驱力的评语没有要求。', cases: ['jr-xe1:p-xe-wenxi:drive', 'jr-xe1:p-xe-chuhe:drive', 'jr-xe1:p-xe-luming:drive', 'jr-xe1:p-xe-chengmo:drive', 'jr-xe1:p-xe-yezhou:drive'], std: 'xe-select-v1' }],
       'jr-xe2': [
-        { id: 'h-xe2-1', cats: ['method'], text: '内驱力仍有 2 人前段偏高（第一期 6 人）。这 2 人的入营记录都按 v2 写了行为，但各只有一个例子，也没有追问之后是否持续。v2 要求写行为，没有要求追问持续性。', cases: ['jr-xe2:p-xe-zhuyu:drive', 'jr-xe2:p-xe-bailu:drive'], std: 'xe-select-v2' },
-        { id: 'h-xe2-2', cats: ['rater'], text: '两期合计，江屿白面试的 6 位学员中有 5 位内驱力前段偏高，方向一致；同期另两位面试官的 10 个内驱力案例中 3 个偏高。样本达到 5 个案例的门槛。', cases: ['jr-xe1:p-xe-wenxi:drive', 'jr-xe1:p-xe-chuhe:drive', 'jr-xe1:p-xe-jianghe:drive', 'jr-xe2:p-xe-zhuyu:drive', 'jr-xe2:p-xe-bailu:drive'], rater: 'p-jiangyb' },
+        { id: 'h-xe2-1', basis: [{ batch: 'jr-xe2', dim: 'drive' }, { batch: 'jr-xe1', dim: 'drive' }], cats: ['method'], text: '内驱力仍有 2 人前段偏高（第一期 6 人）。这 2 人的入营记录都按 v2 写了行为，但各只有一个例子，也没有追问之后是否持续。v2 要求写行为，没有要求追问持续性。', cases: ['jr-xe2:p-xe-zhuyu:drive', 'jr-xe2:p-xe-bailu:drive'], std: 'xe-select-v2' },
+        { id: 'h-xe2-2', basis: [{ batch: 'jr-xe1', dim: 'drive' }, { batch: 'jr-xe2', dim: 'drive' }], cats: ['rater'], text: '两期合计，江屿白面试的 6 位学员中有 5 位内驱力前段偏高，方向一致；同期另两位面试官的 10 个内驱力案例中 3 个偏高。样本达到 5 个案例的门槛。', cases: ['jr-xe1:p-xe-wenxi:drive', 'jr-xe1:p-xe-chuhe:drive', 'jr-xe1:p-xe-jianghe:drive', 'jr-xe2:p-xe-zhuyu:drive', 'jr-xe2:p-xe-bailu:drive'], rater: 'p-jiangyb' },
       ],
       'jr-hire26': [
-        { id: 'h-hire-1', cats: ['rater', 'method'], text: '韩策的 5 个可对照案例里，「潜力」3 个都是前段偏高（高一到两档），评语多是「冲劲」「积极」一类描述，没有具体行为；专业能力和沟通协作 2 个案例一致。', cases: ['jr-hire26:p-gengyu:pot', 'jr-hire26:p-ningxi:pot', 'jr-hire26:p-lin:pot'], rater: 'p-hance' },
+        { id: 'h-hire-1', basis: [{ batch: 'jr-hire26', rater: 'p-hance' }], cats: ['rater', 'method'], text: '韩策的 5 个可对照案例里，「潜力」3 个都是前段偏高（高一到两档），评语多是「冲劲」「积极」一类描述，没有具体行为；专业能力和沟通协作 2 个案例一致。', cases: ['jr-hire26:p-gengyu:pot', 'jr-hire26:p-ningxi:pot', 'jr-hire26:p-lin:pot'], rater: 'p-hance' },
         { id: 'h-hire-2', cats: ['env'], text: '魏岚入职 2 个月后所在的会员项目取消、团队调整（06 月中），后段事件都发生在调整后的过渡期，任务从策划变成按清单执行。', cases: ['jr-hire26:p-weilan:prof', 'jr-hire26:p-weilan:pot'] },
         { id: 'h-hire-3', cats: ['later'], text: '卓然的专业度两条分来自同一位记录人：一条只写了「进度慢」，另一条与项目复盘文档的描述（需求两次变更，模型按期交付）不一致。', cases: ['jr-hire26:p-zhuoran:prof'] },
       ],

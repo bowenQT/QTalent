@@ -145,10 +145,11 @@
     const fEv = u.front.ev && st.event(u.front.ev);
     const fv = u.front.v == null ? '—' : u.front.v;
     const bv = u.back.na ? '—' : u.back.v;
+    // 等级制两段的来源是原始表格的单元格；评价人本人看不到后段评语，也不给后段引用
     const backDetail = chain.scale === 'grade'
-      ? (showBackNote && u.back.note ? html`<p class="n-jcase__note">${u.back.note}</p>` : '')
+      ? (showBackNote && u.back.note ? html`<p class="n-jcase__note">${u.back.note}${UI.cite(u.back.src, 2)}</p>` : '')
       : u.back.na ? html`<div>${u.back.miss}${u.back.to ? ` · 窗口到 ${NT.md(u.back.to)}` : ''}</div>`
-        : html`<div>均值 ${u.back.mean.toFixed(1)} · ${u.back.n} 条已确认分，来自 ${u.back.evs.length} 条事件${showBackNote ? html` · 记录人 ${u.back.by.map(name).join('、')}${u.back.evs.map((e, i) => UI.cite(citeOf(e), i + 1))}` : ''}</div>`;
+        : html`<div>均值 ${u.back.mean.toFixed(1)} · ${u.back.n} 条已确认分，来自 ${u.back.evs.length} 条事件${showBackNote ? html` · 记录人 ${u.back.by.map(name).join('、')}${u.back.evs.map((e, i) => UI.cite(citeOf(e), i + 2))}` : ''}</div>`;
     const canMark = role === 'hrbp' && !o.raterOnly && u.front.v != null && !u.back.na;
     return html`<article class="n-jcase" id="case-${u.id}">
       <div class="n-jcase__head">${UI.avatar(u.person, 'sm')}<b>${name(u.person)}</b><span class="n-badge n-badge--demo">演示</span><span class="nt-muted">${u.dimName}${o.batch ? ` · ${st.judgeBatch(u.batch).name}` : ''}</span>
@@ -156,7 +157,7 @@
       <div class="n-jcase__side"><div class="n-jcase__stage"><span>${chain.front}</span><span>${u.front.std}</span></div>
         <div class="n-jcase__val"><b>${fv}</b><span>${name(u.front.by)}</span></div>
         ${u.front.v == null ? html`<div>${u.front.miss || '前段没有这个维度的结论'}</div>` : html`<p class="n-jcase__note">${u.front.note}</p>`}
-        ${fEv ? UI.cite({ ...fEv.srcs[0], quote: fEv.quote }, 1) : ''}</div>
+        ${fEv ? UI.cite({ ...fEv.srcs[0], quote: fEv.quote }, 1) : u.front.src ? UI.cite(u.front.src, 1) : ''}</div>
       <div class="n-jcase__mid">${jstate(u)}<span>按 ${map.id}</span></div>
       <div class="n-jcase__side"><div class="n-jcase__stage"><span>${chain.back}</span><span>${chain.scale === 'grade' ? `评审 ${name(u.back.by[0])}` : '按对应表取档'}</span></div>
         <div class="n-jcase__val"><b>${bv}</b>${chain.scale === 'grade' && !u.back.na ? html`<span>${name(u.back.by[0])}</span>` : ''}</div>
@@ -242,7 +243,7 @@
       <p class="nt-caption">AI 只提出带证据的假设；归因由 HRBP 选择类别、写理由并确认。结论只作用于评价体系，不写回被评价人。</p>`;
   }
   // 依据变化的说明：评价人只在 HRBP 视角下点名
-  const checkText = (h, chk, forCeo) => [chk.dropped.length && `${chk.dropped.length} 个引用案例已标为不可比或资料不足`, chk.few && (forCeo ? '涉及的评价人可对照案例不到门槛，样本不足' : `${name(h.rater)}的可对照案例不到 ${st.RATER_MIN} 个，样本不足`)].filter(Boolean).join('；');
+  const checkText = (h, chk, forCeo) => [chk.dropped.length && `${chk.dropped.length} 个依据案例已标为不可比或资料不足`, chk.few && (forCeo ? '涉及的评价人可对照案例不到门槛，样本不足' : `${name(h.rater)}的可对照案例不到 ${st.RATER_MIN} 个，样本不足`)].filter(Boolean).join('；');
   function caseChips(h, chk) {
     return html`<div class="n-attrib__cases">${h.cases.map((cid) => { const [bid, pid, dim] = cid.split(':'); const u = st.judgeUnits(bid).find((x) => x.id === cid); const out = chk?.dropped.includes(cid); return html`<button class="n-casechip ${out ? 'is-out' : ''}" type="button" data-case="${cid}" ${NT.raw(out ? 'title="已标为不可比或资料不足，不再作为依据"' : '')}>${name(pid)} · ${u?.dimName || dim}${bid !== id ? ` · ${st.judgeBatch(bid).name.replace(/判断复盘|XEngineer /g, '')}` : ''}${out ? '（已排除）' : ''}</button>`; })}${h.std ? html`<span class="n-casechip" style="cursor:default">标准 ${h.std}</span>` : ''}</div>`;
   }
@@ -283,6 +284,22 @@
     </div>`;
   }
 
+  // 不可比标注：批次页和按评价人页共用
+  function markClick(e, main) {
+    const mk = e.target.closest('[data-mark]'); if (mk) { marking = mk.dataset.mark; render(main); $('#nc-why')?.focus(); return true; }
+    if (e.target.closest('[data-markx]')) { marking = null; render(main); return true; }
+    const ok = e.target.closest('[data-markok]');
+    if (ok) {
+      const why = $('#nc-why').value.trim();
+      if (!why) { $('#nc-why').focus(); NT.toast('标为不可比要写一句理由'); return true; }
+      st.markJudge(ok.dataset.markok, why); marking = null; focus = ok.dataset.markok; render(main);
+      NT.toast('已标为不可比，不计入偏差人数', { undo: () => { st.unmarkJudge(ok.dataset.markok); render(main); } });
+      return true;
+    }
+    const um = e.target.closest('[data-unmark]'); if (um) { st.unmarkJudge(um.dataset.unmark); render(main); return true; }
+    return false;
+  }
+
   function wireBatch(main, b, chain, units) {
     main.onclick = (e) => {
       const row = e.target.closest('[data-dim]');
@@ -293,17 +310,7 @@
         if (bid !== id) { location.href = NT.link('judge.html', { id: bid, dim }); return; }
         openDim = dim; focus = chip.dataset.case; render(main); return;
       }
-      const mk = e.target.closest('[data-mark]'); if (mk) { marking = mk.dataset.mark; render(main); $('#nc-why')?.focus(); return; }
-      if (e.target.closest('[data-markx]')) { marking = null; render(main); return; }
-      const ok = e.target.closest('[data-markok]');
-      if (ok) {
-        const why = $('#nc-why').value.trim();
-        if (!why) { $('#nc-why').focus(); NT.toast('标为不可比要写一句理由'); return; }
-        st.markJudge(ok.dataset.markok, why); marking = null; focus = ok.dataset.markok; render(main);
-        NT.toast('已标为不可比，不计入偏差人数', { undo: () => { st.unmarkJudge(ok.dataset.markok); render(main); } });
-        return;
-      }
-      const um = e.target.closest('[data-unmark]'); if (um) { st.unmarkJudge(um.dataset.unmark); render(main); return; }
+      if (markClick(e, main)) return;
       const ad = e.target.closest('[data-adopt]');
       if (ad) { const h = st.judgeHyps(id).find((x) => x.id === ad.dataset.adopt); if (!st.hypCheck(h).ok) { render(main); return; } drafting = { id: h.id, text: h.text, cats: h.cats.slice(), reason: '' }; render(main); $(`#why-${h.id}`)?.focus(); return; }
       const rw = e.target.closest('[data-rewrite]');
@@ -369,6 +376,7 @@
           <div class="n-lock">${icon('info')}这些对照只用来修正评价体系：结论不改变被评价人的分数、象限和档案，也不进入评价人本人的档案。</div>
         </aside>
       </div>`);
+    main.onclick = (e) => { markClick(e, main); };
   }
   // 等级从高到低：S / A / B，或 5 到 1 分
   const RANK = ['S', 'A', 'B', 5, 4, 3, 2, 1];

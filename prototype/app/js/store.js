@@ -598,10 +598,12 @@
     };
     if (chain.scale === 'grade') {
       const g = J.xe[batchId];
-      g.rows.forEach(([pid, by, fr, fnote, bk, bnote]) => chain.dims.forEach((d) => push({
+      // 两段都能回到原始表格：等级在维度列，评语在评语列
+      const cell = ([label, sheet, at], row, cols, quote, by) => ({ type: 'sheet', label, loc: `「${sheet}」表 ${cols.map((c) => `${c}${row}`).join('、')} · ${at}`, quote, by });
+      g.rows.forEach(([pid, by, fr, fnote, bk, bnote], i) => chain.dims.forEach((d) => push({
         person: pid, dim: d.id,
-        front: { by, v: fr[d.id] ?? null, r: chain.grades.indexOf(fr[d.id]), note: fnote, std: b.std },
-        back: bk[d.id] ? { by: [g.back], v: bk[d.id], r: chain.grades.indexOf(bk[d.id]), note: bnote } : { by: [g.back], na: true, note: bnote, miss: '训练营评审没有这个维度的等级' },
+        front: { by, v: fr[d.id] ?? null, r: chain.grades.indexOf(fr[d.id]), note: fnote, std: b.std, src: cell(g.src.front, i + 2, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${fr[d.id] ?? '—'}：${fnote}`, by) },
+        back: bk[d.id] ? { by: [g.back], v: bk[d.id], r: chain.grades.indexOf(bk[d.id]), note: bnote, src: cell(g.src.back, i + 2, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${bk[d.id]}：${bnote}`, g.back) } : { by: [g.back], na: true, note: bnote, miss: '训练营评审没有这个维度的等级', src: cell(g.src.back, i + 2, [g.src.cols.note], bnote, g.back) },
       })));
     } else {
       J.hire[batchId].forEach(([pid, by, ev, fr, fnote]) => chain.dims.forEach((d) => {
@@ -642,7 +644,9 @@
     const bids = [...new Set(h.cases.map((cid) => cid.split(':')[0]))];
     const units = bids.flatMap((bid) => store.judgeUnits(bid));
     const byId = new Map(units.map((u) => [u.id, u]));
-    const dropped = h.cases.filter((cid) => !byId.has(cid) || !store.judgeComparable(byId.get(cid)));
+    // 证据按钮列出的案例不可比或资料不足，或正文统计范围（basis）里有案例被标为不可比，都算依据变化
+    const inBasis = (h.basis || []).flatMap((x) => store.judgeUnits(x.batch).filter((u) => (!x.dim || u.dim === x.dim) && (!x.rater || u.front.by === x.rater) && u.state === 'nc').map((u) => u.id));
+    const dropped = [...new Set([...h.cases.filter((cid) => !byId.has(cid) || !store.judgeComparable(byId.get(cid))), ...inBasis])];
     const few = !!h.rater && !store.raterStats(units, h.rater).enough;
     return { ok: !dropped.length && !few, dropped, few };
   };
