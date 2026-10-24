@@ -280,6 +280,8 @@
       <li><a href="#c-template">目标角色模板</a></li>
       <li><a href="#c-action">行动与复盘</a></li>
       <li><a href="#c-judge">判断复盘</a></li>
+      <li class="grp">评价体系</li>
+      <li><a href="#c-eval">规则与修订</a></li>
       <li class="grp">反馈</li>
       <li><a href="#c-feedback">反馈与状态</a></li>
       <li class="grp">形象</li>
@@ -1779,6 +1781,211 @@
       <p class="ds-caption">归因有五类：评价标准、评价人、评价方式与信息不足、本人或环境变化、后段评价偏差。归为「本人或环境变化」时不修正标准，只记录情境。动作标题不点名评价人。</p>
     </section>
 
+    <!-- ═════════ 组件：评价体系 ═════════ -->
+    <section class="ds-sec" id="c-eval">
+      <h2>评价体系</h2>
+      <p class="lead">维度与锚点、象限落位、值得关注这些规则可以修订，但每次修订都要写理由、看影响、经确认才生效，并且不改写已经发生的判断。修订在原处进行，右侧检查栏把发布前要做的事按顺序排好。</p>
+
+      <h3 class="ds-sub">差异标记</h3>
+      <p>版本之间只有新旧，没有对错，所以差异标记用中性的墨色：新增是墨色字加浅底下划线，删除是灰色删除线。红绿只留给判断状态（支持 / 不支持），不用在版本差异上。方案对比、跟踪卡里的文字差异用的是同一个标记。</p>
+      <div class="ds-grid c2">
+        <div class="ds-stage">
+          <p class="n-diff" style="margin:0;font-size:var(--t-sm);line-height:2">N1 时间窗：近 <del>90</del> <ins>120</ins> 天。坚毅力锚点 3：常规情境下稳定表现<ins>；遇到阻碍时能坚持到有结果</ins>。owner：<del>待定</del> <ins>周屿</ins>。</p>
+        </div>
+        <div class="ds-stage is-paper">
+          <div class="ds-row"><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span><span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不支持</span><span style="font-size:var(--t-xs);color:var(--ink-3)">红绿只表示证据对要求的判断</span></div>
+        </div>
+      </div>
+
+      <h3 class="ds-sub">规则卡</h3>
+      <p>评价体系的总览，每类规则一张卡：名称、它决定什么、当前版本与生效时间、修订状态，以及来自判断复盘或修订建议的信号。会改变评价结果的四类在前，修订要 CEO 确认；找人和整理用的两类在后。原型里只读的卡写「只读」。</p>
+      <div class="ds-row" style="margin-bottom:var(--s-4)"><span class="n-rstate" data-s="draft">草稿</span><span class="n-rstate" data-s="pending">待确认</span><span class="n-rstate" data-s="scheduled">已排期 · 下一个盘点批次</span><span class="n-rstate" data-s="live">生效中</span><span class="n-rstate" data-s="old">已替代</span></div>
+      <div class="n-rcards">
+        <p class="n-rcards__grp">会改变评价结果 · 修订由 HRBP 起草、CEO 确认</p>
+        <a class="n-rcard" href="#eval-anchor">
+          <div class="n-rcard__head"><span class="n-rcard__name">维度与锚点</span></div>
+          <p class="n-rcard__what">每个维度 1–5 分各对应什么行为；记录时的 AI 建议分和人工评分都对照它。</p>
+          <div class="n-rcard__ver"><b>rubric-v1</b><span>09-01 起生效</span><span class="n-badge n-badge--demo">演示</span></div>
+          <div class="ds-row"><span class="n-rstate" data-s="draft">草稿 rubric-v2</span><span style="font-size:var(--t-xs);color:var(--ink-3)">苏晚起草</span></div>
+          <div class="n-rcard__signal"><svg><use href="#i-note"/></svg><span>1 条修订建议待处理：叶青对坚毅力锚点 3 的说明</span></div>
+        </a>
+        <a class="n-rcard" href="#c-eval">
+          <div class="n-rcard__head"><span class="n-rcard__name">象限落位</span><span class="n-rcard__ro"><svg><use href="#i-lock"/></svg>只读</span></div>
+          <p class="n-rcard__what">取哪段时间的分、高低怎么分界、证据够不够落位；决定参考位置和「资料不足」区。</p>
+          <div class="n-rcard__ver"><b>place-v1</b><span>由 rubric-v1 拆出</span><span>09-01 起生效</span></div>
+          <div class="ds-row"><span class="n-rstate" data-s="live">生效中</span></div>
+          <div class="n-rcard__signal"><svg><use href="#i-lock"/></svg><span>增长产品部 2026 H2 盘点进行中，所用版本已锁定；新版本只能从下一个盘点批次开始</span></div>
+        </a>
+        <a class="n-rcard" href="#eval-revise">
+          <div class="n-rcard__head"><span class="n-rcard__name">值得关注</span></div>
+          <p class="n-rcard__what">什么情况会让一个人进入 CEO、HRBP 和负责人的「值得关注」。只能调已有规则的阈值和时间窗。</p>
+          <div class="n-rcard__ver"><b>watch-v2</b><span>10-20 起生效</span></div>
+          <div class="ds-row"><span class="n-rstate" data-s="draft" id="rc-watch-state">草稿 watch-v3</span><span style="font-size:var(--t-xs);color:var(--ink-3)">苏晚起草</span></div>
+        </a>
+        <a class="n-rcard" href="#c-judge">
+          <div class="n-rcard__head"><span class="n-rcard__name">前段评价标准与对应表</span><span class="n-rcard__ro"><svg><use href="#i-lock"/></svg>只读</span></div>
+          <p class="n-rcard__what">面试和入营选拔怎么评，前后阶段的等级怎么对应；判断复盘按它对照。</p>
+          <div class="n-rcard__ver"><b>xe-select-v2</b><b>hire-v1</b><b>map-xe-v1</b></div>
+          <div class="ds-row"><span class="n-rstate" data-s="pending">待确认 xe-select-v3</span><span style="font-size:var(--t-xs);color:var(--ink-3)">苏晚提交，等程远确认</span></div>
+          <div class="n-rcard__signal"><svg><use href="#i-split"/></svg><span>XEngineer 第二期：内驱力 8 人中 2 人前段偏高，已归因为评价标准</span></div>
+        </a>
+        <p class="n-rcards__grp">找人与整理 · 发布即生效</p>
+        <a class="n-rcard" href="#c-template">
+          <div class="n-rcard__head"><span class="n-rcard__name">目标角色与发展通道</span><span class="n-rcard__ro"><svg><use href="#i-lock"/></svg>只读</span></div>
+          <p class="n-rcard__what">找人时按哪些职责和要求核对候选人；发展方向可以选哪些通道。</p>
+          <div class="n-rcard__ver"><span>7 个模板，每个模板单独记版本</span><span>最近：找业务负责人 v2</span></div>
+          <div class="ds-row"><span class="n-rstate" data-s="live">生效中</span></div>
+        </a>
+        <a class="n-rcard" href="#c-tags">
+          <div class="n-rcard__head"><span class="n-rcard__name">标签库</span></div>
+          <p class="n-rcard__what">整理和检索用的标签：收录、并入、停用。标签不产生分数。</p>
+          <div class="n-rcard__ver"><span>沿用现有的标签库页面</span></div>
+          <div class="ds-row"><span class="n-rstate" data-s="live">生效中</span></div>
+        </a>
+      </div>
+      <p class="ds-caption">修订信号只说事实和来源，不点名评价人。CEO 的「需要我看」里出现「评价规则修订待你确认」，点开就是下面的修订页，确认时用朱印。</p>
+
+      <h3 class="ds-sub" id="eval-revise">修订页：参数修订行 + 检查栏</h3>
+      <p>左边是当前版本，直接在原处改；改过的行左侧有一道墨线，并写出原值，可以单独还原。右侧检查栏自上而下：修订理由、依据、兼容声明、生效点、影响预览、提交。草稿改过之后，影响预览要重新计算，确认人看到的是和草稿一起保存的同一份预览。</p>
+      <div class="ds-stage">
+        <div class="n-revise">
+          <div>
+            <div class="n-version" style="margin-bottom:var(--s-3)"><span class="n-version__tag is-draft">草稿 watch-v3</span><span style="color:var(--ink-3)">基于 watch-v2 · 苏晚起草 · <span id="rev-count">改了 1 处</span></span></div>
+            <ul class="n-params" id="params">
+              <li class="n-param is-changed" data-orig="90" data-min="30" data-max="180">
+                <span class="n-param__name"><span class="n-rule">N1</span>资料从无到有 · 时间窗<small>此前没有已确认分的人，在这段时间里同一维度有足够多的事印证</small></span>
+                <label class="n-param__val"><span class="n-param__pre">近</span><input class="n-input" type="number" inputmode="numeric" value="120" aria-label="N1 时间窗（天）"><span>天</span></label>
+                <span class="n-param__was"><span class="n-diff">原值 <del>90 天</del></span><button class="n-link" type="button" data-reset>还原</button></span>
+                <p class="n-field__err" hidden>时间窗在 30–180 天之间。</p>
+              </li>
+              <li class="n-param" data-orig="2" data-min="2" data-max="5">
+                <span class="n-param__name"><span class="n-rule">N1</span>同一维度不同的事<small>只算不同的事，同一件事多次评分不重复计数</small></span>
+                <label class="n-param__val"><span class="n-param__pre">至少</span><input class="n-input" type="number" inputmode="numeric" value="2" aria-label="N1 同一维度不同的事（件）"><span>件</span></label>
+                <span class="n-param__was" hidden><span class="n-diff">原值 <del>2 件</del></span><button class="n-link" type="button" data-reset>还原</button></span>
+                <p class="n-field__err" hidden>件数在 2–5 件之间。</p>
+              </li>
+              <li class="n-param" data-orig="4" data-min="3" data-max="5">
+                <span class="n-param__name"><span class="n-rule">N1</span>每件事的维度分<small>已确认或已校准的分；AI 建议分不算</small></span>
+                <label class="n-param__val"><span class="n-param__pre"></span><input class="n-input" type="number" inputmode="numeric" value="4" aria-label="N1 每件事的维度分（分及以上）"><span>分及以上</span></label>
+                <span class="n-param__was" hidden><span class="n-diff">原值 <del>4 分及以上</del></span><button class="n-link" type="button" data-reset>还原</button></span>
+                <p class="n-field__err" hidden>分数门槛在 3–5 分之间。</p>
+              </li>
+              <li class="n-param" data-orig="14" data-min="7" data-max="60">
+                <span class="n-param__name"><span class="n-rule">I2</span>「值得聊一聊」没人处理<small>信号打开之后，过了这么久还没人处理</small></span>
+                <label class="n-param__val"><span class="n-param__pre"></span><input class="n-input" type="number" inputmode="numeric" value="14" aria-label="I2 没人处理的天数"><span>天以上</span></label>
+                <span class="n-param__was" hidden><span class="n-diff">原值 <del>14 天</del></span><button class="n-link" type="button" data-reset>还原</button></span>
+                <p class="n-field__err" hidden>天数在 7–60 天之间。</p>
+              </li>
+            </ul>
+            <p class="ds-caption">只能调已有规则的参数，不能新增规则，也不能加按分数挑人的条件。T1、I1 与「变化」同口径，在「变化」的规则里改。</p>
+          </div>
+
+          <aside class="n-revise__check" aria-label="发布前检查">
+            <div class="n-checkbar" id="check">
+              <div class="n-checkbar__sec">
+                <label class="n-checkbar__label" for="rev-why">修订理由<span class="is-ok" id="why-ok">必填</span></label>
+                <textarea class="n-textarea" id="rev-why" rows="3" placeholder="比如：季度项目的第二件事常落在 90 天外，新人被漏掉"></textarea>
+              </div>
+              <div class="n-checkbar__sec">
+                <span class="n-checkbar__label">依据</span>
+                <div class="ds-row"><button class="n-casechip" type="button">HRBP 核对 · 漏掉的 2 人</button><button class="n-casechip" type="button">校准会理由 · 增长产品部 2026 H2</button></div>
+                <button class="n-link" type="button" style="justify-self:start">关联判断复盘、校准理由或修订建议</button>
+              </div>
+              <div class="n-checkbar__sec">
+                <span class="n-checkbar__label">兼容声明</span>
+                <p class="n-checkbar__text">阈值类修订，不涉及复核。生效后按新阈值计算，生效前冻结的快照不变。</p>
+              </div>
+              <div class="n-checkbar__sec">
+                <span class="n-checkbar__label" id="eff-l">生效点</span>
+                <div class="n-seg" role="group" aria-labelledby="eff-l" id="eff"><button type="button" aria-pressed="true">立即对新的评价生效</button><button type="button" aria-pressed="false">从下一个盘点批次开始</button></div>
+                <p class="n-checkbar__text">值得关注不参与盘点取数，不受盘点锁定。维度与锚点、象限落位在盘点进行中只能选后者，见下面的锚点修订态。</p>
+              </div>
+              <div class="n-checkbar__sec" id="prev-sec">
+                <span class="n-checkbar__label">影响预览<span class="is-ok" id="prev-ok"><svg><use href="#i-check"/></svg>已按当前草稿计算</span></span>
+                <p class="n-checkbar__text" id="prev-sum">值得关注 <b>9 → 11 人</b>：进入 2 人，离开 0 人。按团队：增长产品部 +1，存储平台部 +1。</p>
+                <div class="ds-row"><a class="n-link" href="#eval-impact">看完整预览</a><button class="n-btn n-btn--sm" type="button" id="prev-run" hidden><svg><use href="#i-retry"/></svg>重新预览</button></div>
+              </div>
+              <div class="n-checkbar__foot" id="rev-foot">
+                <button class="n-btn n-btn--ink" type="button" id="rev-submit">提交 CEO 确认</button>
+                <p class="n-field__err" id="rev-err" role="alert" hidden></p>
+                <p class="n-checkbar__text">提交给程远确认发布；确认前你可以撤回到草稿。</p>
+              </div>
+              <div class="n-checkbar__foot" id="rev-done" hidden>
+                <div class="ds-row"><span class="n-rstate" data-s="pending">待确认</span><span style="font-size:var(--t-xs);color:var(--ink-3)">已提交给程远 · 10-23</span></div>
+                <button class="n-btn n-btn--sm n-btn--ghost" type="button" id="rev-back" style="justify-self:start">撤回到草稿</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <p class="ds-caption">提交前四项都要满足：至少改了一处、写了理由、参数在允许范围内、预览是按当前草稿算的。缺哪项就写哪项，不只把按钮变灰。窄屏时检查栏移到内容下方。</p>
+
+      <h3 class="ds-sub" id="eval-impact">影响预览</h3>
+      <p>用现有已确认的证据按新旧两版各算一次。顶部按类别写「旧 → 新」人数，同一个人只算一次；下面分「进入」「离开」两组列人，每人写团队和命中的规则，不写分数、不排序；底部一行按团队写增减。名单只有 HRBP 能展开，CEO 看人数和团队分布。</p>
+      <div class="ds-stage">
+        <div class="ds-row" style="justify-content:space-between;margin-bottom:var(--s-3)">
+          <b style="font-size:var(--t-sm)">watch-v3 草稿 · 对比 watch-v2</b>
+          <div class="n-seg" role="group" aria-label="演示视角" id="imp-role"><button type="button" aria-pressed="true" data-role="hrbp">HRBP 看到</button><button type="button" aria-pressed="false" data-role="ceo">CEO 看到</button></div>
+        </div>
+        <div class="n-notice" id="imp-stale" hidden style="margin-bottom:var(--s-3)"><svg><use href="#i-info"/></svg><div><b>草稿已经改过。</b>下面这份预览对应「近 120 天」，和当前草稿不一致；重新预览之前不能提交。</div></div>
+        <div class="n-scope" style="margin-top:0">
+          <div>新发现<b>3 → 5 人</b></div>
+          <div>突出表现<b>4 → 4 人</b></div>
+          <div>需要介入<b>2 → 2 人</b></div>
+          <div>合计<b>9 → 11 人</b></div>
+        </div>
+        <div class="n-impact__groups" id="imp-lists">
+          <div class="n-impact__grp">
+            <h5>进入 · 2 人</h5>
+            <ul class="n-impact__list">
+              <li><span class="n-avatar n-avatar--sm" style="--hue:200">岑</span><div><b>岑川</b> <span class="n-badge n-badge--demo">演示</span><small>增长产品部 · 客户转化组</small></div><span class="n-rule">N1</span></li>
+              <li><span class="n-avatar n-avatar--sm" style="--hue:250">尹</span><div><b>尹桐</b> <span class="n-badge n-badge--demo">演示</span><small>存储平台部 · 后端组</small></div><span class="n-rule">N1</span></li>
+            </ul>
+          </div>
+          <div class="n-impact__grp">
+            <h5>离开 · 0 人</h5>
+            <p class="n-impact__empty">按新版本，现在值得关注里的人都还在。</p>
+          </div>
+        </div>
+        <div class="n-lock" id="imp-lock" hidden><svg><use href="#i-lock"/></svg><span>名单只对 HRBP 展开。你看到的是人数和团队分布；需要了解具体的人，可以请苏晚说明。</span></div>
+        <p class="n-impact__teams">按团队：增长产品部 +1 · 存储平台部 +1 · 其余团队不变</p>
+      </div>
+      <p class="ds-caption">预览不出现分数、排名、个人分数变化，也不写「谁会变好 / 变差」。资料不足的人不因为规则变化被写成反向证据。</p>
+
+      <h3 class="ds-sub" id="eval-anchor">锚点修订态</h3>
+      <p>锚点面板进入编辑后逐条原地改，行内显示增删。文字修订不会自动改变已有分数；检查栏里的兼容声明决定要不要复核：兼容的修订旧分照常参与取数，不兼容的修订为取数窗口内受影响的事件生成复核任务，原分保留并显示原版本。</p>
+      <div class="ds-grid c2" style="align-items:start">
+        <div class="n-anchor is-editing" id="anchor-edit">
+          <b>坚毅力 · 1–5 分锚点</b> <span class="n-badge" style="margin-left:6px">草稿 rubric-v2 · 基于 rubric-v1</span>
+          <ol>
+            <li data-orig="本次出现与该维度相反的明确行为"><b>1</b><span class="n-anchor__txt">本次出现与该维度相反的明确行为</span><span class="n-anchor__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-edit aria-label="改锚点 1"><svg><use href="#i-pen"/></svg></button></span></li>
+            <li data-orig="相关行为偶发，需要他人推动"><b>2</b><span class="n-anchor__txt">相关行为偶发，需要他人推动</span><span class="n-anchor__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-edit aria-label="改锚点 2"><svg><use href="#i-pen"/></svg></button></span></li>
+            <li data-orig="常规情境下稳定表现" data-now="常规情境下稳定表现；遇到阻碍时能坚持到有结果，而不是只完成分配的部分"><b>3</b><span class="n-anchor__txt"></span><span class="n-anchor__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-edit aria-label="改锚点 3"><svg><use href="#i-pen"/></svg></button></span></li>
+            <li data-orig="有难度或模糊的情境下主动表现，并有可见结果"><b>4</b><span class="n-anchor__txt">有难度或模糊的情境下主动表现，并有可见结果</span><span class="n-anchor__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-edit aria-label="改锚点 4"><svg><use href="#i-pen"/></svg></button></span></li>
+            <li data-orig="高难情境下突出，并带动他人或形成可复用方法"><b>5</b><span class="n-anchor__txt">高难情境下突出，并带动他人或形成可复用方法</span><span class="n-anchor__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-edit aria-label="改锚点 5"><svg><use href="#i-pen"/></svg></button></span></li>
+          </ol>
+          <p class="ds-caption" style="margin-bottom:0">依据：<button class="n-casechip" type="button">叶青的修订建议 · 10-21</button></p>
+        </div>
+        <div class="n-checkbar">
+          <div class="n-checkbar__sec">
+            <span class="n-checkbar__label" id="compat-l">兼容声明</span>
+            <div class="n-seg" role="group" aria-labelledby="compat-l" id="compat"><button type="button" aria-pressed="true" data-v="ok">兼容：措辞澄清、补示例</button><button type="button" aria-pressed="false" data-v="break">不兼容：等级含义变了</button></div>
+          </div>
+          <div class="n-checkbar__sec">
+            <span class="n-checkbar__label">影响预览</span>
+            <div class="n-scope" style="margin:0"><div>取数窗口内用到坚毅力的事件<b>23 件</b></div><div>涉及评分人<b>6 位</b></div></div>
+            <p class="n-checkbar__text" id="compat-text">不生成复核任务。旧分继续参与取数，卡片上照常显示 rubric-v1。</p>
+          </div>
+          <div class="n-checkbar__sec">
+            <span class="n-checkbar__label" id="eff2-l">生效点</span>
+            <div class="n-seg" role="group" aria-labelledby="eff2-l"><button type="button" aria-pressed="false" disabled data-lock>立即对新的评价生效</button><button type="button" aria-pressed="true">从下一个盘点批次开始</button></div>
+            <div class="n-lock"><svg><use href="#i-lock"/></svg><span>增长产品部 2026 H2 盘点进行中，这次盘点用到维度与锚点；新版本只能从下一个盘点批次开始，之前旧版本继续生效。</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="ds-caption">复核任务由 AI 按新锚点给建议分，原评分人确认；原评分人不在时由 HRBP 确认。复核完成前，这些旧分不参与新版本的取数，不满足落位门槛的人进「资料不足」区，不当作反向证据。员工看不到自己被纳入了哪次复核。</p>
+    </section>
+
     <!-- ═════════ 组件：反馈与状态 ═════════ -->
     <section class="ds-sec" id="c-feedback">
       <h2>反馈与状态</h2>
@@ -2774,6 +2981,113 @@
     $('#track-state').innerHTML = on ? '已结束 · 历史保留' : '<svg><use href="#i-target"/></svg>跟踪中';
     e.currentTarget.textContent = on ? '恢复跟踪' : '停止跟踪';
   });
+
+  /* ── 评价体系：参数修订行、检查栏、影响预览、锚点修订态（v1.6 3.39） ── */
+  {
+    const segPick = (box, on) => box.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b || b.disabled) return;
+      $$('button', box).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      on && on(b);
+    });
+    // 预览只对计算时的草稿有效；草稿再改就要重新预览（3.35.4）
+    // 样张只预置了一组参数的预览结果；其他组合在原型里按现有证据实际计算
+    const PRESET = '120|2|4|14';
+    let previewed = PRESET, missed = false;
+    const locked = () => !$('#rev-done').hidden;
+    const params = $$('#params .n-param');
+    const syncDraft = () => {
+      let changed = 0, bad = 0;
+      params.forEach(p => {
+        const inp = p.querySelector('input'), v = inp.value.trim(), n = Number(v);
+        const err = v === '' || !Number.isInteger(n) || n < +p.dataset.min || n > +p.dataset.max;
+        const diff = !err && n !== +p.dataset.orig;
+        p.classList.toggle('is-error', err); p.querySelector('.n-field__err').hidden = !err;
+        inp.setAttribute('aria-invalid', String(err));
+        p.classList.toggle('is-changed', diff); p.querySelector('.n-param__was').hidden = !diff;
+        changed += diff; bad += err;
+      });
+      $('#rev-count').textContent = changed ? `改了 ${changed} 处` : '还没有改动';
+      const now = params.map(p => p.querySelector('input').value.trim()).join('|'), fresh = now === previewed;
+      $('#imp-stale').hidden = now === PRESET;
+      $('#prev-ok').innerHTML = fresh ? '<svg><use href="#i-check"/></svg>已按当前草稿计算' : '需要重新预览';
+      $('#prev-sum').innerHTML = !fresh && bad ? '有参数超出允许范围，改回之后才能重新预览。'
+        : !fresh && missed ? '样张只预置了「近 120 天」这一组参数的预览结果，这组参数没有结果，不能提交。原型里会按现有证据实际计算。'
+        : !fresh ? '草稿改过之后，原来的预览不再对应。重新预览后，确认人看到的是新的这一份。'
+        : '值得关注 <b>9 → 11 人</b>：进入 2 人，离开 0 人。按团队：增长产品部 +1，存储平台部 +1。';
+      $('#prev-run').hidden = fresh || bad > 0;
+      return { changed, bad, fresh };
+    };
+    params.forEach(p => {
+      p.querySelector('input').addEventListener('input', () => { missed = false; syncDraft(); $('#rev-err').hidden = true; });
+      p.querySelector('[data-reset]').addEventListener('click', () => { if (locked()) return; const i = p.querySelector('input'); i.value = p.dataset.orig; syncDraft(); i.focus(); });
+    });
+    $('#prev-run').addEventListener('click', () => {
+      const now = params.map(p => p.querySelector('input').value.trim()).join('|');
+      if (now === PRESET) previewed = now; else missed = true;
+      syncDraft(); $('#prev-sec .n-link').focus();
+    });
+    $('#rev-why').addEventListener('input', e => { $('#why-ok').innerHTML = e.target.value.trim() ? '<svg><use href="#i-check"/></svg>已写' : '必填'; $('#rev-err').hidden = true; });
+    segPick($('#eff'));
+    $('#rev-submit').addEventListener('click', () => {
+      const d = syncDraft(), miss = [];
+      if (!d.changed) miss.push('至少改一处');
+      if (d.bad) miss.push('把超出范围的参数改回允许范围');
+      if (!$('#rev-why').value.trim()) miss.push('写修订理由');
+      if (!d.fresh) miss.push(missed ? '换回有预览结果的参数（样张只预置了近 120 天）' : '重新预览影响');
+      if (miss.length) { $('#rev-err').textContent = `提交前还要：${miss.join('、')}。`; $('#rev-err').hidden = false; if (!$('#rev-why').value.trim()) $('#rev-why').focus(); return; }
+      $('#rev-foot').hidden = true; $('#rev-done').hidden = false;
+      $('#rc-watch-state').dataset.s = 'pending'; $('#rc-watch-state').textContent = '待确认 watch-v3';
+      $$('#check textarea, #check .n-seg button, #check .n-casechip, #check button.n-link, #params input, #params button').forEach(x => { x.disabled = true; });
+      $('#rev-back').focus();
+    });
+    $('#rev-back').addEventListener('click', () => {
+      $('#rev-foot').hidden = false; $('#rev-done').hidden = true;
+      $('#rc-watch-state').dataset.s = 'draft'; $('#rc-watch-state').textContent = '草稿 watch-v3';
+      $$('#check textarea, #check .n-seg button:not([data-lock]), #check .n-casechip, #check button.n-link, #params input, #params button').forEach(x => { x.disabled = false; });
+      $('#rev-submit').focus();
+    });
+
+    // 影响预览：名单只对 HRBP 展开
+    segPick($('#imp-role'), b => { const ceo = b.dataset.role === 'ceo'; $('#imp-lists').hidden = ceo; $('#imp-lock').hidden = !ceo; });
+
+    // 锚点修订态：逐条原地改，行内显示增删
+    const anchorTxt = li => {
+      const was = li.dataset.orig, now = li.dataset.now ?? was, t = li.querySelector('.n-anchor__txt');
+      li.classList.toggle('is-changed', now !== was);
+      if (now === was) { t.textContent = was; return; }
+      // 只标出改动的部分：共同的开头和结尾照常显示
+      let a = 0; while (a < was.length && a < now.length && was[a] === now[a]) a++;
+      let z = 0; while (z < was.length - a && z < now.length - a && was[was.length - 1 - z] === now[now.length - 1 - z]) z++;
+      const mid = (s) => s.slice(a, s.length - z);
+      t.innerHTML = `<span class="n-diff">${esc(was.slice(0, a))}${mid(was) ? `<del>${esc(mid(was))}</del>` : ''}${mid(now) ? `<ins>${esc(mid(now))}</ins>` : ''}${esc(was.slice(was.length - z))}</span>`;
+    };
+    const anchorActs = li => {
+      const n = li.querySelector('b').textContent, changed = li.classList.contains('is-changed');
+      li.querySelector('.n-anchor__acts').innerHTML = `<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-edit aria-label="改锚点 ${n}"><svg><use href="#i-pen"/></svg></button>${changed ? `<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-undo aria-label="还原锚点 ${n}"><svg><use href="#i-retry"/></svg></button>` : ''}`;
+    };
+    $$('#anchor-edit li').forEach(li => { anchorTxt(li); anchorActs(li); });
+    $('#anchor-edit').addEventListener('click', e => {
+      const li = e.target.closest('li'); if (!li) return;
+      if (e.target.closest('[data-undo]')) { delete li.dataset.now; anchorTxt(li); anchorActs(li); li.querySelector('[data-edit]').focus(); return; }
+      if (e.target.closest('[data-edit]')) {
+        const n = li.querySelector('b').textContent;
+        li.querySelector('.n-anchor__txt').innerHTML = `<span class="n-anchor__edit"><textarea class="n-textarea" rows="2" aria-label="锚点 ${n} 的行为描述">${esc(li.dataset.now ?? li.dataset.orig)}</textarea><span class="ds-row"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-save>保存这一条</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button></span></span>`;
+        li.querySelector('.n-anchor__acts').innerHTML = '';
+        li.querySelector('textarea').focus();
+        return;
+      }
+      if (e.target.closest('[data-save]')) { const v = li.querySelector('textarea').value.trim(); if (v) { if (v === li.dataset.orig) delete li.dataset.now; else li.dataset.now = v; } }
+      if (e.target.closest('[data-save], [data-cancel]')) { anchorTxt(li); anchorActs(li); li.querySelector('[data-edit]').focus(); }
+    });
+    $('#anchor-edit').addEventListener('keydown', e => {
+      if (e.key === 'Escape' && e.target.matches('textarea')) e.target.closest('li').querySelector('[data-cancel]').click();
+    });
+    segPick($('#compat'), b => {
+      $('#compat-text').textContent = b.dataset.v === 'break'
+        ? '将生成 23 条「按新版本复核」任务，分给 6 位评分人：AI 按新锚点给建议分，原评分人确认。原分保留并显示 rubric-v1，复核前不参与新版本的取数。'
+        : '不生成复核任务。旧分继续参与取数，卡片上照常显示 rubric-v1。';
+    });
+  }
 
   /* ── 目录高亮 ── */
   const links = $$('.ds-nav a');
