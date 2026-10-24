@@ -421,6 +421,7 @@
     hireEv('e-gy-hire', 'p-gengyu', 'p-hance', '2026-02-06', [['专业能力', '4'], ['潜力', '5'], ['沟通协作', '4'], ['建议职级', 'N3']], '学习速度快，很有冲劲，适合放到更难的项目里。'),
     hireEv('e-nx-hire', 'p-ningxi', 'p-hance', '2026-02-20', [['专业能力', '3'], ['潜力', '4'], ['沟通协作', '3'], ['建议职级', 'N3']], '沟通积极，主动性强。'),
     hireEv('e-zr-hire', 'p-zhuoran', 'p-zhouyu', '2026-02-27', [['专业能力', '4'], ['潜力', '4'], ['建议职级', 'N4']], '讲清了两次线上效果回退的排查过程，调优经验扎实。'),
+    hireEv('e-xqh-hire', 'p-xuqh', 'p-qinshu', '2026-07-30', [['专业能力', '3'], ['潜力', '4'], ['沟通协作', '3'], ['建议职级', 'N3']], '自学做过一个完整的数据分析项目。'),
     hireEv('e-wl-hire', 'p-weilan', 'p-qinshu', '2026-03-18', [['专业能力', '4'], ['潜力', '4'], ['沟通协作', '4'], ['管理能力', '3'], ['建议职级', 'N4']], '活动策划经验完整，带过 2 人的小组。'),
     E({ id: 'e-gy-1', date: '2026-04-15', recorder: 'p-qinshu', people: ['p-gengyu'], title: '投放归因看板按期上线', act: '按约定口径搭好看板，上线前自己核对了三周的数据。', scores: [s('p-gengyu', 'prof', 4, 'confirmed', 'p-qinshu'), s('p-gengyu', 'mot', 3, 'confirmed', 'p-qinshu')] }),
     E({ id: 'e-gy-2', date: '2026-05-28', recorder: 'p-qinshu', people: ['p-gengyu'], title: '渠道口径冲突时先拉齐了定义', act: '两个团队对「有效线索」的定义不同，他先整理了差异再约会。', scores: [s('p-gengyu', 'wis', 4, 'confirmed', 'p-qinshu'), s('p-gengyu', 'lead', 4, 'confirmed', 'p-qinshu')] }),
@@ -662,7 +663,7 @@
         ['p-lin', 'p-hance', 'e-lin-hire', { prof: 4, pot: 5, comm: 3 }, '能把需求拆成可验证的小步，对客户问题追问得很细。'],
         ['p-zhuoran', 'p-zhouyu', 'e-zr-hire', { prof: 4, pot: 4 }, '讲清了两次线上效果回退的排查过程，调优经验扎实。'],
         ['p-weilan', 'p-qinshu', 'e-wl-hire', { prof: 4, pot: 4, comm: 4, mgmt: 3 }, '活动策划经验完整，带过 2 人的小组。'],
-        ['p-xuqh', 'p-qinshu', null, { prof: 3, pot: 4, comm: 3 }, '自学做过一个完整的数据分析项目。'],
+        ['p-xuqh', 'p-qinshu', 'e-xqh-hire', { prof: 3, pot: 4, comm: 3 }, '自学做过一个完整的数据分析项目。'],
       ],
     },
     // AI 提出的归因假设（脚本化 mock）：每条引用案例与标准版本；未确认不能生成动作

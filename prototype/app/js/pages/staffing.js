@@ -82,7 +82,7 @@
   const insertReq = (r) => { const at = reqs.findIndex((x) => !x.must); if (r.must && at >= 0) reqs.splice(at, 0, r); else reqs.push(r); }; // 必须项排在加分项前面
   // 草稿里保存过改动后的要求，回来时按草稿恢复；就地补过的要求（需求卡或草稿上有、预置场景里没有的）一并补回
   const draftReqs = st.get().plans.find((p) => p.project === projectId && p.status === 'draft')?.reqs;
-  [...(need0?.tpl ? [] : need0?.reqs || []), ...(draftReqs || [])].forEach((x) => { if (!reqs.some((r) => r.id === x.id)) insertReq({ id: x.id, text: x.text, must: x.must, ...(x.alt ? { alt: x.alt } : {}), useAlt: false }); });
+  [...(need0?.tpl ? [] : need0?.reqs || []), ...(draftReqs || [])].forEach((x) => { if (!reqs.some((r) => r.id === x.id)) insertReq({ id: x.id, text: x.text, must: x.must, ...(x.alt ? { alt: x.alt } : {}), ...(x.ev ? { ev: x.ev } : {}), useAlt: false }); });
   if (draftReqs) draftReqs.forEach((x) => { const r = reqs.find((y) => y.id === x.id); if (r) { r.must = x.must; r.useAlt = !!(x.useAlt && r.alt); } });
   let manual = [];
   let slots = {};
@@ -211,10 +211,15 @@
         ${!reqs.some((r) => r.id === 'r3') && key === 'newconv' ? html`<button class="n-ask" type="button" data-addreq="11 月能到岗">11 月能到岗</button>` : ''}</div>
       <p class="nt-caption">资料不足不当作「不满足」。改了要求，候选人会按新的要求重新核对。</p>`;
   }
-  // 就地补的要求：到岗时间对应预置的证据，其他新要求先按资料不足核对
+  // 就地补的要求：只有和预置证据意思一致的到岗时间（11 月到岗 / 12 月前到岗）复用 r3 的核对结果，
+  // 其他要求（含「到岗后必须全职」这类）一律先按资料不足核对，不凭关键词共享证据
   function addReq(text) {
     const t = text.trim(); if (!t || reqs.some((r) => r.text === t)) return;
-    const r = /到岗/.test(t) && !reqs.some((x) => x.id === 'r3') ? { id: 'r3', text: t, must: true, alt: '12 月前能到岗', useAlt: false } : { id: NT.uid('c'), text: t, must: true, useAlt: false };
+    const m = t.replace(/\s/g, '').match(/^(11|12)月(前|之前|内)?(?:能|可以)?到岗$/);
+    const known = m && key === 'newconv' && !reqs.some((x) => x.id === 'r3');
+    const r = known && m[1] === '11' && !m[2] ? { id: 'r3', text: '11 月能到岗', must: true, alt: '12 月前能到岗', useAlt: false }
+      : known && m[1] === '12' && m[2] ? { id: 'r3', text: '12 月前能到岗', must: true, ev: 'r3alt', useAlt: false }
+        : { id: NT.uid('c'), text: t, must: true, useAlt: false };
     insertReq(r);
     if (need0) { need0.reqs = reqs.map(({ useAlt, ...x }) => x); st.save(); }
     drawAll(r.id);
