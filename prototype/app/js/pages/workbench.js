@@ -26,10 +26,7 @@
       const role = st.role(), me = st.me();
       if (role === 'self') return renderSelf(main, me);
       const todos = st.todos();
-      mount(main, html`
-        <header class="nt-head"><div><h1>${greet(me)}</h1><p>10 月 23 日 · 周五 · ${role === 'mentor' ? 'Landing 第三期 W3 · 本周五 16:00 对事复盘' : role === 'ceo' ? '全公司 · 增长产品部 H2 盘点进行中' : `${st.roles[role].scope}`}</p></div></header>
-
-        ${st.can('changes') ? html`<article class="n-card n-changes" id="changes" style="margin-bottom:var(--s-5)">
+      const changesCard = st.can('changes') ? html`<article class="n-card n-changes" id="changes" style="margin-bottom:var(--s-5)">
           <header class="n-changes__head"><h3>变化</h3><span class="n-changes__meta" id="chg-meta"></span>
             <div class="n-seg" role="group" aria-label="比较基准" data-manual id="chg-base">
               <button type="button" data-b="win" aria-pressed="true">近 3 个月 vs 之前</button>
@@ -40,9 +37,9 @@
           </div>
           <div id="chg-list"></div>
           <p class="nt-caption">只统计已确认的事件和分数，AI 建议分不会触发变化。资料从无到有不算上升；没有新事件不等于能力下降。变化按发生时间排列，不按幅度给人排名。</p>
-        </article>` : ''}
-
-        <div class="n-composer" id="composer" style="margin-bottom:var(--s-2)">
+        </article>` : '';
+      const composer = html`
+        <div class="n-composer ${role === 'ceo' ? 'is-hero' : ''}" id="composer" style="margin-bottom:var(--s-2)">
           <span class="nt-ip" data-ip="rest" data-size="36" id="composer-ip"></span>
           <textarea class="n-composer__field" rows="2" id="composer-field" aria-label="描述你要做的事" placeholder="${role === 'mentor' ? '说一件学员这周做的事，或输入 / 查看命令' : '说一件事，或描述一个项目要找谁。输入 / 查看命令'}"></textarea>
           <div class="n-composer__bar">
@@ -55,15 +52,15 @@
         <div class="n-slash" id="slash" role="listbox" aria-label="命令" hidden>
           ${[['note', '记录关键事件', '/记', 'record.html'], st.can('findOwner') && ['folder', '为项目找 owner', '/找', 'staffing.html?new=1'], st.can('review') && role !== 'lead' && ['eye', '发起盘点', '/盘', 'reviews.html#new'], st.canOpenMinutes('w2') && ['wave', '打开会议人才纪要', '/录', 'record.html?m=w2']].filter(Boolean).map(([ic, l, k, h], i) => html`<a class="n-slash__item" role="option" aria-selected="${i === 0}" href="${h}">${icon(ic, 16)}${l}<kbd>${k}</kbd></a>`)}
         </div>
-        <div class="n-asks" style="margin:var(--s-2) 0 var(--s-6)">${(SUGGEST[role] || []).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>
-
+        ${role === 'ceo' ? html`<div class="nt-row" style="margin:var(--s-3) 0 var(--s-2)"><span class="nt-muted">从目标角色模板开始</span><div class="n-tpls" role="group" aria-label="目标角色模板">${st.templates().map((t) => html`<a class="n-tpl" href="staffing.html?tpl=${t.id}">找${t.name}<small>v${st.tplVersion(t).v}</small></a>`)}</div></div>` : ''}
+        <div class="n-asks" style="margin:var(--s-2) 0 var(--s-6)">${(SUGGEST[role] || []).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>`;
+      mount(main, html`
+        <header class="nt-head"><div><h1>${greet(me)}</h1><p>10 月 23 日 · 周五 · ${role === 'mentor' ? 'Landing 第三期 W3 · 本周五 16:00 对事复盘' : role === 'ceo' ? '全公司 · 增长产品部 H2 盘点进行中' : `${st.roles[role].scope}`}</p></div></header>
+        ${role === 'ceo' ? html`${composer}${changesCard}` : html`${changesCard}${composer}`}
         <div class="nt-cols">
-          <article class="n-card" id="todo">
-            <h3 class="n-section-title">待办${todos.length ? html`<span class="n-count">${todos.length}</span>` : ''}</h3>
-            ${todos.length ? html`<ul class="n-todo">${todos.map((t) => html`<li><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a></li>`)}</ul>`
-              : UI.state({ ip: 'done', size: 48, title: '待办都处理完了', text: '新的待核对、校准和到期的跟踪会出现在这里。' })}
-          </article>
+          <article class="n-card" id="todo">${todoBlock(role, todos)}</article>
           <div class="nt-grid">
+            ${role === 'hrbp' ? judgeCard() : ''}
             <article class="n-card"><h3 class="n-section-title">进行中的任务</h3><div id="tasks"></div></article>
             <article class="n-card" id="upload"><h3 class="n-section-title">上传材料</h3>
               <button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>TXT、MD、DOCX、PPTX、XLSX 和录音 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button>
@@ -72,6 +69,7 @@
           </div>
         </div>`);
       wireComposer(role);
+      wireTodos();
       renderTasks();
       wireUpload();
       if (st.can('changes')) {
@@ -82,6 +80,40 @@
       }
     },
   });
+
+  const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a></li>`)}</ul>`;
+  const GROUPS = [['verify', '待核对', ['verify']], ['calib', '待校准', ['calib']], ['plan', '待确认', ['plan']], ['follow', '待跟进', ['track', 'talk']]];
+  let openGroup = null, showRest = false;
+  function todoBlock(role, todos) {
+    const empty = UI.state({ ip: 'done', size: 48, title: '待办都处理完了', text: '新的待核对、校准和到期的跟踪会出现在这里。' });
+    if (role === 'ceo') {
+      // 只留需要 CEO 本人确认的事，其余折叠成一句
+      const mine = st.mineToConfirm(todos), rest = todos.filter((t) => !mine.includes(t));
+      return html`<h3 class="n-section-title">要你确认${mine.length ? html`<span class="n-count">${mine.length}</span>` : ''}</h3>
+        ${mine.length ? todoList(mine) : html`<div class="nt-empty">现在没有要你确认的方案。</div>`}
+        ${rest.length ? html`<button class="n-todomore" type="button" id="todo-rest" aria-expanded="${showRest}" style="width:100%;border:0;cursor:pointer;font:inherit;font-size:var(--t-xs);text-align:left">${icon('clock')}还有 ${rest.length} 件在推进，由 HRBP 和负责人处理<span style="margin-left:auto">${showRest ? '收起' : '看看'}</span></button>${showRest ? todoList(rest) : ''}` : ''}`;
+    }
+    if (role !== 'hrbp') return html`<h3 class="n-section-title">待办${todos.length ? html`<span class="n-count">${todos.length}</span>` : ''}</h3>${todos.length ? todoList(todos) : empty}`;
+    const groups = GROUPS.map(([k, l, kinds]) => ({ k, l, list: todos.filter((t) => kinds.includes(t.kind)) })).filter((g) => g.list.length);
+    if (!groups.length) return html`<h3 class="n-section-title">待办</h3>${empty}`;
+    const open = openGroup || groups[0].k; // 默认展开最紧急的一组：待核对当天要处理，其次是校准
+    return html`<h3 class="n-section-title">待办<span class="n-count">${todos.length}</span></h3>
+      ${groups.map((g) => html`<div class="n-todogrp"><button class="n-todogrp__head" type="button" data-grp="${g.k}" aria-expanded="${g.k === open}">${g.l}<span class="n-count is-quiet">${g.list.length}</span>${g.k === open ? '' : html`<small>${g.list[0].title}${g.list.length > 1 ? ' 等' : ''}</small>`}${icon('chev')}</button>${g.k === open ? todoList(g.list) : ''}</div>`)}`;
+  }
+  function wireTodos() {
+    const host = $('#todo'); if (!host) return;
+    host.onclick = (e) => {
+      const g = e.target.closest('[data-grp]');
+      if (g) { openGroup = g.dataset.grp; mount(host, todoBlock(st.role(), st.todos())); return; }
+      if (e.target.closest('#todo-rest')) { showRest = !showRest; mount(host, todoBlock(st.role(), st.todos())); }
+    };
+  }
+  // HRBP 的判断复盘入口：有待确认的 AI 假设时提示数量
+  function judgeCard() {
+    const rows = st.judgeBatches().filter((b) => b.status === 'open').map((b) => ({ b, n: st.judgeHyps(b.id).filter((h) => !st.judgeAttrib(h.id)).length }));
+    return html`<article class="n-card"><h3 class="n-section-title">判断复盘<a class="nt-linkbtn" href="judge.html" style="margin-left:auto">全部</a></h3>
+      <ul class="nt-list">${rows.map(({ b, n }) => html`<li><a class="nt-plink" href="judge.html?id=${b.id}"><b style="font-weight:600">${b.name}</b></a><div class="nt-muted">${n ? `${n} 条 AI 归因假设待确认` : '归因都已确认'} · ${b.range}</div></li>`)}</ul></article>`;
+  }
 
   function renderChanges() {
     const host = $('#chg-list'); if (!host) return;

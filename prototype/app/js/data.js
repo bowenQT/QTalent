@@ -93,7 +93,20 @@
     P('p-fanxi', '范西', 'ux', '前端工程师', 'N4', '2022-12-05', 322, null, { gen: 'hl' }),
     P('p-lian', '黎安', 'sea', '海外客户经理', 'N4', '2021-04-12', 12, null),
     P('p-peiyuan', '裴远', 'ka', 'KA 销售', 'N5', '2018-10-08', 260, null, { gen: 'lh' }),
+
+    // 2026 年社招入职（判断复盘的社招批次，入职后的事件见下方「社招新人」）
+    P('p-gengyu', '耿雨', 'gp-acq', '增长分析师', 'N3', '2026-02-23', 48, null, { hire: 'social' }),
+    P('p-ningxi', '宁希', 'gp-conv', '客户经理', 'N3', '2026-03-09', 284, null, { hire: 'social' }),
+    P('p-zhuoran', '卓然', 'gp-ai', '算法工程师', 'N4', '2026-03-16', 196, null, { hire: 'social' }),
+    P('p-weilan', '魏岚', 'gp-ret', '运营经理', 'N4', '2026-04-07', 330, null, { hire: 'social' }),
   ];
+  // XEngineer 训练营学员：只出现在判断复盘里，不进入人才盘点和人员列表
+  [['p-xe-wenxi', '闻溪', 'gp-ops'], ['p-xe-chuhe', '楚河', 'gp-ai'], ['p-xe-jianghe', '姜禾', 'gp-ops'], ['p-xe-luming', '鹿鸣', 'gp-cs'],
+    ['p-xe-lanyu', '蓝屿', 'gp-ai'], ['p-xe-yezhou', '叶舟', 'gp-ops'], ['p-xe-chengmo', '程墨', 'gp-cs'], ['p-xe-wenyu', '温瑜', 'gp-ai']]
+    .forEach(([id, name, org], i) => PEOPLE.push(P(id, name, org, '工程师（XEngineer 第一期）', 'N2', '2026-03-02', 20 + i * 41, null, { noReview: true, xe: 'xe-1' })));
+  [['p-xe-zhuyu', '祝余', 'gp-ops'], ['p-xe-bailu', '白露', 'gp-ai'], ['p-xe-jiangfan', '江帆', 'gp-cs'], ['p-xe-cenchuan', '岑川', 'gp-ops'],
+    ['p-xe-luobing', '骆冰', 'gp-ai'], ['p-xe-yintong', '尹桐', 'gp-cs'], ['p-xe-wuyue', '伍月', 'gp-ai'], ['p-xe-qiushi', '秋实', 'gp-ops']]
+    .forEach(([id, name, org], i) => PEOPLE.push(P(id, name, org, '工程师（XEngineer 第二期）', 'N2', '2026-07-06', 35 + i * 43, null, { noReview: true, xe: 'xe-2' })));
   // 直线经理：二级负责人；没有二级负责人的归到增长产品部负责人
   const MANAGER = { 'gp-cs': 'p-hance', 'gp-ret': 'p-jianning', 'gp-ai': 'p-qinshu', 'gp-acq': 'p-qinshu', 'gp-conv': 'p-qinshu', 'gp-ops': 'p-qinshu' };
   PEOPLE.forEach((p) => {
@@ -172,7 +185,7 @@
   const EVENTS = [
     // 林知远：Landing 第三期，W2 后还差一条专业度证据才满足落位门槛
     E({ id: 'e-lin-hire', date: '2026-07-14', kind: 'hist', histType: '招聘评估', title: '招聘评估', people: ['p-lin'], recorder: 'p-hance',
-      srcs: [{ type: 'sheet', label: '社招面试评价表', loc: '2 位面试官' }], scale: [['专业能力', '4'], ['潜力', '4'], ['沟通协作', '3'], ['建议职级', 'N3']],
+      srcs: [{ type: 'sheet', label: '社招面试评价表', loc: '2 位面试官' }], scale: [['专业能力', '4'], ['潜力', '5'], ['沟通协作', '3'], ['建议职级', 'N3']],
       quote: '能把需求拆成可验证的小步，表达偏简略。' }),
     E({ id: 'e-lin-camp', date: '2026-10-06', kind: 'hist', histType: '训练营评审', title: '新人训练营评审', people: ['p-lin'], recorder: 'p-yeqing',
       srcs: [{ type: 'sheet', label: '实训营评审表', loc: 'C14 单元格' }], scale: [['作品分', '86'], ['个人分', 'B+'], ['能力等级', 'A']], quote: '亮点：主动补齐文档；不足：排查问题时不够系统。' }),
@@ -401,6 +414,29 @@
     }
   });
 
+  // ---------- 社招新人：面试评价（原量表，只作历史记录）与入职后的关键事件 ----------
+  const hireEv = (id, pid, by, date, scale, quote) => E({ id, date, kind: 'hist', histType: '招聘评估', title: '招聘评估', people: [pid], recorder: by,
+    srcs: [{ type: 'sheet', label: '社招面试评价表', loc: `${date.slice(5)} 面试` }], scale, quote });
+  EVENTS.push(
+    hireEv('e-gy-hire', 'p-gengyu', 'p-hance', '2026-02-06', [['专业能力', '4'], ['潜力', '5'], ['沟通协作', '4'], ['建议职级', 'N3']], '学习速度快，很有冲劲，适合放到更难的项目里。'),
+    hireEv('e-nx-hire', 'p-ningxi', 'p-hance', '2026-02-20', [['专业能力', '3'], ['潜力', '4'], ['沟通协作', '3'], ['建议职级', 'N3']], '沟通积极，主动性强。'),
+    hireEv('e-zr-hire', 'p-zhuoran', 'p-zhouyu', '2026-02-27', [['专业能力', '4'], ['潜力', '4'], ['建议职级', 'N4']], '讲清了两次线上效果回退的排查过程，调优经验扎实。'),
+    hireEv('e-wl-hire', 'p-weilan', 'p-qinshu', '2026-03-18', [['专业能力', '4'], ['潜力', '4'], ['沟通协作', '4'], ['管理能力', '3'], ['建议职级', 'N4']], '活动策划经验完整，带过 2 人的小组。'),
+    E({ id: 'e-gy-1', date: '2026-04-15', recorder: 'p-qinshu', people: ['p-gengyu'], title: '投放归因看板按期上线', act: '按约定口径搭好看板，上线前自己核对了三周的数据。', scores: [s('p-gengyu', 'prof', 4, 'confirmed', 'p-qinshu'), s('p-gengyu', 'mot', 3, 'confirmed', 'p-qinshu')] }),
+    E({ id: 'e-gy-2', date: '2026-05-28', recorder: 'p-qinshu', people: ['p-gengyu'], title: '渠道口径冲突时先拉齐了定义', act: '两个团队对「有效线索」的定义不同，他先整理了差异再约会。', scores: [s('p-gengyu', 'wis', 4, 'confirmed', 'p-qinshu'), s('p-gengyu', 'lead', 4, 'confirmed', 'p-qinshu')] }),
+    E({ id: 'e-gy-3', date: '2026-07-09', recorder: 'p-luchuan', people: ['p-gengyu'], title: '周报里的异常等别人提醒才去查', act: '异常在周报里挂了两周，被问到后才开始排查。', scores: [s('p-gengyu', 'grit', 3, 'confirmed', 'p-luchuan'), s('p-gengyu', 'mot', 3, 'confirmed', 'p-luchuan')] }),
+    E({ id: 'e-gy-4', date: '2026-08-12', recorder: 'p-qinshu', people: ['p-gengyu'], title: '带新同事过了一遍归因模型', act: '把模型的假设和局限写成一页说明，带新同事过了一遍。', scores: [s('p-gengyu', 'prof', 4, 'confirmed', 'p-qinshu'), s('p-gengyu', 'lead', 4, 'confirmed', 'p-qinshu')] }),
+    E({ id: 'e-nx-1', date: '2026-04-20', recorder: 'p-qinshu', people: ['p-ningxi'], title: '按流程完成首批客户回访', act: '按回访清单完成 30 家客户回访，记录完整。', scores: [s('p-ningxi', 'prof', 3, 'confirmed', 'p-qinshu'), s('p-ningxi', 'mot', 3, 'confirmed', 'p-qinshu')] }),
+    E({ id: 'e-nx-2', date: '2026-06-18', recorder: 'p-xieling', people: ['p-ningxi'], title: '客户临时改需求时先确认了优先级', act: '客户改了两次需求，她每次都先确认优先级再排期。', scores: [s('p-ningxi', 'wis', 3, 'confirmed', 'p-xieling'), s('p-ningxi', 'lead', 3, 'confirmed', 'p-xieling')] }),
+    E({ id: 'e-nx-3', date: '2026-08-03', recorder: 'p-qinshu', people: ['p-ningxi'], title: '续约谈判卡住后等主管介入', act: '续约卡在价格上，等主管介入后才继续推进。', scores: [s('p-ningxi', 'grit', 3, 'confirmed', 'p-qinshu')] }),
+    E({ id: 'e-zr-1', date: '2026-05-08', recorder: 'p-shaoming', people: ['p-zhuoran'], title: '召回模型迭代进度慢于计划', act: '「进度慢。」', scores: [s('p-zhuoran', 'prof', 2, 'confirmed', 'p-shaoming')] }),
+    E({ id: 'e-zr-2', date: '2026-06-30', recorder: 'p-shaoming', people: ['p-zhuoran'], title: '召回模型第一版上线', act: '第一版按调整后的计划上线；项目复盘文档写的是「需求两次变更，模型按期交付」。', scores: [s('p-zhuoran', 'prof', 3, 'confirmed', 'p-shaoming'), s('p-zhuoran', 'mot', 4, 'confirmed', 'p-shaoming')] }),
+    E({ id: 'e-zr-3', date: '2026-08-21', recorder: 'p-fangyu', people: ['p-zhuoran'], title: '主动补了离线评测集', act: '发现评测集覆盖不到长尾查询，自己补了 2000 条并写清标注口径。', scores: [s('p-zhuoran', 'mot', 4, 'confirmed', 'p-fangyu'), s('p-zhuoran', 'wis', 4, 'confirmed', 'p-fangyu')] }),
+    E({ id: 'e-wl-1', date: '2026-05-12', recorder: 'p-jianning', people: ['p-weilan'], title: '会员活动方案按期交付', act: '方案按期交付，带着 2 名同事完成了执行排期。', scores: [s('p-weilan', 'prof', 3, 'confirmed', 'p-jianning'), s('p-weilan', 'lead', 4, 'confirmed', 'p-jianning')] }),
+    E({ id: 'e-wl-2', date: '2026-07-02', recorder: 'p-jianning', people: ['p-weilan'], title: '项目取消后接手存量客户的过渡运营', act: '6 月中会员项目取消、团队调整，她接手过渡期的存量运营，按交接清单执行。', scores: [s('p-weilan', 'prof', 3, 'confirmed', 'p-jianning'), s('p-weilan', 'mot', 3, 'confirmed', 'p-jianning')] }),
+    E({ id: 'e-wl-3', date: '2026-08-26', recorder: 'p-luoyi', people: ['p-weilan'], title: '过渡期按清单完成客户迁移', act: '按清单完成 120 家客户迁移，没有新增投诉。', scores: [s('p-weilan', 'grit', 3, 'confirmed', 'p-luoyi'), s('p-weilan', 'lead', 4, 'confirmed', 'p-luoyi')] }),
+  );
+
   // ---------- 2026 H1 盘点（已确认，06-30 冻结）：正式位置的覆盖（其余按当时的参考位置） ----------
   const H1_OVERRIDE = { 'p-heyn': { q: 'hh', reason: '' }, 'p-zhouyu': { q: 'hh', reason: '' } };
 
@@ -450,6 +486,9 @@
       now: [['独立负责缓存模块，两次上线无回滚', 'e-cy-3'], ['背景变化：Q4 预算削减，模块范围缩小', null]] },
     { id: 'a-lin', title: '林知远以兼职加入海外加速搜索体验', from: 'sp-search-3', person: 'p-lin', owner: 'p-zhouyu', due: '2026-10-15', did: '2026-10-15', state: 'done', observe: '2026-12-15' },
     { id: 'a-luoyi', title: '罗伊参与存量客户召回议题的带教', kind: '激活', from: 'signal', person: 'p-luoyi', owner: 'p-jianning', due: '2026-10-20', did: '2026-10-20', state: 'doing', observe: '2026-12-31' },
+    { id: 'a-xe-v2', title: '修订入营选拔标准：内驱力必须写出具体行为与结果（xe-select-v2）', kind: '修订评价标准', from: 'jr-xe1', owner: 'p-suwan', due: '2026-06-30', did: '2026-07-01', state: 'done', observe: '2026-10-31',
+      then: ['目标：内驱力的前段偏高人数减少', '依据：XEngineer 第一期判断复盘，内驱力 8 人中 6 人前段偏高，5 人的入营记录只有「有热情」一类描述', '观察：第二期按 v2 入营，看第二期判断复盘的内驱力偏差'],
+      now: [['第二期判断复盘：内驱力 8 人中 2 人前段偏高（第一期 6 人）', null], ['样本只有一期 8 人，还不能下「改进有效」的结论', null]] },
     { id: 'a-wang', title: '王一舟牵头黑客松项目的后续落地', person: 'p-wangyz', owner: 'p-baizhi', due: '2026-10-08', state: 'cancel', why: '项目优先级下调，换到下一期，不是个人原因' },
   ];
 
@@ -531,8 +570,122 @@
       } },
   };
 
+  // ---------- 发展方向（v1.3 D-33）：通道取自人才发展大图「走得远」阶段，本人意愿与管理判断分开 ----------
+  const CHANNELS = [
+    { id: 'pa', name: '产品架构师' }, { id: 'fde', name: 'FDE（业务导向技术人才）' }, { id: 'ba', name: '商业架构师' }, { id: 'biz', name: '业务负责人 / 销售负责人' },
+  ];
+  const DIRECTIONS = [
+    { person: 'p-lin', kind: 'self', ch: 'ba', text: '下个阶段想离客户近一点，试试售前。', at: '2026-09-28', src: '入职季度沟通 · 12:31', ev: 'e-lin-self' },
+    { person: 'p-lin', kind: 'mgmt', ch: 'pa', by: 'p-suwan', at: '2026-10-22', basis: '需求变更后两天内给出 A、B 两个方案并写清验收标准，方案取舍更接近产品架构方向', ev: 'e-lin-3' },
+    { person: 'p-xieling', kind: 'self', ch: 'biz', text: '想带一个完整的团队，把转化做成体系。', at: '2026-08-15', src: '8 月一对一' },
+    { person: 'p-xieling', kind: 'mgmt', ch: 'biz', by: 'p-qinshu', at: '2026-09-30', basis: '带两名新人跑通 SMB 首单，每单复盘一次话术', ev: 'e-xl-1' },
+    { person: 'p-heyn', kind: 'self', ch: 'ba', text: '想多参与海外客户的方案设计。', at: '2026-07-22', src: '7 月季度沟通' },
+    { person: 'p-heyn', kind: 'mgmt', ch: 'fde', by: 'p-suwan', at: '2026-09-12', basis: '埋点治理里把转化链路拆到可验证的最小单元，技术落地和业务理解都在线', ev: 'e-he-2' },
+    { person: 'p-shenyan', kind: 'mgmt', ch: 'pa', by: 'p-suwan', at: '2026-10-10', basis: '冷数据迁移分批上线零差错，方案和回滚设计完整', ev: 'e-sy-2' },
+    { person: 'p-zhouyu', kind: 'self', ch: 'pa', text: '想往架构方向走，少做一些重复的运维。', at: '2026-07-10', src: '7 月一对一' },
+    { person: 'p-gunan', kind: 'self', ch: 'fde', text: '想多去客户现场，把故障处理经验做成方案。', at: '2026-09-05', src: '9 月一对一' },
+    { person: 'p-gunan', kind: 'mgmt', ch: 'fde', by: 'p-hance', at: '2026-10-08', basis: '独立处理大客户故障并写了复盘，客户侧沟通清楚' },
+  ];
+
+  // ---------- 目标角色模板（v1.3 D-34）：HRBP 维护；改动产生新版本，已生成的需求卡保留当时的版本 ----------
+  const TEMPLATES = [
+    { id: 'tpl-biz', name: '业务负责人', ch: 'biz', duties: '对一条业务线或一个团队的结果负责，带团队、定节奏、对客户负责。', dims: ['lead', 'wis'],
+      versions: [
+        { v: 1, by: 'p-suwan', at: '2026-06-02', reqs: [{ id: 'r1', text: '带过 3 人以上的团队', must: true }, { id: 'r2', text: '对一条业务线的结果负责过', must: true }] },
+        { v: 2, by: 'p-suwan', at: '2026-10-12', note: '「带过 3 人以上的团队」改为「带过销售或转化团队」，原要求保留为放宽表述；补了客户首次跟进和跨部门协作',
+          reqs: [{ id: 'r1', text: '带过销售或转化团队', must: true, alt: '带过 3 人以上的团队' }, { id: 'r2', text: '熟悉所负责业务的客户首次跟进', must: true, alt: '熟悉线索转化的全流程' }, { id: 'r4', text: '有跨部门协作经验', must: false }] },
+      ] },
+    { id: 'tpl-ba', name: '商业架构师', ch: 'ba', duties: '和销售一起设计客户方案，把客户问题拆成产品组合与交付路径。', dims: ['wis', 'lead'],
+      versions: [{ v: 1, by: 'p-suwan', at: '2026-09-18', reqs: [{ id: 'b1', text: '做过客户方案设计并参与成单', must: true }, { id: 'b2', text: '熟悉公司主要产品线', must: true }, { id: 'b3', text: '有行业客户经验', must: false }] }] },
+    { id: 'tpl-pa', name: '产品架构师', ch: 'pa', duties: '对一个产品方向的方案与取舍负责，从需求到上线。', dims: ['prof', 'wis'],
+      versions: [{ v: 1, by: 'p-suwan', at: '2026-09-18', reqs: [{ id: 'a1', text: '主导过一个产品方案从需求到上线', must: true }, { id: 'a2', text: '能在约束下比较并取舍方案', must: true }, { id: 'a3', text: '有客户场景的一手理解', must: false }] }] },
+    { id: 'tpl-fde', name: 'FDE', ch: 'fde', duties: '驻场或贴近客户交付技术方案，把客户问题带回产品。', dims: ['prof', 'mot'],
+      versions: [{ v: 1, by: 'p-suwan', at: '2026-09-18', reqs: [{ id: 'f1', text: '独立交付过客户现场的技术方案', must: true }, { id: 'f2', text: '能把客户问题翻译成产品需求', must: true }, { id: 'f3', text: '有线上故障处理经验', must: false }] }] },
+  ];
+
+  // ---------- 判断复盘（v1.3 D-35～D-40） ----------
+  // 一次判断 = 评价人 + 阶段 + 标准版本 + 被评价人 + 维度 + 结论 + 原始评语。前后两段都是判断，后段不当作正确答案。
+  const JUDGE = {
+    chains: [
+      { id: 'xe', name: 'XEngineer', front: '入营选拔', back: '训练营评审', scale: 'grade', grades: ['B', 'A', 'S'],
+        dims: [{ id: 'pd', name: '产品设计力' }, { id: 'eng', name: '工程能力' }, { id: 'drive', name: '内驱力' }] },
+      { id: 'hire', name: '社招', front: '面试评价', back: '入职后 6 个月的已确认事件', scale: 'score', window: 180,
+        dims: [{ id: 'prof', name: '专业能力' }, { id: 'pot', name: '潜力' }, { id: 'comm', name: '沟通协作' }, { id: 'mgmt', name: '管理能力' }] },
+    ],
+    // 维度与等级对应表：只用于判断复盘的对照，不把历史分数换算进档案维度分和象限
+    maps: [
+      { id: 'map-xe-v1', chain: 'xe', by: 'p-suwan', at: '2026-03-20', rows: [['pd', '产品设计力', '同名同级'], ['eng', '工程能力', '同名同级'], ['drive', '内驱力', '同名同级']] },
+      { id: 'map-hire-v1', chain: 'hire', by: 'p-suwan', at: '2026-09-30', rows: [['prof', '专业度', '5 / 4 / 3 / 2 / 1 ↔ 同档'], ['pot', '内生动力、智慧力、坚毅力', '取三项已确认分的均值所在档'], ['comm', '领导力', '同档'], ['mgmt', '领导力', '同档']],
+        back: { prof: ['prof'], pot: ['mot', 'wis', 'grit'], comm: ['lead'], mgmt: ['lead'] } },
+    ],
+    stds: [
+      { id: 'xe-select-v1', chain: 'xe', at: '2026-03-01', note: '内驱力：面试官按印象给 S / A / B，评语不限' },
+      { id: 'xe-select-v2', chain: 'xe', at: '2026-07-01', from: 'a-xe-v2', note: '内驱力：必须写出一个具体行为及结果，才能给 S' },
+      { id: 'hire-v1', chain: 'hire', at: '2025-12-01', note: '社招面试评价表 2025 版：四个维度 1–5 分，附综合评价' },
+    ],
+    batches: [
+      { id: 'jr-xe1', chain: 'xe', name: 'XEngineer 第一期判断复盘', std: 'xe-select-v1', map: 'map-xe-v1', status: 'concluded', at: '2026-06-12', by: 'p-suwan', range: '入营 03-02 · 训练营评审 05-29' },
+      { id: 'jr-xe2', chain: 'xe', name: 'XEngineer 第二期判断复盘', std: 'xe-select-v2', map: 'map-xe-v1', status: 'open', at: '2026-10-20', by: 'p-suwan', range: '入营 07-06 · 训练营评审 10-17' },
+      { id: 'jr-hire26', chain: 'hire', name: '2026 年 2–8 月社招入职判断复盘', std: 'hire-v1', map: 'map-hire-v1', status: 'open', at: '2026-10-21', by: 'p-suwan', range: '入职后 6 个月窗口，未满的按到今天为止',
+        people: ['p-gengyu', 'p-ningxi', 'p-zhuoran', 'p-weilan', 'p-lin', 'p-xuqh'] },
+    ],
+    // XEngineer：前后两段都是 S / A / B 的人工判断。[学员, 入营面试官, 入营 {维度: 等级}, 入营评语, 训练营评审 {维度: 等级}, 评审评语]
+    xe: {
+      'jr-xe1': { back: 'p-songchuan', rows: [
+        ['p-xe-wenxi', 'p-jiangyb', { pd: 'A', eng: 'A', drive: 'S' }, '有热情，学习意愿强。', { pd: 'A', eng: 'A', drive: 'A' }, '课题按期完成，遇到阻塞多等导师安排。'],
+        ['p-xe-chuhe', 'p-jiangyb', { pd: 'B', eng: 'A', drive: 'S' }, '对技术很感兴趣。', { pd: 'B', eng: 'A', drive: 'A' }, '工程实现扎实，方案讨论参与少。'],
+        ['p-xe-jianghe', 'p-jiangyb', { pd: 'A', eng: 'S', drive: 'A' }, '积极。', { pd: 'B', eng: 'S', drive: 'B' }, '存储课题完成得最好；需求理解偏窄，主动性一般。'],
+        ['p-xe-luming', 'p-mengxia', { pd: 'A', eng: 'A', drive: 'S' }, '有热情。', { pd: 'A', eng: 'A', drive: 'A' }, '交付稳定，没有超出课题范围的尝试。'],
+        ['p-xe-lanyu', 'p-mengxia', { pd: 'S', eng: 'A', drive: 'S' }, '自己做过一个小程序，持续更新了一年。', { pd: 'A', eng: 'A', drive: 'S' }, '主动给课题加了监控，带动组里补测试。'],
+        ['p-xe-yezhou', 'p-mengxia', { pd: 'B', eng: 'B', drive: 'A' }, '挺有冲劲。', { pd: 'B', eng: 'A', drive: 'B' }, '工程进步很快；遇到困难时需要别人推一把。'],
+        ['p-xe-chengmo', 'p-yeqing', { pd: 'A', eng: 'A', drive: 'S' }, '很有热情。', { pd: 'A', eng: 'A', drive: 'A' }, '按期完成，复盘写得认真。'],
+        ['p-xe-wenyu', 'p-yeqing', { pd: 'A', eng: 'B', drive: 'A' }, '入营前主动问清了训练营的课题安排，并提前读了相关代码。', { pd: 'A', eng: 'B', drive: 'A' }, '方案表达清楚，工程上还需要练。'],
+      ] },
+      'jr-xe2': { back: 'p-songchuan', rows: [
+        ['p-xe-zhuyu', 'p-jiangyb', { pd: 'A', eng: 'A', drive: 'S' }, '做过一次开源贡献并被合并。', { pd: 'A', eng: 'A', drive: 'A' }, '课题按期完成；被合并的那次贡献之后没有再跟进。'],
+        ['p-xe-bailu', 'p-jiangyb', { pd: 'A', eng: 'B', drive: 'A' }, '大学社团里牵头办过一次比赛。', { pd: 'A', eng: 'B', drive: 'B' }, '分配的任务都完成了，很少主动提出新做法。'],
+        ['p-xe-jiangfan', 'p-jiangyb', { pd: 'B', eng: 'A', drive: 'A' }, '实习时主动把团队的部署脚本整理成文档，被后来的人沿用。', { pd: 'B', eng: 'A', drive: 'A' }, '主动补了课题的部署文档。'],
+        ['p-xe-cenchuan', 'p-mengxia', { pd: 'A', eng: 'S', drive: 'S' }, '连续两年维护一个开源库，处理了 40 多个 issue。', { pd: 'S', eng: 'S', drive: 'S' }, '课题方案被导师团采纳为下一期样例。'],
+        ['p-xe-luobing', 'p-mengxia', { pd: 'B', eng: 'A', drive: 'A' }, '课程项目里主动把测试覆盖率从 30% 补到 70%。', { pd: 'B', eng: 'A', drive: 'A' }, '交付稳定。'],
+        ['p-xe-yintong', 'p-mengxia', { pd: 'A', eng: 'A', drive: 'B' }, '目前更多是完成布置的任务。', { pd: 'A', drive: 'B' }, '训练营中途转到产品组，评审没有覆盖工程能力。'],
+        ['p-xe-wuyue', 'p-yeqing', { pd: 'S', eng: 'A', drive: 'A' }, '实习时独立推动过一次需求评审改版。', { pd: 'S', eng: 'A', drive: 'A' }, '方案能力突出。'],
+        ['p-xe-qiushi', 'p-yeqing', { pd: 'A', eng: 'A', drive: 'A' }, '后端课程项目做过分布式缓存，能讲清取舍。', { pd: 'A', eng: 'B', drive: 'A' }, '训练营课题是前端，工程能力按前端课题评。'],
+      ] },
+    },
+    // 社招：前段是面试评价（1–5）；后段由对应表从入职后的已确认事件分算出
+    hire: {
+      'jr-hire26': [
+        ['p-gengyu', 'p-hance', 'e-gy-hire', { prof: 4, pot: 5, comm: 4 }, '学习速度快，很有冲劲，适合放到更难的项目里。'],
+        ['p-ningxi', 'p-hance', 'e-nx-hire', { prof: 3, pot: 4, comm: 3 }, '沟通积极，主动性强。'],
+        ['p-lin', 'p-hance', 'e-lin-hire', { prof: 4, pot: 5, comm: 3 }, '能把需求拆成可验证的小步，对客户问题追问得很细。'],
+        ['p-zhuoran', 'p-zhouyu', 'e-zr-hire', { prof: 4, pot: 4 }, '讲清了两次线上效果回退的排查过程，调优经验扎实。'],
+        ['p-weilan', 'p-qinshu', 'e-wl-hire', { prof: 4, pot: 4, comm: 4, mgmt: 3 }, '活动策划经验完整，带过 2 人的小组。'],
+        ['p-xuqh', 'p-qinshu', null, { prof: 3, pot: 4, comm: 3 }, '自学做过一个完整的数据分析项目。'],
+      ],
+    },
+    // AI 提出的归因假设（脚本化 mock）：每条引用案例与标准版本；未确认不能生成动作
+    hyps: {
+      'jr-xe1': [{ id: 'h-xe1-1', cats: ['method'], text: '内驱力 8 人中 6 人前段偏高；其中 5 人的入营记录只写了「有热情」一类描述，没有具体行为。v1 标准对内驱力的评语没有要求。', cases: ['jr-xe1:p-xe-wenxi:drive', 'jr-xe1:p-xe-chuhe:drive', 'jr-xe1:p-xe-luming:drive', 'jr-xe1:p-xe-chengmo:drive', 'jr-xe1:p-xe-yezhou:drive'], std: 'xe-select-v1' }],
+      'jr-xe2': [
+        { id: 'h-xe2-1', cats: ['method'], text: '内驱力仍有 2 人前段偏高（第一期 6 人）。这 2 人的入营记录都按 v2 写了行为，但各只有一个例子，也没有追问之后是否持续。v2 要求写行为，没有要求追问持续性。', cases: ['jr-xe2:p-xe-zhuyu:drive', 'jr-xe2:p-xe-bailu:drive'], std: 'xe-select-v2' },
+        { id: 'h-xe2-2', cats: ['rater'], text: '两期合计，江屿白面试的 6 位学员中有 5 位内驱力前段偏高，方向一致；同期另两位面试官的 10 个内驱力案例中 3 个偏高。样本达到 5 个案例的门槛。', cases: ['jr-xe1:p-xe-wenxi:drive', 'jr-xe1:p-xe-chuhe:drive', 'jr-xe1:p-xe-jianghe:drive', 'jr-xe2:p-xe-zhuyu:drive', 'jr-xe2:p-xe-bailu:drive'], rater: 'p-jiangyb' },
+      ],
+      'jr-hire26': [
+        { id: 'h-hire-1', cats: ['rater', 'method'], text: '韩策的 5 个可对照案例里，「潜力」3 个都是前段偏高（高一到两档），评语多是「冲劲」「积极」一类描述，没有具体行为；专业能力和沟通协作 2 个案例一致。', cases: ['jr-hire26:p-gengyu:pot', 'jr-hire26:p-ningxi:pot', 'jr-hire26:p-lin:pot'], rater: 'p-hance' },
+        { id: 'h-hire-2', cats: ['env'], text: '魏岚入职 2 个月后所在的会员项目取消、团队调整（06 月中），后段事件都发生在调整后的过渡期，任务从策划变成按清单执行。', cases: ['jr-hire26:p-weilan:prof', 'jr-hire26:p-weilan:pot'] },
+        { id: 'h-hire-3', cats: ['later'], text: '卓然的专业度两条分来自同一位记录人：一条只写了「进度慢」，另一条与项目复盘文档的描述（需求两次变更，模型按期交付）不一致。', cases: ['jr-hire26:p-zhuoran:prof'] },
+      ],
+    },
+    // 已确认的归因（第一期为历史；社招批次已确认两条）
+    attribs: {
+      'jr-xe1': { hyp: 'h-xe1-1', cats: ['method'], reason: '入营面试只问了兴趣，没有追问具体行为；先修订标准，下一期验证。', by: 'p-suwan', at: '2026-06-15', actions: ['a-xe-v2'] },
+      'jr-hire26:h-hire-2': { hyp: 'h-hire-2', cats: ['env'], reason: '项目取消和团队调整是事实，后段任务性质变了，不修正面试标准，记录情境。', by: 'p-suwan', at: '2026-10-22', actions: [] },
+      'jr-hire26:h-hire-3': { hyp: 'h-hire-3', cats: ['later'], reason: '后段两条分证据少且和复盘文档冲突，先请记录人补充证据，再看是否需要校准。', by: 'p-suwan', at: '2026-10-22', actions: [] },
+    },
+  };
+
   NT.SEED = {
-    version: 4, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
-    NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES,
+    version: 5, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
+    NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE,
   };
 })();

@@ -46,6 +46,7 @@
       </div>` : role === 'mentor' ? html`<div class="n-lock m-lockline">${icon('lock')}导师看不到象限、变化和「值得聊一聊」。</div>` : ''}
 
       ${summary(p, obs, canScore, ref, canQuad)}
+      <div style="margin-top:var(--s-3)">${UI.directionBlock(pid)}</div>
 
       ${spec ? html`<section class="m-card n-spectrum m-spectrum" id="spectrum"><h3 class="m-h" style="margin-top:0">个人能力谱<span class="nt-muted" style="font-weight:400">近 12 个月 · ${spec.total} 条</span></h3>
         <div id="spec-rows">${spec.html}</div>
@@ -130,6 +131,7 @@
     mount(main, html`
       <div class="m-card m-phead">${UI.person(p.id, { size: 'lg', link: false, meta: `${st.orgShort(p.org)} · ${p.title} · ${p.level}`, meta2: `${st.tenure(p)} · Landing 第三期` })}
         <div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm n-btn--ink" href="quick.html?k=exp">${icon('plus')}补充经历</a><a class="n-btn n-btn--sm" href="quick.html?k=will">${icon('quote')}写意愿</a><a class="n-btn n-btn--sm n-btn--ghost" href="quick.html?k=fix">提出纠错</a></div></div>
+      <div id="mydir" style="margin-top:var(--s-3)">${UI.directionBlock(p.id, { canWrite: 'self' })}</div>
       <h3 class="m-h">发布给你的</h3>
       ${pub.length ? html`<ul class="m-list">${pub.map((a) => html`<li><div class="m-row">${icon('check2')}<span>${a.title}<small>${st.person(a.by).name}发布给你 · ${NT.md(a.at)}</small></span><span class="n-astate" data-s="todo">待安排</span></div></li>`)}</ul>` : html`<div class="nt-empty">还没有。</div>`}
       <h3 class="m-h">我的经历</h3>
@@ -139,5 +141,7 @@
         ${corr.map((c) => html`<div class="m-card m-tlmini"><b>我提出的纠错：${c.text}</b><div class="n-tl__meta">${NT.md(c.at)} · ${c.done ? '已处理' : '等录入人处理'}</div></div>`)}
       </div>
       <div class="n-lock m-lockline">${icon('lock')}维度分、象限、他人的评价和「值得聊一聊」对本人不可见。</div>`);
+    const dir = NT.$('#mydir');
+    UI.wireDirection(dir, p.id, () => mount(dir, UI.directionBlock(p.id, { canWrite: 'self' })));
   }
 })();

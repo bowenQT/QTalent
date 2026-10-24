@@ -16,7 +16,8 @@
       v: SEED.version, events: SEED.EVENTS, projects: SEED.PROJECTS, members: SEED.MEMBERS, memberLog: SEED.MEMBER_LOG,
       needs: SEED.NEEDS, plans: SEED.PLANS, actions: SEED.ACTIONS, tracks: SEED.TRACKS, signals: SEED.SIGNALS, inbox: SEED.INBOX,
       tasks: SEED.TASKS, batches: SEED.BATCHES, conclusions: SEED.CONCLUSIONS, tagCands: SEED.TAG_CANDIDATES, taglibAdd: [],
-      seen: {}, snaps: [], reviews: {}, corrections: [], selfNotes: [], pubActions: [{ person: 'p-lin', title: '参加 11 月客户现场轮岗', by: 'p-suwan', at: '2026-10-20', state: 'todo' }],
+      seen: {}, snaps: [], reviews: {}, corrections: [], selfNotes: [], directions: SEED.DIRECTIONS,
+      judgeMarks: {}, judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])), pubActions: [{ person: 'p-lin', title: '参加 11 月客户现场轮岗', by: 'p-suwan', at: '2026-10-20', state: 'todo' }],
     });
     S = s;
     s.snaps.push(buildSnap({ id: 's-h1', batch: 'b-h1', label: '2026 H1', org: 'gp', cutoff: '2026-06-20', at: '2026-06-30', by: 'p-suwan' }));
@@ -339,6 +340,9 @@
     return list;
   };
 
+  // CEO 只留需要本人确认的事（v1.3 3.18），其余在推进的事由 HRBP 和负责人处理
+  store.mineToConfirm = (list) => list.filter((t) => t.kind === 'plan' && t.due === 'CEO');
+
   // ---------- HRBP 校准队列 ----------
   store.queue = () => {
     const q = [];
@@ -533,6 +537,108 @@
     const c = {};
     S.events.forEach((e) => (e.tags || []).forEach((t) => { c[t] = (c[t] || 0) + 1; }));
     return c;
+  };
+
+  // ---------- 发展方向（v1.3 3.15.1）：本人意愿与管理判断分开记录、分开呈现，不打分、不排序 ----------
+  store.channels = SEED.CHANNELS;
+  store.channel = (id) => SEED.CHANNELS.find((c) => c.id === id);
+  // 本人意愿：能看到这个人的视角都能看；管理判断：员工和导师看不到
+  store.directions = (pid, role = store.role()) => {
+    const sc = store.scope(pid, role);
+    if (!sc) return null;
+    const all = S.directions.filter((d) => d.person === pid).sort((a, b) => b.at.localeCompare(a.at));
+    const mgmt = sc === 'full' && role !== 'mentor';
+    return { self: all.filter((d) => d.kind === 'self'), mgmt: mgmt ? all.filter((d) => d.kind === 'mgmt') : null };
+  };
+  store.addDirection = (d) => { S.directions.unshift({ ...d, at: NT.TODAY }); store.save(); };
+
+  // ---------- 目标角色模板（v1.3 3.15.2） ----------
+  store.templates = () => SEED.TEMPLATES;
+  store.template = (id) => SEED.TEMPLATES.find((t) => t.id === id);
+  store.tplVersion = (t, v) => (v ? t.versions.find((x) => x.v === v) : t.versions[t.versions.length - 1]);
+
+  // ---------- 判断复盘（v1.3 3.16）：对照两段判断，归因只作用于评价体系，不写回被评价人 ----------
+  const J = SEED.JUDGE;
+  const RATER_MIN = 5; // 评价人可对照案例的门槛，少于它只显示「样本不足」
+  store.RATER_MIN = RATER_MIN;
+  store.judgeChain = (id) => J.chains.find((c) => c.id === id);
+  store.judgeMap = (id) => J.maps.find((m) => m.id === id);
+  store.judgeStd = (id) => J.stds.find((x) => x.id === id);
+  store.judgeBatch = (id) => J.batches.find((b) => b.id === id);
+  store.judgeBatches = (chain) => J.batches.filter((b) => !chain || b.chain === chain);
+  // 社招后段：对照窗口内、对应维度已确认分的均值所在档；至少 2 条来自不同事件
+  const hireBack = (pid, dims, chain) => {
+    const p = PEOPLE.get(pid);
+    const to = [NT.addDays(p.joined, chain.window), NT.TODAY].sort()[0];
+    const list = dims.flatMap((d) => store.scoresOf(pid, { dim: d, from: p.joined, to }));
+    const evs = [...new Set(list.map((x) => x.ev.id))];
+    if (evs.length < 2) return { na: true, n: list.length, evs, to, miss: list.length ? '只有 1 条事件的已确认分' : '窗口内没有已确认分' };
+    const m = store.mean(list.map((x) => x.v));
+    return { v: Math.round(m), mean: m, n: list.length, evs, to, by: [...new Set(list.map((x) => x.by))] };
+  };
+  // 一个对照单元 = 人 × 维度：前后两段的评价人、标准版本、结论、证据，和五种差异状态之一
+  store.judgeUnits = (batchId) => {
+    const b = store.judgeBatch(batchId), chain = store.judgeChain(b.chain), map = store.judgeMap(b.map);
+    const out = [];
+    const push = (u) => {
+      const id = `${batchId}:${u.person}:${u.dim}`;
+      const mark = S.judgeMarks[id];
+      let state;
+      if (u.front.v == null || u.back.na) state = 'na';
+      else if (mark) state = 'nc';
+      else state = u.front.r === u.back.r ? 'same' : u.front.r > u.back.r ? 'high' : 'low';
+      out.push({ ...u, id, batch: batchId, dimName: chain.dims.find((d) => d.id === u.dim).name, state, gap: state === 'high' || state === 'low' ? Math.abs(u.front.r - u.back.r) : 0, mark });
+    };
+    if (chain.scale === 'grade') {
+      const g = J.xe[batchId];
+      g.rows.forEach(([pid, by, fr, fnote, bk, bnote]) => chain.dims.forEach((d) => push({
+        person: pid, dim: d.id,
+        front: { by, v: fr[d.id] ?? null, r: chain.grades.indexOf(fr[d.id]), note: fnote, std: b.std },
+        back: bk[d.id] ? { by: [g.back], v: bk[d.id], r: chain.grades.indexOf(bk[d.id]), note: bnote } : { by: [g.back], na: true, note: bnote, miss: '训练营评审没有这个维度的等级' },
+      })));
+    } else {
+      J.hire[batchId].forEach(([pid, by, ev, fr, fnote]) => chain.dims.forEach((d) => {
+        const bk = hireBack(pid, map.back[d.id], chain);
+        push({ person: pid, dim: d.id,
+          front: { by, v: fr[d.id] ?? null, r: fr[d.id] ?? null, note: fnote, std: b.std, ev, miss: fr[d.id] == null ? '面试没有给这个维度的结论' : '' },
+          back: bk.na ? { na: true, n: bk.n, evs: bk.evs, miss: bk.miss, to: bk.to } : { by: bk.by, v: bk.v, r: bk.v, mean: bk.mean, n: bk.n, evs: bk.evs, to: bk.to } });
+      }));
+    }
+    return out;
+  };
+  // 视角：CEO 看汇总与结论；HRBP 看归属范围；部门负责人、导师、员工只在自己是评价人时看到本人的案例
+  store.canJudge = (role = store.role()) => ['ceo', 'hrbp'].includes(role);
+  store.judgeScope = (u, role = store.role()) => role === 'ceo' || (role === 'hrbp' && store.scope(u.person, role) === 'full');
+  store.myJudgeUnits = (role = store.role()) => {
+    const me = ROLES[role].person;
+    return J.batches.flatMap((b) => store.judgeUnits(b.id)).filter((u) => u.front.by === me);
+  };
+  store.isRater = (role = store.role()) => store.myJudgeUnits(role).length > 0;
+  store.canSeeRater = (rater, role = store.role()) => role === 'hrbp' || (role !== 'ceo' && ROLES[role].person === rater);
+  const COMPARABLE = ['same', 'high', 'low'];
+  store.judgeComparable = (u) => COMPARABLE.includes(u.state);
+  store.judgeTally = (units) => {
+    const t = { same: 0, high: 0, low: 0, nc: 0, na: 0 };
+    units.forEach((u) => { t[u.state] += 1; });
+    return t;
+  };
+  store.raterStats = (units, rater) => {
+    const mine = units.filter((u) => u.front.by === rater);
+    const cases = mine.filter(store.judgeComparable);
+    return { units: mine, cases, enough: cases.length >= RATER_MIN, tally: store.judgeTally(cases) };
+  };
+  store.judgeHyps = (batchId) => J.hyps[batchId] || [];
+  store.judgeAttrib = (hypId) => S.judgeAttribs[hypId] || null;
+  store.confirmAttrib = (batchId, hyp, a) => { S.judgeAttribs[hyp.id] = { hyp: hyp.id, batch: batchId, ...a, by: store.me().id, at: NT.TODAY, actions: [] }; store.save(); };
+  store.unmarkJudge = (uid) => { delete S.judgeMarks[uid]; store.save(); };
+  store.markJudge = (uid, reason) => { S.judgeMarks[uid] = { reason, by: store.me().id, at: NT.TODAY }; store.save(); };
+  // 改进动作沿用「行动与复盘」；修订评价标准要产生新版本，在动作里写明
+  store.addJudgeAction = (batchId, hypId, a) => {
+    const act = { id: NT.uid('a'), from: batchId, person: null, owner: store.me().id, due: NT.addDays(NT.TODAY, 30), state: 'todo', observe: NT.addDays(NT.TODAY, 120), ...a };
+    S.actions.unshift(act);
+    S.judgeAttribs[hypId].actions.push(act.id);
+    store.save();
+    return act;
   };
 
   // ---------- 全局搜索 ----------
