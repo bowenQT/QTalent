@@ -86,7 +86,13 @@
   // 待核实线索先给出 AI 引用的原文和位置，HRBP 核对过再决定是否给 CEO 看
   const clueSrc = (id) => { const c = st.get().watchClues.find((x) => x.id === id); if (!c) return ''; return html`<div class="n-todo__src">${icon('quote')}<span>原文依据</span>${c.srcs ? UI.cites(c.srcs) : (c.evs || []).map((e, i) => UI.evCite(e, i + 1))}<span class="nt-muted">点角标看原文与位置</span></div>`; };
   // CEO 请你（推动）、待核实线索可以就地处理；其余点进去处理
-  const todoActs = (t) => (t.kind === 'push' ? html`<div class="n-todo__acts"><button class="n-btn n-btn--sm" type="button" data-pres="${t.push}">${icon('check')}确认结果，写进档案</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-plog="${t.push}">记一笔进展</button></div>`
+  // 推动按动作给出处理入口（v1.4 3.21.1）：验证去补事件或设重点跟踪，培养生成行动，任用讨论去找人补入；都可以记进展、确认结果或写理由取消
+  const pushKindActs = (x) => ({
+    verify: html`<a class="n-btn n-btn--sm" href="record.html?person=${x.person}">${icon('plus')}补一条事件</a><a class="n-btn n-btn--sm" href="person.html?id=${x.person}&track=1&push=${x.id}">${icon('target')}设为重点跟踪</a>`,
+    grow: x.action ? html`<a class="n-btn n-btn--sm" href="actions.html#${x.action}">${icon('check2')}看行动</a>` : html`<button class="n-btn n-btn--sm" type="button" data-pact="${x.id}">${icon('plus')}生成行动</button>`,
+    staff: x.project ? html`<a class="n-btn n-btn--sm" href="staffing.html?project=${x.project}&push=${x.id}">${icon('folder')}去找人补入</a>` : '',
+  }[x.kind] || '');
+  const todoActs = (t) => (t.kind === 'push' ? html`<div class="n-todo__acts">${pushKindActs(st.pushOf(t.push))}<button class="n-btn n-btn--sm" type="button" data-pres="${t.push}">${icon('check')}确认结果，写进档案</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-plog="${t.push}">记一笔进展</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-pcancel="${t.push}">取消推动</button></div>`
     : t.kind === 'clue' ? html`<div class="n-todo__acts">${clueSrc(t.clue)}<button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，给 CEO 看</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
   const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li class="${t.kind === 'push' || t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
   const GROUPS = [['ceo', 'CEO 请你', ['push', 'jask']], ['verify', '待核对', ['verify']], ['clue', '待核实线索', ['clue']], ['calib', '待校准', ['calib']], ['plan', '待确认', ['plan']], ['follow', '待跟进', ['track', 'talk']]];
@@ -118,7 +124,9 @@
       if (e.target.closest('#todo-handled')) { showHandled = !showHandled; redraw(); return; }
       const un = e.target.closest('[data-cun]');
       if (un) { st.unverifyClue(un.dataset.cun); redraw(); NT.toast('已改回待核实，CEO 暂时看不到这条'); return; }
-      const b = e.target.closest('[data-plog],[data-pres],[data-cok],[data-cno]'); if (!b) return;
+      const b = e.target.closest('[data-plog],[data-pres],[data-cok],[data-cno],[data-pact],[data-pcancel]'); if (!b) return;
+      if (b.dataset.pact) UI.pushActionDialog(b.dataset.pact, redraw);
+      if (b.dataset.pcancel) UI.pushCancelDialog(b.dataset.pcancel, redraw);
       if (b.dataset.plog) UI.pushLogDialog(b.dataset.plog, redraw);
       if (b.dataset.pres) UI.pushResultDialog(b.dataset.pres, redraw);
       if (b.dataset.cok) {
@@ -360,7 +368,7 @@
   }
 
   // 判断提醒：首页只放 1–2 条值得复核的批次差异，一行一条；详情和「请 HRBP 复核」在判断复盘页（v1.4 3.22）
-  const ASTATE = { 待你确认: 'todo', 待处理: 'todo', 进行中: 'doing', 'HRBP 复核中': 'doing', 已有结果: 'done', 已复核: 'done' };
+  const ASTATE = { 待你确认: 'todo', 待处理: 'todo', 进行中: 'doing', 'HRBP 复核中': 'doing', 已有结果: 'done', 已复核: 'done', 已取消: 'cancel' };
   function drawJudge() {
     const host = $('#jsig'); if (!host) return;
     const sigs = st.judgeSignals(), top = sigs.slice(0, 2);

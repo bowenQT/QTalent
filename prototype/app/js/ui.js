@@ -412,6 +412,33 @@
     return `${d.name} ${d.n} 人中 ${[d.high && `${d.high} 人前段偏高`, d.low && `${d.low} 人前段偏低`].filter(Boolean).join('、')}${g.dims.length > 1 ? ` 等 ${g.dims.length} 个维度` : ''}`;
   };
 
+  // 培养：生成一条行动，之后在「行动与复盘」里跟进期限、观察期和复盘
+  UI.pushActionDialog = async (id, rerender) => {
+    const x = st.pushOf(id), p = st.person(x.person);
+    const r = await NT.dialog({ title: `生成行动：培养${p.name}`,
+      body: html`${UI.pushBasis(st.pushBasis(x))}<label class="n-field"><span class="n-field__label">行动</span><input class="n-input" id="pa-t" value="给${p.name}安排一次发展机会"></label>
+        <div class="nt-row" style="gap:var(--s-3)"><label class="n-field" style="flex:1"><span class="n-field__label">预计执行</span><input class="n-input" type="date" id="pa-due" value="${NT.addDays(NT.TODAY, 14)}"></label><label class="n-field" style="flex:1"><span class="n-field__label">观察到</span><input class="n-input" type="date" id="pa-obs" value="${NT.addDays(NT.TODAY, 90)}"></label></div>
+        <p class="nt-caption">行动进入「行动与复盘」，标「来自 CEO 推动」；执行后到期复盘，结论只有继续、调整、撤回三种。</p>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '生成行动', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#pa-t').value.trim(),
+        read: (d) => ({ title: d.querySelector('#pa-t').value.trim(), due: d.querySelector('#pa-due').value, observe: d.querySelector('#pa-obs').value }) }] });
+    if (r?.value !== 'ok') return;
+    const act = st.addPushAction(id, r.data);
+    if (!act) { NT.toast('只有被指派的负责人能生成行动'); return; }
+    rerender && rerender();
+    NT.toast(`已生成行动「${act.title}」，CEO 能在推动里看到`, { undo: () => { st.removePushAction(id); rerender && rerender(); } });
+  };
+  // 取消推动：理由必填，记录保留，CEO 能看到是谁、为什么取消
+  UI.pushCancelDialog = async (id, rerender) => {
+    const x = st.pushOf(id), p = st.person(x.person);
+    const r = await NT.dialog({ title: `取消推动：${st.PUSH_KINDS[x.kind].verb}${p.name}`,
+      body: html`<label class="n-field"><span class="n-field__label">理由（必填，CEO 能看到）</span><textarea class="n-textarea" rows="2" id="pc-why" placeholder="比如：业务优先级调整，Q4 不再安排；本人暂时不想换方向"></textarea></label><p class="nt-caption">取消后待办结束，这条推动和理由保留在记录里；不写进员工档案。</p>`,
+      actions: [{ label: '不取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '取消推动', value: 'ok', cls: 'n-btn--ink', validate: (d) => { const ok = !!d.querySelector('#pc-why').value.trim(); if (!ok) d.querySelector('#pc-why').focus(); return ok; }, read: (d) => d.querySelector('#pc-why').value.trim() }] });
+    if (r?.value !== 'ok') return;
+    if (!st.cancelPush(id, r.data)) { NT.toast('只有负责人或发起人能取消这条推动'); return; }
+    rerender && rerender();
+    NT.toast('已取消，理由已记录', { undo: () => { st.uncancelPush(id); rerender && rerender(); } });
+  };
+
   // CEO 请 HRBP 复核判断复盘（v1.4 3.22）：写一句评论；归因与标准修订仍由 HRBP 确认
   UI.judgeAskDialog = async (batchId, rerender) => {
     const b = st.judgeBatch(batchId);

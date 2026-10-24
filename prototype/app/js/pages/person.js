@@ -108,10 +108,14 @@
   async function startTrack() {
     const r = await UI.trackDialog(pid);
     if (!r) return;
-    const t = { id: NT.uid('t'), person: pid, ...r, owner: st.me().id, helper: null, since: NT.TODAY, state: 'on' };
+    // 从「验证」推动进来时，跟踪关联到推动并给推动记一笔进展（v1.4 3.21.1）
+    const push = st.pushOf(NT.param('push')), fromPush = push && push.person === pid && push.owner === st.me().id && ['todo', 'doing'].includes(push.state);
+    const t = { id: NT.uid('t'), person: pid, ...r, owner: st.me().id, helper: null, since: NT.TODAY, state: 'on', ...(fromPush ? { push: push.id } : {}) };
     st.get().tracks.unshift(t); st.save();
+    const prevState = push?.state;
+    if (fromPush) st.logPush(push.id, `已设为重点跟踪：${r.q || '观察问题见跟踪卡'}`);
     render($('#main'));
-    NT.toast(`已开始跟踪${st.person(pid).name}`, { undo: () => { st.get().tracks.shift(); st.save(); render($('#main')); } });
+    NT.toast(`已开始跟踪${st.person(pid).name}${fromPush ? '，CEO 能在推动里看到这笔进展' : ''}`, { undo: () => { st.get().tracks.shift(); if (fromPush) { push.log.pop(); push.state = prevState; } st.save(); render($('#main')); } });
   }
 
   function verCompare(e, ref, f) {

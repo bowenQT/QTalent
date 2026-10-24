@@ -48,7 +48,7 @@
   function renderCeo(main, me, hello) {
     const m = st.myPushes(), watch = st.watch(), sigs = st.judgeSignals().slice(0, 2);
     const cat = Object.fromEntries(st.WATCH_CATS);
-    const STATE_S = { 待你确认: 'todo', 待处理: 'todo', 进行中: 'doing', 'HRBP 复核中': 'doing', 已有结果: 'done', 已复核: 'done' };
+    const STATE_S = { 待你确认: 'todo', 待处理: 'todo', 进行中: 'doing', 'HRBP 复核中': 'doing', 已有结果: 'done', 已复核: 'done', 已取消: 'cancel' };
     const mineHref = (it) => (it.kind === 'plan' ? `plan.html?id=${it.plan}` : it.kind === 'push' ? `person.html?id=${it.person}` : `../app/${it.href}`);
     const mine = [...m.confirm, ...m.doing].slice(0, 4);
     mount(main, html`
@@ -58,7 +58,7 @@
       <h3 class="m-h">我推动的事项${m.confirm.length ? html`<span class="n-count">${m.confirm.length}</span>` : ''}</h3>
       ${mine.length ? html`<ul class="m-list">${mine.map((it) => M.row(mineHref(it), it.owner ? UI.avatar(it.owner, 'sm') : icon('check2'), it.title, it.sub, html`<span class="n-astate" data-s="${STATE_S[it.state] || 'todo'}">${it.state}</span>`))}</ul>`
         : html`<div class="nt-empty">你发起的找人、推动和复核请求会出现在这里。</div>`}
-      ${m.done.length ? html`<h3 class="m-h">近 7 天有结果</h3><ul class="m-list">${m.done.map((it) => M.row(mineHref(it), it.owner ? UI.avatar(it.owner, 'sm') : icon('check2'), it.title, it.sub, html`<span class="n-astate" data-s="done">${it.state}</span>`))}</ul>` : ''}
+      ${m.done.length ? html`<h3 class="m-h">近 7 天有结果</h3><ul class="m-list">${m.done.map((it) => M.row(mineHref(it), it.owner ? UI.avatar(it.owner, 'sm') : icon('check2'), it.title, it.sub, html`<span class="n-astate" data-s="${STATE_S[it.state] || 'done'}">${it.state}</span>`))}</ul>` : ''}
 
       <h3 class="m-h">值得关注<span class="n-count is-quiet">${watch.length} 人</span></h3>
       <div class="m-watchcats">${st.WATCH_CATS.map(([k, l]) => { const n = watch.filter((w) => w.cat === k).length; return html`<span>${l}<b>${n ? `${n} 人` : '暂无'}</b></span>`; })}</div>

@@ -820,6 +820,30 @@
     x.state = x.log.length ? 'doing' : 'todo'; delete x.result; delete x.resultAt; delete x.ev;
     store.save();
   };
+  // 取消推动：负责人或发起人写理由后结束，记录保留，CEO 在「我推动的事项」里看到理由（v1.4 3.21.2）
+  store.cancelPush = (id, why) => {
+    const x = S.pushes.find((y) => y.id === id), me = store.me().id;
+    if (!x || ![x.owner, x.by].includes(me) || !['todo', 'doing'].includes(x.state)) return null;
+    Object.assign(x, { prev: x.state, state: 'cancel', cancelWhy: why, cancelBy: me, cancelAt: NT.TODAY }); store.save();
+    return x;
+  };
+  store.uncancelPush = (id) => { const x = S.pushes.find((y) => y.id === id); x.state = x.prev || 'todo'; delete x.prev; delete x.cancelWhy; delete x.cancelBy; delete x.cancelAt; store.save(); };
+  // 培养：负责人生成一条行动，沿用「行动与复盘」的期限、观察期和复盘（v1.4 3.21.1）
+  store.addPushAction = (id, a) => {
+    const x = S.pushes.find((y) => y.id === id), me = store.me().id;
+    if (!x || x.owner !== me || x.action) return null;
+    const act = { id: NT.uid('a'), from: x.id, person: x.person, owner: me, due: NT.addDays(NT.TODAY, 14), state: 'todo', observe: NT.addDays(NT.TODAY, 90), ...a };
+    S.actions.unshift(act);
+    x.action = act.id; x.log.push({ at: NT.TODAY, by: me, text: `已生成行动「${act.title}」`, action: act.id }); if (x.state === 'todo') x.state = 'doing';
+    store.save();
+    return act;
+  };
+  store.removePushAction = (id) => {
+    const x = S.pushes.find((y) => y.id === id); if (!x?.action) return;
+    S.actions = S.actions.filter((a) => a.id !== x.action);
+    x.log = x.log.filter((l) => l.action !== x.action); delete x.action; if (x.state === 'doing' && !x.log.length) x.state = 'todo';
+    store.save();
+  };
 
   // ---------- 判断复盘：CEO 看批次级信号，可以请 HRBP 复核（v1.4 3.22） ----------
   store.judgeSignals = () => {
@@ -874,11 +898,11 @@
       if (conf) return; // 方案确认后，后续由项目 owner 推进
       out.doing.push({ kind: 'need', title: `${proj?.name || '找人'} · 找人`, sub: `候选人核对中，还没有用人方案`, owner: proj?.owner, state: '进行中', when: n.at, href: `staffing.html?project=${n.project}` });
     });
-    S.pushes.filter((x) => x.by === me && x.state !== 'cancel').forEach((x) => {
+    S.pushes.filter((x) => x.by === me && (x.state !== 'cancel' || recent(x.cancelAt))).forEach((x) => {
       const k = PUSH_KINDS[x.kind], last = x.log[x.log.length - 1];
-      const item = { kind: 'push', id: x.id, person: x.person, title: `${k.verb}${store.person(x.person).name}`, sub: x.state === 'done' ? `结果：${x.result}` : last ? `${NT.md(last.at)} ${last.text}` : `等${store.person(x.owner).name}处理`,
-        owner: x.owner, state: PUSH_STATE[x.state], when: x.resultAt || last?.at || x.at, href: `person.html?id=${x.person}${x.ev ? `#ev-${x.ev}` : ''}` };
-      if (x.state !== 'done') out.doing.push(item); else if (recent(x.resultAt)) out.done.push(item);
+      const item = { kind: 'push', id: x.id, person: x.person, title: `${k.verb}${store.person(x.person).name}`, sub: x.state === 'cancel' ? `${store.person(x.cancelBy).name}取消：${x.cancelWhy}` : x.state === 'done' ? `结果：${x.result}` : last ? `${NT.md(last.at)} ${last.text}` : `等${store.person(x.owner).name}处理`,
+        owner: x.owner, state: PUSH_STATE[x.state], when: x.cancelAt || x.resultAt || last?.at || x.at, href: `person.html?id=${x.person}${x.ev ? `#ev-${x.ev}` : ''}` };
+      if (x.state === 'cancel') out.done.push(item); else if (x.state !== 'done') out.doing.push(item); else if (recent(x.resultAt)) out.done.push(item);
     });
     S.judgeAsks.filter((a) => a.by === me).forEach((a) => {
       const b = store.judgeBatch(a.batch);
@@ -886,6 +910,7 @@
       if (a.state !== 'done') out.doing.push(item); else if (recent(a.replyAt)) out.done.push(item);
     });
     out.doing.sort((a, b) => (b.when || '').localeCompare(a.when || ''));
+    out.done.sort((a, b) => (b.when || '').localeCompare(a.when || ''));
     return out;
   };
 

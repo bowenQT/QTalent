@@ -18,6 +18,7 @@
 
   function from(a) {
     if (a.from === 'signal') return '来自「值得聊一聊」';
+    if (st.pushOf(a.from)) return '来自 CEO 推动';
     if (st.judgeBatch(a.from)) return `来自${st.judgeBatch(a.from).name}`;
     const p = st.plan(a.from); if (!p) return '';
     return p.kind === 'staffing' ? `来自项目用人方案 v${p.version}` : `来自组织调整方案 v${p.version}`;
