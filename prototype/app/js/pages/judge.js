@@ -12,6 +12,8 @@
 
   const STATE = { same: '一致', high: '前段偏高', low: '前段偏低', nc: '不可比', na: '资料不足' };
   const CAT = { std: '评价标准', rater: '评价人', method: '评价方式与信息不足', env: '本人或环境变化', later: '后段评价偏差' };
+  // 复核方向的问题式说明（v1.4 3.22）
+  const CAT_Q = { std: '等级定义和观察锚点是否一致？', rater: '提问、追问和评分是否有偏差？', method: '两个阶段观察到的是同一种能力吗？', env: '任务难度、带教、资源是否影响了表现？', later: '后段评价口径是否偏严、证据够不够？' };
   const GAP = ['', '一档', '两档', '三档', '四档'];
   const stateText = (u) => (u.gap ? `${STATE[u.state]} · ${u.state === 'high' ? '高' : '低'}${GAP[u.gap]}` : STATE[u.state]);
   const jstate = (u) => html`<span class="n-jstate" data-s="${u.state}">${stateText(u)}</span>`;
@@ -113,6 +115,7 @@
           <article class="n-card" id="attrib"><h3 class="n-section-title">归因</h3>${attribBody(b, chain, units)}</article>
         </div>
         <aside class="nt-grid">
+          ${askCard(b)}
           ${ruleCard(chain, map, std)}
           ${role === 'hrbp' ? raterCard(units, b.id) : html`<div class="n-lock">${icon('lock')}按评价人的偏差只对 HRBP 和评价人本人可见，CEO 只看按维度、阶段与标准版本的汇总和归因结论。</div>`}
           ${actionsCard(b)}
@@ -163,9 +166,9 @@
         <div class="n-jcase__val"><b>${bv}</b>${chain.scale === 'grade' && !u.back.na ? html`<span>${name(u.back.by[0])}</span>` : ''}</div>
         ${u.back.na && chain.scale === 'grade' ? html`<div>${u.back.miss}</div>` : ''}${backDetail}
         ${o.raterOnly ? html`<div class="nt-muted" style="margin-top:var(--s-1)">后段评语和档案其他内容不对评价人本人显示</div>` : ''}</div>
-      ${u.mark ? html`<div class="n-jcase__mark">${icon('pen', 12)}标为不可比：<span class="n-jcase__why">${u.mark.reason}</span>· ${name(u.mark.by)} ${NT.md(u.mark.at)}${role === 'hrbp' && !o.raterOnly ? html`<button class="nt-linkbtn" type="button" data-unmark="${u.id}">撤销</button>` : ''}</div>`
+      ${u.mark ? html`<div class="n-jcase__mark">${icon('pen', 12)}标为不可比：<span class="n-jcase__why">${u.mark.reason}</span>· ${name(u.mark.by)} ${NT.md(u.mark.at)}${role === 'hrbp' && !o.raterOnly ? html`<button class="n-link" type="button" data-unmark="${u.id}">撤销</button>` : ''}</div>`
         : canMark && marking === u.id ? html`<div class="n-jcase__mark"><input class="n-input" id="nc-why" placeholder="为什么不可比？比如：两段考的不是同一种能力" aria-label="不可比的理由"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-markok="${u.id}">标为不可比</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-markx>取消</button></div>`
-          : canMark ? html`<div class="n-jcase__mark"><button class="nt-linkbtn" type="button" data-mark="${u.id}">两段情境不同？标为不可比</button></div>` : ''}
+          : canMark ? html`<div class="n-jcase__mark"><button class="n-link" type="button" data-mark="${u.id}">两段情境不同？标为不可比</button></div>` : ''}
     </article>`;
   }
   const citeOf = (evId) => { const e = st.event(evId); const s = e.srcs[0]; return { ...s, quote: s.quote || e.act || e.title }; };
@@ -255,7 +258,8 @@
         <div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 假设</span>建议归为${h.cats.map((c) => `「${CAT[c]}」`).join('')} · 依据 ${h.cases.length} 个案例</div></div>
       ${isDraft ? html`<div class="n-card" style="box-shadow:var(--e-0)">
           <div class="n-field__label" id="cats-${h.id}">归为哪一类（可多选）</div>
-          <div class="n-attrib__cats" role="group" aria-labelledby="cats-${h.id}">${Object.entries(CAT).map(([k, l]) => html`<button class="n-chip" type="button" data-cat="${k}" aria-pressed="${drafting.cats.includes(k)}">${l}</button>`)}</div>
+          <div class="n-attrib__cats" role="group" aria-labelledby="cats-${h.id}">${Object.entries(CAT).map(([k, l]) => html`<button class="n-chip" type="button" data-cat="${k}" aria-pressed="${drafting.cats.includes(k)}" title="${CAT_Q[k]}">${l}</button>`)}</div>
+          <ul class="n-attrib__qs">${Object.entries(CAT).map(([k, l]) => html`<li><b>${l}</b>${CAT_Q[k]}</li>`)}</ul>
           <label class="n-field" style="margin-top:var(--s-3)"><span class="n-field__label">理由（必填，会署名留档）</span><textarea class="n-textarea" id="why-${h.id}" rows="2" placeholder="比如：两期都偏高，记录多是印象描述；先培训，再看下一期">${drafting.reason}</textarea></label>
           <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-confirm="${h.id}">${icon('check')}确认归因</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button><span class="nt-muted">确认后署名留档，之后从这条结论生成改进动作${h.rater || drafting.cats.includes('rater') ? '；涉及评价人，CEO 只看到类别和动作' : '；结论和理由 CEO 可见'}</span></div></div>`
         : !chk.ok ? html`<div class="n-notice">${icon('split')}<div><b>依据变了，这条假设不能按原文确认。</b>${checkText(h, chk, false)}。${chk.dropped.length ? '撤销相关标注后可以继续；否则等 AI 按现在的案例重新整理。' : '等 AI 按现在的数据重新整理后再确认。'}</div></div>`
@@ -300,8 +304,30 @@
     return false;
   }
 
+  // CEO 请 HRBP 复核；HRBP 在这里回复并标为已复核（v1.4 3.22）
+  function askCard(b) {
+    const asks = st.judgeAsksFor(b.id);
+    if (role !== 'ceo' && !(role === 'hrbp' && asks.length)) return '';
+    const open = asks.find((a) => a.state === 'open');
+    const one = (a) => html`<li><div class="n-jsig__ask">${icon('quote')}<div><b>${name(a.by)}</b> · ${NT.md(a.at)}：${a.note}${a.state === 'done' ? html`<div><b>${name(a.replyBy)}回复</b> · ${NT.md(a.replyAt)}：${a.reply}</div>` : ''}</div></div>
+      ${a.state === 'open' && role === 'hrbp' ? html`<label class="n-field" style="margin-top:var(--s-2)"><span class="n-field__label">回复 CEO</span><textarea class="n-textarea" rows="2" id="reply-${a.id}" placeholder="写复核了什么、结论是什么、下一步由谁做"></textarea></label><div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-jreply="${a.id}">${icon('check')}回复并标为已复核</button><span class="nt-muted">归因和标准修订仍在下方由你确认</span></div>` : ''}</li>`;
+    return html`<article class="n-card" id="ask"><h3 class="n-section-title">复核请求${open ? html`<span class="n-astate" data-s="doing" style="margin-left:auto">HRBP 复核中</span>` : ''}</h3>
+      ${asks.length ? html`<ul class="nt-list">${asks.map(one)}</ul>` : html`<p class="nt-muted" style="margin:0">看完汇总觉得需要再查一查，可以请 HRBP 复核原始评价证据和评价标准。归因和标准修订仍由 HRBP 确认。</p>`}
+      ${role === 'ceo' && !open ? html`<button class="n-btn n-btn--sm" type="button" data-jask="${b.id}" style="margin-top:var(--s-3)">${icon('pen')}请 HRBP 复核</button>` : ''}</article>`;
+  }
+
   function wireBatch(main, b, chain, units) {
     main.onclick = (e) => {
+      const ja = e.target.closest('[data-jask]');
+      if (ja) { UI.judgeAskDialog(ja.dataset.jask, () => render(main)); return; }
+      const jr = e.target.closest('[data-jreply]');
+      if (jr) {
+        const t = $(`#reply-${jr.dataset.jreply}`), text = t.value.trim();
+        if (!text) { t.focus(); NT.toast('先写一句回复'); return; }
+        st.replyJudgeAsk(jr.dataset.jreply, text); render(main);
+        NT.toast('已回复 CEO，复核请求标为已复核', { undo: () => { Object.assign(st.get().judgeAsks.find((x) => x.id === jr.dataset.jreply), { state: 'open', reply: undefined }); st.save(); render(main); } });
+        return;
+      }
       const row = e.target.closest('[data-dim]');
       if (row) { openDim = openDim === row.dataset.dim ? null : row.dataset.dim; render(main); $(`[data-dim="${row.dataset.dim}"]`)?.focus(); return; }
       const chip = e.target.closest('[data-case]');

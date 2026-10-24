@@ -108,10 +108,14 @@
   async function startTrack() {
     const r = await UI.trackDialog(pid);
     if (!r) return;
-    const t = { id: NT.uid('t'), person: pid, ...r, owner: st.me().id, helper: null, since: NT.TODAY, state: 'on' };
+    // 从「验证」推动进来时，跟踪关联到推动并给推动记一笔进展（v1.4 3.21.1）
+    const push = st.pushOf(NT.param('push')), fromPush = push && push.person === pid && push.owner === st.me().id && ['todo', 'doing'].includes(push.state);
+    const t = { id: NT.uid('t'), person: pid, ...r, owner: st.me().id, helper: null, since: NT.TODAY, state: 'on', ...(fromPush ? { push: push.id } : {}) };
     st.get().tracks.unshift(t); st.save();
+    const prevState = push?.state;
+    if (fromPush) st.logPush(push.id, `已设为重点跟踪：${r.q || '观察问题见跟踪卡'}`);
     render($('#main'));
-    NT.toast(`已开始跟踪${st.person(pid).name}`, { undo: () => { st.get().tracks.shift(); st.save(); render($('#main')); } });
+    NT.toast(`已开始跟踪${st.person(pid).name}${fromPush ? '，CEO 能在推动里看到这笔进展' : ''}`, { undo: () => { st.get().tracks.shift(); if (fromPush) { push.log.pop(); push.state = prevState; } st.save(); render($('#main')); } });
   }
 
   function verCompare(e, ref, f) {
@@ -184,7 +188,7 @@
     let meta;
     if (e.kind === 'hist') meta = html`${e.restricted ? html`<span class="n-badge">${icon('lock')}管理受限</span><span class="n-badge">含评价成分</span>不当作客观事实` : html`${UI.src(e.group ? 'fact' : 'hist')}${e.srcs[0]?.label} · ${e.srcs[0]?.loc}${e.group ? ` · 挂在项目「${proj?.name}」上` : ''}`}`;
     else if (e.kind === 'self') meta = html`${UI.src('self')}${e.srcs[0]?.label} ${e.srcs[0]?.loc}`;
-    else meta = html`${UI.src('obs')}${st.person(e.recorder)?.name} · ${e.srcs.length > 1 ? html`<b style="color:var(--ink-2)">${e.srcs.length} 个来源</b>（同一件事，只计一次）` : e.srcs[0] ? `${e.srcs[0].label}` : '直接记录'}${e.people.length > 1 ? html` · 多人事件 · ${e.people.map((x) => `${st.person(x).name}${e.roles?.[x] ? `（${e.roles[x]}）` : ''}`).join('、')} · 各自按本人行为打分` : ''}${proj ? ` · ${proj.name}` : ''}`;
+    else meta = html`${UI.src('obs')}${e.push ? html`<span class="n-badge">${icon('flag')}来自 CEO 推动</span>` : ''}${st.person(e.recorder)?.name} · ${e.srcs.length > 1 ? html`<b style="color:var(--ink-2)">${e.srcs.length} 个来源</b>（同一件事，只计一次）` : e.srcs[0] ? `${e.srcs[0].label}` : '直接记录'}${e.people.length > 1 ? html` · 多人事件 · ${e.people.map((x) => `${st.person(x).name}${e.roles?.[x] ? `（${e.roles[x]}）` : ''}`).join('、')} · 各自按本人行为打分` : ''}${proj ? ` · ${proj.name}` : ''}`;
     const scores = e.kind === 'obs' && st.can('scores', pid) ? e.scores.filter((s) => s.p === pid) : [];
     const pending = scores.filter((s) => s.st === 'ai').length, conflict = scores.some((s) => s.st === 'conflict');
     return html`<li class="n-tl__item ${isUnknown ? 'is-unknown' : ''}" id="ev-${e.id}"${style}><span class="n-tl__date">${isUnknown ? '未知' : e.kind === 'hist' && e.restricted ? 'H1' : NT.md(e.date)}</span><span class="n-tl__dot ${dot}"></span><div class="n-tl__body">

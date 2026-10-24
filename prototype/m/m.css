@@ -44,8 +44,12 @@ body.nt-mob { min-height: 100vh; background: var(--paper); }
 /* 常用块 */
 .m-h { margin: var(--s-5) 0 var(--s-2); font-size: var(--t-sm); font-weight: 650; display: flex; align-items: center; gap: var(--s-2); }
 .m-h:first-child { margin-top: 0; }
+.m-h .n-link { margin-left: auto; font-weight: 400; }
 .m-card { padding: var(--s-4); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
 .m-card + .m-card { margin-top: var(--s-2); }
+/* 与桌面共用的卡片（发展方向、信号、跟踪）在手机上和 m-card 同一套内边距与标题字号 */
+.m-screen .n-card { padding: var(--s-4); }
+.m-screen .n-section-title { margin-bottom: var(--s-2); font-size: var(--t-sm); font-weight: 650; }
 .m-list { list-style: none; margin: 0; padding: 0; border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
 .m-list > li + li { border-top: 1px solid var(--line); }
 .m-list a, .m-list .m-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); color: inherit; text-decoration: none; font-size: var(--t-sm); }
@@ -110,6 +114,13 @@ body.nt-mob #app { display: block; min-height: 0; }
 .m-composer > span:nth-child(2) { flex: 1; }
 .m-composer__mic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: #fff; }
 .m-composer__mic svg { width: 18px; height: 18px; }
+.m-find { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
+.m-find:focus-within { box-shadow: var(--e-1), 0 0 0 2px var(--light-soft); }
+.m-find__input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: var(--t-body); color: var(--ink); }
+.m-find__input:focus-visible { box-shadow: none; }
+.m-watchcats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin-bottom: var(--s-2); }
+.m-watchcats span { display: grid; gap: 2px; padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-xs); color: var(--ink-3); }
+.m-watchcats b { font-size: var(--t-sm); color: var(--ink); }
 .m-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); margin-top: var(--s-3); }
 .m-quick a { display: grid; gap: 2px; padding: var(--s-3); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); color: var(--ink); text-decoration: none; }
 .m-quick svg { width: 20px; height: 20px; margin-bottom: var(--s-1); color: var(--ink-2); }
@@ -242,9 +253,9 @@ body.nt-mob #app { display: block; min-height: 0; }
 .m-mtitle { margin: var(--s-1) 0 4px; font-size: var(--t-xl); }
 .m-player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; margin-bottom: var(--s-3); padding: var(--s-3); }
 .m-mev { align-items: flex-start; }
-.m-mev .nt-linkbtn { display: inline-flex; align-items: center; gap: 2px; font-size: inherit; }
-.m-mev .nt-linkbtn svg { width: 9px; height: 9px; }
-.n-transcript .nt-linkbtn { font-variant-numeric: tabular-nums; }
+.m-mev .n-link { display: inline-flex; align-items: center; gap: 2px; font-size: inherit; }
+.m-mev .n-link svg { width: 9px; height: 9px; }
+.n-transcript .n-link { font-variant-numeric: tabular-nums; }
 .m-ask { position: sticky; bottom: 0; margin: var(--s-4) calc(var(--s-4) * -1) 0; padding: var(--s-3) var(--s-4) var(--s-4); background: rgb(255 255 255 / .96); box-shadow: 0 -1px 0 var(--line); backdrop-filter: blur(8px); }
 .m-ask .n-ask { flex: none; white-space: nowrap; }
 .m-ask__bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-2); align-items: center; }

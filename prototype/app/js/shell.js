@@ -15,9 +15,9 @@
     { id: 'projects', label: '项目', icon: 'folder', href: 'projects.html' },
     { id: 'landing', label: 'Landing 第三期', icon: 'book', href: 'landing.html', roles: ['ceo', 'hrbp', 'lead', 'mentor'] },
     { id: 'actions', label: '行动与复盘', icon: 'check2', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'] },
-    { id: 'queue', label: '校准队列', icon: 'split', href: 'queue.html', roles: ['ceo', 'hrbp'] },
+    { id: 'queue', label: '校准队列', icon: 'split', href: 'queue.html', roles: ['ceo', 'hrbp'], hideFor: ['ceo'] },
     { id: 'judge', label: '判断复盘', icon: 'swap', href: 'judge.html', roles: ['ceo', 'hrbp'] },
-    { id: 'tags', label: '标签库', icon: 'tag', href: 'tags.html', roles: ['ceo', 'hrbp', 'lead'] },
+    { id: 'tags', label: '标签库', icon: 'tag', href: 'tags.html', roles: ['ceo', 'hrbp', 'lead'], hideFor: ['ceo'] },
   ];
   const ROLE_ORDER = ['ceo', 'hrbp', 'lead', 'mentor', 'self'];
 
@@ -29,10 +29,11 @@
     document.title = `${cfg.title} · Niu-Talent`;
     const role = st.role();
     const me = st.me();
-    const todos = (role === 'ceo' ? st.mineToConfirm(st.todos()) : st.todos()).length;
-    const drafts = st.get().batches.filter((b) => b.kind === 'inventory' && b.status === 'draft').length;
+    const todos = role === 'ceo' ? st.myPushes().confirm.length : st.todos().length;
+    // CEO 视角收敛（v1.4 3.19.3）：盘点不挂草稿数；校准队列、标签库不进导航，直接打开时权限不变
+    const drafts = role === 'ceo' ? 0 : st.get().batches.filter((b) => b.kind === 'inventory' && b.status === 'draft').length;
     // 判断复盘：CEO、HRBP 看汇总；其他视角只有本人做过评价时才有「我的判断复盘」，员工没有这个入口
-    const allow = (n) => !n.roles || n.roles.includes(role) || (n.id === 'judge' && st.isRater());
+    const allow = (n) => (!n.roles || n.roles.includes(role) || (n.id === 'judge' && st.isRater())) && !(n.hideFor || []).includes(role);
     const more = MORE.map((n) => (n.id === 'judge' && !st.canJudge() ? { ...n, label: '我的判断复盘', href: 'judge.html?rater=me' } : n));
     const navItem = (n) => html`<a class="n-navitem" href="${n.href}" ${NT.raw(cfg.nav === n.id ? 'aria-current="page"' : '')}>${icon(n.icon)}${n.label}${n.id === 'work' && todos ? html`<span class="n-count">${todos}</span>` : ''}${n.id === 'review' && drafts ? html`<span class="n-count is-quiet">${drafts}</span>` : ''}</a>`;
     const people = role === 'self' ? { ...NAV[1], label: '我的档案', href: `person.html?id=${me.id}` } : role === 'mentor' ? { ...NAV[1], label: '所带学员' } : NAV[1];
@@ -60,7 +61,7 @@
       <div class="nt-main">
         <header class="nt-top">
           <nav class="nt-crumbs" aria-label="位置">${(cfg.crumbs || []).map(([t, h]) => html`<a href="${h}">${t}</a><span aria-hidden="true">/</span>`)}<b>${cfg.title}</b></nav>
-          <button class="n-search nt-search" type="button" id="nt-cmdk-open">${icon('search')}<span>搜人、项目，或输入要做的事</span><kbd>⌘K</kbd></button>
+          ${role === 'ceo' ? html`<button class="n-btn n-btn--ghost n-btn--icon" style="margin-left:auto" type="button" id="nt-cmdk-open" aria-label="搜人或项目（⌘K）" title="搜人或项目 · ⌘K">${icon('search')}</button>` : html`<button class="n-search nt-search" type="button" id="nt-cmdk-open">${icon('search')}<span>搜人、项目，或输入要做的事</span><kbd>⌘K</kbd></button>`}
           <span class="n-menuwrap"><button class="n-rolepick" type="button" id="nt-roles" aria-label="演示视角：${st.roles[role].label}，点击切换">${NT.ui.avatar(me.id, 'sm')}<small>演示视角</small>${st.roles[role].label}${icon('chev')}</button></span>
           <span class="n-menuwrap"><button class="n-btn n-btn--ghost n-btn--icon" type="button" id="nt-more" aria-label="更多">${icon('more')}</button></span>
         </header>
@@ -109,7 +110,7 @@
       role !== 'self' && ['做事', 'pen', '记一条关键事件', '一句话或按住说话', 'record.html'],
       st.can('findOwner') && ['做事', 'spark', '为一个项目找人', '会先建项目和需求卡', 'staffing.html?new=1'],
       st.can('review') && role !== 'lead' && ['做事', 'layers', '发起一次盘点', '选团队和时间范围', 'reviews.html#new'],
-      role !== 'self' && ['做事', 'upload', '上传材料', 'Office 文件或录音', 'index.html#upload'],
+      !['self', 'ceo'].includes(role) && ['做事', 'upload', '上传材料', 'Office 文件或录音', 'index.html#upload'],
       st.canOpenMinutes('w2') && ['做事', 'wave', '打开 W2 导师团复盘纪要', '预先处理的演示任务', 'record.html?m=w2'],
     ].filter(Boolean);
     let sel = 0, shown = [];

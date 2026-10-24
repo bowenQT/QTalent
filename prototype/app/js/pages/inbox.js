@@ -25,7 +25,7 @@
           <article class="n-card"><h3 class="n-section-title">会归到这些人</h3>
             <div class="nt-grid" style="gap:var(--s-2)" id="dock">${targets.filter((id) => st.person(id)).map((id) => html`<div class="n-person-row" data-dock="${id}" style="padding:var(--s-2)">${UI.person(id, { size: 'sm', meta: `${st.eventsOf(id, { kind: 'obs' }).length} 条事件` })}<span class="n-count is-quiet" data-n="${id}">${st.eventsOf(id, { kind: 'obs' }).length}</span></div>`)}</div>
           </article>
-          ${done.length ? html`<article class="n-card"><h3 class="n-section-title">已核对</h3><ul class="nt-list" style="font-size:var(--t-sm)">${done.map((i) => html`<li class="nt-row" style="justify-content:space-between"><span>${i.q.replace(/？$/, '')} → <b>${i.choice === 'skip' ? '稍后处理' : (st.person(i.choice)?.name || st.project(i.choice)?.name)}</b></span><button class="nt-linkbtn" type="button" data-undo="${i.id}">撤销</button></li>`)}</ul></article>` : ''}
+          ${done.length ? html`<article class="n-card"><h3 class="n-section-title">已核对</h3><ul class="nt-list" style="font-size:var(--t-sm)">${done.map((i) => html`<li class="nt-row" style="justify-content:space-between"><span>${i.q.replace(/？$/, '')} → <b>${i.choice === 'skip' ? '稍后处理' : (st.person(i.choice)?.name || st.project(i.choice)?.name)}</b></span><button class="n-link" type="button" data-undo="${i.id}">撤销</button></li>`)}</ul></article>` : ''}
         </aside>
       </div>`);
     main.onclick = (e) => {

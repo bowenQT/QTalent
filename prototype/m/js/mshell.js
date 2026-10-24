@@ -173,8 +173,10 @@
   }
 
   // ---------- 手机页面常用片段 ----------
-  // 待办在手机上的落点：复盘去导师评价，方案去确认方案，其余沿用（没有手机页的会转到桌面版）
-  M.todoHref = (t) => (t.kind === 'review' ? `mentor.html?id=${t.person}` : t.kind === 'plan' ? `plan.html?id=${t.plan}` : t.href);
+  // 待办在手机上的落点：复盘去导师评价，方案去确认方案，其余沿用；判断复盘、找人这类没有手机页的转到桌面版
+  const M_PAGES = ['index', 'people', 'person', 'quick', 'record', 'plan', 'inbox', 'mentor', 'me'];
+  const mHref = (h) => (M_PAGES.includes(h.split(/[?#]/)[0].replace('.html', '')) ? h : `../app/${h}`);
+  M.todoHref = (t) => (t.kind === 'review' ? `mentor.html?id=${t.person}` : t.kind === 'plan' ? `plan.html?id=${t.plan}` : mHref(t.href));
 
   // 一行分数：AI 建议是带流光的空心点，点圆点即确认或改分；改分留下 AI 的淡影和差值，差 2 分以上提示写理由。
   // sc = { d, v, ai, note }；返回 { el, settle() }，状态写回 sc（v、touched、why）
