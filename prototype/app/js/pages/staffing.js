@@ -102,7 +102,7 @@
     if (!sc) {
       const T = st.templates(), tv = tpl && st.tplVersion(tpl);
       mount(main, html`<header class="nt-head"><div><h1>为一个项目或关键岗位找人</h1><p>说一句要做什么、要什么样的人，或者从目标角色模板开始。系统会建项目、生成需求卡，再按你有权限查看的人逐项核对证据。</p></div></header>
-        <div class="n-tpls" role="group" aria-label="目标角色模板" style="margin-bottom:var(--s-4)">${T.map((t) => html`<a class="n-tpl" href="staffing.html?tpl=${t.id}" aria-pressed="${t.id === tplId}">找${t.name}<small>v${st.tplVersion(t).v}</small></a>`)}</div>
+        <div class="n-tpls" role="group" aria-label="目标角色模板" style="margin-bottom:var(--s-4)">${T.map((t) => html`<a class="n-tpl" href="staffing.html?tpl=${t.id}" aria-pressed="${t.id === tplId}">${UI.tplTitle(t)}<small>v${st.tplVersion(t).v}</small></a>`)}</div>
         ${tpl ? html`<article class="n-card" style="max-width:720px;margin-bottom:var(--s-4)">
           <div class="nt-row" style="justify-content:space-between"><h3 class="n-section-title" style="margin:0">目标角色模板 · ${tpl.name}</h3><span class="n-tplver">v${tv.v} · ${st.person(tv.by).name} ${NT.md(tv.at)} 更新</span></div>
           <dl class="nt-dl" style="margin-top:var(--s-3)"><dt>对应通道</dt><dd>${st.channel(tpl.ch).name}</dd><dt>典型职责</dt><dd>${tpl.duties}</dd><dt>相关维度</dt><dd>${tpl.dims.map((d) => st.dim(d).name).join('、')}</dd></dl>
@@ -141,7 +141,7 @@
     // 一句话 → 建项目 → 需求卡 → 候选人
     const me = st.me().id;
     const tv = tpl && st.tplVersion(tpl);
-    mount(main, html`<header class="nt-head"><div><h1>${tpl ? `找${tpl.name}` : '为一个项目找人'}</h1><p>${q || sc.say}</p></div></header>
+    mount(main, html`<header class="nt-head"><div><h1>${tpl ? UI.tplTitle(tpl) : '为一个项目找人'}</h1><p>${q || sc.say}</p></div></header>
       <div class="n-composer" style="max-width:720px;margin-bottom:var(--s-4)"><span class="nt-ip" data-ip="searching" data-size="36" id="nip"></span><div class="n-composer__field" style="min-height:0">${q || sc.say}</div></div>
       <div class="n-card" style="max-width:720px">${UI.trail(`为「${sc.project.name}」找 owner · 5 步`, ['理解需求，建项目「新转化团队」（筹备中）', tv ? `按模板「${tpl.name}」v${tv.v} 生成 ${tv.reqs.length} 项要求` : '拆出 4 项要求', `检索你有权限查看的 ${sc.pool} 人`, '逐项核对证据', '生成候选与缺口'])}</div>`);
     UI.mountIPs(main);
@@ -257,7 +257,7 @@
         const pid = slots[r.id];
         if (!pid) return html`<div class="n-slot" data-slot="${r.id}" aria-live="polite"><span class="n-slot__empty">${icon('plus', 14)}</span><div><div class="n-slot__role">角色</div><b>${r.name}</b><div class="nt-muted">把候选人拖到这里</div></div></div>`;
         const g = gaps(pid);
-        return html`<div class="n-slot is-filled" data-slot="${r.id}">${UI.avatar(pid)}<div><div class="n-slot__role">${r.name}</div><b>${st.person(pid).name}</b>${frozenNow ? '' : html` <button class="nt-linkbtn" type="button" data-clear="${r.id}">移出</button>`}</div>
+        return html`<div class="n-slot is-filled" data-slot="${r.id}">${UI.avatar(pid)}<div><div class="n-slot__role">${r.name}</div><b>${st.person(pid).name}</b>${frozenNow ? '' : html` <button class="n-link" type="button" data-clear="${r.id}">移出</button>`}</div>
           ${g.length ? html`<div class="n-slot__gap">${g.map(([rq, e]) => html`<span class="n-badge ${STATUS[e[0]][0]}">${icon(STATUS[e[0]][1])}${rq.useAlt ? rq.alt : rq.text}</span>`)}</div>` : html`<div class="n-slot__gap"><span class="n-badge n-badge--yes">${icon('check')}必须项都有证据</span></div>`}</div>`;
       })}</div>
       ${draft || changed.length ? html`<div class="n-version" style="margin-top:var(--s-3)"><span class="n-version__tag is-draft">草稿 v${ver}</span><span style="color:var(--ink-3)">${conf ? `基于 v${conf.version} · 改了 ${changed.length} 处` : '第一版'}</span>

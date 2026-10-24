@@ -36,7 +36,7 @@
         <article class="n-card"><h3 class="n-section-title">行动<span class="n-count is-quiet">${list.length}</span></h3>
           ${sorted.map((a) => html`<div class="n-action" id="${a.id}"><div><div class="n-action__title">${a.title}${a.kind ? html` <span class="n-kind">${a.kind}</span>` : ''}</div>
             <div class="n-action__meta">${from(a)}${from(a) ? ' · ' : ''}预计 ${NT.md(a.due)}${a.did ? ` · 实际 ${NT.md(a.did)}` : ''}${a.observe && a.state !== 'cancel' ? ` · 观察到 ${NT.md(a.observe)}` : ''} · 负责人 ${st.person(a.owner).name}${a.state === 'reviewed' && a.retro ? ` · ${NT.md(a.retro.at)} 已复盘：${a.retro.verdict}` : ''}${a.state === 'cancel' ? html` · <span class="why">${a.why}</span>` : ''}</div>
-            ${a.then && ['done', 'reviewed'].includes(a.state) ? html`<button class="nt-linkbtn" type="button" data-retro="${a.id}" style="margin-top:4px">${a.state === 'reviewed' ? '看复盘' : '去复盘'}</button>` : ''}</div>
+            ${a.then && ['done', 'reviewed'].includes(a.state) ? html`<button class="n-link" type="button" data-retro="${a.id}" style="margin-top:4px">${a.state === 'reviewed' ? '看复盘' : '去复盘'}</button>` : ''}</div>
             <span class="n-menuwrap"><button class="n-astate" type="button" data-s="${a.state}" data-act="${a.id}" style="border:0;cursor:pointer" aria-label="改状态：${LABEL[a.state]}">${LABEL[a.state]}</button></span></div>`)}
         </article>
         <aside id="retro">${retro ? retroCard(retro) : html`<div class="n-card">${UI.state({ ip: 'rest', size: 48, title: '选一条已执行的行动去复盘', text: '复盘时左边是当时的判断（冻结的版本），右边是后来的事实。' })}</div>`}</aside>

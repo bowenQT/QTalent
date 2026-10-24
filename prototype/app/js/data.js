@@ -322,6 +322,10 @@
     E({ id: 'e-cy-4', date: '2026-09-30', recorder: 'p-mengxia', people: ['p-chenyh'], title: '第二次上线无回滚，补充了监控',
       scores: [s('p-chenyh', 'prof', 4, 'confirmed', 'p-mengxia'), s('p-chenyh', 'mot', 4, 'confirmed', 'p-mengxia')] }),
 
+    E({ id: 'e-cy-push', date: '2026-10-22', recorder: 'p-suwan', people: ['p-chenyh'], restricted: true, push: 'pu-chenyh', title: '在运营平台部技术分享会讲了缓存模块的取舍',
+      act: '分享缓存模块的方案取舍和两次上线的经验', res: '两个项目组准备复用这套方案',
+      srcs: [{ type: 'note', label: 'CEO 推动 · 培养', loc: '苏晚确认 · 10-22', quote: '在运营平台部技术分享会讲了缓存模块的取舍，两个项目组准备复用这套方案。' }] }),
+
     // 顾南：只有专业度证据
     E({ id: 'e-gn-1', date: '2026-03-11', recorder: 'p-hance', people: ['p-gunan'], title: '处理大客户故障工单，按 SOP 升级', scores: [s('p-gunan', 'prof', 3, 'confirmed', 'p-hance')] }),
     E({ id: 'e-gn-2', date: '2026-09-05', recorder: 'p-hance', people: ['p-gunan'], title: '把常见问题整理进客户成功手册', scores: [s('p-gunan', 'prof', 3, 'confirmed', 'p-hance'), s('p-gunan', 'mot', null, 'unknown', null, { note: '没写是主动还是被安排' })] }),
@@ -501,7 +505,7 @@
 
   // ---------- 值得聊一聊 ----------
   const SIGNALS = [
-    { person: 'p-shenyan', state: 'open', items: [
+    { person: 'p-shenyan', state: 'open', since: '2026-09-30', items: [
       { src: 'fact', text: '职级 38 个月没有变化', from: '任职记录', detail: '在职人员信息表 · 职级列 · 2023-08 定级 N5，之后无变更（截至 10-23）' },
       { src: 'fact', text: '近 6 个月没有加入新项目', from: '项目成员记录', detail: '最近一次加入项目：增长中台数据迁移（04-10），目前仍在该项目' },
       { src: 'self', text: '「做的事情挺熟了，没什么新鲜感。」', from: '7 月季度沟通 · 12:31', detail: '7 月季度沟通录音 12:31–12:52 · 录入人 苏晚', event: 'e-sy-self' },
@@ -510,6 +514,31 @@
       { src: 'fact', text: '职级 40 个月没有变化', from: '任职记录', detail: '2023-06 定级 N4，之后无变更' },
       { src: 'self', text: '「这些活动闭着眼都能做了，想试试别的。」', from: '8 月一对一 · 07:05', detail: '8 月一对一录音 07:05 · 录入人 简宁', event: 'e-ly-self' },
     ], result: { type: 'talk', by: 'p-jianning', at: '2026-09-02', note: '聊过，本人愿意带 Landing 新人，已生成激活行动。', action: 'a-luoyi' } },
+  ];
+
+  // ---------- 值得关注：AI 线索与提名（v1.4 3.20，watch-v1） ----------
+  // 规则 N1、T1、I1、I2、I3 由已确认的事件实时算出；这里只放要经 HRBP 核实的 N2（AI 线索）和 T2（提名）
+  const WATCH_CLUES = [
+    { id: 'wc-xuqh', person: 'p-xuqh', rule: 'N2', by: 'ai', at: '2026-10-20', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-10-21',
+      why: '入职两个月，两场跨团队会议里都被不同的人提到「把口径讲清楚了」',
+      srcs: [{ type: 'doc', label: '归因口径对齐会纪要', loc: '第 3 段', quote: '两种算法的差别由许清和讲清，会后按他的口径统一。' },
+        { type: 'doc', label: '增长周会纪要 10-19', loc: '第 5 段', quote: '看板第一版按期交付，许清和顺带把指标定义写进了说明。' }], evs: ['e-xq-1', 'e-xq-2'] },
+    { id: 'wc-xieling', person: 'p-xieling', rule: 'T2', by: 'p-qinshu', at: '2026-10-19', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-10-20',
+      why: '客户投诉第一时间到场并补上流程；并入前主动整理 SDR 交接清单', evs: ['e-xl-4', 'e-xl-5'] },
+    { id: 'wc-chenyh', person: 'p-chenyh', rule: 'T2', by: 'p-suwan', at: '2026-10-09', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-10-09',
+      why: '转岗后独立负责缓存模块，两次上线都没有回滚，还补上了监控', evs: ['e-cy-3', 'e-cy-4'] },
+    { id: 'wc-xiayao', person: 'p-xiayao', rule: 'N2', by: 'ai', at: '2026-10-22', state: 'pending',
+      why: '三份周报里都提到她在联调延期时主动补位',
+      srcs: [{ type: 'doc', label: '召回项目周报 W2', loc: '第 2 段', quote: '联调延期两天，夏遥主动加了两个晚上补上。' }], evs: ['e-xy-3'] },
+  ];
+
+  // ---------- CEO 推动（v1.4 3.21）：结果由负责人确认后作为管理观察进档案 ----------
+  const PUSHES = [
+    { id: 'pu-xuqh', person: 'p-xuqh', kind: 'know', owner: 'p-suwan', by: 'p-cheng', at: '2026-10-21', state: 'doing', from: 'wc-xuqh',
+      note: '听听他对归因口径的想法，看看下一步想往哪儿走', log: [{ at: '2026-10-22', by: 'p-suwan', text: '已约 10-28 沟通' }] },
+    { id: 'pu-chenyh', person: 'p-chenyh', kind: 'grow', owner: 'p-suwan', by: 'p-cheng', at: '2026-10-12', state: 'done', from: 'wc-chenyh',
+      note: '给他一次把缓存方案讲给更多人听的机会', log: [{ at: '2026-10-14', by: 'p-suwan', text: '已排进 10-22 运营平台部技术分享会' }],
+      result: '在运营平台部技术分享会讲了缓存模块的取舍，两个项目组准备复用这套方案', resultAt: '2026-10-22', ev: 'e-cy-push' },
   ];
 
   // ---------- 标签 ----------
@@ -689,7 +718,7 @@
   };
 
   NT.SEED = {
-    version: 5, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
-    NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE,
+    version: 6, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
+    NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES,
   };
 })();

@@ -33,7 +33,8 @@
     return html`<span class="n-badge ${cls}">${s === '已归档' ? icon('archive') : ''}${s}</span>`;
   };
   UI.dots = (v, o = {}) => html`<span class="n-score__dots" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => raw(`<i class="n-score__dot${v != null && i <= v ? ' is-on' : ''}${o.ghost && i <= o.ghost && i > v ? ' is-ghost' : ''}"></i>`))}</span>`;
-  UI.dotsInline = (v, state = 'confirmed') => html`<span class="n-score" data-state="${state}" style="min-height:0;display:inline-grid;grid-template-columns:auto">${UI.dots(v)}</span>`;
+  UI.tplTitle = (t) => `找${/^[A-Za-z]/.test(t.name) ? ' ' : ''}${t.name}`; // 中英文之间留空格：找 FDE
+  UI.dotsInline = (v, state = 'confirmed') => html`<span class="n-score n-score--inline" data-state="${state}">${UI.dots(v)}</span>`;
   UI.src = (kind) => ({
     fact: html`<span class="n-src n-src--fact">${icon('doc')}原始事实</span>`,
     hist: html`<span class="n-src n-src--fact">${icon('doc')}历史资料</span>`,
@@ -69,7 +70,7 @@
       note = html`${who ? html`<span class="ink-hand">${who.name}</span>` : ''}${state === 'calibrated' ? '校准' : '确认'}${s.ai != null && s.ai !== s.v ? html` · <span class="n-score__delta">${s.v > s.ai ? '+' : ''}${s.v - s.ai}</span> AI 原为 ${s.ai}` : ''}`;
     } else if (state === 'ai') note = html`<span class="n-src n-src--ai">${icon('spark')}AI 建议</span>${s.note ? ` · ${s.note}` : ''}`;
     const empty = state === 'unknown' ? html`<span class="n-score__empty n-badge n-badge--unknown">${icon('dash')}资料不足</span>` : state === 'absent' ? html`<span class="n-score__empty n-badge">未体现</span>` : '';
-    return html`<div class="n-score" data-state="${state}" ${raw(o.hist && s.hist ? `data-hist="1"` : '')}><span class="n-score__dim">${d.name}</span>${UI.dots(s.v, { ghost: s.ai != null && s.ai > s.v && state !== 'ai' ? s.ai : null })}${empty}<span class="n-score__note">${note}${o.hist && s.hist ? html` <button class="nt-linkbtn nt-hist" type="button">修订历史</button>` : ''}</span></div>`;
+    return html`<div class="n-score" data-state="${state}" ${raw(o.hist && s.hist ? `data-hist="1"` : '')}><span class="n-score__dim">${d.name}</span>${UI.dots(s.v, { ghost: s.ai != null && s.ai > s.v && state !== 'ai' ? s.ai : null })}${empty}<span class="n-score__note">${note}${o.hist && s.hist ? html` <button class="n-link nt-hist" type="button">修订历史</button>` : ''}</span></div>`;
   };
   UI.history = (s, e) => {
     const rows = (s.hist || []).map((h) => html`<li><span class="n-history__v ${h.kind === 'ai' ? 'is-ai' : ''}">${h.v}</span><div>${h.why ? html`<span class="n-history__why">${h.why}</span>` : h.kind === 'ai' ? 'AI 建议' : h.kind === 'edit' ? '改分' : '确认'}<small>${h.kind === 'ai' ? `模型 qwen-max · rubric-v1 · ${NT.md(h.at)}` : `${st.person(h.by)?.name} · ${{ calib: 'HRBP 校准', confirm: '确认', edit: '改分' }[h.kind]} · ${NT.md(h.at)}`}</small></div></li>`);
@@ -88,6 +89,7 @@
     return html`<article class="n-card n-event nt-event" id="ev-${e.id}">
       <div class="n-event__head">${o.showPerson && e.people[0] ? html`${UI.avatar(e.people[0], 'sm')}<b class="n-event__who">${st.person(e.people[0]).name}</b>` : ''}
         ${UI.src(e.kind === 'self' ? 'self' : e.kind === 'hist' ? 'hist' : 'obs')}
+        ${e.push ? html`<span class="n-badge">${icon('flag')}来自 CEO 推动</span>` : ''}
         <span>${e.date ? NT.md(e.date) : '时间未知'} · ${st.person(e.recorder)?.name || ''}记录</span>
         ${proj ? html`<a class="n-badge" href="project.html?id=${proj.id}">${icon('folder')}${proj.type === 'Landing 议题' ? '议题' : '项目'}：${proj.name}</a>` : ''}${who}${roleNote}</div>
       <h3 class="n-event__title">${e.title}${e.kind !== 'hist' ? UI.cites(e.srcs) : ''}</h3>
@@ -203,7 +205,9 @@
   // ---------- 重点跟踪 ----------
   UI.trackCard = (t) => {
     const p = st.person(t.person);
-    const since = st.get().events.filter((e) => e.kind === 'obs' && e.date && e.date > t.since && e.people.includes(t.person));
+    // 只列当前视角在档案里能看到的事件（导师看不到管理观察和管理受限的记录）
+    const seen = new Set(st.visibleEvents(t.person).events.map((e) => e.id));
+    const since = st.get().events.filter((e) => e.kind === 'obs' && e.date && e.date > t.since && e.people.includes(t.person) && seen.has(e.id));
     const scoreTxt = (e) => e.scores.filter((s) => s.p === t.person).map((s) => (s.v != null ? `${st.dim(s.d).name} ${s.v}${s.st === 'ai' ? '（AI 建议）' : ''}` : `${st.dim(s.d).name}资料不足`)).join('、');
     return html`<article class="n-card n-track ${t.state !== 'on' ? 'is-stopped' : ''}" data-track="${t.id}" id="track">
       <div class="n-track__head">${UI.person(t.person, { meta: `${st.orgShort(p.org)} · ${p.title}` })}<span class="n-badge">${icon('target')}${t.state === 'on' ? '跟踪中' : '已结束'}</span></div>
@@ -211,7 +215,7 @@
         <dt>负责人</dt><dd>${st.person(t.owner).name}${t.helper ? ` · ${st.person(t.helper).name}协助` : ''}</dd><dt>下次</dt><dd>${NT.md(t.next)} 前，或下一次对人复盘</dd></dl>
       <div class="n-track__new"><h5>上次（${NT.md(t.since)}）之后新增</h5>${since.length ? html`<span class="n-diff"><ins>${since.length} 条事件</ins>：${since.map((e) => `${e.title}（${scoreTxt(e) || '没有评分'}）`).join('；')}</span>` : '还没有新的材料。'}</div>
       ${t.state === 'on' ? html`<div class="n-track__acts"><a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${t.person}">${icon('plus')}记一条观察</a><button class="n-btn n-btn--sm" type="button" data-edit="${t.id}">改观察问题</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-stop="${t.id}">停止跟踪</button></div>`
-        : html`<div class="n-track__acts"><span class="nt-muted">${NT.md(t.stoppedAt || NT.TODAY)} 停止 · 观察问题和期间的事件都还在档案里</span><button class="nt-linkbtn" type="button" data-resume="${t.id}">恢复跟踪</button></div>`}
+        : html`<div class="n-track__acts"><span class="nt-muted">${NT.md(t.stoppedAt || NT.TODAY)} 停止 · 观察问题和期间的事件都还在档案里</span><button class="n-link" type="button" data-resume="${t.id}">恢复跟踪</button></div>`}
     </article>`;
   };
   UI.wireTracks = (host, rerender) => host.addEventListener('click', async (e) => {
@@ -348,6 +352,66 @@
       else { const reason = String(f.get('reason') || '').trim(); if (!reason) return; sig.state = 'hold'; sig.result = { reason, by: st.me().id, at: NT.TODAY }; }
       st.save(); rerender();
     });
+  };
+
+  // ---------- CEO 推动（v1.4 3.21）：选动作 → 指派负责人 → 结果由负责人确认后进档案 ----------
+  const PUSH_HINT = { know: '比如：听听他对下一步的想法', verify: '比如：现在只有一个项目里的表现，想多看一个场景', grow: '比如：给她一次带新人的机会', staff: '比如：新转化团队 owner 的候选人里也看看他' };
+  UI.pushMenu = (btn, pid, rerender) => NT.menu(btn, Object.entries(st.PUSH_KINDS).map(([k, v]) => {
+    const live = st.pushesOf(pid).find((x) => x.kind === k && ['todo', 'doing'].includes(x.state));
+    return { label: v.label, sub: live ? `已在推进 · ${st.person(live.owner).name}` : v.task, icon: v.icon,
+      run: () => (live ? NT.toast(`「${v.label}」已经在推进，负责人是${st.person(live.owner).name}`) : UI.pushDialog(pid, k, rerender)) };
+  }));
+  UI.pushDialog = async (pid, kind, rerender) => {
+    const p = st.person(pid), k = st.PUSH_KINDS[kind], owners = st.pushOwners(pid);
+    const projs = st.get().needs.map((n) => st.project(n.project)).filter(Boolean);
+    const r = await NT.dialog({
+      title: `${k.label}：${p.name}`,
+      body: html`<p style="margin:0 0 var(--s-3)">${k.task}。负责人会在待办里看到你的说明和这条关注的依据；结果由负责人确认后，作为管理观察进${p.name}的档案。</p>
+        <fieldset class="n-field n-owners"><legend class="n-field__label">交给谁</legend>${owners.map((o, i) => html`<label class="n-owner"><input type="radio" name="pu-owner" value="${o.id}" ${raw(i === 0 ? 'checked' : '')}>${UI.avatar(o.id, 'sm')}<span>${st.person(o.id).name}<small>${o.why}</small></span></label>`)}</fieldset>
+        ${kind === 'staff' ? html`<label class="n-field"><span class="n-field__label">带进哪次找人</span><select class="n-select" id="pu-proj">${projs.map((x) => html`<option value="${x.id}">${x.name}</option>`)}<option value="">还没定，先讨论</option></select></label>` : ''}
+        <label class="n-field"><span class="n-field__label">说明<small>可以不写</small></span><textarea class="n-textarea" rows="2" id="pu-note" placeholder="${PUSH_HINT[kind]}"></textarea></label>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '交给负责人', value: 'ok', cls: 'n-btn--ink',
+        read: (d) => ({ owner: d.querySelector('[name="pu-owner"]:checked').value, note: d.querySelector('#pu-note').value.trim(), project: d.querySelector('#pu-proj')?.value || null }) }],
+    });
+    if (r?.value !== 'ok') return null;
+    const x = st.addPush({ person: pid, kind, owner: r.data.owner, note: r.data.note, ...(r.data.project ? { project: r.data.project } : {}) });
+    rerender && rerender();
+    NT.toast(`已交给${st.person(x.owner).name}，进展会出现在「我推动的事项」`, { undo: () => { st.removePush(x.id); rerender && rerender(); } });
+    return x;
+  };
+  // 负责人处理推动：记一笔进展，或确认结果写进档案
+  UI.pushLogDialog = async (id, rerender) => {
+    const x = st.get().pushes.find((y) => y.id === id), p = st.person(x.person);
+    const r = await NT.dialog({ title: `记一笔进展：${st.PUSH_KINDS[x.kind].verb}${p.name}`,
+      body: html`<label class="n-field"><span class="n-field__label">进展</span><input class="n-input" id="pl-t" placeholder="比如：已约 10-28 沟通"></label><p class="nt-caption">CEO 在「我推动的事项」里能看到最近一笔进展。</p>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '保存', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#pl-t').value.trim(), read: (d) => d.querySelector('#pl-t').value.trim() }] });
+    if (r?.value !== 'ok') return;
+    st.logPush(id, r.data); rerender && rerender(); NT.toast('进展已更新，CEO 能看到');
+  };
+  UI.pushResultDialog = async (id, rerender) => {
+    const x = st.get().pushes.find((y) => y.id === id), p = st.person(x.person);
+    const r = await NT.dialog({ title: `确认结果：${st.PUSH_KINDS[x.kind].verb}${p.name}`,
+      body: html`<p style="margin:0 0 var(--s-3)">${x.note ? html`CEO 的说明：「${x.note}」。` : ''}结果会作为<b>管理观察</b>进${p.name}的档案时间线，标「来自 CEO 推动」。不产生维度分，员工和导师看不到。如果这本身是一件关键事件，另外按正常流程记录和打分。</p>
+        <label class="n-field"><span class="n-field__label">结果</span><textarea class="n-textarea" rows="3" id="pr-t" placeholder="写发生了什么、本人怎么说、下一步是什么"></textarea></label>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '确认，写进档案', value: 'ok', cls: 'n-btn--ink', validate: (d) => { const ok = !!d.querySelector('#pr-t').value.trim(); if (!ok) d.querySelector('#pr-t').focus(); return ok; }, read: (d) => d.querySelector('#pr-t').value.trim() }] });
+    if (r?.value !== 'ok') return;
+    if (!st.resolvePush(id, r.data)) { NT.toast('只有被指派的负责人能确认结果'); return; }
+    rerender && rerender();
+    NT.toast(`已写进${p.name}的档案时间线，CEO 能看到结果`, { undo: () => { st.unresolvePush(id); rerender && rerender(); } });
+  };
+
+  // CEO 请 HRBP 复核判断复盘（v1.4 3.22）：写一句评论；归因与标准修订仍由 HRBP 确认
+  UI.judgeAskDialog = async (batchId, rerender) => {
+    const b = st.judgeBatch(batchId);
+    const r = await NT.dialog({ title: `请 HRBP 复核：${b.name}`,
+      body: html`<p style="margin:0 0 var(--s-3)">HRBP 会在待办里看到你的评论，复核原始评价证据和评价标准后回复你。归因和标准修订仍由 HRBP 确认。</p>
+        <label class="n-field"><span class="n-field__label">你的评论</span><textarea class="n-textarea" rows="3" id="ja-note" placeholder="比如：内驱力还有 2 人偏高，看看是不是面试追问不够"></textarea></label>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '发给 HRBP', value: 'ok', cls: 'n-btn--ink', validate: (d) => { const ok = !!d.querySelector('#ja-note').value.trim(); if (!ok) d.querySelector('#ja-note').focus(); return ok; }, read: (d) => d.querySelector('#ja-note').value.trim() }] });
+    if (r?.value !== 'ok') return null;
+    const a = st.addJudgeAsk(batchId, r.data);
+    rerender && rerender();
+    NT.toast(`已请${st.person(a.owner).name}复核，进展会出现在「我推动的事项」`, { undo: () => { st.removeJudgeAsk(a.id); rerender && rerender(); } });
+    return a;
   };
 
   // 重置演示数据：只清本浏览器里的演示状态，评审评论在服务器上不受影响

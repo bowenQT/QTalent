@@ -1,12 +1,14 @@
-/* 工作台：首屏「变化」，然后是一句话输入、待办、进行中的任务与上传。按视角呈现不同内容。 */
+/* 工作台：按视角呈现。
+   - CEO（v1.4 3.19）：找人、值得关注、我推动的事项、判断提醒四块，不放变化、任务队列和上传。
+   - 其他视角：首屏「变化」，然后是一句话输入、待办、进行中的任务与上传。 */
 (function () {
   'use strict';
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, icon, mount, $, $$ } = NT;
-  let base = 'win', type = 'all', expanded = false;
+  let base = 'win', type = 'all', expanded = false, watchCat = 'all', watchAll = false, watchBy = 'person';
 
   const SUGGEST = {
-    ceo: ['新转化团队要找一个能带 SDR 和 SMB 的 owner，11 月到岗', '谢灵这周主动整理了 SDR 交接清单，迎接并入'],
+    ceo: ['新转化团队要找一个能带 SDR 和 SMB 的 owner，11 月到岗', '找一位能负责新业务探索的人，最好做过 0 到 1，能跨团队推动'],
     hrbp: ['陆川这周主动帮许清和理清了投放口径，还整理成了文档', '为增长产品部发起 2026 H2 盘点'],
     lead: ['顾南今天独立处理了一个大客户故障，自己写了复盘', '灰度发布平台要找一个 owner'],
     mentor: ['唐果今天方案被问住了，第二天主动约了客服再访谈一次', '林知远这周排查缓存时先缩小了范围再动手'],
@@ -19,12 +21,13 @@
 
   NT.shell({
     nav: 'work', title: '工作台',
-    view: () => `变化：${base === 'win' ? '近 3 个月 vs 之前' : 'vs 2026 H1'}${type !== 'all' ? ` · 筛选 ${type}` : ''}`,
-    state: () => ({ base, type }),
-    restore: (s) => { base = s.base || base; type = s.type || type; renderChanges(); },
+    view: () => (st.role() === 'ceo' ? `值得关注：${watchBy === 'project' ? '按项目看' : '按人看'} · ${watchCat === 'all' ? '全部' : Object.fromEntries(st.WATCH_CATS)[watchCat]}${watchAll ? ' · 展开全部' : ''}` : `变化：${base === 'win' ? '近 3 个月 vs 之前' : 'vs 2026 H1'}${type !== 'all' ? ` · 筛选 ${type}` : ''}`),
+    state: () => ({ base, type, watchCat, watchAll, watchBy }),
+    restore: (s) => { base = s.base || base; type = s.type || type; watchCat = s.watchCat || watchCat; watchAll = !!s.watchAll; watchBy = s.watchBy || watchBy; renderChanges(); drawWatch(); },
     render(main) {
       const role = st.role(), me = st.me();
       if (role === 'self') return renderSelf(main, me);
+      if (role === 'ceo') return renderCeo(main, me);
       const todos = st.todos();
       const changesCard = st.can('changes') ? html`<article class="n-card n-changes" id="changes" style="margin-bottom:var(--s-5)">
           <header class="n-changes__head"><h3>变化</h3><span class="n-changes__meta" id="chg-meta"></span>
@@ -39,7 +42,7 @@
           <p class="nt-caption">只统计已确认的事件和分数，AI 建议分不会触发变化。资料从无到有不算上升；没有新事件不等于能力下降。变化按发生时间排列，不按幅度给人排名。</p>
         </article>` : '';
       const composer = html`
-        <div class="n-composer ${role === 'ceo' ? 'is-hero' : ''}" id="composer" style="margin-bottom:var(--s-2)">
+        <div class="n-composer" id="composer" style="margin-bottom:var(--s-2)">
           <span class="nt-ip" data-ip="rest" data-size="36" id="composer-ip"></span>
           <textarea class="n-composer__field" rows="2" id="composer-field" aria-label="描述你要做的事" placeholder="${role === 'mentor' ? '说一件学员这周做的事，或输入 / 查看命令' : '说一件事，或描述一个项目要找谁。输入 / 查看命令'}"></textarea>
           <div class="n-composer__bar">
@@ -52,11 +55,10 @@
         <div class="n-slash" id="slash" role="listbox" aria-label="命令" hidden>
           ${[['note', '记录关键事件', '/记', 'record.html'], st.can('findOwner') && ['folder', '为项目找 owner', '/找', 'staffing.html?new=1'], st.can('review') && role !== 'lead' && ['eye', '发起盘点', '/盘', 'reviews.html#new'], st.canOpenMinutes('w2') && ['wave', '打开会议人才纪要', '/录', 'record.html?m=w2']].filter(Boolean).map(([ic, l, k, h], i) => html`<a class="n-slash__item" role="option" aria-selected="${i === 0}" href="${h}">${icon(ic, 16)}${l}<kbd>${k}</kbd></a>`)}
         </div>
-        ${role === 'ceo' ? html`<div class="nt-row" style="margin:var(--s-3) 0 var(--s-2)"><span class="nt-muted">从目标角色模板开始</span><div class="n-tpls" role="group" aria-label="目标角色模板">${st.templates().map((t) => html`<a class="n-tpl" href="staffing.html?tpl=${t.id}">找${t.name}<small>v${st.tplVersion(t).v}</small></a>`)}</div></div>` : ''}
         <div class="n-asks" style="margin:var(--s-2) 0 var(--s-6)">${(SUGGEST[role] || []).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>`;
       mount(main, html`
-        <header class="nt-head"><div><h1>${greet(me)}</h1><p>10 月 23 日 · 周五 · ${role === 'mentor' ? 'Landing 第三期 W3 · 本周五 16:00 对事复盘' : role === 'ceo' ? '全公司 · 增长产品部 H2 盘点进行中' : `${st.roles[role].scope}`}</p></div></header>
-        ${role === 'ceo' ? html`${composer}${changesCard}` : html`${changesCard}${composer}`}
+        <header class="nt-head"><div><h1>${greet(me)}</h1><p>10 月 23 日 · 周五 · ${role === 'mentor' ? 'Landing 第三期 W3 · 本周五 16:00 对事复盘' : `${st.roles[role].scope}`}</p></div></header>
+        ${changesCard}${composer}
         <div class="nt-cols">
           <article class="n-card" id="todo">${todoBlock(role, todos)}</article>
           <div class="nt-grid">
@@ -81,37 +83,47 @@
     },
   });
 
-  const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a></li>`)}</ul>`;
-  const GROUPS = [['verify', '待核对', ['verify']], ['calib', '待校准', ['calib']], ['plan', '待确认', ['plan']], ['follow', '待跟进', ['track', 'talk']]];
-  let openGroup = null, showRest = false;
+  // CEO 请你（推动）、待核实线索可以就地处理；其余点进去处理
+  const todoActs = (t) => (t.kind === 'push' ? html`<div class="n-todo__acts"><button class="n-btn n-btn--sm" type="button" data-pres="${t.push}">${icon('check')}确认结果，写进档案</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-plog="${t.push}">记一笔进展</button></div>`
+    : t.kind === 'clue' ? html`<div class="n-todo__acts"><button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，给 CEO 看</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
+  const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li class="${t.kind === 'push' || t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
+  const GROUPS = [['ceo', 'CEO 请你', ['push', 'jask']], ['verify', '待核对', ['verify']], ['clue', '待核实线索', ['clue']], ['calib', '待校准', ['calib']], ['plan', '待确认', ['plan']], ['follow', '待跟进', ['track', 'talk']]];
+  let openGroup = null;
   function todoBlock(role, todos) {
     const empty = UI.state({ ip: 'done', size: 48, title: '待办都处理完了', text: '新的待核对、校准和到期的跟踪会出现在这里。' });
-    if (role === 'ceo') {
-      // 只留需要 CEO 本人确认的事，其余折叠成一句
-      const mine = st.mineToConfirm(todos), rest = todos.filter((t) => !mine.includes(t));
-      return html`<h3 class="n-section-title">要你确认${mine.length ? html`<span class="n-count">${mine.length}</span>` : ''}</h3>
-        ${mine.length ? todoList(mine) : html`<div class="nt-empty">现在没有要你确认的方案。</div>`}
-        ${rest.length ? html`<button class="n-todomore" type="button" id="todo-rest" aria-expanded="${showRest}" style="width:100%;border:0;cursor:pointer;font:inherit;font-size:var(--t-xs);text-align:left">${icon('clock')}还有 ${rest.length} 件在推进，由 HRBP 和负责人处理<span style="margin-left:auto">${showRest ? '收起' : '看看'}</span></button>${showRest ? todoList(rest) : ''}` : ''}`;
-    }
     if (role !== 'hrbp') return html`<h3 class="n-section-title">待办${todos.length ? html`<span class="n-count">${todos.length}</span>` : ''}</h3>${todos.length ? todoList(todos) : empty}`;
     const groups = GROUPS.map(([k, l, kinds]) => ({ k, l, list: todos.filter((t) => kinds.includes(t.kind)) })).filter((g) => g.list.length);
     if (!groups.length) return html`<h3 class="n-section-title">待办</h3>${empty}`;
-    const open = openGroup || groups[0].k; // 默认展开最紧急的一组：待核对当天要处理，其次是校准
+    const open = groups.some((g) => g.k === openGroup) ? openGroup : groups[0].k; // 默认展开最紧急的一组：CEO 请你，其次是当天要处理的待核对
     return html`<h3 class="n-section-title">待办<span class="n-count">${todos.length}</span></h3>
       ${groups.map((g) => html`<div class="n-todogrp"><button class="n-todogrp__head" type="button" data-grp="${g.k}" aria-expanded="${g.k === open}">${g.l}<span class="n-count is-quiet">${g.list.length}</span>${g.k === open ? '' : html`<small>${g.list[0].title}${g.list.length > 1 ? ' 等' : ''}</small>`}${icon('chev')}</button>${g.k === open ? todoList(g.list) : ''}</div>`)}`;
   }
   function wireTodos() {
     const host = $('#todo'); if (!host) return;
-    host.onclick = (e) => {
+    const redraw = () => mount(host, todoBlock(st.role(), st.todos()));
+    host.onclick = async (e) => {
       const g = e.target.closest('[data-grp]');
-      if (g) { openGroup = g.dataset.grp; mount(host, todoBlock(st.role(), st.todos())); return; }
-      if (e.target.closest('#todo-rest')) { showRest = !showRest; mount(host, todoBlock(st.role(), st.todos())); }
+      if (g) { openGroup = g.dataset.grp; redraw(); return; }
+      const b = e.target.closest('[data-plog],[data-pres],[data-cok],[data-cno]'); if (!b) return;
+      if (b.dataset.plog) UI.pushLogDialog(b.dataset.plog, redraw);
+      if (b.dataset.pres) UI.pushResultDialog(b.dataset.pres, redraw);
+      if (b.dataset.cok) {
+        const c = st.verifyClue(b.dataset.cok, true); redraw();
+        NT.toast(`已核实，${st.person(c.person).name}会出现在 CEO 的「值得关注」`, { undo: () => { st.unverifyClue(c.id); redraw(); } });
+      }
+      if (b.dataset.cno) {
+        const r = await NT.dialog({ title: '不采纳这条线索', body: html`<label class="n-field"><span class="n-field__label">理由（必填）</span><textarea class="n-textarea" rows="2" id="cn-why" placeholder="比如：周报里说的是同一件事，只能算一条证据"></textarea></label><p class="nt-caption">线索保留在你这里，CEO 看不到。</p>`,
+          actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '不采纳', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#cn-why').value.trim(), read: (d) => d.querySelector('#cn-why').value.trim() }] });
+        if (r?.value !== 'ok') return;
+        const c = st.verifyClue(b.dataset.cno, false, r.data); redraw();
+        NT.toast('已不采纳，理由已记录', { undo: () => { st.unverifyClue(c.id); redraw(); } });
+      }
     };
   }
   // HRBP 的判断复盘入口：有待确认的 AI 假设时提示数量
   function judgeCard() {
     const rows = st.judgeBatches().filter((b) => b.status === 'open').map((b) => ({ b, n: st.judgeHyps(b.id).filter((h) => !st.judgeAttrib(h.id)).length }));
-    return html`<article class="n-card"><h3 class="n-section-title">判断复盘<a class="nt-linkbtn" href="judge.html" style="margin-left:auto">全部</a></h3>
+    return html`<article class="n-card"><h3 class="n-section-title">判断复盘<a class="n-link" href="judge.html">全部</a></h3>
       <ul class="nt-list">${rows.map(({ b, n }) => html`<li><a class="nt-plink" href="judge.html?id=${b.id}"><b style="font-weight:600">${b.name}</b></a><div class="nt-muted">${n ? `${n} 条 AI 归因假设待确认` : '归因都已确认'} · ${b.range}</div></li>`)}</ul></article>`;
   }
 
@@ -130,26 +142,27 @@
   }
 
   function wireComposer(role) {
-    const field = $('#composer-field'), ipEl = $('#composer-ip'), slash = $('#slash');
+    const field = $('#composer-field'), ipEl = $('#composer-ip'), slash = $('#slash'); // CEO 首页没有斜杠命令
     const go = () => {
       const q = field.value.trim();
       if (!q) { field.focus(); return; }
       NT.ipState(ipEl, 'thinking');
-      const find = /找|owner|负责人|谁来/.test(q) && st.can('findOwner');
+      // CEO 首页的输入框主讲找人：除非明显在记一件刚发生的事，都交给找人
+      const find = (role === 'ceo' ? !/(今天|昨天|这周|刚才|刚刚)/.test(q) : /找|owner|负责人|谁来/.test(q)) && st.can('findOwner');
       const inv = /盘点/.test(q) && st.can('review');
       setTimeout(() => { location.href = inv ? 'reviews.html' : NT.link(find ? 'staffing.html' : 'record.html', find ? { new: 1, q } : { q }); }, NT.reduced ? 0 : 450);
     };
-    field.addEventListener('input', () => { slash.hidden = !field.value.startsWith('/'); NT.ipState(ipEl, field.value ? 'listening' : 'rest'); });
+    field.addEventListener('input', () => { if (slash) slash.hidden = !field.value.startsWith('/'); NT.ipState(ipEl, field.value ? 'listening' : 'rest'); });
     field.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); go(); }
-      if (!slash.hidden && (e.key === 'Enter')) { e.preventDefault(); location.href = slash.querySelector('[aria-selected="true"]').getAttribute('href'); }
-      if (!slash.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      if (slash && !slash.hidden && (e.key === 'Enter')) { e.preventDefault(); location.href = slash.querySelector('[aria-selected="true"]').getAttribute('href'); }
+      if (slash && !slash.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
         e.preventDefault();
         const items = $$('.n-slash__item', slash), i = items.findIndex((x) => x.getAttribute('aria-selected') === 'true');
         const n = (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
         items.forEach((x, k) => x.setAttribute('aria-selected', k === n));
       }
-      if (e.key === 'Escape') slash.hidden = true;
+      if (slash && e.key === 'Escape') slash.hidden = true;
     });
     $('#composer-send').addEventListener('click', go);
     $('#composer-mic').addEventListener('click', (e) => {
@@ -237,6 +250,126 @@
       if (ext === 'PDF') add(f.name, 'PDF', [], ['<span class="err">暂不支持 PDF</span> · 本期只处理文字、Office 文件和录音。可以另存为 DOCX，或直接粘贴文字', '<a class="n-btn n-btn--sm n-btn--ghost" href="record.html">粘贴文字</a>']);
       else add(f.name, ext.slice(0, 4), ['解析中', '整理中 · 提取人员和事件'], ['<span class="ok">已解析</span> · 原型不读取真实文件内容，这里只演示状态流转', '<span></span>']);
     });
+  }
+
+
+  // ---------- CEO 首页（v1.4 3.19） ----------
+  function renderCeo(main, me) {
+    mount(main, html`
+      <header class="nt-head"><div><h1>${greet(me)}</h1><p>10 月 23 日 · 周五 · 全公司</p></div></header>
+      <section class="n-find" aria-label="找人">
+        <div class="n-composer is-hero" id="composer">
+          <span class="nt-ip" data-ip="rest" data-size="36" id="composer-ip"></span>
+          <textarea class="n-composer__field" rows="1" id="composer-field" aria-label="描述你要找什么样的人" placeholder="描述你需要什么样的人：业务目标、必须项和加分项"></textarea>
+          <div class="n-composer__bar">
+            <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="composer-mic" aria-label="按住说话" aria-pressed="false">${icon('mic')}</button>
+            <span class="n-find__hint">可以跨岗位、跨职业通道找；改任何一条要求，候选人都会重新核对</span>
+            <span class="spacer"></span>
+            <button class="n-btn n-btn--ink" type="button" id="composer-send">${icon('search')}开始找人</button>
+          </div>
+        </div>
+        <div class="n-find__more">
+          <div class="n-asks">${SUGGEST.ceo.map((x) => html`<button class="n-ask" type="button" data-say="${x}">${x}</button>`)}</div>
+          <div class="n-find__tpls"><span class="nt-muted">或从目标角色模板开始</span>${st.templates().map((t) => html`<a class="n-tpl is-quiet" href="staffing.html?tpl=${t.id}">${UI.tplTitle(t)}<small>v${st.tplVersion(t).v}</small></a>`)}</div>
+        </div>
+      </section>
+      <div class="nt-ceo">
+        <article class="n-card n-watch" id="watch" aria-labelledby="watch-h"></article>
+        <div class="nt-grid"><article class="n-card n-mine" id="mine" aria-labelledby="mine-h"></article><article class="n-card n-jtip" id="jsig" aria-labelledby="jsig-h"></article></div>
+      </div>`);
+    wireComposer('ceo');
+    drawCeo();
+    $('#watch').addEventListener('click', (e) => {
+      const c = e.target.closest('[data-wf]');
+      if (c) { watchCat = c.dataset.wf; watchAll = false; drawWatch(); return; }
+      const v = e.target.closest('[data-by]');
+      if (v) { watchBy = v.dataset.by; drawWatch(); return; }
+      if (e.target.closest('#watch-more')) { watchAll = !watchAll; drawWatch(); }
+    });
+  }
+  function drawCeo() { drawWatch(); drawJudge(); drawMine(); }
+
+  // 值得关注：类别计数 + 最近 4 条；按规则入选、按触发时间排，不显示分数
+  const CAT = () => Object.fromEntries(st.WATCH_CATS);
+  const evCite = (id, n) => { const e = st.event(id); if (!e) return ''; const src = e.srcs[0] || { type: 'note', label: '观察记录', loc: NT.md(e.date) }; return UI.cite({ ...src, quote: src.quote || e.title }, n); };
+  function watchItem(w) {
+    const p = st.person(w.person), r = st.WATCH_RULES[w.rule];
+    const cites = w.srcs ? UI.cites(w.srcs) : (w.evs || []).slice(0, 3).map((id, i) => evCite(id, i + 1));
+    const source = w.verifiedBy ? `${w.by === 'ai' ? 'AI 发现' : `${st.person(w.by).name}提名`} · ${st.person(w.verifiedBy).name}核实` : '按规则算出';
+    return html`<li class="n-watch__item" data-cat="${w.cat}">
+      ${UI.avatar(w.person)}
+      <div class="n-watch__body">
+        <div class="n-watch__who"><a class="nt-plink" href="person.html?id=${w.person}"><b>${p.name}</b></a><span class="nt-muted">${st.orgShort(p.org)} · ${p.title}</span><span class="n-watch__cat" data-cat="${w.cat}">${CAT()[w.cat]}</span><span class="n-watch__when">${NT.md(w.when)}</span></div>
+        <div class="n-watch__why">${w.why}${cites}</div>
+        <div class="n-watch__meta"><span class="n-rule" title="${r.text}">${icon('flag')}${w.rule}</span><span>${w.verifiedBy ? source : `${r.text} · ${source}`}</span>${w.also.length ? html`<span>也命中 ${w.also.map((a) => a.rule).join('、')}</span>` : ''}</div>
+        ${w.doing.length ? html`<div class="n-watch__doing">${icon('clock')}<span>${w.doing.join('；')}</span></div>` : ''}
+      </div>
+      <div class="n-watch__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${w.person}">查看人员与证据</a><span class="n-menuwrap"><button class="n-btn n-btn--sm" type="button" data-push="${w.person}">推动${icon('chev')}</button></span></div>
+    </li>`;
+  }
+  function drawWatch() {
+    const host = $('#watch'); if (!host) return;
+    const all = st.watch(), pending = st.watchPending().length;
+    const list = all.filter((w) => watchCat === 'all' || w.cat === watchCat);
+    const shown = watchAll ? list : list.slice(0, 4);
+    mount(host, html`<div class="n-watch__head"><h3 class="n-section-title" id="watch-h">值得关注<span class="n-count is-quiet">${all.length} 人</span></h3>
+        <span class="n-seg n-watch__by" role="group" aria-label="查看方式" data-manual><button type="button" data-by="person" aria-pressed="${watchBy === 'person'}">按人看</button><button type="button" data-by="project" aria-pressed="${watchBy === 'project'}">按项目看</button></span></div>
+      <div class="n-chips" role="group" aria-label="按类别筛选">
+        <button class="n-chip" type="button" data-wf="all" aria-pressed="${watchCat === 'all'}">全部<b>${all.length}</b></button>
+        ${st.WATCH_CATS.map(([k, l]) => { const n = all.filter((w) => w.cat === k).length; return html`<button class="n-chip" type="button" data-wf="${k}" aria-pressed="${watchCat === k}">${l}<b>${n ? `${n} 人` : '暂无'}</b></button>`; })}
+      </div>
+      ${!list.length ? html`<div class="nt-empty">这一类暂时没有人。没有命中规则不代表有问题。</div>` : watchBy === 'project' ? byProject(list) : html`<ul class="n-watch__list">${shown.map(watchItem)}</ul>`}
+      ${watchBy === 'person' && list.length > 4 ? html`<button class="n-btn n-btn--ghost n-btn--sm" type="button" id="watch-more" aria-expanded="${watchAll}" style="margin-top:var(--s-2)">${watchAll ? '收起' : `查看全部 ${list.length} 人`}</button>` : ''}
+      <p class="nt-caption">按写明的规则入选，按触发时间排列，不按分数挑人；资料不足不算需要介入。${pending ? `另有 ${pending} 条线索在 HRBP 核实中，核实后才会出现在这里。` : ''}规则版本 watch-v1</p>`);
+    $$('[data-push]', host).forEach((b) => UI.pushMenu(b, b.dataset.push, drawCeo));
+  }
+
+  // 按项目看：同一批入选的人，按依据事件所在的项目或批次分组；Landing 议题归到所在批次（v1.4 3.20.2）
+  function byProject(list) {
+    const groups = new Map();
+    const put = (key, head, w, note) => { if (!groups.has(key)) groups.set(key, { ...head, items: [], when: '' }); const g = groups.get(key); if (!g.items.some((x) => x.w.person === w.person)) g.items.push({ w, note }); if (w.when > g.when) g.when = w.when; };
+    list.forEach((w) => {
+      const projs = [...new Set((w.evs || []).map((id) => st.event(id)?.project).filter(Boolean))].map(st.project).filter(Boolean);
+      if (!projs.length) put('none', { name: '不在具体项目里', sub: '日常工作中的事件或信号' }, w);
+      projs.forEach((pj) => {
+        const b = pj.batch && st.batch(pj.batch);
+        if (b) put(b.id, { name: b.name, href: 'landing.html', sub: 'Landing 批次' }, w, pj.name);
+        else put(pj.id, { name: pj.name, href: `project.html?id=${pj.id}`, sub: pj.type }, w);
+      });
+    });
+    const gs = [...groups.entries()].sort(([a, x], [b, y]) => (a === 'none') - (b === 'none') || y.when.localeCompare(x.when));
+    return html`<ul class="n-wgroup">${gs.map(([, g]) => html`<li>
+      <div class="n-wgroup__head">${g.href ? html`<a class="nt-plink" href="${g.href}"><b>${g.name}</b></a>` : html`<b>${g.name}</b>`}<span class="nt-muted">${g.sub} · ${g.items.length} 人 · 最近 ${NT.md(g.when)}</span></div>
+      <div class="n-wgroup__people">${g.items.map(({ w, note }) => html`<a class="n-wperson" href="person.html?id=${w.person}">${UI.avatar(w.person, 'sm')}<b>${st.person(w.person).name}</b><span class="n-watch__cat" data-cat="${w.cat}">${CAT()[w.cat]}</span>${note ? html`<small>${note}</small>` : ''}</a>`)}</div>
+    </li>`)}</ul>`;
+  }
+
+  // 判断提醒：首页只放 1–2 条值得复核的批次差异，一行一条；详情和「请 HRBP 复核」在判断复盘页（v1.4 3.22）
+  const ASTATE = { 待你确认: 'todo', 待处理: 'todo', 进行中: 'doing', 'HRBP 复核中': 'doing', 已有结果: 'done', 已复核: 'done' };
+  function drawJudge() {
+    const host = $('#jsig'); if (!host) return;
+    const sigs = st.judgeSignals(), top = sigs.slice(0, 2);
+    const item = (g) => {
+      const d = g.dims.slice().sort((a, b) => (b.high + b.low) - (a.high + a.low))[0];
+      const diff = `${d.name} ${d.n} 人中 ${[d.high && `${d.high} 人前段偏高`, d.low && `${d.low} 人前段偏低`].filter(Boolean).join('、')}${g.dims.length > 1 ? ` 等 ${g.dims.length} 个维度` : ''}`;
+      const [label, s] = g.ask?.state === 'open' ? ['HRBP 复核中', 'doing'] : g.attrib === 'open' ? ['待 HRBP 归因', 'todo'] : ['归因已确认', 'done'];
+      return html`<li><a href="judge.html?id=${g.b.id}"><span><b>${g.b.name.replace('判断复盘', '')}</b><small>${diff}</small></span><span class="n-astate" data-s="${s}">${label}</span></a></li>`;
+    };
+    mount(host, html`<h3 class="n-section-title" id="jsig-h">判断提醒<a class="n-link" href="judge.html">去判断复盘</a></h3>
+      ${top.length ? html`<ul class="n-jtip__list">${top.map(item)}</ul><p class="nt-caption">差异需要复核，不代表员工退步，也不直接认定标准或评价人有错。</p>`
+        : html`<div class="nt-empty">最近的判断复盘没有需要复核的差异。</div>`}`);
+  }
+
+  // 我推动的事项：待你确认的置顶，其后是你发起、还在推进的
+  function drawMine() {
+    const host = $('#mine'); if (!host) return;
+    const m = st.myPushes();
+    const row = (it) => html`<li><a href="${it.href}"><span class="n-mine__title">${it.title}<small>${it.sub}</small></span><span class="n-mine__meta">${it.owner ? html`${UI.avatar(it.owner, 'sm')}<span>${st.person(it.owner).name}</span>` : ''}<span class="n-astate" data-s="${ASTATE[it.state] || 'todo'}">${it.state}</span></span></a></li>`;
+    mount(host, html`<h3 class="n-section-title" id="mine-h">我推动的事项</h3>
+      ${m.confirm.length ? html`<div class="n-mine__pin"><h4>待你确认<span class="n-count">${m.confirm.length}</span></h4><ul class="n-mine__list">${m.confirm.map(row)}</ul></div>` : ''}
+      <h4 class="n-mine__sub">在推进<span>${m.doing.length || ''}</span></h4>
+      ${m.doing.length ? html`<ul class="n-mine__list">${m.doing.map(row)}</ul>` : html`<div class="nt-empty">你发起的找人、推动和复核请求会出现在这里。</div>`}
+      ${m.done.length ? html`<h4 class="n-mine__sub">近 7 天有结果</h4><ul class="n-mine__list">${m.done.map(row)}</ul>` : ''}`);
   }
 
   // 员工本人：只看本人经历、参与的项目和发布给本人的行动

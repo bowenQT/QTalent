@@ -25,9 +25,14 @@
   .ds-sub { margin: var(--s-10) 0 var(--s-3); font-size: var(--t-lg); }
   .ds-sub + p { margin: 0 0 var(--s-4); color: var(--ink-2); max-width: 42em; line-height: var(--lh-read); font-size: var(--t-sm); }
   .ds-grid { display: grid; gap: var(--s-4); }
+  .ds-grid:has(> div:not(.n-card)) > .n-card { align-self: start; } /* 单卡对一列叠放的卡时按内容高，不拉出空白 */
   .ds-grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ds-grid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .ds-grid.ceo-layout { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+  .ds-rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3) var(--s-5); margin-top: var(--s-4); }
+  .ds-rule b { font-size: var(--t-sm); }
+  .ds-rule p { margin: 4px 0 0; font-size: var(--t-xs); color: var(--ink-2); line-height: 1.7; }
   .ds-stage { padding: var(--s-6); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
   .ds-stage.is-paper { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
   .doc-desk { padding: var(--s-8) var(--s-6); }
@@ -84,7 +89,7 @@
   .curve.is-run .curve__ball { left: calc(100% - 24px); }
   .durs { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
   .durs span { padding: 4px 10px; border-radius: var(--r-chip); background: var(--sheet-sunk); font-size: var(--t-xs); color: var(--ink-2); }
-  .moment { display: grid; grid-template-columns: 1fr auto; gap: var(--s-4); align-items: center; padding: var(--s-4) var(--s-5); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
+  .moment { display: grid; grid-template-columns: 1fr auto; gap: var(--s-4); align-items: start; padding: var(--s-4) var(--s-5); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
   .moment h4 { margin: 0; font-size: var(--t-body); }
   .moment p { margin: 2px 0 0; font-size: var(--t-xs); color: var(--ink-3); line-height: 1.6; }
   .moment__stage { grid-column: 1 / -1; position: relative; min-height: 110px; padding: var(--s-3); border-radius: var(--r-field); background: var(--paper); overflow: hidden; }
@@ -175,7 +180,7 @@
     .ds-nav a { white-space: nowrap; }
     .ds-main { padding: 0 var(--s-4) var(--s-14); }
     .hero h1 { font-size: var(--t-3xl); }
-    .ds-grid.c2, .ds-grid.c3, .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout, .hands, .src-cards, .quad-layout { grid-template-columns: 1fr; }
+    .ds-grid.c2, .ds-grid.c3, .ds-grid.ceo-layout, .ds-rules, .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout, .hands, .src-cards, .quad-layout { grid-template-columns: 1fr; }
     .n-calib__pair { grid-template-columns: 1fr; }
     .type-row { grid-template-columns: 1fr; gap: 2px; }
     .ip-strip { grid-template-columns: repeat(3, 1fr); }
@@ -248,6 +253,7 @@
       <li><a href="#c-shell">应用外壳与视角</a></li>
       <li><a href="#c-controls">通用控件</a></li>
       <li><a href="#c-desk">工作台</a></li>
+      <li><a href="#c-ceo">CEO 首页</a></li>
       <li class="grp">记录与核对</li>
       <li><a href="#c-input">输入与过程</a></li>
       <li><a href="#c-doc">活文档与引用</a></li>
@@ -341,18 +347,20 @@
         <div class="sw-item"><div class="sw-chip" style="background:var(--no-soft);display:grid;place-items:center;color:var(--no)"><svg width="22" height="22"><use href="#i-x"/></svg></div><div><b>不支持</b><code>#A8463D</code></div></div>
         <div class="sw-item"><div class="sw-chip" style="background:repeating-linear-gradient(-45deg,var(--unknown-soft) 0 6px,#e3e5e0 6px 7px);display:grid;place-items:center;color:var(--unknown)"><svg width="22" height="22"><use href="#i-dash"/></svg></div><div><b>资料不足</b>灰 + 斜纹</div></div>
         <div class="sw-item"><div class="sw-chip" style="background:var(--conflict-soft);display:grid;place-items:center;color:var(--conflict)"><svg width="22" height="22"><use href="#i-split"/></svg></div><div><b>证据冲突</b><code>#B07A0C</code></div></div>
+      </div>
+      <div class="sw" style="margin-top:var(--s-3)">
         <div class="sw-item"><div class="sw-chip" style="background:var(--q-hh)"></div><div><b>双高</b><code>#E4ECFB</code></div></div>
         <div class="sw-item"><div class="sw-chip" style="background:var(--q-hl)"></div><div><b>高潜待练</b><code>#EFE6F8</code></div></div>
         <div class="sw-item"><div class="sw-chip" style="background:var(--q-lh)"></div><div><b>专业骨干</b><code>#E2F1EC</code></div></div>
         <div class="sw-item"><div class="sw-chip" style="background:var(--q-ll)"></div><div><b>待观察</b><code>#F1EFE8</code></div></div>
       </div>
-      <p class="ds-caption">象限四色只做区域底色，彼此明度接近，避免"红灯区"式的褒贬暗示。</p>
+      <p class="ds-caption">象限四色只做区域底色，彼此明度接近，避免「红灯区」式的褒贬暗示。</p>
     </section>
 
     <!-- ═════════ 字体 ═════════ -->
     <section class="ds-sec" id="type">
       <h2>字体</h2>
-      <p class="lead">两种笔迹，各有职责。界面与 AI 的文字用系统黑体，清楚、中性；人的笔迹用霞鹜文楷，只出现在签名、批注、校准理由这些"有人负责"的地方。看到楷体，就知道这句话是人写的。</p>
+      <p class="lead">两种笔迹，各有职责。界面与 AI 的文字用系统黑体，清楚、中性；人的笔迹用霞鹜文楷，只出现在签名、批注、校准理由这些「有人负责」的地方。看到楷体，就知道这句话是人写的。</p>
       <div class="hands">
         <div class="hand">
           <span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>界面与 AI</span>
@@ -362,7 +370,7 @@
         <div class="hand">
           <span class="n-src n-src--human"><svg><use href="#i-pen"/></svg>人的笔迹</span>
           <div class="hand__big ink-hand">霞鹜文楷</div>
-          <p><span class="ink-hand" style="font-size:var(--t-md);color:var(--ink)">"两次复盘都主动给出备选方案，判断力在线。" <span style="white-space:nowrap">—— 叶青</span></span></p>
+          <p><span class="ink-hand" style="font-size:var(--t-md);color:var(--ink)">「两次复盘都主动给出备选方案，判断力在线。」 <span style="white-space:nowrap">—— 叶青</span></span></p>
         </div>
       </div>
       <h3 class="ds-sub">字号阶梯</h3>
@@ -382,7 +390,7 @@
     <!-- ═════════ 尺度 ═════════ -->
     <section class="ds-sec" id="scale">
       <h2>间距、圆角、层级</h2>
-      <p class="lead">间距以 4 为基数。圆角按层级取值：越是独立、越像"一张纸"的对象圆角越大；徽标和输入这类附着在纸上的元素圆角小。阴影只分四级，大多数东西用一条细线就够了。</p>
+      <p class="lead">间距以 4 为基数。圆角按层级取值：越是独立、越像「一张纸」的对象圆角越大；徽标和输入这类附着在纸上的元素圆角小。阴影只分四级，大多数东西用一条细线就够了。</p>
       <div class="ds-grid c2">
         <div class="ds-stage">
           <div class="space-bar"><span>4</span><i style="width:4px"></i><span>图标与文字</span></div>
@@ -411,7 +419,7 @@
     <!-- ═════════ 动效 ═════════ -->
     <section class="ds-sec" id="motion">
       <h2>动效</h2>
-      <p class="lead">动效只回应人的动作，或说明 AI 正在做什么。四条曲线、五档时长。系统设置了"减少动态效果"时，位移和循环动画全部关闭，状态变化直接呈现。</p>
+      <p class="lead">动效只回应人的动作，或说明 AI 正在做什么。四条曲线、五档时长。系统设置了「减少动态效果」时，位移和循环动画全部关闭，状态变化直接呈现。</p>
       <div class="curves" id="curves">
         <div class="curve" data-ease="var(--ease-out)"><b>出现</b>ease-out · 展开、浮层<div class="curve__track"><span class="curve__ball"></span></div></div>
         <div class="curve" data-ease="var(--ease-in-out)"><b>位移</b>in-out · 重排、拖动归位<div class="curve__track"><span class="curve__ball"></span></div></div>
@@ -454,18 +462,18 @@
         <div class="src-card src-card--fact"><span class="n-src n-src--fact"><svg><use href="#i-doc"/></svg>原始事实</span><h4>可核查的记录</h4><p>W2 合入 PR 11 个，其中 9 个有非作者人工 Review。</p></div>
         <div class="src-card src-card--self"><span class="n-src n-src--self"><svg><use href="#i-quote"/></svg>本人自述</span><h4>本人说的</h4><p>我更想做离客户近一点的事情，下个阶段想试试售前。</p></div>
         <div class="src-card src-card--obs"><span class="n-src n-src--obs"><svg><use href="#i-eye"/></svg>管理观察</span><h4>别人看到的</h4><p>需求变更后第二天带着两个备选方案来找我，没有等安排。</p></div>
-        <div class="src-card src-card--ai"><span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>AI 推断</span><h4>尚待确认</h4><p>两次复盘都出现"带着假设求助"，可能体现内生动力。</p></div>
-        <div class="src-card src-card--human"><span class="n-src n-src--human"><svg><use href="#i-pen"/></svg>人工结论</span><h4>有人负责</h4><p>结营时落位"高潜待练"。<span class="ink-hand">—— 苏晚，10-23</span></p></div>
+        <div class="src-card src-card--ai"><span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>AI 推断</span><h4>尚待确认</h4><p>两次复盘都出现「带着假设求助」，可能体现内生动力。</p></div>
+        <div class="src-card src-card--human"><span class="n-src n-src--human"><svg><use href="#i-pen"/></svg>人工结论</span><h4>有人负责</h4><p>结营时落位「高潜待练」。<span class="ink-hand">—— 苏晚，10-23</span></p></div>
       </div>
 
       <h3 class="ds-sub">判断状态</h3>
-      <p>用于项目要求匹配。"资料不足"永远不能当作反向证据。</p>
+      <p>用于项目要求匹配。「资料不足」永远不能当作反向证据。</p>
       <table class="state-table">
         <thead><tr><th>状态</th><th>什么时候用</th><th>不能这样用</th></tr></thead>
         <tbody>
-          <tr><td><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span></td><td>材料对这项要求有明确支持</td><td>只因"参加过"就判支持</td></tr>
+          <tr><td><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>支持</span></td><td>材料对这项要求有明确支持</td><td>只因「参加过」就判支持</td></tr>
           <tr><td><span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不支持</span></td><td>有足够信息表明这次没有满足，或存在明确反例</td><td>外推为稳定能力结论</td></tr>
-          <tr><td><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></td><td>缺少行为、结果或情境，无法评价</td><td>排在"不支持"后面、默认归为低潜力</td></tr>
+          <tr><td><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></td><td>缺少行为、结果或情境，无法评价</td><td>排在「不支持」后面、默认归为低潜力</td></tr>
           <tr><td><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突</span></td><td>不同材料方向不一致，或两位评价人分差 ≥ 2</td><td>取平均掩盖分歧</td></tr>
         </tbody>
       </table>
@@ -663,32 +671,21 @@
         </article>
       </div>
 
-      <h3 class="ds-sub">按角色收敛</h3>
-      <p>同一个工作台，不同角色的第一视觉重点不同。CEO 以一句话输入框为主入口，下面一排是目标角色模板；待办只留要 CEO 本人确认的事，其余在推进的折叠成一行。HRBP 的待办按待核对、待校准、待确认、待跟进分组，一次展开一组；判断复盘有待确认的归因时出现一张小卡。</p>
+      <h3 class="ds-sub">HRBP：分组待办</h3>
+      <p>HRBP 的待办按类型分组，一次只展开一组，默认展开最紧急的一组。CEO 交办的事（推动、判断复盘复核请求）排在最前面；「CEO 请你」和「待核实线索」可以就地处理，其余点进去处理。判断复盘有待确认的归因时出现一张小卡。</p>
       <div class="ds-grid c2">
-        <div>
-          <div class="n-composer is-hero">
-            <span data-ip-s="rest" data-ip-size="36"></span>
-            <textarea class="n-composer__field" rows="2" aria-label="描述你要做的事" placeholder="说一件事，或者说要为哪个岗位、哪个项目找人"></textarea>
-            <div class="n-composer__bar"><button class="n-btn n-btn--ghost n-btn--icon" type="button" aria-label="按住说话"><svg><use href="#i-mic"/></svg></button><span class="spacer"></span><span class="n-composer__hint">⌘ ↵ 发送</span><button class="n-btn n-btn--ink n-btn--icon" type="button" aria-label="发送"><svg><use href="#i-up"/></svg></button></div>
-          </div>
-          <div class="ds-row" style="margin:var(--s-3) 0 var(--s-4)"><span style="font-size:var(--t-xs);color:var(--ink-3)">从目标角色模板开始</span><div class="n-tpls" role="group" aria-label="目标角色模板"><a class="n-tpl" href="#c-template">找业务负责人<small>v2</small></a><a class="n-tpl" href="#c-template">找商业架构师<small>v1</small></a><a class="n-tpl" href="#c-template">找产品架构师<small>v1</small></a><a class="n-tpl" href="#c-template">找FDE<small>v1</small></a></div></div>
-          <article class="n-card">
-            <h3 class="n-section-title">要你确认<span class="n-count">1</span></h3>
-            <ul class="n-todo"><li><a href="#c-plan"><span class="n-badge n-badge--seal">待确认</span><span>项目用人方案 v3<small>海外加速搜索体验 · 韩策起草</small></span><span class="due">CEO</span></a></li></ul>
-            <button class="n-todomore" type="button" id="todo-rest" aria-expanded="false" style="width:100%;border:0;cursor:pointer;font:inherit;font-size:var(--t-xs);text-align:left"><svg><use href="#i-clock"/></svg>还有 7 件在推进，由 HRBP 和负责人处理<span style="margin-left:auto">看看</span></button>
-            <ul class="n-todo" id="todo-rest-list" hidden>
-              <li><a href="#c-verify"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待核对</span><span>录音里的「小王」指谁<small>W2 导师团复盘 · 05:40</small></span><span class="due">今天</span></a></li>
-              <li><a href="#c-verify"><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>待校准</span><span>智慧力分差 2 分<small>林知远 · 叶青 4 / 宋川 2</small></span><span class="due">4 / 2</span></a></li>
-            </ul>
-          </article>
-          <p class="ds-caption">CEO 的导航角标和这里的数一致，只数要 CEO 确认的事。</p>
-        </div>
         <div class="ds-grid">
           <article class="n-card" id="todo-groups">
-            <h3 class="n-section-title">待办<span class="n-count">10</span></h3>
-            <div class="n-todogrp"><button class="n-todogrp__head" type="button" aria-expanded="true">待核对<span class="n-count is-quiet">3</span><svg><use href="#i-chev"/></svg></button>
+            <h3 class="n-section-title">待办<span class="n-count">12</span></h3>
+            <div class="n-todogrp"><button class="n-todogrp__head" type="button" aria-expanded="true">CEO 请你<span class="n-count is-quiet">2</span><svg><use href="#i-chev"/></svg></button>
               <ul class="n-todo">
+                <li class="has-acts"><a href="#c-ceo"><span class="n-badge n-badge--seal">CEO 请你</span><span>进一步了解许清和<small>安排一次沟通，听听本人的想法 ·「听听他对归因口径的想法」· 10-22 已约 10-28 沟通</small></span><span class="due">进行中</span></a><div class="n-todo__acts"><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-check"/></svg>确认结果，写进档案</button><button class="n-btn n-btn--sm n-btn--ghost" type="button">记一笔进展</button></div></li>
+                <li><a href="#c-judge"><span class="n-badge n-badge--seal">CEO 请你</span><span>复核「XEngineer 第二期判断复盘」<small>「内驱力还有 2 人偏高，看看是不是面试追问不够」</small></span><span class="due">10-23</span></a></li>
+              </ul></div>
+            <div class="n-todogrp"><button class="n-todogrp__head" type="button" aria-expanded="false">待核实线索<span class="n-count is-quiet">1</span><small>夏遥：三份周报里都提到她在联调延期时主动补位</small><svg><use href="#i-chev"/></svg></button>
+              <ul class="n-todo" hidden><li class="has-acts"><a href="#c-ceo"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待核实</span><span>夏遥：三份周报里都提到她在联调延期时主动补位<small>AI 线索 · 核实后进入 CEO 的「值得关注」</small></span><span class="due">10-22</span></a><div class="n-todo__acts"><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-check"/></svg>核实，给 CEO 看</button><button class="n-btn n-btn--sm n-btn--ghost" type="button">不采纳</button></div></li></ul></div>
+            <div class="n-todogrp"><button class="n-todogrp__head" type="button" aria-expanded="false">待核对<span class="n-count is-quiet">3</span><small>录音里的「小王」指的是谁 等</small><svg><use href="#i-chev"/></svg></button>
+              <ul class="n-todo" hidden>
                 <li><a href="#c-verify"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待核对</span><span>录音里的「小王」指的是谁<small>W2 导师团复盘 · 05:40</small></span><span class="due">今天</span></a></li>
                 <li><a href="#c-verify"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待核对</span><span>「海外那个项目」指的是哪个项目<small>Landing W2 周报 · 第 5 段</small></span><span class="due">今天</span></a></li>
               </ul></div>
@@ -702,6 +699,49 @@
             <ul class="n-todo"><li><a href="#c-judge"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待归因</span><span>XEngineer 第二期判断复盘<small>2 条 AI 归因假设待确认 · 入营 07-06 · 训练营评审 10-17</small></span><span class="due"></span></a></li></ul>
           </article>
         </div>
+      </div>
+
+
+      <h3 class="ds-sub" id="c-ceo">CEO 首页（v1.4）</h3>
+      <p>CEO 首页只有四块：找人、值得关注、我推动的事项、判断提醒。找人输入框仍是首屏第一视觉重点，但做得更紧凑，提示和示例只讲找人，目标角色模板是次要入口。变化、任务队列、上传材料和其他人的待办都不在这里。</p>
+      <div class="n-find" style="margin-bottom:var(--s-4)">
+        <div class="n-composer is-hero">
+          <span data-ip-s="rest" data-ip-size="36"></span>
+          <textarea class="n-composer__field" rows="1" aria-label="描述你要找什么样的人" placeholder="描述你需要什么样的人：业务目标、必须项和加分项"></textarea>
+          <div class="n-composer__bar"><button class="n-btn n-btn--ghost n-btn--icon" type="button" aria-label="按住说话"><svg><use href="#i-mic"/></svg></button><span class="n-find__hint">可以跨岗位、跨职业通道找；改任何一条要求，候选人都会重新核对</span><span class="spacer"></span><button class="n-btn n-btn--ink" type="button"><svg><use href="#i-search"/></svg>开始找人</button></div>
+        </div>
+        <div class="n-find__more"><div class="n-asks"><button class="n-ask" type="button">新转化团队要找一个能带 SDR 和 SMB 的 owner，11 月到岗</button></div><div class="n-find__tpls"><span style="font-size:var(--t-xs);color:var(--ink-3)">或从目标角色模板开始</span><a class="n-tpl is-quiet" href="#c-template">找业务负责人<small>v2</small></a><a class="n-tpl is-quiet" href="#c-template">找商业架构师<small>v1</small></a><a class="n-tpl is-quiet" href="#c-template">找产品架构师<small>v1</small></a><a class="n-tpl is-quiet" href="#c-template">找 FDE<small>v1</small></a></div></div>
+      </div>
+      <div class="ds-grid ceo-layout">
+        <article class="n-card n-watch">
+          <div class="n-watch__head"><h3 class="n-section-title">值得关注<span class="n-count is-quiet">8 人</span></h3><span class="n-seg n-watch__by" role="group" aria-label="查看方式"><button type="button" aria-pressed="true">按人看</button><button type="button" aria-pressed="false">按项目看</button></span></div>
+          <div class="n-chips" role="group" aria-label="按类别筛选"><button class="n-chip" type="button" aria-pressed="true">全部<b>8</b></button><button class="n-chip" type="button" aria-pressed="false">新发现<b>3 人</b></button><button class="n-chip" type="button" aria-pressed="false">突出表现<b>3 人</b></button><button class="n-chip" type="button" aria-pressed="false">需要介入<b>2 人</b></button></div>
+          <ul class="n-watch__list">
+            <li class="n-watch__item"><span class="n-avatar" style="--hue:200">林</span><div class="n-watch__body"><div class="n-watch__who"><b>林知远</b><span style="font-size:var(--t-xs);color:var(--ink-3)">业务成功部 · 初级产品架构师</span><span class="n-watch__cat" data-cat="new">新发现</span><span class="n-watch__when">10-21</span></div><div class="n-watch__why">入职 3 个月，内生动力已有 2 件不同的事可以印证</div><div class="n-watch__meta"><span class="n-rule"><svg><use href="#i-flag"/></svg>N1</span><span>资料从无到有，同一维度已有 2 件不同的事印证 · 按规则算出</span></div><div class="n-watch__doing"><svg><use href="#i-clock"/></svg><span>叶青在重点跟踪 · 11-02 回看</span></div></div><div class="n-watch__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="#c-timeline">查看人员与证据</a><button class="n-btn n-btn--sm" type="button">推动<svg><use href="#i-chev"/></svg></button></div></li>
+            <li class="n-watch__item"><span class="n-avatar" style="--hue:150">许</span><div class="n-watch__body"><div class="n-watch__who"><b>许清和</b><span style="font-size:var(--t-xs);color:var(--ink-3)">增长获客部 · 增长分析师</span><span class="n-watch__cat" data-cat="new">新发现</span><span class="n-watch__when">10-21</span></div><div class="n-watch__why">入职两个月，两场跨团队会议里都被不同的人提到「把口径讲清楚了」</div><div class="n-watch__meta"><span class="n-rule"><svg><use href="#i-flag"/></svg>N2</span><span>AI 发现 · 苏晚核实</span></div><div class="n-watch__doing"><svg><use href="#i-clock"/></svg><span>已推动：进一步了解 · 苏晚 · 进行中</span></div></div><div class="n-watch__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="#c-timeline">查看人员与证据</a><button class="n-btn n-btn--sm" type="button">推动<svg><use href="#i-chev"/></svg></button></div></li>
+            <li class="n-watch__item"><span class="n-avatar" style="--hue:30">何</span><div class="n-watch__body"><div class="n-watch__who"><b>何以宁</b><span style="font-size:var(--t-xs);color:var(--ink-3)">客户转化部 · 客户转化经理</span><span class="n-watch__cat" data-cat="act">需要介入</span><span class="n-watch__when">10-15</span></div><div class="n-watch__why">智慧力近 3 个月明显走低，有 3 件事</div><div class="n-watch__meta"><span class="n-rule"><svg><use href="#i-flag"/></svg>I1</span><span>能力走向走低（与「变化」同口径）· 按规则算出</span></div></div><div class="n-watch__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="#c-timeline">查看人员与证据</a><button class="n-btn n-btn--sm" type="button">推动<svg><use href="#i-chev"/></svg></button></div></li>
+          </ul>
+          <p class="ds-caption">按写明的规则入选，按触发时间排列，不按分数挑人；资料不足不算需要介入。另有 1 条线索在 HRBP 核实中，核实后才会出现在这里。规则版本 watch-v1</p>
+        </article>
+        <div class="ds-grid">
+          <article class="n-card n-mine"><h3 class="n-section-title">我推动的事项</h3>
+            <div class="n-mine__pin"><h4>待你确认<span class="n-count">1</span></h4><ul class="n-mine__list"><li><a href="#c-plan"><span class="n-mine__title">海外加速搜索体验 · 用人方案 v3<small>韩策起草 · 10-22</small></span><span class="n-mine__meta"><span class="n-avatar n-avatar--sm" style="--hue:320">韩</span><span>韩策</span><span class="n-astate" data-s="todo">待你确认</span></span></a></li></ul></div>
+            <h4 class="n-mine__sub">在推进<span>2</span></h4>
+            <ul class="n-mine__list"><li><a href="#c-plan"><span class="n-mine__title">新转化团队 · 找人<small>候选人核对中，还没有用人方案</small></span><span class="n-mine__meta"><span class="n-astate" data-s="doing">进行中</span></span></a></li><li><a href="#c-ceo"><span class="n-mine__title">进一步了解许清和<small>10-22 已约 10-28 沟通</small></span><span class="n-mine__meta"><span class="n-avatar n-avatar--sm" style="--hue:340">苏</span><span>苏晚</span><span class="n-astate" data-s="doing">进行中</span></span></a></li></ul>
+            <h4 class="n-mine__sub">近 7 天有结果</h4>
+            <ul class="n-mine__list"><li><a href="#c-timeline"><span class="n-mine__title">培养陈一禾<small>结果：在运营平台部技术分享会讲了缓存模块的取舍</small></span><span class="n-mine__meta"><span class="n-avatar n-avatar--sm" style="--hue:340">苏</span><span>苏晚</span><span class="n-astate" data-s="done">已有结果</span></span></a></li></ul>
+          </article>
+          <article class="n-card n-jtip"><h3 class="n-section-title">判断提醒<a class="n-link" href="#c-judge">去判断复盘</a></h3>
+            <ul class="n-jtip__list"><li><a href="#c-judge"><span><b>XEngineer 第二期</b><small>内驱力 8 人中 2 人前段偏高</small></span><span class="n-astate" data-s="todo">待 HRBP 归因</span></a></li><li><a href="#c-judge"><span><b>2026 年 2–8 月社招入职</b><small>潜力 6 人中 4 人前段偏高 等 2 个维度</small></span><span class="n-astate" data-s="todo">待 HRBP 归因</span></a></li></ul>
+            <p class="ds-caption">差异需要复核，不代表员工退步，也不直接认定标准或评价人有错。</p>
+          </article>
+        </div>
+      </div>
+      <div class="ds-rules">
+        <div class="ds-rule"><b>值得关注</b><p>新发现（N1 资料从无到有、N2 AI 线索）、突出表现（T1 走向走高、T2 提名）、需要介入（I1 走向走低、I2 值得聊一聊未处理、I3 跟踪逾期）。每条写规则编号和证据；类别是文字标签，不是分数，不显示均值和排名。AI 线索和提名经 HRBP 核实后才出现；同一人只出现一次。</p></div>
+        <div class="ds-rule"><b>按项目看</b><p>同一批人按依据事件所在的项目分组，Landing 议题归到所在批次；组内不排序。不另设「最近关键事件」一块。</p></div>
+        <div class="ds-rule"><b>推动</b><p>四种动作：进一步了解、验证、培养、任用讨论；必须选负责人（HRBP 或部门负责人）。负责人确认的结果作为管理观察进档案，标「来自 CEO 推动」，不产生分数，员工和导师看不到。</p></div>
+        <div class="ds-rule"><b>我推动的事项与判断提醒</b><p>待你确认的事置顶，用印章色底；其后是你发起、还在推进的事。判断提醒最多 2 条，一行一条，只有批次级差异；请 HRBP 复核在判断复盘页发起。</p></div>
       </div>
 
       <h3 class="ds-sub">上传材料</h3>
@@ -735,10 +775,10 @@
             </div>
           </div>
           <div class="n-slash" id="slash" role="listbox" aria-label="命令" hidden>
-            <div class="n-slash__item" role="option" aria-selected="true"><svg width="16" height="16"><use href="#i-note"/></svg>记录关键事件<kbd>/记</kbd></div>
-            <div class="n-slash__item" role="option"><svg width="16" height="16"><use href="#i-folder"/></svg>为项目找 owner<kbd>/找</kbd></div>
-            <div class="n-slash__item" role="option"><svg width="16" height="16"><use href="#i-eye"/></svg>发起盘点<kbd>/盘</kbd></div>
-            <div class="n-slash__item" role="option"><svg width="16" height="16"><use href="#i-wave"/></svg>开始录音<kbd>/录</kbd></div>
+            <a class="n-slash__item" role="option" aria-selected="true" href="#"><svg width="16" height="16"><use href="#i-note"/></svg>记录关键事件<kbd>/记</kbd></a>
+            <a class="n-slash__item" role="option" href="#"><svg width="16" height="16"><use href="#i-folder"/></svg>为项目找 owner<kbd>/找</kbd></a>
+            <a class="n-slash__item" role="option" href="#"><svg width="16" height="16"><use href="#i-eye"/></svg>发起盘点<kbd>/盘</kbd></a>
+            <a class="n-slash__item" role="option" href="#"><svg width="16" height="16"><use href="#i-wave"/></svg>开始录音<kbd>/录</kbd></a>
           </div>
           <p class="ds-caption">输入 / 打开命令；点麦克风切到倾听状态。</p>
         </div>
@@ -767,7 +807,7 @@
           <div class="n-block__by"><span class="n-block__sig">叶青</span>导师 · 10-21 确认</div>
         </div>
         <div class="n-block" data-state="light" style="margin-top: var(--s-3)">
-          两次复盘都出现"带着假设求助"的行为，可能体现内生动力；但两次都发生在导师在场时，独立情境下的证据还不够。
+          两次复盘都出现「带着假设求助」的行为，可能体现内生动力；但两次都发生在导师在场时，独立情境下的证据还不够。
           <div class="n-block__by"><span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>AI 建议</span>依据 2 条事件 · 规则 rubric-v1</div>
         </div>
         <div class="ds-row" style="margin-top: var(--s-3); padding-left: var(--s-5)">
@@ -922,7 +962,7 @@
               <div class="pending" id="live-pending">每个方案的验收标准都写清楚了</div>
             </div>
             <div class="phone__sheet">
-              <div style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--t-xs);color:var(--ink-3)"><span class="n-recbar__dot"></span>多人会议 · 普通话<span style="margin-left:auto" id="rec-time-2">03:28</span> / 120:00</div>
+              <div style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--t-xs);color:var(--ink-3)"><span class="n-recbar__dot"></span>多人会议 · 普通话<span style="margin-left:auto"><b id="rec-time-2">03:28</b> / 120:00</span></div>
               <div class="phone__tools">
                 <button type="button"><svg><use href="#i-flag"/></svg>打标记</button>
                 <button type="button"><svg><use href="#i-note"/></svg>随手记</button>
@@ -989,7 +1029,7 @@
       <div class="ds-grid c2">
         <article class="n-card n-verify">
           <span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>待核对 · W2 复盘录音 05:40</span>
-          <p class="n-verify__q" style="margin-top: var(--s-2)">录音里的 <q>小王</q> 指的是谁？</p>
+          <p class="n-verify__q" style="margin-top: var(--s-2)">录音里的「小王」指的是谁？</p>
           <div class="n-choices" id="verify">
             <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:100">王</span>王一舟<small>同议题组员 · 可能性高</small></button>
             <button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:320">王</span>王蔓<small>业务成功部</small></button>
@@ -1000,8 +1040,8 @@
           <span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突 · 智慧力</span>
           <p style="margin: var(--s-2) 0 0; font-weight: 600">林知远在 W2 导师团复盘中的表现</p>
           <div class="n-calib__pair">
-            <div class="n-calib__side"><span style="color:var(--ink-3)">叶青 · 导师</span><b>4</b>"方案对比清楚，结论→依据→取舍都有。"</div>
-            <div class="n-calib__side"><span style="color:var(--ink-3)">宋川 · 助教</span><b>2</b>"排查问题靠试，不是系统性收敛。"</div>
+            <div class="n-calib__side"><span style="color:var(--ink-3)">叶青 · 导师</span><b>4</b>「方案对比清楚，结论→依据→取舍都有。」</div>
+            <div class="n-calib__side"><span style="color:var(--ink-3)">宋川 · 助教</span><b>2</b>「排查问题靠试，不是系统性收敛。」</div>
           </div>
           <label for="calib-reason" style="font-size:var(--t-xs);color:var(--ink-3)">校准为 3 分，理由</label>
           <textarea class="n-calib__reason" id="calib-reason">方案表达到位，排查过程确实发散，各取一半。</textarea>
@@ -1103,7 +1143,7 @@
     <!-- ═════════ 组件：值得聊一聊 ═════════ -->
     <section class="ds-sec" id="c-signal">
       <h2>值得聊一聊</h2>
-      <p class="lead">人员档案里单独一块，用来接住"老员工是不是没有新鲜感了"这类关心。不给状态打分，也不下结论，只列出能核实的信号，每条都能点开来源；处理方式只有两种：安排一次沟通，或写明原因暂不处理。小犇不出现在这里。</p>
+      <p class="lead">人员档案里单独一块，用来接住「老员工是不是没有新鲜感了」这类关心。不给状态打分，也不下结论，只列出能核实的信号，每条都能点开来源；处理方式只有两种：安排一次沟通，或写明原因暂不处理。小犇不出现在这里。</p>
       <div class="ds-grid c2 signal-layout">
         <article class="n-card n-signal" id="signal">
           <header class="n-signal__head">
@@ -1127,7 +1167,7 @@
             </li>
             <li>
               <span class="n-src n-src--self"><svg><use href="#i-quote"/></svg>本人自述</span>
-              <span class="n-signal__text ink-hand">"做的事情挺熟了，没什么新鲜感。"</span>
+              <span class="n-signal__text ink-hand">「做的事情挺熟了，没什么新鲜感。」</span>
               <button class="n-signal__from" type="button" aria-expanded="false">9 月复盘 · 12:40</button>
               <div class="n-signal__detail" hidden><svg><use href="#i-play"/></svg>9 月季度复盘录音 12:31–12:52 · 录入人 苏晚</div>
             </li>
@@ -1163,9 +1203,9 @@
           <ul>
             <li><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>可以</span>任职、调岗、项目进出等记录</li>
             <li><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>可以</span>本人在复盘、一对一里说过的话，带录音时间点</li>
-            <li><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>可以</span>负责人写下的具体行为，比如"连续两次评审没有提方案"</li>
+            <li><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>可以</span>负责人写下的具体行为，比如「连续两次评审没有提方案」</li>
             <li><span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不可以</span>从语气、作息、回消息快慢推断心态</li>
-            <li><span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不可以</span>"倦怠""离职风险""成就感低"这类结论词</li>
+            <li><span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不可以</span>「倦怠」「离职风险」「成就感低」这类结论词</li>
             <li><span class="n-badge n-badge--no"><svg><use href="#i-x"/></svg>不可以</span>给状态打分，或让信号进入象限、影响找人排序</li>
           </ul>
           <div class="n-lock"><svg><use href="#i-lock"/></svg>导师和员工本人在任何入口都看不到这一块。</div>
@@ -1331,7 +1371,7 @@
           <div class="n-review__ev">需求变更后带着 A、B 两个方案来，每个写了验收标准和风险<span class="n-cite"><button class="n-cite__mark" data-kind="audio" type="button" aria-label="引用：复盘录音">1</button></span>；排查缓存问题时主要靠试，没有系统性收敛<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用：助教评价">2</button></span>。</div>
         </div>
         <div class="n-review__dim">
-          <div class="n-review__dimhead"><h4>内生动力</h4><span class="n-theme">推动力</span><span class="n-score" data-state="confirmed" style="min-height:0"><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span></span><span class="n-badge">叶青已确认</span></div>
+          <div class="n-review__dimhead"><h4>内生动力</h4><span class="n-theme">推动力</span><span class="n-score n-score--inline" data-state="confirmed"><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span></span><span class="n-badge">叶青已确认</span></div>
           <div class="n-review__ev">没等安排，第二天就把剩下的活拆成 5 个 Issue 并认领。</div>
         </div>
         <div class="n-review__dim">
@@ -1536,7 +1576,7 @@
     <section class="ds-sec" id="c-template">
       <h2>目标角色模板</h2>
       <p class="lead">关键岗位不一定从项目出发。目标角色模板把一类岗位的职责和常用要求预先写好，选模板就能生成需求卡，再就地修改。模板有版本：改模板不影响已生成的需求卡，需求卡上始终显示它来自哪一版。</p>
-      <div class="n-tpls" role="group" aria-label="目标角色模板" style="margin-bottom:var(--s-4)"><a class="n-tpl" href="#c-template" aria-pressed="true">找业务负责人<small>v2</small></a><a class="n-tpl" href="#c-template" aria-pressed="false">找商业架构师<small>v1</small></a><a class="n-tpl" href="#c-template" aria-pressed="false">找产品架构师<small>v1</small></a><a class="n-tpl" href="#c-template" aria-pressed="false">找FDE<small>v1</small></a></div>
+      <div class="n-tpls" role="group" aria-label="目标角色模板" style="margin-bottom:var(--s-4)"><a class="n-tpl" href="#c-template" aria-pressed="true">找业务负责人<small>v2</small></a><a class="n-tpl" href="#c-template" aria-pressed="false">找商业架构师<small>v1</small></a><a class="n-tpl" href="#c-template" aria-pressed="false">找产品架构师<small>v1</small></a><a class="n-tpl" href="#c-template" aria-pressed="false">找 FDE<small>v1</small></a></div>
       <div class="ds-grid c2">
         <article class="n-card">
           <div class="ds-row" style="justify-content:space-between"><h3 class="n-section-title" style="margin:0">目标角色模板 · 业务负责人</h3><span class="n-tplver">v2 · 苏晚 10-12 更新</span></div>
@@ -1707,7 +1747,7 @@
     <!-- ═════════ IP ═════════ -->
     <section class="ds-sec" id="ip">
       <h2>IP：小犇</h2>
-      <p class="lead">小犇是一头由光织成的小牛犊：脸是流光，牛角和额前一撮是墨。名字取「犇」，三牛并行，既暗合七牛，也是"一起往前跑"。它只表达 AI 此刻在做什么，不替人下结论。</p>
+      <p class="lead">小犇是一头由光织成的小牛犊：脸是流光，牛角和额前一撮是墨。名字取「犇」，三牛并行，既暗合七牛，也是「一起往前跑」。它只表达 AI 此刻在做什么，不替人下结论。</p>
       <div class="ip-show">
         <div class="ip-show__stage"><span id="ip-big"></span></div>
         <div>
@@ -1724,7 +1764,7 @@
         <ul class="ip-parts">
           <li><b>牛角 · 墨</b>笔锋由粗到细，是全身最重的两笔。任何尺寸都保留，是小犇的识别点。</li>
           <li><b>额前一撮 · 墨</b>一笔带过的毛旋。小于 48px 时省略。</li>
-          <li><b>脸与耳朵 · 流光</b>与 AI 内容同一组四色渐变，说明它是"光"做的。耳朵的转轴贴着脸，倾听时竖起，出错时耷拉。</li>
+          <li><b>脸与耳朵 · 流光</b>与 AI 内容同一组四色渐变，说明它是「光」做的。耳朵的转轴贴着脸，倾听时竖起，出错时耷拉。</li>
           <li><b>眼睛 · 墨</b>竖椭圆带一点高光。会眨眼、扫视、眯成弯月、变成 &gt; &lt;。</li>
           <li><b>鼻口 · 白</b>全身最亮的区域，在流光底上也能看清；嘴随状态变化。</li>
           <li><b>腮红</b>唯一的暖色。小于 48px 时省略。</li>
@@ -1913,8 +1953,8 @@
     res: '方案 B 被采纳，他把剩余任务重新拆分为 5 个 Issue。',
   };
   const dims = [
-    { name: '智慧力', ai: 4, note: '锚点 4 · 引用原话"每个都写了验收标准和风险"' },
-    { name: '内生动力', ai: 4, note: '锚点 4 · 引用原话"他第二天就带着"' },
+    { name: '智慧力', ai: 4, note: '锚点 4 · 引用原话「每个都写了验收标准和风险」' },
+    { name: '内生动力', ai: 4, note: '锚点 4 · 引用原话「他第二天就带着」' },
     { name: '坚毅力', ai: null, state: 'unknown', note: '涉及方案被改，但没写他受挫后的反应' },
     { name: '领导力', ai: null, state: 'absent', note: '' },
   ];
@@ -2469,7 +2509,7 @@
     mentor: ['以导师叶青的身份查看 · 所带学员', 1, 0, 0, 0],
     self: ['以林知远本人的身份查看', 0, 0, 0, 0],
   };
-  const dots = n => `<span class="n-score" data-state="confirmed" style="min-height:0"><span class="n-score__dots">${[1, 2, 3, 4, 5].map(v => `<i class="n-score__dot${v <= n ? ' is-on' : ''}"></i>`).join('')}</span></span>`;
+  const dots = n => `<span class="n-score n-score--inline" data-state="confirmed"><span class="n-score__dots">${[1, 2, 3, 4, 5].map(v => `<i class="n-score__dot${v <= n ? ' is-on' : ''}"></i>`).join('')}</span></span>`;
   const locked = t => `<span class="n-lock"><svg><use href="#i-lock"/></svg>${t}</span>`;
   function renderRole(r) {
     const [who, score, quad, signal, change] = roleData[r];
@@ -2500,7 +2540,6 @@
     $$('#todo-groups .n-todogrp__head').forEach(x => { x.setAttribute('aria-expanded', 'false'); x.nextElementSibling.hidden = true; });
     if (!open) { h.setAttribute('aria-expanded', 'true'); h.nextElementSibling.hidden = false; }
   }));
-  $('#todo-rest').addEventListener('click', e => { const b = e.currentTarget, on = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', String(on)); b.querySelector('span').textContent = on ? '收起' : '看看'; $('#todo-rest-list').hidden = !on; });
 
   // 判断复盘：AI 假设（光）→ 人工归因（墨）
   const jat = $('#jattrib');

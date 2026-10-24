@@ -55,7 +55,7 @@
           ${conf ? html`<span class="n-seal" style="margin-left:auto">已<br>确认</span>` : html`<span class="n-badge n-version__tag is-draft" style="background:var(--light-soft)">草稿</span>`}</div>
         <div class="n-scope">
           <div>范围<b>${list.length} 人 · ${teams.length} 个二级团队</b></div>
-          <div>证据截止<b>${NT.md(b.cutoff)}${canEdit ? html` <button class="nt-linkbtn" type="button" id="cutoff">改</button>` : ''}</b></div>
+          <div>证据截止<b>${NT.md(b.cutoff)}${canEdit ? html` <button class="n-link" type="button" id="cutoff">改</button>` : ''}</b></div>
           <div>资料不足<b>${na.length} 人（${Math.round(na.length / Math.max(1, list.length) * 100)}%）</b></div>
           <div>已写逐人结论<b>${concluded} / ${list.length}</b></div>
         </div>
@@ -87,7 +87,7 @@
               <td>${r.n} 条分${ps.na ? html`<small>${ps.miss}</small>` : html`<small>${Object.values(r.dims).filter((d) => d.n).length} 个维度有分</small>`}</td>
               <td>${chs.length ? chs.map((x) => html`<span class="n-rule" style="margin:2px 2px 2px 0">${icon('flag')}${x.t === 'trend' ? `${st.dim(x.dim).name}${x.up ? '↑' : '↓'}` : x.t === 'quad' ? '跨象限' : '90 天无事件'}</span>`) : st.needsRecal(p.id) ? html`<span class="n-badge n-badge--recal">可能需要重新校准</span>` : '—'}</td>
               <td>${ps.na ? UI.na() : (ps.frozen && !ps.ref) || isCal(p.id) ? UI.qBadge(ps.q) : html`<span class="n-badge n-badge--ai">${icon('spark')}参考：${st.QN[ps.q]}</span>`}</td>
-              <td>${c ? html`<span class="ink-hand" style="font-size:var(--t-body)">${c.text}</span><small>${st.person(c.by).name} · ${NT.md(c.at)}${canEdit ? html` · <button class="nt-linkbtn" type="button" data-con="${p.id}">改</button>` : ''}</small>` : canEdit ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-con="${p.id}">${icon('pen')}写结论</button>` : html`<span class="n-badge">未写</span>`}</td></tr>`;
+              <td>${c ? html`<span class="ink-hand" style="font-size:var(--t-body)">${c.text}</span><small>${st.person(c.by).name} · ${NT.md(c.at)}${canEdit ? html` · <button class="n-link" type="button" data-con="${p.id}">改</button>` : ''}</small>` : canEdit ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-con="${p.id}">${icon('pen')}写结论</button>` : html`<span class="n-badge">未写</span>`}</td></tr>`;
           })}</tbody></table></div>
         ${!shown.length ? html`<div class="nt-empty">没有符合条件的人。</div>` : ''}
         <p class="nt-caption">按团队和姓名排列，不按分数排序。结论是人写的判断，用楷体呈现；AI 不替人写结论。</p>

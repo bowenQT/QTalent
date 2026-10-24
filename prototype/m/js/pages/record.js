@@ -225,7 +225,7 @@
           const pend = e.scores.filter((s) => s.st === 'ai').length, conf = e.scores.some((s) => s.st === 'conflict');
           const who = st.person(e.people[0]), loc = e.srcs.find((x) => x.type === 'audio')?.loc;
           const t = loc?.match(/\d\d:\d\d/)?.[0];
-          return html`<div class="n-minievent m-mev"><div><a class="nt-plink" href="person.html?id=${who.id}#ev-${e.id}">${e.title}</a><small>${who.name} · ${e.scores.filter((s) => s.v != null).map((s) => `${st.dim(s.d).name} ${s.v}`).join('、') || '—'}${t ? html` · <button class="nt-linkbtn" type="button" data-seek="${t}">${icon('play', 9)} ${t}</button>` : ''}</small></div>${conf ? html`<span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : pend ? html`<span class="n-badge n-badge--ai">${icon('spark')}${pend} 项待确认</span>` : html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>`}</div>`;
+          return html`<div class="n-minievent m-mev"><div><a class="nt-plink" href="person.html?id=${who.id}#ev-${e.id}">${e.title}</a><small>${who.name} · ${e.scores.filter((s) => s.v != null).map((s) => `${st.dim(s.d).name} ${s.v}`).join('、') || '—'}${t ? html` · <button class="n-link" type="button" data-seek="${t}">${icon('play', 9)} ${t}</button>` : ''}</small></div>${conf ? html`<span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : pend ? html`<span class="n-badge n-badge--ai">${icon('spark')}${pend} 项待确认</span>` : html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>`}</div>`;
         })}
         ${verify.length ? html`<h3 class="m-h">待核对 · ${verify.filter((v) => !v.done).length} 处</h3>${verify.map((v) => html`<a class="n-minievent nt-plink m-mev" href="inbox.html#${v.id}"><div>${v.q}<small>${v.at} · ${st.person(v.by).name}</small></div>${v.done ? html`<span class="n-badge n-badge--yes">${icon('check')}已核对</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}去核对</span>`}</a>`)}` : ''}
         <ul class="m-list" style="margin-top:var(--s-4)">
@@ -234,7 +234,7 @@
         </ul>
       </div>
       <div class="n-tabpanel" role="tabpanel" id="mp-2" hidden>
-        <ol class="n-transcript">${m.lines.map(([t, by, text, flag]) => html`<li class="${flag === 'flag' ? 'is-flag' : ''}"><time><button class="nt-linkbtn" type="button" data-seek="${t}">${t}</button></time><div><b>${st.person(by).name} · ${by === 'p-songchuan' ? '助教' : '导师'}</b>${flag === 'verify' ? raw(NT.esc(text).replace(/(小王|宋老师)/, '<mark>$1</mark>')) : text}</div></li>`)}</ol>
+        <ol class="n-transcript">${m.lines.map(([t, by, text, flag]) => html`<li class="${flag === 'flag' ? 'is-flag' : ''}"><time><button class="n-link" type="button" data-seek="${t}">${t}</button></time><div><b>${st.person(by).name} · ${by === 'p-songchuan' ? '助教' : '导师'}</b>${flag === 'verify' ? raw(NT.esc(text).replace(/(小王|宋老师)/, '<mark>$1</mark>')) : text}</div></li>`)}</ol>
       </div>
       <div id="answers"></div>
       <div class="m-ask">

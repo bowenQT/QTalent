@@ -43,6 +43,7 @@ body.nt-desk { min-height: 100vh; }
 .nt-grid { display: grid; gap: var(--s-4); align-content: start; }
 .nt-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); align-items: start; }
 .nt-cols-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); align-items: start; }
+.nt-ceo { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--s-4); align-items: start; }
 .nt-split { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--s-5); align-items: start; }
 .nt-split--wide { grid-template-columns: minmax(0, 1fr) 400px; }
 .nt-sticky { position: sticky; top: 76px; }
@@ -51,7 +52,6 @@ body.nt-desk { min-height: 100vh; }
 .nt-h2 small, .nt-sec > h2 small { font-size: var(--t-xs); font-weight: 400; color: var(--ink-3); }
 .nt-muted { color: var(--ink-3); font-size: var(--t-xs); line-height: 1.6; }
 .nt-caption { margin: var(--s-2) 0 0; font-size: var(--t-xs); color: var(--ink-3); line-height: 1.6; }
-.nt-linkbtn { padding: 0; border: 0; background: none; font: inherit; font-size: var(--t-xs); color: var(--light); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .nt-plink { color: inherit; text-decoration: none; }
 .nt-plink:hover { text-decoration: underline; text-underline-offset: 3px; }
 a.n-badge { text-decoration: none; }
@@ -84,7 +84,11 @@ a.n-btn { text-decoration: none; }
 .nt-tablewrap { overflow-x: auto; }
 
 @media (max-width: 1080px) {
-  .nt-split, .nt-split--wide { grid-template-columns: 1fr; }
+  .nt-split, .nt-split--wide, .nt-ceo { grid-template-columns: 1fr; }
+  /* 单列时按手机顺序：我推动的事项（含待你确认）→ 值得关注 → 判断提醒 */
+  .nt-ceo > .nt-grid { display: contents; }
+  .nt-ceo .n-mine { order: -1; }
+  .nt-ceo .n-jtip { order: 1; }
   .nt-sticky { position: static; }
 }
 @media (max-width: 860px) {
