@@ -73,13 +73,16 @@
   if (isNew) key = /灰度/.test(q) ? 'gray' : 'newconv';
   const sc = key && SCEN[key];
   let reqs = sc ? NT.clone(sc.reqs).map((r) => ({ ...r, useAlt: false })) : [];
+  // 草稿里保存过改动后的要求，回来时按草稿恢复
+  const draftReqs = st.get().plans.find((p) => p.project === projectId && p.status === 'draft')?.reqs;
+  if (draftReqs) draftReqs.forEach((x) => { const r = reqs.find((y) => y.id === x.id); if (r) { r.must = x.must; r.useAlt = x.useAlt; } });
   let manual = [];
   let slots = {};
   let note = '';
 
   NT.shell({
     nav: 'projects', title: '找人', crumbs: [['项目', 'projects.html']],
-    allow: (r) => st.can('findOwner', null, r),
+    allow: (r) => st.canStaff(projectId, r),
     denyText: '找 owner 和项目找人只对 CEO、HRBP 和部门负责人开放。',
     view: () => `找人 · ${projectId ? st.project(projectId)?.name : '新项目'} · 方案 ${Object.values(slots).filter(Boolean).length} 个槽位已填`,
     state: () => ({ reqs: reqs.map((r) => [r.must, r.useAlt]), slots }),
@@ -96,6 +99,7 @@
       main.onclick = (e) => { const b = e.target.closest('[data-say]'); if (b) $('#sq').value = b.dataset.say; if (e.target.closest('#sgo') && $('#sq').value.trim()) location.href = NT.link('staffing.html', { new: 1, q: $('#sq').value.trim() }); };
       return;
     }
+    if (!isNew && !st.project(projectId)) return mount(main, UI.state({ ip: 'confirm', title: '没有找到这个项目', text: '它可能还没创建，或者已经删除。', actions: html`<a class="n-btn n-btn--sm" href="staffing.html?new=1">为新项目找人</a>` }));
     if (isNew && key === 'newconv' && !st.project('pr-newconv')) return runNew(main);
     if (isNew) { projectId = sc.project.id; history.replaceState(null, '', `staffing.html?project=${projectId}`); }
     loadPlan();
@@ -288,7 +292,9 @@
     let d = S.plans.find((p) => p.project === projectId && p.status === 'draft');
     const conf = S.plans.filter((p) => p.project === projectId && p.status === 'confirmed').pop();
     if (!d) { d = { id: NT.uid('sp'), kind: 'staffing', project: projectId, version: conf ? conf.version + 1 : 1, status: 'draft', by: st.me().id, at: NT.TODAY, slots: {}, note }; S.plans.push(d); }
+    // 连同当时用于选人的要求一起保存，确认后的版本能重现选人条件
     d.slots = { ...slots }; d.by = st.me().id; d.at = NT.TODAY;
+    d.reqs = reqs.map((r) => ({ id: r.id, text: r.useAlt ? r.alt : r.text, must: r.must, useAlt: r.useAlt }));
     st.save();
     return d;
   }

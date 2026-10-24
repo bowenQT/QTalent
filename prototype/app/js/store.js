@@ -114,6 +114,53 @@
     }
   };
 
+  // ---------- 对象级权限：先判断视角能不能碰这个对象，页面只负责呈现 ----------
+  const myHrbpOrgs = (me) => SEED.PEOPLE.filter((q) => q.hrbp === me).map((q) => q.org);
+  const isMentorOf = (projectId, me) => S.members.some((m) => m.project === projectId && m.person === me && !m.to && m.role === '导师')
+    || S.batches.some((b) => b.kind === 'landing' && b.newcomers.some(([, topic, mentors]) => topic === projectId && mentors.includes(me)));
+  // 项目编辑：创建者、owner、CEO，项目所属组织在本人范围内的 HRBP / 部门负责人，以及被分配到该议题的导师（需求 3.6.3）
+  store.canEditProject = (p, role = store.role()) => {
+    if (!p) return false;
+    const me = ROLES[role].person;
+    if (role === 'self') return false;
+    if (role === 'ceo' || p.creator === me || p.owner === me) return true;
+    if (role === 'hrbp') return myHrbpOrgs(me).some((o) => store.inOrg(o, p.org));
+    if (role === 'lead') return store.inOrg(p.org, PEOPLE.get(me).leads);
+    if (role === 'mentor') return !!p.batch && isMentorOf(p.id, me);
+    return false;
+  };
+  // 用人需求与方案属于管理受限资料：发起人、CEO、相关 HRBP、范围内的部门负责人
+  store.canStaff = (projectId, role = store.role()) => {
+    if (!store.can('findOwner', null, role)) return false;
+    const p = S.projects.find((x) => x.id === projectId);
+    return !p || store.canEditProject(p, role);
+  };
+  // 盘点批次：范围内至少有一个本视角能完整查看的人
+  store.canBatch = (b, role = store.role()) => !!b && store.can('review', null, role)
+    && SEED.PEOPLE.some((q) => !q.noReview && store.inOrg(q.org, b.org) && store.scope(q.id, role) === 'full');
+  // 组织调整方案里本视角能看到的动作：涉及的人在完整范围内；人选待定的动作，部门负责人只看本部门项目的
+  store.canSeeMove = (m, role = store.role()) => {
+    if (m.person) return store.scope(m.person, role) === 'full' && role !== 'mentor';
+    if (role !== 'lead') return ['ceo', 'hrbp'].includes(role);
+    const proj = m.pending && S.projects.find((x) => x.id === m.pending);
+    return !!proj && store.inOrg(proj.org, PEOPLE.get(ROLES[role].person).leads);
+  };
+  store.canSeePlan = (plan, role = store.role()) => (plan.kind === 'org'
+    ? store.canBatch(S.batches.find((b) => b.id === plan.batch), role)
+    : plan.by === ROLES[role].person || store.canStaff(plan.project, role));
+  // 会议纪要：录入人、该批次的导师、批次学员的归属 HRBP，以及 CEO
+  // 能打开某份纪要：有会议权限，或这次录音就是本人录的
+  store.canOpenMinutes = (mid, role = store.role()) => store.canMeeting(SEED.MINUTES[mid], role) || S.tasks.some((t) => t.minutes === mid && t.by === ROLES[role].person);
+  store.visibleTasks = () => S.tasks.filter((t) => !t.minutes || store.canOpenMinutes(t.minutes));
+  store.canMeeting = (m, role = store.role()) => {
+    if (!m || role === 'self') return false;
+    const me = ROLES[role].person;
+    if (role === 'ceo' || m.by === me) return true;
+    const b = S.batches.find((x) => x.id === m.batch);
+    if (!b || !b.newcomers) return false;
+    return b.newcomers.some(([pid, , mentors]) => mentors.includes(me) || (role === 'hrbp' && PEOPLE.get(pid)?.hrbp === me));
+  };
+
   // ---------- 分数 ----------
   const COUNTED = ['confirmed', 'calibrated'];
   // 一个人的事件分（已确认 + 已校准），可限定时间窗。
@@ -179,7 +226,7 @@
       if (!org || !store.inOrg(org, o.org)) return;
       const r = store.refPos(p.id, o.cutoff);
       const ov = SEED.H1_OVERRIDE[p.id];
-      entries[p.id] = { q: r.na ? null : (ov?.q || r.q), x: r.x, y: r.y, ref: r.q || null, na: !!r.na, miss: r.miss || '', reason: ov?.reason || '', dims: r.dims, n: r.n, bonus: !!r.bonus, org };
+      entries[p.id] = { q: r.na ? null : (ov?.q || r.q), x: r.x, y: r.y, ref: r.q || null, na: !!r.na, miss: r.miss || '', reason: ov?.reason || '', dims: r.dims, n: r.n, py: r.py, bonus: !!r.bonus, org };
     });
     return { ...o, entries };
   }
@@ -191,6 +238,14 @@
   store.formalHistory = (pid) => S.snaps.filter((s) => s.entries[pid]?.q).map((s) => ({ ...s.entries[pid], snap: s }));
   store.needsRecal = (pid) => { const f = store.formal(pid); if (!f) return false; const r = store.refPos(pid); return !r.na && r.q !== f.q; };
   store.freeze = (snap) => { S.snaps.push(snap); store.save(); };
+  // 部门负责人在校准时的拖动和理由：存成建议，HRBP / CEO 打开同一团队时可以看到并采纳
+  store.calibSuggestions = (batch, team) => S.calibSuggest?.[`${batch}:${team}`] || {};
+  store.suggestCalib = (batch, team, pid, sug) => {
+    S.calibSuggest = S.calibSuggest || {};
+    const k = `${batch}:${team}`;
+    (S.calibSuggest[k] = S.calibSuggest[k] || {})[pid] = { ...sug, by: store.me().id, at: NT.TODAY };
+    store.save();
+  };
 
   // ---------- 变化（change-v1 / 3.14） ----------
   const RECENT = NT.addDays(NT.TODAY, -90);
@@ -399,15 +454,26 @@
     const me = store.me().id, p = store.project(plan.project);
     S.plans.filter((x) => x.project === plan.project && x.status === 'confirmed' && x !== plan).forEach((x) => { x.status = 'superseded'; });
     Object.assign(plan, { status: 'confirmed', confirmedBy: me, confirmedAt: NT.TODAY });
+    const musts = (plan.reqs || S.needs.find((n) => n.project === plan.project)?.reqs || []).filter((x) => x.must).map((x) => x.text);
     roles.forEach((r) => {
       const pid = plan.slots[r.id]; if (!pid) return;
+      const name = store.person(pid).name;
+      const role = r.id === 'owner' ? 'owner' : r.name, mode = r.id === 'owner' ? '全职' : '兼职';
       const cur = S.members.find((m) => m.project === plan.project && m.person === pid && !m.to);
       if (r.id === 'owner') p.owner = pid;
-      if (!cur) {
-        S.members.push({ project: plan.project, person: pid, role: r.id === 'owner' ? 'owner' : r.name, mode: r.id === 'owner' ? '全职' : '兼职', from: NT.TODAY, to: null, by: me });
-        S.memberLog.unshift({ project: plan.project, at: NT.TODAY, text: `${store.person(pid).name}${r.id === 'owner' ? '成为 owner' : `加入：${r.name}`}：来自项目用人方案 v${plan.version}`, by: me });
-        S.actions.unshift({ id: NT.uid('a'), title: `${store.person(pid).name}${r.id === 'owner' ? `接任${p.name} owner` : `加入${p.name}（${r.name}）`}`, from: plan.id, person: pid, owner: 'p-suwan', due: '2026-11-01', state: 'todo', observe: '2027-01-31' });
-      } else S.memberLog.unshift({ project: plan.project, at: NT.TODAY, text: `${store.person(pid).name}：${r.name}写入方案 v${plan.version}`, by: me });
+      if (cur && cur.role === role) { S.memberLog.unshift({ project: plan.project, at: NT.TODAY, text: `${name}：${r.name}写入方案 v${plan.version}`, by: me }); return; }
+      if (cur) {
+        // 已在项目里的人换了角色：成员记录同步改，原角色写进成员历史
+        const was = cur.role;
+        Object.assign(cur, { role, mode });
+        S.memberLog.unshift({ project: plan.project, at: NT.TODAY, text: `${name}：${was} → ${role}：来自项目用人方案 v${plan.version}`, by: me });
+      } else {
+        S.members.push({ project: plan.project, person: pid, role, mode, from: NT.TODAY, to: null, by: me });
+        S.memberLog.unshift({ project: plan.project, at: NT.TODAY, text: `${name}${r.id === 'owner' ? '成为 owner' : `加入：${r.name}`}：来自项目用人方案 v${plan.version}`, by: me });
+      }
+      // 行动带上冻结的判断，到期后可以进入任用后复盘
+      S.actions.unshift({ id: NT.uid('a'), title: `${name}${r.id === 'owner' ? `接任${p.name} owner` : `加入${p.name}（${r.name}）`}`, from: plan.id, person: pid, owner: 'p-suwan', due: '2026-11-01', state: 'todo', observe: '2027-01-31',
+        then: [`目标：${r.id === 'owner' ? `负责${p.name}` : `在${p.name}承担${r.name}`}`, `依据：用人方案 v${plan.version}${musts.length ? `，必须项：${musts.join('、')}` : ''}`, `缺口：${plan.slotNote?.[r.id] || '方案里没有写，复盘时补充'}`] });
     });
     // 只回填还能改的草稿；已确认的组织方案是冻结快照，人选由上面生成的行动跟进
     S.plans.filter((x) => x.kind === 'org' && x.status === 'draft').forEach((op) => op.moves.forEach((m) => { if (m.pending === plan.project && !m.person && plan.slots.owner) { m.person = plan.slots.owner; m.will = '未知 · 待沟通'; } }));
@@ -418,6 +484,18 @@
     const me = store.me().id;
     S.plans.filter((x) => x.kind === 'org' && x.batch === plan.batch && x.status === 'confirmed' && x !== plan).forEach((x) => { x.status = 'superseded'; });
     Object.assign(plan, { status: 'confirmed', confirmedBy: me, confirmedAt: NT.TODAY });
+    // 方案确认是盘点的最后一步：同时确认批次，并为范围内还没有快照的人补齐档案版本（未校准的人只冻结参考位置）
+    const b = S.batches.find((x) => x.id === plan.batch);
+    if (b && b.status !== 'confirmed') {
+      let sn = S.snaps.find((x) => x.batch === b.id);
+      if (!sn) { sn = { id: `s-${b.id}`, batch: b.id, label: b.name.match(/\d{4} H\d/)?.[0] || b.name, org: b.org, cutoff: b.cutoff, at: NT.TODAY, by: me, entries: {}, teams: [] }; S.snaps.push(sn); }
+      SEED.PEOPLE.forEach((p) => {
+        if (p.noReview || sn.entries[p.id] || !store.inOrg(p.org, b.org)) return;
+        const r = store.refPos(p.id, b.cutoff);
+        sn.entries[p.id] = { q: null, ref: r.na ? null : r.q, na: !!r.na, miss: r.miss || '', uncal: true, dims: r.dims, n: r.n, py: r.py, bonus: !!r.bonus, org: p.org };
+      });
+      Object.assign(b, { status: 'confirmed', confirmedAt: NT.TODAY, confirmedBy: me });
+    }
     let created = 0;
     plan.moves.forEach((m) => {
       const title = m.type === '继续观察' ? `${store.person(m.person)?.name || ''}：${m.next}` : `${m.person ? store.person(m.person).name : '人选待定'}${m.type === '负责人安排' ? `接任${m.to}` : `：${m.from ? `${m.from} → ` : ''}${m.to}`}`;

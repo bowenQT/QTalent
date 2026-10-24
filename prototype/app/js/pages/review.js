@@ -29,18 +29,19 @@
     const snap = snapOf(b);
     const prevSnap = b.compareTo && snapOf(st.batch(b.compareTo));
     const pos = (pid) => {
-      if (snap?.entries[pid]) { const e = snap.entries[pid]; return { q: e.q, na: e.na, miss: e.miss, frozen: true }; }
+      if (snap?.entries[pid]) { const e = snap.entries[pid]; return e.uncal ? { q: e.ref, na: e.na, miss: e.miss, ref: true, frozen: true } : { q: e.q, na: e.na, miss: e.miss, frozen: true }; }
       const r = st.refPos(pid, conf ? b.cutoff : NT.TODAY); return { q: r.na ? null : r.q, na: r.na, miss: r.miss, ref: true };
     };
     const dist = (fn) => { const d = { hl: 0, hh: 0, ll: 0, lh: 0, na: 0 }; fn.forEach((x) => { d[x || 'na'] += 1; }); return d; };
     const now = dist(list.map((p) => pos(p.id).q));
-    const prev = prevSnap ? dist(Object.values(prevSnap.entries).map((e) => e.q)) : null;
+    // 上期分布只统计当前视角有权看到的人，不泄露范围外的聚合数据
+    const prev = prevSnap ? dist(Object.entries(prevSnap.entries).filter(([pid]) => st.scope(pid) === 'full').map(([, e]) => e.q)) : null;
     const na = list.filter((p) => pos(p.id).na);
     const concluded = list.filter((p) => S.conclusions[p.id]).length;
     const teams = [...new Set(list.map((p) => p.org))];
     const changes = conf ? [] : st.changes();
     const chOf = (pid) => changes.filter((c) => c.person === pid && c.hit);
-    const isCal = (pid) => S.snaps.some((s) => s.batch === id && s.entries[pid]);
+    const isCal = (pid) => S.snaps.some((s) => s.batch === id && s.entries[pid] && !s.entries[pid].uncal);
     const calTeams = S.snaps.find((s) => s.batch === id)?.teams || [];
     const opPlan = S.plans.filter((p) => p.kind === 'org' && p.batch === id).pop();
     const stepState = [true, na.length === 0 ? true : 'partial', calTeams.length >= teams.length ? true : calTeams.length ? 'partial' : false, concluded >= list.length ? true : concluded ? 'partial' : false, !!opPlan, opPlan?.status === 'confirmed'];
@@ -66,7 +67,7 @@
       <div class="nt-cols" style="margin-top:var(--s-4)">
         <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">团队分布 · 本期${prev ? '（上期）' : ''}</h3>
           <div class="n-dist">${[['hl', '高潜待练'], ['hh', '双高'], ['ll', '待观察'], ['lh', '专业骨干']].map(([k, l]) => html`<div>${l} <b>${now[k]}${prev ? html` <small style="color:var(--ink-3);font-weight:400">(${prev[k]})</small>` : ''}</b></div>`)}<div class="na">资料不足 <b>${now.na}${prev ? html` <small style="color:var(--ink-3);font-weight:400">(${prev.na})</small>` : ''}</b></div></div>
-          <p class="nt-caption">${conf ? '冻结时的正式位置。' : '已校准的团队按校准结果，其余按当前参考位置。'}${prev && now.na > prev.na ? '资料不足上升主要来自新并入的人和 Landing 新人：他们的事件还在原系统里或刚开始积累，需要补录，不是团队能力的变化。' : ''}只看数量变化，不给人排名。</p>
+          <p class="nt-caption">${conf ? (list.some((p) => snap?.entries[p.id]?.uncal) ? '冻结时的位置：已校准的团队是正式位置，未校准的是冻结时的参考位置。' : '冻结时的正式位置。') : '已校准的团队按校准结果，其余按当前参考位置。'}${prev && now.na > prev.na ? '资料不足上升主要来自新并入的人和 Landing 新人：他们的事件还在原系统里或刚开始积累，需要补录，不是团队能力的变化。' : ''}只看数量变化，不给人排名。</p>
           ${!conf ? html`<div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm n-btn--ink" href="calibrate.html?id=${id}">${icon('grid')}去象限校准</a><a class="n-btn n-btn--sm" href="plan.html?id=${id}">调整方案${opPlan ? ` v${opPlan.version}` : ''}</a></div>` : html`<div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm" href="plan.html?id=${id}">看组织调整方案</a></div>`}
         </article>
         <article class="n-card" id="gaps"><h3 class="n-section-title" style="font-size:var(--t-sm)">资料缺口 · ${na.length} 人</h3>
@@ -85,7 +86,7 @@
             return html`<tr><td>${UI.plink(p.id)}<small>${st.orgShort(p.org)}${p.merged ? ' · 并入' : ''}${p.landing ? ' · Landing' : ''}</small></td>
               <td>${r.n} 条分${ps.na ? html`<small>${ps.miss}</small>` : html`<small>${Object.values(r.dims).filter((d) => d.n).length} 个维度有分</small>`}</td>
               <td>${chs.length ? chs.map((x) => html`<span class="n-rule" style="margin:2px 2px 2px 0">${icon('flag')}${x.t === 'trend' ? `${st.dim(x.dim).name}${x.up ? '↑' : '↓'}` : x.t === 'quad' ? '跨象限' : '90 天无事件'}</span>`) : st.needsRecal(p.id) ? html`<span class="n-badge n-badge--recal">可能需要重新校准</span>` : '—'}</td>
-              <td>${ps.na ? UI.na() : ps.frozen || isCal(p.id) ? UI.qBadge(ps.q) : html`<span class="n-badge n-badge--ai">${icon('spark')}参考：${st.QN[ps.q]}</span>`}</td>
+              <td>${ps.na ? UI.na() : (ps.frozen && !ps.ref) || isCal(p.id) ? UI.qBadge(ps.q) : html`<span class="n-badge n-badge--ai">${icon('spark')}参考：${st.QN[ps.q]}</span>`}</td>
               <td>${c ? html`<span class="ink-hand" style="font-size:var(--t-body)">${c.text}</span><small>${st.person(c.by).name} · ${NT.md(c.at)}${canEdit ? html` · <button class="nt-linkbtn" type="button" data-con="${p.id}">改</button>` : ''}</small>` : canEdit ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-con="${p.id}">${icon('pen')}写结论</button>` : html`<span class="n-badge">未写</span>`}</td></tr>`;
           })}</tbody></table></div>
         ${!shown.length ? html`<div class="nt-empty">没有符合条件的人。</div>` : ''}

@@ -9,7 +9,7 @@
 
   NT.shell({
     nav: 'review', title: '组织调整方案', crumbs: [['盘点', 'reviews.html'], [st.batch(bid)?.name || '', `review.html?id=${bid}`]],
-    allow: (r) => st.can('review', null, r) && !!st.batch(bid),
+    allow: (r) => st.canBatch(st.batch(bid), r),
     view: () => { const p = cur(); return `调整方案 v${p?.version} · ${p?.status === 'confirmed' ? '已确认' : '草稿'}`; },
     render,
   });
@@ -27,7 +27,9 @@
     const conf = confirmed();
     const prev = p.status === 'draft' ? conf : plans().filter((x) => x.status !== 'draft' && x.version < p.version).pop();
     const draft = p.status === 'draft';
-    const canEdit = draft && ['ceo', 'hrbp', 'lead'].includes(st.role()) && b.status !== 'confirmed' || (!draft && ['ceo', 'hrbp'].includes(st.role()) && b.status !== 'confirmed');
+    // 组织调整方案由 CEO / HRBP 起草和修改；部门负责人只读，只看到本部门范围内的动作
+    const canEdit = ['ceo', 'hrbp'].includes(st.role()) && b.status !== 'confirmed';
+    const hiddenN = p.moves.filter((m) => !st.canSeeMove(m)).length;
     const diff = draft && prev ? diffOf(prev, p) : null;
     mount(main, html`
       <header class="nt-head"><div><h1>组织调整方案</h1><p>${b.name}。每一条动作都能回到依据；确认方案不等于调岗已经执行，后续以行动跟踪。</p></div>
@@ -35,7 +37,8 @@
       <div class="nt-split">
         <article class="n-card" id="doc" style="position:relative">
           ${!draft ? html`<span class="n-seal" style="position:absolute;right:22px;top:18px" id="seal">定</span>` : ''}
-          ${p.moves.length ? p.moves.map((m, i) => move(m, i, draft && canEdit, diff)) : html`<div class="nt-empty">还没有动作。从盘点清单和象限校准的结论出发，加第一条。</div>`}
+          ${hiddenN ? html`<p class="nt-muted" style="margin:0 0 var(--s-3)">另有 ${hiddenN} 条动作涉及你范围外的人，不在这里显示。</p>` : ''}
+          ${p.moves.length ? p.moves.map((m, i) => (st.canSeeMove(m) ? move(m, i, draft && canEdit, diff) : '')) : html`<div class="nt-empty">还没有动作。从盘点清单和象限校准的结论出发，加第一条。</div>`}
           ${diff?.removed.length ? html`<div class="n-move"><div class="n-move__head"><span class="n-move__type is-watch">已删去</span><span class="n-diff">${diff.removed.map((m) => html`<del>${m.type} · ${m.person ? st.person(m.person).name : m.to}</del> `)}</span></div></div>` : ''}
         </article>
         <aside class="nt-grid nt-sticky">
@@ -133,7 +136,7 @@
 
   async function confirm(p) {
     if (!st.can('confirmPlan')) {
-      mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>你没有确认方案的权限。</b>部门负责人可以起草和提出修改；确认需要 CEO 或指定的 HRBP。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="ask">请苏晚确认</button></div></div></div>`);
+      mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>你没有确认方案的权限。</b>部门负责人可以查看涉及本部门的动作；修改和确认由 CEO 或指定的 HRBP 负责。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="ask">请苏晚确认</button></div></div></div>`);
       $('#ask').onclick = () => { NT.toast('已发给苏晚确认'); $('#deny').innerHTML = ''; };
       return;
     }

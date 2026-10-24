@@ -30,10 +30,11 @@
   NT.clone = (o) => JSON.parse(JSON.stringify(o));
 
   // ---------- 日期 ----------
-  const D = (s) => new Date(`${s}T00:00:00`);
+  // 日期都是不带时区的「年-月-日」，全程按 UTC 计算，避免东八区零点被 toISOString 退回前一天
+  const D = (s) => new Date(`${s}T00:00:00Z`);
   NT.days = (a, b = NT.TODAY) => Math.round((D(b) - D(a)) / 864e5);
   NT.md = (s) => (s ? s.slice(5) : '');
-  NT.addDays = (s, n) => { const d = D(s); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  NT.addDays = (s, n) => { const d = D(s); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   NT.monthLabel = (s) => `${s.slice(0, 4)} 年 ${+s.slice(5, 7)} 月`;
   NT.nowStamp = () => `${NT.md(NT.TODAY)} ${new Date().toTimeString().slice(0, 5)}`;
 
@@ -279,12 +280,12 @@
     restore(ctx) {
       if (!ctx) return;
       try { sessionStorage.setItem('nt-restore', JSON.stringify(ctx)); } catch (e) { /* 忽略 */ }
-      if (ctx.role && ctx.role !== NT.store.role()) {
-        NT.store.setRole(ctx.role);
-        const u = new URL(location.href); u.searchParams.set('as', ctx.role);
-        location.href = u.toString();
-        return;
-      }
+      // 视角和一次性参数（q、hold、mic…）都要回到 URL 里，页面才会回到评论时的样子
+      const u = new URL(location.href);
+      (ctx.drop || []).forEach((k) => u.searchParams.delete(k));
+      if (ctx.params) new URLSearchParams(ctx.params).forEach((v, k) => u.searchParams.set(k, v));
+      if (ctx.role && ctx.role !== NT.store.role()) { NT.store.setRole(ctx.role); u.searchParams.set('as', ctx.role); }
+      if (u.search !== location.search) { location.href = u.toString(); return; }
       NT.applyRestore();
     },
   };

@@ -160,7 +160,15 @@
   // ---------- 关键事件 ----------
   // s(人, 维度, 分, 状态, 评分人, 额外)；状态：ai 建议未确认 / confirmed 已确认 / calibrated 已校准 / unknown 资料不足 / conflict 待校准
   const s = (p, d, v, st, by, x) => ({ p, d, v, st: st || 'confirmed', by, ...(x || {}) });
-  const E = (o) => ({ kind: 'obs', srcs: [], tags: [], scores: [], people: [], ...o });
+  // 打了分却没单列来源的事件，来源就是记录人当时写下的那条观察：引用其中的行为描述（没写行为的引标题），保证每个分数都能回到原文
+  const E = (o) => {
+    const e = { kind: 'obs', srcs: [], tags: [], scores: [], people: [], ...o };
+    if (!e.srcs.length && e.scores.length) {
+      const who = PEOPLE.find((x) => x.id === e.recorder);
+      e.srcs = [{ type: 'note', label: '观察记录', loc: `${who ? who.name : '记录人'} · ${e.date.slice(5)}`, quote: e.act || e.title }];
+    }
+    return e;
+  };
   const EVENTS = [
     // 林知远：Landing 第三期，W2 后还差一条专业度证据才满足落位门槛
     E({ id: 'e-lin-hire', date: '2026-07-14', kind: 'hist', histType: '招聘评估', title: '招聘评估', people: ['p-lin'], recorder: 'p-hance',
@@ -493,7 +501,7 @@
   const TASKS = [
     { id: 'tk-w3', name: 'W3 导师团复盘.m4a', state: 'uploading', progress: 62, note: '182 MB 中的 113 MB · 上传完成前别关页面' },
     { id: 'tk-conv', name: '客户转化部周会.m4a', state: 'queued', note: '10:42 提交 · 可以离开，结果会回到这里' },
-    { id: 'tk-w2', name: 'W2 导师团复盘.m4a', state: 'partial', preset: true, note: '9 条事件已整理，3 处待核对', link: 'record.html?m=w2' },
+    { id: 'tk-w2', name: 'W2 导师团复盘.m4a', state: 'partial', preset: true, minutes: 'w2', by: 'p-yeqing', note: '9 条事件已整理，3 处待核对', link: 'record.html?m=w2' },
     { id: 'tk-report', name: 'Landing W2 周报.docx', state: 'shaping', note: '转写已完成，正在提取人员和事件' },
     { id: 'tk-camp', name: '实训营评审表.xlsx', state: 'done', note: '新增 6 条训练营评审，涉及 6 人' },
     { id: 'tk-mentor', name: '导师访谈.m4a', state: 'failed', note: '转写已保留，人员和事件提取没有完成' },
@@ -524,7 +532,7 @@
   };
 
   NT.SEED = {
-    version: 3, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
+    version: 4, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES,
   };
 })();

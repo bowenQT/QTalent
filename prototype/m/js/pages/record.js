@@ -181,7 +181,7 @@
     step = 'processing';
     const S = st.get();
     let task = S.tasks.find((t) => t.id === 'tk-live');
-    if (!task) { task = { id: 'tk-live', name: `${info.title}.m4a`, state: 'shaping', live: true, note: '转写完成，正在整理事件', link: 'record.html?m=w2', readyAt: Date.now() + 9000 }; S.tasks.unshift(task); st.save(); }
+    if (!task) { task = { id: 'tk-live', name: `${info.title}.m4a`, state: 'shaping', live: true, minutes: 'w2', by: st.me().id, note: '转写完成，正在整理事件', link: 'record.html?m=w2', readyAt: Date.now() + 9000 }; S.tasks.unshift(task); st.save(); }
     mount(main, html`
       <div class="n-player m-card" style="margin-top:var(--s-2)"><button class="n-player__play nt-play" type="button" aria-label="播放">${icon('play')}</button><div class="n-player__track">${Array.from({ length: 48 }, (_, i) => raw(`<i style="height:${30 + Math.round(Math.abs(Math.sin(i * 1.7)) * 70)}%"></i>`))}</div><span>${M.fmt(info.dur)}</span></div>
       <div class="m-proc"><span class="nt-ip" data-ip="thinking" data-size="72" id="proc-ip"></span><div><b id="proc-t">转写与整理中</b><p class="nt-muted" id="proc-s">约需 1–3 分钟，可以直接返回。结果会出现在工作台的「进行中的任务」里。</p></div></div>
@@ -202,6 +202,7 @@
   function renderMinutes(main) {
     const m = NT.SEED.MINUTES[minutesId];
     if (!m) { mount(main, UI.state({ ip: 'confirm', title: '没有找到这份纪要' })); return; }
+    if (!st.canOpenMinutes(minutesId)) { mount(main, UI.state({ ip: 'confirm', title: '这个视角看不到这份纪要', text: '会议纪要只对录入人、该批次的导师、学员的归属 HRBP 和 CEO 可见。' })); return; }
     const S = st.get();
     const evs = m.events.map((id) => st.event(id)).filter(Boolean);
     const verify = S.inbox.filter((i) => i.src === m.title);

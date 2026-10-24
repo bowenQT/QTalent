@@ -8,7 +8,7 @@
 
   NT.mshell({
     tab: 'todo', title: id ? '确认方案' : '待确认的方案', back: id ? 'plan.html' : 'inbox.html',
-    allow: (r) => ['ceo', 'hrbp', 'lead'].includes(r),
+    allow: (r) => ['ceo', 'hrbp', 'lead'].includes(r) && (!id || !st.plan(id) || st.canSeePlan(st.plan(id), r)),
     denyText: '方案只对 CEO、HRBP 和部门负责人开放。',
     demos: [['用人方案 v3（CEO）', 'plan.html?id=sp-search-3&as=ceo'], ['组织调整方案（HRBP）', 'plan.html?id=op-h2-1&as=hrbp'], ['部门负责人：无权确认', 'plan.html?id=sp-search-3&as=lead']],
     view: () => { const p = id && st.plan(id); return p ? `${p.kind === 'org' ? '组织调整方案' : '用人方案'} v${p.version} · ${p.status === 'confirmed' ? '已确认' : '草稿'}` : '方案列表'; },
@@ -18,7 +18,7 @@
   const nameOf = (p) => (p.kind === 'org' ? `${st.batch(p.batch).name} · 组织调整方案` : `${st.project(p.project).name} · 用人方案`);
 
   function renderList(main) {
-    const plans = st.get().plans.filter((p) => p.kind === 'org' || st.project(p.project));
+    const plans = st.get().plans.filter((p) => (p.kind === 'org' || st.project(p.project)) && st.canSeePlan(p));
     const drafts = plans.filter((p) => p.status === 'draft'), confirmed = plans.filter((p) => p.status === 'confirmed').slice(-3).reverse();
     mount(main, html`
       <h3 class="m-h" style="margin-top:0">草稿 · 待确认</h3>
@@ -62,7 +62,7 @@
 
   function staffingBody(p, prev) {
     const roles = st.slotRoles(p);
-    const need = st.get().needs.find((n) => n.id === p.need);
+    const need = st.get().needs.find((n) => n.id === p.need) || st.get().needs.find((n) => n.project === p.project);
     let changed = 0;
     const rows = roles.map((r) => {
       const now = p.slots[r.id], was = prev?.slots[r.id];
@@ -74,13 +74,14 @@
         ${now && !diff && prev ? html`<div class="nt-muted" style="margin-top:2px">与 v${prev.version} 相同</div>` : ''}</div></div>`;
     });
     return { changed: prev ? changed : null, html: html`
-      ${need ? html`<div class="m-need"><b>需求</b>「${need.text}」<ul>${need.reqs.map((x) => html`<li>${x.must ? html`<span class="n-badge">必须</span>` : html`<span class="n-badge" style="opacity:.7">加分</span>`}${x.text}</li>`)}</ul></div>` : ''}
+      ${need ? html`<div class="m-need"><b>需求</b>「${need.text}」<ul>${(p.reqs || need.reqs).map((x) => html`<li>${x.must ? html`<span class="n-badge">必须</span>` : html`<span class="n-badge" style="opacity:.7">加分</span>`}${x.text}</li>`)}</ul></div>` : ''}
       <div class="m-slots">${rows}</div>` };
   }
 
   function orgBody(p) {
     const val = (t) => (/^未知/.test(t || '') ? html`<span class="n-badge n-badge--unknown">${icon('dash')}${t}</span>` : t || '—');
-    return { changed: null, html: html`<div class="m-moves">${p.moves.map((m) => html`<div class="m-move">
+    const hiddenN = p.moves.filter((m) => !st.canSeeMove(m)).length;
+    return { changed: null, html: html`${hiddenN ? html`<p class="nt-muted">另有 ${hiddenN} 条动作涉及你范围外的人，不在这里显示。</p>` : ''}<div class="m-moves">${p.moves.filter((m) => st.canSeeMove(m)).map((m) => html`<div class="m-move">
       <div class="nt-row"><span class="n-badge ${m.type === '继续观察' ? '' : 'n-badge--seal'}">${m.kind || m.type}</span><b>${m.person ? UI.plink(m.person) : html`<span class="nt-muted">人选待定</span>`}</b>${m.pending && !m.person ? html`<span class="nt-muted">等「${st.project(m.pending)?.name || m.to.replace(/ owner$/, '')}」的用人方案确认</span>` : ''}</div>
       <div class="m-move__path">${m.from ? html`${m.from} → ` : ''}<b>${m.to}</b></div>
       <dl class="nt-dl"><dt>依据</dt><dd>${m.basis}${m.ev && st.event(m.ev) ? UI.cite(st.event(m.ev).srcs[0], 1) : ''}</dd>
@@ -91,7 +92,7 @@
   async function confirm(main, p) {
     if (!st.can('confirmPlan')) {
       const who = p.kind === 'org' ? '苏晚' : '程远';
-      mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>你没有确认方案的权限。</b>部门负责人可以起草和提出修改；确认需要 CEO 或指定的 HRBP。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="ask">请${who}确认</button></div></div></div>`);
+      mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>你没有确认方案的权限。</b>${p.kind === 'org' ? '部门负责人可以查看涉及本部门的动作；修改和确认由 CEO 或指定的 HRBP 负责。' : '部门负责人可以起草和提出修改；确认需要 CEO 或指定的 HRBP。'}<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="ask">请${who}确认</button></div></div></div>`);
       $('#ask').onclick = () => { NT.toast(`已发给${who}确认，会出现在对方的待办里`); $('#deny').innerHTML = ''; };
       $('#deny').scrollIntoView({ block: 'nearest' });
       return;

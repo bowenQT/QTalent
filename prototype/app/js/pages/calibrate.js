@@ -42,13 +42,16 @@
     const ids = members();
     const sn = snap(), isFrozen = frozen();
     const placed = [], na = [];
+    const sugs = isFrozen ? {} : st.calibSuggestions(id, team);
     ids.forEach((pid) => {
-      const r = st.refPos(pid);
+      // 冻结后整份读快照：位置、维度均值、证据条数都是冻结那一刻的，不随新事件变化
       const e = isFrozen ? sn.entries[pid] : null;
-      if (isFrozen ? e?.na : r.na) { na.push({ pid, miss: e?.miss || r.miss }); return; }
+      if (isFrozen && !e) { na.push({ pid, miss: '冻结后加入，不在这份快照里' }); return; }
+      const r = e ? { ...e, q: e.ref } : st.refPos(pid);
+      if (r.na) { na.push({ pid, miss: r.miss }); return; }
       const prev = st.formal(pid);
-      const ref = [r.x, r.y];
-      placed.push({ pid, p: st.person(pid), ref, pos: isFrozen ? [e.x, e.y] : ref.slice(), refQ: isFrozen ? e.ref : r.q, reason: e?.reason || '', bonus: r.bonus, r, prevQ: prev && prev.snap.batch !== id ? prev.q : null, prevLabel: prev?.snap.label });
+      const ref = e ? [e.x, e.y] : [r.x, r.y];
+      placed.push({ pid, p: st.person(pid), ref, pos: ref.slice(), refQ: r.q, reason: e?.reason || '', bonus: r.bonus, r, sug: sugs[pid], prevQ: prev && prev.snap.batch !== id ? prev.q : null, prevLabel: prev?.snap.label });
     });
     people = placed;
     const conflicts = ids.filter((pid) => st.get().events.some((ev) => ev.scores.some((s) => s.p === pid && s.st === 'conflict')));
@@ -102,7 +105,7 @@
     });
     NT.ip($('#quad-ip'), isFrozen ? 'done' : 'rest', 48);
     $('#teams')?.addEventListener('click', (e) => { const t = e.target.closest('[data-t]'); if (!t || t.dataset.t === team) return; team = t.dataset.t; history.replaceState(null, '', NT.link('calibrate.html', { id, team })); render(main); });
-    $('#quad-reason')?.addEventListener('input', (e) => { if (!asking) return; asking.reason = e.target.value; NT.ipState($('#quad-ip'), e.target.value.trim() ? 'listening' : 'confirm'); });
+    $('#quad-reason')?.addEventListener('input', (e) => { if (!asking) return; asking.reason = e.target.value; keep(asking); NT.ipState($('#quad-ip'), e.target.value.trim() ? 'listening' : 'confirm'); });
     $('#quad-reset')?.addEventListener('click', () => intro());
     $('#quad-confirm')?.addEventListener('click', confirmTeam);
     window.onresize = drawTrails;
@@ -163,7 +166,10 @@
     $('#quad-say-text').textContent = `你把${x.p.name}从「${QN[x.refQ]}」放到了「${QN[qOf(x.pos)]}」，和我给的参考不同。为什么？`;
     const r = $('#quad-reason'); r.hidden = false; r.value = x.reason; r.focus({ preventScroll: true });
   }
+  // 不能确认的人（部门负责人）每次调整都存成建议，离开页面也不丢
+  function keep(x) { if (!st.can('quadConfirm')) st.suggestCalib(id, team, x.pid, { pos: x.pos.slice(), reason: x.reason }); }
   function settle(x) {
+    keep(x);
     if (qOf(x.pos) !== x.refQ) { ask(x); return; }
     if (asking === x) { asking = null; $('#quad-reason').hidden = true; }
     const next = pending()[0];
@@ -174,7 +180,8 @@
   function sayIdle() {
     const n = people.filter((x) => Math.hypot(x.pos[0] - x.ref[0], x.pos[1] - x.ref[1]) > 0.03).length;
     const shift = people.filter((x) => x.prevQ && x.prevQ !== x.refQ);
-    $('#quad-say-text').textContent = n ? `已调整 ${n} 人的位置。确认后冻结。`
+    const sg = st.can('quadConfirm') ? people.filter((x) => x.sug).length : 0;
+    $('#quad-say-text').textContent = sg && !n ? `部门负责人对 ${sg} 人提了建议，点头像查看，可以按建议放。` : n ? `已调整 ${n} 人的位置。确认后冻结。`
       : `参考位置已给出。把头像拖到你判断的位置；同意的人不用动。${shift.length ? `${shift.map((x) => `${x.p.name}的参考位置离开了上次的正式位置（${QN[x.prevQ]}）`).join('；')}，需要你判断。` : ''}`;
   }
 
@@ -182,7 +189,8 @@
     const plane = $('#quad');
     delete plane.dataset.frozen;
     $('#quad-say').classList.remove('is-ink'); $('#quad-reason').hidden = true; asking = null;
-    people.forEach((x) => { x.pos = x.ref.slice(); x.reason = ''; x.light.classList.remove('is-gone'); x.dot.classList.remove('is-confirmed'); x.light.style.opacity = 0; x.dot.style.opacity = 0; place(x); });
+    const mine = (x) => !st.can('quadConfirm') && x.sug?.by === st.me().id;
+    people.forEach((x) => { x.pos = mine(x) ? x.sug.pos.slice() : x.ref.slice(); x.reason = mine(x) ? x.sug.reason : ''; x.light.classList.remove('is-gone'); x.dot.classList.remove('is-confirmed'); x.light.style.opacity = 0; x.dot.style.opacity = 0; place(x); });
     NT.ipState($('#quad-ip'), 'searching');
     await NT.wait(900);
     const pr = plane.getBoundingClientRect(), ir = $('#quad-ip').getBoundingClientRect();
@@ -216,7 +224,13 @@
       ${core.map((d, i) => html`<div class="nt-muted" style="margin-left:calc(5.5em + var(--s-3))">${st.dim(['mot', 'wis', 'grit'][i]).name} ${d.m == null ? '资料不足' : `${d.m.toFixed(1)}（${d.n} 条）`}</div>`)}
       ${['lead', 'open'].map((d) => r.dims[d].m != null && r.dims[d].m >= 4 ? line(st.dim(d).name, r.dims[d].m, r.dims[d].n, ' · 加分项 ≥ 4') : '')}
       <dl class="nt-dl" style="margin-top:var(--s-3)"><dt>参考位置</dt><dd>${QN[x.refQ]}</dd><dt>你放在</dt><dd>${QN[qOf(x.pos)]}${x.reason ? html` · <span class="ink-hand">${x.reason}</span>` : ''}</dd>${x.prevQ ? html`<dt>上次正式</dt><dd>${QN[x.prevQ]} · ${x.prevLabel}${x.prevQ !== x.refQ ? html` <span class="n-badge n-badge--recal">可能需要重新校准</span>` : ''}</dd>` : ''}</dl>
+      ${x.sug && st.can('quadConfirm') && !frozen() ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('pen')}<div><b>${st.person(x.sug.by).name}建议放在「${QN[qOf(x.sug.pos)]}」</b>${x.sug.reason ? `：${x.sug.reason}` : ''}<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="use-sug">按建议放</button></div></div></div>` : ''}
       <div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${x.pid}#spectrum">看能力谱和证据</a></div>`);
+    $('#use-sug')?.addEventListener('click', () => {
+      x.pos = x.sug.pos.slice();
+      x.reason = x.sug.reason ? `${x.sug.reason}（采纳${st.person(x.sug.by).name}的建议）` : '';
+      place(x); select(x); settle(x);
+    });
   }
 
   async function confirmTeam() {
@@ -232,7 +246,7 @@
     const S = st.get();
     let sn = snap();
     if (!sn) { sn = { id: `s-${id}`, batch: id, label: LABEL, org: b.org, cutoff: NT.TODAY, at: NT.TODAY, by: st.me().id, entries: {}, teams: [] }; S.snaps.push(sn); }
-    people.forEach((x) => { sn.entries[x.pid] = { q: qOf(x.pos), x: x.pos[0], y: x.pos[1], ref: x.refQ, na: false, miss: '', reason: x.reason.trim(), dims: x.r.dims, n: x.r.n, bonus: !!x.bonus, org: x.p.org }; });
+    people.forEach((x) => { sn.entries[x.pid] = { q: qOf(x.pos), x: x.pos[0], y: x.pos[1], ref: x.refQ, na: false, miss: '', reason: x.reason.trim(), dims: x.r.dims, n: x.r.n, py: x.r.py, bonus: !!x.bonus, org: x.p.org }; });
     members().filter((pid) => !people.some((x) => x.pid === pid)).forEach((pid) => { const r = st.refPos(pid); sn.entries[pid] = { q: null, na: true, miss: r.miss, dims: r.dims, n: r.n, org: st.person(pid).org }; });
     sn.teams = [...new Set([...(sn.teams || []), team])];
     sn.at = NT.TODAY; sn.by = st.me().id;

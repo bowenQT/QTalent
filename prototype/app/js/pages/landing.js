@@ -53,7 +53,7 @@
           <div class="nt-grid">
             <article class="n-card"><h3 class="n-section-title">复盘节点</h3>
               <ul class="n-mhist">${b.milestones.map(([d, t]) => html`<li><time>${NT.md(d)}</time>${t}${d < NT.TODAY ? ' · 已完成' : d === NT.TODAY ? ' · 今天' : ''}</li>`)}</ul>
-              <div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm" href="record.html?m=w2">${icon('wave')}W2 导师团复盘纪要</a>${role === 'mentor' ? html`<a class="n-btn n-btn--sm n-btn--ghost" href="../m/record.html">${icon('phone')}用手机录 W3 复盘</a>` : ''}</div>
+              <div class="nt-row" style="margin-top:var(--s-3)">${st.canOpenMinutes('w2') ? html`<a class="n-btn n-btn--sm" href="record.html?m=w2">${icon('wave')}W2 导师团复盘纪要</a>` : ''}${role === 'mentor' ? html`<a class="n-btn n-btn--sm n-btn--ghost" href="../m/record.html">${icon('phone')}用手机录 W3 复盘</a>` : ''}</div>
             </article>
             ${quad ? html`<article class="n-card"><h3 class="n-section-title">结营</h3>
               <p style="margin:0;font-size:var(--t-sm);line-height:1.7;color:var(--ink-2)">W4 结营时做第一次象限校准，形成每个人的第一份档案。现在 ${b.newcomers.length} 人中 ${placed} 人满足落位门槛，其余在「资料不足」区，说明还缺哪类证据。</p>

@@ -19,7 +19,7 @@
       <header class="nt-head"><div><h1>待核对</h1><p>录音和文档里有几处 AI 拿不准是谁、是哪个项目。选一下就生效；选错了可以撤销。</p></div></header>
       <div class="nt-split">
         <div class="nt-grid" id="cards">
-          ${open.length ? open.map(card) : UI.state({ ip: 'done', title: '都核对完了', text: '新的录音或文档里有拿不准的地方时，会出现在这里。', actions: html`<a class="n-btn n-btn--sm" href="record.html?m=w2">回到会议纪要</a>` })}
+          ${open.length ? open.map(card) : UI.state({ ip: 'done', title: '都核对完了', text: '新的录音或文档里有拿不准的地方时，会出现在这里。', actions: st.canOpenMinutes('w2') && html`<a class="n-btn n-btn--sm" href="record.html?m=w2">回到会议纪要</a>` })}
         </div>
         <aside class="nt-grid nt-sticky">
           <article class="n-card"><h3 class="n-section-title">会归到这些人</h3>

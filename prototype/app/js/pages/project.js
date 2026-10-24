@@ -20,7 +20,8 @@
   function render(main) {
     const p = st.project(id), role = st.role(), S = st.get();
     const basic = role === 'self';
-    const edit = ['ceo', 'hrbp'].includes(role) || (role === 'lead' && (p.owner === st.me().id || p.creator === st.me().id)) || (role === 'mentor' && p.batch);
+    const edit = st.canEditProject(p);
+    const staff = st.canStaff(id);
     const all = st.membersOf(id, true).sort((a, b) => (a.to ? 1 : 0) - (b.to ? 1 : 0) || (a.role === 'owner' ? -1 : 1));
     const log = S.memberLog.filter((l) => l.project === id);
     const evs = basic ? [] : S.events.filter((e) => e.project === id && e.kind === 'obs' && e.people.some((x) => st.scope(x) && st.scope(x) !== 'self')).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -47,8 +48,8 @@
           </article>` : html`<div class="n-lock">${icon('lock')}关联事件和用人方案对员工不可见。</div>`}
         </div>
         <aside class="nt-grid">
-          ${!basic && (need || plans.length || !p.owner) ? html`<article class="n-card"><h3 class="n-section-title">用人需求与方案</h3>
-            ${need ? html`<ul class="n-reqs" style="margin:0 0 var(--s-3)">${need.reqs.map((r) => html`<li><span class="n-badge">${r.must ? '必须' : '加分'}</span><span>${r.text}</span></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0 0 var(--s-3)">还没有用人需求。</p>`}
+          ${!basic && staff && (need || plans.length || !p.owner) ? html`<article class="n-card"><h3 class="n-section-title">用人需求与方案</h3>
+            ${need ? html`<ul class="n-reqs" style="margin:0 0 var(--s-3)">${(plans.filter((x) => x.reqs).pop()?.reqs || need.reqs).map((r) => html`<li><span class="n-badge">${r.must ? '必须' : '加分'}</span><span>${r.text}</span></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0 0 var(--s-3)">还没有用人需求。</p>`}
             ${plans.slice().reverse().map((pl) => html`<div class="n-version" style="margin-bottom:6px"><span class="n-version__tag ${pl.status === 'draft' ? 'is-draft' : pl.status === 'confirmed' ? 'is-frozen' : ''}">${pl.status === 'draft' ? '草稿' : pl.status === 'confirmed' ? '已确认' : '已被替代'} v${pl.version}</span><span style="color:var(--ink-3)">${st.person(pl.by).name} · ${NT.md(pl.at)}</span>${pl.status === 'confirmed' ? html`<span class="n-seal n-seal--sm" style="margin-left:auto">定</span>` : ''}</div>`)}
             ${st.can('findOwner') ? html`<a class="n-btn n-btn--sm ${need ? '' : 'n-btn--light'}" href="staffing.html?project=${id}" style="margin-top:var(--s-2)">${icon('spark')}${need ? '打开找人文档' : '发起找 owner'}</a>` : ''}
           </article>` : ''}

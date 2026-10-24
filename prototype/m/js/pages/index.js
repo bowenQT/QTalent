@@ -23,7 +23,7 @@
       (role === 'mentor' || role === 'hrbp') && ['mentor.html', 'users', '导师评价', 'Landing W2 对人复盘'],
       (role === 'ceo' || role === 'hrbp' || role === 'lead') && ['plan.html', 'stamp', '确认方案', `${st.get().plans.filter((p) => p.status === 'draft').length} 份草稿`],
     ].filter(Boolean);
-    const tasks = st.get().tasks.filter((t) => t.state !== 'done').slice(0, 4);
+    const tasks = st.visibleTasks().filter((t) => t.state !== 'done').slice(0, 4);
     mount(main, html`
       <h2 class="m-hello">${hello}，${me.name}<small>${NT.md(NT.TODAY)} 周五 · ${st.roles[role].scope}</small></h2>
       <a class="m-composer" href="quick.html"><span class="nt-ip" data-ip="listening" data-size="32"></span><span>说一件刚发生的事…</span><span class="m-composer__mic" aria-hidden="true">${icon('mic')}</span></a>

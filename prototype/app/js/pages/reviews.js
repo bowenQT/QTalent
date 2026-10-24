@@ -25,16 +25,18 @@
   });
 
   function card(b) {
-    const people = Object.keys(scopeOf(b)).length;
+    const ids = Object.keys(scopeOf(b)), people = ids.length;
     const conf = b.status === 'confirmed';
-    const steps = conf ? '已确认 · 档案版本已冻结' : `${Object.keys(st.get().conclusions).length} 人已写结论 · 证据截止 ${NT.md(b.cutoff)}`;
+    const done = ids.filter((pid) => st.get().conclusions[pid]).length;
+    const steps = conf ? '已确认 · 档案版本已冻结' : `${done} 人已写结论 · 证据截止 ${NT.md(b.cutoff)}`;
     return html`<a class="n-card nt-plink" href="review.html?id=${b.id}" style="display:block;position:relative">
       <div class="n-batch__head"><div><h3 class="n-batch__title" style="font-size:var(--t-md)">${b.name}</h3><div class="n-batch__meta">${st.person(b.starter).name}发起 · ${people} 人 · ${steps}${b.compareTo ? ` · 与 ${st.batch(b.compareTo).name.split('· ')[1]} 对比` : ''}</div></div>
         ${conf ? html`<span class="n-seal n-seal--sm">定</span>` : html`<span class="n-badge n-version__tag is-draft" style="background:var(--light-soft)">草稿</span>`}</div></a>`;
   }
+  // 批次范围只算当前视角有权看到的人
   function scopeOf(b) {
-    if (b.id === 'b-h1') return st.snaps().find((s) => s.id === 's-h1').entries;
-    return Object.fromEntries(st.people().filter((p) => !p.noReview && st.inOrg(p.org, b.org)).map((p) => [p.id, 1]));
+    if (b.id === 'b-h1') return Object.fromEntries(Object.keys(st.snaps().find((s) => s.id === 's-h1').entries).filter((pid) => st.scope(pid) === 'full').map((pid) => [pid, 1]));
+    return Object.fromEntries(st.people().filter((p) => !p.noReview && st.inOrg(p.org, b.org) && st.scope(p.id) === 'full').map((p) => [p.id, 1]));
   }
 
   async function startNew() {

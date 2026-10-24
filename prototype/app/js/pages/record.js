@@ -227,7 +227,7 @@
 
   function renderMinutes(main) {
     const m = NT.SEED.MINUTES[minutesId];
-    if (!m || st.role() === 'self') { mount(main, UI.state({ ip: 'confirm', title: '这个视角看不到这份纪要', text: '会议纪要只对录入人、所带学员的导师和 HRBP 可见。' })); return; }
+    if (!m || !st.canOpenMinutes(minutesId)) { mount(main, UI.state({ ip: 'confirm', title: '这个视角看不到这份纪要', text: '会议纪要只对录入人、该批次的导师、学员的归属 HRBP 和 CEO 可见。' })); return; }
     const S = st.get();
     const evs = m.events.map((id) => st.event(id)).filter(Boolean);
     const verify = S.inbox.filter((i) => i.src === m.title);

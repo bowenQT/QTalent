@@ -109,7 +109,7 @@
       st.can('findOwner') && ['做事', 'spark', '为一个项目找人', '会先建项目和需求卡', 'staffing.html?new=1'],
       st.can('review') && role !== 'lead' && ['做事', 'layers', '发起一次盘点', '选团队和时间范围', 'reviews.html#new'],
       role !== 'self' && ['做事', 'upload', '上传材料', 'Office 文件或录音', 'index.html#upload'],
-      role !== 'self' && ['做事', 'wave', '打开 W2 导师团复盘纪要', '预先处理的演示任务', 'record.html?m=w2'],
+      st.canOpenMinutes('w2') && ['做事', 'wave', '打开 W2 导师团复盘纪要', '预先处理的演示任务', 'record.html?m=w2'],
     ].filter(Boolean);
     let sel = 0, shown = [];
     const render = () => {

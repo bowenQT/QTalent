@@ -53,7 +53,7 @@
           </div>
         </div>
         <div class="n-slash" id="slash" role="listbox" aria-label="命令" hidden>
-          ${[['note', '记录关键事件', '/记', 'record.html'], st.can('findOwner') && ['folder', '为项目找 owner', '/找', 'staffing.html?new=1'], st.can('review') && role !== 'lead' && ['eye', '发起盘点', '/盘', 'reviews.html#new'], ['wave', '打开会议人才纪要', '/录', 'record.html?m=w2']].filter(Boolean).map(([ic, l, k, h], i) => html`<a class="n-slash__item" role="option" aria-selected="${i === 0}" href="${h}">${icon(ic, 16)}${l}<kbd>${k}</kbd></a>`)}
+          ${[['note', '记录关键事件', '/记', 'record.html'], st.can('findOwner') && ['folder', '为项目找 owner', '/找', 'staffing.html?new=1'], st.can('review') && role !== 'lead' && ['eye', '发起盘点', '/盘', 'reviews.html#new'], st.canOpenMinutes('w2') && ['wave', '打开会议人才纪要', '/录', 'record.html?m=w2']].filter(Boolean).map(([ic, l, k, h], i) => html`<a class="n-slash__item" role="option" aria-selected="${i === 0}" href="${h}">${icon(ic, 16)}${l}<kbd>${k}</kbd></a>`)}
         </div>
         <div class="n-asks" style="margin:var(--s-2) 0 var(--s-6)">${(SUGGEST[role] || []).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>
 
@@ -139,7 +139,7 @@
     partial: ['split', '部分待核对'], done: ['check', '已完成'], failed: ['x', '整理失败'],
   };
   function renderTasks() {
-    const tasks = st.get().tasks;
+    const all = st.get().tasks, tasks = st.visibleTasks();
     mount($('#tasks'), tasks.map((t) => {
       const [ic, label] = STATE[t.state];
       const act = {
@@ -147,7 +147,7 @@
         partial: html`<a class="n-btn n-btn--sm" href="${t.link || 'inbox.html'}">去核对</a>`,
         done: html`<a class="n-btn n-btn--sm n-btn--ghost" href="landing.html">查看</a>`,
         failed: html`<button class="n-btn n-btn--sm" type="button" data-retry="${t.id}">${icon('retry')}重试整理</button>`,
-        shaping: html`<a class="n-btn n-btn--sm n-btn--ghost" href="record.html?m=w2&tab=text">看转写</a>`,
+        shaping: t.minutes ? html`<a class="n-btn n-btn--sm n-btn--ghost" href="record.html?m=${t.minutes}&tab=text">看转写</a>` : '',
       }[t.state] || '';
       const bar = t.state === 'uploading' ? html`<div class="n-progress"><i style="width:${t.progress}%"></i></div>` : ['transcribing', 'shaping'].includes(t.state) ? html`<div class="n-progress is-indeterminate"><i></i></div>` : '';
       return html`<div class="n-task" data-state="${t.state}" data-id="${t.id}"><span class="n-task__icon">${icon(ic)}</span><div><div class="n-task__name">${t.name}${t.preset ? html` <span class="n-badge n-badge--preset">预先处理的演示任务</span>` : ''}</div><div class="n-task__state"><b>${label}</b> · ${t.note}</div>${bar}</div><div class="n-task__acts">${act}</div></div>`;
@@ -155,7 +155,7 @@
     $('#tasks').onclick = (e) => {
       const r = e.target.closest('[data-retry]'), c = e.target.closest('[data-cancel]');
       if (r) retry(r.dataset.retry);
-      if (c) { const t = tasks.find((x) => x.id === c.dataset.cancel); const i = tasks.indexOf(t); tasks.splice(i, 1); st.save(); renderTasks(); NT.toast(`已取消上传「${t.name}」`, { undo: () => { tasks.splice(i, 0, t); st.save(); renderTasks(); } }); }
+      if (c) { const t = tasks.find((x) => x.id === c.dataset.cancel); const i = all.indexOf(t); all.splice(i, 1); st.save(); renderTasks(); NT.toast(`已取消上传「${t.name}」`, { undo: () => { all.splice(i, 0, t); st.save(); renderTasks(); } }); }
     };
     tickUpload();
   }

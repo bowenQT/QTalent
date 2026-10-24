@@ -51,9 +51,10 @@
     const key = path + (keep.length ? `?${keep.map(([k, v]) => `${k}=${v}`).join('&')}` : '');
     return key.length <= 200 ? key : path;
   }
+  const transient = () => [...new URLSearchParams(location.search).entries()].filter((e) => !isKeyParam(e) && e[0] !== 'as' && !e[0].startsWith('rv'));
   function droppedParams() {
-    const rest = [...new URLSearchParams(location.search).entries()].filter((e) => !isKeyParam(e) && e[0] !== 'as' && !e[0].startsWith('rv'));
-    return rest.length ? rest.map(([k, v]) => `${k}=${v}`).join('&').slice(0, 300) : undefined;
+    const rest = transient();
+    return rest.length ? new URLSearchParams(rest).toString().slice(0, 300) : undefined;
   }
   async function api(method, url, body) {
     const r = await fetch(url, {
@@ -127,7 +128,7 @@
       h('div', { class: 'rv-head__row' },
         h('div', { class: 'rv-seg', role: 'group', 'aria-label': '筛选' },
           ...[['open', '未解决'], ['done', '已解决'], ['all', '全部']].map(([k, label]) =>
-            h('button', { type: 'button', 'aria-pressed': String(filter === k), onclick: () => { filter = k; renderPanel(); } }, label)),
+            h('button', { type: 'button', 'aria-pressed': String(filter === k), onclick: () => { filter = k; apply(); renderPanel(); } }, label)),
         ),
         h('button', { class: `rv-btn${picking ? ' is-on' : ''}`, type: 'button', 'aria-pressed': String(picking), onclick: () => (picking ? stopPick() : startPick()) },
           picking ? '退出点选' : '点选元素'),
@@ -276,7 +277,8 @@
   }
 
   function restore(t) {
-    try { window.NTReview.restore(JSON.parse(t.context)); } catch (e) { toast('这条评论的现场无法自动还原'); return; }
+    // drop：当前 URL 里的一次性参数，先清掉再换成评论时的那一组
+    try { window.NTReview.restore({ ...JSON.parse(t.context), drop: transient().map(([k]) => k) }); } catch (e) { toast('这条评论的现场无法自动还原'); return; }
     focusId = t.id;
     setTimeout(refresh, 400);
   }
