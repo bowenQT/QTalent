@@ -1,0 +1,32 @@
+{
+  // 评审站：把 prototype/ 原样发布为静态资源，并在 HTML 上注入划线评论层。
+  // 每个请求先由 Worker 校验 Cloudflare Access 登录凭证；Access 未配置时一律 403。
+  "name": "qtalent-review",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "../prototype",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  // 评论层前端以文本模块打包进 Worker，由 /__review/ 提供，不放进 prototype/
+  "rules": [{ "type": "Text", "globs": ["**/client/*.js", "**/client/*.css"], "fallthrough": false }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "qtalent-review",
+      "database_id": "533ae572-fc01-489c-a4f4-742e7fd2f1fe",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "odd-heart-bd91.cloudflareaccess.com",
+    "ACCESS_AUD": "fe74705a3cfb893e804d2fe847c160cbf19f12c5b0138749bb11f338e1a22cf7",
+    "ALLOWED_DOMAIN": "qiniu.com"
+  },
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } }
+}

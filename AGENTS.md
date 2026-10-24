@@ -19,6 +19,8 @@ Niu-Talent：七牛云内部的人才识别、追踪与盘点工作台，用于�
 
 - 原型放在 `prototype/`，是浏览器可以直接打开的独立 HTML（依赖可以走 CDN），不引入构建工具、包管理和后端。
 - 原型中的 AI 行为用脚本化流式 mock 实现：结果预置，但按真实节奏流式输出。
+- 原型分桌面 `prototype/app/` 与手机 `prototype/m/`，共用 `prototype/app/js/` 的数据、权限与交互模块，入口是 `prototype/index.html` 评审导览。
+- 评审站例外：`review-site/` 用 Cloudflare Worker + D1 把 `prototype/` 发布给 `@qiniu.com` 评审并提供划线评论（见 [review-site/README.md](review-site/README.md)）。它只服务评审，不构成第 3 阶段的架构选型，也不改变原型无构建、无后端的约束。
 - 已确认技术栈：Next.js + TypeScript + Tailwind + shadcn/ui + Motion，**仅正式开发适用**，在第 3 阶段准备对应工程。当前设计系统和独立 HTML 原型不要求使用这些框架或组件库，也不以其默认样式和实现方式限制设计探索。
 - 具体应用架构、目录、包管理器、检查工具与命令尚未确定，待 UI/UX 定稿后结合原型和实际运行需求在第 3 阶段决定。调研建议不构成当前或后续阶段自动生效的选型。
 

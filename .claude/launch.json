@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "4173", "--directory", "prototype"],
       "port": 4173
+    },
+    {
+      "name": "review-site",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "wrangler", "dev", "--config", "review-site/wrangler.jsonc", "--port", "8799", "--ip", "localhost"],
+      "port": 8799
     }
   ]
 }

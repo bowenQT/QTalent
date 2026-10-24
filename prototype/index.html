@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>评审导览 · Niu-Talent</title>
+<link rel="stylesheet" href="assets/niu-tokens.css">
+<link rel="stylesheet" href="assets/niu-components.css">
+<style>
+  /* 评审导览：一张铺在宣纸上的流程单。三条叙事是真实的先后顺序，所以用编号；每一步都带上该用的视角直接打开。 */
+  body { margin: 0; min-height: 100vh; background: var(--paper); color: var(--ink); }
+  .g { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--s-10); max-width: 1160px; margin: 0 auto; padding: var(--s-14) var(--s-8) var(--s-20); }
+  .g-hero { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-6); align-items: center; }
+  .g-hero h1 { margin: 0; font-size: var(--t-3xl); line-height: var(--lh-tight); font-weight: 700; letter-spacing: -.01em; }
+  .g-hero p { margin: var(--s-3) 0 0; max-width: 40em; font-size: var(--t-md); line-height: var(--lh-read); color: var(--ink-2); }
+  .g-hero .ink-hand { font-size: var(--t-lg); color: var(--ink); }
+  .g-cast { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-2); }
+  .g-cast a { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px var(--s-3); align-items: center; padding: var(--s-3); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); color: inherit; text-decoration: none; transition: box-shadow var(--d-instant); }
+  .g-cast a:hover { box-shadow: var(--e-2); }
+  .g-cast .n-avatar { grid-row: span 2; }
+  .g-cast b { font-size: var(--t-sm); }
+  .g-cast small { font-size: var(--t-xs); color: var(--ink-3); line-height: 1.4; }
+  .g-story { padding: var(--s-6) var(--s-8) var(--s-4); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
+  .g-story + .g-story { margin-top: var(--s-5); }
+  .g-story h2 { margin: 0; font-size: var(--t-xl); }
+  .g-story > p { margin: var(--s-2) 0 var(--s-4); color: var(--ink-2); line-height: 1.7; }
+  .g-steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+  .g-steps li { counter-increment: s; position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: var(--s-3); align-items: start; padding: var(--s-3) 0; border-top: 1px solid var(--line); }
+  .g-steps li::before { content: counter(s); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; }
+  .g-steps li.is-phone::before { background: var(--sheet); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .g-steps b { display: block; font-size: var(--t-body); font-weight: 600; }
+  .g-steps div > span { display: block; margin-top: 2px; font-size: var(--t-sm); color: var(--ink-3); line-height: 1.6; }
+  .g-steps a { white-space: nowrap; align-self: center; }
+  .g-role { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: var(--r-chip); background: var(--sheet-sunk); color: var(--ink-2); font-size: 11px; font-weight: 500; vertical-align: 2px; }
+  .g-side { display: grid; gap: var(--s-4); align-content: start; position: sticky; top: var(--s-6); }
+  .g-box { padding: var(--s-5); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-sm); line-height: 1.7; color: var(--ink-2); }
+  .g-box h3 { margin: 0 0 var(--s-2); font-size: var(--t-body); color: var(--ink); }
+  .g-box ol, .g-box ul { margin: 0; padding-left: 1.2em; }
+  .g-box li + li { margin-top: 4px; }
+  .g-links { display: grid; gap: var(--s-2); }
+  .g-links .n-btn { justify-content: flex-start; }
+  .g-legend { display: flex; gap: var(--s-4); margin-top: var(--s-2); font-size: var(--t-xs); color: var(--ink-3); }
+  .g-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 50%; background: var(--ink); vertical-align: -1px; }
+  .g-legend i.p { background: var(--sheet); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  a.n-btn { text-decoration: none; }
+  @media (max-width: 960px) {
+    .g { grid-template-columns: minmax(0, 1fr); padding: var(--s-8) var(--s-4) var(--s-14); gap: var(--s-6); }
+    .g-cast { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .g-side { position: static; }
+  }
+  @media (max-width: 600px) {
+    .g-hero { grid-template-columns: minmax(0, 1fr); }
+    .g-hero h1 { font-size: var(--t-2xl); }
+    .g-story { padding: var(--s-5) var(--s-4) var(--s-2); }
+    .g-steps li { grid-template-columns: 28px minmax(0, 1fr); }
+    .g-steps a { grid-column: 2; justify-self: start; }
+    .g-cast { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<main class="g">
+  <header class="g-hero">
+    <span id="ip"></span>
+    <div>
+      <h1>Niu-Talent 评审原型</h1>
+      <p>七牛内部的人才识别、追踪与盘点工作台。下面三条叙事按真实顺序排好，每一步都会用对应的身份打开页面；看到哪里有问题，<span class="ink-hand">直接划线写评论</span>。</p>
+    </div>
+  </header>
+
+  <nav class="g-cast" aria-label="五个演示身份">
+    <a href="app/index.html?as=ceo"><span class="n-avatar" style="--hue:212">程</span><b>程远 · CEO</b><small>全公司</small></a>
+    <a href="app/index.html?as=hrbp"><span class="n-avatar" style="--hue:340">苏</span><b>苏晚 · HRBP</b><small>增长产品部、产品市场部</small></a>
+    <a href="app/index.html?as=lead"><span class="n-avatar" style="--hue:320">韩</span><b>韩策 · 部门负责人</b><small>业务成功部</small></a>
+    <a href="m/index.html?as=mentor"><span class="n-avatar" style="--hue:170">叶</span><b>叶青 · 导师</b><small>Landing 第三期，手机为主</small></a>
+    <a href="app/person.html?id=p-lin&amp;as=self"><span class="n-avatar" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><b>林知远 · 员工</b><small>只看自己的经历</small></a>
+  </nav>
+
+  <div>
+    <section class="g-story" aria-labelledby="s1">
+      <h2 id="s1">Landing 第三期：从一次复盘会到第一份档案</h2>
+      <p>导师用手机录下对人复盘会，AI 整理成事件和建议分；拿不准的人名交给人核对，两位评价人分差大时由 HRBP 校准；结营时新人从「资料不足」区落进象限。</p>
+      <ol class="g-steps">
+        <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>录一次对人复盘会</b><span>选「多人会议」开始，试试打标记、随手记、@某人和收起成悬浮条；完成后进入处理中，可以直接返回。</span></div><a class="n-btn n-btn--sm" href="m/record.html?as=mentor">打开</a></li>
+        <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>读人才纪要并追问</b><span>点事件旁的时间点跳到录音位置；底部推荐追问会按真实节奏流式回答。</span></div><a class="n-btn n-btn--sm" href="m/record.html?m=w2&amp;as=mentor">打开</a></li>
+        <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>核对「小王」「宋老师」指谁</b><span>一次只问一件事，选完立刻生效，5 秒内可撤销。桌面版有证据飞入的动效。</span></div><a class="n-btn n-btn--sm" href="m/inbox.html?as=mentor">打开</a></li>
+        <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>逐个评价学员</b><span>对唐果按住说一段话，AI 整理成事件后逐项确认；林知远的智慧力两位导师分差 2 分，进了校准队列。</span></div><a class="n-btn n-btn--sm" href="m/mentor.html?as=mentor">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>在校准队列处理冲突</b><span>看双方分数、理由和锚点，校准并写一句理由；原评价保留在修订历史里。</span></div><a class="n-btn n-btn--sm" href="app/queue.html?as=hrbp">打开</a></li>
+        <li><div><b><span class="g-role">导师</span>确认 W2 对人复盘</b><span>冲突校准完、建议分都确认后，整份复盘才能确认并计入档案。</span></div><a class="n-btn n-btn--sm" href="app/landing-review.html?id=p-lin&amp;as=mentor">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>结营校准：从资料不足落入象限</b><span>小犇放出光点给参考位置，头像以墨色落下；拖到别的象限要写理由，全部确认后盖印冻结。</span></div><a class="n-btn n-btn--sm" href="app/calibrate.html?id=b-land3&amp;as=hrbp">打开</a></li>
+      </ol>
+    </section>
+
+    <section class="g-story" aria-labelledby="s2">
+      <h2 id="s2">CEO 为新转化团队找 owner</h2>
+      <p>一句话发起找人，系统先建项目和需求卡；改一项要求，候选人即时重排；拖进槽位后确认方案，人选回填到组织调整方案里。</p>
+      <ol class="g-steps">
+        <li><div><b><span class="g-role">CEO</span>说一句需求，生成项目和需求卡</b><span>把「必须」改成「加分」，看候选人怎么重排、哪条证据变了。四种匹配状态：支持、不支持、资料不足、证据冲突。</span></div><a class="n-btn n-btn--sm" href="app/staffing.html?new=1&amp;as=ceo">打开</a></li>
+        <li><div><b><span class="g-role">CEO</span>拖进槽位并确认 v1</b><span>确认后冻结快照、写入项目 owner、生成跟进行动；确认不等于人事动作已执行。</span></div><a class="n-btn n-btn--sm" href="app/staffing.html?project=pr-newconv&amp;as=ceo">打开</a></li>
+        <li class="is-phone"><div><b><span class="g-role">CEO · 手机</span>在手机上确认另一份方案</b><span>海外加速搜索体验 v3：看摘要和与 v2 的差异，确认当前版本。换成部门负责人视角会被拦下。</span></div><a class="n-btn n-btn--sm" href="m/plan.html?id=sp-search-3&amp;as=ceo">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>组织调整方案里人选已回填</b><span>「新转化团队 owner」这一条等的就是上一步的结果。</span></div><a class="n-btn n-btn--sm" href="app/plan.html?id=b-h2&amp;as=hrbp">打开</a></li>
+      </ol>
+    </section>
+
+    <section class="g-story" aria-labelledby="s3">
+      <h2 id="s3">HR 盘点闭环：盘点 → 校准 → 方案 → 复盘</h2>
+      <p>工作台先看变化（按时间排，不按幅度排）；盘点里看分布和缺口；按团队校准象限并冻结；方案确认后变成行动，到期对照当时的判断复盘。</p>
+      <ol class="g-steps">
+        <li><div><b><span class="g-role">HRBP</span>工作台里的变化</b><span>趋势、长期无事件、参考位置跨象限、团队资料不足占比上升。资料不足不是反向证据。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=hrbp">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>2026 H2 盘点</b><span>和 H1 对比分布，提醒补缺口，逐人写结论。</span></div><a class="n-btn n-btn--sm" href="app/review.html?id=b-h2&amp;as=hrbp">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>按团队校准象限并冻结</b><span>运营平台部的周屿：参考位置从双高移到了专业骨干，正式位置不会自动移动。</span></div><a class="n-btn n-btn--sm" href="app/calibrate.html?id=b-h2&amp;as=hrbp">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>确认组织调整方案</b><span>意愿和释放是「未知」的照实写；确认后每条动作生成一条行动。</span></div><a class="n-btn n-btn--sm" href="app/plan.html?id=b-h2&amp;as=hrbp">打开</a></li>
+        <li><div><b><span class="g-role">HRBP</span>任用后复盘</b><span>左边是冻结的当时判断，右边是后来的事实，结论只有继续、调整、撤回。</span></div><a class="n-btn n-btn--sm" href="app/actions.html?as=hrbp">打开</a></li>
+        <li><div><b><span class="g-role">员工</span>本人视角</b><span>林知远只看到自己的经历、参与的项目和发布给他的安排；问「我在哪个象限」会被拒绝。</span></div><a class="n-btn n-btn--sm" href="app/person.html?id=p-lin&amp;as=self">打开</a></li>
+      </ol>
+      <div class="g-legend"><span><i></i>桌面</span><span><i class="p"></i>手机</span></div>
+    </section>
+  </div>
+
+  <aside class="g-side">
+    <div class="g-box">
+      <h3>怎么写评论</h3>
+      <ol>
+        <li>选中页面上的文字，点出现的「评论」。</li>
+        <li>图表、头像这类没有文字的地方，打开右下角「评审评论」用「点选元素」。</li>
+        <li>评论会记下当时的视角和界面状态；内容变了找不到原文时，点「还原现场」回到当时的样子。</li>
+        <li>可以回复、标为已解决。评论所有人可见，只能删除自己的。</li>
+      </ol>
+    </div>
+    <div class="g-box">
+      <h3>关于演示数据</h3>
+      <ul>
+        <li>人员都是化名并标了「演示」；组织名称来自真实组织表。</li>
+        <li>AI 的整理和回答是预置结果，按真实节奏流式出现。</li>
+        <li>你做的确认、校准只保存在本浏览器，不影响别人；评论保存在服务器上。</li>
+        <li>页面上方的视角切换只是演示手段，正式产品由服务端判断权限。</li>
+      </ul>
+    </div>
+    <div class="g-links">
+      <a class="n-btn" href="app/index.html">打开桌面版</a>
+      <a class="n-btn" href="m/index.html">打开手机版</a>
+      <a class="n-btn n-btn--ghost" href="design-system.html">设计系统</a>
+      <button class="n-btn n-btn--ghost" type="button" id="reset">重置我的演示数据</button>
+    </div>
+  </aside>
+</main>
+<script src="assets/niu-ip.js"></script>
+<script>
+  if (window.NiuIP) NiuIP.mount(document.getElementById('ip'), { state: 'rest', size: 88 });
+  document.getElementById('reset').addEventListener('click', (e) => {
+    if (!confirm('清空你在本浏览器里做过的确认、校准和记录，回到初始演示数据？评论不受影响。')) return;
+    try { localStorage.removeItem('nt-demo'); localStorage.removeItem('nt-role'); sessionStorage.clear(); } catch (err) { /* 浏览器禁用了存储时无需清理 */ }
+    e.target.textContent = '已重置';
+  });
+</script>
+</body>
+</html>

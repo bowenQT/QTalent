@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>页面不存在 · Niu-Talent</title>
+<link rel="stylesheet" href="/assets/niu-tokens.css">
+<link rel="stylesheet" href="/assets/niu-components.css">
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--paper); }
+  .n-state a { text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="n-state"><span id="ip"></span><p class="n-state__title">这个页面不存在</p><p class="n-state__text">链接可能写错了，或者页面已经改名。</p><div style="display:flex;gap:8px;justify-content:center"><a class="n-btn n-btn--sm n-btn--ink" href="/">回到评审导览</a><a class="n-btn n-btn--sm" href="/app/index.html">打开桌面版</a></div></div>
+<script src="/assets/niu-ip.js"></script>
+<script>if (window.NiuIP) NiuIP.mount(document.getElementById('ip'), { state: 'confirm', size: 56 });</script>
+</body>
+</html>

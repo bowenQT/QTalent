@@ -1,0 +1,107 @@
+/* 评审评论层：只属于评审站，不进入产品设计系统。颜色取自「光与墨」tokens，缺失时有兜底值。 */
+#rv-ui {
+  --rv-ink: var(--ink, #1b1e25);
+  --rv-ink-2: var(--ink-2, #474c56);
+  --rv-ink-3: var(--ink-3, #7d828c);
+  --rv-sheet: var(--sheet, #fff);
+  --rv-sunk: var(--sheet-sunk, #eceee9);
+  --rv-line: var(--line, #dfe1db);
+  --rv-hl: #ffe9a8;
+  --rv-accent: #b06a00;
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif;
+  color: var(--rv-ink);
+  letter-spacing: 0;
+}
+#rv-ui *, #rv-pins * { box-sizing: border-box; }
+
+mark.rv-hl, mark.rv-pending { background: rgb(255 214 102 / .42); color: inherit; border-radius: 2px; box-shadow: 0 1.5px 0 rgb(176 106 0 / .55); cursor: pointer; }
+mark.rv-hl.is-done { background: rgb(27 30 37 / .06); box-shadow: 0 1.5px 0 rgb(27 30 37 / .25); }
+mark.rv-hl.is-focus, mark.rv-pending { background: rgb(255 196 61 / .7); }
+[data-rv-el="open"], [data-rv-el="pending"] { outline: 2px dashed rgb(176 106 0 / .75) !important; outline-offset: 3px; }
+[data-rv-el="done"] { outline: 1px dashed rgb(27 30 37 / .25) !important; outline-offset: 3px; }
+
+/* 收起时只是一个圆钮，少挡页面右下角的按钮；悬停或键盘聚焦时展开文字 */
+.rv-launch {
+  position: fixed; z-index: 2147483000; right: 16px; bottom: 16px;
+  display: inline-flex; align-items: center; height: 44px; min-width: 44px; padding: 0 12px;
+  border: 0; border-radius: 999px; background: var(--rv-ink); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 10px 28px -10px rgb(27 30 37 / .55);
+}
+.rv-launch svg { flex: none; width: 20px; height: 20px; }
+.rv-launch__label { max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; transition: max-width .2s ease-out, opacity .15s ease-out, margin .2s ease-out; }
+.rv-launch:hover .rv-launch__label, .rv-launch:focus-visible .rv-launch__label { max-width: 6em; margin-left: 8px; opacity: 1; }
+.rv-launch b { position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #ffd666; color: var(--rv-ink); font-size: 12px; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px #fff; }
+@media (prefers-reduced-motion: reduce) { .rv-launch__label { transition: none; } }
+.rv-launch:focus-visible, #rv-ui button:focus-visible, #rv-ui textarea:focus-visible { outline: 2px solid #3d55d6; outline-offset: 2px; }
+html.rv-open .rv-launch { display: none; }
+
+.rv-panel {
+  position: fixed; z-index: 2147483001; top: 12px; right: 12px; bottom: 12px; width: 360px;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--rv-sheet); border-radius: 16px; box-shadow: 0 0 0 1px rgb(27 30 37 / .08), 0 28px 72px -20px rgb(27 30 37 / .4);
+}
+.rv-panel[hidden] { display: none; }
+.rv-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--rv-line); display: grid; gap: 8px; }
+.rv-head__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rv-head h2 { margin: 0; font-size: 16px; }
+.rv-hint { margin: 0; font-size: 12px; color: var(--rv-ink-3); }
+.rv-body { flex: 1; overflow-y: auto; padding: 12px 12px 24px; display: grid; align-content: start; gap: 10px; }
+.rv-empty { margin: 8px 4px; color: var(--rv-ink-3); font-size: 13px; display: grid; gap: 8px; justify-items: start; }
+.rv-group { margin: 14px 4px 0; font-size: 12px; font-weight: 600; color: var(--rv-ink-3); }
+
+.rv-icon { width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: var(--rv-ink-2); font-size: 20px; line-height: 1; cursor: pointer; }
+.rv-icon:hover { background: var(--rv-sunk); }
+.rv-btn { height: 30px; padding: 0 12px; border: 1px solid var(--rv-line); border-radius: 8px; background: var(--rv-sheet); color: var(--rv-ink); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.rv-btn:hover { background: var(--rv-sunk); }
+.rv-btn.is-primary { background: var(--rv-ink); border-color: var(--rv-ink); color: #fff; }
+.rv-btn.is-on { background: #fff4d6; border-color: #e7b84c; }
+.rv-btn:disabled { opacity: .55; cursor: default; }
+.rv-link { padding: 0; border: 0; background: none; color: #3d55d6; font: inherit; font-size: 12px; cursor: pointer; }
+.rv-link.is-quiet { color: var(--rv-ink-3); justify-self: start; }
+.rv-seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--rv-sunk); }
+.rv-seg button { height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--rv-ink-2); font: inherit; font-size: 12px; cursor: pointer; }
+.rv-seg button[aria-pressed="true"] { background: var(--rv-sheet); color: var(--rv-ink); font-weight: 600; box-shadow: 0 1px 2px rgb(27 30 37 / .12); }
+
+.rv-thread, .rv-compose { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: var(--rv-sheet); box-shadow: 0 0 0 1px var(--rv-line); }
+.rv-thread { cursor: pointer; }
+.rv-thread.is-focus, .rv-compose { box-shadow: 0 0 0 2px #e7b84c; }
+.rv-thread.is-done { background: #fafaf8; }
+.rv-thread.is-done .rv-c__body { color: var(--rv-ink-2); }
+.rv-anchor { margin: 0; padding: 4px 8px; border-left: 3px solid #e7b84c; background: #fff8e6; border-radius: 0 6px 6px 0; font-size: 12px; color: var(--rv-ink-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.rv-anchor.is-el { display: flex; gap: 6px; align-items: baseline; border-left-style: dashed; }
+.rv-anchor.is-el span { flex: none; padding: 0 5px; border-radius: 4px; background: #f3dfa9; font-size: 11px; color: var(--rv-ink); }
+.rv-ctx { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--rv-ink-3); }
+.rv-c { display: grid; gap: 2px; }
+.rv-c.is-reply { padding-left: 10px; border-left: 2px solid var(--rv-line); }
+.rv-c__meta { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--rv-ink-3); }
+.rv-c__meta b { color: var(--rv-ink); font-size: 13px; }
+.rv-done { margin-left: auto; color: #2c7a52; }
+.rv-c__body { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.rv-reply { display: grid; gap: 6px; }
+.rv-reply textarea, .rv-compose textarea { width: 100%; resize: vertical; min-height: 32px; padding: 6px 8px; border: 1px solid var(--rv-line); border-radius: 8px; background: var(--rv-sheet); color: var(--rv-ink); font: inherit; font-size: 13px; }
+.rv-compose textarea { min-height: 72px; }
+.rv-reply__acts { display: flex; justify-content: flex-end; gap: 6px; }
+.rv-err { margin: 0; font-size: 12px; color: #a8463d; }
+
+.rv-bubble { position: fixed; z-index: 2147483002; height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--rv-ink); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 8px 20px -8px rgb(27 30 37 / .5); }
+.rv-bubble[hidden] { display: none; }
+.rv-hover { position: fixed; z-index: 2147482999; pointer-events: none; border: 2px solid #e7b84c; border-radius: 6px; background: rgb(255 214 102 / .12); }
+.rv-hover[hidden] { display: none; }
+.rv-hover::after { content: attr(data-label); position: absolute; left: -2px; bottom: 100%; max-width: 280px; margin-bottom: 4px; padding: 2px 6px; border-radius: 4px; background: var(--rv-ink); color: #fff; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.rv-picking, html.rv-picking * { cursor: crosshair !important; }
+
+#rv-pins { position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 2147482998; }
+.rv-pin { position: absolute; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50% 50% 50% 2px; background: #e7b84c; color: #1b1e25; font: 700 10px/18px -apple-system, sans-serif; text-align: center; cursor: pointer; box-shadow: 0 2px 6px rgb(27 30 37 / .3); }
+.rv-pin.is-done { background: #c9ccc4; }
+.rv-pin.is-focus { outline: 2px solid #1b1e25; }
+
+.rv-toasts { position: fixed; z-index: 2147483003; left: 50%; bottom: 20px; translate: -50% 0; display: grid; gap: 6px; justify-items: center; pointer-events: none; }
+.rv-toast { padding: 8px 14px; border-radius: 10px; background: var(--rv-ink); color: #fff; font-size: 13px; box-shadow: 0 10px 28px -10px rgb(27 30 37 / .55); }
+
+@media (max-width: 600px) {
+  .rv-panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; height: 72vh; }
+  .rv-launch { right: 12px; bottom: 12px; }
+  /* 手机原型铺满屏幕时，让开底部导航 */
+  body.nt-mob .rv-launch { bottom: 96px; }
+}
+@media print { #rv-ui, #rv-pins { display: none; } }
