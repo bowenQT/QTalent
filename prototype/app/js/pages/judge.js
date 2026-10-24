@@ -243,7 +243,7 @@
       <p class="nt-caption">AI 只提出带证据的假设；归因由 HRBP 选择类别、写理由并确认。结论只作用于评价体系，不写回被评价人。</p>`;
   }
   // 依据变化的说明：评价人只在 HRBP 视角下点名
-  const checkText = (h, chk, forCeo) => [chk.dropped.length && `${chk.dropped.length} 个依据案例已标为不可比或资料不足`, chk.few && (forCeo ? '涉及的评价人可对照案例不到门槛，样本不足' : `${name(h.rater)}的可对照案例不到 ${st.RATER_MIN} 个，样本不足`)].filter(Boolean).join('；');
+  const checkText = (h, chk, forCeo) => [chk.dropped.length && `${chk.dropped.length} 个依据案例已标为不可比或资料不足`, chk.few && (forCeo ? '涉及的评价人可对照案例不到门槛，样本不足' : `${name(h.rater)}的可对照案例不到 ${st.RATER_MIN} 个，样本不足`), chk.changed && !chk.dropped.length && '依据范围内的事件或分数有变化，正文里的统计可能已经过时'].filter(Boolean).join('；');
   function caseChips(h, chk) {
     return html`<div class="n-attrib__cases">${h.cases.map((cid) => { const [bid, pid, dim] = cid.split(':'); const u = st.judgeUnits(bid).find((x) => x.id === cid); const out = chk?.dropped.includes(cid); return html`<button class="n-casechip ${out ? 'is-out' : ''}" type="button" data-case="${cid}" ${NT.raw(out ? 'title="已标为不可比或资料不足，不再作为依据"' : '')}>${name(pid)} · ${u?.dimName || dim}${bid !== id ? ` · ${st.judgeBatch(bid).name.replace(/判断复盘|XEngineer /g, '')}` : ''}${out ? '（已排除）' : ''}</button>`; })}${h.std ? html`<span class="n-casechip" style="cursor:default">标准 ${h.std}</span>` : ''}</div>`;
   }
@@ -258,7 +258,7 @@
           <div class="n-attrib__cats" role="group" aria-labelledby="cats-${h.id}">${Object.entries(CAT).map(([k, l]) => html`<button class="n-chip" type="button" data-cat="${k}" aria-pressed="${drafting.cats.includes(k)}">${l}</button>`)}</div>
           <label class="n-field" style="margin-top:var(--s-3)"><span class="n-field__label">理由（必填，会署名留档）</span><textarea class="n-textarea" id="why-${h.id}" rows="2" placeholder="比如：两期都偏高，记录多是印象描述；先培训，再看下一期">${drafting.reason}</textarea></label>
           <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-confirm="${h.id}">${icon('check')}确认归因</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button><span class="nt-muted">确认后署名留档，之后从这条结论生成改进动作${h.rater || drafting.cats.includes('rater') ? '；涉及评价人，CEO 只看到类别和动作' : '；结论和理由 CEO 可见'}</span></div></div>`
-        : !chk.ok ? html`<div class="n-notice">${icon('split')}<div><b>依据变了，这条假设不能按原文确认。</b>${checkText(h, chk, false)}。撤销相关标注后可以继续；否则等 AI 按现在的案例重新整理。</div></div>`
+        : !chk.ok ? html`<div class="n-notice">${icon('split')}<div><b>依据变了，这条假设不能按原文确认。</b>${checkText(h, chk, false)}。${chk.dropped.length ? '撤销相关标注后可以继续；否则等 AI 按现在的案例重新整理。' : '等 AI 按现在的数据重新整理后再确认。'}</div></div>`
         : html`<div class="nt-row"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-adopt="${h.id}">${icon('check')}采纳并归因</button><button class="n-btn n-btn--sm" type="button" data-rewrite="${h.id}">${icon('pen')}改写</button><span class="nt-muted">未确认的假设不能生成改进动作</span></div>`}
     </div>`;
   }

@@ -640,15 +640,32 @@
   store.judgeAttrib = (hypId) => S.judgeAttribs[hypId] || null;
   // 假设的依据会随标注变化：引用的案例被标为不可比或资料不足、涉及的评价人可对照案例跌破门槛时，
   // 这条假设不能再按原文确认，已确认的结论也不能再生成新动作，要先复核
-  store.hypCheck = (h) => {
-    const bids = [...new Set(h.cases.map((cid) => cid.split(':')[0]))];
+  // 假设正文的统计是按生成时的数据写的。依据范围 = 列出的证据案例 + basis 声明的统计范围；
+  // 记下种子数据下这个范围的指纹（状态、差几档、后段用到的事件），之后标注、事件或分数一变就要求复核
+  const hypScope = (h) => {
+    const bids = [...new Set([...h.cases.map((cid) => cid.split(':')[0]), ...(h.basis || []).map((x) => x.batch)])];
     const units = bids.flatMap((bid) => store.judgeUnits(bid));
+    const inBasis = (u) => (h.basis || []).some((x) => u.batch === x.batch && (!x.dim || u.dim === x.dim) && (!x.rater || u.front.by === x.rater));
+    return { units, scope: units.filter((u) => h.cases.includes(u.id) || inBasis(u)) };
+  };
+  const hypPrint = (h) => hypScope(h).scope.map((u) => `${u.id}:${u.state}:${u.gap}:${(u.back.evs || []).join(',')}`).sort().join('|');
+  let hypBase = null;
+  const baseOf = (h) => {
+    if (!hypBase) {
+      const cur = S;
+      fresh(); // 临时换成种子数据算基线，算完换回
+      hypBase = Object.fromEntries(Object.values(J.hyps).flat().map((x) => [x.id, hypPrint(x)]));
+      S = cur;
+    }
+    return hypBase[h.id];
+  };
+  store.hypCheck = (h) => {
+    const { units, scope } = hypScope(h);
     const byId = new Map(units.map((u) => [u.id, u]));
-    // 证据按钮列出的案例不可比或资料不足，或正文统计范围（basis）里有案例被标为不可比，都算依据变化
-    const inBasis = (h.basis || []).flatMap((x) => store.judgeUnits(x.batch).filter((u) => (!x.dim || u.dim === x.dim) && (!x.rater || u.front.by === x.rater) && u.state === 'nc').map((u) => u.id));
-    const dropped = [...new Set([...h.cases.filter((cid) => !byId.has(cid) || !store.judgeComparable(byId.get(cid))), ...inBasis])];
+    const dropped = [...new Set([...h.cases.filter((cid) => !byId.has(cid) || !store.judgeComparable(byId.get(cid))), ...scope.filter((u) => u.state === 'nc').map((u) => u.id)])];
     const few = !!h.rater && !store.raterStats(units, h.rater).enough;
-    return { ok: !dropped.length && !few, dropped, few };
+    const changed = hypPrint(h) !== baseOf(h);
+    return { ok: !dropped.length && !few && !changed, dropped, few, changed };
   };
   store.confirmAttrib = (batchId, hyp, a) => {
     if (!store.hypCheck(hyp).ok) return false;
