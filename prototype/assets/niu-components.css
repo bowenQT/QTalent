@@ -1092,10 +1092,10 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 .n-pending li { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) 0; border-top: 1px dashed var(--line); font-size: var(--t-sm); }
 .n-pending li:first-child { border-top: 0; }
 .n-pending li small { margin-left: auto; font-size: var(--t-xs); color: var(--ink-3); }
-/* 提示条：中性底，语义色只留在左边线和图标上（v1.5 3.32） */
-.n-notice { display: flex; align-items: flex-start; gap: var(--s-3); padding: var(--s-3) var(--s-4); border-radius: var(--r-field); background: var(--sheet-sunk); box-shadow: inset 3px 0 0 var(--conflict); color: var(--ink); font-size: var(--t-sm); line-height: 1.6; }
+/* 提示条：中性底，语义色只留在细框和图标上（v1.5 3.32）；不用左侧色条 */
+.n-notice { display: flex; align-items: flex-start; gap: var(--s-3); padding: var(--s-3) var(--s-4); border-radius: var(--r-field); background: var(--sheet-sunk); box-shadow: inset 0 0 0 1px rgb(176 122 12 / .3); color: var(--ink); font-size: var(--t-sm); line-height: 1.6; }
 .n-notice svg { flex: none; width: 16px; height: 16px; margin-top: 3px; color: var(--conflict); }
-.n-notice.is-deny { box-shadow: inset 3px 0 0 var(--no); }
+.n-notice.is-deny { box-shadow: inset 0 0 0 1px rgb(168 70 61 / .3); }
 .n-notice.is-deny svg { color: var(--no); }
 .n-notice.is-plain { box-shadow: none; }
 .n-notice.is-plain svg { color: var(--ink-3); }
@@ -1236,8 +1236,9 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 /* ── 发展方向：本人意愿与管理判断并排，各自标来源；没有记录就写「未知」 ── */
 .n-dir { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
 .n-dir__side { padding: var(--s-3); border-radius: var(--r-field); font-size: var(--t-sm); line-height: 1.6; }
-.n-dir__side.is-self { box-shadow: inset 3px 0 0 var(--line-strong); background: var(--sheet-sunk); }
-.n-dir__side.is-mgmt { box-shadow: inset 3px 0 0 var(--ink-2); background: var(--sheet-sunk); }
+/* 两侧靠来源标记区分：本人意愿是凹陷底，管理判断是白底细框 */
+.n-dir__side.is-self { background: var(--sheet-sunk); }
+.n-dir__side.is-mgmt { background: var(--sheet); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .n-dir__side.is-unknown { background: repeating-linear-gradient(-45deg, var(--unknown-soft) 0 6px, #e8eae5 6px 7px); color: var(--ink-3); }
 .n-dir__label { display: flex; align-items: center; gap: 6px; font-size: var(--t-xs); color: var(--ink-3); }
 .n-dir__ch { display: block; margin: 2px 0; font-weight: 650; color: var(--ink); }
@@ -1515,11 +1516,11 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-revise__check { position: sticky; top: var(--s-4); }
 @media (max-width: 960px) { .n-revise { grid-template-columns: minmax(0, 1fr); } .n-revise__check { position: static; } }
 
-/* 参数修订行：原值 → 新值，带单位；改过的行左侧一道墨线，并写出原值 */
+/* 参数修订行：原值 → 新值，带单位；改过的行浅底，并写出原值 */
 .n-params { list-style: none; margin: 0; padding: 0; }
 .n-param { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px var(--s-4); align-items: center; padding: var(--s-3) var(--s-3); border-top: 1px solid var(--line); }
 .n-param:first-child { border-top: 0; }
-.n-param.is-changed { box-shadow: inset 2px 0 0 var(--ink); background: rgb(27 30 37 / .02); }
+.n-param.is-changed { background: rgb(27 30 37 / .04); }
 .n-param__name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--s-2); font-size: var(--t-sm); font-weight: 600; }
 .n-param__name small { flex-basis: 100%; font-size: var(--t-xs); font-weight: 400; color: var(--ink-3); }
 .n-param__val { display: grid; grid-template-columns: 2.5em 5.5em 4.5em; align-items: center; gap: var(--s-2); font-size: var(--t-sm); color: var(--ink-2); }
@@ -1535,7 +1536,7 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 
 /* 锚点修订态：锚点面板进入编辑，逐条原地改，行内显示增删 */
 .n-anchor.is-editing li { grid-template-columns: 1.6em minmax(0, 1fr) auto; align-items: start; color: var(--ink-2); }
-.n-anchor.is-editing li.is-changed { box-shadow: inset 2px 0 0 var(--ink); background: rgb(27 30 37 / .03); }
+.n-anchor.is-editing li.is-changed { background: rgb(27 30 37 / .05); }
 .n-anchor.is-editing li .n-textarea { min-height: 0; font-size: var(--t-sm); }
 .n-anchor__acts { display: flex; gap: 2px; }
 .n-anchor__acts .n-btn { padding: 0 8px; }
