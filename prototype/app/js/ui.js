@@ -3,7 +3,7 @@
   'use strict';
   const NT = window.NT;
   const st = NT.store;
-  const { html, raw, icon, esc } = NT;
+  const { html, raw, icon, esc, mount } = NT;
   const UI = (NT.ui = {});
   // 页面所在目录：桌面 app/、手机 m/ 都在 prototype/ 下一级
   UI.root = '..';
@@ -243,6 +243,56 @@
   };
 
   // ---------- 值得聊一聊 ----------
+  // ---------- 发展方向（v1.3 3.15.1）：本人意愿与管理判断并列，分开标来源；没有记录就是「未知」 ----------
+  UI.directionBlock = (pid, o = {}) => {
+    const d = st.directions(pid); if (!d) return '';
+    const ch = (id) => st.channel(id)?.name || '还没想好';
+    const older = (list, f) => (list.length > 1 ? html`<div class="n-dir__old">之前：${list.slice(1).map((x) => html`<s>${ch(x.ch)}</s> ${f(x)}`)}</div>` : '');
+    const self = d.self[0], mg = d.mgmt?.[0];
+    const selfSide = self
+      ? html`<div class="n-dir__side is-self"><span class="n-dir__label"><span class="n-src n-src--self">${icon('quote')}本人意愿</span>${self.src || '本人填写'} · ${NT.md(self.at)}</span><b class="n-dir__ch">${ch(self.ch)}</b>${self.text ? html`<span class="n-dir__note">「${self.text}」</span>` : ''}${older(d.self, (x) => NT.md(x.at))}</div>`
+      : html`<div class="n-dir__side is-unknown"><span class="n-dir__label">本人意愿</span><b class="n-dir__ch">未知</b><span class="n-dir__note">还没有本人的记录，不当作「不想」</span></div>`;
+    const mgSide = d.mgmt == null ? html`<div class="n-lock">${icon('lock')}管理判断对导师和员工不可见。</div>`
+      : mg ? html`<div class="n-dir__side is-mgmt"><span class="n-dir__label"><span class="n-src n-src--obs">${icon('eye')}管理判断</span>${st.person(mg.by).name} · ${NT.md(mg.at)}</span><b class="n-dir__ch">${ch(mg.ch)}</b><span class="n-dir__note">依据：${mg.basis}${mg.ev && st.event(mg.ev) ? UI.cite({ ...st.event(mg.ev).srcs[0], quote: st.event(mg.ev).srcs[0]?.quote || st.event(mg.ev).act || st.event(mg.ev).title }, 1) : ''}</span>${older(d.mgmt, (x) => `${st.person(x.by).name} ${NT.md(x.at)}`)}</div>`
+        : html`<div class="n-dir__side is-unknown"><span class="n-dir__label">管理判断</span><b class="n-dir__ch">未知</b><span class="n-dir__note">还没有人写过，不当作「不适合」</span></div>`;
+    const differ = self && mg && self.ch !== mg.ch;
+    return html`<article class="n-card" id="direction"><h3 class="n-section-title n-dirhead">发展方向<small class="nt-muted">通道取自人才发展大图 · 不打分，不进象限，不参与排序</small></h3>
+      <div class="n-dir" ${raw(st.role() === 'self' ? 'style="grid-template-columns:1fr"' : '')}>${selfSide}${st.role() === 'self' ? '' : mgSide}</div>
+      ${differ ? html`<p class="nt-caption">本人意愿和管理判断不一致，两边如实并列，不合成一个结论。</p>` : ''}
+      ${o.canWrite ? html`<div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm" type="button" data-dir="${o.canWrite}">${icon('pen')}${o.canWrite === 'self' ? '写下或修改我的意愿' : '写管理判断'}</button></div>` : ''}
+      <div data-dir-form></div></article>`;
+  };
+  // 写发展方向：本人写意愿；管理判断必须写依据
+  UI.wireDirection = (host, pid, rerender) => {
+    host.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-dir]'), form = host.querySelector('[data-dir-form]');
+      if (b && form) {
+        const self = b.dataset.dir === 'self';
+        mount(form, html`<div class="n-card" style="box-shadow:var(--e-0);margin-top:var(--s-3)">
+          <label class="n-field"><span class="n-field__label">${self ? '想往哪个方向发展' : '适合往哪个通道发展'}</span><select class="n-select" data-dir-ch>${self ? html`<option value="">还没想好</option>` : ''}${st.channels.map((c) => html`<option value="${c.id}">${c.name}</option>`)}</select></label>
+          <label class="n-field" style="margin-top:var(--s-3)"><span class="n-field__label">${self ? '说说你的想法（可以不写）' : '依据（必填：引用事件或观察）'}</span><textarea class="n-textarea" rows="2" data-dir-text placeholder="${self ? '比如：下个阶段想离客户近一点，试试售前。' : '比如：两次客户方案都由他牵头，取舍写得清楚'}"></textarea></label>
+          <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-dir-save="${b.dataset.dir}">保存</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-dir-x>取消</button><span class="nt-muted">${self ? '旧的记录会保留，你随时可以再改' : '员工和导师看不到管理判断'}</span></div></div>`);
+        form.querySelector('select').focus();
+        return;
+      }
+      if (e.target.closest('[data-dir-x]')) { host.querySelector('[data-dir-form]').innerHTML = ''; return; }
+      const sv = e.target.closest('[data-dir-save]');
+      if (sv) {
+        const ch = host.querySelector('[data-dir-ch]').value, text = host.querySelector('[data-dir-text]').value.trim();
+        if (sv.dataset.dirSave === 'mgmt' && !text) { host.querySelector('[data-dir-text]').focus(); NT.toast('管理判断要写依据'); return; }
+        st.addDirection(sv.dataset.dirSave === 'self' ? { person: pid, kind: 'self', ch, text, src: '本人填写' } : { person: pid, kind: 'mgmt', ch, by: st.me().id, basis: text });
+        rerender();
+        NT.toast(sv.dataset.dirSave === 'self' ? '已更新你的发展意愿，旧的记录保留' : '管理判断已保存，和本人意愿分开呈现');
+      }
+    });
+  };
+  // 候选人卡上的一行：两种来源分开写，只作参考事实，不参与排序
+  UI.directionLine = (pid) => {
+    const d = st.directions(pid); if (!d) return '';
+    const ch = (x) => (x ? st.channel(x.ch)?.name || '还没想好' : '未知');
+    return html`<div class="n-dirline"><span><i>发展方向</i></span><span>${icon('quote', 11)}本人：${ch(d.self[0])}</span>${d.mgmt ? html`<span>${icon('eye', 11)}管理判断：${ch(d.mgmt[0])}</span>` : ''}</div>`;
+  };
+
   UI.signalBlock = (sig) => {
     const p = st.person(sig.person);
     const mgr = p.manager && st.person(p.manager);

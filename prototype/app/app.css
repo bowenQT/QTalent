@@ -27,10 +27,8 @@ body.nt-desk { min-height: 100vh; }
 .nt-crumbs a:hover { color: var(--ink); }
 .nt-crumbs b { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .nt-search { margin-left: auto; max-width: 280px; min-width: 150px; }
-.nt-roles .n-seg { flex-wrap: nowrap; }
 .nt-crumbs { flex: 0 1 auto; }
 .nt-search span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nt-roles { margin-left: 0; }
 .nt-who { display: flex; align-items: center; gap: var(--s-2); padding: 6px var(--s-6); font-size: var(--t-xs); color: var(--ink-3); border-bottom: 1px dashed var(--line); }
 .nt-who b { color: var(--ink-2); font-weight: 600; }
 .nt-who .n-badge--demo { margin-left: auto; }
@@ -85,14 +83,12 @@ a.n-btn { text-decoration: none; }
 .nt-table tbody tr:hover { background: rgb(27 30 37 / .02); }
 .nt-tablewrap { overflow-x: auto; }
 
-@media (max-width: 1320px) { .nt-roles > span { display: none; } }
 @media (max-width: 1080px) {
   .nt-split, .nt-split--wide { grid-template-columns: 1fr; }
   .nt-sticky { position: static; }
-  .nt-roles > span { display: none; }
 }
 @media (max-width: 860px) {
-  #app { grid-template-columns: 1fr; }
+  #app { grid-template-columns: minmax(0, 1fr); }
   .nt-side { position: static; height: auto; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: var(--s-1); padding: var(--s-2) var(--s-3); border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
   .nt-side .nt-brand { padding: 0 var(--s-2) 0 0; }
   .nt-nav, .nt-nav--more { display: flex; margin: 0; padding: 0; border: 0; }
@@ -101,8 +97,6 @@ a.n-btn { text-decoration: none; }
   .nt-recent, .nt-side__foot { display: none; }
   .nt-top { flex-wrap: wrap; padding: var(--s-2) var(--s-4); }
   .nt-search { order: 3; flex-basis: 100%; max-width: none; margin-left: 0; }
-  .nt-roles { order: 4; overflow-x: auto; max-width: 100%; }
-  .nt-roles .n-seg { flex-wrap: nowrap; }
   .nt-who { padding: 6px var(--s-4); }
   .nt-body { padding: var(--s-4) var(--s-4) var(--s-14); }
   .nt-cols, .nt-cols-3 { grid-template-columns: 1fr; }

@@ -16,6 +16,7 @@
     { id: 'landing', label: 'Landing 第三期', icon: 'book', href: 'landing.html', roles: ['ceo', 'hrbp', 'lead', 'mentor'] },
     { id: 'actions', label: '行动与复盘', icon: 'check2', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'] },
     { id: 'queue', label: '校准队列', icon: 'split', href: 'queue.html', roles: ['ceo', 'hrbp'] },
+    { id: 'judge', label: '判断复盘', icon: 'swap', href: 'judge.html', roles: ['ceo', 'hrbp'] },
     { id: 'tags', label: '标签库', icon: 'tag', href: 'tags.html', roles: ['ceo', 'hrbp', 'lead'] },
   ];
   const ROLE_ORDER = ['ceo', 'hrbp', 'lead', 'mentor', 'self'];
@@ -28,9 +29,11 @@
     document.title = `${cfg.title} · Niu-Talent`;
     const role = st.role();
     const me = st.me();
-    const todos = st.todos().length;
+    const todos = (role === 'ceo' ? st.mineToConfirm(st.todos()) : st.todos()).length;
     const drafts = st.get().batches.filter((b) => b.kind === 'inventory' && b.status === 'draft').length;
-    const allow = (n) => !n.roles || n.roles.includes(role);
+    // 判断复盘：CEO、HRBP 看汇总；其他视角只有本人做过评价时才有「我的判断复盘」，员工没有这个入口
+    const allow = (n) => !n.roles || n.roles.includes(role) || (n.id === 'judge' && st.isRater());
+    const more = MORE.map((n) => (n.id === 'judge' && !st.canJudge() ? { ...n, label: '我的判断复盘', href: 'judge.html?rater=me' } : n));
     const navItem = (n) => html`<a class="n-navitem" href="${n.href}" ${NT.raw(cfg.nav === n.id ? 'aria-current="page"' : '')}>${icon(n.icon)}${n.label}${n.id === 'work' && todos ? html`<span class="n-count">${todos}</span>` : ''}${n.id === 'review' && drafts ? html`<span class="n-count is-quiet">${drafts}</span>` : ''}</a>`;
     const people = role === 'self' ? { ...NAV[1], label: '我的档案', href: `person.html?id=${me.id}` } : role === 'mentor' ? { ...NAV[1], label: '所带学员' } : NAV[1];
     const recent = [
@@ -47,7 +50,7 @@
       <aside class="nt-side" aria-label="主导航">
         <a class="n-shell__brand nt-brand" href="index.html"><span class="nt-ip" data-ip="rest" data-size="24"></span>Niu-Talent</a>
         <nav class="nt-nav">${[NAV[0], people, NAV[2]].filter(allow).map(navItem)}</nav>
-        <nav class="nt-nav nt-nav--more" aria-label="更多">${MORE.filter(allow).map(navItem)}</nav>
+        <nav class="nt-nav nt-nav--more" aria-label="更多">${more.filter(allow).map(navItem)}</nav>
         ${recent.length ? html`<div class="n-shell__recent nt-recent">最近${recent.map(([t, h]) => html`<a href="${h}">${t}</a>`)}</div>` : ''}
         <div class="nt-side__foot">
           <a href="../index.html">${icon('book')}评审导览</a>
@@ -58,9 +61,7 @@
         <header class="nt-top">
           <nav class="nt-crumbs" aria-label="位置">${(cfg.crumbs || []).map(([t, h]) => html`<a href="${h}">${t}</a><span aria-hidden="true">/</span>`)}<b>${cfg.title}</b></nav>
           <button class="n-search nt-search" type="button" id="nt-cmdk-open">${icon('search')}<span>搜人、项目，或输入要做的事</span><kbd>⌘K</kbd></button>
-          <div class="n-roles nt-roles"><span>演示视角</span>
-            <div class="n-seg" role="group" aria-label="演示视角" data-manual id="nt-roles">${ROLE_ORDER.map((r) => html`<button type="button" data-r="${r}" aria-pressed="${r === role}" title="${st.roles[r].scope}">${st.roles[r].label}</button>`)}</div>
-          </div>
+          <span class="n-menuwrap"><button class="n-rolepick" type="button" id="nt-roles" aria-label="演示视角：${st.roles[role].label}，点击切换">${NT.ui.avatar(me.id, 'sm')}<small>演示视角</small>${st.roles[role].label}${icon('chev')}</button></span>
           <span class="n-menuwrap"><button class="n-btn n-btn--ghost n-btn--icon" type="button" id="nt-more" aria-label="更多">${icon('more')}</button></span>
         </header>
         <div class="nt-who">${NT.ui.avatar(me.id, 'sm')}<span>以 <b>${me.name}</b>（${st.roles[role].label}）的身份查看 · ${st.roles[role].scope}</span><span class="n-badge n-badge--demo">演示视角</span></div>
@@ -68,12 +69,12 @@
       </div>`);
 
     // 视角切换：写进地址，刷新整页，模拟服务端按新身份重新过滤
-    NT.$('#nt-roles').addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-r]'); if (!b || b.dataset.r === role) return;
-      st.setRole(b.dataset.r);
-      const u = new URL(location.href); u.searchParams.set('as', b.dataset.r); u.hash = '';
+    NT.menu(NT.$('#nt-roles'), ROLE_ORDER.map((r) => ({ label: `${st.person(st.roles[r].person).name} · ${st.roles[r].label}`, sub: st.roles[r].scope, checked: r === role, run: () => {
+      if (r === role) return;
+      st.setRole(r);
+      const u = new URL(location.href); u.searchParams.set('as', r); u.hash = '';
       location.href = u.toString();
-    });
+    } })));
     NT.menu(NT.$('#nt-more'), [
       { label: '评审导览', icon: 'book', run: () => { location.href = '../index.html'; } },
       { label: '打开手机版', icon: 'phone', run: () => { location.href = '../m/index.html'; } },

@@ -16,16 +16,24 @@
       v: SEED.version, events: SEED.EVENTS, projects: SEED.PROJECTS, members: SEED.MEMBERS, memberLog: SEED.MEMBER_LOG,
       needs: SEED.NEEDS, plans: SEED.PLANS, actions: SEED.ACTIONS, tracks: SEED.TRACKS, signals: SEED.SIGNALS, inbox: SEED.INBOX,
       tasks: SEED.TASKS, batches: SEED.BATCHES, conclusions: SEED.CONCLUSIONS, tagCands: SEED.TAG_CANDIDATES, taglibAdd: [],
-      seen: {}, snaps: [], reviews: {}, corrections: [], selfNotes: [], pubActions: [{ person: 'p-lin', title: '参加 11 月客户现场轮岗', by: 'p-suwan', at: '2026-10-20', state: 'todo' }],
+      seen: {}, snaps: [], reviews: {}, corrections: [], selfNotes: [], directions: SEED.DIRECTIONS,
+      judgeMarks: {}, judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])), pubActions: [{ person: 'p-lin', title: '参加 11 月客户现场轮岗', by: 'p-suwan', at: '2026-10-20', state: 'todo' }],
     });
     S = s;
     s.snaps.push(buildSnap({ id: 's-h1', batch: 'b-h1', label: '2026 H1', org: 'gp', cutoff: '2026-06-20', at: '2026-06-30', by: 'p-suwan' }));
     return s;
   }
+  // 演示数据版本变了就从新的种子开始；旧的演示操作先备份到 nt-demo-prev，并提示一次，不静默覆盖
+  let upgradedFrom = null;
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { const s = JSON.parse(raw); if (s && s.v === SEED.version) return s; }
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s && s.v === SEED.version) return s;
+        localStorage.setItem(`${KEY}-prev`, raw);
+        upgradedFrom = s?.v ?? '?';
+      }
     } catch (e) { /* 隐私模式或存储被禁用时退回内存状态 */ }
     return fresh();
   }
@@ -339,6 +347,9 @@
     return list;
   };
 
+  // CEO 只留需要本人确认的事（v1.3 3.18），其余在推进的事由 HRBP 和负责人处理
+  store.mineToConfirm = (list) => list.filter((t) => t.kind === 'plan' && t.due === 'CEO');
+
   // ---------- HRBP 校准队列 ----------
   store.queue = () => {
     const q = [];
@@ -535,6 +546,146 @@
     return c;
   };
 
+  // ---------- 发展方向（v1.3 3.15.1）：本人意愿与管理判断分开记录、分开呈现，不打分、不排序 ----------
+  store.channels = SEED.CHANNELS;
+  store.channel = (id) => SEED.CHANNELS.find((c) => c.id === id);
+  // 本人意愿：能看到这个人的视角都能看；管理判断：员工和导师看不到
+  store.directions = (pid, role = store.role()) => {
+    const sc = store.scope(pid, role);
+    if (!sc) return null;
+    const all = S.directions.filter((d) => d.person === pid).sort((a, b) => b.at.localeCompare(a.at));
+    const mgmt = sc === 'full' && role !== 'mentor';
+    return { self: all.filter((d) => d.kind === 'self'), mgmt: mgmt ? all.filter((d) => d.kind === 'mgmt') : null };
+  };
+  store.addDirection = (d) => { S.directions.unshift({ ...d, at: NT.TODAY }); store.save(); };
+
+  // ---------- 目标角色模板（v1.3 3.15.2） ----------
+  store.templates = () => SEED.TEMPLATES;
+  store.template = (id) => SEED.TEMPLATES.find((t) => t.id === id);
+  store.tplVersion = (t, v) => (v ? t.versions.find((x) => x.v === v) : t.versions[t.versions.length - 1]);
+
+  // ---------- 判断复盘（v1.3 3.16）：对照两段判断，归因只作用于评价体系，不写回被评价人 ----------
+  const J = SEED.JUDGE;
+  const RATER_MIN = 5; // 评价人可对照案例的门槛，少于它只显示「样本不足」
+  store.RATER_MIN = RATER_MIN;
+  store.judgeChain = (id) => J.chains.find((c) => c.id === id);
+  store.judgeMap = (id) => J.maps.find((m) => m.id === id);
+  store.judgeStd = (id) => J.stds.find((x) => x.id === id);
+  store.judgeBatch = (id) => J.batches.find((b) => b.id === id);
+  store.judgeBatches = (chain) => J.batches.filter((b) => !chain || b.chain === chain);
+  // 社招后段：对照窗口内、对应维度已确认分的均值所在档；至少 2 条来自不同事件
+  const hireBack = (pid, dims, chain) => {
+    const p = PEOPLE.get(pid);
+    const to = [NT.addDays(p.joined, chain.window), NT.TODAY].sort()[0];
+    const list = dims.flatMap((d) => store.scoresOf(pid, { dim: d, from: p.joined, to }));
+    const evs = [...new Set(list.map((x) => x.ev.id))];
+    if (evs.length < 2) return { na: true, n: list.length, evs, to, miss: list.length ? '只有 1 条事件的已确认分' : '窗口内没有已确认分' };
+    const m = store.mean(list.map((x) => x.v));
+    return { v: Math.round(m), mean: m, n: list.length, evs, to, by: [...new Set(list.map((x) => x.by))] };
+  };
+  // 一个对照单元 = 人 × 维度：前后两段的评价人、标准版本、结论、证据，和五种差异状态之一
+  store.judgeUnits = (batchId) => {
+    const b = store.judgeBatch(batchId), chain = store.judgeChain(b.chain), map = store.judgeMap(b.map);
+    const out = [];
+    const push = (u) => {
+      const id = `${batchId}:${u.person}:${u.dim}`;
+      const mark = S.judgeMarks[id];
+      let state;
+      if (u.front.v == null || u.back.na) state = 'na';
+      else if (mark) state = 'nc';
+      else state = u.front.r === u.back.r ? 'same' : u.front.r > u.back.r ? 'high' : 'low';
+      out.push({ ...u, id, batch: batchId, dimName: chain.dims.find((d) => d.id === u.dim).name, state, gap: state === 'high' || state === 'low' ? Math.abs(u.front.r - u.back.r) : 0, mark });
+    };
+    if (chain.scale === 'grade') {
+      const g = J.xe[batchId];
+      // 两段都能回到原始表格：等级在维度列，评语在评语列
+      const cell = ([label, sheet, at], row, cols, quote, by) => ({ type: 'sheet', label, loc: `「${sheet}」表 ${cols.map((c) => `${c}${row}`).join('、')} · ${at}`, quote, by });
+      g.rows.forEach(([pid, by, fr, fnote, bk, bnote], i) => chain.dims.forEach((d) => push({
+        person: pid, dim: d.id,
+        front: { by, v: fr[d.id] ?? null, r: chain.grades.indexOf(fr[d.id]), note: fnote, std: b.std, src: cell(g.src.front, i + 2, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${fr[d.id] ?? '—'}：${fnote}`, by) },
+        back: bk[d.id] ? { by: [g.back], v: bk[d.id], r: chain.grades.indexOf(bk[d.id]), note: bnote, src: cell(g.src.back, i + 2, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${bk[d.id]}：${bnote}`, g.back) } : { by: [g.back], na: true, note: bnote, miss: '训练营评审没有这个维度的等级', src: cell(g.src.back, i + 2, [g.src.cols.note], bnote, g.back) },
+      })));
+    } else {
+      J.hire[batchId].forEach(([pid, by, ev, fr, fnote]) => chain.dims.forEach((d) => {
+        const bk = hireBack(pid, map.back[d.id], chain);
+        push({ person: pid, dim: d.id,
+          front: { by, v: fr[d.id] ?? null, r: fr[d.id] ?? null, note: fnote, std: b.std, ev, miss: fr[d.id] == null ? '面试没有给这个维度的结论' : '' },
+          back: bk.na ? { na: true, n: bk.n, evs: bk.evs, miss: bk.miss, to: bk.to } : { by: bk.by, v: bk.v, r: bk.v, mean: bk.mean, n: bk.n, evs: bk.evs, to: bk.to } });
+      }));
+    }
+    return out;
+  };
+  // 视角：CEO 看汇总与结论；HRBP 看归属范围；部门负责人、导师、员工只在自己是评价人时看到本人的案例
+  store.canJudge = (role = store.role()) => ['ceo', 'hrbp'].includes(role);
+  store.judgeScope = (u, role = store.role()) => role === 'ceo' || (role === 'hrbp' && store.scope(u.person, role) === 'full');
+  store.myJudgeUnits = (role = store.role()) => {
+    const me = ROLES[role].person;
+    return J.batches.flatMap((b) => store.judgeUnits(b.id)).filter((u) => u.front.by === me);
+  };
+  store.isRater = (role = store.role()) => store.myJudgeUnits(role).length > 0;
+  store.canSeeRater = (rater, role = store.role()) => role === 'hrbp' || (role !== 'ceo' && ROLES[role].person === rater);
+  const COMPARABLE = ['same', 'high', 'low'];
+  store.judgeComparable = (u) => COMPARABLE.includes(u.state);
+  store.judgeTally = (units) => {
+    const t = { same: 0, high: 0, low: 0, nc: 0, na: 0 };
+    units.forEach((u) => { t[u.state] += 1; });
+    return t;
+  };
+  store.raterStats = (units, rater) => {
+    const mine = units.filter((u) => u.front.by === rater);
+    const cases = mine.filter(store.judgeComparable);
+    return { units: mine, cases, enough: cases.length >= RATER_MIN, tally: store.judgeTally(cases) };
+  };
+  store.judgeHyps = (batchId) => J.hyps[batchId] || [];
+  store.judgeAttrib = (hypId) => S.judgeAttribs[hypId] || null;
+  // 假设的依据会随标注变化：引用的案例被标为不可比或资料不足、涉及的评价人可对照案例跌破门槛时，
+  // 这条假设不能再按原文确认，已确认的结论也不能再生成新动作，要先复核
+  // 假设正文的统计是按生成时的数据写的。依据范围 = 列出的证据案例 + basis 声明的统计范围；
+  // 记下种子数据下这个范围的指纹（状态、差几档、后段用到的事件），之后标注、事件或分数一变就要求复核
+  const hypScope = (h) => {
+    const bids = [...new Set([...h.cases.map((cid) => cid.split(':')[0]), ...(h.basis || []).map((x) => x.batch)])];
+    const units = bids.flatMap((bid) => store.judgeUnits(bid));
+    const inBasis = (u) => (h.basis || []).some((x) => u.batch === x.batch && (!x.dim || u.dim === x.dim) && (!x.rater || u.front.by === x.rater));
+    return { units, scope: units.filter((u) => h.cases.includes(u.id) || inBasis(u)) };
+  };
+  const hypPrint = (h) => hypScope(h).scope.map((u) => `${u.id}:${u.state}:${u.gap}:${(u.back.evs || []).join(',')}`).sort().join('|');
+  let hypBase = null;
+  const baseOf = (h) => {
+    if (!hypBase) {
+      const cur = S;
+      fresh(); // 临时换成种子数据算基线，算完换回
+      hypBase = Object.fromEntries(Object.values(J.hyps).flat().map((x) => [x.id, hypPrint(x)]));
+      S = cur;
+    }
+    return hypBase[h.id];
+  };
+  store.hypCheck = (h) => {
+    const { units, scope } = hypScope(h);
+    const byId = new Map(units.map((u) => [u.id, u]));
+    const dropped = [...new Set([...h.cases.filter((cid) => !byId.has(cid) || !store.judgeComparable(byId.get(cid))), ...scope.filter((u) => u.state === 'nc').map((u) => u.id)])];
+    const few = !!h.rater && !store.raterStats(units, h.rater).enough;
+    const changed = hypPrint(h) !== baseOf(h);
+    return { ok: !dropped.length && !few && !changed, dropped, few, changed };
+  };
+  store.confirmAttrib = (batchId, hyp, a) => {
+    if (!store.hypCheck(hyp).ok) return false;
+    S.judgeAttribs[hyp.id] = { hyp: hyp.id, batch: batchId, ...a, by: store.me().id, at: NT.TODAY, actions: [] };
+    store.save();
+    return true;
+  };
+  store.unmarkJudge = (uid) => { delete S.judgeMarks[uid]; store.save(); };
+  store.markJudge = (uid, reason) => { S.judgeMarks[uid] = { reason, by: store.me().id, at: NT.TODAY }; store.save(); };
+  // 改进动作沿用「行动与复盘」；修订评价标准要产生新版本，在动作里写明
+  store.addJudgeAction = (batchId, hypId, a) => {
+    const h = store.judgeHyps(batchId).find((x) => x.id === hypId);
+    if (!h || !S.judgeAttribs[hypId] || !store.hypCheck(h).ok) return null;
+    const act = { id: NT.uid('a'), from: batchId, person: null, owner: store.me().id, due: NT.addDays(NT.TODAY, 30), state: 'todo', observe: NT.addDays(NT.TODAY, 120), ...a };
+    S.actions.unshift(act);
+    S.judgeAttribs[hypId].actions.push(act.id);
+    store.save();
+    return act;
+  };
+
   // ---------- 全局搜索 ----------
   store.search = (q) => {
     const people = store.visiblePeople().filter((p) => !q || p.name.includes(q) || store.orgShort(p.org).includes(q) || p.title.includes(q));
@@ -548,5 +699,6 @@
   };
 
   S = load();
+  if (upgradedFrom != null) NT.ready(() => setTimeout(() => NT.toast('演示数据已更新到新版本，你之前在本浏览器里做的演示操作已重置，旧数据另存了一份备份'), 600));
   store.save();
 })();

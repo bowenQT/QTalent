@@ -18,13 +18,15 @@
 
   function from(a) {
     if (a.from === 'signal') return '来自「值得聊一聊」';
+    if (st.judgeBatch(a.from)) return `来自${st.judgeBatch(a.from).name}`;
     const p = st.plan(a.from); if (!p) return '';
     return p.kind === 'staffing' ? `来自项目用人方案 v${p.version}` : `来自组织调整方案 v${p.version}`;
   }
 
   function render(main) {
     const S = st.get();
-    const list = S.actions.filter((a) => !a.person || st.scope(a.person));
+    // 判断复盘生成的改进动作作用于评价体系，只给能看判断复盘汇总的视角
+    const list = S.actions.filter((a) => (st.judgeBatch(a.from) ? st.canJudge() : !a.person || st.scope(a.person)));
     const order = ['todo', 'doing', 'done', 'reviewed', 'cancel'];
     const sorted = list.slice().sort((a, b) => order.indexOf(a.state) - order.indexOf(b.state));
     const retro = list.find((a) => a.id === open && a.then);

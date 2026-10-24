@@ -58,6 +58,7 @@
       <div class="nt-split nt-split--wide">
         <div class="nt-grid">
           ${summaryBlock(p, events, canScore, ref, f, canQuad)}
+          <div id="dirwrap">${UI.directionBlock(pid, { canWrite: mgmt ? 'mgmt' : '' })}</div>
           ${spec ? html`<article class="n-card n-spectrum" id="spectrum">
             <div class="n-spectrum__head"><div><h3 class="n-section-title" style="margin:0">个人能力谱</h3><div class="nt-muted">近 12 个月 · 已确认 ${spec.total} 条事件分 · rubric-v1</div></div>${canQuad ? UI.miniquad(pid) : ''}</div>
             <div class="n-spectrum__scale"><span></span><div class="n-spectrum__ticks">${[1, 2, 3, 4, 5].map((v, i) => html`<span style="left:${i * 25}%">${v}</span>`)}</div><span></span></div>
@@ -92,6 +93,7 @@
       </div>`);
 
     if (spec) UI.wireSpectrum($('#spec-rows'));
+    UI.wireDirection($('#dirwrap'), pid, () => render(main));
     if ($('#pchanges')) UI.wireChanges($('#pchanges'));
     if ($('#sigwrap')) UI.wireSignal($('#sigwrap'), () => render(main));
     if ($('#trackwrap')) UI.wireTracks($('#trackwrap'), () => render(main));
@@ -264,11 +266,13 @@
           </article>
         </div>
         <aside class="nt-grid">
+          <div id="dirwrap">${UI.directionBlock(p.id, { canWrite: 'self' })}</div>
           <article class="n-card"><h3 class="n-section-title">发布给你的</h3>${pub.map((a) => html`<div class="n-pubaction" style="margin-bottom:var(--s-2)"><div>${a.title}<small>${st.person(a.by).name}发布给你 · ${NT.md(a.at)}</small></div><span class="n-astate" data-s="todo">待安排</span></div>`)}</article>
           <div class="n-lock">${icon('lock')}维度分、象限、他人的评价和「值得聊一聊」对本人不可见。</div>
           <article class="n-card"><h3 class="n-section-title">你问「我在哪个象限」</h3><div class="n-block" data-state="light" style="font-size:var(--t-sm)">象限信息对本人不可见，我不能回答这个问题。你可以看自己的经历和发布给你的安排，或者和 HRBP 聊聊。<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 回答</span>权限在服务端判断</div></div></article>
         </aside>
       </div>`);
+    UI.wireDirection($('#dirwrap'), p.id, () => render(main));
     const form = $('#self-form');
     const open = (k) => {
       const label = { exp: '补充一段经历', will: '写下你的意愿', fix: '哪里写得不对' }[k];

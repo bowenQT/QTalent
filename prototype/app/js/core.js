@@ -256,7 +256,7 @@
     btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      menu.innerHTML = items.map((it, i) => it.sep ? '<hr>' : `<button role="menuitem" type="button" data-i="${i}" class="${it.danger ? 'is-danger' : ''}">${it.icon ? `<svg width="15" height="15"><use href="#i-${it.icon}"/></svg>` : ''}${NT.esc(it.label)}</button>`).join('');
+      menu.innerHTML = items.map((it, i) => it.sep ? '<hr>' : `<button role="${it.checked == null ? 'menuitem' : 'menuitemradio'}" ${it.checked == null ? '' : `aria-checked="${it.checked}"`} type="button" data-i="${i}" class="${it.danger ? 'is-danger' : ''}">${it.icon ? `<svg width="15" height="15"><use href="#i-${it.icon}"/></svg>` : ''}<span>${NT.esc(it.label)}${it.sub ? `<small>${NT.esc(it.sub)}</small>` : ''}</span>${it.checked ? '<svg class="n-menu__check" width="14" height="14"><use href="#i-check"/></svg>' : ''}</button>`).join('');
       const open = menu.hidden;
       NT.$$('.n-menu').forEach((m) => { m.hidden = true; });
       menu.hidden = !open; btn.setAttribute('aria-expanded', String(open));
