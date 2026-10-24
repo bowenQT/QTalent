@@ -88,15 +88,24 @@
     : t.kind === 'clue' ? html`<div class="n-todo__acts"><button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，给 CEO 看</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
   const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li class="${t.kind === 'push' || t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
   const GROUPS = [['ceo', 'CEO 请你', ['push', 'jask']], ['verify', '待核对', ['verify']], ['clue', '待核实线索', ['clue']], ['calib', '待校准', ['calib']], ['plan', '待确认', ['plan']], ['follow', '待跟进', ['track', 'talk']]];
-  let openGroup = null;
+  let openGroup = null, showHandled = false;
+  // 已处理的线索：核实的和不采纳的都留痕，不采纳的写出理由，可以改回待核实
+  function handledBlock() {
+    const list = st.watchHandled(); if (!list.length) return '';
+    const nRej = list.filter((c) => c.state === 'rejected').length;
+    const row = (c) => html`<li><span class="n-badge ${c.state === 'verified' ? 'n-badge--yes' : ''}">${c.state === 'verified' ? '已核实' : '不采纳'}</span><span>${st.person(c.person).name}：${c.why}<small>${c.by === 'ai' ? 'AI 线索' : `${st.person(c.by).name}提名`} · ${st.person(c.verifiedBy).name} ${NT.md(c.verifiedAt)}${c.state === 'rejected' ? `处理 · 理由：${c.rejectWhy}` : '核实，CEO 可见'}</small></span><button class="n-link" type="button" data-cun="${c.id}">改回待核实</button></li>`;
+    return html`<button class="n-todomore" type="button" id="todo-handled" aria-expanded="${showHandled}">${icon('check2')}已处理的线索 ${list.length} 条${nRej ? `，其中不采纳 ${nRej} 条` : ''}<span style="margin-left:auto">${showHandled ? '收起' : '查看'}</span></button>
+      ${showHandled ? html`<ul class="n-handled">${list.map(row)}</ul>` : ''}`;
+  }
   function todoBlock(role, todos) {
     const empty = UI.state({ ip: 'done', size: 48, title: '待办都处理完了', text: '新的待核对、校准和到期的跟踪会出现在这里。' });
     if (role !== 'hrbp') return html`<h3 class="n-section-title">待办${todos.length ? html`<span class="n-count">${todos.length}</span>` : ''}</h3>${todos.length ? todoList(todos) : empty}`;
     const groups = GROUPS.map(([k, l, kinds]) => ({ k, l, list: todos.filter((t) => kinds.includes(t.kind)) })).filter((g) => g.list.length);
-    if (!groups.length) return html`<h3 class="n-section-title">待办</h3>${empty}`;
+    if (!groups.length) return html`<h3 class="n-section-title">待办</h3>${empty}${handledBlock()}`;
     const open = groups.some((g) => g.k === openGroup) ? openGroup : groups[0].k; // 默认展开最紧急的一组：CEO 请你，其次是当天要处理的待核对
     return html`<h3 class="n-section-title">待办<span class="n-count">${todos.length}</span></h3>
-      ${groups.map((g) => html`<div class="n-todogrp"><button class="n-todogrp__head" type="button" data-grp="${g.k}" aria-expanded="${g.k === open}">${g.l}<span class="n-count is-quiet">${g.list.length}</span>${g.k === open ? '' : html`<small>${g.list[0].title}${g.list.length > 1 ? ' 等' : ''}</small>`}${icon('chev')}</button>${g.k === open ? todoList(g.list) : ''}</div>`)}`;
+      ${groups.map((g) => html`<div class="n-todogrp"><button class="n-todogrp__head" type="button" data-grp="${g.k}" aria-expanded="${g.k === open}">${g.l}<span class="n-count is-quiet">${g.list.length}</span>${g.k === open ? '' : html`<small>${g.list[0].title}${g.list.length > 1 ? ' 等' : ''}</small>`}${icon('chev')}</button>${g.k === open ? todoList(g.list) : ''}</div>`)}
+      ${handledBlock()}`;
   }
   function wireTodos() {
     const host = $('#todo'); if (!host) return;
@@ -104,6 +113,9 @@
     host.onclick = async (e) => {
       const g = e.target.closest('[data-grp]');
       if (g) { openGroup = g.dataset.grp; redraw(); return; }
+      if (e.target.closest('#todo-handled')) { showHandled = !showHandled; redraw(); return; }
+      const un = e.target.closest('[data-cun]');
+      if (un) { st.unverifyClue(un.dataset.cun); redraw(); NT.toast('已改回待核实，CEO 暂时看不到这条'); return; }
       const b = e.target.closest('[data-plog],[data-pres],[data-cok],[data-cno]'); if (!b) return;
       if (b.dataset.plog) UI.pushLogDialog(b.dataset.plog, redraw);
       if (b.dataset.pres) UI.pushResultDialog(b.dataset.pres, redraw);
@@ -291,10 +303,9 @@
 
   // 值得关注：类别计数 + 最近 4 条；按规则入选、按触发时间排，不显示分数
   const CAT = () => Object.fromEntries(st.WATCH_CATS);
-  const evCite = (id, n) => { const e = st.event(id); if (!e) return ''; const src = e.srcs[0] || { type: 'note', label: '观察记录', loc: NT.md(e.date) }; return UI.cite({ ...src, quote: src.quote || e.title }, n); };
   function watchItem(w) {
     const p = st.person(w.person), r = st.WATCH_RULES[w.rule];
-    const cites = w.srcs ? UI.cites(w.srcs) : (w.evs || []).slice(0, 3).map((id, i) => evCite(id, i + 1));
+    const cites = w.srcs ? UI.cites(w.srcs) : (w.evs || []).slice(0, 3).map((id, i) => UI.evCite(id, i + 1));
     const source = w.verifiedBy ? `${w.by === 'ai' ? 'AI 发现' : `${st.person(w.by).name}提名`} · ${st.person(w.verifiedBy).name}核实` : '按规则算出';
     return html`<li class="n-watch__item" data-cat="${w.cat}">
       ${UI.avatar(w.person)}
@@ -321,7 +332,9 @@
       ${!list.length ? html`<div class="nt-empty">这一类暂时没有人。没有命中规则不代表有问题。</div>` : watchBy === 'project' ? byProject(list) : html`<ul class="n-watch__list">${shown.map(watchItem)}</ul>`}
       ${watchBy === 'person' && list.length > 4 ? html`<button class="n-btn n-btn--ghost n-btn--sm" type="button" id="watch-more" aria-expanded="${watchAll}" style="margin-top:var(--s-2)">${watchAll ? '收起' : `查看全部 ${list.length} 人`}</button>` : ''}
       <p class="nt-caption">按写明的规则入选，按触发时间排列，不按分数挑人；资料不足不算需要介入。AI 线索和提名经 HRBP 核实后才会出现在这里。规则版本 watch-v1</p>`);
-    $$('[data-push]', host).forEach((b) => UI.pushMenu(b, b.dataset.push, drawCeo));
+    // 推动带上这条关注的规则、原因和证据，作为发起依据交给负责人
+    const byId = Object.fromEntries(all.map((w) => [w.person, w]));
+    $$('[data-push]', host).forEach((b) => { const w = byId[b.dataset.push]; UI.pushMenu(b, w.person, drawCeo, { rule: w.rule, why: w.why, evs: w.evs, srcs: w.srcs, clue: w.clue }); });
   }
 
   // 按项目看：同一批入选的人，按依据事件所在的项目或批次分组；Landing 议题归到所在批次（v1.4 3.20.2）

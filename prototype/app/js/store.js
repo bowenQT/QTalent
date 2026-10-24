@@ -343,8 +343,8 @@
       list.push({ kind: 'plan', plan: p.id, badge: '待确认', cls: 'n-badge--seal', title, sub, due: p.kind === 'staffing' ? 'CEO' : 'HRBP', href: p.kind === 'staffing' ? `staffing.html?project=${p.project}` : `plan.html?id=${p.batch}` });
     });
     S.pushes.filter((x) => x.owner === me && ['todo', 'doing'].includes(x.state)).forEach((x) => {
-      const k = PUSH_KINDS[x.kind], last = x.log[x.log.length - 1];
-      list.push({ kind: 'push', push: x.id, badge: 'CEO 请你', cls: 'n-badge--seal', title: `${k.verb}${store.person(x.person).name}`, sub: `${k.task}${x.project ? `：${store.project(x.project)?.name}` : ''}${x.note ? ` · 「${x.note}」` : ''}${last ? ` · ${NT.md(last.at)} ${last.text}` : ''}`, due: PUSH_STATE[x.state], href: x.kind === 'staff' && x.project ? `staffing.html?project=${x.project}` : `person.html?id=${x.person}` });
+      const k = PUSH_KINDS[x.kind], last = x.log[x.log.length - 1], basis = store.pushBasis(x);
+      list.push({ kind: 'push', push: x.id, badge: 'CEO 请你', cls: 'n-badge--seal', title: `${k.verb}${store.person(x.person).name}`, sub: `${k.task}${x.project ? `：${store.project(x.project)?.name}` : ''}${x.note ? ` · 「${x.note}」` : ''}${basis ? ` · 依据 ${basis.rule}：${basis.why}` : ''}${last ? ` · ${NT.md(last.at)} ${last.text}` : ''}`, due: PUSH_STATE[x.state], href: x.kind === 'staff' && x.project ? `staffing.html?project=${x.project}&push=${x.id}` : `person.html?id=${x.person}` });
     });
     if (role === 'hrbp') {
       S.judgeAsks.filter((a) => a.owner === me && a.state === 'open').forEach((a) => list.push({ kind: 'jask', badge: 'CEO 请你', cls: 'n-badge--seal', title: `复核「${store.judgeBatch(a.batch).name}」`, sub: `「${a.note}」`, due: NT.md(a.at), href: `judge.html?id=${a.batch}#ask` }));
@@ -727,7 +727,9 @@
     S.signals.filter((g) => g.state === 'open' && g.since && NT.days(g.since) >= 14 && ids.has(g.person)).forEach((g) => hits.push({
       person: g.person, rule: 'I2', when: NT.addDays(g.since, 14), why: `「值得聊一聊」已经打开 ${NT.days(g.since)} 天：${g.items.filter((i) => i.src === 'fact').map((i) => i.text).join('，')}`, signal: true,
     }));
-    S.tracks.filter((t) => t.state === 'on' && t.next < NT.TODAY && ids.has(t.person)).forEach((t) => hits.push({
+    // I3：过了约定日期，且上次回看之后没有任何新的观察（与跟踪卡「上次之后新增」同口径）
+    const updated = (t) => S.events.some((e) => e.kind === 'obs' && e.date && e.date > t.since && e.people.includes(t.person));
+    S.tracks.filter((t) => t.state === 'on' && t.next < NT.TODAY && !updated(t) && ids.has(t.person)).forEach((t) => hits.push({
       person: t.person, rule: 'I3', when: t.next, why: `重点跟踪约定 ${NT.md(t.next)} 回看，还没有更新`, track: t.id,
     }));
     S.watchClues.filter((c) => c.state === 'verified' && ids.has(c.person)).forEach((c) => hits.push({
@@ -750,6 +752,8 @@
     return out;
   };
   store.watchPending = () => S.watchClues.filter((c) => c.state === 'pending' && store.scope(c.person) === 'full');
+  // 已处理的线索留在 HRBP 视图里：核实的、不采纳的连同理由（v1.4 3.20.3），CEO 不经过这里
+  store.watchHandled = () => (store.role() === 'hrbp' ? S.watchClues.filter((c) => ['verified', 'rejected'].includes(c.state) && store.scope(c.person) === 'full').sort((a, b) => (b.verifiedAt || '').localeCompare(a.verifiedAt || '')) : []);
   store.verifyClue = (id, ok, why) => {
     const c = S.watchClues.find((x) => x.id === id); if (!c) return null;
     Object.assign(c, ok ? { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY } : { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
@@ -782,6 +786,14 @@
     return out;
   };
   store.pushesOf = (pid) => S.pushes.filter((x) => x.person === pid);
+  store.pushOf = (id) => S.pushes.find((x) => x.id === id);
+  // 发起依据（v1.4 3.21.2）：发起时那条「值得关注」的规则、原因和证据；早先从线索发起的推动按线索取
+  store.pushBasis = (x) => {
+    if (!x) return null;
+    if (x.basis) return x.basis;
+    const c = x.from && S.watchClues.find((y) => y.id === x.from);
+    return c ? { rule: c.rule, why: c.why, evs: c.evs, srcs: c.srcs, clue: c.id } : null;
+  };
   store.addPush = (x) => {
     const push = { id: NT.uid('pu'), by: store.me().id, at: NT.TODAY, state: 'todo', log: [], ...x };
     S.pushes.unshift(push); store.save();
@@ -848,6 +860,10 @@
     S.plans.filter((p) => p.status === 'draft' && p.kind === 'staffing').forEach((p) => {
       const proj = store.project(p.project);
       out.confirm.push({ kind: 'plan', plan: p.id, title: `${proj?.name || ''} · 用人方案 v${p.version}`, sub: `${store.person(p.by).name}起草 · ${NT.md(p.at)}`, owner: p.by, state: '待你确认', href: `staffing.html?project=${p.project}` });
+    });
+    // 组织调整方案：确认人是 CEO 或指定的 HRBP，草稿在 CEO 这里同样置顶（v1.4 3.19.2）
+    S.plans.filter((p) => p.status === 'draft' && p.kind === 'org').forEach((p) => {
+      out.confirm.push({ kind: 'plan', plan: p.id, title: `${store.batch(p.batch)?.name || '盘点'} · 组织调整方案 v${p.version}`, sub: `${store.person(p.by).name}起草 · ${NT.md(p.at)}`, owner: p.by, state: '待你确认', href: `plan.html?id=${p.batch}` });
     });
     S.needs.filter((n) => n.by === me).forEach((n) => {
       const plans = S.plans.filter((p) => p.need === n.id);

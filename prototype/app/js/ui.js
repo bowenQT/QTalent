@@ -93,6 +93,7 @@
         <span>${e.date ? NT.md(e.date) : '时间未知'} · ${st.person(e.recorder)?.name || ''}记录</span>
         ${proj ? html`<a class="n-badge" href="project.html?id=${proj.id}">${icon('folder')}${proj.type === 'Landing 议题' ? '议题' : '项目'}：${proj.name}</a>` : ''}${who}${roleNote}</div>
       <h3 class="n-event__title">${e.title}${e.kind !== 'hist' ? UI.cites(e.srcs) : ''}</h3>
+      ${e.push ? UI.pushBasis(st.pushBasis(st.pushOf(e.push))) : ''}
       ${e.bg ? html`<dl class="n-event__sbar"><dt>背景</dt><dd>${e.bg}</dd><dt>行为</dt><dd>${e.act}</dd><dt>结果</dt><dd>${e.res}</dd></dl>` : ''}
       ${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${v}</span>`)}</div><div class="n-tl__note">保留原量表，不换算成 1–5 的维度分，也不参与象限。${e.srcs?.[0] ? ` 来源：${e.srcs[0].label} · ${e.srcs[0].loc}` : ''}</div>` : ''}
       ${tags.length ? html`<div class="n-tags"><span class="n-tags__label">标签</span>${tags}</div>` : ''}
@@ -354,19 +355,24 @@
     });
   };
 
+  // 事件的第一处来源做成引用角标（值得关注、推动依据共用）
+  UI.evCite = (id, n) => { const e = st.event(id); if (!e) return ''; const src = e.srcs[0] || { type: 'note', label: '观察记录', loc: NT.md(e.date) }; return UI.cite({ ...src, quote: src.quote || e.title }, n); };
+  // 推动的发起依据：规则编号、一句原因、证据引用，负责人和档案里都能回到这里
+  UI.pushBasis = (b) => (b ? html`<div class="n-pushbasis"><span class="n-rule" title="${st.WATCH_RULES[b.rule]?.text || ''}">${icon('flag')}${b.rule}</span><span><b>发起依据</b>${b.why}${b.srcs ? UI.cites(b.srcs) : (b.evs || []).slice(0, 3).map((id, i) => UI.evCite(id, i + 1))}</span></div>` : '');
+
   // ---------- CEO 推动（v1.4 3.21）：选动作 → 指派负责人 → 结果由负责人确认后进档案 ----------
   const PUSH_HINT = { know: '比如：听听他对下一步的想法', verify: '比如：现在只有一个项目里的表现，想多看一个场景', grow: '比如：给她一次带新人的机会', staff: '比如：新转化团队 owner 的候选人里也看看他' };
-  UI.pushMenu = (btn, pid, rerender) => NT.menu(btn, Object.entries(st.PUSH_KINDS).map(([k, v]) => {
+  UI.pushMenu = (btn, pid, rerender, basis) => NT.menu(btn, Object.entries(st.PUSH_KINDS).map(([k, v]) => {
     const live = st.pushesOf(pid).find((x) => x.kind === k && ['todo', 'doing'].includes(x.state));
     return { label: v.label, sub: live ? `已在推进 · ${st.person(live.owner).name}` : v.task, icon: v.icon,
-      run: () => (live ? NT.toast(`「${v.label}」已经在推进，负责人是${st.person(live.owner).name}`) : UI.pushDialog(pid, k, rerender)) };
+      run: () => (live ? NT.toast(`「${v.label}」已经在推进，负责人是${st.person(live.owner).name}`) : UI.pushDialog(pid, k, rerender, basis)) };
   }));
-  UI.pushDialog = async (pid, kind, rerender) => {
+  UI.pushDialog = async (pid, kind, rerender, basis) => {
     const p = st.person(pid), k = st.PUSH_KINDS[kind], owners = st.pushOwners(pid);
     const projs = st.get().needs.map((n) => st.project(n.project)).filter(Boolean);
     const r = await NT.dialog({
       title: `${k.label}：${p.name}`,
-      body: html`<p style="margin:0 0 var(--s-3)">${k.task}。负责人会在待办里看到你的说明和这条关注的依据；结果由负责人确认后，作为管理观察进${p.name}的档案。</p>
+      body: html`<p style="margin:0 0 var(--s-3)">${k.task}。负责人会在待办里看到你的说明和这条关注的依据；结果由负责人确认后，作为管理观察进${p.name}的档案。</p>${UI.pushBasis(basis)}
         <fieldset class="n-field n-owners"><legend class="n-field__label">交给谁</legend>${owners.map((o, i) => html`<label class="n-owner"><input type="radio" name="pu-owner" value="${o.id}" ${raw(i === 0 ? 'checked' : '')}>${UI.avatar(o.id, 'sm')}<span>${st.person(o.id).name}<small>${o.why}</small></span></label>`)}</fieldset>
         ${kind === 'staff' ? html`<label class="n-field"><span class="n-field__label">带进哪次找人</span><select class="n-select" id="pu-proj">${projs.map((x) => html`<option value="${x.id}">${x.name}</option>`)}<option value="">还没定，先讨论</option></select></label>` : ''}
         <label class="n-field"><span class="n-field__label">说明<small>可以不写</small></span><textarea class="n-textarea" rows="2" id="pu-note" placeholder="${PUSH_HINT[kind]}"></textarea></label>`,
@@ -374,7 +380,7 @@
         read: (d) => ({ owner: d.querySelector('[name="pu-owner"]:checked').value, note: d.querySelector('#pu-note').value.trim(), project: d.querySelector('#pu-proj')?.value || null }) }],
     });
     if (r?.value !== 'ok') return null;
-    const x = st.addPush({ person: pid, kind, owner: r.data.owner, note: r.data.note, ...(r.data.project ? { project: r.data.project } : {}) });
+    const x = st.addPush({ person: pid, kind, owner: r.data.owner, note: r.data.note, ...(r.data.project ? { project: r.data.project } : {}), ...(basis ? { basis: NT.clone(basis) } : {}) });
     rerender && rerender();
     NT.toast(`已交给${st.person(x.owner).name}，进展会出现在「我推动的事项」`, { undo: () => { st.removePush(x.id); rerender && rerender(); } });
     return x;
@@ -383,7 +389,7 @@
   UI.pushLogDialog = async (id, rerender) => {
     const x = st.get().pushes.find((y) => y.id === id), p = st.person(x.person);
     const r = await NT.dialog({ title: `记一笔进展：${st.PUSH_KINDS[x.kind].verb}${p.name}`,
-      body: html`<label class="n-field"><span class="n-field__label">进展</span><input class="n-input" id="pl-t" placeholder="比如：已约 10-28 沟通"></label><p class="nt-caption">CEO 在「我推动的事项」里能看到最近一笔进展。</p>`,
+      body: html`${UI.pushBasis(st.pushBasis(x))}<label class="n-field"><span class="n-field__label">进展</span><input class="n-input" id="pl-t" placeholder="比如：已约 10-28 沟通"></label><p class="nt-caption">CEO 在「我推动的事项」里能看到最近一笔进展。</p>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '保存', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#pl-t').value.trim(), read: (d) => d.querySelector('#pl-t').value.trim() }] });
     if (r?.value !== 'ok') return;
     st.logPush(id, r.data); rerender && rerender(); NT.toast('进展已更新，CEO 能看到');
@@ -391,7 +397,7 @@
   UI.pushResultDialog = async (id, rerender) => {
     const x = st.get().pushes.find((y) => y.id === id), p = st.person(x.person);
     const r = await NT.dialog({ title: `确认结果：${st.PUSH_KINDS[x.kind].verb}${p.name}`,
-      body: html`<p style="margin:0 0 var(--s-3)">${x.note ? html`CEO 的说明：「${x.note}」。` : ''}结果会作为<b>管理观察</b>进${p.name}的档案时间线，标「来自 CEO 推动」。不产生维度分，员工和导师看不到。如果这本身是一件关键事件，另外按正常流程记录和打分。</p>
+      body: html`<p style="margin:0 0 var(--s-3)">${x.note ? html`CEO 的说明：「${x.note}」。` : ''}结果会作为<b>管理观察</b>进${p.name}的档案时间线，标「来自 CEO 推动」。不产生维度分，员工和导师看不到。如果这本身是一件关键事件，另外按正常流程记录和打分。</p>${UI.pushBasis(st.pushBasis(x))}
         <label class="n-field"><span class="n-field__label">结果</span><textarea class="n-textarea" rows="3" id="pr-t" placeholder="写发生了什么、本人怎么说、下一步是什么"></textarea></label>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '确认，写进档案', value: 'ok', cls: 'n-btn--ink', validate: (d) => { const ok = !!d.querySelector('#pr-t').value.trim(); if (!ok) d.querySelector('#pr-t').focus(); return ok; }, read: (d) => d.querySelector('#pr-t').value.trim() }] });
     if (r?.value !== 'ok') return;

@@ -85,6 +85,15 @@
   [...(need0?.tpl ? [] : need0?.reqs || []), ...(draftReqs || [])].forEach((x) => { if (!reqs.some((r) => r.id === x.id)) insertReq({ id: x.id, text: x.text, must: x.must, ...(x.alt ? { alt: x.alt } : {}), ...(x.ev ? { ev: x.ev } : {}), useAlt: false }); });
   if (draftReqs) draftReqs.forEach((x) => { const r = reqs.find((y) => y.id === x.id); if (r) { r.must = x.must; r.useAlt = !!(x.useAlt && r.alt); } });
   let manual = [];
+  // CEO 推动「任用讨论」（v1.4 3.21.1）：负责人从待办进来时，被推动的人作为手动补入的候选人放进来，要求逐项照样核对
+  const pushed = (() => { const x = st.pushOf(NT.param('push')); return x && sc && x.kind === 'staff' && x.project === (projectId || sc.project.id) ? x : null; })();
+  if (pushed && !sc.cands[pushed.person]) {
+    manual.push(pushed.person);
+    if (pushed.owner === st.me().id && ['todo', 'doing'].includes(pushed.state) && !pushed.log.some((l) => l.manual)) {
+      st.logPush(pushed.id, `已作为手动补入的候选人带进「${st.project(pushed.project)?.name || '找人'}」`);
+      pushed.log[pushed.log.length - 1].manual = true; st.save();
+    }
+  }
   let slots = {};
   let note = '';
 
@@ -183,12 +192,17 @@
   // ---------- 证据与排列 ----------
   const STATUS = { yes: ['n-badge--yes', 'check', '支持'], no: ['n-badge--no', 'x', '不支持'], unknown: ['n-badge--unknown', 'dash', '资料不足'], conflict: ['n-badge--conflict', 'split', '证据冲突'] };
   // 证据按要求声明的证据键取（ev / evAlt，默认是 id）：模板改版后旧需求卡的要求意思不同，不能套用新版的核对结果
-  const evOf = (pid, r) => { const c = sc.cands[pid] || sc.manual[pid]; return (r.useAlt && c[r.evAlt || `${r.id}alt`]) || c[r.ev || r.id] || ['unknown', '资料不足']; };
+  // 不在预置候选里的人：没有预先核对的证据，各项要求先记为资料不足，等负责人补证据
+  const BLANK = { will: ['未知 · 还没问过', true], release: '未知', now: '—', next: '逐项补证据，再和本人确认意愿', dims: [] };
+  const candOf = (pid) => sc.cands[pid] || sc.manual[pid] || BLANK;
+  const evOf = (pid, r) => { const c = candOf(pid); return (r.useAlt && c[r.evAlt || `${r.id}alt`]) || c[r.ev || r.id] || ['unknown', c === BLANK ? '还没有核对到相关事件，需要补证据' : '资料不足']; };
   const pool = () => [...Object.keys(sc.cands), ...manual].filter((pid) => st.scope(pid) === 'full' || manual.includes(pid));
   const tally = (pid) => { const must = reqs.filter((r) => r.must).map((r) => evOf(pid, r)[0]); return { yes: must.filter((s) => s === 'yes').length, no: must.filter((s) => s === 'no').length, unk: must.filter((s) => s === 'unknown').length }; };
   function ordered() {
     const list = pool().map((pid) => ({ pid, ...tally(pid) }));
-    const main = list.filter((c) => c.unk < 2 || c.yes > 0), pend = list.filter((c) => !(c.unk < 2 || c.yes > 0));
+    // 手动补入的人是负责人有意带进来的，始终给完整候选卡，逐项照样显示核对结果；资料不足的模型候选才收进「条件待确认」
+    const full = (c) => c.unk < 2 || c.yes > 0 || manual.includes(c.pid);
+    const main = list.filter(full), pend = list.filter((c) => !full(c));
     const by = (a, b) => b.yes - a.yes || a.no - b.no || st.person(a.pid).name.localeCompare(st.person(b.pid).name, 'zh');
     return { main: main.sort(by), pend: pend.sort(by) };
   }
@@ -227,16 +241,16 @@
   }
 
   function candCard(pid) {
-    const p = st.person(pid), c = sc.cands[pid] || sc.manual[pid];
+    const p = st.person(pid), c = candOf(pid);
     const isManual = manual.includes(pid);
     const inSlot = Object.values(slots).includes(pid);
     const projs = st.projectsOf(pid).length;
     const scores = (c.dims || []).map((d) => { const l = st.scoresOf(pid, { dim: d, from: NT.addDays(NT.TODAY, -365), visible: true }); return l.length ? `${st.dim(d).name} ${st.mean(l.map((s) => s.v)).toFixed(1)}（${l.length} 条）` : `${st.dim(d).name}资料不足`; });
     return html`<article class="n-card n-candidate" draggable="true" data-pid="${pid}" aria-describedby="drag-tip">
       <div class="nt-row" style="justify-content:space-between;align-items:flex-start">${UI.person(pid, { meta: `${st.orgShort(p.org)} · ${p.level} · 当前在 ${projs} 个项目` })}${inSlot ? html`<span class="n-badge n-badge--yes">${icon('check')}已放入方案</span>` : ''}</div>
-      ${isManual ? html`<div class="nt-row" style="margin-top:var(--s-2)"><span class="n-manual">${icon('user', 11)}${st.me().name}手动补入</span><span class="nt-muted">不冒充模型推荐；要求逐项照样核对</span></div>` : ''}
+      ${isManual ? html`<div class="nt-row" style="margin-top:var(--s-2)"><span class="n-manual">${icon('user', 11)}${st.me().name}手动补入${pushed?.person === pid ? ' · 来自 CEO 推动' : ''}</span><span class="nt-muted">不冒充模型推荐；要求逐项照样核对</span></div>` : ''}
       <ul class="n-reqs">${reqs.map((r) => { const [s, t, ev] = evOf(pid, r); const [cls, ic, l] = STATUS[s]; return html`<li data-req="${r.id}" data-s="${s}"><span class="n-badge ${cls}">${icon(ic)}${l}</span><span>${t}${citeFor(ev)}${r.must ? '' : html` <span class="nt-muted">（加分项）</span>`}</span></li>`; })}</ul>
-      ${st.scope(pid) === 'full' ? html`<div class="nt-muted" style="margin-top:var(--s-2)">相关维度 · ${scores.join(' · ')}</div>` : ''}
+      ${st.scope(pid) === 'full' && scores.length ? html`<div class="nt-muted" style="margin-top:var(--s-2)">相关维度 · ${scores.join(' · ')}</div>` : ''}
       <div style="margin-top:var(--s-2)">${UI.directionLine(pid)}</div>
       <dl class="n-cmeta"><dt>本人意愿</dt><dd class="${c.will[1] ? 'unknown' : ''}">${c.will[0]}</dd><dt>可否释放</dt><dd>${c.release}</dd><dt>当前安排</dt><dd>${c.now}</dd><dt>下一步</dt><dd>${c.next}</dd></dl>
       <div class="nt-row" style="margin-top:var(--s-3)">${sc.roles.map((ro) => html`<button class="n-btn n-btn--sm" type="button" data-put="${pid}" data-role="${ro.id}" ${NT.raw(inSlot ? 'disabled' : '')}>放入「${ro.name}」</button>`)}<a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${pid}">看档案</a></div>
@@ -272,7 +286,8 @@
         <div id="deny"></div>`}
     </article>
     <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">手动补入</h3>
-      <div class="nt-row"><select class="n-select" id="manual" style="flex:1"><option value="">选一个不在候选里的人</option>${Object.keys(sc.manual).filter((x) => !manual.includes(x)).map((x) => html`<option value="${x}">${st.person(x).name} · ${st.orgShort(st.person(x).org)}</option>`)}${st.visiblePeople().filter((x) => st.scope(x.id) === 'full' && !sc.cands[x.id] && !sc.manual[x.id]).slice(0, 6).map((x) => html`<option value="" disabled>${x.name} · 没有可核对的证据</option>`)}</select><button class="n-btn n-btn--sm" type="button" id="addmanual">补入</button></div>
+      ${pushed ? html`<div class="n-notice is-plain" style="margin-bottom:var(--s-3)">${icon('flag')}<div><b>CEO 请你把${st.person(pushed.person).name}带进这次找人。</b>${sc.cands[pushed.person] ? `${st.person(pushed.person).name}已经在候选里，` : '已作为手动补入的候选人放进候选列表，'}要求逐项照样核对，不冒充模型推荐。${pushed.note ? `CEO 的说明：「${pushed.note}」` : ''}${UI.pushBasis(st.pushBasis(pushed))}</div></div>` : ''}
+      <div class="nt-row"><select class="n-select" id="manual" style="flex:1"><option value="">选一个不在候选里的人</option>${Object.keys(sc.manual).filter((x) => !manual.includes(x)).map((x) => html`<option value="${x}">${st.person(x).name} · ${st.orgShort(st.person(x).org)}</option>`)}${st.visiblePeople().filter((x) => st.scope(x.id) === 'full' && !sc.cands[x.id] && !sc.manual[x.id] && !manual.includes(x.id)).map((x) => html`<option value="${x.id}">${x.name} · 还没有预先核对的证据</option>`)}</select><button class="n-btn n-btn--sm" type="button" id="addmanual">补入</button></div>
       <p class="nt-caption" id="drag-tip">候选卡可以直接拖到上面的槽位，也可以用卡片上的按钮放入。</p></article>`;
   }
 

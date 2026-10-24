@@ -159,6 +159,9 @@
     });
     d.addEventListener('close', () => { d.remove(); resolve(value); });
     d.showModal();
+    // 浏览器默认聚焦第一个可聚焦元素，常常是正文里的引用角标，会直接弹出引用浮层；有输入项时先聚焦输入项，否则不停在引用上
+    const field = d.querySelector('textarea, select, input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"])');
+    if (field) field.focus(); else if (document.activeElement?.closest('.n-cite')) d.querySelector('.n-dialog__bar .n-btn:last-child')?.focus();
     o.onOpen && o.onOpen(d);
   });
 

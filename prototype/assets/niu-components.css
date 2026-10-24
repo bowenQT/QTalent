@@ -1264,6 +1264,12 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 .n-todomore { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-xs); color: var(--ink-2); }
 .n-todomore > svg { flex: none; width: 14px; height: 14px; color: var(--ink-3); }
 .n-todomore:hover { color: var(--ink); }
+button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs); text-align: left; cursor: pointer; }
+/* 已处理的线索：状态、内容与处理理由、改回入口 */
+.n-handled { list-style: none; margin: var(--s-2) 0 0; padding: 0; font-size: var(--t-sm); }
+.n-handled li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: var(--s-3); padding: var(--s-3) var(--s-1); border-top: 1px solid var(--line); }
+.n-handled li:first-child { border-top: 0; }
+.n-handled small { display: block; margin-top: 2px; font-size: var(--t-xs); color: var(--ink-3); }
 
 /* ── CEO 首页（v1.4）：紧凑的找人输入框 ── */
 .n-find .n-composer.is-hero { padding: var(--s-4) var(--s-4) var(--s-3); }
@@ -1335,6 +1341,12 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 .n-attrib__qs b { margin-right: 6px; font-weight: 600; color: var(--ink-2); }
 
 /* ── 推动：选负责人 ── */
+/* 推动的发起依据：发起时那条值得关注的规则、原因和证据 */
+.n-pushbasis { display: flex; align-items: baseline; gap: var(--s-2); margin: 0 0 var(--s-3); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-xs); line-height: 1.6; color: var(--ink-2); }
+.n-pushbasis .n-rule { flex: none; }
+.n-pushbasis b { margin-right: 6px; font-weight: 600; color: var(--ink); }
+.n-event .n-pushbasis { margin: var(--s-2) 0 0; }
+.n-notice .n-pushbasis { margin: var(--s-2) 0 0; padding: 0; background: none; }
 .n-owners { display: grid; gap: var(--s-2); margin: 0 0 var(--s-3); padding: 0; border: 0; }
 .n-owners legend { margin-bottom: var(--s-2); padding: 0; }
 .n-owner { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; font-size: var(--t-sm); }
