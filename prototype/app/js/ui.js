@@ -400,6 +400,12 @@
     NT.toast(`已写进${p.name}的档案时间线，CEO 能看到结果`, { undo: () => { st.unresolvePush(id); rerender && rerender(); } });
   };
 
+  // 判断提醒的一句差异：取差异最多的维度，偏高、偏低都写，其余维度只给个数（桌面与手机共用）
+  UI.judgeTipText = (g) => {
+    const d = g.dims.slice().sort((a, b) => (b.high + b.low) - (a.high + a.low))[0];
+    return `${d.name} ${d.n} 人中 ${[d.high && `${d.high} 人前段偏高`, d.low && `${d.low} 人前段偏低`].filter(Boolean).join('、')}${g.dims.length > 1 ? ` 等 ${g.dims.length} 个维度` : ''}`;
+  };
+
   // CEO 请 HRBP 复核判断复盘（v1.4 3.22）：写一句评论；归因与标准修订仍由 HRBP 确认
   UI.judgeAskDialog = async (batchId, rerender) => {
     const b = st.judgeBatch(batchId);

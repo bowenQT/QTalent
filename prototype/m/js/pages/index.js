@@ -65,7 +65,7 @@
       <p class="nt-caption">按写明的规则入选，按触发时间排列，不按分数挑人。推动请在电脑上发起。</p>
 
       <h3 class="m-h">判断提醒</h3>
-      ${sigs.length ? html`<ul class="m-list">${sigs.map((g) => { const d = g.dims.slice().sort((a, b) => (b.high + b.low) - (a.high + a.low))[0]; return M.row(`../app/judge.html?id=${g.b.id}`, icon('swap'), g.b.name.replace('判断复盘', ''), `${d.name} ${d.n} 人中 ${d.high ? `${d.high} 人前段偏高` : `${d.low} 人前段偏低`}`); })}</ul>`
+      ${sigs.length ? html`<ul class="m-list">${sigs.map((g) => M.row(`../app/judge.html?id=${g.b.id}`, icon('swap'), g.b.name.replace('判断复盘', ''), UI.judgeTipText(g)))}</ul>`
         : html`<div class="nt-empty">最近的判断复盘没有需要复核的差异。</div>`}`);
     NT.$('#m-find').addEventListener('submit', (e) => {
       e.preventDefault();

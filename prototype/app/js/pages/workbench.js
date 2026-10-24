@@ -309,7 +309,7 @@
   }
   function drawWatch() {
     const host = $('#watch'); if (!host) return;
-    const all = st.watch(), pending = st.watchPending().length;
+    const all = st.watch();
     const list = all.filter((w) => watchCat === 'all' || w.cat === watchCat);
     const shown = watchAll ? list : list.slice(0, 4);
     mount(host, html`<div class="n-watch__head"><h3 class="n-section-title" id="watch-h">值得关注<span class="n-count is-quiet">${all.length} 人</span></h3>
@@ -320,7 +320,7 @@
       </div>
       ${!list.length ? html`<div class="nt-empty">这一类暂时没有人。没有命中规则不代表有问题。</div>` : watchBy === 'project' ? byProject(list) : html`<ul class="n-watch__list">${shown.map(watchItem)}</ul>`}
       ${watchBy === 'person' && list.length > 4 ? html`<button class="n-btn n-btn--ghost n-btn--sm" type="button" id="watch-more" aria-expanded="${watchAll}" style="margin-top:var(--s-2)">${watchAll ? '收起' : `查看全部 ${list.length} 人`}</button>` : ''}
-      <p class="nt-caption">按写明的规则入选，按触发时间排列，不按分数挑人；资料不足不算需要介入。${pending ? `另有 ${pending} 条线索在 HRBP 核实中，核实后才会出现在这里。` : ''}规则版本 watch-v1</p>`);
+      <p class="nt-caption">按写明的规则入选，按触发时间排列，不按分数挑人；资料不足不算需要介入。AI 线索和提名经 HRBP 核实后才会出现在这里。规则版本 watch-v1</p>`);
     $$('[data-push]', host).forEach((b) => UI.pushMenu(b, b.dataset.push, drawCeo));
   }
 
@@ -350,10 +350,8 @@
     const host = $('#jsig'); if (!host) return;
     const sigs = st.judgeSignals(), top = sigs.slice(0, 2);
     const item = (g) => {
-      const d = g.dims.slice().sort((a, b) => (b.high + b.low) - (a.high + a.low))[0];
-      const diff = `${d.name} ${d.n} 人中 ${[d.high && `${d.high} 人前段偏高`, d.low && `${d.low} 人前段偏低`].filter(Boolean).join('、')}${g.dims.length > 1 ? ` 等 ${g.dims.length} 个维度` : ''}`;
       const [label, s] = g.ask?.state === 'open' ? ['HRBP 复核中', 'doing'] : g.attrib === 'open' ? ['待 HRBP 归因', 'todo'] : ['归因已确认', 'done'];
-      return html`<li><a href="judge.html?id=${g.b.id}"><span><b>${g.b.name.replace('判断复盘', '')}</b><small>${diff}</small></span><span class="n-astate" data-s="${s}">${label}</span></a></li>`;
+      return html`<li><a href="judge.html?id=${g.b.id}"><span><b>${g.b.name.replace('判断复盘', '')}</b><small>${UI.judgeTipText(g)}</small></span><span class="n-astate" data-s="${s}">${label}</span></a></li>`;
     };
     mount(host, html`<h3 class="n-section-title" id="jsig-h">判断提醒<a class="n-link" href="judge.html">去判断复盘</a></h3>
       ${top.length ? html`<ul class="n-jtip__list">${top.map(item)}</ul><p class="nt-caption">差异需要复核，不代表员工退步，也不直接认定标准或评价人有错。</p>`
