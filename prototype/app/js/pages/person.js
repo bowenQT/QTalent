@@ -140,7 +140,7 @@
     if (!r) return;
     // 从「验证」推动进来时，跟踪关联到推动并给推动记一笔进展（v1.4 3.21.1）
     const push = st.pushOf(NT.param('push')), fromPush = push && push.person === pid && push.owner === st.me().id && ['todo', 'doing'].includes(push.state);
-    const t = { id: NT.uid('t'), person: pid, ...r, owner: st.me().id, helper: null, since: NT.TODAY, state: 'on', ...(fromPush ? { push: push.id } : {}) };
+    const t = { id: NT.uid('t'), person: pid, ...r, owner: st.me().id, helper: null, since: NT.TODAY, ts: Date.now(), state: 'on', ...(fromPush ? { push: push.id } : {}) };
     st.get().tracks.unshift(t); st.save();
     const prevState = push?.state;
     if (fromPush) st.logPush(push.id, `已设为重点跟踪：${r.q || '观察问题见跟踪卡'}`);

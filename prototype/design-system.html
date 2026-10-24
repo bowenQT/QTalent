@@ -802,12 +802,24 @@
       <h3 class="ds-sub">上传材料</h3>
       <p>从人员页、项目页或工作台上传，当前上下文自动带入。解析结果写明能定位到哪一层（段落、页、单元格、时间点）；不能处理的文件说清原因和下一步。</p>
       <div class="ds-stage">
-        <button class="n-drop" type="button" id="drop"><svg><use href="#i-upload"/></svg><b>拖入文件，或点这里选择</b><small>TXT、MD、DOCX、PPTX、XLSX 和录音 · 单个文件上限以联调为准 · 会关联到「Landing 第三期」</small></button>
+        <button class="n-drop" type="button" id="drop"><svg><use href="#i-upload"/></svg><b>拖入文件，或点这里选择</b><small>PDF、Word、PPT、Excel、TXT / MD、音频和视频，可以一次拖入多个 · 单个不超过 2 GB · 会关联到「Landing 第三期」</small></button>
         <ul class="n-files" id="files">
           <li class="n-file"><span class="n-file__ext">DOCX</span><div style="min-width:0"><div class="n-file__name">Landing W2 周报.docx</div><div class="n-file__state"><span class="ok">已解析</span> · 12 段，定位到段落 · 提取 3 条事件待确认</div></div><button class="n-btn n-btn--sm" type="button">确认事件</button></li>
           <li class="n-file"><span class="n-file__ext">XLSX</span><div style="min-width:0"><div class="n-file__name">实训营评审表.xlsx</div><div class="n-file__state"><span class="ok">已解析</span> · 2 个工作表，定位到单元格 · 作为「训练营评审」导入，保留原量表</div></div><button class="n-btn n-btn--sm n-btn--ghost" type="button">查看</button></li>
-          <li class="n-file"><span class="n-file__ext">PDF</span><div style="min-width:0"><div class="n-file__name">候选人简历.pdf</div><div class="n-file__state"><span class="err">暂不支持 PDF</span> · 本期只处理文字、Office 文件和录音。可以另存为 DOCX，或直接粘贴文字</div></div><button class="n-btn n-btn--sm n-btn--ghost" type="button">粘贴文字</button></li>
+          <li class="n-file"><span class="n-file__ext">PDF</span><div style="min-width:0"><div class="n-file__name">W2 评审意见（扫描）.pdf</div><div class="n-file__state"><span class="ok">已上传</span> · 扫描件，未识别出文字，只作附件保存，不能定位到具体内容</div></div><button class="n-btn n-btn--sm n-btn--ghost" type="button">查看</button></li>
+          <li class="n-file"><span class="n-file__ext">MP4</span><div style="min-width:0"><div class="n-file__name">客户现场演示录屏.mp4</div><div class="n-file__state"><span class="ok">已解析</span> · 转写音轨 32 分钟，定位到时间点 · 不做画面理解</div></div><button class="n-btn n-btn--sm n-btn--ghost" type="button">查看</button></li>
           <li class="n-file"><span class="n-file__ext">PPTX</span><div style="min-width:0"><div class="n-file__name">Milestone 述职.pptx</div><div class="n-file__state"><span class="err">读不出内容</span> · 文件设置了打开密码。去掉密码后重新上传</div></div><button class="n-btn n-btn--sm n-btn--ghost" type="button">重新上传</button></li>
+        </ul>
+      </div>
+
+      <h3 class="ds-sub">记录事件的附件</h3>
+      <p>记一件事时附上的文件，解析后和原话一起作为这件事的出处，在事件卡上是引用角标。保存前每个附件都可以移除；还有附件在上传或解析时不能保存。格式与上传材料同一口径（需求定稿 v1.5 3.34）。</p>
+      <div class="ds-stage">
+        <div class="n-eventin__bar" style="margin:0"><button class="n-btn n-btn--ghost n-btn--icon" type="button" aria-label="按住说话"><svg><use href="#i-mic"/></svg></button><button class="n-btn n-btn--ghost n-btn--icon" type="button" aria-label="添加附件"><svg><use href="#i-clip"/></svg></button><span class="n-eventin__hint">写原话就行，不用分段；可以附上 PDF、PPT、文档、表格、录音或视频，也可以直接拖进来</span></div>
+        <ul class="n-files n-attach">
+          <li class="n-file"><span class="n-file__ext">PDF</span><div style="min-width:0"><div class="n-file__name">W3 对事复盘纪要.pdf</div><div class="n-file__state"><span class="ok">已解析</span> · PDF · 293 KB · 可定位到页</div></div><button class="n-btn n-btn--ghost n-btn--icon n-file__rm" type="button" aria-label="移除附件「W3 对事复盘纪要.pdf」"><svg><use href="#i-x"/></svg></button></li>
+          <li class="n-file"><span class="n-file__ext">M4A</span><div style="min-width:0"><div class="n-file__name">导师访谈.m4a</div><div class="n-file__state">转写中…</div><div class="n-progress is-indeterminate"><i></i></div></div><button class="n-btn n-btn--ghost n-btn--icon n-file__rm" type="button" aria-label="移除附件「导师访谈.m4a」"><svg><use href="#i-x"/></svg></button></li>
+          <li class="n-file"><span class="n-file__ext">ZIP</span><div style="min-width:0"><div class="n-file__name">方案.zip</div><div class="n-file__state"><span class="err">不支持 .zip 格式，可以上传 PDF、Word、PPT、Excel、TXT / MD、音频和视频</span></div></div><button class="n-btn n-btn--ghost n-btn--icon n-file__rm" type="button" aria-label="移除附件「方案.zip」"><svg><use href="#i-x"/></svg></button></li>
         </ul>
       </div>
     </section>
@@ -1751,7 +1763,7 @@
             <div class="n-field__label" id="jcats">归为哪一类（可多选）</div>
             <div class="n-attrib__cats" role="group" aria-labelledby="jcats"><button class="n-chip" type="button" data-cat aria-pressed="false">评价标准</button><button class="n-chip" type="button" data-cat aria-pressed="false">评价人</button><button class="n-chip" type="button" data-cat aria-pressed="true">评价方式与信息不足</button><button class="n-chip" type="button" data-cat aria-pressed="false">本人或环境变化</button><button class="n-chip" type="button" data-cat aria-pressed="false">后段评价偏差</button></div>
             <label class="n-field" style="margin-top:var(--s-3)"><span class="n-field__label">理由（必填，会署名留档）</span><textarea class="n-textarea" id="jattrib-why" rows="2" placeholder="比如：两期都偏高，记录多是印象描述；先培训，再看下一期"></textarea></label>
-            <p class="n-field__err" id="jattrib-err" hidden style="color:var(--no);font-size:var(--t-xs);margin:var(--s-1) 0 0">至少选一类，并写一句理由。</p>
+            <p class="n-field__err" id="jattrib-err" hidden>至少选一类，并写一句理由。</p>
             <div class="ds-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-confirm><svg><use href="#i-check"/></svg>确认归因</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button><span style="font-size:var(--t-xs);color:var(--ink-3)">确认后署名留档，之后从这条结论生成改进动作</span></div>
           </div>
         </div>

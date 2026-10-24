@@ -76,7 +76,7 @@
         hist: [{ v: s.v, kind: edited ? 'edit' : 'confirm', by: me.id, at: NT.TODAY, why: s.why || '' }, ...(s.ai != null ? [{ v: s.ai, kind: 'ai', at: NT.TODAY }] : [])] };
     });
     const e = st.addEvent({ id: NT.uid('e'), kind: 'obs', date: d.date || NT.TODAY, project: d.proj?.id, recorder: me.id, people: [d.pid], title: d.title, bg: d.bg, act: d.act, res: d.res,
-      srcs: [{ type: 'note', label: d.label || '一句话记录', loc: `${me.name} · ${NT.md(NT.TODAY)}`, quote: d.text }], tags: d.tags || [], tagsAI: d.cand || [], scores });
+      srcs: [{ type: 'note', label: d.label || '一句话记录', loc: `${me.name} · ${NT.md(NT.TODAY)}`, quote: d.text }, ...(d.atts || [])], tags: d.tags || [], tagsAI: d.cand || [], scores });
     return { e, big: scores.filter((s) => s.bigGap).length };
   }
 

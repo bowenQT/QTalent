@@ -33,10 +33,12 @@ body {
 .n-btn:hover { background: #f8f9f6; }
 .n-btn:active { transform: scale(.97); }
 .n-btn svg { width: 16px; height: 16px; flex: none; }
-a.n-btn { text-decoration: none; } /* 按钮常用 <a> 实现，不露出链接下划线 */
+a.n-btn { text-decoration: none; }
+.nt-caption { margin: var(--s-2) 0 0; font-size: var(--t-xs); color: var(--ink-3); line-height: 1.6; } /* 按钮常用 <a> 实现，不露出链接下划线 */
 /* 文字动作：撤销、改、全部、修订历史这类次要入口；按钮和链接同一外观 */
-.n-link { padding: 0; border: 0; background: none; font: inherit; font-size: var(--t-xs); color: var(--light); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
-.n-link:hover { color: #2c42b8; }
+/* 中性墨色 + 浅下划线：蓝色只代表 AI（配色收敛 v1.5 3.32），不让文字动作看起来像浏览器默认链接 */
+.n-link { padding: 0; border: 0; background: none; font: inherit; font-size: var(--t-xs); font-weight: 500; color: var(--ink-2); cursor: pointer; text-decoration: underline; text-decoration-color: var(--line-strong); text-decoration-thickness: 1px; text-underline-offset: 3px; transition: color var(--d-quick), text-decoration-color var(--d-quick); }
+.n-link:hover { color: var(--ink); text-decoration-color: currentColor; }
 .n-section-title .n-link { margin-left: auto; font-weight: 400; }
 .n-count:has(~ .n-link) { margin-left: 0; } /* 标题里同时有计数和「全部」时，计数跟着标题，链接靠右 */
 .n-btn--ink { background: var(--ink); color: #fff; box-shadow: none; }
@@ -199,6 +201,9 @@ a.n-btn { text-decoration: none; } /* 按钮常用 <a> 实现，不露出链接�
   transition: opacity var(--d-quick) var(--ease-out), translate var(--d-quick) var(--ease-out);
 }
 .n-cite:hover .n-cite__pop, .n-cite.is-open .n-cite__pop, .n-cite:focus-within .n-cite__pop { opacity: 1; translate: -50% 0; pointer-events: auto; }
+/* 由脚本按视口放置（placeCite）：不再受滚动容器裁切 */
+.n-cite__pop.is-placed { position: fixed; bottom: auto; z-index: 90; translate: 0 6px; }
+.n-cite:hover .n-cite__pop.is-placed, .n-cite.is-open .n-cite__pop.is-placed, .n-cite:focus-within .n-cite__pop.is-placed { translate: 0 0; }
 .n-cite__src { display: flex; align-items: center; gap: var(--s-2); margin-bottom: var(--s-2); font-size: var(--t-xs); color: var(--ink-3); }
 .n-cite__quote { margin: 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); color: var(--ink); }
 .n-cite__quote mark { background: #fff1bf; color: inherit; border-radius: 2px; padding: 0 1px; }
@@ -780,6 +785,7 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 .n-field { display: grid; gap: 6px; }
 .n-field__label { font-size: var(--t-xs); font-weight: 600; color: var(--ink-2); }
 .n-field__label small { font-weight: 400; color: var(--ink-3); margin-left: 4px; }
+.n-field__err { margin: var(--s-1) 0 0; font-size: var(--t-xs); color: var(--no); line-height: 1.6; }
 .n-input, .n-select, .n-textarea {
   width: 100%; min-height: 38px; padding: 0 var(--s-3); border: 0; border-radius: var(--r-field);
   background: var(--sheet); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: var(--t-sm); color: var(--ink);
@@ -924,6 +930,12 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 .n-file__state { margin-top: 2px; font-size: var(--t-xs); color: var(--ink-3); line-height: 1.5; }
 .n-file__state .err { color: var(--no); font-weight: 600; }
 .n-file__state .ok { color: var(--yes); font-weight: 600; }
+/* 记录事件时的附件：同一套文件行，右侧可移除；拖入时整张卡片给出落点 */
+.n-attach { margin: var(--s-3) 0 0; }
+.n-attach .n-file:first-child { border-top: 0; }
+.n-attach .n-progress { margin-top: var(--s-1); }
+.n-file__rm { width: 32px; height: 32px; color: var(--ink-3); }
+.is-dropping { outline: 1.5px dashed var(--ink-3); outline-offset: -8px; }
 
 /* ══════════════ 录音补全 ══════════════ */
 .n-modes { display: grid; gap: var(--s-2); }

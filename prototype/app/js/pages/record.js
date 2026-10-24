@@ -36,18 +36,23 @@
             <textarea class="n-eventin__field" id="ev-text" rows="5" placeholder="比如：唐果今天方案被问住了，第二天主动约了客服再访谈一次，周五带着新结构来评审。">${q}</textarea>
             <div class="n-eventin__bar">
               <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="ev-mic" aria-label="按住说话">${icon('mic')}</button>
-              <span class="n-eventin__hint" id="ev-hint">写原话就行，不用分段</span>
+              ${UI.attachButton()}
+              <span class="n-eventin__hint" id="ev-hint">写原话就行，不用分段；可以附上 PDF、PPT、文档、表格、录音或视频，也可以直接拖进来</span>
               <button class="n-btn n-btn--light" type="button" id="ev-shape">${icon('spark')}整理成关键事件</button>
             </div>
           </div>
           <div id="ev-body" hidden></div>
+          <ul id="ev-atts" hidden></ul>
         </article>
         <aside class="nt-grid nt-sticky">
-          <div class="n-anchor" id="anchor"><b id="anchor-t">锚点</b> <span class="n-badge" style="margin-left:6px">rubric-v1</span><ol>${SEED_ANCHORS('pot')}</ol></div>
+          <div class="n-anchor" id="anchor"><b id="anchor-t">锚点</b> <span class="n-badge" style="margin-left:6px">rubric-v1</span><ol>${raw(SEED_ANCHORS('pot'))}</ol></div>
           <div class="n-card" style="padding:var(--s-4) var(--s-5)"><b style="font-size:var(--t-sm)">怎么算一条关键事件</b>
             <p class="nt-caption">一件具体的事，按 SBI 讲：在什么情境下（S）、本人做了什么（B）、带来什么影响（I）。只写「参与了」的地方会标为资料不足，不出分。多人参与的事各自按本人行为打分。</p></div>
         </aside>
       </div>`);
+    // 附件：「改原话」或撤销保存回到这页时保留已解析的附件
+    att = UI.attach({ key: 'record' }).list($('#ev-atts')).pick($('[data-att-pick]', $('#ev'))).drop($('#ev')).fallback(() => $('#ev-back'));
+    if (q) att.restore(); else att.clear();
     $('#ev-shape').addEventListener('click', () => doShape());
     $('#ev-mic').addEventListener('click', () => {
       const f = $('#ev-text'); NT.ipState($('#ev-ip'), 'listening');
@@ -63,7 +68,7 @@
     $$('#anchor li').forEach((li) => li.classList.toggle('is-hit', +li.dataset.v === v));
   }
 
-  let draft = null;
+  let draft = null, att = null;
   async function doShape() {
     const text = $('#ev-text').value.trim();
     if (!text) { $('#ev-text').focus(); return; }
@@ -94,6 +99,7 @@
       </dl>
       <div class="n-tags" id="ev-tags" hidden><span class="n-tags__label">标签</span><span class="n-tags__list" id="tag-list"></span><span class="n-tags__undo" id="tag-undo" hidden></span></div>
       <details class="n-event__raw"><summary>原话</summary><p>${text}</p></details>
+      <div id="ev-att-slot"></div>
       <div class="n-event__scores" id="scores"></div>
       <div class="n-event__sign" id="ev-sign" hidden></div>
       <div class="nt-row" style="margin-top:var(--s-4)" id="ev-actions" hidden>
@@ -101,6 +107,7 @@
         <button class="n-btn n-btn--sm n-btn--ghost" type="button" id="ev-back">改原话</button>
         <span class="n-eventin__hint" id="score-hint"></span>
       </div>`);
+    $('#ev-att-slot').append($('#ev-atts'));
     const trail = $('.n-trail', body);
     const trailRun = NT.runTrail(trail, 520);
     const ph = { bg: '原话没写情境，可以补上', res: '原话没写影响，可以补上' };
@@ -117,7 +124,7 @@
     NT.ipState($('#ev-ip'), 'confirm');
     $('#ev-actions').hidden = false; hint();
     $('#ev-save').addEventListener('click', save);
-    $('#ev-back').addEventListener('click', () => { location.href = NT.link('record.html', { q: text }); });
+    $('#ev-back').addEventListener('click', () => { att.keep(); location.href = NT.link('record.html', { q: text }); });
   }
   async function buildTags(s) {
     const host = $('#tag-list'); $('#ev-tags').hidden = false;
@@ -190,10 +197,13 @@
   function save() {
     const me = st.me();
     const ev = $('#ev');
+    const wait = att.pending();
+    if (wait) { $('#score-hint').innerHTML = `<span style="color:var(--conflict)">还有 ${wait} 个附件在上传或解析，</span>完成后再保存`; return; }
     const val = (k) => { const el = $(`.n-edit[data-k="${k}"]`); return el.dataset.empty ? '' : el.textContent.trim(); };
     const { e, big } = NT.parse.commit({ ...draft, title: val('title'), bg: val('bg'), act: val('act'), res: val('res'),
-      tags: $$('#tag-list .n-tag:not(.is-candidate)').map((c) => c.firstChild.textContent), cand: $$('#tag-list .is-candidate').map((c) => c.firstChild.textContent) });
+      tags: $$('#tag-list .n-tag:not(.is-candidate)').map((c) => c.firstChild.textContent), cand: $$('#tag-list .is-candidate').map((c) => c.firstChild.textContent), atts: att.srcs() });
     ev.dataset.step = 'done';
+    att.lock();
     draft.scores.forEach((s) => { if (s.row.dataset.state === 'ai') { s.row.dataset.state = 'confirmed'; paint(s); } });
     $$('.n-edit', ev).forEach((el) => { el.classList.remove('is-light'); el.removeAttribute('contenteditable'); });
     $$('#tag-list .n-tag', ev).forEach((c) => { c.classList.remove('is-ai'); $('.n-tag__x', c)?.remove(); });
@@ -204,7 +214,7 @@
     sign.hidden = false; $('#ev-actions').hidden = true;
     NT.ipState($('#ev-ip'), 'done');
     NT.toast(`已保存到${st.person(draft.pid).name}的档案${big ? `，${big} 项进了校准队列` : ''}`, {
-      undo: () => { st.removeEvent(e.id); location.href = NT.link('record.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销，这条记录没有保存',
+      undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('record.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销，这条记录没有保存',
     });
   }
 

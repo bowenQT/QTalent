@@ -499,7 +499,7 @@
         S.memberLog.unshift({ project: plan.project, at: NT.TODAY, text: `${name}${r.id === 'owner' ? '成为 owner' : `加入：${r.name}`}：来自项目用人方案 v${plan.version}`, by: me });
       }
       // 行动带上冻结的判断，到期后可以进入任用后复盘
-      S.actions.unshift({ id: NT.uid('a'), title: `${name}${r.id === 'owner' ? `接任${p.name} owner` : `加入${p.name}（${r.name}）`}`, from: plan.id, person: pid, owner: 'p-suwan', due: '2026-11-01', state: 'todo', observe: '2027-01-31',
+      S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title: `${name}${r.id === 'owner' ? `接任${p.name} owner` : `加入${p.name}（${r.name}）`}`, from: plan.id, person: pid, owner: 'p-suwan', due: '2026-11-01', state: 'todo', observe: '2027-01-31',
         then: [`目标：${r.id === 'owner' ? `负责${p.name}` : `在${p.name}承担${r.name}`}`, `依据：用人方案 v${plan.version}${musts.length ? `，必须项：${musts.join('、')}` : ''}`, `缺口：${plan.slotNote?.[r.id] || '方案里没有写，复盘时补充'}`] });
     });
     // 只回填还能改的草稿；已确认的组织方案是冻结快照，人选由上面生成的行动跟进
@@ -528,7 +528,7 @@
       const title = m.type === '继续观察' ? `${store.person(m.person)?.name || ''}：${m.next}` : `${m.person ? store.person(m.person).name : '人选待定'}${m.type === '负责人安排' ? `接任${m.to}` : `：${m.from ? `${m.from} → ` : ''}${m.to}`}`;
       if (S.actions.some((a) => a.title === title)) return;
       created += 1;
-      S.actions.unshift({ id: NT.uid('a'), title, kind: m.kind, from: plan.id, person: m.person, owner: m.owner || 'p-suwan', due: m.due || '2026-11-15', state: 'todo', observe: m.type === '继续观察' ? null : '2027-02-15', then: m.type === '继续观察' ? null : [`目标：${m.to}`, `依据：${m.basis}`, `缺口：${m.gap || '—'}`] });
+      S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title, kind: m.kind, from: plan.id, person: m.person, owner: m.owner || 'p-suwan', due: m.due || '2026-11-15', state: 'todo', observe: m.type === '继续观察' ? null : '2027-02-15', then: m.type === '继续观察' ? null : [`目标：${m.to}`, `依据：${m.basis}`, `缺口：${m.gap || '—'}`] });
     });
     store.save();
     return created;
@@ -695,7 +695,7 @@
   store.addJudgeAction = (batchId, hypId, a) => {
     const h = store.judgeHyps(batchId).find((x) => x.id === hypId);
     if (!h || !S.judgeAttribs[hypId] || !store.hypCheck(h).ok) return null;
-    const act = { id: NT.uid('a'), from: batchId, person: null, owner: store.me().id, due: NT.addDays(NT.TODAY, 30), state: 'todo', observe: NT.addDays(NT.TODAY, 120), ...a };
+    const act = { id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), from: batchId, person: null, owner: store.me().id, due: NT.addDays(NT.TODAY, 30), state: 'todo', observe: NT.addDays(NT.TODAY, 120), ...a };
     S.actions.unshift(act);
     S.judgeAttribs[hypId].actions.push(act.id);
     store.save();
@@ -771,13 +771,14 @@
     const me = store.me().id, role = store.role(), since = NT.addDays(NT.TODAY, -7), out = [];
     S.pushes.filter((x) => x.person === pid && x.state !== 'cancel' && (role === 'ceo' ? x.by === me : x.owner === me)).forEach((x) => {
       const k = PUSH_KINDS[x.kind], who = store.person(x.owner).name;
-      out.push({ at: x.at, text: `已推动：${k.label} · ${who}` });
-      x.log.forEach((l) => out.push({ at: l.at, text: `已推动：${k.label} · ${who} · ${NT.md(l.at)} ${l.text}` }));
-      if (x.resultAt) out.push({ at: x.resultAt, text: `推动有结果：${x.result}` });
+      out.push({ at: x.at, ts: x.ts, text: `已推动：${k.label} · ${who}` });
+      x.log.forEach((l) => out.push({ at: l.at, ts: l.ts, text: `已推动：${k.label} · ${who} · ${NT.md(l.at)} ${l.text}` }));
+      if (x.resultAt) out.push({ at: x.resultAt, ts: x.resultTs, text: `推动有结果：${x.result}` });
     });
-    S.actions.filter((a) => a.person === pid && a.at).forEach((a) => out.push({ at: a.at, text: `行动：${a.title} · ${store.person(a.owner).name}负责` }));
-    S.tracks.filter((t) => t.person === pid && t.state === 'on' && t.since).forEach((t) => out.push({ at: t.since, text: `${store.person(t.owner).name}开始重点跟踪 · ${NT.md(t.next)} 回看` }));
-    return out.filter((x) => x.at >= since).sort((a, b) => b.at.localeCompare(a.at))[0] || null;
+    S.actions.filter((a) => a.person === pid && a.at).forEach((a) => out.push({ at: a.at, ts: a.ts, text: `行动：${a.title} · ${store.person(a.owner).name}负责` }));
+    S.tracks.filter((t) => t.person === pid && t.state === 'on' && t.since).forEach((t) => out.push({ at: t.since, ts: t.ts, text: `${store.person(t.owner).name}开始重点跟踪 · ${NT.md(t.next)} 回看` }));
+    // 同一天的多条按记录时刻（ts）取最新；演示种子没有 ts，排在当天新记录之后
+    return out.filter((x) => x.at >= since).sort((a, b) => b.at.localeCompare(a.at) || (b.ts || 0) - (a.ts || 0))[0] || null;
   };
   store.watchPending = () => S.watchClues.filter((c) => c.state === 'pending' && store.scope(c.person) === 'full');
   // 已处理的线索留在 HRBP 视图里：核实的、不采纳的连同理由（v1.4 3.20.3），CEO 不经过这里
@@ -797,8 +798,8 @@
     const sc = store.scope(pid, role);
     return (role === 'mentor' && sc === 'mentor') || (['lead', 'hrbp'].includes(role) && sc === 'full');
   };
-  // 可以引用的证据：本视角能看到、已确认的关键事件（有本人的已确认分）
-  store.recoEvidence = (pid) => store.visibleEvents(pid).events.filter((e) => e.kind === 'obs' && e.date && e.scores.some((x) => x.p === pid && x.st === 'confirmed'));
+  // 可以引用的证据：本视角能看到、已确认的关键事件（有本人的已确认或已校准分，与 COUNTED 同口径）
+  store.recoEvidence = (pid) => store.visibleEvents(pid).events.filter((e) => e.kind === 'obs' && e.date && e.scores.some((x) => x.p === pid && COUNTED.includes(x.st)));
   store.addReco = (pid, dir, why, evs) => {
     const ok = store.canRecommend(pid) && store.template(dir) && why && new Set(evs).size >= 2 && evs.every((id) => store.recoEvidence(pid).some((e) => e.id === id));
     if (!ok) return null;
@@ -897,7 +898,7 @@
   };
   // 发起推动时自动加入「我的关注」，推动的进展作为关注动态出现（v1.5 D-53）
   store.addPush = (x) => {
-    const push = { id: NT.uid('pu'), by: store.me().id, at: NT.TODAY, state: 'todo', log: [], ...x };
+    const push = { id: NT.uid('pu'), by: store.me().id, at: NT.TODAY, ts: Date.now(), state: 'todo', log: [], ...x };
     S.pushes.unshift(push);
     if (!store.isFollowing(push.person)) store.follow(push.person, push.id);
     store.save();
@@ -911,7 +912,7 @@
     S.follows = other ? S.follows.map((f) => (f.via === id ? { ...f, via: other.id } : f)) : S.follows.filter((f) => f.via !== id);
     store.save();
   };
-  store.logPush = (id, text) => { const x = S.pushes.find((y) => y.id === id); x.log.push({ at: NT.TODAY, by: store.me().id, text }); if (x.state === 'todo') x.state = 'doing'; store.save(); };
+  store.logPush = (id, text) => { const x = S.pushes.find((y) => y.id === id); x.log.push({ at: NT.TODAY, ts: Date.now(), by: store.me().id, text }); if (x.state === 'todo') x.state = 'doing'; store.save(); };
   // 负责人确认结果：作为管理观察进档案时间线（不产生维度分，员工和导师看不到）
   store.resolvePush = (id, text) => {
     const x = S.pushes.find((y) => y.id === id);
@@ -919,14 +920,14 @@
     const k = PUSH_KINDS[x.kind];
     const e = store.addEvent({ id: NT.uid('e'), kind: 'obs', date: NT.TODAY, recorder: x.owner, people: [x.person], restricted: true, push: x.id, title: text,
       srcs: [{ type: 'note', label: `CEO 推动 · ${k.label}`, loc: `${store.person(x.owner).name}确认 · ${NT.md(NT.TODAY)}`, quote: text }], tags: [], scores: [] });
-    Object.assign(x, { state: 'done', result: text, resultAt: NT.TODAY, ev: e.id });
+    Object.assign(x, { state: 'done', result: text, resultAt: NT.TODAY, resultTs: Date.now(), ev: e.id });
     store.save();
     return x;
   };
   store.unresolvePush = (id) => {
     const x = S.pushes.find((y) => y.id === id);
     store.removeEvent(x.ev);
-    x.state = x.log.length ? 'doing' : 'todo'; delete x.result; delete x.resultAt; delete x.ev;
+    x.state = x.log.length ? 'doing' : 'todo'; delete x.result; delete x.resultAt; delete x.resultTs; delete x.ev;
     store.save();
   };
   // 取消推动：负责人或发起人写理由后结束，记录保留，CEO 在「需要我看」的「在推进」里看到理由（v1.4 3.21.2）
@@ -945,9 +946,9 @@
     const basis = store.pushBasis(x), obs = a.observe || NT.addDays(NT.TODAY, 90);
     const then = [`目标：${a.title}`, `依据：CEO 推动${basis ? `（${basis.rule}：${basis.why}）` : ''}${x.note ? `；CEO 的说明「${x.note}」` : ''}`, `观察：${a.watch || '这次机会里能不能独立做成'}（观察到 ${NT.md(obs)}）`];
     const { watch, ...rest } = a;
-    const act = { id: NT.uid('a'), from: x.id, person: x.person, owner: me, at: NT.TODAY, due: NT.addDays(NT.TODAY, 14), state: 'todo', observe: obs, then, ...rest };
+    const act = { id: NT.uid('a'), from: x.id, person: x.person, owner: me, at: NT.TODAY, ts: Date.now(), due: NT.addDays(NT.TODAY, 14), state: 'todo', observe: obs, then, ...rest };
     S.actions.unshift(act);
-    x.action = act.id; x.log.push({ at: NT.TODAY, by: me, text: `已生成行动「${act.title}」`, action: act.id }); if (x.state === 'todo') x.state = 'doing';
+    x.action = act.id; x.log.push({ at: NT.TODAY, ts: Date.now(), by: me, text: `已生成行动「${act.title}」`, action: act.id }); if (x.state === 'todo') x.state = 'doing';
     store.save();
     return act;
   };

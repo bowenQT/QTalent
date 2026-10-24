@@ -62,7 +62,7 @@
       // 负责人、导师：进行中的任务和上传材料收进「材料与任务」，默认折叠（v1.5 3.29、3.30）
       const fold = html`<details class="n-card nt-fold" id="fold" ${raw(location.hash === '#upload' ? 'open' : '')}><summary><h3 class="n-section-title">材料与任务</h3><span class="nt-muted">${st.visibleTasks().filter((t) => t.state !== 'done').length} 个在处理</span>${icon('chev')}</summary>
           <div id="tasks"></div>
-          <div id="upload" style="margin-top:var(--s-4)"><button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>TXT、MD、DOCX、PPTX、XLSX 和录音 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button><ul class="n-files" id="files"></ul></div></details>`;
+          <div id="upload" style="margin-top:var(--s-4)"><button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>${UI.ATT_TYPES}，可以一次拖入多个 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button><ul class="n-files" id="files"></ul></div></details>`;
       if (role === 'lead' || role === 'mentor') {
         mount(main, role === 'lead' ? html`${head}${composer}
           <div class="nt-ceo">
@@ -96,7 +96,7 @@
             ${role === 'hrbp' ? judgeCard() : ''}
             <article class="n-card"><h3 class="n-section-title">进行中的任务</h3><div id="tasks"></div></article>
             <article class="n-card" id="upload"><h3 class="n-section-title">上传材料</h3>
-              <button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>TXT、MD、DOCX、PPTX、XLSX 和录音 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button>
+              <button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>${UI.ATT_TYPES}，可以一次拖入多个 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button>
               <ul class="n-files" id="files"></ul>
             </article>
           </div>
@@ -300,11 +300,15 @@
       ['<span class="ok">已解析</span> · 9 段，定位到段落 · 提取 2 条事件待确认 · 已关联「Landing 第三期」', '<a class="n-btn n-btn--sm" href="record.html?q=W3%20对事复盘：唐果主动约了客服再访谈一次">确认事件</a>']));
     ['dragover', 'dragenter'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.add('is-over'); }));
     ['dragleave', 'drop'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.remove('is-over'); }));
+    // 一次可以拖入多个；格式与「记录关键事件」的附件同一口径（v1.5 3.34）
     $('#drop').addEventListener('drop', (e) => {
-      const f = e.dataTransfer.files[0]; if (!f) return;
-      const ext = (f.name.split('.').pop() || '').toUpperCase();
-      if (ext === 'PDF') add(f.name, 'PDF', [], ['<span class="err">暂不支持 PDF</span> · 本期只处理文字、Office 文件和录音。可以另存为 DOCX，或直接粘贴文字', '<a class="n-btn n-btn--sm n-btn--ghost" href="record.html">粘贴文字</a>']);
-      else add(f.name, ext.slice(0, 4), ['解析中', '整理中 · 提取人员和事件'], ['<span class="ok">已解析</span> · 原型不读取真实文件内容，这里只演示状态流转', '<span></span>']);
+      const list = [...e.dataTransfer.files];
+      if (list.length > UI.ATT_MAX) NT.toast(`一次最多 ${UI.ATT_MAX} 个文件，多出的 ${list.length - UI.ATT_MAX} 个没有加入`);
+      list.slice(0, UI.ATT_MAX).forEach((f) => {
+        const k = UI.attachKind(f.name), err = UI.attachCheck(f);
+        if (err) add(f.name, k.ext, [], [`<span class="err">${NT.esc(err)}</span>`, '<span></span>']);
+        else add(f.name, k.ext, [k.unit === '时' ? '转写中' : '解析中 · 识别文字', '整理中 · 提取人员和事件'], [`<span class="ok">已解析</span> · ${k.label} · 原型不读取真实文件内容，这里只演示状态流转`, '<span></span>']);
+      });
     });
   }
 

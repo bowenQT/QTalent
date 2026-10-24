@@ -49,12 +49,144 @@
   UI.cite = (src, n) => {
     if (!src) return '';
     citeN += 1;
-    const audio = src.type === 'audio';
-    const ic = { audio: 'wave', doc: 'doc', sheet: 'doc', note: 'note' }[src.type] || 'doc';
+    // 有时间段的录音（含附件里的录音、视频音轨）可以就地播放那一段
+    const audio = (src.type === 'audio' || src.type === 'video') && /\d:\d\d/.test(src.loc || '');
+    const ic = { audio: 'wave', video: 'play', doc: 'doc', slide: 'doc', sheet: 'doc', note: 'note' }[src.type] || 'doc';
     const quote = src.quote ? html`<p class="n-cite__quote">${src.quote}</p>` : '';
-    return html`<span class="n-cite"><button class="n-cite__mark" ${raw(audio ? 'data-kind="audio"' : '')} type="button" aria-label="引用 ${n}：${src.label}">${n}</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src">${icon(ic, 14)}${src.label} · ${src.loc}${src.by ? ` · ${st.person(src.by)?.name}` : ''}</span>${quote}${audio ? html`<span class="n-cite__foot"><button class="n-player__play nt-play" type="button" style="width:26px;height:26px" aria-label="播放这一段">${icon('play', 10)}</button><span style="font-size:var(--t-xs);color:var(--ink-3)">播放 ${src.loc.split('–')[0]} 起的 10 秒</span></span>` : ''}</span></span>`;
+    return html`<span class="n-cite"><button class="n-cite__mark" ${raw(audio ? 'data-kind="audio"' : '')} type="button" aria-label="引用 ${n}：${src.label}">${n}</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src">${icon(ic, 14)}${src.label} · ${src.loc}${src.by ? ` · ${st.person(src.by)?.name}` : ''}</span>${quote}${audio ? html`<span class="n-cite__foot"><button class="n-player__play nt-play" type="button" style="width:26px;height:26px" aria-label="播放这一段">${icon('play', 10)}</button><span style="font-size:var(--t-xs);color:var(--ink-3)">播放 ${src.loc.match(/\d+:\d\d/)[0]} 起的 10 秒</span></span>` : ''}</span></span>`;
   };
   UI.cites = (srcs) => (srcs || []).map((s, i) => UI.cite(s, i + 1));
+
+  // ---------- 附件（v1.5 3.34）：记一件事时附上多个文件，解析完成后作为这件事的出处一起保存 ----------
+  // 原型不读取真实文件内容：上传、解析、失败只演示状态，引用位置按文件名生成示意；文件名含「扫描」的 PDF 演示识别不出文字
+  const ATT_KINDS = [
+    [['pdf'], 'doc', 'PDF', '页'],
+    [['doc', 'docx', 'txt', 'md'], 'doc', '文档', '段'],
+    [['ppt', 'pptx'], 'slide', '演示文稿', '页'],
+    [['xls', 'xlsx', 'csv'], 'sheet', '表格', '格'],
+    [['mp3', 'm4a', 'wav', 'aac'], 'audio', '录音', '时'],
+    [['mp4', 'mov', 'webm', 'm4v'], 'video', '视频', '时'],
+  ];
+  const ATT_SIZE = 2 * 1024 ** 3;
+  UI.ATT_MAX = 10;
+  UI.ATT_ACCEPT = ATT_KINDS.flatMap(([exts]) => exts.map((x) => `.${x}`)).join(',');
+  UI.ATT_TYPES = 'PDF、Word、PPT、Excel、TXT / MD、音频和视频';
+  UI.attachKind = (name) => {
+    const ext = (name.includes('.') ? name.split('.').pop() : '').toLowerCase();
+    const k = ATT_KINDS.find(([exts]) => exts.includes(ext));
+    return { ext: (ext || '?').toUpperCase().slice(0, 4), type: k?.[1], label: k?.[2], unit: k?.[3], ok: !!k };
+  };
+  // 不能加入的原因；能加入返回空。记录页的附件和工作台的上传材料共用
+  UI.attachCheck = (f) => {
+    const k = UI.attachKind(f.name);
+    return !k.ok ? `不支持 .${k.ext.toLowerCase()} 格式，可以上传 ${UI.ATT_TYPES}` : (f.size || 0) > ATT_SIZE ? '超过 2 GB，传不上来；可以先剪成几段再传' : '';
+  };
+  // 解析后的引用位置（示意）：文档到段，PDF 与演示文稿到页，表格到单元格，音视频到时间段
+  UI.attachLoc = (name, unit) => {
+    const h = [...name].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const t = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+    return unit === '页' ? `第 ${2 + (h % 9)} 页` : unit === '段' ? `第 ${3 + (h % 12)} 段` : unit === '格' ? `「汇总」表 ${'BCDEF'[h % 5]}${4 + (h % 20)}`
+      : `${t(180 + (h % 1500))}–${t(180 + (h % 1500) + 25)}`;
+  };
+  const attSize = (b) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+  UI.attachButton = (label) => (label
+    ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-att-pick>${icon('clip')}${label}</button>`
+    : html`<button class="n-btn n-btn--ghost n-btn--icon" type="button" data-att-pick aria-label="添加附件" title="添加附件：${UI.ATT_TYPES}">${icon('clip')}</button>`);
+  // att = UI.attach({ key })：att.list(ul) 绑定列表，att.pick(btn) 绑定选择，att.drop(el) 绑定拖入；
+  // att.srcs() 取已解析的出处，att.pending() 还在上传或解析的个数，att.lock() 保存后只读，keep / restore 跨「改原话」和撤销保留
+  UI.attach = ({ key = 'rec' } = {}) => {
+    let items = [], ul = null, locked = false, picker = null, fallback = null;
+    const SKEY = `nt-att:${key}`;
+    const input = document.createElement('input');
+    Object.assign(input, { type: 'file', multiple: true, accept: UI.ATT_ACCEPT, hidden: true });
+    document.body.append(input);
+    const stateLine = (it) => (it.st === 'up' ? `上传中 · ${attSize(it.size)}`
+      : it.st === 'parse' ? (it.unit === '时' ? '转写中…' : '解析中 · 识别文字')
+        : it.st === 'err' ? html`<span class="err">${it.err}</span>`
+          : it.scan ? html`<span class="ok">已上传</span> · 扫描件，未识别出文字，只作附件保存`
+            : html`<span class="ok">已解析</span> · ${it.label} · ${attSize(it.size)} · 位置：${it.loc}`);
+    // 按行更新：上传进度刷新时不重建整行，键盘焦点留在移除按钮上
+    const paint = (li, it) => {
+      const sig = `${it.st}|${it.pct}|${locked}`;
+      if (li.dataset.sig === sig) return;
+      li.dataset.sig = sig;
+      mount(li.querySelector('.n-file__state'), stateLine(it));
+      mount(li.querySelector('.n-file__prog'), it.st === 'up' ? html`<div class="n-progress"><i style="width:${it.pct}%"></i></div>` : it.st === 'parse' ? html`<div class="n-progress is-indeterminate"><i></i></div>` : '');
+      if (locked) li.querySelector('.n-file__rm')?.remove();
+    };
+    const draw = () => {
+      if (!ul) return;
+      ul.hidden = !items.length;
+      const ids = new Set(items.map((x) => x.id));
+      [...ul.children].forEach((li) => { if (!ids.has(li.dataset.att)) li.remove(); });
+      items.forEach((it, i) => {
+        let li = [...ul.children].find((x) => x.dataset.att === it.id);
+        if (!li) {
+          li = document.createElement('li'); li.className = 'n-file'; li.dataset.att = it.id;
+          mount(li, html`<span class="n-file__ext">${it.ext}</span><div style="min-width:0"><div class="n-file__name" title="${it.name}">${it.name}</div><div class="n-file__state"></div><div class="n-file__prog"></div></div><span>${locked ? '' : html`<button class="n-btn n-btn--ghost n-btn--icon n-file__rm" type="button" data-att-rm="${it.id}" aria-label="移除附件「${it.name}」">${icon('x')}</button>`}</span>`);
+        }
+        if (ul.children[i] !== li) ul.insertBefore(li, ul.children[i] || null);
+        paint(li, it);
+      });
+    };
+    const run = async (it) => {
+      for (it.pct = 0; it.pct <= 100; it.pct += 25) { if (!items.includes(it)) return; draw(); await NT.wait(140); }
+      it.st = 'parse'; draw();
+      await NT.wait(it.unit === '时' ? 1600 : 1000);
+      if (!items.includes(it)) return;
+      if (it.ext === 'PDF' && /扫描/.test(it.name)) it.scan = true;
+      else it.loc = UI.attachLoc(it.name, it.unit);
+      it.st = 'ok'; draw();
+    };
+    const add = (files) => {
+      const room = Math.max(UI.ATT_MAX - items.length, 0), list = [...files];
+      if (list.length > room) NT.toast(`一条记录最多 ${UI.ATT_MAX} 个附件，多出的 ${list.length - room} 个没有加入`);
+      list.slice(0, room).forEach((f) => {
+        if (items.some((x) => x.name === f.name && x.size === f.size)) { NT.toast(`「${f.name}」已经加过了`); return; }
+        const k = UI.attachKind(f.name), err = UI.attachCheck(f);
+        const it = { id: NT.uid('att'), name: f.name, size: f.size || 0, ext: k.ext, type: k.type, label: k.label, unit: k.unit, st: err ? 'err' : 'up', err, pct: 0 };
+        items.push(it);
+        if (!err) run(it);
+      });
+      draw();
+    };
+    input.addEventListener('change', () => { add(input.files); input.value = ''; });
+    const api = {
+      list(el) {
+        ul = el; ul.replaceChildren(); ul.classList.add('n-files', 'n-attach'); ul.setAttribute('aria-live', 'polite');
+        ul.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-att-rm]'); if (!b || locked) return;
+          const i = items.findIndex((x) => x.id === b.dataset.attRm); if (i < 0) return;
+          const [gone] = items.splice(i, 1); draw();
+          // 焦点落到同一位置的下一个附件的移除按钮；没有了回到看得见的「添加附件」，整理确认页里回到页面给的落点
+          const rms = ul.querySelectorAll('[data-att-rm]'), seen = (b) => b?.isConnected && b.getClientRects().length > 0;
+          (rms[Math.min(i, rms.length - 1)] || (seen(picker) ? picker : fallback?.()))?.focus();
+          NT.toast(`已移除「${gone.name}」`);
+        });
+        draw(); return api;
+      },
+      pick(btn) { picker = btn || picker; btn?.addEventListener('click', () => input.click()); return api; },
+      fallback(fn) { fallback = fn; return api; },
+      drop(el) {
+        if (!el) return api;
+        ['dragenter', 'dragover'].forEach((t) => el.addEventListener(t, (e) => { if (locked || !e.dataTransfer?.types.includes('Files')) return; e.preventDefault(); el.classList.add('is-dropping'); }));
+        ['dragleave', 'drop'].forEach((t) => el.addEventListener(t, (e) => { if (t === 'dragleave' && el.contains(e.relatedTarget)) return; el.classList.remove('is-dropping'); }));
+        el.addEventListener('drop', (e) => { if (locked || !e.dataTransfer?.files.length) return; e.preventDefault(); add(e.dataTransfer.files); });
+        return api;
+      },
+      add,
+      pending: () => items.filter((x) => x.st === 'up' || x.st === 'parse').length,
+      // 出处：已解析的给到具体位置和原文示意；扫描件只作附件，不给位置
+      srcs: () => items.filter((x) => x.st === 'ok').map((x) => (x.scan
+        ? { type: x.type, att: 1, label: `附件：${x.name}`, loc: '扫描件，未识别出文字' }
+        : { type: x.type, att: 1, label: `附件：${x.name}`, loc: x.loc, quote: `（原型示意）正式版在这里显示${x.loc}的原文。` })),
+      lock() { locked = true; items = items.filter((x) => x.st === 'ok'); draw(); },
+      keep() { try { sessionStorage.setItem(SKEY, JSON.stringify(items.filter((x) => x.st === 'ok'))); } catch (e) { /* 存不下就不保留 */ } },
+      restore() { try { const v = JSON.parse(sessionStorage.getItem(SKEY) || '[]'); if (Array.isArray(v)) items = v.filter((x) => x && x.id && x.st === 'ok'); } catch (e) { /* 忽略 */ } api.clear(); draw(); return api; },
+      clear() { try { sessionStorage.removeItem(SKEY); } catch (e) { /* 忽略 */ } },
+    };
+    return api;
+  };
 
   UI.scoreState = (s) => (s.st === 'calibrated' ? 'calibrated' : s.st === 'ai' ? 'ai' : s.st === 'unknown' ? 'unknown' : s.st === 'absent' ? 'absent' : 'confirmed');
   // 只读的一行维度分
@@ -377,7 +509,7 @@
       title: `${k.label}：${p.name}`,
       body: html`<p style="margin:0 0 var(--s-3)">${k.task}。负责人会在待办里看到你的说明和这条关注的依据；结果由负责人确认后，作为管理观察进${p.name}的档案。</p>${UI.pushBasis(basis)}
         <fieldset class="n-field n-owners"><legend class="n-field__label">交给谁</legend>${owners.map((o, i) => html`<label class="n-owner"><input type="radio" name="pu-owner" value="${o.id}" ${raw(i === 0 ? 'checked' : '')}>${UI.avatar(o.id, 'sm')}<span>${st.person(o.id).name}<small>${o.why}</small></span></label>`)}</fieldset>
-        ${kind === 'staff' ? html`<label class="n-field"><span class="n-field__label">带进哪次找人</span><select class="n-select" id="pu-proj">${projs.map((x) => html`<option value="${x.id}">${x.name}</option>`)}<option value="">还没定，先讨论</option></select></label><p class="nt-caption" id="pu-err" role="alert" hidden style="color:var(--no)"></p>` : ''}
+        ${kind === 'staff' ? html`<label class="n-field"><span class="n-field__label">带进哪次找人</span><select class="n-select" id="pu-proj">${projs.map((x) => html`<option value="${x.id}">${x.name}</option>`)}<option value="">还没定，先讨论</option></select></label><p class="n-field__err" id="pu-err" role="alert" hidden></p>` : ''}
         <label class="n-field"><span class="n-field__label">说明<small>可以不写</small></span><textarea class="n-textarea" rows="2" id="pu-note" placeholder="${PUSH_HINT[kind]}"></textarea></label>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '交给负责人', value: 'ok', cls: 'n-btn--ink',
         // 任用讨论：负责人要能打开所选项目的找人，否则换负责人或换项目
@@ -489,7 +621,7 @@
         <label class="n-field"><span class="n-field__label">适合做</span><select class="n-select" id="rc-dir">${st.templates().map((t) => html`<option value="${t.id}">${t.name}</option>`)}</select></label>
         <label class="n-field"><span class="n-field__label">理由</span><textarea class="n-textarea" rows="2" id="rc-why" placeholder="比如：联调时能独立定位问题，也会主动接没人认领的事"></textarea></label>
         <fieldset class="n-field n-recoevs"><legend class="n-field__label">依据（至少 2 件不同的事）</legend>${evs.length ? evs.slice(0, 8).map((e) => html`<label class="n-check"><input type="checkbox" value="${e.id}"><span>${e.title}<small>${NT.md(e.date)}${e.project ? ` · ${st.project(e.project)?.name}` : ''}</small></span></label>`) : html`<p class="nt-muted">还没有已确认的关键事件，先记一件事再推荐。</p>`}</fieldset>
-        <p class="nt-caption" id="rc-err" role="alert" hidden style="color:var(--no)"></p>`,
+        <p class="n-field__err" id="rc-err" role="alert" hidden></p>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: self ? '记入档案' : '提交给 HRBP', value: 'ok', cls: 'n-btn--ink',
         validate: (d) => {
           const why = d.querySelector('#rc-why').value.trim(), n = d.querySelectorAll('.n-recoevs input:checked').length, err = d.querySelector('#rc-err');
