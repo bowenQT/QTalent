@@ -144,6 +144,15 @@
     const p = S.projects.find((x) => x.id === projectId);
     return !p || store.canEditProject(p, role);
   };
+  // 某个人（不限演示视角）能不能为这个项目找人：推动「任用讨论」指派负责人前校验，避免生成打不开的待办
+  store.canStaffAs = (pid, projectId) => {
+    const p = S.projects.find((x) => x.id === projectId), q = PEOPLE.get(pid);
+    if (!p) return true;
+    if (!q || p.creator === pid || p.owner === pid) return !!q;
+    const hrOrgs = myHrbpOrgs(pid);
+    if (hrOrgs.length) return hrOrgs.some((o) => store.inOrg(o, p.org));
+    return !!q.leads && store.inOrg(p.org, q.leads);
+  };
   // 盘点批次：范围内至少有一个本视角能完整查看的人
   store.canBatch = (b, role = store.role()) => !!b && store.can('review', null, role)
     && SEED.PEOPLE.some((q) => !q.noReview && store.inOrg(q.org, b.org) && store.scope(q.id, role) === 'full');
@@ -892,7 +901,8 @@
       out.confirm.push({ kind: 'plan', plan: p.id, title: `${store.batch(p.batch)?.name || '盘点'} · 组织调整方案 v${p.version}`, sub: `${store.person(p.by).name}起草 · ${NT.md(p.at)}`, owner: p.by, state: '待你确认', href: `plan.html?id=${p.batch}` });
     });
     S.needs.filter((n) => n.by === me).forEach((n) => {
-      const plans = S.plans.filter((p) => p.need === n.id);
+      // 找人页保存的方案只记项目，不记需求：同一项目的用人方案都算这条需求的（v1.4 3.19.1）
+      const plans = S.plans.filter((p) => p.need === n.id || (p.kind === 'staffing' && p.project === n.project));
       if (plans.some((p) => p.status === 'draft')) return; // 已经在置顶里
       const proj = store.project(n.project), conf = plans.filter((p) => p.status === 'confirmed').sort((a, b) => b.version - a.version)[0];
       if (conf) return; // 方案确认后，后续由项目 owner 推进

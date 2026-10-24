@@ -369,14 +369,21 @@
   }));
   UI.pushDialog = async (pid, kind, rerender, basis) => {
     const p = st.person(pid), k = st.PUSH_KINDS[kind], owners = st.pushOwners(pid);
-    const projs = st.get().needs.map((n) => st.project(n.project)).filter(Boolean);
+    const projs = [...new Set(st.get().needs.map((n) => n.project))].map(st.project).filter(Boolean);
     const r = await NT.dialog({
       title: `${k.label}：${p.name}`,
       body: html`<p style="margin:0 0 var(--s-3)">${k.task}。负责人会在待办里看到你的说明和这条关注的依据；结果由负责人确认后，作为管理观察进${p.name}的档案。</p>${UI.pushBasis(basis)}
         <fieldset class="n-field n-owners"><legend class="n-field__label">交给谁</legend>${owners.map((o, i) => html`<label class="n-owner"><input type="radio" name="pu-owner" value="${o.id}" ${raw(i === 0 ? 'checked' : '')}>${UI.avatar(o.id, 'sm')}<span>${st.person(o.id).name}<small>${o.why}</small></span></label>`)}</fieldset>
-        ${kind === 'staff' ? html`<label class="n-field"><span class="n-field__label">带进哪次找人</span><select class="n-select" id="pu-proj">${projs.map((x) => html`<option value="${x.id}">${x.name}</option>`)}<option value="">还没定，先讨论</option></select></label>` : ''}
+        ${kind === 'staff' ? html`<label class="n-field"><span class="n-field__label">带进哪次找人</span><select class="n-select" id="pu-proj">${projs.map((x) => html`<option value="${x.id}">${x.name}</option>`)}<option value="">还没定，先讨论</option></select></label><p class="nt-caption" id="pu-err" role="alert" hidden style="color:var(--no)"></p>` : ''}
         <label class="n-field"><span class="n-field__label">说明<small>可以不写</small></span><textarea class="n-textarea" rows="2" id="pu-note" placeholder="${PUSH_HINT[kind]}"></textarea></label>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '交给负责人', value: 'ok', cls: 'n-btn--ink',
+        // 任用讨论：负责人要能打开所选项目的找人，否则换负责人或换项目
+        validate: (d) => {
+          const err = d.querySelector('#pu-err'); if (!err) return true;
+          const owner = d.querySelector('[name="pu-owner"]:checked').value, proj = d.querySelector('#pu-proj').value, ok = !proj || st.canStaffAs(owner, proj);
+          err.hidden = ok; if (!ok) err.textContent = `${st.person(owner).name}没有「${st.project(proj).name}」的找人权限，换一位负责人或换一个项目。`;
+          return ok;
+        },
         read: (d) => ({ owner: d.querySelector('[name="pu-owner"]:checked').value, note: d.querySelector('#pu-note').value.trim(), project: d.querySelector('#pu-proj')?.value || null }) }],
     });
     if (r?.value !== 'ok') return null;
