@@ -164,6 +164,18 @@
   </div>
 
   <aside class="g-side">
+    <!-- 版本 Y 只在本地打开；评审站不发布 y/，这里探测到页面存在时才显示入口 -->
+    <div class="g-box" id="ver-y" hidden>
+      <h3>版本 Y · 中性工作台</h3>
+      <p style="margin:0 0 var(--s-3)">和左侧的版本 X 平行的另一条方向：管理者、HR、导师三种角色，人员来自 XEngineer 第六期的演示数据，手机端只给导师用。两个版本的演示数据分开保存。</p>
+      <div class="g-links">
+        <a class="n-btn n-btn--sm" href="y/app/index.html?as=ceo">管理者工作台</a>
+        <a class="n-btn n-btn--sm" href="y/app/index.html?as=hrbp">HR 工作台</a>
+        <a class="n-btn n-btn--sm" href="y/app/index.html?as=mentor">导师工作台</a>
+        <a class="n-btn n-btn--sm" href="y/m/index.html">导师手机版</a>
+        <a class="n-btn n-btn--sm n-btn--ghost" href="y/design-system.html">设计系统 · 版本 Y</a>
+      </div>
+    </div>
     <div class="g-box">
       <h3>怎么写评论</h3>
       <ol>
@@ -193,6 +205,7 @@
 <script src="assets/niu-ip.js"></script>
 <script>
   if (window.NiuIP) NiuIP.mount(document.getElementById('ip'), { state: 'rest', size: 88 });
+  fetch('y/app/index.html', { method: 'HEAD', cache: 'no-store' }).then((r) => { if (r.ok) document.getElementById('ver-y').hidden = false; }).catch(() => { /* 版本 Y 不在当前站点时不显示入口 */ });
   document.getElementById('reset').addEventListener('click', (e) => {
     if (!confirm('清空你在本浏览器里做过的确认、校准和记录，回到初始演示数据？评论会保留。')) return;
     try { localStorage.removeItem('nt-demo'); localStorage.removeItem('nt-role'); sessionStorage.clear(); } catch (err) { /* 浏览器禁用了存储时无需清理 */ }
