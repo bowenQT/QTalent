@@ -355,14 +355,14 @@
     const S = st.get();
     const stop = e.target.closest('[data-stop]'), edit = e.target.closest('[data-edit]'), resume = e.target.closest('[data-resume]');
     if (stop) {
-      const t = S.tracks.find((x) => x.id === stop.dataset.stop); t.state = 'stopped'; t.stoppedAt = NT.TODAY; st.save(); rerender();
+      const t = S.tracks.find((x) => x.id === stop.dataset.stop); t.state = 'stopped'; t.stoppedAt = NT.TODAY; t.stoppedTs = Date.now(); st.save(); rerender();
       NT.toast(`已停止跟踪${st.person(t.person).name}`, { undo: () => { t.state = 'on'; st.save(); rerender(); } });
     }
     if (resume) { const t = S.tracks.find((x) => x.id === resume.dataset.resume); t.state = 'on'; st.save(); rerender(); }
     if (edit) {
       const t = S.tracks.find((x) => x.id === edit.dataset.edit);
       const r = await UI.trackDialog(t.person, t);
-      if (r) { Object.assign(t, r, { editedAt: NT.TODAY }); st.save(); rerender(); NT.toast('观察问题已更新'); }
+      if (r) { Object.assign(t, r, { editedAt: NT.TODAY, editedTs: Date.now() }); st.save(); rerender(); NT.toast('观察问题已更新'); }
     }
   });
   UI.trackDialog = async (pid, t) => {

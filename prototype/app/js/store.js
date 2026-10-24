@@ -452,7 +452,7 @@
   };
 
   // ---------- 写入 ----------
-  store.addEvent = (e) => { S.events.unshift(e); store.save(); return e; };
+  store.addEvent = (e) => { e.ts ??= Date.now(); S.events.unshift(e); store.save(); return e; }; // ts：同一天内的先后
   store.removeEvent = (id) => { S.events = S.events.filter((e) => e.id !== id); store.save(); };
   store.confirmScore = (evId, idx, v, why) => {
     const e = store.event(evId), s = e.scores[idx];
@@ -730,11 +730,11 @@
       const recent = store.scoresOf(p.id, { from: RECENT });
       SEED.DIMS.forEach((d) => {
         const evs = [...new Set(recent.filter((s) => s.d === d.id && s.v >= 4).map((s) => s.ev.id))].map(store.event).sort(byDate);
-        if (evs.length >= 2) hits.push({ person: p.id, rule: 'N1', when: evs[0].date, why: `${store.tenure(p)}，${d.name}已有 ${evs.length} 件不同的事可以印证`, evs: evs.map((e) => e.id) });
+        if (evs.length >= 2) hits.push({ person: p.id, rule: 'N1', when: evs[0].date, ts: evs[0].ts, why: `${store.tenure(p)}，${d.name}已有 ${evs.length} 件不同的事可以印证`, evs: evs.map((e) => e.id) });
       });
     });
     store.changes().filter((c) => c.t === 'trend' && ids.has(c.person)).forEach((c) => hits.push({
-      person: c.person, rule: c.up ? 'T1' : 'I1', when: c.when, why: `${store.dim(c.dim).name}近 3 个月明显${c.up ? '走高' : '走低'}，有 ${c.n} 件事`, evs: c.after.map((s) => s.ev.id),
+      person: c.person, rule: c.up ? 'T1' : 'I1', when: c.when, ts: c.after[0]?.ev?.ts, why: `${store.dim(c.dim).name}近 3 个月明显${c.up ? '走高' : '走低'}，有 ${c.n} 件事`, evs: c.after.map((s) => s.ev.id),
     }));
     S.signals.filter((g) => g.state === 'open' && g.since && NT.days(g.since) >= 14 && ids.has(g.person)).forEach((g) => hits.push({
       person: g.person, rule: 'I2', when: NT.addDays(g.since, 14), why: `「值得聊一聊」已经打开 ${NT.days(g.since)} 天：${g.items.filter((i) => i.src === 'fact').map((i) => i.text).join('，')}`, signal: true,
@@ -745,11 +745,11 @@
       person: t.person, rule: 'I3', when: t.next, why: `重点跟踪约定 ${NT.md(t.next)} 回看，还没有更新`, track: t.id,
     }));
     S.watchClues.filter((c) => c.state === 'verified' && ids.has(c.person)).forEach((c) => hits.push({
-      person: c.person, rule: c.rule, when: c.verifiedAt, why: c.dir ? `${store.person(c.by).name}推荐${store.fitText(c.dir)}：${c.why}` : c.why, evs: c.evs, srcs: c.srcs, by: c.by, verifiedBy: c.verifiedBy, clue: c.id, dir: c.dir,
+      person: c.person, rule: c.rule, when: c.verifiedAt, ts: c.verifiedTs, why: c.dir ? `${store.person(c.by).name}推荐${store.fitText(c.dir)}：${c.why}` : c.why, evs: c.evs, srcs: c.srcs, by: c.by, verifiedBy: c.verifiedBy, clue: c.id, dir: c.dir,
     }));
     // 同一个人只出现一次，归到最近触发的那一类，其余命中的规则并列写出
     const byPerson = new Map();
-    hits.sort((a, b) => b.when.localeCompare(a.when)).forEach((h) => {
+    hits.sort((a, b) => b.when.localeCompare(a.when) || (b.ts || 0) - (a.ts || 0)).forEach((h) => {
       const cur = byPerson.get(h.person);
       if (!cur) byPerson.set(h.person, { ...h, id: `w-${h.person}`, cat: WATCH_RULES[h.rule].cat, also: [] });
       else if (cur.rule !== h.rule) cur.also.push(h);
@@ -785,11 +785,11 @@
   store.watchHandled = () => (store.role() === 'hrbp' ? S.watchClues.filter((c) => ['verified', 'rejected'].includes(c.state) && store.scope(c.person) === 'full').sort((a, b) => (b.verifiedAt || '').localeCompare(a.verifiedAt || '')) : []);
   store.verifyClue = (id, ok, why) => {
     const c = S.watchClues.find((x) => x.id === id); if (!c) return null;
-    Object.assign(c, ok ? { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY } : { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
+    Object.assign(c, ok ? { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now() } : { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
     store.save();
     return c;
   };
-  store.unverifyClue = (id) => { const c = S.watchClues.find((x) => x.id === id); c.state = 'pending'; delete c.verifiedBy; delete c.verifiedAt; delete c.rejectWhy; store.save(); };
+  store.unverifyClue = (id) => { const c = S.watchClues.find((x) => x.id === id); c.state = 'pending'; delete c.verifiedBy; delete c.verifiedAt; delete c.verifiedTs; delete c.rejectWhy; store.save(); };
 
   // ---------- 推荐方向（v1.5 3.31）：带目标角色的提名，走值得关注的核实流程 ----------
   // 「适合做 FDE」「适合做产品架构师」：中英文之间留空格，中文之间不留
@@ -804,7 +804,7 @@
     const ok = store.canRecommend(pid) && store.template(dir) && why && new Set(evs).size >= 2 && evs.every((id) => store.recoEvidence(pid).some((e) => e.id === id));
     if (!ok) return null;
     const me = store.me().id, self = store.role() === 'hrbp'; // HRBP 本人提交的直接视为已核实
-    const c = { id: NT.uid('wc'), person: pid, rule: 'T2', by: me, dir, at: NT.TODAY, why, evs: [...new Set(evs)], state: self ? 'verified' : 'pending', ...(self ? { verifiedBy: me, verifiedAt: NT.TODAY } : {}) };
+    const c = { id: NT.uid('wc'), person: pid, rule: 'T2', by: me, dir, at: NT.TODAY, why, evs: [...new Set(evs)], state: self ? 'verified' : 'pending', ...(self ? { verifiedBy: me, verifiedAt: NT.TODAY, verifiedTs: Date.now() } : {}) };
     S.watchClues.unshift(c); store.save();
     return c;
   };
@@ -842,26 +842,26 @@
     store.followList().filter((f) => !pid || f.person === pid).forEach((f) => {
       const p = f.person;
       store.visibleEvents(p).events.filter((e) => e.kind === 'obs' && e.date && e.date >= f.at && !e.scores.some((x) => x.p === p && x.st === 'ai'))
-        .forEach((e) => out.push({ person: p, at: e.date, kind: e.push ? 'push' : 'event', text: e.push ? `推动有结果：${e.title}` : e.title, ev: e.id, by: e.recorder }));
+        .forEach((e) => out.push({ person: p, at: e.date, ts: e.ts, kind: e.push ? 'push' : 'event', text: e.push ? `推动有结果：${e.title}` : e.title, ev: e.id, by: e.recorder }));
       const w = watch[p];
-      if (w && w.when >= f.at) out.push({ person: p, at: w.when, kind: 'watch', text: `进入值得关注：${w.why}`, cat: w.cat });
-      S.pushes.filter((x) => x.person === p && x.by === me).forEach((x) => x.log.filter((l) => l.at >= f.at).forEach((l) => out.push({ person: p, at: l.at, kind: 'push', text: `${PUSH_KINDS[x.kind].label}：${l.text}`, by: l.by })));
+      if (w && w.when >= f.at) out.push({ person: p, at: w.when, ts: w.ts, kind: 'watch', text: `进入值得关注：${w.why}`, cat: w.cat });
+      S.pushes.filter((x) => x.person === p && x.by === me).forEach((x) => x.log.filter((l) => l.at >= f.at).forEach((l) => out.push({ person: p, at: l.at, ts: l.ts, kind: 'push', text: `${PUSH_KINDS[x.kind].label}：${l.text}`, by: l.by })));
       // 行动（管理资料）：新生成的和状态变化；重点跟踪：开始、改观察问题、停止
       const ALABEL = { todo: '待沟通', doing: '进行中', done: '已执行', cancel: '没有执行', reviewed: '已复盘' };
       if (store.can('mgmt', p)) S.actions.filter((a) => a.person === p).forEach((a) => {
-        if (a.at && a.at >= f.at) out.push({ person: p, at: a.at, kind: 'action', text: `新行动：${a.title}`, by: a.owner });
-        if (a.stateAt && a.stateAt >= f.at) out.push({ person: p, at: a.stateAt, kind: 'action', text: `行动「${a.title}」${ALABEL[a.state] || ''}`, by: a.owner });
+        if (a.at && a.at >= f.at) out.push({ person: p, at: a.at, ts: a.ts, kind: 'action', text: `新行动：${a.title}`, by: a.owner });
+        if (a.stateAt && a.stateAt >= f.at) out.push({ person: p, at: a.stateAt, ts: a.stateTs, kind: 'action', text: `行动「${a.title}」${ALABEL[a.state] || ''}`, by: a.owner });
       });
       S.tracks.filter((t) => t.person === p && (store.can('mgmt', p) || t.owner === me || t.helper === me)).forEach((t) => {
-        if (t.since >= f.at) out.push({ person: p, at: t.since, kind: 'track', text: `开始重点跟踪：${t.q}`, by: t.owner });
-        if (t.editedAt && t.editedAt >= f.at) out.push({ person: p, at: t.editedAt, kind: 'track', text: `重点跟踪改了观察问题：${t.q}`, by: t.owner });
-        if (t.state !== 'on' && t.stoppedAt && t.stoppedAt >= f.at) out.push({ person: p, at: t.stoppedAt, kind: 'track', text: '停止重点跟踪', by: t.owner });
+        if (t.since >= f.at) out.push({ person: p, at: t.since, ts: t.ts, kind: 'track', text: `开始重点跟踪：${t.q}`, by: t.owner });
+        if (t.editedAt && t.editedAt >= f.at) out.push({ person: p, at: t.editedAt, ts: t.editedTs, kind: 'track', text: `重点跟踪改了观察问题：${t.q}`, by: t.owner });
+        if (t.state !== 'on' && t.stoppedAt && t.stoppedAt >= f.at) out.push({ person: p, at: t.stoppedAt, ts: t.stoppedTs, kind: 'track', text: '停止重点跟踪', by: t.owner });
       });
-      store.recosFor(p).filter((c) => c.verifiedAt >= f.at).forEach((c) => out.push({ person: p, at: c.verifiedAt, kind: 'reco', text: `${store.person(c.by).name}推荐${store.fitText(c.dir)}`, by: c.verifiedBy }));
+      store.recosFor(p).filter((c) => c.verifiedAt >= f.at).forEach((c) => out.push({ person: p, at: c.verifiedAt, ts: c.verifiedTs, kind: 'reco', text: `${store.person(c.by).name}推荐${store.fitText(c.dir)}`, by: c.verifiedBy }));
     });
-    // 推动结果本身也是一条事件，同一天的同一件事只留一条
+    // 同一天按记录时刻（ts）从新到旧；推动结果本身也是一条事件，同一天的同一件事只留一条
     const seen = new Set();
-    return out.sort((a, b) => b.at.localeCompare(a.at)).filter((x) => { const k = `${x.person}|${x.at}|${x.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
+    return out.sort((a, b) => b.at.localeCompare(a.at) || (b.ts || 0) - (a.ts || 0)).filter((x) => { const k = `${x.person}|${x.at}|${x.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
   };
 
   // ---------- CEO 推动（v1.4 3.21） ----------
