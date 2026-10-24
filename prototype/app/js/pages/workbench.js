@@ -83,9 +83,11 @@
     },
   });
 
+  // 待核实线索先给出 AI 引用的原文和位置，HRBP 核对过再决定是否给 CEO 看
+  const clueSrc = (id) => { const c = st.get().watchClues.find((x) => x.id === id); if (!c) return ''; return html`<div class="n-todo__src">${icon('quote')}<span>原文依据</span>${c.srcs ? UI.cites(c.srcs) : (c.evs || []).map((e, i) => UI.evCite(e, i + 1))}<span class="nt-muted">点角标看原文与位置</span></div>`; };
   // CEO 请你（推动）、待核实线索可以就地处理；其余点进去处理
   const todoActs = (t) => (t.kind === 'push' ? html`<div class="n-todo__acts"><button class="n-btn n-btn--sm" type="button" data-pres="${t.push}">${icon('check')}确认结果，写进档案</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-plog="${t.push}">记一笔进展</button></div>`
-    : t.kind === 'clue' ? html`<div class="n-todo__acts"><button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，给 CEO 看</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
+    : t.kind === 'clue' ? html`<div class="n-todo__acts">${clueSrc(t.clue)}<button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，给 CEO 看</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
   const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li class="${t.kind === 'push' || t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
   const GROUPS = [['ceo', 'CEO 请你', ['push', 'jask']], ['verify', '待核对', ['verify']], ['clue', '待核实线索', ['clue']], ['calib', '待校准', ['calib']], ['plan', '待确认', ['plan']], ['follow', '待跟进', ['track', 'talk']]];
   let openGroup = null, showHandled = false;

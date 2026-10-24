@@ -1356,6 +1356,9 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 
 /* ── 待办里能就地处理的条目 ── */
 .n-todo li.has-acts .n-todo__acts { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: var(--s-2); padding: 0 var(--s-1) var(--s-3); }
+.n-todo__src { display: flex; flex-basis: 100%; align-items: center; gap: 6px; font-size: var(--t-xs); color: var(--ink-2); }
+.n-todo__src > svg { flex: none; width: 12px; height: 12px; color: var(--ink-3); }
+.n-todo__src .nt-muted, .n-todo__src > span:last-child { color: var(--ink-3); }
 
 @media (max-width: 760px) {
   .n-watch__item { grid-template-columns: auto minmax(0, 1fr); }

@@ -58,6 +58,7 @@
       <h3 class="m-h">我推动的事项${m.confirm.length ? html`<span class="n-count">${m.confirm.length}</span>` : ''}</h3>
       ${mine.length ? html`<ul class="m-list">${mine.map((it) => M.row(mineHref(it), it.owner ? UI.avatar(it.owner, 'sm') : icon('check2'), it.title, it.sub, html`<span class="n-astate" data-s="${STATE_S[it.state] || 'todo'}">${it.state}</span>`))}</ul>`
         : html`<div class="nt-empty">你发起的找人、推动和复核请求会出现在这里。</div>`}
+      ${m.done.length ? html`<h3 class="m-h">近 7 天有结果</h3><ul class="m-list">${m.done.map((it) => M.row(mineHref(it), it.owner ? UI.avatar(it.owner, 'sm') : icon('check2'), it.title, it.sub, html`<span class="n-astate" data-s="done">${it.state}</span>`))}</ul>` : ''}
 
       <h3 class="m-h">值得关注<span class="n-count is-quiet">${watch.length} 人</span></h3>
       <div class="m-watchcats">${st.WATCH_CATS.map(([k, l]) => { const n = watch.filter((w) => w.cat === k).length; return html`<span>${l}<b>${n ? `${n} 人` : '暂无'}</b></span>`; })}</div>

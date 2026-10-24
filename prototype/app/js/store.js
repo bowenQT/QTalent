@@ -748,6 +748,8 @@
   store.doingFor = (pid) => {
     const out = [];
     S.tracks.filter((t) => t.person === pid && t.state === 'on').forEach((t) => out.push(`${store.person(t.owner).name}在重点跟踪 · ${NT.md(t.next)} 回看`));
+    // 行动：还在推进的，或已执行、还在观察期里的（v1.4 3.20.2）
+    S.actions.filter((x) => x.person === pid && (['todo', 'doing'].includes(x.state) || (x.state === 'done' && x.observe && x.observe >= NT.TODAY))).forEach((x) => out.push(`行动：${x.title} · ${store.person(x.owner).name}负责 · ${x.state === 'done' ? `已执行，观察到 ${NT.md(x.observe)}` : x.state === 'todo' ? '待沟通' : '进行中'}`));
     S.pushes.filter((x) => x.person === pid && x.state !== 'cancel').forEach((x) => out.push(`已推动：${PUSH_KINDS[x.kind].label} · ${store.person(x.owner).name} · ${PUSH_STATE[x.state]}`));
     return out;
   };
