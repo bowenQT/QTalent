@@ -3,6 +3,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { z } from 'zod';
+import {
+  evidenceSeedFields,
+  mapEvidenceSeed,
+  EVIDENCE_SOURCES,
+  snapshotFieldSources,
+} from './evidence';
 import type {
   Assignment,
   AuthzContext,
@@ -37,6 +43,7 @@ const project = z.object({
   batch: id.optional(),
 });
 const seedSchema = z.object({
+  ...evidenceSeedFields,
   ORGS: z.array(
     z.object({
       id,
@@ -81,11 +88,6 @@ const seedSchema = z.object({
   }),
 });
 export type PrototypeSeed = z.infer<typeof seedSchema>;
-const sourceDigests: Record<string, string> = {
-  'data-xe6.js':
-    'e091963074607e3d844d2b89b2cdf2cc74105afb8141aca0dcd334f09402197b',
-  'data.js': '9c649375f6d1e77cbfcf1c163b3c23627447127d89f6ece2155ad9f6262c5e29',
-};
 /** Only trusted, digest-pinned repository source is evaluated. VM is not an untrusted-code sandbox. */
 export function readPrototypeSeed(root: string): PrototypeSeed {
   const reference = z
@@ -101,18 +103,33 @@ export function readPrototypeSeed(root: string): PrototypeSeed {
     'window.NT.clone = (value) => JSON.parse(JSON.stringify(value))',
     context,
   );
-  for (const [file, digest] of Object.entries(sourceDigests)) {
+  let firstEvents: unknown = [];
+  for (const [file, expected] of Object.entries(EVIDENCE_SOURCES)) {
     const source = readFileSync(
       join(root, '.reference-cache/prototype/y/app/js', file),
       'utf8',
     );
-    if (createHash('sha256').update(source).digest('hex') !== digest)
+    if (
+      createHash('sha256').update(source).digest('hex') !== expected.digest ||
+      createHash('sha1')
+        .update('blob ' + Buffer.byteLength(source) + '\0')
+        .update(source)
+        .digest('hex') !== expected.blob
+    )
       throw new Error(
         `Prototype baseline ${reference.commit}: source digest mismatch: ${file}`,
       );
     runInContext(source, context, { timeout: 1000, filename: file });
+    if (file === 'data-xe6.js')
+      firstEvents = JSON.parse(
+        runInContext('JSON.stringify(window.NT.XE6.events)', context),
+      );
   }
-  return validatePrototypeSeed(runInContext('window.NT.SEED', context));
+  const final = runInContext('window.NT.SEED', context);
+  return validatePrototypeSeed({
+    ...final,
+    SNAPSHOT_FIELD_SOURCES: snapshotFieldSources(firstEvents, final.EVENTS),
+  });
 }
 export function validatePrototypeSeed(input: unknown): PrototypeSeed {
   const seed = seedSchema.parse(input);
@@ -172,6 +189,16 @@ export function validatePrototypeSeed(input: unknown): PrototypeSeed {
       ref(people, student);
       ref(projects, topic);
       for (const mentor of mentors) ref(people, mentor);
+    }
+  }
+  for (const event of seed.EVENTS) {
+    for (const personId of event.people) ref(people, personId);
+    ref(people, event.recorder);
+    ref(projects, event.project);
+    for (const score of event.scores) {
+      ref(people, score.p);
+      ref(people, score.by);
+      for (const rater of score.raters ?? []) ref(people, rater.by);
     }
   }
   return seed;
@@ -246,6 +273,7 @@ export function mapPrototypeSeed(input: PrototypeSeed) {
     return null;
   };
   return {
+    evidence: mapEvidenceSeed(raw),
     raw,
     accounts,
     cohorts,
