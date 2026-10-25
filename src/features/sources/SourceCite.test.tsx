@@ -354,6 +354,23 @@ describe('SourceCite identity and focus', () => {
   });
 });
 
+describe('SourceCite popover size', () => {
+  it('asks the open popover to reposition once the read result changes its height', async () => {
+    let resolve!: (value: SourceReadResult) => void;
+    const load = vi.fn<LoadSource>(
+      () => new Promise<SourceReadResult>((r) => (resolve = r)),
+    );
+    setup(load);
+    const resized = vi.fn();
+    window.addEventListener('resize', resized);
+    await userEvent.setup().hover(mark());
+    const afterLoading = resized.mock.calls.length;
+    await act(async () => resolve(success(original)));
+    expect(resized.mock.calls.length).toBeGreaterThan(afterLoading);
+    window.removeEventListener('resize', resized);
+  });
+});
+
 describe('SourceCite recordings', () => {
   it('shows the time range and excerpt without any play button', async () => {
     const recording: SourceReference = {

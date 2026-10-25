@@ -90,6 +90,11 @@ function SourceCiteReader({ source, index, loadSource }: SourceCiteProps) {
     };
   }, []);
 
+  // 浮层只在展开时按当时的高度定位；读取结果带来新的高度后，让它按 resize 重新定位，不被视口边缘遮住。
+  useEffect(() => {
+    if (phase.status !== 'idle') window.dispatchEvent(new Event('resize'));
+  }, [phase]);
+
   const read = () => {
     started.current = true;
     const mine = ++request.current;
