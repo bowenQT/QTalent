@@ -1,5 +1,5 @@
 {
-  "id": "f4a93954-b1af-4079-af49-a6a9ecd8db86",
+  "id": "0923544a-aeb6-4251-8969-43125d781213",
   "prevId": "18c43228-5c05-4d6a-8db5-f551fe584d34",
   "version": "7",
   "dialect": "postgresql",
@@ -1421,9 +1421,219 @@
         },
         "records_location": {
           "name": "records_location",
-          "value": "coalesce(jsonb_typeof(\"records_fragments\".\"location\") = 'object' and case \"records_fragments\".\"location\"->>'kind'\n when 'document' then jsonb_typeof(\"records_fragments\".\"location\"->'paragraph') = 'string' and length(trim(\"records_fragments\".\"location\"->>'paragraph')) > 0 and (not (\"records_fragments\".\"location\" ? 'page') or (jsonb_typeof(\"records_fragments\".\"location\"->'page') = 'number' and (\"records_fragments\".\"location\"->>'page')::numeric > 0 and (\"records_fragments\".\"location\"->>'page')::numeric = trunc((\"records_fragments\".\"location\"->>'page')::numeric)))\n when 'spreadsheet' then jsonb_typeof(\"records_fragments\".\"location\"->'sheet') = 'string' and length(trim(\"records_fragments\".\"location\"->>'sheet')) > 0 and jsonb_typeof(\"records_fragments\".\"location\"->'cell') = 'string' and length(trim(\"records_fragments\".\"location\"->>'cell')) > 0\n when 'recording' then jsonb_typeof(\"records_fragments\".\"location\"->'startMs') = 'number' and jsonb_typeof(\"records_fragments\".\"location\"->'endMs') = 'number' and (\"records_fragments\".\"location\"->>'startMs')::numeric >= 0 and (\"records_fragments\".\"location\"->>'endMs')::numeric > (\"records_fragments\".\"location\"->>'startMs')::numeric and (\"records_fragments\".\"location\"->>'startMs')::numeric = trunc((\"records_fragments\".\"location\"->>'startMs')::numeric) and (\"records_fragments\".\"location\"->>'endMs')::numeric = trunc((\"records_fragments\".\"location\"->>'endMs')::numeric)\n else false end, false)"
+          "value": "coalesce(jsonb_typeof(\"records_fragments\".\"location\") = 'object' and case \"records_fragments\".\"location\"->>'kind'\n when 'document' then jsonb_typeof(\"records_fragments\".\"location\"->'paragraph') = 'string' and length(trim(\"records_fragments\".\"location\"->>'paragraph')) > 0 and (not (\"records_fragments\".\"location\" ? 'page') or (jsonb_typeof(\"records_fragments\".\"location\"->'page') = 'number' and (\"records_fragments\".\"location\"->>'page')::numeric > 0 and (\"records_fragments\".\"location\"->>'page')::numeric = trunc((\"records_fragments\".\"location\"->>'page')::numeric)))\n when 'spreadsheet' then jsonb_typeof(\"records_fragments\".\"location\"->'sheet') = 'string' and length(trim(\"records_fragments\".\"location\"->>'sheet')) > 0 and jsonb_typeof(\"records_fragments\".\"location\"->'cell') = 'string' and length(trim(\"records_fragments\".\"location\"->>'cell')) > 0\n when 'snapshot_field' then jsonb_typeof(\"records_fragments\".\"location\"->'fieldPath') = 'string' and length(trim(\"records_fragments\".\"location\"->>'fieldPath')) > 0 and (not (\"records_fragments\".\"location\" ? 'originalLocation') or jsonb_typeof(\"records_fragments\".\"location\"->'originalLocation') = 'string')\n when 'recording' then jsonb_typeof(\"records_fragments\".\"location\"->'startMs') = 'number' and jsonb_typeof(\"records_fragments\".\"location\"->'endMs') = 'number' and (\"records_fragments\".\"location\"->>'startMs')::numeric >= 0 and (\"records_fragments\".\"location\"->>'endMs')::numeric > (\"records_fragments\".\"location\"->>'startMs')::numeric and (\"records_fragments\".\"location\"->>'startMs')::numeric = trunc((\"records_fragments\".\"location\"->>'startMs')::numeric) and (\"records_fragments\".\"location\"->>'endMs')::numeric = trunc((\"records_fragments\".\"location\"->>'endMs')::numeric)\n else false end, false)"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.records_historical_evaluations": {
+      "name": "records_historical_evaluations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source_record_id": {
+          "name": "source_record_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorder_id": {
+          "name": "recorder_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_on": {
+          "name": "occurred_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period": {
+          "name": "period",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scale": {
+          "name": "scale",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rule_version_id": {
+          "name": "rule_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "original_version_id": {
+          "name": "original_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fragment_id": {
+          "name": "fragment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_category": {
+          "name": "source_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'original'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_historical_evaluations_person_id_directory_people_id_fk": {
+          "name": "records_historical_evaluations_person_id_directory_people_id_fk",
+          "tableFrom": "records_historical_evaluations",
+          "tableTo": "directory_people",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_historical_evaluations_recorder_id_directory_people_id_fk": {
+          "name": "records_historical_evaluations_recorder_id_directory_people_id_fk",
+          "tableFrom": "records_historical_evaluations",
+          "tableTo": "directory_people",
+          "columnsFrom": [
+            "recorder_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_historical_evaluations_rule_version_id_evaluation_rule_versions_id_fk": {
+          "name": "records_historical_evaluations_rule_version_id_evaluation_rule_versions_id_fk",
+          "tableFrom": "records_historical_evaluations",
+          "tableTo": "evaluation_rule_versions",
+          "columnsFrom": [
+            "rule_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_historical_evaluations_fragment_id_original_version_id_records_fragments_id_original_version_id_fk": {
+          "name": "records_historical_evaluations_fragment_id_original_version_id_records_fragments_id_original_version_id_fk",
+          "tableFrom": "records_historical_evaluations",
+          "tableTo": "records_fragments",
+          "columnsFrom": [
+            "fragment_id",
+            "original_version_id"
+          ],
+          "columnsTo": [
+            "id",
+            "original_version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "records_history_scale": {
+          "name": "records_history_scale",
+          "value": "jsonb_typeof(\"records_historical_evaluations\".\"scale\") = 'array'"
+        },
+        "records_history_source_category": {
+          "name": "records_history_source_category",
+          "value": "\"records_historical_evaluations\".\"source_category\" in ('original','prototype_baseline')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_historical_participants": {
+      "name": "records_historical_participants",
+      "schema": "",
+      "columns": {
+        "evaluation_id": {
+          "name": "evaluation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_historical_participants_evaluation_id_records_historical_evaluations_id_fk": {
+          "name": "records_historical_participants_evaluation_id_records_historical_evaluations_id_fk",
+          "tableFrom": "records_historical_participants",
+          "tableTo": "records_historical_evaluations",
+          "columnsFrom": [
+            "evaluation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_historical_participants_person_id_directory_people_id_fk": {
+          "name": "records_historical_participants_person_id_directory_people_id_fk",
+          "tableFrom": "records_historical_participants",
+          "tableTo": "directory_people",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "records_historical_participants_evaluation_id_person_id_pk": {
+          "name": "records_historical_participants_evaluation_id_person_id_pk",
+          "columns": [
+            "evaluation_id",
+            "person_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.records_import_snapshots": {
@@ -1516,6 +1726,24 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "source_commit": {
+          "name": "source_commit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_blob": {
+          "name": "source_blob",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_path": {
+          "name": "source_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1573,6 +1801,19 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'original'"
+        },
+        "display_notice": {
+          "name": "display_notice",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1580,7 +1821,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "records_original_kind": {
+          "name": "records_original_kind",
+          "value": "\"records_originals\".\"kind\" in ('original','prototype_snapshot')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.records_statements": {
@@ -2100,6 +2346,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "source_category": {
+          "name": "source_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'original'"
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -2223,6 +2476,10 @@
           "name": "talent_ai_status_value",
           "value": "(\"talent_ai_suggestions\".\"status\" = 'scored' and \"talent_ai_suggestions\".\"value\" between 1 and 5 and \"talent_ai_suggestions\".\"value\" is not null and \"talent_ai_suggestions\".\"anchor_id\" is not null) or (\"talent_ai_suggestions\".\"status\" in ('unknown','not_demonstrated') and \"talent_ai_suggestions\".\"value\" is null and \"talent_ai_suggestions\".\"anchor_id\" is null)"
         },
+        "talent_ai_source_category": {
+          "name": "talent_ai_source_category",
+          "value": "\"talent_ai_suggestions\".\"source_category\" in ('original','prototype_baseline')"
+        },
         "talent_ai_model": {
           "name": "talent_ai_model",
           "value": "length(trim(\"talent_ai_suggestions\".\"model_version\")) > 0"
@@ -2256,7 +2513,20 @@
           "name": "evaluator_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "source_category": {
+          "name": "source_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'original'"
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "rule_version_id": {
           "name": "rule_version_id",
@@ -2310,7 +2580,7 @@
           "name": "modified_by",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "reason": {
           "name": "reason",
@@ -2338,6 +2608,28 @@
         }
       },
       "indexes": {
+        "talent_one_active_unattributed_status": {
+          "name": "talent_one_active_unattributed_status",
+          "columns": [
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dimension_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"talent_confirmations\".\"active\" and \"talent_confirmations\".\"evaluator_id\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "talent_one_active_confirmation": {
           "name": "talent_one_active_confirmation",
           "columns": [
@@ -2538,6 +2830,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "talent_confirmation_provenance": {
+          "name": "talent_confirmation_provenance",
+          "value": "(\"talent_confirmations\".\"source_category\" = 'original' and \"talent_confirmations\".\"evaluator_id\" is not null and \"talent_confirmations\".\"modified_by\" is not null) or (\"talent_confirmations\".\"source_category\" = 'prototype_baseline' and \"talent_confirmations\".\"confirmed_at\" is null and \"talent_confirmations\".\"modified_by\" is null and \"talent_confirmations\".\"revision\" = 1 and (\"talent_confirmations\".\"status\" <> 'scored' or \"talent_confirmations\".\"evaluator_id\" is not null))"
+        },
         "talent_confirmation_status_value": {
           "name": "talent_confirmation_status_value",
           "value": "(\"talent_confirmations\".\"status\" = 'scored' and \"talent_confirmations\".\"value\" between 1 and 5 and \"talent_confirmations\".\"value\" is not null and \"talent_confirmations\".\"anchor_id\" is not null) or (\"talent_confirmations\".\"status\" in ('unknown','not_demonstrated') and \"talent_confirmations\".\"value\" is null and \"talent_confirmations\".\"anchor_id\" is null)"

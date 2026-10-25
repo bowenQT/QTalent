@@ -6,6 +6,8 @@ import { eq, sql } from 'drizzle-orm';
 import { createDatabase } from '../client';
 import { people, organizations } from '../../modules/directory';
 import {
+  historicalEvaluations,
+  historicalParticipants,
   originals,
   originalVersions,
   fragments,
@@ -541,5 +543,115 @@ it('rejects existing but unrelated previous revisions, suggestions, and source f
     f.db
       .insert(confirmations)
       .values({ ...f.score, suggestionId: `${f.p}-other-ai` }),
+  ).rejects.toMatchObject({ cause: { code: '23503' } });
+});
+it('preserves snapshot fields and rejects malformed locations without treating old location labels as cells', async () => {
+  const f = await fixture();
+  const location = {
+    kind: 'snapshot_field' as const,
+    fieldPath: 'events[test-event].srcs[0]',
+    originalLocation: 'W7–W8 · row 6',
+  };
+  await f.db.insert(fragments).values({
+    id: `${f.p}-snapshot-field`,
+    originalVersionId: f.version,
+    location,
+    excerpt: 'Synthetic snapshot text',
+  });
+  for (const bad of [
+    { kind: 'snapshot_field', fieldPath: '' },
+    { kind: 'snapshot_field' },
+    { ...location, originalLocation: 6 },
+  ]) {
+    await expect(
+      f.db.insert(fragments).values({
+        id: randomUUID(),
+        originalVersionId: f.version,
+        location: bad as typeof location,
+        excerpt: 'Synthetic',
+      }),
+    ).rejects.toMatchObject({ cause: { code: '23514' } });
+  }
+});
+it('allows marked baseline scores without fake confirmation time or modifier, but keeps formal attribution strict', async () => {
+  const f = await fixture();
+  const baseline = {
+    ...f.score,
+    sourceCategory: 'prototype_baseline' as const,
+    modifiedBy: null,
+    confirmedAt: null,
+  };
+  await f.db.insert(confirmations).values(baseline);
+  for (const patch of [
+    { confirmedAt: new Date('2026-07-24T00:00:00Z') },
+    { modifiedBy: f.evaluator },
+    { sourceCategory: 'original' as const },
+    { evaluatorId: null },
+  ]) {
+    await expect(
+      f.db
+        .insert(confirmations)
+        .values({ ...baseline, id: randomUUID(), ...patch }),
+    ).rejects.toMatchObject({ cause: { code: '23514' } });
+  }
+  const unknownFixture = await fixture();
+  const unknown = {
+    ...unknownFixture.score,
+    sourceCategory: 'prototype_baseline' as const,
+    status: 'unknown',
+    value: null,
+    anchorId: null,
+    evaluatorId: null,
+    modifiedBy: null,
+  };
+  await unknownFixture.db.insert(confirmations).values(unknown);
+  await expect(
+    unknownFixture.db
+      .insert(confirmations)
+      .values({ ...unknown, id: randomUUID() }),
+  ).rejects.toMatchObject({ cause: { code: '23505' } });
+});
+
+it('keeps historical group reviews in their own scale without generating individual scores', async () => {
+  const f = await fixture();
+  const id = `${f.p}-history`;
+  await f.db
+    .insert(historicalEvaluations)
+    .values({
+      id,
+      sourceRecordId: 'test-history',
+      personId: null,
+      recorderId: f.evaluator,
+      occurredOn: '2026-07-24',
+      kind: '训练营评审',
+      period: 'W1–W3',
+      scale: [['本周总结', '正常发挥']],
+      ruleVersionId: f.rule,
+      originalVersionId: f.version,
+      fragmentId: f.fragment,
+      sourceCategory: 'prototype_baseline',
+    });
+  await f.db.insert(historicalParticipants).values([
+    { evaluationId: id, personId: f.person },
+    { evaluationId: id, personId: f.other },
+  ]);
+  expect(
+    await f.db
+      .select()
+      .from(confirmations)
+      .where(eq(confirmations.eventId, f.event)),
+  ).toEqual([]);
+  expect(
+    (
+      await f.db
+        .select()
+        .from(historicalEvaluations)
+        .where(eq(historicalEvaluations.id, id))
+    )[0].scale,
+  ).toEqual([['本周总结', '正常发挥']]);
+  await expect(
+    f.db
+      .insert(historicalParticipants)
+      .values({ evaluationId: id, personId: 'nonexistent' }),
   ).rejects.toMatchObject({ cause: { code: '23503' } });
 });

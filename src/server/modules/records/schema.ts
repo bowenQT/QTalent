@@ -17,11 +17,25 @@ import { ruleVersions } from '../evaluation-system';
 export type SourceLocation =
   | { kind: 'document'; page?: number; paragraph: string }
   | { kind: 'spreadsheet'; sheet: string; cell: string }
-  | { kind: 'recording'; startMs: number; endMs: number };
-export const originals = pgTable('records_originals', {
-  id: text('id').primaryKey(),
-  title: text('title').notNull(),
-});
+  | { kind: 'recording'; startMs: number; endMs: number }
+  | { kind: 'snapshot_field'; fieldPath: string; originalLocation?: string };
+export const originals = pgTable(
+  'records_originals',
+  {
+    id: text('id').primaryKey(),
+    title: text('title').notNull(),
+    kind: text('kind', { enum: ['original', 'prototype_snapshot'] })
+      .notNull()
+      .default('original'),
+    displayNotice: text('display_notice'),
+  },
+  (t) => [
+    check(
+      'records_original_kind',
+      sql`${t.kind} in ('original','prototype_snapshot')`,
+    ),
+  ],
+);
 export const originalVersions = pgTable(
   'records_original_versions',
   {
@@ -31,6 +45,9 @@ export const originalVersions = pgTable(
       .references(() => originals.id),
     version: integer('version').notNull(),
     contentDigest: text('content_digest').notNull(),
+    sourceCommit: text('source_commit'),
+    sourceBlob: text('source_blob'),
+    sourcePath: text('source_path'),
   },
   (t) => [
     unique('records_original_version').on(t.originalId, t.version),
@@ -56,6 +73,7 @@ export const fragments = pgTable(
       sql`coalesce(jsonb_typeof(${t.location}) = 'object' and case ${t.location}->>'kind'
  when 'document' then jsonb_typeof(${t.location}->'paragraph') = 'string' and length(trim(${t.location}->>'paragraph')) > 0 and (not (${t.location} ? 'page') or (jsonb_typeof(${t.location}->'page') = 'number' and (${t.location}->>'page')::numeric > 0 and (${t.location}->>'page')::numeric = trunc((${t.location}->>'page')::numeric)))
  when 'spreadsheet' then jsonb_typeof(${t.location}->'sheet') = 'string' and length(trim(${t.location}->>'sheet')) > 0 and jsonb_typeof(${t.location}->'cell') = 'string' and length(trim(${t.location}->>'cell')) > 0
+ when 'snapshot_field' then jsonb_typeof(${t.location}->'fieldPath') = 'string' and length(trim(${t.location}->>'fieldPath')) > 0 and (not (${t.location} ? 'originalLocation') or jsonb_typeof(${t.location}->'originalLocation') = 'string')
  when 'recording' then jsonb_typeof(${t.location}->'startMs') = 'number' and jsonb_typeof(${t.location}->'endMs') = 'number' and (${t.location}->>'startMs')::numeric >= 0 and (${t.location}->>'endMs')::numeric > (${t.location}->>'startMs')::numeric and (${t.location}->>'startMs')::numeric = trunc((${t.location}->>'startMs')::numeric) and (${t.location}->>'endMs')::numeric = trunc((${t.location}->>'endMs')::numeric)
  else false end, false)`,
     ),
@@ -179,4 +197,54 @@ export const importSnapshots = pgTable(
       sql`${t.provenance} = 'demo_import_snapshot'`,
     ),
   ],
+);
+
+/** Historical reviews retain their original scale; they never create dimension scores. */
+export const historicalEvaluations = pgTable(
+  'records_historical_evaluations',
+  {
+    id: text('id').primaryKey(),
+    sourceRecordId: text('source_record_id').notNull(),
+    personId: text('person_id').references(() => people.id),
+    recorderId: text('recorder_id')
+      .notNull()
+      .references(() => people.id),
+    occurredOn: date('occurred_on').notNull(),
+    kind: text('kind').notNull(),
+    period: text('period'),
+    scale: jsonb('scale').$type<[string, string][]>().notNull(),
+    ruleVersionId: text('rule_version_id')
+      .notNull()
+      .references(() => ruleVersions.id),
+    originalVersionId: text('original_version_id').notNull(),
+    fragmentId: text('fragment_id').notNull(),
+    sourceCategory: text('source_category', {
+      enum: ['original', 'prototype_baseline'],
+    })
+      .notNull()
+      .default('original'),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.fragmentId, t.originalVersionId],
+      foreignColumns: [fragments.id, fragments.originalVersionId],
+    }),
+    check('records_history_scale', sql`jsonb_typeof(${t.scale}) = 'array'`),
+    check(
+      'records_history_source_category',
+      sql`${t.sourceCategory} in ('original','prototype_baseline')`,
+    ),
+  ],
+);
+export const historicalParticipants = pgTable(
+  'records_historical_participants',
+  {
+    evaluationId: text('evaluation_id')
+      .notNull()
+      .references(() => historicalEvaluations.id),
+    personId: text('person_id')
+      .notNull()
+      .references(() => people.id),
+  },
+  (t) => [primaryKey({ columns: [t.evaluationId, t.personId] })],
 );

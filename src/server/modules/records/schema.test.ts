@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import {
+  historicalEvaluations,
+  historicalParticipants,
   originals,
   originalVersions,
   fragments,
@@ -14,6 +16,8 @@ import { dimensions, ruleVersions, anchors } from '../evaluation-system';
 import { aiSuggestions, confirmations, scoreReviews } from '../talent';
 it('declares required historical FKs with no destructive cascades', () => {
   const tables = [
+    historicalEvaluations,
+    historicalParticipants,
     originals,
     originalVersions,
     fragments,
@@ -90,5 +94,26 @@ it('separates snapshots, source versions, AI suggestions and manual confirmation
 it('requires actual quoted text instead of an empty source fragment', () => {
   expect(getTableConfig(fragments).checks.map((c) => c.name)).toContain(
     'records_excerpt_nonblank',
+  );
+});
+it('models prototype provenance without inventing human confirmation metadata', () => {
+  const columns = (table: Parameters<typeof getTableConfig>[0]) =>
+    getTableConfig(table).columns;
+  expect(columns(originals).map((c) => c.name)).toContain('kind');
+  expect(columns(originalVersions).map((c) => c.name)).toContain(
+    'source_commit',
+  );
+  expect(columns(originalVersions).map((c) => c.name)).toContain('source_blob');
+  expect(columns(confirmations).map((c) => c.name)).toContain(
+    'source_category',
+  );
+  expect(
+    columns(confirmations).find((c) => c.name === 'confirmed_at')?.notNull,
+  ).toBe(false);
+  expect(
+    columns(confirmations).find((c) => c.name === 'modified_by')?.notNull,
+  ).toBe(false);
+  expect(getTableConfig(confirmations).checks.map((c) => c.name)).toContain(
+    'talent_confirmation_provenance',
   );
 });

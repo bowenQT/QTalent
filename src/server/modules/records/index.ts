@@ -1,5 +1,7 @@
 /** Events have one evaluated person. Participants and shared source fragments never imply a score. */
 export {
+  historicalEvaluations,
+  historicalParticipants,
   originals,
   originalVersions,
   fragments,

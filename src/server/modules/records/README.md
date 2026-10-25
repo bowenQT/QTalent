@@ -18,13 +18,18 @@
 
 评分复核可表达分差、改 AI 分无理由、冻结后位置变化；这里只声明原因，不实现触发器。没有冻结档案、象限或规则修订表，迁移外键不级联删除历史。
 
-## 部分交付：不改变既有演示导入
+## 已定演示基线口径与部分交付
 
-本 PR 只交付模型、外键、生成迁移与合成数据测试，保持基础工程既有 `db/import.ts` 和固定原型加载器不变。新表为空，不宣称历史原型评分已经迁移，也不改变现有演示列表行为。
+依据 [BOW-834 已定口径](https://linear.app/bowenzhong/issue/BOW-834)（2026-10-25，评论 179dce7b-98dc-421c-9995-7c67e8482c8b），原型基线分以 `prototype_baseline` 类别写入确认表，仅在演示环境参与能力谱和参考位置。这不表示原观察表有维度分，也不表示发生过人工确认；正式导入入口必须拒绝此类别。
 
-`importSnapshots` 只提供明确标记的导入归档结构，`sourceCommit + fieldPath` 证明的是导入来源字段，不冒充原观察表证据。评分表没有指向该归档的外键。本 PR 不实现历史评分 mapper 或修改有效分的纳入规则。
+- 原件为 `prototype_snapshot`，版本保存 sourceCommit、sourceBlob、sourcePath。两个固定文件为 `prototype/y/app/js/data-xe6.js`（blob `54b8c41229fa220a79e20eef48afafa71af81c79`）和 `data.js`（blob `48cacc14105d496159e633dd392128629f03e3f9`），基线 `2e51b50`。来源链到原型快照为止；displayNotice 为「原型基线 2e51b50，评语按原意压缩」。
+- `snapshot_field { fieldPath, originalLocation? }` 为第四种位置，fieldPath 定位 `events[id].srcs[i]` 或 `events[id].act`；originalLocation 只保留快照原有位置描述，不猜单元格。空 srcs 原文不能伪造；可保留该字段的精确序列化内容，明确这是快照字段而非原表引用。
+- 确认表 `sourceCategory` 区分 `original` / `prototype_baseline`。基线 revision 只能为 1，confirmedAt 和 modifiedBy 必须为空，不能用事件日期/导入日期或导入账号伪装确认记录；scored 仍必须有评价人。unknown / not_demonstrated 可保留空评价人和空分值，同事件同维度只允许一份有效无署名状态。正式人工记录仍要求评价人和修改人。
+- AI 建议另表保留 sourceCategory，模型版本用「原型基线」而不编模型名；基线确认分不改写其原始建议。分歧按各评分人分行，大分差复核保留。
+- `historicalEvaluations` 保存训练营周评和历史评审的原量表及版本，绝不自动换算为维度分。多人历史评审使用独立 historicalParticipants，不为每人复制维度分；单人事件与多人评审分别存储。周评沿用 `xe-weekly-v1`，维度分沿用 `rubric-v1`。
+- `importSnapshots` 仍是完整导入归档，不替代 originals / originalVersions / fragments 的来源链。保存 398 个事件快照，不执行 store.js，不导入其派生档案、象限或冻结快照。
 
-旧数据的来源映射、锚点/规则版本和计分展示口径仍在讨论，后续由独立 PR 继续；当前既不把全评分隔离定为最终规则，也不新增必须访问真实 HR 文件的产品验收前置。BOW-834 的完整演示导入 AC 尚未完成，卡片保持未完成。
+本 PR 只交付模型、外键、生成迁移与合成数据测试，保持基础工程既有 db/import.ts 和固定原型加载器不变。新表为空，不宣称历史原型评分已导入。方案 A 导入映射由同卡后续 PR 完成；这部分验收尚未完成，BOW-834 不能 Done。原始 HR 文件访问及四项待核实不是本卡新增前置。
 
 ## 迁移、验证和恢复
 

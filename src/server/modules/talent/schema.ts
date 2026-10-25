@@ -3,6 +3,7 @@ import {
   pgTable,
   text,
   integer,
+  timestamp,
   boolean,
   check,
   unique,
@@ -23,6 +24,11 @@ export const aiSuggestions = pgTable(
       .references(() => dimensions.id),
     ruleVersionId: text('rule_version_id').notNull(),
     modelVersion: text('model_version').notNull(),
+    sourceCategory: text('source_category', {
+      enum: ['original', 'prototype_baseline'],
+    })
+      .notNull()
+      .default('original'),
     status: text('status').notNull(),
     value: integer('value'),
     anchorId: text('anchor_id'),
@@ -40,6 +46,10 @@ export const aiSuggestions = pgTable(
     check(
       'talent_ai_status_value',
       sql`(${t.status} = 'scored' and ${t.value} between 1 and 5 and ${t.value} is not null and ${t.anchorId} is not null) or (${t.status} in ('unknown','not_demonstrated') and ${t.value} is null and ${t.anchorId} is null)`,
+    ),
+    check(
+      'talent_ai_source_category',
+      sql`${t.sourceCategory} in ('original','prototype_baseline')`,
     ),
     check('talent_ai_model', sql`length(trim(${t.modelVersion})) > 0`),
     foreignKey({
@@ -73,9 +83,13 @@ export const confirmations = pgTable(
     dimensionId: text('dimension_id')
       .notNull()
       .references(() => dimensions.id),
-    evaluatorId: text('evaluator_id')
+    evaluatorId: text('evaluator_id').references(() => people.id),
+    sourceCategory: text('source_category', {
+      enum: ['original', 'prototype_baseline'],
+    })
       .notNull()
-      .references(() => people.id),
+      .default('original'),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
     ruleVersionId: text('rule_version_id').notNull(),
     status: text('status').notNull(),
     value: integer('value'),
@@ -84,9 +98,7 @@ export const confirmations = pgTable(
     originalVersionId: text('original_version_id').notNull(),
     revision: integer('revision').notNull(),
     active: boolean('active').notNull(),
-    modifiedBy: text('modified_by')
-      .notNull()
-      .references(() => people.id),
+    modifiedBy: text('modified_by').references(() => people.id),
     reason: text('reason'),
     previousId: text('previous_id').references(
       (): AnyPgColumn => confirmations.id,
@@ -104,6 +116,13 @@ export const confirmations = pgTable(
         aiSuggestions.ruleVersionId,
       ],
     }),
+    check(
+      'talent_confirmation_provenance',
+      sql`(${t.sourceCategory} = 'original' and ${t.evaluatorId} is not null and ${t.modifiedBy} is not null) or (${t.sourceCategory} = 'prototype_baseline' and ${t.confirmedAt} is null and ${t.modifiedBy} is null and ${t.revision} = 1 and (${t.status} <> 'scored' or ${t.evaluatorId} is not null))`,
+    ),
+    uniqueIndex('talent_one_active_unattributed_status')
+      .on(t.eventId, t.dimensionId)
+      .where(sql`${t.active} and ${t.evaluatorId} is null`),
     uniqueIndex('talent_one_active_confirmation')
       .on(t.eventId, t.dimensionId, t.evaluatorId)
       .where(sql`${t.active}`),
