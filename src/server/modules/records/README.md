@@ -1,0 +1,42 @@
+# 证据模型（BOW-834）
+
+## 身份与职责
+
+- `originals.id` 是原件身份，`originalVersions.id` 是不可混淆的版本身份；每版本保留摘要和原件内版本号。`fragments` 的位置只属于该版本。
+- 公共引用为 `fragmentId + originalVersionId + location`。`location` 与 BOW-836 对齐：`document { page?, paragraph }`、`spreadsheet { sheet, cell }`、`recording { startMs, endMs }`，全部带 `kind`。页为正整数，段落/工作表/单元格非空，时间段为非负整数起点且终点大于起点。片段原文不能是空字符串或纯空白，数据库约束拒绝空引用；保留原文文本，不做内容改写。
+- 一个可评分 `events` 只有一个 `personId`。其他参与人仅在 `eventParticipants`；多人独立事件可共用 `eventSources`，不会自动把团队分复制到个人。重复来源关系不可产生重复评分。
+- `statements.kind` 将原始事实、本人自述、管理观察、AI 推断、人工结论分开存储。AI 必须具备模型版本且不能署人工作者；人工记录不能伪装为 AI。原文只经后续授权读取用例返回。
+- 片段不冗余存授权结果。读取用例必须沿全部 `eventSources` 找出完整相关人员及内容性质，再交授权入口；单个可见事件不意味着共享片段中的其他人员也可见。
+
+## 规则与评分
+
+`evaluation-system` 存维度与只读规则/锚点版本；事件保存时记录版本。锚点的 ID、维度、版本和值由复合外键一起匹配，不能把旧版引用拼到新版事件。
+
+`talent.aiSuggestions` 与 `talent.confirmations` 独立存储。`scored` 只能是 1–5 整数且需要锚点；`unknown` / `not_demonstrated` 数值与锚点为空，不等于 0。所有评分引用必须属于相同事件，不能借另一事件的片段补齐证据。
+
+有效人工确认唯一键为 `eventId + dimensionId + evaluatorId`，不是 personId 或来源。历史修订另有 revision 唯一约束及前序复合外键，保留原评价人/原值和修改人/理由；修改事务由后续用例实现。本卡不提供修改 API，不声称数据库声明可阻止具备任意 SQL 权限的操作者改写历史。
+
+评分复核可表达分差、改 AI 分无理由、冻结后位置变化；这里只声明原因，不实现触发器。没有冻结档案、象限或规则修订表，迁移外键不级联删除历史。
+
+## 已定演示基线口径与部分交付
+
+依据 [BOW-834 已定口径](https://linear.app/bowenzhong/issue/BOW-834)（2026-10-25，评论 179dce7b-98dc-421c-9995-7c67e8482c8b），原型基线分以 `prototype_baseline` 类别写入确认表，仅在演示环境参与能力谱和参考位置。这不表示原观察表有维度分，也不表示发生过人工确认；正式导入入口必须拒绝此类别。
+
+- 原件为 `prototype_snapshot`，版本保存 sourceCommit、sourceBlob、sourcePath。两个固定文件为 `prototype/y/app/js/data-xe6.js`（blob `54b8c41229fa220a79e20eef48afafa71af81c79`）和 `data.js`（blob `48cacc14105d496159e633dd392128629f03e3f9`），基线 `2e51b50`。来源链到原型快照为止；displayNotice 为「原型基线 2e51b50，评语按原意压缩」。
+- `snapshot_field { fieldPath, originalLocation? }` 为第四种位置，fieldPath 定位 `events[id].srcs[i]` 或 `events[id].act`；originalLocation 只保留快照原有位置描述，不猜单元格。空 srcs 原文不能伪造；可保留该字段的精确序列化内容，明确这是快照字段而非原表引用。
+- 确认表 `sourceCategory` 区分 `original` / `prototype_baseline`。基线 revision 只能为 1，confirmedAt 和 modifiedBy 必须为空，不能用事件日期/导入日期或导入账号伪装确认记录；scored 仍必须有评价人。unknown / not_demonstrated 可保留空评价人和空分值，同事件同维度只允许一份有效无署名状态。正式人工记录仍要求评价人和修改人。
+- AI 建议另表保留 sourceCategory，模型版本用「原型基线」而不编模型名；基线确认分不改写其原始建议。分歧按各评分人分行，大分差复核保留。
+- `historicalEvaluations` 保存训练营周评和历史评审的原量表及版本，绝不自动换算为维度分。多人历史评审使用独立 historicalParticipants，不为每人复制维度分；单人事件与多人评审分别存储。周评沿用 `xe-weekly-v1`，维度分沿用 `rubric-v1`。
+- `importSnapshots` 仍是完整导入归档，不替代 originals / originalVersions / fragments 的来源链。保存 398 个事件快照，不执行 store.js，不导入其派生档案、象限或冻结快照。
+
+已合入的 schema PR #83 交付模型、外键、生成迁移与合成测试；同卡 mapper PR 按方案 A 接入固定加载器、演示导入和正式入口门禁，详见[导入合同](../../db/seed/README.md)。代码与自动检查不代表整卡或真实产品验收完成，BOW-834 不能提前 Done。原始 HR 文件访问及四项待核实不是本卡新增前置。
+
+## 迁移、验证和恢复
+
+SQL 与 metadata 用 `pnpm db:generate` 生成，不手改。BOW-834 为本轮首个迁移，后续迁移卡须等本卡合入后从最新 main 重生成。首次/重复迁移、外键与 CHECK 失败、并发唯一键、修订历史、归档唯一性、全批回滚测试位于 `db/seed/evidence.integration.test.ts`，只允许随机独立 loopback `_test` 库，不跳过或换成 fake。
+
+应用启动不迁移。此迁移为加表，无既有表回填；恢复优先停用相关入口并保留新增历史数据，不能把代码回退当作数据恢复，也不自动 DROP 生产表。导入是独立显式命令，真实 PostgreSQL 验证在各 PR 报告。
+
+## 工程责任校准
+
+经主协调人授权，原导入改动已从本 PR 剥离；本次保留三个新领域入口，以及 `scripts/check-boundaries.ts` 的窄声明例外：schema 经其他领域 index 仅在 pgTable 内声明 FK；别名表导入不享例外，运行时跨域读写和内部路径仍拒。没有放开目录、工厂或跨域运行时表操作，不改既有 directory/programs/staffing schema。此为已确认外键合同的工程落实，不改变产品要求。
