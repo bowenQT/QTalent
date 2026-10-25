@@ -171,3 +171,17 @@ it('ignores concurrent running redelivery without spoiling the original result',
   expect(await jobs.read('account', jobId)).toMatchObject({ snapshot: { status: 'completed', canRetry: false } });
   expect(await service.read('account', jobId)).toMatchObject({ status: 'draft', revision: 1 });
 });
+
+it('serializes distinct confirmation requests at the business revision boundary', async () => {
+  const service = createDemandService(deps);
+  const created = await service.create('account', input());
+  const demandId = created.snapshot.jobId;
+  await runDemandGeneration(deps, fake(), { jobId: demandId, attempt: 1 });
+  const results = await Promise.allSettled([
+    service.change('account', { operationId: randomUUID(), demandId, expectedRevision: 1 }, { action: 'confirm' }),
+    service.change('account', { operationId: randomUUID(), demandId, expectedRevision: 1 }, { action: 'confirm' }),
+  ]);
+  expect(results.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
+  expect(results.filter((item) => item.status === 'rejected')).toHaveLength(1);
+  expect(await connection.db.select().from(demandVersions).where(eq(demandVersions.demandId, demandId))).toHaveLength(2);
+});
