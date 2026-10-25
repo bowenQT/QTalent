@@ -276,7 +276,6 @@
     const S = st.get();
     const own = S.events.filter((e) => e.people.includes(p.id) && e.kind === 'self').sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const projs = st.projectsOf(p.id, true);
-    const pub = S.pubActions.filter((a) => a.person === p.id);
     const corr = S.corrections.filter((c) => c.person === p.id);
     const add = NT.param('add');
     mount(main, html`
@@ -297,8 +296,7 @@
         </div>
         <aside class="nt-grid">
           <div id="dirwrap">${UI.directionBlock(p.id, { canWrite: 'self' })}</div>
-          <article class="n-card"><h3 class="n-section-title">发布给你的</h3>${pub.map((a) => html`<div class="n-pubaction" style="margin-bottom:var(--s-2)"><div>${a.title}<small>${st.person(a.by).name}发布给你 · ${NT.md(a.at)}</small></div><span class="n-astate" data-s="todo">待安排</span></div>`)}</article>
-          <article class="n-card"><h3 class="n-section-title">你问「我在哪个象限」</h3><div class="n-block" data-state="light" style="font-size:var(--t-sm)">象限在盘点时由 HR 和管理者使用。你可以看自己的经历和发布给你的安排，有疑问可以找 HR 聊聊。<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 回答</span></div></div></article>
+          <article class="n-card"><h3 class="n-section-title">你问「我在哪个象限」</h3><div class="n-block" data-state="light" style="font-size:var(--t-sm)">象限在盘点时由 HR 和管理者使用。你可以看自己的经历，有疑问可以找 HR 聊聊。<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 回答</span></div></div></article>
         </aside>
       </div>`);
     UI.wireDirection($('#dirwrap'), p.id, () => render(main));

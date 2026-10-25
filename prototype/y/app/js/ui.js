@@ -273,7 +273,7 @@
         <span>${e.date ? NT.md(e.date) : '时间未知'} · ${st.person(e.recorder)?.name || ''}记录</span>
         ${proj ? html`<a class="n-badge" href="project.html?id=${proj.id}">${icon('folder')}${proj.type === 'XEngineer 课题' ? '课题' : '项目'}：${proj.name}</a>` : ''}${who}${roleNote}</div>
       <h3 class="n-event__title">${e.title}${e.kind !== 'hist' ? UI.cites(e.srcs) : ''}</h3>
-      ${e.bg ? html`<dl class="n-event__sbar"><dt>情境</dt><dd>${e.bg}</dd><dt>行为</dt><dd>${e.act}</dd><dt>影响</dt><dd>${e.res}</dd></dl>` : ''}
+      ${e.bg || e.act || e.res ? html`<dl class="n-event__sbar">${[['情境', e.bg], ['行为', e.act], ['影响', e.res]].map(([k, v]) => html`<dt>${k}</dt><dd>${v || html`<span class="nt-muted">待补充</span>`}</dd>`)}</dl>` : ''}
       ${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${v}</span>`)}</div><div class="n-tl__note">保留原量表，不换算成 1–5 的维度分，也不参与象限。${e.srcs?.[0] ? ` 来源：${e.srcs[0].label} · ${e.srcs[0].loc}` : ''}</div>` : ''}
       ${tags.length ? html`<div class="n-tags"><span class="n-tags__label">标签</span>${tags}</div>` : ''}
       ${scores.length ? (canScore ? html`<div class="n-event__scores">${scores.map((s) => UI.scoreLine(s, { hist: true }))}</div>` : html`<div class="n-event__scores">${UI.lock('本人视角已隐藏维度分')}</div>`) : ''}
