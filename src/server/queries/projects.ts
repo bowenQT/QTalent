@@ -32,14 +32,15 @@ export async function listProjectsForCurrentUser(): Promise<ProjectList> {
             name: p.name,
             orgName: orgName(p.organizationId),
             hue: p.hue,
+            // Picker load mirrors projectsOf: unclosed memberships, independent of project status.
+            // Keep current project authorization so aggregate counts cannot disclose hidden work.
             currentProjectCount: staffing.members.filter(
               (m) =>
                 m.personId === p.id &&
-                active(m) &&
+                m.validTo === null &&
                 staffing.projects.some(
                   (project) =>
                     project.id === m.projectId &&
-                    !['已结束', '已归档'].includes(project.status) &&
                     canReadProject(context, project),
                 ),
             ).length,

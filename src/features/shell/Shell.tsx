@@ -47,7 +47,7 @@ export function Shell({
   );
   return (
     <div id="app">
-      <ShellViewport />
+      <ShellViewport alignActiveToEnd={data.role === 'mentor'} />
       <a className="nt-skip" href="#main">
         跳到正文
       </a>

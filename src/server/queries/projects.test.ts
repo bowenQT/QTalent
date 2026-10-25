@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { createContext, runInContext } from 'node:vm';
+import { mapPrototypeSeed, readPrototypeSeed } from '../db/seed';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { listProjectsForCurrentUser, getProjectsPage } from './projects';
 import type { AuthzContext } from '../authz';
@@ -141,4 +145,127 @@ it('maps only explicit authorization errors to forbidden', async () => {
 });
 it('successful page retains discriminated result', async () => {
   expect((await getProjectsPage()).status).toBe('ok');
+});
+
+// Execute the pinned prototype implementation as the oracle, not a copy of its counting rule.
+function prototypePickerCounts(
+  role: 'ceo' | 'hrbp',
+): { id: string; count: number }[] {
+  const vm = createContext(
+    {
+      window: { NT: {} },
+      role,
+      matchMedia: () => ({ matches: true }),
+      document: { readyState: 'loading', addEventListener: () => {} },
+    },
+    { codeGeneration: { strings: false, wasm: false } },
+  );
+  runInContext(readFileSync('prototype/y/app/js/core.js', 'utf8'), vm, {
+    timeout: 1000,
+  });
+  runInContext(
+    'window.NT.clone = value => JSON.parse(JSON.stringify(value)); window.NT.param = () => role;',
+    vm,
+  );
+  for (const file of ['data-xe6.js', 'data.js'])
+    runInContext(readFileSync(`prototype/y/app/js/${file}`, 'utf8'), vm, {
+      timeout: 1000,
+    });
+  // Use a pristine saved seed state, bypassing unrelated derived snapshot initialization.
+  runInContext(
+    `const seed = window.NT.SEED;
+    const saved = JSON.stringify({ v: seed.version, projects: seed.PROJECTS, members: seed.MEMBERS, batches: seed.BATCHES });
+    globalThis.localStorage = { getItem: key => key === 'nty-demo' ? saved : role, setItem: () => {} };`,
+    vm,
+  );
+  const path = 'prototype/y/app/js/store.js';
+  const source = readFileSync(path);
+  const manifest = JSON.parse(
+    readFileSync('tests/fixtures/prototype-manifest.json', 'utf8'),
+  ) as { files: { path: string; sha: string }[] };
+  expect(
+    createHash('sha1')
+      .update(`blob ${source.length}\0`)
+      .update(source)
+      .digest('hex'),
+  ).toBe(manifest.files.find((file) => file.path === path)?.sha);
+  runInContext(source.toString(), vm, { timeout: 1000 });
+  return JSON.parse(
+    runInContext(
+      `JSON.stringify(window.NT.store.visiblePeople().filter(p => window.NT.store.scope(p.id) === 'full').map(p => ({id: p.id, count: window.NT.store.projectLoad(p.id).cur})))`,
+      vm,
+    ),
+  );
+}
+it.each(['ceo', 'hrbp'] as const)(
+  'matches every one of the 93 prototype picker counts for %s',
+  async (role) => {
+    const mapped = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
+    const account = mapped.accounts.find(
+      (account) => account.id === `demo-${role}`,
+    )!;
+    mocks.session.mockResolvedValue({ user: { id: account.id } });
+    mocks.load.mockResolvedValue({
+      context: { ...mapped, account, now: '2026-09-04' },
+      directory: {
+        people: mapped.people,
+        organizations: mapped.organizations.map((org) => ({
+          ...org,
+          shortName: org.name,
+        })),
+      },
+      staffing: mapped,
+    });
+    const expected = prototypePickerCounts(role);
+    const actual = (await listProjectsForCurrentUser()).eligiblePeople.map(
+      (person) => ({ id: person.id, count: person.currentProjectCount }),
+    );
+    expect(expected).toHaveLength(93);
+    expect(actual).toHaveLength(93);
+    expect(actual).toEqual(expected);
+  },
+);
+it.each(['已结束', '已归档'])(
+  'picker still counts an unclosed membership on a %s project',
+  async (status) => {
+    loaded.staffing.projects[0].status = status;
+    expect(
+      (await listProjectsForCurrentUser()).eligiblePeople[0]
+        .currentProjectCount,
+    ).toBe(1);
+  },
+);
+it('picker uses the unclosed-membership marker rather than evaluating membership dates', async () => {
+  loaded.staffing.members[0].validFrom = '2026-12-01';
+  expect(
+    (await listProjectsForCurrentUser()).eligiblePeople[0].currentProjectCount,
+  ).toBe(1);
+  loaded.staffing.members[0].validFrom = '2026-01-01';
+  loaded.staffing.members[0].validTo = '2026-12-01';
+  expect(
+    (await listProjectsForCurrentUser()).eligiblePeople[0].currentProjectCount,
+  ).toBe(0);
+});
+it('picker count never discloses an unreadable project even for an eligible person', async () => {
+  context.grants = [
+    { ...context.grants[0], role: 'hr', scope: 'cohort', cohortId: 'mine' },
+  ];
+  context.enrollments = [
+    {
+      cohortId: 'mine',
+      personId: 'p1',
+      confirmed: true,
+      validFrom: '2026-01-01',
+      validTo: null,
+      revokedAt: null,
+    },
+  ];
+  // A future membership does not yet make this outside-cohort project readable.
+  loaded.staffing.projects[0].creatorId = 'someone-else';
+  loaded.staffing.projects[0].ownerId = null;
+  loaded.staffing.members[0].validFrom = '2026-12-01';
+  context.members = loaded.staffing.members;
+  expect(
+    (await listProjectsForCurrentUser()).eligiblePeople[0].currentProjectCount,
+  ).toBe(0);
 });

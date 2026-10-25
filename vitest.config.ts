@@ -14,6 +14,7 @@ export default defineConfig({
       'src/**/*.test.{ts,tsx}',
       'scripts/**/*.test.ts',
       'tests/e2e/**/*.test.ts',
+      'tests/visual/**/*.test.ts',
     ],
     exclude: ['src/**/*.integration.test.ts'],
     pool: 'forks',

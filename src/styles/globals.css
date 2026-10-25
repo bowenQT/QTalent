@@ -23,10 +23,9 @@
 .n-dialog[data-state] {
   position: fixed;
   z-index: 101;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  margin: 0;
+  inset: 0;
+  height: fit-content;
+  margin: auto;
   max-height: calc(100dvh - 32px);
   overflow-y: auto;
 }

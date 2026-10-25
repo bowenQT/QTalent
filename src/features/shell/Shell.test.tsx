@@ -86,6 +86,37 @@ describe('authorized shell', () => {
     render(<Shell data={data}>内容</Shell>);
     expect(scroll).toHaveBeenCalledWith({ inline: 'center', block: 'nearest' });
   });
+  it('keeps the mentor reference route at the padded right edge while retaining judgment navigation', () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    render(
+      <Shell
+        data={{
+          ...data,
+          role: 'mentor',
+          navigation: [
+            ...data.navigation,
+            {
+              id: 'judge',
+              label: '我的判断对照',
+              href: '/judge?rater=me',
+              icon: 'swap',
+              group: '规则',
+            },
+          ],
+        }}
+      >
+        内容
+      </Shell>,
+    );
+    expect(scroll).toHaveBeenCalledWith({ inline: 'end', block: 'nearest' });
+    expect(screen.getByRole('link', { name: '我的判断对照' })).toBeTruthy();
+  });
   it('denies admin shell titles and search before showing business identifiers', () => {
     render(
       <Shell
