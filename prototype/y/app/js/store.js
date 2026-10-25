@@ -1198,10 +1198,13 @@
     const sug = b.type === 'sug' ? S.ruleSugs.find((x) => x.id === b.sug && x.state === 'adopted' && x.draft === d.v) : null, snap = sug && NT.clone(sug);
     if (sug) { sug.state = 'open'; delete sug.handledBy; delete sug.handledAt; delete sug.draft; }
     store.save();
+    let restored = false;
     return () => {
-      if (draftOf(kind) !== d) return false;
+      // 旧 Toast 再次触发不能重复写回同一条依据。
+      if (restored || draftOf(kind) !== d) return false;
       d.basis.splice(Math.min(i, d.basis.length), 0, b);
       if (snap) { const x = S.ruleSugs.find((y) => y.id === snap.id); if (x && x.state === 'open') Object.assign(x, snap); }
+      restored = true;
       store.save(); return true;
     };
   };
