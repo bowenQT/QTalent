@@ -321,18 +321,26 @@
     ? html`<button class="n-casechip" type="button" data-rm="${i}" aria-label="移除依据：${basisText(b)}">${icon(BASIS_ICON[b.type] || 'doc')}${basisText(b)}${icon('x')}</button>`
     : html`<span class="n-casechip">${icon(BASIS_ICON[b.type] || 'doc')}${basisText(b)}</span>`);
 
+  function adoptSug(id) {
+    if (st.handleRuleSug(id, true)) return true;
+    const o = st.ruleOpen('rubric');
+    NT.toast(o && o.state !== 'draft' ? `${o.v} 处于${STATE[o.state]}，撤回到草稿后再纳入这条建议` : '暂时无法纳入这条建议，刷新页面后重试');
+    return false;
+  }
   // 修订建议：HRBP 纳入草稿或不采纳（写理由）；提建议的人能看到处理结果
   function sugSec() {
     const list = st.ruleSugs().filter((s) => s.rule === kind);
     if (!list.length) return '';
     const STATE_S = { open: '待处理', adopted: '已纳入草稿', rejected: '不采纳' };
+    // 修订已提交或已排期时不能往里加依据，先撤回到草稿
+    const open = st.ruleOpen(kind), locked = open && open.state !== 'draft' ? open : null;
     return html`<article class="n-card" id="sugs"><h3 class="n-section-title">修订建议<span class="nt-muted" style="margin-left:auto;font-weight:400">建议只用于修订规则，分数保持原样</span></h3>
       <ul class="nt-list">${list.map((s) => html`<li style="padding:var(--s-3) 0;border-top:1px solid var(--line)">
         <div class="nt-row"><b style="font-size:var(--t-sm)">${st.dim(s.dim).name}锚点 ${s.level} 分</b><span class="nt-muted">${name(s.by)} · ${SRC[ROLE_OF(s.by)]} · ${NT.md(s.at)}</span><span class="n-badge" style="margin-left:auto">${STATE_S[s.state]}</span></div>
         <p style="margin:var(--s-1) 0 0;font-size:var(--t-sm)">「${s.text}」</p>
         ${s.ev && st.event(s.ev) ? html`<p class="nt-muted" style="margin:2px 0 0">例子：${st.event(s.ev).title} · ${NT.md(st.event(s.ev).date)}</p>` : ''}
         ${s.state === 'rejected' ? html`<p class="nt-muted" style="margin:2px 0 0">理由：${s.why}</p>` : ''}
-        ${s.state === 'open' && role === 'hrbp' ? html`<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" data-adopt="${s.id}">${icon('plus')}纳入草稿</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-reject="${s.id}">不采纳</button></div>` : ''}
+        ${s.state === 'open' && role === 'hrbp' ? html`<div class="nt-row" style="margin-top:var(--s-2)">${locked ? html`<span class="nt-muted">${locked.v} ${STATE[locked.state]}，撤回到草稿后才能纳入</span>` : html`<button class="n-btn n-btn--sm" type="button" data-adopt="${s.id}">${icon('plus')}纳入草稿</button>`}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-reject="${s.id}">不采纳</button></div>` : ''}
       </li>`)}</ul></article>`;
   }
 
@@ -542,7 +550,7 @@
       const restore = st.deleteDraft(kind); rerender();
       NT.toast(`已删除草稿 ${d.v}`, { undo: () => { if (!restore()) NT.toast('已经有一份新草稿，删除的草稿保持删除'); rerender(); } });
     });
-    $$('[data-adopt]', main).forEach((b) => b.addEventListener('click', () => { st.handleRuleSug(b.dataset.adopt, true); rerender(); NT.toast('已纳入草稿作为依据，提建议的人能看到结果', { undo: () => { st.unhandleRuleSug(b.dataset.adopt); rerender(); } }); }));
+    $$('[data-adopt]', main).forEach((b) => b.addEventListener('click', () => { if (!adoptSug(b.dataset.adopt)) return; rerender(); NT.toast('已纳入草稿作为依据，提建议的人能看到结果', { undo: () => { st.unhandleRuleSug(b.dataset.adopt); rerender(); } }); }));
     $$('[data-reject]', main).forEach((b) => b.addEventListener('click', async () => {
       const v = await NT.dialog({ title: '不采纳这条修订建议？', body: html`<p>写一句理由，提建议的人能看到。</p><textarea class="n-textarea" rows="2" id="rj" placeholder="比如：锚点 3 的范围本来就包含两种情形，先补示例"></textarea>`,
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '不采纳', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#rj', dl).value.trim(), read: (dl) => $('#rj', dl).value.trim() }] });
