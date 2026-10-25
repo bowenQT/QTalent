@@ -3,6 +3,30 @@ import { createUploadService } from './service';
 import { fixture } from '../../../../../tests/fixtures/upload-fake';
 
 describe('authorized immutable upload lifecycle', () => {
+  it('includes authoritative pre-existing attachments and fails closed when the count is unknown', async () => {
+    const f = fixture();
+    const policy = vi
+      .spyOn(f.options.policy, 'resolveWriteTarget')
+      .mockResolvedValue({
+        quotaScope: 'trusted-record-collection-1',
+        externalAttachmentCount: 9,
+      });
+    const s = createUploadService(f.options);
+    await s.request('account', f.request);
+    await expect(
+      s.request('other', { ...f.request, operationId: 'eleventh' }),
+    ).rejects.toMatchObject({
+      status: 'validation_error',
+      reason: 'attachment_limit',
+    });
+    policy.mockResolvedValue({
+      quotaScope: 'trusted-record-collection-1',
+      externalAttachmentCount: NaN,
+    });
+    await expect(
+      s.request('account', { ...f.request, operationId: 'unknown-count' }),
+    ).rejects.toMatchObject({ status: 'unavailable' });
+  });
   it('rejects anonymous/forbidden before issuing any credential or reservation', async () => {
     const f = fixture();
     const s = createUploadService(f.options);
