@@ -11,17 +11,15 @@ describe('record and review contracts', () => {
       reason: '未体现',
     };
     expect(recordScoreSchema.safeParse(unknown).success).toBe(true);
-    expect(
-      recordScoreSchema.safeParse({ ...unknown, value: 1 }).success,
-    ).toBe(false);
+    const scored = recordScoreSchema.safeParse({ ...unknown, value: 1 });
+    expect(scored.success).toBe(false);
   });
 
   it('does not trust client time for undo', () => {
     const undo = { operation_id: 'demo-undo', saveId: 'demo-save' };
     expect(recordUndoInputSchema.safeParse(undo).success).toBe(true);
-    expect(
-      recordUndoInputSchema.safeParse({ ...undo, now: 0 }).success,
-    ).toBe(false);
+    const timed = recordUndoInputSchema.safeParse({ ...undo, now: 0 });
+    expect(timed.success).toBe(false);
   });
 
   it('marks frozen-position recalibration as not connected', () => {
