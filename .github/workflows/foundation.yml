@@ -1,0 +1,61 @@
+name: foundation
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: foundation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: qtalent
+          POSTGRES_PASSWORD: isolated-ci-only
+          POSTGRES_DB: qtalent_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U qtalent -d qtalent_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: test
+      NODE_ENV: test
+      DATABASE_URL: postgresql://qtalent:isolated-ci-only@127.0.0.1:5432/qtalent_test
+      TEST_DATABASE_URL: postgresql://qtalent:isolated-ci-only@127.0.0.1:5432/qtalent_test
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      BETTER_AUTH_SECRET: synthetic-ci-secret-not-valid-outside-isolated-tests
+      DEMO_PASSWORD: synthetic-ci-password-only
+      ACCESS_ENFORCED: 'false'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm reference:prepare
+      - run: pnpm check
+      - run: pnpm test:e2e
+      - run: pnpm test:visual
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foundation-verification
+          path: |
+            coverage/
+            playwright-report/
+            test-results/
+          retention-days: 7

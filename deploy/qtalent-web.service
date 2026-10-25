@@ -1,0 +1,20 @@
+[Unit]
+Description=QTalent web application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=qtalent
+WorkingDirectory=/opt/qtalent
+EnvironmentFile=/etc/qtalent/runtime.env
+ExecStart=/usr/bin/env pnpm start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/qtalent/.next/cache
+
+[Install]
+WantedBy=multi-user.target

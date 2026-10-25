@@ -1,0 +1,11 @@
+prototype/
+review-site/
+node_modules/
+.next/
+pnpm-lock.yaml
+src/server/db/migrations/
+src/styles/tokens.css
+src/styles/components.css
+src/styles/desk.css
+src/styles/mobile.css
+docs/evidence/foundation/dependency-review*.txt
