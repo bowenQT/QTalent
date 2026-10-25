@@ -1,4 +1,7 @@
+import pixelmatch from 'pixelmatch';
+import { PNG } from 'pngjs';
 import { test, expect, type Browser, type Page } from '@playwright/test';
+import { referenceConfig } from './reference-config';
 import {
   expectSameBox,
   maskWithin,
@@ -18,6 +21,16 @@ async function pair(browser: Browser, page: Page, left: string, right: string) {
   await page.setContent(base + left);
   await other.setContent(base + right);
   return other;
+}
+/** Differing pixels between two same-size screenshots. Anti-aliased pixels are
+ * ignored, as in compare(): two pages may raster text edges differently. */
+function differingPixels(left: Buffer, right: Buffer) {
+  const a = PNG.sync.read(left),
+    b = PNG.sync.read(right);
+  expect([b.width, b.height]).toEqual([a.width, a.height]);
+  return pixelmatch(a.data, b.data, null, a.width, a.height, {
+    threshold: referenceConfig.pixelThreshold,
+  });
 }
 const masks = (page: Page) =>
   page.evaluate(() =>
@@ -138,7 +151,7 @@ test.describe('element masks', () => {
         right.locator('.card').screenshot(),
       ]);
     const [before, after] = await shot();
-    expect(before.equals(after)).toBe(false);
+    expect(differingPixels(before, after)).toBeGreaterThan(0);
     await maskWithin(page.locator('.card'), right.locator('.card'), ['.note']);
     for (const side of [page, right]) {
       const note = await side.locator('.note').boundingBox();
@@ -147,7 +160,7 @@ test.describe('element masks', () => {
       );
     }
     const [left, other] = await shot();
-    expect(left.equals(other)).toBe(true);
+    expect(differingPixels(left, other)).toBe(0);
     await right.close();
   });
   test('cover prototype-only nodes on the engineering side too', async ({
