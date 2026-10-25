@@ -1361,6 +1361,8 @@
     return b ? `calibrate.html?id=${b.id}&team=${org}&person=${pid}` : null;
   };
   store.startInventory = (b) => {
+    // 相同批次 ID 重复启动不应新增第二个快照入口，也不能重复激活规则版本。
+    if (!b?.id || S.batches.some((x) => x.id === b.id)) return null;
     const busy = !!store.inventoryLock();
     if (!busy) Object.keys(S.rules).forEach((k) => S.rules[k].filter((r) => r.state === 'scheduled').forEach((r) => activate(k, r)));
     Object.assign(b, { rubric: store.ruleLive('rubric').v, place: store.ruleLive('place').v });
