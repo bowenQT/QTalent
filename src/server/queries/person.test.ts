@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { personSchema } from '../../contracts/person';
 import { peopleListSchema } from '../../contracts/people';
 import { sourceReadResultSchema } from '../../contracts/sources';
@@ -12,6 +12,12 @@ import {
 } from './person';
 import { loadCurrentPersonData } from './person-session';
 vi.mock('./person-session', () => ({ loadCurrentPersonData: vi.fn() }));
+import { recordAudit } from '../platform/audit';
+vi.mock('../db/client', () => ({ getDatabase: () => ({}) }));
+vi.mock('../platform/audit', () => ({ recordAudit: vi.fn() }));
+beforeEach(() => {
+  vi.mocked(recordAudit).mockReset().mockResolvedValue(undefined);
+});
 const reference = {
   fragmentId: 'fragment-0',
   originalVersionId: 'version',
@@ -171,6 +177,58 @@ describe('people, profile and shared sources', () => {
     await expect(readSourceForCurrentUser(reference)).rejects.toThrow(
       'database failed',
     );
+  });
+  it('audits each successful sensitive read with current actor and resource', async () => {
+    vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture('hr'));
+    await readPersonForCurrentUser({ id: 'one' });
+    await readPersonPreviewForCurrentUser({ id: 'one' });
+    await readSourceForCurrentUser(reference);
+    expect(recordAudit).toHaveBeenCalledTimes(3);
+    expect(recordAudit).toHaveBeenNthCalledWith(1, {}, {
+      actorId: 'account',
+      action: 'person.read',
+      resourceId: 'one',
+    });
+    expect(recordAudit).toHaveBeenNthCalledWith(2, {}, {
+      actorId: 'account',
+      action: 'person.read',
+      resourceId: 'one',
+    });
+    expect(recordAudit).toHaveBeenNthCalledWith(3, {}, {
+      actorId: 'account',
+      action: 'source.read',
+      resourceId: '["fragment-0","version"]',
+    });
+  });
+  it('never returns sensitive data when audit persistence fails', async () => {
+    vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture());
+    vi.mocked(recordAudit).mockRejectedValue(new Error('audit unavailable'));
+    await expect(readPersonForCurrentUser({ id: 'one' })).rejects.toThrow('audit unavailable');
+    await expect(readPersonPreviewForCurrentUser({ id: 'one' })).rejects.toThrow('audit unavailable');
+    await expect(readSourceForCurrentUser(reference)).rejects.toThrow('audit unavailable');
+  });
+  it('does not log a successful access for absent or denied resources', async () => {
+    vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture('mentor'));
+    expect((await readPersonForCurrentUser({ id: 'two' })).status).toBe('not_found');
+    expect((await readSourceForCurrentUser({ ...reference, originalVersionId: 'missing' })).status).toBe('not_found');
+    expect((await readSourceForCurrentUser({})).status).toBe('validation_error');
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+  it('awaits audit persistence before resolving the profile', async () => {
+    vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture());
+    let complete!: () => void;
+    vi.mocked(recordAudit).mockImplementation(() => new Promise<void>((resolve) => {
+      complete = resolve;
+    }));
+    let returned = false;
+    const pending = readPersonForCurrentUser({ id: 'one' }).then((result) => {
+      returned = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(recordAudit).toHaveBeenCalledOnce());
+    expect(returned).toBe(false);
+    complete();
+    expect((await pending).status).toBe('success');
   });
   it('does not infer compatibility between rule versions', async () => {
     const data = fixture();
