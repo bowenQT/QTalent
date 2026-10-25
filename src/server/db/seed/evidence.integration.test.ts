@@ -233,10 +233,10 @@ it('enforces attribution, anchor, version, evidence and 1–5/unknown invariants
     ).rejects.toMatchObject({ cause: { code: '23514' } });
   }
   await expect(
-    f.db
-      .insert(confirmations)
-      .values({ ...f.score, evaluatorId: null as unknown as string }),
-  ).rejects.toMatchObject({ cause: { code: '23502' } });
+    f.db.insert(confirmations).values({ ...f.score, evaluatorId: null }),
+  ).rejects.toMatchObject({
+    cause: { code: '23514', constraint: 'talent_confirmation_provenance' },
+  });
   for (const patch of [
     { evaluatorId: 'missing' },
     { anchorId: 'missing' },
@@ -661,14 +661,13 @@ it('retains empty behavior only for explicit demo events and leaves unknown hist
       .insert(events)
       .values({ ...f.eventRow, id: randomUUID(), behavior: '', demo: false }),
   ).rejects.toMatchObject({ cause: { code: '23514' } });
-  await f.db
-    .insert(events)
-    .values({
-      ...f.eventRow,
-      id: `${f.p}-demo-empty`,
-      behavior: '',
-      demo: true,
-    });
+  const demoEventRow = {
+    ...f.eventRow,
+    id: `${f.p}-demo-empty`,
+    behavior: '',
+    demo: true,
+  };
+  await f.db.insert(events).values(demoEventRow);
   expect(
     (
       await f.db
@@ -677,19 +676,18 @@ it('retains empty behavior only for explicit demo events and leaves unknown hist
         .where(eq(events.id, `${f.p}-demo-empty`))
     )[0].behavior,
   ).toBe('');
-  await f.db
-    .insert(historicalEvaluations)
-    .values({
-      id: `${f.p}-unknown-rule`,
-      sourceRecordId: 'test-history',
-      personId: f.person,
-      recorderId: f.evaluator,
-      occurredOn: '2026-07-24',
-      kind: 'Synthetic history',
-      scale: [['Original scale', 'B']],
-      ruleVersionId: null,
-      originalVersionId: f.version,
-      fragmentId: f.fragment,
-      sourceCategory: 'prototype_baseline',
-    });
+  const historicalRow: typeof historicalEvaluations.$inferInsert = {
+    id: `${f.p}-unknown-rule`,
+    sourceRecordId: 'test-history',
+    personId: f.person,
+    recorderId: f.evaluator,
+    occurredOn: '2026-07-24',
+    kind: 'Synthetic history',
+    scale: [['Original scale', 'B']],
+    ruleVersionId: null,
+    originalVersionId: f.version,
+    fragmentId: f.fragment,
+    sourceCategory: 'prototype_baseline',
+  };
+  await f.db.insert(historicalEvaluations).values(historicalRow);
 });
