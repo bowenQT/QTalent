@@ -279,6 +279,8 @@
     };
     tickUpload();
   }
+  // 录音整理任务在本页停留期间到点推进（桌面壳发出），列表跟着刷新
+  addEventListener('nt:tasks', () => { if ($('#tasks')) renderTasks(); });
   let ticking = false;
   function tickUpload() {
     if (ticking) return; ticking = true;

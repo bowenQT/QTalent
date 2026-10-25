@@ -322,10 +322,12 @@
     async function finish() {
       stopTimers(); step = 'ending';
       const dur = Math.min(R.elapsed(r), m.limit);
-      if (r.net) {
-        r.uploading = true; r.paused = true; r.pausedAt = Date.now(); delete r.net; save();
+      if (r.net || r.uploading) {
+        // 补传到第几段记在录音状态里：补传中刷新页面，回来接着传
+        if (!r.uploading) { Object.assign(r, { uploading: true, paused: true, pausedAt: Date.now(), up: 0 }); delete r.net; save(); }
         mount($('#net'), ''); paint();
-        for (let k = 0; k <= SEGS; k++) {
+        for (let k = r.up || 0; k <= SEGS; k++) {
+          r.up = k; save();
           $('#ctl-up-t').textContent = `补传中 ${k}/${SEGS} 段`;
           $('#ctl-up .n-progress i').style.width = `${k / SEGS * 100}%`;
           await NT.wait(700);
@@ -335,7 +337,7 @@
       renderProcessing({ title: r.title, dur });
     }
 
-    run(next, 600);
+    if (r.uploading) finish(); else run(next, 600);
     if (opt.fresh || opt.focus) $('#rec-pause').focus();
   }
 

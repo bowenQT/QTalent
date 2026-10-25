@@ -39,7 +39,7 @@
       const S = st.get(), now = Date.now();
       S.tasks = S.tasks.filter((t) => t.id !== 'tk-drec');
       const task = { id: 'tk-drec', name: `${title}.m4a`, state: 'transcribing', minutes: 'w8', by: st.me().id, note: `录音 ${NT.rec.fmt(dur)} · 可以离开，结果会回到这里`, link: 'record.html?m=w8', shapeAt: now + 3000, readyAt: now + 6000 };
-      S.tasks.unshift(task); st.save();
+      S.tasks.unshift(task); st.save(); watchRecTask();
       return task;
     },
   };
@@ -61,6 +61,18 @@
     const t = st.get().tasks.find((x) => x.id === 'tk-drec' && x.state === 'transcribing' && Date.now() >= x.shapeAt);
     if (t) { t.state = 'shaping'; t.note = '转写完成，正在整理事件'; st.save(); }
   };
+  // 停在某一页时任务也按约定时间往下走：到点推进一步并发出 nt:tasks，工作台据此刷新任务列表
+  let recTaskTimer = 0;
+  function watchRecTask() {
+    clearTimeout(recTaskTimer);
+    const t = st.get().tasks.find((x) => x.id === 'tk-drec' && ['transcribing', 'shaping'].includes(x.state));
+    if (!t) return;
+    recTaskTimer = setTimeout(() => {
+      recTask(); st.tickTasks();
+      dispatchEvent(new Event('nt:tasks'));
+      watchRecTask();
+    }, Math.max(0, (t.state === 'transcribing' ? t.shapeAt : t.readyAt) - Date.now()) + 50);
+  }
   // 录音收起后，顶栏的录音条：计时、波形、标题（暂停时写「已暂停」），点「展开」回到录音页
   const recBar = () => {
     const r = NT.rec.mine();
@@ -75,6 +87,7 @@
     const ended = live && document.body.dataset.page !== 'recording' && NT.rec.overLimit(live) ? recAutoEnd(live) : '';
     recTask();
     st.tickTasks();
+    watchRecTask();
     const role = st.role();
     // 系统管理员打开业务页面：标题和面包屑也不带出人名、项目名
     const blocked = role === 'admin' && cfg.nav !== 'admin';
