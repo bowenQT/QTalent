@@ -26,7 +26,7 @@
     ['camp', '人才项目', null, true], ['xe6', 'XEngineer 第六期', 'camp'],
     ...X.teams.map((t) => [t.id, t.name, 'xe6']),
     ['tdc', '导师与助教', 'camp'],
-    ['fn', '职能', null, true], ['hr', '人力资源部', 'fn'], ['strategy', '战略管理中心', 'fn'],
+    ['fn', '职能', null, true], ['hr', '人力资源部', 'fn'], ['strategy', '战略管理中心', 'fn'], ['it', '信息技术部', 'fn'],
   ].map(([id, name, parent, group]) => ({ id, name, parent, group: !!group }));
   const TEAM = Object.fromEntries(X.teams.map((t) => [t.id, t]));
 
@@ -35,6 +35,7 @@
   const PEOPLE = [
     P('p-cheng', '程远', 'strategy', '管理者', 'M', '2011-08-01', 212, { role: 'ceo', noReview: true }),
     P('p-suwan', '苏晚', 'hr', 'HR · 人才项目', 'N6', '2019-03-11', 340, { role: 'hrbp', noReview: true }),
+    P('p-xuheng', '许衡', 'it', '系统管理员', 'N5', '2018-05-14', 28, { role: 'admin', noReview: true }),
   ];
   const KIND = { mentor: '导师', ta: '助教', judge: '评委' };
   X.staff.forEach((s) => PEOPLE.push(P(s.id, s.name, 'tdc', `${KIND[s.kind]} · XEngineer 第六期`, 'N5', '2020-03-02', s.hue, { noReview: true, staff: s.kind, ...(s.id === 'p-yeqing' ? { role: 'mentor', title: '技术专家 · XEngineer 第六期导师', level: 'N6' } : {}) })));
@@ -50,11 +51,12 @@
     p.orgHist = [[p.org, p.joined, null]];
   });
 
-  // ---------- 演示视角：管理者、HR、导师 ----------
+  // ---------- 演示视角：管理者、HR、导师，以及只管系统配置的系统管理员 ----------
   const ROLES = {
     ceo: { label: '管理者', person: 'p-cheng', scope: '公司层：看人、找人，确认规则与方案' },
     hrbp: { label: 'HR', person: 'p-suwan', scope: '人才项目：XEngineer、Landing、校招、黑客松' },
     mentor: { label: '导师', person: 'p-yeqing', scope: '分镜工厂 · 二组、口语搭子 · 一组的学员' },
+    admin: { label: '系统管理员', person: 'p-xuheng', scope: '账号与权限、北森同步、集成与审计；看不到人才数据' },
   };
 
   // ---------- 项目：19 个课题、黑客松（演示）和两个用人项目 ----------

@@ -106,6 +106,7 @@
   store.visiblePeople = (role = store.role()) => SEED.PEOPLE.filter((p) => store.scope(p.id, role) && !p.noReview);
   // 能力开关，对应需求 3.5.3
   store.can = (what, pid, role = store.role()) => {
+    if (role === 'admin') return false; // 系统管理员只管配置，任何人才数据和业务动作都不放行
     const sc = pid ? store.scope(pid, role) : null;
     switch (what) {
       case 'scores': return pid ? ['full', 'mentor', 'project'].includes(sc) : role !== 'self';

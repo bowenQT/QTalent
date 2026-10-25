@@ -112,18 +112,20 @@
     <div class="g-ver__head">
       <div>
         <h2 id="vy">版本 Y · 中性工作台</h2>
-        <p>管理者、HR、导师三种角色，人员来自 XEngineer 第六期的演示数据，手机端只给导师用。</p>
+        <p>管理者、HR、导师三种角色，另有只管系统配置的系统管理员；人员来自 XEngineer 第六期的演示数据，手机端只给导师用。</p>
       </div>
       <div class="g-ver__links">
+        <a class="n-btn n-btn--sm" href="architecture.html">产品架构与分期</a>
         <a class="n-btn n-btn--sm n-btn--ghost" href="y/design-system.html">设计系统</a>
       </div>
     </div>
 
-    <nav class="g-cast" style="--n:4" aria-label="版本 Y 的演示身份">
+    <nav class="g-cast" style="--n:5" aria-label="版本 Y 的演示身份">
       <a href="y/app/index.html?as=ceo"><span class="n-avatar" style="--hue:212">程</span><b>程远 · 管理者</b><small>公司层：看人、找人，确认规则与方案</small></a>
       <a href="y/app/index.html?as=hrbp"><span class="n-avatar" style="--hue:340">苏</span><b>苏晚 · HR</b><small>XEngineer、Landing、校招、黑客松</small></a>
       <a href="y/app/index.html?as=mentor"><span class="n-avatar" style="--hue:66">叶</span><b>叶青 · 导师</b><small>分镜工厂 · 二组、口语搭子 · 一组</small></a>
       <a href="y/m/index.html"><span class="n-avatar" style="--hue:66">叶</span><b>叶青 · 导师手机版</b><small>录音、一句话记录、导师评价</small></a>
+      <a href="y/app/admin.html?as=admin"><span class="n-avatar" style="--hue:28">许</span><b>许衡 · 系统管理员</b><small>账号与权限、北森同步、集成与审计</small></a>
     </nav>
 
     <p class="g-sub">走查路线</p>
@@ -187,6 +189,17 @@
             <li><div><b><span class="g-role">HR</span>结营评审节点待复盘</b><span>结营结论和去向分布从数据算出；AI 草拟了「做得好」「要改进」，采用或改写后署名。</span></div><a class="n-btn n-btn--sm" href="y/app/actions.html?node=pg-xe6:end&amp;as=hrbp">打开</a></li>
             <li><div><b><span class="g-role">HR</span>W4 周评节点的改进事项</b><span>判断对照生成的「修订周评标准」挂在这里，状态可以一路走到已复盘，选未执行要写原因。</span></div><a class="n-btn n-btn--sm" href="y/app/actions.html?node=pg-xe6:w4&amp;as=hrbp">打开</a></li>
             <li><div><b><span class="g-role">管理者</span>只看署名的复盘</b><span>侧栏「人才项目」直接进这一页；结营评审节点显示「待 HR 复盘」，AI 草拟只给 HR。</span></div><a class="n-btn n-btn--sm" href="y/app/actions.html?as=ceo">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="y-admin">
+        <summary><div><h3>系统管理员：只管系统配置</h3><p>系统管理员管账号与权限、北森同步、集成配置和审计日志，业务页面整页拦下；授予业务权限要管理者确认。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">系统管理员</span>账号与权限</b><span>四个账号各写角色和范围；给苏晚增加 Landing 第四期由许衡发起，显示「待管理者确认」。</span></div><a class="n-btn n-btn--sm" href="y/app/admin.html?as=admin">打开</a></li>
+            <li><div><b><span class="g-role">系统管理员</span>北森同步</b><span>写明同步哪些数据、写到哪里、怎么用；只读，绩效和晋升记录只给管理者和 HR 看。</span></div><a class="n-btn n-btn--sm" href="y/app/admin.html?tab=hr&amp;as=admin">打开</a></li>
+            <li><div><b><span class="g-role">系统管理员</span>打开业务页面</b><span>工作台整页拦下，标题和面包屑里没有人名、项目名，只给一个回到系统管理的入口。</span></div><a class="n-btn n-btn--sm" href="y/app/index.html?as=admin">打开</a></li>
           </ol>
         </div>
       </details>
