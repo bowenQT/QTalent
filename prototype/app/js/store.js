@@ -363,10 +363,12 @@
       const k = PUSH_KINDS[x.kind], last = x.log[x.log.length - 1], basis = store.pushBasis(x);
       list.push({ kind: 'push', push: x.id, badge: 'CEO 请你', cls: 'n-badge--seal', title: `${k.verb}${store.person(x.person).name}`, sub: `${k.task}${x.project ? `：${store.project(x.project)?.name}` : ''}${x.note ? ` · 「${x.note}」` : ''}${basis ? ` · 依据 ${basis.rule}：${basis.why}` : ''}${last ? ` · ${NT.md(last.at)} ${last.text}` : ''}`, due: PUSH_STATE[x.state], href: x.kind === 'staff' && x.project ? `staffing.html?project=${x.project}&push=${x.id}` : `person.html?id=${x.person}` });
     });
+    // 评分人本人：旧版本下给的分待按新版本复核
+    if (role !== 'hrbp') { const mine = store.myHeldScores(); if (mine.length) list.push({ kind: 'rulereview', badge: '按新版本复核', title: `${mine.length} 条你的评分待按 ${mine[0].ver} 复核`, sub: '原分保留；你确认前这些分暂停参与取数，你不在时由 HRBP 代确认', href: 'rules.html?r=rubric' }); }
     if (role === 'hrbp') {
       S.judgeAsks.filter((a) => a.owner === me && a.state === 'open').forEach((a) => list.push({ kind: 'jask', badge: 'CEO 请你', cls: 'n-badge--seal', title: `复核「${store.judgeBatch(a.batch).name}」`, sub: `「${a.note}」`, due: NT.md(a.at), href: `judge.html?id=${a.batch}#ask` }));
       store.reviewHolds().forEach((h) => list.push({ kind: 'rulereview', badge: '按新版本复核', title: `${h.ver}：${h.n} 条旧分待按新版本复核`, sub: `涉及 ${h.people} 人、${h.raters} 位评分人；复核确认前暂停参与取数`, due: NT.md(h.at), href: 'rules.html?r=rubric' }));
-      S.ruleSugs.filter((x) => x.state === 'open').forEach((x) => list.push({ kind: 'rulesug', sug: x.id, badge: '修订建议', title: `${store.dim(x.dim).name}锚点 ${x.level} 分：${store.person(x.by).name}的建议`, sub: `「${x.text}」`, due: NT.md(x.at), href: `rules.html?r=${x.rule}#sugs` }));
+      S.ruleSugs.filter((x) => x.state === 'open').forEach((x) => list.push({ kind: 'rulesug', sug: x.id, badge: '修订建议', title: `${store.sugLabel(x)}：${store.person(x.by).name}的建议`, sub: `「${x.text}」`, due: NT.md(x.at), href: `rules.html?r=${x.rule}#sugs` }));
       Object.keys(S.rules).forEach((k) => S.rules[k].filter((r) => r.state === 'draft' && r.returned && r.by === me).forEach((r) => list.push({ kind: 'ruleback', badge: 'CEO 退回', cls: 'n-badge--seal', title: `${store.ruleKindName(k)} ${r.v} 退回到草稿`, sub: `「${r.returned.why}」`, due: NT.md(r.returned.at), href: `rules.html?r=${k}${r.line ? `&line=${r.line}` : ''}` })));
       store.watchPending().forEach((c) => list.push({ kind: 'clue', clue: c.id, badge: '待核实', cls: 'n-badge--ai', icon: 'spark', title: `${store.person(c.person).name}：${c.why}`, sub: c.dir ? `${store.person(c.by).name}推荐${store.fitText(c.dir)} · 核实后进入档案的发展方向和 CEO 的「值得关注」` : `${c.by === 'ai' ? 'AI 线索' : `${store.person(c.by).name}提名`} · 核实后进入 CEO 的「值得关注」`, due: NT.md(c.at), href: `person.html?id=${c.person}` }));
     }
@@ -383,7 +385,7 @@
       if (!store.scope(s.p) || store.scope(s.p) === 'self') return;
       const name = store.person(s.p).name, dn = store.dim(s.d).name;
       if (s.st === 'conflict') q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'conflict', kindLabel: '待校准', title: `${dn}分差 ${Math.abs(s.raters[0].v - s.raters[1].v)} 分`, sub: `${name} · ${s.raters.map((r) => `${store.person(r.by).name} ${r.v}`).join(' / ')}`, pair: s.raters.map((r) => r.v).join(' / ') });
-      else if (s.bigGap && s.st === 'confirmed') q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'gap', kindLabel: '与 AI 分差大', title: `${name} · ${dn}`, sub: `${store.person(s.by).name}确认 ${s.v}，AI 建议 ${s.ai}，没写理由`, pair: `${s.v} / ${s.ai}` });
+      else if (s.bigGap && s.st === 'confirmed' && !lastRev(s)) q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'gap', kindLabel: '与 AI 分差大', title: `${name} · ${dn}`, sub: `${store.person(s.by).name}确认 ${s.v}，AI 建议 ${s.ai}，没写理由`, pair: `${s.v} / ${s.ai}` });
     }));
     store.visiblePeople().filter((p) => store.scope(p.id) === 'full' && store.needsRecal(p.id)).forEach((p) => {
       const f = store.formal(p.id), r = store.refPos(p.id);
@@ -396,6 +398,8 @@
     const me = store.me().id;
     s.hist = [{ v, kind: 'calib', by: me, at: NT.TODAY, why }, ...(s.raters || []).map((r) => ({ v: r.v, kind: 'confirm', by: r.by, at: e.date, why: r.why })), ...(s.hist || []).filter((h) => h.kind !== 'calib'), ...(s.ai != null && !s.raters ? [{ v: s.v, kind: 'confirm', by: s.by, at: e.date }] : [])];
     s.st = 'calibrated'; s.v = v; s.by = me; delete s.bigGap;
+    // 按新版本复核过的分以最近一条复核参与取数：校准值同时记到那一版上，取数和校准历史一致
+    const rev = lastRev(s); if (rev) s.revs.push({ v, ver: rev.ver, by: me, at: NT.TODAY, calib: true });
     store.save();
   };
 
@@ -1147,6 +1151,20 @@
       return true;
     };
   };
+  // 移除草稿的一条依据；修订建议类依据同时把那条建议恢复为待处理，撤销时两边一起恢复
+  store.removeBasis = (kind, i) => {
+    const d = draftOf(kind); if (!d || !d.basis?.[i]) return null;
+    const [b] = d.basis.splice(i, 1);
+    const sug = b.type === 'sug' ? S.ruleSugs.find((x) => x.id === b.sug && x.state === 'adopted' && x.draft === d.v) : null, snap = sug && NT.clone(sug);
+    if (sug) { sug.state = 'open'; delete sug.handledBy; delete sug.handledAt; delete sug.draft; }
+    store.save();
+    return () => {
+      if (draftOf(kind) !== d) return false;
+      d.basis.splice(Math.min(i, d.basis.length), 0, b);
+      if (snap) { const x = S.ruleSugs.find((y) => y.id === snap.id); if (x && x.state === 'open') Object.assign(x, snap); }
+      store.save(); return true;
+    };
+  };
   // 与生效版本相比改了什么：参数、锚点逐条
   store.ruleChanges = (d, base = store.ruleVer(d.base)) => {
     const out = [];
@@ -1219,10 +1237,17 @@
   // ver：这一行所属的复核暂停版本；连续两版不兼容时先按前一版复核，之后的版本继续暂停
   store.reviewScore = (evId, i, v, ver) => {
     const e = store.event(evId), s = e?.scores[i];
-    if (!isHrbp() || !s || store.heldBy(e, s)?.ver !== ver) return null;
+    if (!s || !(isHrbp() || s.by === store.me().id) || store.heldBy(e, s)?.ver !== ver) return null;
     const rev = { v, ver, by: store.me().id, at: NT.TODAY };
     (s.revs = s.revs || []).push(rev); store.save();
     return () => { s.revs = s.revs.filter((x) => x !== rev); if (!s.revs.length) delete s.revs; store.save(); };
+  };
+  // 原评分人待复核的本人评分（v1.6 3.35.5：原评分人确认，不在时由 HRBP 代确认）
+  store.myHeldScores = (role = store.role()) => {
+    const me = ROLES[role]?.person, out = [];
+    if (!S.reviewHolds.length || !me) return out;
+    S.events.forEach((e) => { if (e.kind === 'obs' && e.date) e.scores.forEach((s, i) => { if (COUNTED.includes(s.st) && s.by === me && store.heldBy(e, s)) out.push({ e, i, s, ver: store.heldBy(e, s).ver }); }); });
+    return out;
   };
   // 每个复核暂停当前覆盖的已确认旧分（给待办和规则页写人数、条数）
   store.reviewHolds = () => S.reviewHolds.map((h) => {
@@ -1320,6 +1345,8 @@
   };
   // 修订建议（3.35.8）：负责人、导师 / 助教在锚点处提，进 HRBP 待办；不改分数，也不自动形成草稿
   store.canSuggestRule = (role = store.role()) => ['lead', 'mentor'].includes(role);
+  // 建议针对的锚点：专业度写明岗位族（或通用），并带提交时的锚点版本；早先的建议没有记录就不写
+  store.sugLabel = (s) => `${store.dim(s.dim).name}${s.dim === 'prof' && s.fam ? ` · ${s.fam === 'all' ? '通用' : `${store.familyName(s.fam)}族`}` : ''}锚点 ${s.level} 分${s.ver ? `（${s.ver}）` : ''}`;
   store.addRuleSug = (o) => {
     if (!store.canSuggestRule()) return null;
     const s = { id: NT.uid('rs'), rule: 'rubric', state: 'open', by: store.me().id, at: NT.TODAY, ...o };

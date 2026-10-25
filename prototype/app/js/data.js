@@ -780,7 +780,7 @@
   };
   // 修订建议（3.35.8）：负责人、导师 / 助教在锚点处提出，进 HRBP 待办
   const RULE_SUGS = [
-    { id: 'rs-yq-grit', rule: 'rubric', dim: 'grit', level: 3, by: 'p-yeqing', at: '2026-10-21', state: 'open', ev: 'e-lin-3',
+    { id: 'rs-yq-grit', rule: 'rubric', dim: 'grit', level: 3, ver: 'rubric-v1', by: 'p-yeqing', at: '2026-10-21', state: 'open', ev: 'e-lin-3',
       text: '锚点 3「常规情境下稳定表现」太宽：按期交付和遇到阻碍后坚持到有结果，都能落到 3 分，建议写清楚' },
   ];
 
