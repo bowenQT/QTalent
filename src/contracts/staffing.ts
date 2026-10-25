@@ -164,7 +164,6 @@ export type HumanStaffingJudgmentInput = z.infer<
 >;
 
 const demandInputSchema = z.union([
-  createStaffingDemandInputSchema,
   editStaffingDemandInputSchema,
   confirmStaffingDemandInputSchema,
 ]);
@@ -182,6 +181,26 @@ function errorSchemas<S extends z.ZodType>(input: S) {
     }),
   ] as const;
 }
+// Creation enqueues generation; editing and confirming remain synchronous.
+export const staffingDemandJobSnapshotSchema = createJobSnapshotSchema(
+  'staffing_demand',
+  staffingDemandSchema,
+);
+export const staffingCreateDemandResultSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    status: z.literal('success'),
+    snapshot: staffingDemandJobSnapshotSchema,
+    replayed: z.boolean(),
+  }),
+  ...errorSchemas(createStaffingDemandInputSchema),
+]);
+export type StaffingDemandJobSnapshot = z.infer<
+  typeof staffingDemandJobSnapshotSchema
+>;
+export type StaffingCreateDemandResult = z.infer<
+  typeof staffingCreateDemandResultSchema
+>;
+
 export const staffingDemandResultSchema = z.discriminatedUnion('status', [
   z.strictObject({
     status: z.literal('success'),
