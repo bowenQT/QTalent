@@ -13,12 +13,6 @@ import { cohorts, enrollments, assignments } from '../modules/programs';
 import { projects, members, memberLogs } from '../modules/staffing';
 import { user, account } from '../auth/schema';
 import { getEnv } from '../env';
-import {
-  dimensions,
-  ruleVersions,
-  anchors,
-} from '../modules/evaluation-system';
-import { importSnapshots, events } from '../modules/records';
 /** Explicit command only: never imported into application startup. No destructive reset. */
 export async function importDemo(
   db: Database,
@@ -147,18 +141,7 @@ export async function importDemo(
           by: l.by,
         })
         .onConflictDoNothing();
-    for (const dimension of seed.evidence.dimensions)
-      await tx.insert(dimensions).values(dimension).onConflictDoNothing();
-    for (const version of seed.evidence.ruleVersions)
-      await tx.insert(ruleVersions).values(version).onConflictDoNothing();
-    for (const anchor of seed.evidence.anchors)
-      await tx.insert(anchors).values(anchor).onConflictDoNothing();
-    for (const snapshot of seed.evidence.snapshots)
-      await tx.insert(importSnapshots).values(snapshot).onConflictDoNothing();
-    for (const event of seed.evidence.events)
-      await tx.insert(events).values(event).onConflictDoNothing();
   });
-  return { gaps: seed.evidence.gaps };
 }
 export async function runImport() {
   const env = getEnv();
@@ -168,12 +151,11 @@ export async function runImport() {
   if (!password) throw new Error('DEMO_PASSWORD is required');
   const connection = createDatabase(env.DATABASE_URL);
   try {
-    const report = await importDemo(
+    await importDemo(
       connection.db,
       mapPrototypeSeed(readPrototypeSeed(process.cwd())),
       password,
     );
-    console.log(JSON.stringify(report));
   } finally {
     await connection.pool.end();
   }

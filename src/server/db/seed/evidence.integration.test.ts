@@ -24,8 +24,6 @@ import {
   aiSuggestions,
   scoreReviews,
 } from '../../modules/talent';
-import { importDemo } from '../import';
-import { readPrototypeSeed, mapPrototypeSeed } from './index';
 let admin: Pool | undefined;
 let connection: ReturnType<typeof createDatabase> | undefined;
 const name = `qtalent_evidence_${randomUUID().replaceAll('-', '')}_test`;
@@ -410,33 +408,44 @@ it('stores distinct statement natures and review causes, never a frozen profile'
     tables.some((t) => /frozen|profile_version|quadrant/.test(String(t))),
   ).toBe(false);
 });
-it('imports the same baseline twice without overwriting data and rolls an entire failed batch back', async () => {
+it('preserves synthetic snapshot identity without overwriting and rolls invalid transactions back', async () => {
   const db = connection!.db;
-  const seed = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
-  await importDemo(db, seed, 'Test-password-not-a-secret');
-  const before = await db.select().from(importSnapshots);
-  await importDemo(db, seed, 'Test-password-not-a-secret');
-  expect(await db.select().from(importSnapshots)).toEqual(before);
-  const bad = structuredClone(seed);
-  bad.organizations.push({
-    id: 'test-rollback-org',
-    name: 'Synthetic',
-    parentId: null,
-    group: false,
-  });
-  bad.evidence.events.push({
-    ...seed.evidence.events[0],
-    id: 'test-invalid-event',
-    personId: 'missing',
-  });
-  await expect(
-    importDemo(db, bad, 'Test-password-not-a-secret'),
-  ).rejects.toThrow();
+  const id = randomUUID();
+  const snapshot = {
+    id,
+    recordId: 'test-record',
+    sourceCommit: 'test-baseline',
+    fieldPath: `EVENTS[${id}]`,
+    provenance: 'demo_import_snapshot',
+    content: { synthetic: true },
+  };
+  await db.insert(importSnapshots).values(snapshot).onConflictDoNothing();
+  await db
+    .insert(importSnapshots)
+    .values({ ...snapshot, content: { synthetic: false } })
+    .onConflictDoNothing();
   expect(
-    await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, 'test-rollback-org')),
+    await db.select().from(importSnapshots).where(eq(importSnapshots.id, id)),
+  ).toEqual([snapshot]);
+  await expect(
+    db.insert(importSnapshots).values({ ...snapshot, id: randomUUID() }),
+  ).rejects.toMatchObject({ cause: { code: '23505' } });
+  const rollbackId = randomUUID();
+  await expect(
+    db.transaction(async (tx) => {
+      await tx
+        .insert(originals)
+        .values({ id: rollbackId, title: 'Synthetic original' });
+      await tx.insert(originalVersions).values({
+        id: randomUUID(),
+        originalId: 'missing',
+        version: 1,
+        contentDigest: 'synthetic',
+      });
+    }),
+  ).rejects.toMatchObject({ cause: { code: '23503' } });
+  expect(
+    await db.select().from(originals).where(eq(originals.id, rollbackId)),
   ).toHaveLength(0);
 });
 it('rejects existing but unrelated previous revisions, suggestions, and source fragments', async () => {
