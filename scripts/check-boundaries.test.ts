@@ -88,3 +88,76 @@ it('rejects cross-domain raw tables and namespace imports even through public in
     ),
   ).toBeNull();
 });
+
+it('allows schema table imports only in declarative foreign keys through public domain entry', async () => {
+  const { isForeignKeyOnlyImport } = await import('./check-boundaries');
+  expect(
+    isForeignKeyOnlyImport(
+      'src/server/modules/records/schema.ts',
+      `import { people } from '../directory'; export const events = pgTable('events', { personId: text('person_id').references(() => people.id) });`,
+      ['people'],
+    ),
+  ).toBe(true);
+  expect(
+    isForeignKeyOnlyImport(
+      'src/server/modules/records/index.ts',
+      `export const x = pgTable('x', { personId: text('id').references(() => people.id) });`,
+      ['people'],
+    ),
+  ).toBe(false);
+  expect(
+    isForeignKeyOnlyImport(
+      'src/server/modules/records/schema.ts',
+      `export const x = db.select().from(people);`,
+      ['people'],
+    ),
+  ).toBe(false);
+  expect(
+    isForeignKeyOnlyImport(
+      'src/server/modules/records/schema.ts',
+      `export const x = people;`,
+      ['people'],
+    ),
+  ).toBe(false);
+  expect(
+    isForeignKeyOnlyImport(
+      'src/server/modules/records/schema.ts',
+      `export const x = pgTable('x', {}, t => [foreignKey({ columns:[t.personId],foreignColumns:[people.id] })]);`,
+      ['people'],
+    ),
+  ).toBe(true);
+  expect(
+    isForeignKeyOnlyImport(
+      'src/server/modules/records/schema.ts',
+      `export const x = pgTable('x', {}, t => [foreignKey({ columns:[people.id],foreignColumns:[t.id] })]);`,
+      ['people'],
+    ),
+  ).toBe(false);
+  expect(
+    checkImport('src/server/modules/records/schema.ts', '../directory/schema'),
+  ).toBeTruthy();
+});
+it('does not exempt renamed or unused table imports', async () => {
+  const { isForeignKeyOnlyImport } = await import('./check-boundaries');
+  expect(
+    isForeignKeyOnlyImport(
+      'src/server/modules/records/schema.ts',
+      `import {people as p} from '../directory'; db.select().from(p);`,
+      ['people'],
+    ),
+  ).toBe(false);
+  expect(
+    isForeignKeyOnlyImport(
+      'src/server/modules/records/schema.ts',
+      `import {people as p} from '../directory'; export const e=pgTable('e',{p:text('p').references(()=>p.id)});`,
+      ['people'],
+    ),
+  ).toBe(false);
+  expect(
+    isForeignKeyOnlyImport(
+      'src/server/modules/records/schema.ts',
+      `import {people} from '../directory'; export const unused=1;`,
+      ['people'],
+    ),
+  ).toBe(false);
+});

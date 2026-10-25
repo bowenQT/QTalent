@@ -32,6 +32,6 @@
 
 ## 迁移与交付顺序
 
-本分支按当前 main 独立生成 jobs 迁移。合入必须在 BOW-834 之后，先基于最新 main 重新生成迁移及 metadata，再重复完整验证；不得同时合并或覆盖834迁移。迁移只新增任务快照/操作账本；回退代码不等于删除持久数据，不提供自动清理或破坏性down migration。
+已对齐 BOW-834 合入后的 main（25af415），保留其 `0001_salty_pestilence` SQL 与 metadata，移除本分支尚未应用的旧冲突产物，并通过 `pnpm db:generate` 原生生成后续 `0002_cold_secret_warriors` 及 metadata。迁移只新增任务快照/操作账本；合入仍串行检查，不覆盖834迁移。回退代码不等于删除持久数据，不提供自动清理或破坏性down migration。
 
 本卡保持部分交付关联：Refs #34 / Part of BOW-842。依赖、消费者联调与真实隧道验收未完成前不把整张卡关闭，不宣称业务端到端完成。
