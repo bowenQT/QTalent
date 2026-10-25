@@ -513,9 +513,10 @@
     $$('#compat [data-v]', main).forEach((b) => b.addEventListener('click', () => { st.setDraft(kind, { compat: b.dataset.v }); rerender(); }));
     $$('#eff [data-v]', main).forEach((b) => b.addEventListener('click', () => { st.setDraft(kind, { effect: b.dataset.v }); rerender(); $(`#eff [data-v="${b.dataset.v}"]`)?.focus(); }));
     $$('[data-rm]', main).forEach((b) => b.addEventListener('click', () => {
-      const d = st.ruleOpen(kind), i = +b.dataset.rm, [x] = d.basis.splice(i, 1);
-      st.setDraft(kind, { basis: d.basis }); rerender();
-      NT.toast('已移除这条依据', { undo: () => { d.basis.splice(i, 0, x); st.setDraft(kind, { basis: d.basis }); rerender(); } });
+      const sug = st.ruleOpen(kind)?.basis?.[+b.dataset.rm]?.type === 'sug';
+      const undo = st.removeBasis(kind, +b.dataset.rm); if (!undo) return;
+      rerender();
+      NT.toast(sug ? '已移除这条依据，这条建议回到待处理' : '已移除这条依据', { undo: () => { if (!undo()) NT.toast('草稿已经变了，移除的依据保持移除'); rerender(); } });
     }));
     const add = $('#basis-add');
     if (add) {

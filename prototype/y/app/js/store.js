@@ -1054,6 +1054,20 @@
       return true;
     };
   };
+  // 移除草稿的一条依据；修订建议类依据同时把那条建议恢复为待处理，撤销时两边一起恢复
+  store.removeBasis = (kind, i) => {
+    const d = draftOf(kind); if (!d || !d.basis?.[i]) return null;
+    const [b] = d.basis.splice(i, 1);
+    const sug = b.type === 'sug' ? S.ruleSugs.find((x) => x.id === b.sug && x.state === 'adopted' && x.draft === d.v) : null, snap = sug && NT.clone(sug);
+    if (sug) { sug.state = 'open'; delete sug.handledBy; delete sug.handledAt; delete sug.draft; }
+    store.save();
+    return () => {
+      if (draftOf(kind) !== d) return false;
+      d.basis.splice(Math.min(i, d.basis.length), 0, b);
+      if (snap) { const x = S.ruleSugs.find((y) => y.id === snap.id); if (x && x.state === 'open') Object.assign(x, snap); }
+      store.save(); return true;
+    };
+  };
   // 与生效版本相比改了什么：参数、锚点逐条
   store.ruleChanges = (d, base = store.ruleVer(d.base)) => {
     const out = [];
