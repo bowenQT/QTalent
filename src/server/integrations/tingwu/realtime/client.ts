@@ -105,7 +105,7 @@ const eventSchema = z.object({
 });
 const sentenceSchema = z
   .object({
-    index: z.number().int().positive(),
+    index: z.number().int().nonnegative(),
     result: z.string(),
     begin_time: z.number().int().nonnegative().optional(),
     time: z.number().int().nonnegative().optional(),
