@@ -21,7 +21,8 @@
     nav: 'rules',
     title: kind ? KINDS[kind]?.n || '评价体系' : '评价体系',
     crumbs: kind ? [['评价体系', 'rules.html']] : [],
-    allow: (r) => ['ceo', 'hrbp'].includes(r),
+    // 评分人本人有待复核的分时，可以进维度与锚点页按新版本复核（v1.6 3.35.5）
+    allow: (r) => ['ceo', 'hrbp'].includes(r) || (kind === 'rubric' && st.myHeldScores(r).length > 0),
     denyTitle: '评价体系由 HR 和管理者维护',
     denyText: '修订由 HR 起草、管理者确认发布。对锚点有想法，可以在记录页的锚点面板提修订建议。',
     view: () => (kind ? `评价体系 · ${KINDS[kind]?.n || '链接失效'}${line && lineName(line) ? ` · ${lineName(line)}` : ''}` : '评价体系 · 总览'),
@@ -111,6 +112,7 @@
 
   // ---------- 值得关注、维度与锚点、象限落位 ----------
   function renderRule(main) {
+    if (!['ceo', 'hrbp'].includes(role)) return renderRaterReview(main);
     const live = st.ruleLive(kind), open = st.ruleOpen(kind);
     const editing = role === 'hrbp' && open && EDITABLE.includes(kind);
     const reviewing = role === 'ceo' && open?.state === 'pending';
@@ -139,9 +141,16 @@
       ${role === 'hrbp' && h.ver === mine ? html`<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="rv-toggle" aria-expanded="${reviewing}">${reviewing ? '收起复核' : '逐条复核'}</button></div>` : ''}</div></div>
     ${role === 'hrbp' && reviewing && h.ver === mine ? reviewTable(h) : ''}`); };
   // 逐条复核：AI 按新锚点给建议分（预置），HR 确认后按新版本参与取数
-  function reviewTable(h) {
-    const rows = st.heldScores(h.ver).filter((x) => st.scope(x.s.p) === 'full');
-    return html`<article class="n-card" id="review" data-ver="${h.ver}" style="margin-bottom:var(--s-4)"><h3 class="n-section-title">按 ${h.ver} 复核<span class="nt-muted" style="margin-left:auto;font-weight:400">你的查看范围内 ${rows.length} 条</span></h3>
+  // 评分人本人：只列自己给的、待按新版本复核的分
+  function renderRaterReview(main) {
+    const mine = st.myHeldScores(), vers = [...new Set(mine.map((x) => x.ver))];
+    mount(main, html`<header class="nt-head"><div><h1>按新版本复核你的评分</h1><p>维度与锚点改了等级含义，你在旧版本下给的分要按新版本再看一遍。原分保留；你确认前这些分暂停参与取数，你不在时由 HR 代确认。</p></div></header>
+      ${vers.length ? vers.map((v) => reviewTable(st.reviewHolds().find((h) => h.ver === v), true)) : UI.state({ ip: 'done', size: 48, title: '都复核完了', text: '新版本下你的评分已经全部确认。' })}`);
+    wire(main);
+  }
+  function reviewTable(h, own) {
+    const me = st.me().id, rows = st.heldScores(h.ver).filter((x) => (own ? x.s.by === me : st.scope(x.s.p) === 'full'));
+    return html`<article class="n-card" id="review" data-ver="${h.ver}" style="margin-bottom:var(--s-4)"><h3 class="n-section-title">按 ${h.ver} 复核<span class="nt-muted" style="margin-left:auto;font-weight:400">${own ? '你的评分' : '你的查看范围内'} ${rows.length} 条</span></h3>
       <table class="nt-table"><thead><tr><th>人</th><th>维度</th><th>事件</th><th>原分</th><th>按 ${h.ver}</th><th></th></tr></thead><tbody>
       ${rows.map(({ e, i, s }) => html`<tr data-ev="${e.id}" data-i="${i}">
         <td>${name(s.p)} ${UI.demo()}</td><td>${st.dim(s.d).name}</td><td>${e.title}<small>${NT.md(e.date)} · ${name(s.by)}评分</small></td>
