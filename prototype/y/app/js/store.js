@@ -1402,10 +1402,10 @@
   store.ruleSugs = (o = {}) => S.ruleSugs.filter((s) => (!o.state || s.state === o.state) && (!o.by || s.by === o.by));
   // HR 处理：纳入草稿（作为依据挂到草稿上）或不采纳（写理由）
   store.handleRuleSug = (id, ok, why) => {
-    const s = S.ruleSugs.find((x) => x.id === id); if (!s || !isHrbp()) return null;
+    const s = S.ruleSugs.find((x) => x.id === id); if (!s || !isHrbp() || s.state !== 'open') return null;
     if (ok) {
       const d = store.startDraft(s.rule);
-      if (d.state !== 'draft') return null;
+      if (d.state !== 'draft' || (d.basis || []).some((b) => b.type === 'sug' && b.sug === s.id)) return null;
       d.basis = [...(d.basis || []), { type: 'sug', sug: s.id }];
       Object.assign(s, { state: 'adopted', handledBy: store.me().id, handledAt: NT.TODAY, draft: d.v });
     } else Object.assign(s, { state: 'rejected', handledBy: store.me().id, handledAt: NT.TODAY, why });
