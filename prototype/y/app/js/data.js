@@ -339,6 +339,9 @@
   ];
 
   // ---------- 判断对照：W4 周评（助教）× 结营评审（导师） ----------
+  // 观察表里每人一行，各页签行号相同；从这个人的观察记录来源里取，不按筛选后的顺序推算
+  const SHEET_ROW = {};
+  X.events.forEach((e) => e.srcs?.forEach((s) => { const m = /第 (\d+) 行/.exec(s.loc || ''); if (m) (e.people || []).forEach((p) => { SHEET_ROW[p] ??= +m[1]; }); }));
   const ROWS = X.judge.map((r) => [...r, X.students.find((st) => st.id === r[0]).mentor]);
   const GR = ['需关注', '正常发挥', '表现突出'], BG = ['不建议', '继续观察', '建议留用'];
   const stateOf = (r) => { const a = GR.indexOf(r[2].overall), b = BG.indexOf(r[4].overall); return a === b ? 'same' : a > b ? 'high' : 'low'; };
@@ -356,7 +359,7 @@
     maps: [{ id: 'map-xe-v1', chain: 'xe', by: 'p-suwan', at: '2026-07-01', rows: [['overall', '综合判断', '需关注 ↔ 不建议；正常发挥 ↔ 继续观察；表现突出 ↔ 建议留用']] }],
     stds: [{ id: 'xe-weekly-v1', chain: 'xe', at: '2026-07-01', note: '周评三档：表现突出 / 正常发挥 / 需关注，评语不限' }],
     batches: [{ id: 'jr-xe6', chain: 'xe', name: 'XEngineer 第六期判断对照', std: 'xe-weekly-v1', map: 'map-xe-v1', status: 'open', at: '2026-09-02', by: 'p-suwan', range: 'W4 周评 08-02 · 结营评审 08-31' }],
-    xe: { 'jr-xe6': { back: null, src: { front: ['XEngineer 第六期观察表.xlsx', 'W4 周评', '08-02'], back: ['XEngineer 第六期观察表.xlsx', '结营评审', '08-31'], cols: { overall: 'Q', note: 'R' } }, rows: ROWS } },
+    xe: { 'jr-xe6': { back: null, src: { front: ['XEngineer 第六期观察表.xlsx', 'W4 周评', '08-02'], back: ['XEngineer 第六期观察表.xlsx', '结营评审', '08-31'], cols: { overall: 'Q', note: 'R' } }, rows: ROWS, sheetRow: SHEET_ROW } },
     hire: {},
     hyps: {
       'jr-xe6': [

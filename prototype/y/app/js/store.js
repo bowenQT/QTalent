@@ -707,11 +707,11 @@
       // 两段都能回到原始表格：等级在维度列，评语在评语列
       const cell = ([label, sheet, at], row, cols, quote, by) => ({ type: 'sheet', label, loc: `「${sheet}」表 ${cols.map((c) => `${c}${row}`).join('、')} · ${at}`, quote, by });
       const bg = chain.backGrades || chain.grades;
-      g.rows.forEach(([pid, by, fr, fnote, bk, bnote, backBy], i) => chain.dims.forEach((d) => push({
+      g.rows.forEach(([pid, by, fr, fnote, bk, bnote, backBy], i) => chain.dims.forEach((d) => { const row = g.sheetRow?.[pid] ?? i + 2; push({
         person: pid, dim: d.id,
-        front: { by, v: fr[d.id] ?? null, r: chain.grades.indexOf(fr[d.id]), note: fnote, std: b.std, src: cell(g.src.front, i + 2, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${fr[d.id] ?? '—'}：${fnote}`, by) },
-        back: bk[d.id] ? { by: [backBy || g.back], v: bk[d.id], r: bg.indexOf(bk[d.id]), note: bnote, src: cell(g.src.back, i + 2, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${bk[d.id]}：${bnote}`, backBy || g.back) } : { by: [backBy || g.back], na: true, note: bnote, miss: '结营评审未体现这个维度', src: cell(g.src.back, i + 2, [g.src.cols.note], bnote, backBy || g.back) },
-      })));
+        front: { by, v: fr[d.id] ?? null, r: chain.grades.indexOf(fr[d.id]), note: fnote, std: b.std, src: cell(g.src.front, row, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${fr[d.id] ?? '—'}：${fnote}`, by) },
+        back: bk[d.id] ? { by: [backBy || g.back], v: bk[d.id], r: bg.indexOf(bk[d.id]), note: bnote, src: cell(g.src.back, row, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${bk[d.id]}：${bnote}`, backBy || g.back) } : { by: [backBy || g.back], na: true, note: bnote, miss: '结营评审未体现这个维度', src: cell(g.src.back, row, [g.src.cols.note], bnote, backBy || g.back) },
+      }); }));
     } else {
       J.hire[batchId].forEach(([pid, by, ev, fr, fnote]) => chain.dims.forEach((d) => {
         const bk = hireBack(pid, map.back[d.id], chain);
@@ -1352,6 +1352,12 @@
   }
   // 发起盘点：已排期的版本在下一个盘点批次开始时生效，并固定为这个批次所用的版本。
   // 原型简化：还有别的盘点在进行时，那个批次锁定的版本保持不变，已排期的版本继续等待
+  // 重新校准去哪里：覆盖这个人、还没确认、这个团队也没冻结的盘点；都没有时返回 null，由页面引导发起新的盘点
+  store.recalTarget = (pid) => {
+    const org = store.person(pid).org;
+    const b = S.batches.find((x) => x.kind === 'inventory' && x.status !== 'confirmed' && store.inOrg(org, x.org) && !S.snaps.find((s) => s.batch === x.id)?.teams?.includes(org));
+    return b ? `calibrate.html?id=${b.id}&team=${org}&person=${pid}` : null;
+  };
   store.startInventory = (b) => {
     const busy = !!store.inventoryLock();
     if (!busy) Object.keys(S.rules).forEach((k) => S.rules[k].filter((r) => r.state === 'scheduled').forEach((r) => activate(k, r)));

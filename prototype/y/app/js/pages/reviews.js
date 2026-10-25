@@ -50,8 +50,11 @@
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '发起', value: 'ok', cls: 'n-btn--ink', read: (d) => ({ org: d.querySelector('#bo').value, cutoff: d.querySelector('#bc').value }) }],
     });
     if (r?.value !== 'ok') return;
-    if (r.data.org === 'xe6') { location.href = 'review.html?id=b-xe6-end'; return; }
-    const b = st.startInventory({ id: NT.uid('b'), kind: 'inventory', name: `${st.orgShort(r.data.org)} · 结营盘点`, org: r.data.org, status: 'draft', starter: st.me().id, startedAt: NT.TODAY, cutoff: r.data.cutoff, log: [[NT.TODAY, st.me().id, '发起盘点，固定范围']] });
+    // 这个团队还有没确认的盘点就接着做那一批；都确认了才发起新的一批
+    const open = st.get().batches.find((x) => x.kind === 'inventory' && x.org === r.data.org && x.status !== 'confirmed');
+    if (open) { location.href = `review.html?id=${open.id}`; return; }
+    const last = st.get().batches.filter((x) => x.kind === 'inventory' && x.org === r.data.org).sort((x, y) => (y.cutoff || '').localeCompare(x.cutoff || ''))[0];
+    const b = st.startInventory({ id: NT.uid('b'), kind: 'inventory', name: `${st.orgShort(r.data.org)} · ${NT.md(r.data.cutoff)} 盘点`, compareTo: last?.id, org: r.data.org, status: 'draft', starter: st.me().id, startedAt: NT.TODAY, cutoff: r.data.cutoff, log: [[NT.TODAY, st.me().id, '发起盘点，固定范围']] });
     location.href = `review.html?id=${b.id}`;
   }
 })();

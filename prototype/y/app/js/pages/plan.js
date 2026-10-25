@@ -5,7 +5,7 @@
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, icon, mount, $ } = NT;
   const bid = NT.param('id') || 'b-xe6-end';
-  const TYPES = ['调岗', '负责人安排', '激活', '继续观察'];
+  const TYPES = ['落位', '留用', '继续观察', '未接受', '调岗', '负责人安排', '激活'];
 
   NT.shell({
     nav: 'review', title: '留用与落位方案', crumbs: [['盘点', 'reviews.html'], [st.batch(bid)?.name || '', `review.html?id=${bid}`]],
