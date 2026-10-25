@@ -59,6 +59,18 @@ describe('Src', () => {
         render(<Src {...({ kind } as unknown as SrcProps)} />),
       ).toThrow('Unknown source kind');
     }
+    for (const kind of [
+      ['failed'],
+      new String('failed'),
+      1,
+      null,
+      undefined,
+      {},
+    ]) {
+      expect(() =>
+        render(<Src {...({ kind } as unknown as SrcProps)} />),
+      ).toThrow('Unknown source kind');
+    }
     // An AI inference must not be able to wear the human label.
     expect(() =>
       render(
@@ -97,7 +109,13 @@ describe('MatchState', () => {
 
   it('rejects anything outside the four states', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    for (const state of ['maybe', 'partial', 'toString', '']) {
+    for (const state of [
+      'maybe',
+      'partial',
+      'toString',
+      '',
+      ...[['failed'], new String('failed'), 1, null, undefined, {}],
+    ]) {
       expect(() =>
         render(<MatchState state={state as unknown as MatchStateValue} />),
       ).toThrow('Unknown match state');
@@ -192,6 +210,21 @@ describe('History', () => {
     expect(items[2].querySelector('small')?.textContent).toBe(
       'rubric-v1 · 10-21',
     );
+  });
+
+  it('can be wired as a collapsible panel under its score row', () => {
+    const entry = {
+      value: 4,
+      origin: 'human',
+      summary: '确认',
+      meta: ['叶青'],
+    } as const;
+    const view = render(<History entries={[entry]} id="hist-demo" hidden />);
+    const panel = view.container.querySelector('ul') as HTMLElement;
+    expect(panel.id).toBe('hist-demo');
+    expect(panel.hidden).toBe(true);
+    view.rerender(<History entries={[entry]} id="hist-demo" />);
+    expect(panel.hidden).toBe(false);
   });
 });
 

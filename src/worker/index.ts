@@ -6,6 +6,8 @@ import { getEnv } from '../server/env';
 import { getSession } from '../server/auth';
 import { verifyAccessRequest } from '../server/access';
 import { registerExampleJob } from '../server/jobs/example';
+import { registerProgressExample } from '../server/jobs/progress-worker';
+import { getDatabase } from '../server/db/client';
 import { authenticateHandshake, heartbeatReply } from './handshake';
 export async function startWorker() {
   const env = getEnv();
@@ -16,6 +18,7 @@ export async function startWorker() {
   await boss.start();
   try {
     await registerExampleJob(boss);
+    await registerProgressExample(boss, getDatabase());
   } catch (error) {
     await boss.stop();
     throw error;

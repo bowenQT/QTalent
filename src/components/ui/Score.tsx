@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Badge } from './Badge';
+import { isEnumKey } from './enum';
 import { Icon } from './Icon';
 
 /** A dimension score is always one of five levels; there is no total, percentage or rank. */
@@ -24,6 +25,8 @@ export type ScoreProps = Base &
         aiOriginal?: ScoreValue;
         inline?: boolean;
         onOpenHistory?: () => void;
+        /** When the history opens as a panel under this row: its id and whether it is open. */
+        historyPanel?: { id: string; expanded: boolean };
       }
     | { state: 'insufficient'; value?: never; inline?: never }
     | { state: 'absent'; value?: never; inline?: never }
@@ -69,9 +72,9 @@ function Dots({
 
 export function Score(props: ScoreProps) {
   const { dimension, note } = props;
-  const declared: string = props.state;
-  if (!Object.hasOwn(dataState, declared))
-    throw new Error(`Unknown score state: ${declared}`);
+  const declared: unknown = props.state;
+  if (!isEnumKey(dataState, declared))
+    throw new Error(`Unknown score state: ${String(declared)}`);
   if (props.state === 'insufficient' || props.state === 'absent') {
     return (
       <div className="n-score" data-state={dataState[props.state]}>
@@ -115,7 +118,7 @@ export function Score(props: ScoreProps) {
       </div>
     );
   }
-  const { value, aiOriginal, by, onOpenHistory } = props;
+  const { value, aiOriginal, by, onOpenHistory, historyPanel } = props;
   if (!by?.trim())
     throw new Error('A confirmed or calibrated score needs its scorer');
   if (aiOriginal !== undefined) assertValue(aiOriginal);
@@ -147,7 +150,13 @@ export function Score(props: ScoreProps) {
         {onOpenHistory ? (
           <>
             {' '}
-            <button type="button" className="n-link" onClick={onOpenHistory}>
+            <button
+              type="button"
+              className="n-link"
+              aria-expanded={historyPanel?.expanded}
+              aria-controls={historyPanel?.id}
+              onClick={onOpenHistory}
+            >
               修订历史
             </button>
           </>
