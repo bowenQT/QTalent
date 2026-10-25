@@ -11,23 +11,23 @@ Niu-Talent：七牛云内部的人才识别、追踪与盘点工作台，用于�
 按以下门禁推进，未到阶段的事不提前做：
 
 1. 需求定稿 —— 已完成
-2. 设计系统（已定稿）→ 高保真可交互原型 → UI/UX 定稿 —— **进行中**
-3. 工程基建（UI/UX 定稿后确定具体架构、目录和工具，建立工程与检查配置）—— 由 Codex 建立
-4. 正式开发
+2. 设计系统 → 高保真可交互原型 → UI/UX 定稿 —— 已完成。定稿基线：`main` 提交 `2e51b50` 的原型 Y（`prototype/y/` 桌面与手机）和 Y 设计系统页
+3. 工程基建（在仓库根目录建立工程与检查配置）—— **进行中**，由 Codex 建立
+4. 正式开发 —— 工程基础合入后，按任务卡并行开发
 
 当前阶段的约束：
 
-- 原型放在 `prototype/`，是浏览器可以直接打开的独立 HTML（依赖可以走 CDN），不引入构建工具、包管理和后端。
-- 原型中的 AI 行为用脚本化流式 mock 实现：结果预置，但按真实节奏流式输出。
-- 原型分桌面 `prototype/app/` 与手机 `prototype/m/`，共用 `prototype/app/js/` 的数据、权限与交互模块，入口是 `prototype/index.html` 评审导览。
-- 评审站例外：`review-site/` 用 Cloudflare Worker + D1 把 `prototype/` 发布给 `@qiniu.com` 评审并提供划线评论（见 [review-site/README.md](review-site/README.md)）。它只服务评审，不构成第 3 阶段的架构选型，也不改变原型无构建、无后端的约束。
-- 已确认技术栈：Next.js + TypeScript + Tailwind + shadcn/ui + Motion，**仅正式开发适用**，在第 3 阶段准备对应工程。当前设计系统和独立 HTML 原型不要求使用这些框架或组件库，也不以其默认样式和实现方式限制设计探索。
-- 具体应用架构、目录、包管理器、检查工具与命令尚未确定，待 UI/UX 定稿后结合原型和实际运行需求在第 3 阶段决定。调研建议不构成当前或后续阶段自动生效的选型。
+- 正式工程在仓库根目录，按正式工程标准交付（类型、检查、测试与 85% 覆盖率、文档）；本次比赛的范围先交付，赛后在同一工程上继续。目录边界见[架构提案](docs/proposals/2026-10-25-y-architecture-phases.md) 4.7，具体命令与检查以工程基础合入后的 README 和 [工程规范](docs/engineering.md) 为准。
+- 已确认技术栈：Next.js + TypeScript + Tailwind + shadcn/ui + Motion；Node.js 24 LTS，pnpm 单 package；PostgreSQL + Drizzle，pg-boss，Better Auth，七牛 Kodo。依赖版本在工程初始化时核对并锁定。
+- 工程界面 1:1 还原定稿原型，组件库的默认外观不作为设计标准；设计变化先改原型并评审，再同步进工程。
+- 原型 `prototype/` 保留为定稿基线和评审材料，仍是浏览器可以直接打开的独立 HTML，不引入构建工具、包管理和后端；工程不修改 `prototype/`。原型中的 AI 行为仍用脚本化流式 mock。原型分桌面 `prototype/app/` 与手机 `prototype/m/`，共用 `prototype/app/js/`，入口是 `prototype/index.html` 评审导览；版本 Y 在 `prototype/y/`。
+- 评审站例外：`review-site/` 用 Cloudflare Worker + D1 把 `prototype/` 发布给 `@qiniu.com` 评审并提供划线评论（见 [review-site/README.md](review-site/README.md)），只服务评审，与正式工程的部署分开。
 
 ## 文档与权威顺序
 
 | 路径 | 内容 |
 | --- | --- |
+| `docs/proposals/2026-10-25-y-architecture-phases.md` | 以版本 Y 为主线的长期 / 中期 / 本次比赛产品架构：七个业务领域、权限预设、北森同步与系统管理、功能模块规划、比赛链路与合同、演示环境、工程目录边界；用户决定 U-1～U-21 |
 | `docs/requirements/需求定稿-版本Y.md` | 版本 Y 原型（`prototype/y/`）的需求：从需求定稿 v1.6 衍生，记录三种角色、XEngineer 第六期演示数据、管理者首页收敛、判断对照归入人才评价规则、人才项目关键节点复盘、评分复核与侧栏命名等差异。只约束版本 Y，随版本 Y 的设计系统和原型变更同步更新；未提及部分沿用版本 X 的需求 |
 | `docs/requirements/需求定稿-v1.6.md` | v1.5 的补充：新增评价体系（六类规则集中查看与修订；起草、影响预览、确认发布、按生效点生效；不改写历史，不兼容修订生成复核任务；盘点进行中锁定版本）、专业度按岗位族分锚点、团队与组织不单独建模、修订建议，以及评价体系的界面与设计系统增补，新增 AC-74～AC-83。未提及部分沿用 v1.5，**冲突时以它为准** |
 | `docs/requirements/需求定稿-v1.5.md` | v1.4 的补充：CEO 首页从处理改为观察（值得关注与我的关注分开、推动退到速览和档案、需要我看）、所有工作台的速览、人员档案第一屏重排、部门负责人本团队视角、导师工作台与 SBI 记录、推荐方向（watch-v2）、配色收敛，修订 AC-53/56/60/61 并新增 AC-64～AC-72。未提及部分沿用 v1.4，冲突时以它为准 |
