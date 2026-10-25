@@ -102,10 +102,7 @@ export const events = pgTable(
   },
   (t) => [
     unique('records_event_rule_version').on(t.id, t.ruleVersionId),
-    check(
-      'records_sbi',
-      sql`${t.demo} or length(trim(${t.behavior})) > 0`,
-    ),
+    check('records_sbi', sql`${t.demo} or length(trim(${t.behavior})) > 0`),
   ],
 );
 export const eventParticipants = pgTable(

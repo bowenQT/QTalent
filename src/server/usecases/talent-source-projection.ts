@@ -140,16 +140,15 @@ export function sourcesForDraft(
       .flatMap((reference) => reference.subjects);
     if (additions.length === 0) return source;
     const hasPriorRelations =
-      data.eventSources.some(
-        (row) => sourceKey(row) === sourceKey(source),
-      ) ||
-      data.historical.some(
-        (row) => sourceKey(row) === sourceKey(source),
-      );
+      data.eventSources.some((row) => sourceKey(row) === sourceKey(source)) ||
+      data.historical.some((row) => sourceKey(row) === sourceKey(source));
     if (source.subjects.length === 0 && hasPriorRelations) return source;
     const subjects = new Map<string, TalentSubject>();
     for (const subject of [...source.subjects, ...additions]) {
-      subjects.set(JSON.stringify([subject.personId, subject.cohortId]), subject);
+      subjects.set(
+        JSON.stringify([subject.personId, subject.cohortId]),
+        subject,
+      );
     }
     return { ...source, subjects: [...subjects.values()] };
   });

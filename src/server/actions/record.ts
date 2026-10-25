@@ -13,7 +13,9 @@ import { getEnv } from '../env';
 import { createClock } from '../../lib/clock';
 import { createRecordSaveService } from '../usecases/record-save';
 
-export async function saveRecordAction(input: unknown): Promise<RecordSaveResult> {
+export async function saveRecordAction(
+  input: unknown,
+): Promise<RecordSaveResult> {
   const parsed = recordSaveInputSchema.safeParse(input);
   if (!parsed.success) {
     const fieldErrors: Record<string, string[]> = {};
@@ -37,7 +39,9 @@ export async function saveRecordAction(input: unknown): Promise<RecordSaveResult
   }
   return result;
 }
-export async function undoRecordAction(input: unknown): Promise<RecordUndoResult> {
+export async function undoRecordAction(
+  input: unknown,
+): Promise<RecordUndoResult> {
   const parsed = recordUndoInputSchema.safeParse(input);
   if (!parsed.success) {
     const fieldErrors: Record<string, string[]> = {};

@@ -57,7 +57,11 @@ export async function personFromData(
   if (!organization) throw new Error('人员组织引用不存在');
   const sources = talentSources(data);
   const visibleStatement = data.statements.flatMap((statement) => {
-    const event = data.events.find((row) => row.id === statement.eventId && !data.withdrawnEventIds.includes(row.id));
+    const event = data.events.find(
+      (row) =>
+        row.id === statement.eventId &&
+        !data.withdrawnEventIds.includes(row.id),
+    );
     if (!event || event.personId !== id) return [];
     const kind: TalentKind =
       statement.kind === 'management_observation'
@@ -103,7 +107,11 @@ export async function personFromData(
   const positionScores: PositionScore[] = [];
   for (const confirmation of data.confirmations) {
     if (!confirmation.active || confirmation.status !== 'scored') continue;
-    const event = data.events.find((row) => row.id === confirmation.eventId && !data.withdrawnEventIds.includes(row.id));
+    const event = data.events.find(
+      (row) =>
+        row.id === confirmation.eventId &&
+        !data.withdrawnEventIds.includes(row.id),
+    );
     if (!event || event.personId !== id) continue;
     const subject = eventSubject(data, event);
     if (

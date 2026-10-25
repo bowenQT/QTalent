@@ -2,8 +2,7 @@ import { activeGrants, type AuthzContext } from '../../authz';
 import { canReadTalent, type TalentSubject } from '../../authz/talent';
 
 export type ConfirmationReviewReason =
-  | 'ai_changed_without_reason'
-  | 'score_gap';
+  'ai_changed_without_reason' | 'score_gap';
 
 /** Only already-authorized, active confirmations from the same event/dimension. */
 export function confirmationReviewReasons(input: {

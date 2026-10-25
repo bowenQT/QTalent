@@ -1,7 +1,10 @@
 import 'server-only';
 import type { Database } from '../db/client';
 import { loadProjectContext } from '../usecases/project-context';
-import { readEvidenceForTalent, readWithdrawnRecordEventIds } from '../modules/records';
+import {
+  readEvidenceForTalent,
+  readWithdrawnRecordEventIds,
+} from '../modules/records';
 import { readTalentEvaluationRules } from '../modules/evaluation-system';
 import { readActiveConfirmations } from '../modules/talent';
 export {
