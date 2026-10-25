@@ -57,6 +57,8 @@
   }
 
   function pick(cardEl, btn) {
+    if (!cardEl || cardEl.dataset.picking) return;
+    cardEl.dataset.picking = '1';
     const id = cardEl.dataset.item, v = btn.dataset.v;
     const item = st.get().inbox.find((x) => x.id === id);
     const wasLater = !!item.later;

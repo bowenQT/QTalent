@@ -532,10 +532,11 @@
     store.save();
   };
   store.unconfirmScore = (evId, idx) => { const s = store.event(evId).scores[idx]; s.st = 'ai'; s.v = s.ai; delete s.by; delete s.hist; delete s.bigGap; store.save(); };
-  // 选「都不是，稍后处理」不算核对完成：条目留在待核对里，标记为稍后（later），待办数照旧计入
+  // 选「都不是，稍后处理」不算核对完成：条目留在待核对里，标记为稍后（later），待办数照旧计入。
+  // 已经核对完成的不再改：重复点选不会再写一条同 id 的事件，也不能把已归好的选项清成稍后。
   store.resolveInbox = (id, choice) => {
     const it = S.inbox.find((x) => x.id === id);
-    if (!it) return;
+    if (!it || it.done) return;
     if (choice === 'skip') { it.later = true; it.choice = null; store.save(); return; }
     it.done = true; it.later = false; it.choice = choice;
     if (it.draft && choice) {
