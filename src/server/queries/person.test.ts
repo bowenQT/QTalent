@@ -203,23 +203,33 @@ describe('people, profile and shared sources', () => {
   it('never returns sensitive data when audit persistence fails', async () => {
     vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture());
     vi.mocked(recordAudit).mockRejectedValue(new Error('audit unavailable'));
-    await expect(readPersonForCurrentUser({ id: 'one' })).rejects.toThrow('audit unavailable');
-    await expect(readPersonPreviewForCurrentUser({ id: 'one' })).rejects.toThrow('audit unavailable');
-    await expect(readSourceForCurrentUser(reference)).rejects.toThrow('audit unavailable');
+    const profile = readPersonForCurrentUser({ id: 'one' });
+    await expect(profile).rejects.toThrow('audit unavailable');
+    const preview = readPersonPreviewForCurrentUser({ id: 'one' });
+    await expect(preview).rejects.toThrow('audit unavailable');
+    const source = readSourceForCurrentUser(reference);
+    await expect(source).rejects.toThrow('audit unavailable');
   });
   it('does not log a successful access for absent or denied resources', async () => {
     vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture('mentor'));
-    expect((await readPersonForCurrentUser({ id: 'two' })).status).toBe('not_found');
-    expect((await readSourceForCurrentUser({ ...reference, originalVersionId: 'missing' })).status).toBe('not_found');
-    expect((await readSourceForCurrentUser({})).status).toBe('validation_error');
+    const profile = await readPersonForCurrentUser({ id: 'two' });
+    expect(profile.status).toBe('not_found');
+    const source = await readSourceForCurrentUser({
+      ...reference,
+      originalVersionId: 'missing',
+    });
+    expect(source.status).toBe('not_found');
+    const invalid = await readSourceForCurrentUser({});
+    expect(invalid.status).toBe('validation_error');
     expect(recordAudit).not.toHaveBeenCalled();
   });
   it('awaits audit persistence before resolving the profile', async () => {
     vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture());
     let complete!: () => void;
-    vi.mocked(recordAudit).mockImplementation(() => new Promise<void>((resolve) => {
+    const persistence = new Promise<void>((resolve) => {
       complete = resolve;
-    }));
+    });
+    vi.mocked(recordAudit).mockReturnValue(persistence);
     let returned = false;
     const pending = readPersonForCurrentUser({ id: 'one' }).then((result) => {
       returned = true;
