@@ -38,7 +38,8 @@
   function renderList(people) {
     const role = st.role();
     const quad = st.can('quad');
-    const teams = [...new Set(people.map((p) => p.org))];
+    // 团队按团队名的中文拼音排序（团队名相同时按组织编号定序），不看人数、分数或关注；三种视角相同。组内按姓名拼音
+    const teams = [...new Set(people.map((p) => p.org))].sort((a, b) => st.orgShort(a).localeCompare(st.orgShort(b), 'zh-Hans-CN') || (a < b ? -1 : a > b ? 1 : 0));
     const kinds = [['all', '全部'], ['landing', '第六期学员'], quad && ['na', '资料不足'], quad && ['recal', '可能需要重新校准']].filter(Boolean);
     const host = $('#pp-list');
     const draw = () => {
@@ -75,7 +76,8 @@
       const rv = st.review(p.id, 'W8');
       right = rv.state === 'confirmed' ? html`<span class="n-badge n-badge--yes">${icon('check')}${rv.week} 已确认</span>` : rv.conflicts ? html`<span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : html`<span class="n-badge">${rv.week} ${st.reviewProgress(rv)}</span>`;
     } else if (st.scope(p.id) === 'project') right = UI.lock('只看项目相关资料');
-    return html`<a class="n-person-row nt-plink" href="person.html?id=${p.id}">${UI.person(p.id, { link: false, meta })}${right}</a>`;
+    // 点行先拉起速览（与工作台同一套）；⌘ / Ctrl / Shift 点击照常进档案。data-peek 同时让重绘后的焦点能按同一个人找回
+    return html`<a class="n-person-row nt-plink" href="person.html?id=${p.id}" data-peek="p:${p.id}">${UI.person(p.id, { link: false, meta })}${right}</a>`;
   }
 
   function renderTracks(tracks) {
