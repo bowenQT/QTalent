@@ -3,7 +3,7 @@
 ## 身份与职责
 
 - `originals.id` 是原件身份，`originalVersions.id` 是不可混淆的版本身份；每版本保留摘要和原件内版本号。`fragments` 的位置只属于该版本。
-- 公共引用为 `fragmentId + originalVersionId + location`。`location` 与 BOW-836 对齐：`document { page?, paragraph }`、`spreadsheet { sheet, cell }`、`recording { startMs, endMs }`，全部带 `kind`。页为正整数，段落/工作表/单元格非空，时间段为非负整数起点且终点大于起点。
+- 公共引用为 `fragmentId + originalVersionId + location`。`location` 与 BOW-836 对齐：`document { page?, paragraph }`、`spreadsheet { sheet, cell }`、`recording { startMs, endMs }`，全部带 `kind`。页为正整数，段落/工作表/单元格非空，时间段为非负整数起点且终点大于起点。片段原文不能是空字符串或纯空白，数据库约束拒绝空引用；保留原文文本，不做内容改写。
 - 一个可评分 `events` 只有一个 `personId`。其他参与人仅在 `eventParticipants`；多人独立事件可共用 `eventSources`，不会自动把团队分复制到个人。重复来源关系不可产生重复评分。
 - `statements.kind` 将原始事实、本人自述、管理观察、AI 推断、人工结论分开存储。AI 必须具备模型版本且不能署人工作者；人工记录不能伪装为 AI。原文只经后续授权读取用例返回。
 - 片段不冗余存授权结果。读取用例必须沿全部 `eventSources` 找出完整相关人员及内容性质，再交授权入口；单个可见事件不意味着共享片段中的其他人员也可见。

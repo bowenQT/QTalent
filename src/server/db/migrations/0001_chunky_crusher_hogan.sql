@@ -61,6 +61,7 @@ CREATE TABLE "records_fragments" (
 	"location" jsonb NOT NULL,
 	"excerpt" text NOT NULL,
 	CONSTRAINT "records_fragment_version" UNIQUE("id","original_version_id"),
+	CONSTRAINT "records_excerpt_nonblank" CHECK ("records_fragments"."excerpt" ~ '[^[:space:]]'),
 	CONSTRAINT "records_location" CHECK (coalesce(jsonb_typeof("records_fragments"."location") = 'object' and case "records_fragments"."location"->>'kind'
  when 'document' then jsonb_typeof("records_fragments"."location"->'paragraph') = 'string' and length(trim("records_fragments"."location"->>'paragraph')) > 0 and (not ("records_fragments"."location" ? 'page') or (jsonb_typeof("records_fragments"."location"->'page') = 'number' and ("records_fragments"."location"->>'page')::numeric > 0 and ("records_fragments"."location"->>'page')::numeric = trunc(("records_fragments"."location"->>'page')::numeric)))
  when 'spreadsheet' then jsonb_typeof("records_fragments"."location"->'sheet') = 'string' and length(trim("records_fragments"."location"->>'sheet')) > 0 and jsonb_typeof("records_fragments"."location"->'cell') = 'string' and length(trim("records_fragments"."location"->>'cell')) > 0

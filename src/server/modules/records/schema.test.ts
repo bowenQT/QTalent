@@ -87,3 +87,8 @@ it('separates snapshots, source versions, AI suggestions and manual confirmation
     'records_statement_attribution',
   );
 });
+it('requires actual quoted text instead of an empty source fragment', () => {
+  expect(getTableConfig(fragments).checks.map((c) => c.name)).toContain(
+    'records_excerpt_nonblank',
+  );
+});

@@ -177,6 +177,16 @@ it('rejects orphan fragments, invalid locations and cross-version event links', 
       excerpt: 'Synthetic',
     }),
   ).rejects.toMatchObject({ cause: { code: '23503' } });
+  for (const excerpt of ['', '   ', '\t\n\r']) {
+    await expect(
+      f.db.insert(fragments).values({
+        id: randomUUID(),
+        originalVersionId: f.version,
+        location: { kind: 'document', paragraph: 'test' },
+        excerpt,
+      }),
+    ).rejects.toMatchObject({ cause: { code: '23514' } });
+  }
   for (const location of [
     { kind: 'document', paragraph: '' },
     { kind: 'spreadsheet', sheet: 'test' },

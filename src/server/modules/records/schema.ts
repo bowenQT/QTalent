@@ -50,6 +50,7 @@ export const fragments = pgTable(
   },
   (t) => [
     unique('records_fragment_version').on(t.id, t.originalVersionId),
+    check('records_excerpt_nonblank', sql`${t.excerpt} ~ '[^[:space:]]'`),
     check(
       'records_location',
       sql`coalesce(jsonb_typeof(${t.location}) = 'object' and case ${t.location}->>'kind'

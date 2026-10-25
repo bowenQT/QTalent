@@ -1,5 +1,5 @@
 {
-  "id": "40a728d8-0045-42b0-be00-3b2adecc7b9a",
+  "id": "f4a93954-b1af-4079-af49-a6a9ecd8db86",
   "prevId": "18c43228-5c05-4d6a-8db5-f551fe584d34",
   "version": "7",
   "dialect": "postgresql",
@@ -1415,6 +1415,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "records_excerpt_nonblank": {
+          "name": "records_excerpt_nonblank",
+          "value": "\"records_fragments\".\"excerpt\" ~ '[^[:space:]]'"
+        },
         "records_location": {
           "name": "records_location",
           "value": "coalesce(jsonb_typeof(\"records_fragments\".\"location\") = 'object' and case \"records_fragments\".\"location\"->>'kind'\n when 'document' then jsonb_typeof(\"records_fragments\".\"location\"->'paragraph') = 'string' and length(trim(\"records_fragments\".\"location\"->>'paragraph')) > 0 and (not (\"records_fragments\".\"location\" ? 'page') or (jsonb_typeof(\"records_fragments\".\"location\"->'page') = 'number' and (\"records_fragments\".\"location\"->>'page')::numeric > 0 and (\"records_fragments\".\"location\"->>'page')::numeric = trunc((\"records_fragments\".\"location\"->>'page')::numeric)))\n when 'spreadsheet' then jsonb_typeof(\"records_fragments\".\"location\"->'sheet') = 'string' and length(trim(\"records_fragments\".\"location\"->>'sheet')) > 0 and jsonb_typeof(\"records_fragments\".\"location\"->'cell') = 'string' and length(trim(\"records_fragments\".\"location\"->>'cell')) > 0\n when 'recording' then jsonb_typeof(\"records_fragments\".\"location\"->'startMs') = 'number' and jsonb_typeof(\"records_fragments\".\"location\"->'endMs') = 'number' and (\"records_fragments\".\"location\"->>'startMs')::numeric >= 0 and (\"records_fragments\".\"location\"->>'endMs')::numeric > (\"records_fragments\".\"location\"->>'startMs')::numeric and (\"records_fragments\".\"location\"->>'startMs')::numeric = trunc((\"records_fragments\".\"location\"->>'startMs')::numeric) and (\"records_fragments\".\"location\"->>'endMs')::numeric = trunc((\"records_fragments\".\"location\"->>'endMs')::numeric)\n else false end, false)"
