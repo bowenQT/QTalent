@@ -711,7 +711,10 @@
       node.classList.remove('is-open');
       setTimeout(() => { node.remove(); sc?.remove(); }, NT.reduced ? 0 : 220);
       // 触发元素可能已随页面重绘被替换：按同一个 data-peek 找回来再还焦点
-      const back = restore && (from?.isConnected ? from : from?.dataset?.peek && backTarget(from));
+      // 点抽屉外的控件关闭时，只有那个控件还拿着焦点才不抢；它随页面重绘被替换了（焦点落到 body）就仍回到触发元素
+      const a = document.activeElement;
+      const held = a && a !== document.body && a.isConnected && !node.contains(a);
+      const back = (restore || !held) && (from?.isConnected ? from : from?.dataset?.peek && backTarget(from));
       if (back) back.focus?.();
       from = null;
     };
