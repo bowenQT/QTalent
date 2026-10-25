@@ -223,7 +223,11 @@ export function createKodoClient(
       (range ? response.status !== 206 || !validRange : response.status !== 200)
     ) {
       controller.abort();
-      await response.body?.cancel();
+      try {
+        await response.body?.cancel();
+      } catch {
+        throw new KodoError(range ? 'invalid_range' : 'integrity');
+      }
       throw new KodoError(range ? 'invalid_range' : 'integrity');
     }
     const reader = response.body.getReader();
@@ -256,7 +260,11 @@ export function createKodoClient(
       },
       async cancel() {
         controller.abort();
-        await reader.cancel();
+        try {
+          await reader.cancel();
+        } catch {
+          throw new KodoError('cancelled');
+        }
       },
     });
     const headers: Record<string, string> = {

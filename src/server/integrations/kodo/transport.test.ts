@@ -223,6 +223,38 @@ describe('Kodo transport and immutable contract', () => {
   });
 });
 describe('private proxy stream', () => {
+  it('redacts transport errors from rejected metadata cleanup and explicit cancellation', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(
+      new Response(
+        new ReadableStream({
+          start(c) {
+            c.error(new Error('SYNTHETIC_URL_SECRET'));
+          },
+        }),
+      ),
+    );
+    const client = createKodoClient(config, { fetch });
+    await expect(client.openObject({ objectKey: 'x' })).rejects.toMatchObject({
+      code: 'integrity',
+      message: 'Kodo integrity',
+    });
+    fetch.mockResolvedValueOnce(
+      new Response(
+        new ReadableStream({
+          cancel() {
+            throw new Error('SYNTHETIC_URL_SECRET');
+          },
+        }),
+        { headers: { 'content-length': '4', 'content-type': 'audio/wav' } },
+      ),
+    );
+    const opened = await client.openObject({ objectKey: 'x' });
+    await expect(opened.body.cancel()).rejects.toMatchObject({
+      code: 'cancelled',
+      message: 'Kodo cancelled',
+    });
+  });
+
   it('classifies timeouts after headers during JSON and stream consumption', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(
       async (_url, init) =>
