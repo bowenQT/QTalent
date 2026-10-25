@@ -35,6 +35,51 @@
   UI.dots = (v, o = {}) => html`<span class="n-score__dots" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => raw(`<i class="n-score__dot${v != null && i <= v ? ' is-on' : ''}${o.ghost && i <= o.ghost && i > v ? ' is-ghost' : ''}"></i>`))}</span>`;
   UI.tplTitle = (t) => `找${/^[A-Za-z]/.test(t.name) ? ' ' : ''}${t.name}`; // 中英文之间留空格：找 FDE
   UI.dotsInline = (v, state = 'confirmed') => html`<span class="n-score n-score--inline" data-state="${state}">${UI.dots(v)}</span>`;
+
+  // ---------- 对人复盘的评价：和事件证据分开呈现；AI 草拟是光，采用或改写后落墨署名 ----------
+  let evalEditing = null;
+  const EVAL_FROM = { ai: '采用 AI 草拟', edit: '改写 AI 草拟', new: '写下评价', fix: '修正评价' };
+  UI.reviewEval = (pid, week, row) => {
+    const d = row.d, saved = st.reviewEval(pid, week, d.id), draft = st.reviewEvalDraft(pid, row), can = st.canEditReview(pid);
+    if (can && evalEditing === `${pid}-${week}-${d.id}`) {
+      return html`<div class="n-review__eval" data-eval="${d.id}"><label class="n-review__evlabel" for="rv-eval-${d.id}">${d.name} · 评价</label>
+        <textarea class="n-calib__reason" id="rv-eval-${d.id}" rows="3" placeholder="写这一项的评价：看到了什么行为，接近哪一档">${saved?.text || draft}</textarea>
+        <div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-eval-save="${d.id}">保存评价</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-eval-cancel>取消</button><span class="nt-muted">保存后署名，旧版本保留</span></div></div>`;
+    }
+    if (saved) {
+      const n = st.reviewEvalHist(pid, week, d.id).length;
+      return html`<div class="n-block n-review__eval" data-state="ink" data-eval="${d.id}">${saved.text}<div class="n-block__by"><span class="n-block__sig">${st.person(saved.by).name}</span>${NT.md(saved.at)} ${EVAL_FROM[saved.from] || '写下评价'}${n > 1 ? ` · 改过 ${n - 1} 次` : ''}${can ? html`<button class="n-btn n-btn--sm n-btn--ghost n-review__evact" type="button" data-eval-edit="${d.id}">${icon('pen')}修正</button>` : ''}</div></div>`;
+    }
+    if (draft) {
+      return html`<div class="n-block n-review__eval" data-state="light" data-eval="${d.id}">${draft}<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 草拟 · 仅供参考</span>${can ? html`<span class="n-review__evact"><button class="n-btn n-btn--sm" type="button" data-eval-adopt="${d.id}">${icon('check')}采用</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-eval-edit="${d.id}">${icon('pen')}改写</button></span>` : ''}</div></div>`;
+    }
+    return can ? html`<div class="n-review__eval" data-eval="${d.id}"><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-eval-edit="${d.id}">${icon('pen')}写评价</button></div>` : '';
+  };
+  // 页面的点击处理先交给这里；处理了返回 true
+  UI.reviewEvalClick = (ev, pid, week, rerender) => {
+    const b = ev.target.closest('[data-eval-adopt], [data-eval-edit], [data-eval-save], [data-eval-cancel]');
+    if (!b) return false;
+    if ('evalCancel' in b.dataset) { evalEditing = null; rerender(); return true; }
+    if (b.dataset.evalEdit) {
+      const dim = b.dataset.evalEdit; evalEditing = `${pid}-${week}-${dim}`; rerender();
+      const t = document.getElementById(`rv-eval-${dim}`); t?.focus(); t?.setSelectionRange(t.value.length, t.value.length);
+      return true;
+    }
+    const dim = b.dataset.evalAdopt || b.dataset.evalSave;
+    const saved = st.reviewEval(pid, week, dim), draft = st.reviewEvalDraft(pid, st.review(pid, week).rows.find((x) => x.d.id === dim));
+    let text = draft, from = 'ai';
+    if (b.dataset.evalSave) {
+      const t = document.getElementById(`rv-eval-${dim}`); text = t.value.trim();
+      if (!text) { t.focus(); t.placeholder = '至少写一句；保持原样就点取消'; return true; }
+      if (saved && text === saved.text) { evalEditing = null; rerender(); return true; }
+      from = saved ? 'fix' : text === draft ? 'ai' : draft ? 'edit' : 'new';
+    }
+    const undo = st.setReviewEval(pid, week, dim, text, from);
+    if (!undo) return true;
+    evalEditing = null; rerender();
+    NT.toast(`${from === 'ai' ? '已采用 AI 草拟' : '评价已保存'}，署名 ${st.me().name}${saved ? '，旧版本保留' : ''}`, { undo: () => { undo(); rerender(); } });
+    return true;
+  };
   UI.src = (kind) => ({
     fact: html`<span class="n-src n-src--fact">${icon('doc')}原始事实</span>`,
     hist: html`<span class="n-src n-src--fact">${icon('doc')}历史资料</span>`,
@@ -584,7 +629,7 @@
     NT.toast('已取消，理由已记录', { undo: () => { st.uncancelPush(id); rerender && rerender(); } });
   };
 
-  // CEO 请 HRBP 复核判断复盘（v1.4 3.22）：写一句评论；归因与标准修订仍由 HRBP 确认
+  // CEO 请 HRBP 复核判断对照（v1.4 3.22）：写一句评论；归因与标准修订仍由 HRBP 确认
   UI.judgeAskDialog = async (batchId, rerender) => {
     const b = st.judgeBatch(batchId);
     const r = await NT.dialog({ title: `请 HRBP 复核：${b.name}`,

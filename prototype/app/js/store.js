@@ -16,7 +16,7 @@
       v: SEED.version, events: SEED.EVENTS, projects: SEED.PROJECTS, members: SEED.MEMBERS, memberLog: SEED.MEMBER_LOG,
       needs: SEED.NEEDS, plans: SEED.PLANS, actions: SEED.ACTIONS, tracks: SEED.TRACKS, signals: SEED.SIGNALS, inbox: SEED.INBOX,
       tasks: SEED.TASKS, batches: SEED.BATCHES, conclusions: SEED.CONCLUSIONS, tagCands: SEED.TAG_CANDIDATES, taglibAdd: [],
-      seen: {}, snaps: [], reviews: {}, corrections: [], selfNotes: [], directions: SEED.DIRECTIONS,
+      seen: {}, snaps: [], reviews: {}, reviewEvals: {}, corrections: [], selfNotes: [], directions: SEED.DIRECTIONS,
       watchClues: SEED.WATCH_CLUES, pushes: SEED.PUSHES, follows: SEED.FOLLOWS, judgeAsks: [], rules: SEED.RULES, ruleSugs: SEED.RULE_SUGS, reviewHolds: [],
       judgeMarks: {}, judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])), pubActions: [{ person: 'p-lin', title: '参加 11 月客户现场轮岗', by: 'p-suwan', at: '2026-10-20', state: 'todo' }],
     });
@@ -197,11 +197,11 @@
       e.scores.forEach((s) => {
         if (s.p !== pid || s.v == null) return;
         // 不兼容修订生效后，旧版本下的分待按新版本复核：原分保留，复核前不参与当前版本的取数（v1.6 3.35.5）。
-        // 判断复盘按原版本对照证据，传 anyVer: true
+        // 判断对照按原版本对照证据，传 anyVer: true
         if (!o.anyVer && store.heldBy(e, s)) return;
         if (!o.all && !COUNTED.includes(s.st)) return;
         if (o.dim && s.d !== o.dim) return;
-        // 按新版本复核过的分，当前取数用复核后的值、版本与确认人；原分和原版本保留在事件上，判断复盘按原分
+        // 按新版本复核过的分，当前取数用复核后的值、版本与确认人；原分和原版本保留在事件上，判断对照按原分
         const rev = !o.anyVer && lastRev(s);
         out.push({ ...s, v: rev ? rev.v : s.v, by: rev ? rev.by : s.by, ver: rev ? rev.ver : e.rubric, ev: e, date: e.date });
       });
@@ -427,6 +427,26 @@
       conflicts: rows.filter((r) => r.state === 'conflict').length, ai: rows.filter((r) => r.state === 'ai').length, state: saved.state || 'draft', by: saved.by, at: saved.at };
   };
   store.confirmReview = (pid, week) => { S.reviews[`${pid}-${week}`] = { state: 'confirmed', by: store.me().id, at: NT.TODAY }; store.save(); };
+  // 对人复盘每一维的评价：AI 草拟只作参考，HRBP 和所带导师可以采用、改写、修正；每次保存署名，旧版本保留
+  store.canEditReview = (pid, role = store.role()) => (role === 'hrbp' && store.scope(pid, role) === 'full') || (role === 'mentor' && store.scope(pid, role) === 'mentor');
+  store.reviewEvalHist = (pid, week, dim) => S.reviewEvals?.[`${pid}-${week}`]?.[dim] || [];
+  store.reviewEval = (pid, week, dim) => store.reviewEvalHist(pid, week, dim)[0] || null;
+  store.setReviewEval = (pid, week, dim, text, from) => {
+    if (!store.canEditReview(pid) || !text?.trim()) return null;
+    S.reviewEvals ??= {};
+    const m = (S.reviewEvals[`${pid}-${week}`] ??= {}), prev = m[dim] || [];
+    m[dim] = [{ text: text.trim(), by: store.me().id, at: NT.TODAY, from }, ...prev]; store.save();
+    return () => { m[dim] = prev; store.save(); };
+  };
+  // AI 草拟：按这一维的事件和分数（已确认的用确认分，否则用 AI 建议分）对上锚点；没有分数就不草拟
+  store.reviewEvalDraft = (pid, row) => {
+    const scored = row?.items.filter(({ s }) => (s.v ?? s.ai) != null) || [];
+    if (!scored.length) return '';
+    const v = Math.round(mean(scored.map(({ s }) => s.v ?? s.ai)));
+    const list = store.anchors(row.d.id, pid, store.eventRubric(scored[0].e) || undefined).list;
+    const titles = [...new Set(scored.map(({ e }) => e.title))];
+    return `${titles.slice(0, 2).map((t) => `「${t}」`).join('、')}${titles.length > 2 ? ` 等 ${titles.length} 件事` : ''}显示，${row.d.name}接近锚点 ${v}：${list[v - 1]}。`;
+  };
 
   // 采纳的 AI 摘要记下它依据的事件和是否含象限信息；换到看不到这些内容的视角时不复用，改由 AI 按新视角重写
   store.adoptSummary = (pid, text, quad) => {
@@ -595,7 +615,7 @@
   store.template = (id) => SEED.TEMPLATES.find((t) => t.id === id);
   store.tplVersion = (t, v) => (v ? t.versions.find((x) => x.v === v) : t.versions[t.versions.length - 1]);
 
-  // ---------- 判断复盘（v1.3 3.16）：对照两段判断，归因只作用于评价体系，不写回被评价人 ----------
+  // ---------- 判断对照（v1.3 3.16）：对照两段判断，归因只作用于评价体系，不写回被评价人 ----------
   const J = SEED.JUDGE;
   const RATER_MIN = 5; // 评价人可对照案例的门槛，少于它只显示「样本不足」
   store.RATER_MIN = RATER_MIN;
@@ -985,7 +1005,7 @@
     store.save();
   };
 
-  // ---------- 判断复盘：CEO 看批次级信号，可以请 HRBP 复核（v1.4 3.22） ----------
+  // ---------- 判断对照：CEO 看批次级信号，可以请 HRBP 复核（v1.4 3.22） ----------
   store.judgeSignals = () => {
     if (!store.canJudge()) return [];
     return J.batches.filter((b) => b.status === 'open').map((b) => {

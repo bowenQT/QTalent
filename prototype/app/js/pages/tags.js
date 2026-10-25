@@ -19,7 +19,7 @@
     S.taglibAdd.forEach(([g, t]) => lib.find((x) => x.group === g)?.tags.push([t, 0, true]));
     const total = lib.reduce((n, g) => n + g.tags.length, 0);
     mount(main, html`
-      <header class="nt-head"><div><h1>标签库</h1><p>AI 记录事件时从这里打标签；库里没有的列为候选，等 HRBP 决定。标签只用于检索和找人，不参与打分。</p></div></header>
+      <header class="nt-head"><div><h1>标签库</h1><p>AI 记录事件时从这里打标签；新标签先列为候选，等 HRBP 决定。标签只用于检索和找人。</p></div></header>
       <div class="nt-cols">
         <article class="n-card n-taglib"><div class="n-taglib__head"><h3>已收录</h3><span class="n-taglib__meta">${total} 个 · 4 组</span></div>
           <div id="taglib-groups">${lib.map((g) => html`<div class="n-taglib__group"><h4>${g.group}</h4><div class="n-taglib__tags">${g.tags.map(([t, extracted, isNew]) => html`<span class="n-tag ${isNew ? 'is-new' : ''}">${extracted ? html`<svg aria-label="从历史资料提取"><use href="#i-spark"/></svg>` : ''}${t}<b>${counts[t] || 0}</b></span>`)}</div></div>`)}</div>

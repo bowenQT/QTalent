@@ -26,7 +26,7 @@
 
   function render(main) {
     const S = st.get();
-    // 判断复盘生成的改进动作作用于评价体系，只给能看判断复盘汇总的视角
+    // 判断对照生成的改进动作作用于评价体系，只给能看判断对照汇总的视角
     const list = S.actions.filter((a) => (st.judgeBatch(a.from) ? st.canJudge() : !a.person || st.scope(a.person)));
     const order = ['todo', 'doing', 'done', 'reviewed', 'cancel'];
     const sorted = list.slice().sort((a, b) => order.indexOf(a.state) - order.indexOf(b.state));

@@ -16,7 +16,7 @@
     const open = S.inbox.filter((i) => !i.done), done = S.inbox.filter((i) => i.done);
     const targets = [...new Set(S.inbox.flatMap((i) => i.options.map((o) => o[0])))].filter((id) => st.person(id) && st.scope(id));
     mount(main, html`
-      <header class="nt-head"><div><h1>待核对</h1><p>录音和文档里有几处 AI 拿不准是谁、是哪个项目。选一下就生效；选错了可以撤销。</p></div></header>
+      <header class="nt-head"><div><h1>待核对</h1><p>选出这几处说的是谁、哪个项目，选完即生效，随时可以撤销。</p></div></header>
       <div class="nt-split">
         <div class="nt-grid" id="cards">
           ${open.length ? open.map(card) : UI.state({ ip: 'done', title: '都核对完了', text: '新的录音或文档里有拿不准的地方时，会出现在这里。', actions: st.canOpenMinutes('w2') && html`<a class="n-btn n-btn--sm" href="record.html?m=w2">回到会议纪要</a>` })}
