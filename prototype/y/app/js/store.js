@@ -535,14 +535,17 @@
     const prev = s.ai ?? s.v;
     s.hist = [{ v, kind: v !== prev && s.ai != null ? 'edit' : 'confirm', by: me, at: NT.TODAY, why }, ...(s.ai != null ? [{ v: s.ai, kind: 'ai', at: e.date }] : [])];
     s.v = v; s.st = 'confirmed'; s.by = me;
+    // 每次确认都按当前分差与理由重算，不能留下之前的待校准标记。
     if (s.ai != null && Math.abs(s.ai - v) >= 2 && !why) s.bigGap = true;
+    else delete s.bigGap;
     store.save();
   };
   store.unconfirmScore = (evId, idx) => { const s = store.event(evId).scores[idx]; s.st = 'ai'; s.v = s.ai; delete s.by; delete s.hist; delete s.bigGap; store.save(); };
   // 选「都不是，稍后处理」不算核对完成：条目留在待核对里，标记为稍后（later），待办数照旧计入
   store.resolveInbox = (id, choice) => {
     const it = S.inbox.find((x) => x.id === id);
-    if (!it) return;
+    // 事件以待核对项 id 为唯一来源；重复确认不应再次写入相同 ID 的证据。
+    if (!it || it.done) return;
     if (choice === 'skip') { it.later = true; it.choice = null; store.save(); return; }
     it.done = true; it.later = false; it.choice = choice;
     if (it.draft && choice) {
@@ -556,6 +559,8 @@
   // 确认项目用人方案：冻结版本，写入成员与 owner，生成行动；组织调整方案里等这个人选的那一条随之填上
   store.slotRoles = (plan) => S.needs.find((n) => n.id === plan.need)?.roles || Object.keys(plan.slots).map((id) => ({ id, name: id === 'owner' ? '项目 owner' : id }));
   store.confirmStaffing = (plan, roles = store.slotRoles(plan)) => {
+    // 已冻结/被替代的版本不能再确认，避免重复写入成员历史。
+    if (plan.status === 'confirmed' || plan.status === 'superseded') return;
     const me = store.me().id, p = store.project(plan.project);
     S.plans.filter((x) => x.project === plan.project && x.status === 'confirmed' && x !== plan).forEach((x) => { x.status = 'superseded'; });
     Object.assign(plan, { status: 'confirmed', confirmedBy: me, confirmedAt: NT.TODAY });
@@ -602,7 +607,8 @@
     let created = 0;
     plan.moves.forEach((m) => {
       const title = m.type === '继续观察' ? `${store.person(m.person)?.name || ''}：${m.next}` : `${m.person ? store.person(m.person).name : '人选待定'}${m.type === '负责人安排' ? `接任${m.to}` : `：${m.from ? `${m.from} → ` : ''}${m.to}`}`;
-      if (S.actions.some((a) => a.title === title)) return;
+      // 只阻止同一方案重复生成；其他方案中同名行动不能被误删。
+      if (S.actions.some((a) => a.from === plan.id && a.title === title)) return;
       created += 1;
       S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title, kind: m.kind, from: plan.id, person: m.person, owner: m.owner || 'p-suwan', due: m.due || '2026-11-15', state: 'todo', observe: m.type === '继续观察' ? null : '2027-02-15' });
     });
