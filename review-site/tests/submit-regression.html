@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>评审评论提交回归检查</title>
+<style>
+  body { margin: 24px; color: #20242c; font: 15px/1.6 system-ui, sans-serif; }
+  iframe { width: 100%; height: 720px; border: 1px solid #ccd0d8; }
+  #result { white-space: pre-wrap; }
+</style>
+<h1>评审评论提交回归检查（演示）</h1>
+<p>纯本地 fixture：拦截全部评论请求，不读取或写入真实评论。启动仓库根目录静态服务后打开本页即可运行。</p>
+<pre id="result">检查中…</pre>
+<iframe title="评审评论演示"></iframe>
+<script>
+(async () => {
+  const result = document.querySelector('#result');
+  const frame = document.querySelector('iframe');
+  const thread = {
+    id: '11111111-1111-4111-8111-111111111111', parent_id: null,
+    page: '/', author: 'reviewer@example.test', kind: 'element', selector: '#target',
+    label: '演示评审对象', body: '演示讨论', resolved: 0, created_at: '2026-10-25T00:00:00.000Z',
+  };
+  const setup = `
+    window.posts = [];
+    window.fetch = async (url, init = {}) => {
+      if (!String(url).startsWith('/api/comments')) throw new Error('禁止外部请求');
+      if ((init.method || 'GET') === 'GET') return Response.json({ me: 'reviewer@example.test', comments: [${JSON.stringify(thread)}] });
+      return new Promise(resolve => posts.push({ body: JSON.parse(init.body), resolve }));
+    };
+  `;
+  frame.srcdoc = `<!doctype html><html lang="zh-CN"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet" href="../worker/client/review.css">
+    <body><h1 id="target">演示评审对象</h1><p>本页使用合成讨论，所有提交只进入内存。</p>
+    <script>${setup}<\/script><script src="../worker/client/review.js"><\/script>`;
+  const waitFor = async (check) => {
+    for (let i = 0; i < 100; i++) {
+      if (check()) return;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    throw new Error('等待界面超时');
+  };
+  const assert = (ok, message) => { if (!ok) throw new Error(message); };
+  const log = [];
+  try {
+    await waitFor(() => frame.contentDocument.querySelector('.rv-launch'));
+    const win = frame.contentWindow, doc = frame.contentDocument;
+    const button = (text) => [...doc.querySelectorAll('button')].find(el => el.textContent === text);
+    const shortcut = (ta, meta = false) => ta.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: !meta, metaKey: meta, bubbles: true }));
+    doc.querySelector('.rv-launch').click();
+    await waitFor(() => doc.querySelector('.rv-reply textarea'));
+    button('点选元素').click();
+    doc.querySelector('#target').dispatchEvent(new win.MouseEvent('click', { clientX: 40, clientY: 40, bubbles: true }));
+    const newComment = doc.querySelector('.rv-compose textarea');
+    assert(newComment, '点选元素后应出现评论输入框');
+    newComment.value = '演示：一次新评论';
+    shortcut(newComment);
+    shortcut(newComment, true);
+    await waitFor(() => win.posts.length > 0);
+    assert(win.posts.length === 1, `新评论在途时发出 ${win.posts.length} 个 POST，预期 1 个`);
+    win.posts[0].resolve(Response.json({ error: '演示离线错误' }, { status: 503 }));
+    await waitFor(() => !doc.querySelector('.rv-compose button.is-primary').disabled);
+    const retryComment = doc.querySelector('.rv-compose textarea');
+    assert(retryComment.value === '演示：一次新评论', '失败后应保留评论正文');
+    shortcut(retryComment);
+    await waitFor(() => win.posts.length === 2);
+    // 在途请求的锁不能随面板重绘而消失。
+    button('全部').click();
+    const redrawnComment = doc.querySelector('.rv-compose textarea');
+    redrawnComment.value = '演示：一次新评论';
+    shortcut(redrawnComment);
+    assert(win.posts.length === 2, '面板重绘后重复发送了在途评论');
+    win.posts[1].resolve(Response.json({ comment: { ...thread, id: '22222222-2222-4222-8222-222222222222', body: retryComment.value } }, { status: 201 }));
+    await waitFor(() => !doc.querySelector('.rv-compose'));
+    log.push('PASS 新评论：Ctrl/⌘ 连续快捷键、面板重绘、失败重试、成功反馈');
+
+    const reply = doc.querySelector(`[data-thread="${thread.id}"] .rv-reply textarea`);
+    reply.value = '演示：一次回复';
+    reply.parentElement.querySelector('button.is-primary').click();
+    shortcut(reply);
+    shortcut(reply, true);
+    await waitFor(() => win.posts.length > 2);
+    assert(win.posts.length === 3, `回复在途时产生 ${win.posts.length - 2} 个 POST，预期 1 个`);
+    win.posts[2].resolve(Response.json({ error: '演示离线错误' }, { status: 503 }));
+    await waitFor(() => !reply.parentElement.querySelector('button.is-primary').disabled);
+    assert(reply.value === '演示：一次回复', '失败后应保留回复正文');
+    shortcut(reply);
+    await waitFor(() => win.posts.length === 4);
+    button('未解决').click();
+    const redrawnReply = doc.querySelector(`[data-thread="${thread.id}"] .rv-reply textarea`);
+    redrawnReply.value = '演示：一次回复';
+    shortcut(redrawnReply);
+    assert(win.posts.length === 4, '面板重绘后重复发送了在途回复');
+    win.posts[3].resolve(Response.json({ comment: { ...thread, id: '33333333-3333-4333-8333-333333333333', parent_id: thread.id, body: redrawnReply.value } }, { status: 201 }));
+    await waitFor(() => doc.querySelectorAll('.rv-c.is-reply').length === 1);
+    log.push('PASS 回复：点击后快捷键、Ctrl/⌘ 连续快捷键、面板重绘、失败重试、仅保存一条');
+    result.textContent = log.join('\n');
+    result.dataset.status = 'passed';
+  } catch (error) {
+    result.textContent = [...log, `FAIL ${error.message}`].join('\n');
+    result.dataset.status = 'failed';
+  }
+})();
+</script>
+</html>

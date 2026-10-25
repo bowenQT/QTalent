@@ -20,9 +20,9 @@
 
 | 原型页（`prototype/y/` 相对路径） | 工程路由                          | 后续 feature / contract             | 后续读取、动作 / 领域                        | 当前状态       |
 | --------------------------------- | --------------------------------- | ----------------------------------- | -------------------------------------------- | -------------- |
-| `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | BOW-836 契约已定义，读取/UI 待接入 / 404     |
-| `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | BOW-836 契约已定义，读取/UI 待接入 / 404     |
-| `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | BOW-836 契约已定义，读取/UI 待接入 / 404     |
+| `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
+| `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
+| `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
 | `app/record.html`                 | `/record`                         | record / record                     | record / records                             | 后续 / 404     |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
 | `app/queue.html`                  | `/queue`                          | queue / queue                       | queue / evaluation-system                    | 后续 / 404     |
@@ -123,7 +123,7 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 | 导师学员 / 推荐 | `trainees / recommendations` | directory + records 授权学员可 ready/empty/insufficient_evidence/unknown；推荐固定 `not_connected` | BOW-838/841；推荐后续卡 |
 | `/people` 列表、速览 | `peopleList / quickView` | directory、records、staffing 公开入口；合同就绪，读取/UI 未接入 | BOW-837/839 |
 | `/person?id=…` 摘要 | `summary` | directory 身份；records 已授权事实、自述、人工结论分性质呈现 | BOW-837/840 |
-| 档案能力谱 | `capabilityProfile` | records 已确认维度分：锚点、评分人、规则版本、有效来源；无建议分 | BOW-834/835/837/840 |
+| 档案能力谱 | `capabilityProfile` | records 确认表维度分：锚点、评价人、规则版本、有效来源及 sourceCategory；演示种子的 prototype_baseline 例外计入，无 AI 建议分 | BOW-834/835/837/840 |
 | 档案小象限 | `referencePosition` | talent 当前有效确认分计算；只给参考分类或资料不足/未知，不设新阈值，无正式位置 | BOW-837/840 |
 | 校准轨迹、档案版本与变化 | `calibrationHistory / versionsAndChanges` | talent 盘点冻结未接入；固定 `not_connected` | 后续盘点冻结链路 |
 | 管理观察 / AI 推断 | `managementObservations / aiInferences` | records 按性质与当前权限分别投影，AI 继承来源权限 | BOW-835/837/840 |
@@ -136,6 +136,8 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 
 列表按授权 → 姓名/岗位检索与团队筛选 → teamName、name、id 稳定排序；本次有界演示目录不分页，total 恰为可见筛选结果数。排序由 BOW-837 查询实现并测试，合同不重排数据、不提供 score 或校准变化参数。ID tie-break 仅确保重名稳定，非人才排名。
 
-来源位置为 document（可选 page、必填 paragraph）、spreadsheet（sheet、cell）、recording（startMs、endMs）。无版本/位置不成引用，真实原型导入缺口由 BOW-834 隔离并报告，不用合成夹具补齐真实链路。录音播放 URL 在 P0 完全省略，不能包含永久公开地址或存储 key。读取输入不接受调用者 role。
+来源位置为 document（可选 page、必填 paragraph）、spreadsheet（sheet、cell）、recording（startMs、endMs）或 snapshot_field（fieldPath，可选 originalLocation）。按 BOW-834 已定方案 A，固定原型作为 prototype_snapshot 原件登记，片段定位到 events[id].srcs[i] 或 events[id].act；originalLocation 仅为原表位置说明，不伪装单元格坐标。来源详情必须区分 sourceCategory=original / prototype_baseline，后者要求 demo=true，携带原件 displayNotice「原型基线 2e51b50，评语按原意压缩」，不得冒充原观察表。快照 commit/blob 由 originalVersionId 对应版本承载，不逐位置重复。无版本/位置不成引用，不用合成夹具补齐真实链路。录音播放 URL 在 P0 完全省略，不能包含永久公开地址或存储 key。读取输入不接受调用者 role。
 
 前端开发夹具：`tests/fixtures/p0-contracts.ts`，只含 `test-*` 标识和明确合成描述，涵盖三角色、ready/empty/insufficient_evidence/unknown/not_connected、来源拒绝。不得作为生产 fallback。测试：`src/contracts/p0-contracts.test.ts`；不改变工程共享配置与覆盖率排除。
+
+BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认分一样参加能力谱和参考位置；原型 AI 建议及资料不足不计入。这个合同不决定授权或正式导入许可，正式入口拒绝 prototype_baseline 由 BOW-834 保证。前端负责人需评审新增快照位置、来源类别与提示的展示；当前尚无该验收证据。

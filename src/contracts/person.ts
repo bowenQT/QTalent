@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { sourceReferenceSchema } from './sources';
+import { sourceCategorySchema, sourceReferenceSchema } from './sources';
 
 export const notConnectedSchema = z.strictObject({
   status: z.literal('not_connected'),
@@ -54,6 +54,7 @@ export const capabilityScoreSchema = z.strictObject({
   dimensionId: z.string().min(1),
   dimensionLabel: z.string().min(1),
   status: z.literal('confirmed'),
+  sourceCategory: sourceCategorySchema,
   value: z.number().int().min(1).max(5),
   anchor: z.string().min(1),
   scoredBy: z.string().min(1),

@@ -150,6 +150,62 @@ describe('P0 contracts: strict authorized response boundaries', () => {
       }).success,
     ).toBe(false);
   });
+  it('keeps prototype baseline provenance distinct from original evidence', () => {
+    const location = {
+      kind: 'snapshot_field',
+      fieldPath: 'events[test-event-001].srcs[0]',
+      originalLocation: '原表第 1 周表现栏',
+    };
+    expect(sourceLocationSchema.safeParse(location).success).toBe(true);
+    expect(
+      sourceLocationSchema.safeParse({ ...location, fieldPath: '   ' }).success,
+    ).toBe(false);
+    expect(
+      sourceLocationSchema.safeParse({ ...location, cell: 'A1' }).success,
+    ).toBe(false);
+    const baseline = {
+      ...source,
+      location,
+      sourceType: 'prototype_snapshot',
+      sourceCategory: 'prototype_baseline',
+      displayNotice: '原型基线 2e51b50，评语按原意压缩',
+      demo: true,
+      excerpt: '合成的原型基线评语',
+    };
+    expect(
+      sourceReadResultSchema.safeParse({ status: 'success', source: baseline })
+        .success,
+    ).toBe(true);
+    for (const extra of [
+      { demo: false },
+      { location: source.location },
+      { sourceCategory: 'original' },
+      { sourceType: 'spreadsheet' },
+      { displayNotice: '' },
+      { displayNotice: undefined },
+    ]) {
+      expect(
+        sourceReadResultSchema.safeParse({
+          status: 'success',
+          source: { ...baseline, ...extra },
+        }).success,
+      ).toBe(false);
+    }
+    const score = {
+      ...confirmedScore,
+      sourceCategory: 'prototype_baseline',
+      sources: [{ ...source, location }],
+    };
+    expect(capabilityScoreSchema.safeParse(score).success).toBe(true);
+    expect(
+      capabilityScoreSchema.safeParse({ ...score, status: 'suggested' })
+        .success,
+    ).toBe(false);
+    expect(
+      capabilityScoreSchema.safeParse({ ...score, sourceCategory: undefined })
+        .success,
+    ).toBe(false);
+  });
   it('rejects source payload leaks and P0 playback URLs', () => {
     const success = fixtures.sources[0];
     for (const extra of [
