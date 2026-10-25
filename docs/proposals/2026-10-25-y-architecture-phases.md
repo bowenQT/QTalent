@@ -6,7 +6,7 @@
 | 版本 | v2，2026-10-25，Asia/Shanghai。v1 之后补入北森同步、系统管理与审计、按阶段的功能模块规划，演示环境定为 VPS |
 | 可视化 | [产品架构与分期规划](../../prototype/architecture.html)（评审站页面，内容与本文一致，以本文为准） |
 | 负责人 / 决定者 | 本文起草：Claude；决定者：用户 |
-| 关联 issue / PR | 尚未建立 |
+| 关联 issue / PR | [bowenQT/QTalent#14](https://github.com/bowenQT/QTalent/pull/14) |
 | 需求 / 设计依据 | [需求定稿 · 版本 Y](../requirements/需求定稿-版本Y.md)（Y-1.1）；[需求定稿 v1.6](../requirements/需求定稿-v1.6.md) 第 3.35 节；[AGENTS.md](../../AGENTS.md) 的产品不变量与阶段门禁；原型 `prototype/y/`（main `231bb61`） |
 | 架构输入 | 《正式站点架构与技术方案》v21（整体 Draft，§7.1、§7.4 部分 Accepted）。该文与其实验记录目前只在 Codex 研究工作区 `~/.codex/worktrees/qtalent-architecture-research/QTalent/docs/`，未进入本仓库；下文写作「v21 §x」 |
 | 替代关系 | 不替代 v21。本文只回答「Y 成为主线后，v21 哪些要改，三个阶段各做到哪」；v21 已 Accepted 的口径原样沿用 |
