@@ -114,3 +114,13 @@ export async function getShellForCurrentUser(): Promise<Shell> {
     role,
   };
 }
+
+/** Expected authorization loss has a recoverable route state; infrastructure errors do not. */
+export async function getShellPage(): Promise<Shell | null> {
+  try {
+    return await getShellForCurrentUser();
+  } catch (error) {
+    if (error instanceof ForbiddenError) return null;
+    throw error;
+  }
+}

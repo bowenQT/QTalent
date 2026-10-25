@@ -4,6 +4,11 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { warmReferenceRoutes } from './app-readiness';
+import {
+  trackPoolShutdown,
+  trackChildShutdown,
+  cleanupReferenceResources,
+} from './resource-cleanup';
 import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createDatabase } from '../../src/server/db/client';
@@ -56,13 +61,19 @@ export const test = base.extend<{ referenceApp: ReferenceApp }>({
       )
         throw new Error('Browser database must be localhost and end in _test.');
       const admin = new Pool({ connectionString: rawURL });
+      const closeAdminPool = trackPoolShutdown(admin);
       const databaseName = `qtalent_test_${randomUUID().replaceAll('-', '')}`;
-      await admin.query(`CREATE DATABASE "${databaseName}"`);
-      url.pathname = `/${databaseName}`;
-      const connection = createDatabase(url.toString());
+      let databaseCreated = false;
+      let closeAppPool: () => Promise<void> = async () => {};
+      let stopApp: (() => Promise<void>) | undefined;
       let app: ReturnType<typeof spawn> | undefined;
       let logs = '';
       try {
+        await admin.query(`CREATE DATABASE "${databaseName}"`);
+        databaseCreated = true;
+        url.pathname = `/${databaseName}`;
+        const connection = createDatabase(url.toString());
+        closeAppPool = trackPoolShutdown(connection.pool);
         await migrate(connection.db, {
           migrationsFolder: 'src/server/db/migrations',
         });
@@ -99,6 +110,7 @@ export const test = base.extend<{ referenceApp: ReferenceApp }>({
             stdio: ['ignore', 'pipe', 'pipe'],
           },
         );
+        stopApp = trackChildShutdown(app);
         app.stdout?.on('data', (chunk) => {
           logs += String(chunk);
         });
@@ -122,25 +134,24 @@ export const test = base.extend<{ referenceApp: ReferenceApp }>({
         await warmReferenceRoutes(baseURL, deadline);
         await provide({ baseURL, pool: connection.pool });
       } finally {
-        if (app && app.exitCode === null) {
-          app.kill('SIGTERM');
-          await Promise.race([
-            once(app, 'exit'),
-            new Promise<void>((resolve) =>
-              setTimeout(() => {
-                app?.kill('SIGKILL');
-                resolve();
-              }, 5000),
-            ),
-          ]);
+        try {
+          if (databaseCreated) {
+            await cleanupReferenceResources({
+              databaseName,
+              stopApp,
+              closeAppPool,
+              admin,
+              closeAdminPool,
+            });
+          } else {
+            await closeAdminPool();
+          }
+        } finally {
+          await testInfo.attach('app-output', {
+            body: logs,
+            contentType: 'text/plain',
+          });
         }
-        await testInfo.attach('app-output', {
-          body: logs,
-          contentType: 'text/plain',
-        });
-        await connection.pool.end();
-        await admin.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
-        await admin.end();
       }
     },
     { timeout: 180_000 },
@@ -154,8 +165,11 @@ export const test = base.extend<{ referenceApp: ReferenceApp }>({
       reducedMotion: 'reduce',
       viewport: { width: 1366, height: 900 },
     });
-    await provide(context);
-    await context.close();
+    try {
+      await provide(context);
+    } finally {
+      await context.close();
+    }
   },
 });
 export { expect };

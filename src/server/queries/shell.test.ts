@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { getShellForCurrentUser } from './shell';
+import { getShellForCurrentUser, getShellPage } from './shell';
 import type { Grant } from '../authz';
 const mocks = vi.hoisted(() => ({ directory: vi.fn(), session: vi.fn() }));
 vi.mock('server-only', () => ({}));
@@ -111,3 +111,22 @@ it.each([
     );
   },
 );
+
+it.each(['revoked', 'expired', 'missing'])(
+  'adapts expected shell refusal: %s',
+  async (reason) => {
+    if (reason === 'missing') mocks.directory.mockResolvedValueOnce(null);
+    else if (reason === 'expired') directory.grants[0].validTo = '2026-09-04';
+    else directory.grants[0].revokedAt = '2026-09-04';
+    expect(await getShellPage()).toBeNull();
+  },
+);
+it('preserves authorized shell and propagates unexpected failures', async () => {
+  expect(await getShellPage()).toEqual(await getShellForCurrentUser());
+  const failure = new Error('database unavailable');
+  mocks.directory.mockRejectedValueOnce(failure);
+  await expect(getShellPage()).rejects.toBe(failure);
+  const redirect = new Error('NEXT_REDIRECT');
+  mocks.session.mockRejectedValueOnce(redirect);
+  await expect(getShellPage()).rejects.toBe(redirect);
+});

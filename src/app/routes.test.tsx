@@ -19,6 +19,7 @@ const { shellQuery, projectsQuery, reset } = vi.hoisted(() => ({
 }));
 vi.mock('@/server/queries/shell', () => ({
   getShellForCurrentUser: shellQuery,
+  getShellPage: shellQuery,
 }));
 vi.mock('@/server/queries/projects', () => ({
   getProjectsPage: projectsQuery,
@@ -84,7 +85,7 @@ describe('thin reference routes', () => {
     render(await ProjectsPage());
     expect(screen.getByRole('heading', { name: '项目与课题' })).toBeTruthy();
   });
-  it('denies before rendering project data or querying shell a second time', async () => {
+  it('denies admin before rendering project data', async () => {
     projectsQuery.mockResolvedValue({ status: 'forbidden' });
     shellQuery.mockResolvedValue({ ...shell, isAdmin: true, role: 'admin' });
     expect(await generateMetadata()).toEqual({
@@ -95,7 +96,7 @@ describe('thin reference routes', () => {
     expect(
       screen.getByRole('heading', { name: '这一页属于业务视角' }),
     ).toBeTruthy();
-    expect(shellQuery).not.toHaveBeenCalled();
+    expect(shellQuery).toHaveBeenCalledOnce();
     expect(screen.queryByText('项目与课题')).toBeNull();
   });
   it('propagates query failures to the route error boundary rather than an empty list', async () => {
@@ -134,4 +135,26 @@ describe('thin reference routes', () => {
     vi.stubEnv('NODE_ENV', 'production');
     expect(DesignSystem).toThrow('not-found');
   });
+});
+
+it('renders a recoverable denial instead of business children when the shell grant is gone', async () => {
+  shellQuery.mockResolvedValue(null);
+  render(await DeskLayout({ children: 'sensitive business content' }));
+  expect(screen.getByRole('heading', { name: '查看权限已更新' })).toBeTruthy();
+  expect(screen.queryByText('sensitive business content')).toBeNull();
+  expect(screen.getByRole('button', { name: '退出并切换账号' })).toBeTruthy();
+  expect(await generateMetadata()).toEqual({
+    title: '查看权限已更新 · Niu-Talent',
+  });
+  cleanup();
+  render(await ProjectsPage());
+  expect(screen.getByRole('heading', { name: '查看权限已更新' })).toBeTruthy();
+  expect(projectsQuery).not.toHaveBeenCalled();
+});
+it('does not turn unexpected shell errors into permission denials', async () => {
+  const failure = new Error('database unavailable');
+  shellQuery.mockRejectedValue(failure);
+  await expect(DeskLayout({ children: 'private' })).rejects.toBe(failure);
+  await expect(generateMetadata()).rejects.toBe(failure);
+  await expect(ProjectsPage()).rejects.toBe(failure);
 });

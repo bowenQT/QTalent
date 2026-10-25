@@ -123,3 +123,35 @@ test('keyboard focus stays in creation dialog and returns to its trigger', async
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
 });
+
+for (const reason of ['revoked', 'expired'] as const) {
+  test(`last business grant ${reason}: safe denial and working sign-out`, async ({
+    page,
+    context,
+    referenceApp,
+  }) => {
+    await login(context, 'hrbp', referenceApp.baseURL);
+    await page.goto('/projects');
+    await expect(page.locator('.n-project')).toHaveCount(22);
+    await referenceApp.pool.query(
+      reason === 'revoked'
+        ? 'UPDATE directory_grants SET revoked_at = $1 WHERE account_id = $2'
+        : 'UPDATE directory_grants SET valid_to = $1 WHERE account_id = $2',
+      ['2026-09-04', 'demo-hrbp'],
+    );
+    await page.reload();
+    await expect(
+      page.getByRole('heading', { name: '查看权限已更新' }),
+    ).toBeVisible();
+    await expect(page).toHaveTitle('查看权限已更新 · Niu-Talent');
+    await expect(page.locator('.n-project')).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: '新建项目', exact: true }),
+    ).toHaveCount(0);
+    expect(await page.content()).not.toContain('口语搭子');
+    await page.getByRole('button', { name: '退出并切换账号' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.goto('/projects');
+    await expect(page).toHaveURL(/\/login$/);
+  });
+}

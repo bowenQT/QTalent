@@ -1,14 +1,17 @@
+import { AccessDenied } from '@/features/shell/AccessDenied';
 import { getProjectsPage } from '@/server/queries/projects';
-import { getShellForCurrentUser } from '@/server/queries/shell';
+import { getShellPage } from '@/server/queries/shell';
 import { Projects } from '@/features/projects/Projects';
 import { State } from '@/components/ui/State';
 export async function generateMetadata() {
-  const shell = await getShellForCurrentUser();
+  const shell = await getShellPage();
   return {
-    title: `${shell.isAdmin ? '这一页属于业务视角' : '项目与课题'} · Niu-Talent`,
+    title: `${!shell ? '查看权限已更新' : shell.isAdmin ? '这一页属于业务视角' : '项目与课题'} · Niu-Talent`,
   };
 }
 export default async function ProjectsPage() {
+  const shell = await getShellPage();
+  if (!shell) return <AccessDenied />;
   const result = await getProjectsPage();
   if (result.status === 'forbidden')
     return (
@@ -21,6 +24,5 @@ export default async function ProjectsPage() {
         </a>
       </State>
     );
-  const shell = await getShellForCurrentUser();
   return <Projects data={result.data} mentor={shell.role === 'mentor'} />;
 }

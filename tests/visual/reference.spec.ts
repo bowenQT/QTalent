@@ -4,7 +4,8 @@ import type { Locator, Page, TestInfo } from '@playwright/test';
 import { test, expect, login, type DemoRole } from '../e2e/fixtures';
 import { referenceConfig } from './reference-config';
 import { startPrototypeServer } from './prototype-server';
-import { captureOffset } from './capture-geometry';
+import { captureStyle } from './capture-geometry';
+import { componentSamples } from './component-samples';
 async function stabilize(page: Page) {
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -148,20 +149,19 @@ async function compareElements(
     });
   // The same component can sit at fractional coordinates in two different sample
   // pages. Snap both raster origins symmetrically, never a per-component 1px fix.
+  // The same neutral layer also prevents LCD/grayscale text raster mismatch.
   for (const [locator, geometry] of [
     [reference, naturalReference],
     [actual, naturalActual],
   ] as const) {
-    await locator.evaluate((element, offset) => {
-      const target = element as HTMLElement;
-      target.style.position = 'relative';
-      target.style.left = `${offset.x}px`;
-      target.style.top = `${offset.y}px`;
-    }, captureOffset(geometry));
+    await locator.evaluate((element, style) => {
+      Object.assign((element as HTMLElement).style, style);
+    }, captureStyle(geometry));
   }
   await testInfo.attach(`${name}-geometry`, {
     contentType: 'application/json',
     body: JSON.stringify({
+      rasterization: 'integer origin; translateZ(0) on both isolated samples',
       naturalReference,
       naturalActual,
       alignedReference: await reference.boundingBox(),
@@ -301,42 +301,32 @@ test('new project dialog matches the current prototype render', async ({
     await server.close();
   }
 });
-test('ported component samples match design-system controls', async ({
-  browser,
-  page,
-}, testInfo) => {
-  const server = await startPrototypeServer();
-  const referenceContext = await browser.newContext({
-    viewport: referenceConfig.desktop,
-    locale: 'zh-CN',
-    reducedMotion: 'reduce',
+for (const sample of componentSamples) {
+  test(`ported component ${sample.name} matches design-system controls`, async ({
+    browser,
+    page,
+  }, testInfo) => {
+    const server = await startPrototypeServer();
+    const referenceContext = await browser.newContext({
+      viewport: referenceConfig.desktop,
+      locale: 'zh-CN',
+      reducedMotion: 'reduce',
+    });
+    try {
+      const prototype = await referenceContext.newPage();
+      await prototype.goto(`${server.url}/prototype/y/design-system.html`);
+      await page.goto('/dev/design-system');
+      await stabilize(prototype);
+      await stabilize(page);
+      await compareElements(
+        prototype.locator(sample.reference),
+        page.locator(sample.actual),
+        testInfo,
+        sample.name,
+      );
+    } finally {
+      await referenceContext.close();
+      await server.close();
+    }
   });
-  try {
-    const prototype = await referenceContext.newPage();
-    await prototype.goto(`${server.url}/prototype/y/design-system.html`);
-    await page.goto('/dev/design-system');
-    await stabilize(prototype);
-    await stabilize(page);
-    await compareElements(
-      prototype.locator('#c-controls .n-field').first(),
-      page.locator('[data-sample="field"] .n-field'),
-      testInfo,
-      'input-field',
-    );
-    await compareElements(
-      prototype.locator('#c-controls button[data-open="dlg-delete"]'),
-      page.locator('[data-sample="button"] button').first(),
-      testInfo,
-      'button',
-    );
-    await compareElements(
-      prototype.locator('.state-table .n-badge--yes').first(),
-      page.locator('[data-sample="badge"] .n-badge'),
-      testInfo,
-      'badge',
-    );
-  } finally {
-    await referenceContext.close();
-    await server.close();
-  }
-});
+}
