@@ -535,7 +535,8 @@
   // 选「都不是，稍后处理」不算核对完成：条目留在待核对里，标记为稍后（later），待办数照旧计入
   store.resolveInbox = (id, choice) => {
     const it = S.inbox.find((x) => x.id === id);
-    if (!it) return;
+    // 事件以待核对项 id 为唯一来源；重复确认不应再次写入相同 ID 的证据。
+    if (!it || it.done) return;
     if (choice === 'skip') { it.later = true; it.choice = null; store.save(); return; }
     it.done = true; it.later = false; it.choice = choice;
     if (it.draft && choice) {
