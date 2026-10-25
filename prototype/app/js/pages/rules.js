@@ -119,7 +119,7 @@
           ${kind === 'place' ? html`<span class="n-rcard__ro">${icon('lock')}只读</span>` : ''}
         </div></header>
       ${kind === 'rubric' ? holdNote() : ''}
-      ${editing ? reviseView(open) : reviewing ? reviewView(open) : html`<div class="nt-split"><div class="nt-grid">${contentCard(cur)}</div><aside class="nt-grid">${sideNote(live, open)}</aside></div>`}
+      ${editing ? reviseView(open) : reviewing ? reviewView(open) : html`<div class="nt-split"><div class="nt-grid">${contentCard(cur)}${kind === 'rubric' && role === 'hrbp' ? sugSec() : ''}</div><aside class="nt-grid">${sideNote(live, open)}</aside></div>`}
       ${historySec()}
       ${compareSec()}`);
     wire(main);
@@ -551,7 +551,16 @@
       const restore = st.deleteDraft(kind); rerender();
       NT.toast(`已删除草稿 ${d.v}`, { undo: () => { if (!restore()) NT.toast('已经有一份新草稿，删除的草稿保持删除'); rerender(); } });
     });
-    $$('[data-adopt]', main).forEach((b) => b.addEventListener('click', () => { if (!adoptSug(b.dataset.adopt)) return; rerender(); NT.toast('已纳入草稿作为依据，提建议的人能看到结果', { undo: () => { st.unhandleRuleSug(b.dataset.adopt); rerender(); } }); }));
+    $$('[data-adopt]', main).forEach((b) => b.addEventListener('click', () => {
+      const fresh = !st.ruleOpen(kind); // 没有修订时纳入会新起一份草稿；撤销时这份空草稿一并删掉
+      if (!adoptSug(b.dataset.adopt)) return; rerender();
+      NT.toast(fresh ? `已起草 ${st.ruleOpen(kind).v} 并纳入这条建议，提建议的人能看到结果` : '已纳入草稿作为依据，提建议的人能看到结果', { undo: () => {
+        st.unhandleRuleSug(b.dataset.adopt);
+        const d = st.ruleOpen(kind);
+        if (fresh && d?.state === 'draft' && !d.basis?.length && !d.why && !st.ruleChanges(d).length) st.deleteDraft(kind);
+        rerender();
+      } });
+    }));
     $$('[data-reject]', main).forEach((b) => b.addEventListener('click', async () => {
       const v = await NT.dialog({ title: '不采纳这条修订建议？', body: html`<p>写一句理由，提建议的人能看到。</p><textarea class="n-textarea" rows="2" id="rj" placeholder="比如：锚点 3 的范围本来就包含两种情形，先补示例"></textarea>`,
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '不采纳', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#rj', dl).value.trim(), read: (dl) => $('#rj', dl).value.trim() }] });
