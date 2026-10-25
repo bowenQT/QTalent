@@ -850,6 +850,77 @@ describe('cross-block consistency', () => {
   });
 });
 
+describe('cross-block review regressions', () => {
+  const profileScores = (p: Json) =>
+    (p.capabilityProfile as { data: { scores: Json[] } }).data.scores;
+  it('excludes a conflicted event dimension as a whole', () => {
+    const base = mentor();
+    // a confirmed score next to a conflict on the same dimension and event
+    const mixed = mentor();
+    const event = timelineOf(mixed)[1]!;
+    event.scores = [
+      ...(event.scores ?? []),
+      {
+        ...eventConfirmedScore,
+        scoreId: 'test-score-410',
+        dimensionId: 'test-dimension-004',
+        dimensionLabel: '演示冲突维度',
+      },
+    ];
+    expect(ok(personSchema, mixed)).toBe(false);
+    // and a spectrum score taken from that conflicted event dimension
+    profileScores(base).push({
+      ...confirmedScore,
+      id: 'test-score-410',
+      dimensionId: 'test-dimension-004',
+      eventId: 'test-event-002',
+      eventTitle: '合成冲突事件',
+      occurredOn: '2026-07-20',
+    });
+    (
+      base.capabilityProfile as { data: { dimensions: Json[] } }
+    ).data.dimensions.push({
+      id: 'test-dimension-004',
+      label: '演示冲突维度',
+      group: 'potential_core',
+      state: 'scored',
+    });
+    expect(ok(personSchema, base)).toBe(false);
+  });
+  it('checks the spread of spectrum scores on its own, even without a ready timeline', () => {
+    const p = mentor();
+    p.timeline = { status: 'unknown', reason: '合成未知' };
+    expect(ok(personSchema, p)).toBe(true);
+    profileScores(p).push({
+      ...confirmedScore,
+      id: 'test-score-411',
+      value: 5,
+    });
+    expect(ok(personSchema, p)).toBe(false);
+    profileScores(p)[1]!.value = 4;
+    expect(ok(personSchema, p)).toBe(true);
+  });
+  it('compares shared sources as a set, not by array position', () => {
+    const p = mentor();
+    timelineOf(p)[0]!.scores![0] = {
+      ...eventConfirmedScore,
+      sources: [source, source2],
+    };
+    profileScores(p)[0]!.sources = [source2, source];
+    expect(ok(personSchema, p)).toBe(true);
+    profileScores(p)[0]!.sources = [source2];
+    expect(ok(personSchema, p)).toBe(false);
+  });
+  it('requires a shared score to carry its event date and title', () => {
+    const date = mentor();
+    profileScores(date)[0]!.occurredOn = '2026-08-27';
+    expect(ok(personSchema, date)).toBe(false);
+    const title = mentor();
+    profileScores(title)[0]!.eventTitle = '另一件事';
+    expect(ok(personSchema, title)).toBe(false);
+  });
+});
+
 describe('ability spectrum', () => {
   const profileOf = (p: Json) =>
     (
@@ -871,9 +942,15 @@ describe('ability spectrum', () => {
     const before = mentor();
     profileOf(before).scores[0]!.occurredOn = '2025-09-03';
     expect(ok(personSchema, before)).toBe(false);
+    // the same boundary day on both the event card and the spectrum score
     const boundary = mentor();
     profileOf(boundary).scores[0]!.occurredOn = windowFrom;
+    timelineOf(boundary)[0]!.occurredOn = windowFrom;
     expect(ok(personSchema, boundary)).toBe(true);
+    // an event older than the window cannot be shown as a recent spectrum score
+    const stale = mentor();
+    timelineOf(stale)[0]!.occurredOn = '2025-09-03';
+    expect(ok(personSchema, stale)).toBe(false);
   });
   it('ties each dimension state to the scores inside the window', () => {
     const noScore = mentor();

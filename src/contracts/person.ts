@@ -240,6 +240,21 @@ const capabilityProfileDataSchema = z
           message: '分数不得早于窗口起点',
         });
     });
+    // Spectrum scores of one dimension on one event that differ by 2 or more are
+    // a conflict and must not be counted at all (checked here so it also holds
+    // when the timeline is not ready).
+    const groups = new Map<string, number[]>();
+    for (const score of profile.scores) {
+      const key = `${score.eventId}\u0000${score.dimensionId}`;
+      groups.set(key, [...(groups.get(key) ?? []), score.value]);
+    }
+    for (const [key, values] of groups)
+      if (Math.max(...values) - Math.min(...values) >= 2)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['scores'],
+          message: `事件维度 ${key.replace('\u0000', ' / ')} 评分差至少为 2，属于证据冲突，不得计入能力谱`,
+        });
     profile.dimensions.forEach((dimension, index) => {
       const has = scored.has(dimension.id);
       if (dimension.state === 'scored' && !has)
@@ -359,6 +374,14 @@ type Variant = {
     | { status: string };
   timeline: { status: string; data?: unknown };
 };
+// Reference identity, independent of array order.
+const sourceIds = (
+  list: Array<{ fragmentId: string; originalVersionId: string }>,
+) =>
+  list
+    .map((x) => `${x.fragmentId}\u0000${x.originalVersionId}`)
+    .sort()
+    .join('\u0001');
 const dayNumber = (value: string) =>
   Date.parse(`${value}T00:00:00Z`) / 86_400_000;
 // Cross-block checks (scores are traceable one by one and consistent between
@@ -403,6 +426,8 @@ function crossBlockChecks(person: Variant, ctx: z.RefinementCtx) {
       ? (person.timeline.data as Array<{
           kind: string;
           id: string;
+          title: string;
+          occurredOn: string;
           scores?: z.infer<typeof eventScoreSchema>[];
         }>)
       : [];
@@ -424,6 +449,28 @@ function crossBlockChecks(person: Variant, ctx: z.RefinementCtx) {
           path: ['timeline', 'data', entryIndex, 'scores'],
           message: `维度 ${dimensionId} 评分差至少为 2，须以证据冲突表示`,
         });
+    // A conflicted event-dimension is excluded as a whole: no confirmed score of
+    // that dimension on the event, on the card or in the spectrum.
+    const conflicted = new Set(
+      (entry.scores ?? []).flatMap((score) =>
+        score.state === 'conflict' ? [score.dimensionId] : [],
+      ),
+    );
+    for (const score of entry.scores ?? [])
+      if (score.state === 'confirmed' && conflicted.has(score.dimensionId))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['timeline', 'data', entryIndex, 'scores'],
+          message: `维度 ${score.dimensionId} 已是证据冲突，不得再有已确认分`,
+        });
+    profile?.scores.forEach((counted) => {
+      if (counted.eventId === entry.id && conflicted.has(counted.dimensionId))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['capabilityProfile', 'data', 'scores'],
+          message: `证据冲突的事件维度 ${counted.dimensionId} 不得计入能力谱`,
+        });
+    });
     entry.scores?.forEach((score, scoreIndex) => {
       const path = ['timeline', 'data', entryIndex, 'scores', scoreIndex];
       const ratings =
@@ -451,17 +498,13 @@ function crossBlockChecks(person: Variant, ctx: z.RefinementCtx) {
         if (score.state === 'confirmed' && counted) {
           const same =
             counted.eventId === entry.id &&
+            counted.eventTitle === entry.title &&
+            counted.occurredOn === entry.occurredOn &&
             counted.dimensionId === score.dimensionId &&
             counted.value === score.value &&
             counted.ruleVersionId === score.ruleVersionId &&
             counted.sourceCategory === score.sourceCategory &&
-            counted.sources.length === score.sources.length &&
-            counted.sources.every(
-              (source, i) =>
-                source.fragmentId === score.sources[i]?.fragmentId &&
-                source.originalVersionId ===
-                  score.sources[i]?.originalVersionId,
-            );
+            sourceIds(counted.sources) === sourceIds(score.sources);
           if (!same)
             ctx.addIssue({
               code: 'custom',
