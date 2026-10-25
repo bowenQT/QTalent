@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Chips } from '@/components/ui/Chips';
@@ -34,6 +34,7 @@ export function ChipsSample() {
 export function SegMenuSample() {
   const [asking, setAsking] = useState(false);
   const [view, setView] = useState<'recent' | 'version'>('recent');
+  const menuTrigger = useRef<HTMLButtonElement>(null);
   return (
     <>
       <div className="nt-row" style={{ justifyContent: 'space-between' }}>
@@ -52,12 +53,14 @@ export function SegMenuSample() {
         <div data-sample="menu">
           <Menu
             trigger={
-              <Button
-                className="n-btn--icon n-btn--ghost"
+              <button
+                ref={menuTrigger}
+                type="button"
+                className="n-btn n-btn--icon n-btn--ghost"
                 aria-label="更多操作"
               >
                 <Icon name="more" />
-              </Button>
+              </button>
             }
             entries={[
               {
@@ -84,21 +87,28 @@ export function SegMenuSample() {
           />
         </div>
       </div>
-      <DeleteDialog open={asking} onOpenChange={setAsking} />
+      <DeleteDialog
+        open={asking}
+        onOpenChange={setAsking}
+        returnFocusRef={menuTrigger}
+      />
     </>
   );
 }
 function DeleteDialog({
   open,
   onOpenChange,
+  returnFocusRef,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
   return (
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
+      returnFocusRef={returnFocusRef}
       title="改为归档？"
       description="事件和方案引用了这个项目，归档能保留这些记录的出处。归档后，成员、事件和方案都保留，项目移到「已归档」。"
       facts={['关联事件 6 条', '已确认方案 1 个（v2，10-20）']}

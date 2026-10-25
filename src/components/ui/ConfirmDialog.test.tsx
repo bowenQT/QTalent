@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
+import { useRef, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConfirmDialog, type ConfirmAction } from './ConfirmDialog';
+import { Button } from './Button';
+import { Menu } from './Menu';
+import { Peek } from './Peek';
 import { Textarea } from './Textarea';
 afterEach(cleanup);
-const cancel = (onSelect = vi.fn()): ConfirmAction => ({
+const cancel = (onSelect: () => void = vi.fn()): ConfirmAction => ({
   id: 'cancel',
   label: '取消',
   variant: 'ghost',
@@ -246,5 +250,103 @@ describe('ConfirmDialog', () => {
     rerender(<ConfirmDialog open={false} {...props} />);
     rerender(<ConfirmDialog open {...props} />);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('ConfirmDialog focus', () => {
+  function FromButton() {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <Button onClick={() => setOpen(true)}>删除项目</Button>
+        <ConfirmDialog
+          open={open}
+          onOpenChange={setOpen}
+          title="改为归档？"
+          actions={[cancel(() => setOpen(false))]}
+        />
+      </>
+    );
+  }
+  it('returns focus to the button that opened it after Escape, cancel and an overlay click', async () => {
+    const user = userEvent.setup();
+    render(<FromButton />);
+    const opener = screen.getByRole('button', { name: '删除项目' });
+    await user.click(opener);
+    expect(document.activeElement).not.toBe(opener);
+    await user.keyboard('{Escape}');
+    expect(document.activeElement).toBe(opener);
+    await user.click(opener);
+    await user.click(screen.getByRole('button', { name: '取消' }));
+    expect(document.activeElement).toBe(opener);
+    await user.click(opener);
+    await user.click(document.querySelector('.n-dialog-overlay')!);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+  it('returns focus to the control inside a drawer that asked the question', async () => {
+    const user = userEvent.setup();
+    function FromPeek() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <Peek open label="速览">
+            <button onClick={() => setOpen(true)}>请 HRBP 复核</button>
+          </Peek>
+          <ConfirmDialog
+            open={open}
+            onOpenChange={setOpen}
+            title="请 HRBP 复核？"
+            actions={[cancel(() => setOpen(false))]}
+          />
+        </>
+      );
+    }
+    render(<FromPeek />);
+    const ask = screen.getByRole('button', { name: '请 HRBP 复核' });
+    await user.click(ask);
+    await user.keyboard('{Escape}');
+    expect(document.activeElement).toBe(ask);
+  });
+  it('falls back to the menu trigger when the menu item that opened it is gone', async () => {
+    const user = userEvent.setup();
+    function FromMenu({ withRef }: { withRef: boolean }) {
+      const [open, setOpen] = useState(false);
+      const trigger = useRef<HTMLButtonElement>(null);
+      return (
+        <>
+          <Menu
+            trigger={
+              <button ref={trigger} type="button" aria-label="更多操作" />
+            }
+            entries={[
+              { id: 'drop', label: '删除项目', onSelect: () => setOpen(true) },
+            ]}
+          />
+          <ConfirmDialog
+            open={open}
+            onOpenChange={setOpen}
+            title="改为归档？"
+            actions={[cancel(() => setOpen(false))]}
+            returnFocusRef={withRef ? trigger : undefined}
+          />
+        </>
+      );
+    }
+    const view = render(<FromMenu withRef />);
+    await user.click(screen.getByRole('button', { name: '更多操作' }));
+    await user.click(screen.getByRole('menuitem', { name: '删除项目' }));
+    await user.keyboard('{Escape}');
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: '更多操作' }),
+      ),
+    );
+    view.unmount();
+    render(<FromMenu withRef={false} />);
+    await user.click(screen.getByRole('button', { name: '更多操作' }));
+    await user.click(screen.getByRole('menuitem', { name: '删除项目' }));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

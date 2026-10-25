@@ -1,6 +1,12 @@
 'use client';
-import { useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Button } from './Button';
 import { Dialog } from './Dialog';
 import { Icon, type IconName } from './Icon';
@@ -34,6 +40,11 @@ export type ConfirmDialogProps = {
   children?: ReactNode;
   actions: readonly ConfirmAction[];
   busy?: boolean;
+  /**
+   * 关闭后把焦点还给打开前聚焦的元素；那个元素已经不在页面上时（例如从菜单项打开）
+   * 还给这里指定的元素，通常是菜单的触发按钮。
+   */
+  returnFocusRef?: RefObject<HTMLElement | null>;
 };
 const textFields =
   'textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])';
@@ -87,11 +98,14 @@ function ConfirmBody({
   children,
   actions,
   busy,
+  onClosed,
 }: Pick<
   ConfirmDialogProps,
   'description' | 'facts' | 'children' | 'actions'
-> & { busy: boolean }) {
+> & { busy: boolean; onClosed: () => void }) {
   const root = useRef<HTMLDivElement>(null);
+  const closed = useEffectEvent(onClosed);
+  useEffect(() => () => closed(), []);
   const [hint, setHint] = useState('');
   function run(action: ConfirmAction) {
     if (busy || !root.current) return;
@@ -166,7 +180,26 @@ export function ConfirmDialog({
   children,
   actions,
   busy = false,
+  returnFocusRef,
 }: ConfirmDialogProps) {
+  const opener = useRef<HTMLElement | null>(null);
+  const isOpen = useRef(open);
+  // 打开瞬间记下焦点所在：布局副作用早于 Radix 把焦点移进弹窗的副作用
+  useLayoutEffect(() => {
+    isOpen.current = open;
+    if (open) opener.current = document.activeElement as HTMLElement | null;
+  }, [open]);
+  // Radix 在没有 Trigger 时不会归还焦点；弹窗内容真正卸掉以后由这里补上。
+  // 用户点了别处的可聚焦元素就不抢
+  function restoreFocus() {
+    if (isOpen.current) return;
+    const target = opener.current?.isConnected
+      ? opener.current
+      : returnFocusRef?.current;
+    opener.current = null;
+    const active = document.activeElement;
+    if (!active || active === document.body) target?.focus();
+  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={title} busy={busy}>
       <ConfirmBody
@@ -174,6 +207,7 @@ export function ConfirmDialog({
         facts={facts}
         actions={actions}
         busy={busy}
+        onClosed={restoreFocus}
       >
         {children}
       </ConfirmBody>
