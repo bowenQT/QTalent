@@ -305,14 +305,19 @@ it('keeps authorized observation nature in timelines and rejects it for mentors'
   const profile = await personFromData(data, 'one');
   expect(profile?.timeline.status).toBe('ready');
   if (profile?.timeline.status !== 'ready') throw new Error('Missing timeline');
-  const observation = profile.timeline.data.find((row) => row.id === data.statements[0].id);
+  const observation = profile.timeline.data.find(
+    (row) => row.id === data.statements[0].id,
+  );
   expect(observation?.statement.nature).toBe('management_observation');
   expect(observation?.statement.sources).toHaveLength(1);
   const mentor = fixture('mentor');
   mentor.statements[0].kind = 'management_observation';
   const restricted = await personFromData(mentor, 'one');
   expect(restricted?.timeline).toHaveProperty('data.length', 1);
-  expect(personSchema.safeParse({ ...restricted, timeline: profile.timeline }).success).toBe(false);
+  expect(
+    personSchema.safeParse({ ...restricted, timeline: profile.timeline })
+      .success,
+  ).toBe(false);
 });
 it('retains ended non-owner participation only under current project authorization', async () => {
   const data = fixture('hr');
