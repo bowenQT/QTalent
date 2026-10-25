@@ -660,8 +660,15 @@
     store.save();
   };
   store.addProject = (p) => { S.projects.unshift(p); store.save(); return p; };
-  store.removeProject = (id) => { S.projects = S.projects.filter((p) => p.id !== id); S.members = S.members.filter((m) => m.project !== id); store.save(); };
-  store.projectLinked = (id) => S.events.some((e) => e.project === id) || S.plans.some((p) => p.project === id);
+  store.removeProject = (id) => {
+    // 有任何成员、成员历史、事件或方案的项目只能归档，不能删除其关联证据。
+    if (!store.project(id) || store.projectLinked(id)) return false;
+    S.projects = S.projects.filter((p) => p.id !== id);
+    store.save();
+    return true;
+  };
+  store.projectLinked = (id) => S.events.some((e) => e.project === id) || S.plans.some((p) => p.project === id)
+    || S.members.some((m) => m.project === id) || (S.memberLog || []).some((l) => l.project === id);
 
   // ---------- 标签 ----------
   store.tagCounts = () => {
