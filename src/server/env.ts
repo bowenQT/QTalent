@@ -22,6 +22,10 @@ const environmentSchema = z
       .transform((value) => value === 'true'),
     ACCESS_ISSUER: z.string().url().optional(),
     ACCESS_AUDIENCE: z.string().min(1).optional(),
+    QINIU_MAAS_API_KEY: z
+      .string()
+      .regex(/^[^\s]+$/)
+      .optional(),
   })
   .superRefine((value, context) => {
     if (
