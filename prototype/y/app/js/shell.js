@@ -32,6 +32,22 @@
     fmt: (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`,
     // 录音只属于录的人：切换演示视角后不带出别人的录音
     mine() { const r = NT.rec.get(); return r && ['hrbp', 'mentor'].includes(st.role()) && r.by === st.me().id ? r : null; },
+    LIMIT: { meet: 7200, obs: 600 }, // 时长上限（秒）：多人会议 2 小时，观察速记 10 分钟
+    overLimit(r) { return !r.paused && NT.rec.elapsed(r) >= NT.rec.LIMIT[r.mode]; },
+    // 结束后的整理任务进工作台「进行中的任务」：转写中 → 整理中 → 部分待核对（演示里结果是预先处理好的 W8 纪要）
+    addTask({ title, dur }) {
+      const S = st.get(), now = Date.now();
+      S.tasks = S.tasks.filter((t) => t.id !== 'tk-drec');
+      const task = { id: 'tk-drec', name: `${title}.m4a`, state: 'transcribing', minutes: 'w8', by: st.me().id, note: `录音 ${NT.rec.fmt(dur)} · 可以离开，结果会回到这里`, link: 'record.html?m=w8', shapeAt: now + 3000, readyAt: now + 6000 };
+      S.tasks.unshift(task); st.save();
+      return task;
+    },
+  };
+  // 收起后到达时长上限：直接结束，不弹确认，整理任务照常生成（录音页里由页面自己结束）
+  const recAutoEnd = (r) => {
+    NT.rec.addTask({ title: r.title, dur: NT.rec.LIMIT[r.mode] });
+    NT.rec.set(null);
+    return `录音已到 ${NT.rec.fmt(NT.rec.LIMIT[r.mode])}，自动结束，整理结果会出现在工作台「进行中的任务」`;
   };
   addEventListener('pagehide', () => { const r = NT.rec.get(); if (r && !r.paused) { r.hiddenAt = Date.now(); NT.rec.set(r); } });
   (() => {
@@ -55,6 +71,8 @@
 
   // 页面入口：NT.shell({ nav, title, crumbs, render(main), view(), state(), restore(state) })
   NT.shell = (cfg) => NT.ready(() => {
+    const live = NT.rec.mine();
+    const ended = live && document.body.dataset.page !== 'recording' && NT.rec.overLimit(live) ? recAutoEnd(live) : '';
     recTask();
     st.tickTasks();
     const role = st.role();
@@ -139,8 +157,16 @@
       { label: '重置演示数据', icon: 'retry', danger: true, run: () => NT.resetDemo() },
     ]);
     if (role !== 'admin') wireCmdk(); // 系统管理员不能搜人
+    if (ended) NT.toast(ended, { duration: 6000 });
     const rec = NT.$('#nt-rectime');
-    if (rec && !NT.rec.mine().paused) setInterval(() => { rec.textContent = NT.rec.fmt(NT.rec.elapsed(NT.rec.get())); }, 1000);
+    if (rec && !NT.rec.mine().paused) {
+      const timer = setInterval(() => {
+        const r = NT.rec.get();
+        if (!r) { clearInterval(timer); NT.$('.nt-recbar')?.remove(); return; }
+        if (NT.rec.overLimit(r)) { clearInterval(timer); NT.$('.nt-recbar')?.remove(); NT.toast(recAutoEnd(r), { duration: 6000 }); return; }
+        rec.textContent = NT.rec.fmt(NT.rec.elapsed(r));
+      }, 1000);
+    }
     NT.ui.mountIPs(root);
     // 窄屏时侧栏变成横向滚动条：当前页的入口滚到可见处，两侧有渐隐提示还能滚动
     if (matchMedia('(max-width: 860px)').matches) document.querySelector('.nt-side [aria-current="page"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });

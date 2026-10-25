@@ -9,8 +9,8 @@
   const W8 = NT.SEED.MINUTES.w8;
   const toS = (t) => t.split(':').reduce((a, x) => a * 60 + +x, 0);
   const MODES = [
-    { id: 'meet', icon: 'users', name: '多人会议', limit: 7200, cap: '区分说话人，整理成人才纪要' },
-    { id: 'obs', icon: 'mic', name: '观察速记', limit: 600, cap: '一个人说，AI 拆成一条或几条关键事件' },
+    { id: 'meet', icon: 'users', name: '多人会议', limit: R.LIMIT.meet, cap: '区分说话人，整理成人才纪要' },
+    { id: 'obs', icon: 'mic', name: '观察速记', limit: R.LIMIT.obs, cap: '一个人说，AI 拆成一条或几条关键事件' },
   ];
   const modeOf = (id) => MODES.find((m) => m.id === id);
   // [说话人, 句子]；观察速记只有一个人说，不标说话人
@@ -23,13 +23,15 @@
   const LANGS = ['普通话', '普通话 + 英文'];
   const STEPS = ['上传完整录音', '转写 · 区分说话人', '提取人员与项目', '整理关键事件', '标出需要人确认的地方'];
   const SEGS = 5; // 断网期间攒下、结束时还要补传的分段数（演示）
+  const DROP_AT = 8000, DROP_FOR = 12000, RETRY_EVERY = 4000; // ?net=drop：开始后第 8 秒断开，断开 12 秒后恢复
   const STATE = { live: '录制中', paused: '已暂停', reconnecting: '重连中', uploading: '补传中' };
   const LABEL = { prep: '准备', resume: '上次的录音已暂停', live: '录制中', ending: '补传中', processing: '处理中', done: '完成' };
 
   let step = 'prep', mode = 'meet', lang = LANGS[0], rel = RELS[0];
   let main = null, rec = null, timers = [], ticker = 0;
   const later = (fn, ms) => { timers.push(setTimeout(fn, ms)); };
-  const stopTimers = () => { timers.forEach(clearTimeout); timers = []; clearInterval(ticker); };
+  const stopTimers = () => { timers.forEach(clearTimeout); timers = []; clearInterval(ticker); clearTimeout(lineTimer); };
+  let lineTimer = 0; // 逐句出现只有一条定时链：暂停、断网时取消，继续、恢复时重新排
 
   NT.shell({
     nav: 'work', title: '录音', crumbs: [['工作台', 'index.html']],
@@ -202,13 +204,25 @@
     if (!live.children.length) live.innerHTML = '<p class="n-live__empty">开始说话后，文字会出现在这里</p>';
     toEnd();
 
+    // 逐句出现：未定稿的半句停在浅墨，定稿后落成正文。暂停或断网时停在半句，继续后先把这句定稿
+    let pending = null;
+    const run = (fn, ms) => { clearTimeout(lineTimer); lineTimer = setTimeout(fn, ms); };
+    const halt = () => clearTimeout(lineTimer);
+    const land = () => {
+      const { p, i } = pending; pending = null;
+      p.classList.remove('is-pending'); p.textContent = lines[i][1];
+      r.line = i + 1; save(); toEnd();
+      run(next, 1600);
+    };
     const next = () => {
-      if (step !== 'live' || r.paused || r.net || r.line >= lines.length) return;
-      const i = r.line, p = put(i), text = lines[i][1];
-      const land = () => { p.classList.remove('is-pending'); p.textContent = text; r.line = i + 1; save(); toEnd(); later(next, 1600); };
+      if (step !== 'live' || r.paused || r.net) return;
+      if (pending) { run(land, NT.reduced ? 0 : 600); return; }
+      if (r.line >= lines.length) return;
+      const i = r.line, text = lines[i][1];
+      pending = { p: put(i), i };
       if (NT.reduced) { land(); return; }
-      p.classList.add('is-pending'); p.textContent = text.slice(0, Math.ceil(text.length * 0.6)); toEnd();
-      later(land, 1200);
+      pending.p.classList.add('is-pending'); pending.p.textContent = text.slice(0, Math.ceil(text.length * 0.6)); toEnd();
+      run(land, 1200);
     };
 
     // 控制条：状态、计时、剩余时长；到时长上限直接结束，不弹确认
@@ -271,31 +285,38 @@
     };
 
     $('#rec-pause').onclick = () => {
-      if (r.paused) { resume(r); later(next, 400); } else { r.paused = true; r.pausedAt = Date.now(); }
+      if (r.paused) { resume(r); run(next, 400); } else { r.paused = true; r.pausedAt = Date.now(); halt(); }
       save(); paint();
     };
     $('#rec-min').onclick = () => { save(); location.href = 'index.html'; };
     $('#rec-end').onclick = async () => { if (await confirmEnd(r) === 'end') finish(); };
 
     // 网络中断：本机继续录，计时照走；实时文字停在断开处，插一行缺口，恢复后补传
+    // 断网状态存进录音：收起再展开、刷新后继续时，按记下的恢复时刻重建提示和恢复流程
+    const tries = () => Math.floor((Date.now() - r.net.at) / RETRY_EVERY) + 1;
+    const recover = () => {
+      if (step !== 'live' || !r.net) return;
+      const gap = r.inserts.find((x) => x.kind === 'gap' && x.from === r.net.from);
+      gap.to = R.elapsed(r); delete r.net; save();
+      $(`[data-gap="${gap.from}"]`, live).innerHTML = `${icon('clock')}${gapText(gap)}`;
+      mount($('#net'), ''); paint();
+      NT.toast('已恢复连接，断开期间的录音已补传');
+      run(next, 600);
+    };
+    const watchNet = () => {
+      mount($('#net'), html`<div class="n-notice nt-rec__net" role="status">${icon('retry')}<div>网络已断开，录音继续保存在这台电脑上，恢复后自动补传。</div><span class="nt-rec__tries" id="net-n">重连中 · 第 ${tries()} 次</span></div>`);
+      const retry = setInterval(() => { if (!r.net || step !== 'live') { clearInterval(retry); return; } $('#net-n').textContent = `重连中 · 第 ${tries()} 次`; }, RETRY_EVERY);
+      later(recover, Math.max(0, r.net.at + DROP_FOR - Date.now()));
+    };
     const drop = () => {
       if (step !== 'live' || r.net) return;
-      r.net = { from: R.elapsed(r), tries: 1 };
+      halt();
+      r.net = { from: R.elapsed(r), at: Date.now() };
       addInsert({ i: said(), kind: 'gap', from: r.net.from });
-      mount($('#net'), html`<div class="n-notice nt-rec__net" role="status">${icon('retry')}<div>网络已断开，录音继续保存在这台电脑上，恢复后自动补传。</div><span class="nt-rec__tries" id="net-n">重连中 · 第 1 次</span></div>`);
-      paint();
-      const retry = setInterval(() => { if (!r.net || step !== 'live') { clearInterval(retry); return; } r.net.tries += 1; $('#net-n').textContent = `重连中 · 第 ${r.net.tries} 次`; }, 4000);
-      later(() => {
-        if (!r.net) return;
-        const gap = r.inserts.find((x) => x.kind === 'gap' && x.from === r.net.from);
-        gap.to = R.elapsed(r); delete r.net; save();
-        $(`[data-gap="${gap.from}"]`, live).innerHTML = `${icon('clock')}${gapText(gap)}`;
-        mount($('#net'), ''); paint();
-        NT.toast('已恢复连接，断开期间的录音已补传');
-        later(next, 600);
-      }, 12000);
+      watchNet(); paint();
     };
-    if (opt.fresh && NT.param('net') === 'drop') later(drop, 8000);
+    if (r.net) watchNet();
+    if (opt.fresh && NT.param('net') === 'drop') later(drop, DROP_AT);
 
     // 结束：断网期间的分段先补传完，再进入处理中
     async function finish() {
@@ -311,20 +332,17 @@
         }
       }
       R.set(null); rec = null;
-      renderProcessing({ title: r.title, dur, marks: r.marks.length });
+      renderProcessing({ title: r.title, dur });
     }
 
-    if (r.line < lines.length) later(next, 600);
+    run(next, 600);
     if (opt.fresh || opt.focus) $('#rec-pause').focus();
   }
 
   // ---------- 处理中与完成：可以直接离开，结果回到工作台「进行中的任务」 ----------
   async function renderProcessing(info) {
     step = 'processing';
-    const S = st.get();
-    S.tasks = S.tasks.filter((t) => t.id !== 'tk-drec');
-    const task = { id: 'tk-drec', name: `${info.title}.m4a`, state: 'transcribing', minutes: 'w8', by: st.me().id, note: `录音 ${R.fmt(info.dur)} · 可以离开，结果会回到这里`, link: 'record.html?m=w8', shapeAt: Date.now() + 3000, readyAt: Date.now() + 6000 };
-    S.tasks.unshift(task); st.save();
+    const task = R.addTask(info);
     const N = 64;
     mount(main, html`
       <section class="nt-recproc" aria-labelledby="proc-t">
