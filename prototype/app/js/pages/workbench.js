@@ -190,8 +190,10 @@
     $$('#chg-filter button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === type));
     const list = all.filter((c) => type === 'all' || c.t === type);
     const scope = st.role() === 'ceo' ? '全公司' : st.role() === 'lead' ? '业务成功部' : '增长产品部、产品市场部';
-    const ppl = new Set(list.filter((c) => c.person).map((c) => c.person)).size, hit = list.filter((c) => c.hit).length;
-    $('#chg-meta').textContent = `${scope} · ${ppl} 人${hit ? `，${hit === list.length ? '都' : `${hit} 条`}符合提醒条件` : ''}`;
+        // 人和团队分开计数：团队分布的条目没有人员
+    const ppl = new Set(list.filter((c) => c.person).map((c) => c.person)).size, teams = new Set(list.filter((c) => !c.person && c.team).map((c) => c.team)).size;
+    const hit = list.filter((c) => c.hit).length, who = [ppl && `${ppl} 人`, teams && `${teams} 个团队`].filter(Boolean).join('、');
+    $('#chg-meta').textContent = who ? `${scope} · ${who}${hit ? `，${hit === list.length ? '都' : `${hit} 条`}符合提醒条件` : ''}` : scope;
     const cut = expanded ? list.length : 6;
     mount(host, list.length ? html`${list.slice(0, cut).map((c) => UI.change(c, base))}${list.length > cut ? html`<button class="n-btn n-btn--ghost n-btn--sm" type="button" id="chg-more" style="margin-top:var(--s-2)">再看 ${list.length - cut} 条</button>` : ''}` : html`<div class="nt-empty">这一类的变化会出现在这里。</div>`);
     $('#chg-more')?.addEventListener('click', () => { expanded = true; renderChanges(); });
