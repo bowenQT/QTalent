@@ -11,6 +11,7 @@ import { createRecordArrangeApplication } from './record-arrange-application';
 import { createRecordArrangeRequests } from './record-arrange-requests';
 import { createFakeMaas } from '../integrations/maas';
 import { recordSelectionRequiredSchema } from '../../contracts/record';
+import { canReadProject } from '../authz';
 import {
   arrangeInputs,
   arrangeOperations,
@@ -105,6 +106,29 @@ function input(selected: string | null = personId) {
     projectId: null,
   };
 }
+it('initial page context lists only current writable targets and rechecks requested context', async () => {
+  const app = application();
+  const page = await app.requests.page('demo-hrbp', {
+    personId,
+    projectId: null,
+  });
+  expect(page).toMatchObject({
+    status: 'success',
+    context: { accountId: 'demo-hrbp', selectedPersonId: personId },
+  });
+  if (page.status !== 'success')
+    throw new Error('expected current page context');
+  expect(page.context.people).toContainEqual(
+    expect.objectContaining({ id: personId }),
+  );
+  expect(page.context).not.toHaveProperty('grants');
+  expect(
+    await app.requests.page('demo-hrbp', {
+      personId: 'missing',
+      projectId: null,
+    }),
+  ).toEqual({ status: 'not_found' });
+});
 it('first submission is persisted and enqueued once; same operation replay remains authorized', async () => {
   const app = application(),
     raw = input();
@@ -199,7 +223,9 @@ it('explicit person selection can also resolve a mentioned project without inven
   const actor = await connection.db.transaction((tx) =>
     loadArrangeActor(tx, 'demo-hrbp', today()),
   );
-  const project = actor.staffing.projects.find((p) => p.name.trim());
+  const project = actor.staffing.projects.find(
+    (p) => p.name.trim() && canReadProject(actor.context, p),
+  );
   if (!project) throw new Error('synthetic project fixture missing');
   const created = await app.requests.create('demo-hrbp', {
     ...input(null),

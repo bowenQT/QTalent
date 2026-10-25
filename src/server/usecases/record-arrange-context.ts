@@ -57,6 +57,34 @@ export function canWriteArrange(
   const project = actor.context.projects.find((p) => p.id === projectId);
   return project !== undefined && canReadProject(actor.context, project);
 }
+export interface RecordPageInput {
+  personId: string | null;
+  projectId: string | null;
+}
+export function buildRecordPageContext(
+  actor: ArrangeActor,
+  input: RecordPageInput,
+) {
+  if (
+    !canWriteArrange(
+      actor,
+      input.personId ? [input.personId] : [],
+      input.projectId,
+    )
+  )
+    return null;
+  return {
+    accountId: actor.context.account.id,
+    people: actor.directory.people
+      .filter((person) => writableSubject(actor, person.id))
+      .map((person) => ({ id: person.id, label: person.name })),
+    projects: actor.staffing.projects
+      .filter((project) => canReadProject(actor.context, project))
+      .map((project) => ({ id: project.id, label: project.name })),
+    selectedPersonId: input.personId,
+    selectedProjectId: input.projectId,
+  };
+}
 export function textSubjects(
   actor: ArrangeActor,
   text: string,

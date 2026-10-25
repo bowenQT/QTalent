@@ -4,6 +4,7 @@ const runtime = vi.hoisted(() => ({
   create: vi.fn(),
   select: vi.fn(),
   read: vi.fn(),
+  page: vi.fn(),
 }));
 vi.mock('../auth/next', () => ({ requireSession: runtime.session }));
 vi.mock('../usecases/record-arrange-runtime', () => ({
@@ -11,13 +12,17 @@ vi.mock('../usecases/record-arrange-runtime', () => ({
     create: runtime.create,
     select: runtime.select,
     read: runtime.read,
+    page: runtime.page,
   }),
 }));
 import {
   startRecordArrangeAction,
   selectRecordArrangePeopleAction,
 } from './record-arrange';
-import { readRecordArrangeJobForCurrentUser } from '../queries/record-arrange';
+import {
+  getRecordPage,
+  readRecordArrangeJobForCurrentUser,
+} from '../queries/record-arrange';
 beforeEach(() => {
   vi.clearAllMocks();
   runtime.session.mockResolvedValue({ user: { id: 'trusted-session' } });
@@ -48,4 +53,19 @@ it('validates a job query before reading and uses the current session', async ()
     status: 'not_found',
   });
   expect(runtime.read).toHaveBeenCalledWith('trusted-session', 'job');
+});
+it('reads initial context using the current session and never accepts URL original text', async () => {
+  runtime.page.mockResolvedValue({
+    status: 'success',
+    context: { people: [] },
+  });
+  await getRecordPage({ personId: 'person' });
+  expect(runtime.page).toHaveBeenCalledWith('trusted-session', {
+    personId: 'person',
+    projectId: null,
+  });
+  expect(await getRecordPage({ q: 'sensitive raw input' })).toEqual({
+    status: 'validation_error',
+  });
+  expect(runtime.page).toHaveBeenCalledOnce();
 });

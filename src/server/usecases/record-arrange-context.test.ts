@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canWriteArrange,
+  buildRecordPageContext,
   textSubjects,
   type ArrangeActor,
 } from './record-arrange-context';
@@ -72,5 +73,31 @@ describe('actual arrange write policy assembly', () => {
         (s) => s.personId,
       ),
     ).toEqual(['demo-lin', 'demo-xu']);
+  });
+  it('provides only current writable people and the requested authorized initial context', () => {
+    const a = actor();
+    a.context.people[1]!.noReview = true;
+    expect(
+      buildRecordPageContext(a, { personId: 'demo-lin', projectId: null }),
+    ).toEqual({
+      accountId: 'demo-account',
+      people: [
+        { id: 'demo-lin', label: '林舟' },
+        { id: 'demo-zhou', label: '周岚' },
+      ],
+      projects: [],
+      selectedPersonId: 'demo-lin',
+      selectedProjectId: null,
+    });
+    expect(
+      buildRecordPageContext(a, { personId: 'demo-xu', projectId: null }),
+    ).toBeNull();
+    expect(
+      buildRecordPageContext(a, { personId: null, projectId: 'hidden' }),
+    ).toBeNull();
+    a.context.grants = [];
+    expect(
+      buildRecordPageContext(a, { personId: null, projectId: null }),
+    ).toBeNull();
   });
 });

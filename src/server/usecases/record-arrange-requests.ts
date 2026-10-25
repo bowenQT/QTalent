@@ -34,6 +34,8 @@ import {
   writableSubject,
   textSubjects,
   loadRecordArrangeSnapshot,
+  buildRecordPageContext,
+  type RecordPageInput,
 } from './record-arrange-context';
 import {
   prepareArrange,
@@ -365,6 +367,29 @@ export function createRecordArrangeRequests(
   return {
     policy,
     load,
+    async page(accountId: string, input: RecordPageInput) {
+      return deps.db.transaction(async (tx) => {
+        const actor = await loadArrangeActor(
+          tx,
+          accountId,
+          deps.businessDate(),
+        );
+        const context = buildRecordPageContext(actor, input);
+        if (!context)
+          return {
+            status:
+              input.personId || input.projectId
+                ? ('not_found' as const)
+                : ('forbidden' as const),
+          };
+        await recordAudit(tx, {
+          actorId: accountId,
+          action: 'record.arrange.context',
+          resourceId: 'record',
+        });
+        return { status: 'success' as const, context };
+      });
+    },
     async canRun(tx: Transaction, job: JobRecord) {
       const input = await readArrangeInput(tx, job.resourceId);
       return (

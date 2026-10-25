@@ -27,6 +27,8 @@
 
 Web 入口为 `actions/record-arrange.ts` 的 `startRecordArrangeAction` / `selectRecordArrangePeopleAction`，只取服务器 session；查询为 `readRecordArrangeJobForCurrentUser`。请求工厂复用852唯一的 lazy producer，不新建 singleton。
 
+G2 初始上下文由 `queries/record-arrange.ts:getRecordPage({personId?,projectId?})` 返回：`{status:'success',context:{accountId,people:[{id,label}],projects:[{id,label}],selectedPersonId,selectedProjectId}}`。只接受这两个可空ID；无权/不存在的预选统一 not_found，不清空后继续，整页无可写人员时 forbidden。没有原话、授权信息、档案或评分，URL q/text/未知字段一律拒绝；accountId仅供工作台暂存隔离，写入仍重读session与当前权限。G2不依赖规则加载，G6由846提供规则入口。
+
 866/873 可调用可信服务端入口，不能将下列 provenance 暴露为客户端写参：
 
 ```ts
@@ -74,7 +76,7 @@ runner 在842行锁下 queued→running，模型在事务外；最终同事务�
 
 ## 依赖、验证与剩余验收
 
-129选择合同已合 main ec691ab，本分支已append整合，旧606 overlay已移除。实际846 API目前固定组合候选5a77e4c70f0eeab537863fe61a5d6a8ff4276de1；852 lazy producer固定候选e78e5b6788418025b40ddf78bbf5d5adc7eb7f85。候选原blob仅用于本地组合，不属于本PR的新增代码，不冒称已在main。
+129选择合同已合 main ec691ab、131来源/规则读取已合8e6d520，本分支已append整合，旧606合同与旧read.ts overlay均已移除。实际846 API目前固定组合候选5a77e4c70f0eeab537863fe61a5d6a8ff4276de1；852 lazy producer固定候选e78e5b6788418025b40ddf78bbf5d5adc7eb7f85。候选原blob仅用于本地组合，不属于本PR的新增代码，不冒称已在main。
 
 核心整理、任务栅栏、选人公共投影、来源未决授权和输入绑定均有Red→Green证据。新增真实PG用例覆盖首次并发幂等、选择并发/版本冲突、同键回放、原任务取消、真实pg-boss整体回滚、录音归属保持和846实际writer。缺生成迁移时这些用例硬失败，不跳过或用DDL/fake补表；结果须在迁移协调后实跑。
 
