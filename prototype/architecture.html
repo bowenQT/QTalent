@@ -250,7 +250,7 @@
   <section class="a-hero">
     <h1>产品架构与分期规划</h1>
     <p>以版本 Y 为主线，把产品终局、赛后试点和这次比赛画在同一张图上。三个阶段共用一条证据链和同一组产品不变量，每个阶段做到哪一步按模块标在下面。</p>
-    <p class="a-meta">依据：架构提案 v2（2026-10-25，<code>docs/proposals/2026-10-25-y-architecture-phases.md</code>）与需求定稿 · 版本 Y；两者有出入时以提案为准。</p>
+    <p class="a-meta">依据：架构提案 v3（2026-10-25，<code>docs/proposals/2026-10-25-y-architecture-phases.md</code>）与需求定稿 · 版本 Y；两者有出入时以提案为准。</p>
   </section>
 
   <section class="a-sec" id="phases" aria-labelledby="h-phases">
@@ -258,9 +258,9 @@
     <p class="a-lead">比赛证明证据链能在真实服务上跑通；中期让一个真实人才项目用起来；长期补齐角色、同步和主助手。每个阶段写明进入下一阶段要满足什么。</p>
     <div class="a-phases">
       <article class="a-card a-phase">
-        <div><span class="a-kicker">短期 · 本次比赛</span><h3>原型演示完整体验，验证工程跑通真实链路</h3></div>
+        <div><span class="a-kicker">短期 · 本次比赛</span><h3>原型演示完整体验，工程跑通真实链路</h3></div>
         <dl>
-          <div><dt>定位</dt><dd><b>可丢弃的技术验证</b>，独立目录、单独分支；演示时说清哪部分是真实链路、哪部分是原型。</dd></div>
+          <div><dt>定位</dt><dd><b>正式工程的起点</b>：放仓库根目录，按正式标准交付，界面 1:1 还原原型 Y；演示时说清哪些页面已接真实链路。</dd></div>
           <div><dt>范围</dt><dd>六条链路全部必做：骨架与权限 → 记一件事 → 找人（含 Jev）→ 离线转写 → 实时推流 → 文本附件。北森同步和系统管理只在原型里给演示视角。</dd></div>
           <div><dt>形态</dt><dd>Next.js + PostgreSQL（Supabase）+ 常驻后台，部署在 DigitalOcean 新加坡 VPS，Cloudflare 代理域名并只放 <code>@qiniu.com</code>。</dd></div>
           <div><dt>守住</dt><dd><a href="#hackathon">八条合同</a>：来源链、建议与确认分开、服务端先过滤、结论与处理进度分开、录音以归档为准、无总分、确认只生效一次、版本标记。</dd></div>
@@ -302,7 +302,7 @@
 
   <section class="a-sec" id="modules" aria-labelledby="h-mod">
     <h2 id="h-mod">功能模块规划</h2>
-    <p class="a-lead">按侧栏的「人 / 项目 / 规则」分组，加上入口和平台两组。比赛一栏分开写原型和验证工程；上面选中的阶段在这里高亮。</p>
+    <p class="a-lead">按侧栏的「人 / 项目 / 规则」分组，加上入口和平台两组。比赛一栏分开写原型和工程；上面选中的阶段在这里高亮。</p>
     <div class="a-tools">
       <div class="a-filter" id="filter" role="group" aria-label="按分组筛选"></div>
       <div class="a-legend" id="legend2"></div>
@@ -312,7 +312,7 @@
 
   <section class="a-sec" id="chain" aria-labelledby="h-chain">
     <h2 id="h-chain">一条证据链，三条主线</h2>
-    <p class="a-lead">项目找人读已确认的证据，重点跟踪读已确认的事件，盘点读已确认的分和冻结快照。实线框是比赛验证工程要真实跑通的环节，虚线框留在原型演示。</p>
+    <p class="a-lead">项目找人读已确认的证据，重点跟踪读已确认的事件，盘点读已确认的分和冻结快照。实线框是比赛工程要真实跑通的环节，虚线框留在原型演示。</p>
     <div class="a-chain" id="chain-board"></div>
   </section>
 
@@ -404,7 +404,7 @@
     <div class="a-card">
       <ol class="a-plan">
         <li class="h" aria-hidden="true"><span></span><span>做什么</span><span>演示要证明的事</span><span>依赖</span></li>
-        <li><span class="p">P0</span><div><b>骨架与权限</b><span>三个预置账号登录、范围过滤、PostgreSQL、第六期演示数据导入，工作台与档案读真实库</span></div><span>权限在服务端生效</span><small>—</small></li>
+        <li><span class="p">P0</span><div><b>骨架与权限</b><span>四个预置账号登录、范围过滤、PostgreSQL、第六期演示数据导入，工作台与档案读真实库</span></div><span>权限在服务端生效</span><small>—</small></li>
         <li><span class="p">P1</span><div><b>记一件事</b><span>一句话 → MaaS 整理 SBI 和建议分 → 服务端校验引用与锚点 → 导师确认或改分 → 分差大的进 HR 复核 → 档案更新</span></div><span>AI 只给建议，人确认才生效，引用可回查</span><small>P0</small></li>
         <li><span class="p">P2</span><div><b>找人（含 Jev）</b><span>需求卡逐条匹配已确认证据 → Jev 判四态 → 每条回到来源；Jev 出错只改处理进度，显示「待人工判断」</span></div><span>找人只用四种状态、不出总分，判断能追溯</span><small>P0；可用 P1 的事件</small></li>
         <li><span class="p">P3</span><div><b>离线转写</b><span>上传录音 → Kodo → 听悟离线 → 说话人与人员绑定 → 走 P1 的整理，引用到时间点</span></div><span>录音进入同一条证据链</span><small>P0、P1</small></li>
@@ -437,7 +437,7 @@
           <li>值得关注、我的关注、推荐方向</li>
           <li>系统管理员与北森同步（演示视角）</li>
         </ul>
-        <p class="a-note">验证工程的时间优先花在外部服务和证据链这些不确定的地方。手机端的锁屏、切页、长录音这次验证不了，演示时照实说明。</p>
+        <p class="a-note">比赛工程的时间优先花在外部服务和证据链这些不确定的地方。手机端的锁屏、切页、长录音这次验证不了，演示时照实说明。</p>
       </article>
     </div>
   </section>
@@ -447,11 +447,11 @@
     <p class="a-lead">比赛用一台新加坡 VPS，录音 WebSocket 没有时长限制，形态和长期一致；中期起放到国内可运行常驻进程的环境。评审站本身仍是 Cloudflare Worker，只发布原型。</p>
     <div class="a-deploy">
       <article class="a-card">
-        <span class="a-kicker">比赛 · 验证工程</span>
+        <span class="a-kicker">比赛 · 工程</span>
         <h3>DigitalOcean 新加坡 VPS</h3>
         <div class="a-stack">
           <div>桌面与手机浏览器<small>HTTPS 与 WSS</small></div><i aria-hidden="true">↓</i>
-          <div>Cloudflare Access<small>只放 @qiniu.com；应用再用三个预置账号登录</small></div><i aria-hidden="true">↓</i>
+          <div>Cloudflare Access<small>只放 @qiniu.com；应用再用四个预置账号登录</small></div><i aria-hidden="true">↓</i>
           <div>命名隧道 · cloudflared<small>VPS 主动连出，不开放网页端口；/stream 转给录音进程</small></div><i aria-hidden="true">↓</i>
           <div class="split"><div>Next.js<small>网页与接口</small></div><div>常驻后台<small>录音 WebSocket、任务执行</small></div></div><i aria-hidden="true">↓</i>
           <div class="ext">Supabase PostgreSQL（新加坡）· Kodo 私有空间 · 听悟 · MaaS · Jev</div>
@@ -511,7 +511,7 @@
   // r 真实可用 · p 原型演示 · o 演示视角 · x 该阶段不做
   const PH = [
     { k: 'proto', t: '比赛 · 原型' },
-    { k: 'spike', t: '比赛 · 验证工程' },
+    { k: 'spike', t: '比赛 · 工程' },
     { k: 'mid', t: '中期 · 试点' },
     { k: 'long', t: '长期' },
   ];
@@ -523,15 +523,15 @@
     x: '<path d="M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
   };
   const mark = (s) => `<svg class="mk mk--${s}" viewBox="0 0 12 12" aria-hidden="true">${MK[s]}</svg>`;
-  // s: 四个阶段的状态，依次为原型、验证工程、中期、长期；n: 各阶段说明
+  // s: 四个阶段的状态，依次为原型、比赛工程、中期、长期；n: 各阶段说明
   const S = (str) => Object.fromEntries(PH.map((p, i) => [p.k, str[i]]));
 
   const ENTRIES = [
-    { id: 'e-mgr', name: '管理者', alt: { long: 'CEO · 部门负责人' }, s: S('prrr'), n: { proto: '首页看人、找人、确认修订与方案', spike: '三个预置账号之一，范围全公司', long: '管理者细分为 CEO 与部门负责人；确认权先只给 CEO' } },
+    { id: 'e-mgr', name: '管理者', alt: { long: 'CEO · 部门负责人' }, s: S('prrr'), n: { proto: '首页看人、找人、确认修订与方案', spike: '预置账号，范围全公司', long: '管理者细分为 CEO 与部门负责人；确认权先只给 CEO' } },
     { id: 'e-hr', name: 'HR', s: S('prrr'), n: { spike: '预置账号，范围为负责的期次', mid: '按学员名单与有效期授权，可看留用后的资料；名单增补要管理者确认' } },
     { id: 'e-mentor', name: '导师 · 桌面', s: S('prrr'), n: { spike: '预置账号，范围为所带学员' } },
     { id: 'e-mobile', name: '导师 · 手机', s: S('pxrr'), n: { proto: '录音、核对、逐个评价', spike: '手机的锁屏、切页、长录音这次验证不了', mid: '试点设备真机验收后才开放录音' } },
-    { id: 'e-admin', name: '系统管理员', s: S('oxrr'), n: { proto: '账号与权限、北森同步、集成与设置、审计日志四个页签', spike: '三个预置账号写在配置里', mid: '默认看不到人才数据；账号不持有业务预设，授予业务角色要管理者确认' } },
+    { id: 'e-admin', name: '系统管理员', s: S('oxrr'), n: { proto: '账号与权限、北森同步、集成与设置、审计日志四个页签', spike: '预置账号，不持有业务预设，打开业务页面整页拦下', mid: '默认看不到人才数据；账号不持有业务预设，授予业务角色要管理者确认' } },
     { id: 'e-self', name: '员工本人', s: S('xxxr'), n: { long: '看自己的经历、已发布的反馈与行动、自述与发展意愿；看不到维度分、象限、被关注与被推荐' } },
   ];
 
@@ -559,7 +559,7 @@
     { g: '规则', name: '人才评价规则：修订、预览、发布', s: S('pxrr'), n: { mid: '原子发布' } },
     { g: '规则', name: '判断对照', s: S('pxrr') },
     { g: '规则', name: '标签库', s: S('pxrr') },
-    { g: '平台', name: '系统管理：账号、角色与范围', s: S('oxrr'), n: { spike: '三个预置账号写在配置里，无管理界面', mid: '授予业务角色需管理者确认', long: '公司 SSO' } },
+    { g: '平台', name: '系统管理：账号、角色与范围', s: S('oxrr'), n: { spike: '四个预置账号写在配置里，无管理界面', mid: '授予业务角色需管理者确认', long: '公司 SSO' } },
     { g: '平台', name: '北森同步', s: S('oxrr'), n: { mid: '组织、任职先上；绩效、晋升只读', long: '自动对账' } },
     { g: '平台', name: '集成配置、AI 运行与用量', s: S('oxrr'), n: { spike: '用环境变量配置，无管理界面' } },
     { g: '平台', name: '审计日志', s: S('oxrr'), n: { mid: '真实资料上线前' } },
@@ -568,7 +568,7 @@
   MODULES.forEach((m, i) => { m.id = `m-${i}`; });
 
   const DOMAINS = [
-    { id: 'd-dir', name: '人员、组织与授权', code: 'directory', f: '人员与组织、任职与职级、账号与角色预设、范围授权、北森人员编号对照', s: S('prrr'), n: { proto: '浏览器本地数据', spike: '三个预置账号与范围；第六期种子数据', mid: '组织、人员、任职、职级由北森同步写入' } },
+    { id: 'd-dir', name: '人员、组织与授权', code: 'directory', f: '人员与组织、任职与职级、账号与角色预设、范围授权、北森人员编号对照', s: S('prrr'), n: { proto: '浏览器本地数据', spike: '四个预置账号与范围；期次、名单与导师分配；第六期种子数据', mid: '组织、人员、任职、职级由北森同步写入' } },
     { id: 'd-rec', name: '材料与记录', code: 'records', f: '原件与版本、来源片段、录音与转写、关键事件、自述、管理观察、评价意见、历史评价', s: S('prrr'), n: { proto: '浏览器本地数据', spike: '一句话、录音、附件进入来源片段', mid: '+ 北森人事记录（绩效、晋升）：单独的来源类型，只用于档案展示' } },
     { id: 'd-tal', name: '人才评价与盘点', code: 'talent', f: '建议分与确认分、评分复核、标签、盘点批次、象限与冻结快照、档案版本、留用与落位方案', s: S('prrr'), n: { proto: '浏览器本地数据', spike: '建议分、确认分与分差复核；盘点留在原型' } },
     { id: 'd-stf', name: '项目用人', code: 'staffing', f: '项目与课题、需求卡版本、逐条四态、找人方案与确认、目标角色模板', s: S('prrr'), n: { proto: '浏览器本地数据', spike: '需求卡与四态匹配' } },
@@ -671,7 +671,7 @@
       <tbody>${rows.map((m) => `<tr><th class="g" scope="row">${m.g}</th><th scope="row">${m.name}</th>${PH.map((p) => { const s = m.s[p.k]; const n = m.n && m.n[p.k]; return `<td data-ph="${p.t}" class="${p.k === phase ? 'is-cur' : ''}"><span class="c is-${s}">${mark(s)}<span>${n || ST[s]}${n ? `<span class="sr">，${ST[s]}</span>` : ''}</span></span></td>`; }).join('')}</tr>`).join('')}</tbody>`;
   };
 
-  // 证据链：run 为比赛验证工程跑通的环节
+  // 证据链：run 为比赛工程跑通的环节
   const CHAIN = {
     main: [
       ['材料', '一句话 P1 · 录音 P3、P5 · 附件 P4', 1], ['来源片段', '页与段、单元格、时间点', 1], ['关键事件 SBI', 'P1', 1], ['AI 建议分', '仅供参考', 1],
@@ -683,9 +683,9 @@
       ['人才项目', [['关键节点', '按期次组织', 0], ['节点复盘', 'HR 署名即生效', 0], ['改进事项', '挂在节点下的行动', 0]]],
     ],
   };
-  const node = ([t, d, run]) => `<li><span class="a-node ${run ? 'is-run' : 'is-demo'}"><span>${mark(run ? 'r' : 'p')}${t}</span><small>${d}</small><span class="sr">，${run ? '比赛验证工程跑通' : '原型演示'}</span></span></li>`;
+  const node = ([t, d, run]) => `<li><span class="a-node ${run ? 'is-run' : 'is-demo'}"><span>${mark(run ? 'r' : 'p')}${t}</span><small>${d}</small><span class="sr">，${run ? '比赛工程跑通' : '原型演示'}</span></span></li>`;
   $('chain-board').innerHTML = `
-    <div class="a-legend"><span>${mark('r')}实线框：比赛验证工程跑通</span><span>${mark('p')}虚线框：原型演示</span></div>
+    <div class="a-legend"><span>${mark('r')}实线框：比赛工程跑通</span><span>${mark('p')}虚线框：原型演示</span></div>
     <div class="a-row"><b>主链</b><ol class="a-steps">${CHAIN.main.map(node).join('')}</ol></div>
     ${CHAIN.branches.map(([t, list]) => `<div class="a-row"><b>${t}</b><ol class="a-steps">${list.map(node).join('')}</ol></div>`).join('')}`;
 
