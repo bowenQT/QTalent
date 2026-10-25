@@ -41,8 +41,13 @@ describe('Src', () => {
       <>
         <Src kind="fact" label="历史资料" />
         <Src kind="ai" label="AI 草拟" />
+        <Src kind="ai" label="AI 摘要" />
+        <Src kind="ai" label="AI 回答" />
+        <Src kind="ai" label="AI 假设" />
       </>,
     );
+    for (const label of ['AI 摘要', 'AI 回答', 'AI 假设'])
+      expect(screen.getByText(label).className).toBe('n-src n-src--ai');
     expect(screen.getByText('历史资料').className).toBe('n-src n-src--fact');
     expect(screen.getByText('AI 草拟').className).toBe('n-src n-src--ai');
   });

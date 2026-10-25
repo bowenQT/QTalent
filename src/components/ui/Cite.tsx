@@ -36,8 +36,8 @@ export type CiteSource = {
 };
 
 type Base = {
-  /** The number printed on the mark. */
-  index: number;
+  /** What the mark prints: a running number, or a short word such as 原文. */
+  index: number | string;
   /** Accessible name after "引用 n：". */
   markLabel: string;
   source: CiteSource;
@@ -192,7 +192,7 @@ export function Cite(props: CiteProps) {
         type="button"
         className="n-cite__mark"
         data-kind={locked ? 'locked' : undefined}
-        aria-label={`引用 ${index}：${markLabel}`}
+        aria-label={`${typeof index === 'number' ? '引用 ' : ''}${index}：${markLabel}`}
         aria-expanded={open}
         aria-describedby={popId}
         onClick={() => {

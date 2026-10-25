@@ -29,22 +29,31 @@ function assertQuadrant(quadrant: string) {
 export function MiniQuad({
   calibrations,
   reference,
+  emptyCaption = '还没有正式校准',
 }: {
   calibrations: readonly (MiniQuadPoint & { label: string })[];
   reference: MiniQuadReference;
+  /**
+   * Caption while no calibration is recorded. The component cannot know whether
+   * calibration exists yet, so a page where it is not available passes `null`.
+   */
+  emptyCaption?: string | null;
 }) {
   calibrations.forEach((point) => assertQuadrant(point.quadrant));
   if (reference.state === 'placed') assertQuadrant(reference.quadrant);
   const last = calibrations[calibrations.length - 1];
   const caption = last
     ? `${calibrations.map((point) => point.label).join(' → ')} · ${quadrantNames[last.quadrant]}`
-    : '还没有正式校准';
+    : emptyCaption;
   const status =
     reference.state === 'placed'
       ? `当前参考位置：${quadrantNames[reference.quadrant]}`
       : '当前参考位置：资料不足';
   return (
-    <div className="n-miniquad" aria-label={`历次校准：${caption}。${status}`}>
+    <div
+      className="n-miniquad"
+      aria-label={caption ? `历次校准：${caption}。${status}` : status}
+    >
       <div className="n-miniquad__plane" />
       {calibrations.length > 1 ? (
         <svg aria-hidden="true">
@@ -73,7 +82,7 @@ export function MiniQuad({
           title={`${point.label}：${quadrantNames[point.quadrant]}`}
         />
       ))}
-      <span className="n-miniquad__cap">{caption}</span>
+      {caption ? <span className="n-miniquad__cap">{caption}</span> : null}
     </div>
   );
 }

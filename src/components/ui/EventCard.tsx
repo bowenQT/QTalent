@@ -28,7 +28,6 @@ type Common = {
   /** Project or role badges assembled by the page. */
   badges?: ReactNode;
   title: string;
-  cites?: readonly CiteSpec[];
   sbi: EventSbi;
 };
 
@@ -37,6 +36,11 @@ type Common = {
  * viewer may not see them the page passes `scoresHidden` instead and no score is rendered.
  */
 export type EventCardProps = Common &
+  (
+    | { cites?: readonly CiteSpec[]; citeSlot?: never }
+    /** Page-rendered citations, e.g. ones that load the original on demand. */
+    | { citeSlot: ReactNode; cites?: never }
+  ) &
   (
     | { scores?: readonly ScoreProps[]; scoresHidden?: never }
     | { scoresHidden: string; scores?: never }
@@ -79,6 +83,7 @@ export function EventCard(props: EventCardProps) {
       </div>
       <h3 className="n-event__title">
         {props.title}
+        {props.citeSlot}
         {props.cites?.map((cite, index) => (
           <Cite key={index} index={index + 1} {...cite} />
         ))}

@@ -129,3 +129,25 @@ describe('EventCard', () => {
     expect(view.container.querySelector('.n-score__dot')).toBeNull();
   });
 });
+
+describe('EventCard citation slot', () => {
+  it('places page-rendered citations after the title and works without a rule version', () => {
+    const view = render(
+      <EventCard
+        origin="obs"
+        recorder="叶青"
+        title="关键事件"
+        sbi={{}}
+        citeSlot={<button data-testid="lazy-cite">原文</button>}
+      />,
+    );
+    const title = view.container.querySelector(
+      '.n-event__title',
+    ) as HTMLElement;
+    expect(title.textContent).toBe('关键事件原文');
+    expect(title.querySelector('[data-testid="lazy-cite"]')).not.toBeNull();
+    expect(
+      view.container.querySelector('.n-event__head')?.textContent,
+    ).not.toContain('规则');
+  });
+});

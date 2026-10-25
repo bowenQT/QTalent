@@ -359,3 +359,11 @@ describe('Cite inside running text', () => {
     expect(host.querySelector('p > .n-cite')).not.toBeNull();
   });
 });
+
+describe('Cite mark text', () => {
+  it('prints a word mark such as 原文 and names it without a running number', () => {
+    render(<Cite {...granted} index="原文" markLabel="观察记录" />);
+    const button = screen.getByRole('button', { name: '原文：观察记录' });
+    expect(button.textContent).toBe('原文');
+  });
+});

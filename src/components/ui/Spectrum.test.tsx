@@ -251,6 +251,28 @@ describe('MiniQuad', () => {
     ).toContain('当前参考位置：资料不足');
   });
 
+  it('leaves the caption to the page when calibration is not available yet', () => {
+    const none = render(
+      <MiniQuad calibrations={[]} reference={placed} emptyCaption={null} />,
+    );
+    expect(none.container.querySelector('.n-miniquad__cap')).toBeNull();
+    expect(none.container.textContent).not.toContain('还没有正式校准');
+    expect(none.container.firstElementChild?.getAttribute('aria-label')).toBe(
+      '当前参考位置：高潜待练',
+    );
+    none.unmount();
+    const custom = render(
+      <MiniQuad
+        calibrations={[]}
+        reference={{ state: 'insufficient' }}
+        emptyCaption="校准后显示历次位置"
+      />,
+    );
+    expect(
+      custom.container.querySelector('.n-miniquad__cap')?.textContent,
+    ).toBe('校准后显示历次位置');
+  });
+
   it('rejects a quadrant outside the four', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     for (const quadrant of ['mm', 'toString', '__proto__']) {

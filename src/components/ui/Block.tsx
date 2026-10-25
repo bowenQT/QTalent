@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { Src } from './Src';
+import { Src, type AiLabel } from './Src';
 
 /**
  * A living-document block is either light (AI proposal, unsigned) or ink (a person
@@ -10,7 +10,7 @@ export type BlockProps = { children: ReactNode; style?: CSSProperties } & (
       authorship: 'ai';
       /** What the draft rests on, e.g. 依据 2 条事件. */
       basis: string;
-      label?: 'AI 建议' | 'AI 草拟';
+      label?: AiLabel;
     }
   | {
       authorship: 'human';
