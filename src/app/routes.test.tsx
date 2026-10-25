@@ -132,6 +132,11 @@ describe('thin reference routes', () => {
     expect((screen.getByLabelText('项目名称') as HTMLInputElement).value).toBe(
       '海外加速搜索体验',
     );
+    // The reference badge lives in a state-table cell, whose inherited line-height is 1.6.
+    const badgeSample = screen
+      .getByText('支持')
+      .closest('[data-sample="badge"]') as HTMLElement;
+    expect(badgeSample.style.lineHeight).toBe('1.6');
     vi.stubEnv('NODE_ENV', 'production');
     expect(DesignSystem).toThrow('not-found');
   });

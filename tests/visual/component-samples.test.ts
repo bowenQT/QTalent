@@ -21,10 +21,15 @@ describe('frozen design-system sample selectors', () => {
         expect(matches[0].querySelector('input')?.value).toBe(
           '海外加速搜索体验',
         );
-      if (sample.name === 'badge')
+      if (sample.name === 'badge') {
+        // This sample is a table-cell badge, not a default body-flow badge.
+        const cell = matches[0].closest('td');
+        expect(cell).not.toBeNull();
+        expect(getComputedStyle(cell!).lineHeight).toBe('1.6');
         expect(matches[0].querySelector('use')?.getAttribute('href')).toBe(
           '#i-check',
         );
+      }
     },
   );
 });

@@ -19,7 +19,8 @@ export default function DesignSystem() {
           <Button>删除「海外加速搜索体验」</Button>
           <Button disabled>创建中</Button>
         </div>
-        <div data-sample="badge" className="nt-row">
+        {/* Match the selected prototype state-table cell’s inherited typography. */}
+        <div data-sample="badge" className="nt-row" style={{ lineHeight: 1.6 }}>
           <Badge className="n-badge--yes">
             <Icon name="check" />
             支持
