@@ -128,16 +128,18 @@ export function createKodoClient(
     const expiresAt = Math.floor(value.expiresAt / 1000) * 1000;
     if (expiresAt <= now()) throw new KodoError('expired');
     if (expiresAt - now() > 3600000) throw new KodoError('invalid_input');
-    const encoded = base64(
-      JSON.stringify({
-        scope: `${config.bucket}:${value.objectKey}`,
-        deadline: expiresAt / 1000,
-        insertOnly: 1,
-        fsizeLimit: value.byteLimit,
-        mimeLimit: value.contentType,
-        returnBody: '{"key":$(key),"hash":$(etag)}',
-      }),
-    );
+    const policy: Record<string, string | number> = {
+      scope: `${config.bucket}:${value.objectKey}`,
+      deadline: expiresAt / 1000,
+      insertOnly: 1,
+      fsizeLimit: value.byteLimit,
+      // String magic variables are raw substitutions; quotes belong in the template.
+      returnBody: '{"key":"$(key)","hash":"$(etag)"}',
+    };
+    // octet-stream is not a sniffed type, so it cannot be an allow-list.
+    if (value.contentType !== 'application/octet-stream')
+      policy.mimeLimit = value.contentType;
+    const encoded = base64(JSON.stringify(policy));
     return {
       objectKey: value.objectKey,
       expiresAt,
