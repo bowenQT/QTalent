@@ -33,8 +33,9 @@ const humanInput = () => ({
 });
 
 describe('staffing contracts', () => {
-  it('accepts the four conclusions, never processing states as conclusions', () => {
-    for (const state of ['supported', 'not_supported', 'insufficient', 'conflict']) {
+  it('accepts four conclusions, never progress as a conclusion', () => {
+    const states = ['supported', 'not_supported', 'insufficient', 'conflict'];
+    for (const state of states) {
       expect(staffingConclusionSchema.safeParse(state).success).toBe(true);
     }
     for (const state of ['failed', 'awaiting_manual', 'conflicting']) {
@@ -42,44 +43,68 @@ describe('staffing contracts', () => {
     }
   });
 
-  it('accepts the synthetic page and exposes no connected plan actions', () => {
-    expect(staffingPageSchema.parse(staffingFixture()).plan.status).toBe('not_connected');
+  it('accepts the demo page but no connected plan actions', () => {
     const page = staffingFixture();
-    expect(staffingPageSchema.safeParse({ ...page, plan: { status: 'connected' } }).success).toBe(false);
+    expect(staffingPageSchema.parse(page).plan.status).toBe('not_connected');
+    const invalid = { ...page, plan: { status: 'connected' } };
+    expect(staffingPageSchema.safeParse(invalid).success).toBe(false);
   });
 
-  it('keeps failures and waiting states without a conclusion', () => {
-    for (const progress of ['queued', 'judging', 'awaiting_manual', 'failed']) {
-      const match = { requirementId: 'r', progress, aiJudgment: null, humanJudgment: null };
+  it('keeps failure and waiting states without conclusions', () => {
+    const states = ['queued', 'judging', 'awaiting_manual', 'failed'];
+    for (const progress of states) {
+      const match = {
+        requirementId: 'r',
+        progress,
+        aiJudgment: null,
+        humanJudgment: null,
+      };
       expect(staffingMatchSchema.safeParse(match).success).toBe(true);
-      expect(staffingMatchSchema.safeParse({
+      const invalid = {
         ...match,
         aiJudgment: staffingFixture().candidates[0].requirements[0].aiJudgment,
-      }).success).toBe(false);
+      };
+      expect(staffingMatchSchema.safeParse(invalid).success).toBe(false);
     }
-    expect(staffingMatchSchema.safeParse({
-      requirementId: 'r', progress: 'completed', aiJudgment: null, humanJudgment: null,
-    }).success).toBe(false);
+    const empty = {
+      requirementId: 'r',
+      progress: 'completed',
+      aiJudgment: null,
+      humanJudgment: null,
+    };
+    expect(staffingMatchSchema.safeParse(empty).success).toBe(false);
   });
 
-  it('requires sources for a positive, negative or conflicting conclusion', () => {
-    const page = staffingFixture();
-    const match = page.candidates[0].requirements[0];
-    for (const conclusion of ['supported', 'not_supported', 'conflict']) {
-      expect(staffingMatchSchema.safeParse({
-        ...match, aiJudgment: { conclusion, rationale: '演示', sources: [] },
-      }).success).toBe(false);
-    }
-    expect(staffingMatchSchema.safeParse({
-      ...match, aiJudgment: { conclusion: 'insufficient', rationale: '演示：无材料', sources: [] },
-    }).success).toBe(true);
-  });
-
-  it('requires a complete source chain rather than a quote alone', () => {
+  it('requires evidence except for insufficient conclusions', () => {
     const match = staffingFixture().candidates[0].requirements[0];
-    expect(staffingMatchSchema.safeParse({
-      ...match, aiJudgment: { ...match.aiJudgment, sources: [{ excerpt: '演示引用' }] },
-    }).success).toBe(false);
+    for (const conclusion of ['supported', 'not_supported', 'conflict']) {
+      const invalid = {
+        ...match,
+        aiJudgment: { conclusion, rationale: '演示', sources: [] },
+      };
+      expect(staffingMatchSchema.safeParse(invalid).success).toBe(false);
+    }
+    const insufficient = {
+      ...match,
+      aiJudgment: {
+        conclusion: 'insufficient',
+        rationale: '演示：无材料',
+        sources: [],
+      },
+    };
+    expect(staffingMatchSchema.safeParse(insufficient).success).toBe(true);
+  });
+
+  it('requires the source chain, not a quotation alone', () => {
+    const match = staffingFixture().candidates[0].requirements[0];
+    const invalid = {
+      ...match,
+      aiJudgment: {
+        ...match.aiJudgment,
+        sources: [{ excerpt: '演示引用' }],
+      },
+    };
+    expect(staffingMatchSchema.safeParse(invalid).success).toBe(false);
   });
 
   it('keeps AI evidence and requires a signed human conclusion', () => {
@@ -91,151 +116,224 @@ describe('staffing contracts', () => {
       judgedBy: { id: 'demo-reviewer', name: '演示审核人' },
       judgedAt: '2026-10-25T10:00:00Z',
     };
-    const parsed = staffingMatchSchema.parse({ ...match, humanJudgment: judgment });
+    const parsed = staffingMatchSchema.parse({
+      ...match,
+      humanJudgment: judgment,
+    });
     expect(parsed.aiJudgment?.conclusion).toBe('supported');
     expect(parsed.humanJudgment?.conclusion).toBe('insufficient');
-    expect(staffingMatchSchema.safeParse({
-      ...match, humanJudgment: { ...judgment, judgedBy: undefined },
-    }).success).toBe(false);
+    const invalid = {
+      ...match,
+      humanJudgment: { ...judgment, judgedBy: undefined },
+    };
+    expect(staffingMatchSchema.safeParse(invalid).success).toBe(false);
   });
 
-  it('rejects score, confidence and percentage at DTO boundaries', () => {
+  it('rejects score, confidence and percentage in DTOs', () => {
     for (const key of ['confidence', 'score', 'percentage', 'rank']) {
       const page = staffingFixture();
-      expect(staffingPageSchema.safeParse({ ...page, [key]: 99 }).success).toBe(false);
-      expect(staffingPageSchema.safeParse({
-        ...page, candidates: [{ ...page.candidates[0], [key]: 99 }],
-      }).success).toBe(false);
+      const invalidPage = { ...page, [key]: 99 };
+      expect(staffingPageSchema.safeParse(invalidPage).success).toBe(false);
+      const invalidCandidate = {
+        ...page,
+        candidates: [{ ...page.candidates[0], [key]: 99 }],
+      };
+      expect(staffingPageSchema.safeParse(invalidCandidate).success).toBe(
+        false,
+      );
       const match = page.candidates[0].requirements[0];
-      expect(staffingMatchSchema.safeParse({
-        ...match, aiJudgment: { ...match.aiJudgment, [key]: 99 },
-      }).success).toBe(false);
+      const invalidMatch = {
+        ...match,
+        aiJudgment: { ...match.aiJudgment, [key]: 99 },
+      };
+      expect(staffingMatchSchema.safeParse(invalidMatch).success).toBe(false);
     }
   });
 
-  it('requires exact current requirement coverage and unique people', () => {
+  it('requires unique people and exact current requirement coverage', () => {
     const page = staffingFixture();
     const candidate = page.candidates[0];
-    for (const requirements of [
+    const cases = [
       candidate.requirements.slice(0, 1),
       [...candidate.requirements, candidate.requirements[0]],
-      [{ ...candidate.requirements[0], requirementId: 'unknown' }, candidate.requirements[1]],
-    ]) {
-      expect(staffingPageSchema.safeParse({
-        ...page, candidates: [{ ...candidate, requirements }],
-      }).success).toBe(false);
+      [
+        { ...candidate.requirements[0], requirementId: 'unknown' },
+        candidate.requirements[1],
+      ],
+    ];
+    for (const requirements of cases) {
+      const invalid = {
+        ...page,
+        candidates: [{ ...candidate, requirements }],
+      };
+      expect(staffingPageSchema.safeParse(invalid).success).toBe(false);
     }
-    expect(staffingPageSchema.safeParse({
-      ...page, candidates: [{ ...candidate, demandRevision: 2 }],
-    }).success).toBe(false);
-    expect(staffingPageSchema.safeParse({
-      ...page, candidates: [candidate, candidate],
-    }).success).toBe(false);
+    const stale = {
+      ...page,
+      candidates: [{ ...candidate, demandRevision: 2 }],
+    };
+    expect(staffingPageSchema.safeParse(stale).success).toBe(false);
+    const duplicate = { ...page, candidates: [candidate, candidate] };
+    expect(staffingPageSchema.safeParse(duplicate).success).toBe(false);
   });
 
-  it('orders only by required supported count, stably, with human conclusion taking precedence', () => {
+  it('sorts by required support only, stably, using human conclusions', () => {
     const page = staffingFixture();
     const supported = page.candidates[0];
     const pending = {
       ...structuredClone(supported),
       person: { ...supported.person, id: 'pending' },
       requirements: supported.requirements.map((item) => ({
-        ...item, progress: 'awaiting_manual' as const, aiJudgment: null, humanJudgment: null,
+        ...item,
+        progress: 'awaiting_manual' as const,
+        aiJudgment: null,
+        humanJudgment: null,
       })),
     };
     const overridden = structuredClone(supported);
     overridden.person.id = 'overridden';
     overridden.requirements[0].humanJudgment = {
-      conclusion: 'insufficient', rationale: '演示：未能确认', sources: [],
+      conclusion: 'insufficient',
+      rationale: '演示：未能确认',
+      sources: [],
       judgedBy: { id: 'demo-reviewer', name: '演示审核人' },
       judgedAt: '2026-10-25T10:00:00Z',
     };
     const input = [pending, overridden, supported];
-    expect(orderStaffingCandidates(page.demand, input).map((x) => x.person.id)).toEqual([
-      'demo-person', 'pending', 'overridden',
+    const ordered = orderStaffingCandidates(page.demand, input);
+    expect(ordered.map((x) => x.person.id)).toEqual([
+      'demo-person',
+      'pending',
+      'overridden',
     ]);
     expect(input[0].person.id).toBe('pending');
   });
 
-  it('validates creation, edit and confirmation revision boundaries', () => {
+  it('validates demand creation, edit and confirmation', () => {
+    const create = {
+      operationId,
+      projectId: 'demo-project',
+      inputText: ' 演示需求 ',
+    };
+    expect(createStaffingDemandInputSchema.parse(create).inputText).toBe(
+      '演示需求',
+    );
+    const blank = { ...create, inputText: ' ' };
+    expect(createStaffingDemandInputSchema.safeParse(blank).success).toBe(
+      false,
+    );
     const page = staffingFixture();
-    expect(createStaffingDemandInputSchema.parse({
-      operationId, projectId: 'demo-project', inputText: ' 演示需求 ',
-    }).inputText).toBe('演示需求');
-    expect(createStaffingDemandInputSchema.safeParse({
-      operationId, projectId: 'demo-project', inputText: ' ',
-    }).success).toBe(false);
     const edit = {
-      operationId, demandId: page.demand.id, expectedRevision: 1,
+      operationId,
+      demandId: page.demand.id,
+      expectedRevision: 1,
       requirements: page.demand.requirements,
     };
     expect(editStaffingDemandInputSchema.safeParse(edit).success).toBe(true);
-    for (const requirements of [[], [edit.requirements[0], edit.requirements[0]]]) {
-      expect(editStaffingDemandInputSchema.safeParse({ ...edit, requirements }).success).toBe(false);
+    const cases = [[], [edit.requirements[0], edit.requirements[0]]];
+    for (const requirements of cases) {
+      const invalid = { ...edit, requirements };
+      expect(editStaffingDemandInputSchema.safeParse(invalid).success).toBe(
+        false,
+      );
     }
-    expect(confirmStaffingDemandInputSchema.safeParse({
-      operationId, demandId: page.demand.id, expectedRevision: 1,
-    }).success).toBe(true);
-    expect(confirmStaffingDemandInputSchema.safeParse({
-      operationId, demandId: page.demand.id, expectedRevision: 0,
-    }).success).toBe(false);
+    const confirm = {
+      operationId,
+      demandId: page.demand.id,
+      expectedRevision: 1,
+    };
+    expect(confirmStaffingDemandInputSchema.safeParse(confirm).success).toBe(
+      true,
+    );
+    const stale = { ...confirm, expectedRevision: 0 };
+    expect(confirmStaffingDemandInputSchema.safeParse(stale).success).toBe(
+      false,
+    );
   });
 
-  it('does not accept forged actors or timestamps in human commands', () => {
-    expect(humanStaffingJudgmentInputSchema.safeParse(humanInput()).success).toBe(true);
-    for (const extra of [{ actorId: 'other' }, { judgedAt: '2026-10-25T10:00:00Z' }]) {
-      expect(humanStaffingJudgmentInputSchema.safeParse({ ...humanInput(), ...extra }).success).toBe(false);
+  it('rejects forged actors and timestamps in commands', () => {
+    const input = humanInput();
+    expect(humanStaffingJudgmentInputSchema.safeParse(input).success).toBe(
+      true,
+    );
+    const extras = [{ actorId: 'other' }, { judgedAt: '2026-10-25T10:00:00Z' }];
+    for (const extra of extras) {
+      const invalid = { ...input, ...extra };
+      expect(humanStaffingJudgmentInputSchema.safeParse(invalid).success).toBe(
+        false,
+      );
     }
-    expect(humanStaffingJudgmentInputSchema.safeParse({
-      ...humanInput(), sources: [],
-    }).success).toBe(false);
-    expect(humanStaffingJudgmentInputSchema.safeParse({
-      ...humanInput(), conclusion: 'insufficient', sources: [],
-    }).success).toBe(true);
+    const noEvidence = { ...input, sources: [] };
+    expect(humanStaffingJudgmentInputSchema.safeParse(noEvidence).success).toBe(
+      false,
+    );
+    const insufficient = { ...noEvidence, conclusion: 'insufficient' };
+    const accepted = humanStaffingJudgmentInputSchema.safeParse(insufficient);
+    expect(accepted.success).toBe(true);
   });
 
-  it('requires confirmed demand signatures but keeps drafts unsigned', () => {
+  it('requires signatures on confirmed demands, not drafts', () => {
     const page = staffingFixture();
-    expect(staffingPageSchema.safeParse({
-      ...page, demand: { ...page.demand, confirmedBy: undefined },
-    }).success).toBe(false);
-    const { confirmedBy, confirmedAt, ...draft } = page.demand;
-    void confirmedBy;
-    void confirmedAt;
-    expect(staffingPageSchema.safeParse({
-      ...page, demand: { ...draft, status: 'draft' },
-    }).success).toBe(true);
+    const invalid = {
+      ...page,
+      demand: { ...page.demand, confirmedBy: undefined },
+    };
+    expect(staffingPageSchema.safeParse(invalid).success).toBe(false);
+    const demand = page.demand;
+    const draft = {
+      id: demand.id,
+      projectId: demand.projectId,
+      revision: demand.revision,
+      inputText: demand.inputText,
+      requirements: demand.requirements,
+      status: 'draft',
+    };
+    const drafted = { ...page, demand: draft };
+    expect(staffingPageSchema.safeParse(drafted).success).toBe(true);
   });
 
-  it('returns explicit results and preserves conflicting inputs', () => {
-    const page = staffingFixture();
-    expect(staffingDemandResultSchema.safeParse({
-      status: 'success', demand: page.demand, replayed: true,
-    }).success).toBe(true);
+  it('preserves input on conflict and explicit errors', () => {
+    const success = {
+      status: 'success',
+      demand: staffingFixture().demand,
+      replayed: true,
+    };
+    expect(staffingDemandResultSchema.safeParse(success).success).toBe(true);
     const input = humanInput();
     for (const status of ['forbidden', 'not_found', 'conflict']) {
-      expect(staffingJudgmentResultSchema.safeParse({
-        status, message: '演示：保留输入', input,
-      }).success).toBe(true);
+      const result = { status, message: '演示：保留输入', input };
+      expect(staffingJudgmentResultSchema.safeParse(result).success).toBe(true);
     }
-    expect(staffingJudgmentResultSchema.safeParse({
-      status: 'conflict', message: '演示冲突',
-    }).success).toBe(false);
-    expect(staffingJudgmentResultSchema.safeParse({
-      status: 'validation_error', fieldErrors: { rationale: ['请填写'] }, input,
-    }).success).toBe(true);
+    const missingInput = { status: 'conflict', message: '演示冲突' };
+    expect(staffingJudgmentResultSchema.safeParse(missingInput).success).toBe(
+      false,
+    );
+    const invalid = {
+      status: 'validation_error',
+      fieldErrors: { rationale: ['请填写'] },
+      input,
+    };
+    expect(staffingJudgmentResultSchema.safeParse(invalid).success).toBe(true);
   });
 
-  it('uses the shared typed job envelope and does not leak vendor payloads', () => {
+  it('reuses the typed job envelope without vendor payloads', () => {
     const snapshot = {
-      schemaVersion: 1, jobId: 'demo-job', kind: 'staffing_match', status: 'partial',
-      attempt: 1, revision: 1, updatedAt: '2026-10-25T10:00:00Z',
-      progress: { completed: 1, total: 2 }, result: staffingFixture(),
-      error: null, canRetry: false, canCancel: true, cancelRequestedAt: null,
+      schemaVersion: 1,
+      jobId: 'demo-job',
+      kind: 'staffing_match',
+      status: 'partial',
+      attempt: 1,
+      revision: 1,
+      updatedAt: '2026-10-25T10:00:00Z',
+      progress: { completed: 1, total: 2 },
+      result: staffingFixture(),
+      error: null,
+      canRetry: false,
+      canCancel: true,
+      cancelRequestedAt: null,
     };
     expect(staffingJobSnapshotSchema.safeParse(snapshot).success).toBe(true);
-    expect(staffingJobSnapshotSchema.safeParse({
-      ...snapshot, result: { vendorPayload: true },
-    }).success).toBe(false);
+    const invalid = { ...snapshot, result: { vendorPayload: true } };
+    expect(staffingJobSnapshotSchema.safeParse(invalid).success).toBe(false);
   });
 });
