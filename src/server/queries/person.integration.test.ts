@@ -31,6 +31,8 @@ import { personFromData } from './person-projection';
 import { peopleFromData } from './people';
 import { sourceFromData } from './sources';
 import { fixture } from './person-test-helpers';
+import { importDemo } from '../db/import';
+import { mapPrototypeSeed, readPrototypeSeed } from '../db/seed';
 let admin: Pool | undefined;
 let connection: ReturnType<typeof createDatabase> | undefined;
 const name = 'qtalent_reads_' + randomUUID().replaceAll('-', '') + '_test';
@@ -159,3 +161,79 @@ it('re-reads authorization and complete source relationships', async () => {
   const revoked = await loadPersonData(db, 'mentor', '2026-07-01');
   expect(await personFromData(revoked, 'one')).toBeNull();
 });
+
+it('projects actual pinned seed observations and ended project participation', async () => {
+  const seedName =
+    'qtalent_profile_seed_' + randomUUID().replaceAll('-', '') + '_test';
+  await admin!.query('CREATE DATABASE "' + seedName + '"');
+  const url = new URL(process.env.TEST_DATABASE_URL!);
+  url.pathname = '/' + seedName;
+  const seeded = createDatabase(url.toString());
+  try {
+    await migrate(seeded.db, { migrationsFolder: 'src/server/db/migrations' });
+    const mapped = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
+    await importDemo(seeded.db, mapped, 'Synthetic-test-password-only');
+    const mentor = mapped.accounts.find((row) => row.id === 'demo-mentor')!;
+    const target = mapped.assignments.find(
+      (assignment) =>
+        assignment.personId === mentor.personId &&
+        mapped.evidence.events.some(
+          (event) => event.personId === assignment.studentId,
+        ),
+    )!.studentId;
+    for (const account of ['demo-ceo', 'demo-hrbp']) {
+      const data = await loadPersonData(seeded.db, account, '2026-10-25');
+      const profile = await personFromData(data, target);
+      expect(profile?.capabilityProfile.status).toBe('ready');
+      expect(profile?.timeline.status).toBe('ready');
+      if (profile?.timeline.status !== 'ready')
+        throw new Error('Missing timeline');
+      expect(profile.timeline.data.length).toBeGreaterThan(0);
+      for (const item of profile.timeline.data) {
+        expect(item.statement.nature).toBe('management_observation');
+        expect(item.statement.sources.length).toBeGreaterThan(0);
+      }
+    }
+    const mentorData = await loadPersonData(
+      seeded.db,
+      'demo-mentor',
+      '2026-10-25',
+    );
+    const restricted = await personFromData(mentorData, target);
+    expect(restricted?.timeline.status).toBe('empty');
+    expect(restricted).not.toHaveProperty('managementObservations');
+    const managerData = await loadPersonData(
+      seeded.db,
+      'demo-ceo',
+      '2026-10-25',
+    );
+    const previous = mapped.members.find(
+      (member) =>
+        member.validTo !== null &&
+        member.validTo <= '2026-10-25' &&
+        mapped.projects.some(
+          (project) =>
+            project.id === member.projectId &&
+            project.ownerId !== member.personId,
+        ) &&
+        mapped.people.some(
+          (person) => person.id === member.personId && !person.noReview,
+        ),
+    )!;
+    expect(previous).toBeDefined();
+    const history = await personFromData(managerData, previous.personId);
+    expect(history?.projects.status).toBe('ready');
+    if (history?.projects.status !== 'ready')
+      throw new Error('Missing projects');
+    expect(history.projects.data).toContainEqual({
+      id: previous.projectId,
+      name: mapped.projects.find(
+        (project) => project.id === previous.projectId,
+      )!.name,
+      participation: 'member',
+    });
+  } finally {
+    await seeded.pool.end();
+    await admin!.query('DROP DATABASE "' + seedName + '"');
+  }
+}, 30_000);

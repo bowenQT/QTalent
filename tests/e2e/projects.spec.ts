@@ -79,7 +79,9 @@ test('login, accessible creation, request replay and account logout', async ({
   );
   await page.getByRole('button', { name: '创建', exact: true }).click();
   const request = await actionRequest;
-  await expect(page.getByRole('status')).toContainText('项目已创建');
+  await expect(
+    page.getByRole('status').filter({ hasText: '项目已创建' }),
+  ).toBeVisible();
   await expect(
     page.getByRole('link', { name: '浏览器隔离测试项目', exact: true }),
   ).toHaveCount(1);

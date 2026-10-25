@@ -1,4 +1,6 @@
 import 'server-only';
+import { getDatabase } from '../db/client';
+import { recordAudit } from '../platform/audit';
 import {
   sourceReadInputSchema,
   sourceSchema,
@@ -82,7 +84,14 @@ export async function readSourceForCurrentUser(
     };
   try {
     const data = await loadCurrentPersonData();
-    return sourceFromData(data, parsed.data);
+    const result = await sourceFromData(data, parsed.data);
+    if (result.status === 'success')
+      await recordAudit(getDatabase(), {
+        actorId: data.context.account.id,
+        action: 'source.read',
+        resourceId: sourceKey(parsed.data),
+      });
+    return result;
   } catch (error) {
     if (error instanceof ForbiddenError)
       return { status: 'forbidden', message: '当前账号没有业务读取权限' };

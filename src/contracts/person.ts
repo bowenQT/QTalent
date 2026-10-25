@@ -85,6 +85,9 @@ export const projectParticipationSchema = z.strictObject({
 export const timelineEventSchema = z.strictObject({
   id: z.string().min(1),
   occurredAt: z.iso.datetime(),
+  statement: z.union([citedStatementSchema, managementObservationSchema]),
+});
+const mentorTimelineEventSchema = timelineEventSchema.extend({
   statement: citedStatementSchema,
 });
 const shared = {
@@ -108,7 +111,11 @@ export const personSchema = z.discriminatedUnion('role', [
     calibrationHistory: notConnectedSchema,
     versionsAndChanges: notConnectedSchema,
   }),
-  z.strictObject({ role: z.literal('mentor'), ...shared }),
+  z.strictObject({
+    role: z.literal('mentor'),
+    ...shared,
+    timeline: evidenceBlockSchema(z.array(mentorTimelineEventSchema).min(1)),
+  }),
 ]);
 export type PersonIdentity = z.infer<typeof personIdentitySchema>;
 export type PersonReadInput = z.infer<typeof personReadInputSchema>;

@@ -9,12 +9,18 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ShellData } from '@/contracts/shell';
+import { useToast } from '@/components/ui/Toast';
 import { Shell } from './Shell';
-const { replace, refresh } = vi.hoisted(() => ({
+import { ShellTitle } from './ShellTitle';
+const { replace, refresh, route } = vi.hoisted(() => ({
   replace: vi.fn(),
   refresh: vi.fn(),
+  route: { pathname: '/projects' },
 }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace, refresh }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace, refresh }),
+  usePathname: () => route.pathname,
+}));
 const data: ShellData = {
   account: {
     id: 'test',
@@ -27,6 +33,13 @@ const data: ShellData = {
   },
   navigation: [
     { id: 'work', label: '工作台', href: '/work', icon: 'home', group: null },
+    {
+      id: 'people',
+      label: '人才',
+      href: '/people',
+      icon: 'users',
+      group: null,
+    },
     {
       id: 'projects',
       label: '项目与课题',
@@ -43,6 +56,7 @@ const data: ShellData = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  route.pathname = '/projects';
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
     addEventListener: vi.fn(),
@@ -140,6 +154,7 @@ describe('authorized shell', () => {
       </Shell>,
     );
     expect(screen.queryByText('项目与课题')).toBeNull();
+    expect(screen.getByText('这一页属于业务视角')).toBeTruthy();
     expect(
       screen.queryByRole('button', { name: '搜人或项目（⌘K）' }),
     ).toBeNull();
@@ -185,4 +200,204 @@ describe('authorized shell', () => {
       expect(replace).not.toHaveBeenCalled();
     },
   );
+});
+
+const names = (view: HTMLElement) => ({
+  current: [...view.querySelectorAll('[aria-current="page"]')].map(
+    (el) => el.textContent,
+  ),
+  crumbs: view.querySelector('.nt-crumbs')?.textContent,
+});
+
+describe('route-driven navigation and breadcrumb', () => {
+  it.each([
+    ['/work', '工作台'],
+    ['/people', '人才'],
+    ['/projects', '项目与课题'],
+  ])('%s highlights its entry and titles the breadcrumb', (pathname, label) => {
+    route.pathname = pathname;
+    const view = render(<Shell data={data}>内容</Shell>);
+    expect(names(view.container)).toEqual({ current: [label], crumbs: label });
+  });
+
+  it('follows the mentor label for the people entry', () => {
+    route.pathname = '/people';
+    const view = render(
+      <Shell
+        data={{
+          ...data,
+          role: 'mentor',
+          navigation: data.navigation.map((entry) =>
+            entry.id === 'people' ? { ...entry, label: '所带学员' } : entry,
+          ),
+        }}
+      >
+        内容
+      </Shell>,
+    );
+    expect(names(view.container)).toEqual({
+      current: ['所带学员'],
+      crumbs: '所带学员',
+    });
+  });
+
+  it('shows the person page under its people entry with a link back', () => {
+    route.pathname = '/person';
+    const view = render(<Shell data={data}>内容</Shell>);
+    expect(names(view.container).current).toEqual(['人才']);
+    const link = view.container.querySelector('.nt-crumbs a');
+    expect(link?.getAttribute('href')).toBe('/people');
+    expect(link?.textContent).toBe('人才');
+    expect(view.container.querySelector('.nt-crumbs b')?.textContent).toBe(
+      '人员档案',
+    );
+  });
+
+  it('lets a page replace the crumb tail and restores the fallback on unmount', () => {
+    route.pathname = '/person';
+    const tail = (view: HTMLElement) =>
+      view.querySelector('.nt-crumbs b')?.textContent;
+    const view = render(
+      <Shell data={data}>
+        <ShellTitle title="林知远" />
+      </Shell>,
+    );
+    expect(tail(view.container)).toBe('林知远');
+    view.rerender(
+      <Shell data={data}>
+        <ShellTitle title="周屿" />
+      </Shell>,
+    );
+    expect(tail(view.container)).toBe('周屿');
+    view.rerender(<Shell data={data}>无标题页面</Shell>);
+    expect(tail(view.container)).toBe('人员档案');
+  });
+
+  it('never lets a page title override the fixed admin title', () => {
+    route.pathname = '/admin';
+    const view = render(
+      <Shell
+        data={{
+          ...data,
+          isAdmin: true,
+          role: 'admin',
+          canSearch: false,
+          navigation: [
+            {
+              id: 'admin',
+              label: '系统管理',
+              href: '/admin',
+              icon: 'lock',
+              group: '系统',
+            },
+          ],
+        }}
+      >
+        <ShellTitle title="林知远" />
+      </Shell>,
+    );
+    expect(names(view.container)).toEqual({
+      current: ['系统管理'],
+      crumbs: '这一页属于业务视角',
+    });
+  });
+
+  it('highlights nothing and prints no title when no entry owns the path', () => {
+    route.pathname = '/nowhere';
+    const view = render(<Shell data={data}>内容</Shell>);
+    expect(names(view.container)).toEqual({ current: [], crumbs: '' });
+    expect(view.container.querySelector('.nt-crumbs b')).toBeNull();
+  });
+
+  it('moves the highlight when the route changes inside the same shell', () => {
+    route.pathname = '/work';
+    const view = render(<Shell data={data}>内容</Shell>);
+    expect(names(view.container).current).toEqual(['工作台']);
+    route.pathname = '/people';
+    view.rerender(<Shell data={data}>内容</Shell>);
+    expect(names(view.container)).toEqual({
+      current: ['人才'],
+      crumbs: '人才',
+    });
+  });
+});
+
+describe('narrow screen viewport', () => {
+  const narrow = () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    return scroll;
+  };
+  const mentor: ShellData = {
+    ...data,
+    role: 'mentor',
+    navigation: [
+      ...data.navigation,
+      {
+        id: 'judge',
+        label: '我的判断对照',
+        href: '/judge?rater=me',
+        icon: 'swap',
+        group: '规则',
+      },
+    ],
+  };
+
+  it('aligns only the mentor project entry to the end and centres every other page', () => {
+    const scroll = narrow();
+    route.pathname = '/people';
+    const view = render(<Shell data={mentor}>内容</Shell>);
+    expect(scroll).toHaveBeenLastCalledWith({
+      inline: 'center',
+      block: 'nearest',
+    });
+    route.pathname = '/projects';
+    view.rerender(<Shell data={mentor}>内容</Shell>);
+    expect(scroll).toHaveBeenLastCalledWith({
+      inline: 'end',
+      block: 'nearest',
+    });
+  });
+
+  it('scrolls again after every route change and not for an unmatched path', () => {
+    const scroll = narrow();
+    route.pathname = '/work';
+    const view = render(<Shell data={data}>内容</Shell>);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    route.pathname = '/people';
+    view.rerender(<Shell data={data}>内容</Shell>);
+    expect(scroll).toHaveBeenCalledTimes(2);
+    route.pathname = '/nowhere';
+    view.rerender(<Shell data={data}>内容</Shell>);
+    expect(scroll).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('toast provider in the shell', () => {
+  function Notifier() {
+    const { show } = useToast();
+    return (
+      <button type="button" onClick={() => show('已撤销')}>
+        提示
+      </button>
+    );
+  }
+
+  it('lets pages in the shell raise toasts inside the one live region', async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <Shell data={data}>
+        <Notifier />
+      </Shell>,
+    );
+    const regions = view.container.querySelectorAll('.nt-toasts');
+    expect(regions).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: '提示' }));
+    expect(regions[0].textContent).toContain('已撤销');
+  });
 });

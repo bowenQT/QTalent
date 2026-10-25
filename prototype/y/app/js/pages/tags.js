@@ -33,14 +33,16 @@
               ${c.events.length ? html`<dt>出处</dt><dd><ul class="n-cand__ev">${c.events.filter((id) => st.event(id)).map((id) => { const e = st.event(id); return html`<li>${UI.avatar(e.people[0], 'sm')}<a class="nt-plink" href="person.html?id=${e.people[0]}#ev-${id}">${e.title}</a><small>${NT.md(e.date)}</small></li>`; })}${c.count > c.events.length ? html`<li class="more">还有 ${c.count - c.events.length} 条</li>` : ''}</ul></dd>` : ''}
               <dt>判断</dt><dd><div class="n-cand__why">${c.why}</div></dd>
             </dl>
-            ${c.done ? html`<div class="n-cand__done"><span class="ink-hand">${st.person(c.by).name}</span>${{ add: '收录进库', merge: `并入「${c.similar}」`, drop: '不要' }[c.done]} · ${NT.md(c.doneAt)}<button type="button" data-undo="${i}">撤销</button></div>`
+            ${c.done ? html`<div class="n-cand__done"><span class="ink-hand">${st.person(c.by).name}</span>${{ add: '收录进库', merge: `并入「${c.similar}」`, drop: '不要' }[c.done]} · ${NT.md(c.doneAt)}${can ? html`<button type="button" data-undo="${i}">撤销</button>` : ''}</div>`
               : can ? html`<div class="n-cand__actions"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-add="${i}">收录</button>${c.similar ? html`<button class="n-btn n-btn--sm" type="button" data-merge="${i}">并入「${c.similar}」</button>` : ''}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-drop="${i}">不要</button></div>`
                 : html`<div class="n-lock" style="margin-top:var(--s-3)">${icon('lock')}候选标签由 HR 收录。</div>`}
           </div>`)}
         </article>
       </div>`);
     main.onclick = (e) => {
-      const b = e.target.closest('[data-add],[data-merge],[data-drop],[data-undo]'); if (!b) return;
+      const b = e.target.closest('[data-add],[data-merge],[data-drop],[data-undo]');
+      // 页面浏览权限不代表标签审批/撤销权限，不能仅通过隐藏按钮保护写入。
+      if (!b || !st.can('approveTags')) return;
       const i = +(b.dataset.add ?? b.dataset.merge ?? b.dataset.drop ?? b.dataset.undo);
       const c = S.tagCands[i];
       if (b.dataset.undo != null) { if (c.done === 'add') S.taglibAdd = S.taglibAdd.filter(([, t]) => t !== c.name); delete c.done; st.save(); render(main); return; }

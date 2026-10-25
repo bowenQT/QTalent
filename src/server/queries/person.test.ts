@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { personSchema } from '../../contracts/person';
 import { peopleListSchema } from '../../contracts/people';
 import { sourceReadResultSchema } from '../../contracts/sources';
@@ -12,6 +12,12 @@ import {
 } from './person';
 import { loadCurrentPersonData } from './person-session';
 vi.mock('./person-session', () => ({ loadCurrentPersonData: vi.fn() }));
+import { recordAudit } from '../platform/audit';
+vi.mock('../db/client', () => ({ getDatabase: () => ({}) }));
+vi.mock('../platform/audit', () => ({ recordAudit: vi.fn() }));
+beforeEach(() => {
+  vi.mocked(recordAudit).mockReset().mockResolvedValue(undefined);
+});
 const reference = {
   fragmentId: 'fragment-0',
   originalVersionId: 'version',
@@ -172,6 +178,80 @@ describe('people, profile and shared sources', () => {
       'database failed',
     );
   });
+  it('audits each successful sensitive read with current actor and resource', async () => {
+    vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture('hr'));
+    await readPersonForCurrentUser({ id: 'one' });
+    await readPersonPreviewForCurrentUser({ id: 'one' });
+    await readSourceForCurrentUser(reference);
+    expect(recordAudit).toHaveBeenCalledTimes(3);
+    expect(recordAudit).toHaveBeenNthCalledWith(
+      1,
+      {},
+      {
+        actorId: 'account',
+        action: 'person.read',
+        resourceId: 'one',
+      },
+    );
+    expect(recordAudit).toHaveBeenNthCalledWith(
+      2,
+      {},
+      {
+        actorId: 'account',
+        action: 'person.read',
+        resourceId: 'one',
+      },
+    );
+    expect(recordAudit).toHaveBeenNthCalledWith(
+      3,
+      {},
+      {
+        actorId: 'account',
+        action: 'source.read',
+        resourceId: '["fragment-0","version"]',
+      },
+    );
+  });
+  it('never returns sensitive data when audit persistence fails', async () => {
+    vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture());
+    vi.mocked(recordAudit).mockRejectedValue(new Error('audit unavailable'));
+    const profile = readPersonForCurrentUser({ id: 'one' });
+    await expect(profile).rejects.toThrow('audit unavailable');
+    const preview = readPersonPreviewForCurrentUser({ id: 'one' });
+    await expect(preview).rejects.toThrow('audit unavailable');
+    const source = readSourceForCurrentUser(reference);
+    await expect(source).rejects.toThrow('audit unavailable');
+  });
+  it('does not log a successful access for absent or denied resources', async () => {
+    vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture('mentor'));
+    const profile = await readPersonForCurrentUser({ id: 'two' });
+    expect(profile.status).toBe('not_found');
+    const source = await readSourceForCurrentUser({
+      ...reference,
+      originalVersionId: 'missing',
+    });
+    expect(source.status).toBe('not_found');
+    const invalid = await readSourceForCurrentUser({});
+    expect(invalid.status).toBe('validation_error');
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+  it('awaits audit persistence before resolving the profile', async () => {
+    vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture());
+    let complete!: () => void;
+    const persistence = new Promise<void>((resolve) => {
+      complete = resolve;
+    });
+    vi.mocked(recordAudit).mockReturnValue(persistence);
+    let returned = false;
+    const pending = readPersonForCurrentUser({ id: 'one' }).then((result) => {
+      returned = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(recordAudit).toHaveBeenCalledOnce());
+    expect(returned).toBe(false);
+    complete();
+    expect((await pending).status).toBe('success');
+  });
   it('does not infer compatibility between rule versions', async () => {
     const data = fixture();
     data.confirmations[0].ruleVersionId = 'future-rule';
@@ -217,4 +297,60 @@ describe('people, profile and shared sources', () => {
     const profile = await personFromData(data, 'one');
     expect(profile?.capabilityProfile).toHaveProperty('data.length', 2);
   });
+});
+
+it('keeps authorized observation nature in timelines and rejects it for mentors', async () => {
+  const data = fixture('hr');
+  data.statements[0].kind = 'management_observation';
+  const profile = await personFromData(data, 'one');
+  expect(profile?.timeline.status).toBe('ready');
+  if (profile?.timeline.status !== 'ready') throw new Error('Missing timeline');
+  const observation = profile.timeline.data.find(
+    (row) => row.id === data.statements[0].id,
+  );
+  expect(observation?.statement.nature).toBe('management_observation');
+  expect(observation?.statement.sources).toHaveLength(1);
+  const mentor = fixture('mentor');
+  mentor.statements[0].kind = 'management_observation';
+  const restricted = await personFromData(mentor, 'one');
+  expect(restricted?.timeline).toHaveProperty('data.length', 1);
+  expect(
+    personSchema.safeParse({ ...restricted, timeline: profile.timeline })
+      .success,
+  ).toBe(false);
+});
+it('retains ended non-owner participation only under current project authorization', async () => {
+  const data = fixture('hr');
+  data.staffing.projects.push({
+    id: 'past-project',
+    name: 'Synthetic past project',
+    type: 'topic',
+    status: '已结束',
+    goal: 'Synthetic goal',
+    organizationId: 'org',
+    cohortId: 'cohort',
+    isTopic: true,
+    ownerId: 'two',
+    creatorId: 'two',
+    from: '2026-01-01',
+    to: '2026-05-01',
+    sortOrder: 0,
+  });
+  data.staffing.members.push({
+    id: 'past-member',
+    projectId: 'past-project',
+    personId: 'one',
+    role: 'member',
+    mode: 'full',
+    validFrom: '2026-01-01',
+    validTo: '2026-05-01',
+    by: 'actor',
+  });
+  const profile = await personFromData(data, 'one');
+  expect(profile?.projects).toHaveProperty('data.0.participation', 'member');
+  data.staffing.projects[0].cohortId = 'other-cohort';
+  expect((await personFromData(data, 'one'))?.projects.status).toBe('empty');
+  data.staffing.projects[0].cohortId = 'cohort';
+  data.staffing.members[0].validFrom = '2027-01-01';
+  expect((await personFromData(data, 'one'))?.projects.status).toBe('empty');
 });

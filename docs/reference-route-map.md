@@ -23,9 +23,9 @@
 | `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
-| `app/record.html`                 | `/record`                         | record / record                     | record / records                             | 后续 / 404     |
+| `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
-| `app/queue.html`                  | `/queue`                          | queue / queue                       | queue / evaluation-system                    | 后续 / 404     |
+| `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
 | `app/review.html`                 | `/review?id=…`                    | review / review                     | review / talent                              | 后续 / 404     |
 | `app/calibrate.html`              | `/calibrate`                      | calibrate / calibrate               | calibrate / talent                           | 后续 / 404     |
@@ -35,7 +35,7 @@
 | `app/actions.html`                | `/program-actions`                | program-actions / program-actions   | program-actions / programs                   | 后续 / 404     |
 | `app/projects.html`               | `/projects`                       | projects / projects                 | projects / staffing                          | 已实现参考切片 |
 | `app/project.html`                | `/project?id=…`                   | project / project                   | project / staffing                           | 后续 / 404     |
-| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing                 | staffing / staffing                          | 后续 / 404     |
+| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 契约已定义，查询与 UI 待接入 / 404 |
 | `app/rules.html`                  | `/rules`                          | rules / rules                       | rules / evaluation-system                    | 后续 / 404     |
 | `app/judge.html`                  | `/judge?rater=me`                 | judge / judge                       | judge / evaluation-system                    | 后续 / 404     |
 | `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
@@ -50,6 +50,12 @@
 | `m/me.html`                       | `/m/me`                           | mobile-account / mobile-account     | mobile-account / directory                   | 后续 / 404     |
 | `design-system.html`              | `/dev/design-system`              | 已移植基础组件                      | —                                            | 已实现开发样张 |
 | `404.html`                        | 全局 404                          | State                               | —                                            | 已实现         |
+
+## BOW-851 找人契约
+
+`src/contracts/staffing.ts` 定义需求卡起草、编辑与确认、候选人逐条四态判断及来源、署名人工判断，以及复用 jobs 的 `staffing_match` 进度消息。方案槽位、方案确认和冻结保持 `not_connected`。
+
+本切片只交付契约与合成测试；`/staffing?new=1` 与 `?project=…` 的查询、动作和页面由 BOW-852、BOW-853、BOW-854 接入，当前继续返回 404。契约不将加分项换成候选排名，不向前端输出 confidence。
 
 ## 已移植组件与样式
 
@@ -86,6 +92,19 @@
 
 遮罩采用两侧实际区域的并集，并在两侧相同坐标覆盖，避免因工程省略节点导致只遮一侧。其他业务内容、项目卡片、筛选器、弹窗字段均不遮罩。
 
+### 页面卡共用的比较接口（`tests/visual/compare.ts`）
+
+页面卡需要在上述基线之外登记差异时，只用下面几个接口，不改 `reference-config.ts`；不传新参数时行为与此前相同。
+
+| 接口                                                           | 用途                                                                                                                                                                                                                               |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `normalizeRegions(原型页, 工程页, { omit, replace })`          | 比较前整理 DOM。`omit` 只作用于原型侧（工程不渲染、版面会错位的区块）；`replace` 把两侧同一选择器的第 i 个匹配替换成等大的空占位盒，匹配数不同直接报错，容器宽度不同会软失败                                                       |
+| `matchingMasks(原型页, 工程页, 额外选择器)`                    | 整页或首屏比较的页面级遮罩，与 `referenceConfig.masks` 合并，两侧实际区域取并集。页面自己的遮罩由页面传入，不放进全局配置                                                                                                          |
+| `compareElements(原型, 工程, testInfo, 名称, { mask, snap })`  | 元素比较。`mask` 是写在原型侧的元素内选择器，两侧各自换算成相对元素左上角的矩形，取并集后在相同相对位置覆盖（宽度对齐之后测量，由 `maskWithin` 完成）；`snap` 先用 `snapLayout` 把两侧元素的布局纵坐标取整，避免文字基线整行差 1px |
+| `expectSameBox(原型元素, 工程元素, 名称, { keys, tolerance })` | 几何先于像素：软断言文档坐标下的矩形一致，默认四项、容差 1px                                                                                                                                                                       |
+
+调用顺序固定：`normalizeRegions` → `stabilize` → `matchingMasks` → `compare` / `compareElements`；`expectSameBox` 必须在 `compareElements` 之前，因为后者会把工程元素宽度改成原型宽度。
+
 ## 实际验证与环境边界
 
 - 单元 / 隔离组件测试覆盖筛选、空列表、导师隐藏入口、登录失败保留输入、账号退出失败、菜单键盘、弹窗校验和焦点、忙碌防重复、网络中断重放相同请求 ID、服务端错误保留表单、管理员页面门禁与生产样张 404。
@@ -108,3 +127,42 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 导师窄屏保留已登记的“我的判断对照”入口；当前项目项按原型末项的位置靠右对齐并保留导航内边距，新入口仍可横向滚动访问。基线、阈值与遮罩清单不变。
 
 第三轮 CI 的输入样例两侧均为 464×62、起点均已对齐整数，剩余差异集中在文字的 LCD 彩色抗锯齿与灰阶抗锯齿。独立样例采集在两侧统一使用 `translateZ(0)` 零位移合成层，避免不同样张页面的合成条件影响文字栅格；此规则不进入生产 CSS，不改变字体、尺寸或阈值，实际像素结果仍须由下一轮 CI 确认。按钮选择器限定真实 `.n-btn`，不匹配隐藏菜单项；冻结原型 DOM 单测同时核对三个选择器唯一性、文案、输入值与徽标图标。当前视觉测试共 10 项。
+
+## P0 工作台、人员与来源合同（BOW-836）
+
+依据：[已交叉审规格](https://linear.app/bowenzhong/document/51834ba3247b)。仅新增 Zod 合同和合成夹具，不实现页面或读取。前端 BOW-839/840/841 负责人评审仍是独立合入条件，本表不宣称已获评审。原型基线仍为 `prototype-reference.json` 的 `2e51b50`，没有新遮罩或 UI 修改。
+
+| 消费页面 / 区块 | 合同字段 | 数据来源 / 当前表达 | 后续责任 |
+| --- | --- | --- | --- |
+| `/work` 问候与入口 | `workbench.greeting / entries` | directory 身份及服务端授权；合同就绪，查询尚未接入 | BOW-838/841 |
+| 管理者找人入口 | `findPeople` | 仅可用动作，不包含找人结果 | BOW-838；P2 找人链路 |
+| 管理者判断提醒、值得关注的人/项目、我的关注 | `judgmentReminders / noteworthyPeople / noteworthyProjects / myWatch` | evaluation-system / talent / programs；固定 `not_connected` | P2/P4 对应链路 |
+| HR 有变化的人、判断对照 | `changedPeople / judgmentComparison` | talent / evaluation-system；固定 `not_connected` | P4/P7 对应链路 |
+| HR/导师待办与材料任务 | `todos / materialTasks` | records / jobs；固定 `not_connected`，无伪零角标 | P3 待办汇总与材料链路 |
+| 导师学员 / 推荐 | `trainees / recommendations` | directory + records 授权学员可 ready/empty/insufficient_evidence/unknown；推荐固定 `not_connected` | BOW-838/841；推荐后续卡 |
+| `/people` 列表、速览 | `peopleList / quickView` | directory、records、staffing 公开入口；合同就绪，读取/UI 未接入 | BOW-837/839 |
+| `/person?id=…` 摘要 | `summary` | directory 身份；records 已授权事实、自述、人工结论分性质呈现 | BOW-837/840 |
+| 档案能力谱 | `capabilityProfile` | records 确认表维度分：锚点、评价人、规则版本、有效来源及 sourceCategory；演示种子的 prototype_baseline 例外计入，无 AI 建议分 | BOW-834/835/837/840 |
+| 档案小象限 | `referencePosition` | talent 当前有效确认分计算；只给参考分类或资料不足/未知，不设新阈值，无正式位置 | BOW-837/840 |
+| 校准轨迹、档案版本与变化 | `calibrationHistory / versionsAndChanges` | talent 盘点冻结未接入；固定 `not_connected` | 后续盘点冻结链路 |
+| 管理观察 / AI 推断 | `managementObservations / aiInferences` | records 按性质与当前权限分别投影，AI 继承来源权限 | BOW-835/837/840 |
+| 时间线、参与项目 | `timeline / projects` | records / staffing 已授权公开入口 | BOW-837/840 |
+| 所有引用角标展开 | `sourceReadInput / sourceReadResult` | records 的 fragmentId + originalVersionId + location；每次核对关联及当前权限，不整件返回 | BOW-834/835/837；播放 URL 由 BOW-873 后续接入 |
+
+状态规则：已接入的事实块 `ready` 必有非空 payload；`empty` 仅表示权限范围内确无记录；`insufficient_evidence` / `unknown` 带原因而无数值。来源读取失败沿用 `validation_error / forbidden / not_found / conflict`，不得伪装空状态。加载中是前端本地状态。未接入区块只含 `{status: 'not_connected'}`，不携带伪计数、数组或业务记录。
+
+角色规则：档案摘要、能力谱、时间线、项目供管理者、范围内 HR、所带学员导师读取；管理观察、小象限、校准轨迹、版本变化仅管理者/范围内 HR。导师严格变体不含这些字段，也没有 hiddenN；系统管理员无业务成功变体，查询入口拒绝后使用现有通用权限提示。AI 推断只可来自该角色已授权来源。schema 是边界校验，不替代服务端授权。
+
+列表按授权 → 姓名/岗位检索与团队筛选 → teamName、name、id 稳定排序；本次有界演示目录不分页，total 恰为可见筛选结果数。排序由 BOW-837 查询实现并测试，合同不重排数据、不提供 score 或校准变化参数。ID tie-break 仅确保重名稳定，非人才排名。
+
+来源位置为 document（可选 page、必填 paragraph）、spreadsheet（sheet、cell）、recording（startMs、endMs）或 snapshot_field（fieldPath，可选 originalLocation）。按 BOW-834 已定方案 A，固定原型作为 prototype_snapshot 原件登记，片段定位到 events[id].srcs[i] 或 events[id].act；originalLocation 仅为原表位置说明，不伪装单元格坐标。来源详情必须区分 sourceCategory=original / prototype_baseline，后者要求 demo=true，携带原件 displayNotice「原型基线 2e51b50，评语按原意压缩」，不得冒充原观察表。快照 commit/blob 由 originalVersionId 对应版本承载，不逐位置重复。无版本/位置不成引用，不用合成夹具补齐真实链路。录音播放 URL 在 P0 完全省略，不能包含永久公开地址或存储 key。读取输入不接受调用者 role。
+
+前端开发夹具：`tests/fixtures/p0-contracts.ts`，只含 `test-*` 标识和明确合成描述，涵盖三角色、ready/empty/insufficient_evidence/unknown/not_connected、来源拒绝。不得作为生产 fallback。测试：`src/contracts/p0-contracts.test.ts`；不改变工程共享配置与覆盖率排除。
+
+BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认分一样参加能力谱和参考位置；原型 AI 建议及资料不足不计入。这个合同不决定授权或正式导入许可，正式入口拒绝 prototype_baseline 由 BOW-834 保证。前端负责人需评审新增快照位置、来源类别与提示的展示；当前尚无该验收证据。
+
+## BOW-844 记事与评分复核契约
+
+`src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
+
+本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。

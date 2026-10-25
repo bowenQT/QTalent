@@ -194,7 +194,7 @@ export async function personFromData(
             (member) =>
               member.projectId === project.id &&
               member.personId === id &&
-              isCurrent(member, data.context.now),
+              member.validFrom <= data.context.now,
           )),
     )
     .map((project) => ({
@@ -217,7 +217,8 @@ export async function personFromData(
       ? block(scores)
       : { status: 'insufficient_evidence', reason: '暂无可用的已确认维度分' },
     timeline: block(
-      cited
+      visibleStatement
+        .filter((row) => row.nature !== 'ai_inference')
         .map((row) => ({
           id: row.id,
           occurredAt: row.occurredAt,
