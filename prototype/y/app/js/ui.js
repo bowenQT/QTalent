@@ -274,7 +274,7 @@
     const roleNote = e.roles && forPid ? html`<span class="n-badge">本人：${e.roles[forPid]}</span>` : '';
     const scores = e.scores.filter((s) => !forPid || s.p === forPid);
     const tags = (e.tags || []).map((t) => html`<span class="n-tag">${t}</span>`).concat((e.tagsAI || []).map((t) => html`<span class="n-tag is-candidate" title="标签库里还没有，等 HR 决定是否收录">${t}<small>候选</small></span>`));
-    return html`<article class="n-card n-event nt-event" id="ev-${e.id}">
+    return html`<article class="n-card n-event nt-event" data-ev="${e.id}">
       <div class="n-event__head">${o.showPerson && e.people[0] ? html`${UI.avatar(e.people[0], 'sm')}<b class="n-event__who">${st.person(e.people[0]).name}</b>` : ''}
         ${UI.src(e.kind === 'self' ? 'self' : e.kind === 'hist' ? 'hist' : 'obs')}
         <span>${e.date ? NT.md(e.date) : '时间未知'} · ${st.person(e.recorder)?.name || ''}记录</span>

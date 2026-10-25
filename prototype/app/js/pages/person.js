@@ -236,7 +236,7 @@
       const h = e.target.closest('.nt-hist');
       if (h) {
         const row = h.closest('.n-score'), card = h.closest('.nt-event');
-        const ev = st.event(card.id.slice(3)), dimName = row.querySelector('.n-score__dim').textContent;
+        const ev = st.event(card.dataset.ev), dimName = row.querySelector('.n-score__dim').textContent;
         const s = ev.scores.find((x) => x.p === pid && st.dim(x.d).name === dimName);
         const next = row.nextElementSibling;
         if (next?.classList.contains('n-history')) { next.remove(); return; }

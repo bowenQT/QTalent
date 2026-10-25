@@ -263,7 +263,7 @@
     const roleNote = e.roles && forPid ? html`<span class="n-badge">本人：${e.roles[forPid]}</span>` : '';
     const scores = e.scores.filter((s) => !forPid || s.p === forPid);
     const tags = (e.tags || []).map((t) => html`<span class="n-tag">${t}</span>`).concat((e.tagsAI || []).map((t) => html`<span class="n-tag is-candidate" title="标签库里还没有，等 HRBP 决定是否收录">${t}<small>候选</small></span>`));
-    return html`<article class="n-card n-event nt-event" id="ev-${e.id}">
+    return html`<article class="n-card n-event nt-event" data-ev="${e.id}">
       <div class="n-event__head">${o.showPerson && e.people[0] ? html`${UI.avatar(e.people[0], 'sm')}<b class="n-event__who">${st.person(e.people[0]).name}</b>` : ''}
         ${UI.src(e.kind === 'self' ? 'self' : e.kind === 'hist' ? 'hist' : 'obs')}
         ${e.push ? html`<span class="n-badge">${icon('flag')}来自 CEO 推动</span>` : ''}
@@ -389,7 +389,7 @@
     const seen = new Set(st.visibleEvents(t.person).events.map((e) => e.id));
     const since = st.get().events.filter((e) => e.kind === 'obs' && e.date && e.date > t.since && e.people.includes(t.person) && seen.has(e.id));
     const scoreTxt = (e) => e.scores.filter((s) => s.p === t.person).map((s) => (s.v != null ? `${st.dim(s.d).name} ${s.v}${s.st === 'ai' ? '（AI 建议）' : ''}` : `${st.dim(s.d).name}资料不足`)).join('、');
-    return html`<article class="n-card n-track ${t.state !== 'on' ? 'is-stopped' : ''}" data-track="${t.id}" id="track">
+    return html`<article class="n-card n-track ${t.state !== 'on' ? 'is-stopped' : ''}" data-track="${t.id}">
       <div class="n-track__head">${UI.person(t.person, { meta: `${st.orgShort(p.org)} · ${p.title}` })}<span class="n-badge">${icon('target')}${t.state === 'on' ? '跟踪中' : '已结束'}</span></div>
       <dl class="n-track__dl"><dt>为什么关注</dt><dd>${t.why}</dd><dt>想观察</dt><dd class="n-track__q">${t.q}</dd>
         <dt>负责人</dt><dd>${st.person(t.owner).name}${t.helper ? ` · ${st.person(t.helper).name}协助` : ''}</dd><dt>下次</dt><dd>${NT.md(t.next)} 前，或下一次对人复盘</dd></dl>
