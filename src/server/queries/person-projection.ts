@@ -34,7 +34,7 @@ function personSubjects(data: PersonData, id: string): TalentSubject[] {
       .map((row) => ({ personId: id, cohortId: row.cohortId })),
   ];
 }
-const block = <T,>(items: T[]) =>
+const block = <T>(items: T[]) =>
   items.length
     ? { status: 'ready' as const, data: items }
     : { status: 'empty' as const };
