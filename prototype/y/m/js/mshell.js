@@ -6,8 +6,10 @@
   const { html, icon, mount, $ } = NT;
   const M = (NT.m = {});
   const PAGES = ['index', 'record', 'quick', 'mentor', 'people', 'person', 'inbox', 'me'];
-  // 手机端只有导师视角：不写入本地的视角设置，回到桌面版时仍是原来的视角
-  st.role = () => 'mentor';
+  // 手机端给导师用，不写入本地的视角设置，回到桌面版时仍是原来的视角。
+  // 系统管理员不能改写成导师，否则侧栏的手机入口和 ?as=admin 会看到学员与分数。
+  const incomingRole = st.role();
+  if (incomingRole !== 'admin') st.role = () => 'mentor';
   const FLOWS = [
     ['record', '录音', 'record.html', '选模式 → 实时转写 → 处理中 → 人才纪要 → 追问'],
     ['quick', '一句话记录', 'quick.html', '一句话或按住说话 → 确认 AI 建议分'],
@@ -17,6 +19,17 @@
 
   // 页面入口：NT.mshell({ tab, title, back, action, allow, denyTitle, denyText, demos, view, state, restore, render(main), bare })
   NT.mshell = (cfg) => NT.ready(() => {
+    if (incomingRole === 'admin') {
+      document.title = '系统管理员看不到这一页 · Niu-Talent 手机版';
+      document.body.classList.add('nt-mob');
+      const root = document.getElementById('app');
+      mount(root, html`
+        <div class="m-stage"><div class="m-phone"><div class="m-screen"><main id="main" class="m-body" style="padding:24px">
+          ${UI.state({ ip: 'confirm', size: 56, title: '系统管理员看不到人才数据', text: '手机版会进入导师的学员、档案和分数。系统管理员只使用桌面版的系统管理。', actions: html`<a class="n-btn n-btn--sm" href="../app/admin.html">回到系统管理</a>` })}
+        </main></div></div></div>`);
+      UI.mountIPs(root);
+      return;
+    }
     st.tickTasks();
     document.title = `${cfg.title} · Niu-Talent 手机版`;
     const role = st.role(), me = st.me();
