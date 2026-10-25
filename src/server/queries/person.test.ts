@@ -298,3 +298,54 @@ describe('people, profile and shared sources', () => {
     expect(profile?.capabilityProfile).toHaveProperty('data.length', 2);
   });
 });
+
+it('keeps authorized observation nature in timelines and rejects it for mentors', async () => {
+  const data = fixture('hr');
+  data.statements[0].kind = 'management_observation';
+  const profile = await personFromData(data, 'one');
+  expect(profile?.timeline.status).toBe('ready');
+  if (profile?.timeline.status !== 'ready') throw new Error('Missing timeline');
+  const observation = profile.timeline.data.find((row) => row.id === data.statements[0].id);
+  expect(observation?.statement.nature).toBe('management_observation');
+  expect(observation?.statement.sources).toHaveLength(1);
+  const mentor = fixture('mentor');
+  mentor.statements[0].kind = 'management_observation';
+  const restricted = await personFromData(mentor, 'one');
+  expect(restricted?.timeline).toHaveProperty('data.length', 1);
+  expect(personSchema.safeParse({ ...restricted, timeline: profile.timeline }).success).toBe(false);
+});
+it('retains ended non-owner participation only under current project authorization', async () => {
+  const data = fixture('hr');
+  data.staffing.projects.push({
+    id: 'past-project',
+    name: 'Synthetic past project',
+    type: 'topic',
+    status: '已结束',
+    goal: 'Synthetic goal',
+    organizationId: 'org',
+    cohortId: 'cohort',
+    isTopic: true,
+    ownerId: 'actor',
+    creatorId: 'actor',
+    from: '2026-01-01',
+    to: '2026-05-01',
+    sortOrder: 0,
+  });
+  data.staffing.members.push({
+    id: 'past-member',
+    projectId: 'past-project',
+    personId: 'one',
+    role: 'member',
+    mode: 'full',
+    validFrom: '2026-01-01',
+    validTo: '2026-05-01',
+    by: 'actor',
+  });
+  const profile = await personFromData(data, 'one');
+  expect(profile?.projects).toHaveProperty('data.0.participation', 'member');
+  data.staffing.projects[0].cohortId = 'other-cohort';
+  expect((await personFromData(data, 'one'))?.projects.status).toBe('empty');
+  data.staffing.projects[0].cohortId = 'cohort';
+  data.staffing.members[0].validFrom = '2027-01-01';
+  expect((await personFromData(data, 'one'))?.projects.status).toBe('empty');
+});
