@@ -2964,7 +2964,11 @@
   menu.addEventListener('click', e => { if (e.target.closest('button')) setMenu(false); });
 
   // 弹窗
-  $$('[data-open]').forEach(b => b.addEventListener('click', () => $('#' + b.dataset.open).showModal()));
+  // 轨迹用 data-open 表示展开（true / false），不是弹窗 id。只对真实 dialog 调用 showModal。
+  $$('[data-open]').forEach(b => b.addEventListener('click', () => {
+    const dlg = document.getElementById(b.dataset.open);
+    if (dlg && dlg.tagName === 'DIALOG') dlg.showModal();
+  }));
   $$('.n-dialog').forEach(d => {
     $$('[data-close]', d).forEach(b => b.addEventListener('click', () => d.close(b.dataset.close || 'cancel')));
     d.addEventListener('close', () => {
