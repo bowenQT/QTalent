@@ -1021,7 +1021,7 @@
   store.isFollowing = (pid) => store.followList().some((f) => f.person === pid);
   store.follow = (pid, via) => {
     if (!store.canFollow(pid) || store.isFollowing(pid)) return null;
-    const f = { by: store.me().id, person: pid, at: NT.TODAY, ...(via ? { via } : {}) };
+    const f = { by: store.me().id, person: pid, at: NT.TODAY, ts: Date.now(), ...(via ? { via } : {}) };
     S.follows.unshift(f); store.save();
     return f;
   };
@@ -1055,9 +1055,18 @@
       });
       store.recosFor(p).filter((c) => c.verifiedAt >= f.at).forEach((c) => out.push({ person: p, at: c.verifiedAt, ts: c.verifiedTs, kind: 'reco', text: `${store.person(c.by).name}推荐${store.fitText(c.dir)}`, by: c.verifiedBy }));
     });
+    // 新关注用精确时刻筛选；旧记录没有关注 ts，维持原有按日期的兼容口径。
+    const followAt = new Map(store.followList().map((f) => [f.person, f]));
+    const afterFollow = (x) => {
+      const f = followAt.get(x.person);
+      if (!f || x.at < f.at) return false;
+      if (x.at > f.at || f.ts == null) return true;
+      // 同一天的历史无时间戳记录不能证明发生于关注后，故不误推为新动态。
+      return x.ts != null && x.ts >= f.ts;
+    };
     // 同一天按记录时刻（ts）从新到旧，同一天的同一件事只留一条
     const seen = new Set();
-    return out.sort((a, b) => b.at.localeCompare(a.at) || (b.ts || 0) - (a.ts || 0)).filter((x) => { const k = `${x.person}|${x.at}|${x.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
+    return out.filter(afterFollow).sort((a, b) => b.at.localeCompare(a.at) || (b.ts || 0) - (a.ts || 0)).filter((x) => { const k = `${x.person}|${x.at}|${x.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
   };
 
   // 不一致的口径：只看前段给了明确判断（最高档或最低档）的人，后段结论和它不同才算不一致。
