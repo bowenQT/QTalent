@@ -62,7 +62,7 @@
       ${hidden ? html`<div class="n-lock m-lockline">${icon('lock')}${role === 'mentor' ? `另有 ${hidden} 条管理观察和受限资料，导师视角已隐藏` : `另有 ${hidden} 条资料属于你负责范围以外的项目，已隐藏`}。</div>` : ''}
 
       <h3 class="m-h">参与的项目</h3>
-      ${st.projectsOf(pid, true).length ? html`<ul class="m-list">${st.projectsOf(pid, true).map((m) => M.row(`project.html?id=${m.p.id}`, icon('folder'), m.p.name, `${m.role} · ${m.mode} · ${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}`))}</ul>` : html`<div class="nt-empty">还没有参与项目。</div>`}`);
+      ${st.projectsOf(pid, true).length ? html`<ul class="m-list">${st.projectsOf(pid, true).map((m) => M.row(UI.appHref(`project.html?id=${m.p.id}`), icon('folder'), m.p.name, `${m.role} · ${m.mode} · ${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}`))}</ul>` : html`<div class="nt-empty">还没有参与项目。</div>`}`);
 
     if (spec) UI.wireSpectrum($('#spec-rows'));
     if ($('#sigwrap')) UI.wireSignal($('#sigwrap'), () => render(main));

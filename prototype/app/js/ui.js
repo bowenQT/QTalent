@@ -687,7 +687,7 @@
   // ---------- 速览（v1.5 3.27）：点人或项目先看 30 秒的关键信息，想深入再进详情 ----------
   // 桌面是右侧栏，侧栏开着时点另一个人直接切换；手机是屏内的底部弹层。内容与详情页同一套权限
   const mob = () => !!document.getElementById('m-screen');
-  const appHref = (h) => (mob() && !/^(person|index|people)\.html/.test(h) ? `../app/${h}` : h);
+  const appHref = (UI.appHref = (h) => (mob() && !/^(person|index|people)\.html/.test(h) ? `../app/${h}` : h));
   const capLines = (pid) => {
     if (!st.can('scores', pid)) return null;
     // 与档案同一取数口径（含复核暂停）；锚点按最高分所用的版本（复核过的按复核版本）

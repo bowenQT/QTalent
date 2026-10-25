@@ -87,7 +87,7 @@
         ${row.items.map(evLine)}
         ${UI.reviewEval(pid, WEEK, row)}
         <div class="n-calib__pair">${s.raters.map((x) => html`<div class="n-calib__side"><span style="color:var(--ink-3)">${st.person(x.by).name}</span><b>${x.v}</b>「${x.why}」</div>`)}</div>
-        <div class="n-lock">${icon('split')}${canCal ? html`在桌面版「评分复核」里处理：<a href="queue.html">去复核</a>` : '两位评价人分差 ≥ 2，已转给 HR 复核。复核后这一项才计入档案。'}</div></div>`;
+        <div class="n-lock">${icon('split')}${canCal ? html`在桌面版「评分复核」里处理：<a href="${UI.appHref('queue.html')}">去复核</a>` : '两位评价人分差 ≥ 2，已转给 HR 复核。复核后这一项才计入档案。'}</div></div>`;
     }
     if (row.state === 'ai') {
       return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(html`<span class="n-badge n-badge--ai">${icon('spark')}AI 建议，待确认</span>`)}
