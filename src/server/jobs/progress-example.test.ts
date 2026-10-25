@@ -1,10 +1,17 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { exampleJobPolicy, exampleSnapshotSchema } from './progress-example';
+import { listProjectsForCurrentUser } from '../queries/projects';
 import { newJob } from './state';
 import { ForbiddenError } from '../usecases/project-context';
 import type { Transaction } from '../db/client';
 import type { AuthzContext } from '../authz';
 const load = vi.hoisted(() => vi.fn());
+const environment = vi.hoisted(() => ({ APP_ENV: 'test' }));
+vi.mock('../env', () => ({ getEnv: () => environment }));
+vi.mock('../auth/next', () => ({
+  requireSession: async () => ({ user: { id: 'a' } }),
+}));
+vi.mock('../db/client', () => ({ getDatabase: () => ({}) }));
 vi.mock('../usecases/project-context', async (original) => ({
   ...(await original<typeof import('../usecases/project-context')>()),
   loadProjectContext: load,
@@ -16,6 +23,7 @@ const job = newJob(
 const tx = {} as Transaction;
 let context: AuthzContext;
 beforeEach(() => {
+  environment.APP_ENV = 'test';
   context = {
     account: { id: 'a', personId: 'person', isSystemAdmin: false },
     now: '2026-10-25',
@@ -46,6 +54,36 @@ beforeEach(() => {
   };
   load.mockReset().mockResolvedValue({ context });
 });
+afterEach(() => vi.useRealTimers());
+it.each(['test', 'demo', 'production', 'local'])(
+  'matches project-page grant validity with the %s business clock',
+  async (appEnv) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-25T12:00:00.000Z'));
+    environment.APP_ENV = appEnv;
+    context.grants[0].validTo = '2026-09-30';
+    const project = {
+      ...context.projects[0],
+      name: '演示项目',
+      type: '业务项目',
+      status: '进行中',
+      goal: '合成任务',
+      organizationId: 'org',
+      from: '2026-01-01',
+      to: '2026-12-31',
+      sortOrder: 0,
+    };
+    load.mockImplementation(async (_tx, _account, now: string) => ({
+      context: { ...context, now },
+      directory: { people: [], organizations: [] },
+      staffing: { projects: [project], members: [] },
+    }));
+    const page = await listProjectsForCurrentUser();
+    const readable = page.projects.some((item) => item.id === job.resourceId);
+    expect(readable).toBe(appEnv === 'demo' || appEnv === 'test');
+    expect(await exampleJobPolicy().can(tx, 'a', job, 'read')).toBe(readable);
+  },
+);
 it('uses current project authorization, not job ownership, and denies every control', async () => {
   const policy = exampleJobPolicy();
   expect(await policy.can(tx, 'a', job, 'read')).toBe(true);

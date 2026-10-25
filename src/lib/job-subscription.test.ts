@@ -49,36 +49,39 @@ describe('job subscriptions', () => {
     expect(read).toHaveBeenCalledTimes(2);
     sub.unsubscribe();
   });
-  it('backs off 2/4/8 seconds, retains stale results and refreshes immediately on recovery', async () => {
-    const read = vi
-      .fn()
-      .mockResolvedValueOnce(snapshot())
-      .mockRejectedValue(new Error('offline'));
-    const onChange = vi.fn();
-    const sub = subscribeToJob({ jobId: 'j', read, onChange });
-    await flush();
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        snapshot: snapshot(),
-        stale: true,
-        connection: 'error',
-      }),
-    );
-    await vi.advanceTimersByTimeAsync(1999);
-    expect(read).toHaveBeenCalledTimes(2);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(read).toHaveBeenCalledTimes(3);
-    await vi.advanceTimersByTimeAsync(4000);
-    expect(read).toHaveBeenCalledTimes(4);
-    await vi.advanceTimersByTimeAsync(8000);
-    expect(read).toHaveBeenCalledTimes(5);
-    read.mockResolvedValue(snapshot(2));
-    sub.refresh();
-    await flush();
-    expect(read).toHaveBeenCalledTimes(6);
-    sub.unsubscribe();
-  });
+  it.each([new Error('offline'), new JobReadError(503)])(
+    'backs off 2/4/8 seconds for $name, retains stale results and refreshes immediately on recovery',
+    async (error) => {
+      const read = vi
+        .fn()
+        .mockResolvedValueOnce(snapshot())
+        .mockRejectedValue(error);
+      const onChange = vi.fn();
+      const sub = subscribeToJob({ jobId: 'j', read, onChange });
+      await flush();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(onChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          snapshot: snapshot(),
+          stale: true,
+          connection: 'error',
+        }),
+      );
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(read).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(read).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(read).toHaveBeenCalledTimes(4);
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(read).toHaveBeenCalledTimes(5);
+      read.mockResolvedValue(snapshot(2));
+      sub.refresh();
+      await flush();
+      expect(read).toHaveBeenCalledTimes(6);
+      sub.unsubscribe();
+    },
+  );
   it.each(['completed', 'cancelled', 'failed', 'awaiting_manual'] as const)(
     'stops automatic reads for %s, manual refresh resumes',
     async (status) => {

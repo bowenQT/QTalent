@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { createJobSnapshotSchema } from '../../contracts/jobs';
+import { createClock } from '../../lib/clock';
 import { canReadProject } from '../authz';
+import { getEnv } from '../env';
 import type { Transaction } from '../db/client';
 import {
   loadProjectContext,
@@ -29,7 +31,7 @@ export function exampleJobPolicy(): JobPolicy<Transaction> {
         const { context } = await loadProjectContext(
           tx,
           accountId,
-          new Date().toISOString(),
+          createClock(getEnv().APP_ENV).today(),
         );
         const project = context.projects.find(
           (item) => item.id === job.resourceId,
