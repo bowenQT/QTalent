@@ -9,6 +9,10 @@ import { Cite } from '@/components/ui/Cite';
 import { EventCard } from '@/components/ui/EventCard';
 import { History } from '@/components/ui/History';
 import { Icon } from '@/components/ui/Icon';
+import {
+  JudgeProgress,
+  JudgeProgressList,
+} from '@/components/ui/JudgeProgress';
 import { MatchState } from '@/components/ui/MatchState';
 import { MiniQuad } from '@/components/ui/MiniQuad';
 import { Score } from '@/components/ui/Score';
@@ -21,6 +25,53 @@ import {
 import { Src, srcKinds } from '@/components/ui/Src';
 import { StreamText } from '@/components/ui/StreamText';
 import { Trail, type TrailStep } from '@/components/ui/Trail';
+import styles from './history-sample.module.css';
+
+/** Score row with its revision history opening as a panel right under it. */
+function HistorySample() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className={`n-card ${styles.card}`} data-sample="history-card">
+      <b className={styles.title}>修订历史</b>
+      <p className={styles.caption}>
+        从分数行的「修订历史」展开，嵌在该行下方，最新一次在最上面。
+      </p>
+      <Score
+        dimension="内生动力"
+        state="calibrated"
+        value={4}
+        by="苏晚"
+        onOpenHistory={() => setOpen((value) => !value)}
+        historyPanel={{ id: 'hist-demo', expanded: open }}
+      />
+      <History
+        id="hist-demo"
+        hidden={!open}
+        entries={[
+          {
+            value: 4,
+            origin: 'human',
+            summary: '改分',
+            reason: '两周内三次主动补位，不止这一次。',
+            meta: ['苏晚', 'HR 校准', '10-23'],
+          },
+          {
+            value: 3,
+            origin: 'human',
+            summary: '确认',
+            meta: ['叶青', '导师', '10-21'],
+          },
+          {
+            value: 4,
+            origin: 'ai',
+            summary: 'AI 建议 · 锚点 4 · 引用录音 03:12',
+            meta: ['rubric-v1', '10-21'],
+          },
+        ]}
+      />
+    </div>
+  );
+}
 
 const streamSegments = [
   '读取需求，拆出 4 项要求。',
@@ -270,9 +321,63 @@ export function TalentSamples() {
             ]}
           />
         </div>
+        <div data-sample="trail-failed" style={{ maxWidth: 520 }}>
+          <Trail
+            title="为「海外加速搜索」找 owner · 第 3 步失败"
+            steps={[
+              { id: 'read', label: '读取需求，拆出 4 项要求', state: 'done' },
+              {
+                id: 'scope',
+                label: '检索你有权限查看的 38 人',
+                detail: '增长产品部、业务成功部',
+                state: 'done',
+              },
+              {
+                id: 'check',
+                label: '逐项核对证据',
+                detail: '失败 · 前两步结果已保留，可重新核对',
+                state: 'failed',
+              },
+              { id: 'draft', label: '生成候选与缺口', state: 'pending' },
+            ]}
+          />
+        </div>
         <StreamDemo />
         <div data-sample="caret">
           <StreamText segments={['正在核对第 3 位候选人的材料']} streaming />
+        </div>
+      </section>
+
+      <section className="nt-grid" aria-labelledby="ds-progress">
+        <h2 id="ds-progress">处理进度</h2>
+        <div
+          className="n-card"
+          data-sample="judge-progress"
+          style={{ maxWidth: 520 }}
+        >
+          <JudgeProgressList>
+            <JudgeProgress
+              state="queued"
+              subject="王一舟"
+              note="前面还有 2 位，轮到后自动开始"
+            />
+            <JudgeProgress
+              state="judging"
+              subject="周屿"
+              note="逐项核对要求 · 2/4"
+            />
+            <JudgeProgress
+              state="review"
+              subject="顾南"
+              note="「海外客户经验」的证据互相矛盾，等你来定"
+            />
+            <JudgeProgress
+              state="failed"
+              subject="宋小满"
+              note="判断服务超时，已有证据都保留着"
+              retry={{ label: '重新判断', onRetry: () => undefined }}
+            />
+          </JudgeProgressList>
         </div>
       </section>
 
@@ -427,34 +532,7 @@ export function TalentSamples() {
               defaultOpen
             />
           </div>
-          <div className="n-card" data-sample="history-card">
-            <b style={{ fontSize: 'var(--t-sm)' }}>内生动力 · 修订历史</b>
-            <div style={{ marginTop: 'var(--s-2)' }}>
-              <History
-                entries={[
-                  {
-                    value: 4,
-                    origin: 'human',
-                    summary: '改分',
-                    reason: '两周内三次主动补位，不止这一次。',
-                    meta: ['苏晚', 'HR 校准', '10-23'],
-                  },
-                  {
-                    value: 3,
-                    origin: 'human',
-                    summary: '确认',
-                    meta: ['叶青', '导师', '10-21'],
-                  },
-                  {
-                    value: 4,
-                    origin: 'ai',
-                    summary: 'AI 建议 · 锚点 4 · 引用录音 03:12',
-                    meta: ['rubric-v1', '10-21'],
-                  },
-                ]}
-              />
-            </div>
-          </div>
+          <HistorySample />
         </div>
       </section>
 

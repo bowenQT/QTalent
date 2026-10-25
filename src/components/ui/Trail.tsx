@@ -3,16 +3,16 @@ import { useId, useState, type ReactNode } from 'react';
 
 /**
  * The stylesheet recognises only these step states; callers map "in progress" to `active`.
- * A failed step is not designed yet and is added together with the prototype sync.
+ * A failed step shows an ink circle with a cross; what failed and what is kept goes in `detail`.
  */
-export const trailStepStates = ['pending', 'active', 'done'] as const;
+export const trailStepStates = ['pending', 'active', 'done', 'failed'] as const;
 export type TrailStepState = (typeof trailStepStates)[number];
 
 export type TrailStep = {
   id: string;
   label: ReactNode;
   state: TrailStepState;
-  /** Small trailing note, e.g. the scope a step searched. */
+  /** Small trailing note, e.g. the scope a step searched, or for a failed step what failed and what is kept. */
   detail?: string;
 };
 
@@ -53,6 +53,11 @@ export function Trail({
             data-state={step.state}
             aria-current={step.state === 'active' ? 'step' : undefined}
           >
+            {step.state === 'failed' ? (
+              <svg className="n-trail__x" aria-hidden="true">
+                <use href="#i-x" />
+              </svg>
+            ) : null}
             {step.label}
             {step.detail ? (
               <>

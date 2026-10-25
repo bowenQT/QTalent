@@ -47,6 +47,39 @@ describe('Trail', () => {
     expect(trail.getAttribute('data-open')).toBe('true');
   });
 
+  it('marks a failed step with a cross and leaves later steps pending', () => {
+    const view = render(
+      <Trail
+        title="找 owner · 第 3 步失败"
+        steps={[
+          { id: 'a', label: '读取需求', state: 'done' },
+          {
+            id: 'b',
+            label: '逐项核对证据',
+            detail: '失败 · 前两步结果已保留，可重新核对',
+            state: 'failed',
+          },
+          { id: 'c', label: '生成候选', state: 'pending' },
+        ]}
+      />,
+    );
+    const steps = [...view.container.querySelectorAll('.n-trail__step')];
+    expect(steps.map((el) => el.getAttribute('data-state'))).toEqual([
+      'done',
+      'failed',
+      'pending',
+    ]);
+    const cross = steps[1].querySelector('svg.n-trail__x');
+    expect(cross?.getAttribute('aria-hidden')).toBe('true');
+    expect(cross?.querySelector('use')?.getAttribute('href')).toBe('#i-x');
+    expect(steps[0].querySelector('.n-trail__x')).toBeNull();
+    expect(steps[1].querySelector('small')?.textContent).toBe(
+      '失败 · 前两步结果已保留，可重新核对',
+    );
+    // Only the running step is "current"; a failed one is not.
+    expect(steps.some((el) => el.hasAttribute('aria-current'))).toBe(false);
+  });
+
   it('can start collapsed', () => {
     const view = render(
       <Trail title="找 owner" steps={plan} defaultOpen={false} />,
@@ -58,7 +91,7 @@ describe('Trail', () => {
 
   it('rejects step states the stylesheet does not know', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    for (const state of ['failed', 'in_progress', 'toString']) {
+    for (const state of ['error', 'in_progress', 'toString']) {
       expect(() =>
         render(
           <Trail

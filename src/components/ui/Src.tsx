@@ -1,3 +1,4 @@
+import { isEnumKey } from './enum';
 import { Icon, type IconName } from './Icon';
 
 /** The five provenance classes; they are stored and shown apart (AGENTS 产品不变量). */
@@ -30,7 +31,7 @@ export type SrcProps =
 
 /** The visible name may vary only inside the same class (a history source is still a fact). */
 export function Src({ kind, label }: SrcProps) {
-  if (!Object.hasOwn(meta, kind))
+  if (!isEnumKey(meta, kind))
     throw new Error(`Unknown source kind: ${String(kind)}`);
   const entry = meta[kind];
   if (
