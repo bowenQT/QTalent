@@ -1,0 +1,71 @@
+import { describe, expect, it } from 'vitest';
+import { deriveReferencePosition, type PositionScore } from './derive';
+const score = (
+  eventId: string,
+  dimensionId: string,
+  value: number,
+  axis: 'prof' | 'pot' = 'pot',
+  core = true,
+  occurredOn = '2026-06-01',
+): PositionScore => ({
+  eventId,
+  dimensionId,
+  value,
+  axis,
+  core,
+  occurredOn,
+});
+const ready = [
+  score('a', 'prof', 3, 'prof'),
+  score('b', 'prof', 4, 'prof'),
+  score('a', 'mot', 4),
+  score('b', 'grit', 3),
+];
+const derive = (scores: PositionScore[]) =>
+  deriveReferencePosition(scores, '2026-07-01');
+describe('reference position from authorized confirmations', () => {
+  it('requires distinct events and two potential core dimensions', () => {
+    expect(derive([]).status).toBe('insufficient_evidence');
+    const sameEvent = ready.map((s) => ({ ...s, eventId: 'one' }));
+    expect(derive(sameEvent).status).toBe('insufficient_evidence');
+    const oneCore = ready.filter((s) => s.dimensionId !== 'grit');
+    expect(derive(oneCore).status).toBe('insufficient_evidence');
+  });
+  it('averages by dimension and ignores bonus dimensions', () => {
+    const bonus = score('c', 'lead', 1, 'pot', false);
+    expect(derive([...ready, bonus])).toEqual({
+      status: 'ready',
+      data: {
+        kind: 'reference',
+        quadrant: 'high_professional_high_potential',
+      },
+    });
+    const extras = [score('c', 'mot', 4), score('d', 'mot', 4)];
+    expect(derive([...ready, ...extras])).toEqual(derive(ready));
+  });
+  it('uses a 12-month inclusive window and excludes future events', () => {
+    const withDate = (occurredOn: string) =>
+      ready.map((s) => ({ ...s, occurredOn }));
+    expect(derive(withDate('2025-07-01')).status).toBe('ready');
+    for (const date of ['2025-06-30', '2026-07-02'])
+      expect(derive(withDate(date)).status).toBe('insufficient_evidence');
+  });
+  it('returns four categories without exact axes or a total', () => {
+    for (const prof of [2, 4])
+      for (const pot of [2, 4]) {
+        const rows = ready.map((s) => ({
+          ...s,
+          value: s.axis === 'prof' ? prof : pot,
+        }));
+        const x = prof >= 3.5 ? 'high' : 'low';
+        const y = pot >= 3.5 ? 'high' : 'low';
+        expect(derive(rows)).toEqual({
+          status: 'ready',
+          data: {
+            kind: 'reference',
+            quadrant: `${x}_professional_${y}_potential`,
+          },
+        });
+      }
+  });
+});
