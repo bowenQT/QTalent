@@ -3,6 +3,7 @@ import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
+import { warmReferenceRoutes } from './app-readiness';
 import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createDatabase } from '../../src/server/db/client';
@@ -118,6 +119,7 @@ export const test = base.extend<{ referenceApp: ReferenceApp }>({
             throw new Error(`Reference app startup timed out: ${logs}`);
           await new Promise((resolve) => setTimeout(resolve, 250));
         }
+        await warmReferenceRoutes(baseURL, deadline);
         await provide({ baseURL, pool: connection.pool });
       } finally {
         if (app && app.exitCode === null) {

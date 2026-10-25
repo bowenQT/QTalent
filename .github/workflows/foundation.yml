@@ -48,8 +48,10 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm reference:prepare
       - run: pnpm check
+        id: quality
       - run: pnpm test:e2e
       - run: pnpm test:visual
+        if: ${{ !cancelled() && steps.quality.outcome == 'success' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

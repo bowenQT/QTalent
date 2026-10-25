@@ -10,7 +10,11 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.ts'],
+    include: [
+      'src/**/*.test.{ts,tsx}',
+      'scripts/**/*.test.ts',
+      'tests/e2e/**/*.test.ts',
+    ],
     exclude: ['src/**/*.integration.test.ts'],
     pool: 'forks',
     coverage: {
