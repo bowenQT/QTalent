@@ -209,6 +209,7 @@ export async function normalizeRegions(
                 padding: '0',
                 border: '0',
                 background: '#e6e6e6',
+                boxShadow: 'none',
               });
             },
           );

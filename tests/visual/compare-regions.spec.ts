@@ -114,6 +114,23 @@ test.describe('normalizeRegions', () => {
     await context.close();
   });
 
+  test('replace also drops state decoration such as an inset shadow outline', async ({
+    browser,
+  }) => {
+    const { context, reference, actual } = await pair(
+      browser,
+      '<div class="slot" style="width:200px;height:40px;box-shadow:inset 0 0 0 2px #36c">light</div>',
+      '<div class="slot" style="width:200px;height:40px;box-shadow:none">ink</div>',
+    );
+    await normalizeRegions(reference, actual, { replace: ['.slot'] });
+    expect(
+      (await reference.locator('.slot').screenshot()).equals(
+        await actual.locator('.slot').screenshot(),
+      ),
+    ).toBeTruthy();
+    await context.close();
+  });
+
   test('replace fails loudly when the two sides match different numbers of nodes', async ({
     browser,
   }) => {
