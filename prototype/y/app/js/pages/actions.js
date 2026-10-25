@@ -68,7 +68,7 @@
       </div>`);
     NT.$$('[data-act]', main).forEach((btn) => {
       const a = S.actions.find((x) => x.id === btn.dataset.act);
-      NT.menu(btn, ORDER.filter((s) => s !== a.state && s !== 'reviewed').map((s) => ({ label: LABEL[s], run: () => setState(a, s) })));
+      NT.menu(btn, ORDER.filter((s) => s !== a.state).map((s) => ({ label: LABEL[s], run: () => setState(a, s) })));
     });
     main.onclick = (e) => {
       const n = e.target.closest('[data-node]'); if (n) { key = n.dataset.node; editing = null; render(main); if (matchMedia('(max-width: 900px)').matches) $('#retro').scrollIntoView({ block: 'start' }); return; }
