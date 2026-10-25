@@ -86,6 +86,15 @@
 
 遮罩采用两侧实际区域的并集，并在两侧相同坐标覆盖，避免因工程省略节点导致只遮一侧。其他业务内容、项目卡片、筛选器、弹窗字段均不遮罩。
 
+页面卡复用 `tests/visual/compare.ts` 的下列接口（不传新参数时行为与原来相同）。页面对的调用顺序固定为 `normalizeRegions` → `stabilize` → `matchingMasks` → `compare` / `compareElements`；`expectSameBox` 必须在 `compareElements` 之前调用，因为后者会把工程元素宽度改成原型宽度。
+
+- `matchingMasks(left, right, extraSelectors)`：页面级遮罩，在上表全局遮罩之外追加本页选择器，两侧取并集。页面专用遮罩登记在各页面小节，不加入全局表。
+- `compareElements(reference, actual, testInfo, name, { mask, snap })`：`mask` 是写原型侧选择器的元素内遮罩，在宽度对齐与自然几何断言之后、栅格对齐之前，按相对元素左上角的位置在两侧同处覆盖（含边框偏移；工程侧没有的节点同样覆盖）；`snap: true` 先用 `snapLayout` 把两侧元素的布局纵坐标取整，默认关闭。
+- `normalizeRegions(reference, actual, { omit, replace })`：只改渲染中的 DOM。`omit` 只隐藏原型侧节点（工程不渲染的区块）；`replace` 把两侧同选择器第 i 个节点换成原型尺寸的占位盒，两侧数量不同直接报错，替换前对宽度做软断言。先 `omit` 后 `replace`。
+- `expectSameBox(reference, actual, name, { keys, tolerance })`：按文档坐标软断言两侧矩形，默认比较 x、y、宽、高，容差 1px。
+
+纯几何计算在 `tests/visual/region-geometry.ts`，由 `region-geometry.test.ts` 覆盖；浏览器行为由 `compare-regions.spec.ts` 覆盖。
+
 ## 实际验证与环境边界
 
 - 单元 / 隔离组件测试覆盖筛选、空列表、导师隐藏入口、登录失败保留输入、账号退出失败、菜单键盘、弹窗校验和焦点、忙碌防重复、网络中断重放相同请求 ID、服务端错误保留表单、管理员页面门禁与生产样张 404。
