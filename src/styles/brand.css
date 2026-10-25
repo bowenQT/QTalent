@@ -1,0 +1,359 @@
+.ip {
+  display: inline-block;
+  position: relative;
+  line-height: 0;
+  flex: none;
+}
+.ip svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.ip .ip-body,
+.ip .ip-head,
+.ip .ip-eyes,
+.ip .ear,
+.ip .fx,
+.ip .fx * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ip .ip-body {
+  transform-origin: 50% 92%;
+}
+.ip .ear-l {
+  transform-origin: 100% 50%;
+}
+.ip .ear-r {
+  transform-origin: 0% 50%;
+}
+
+/* 状态 → 部件显隐 */
+.ip .eye-happy,
+.ip .eye-err,
+.ip .fx,
+.ip .m-done,
+.ip .m-think,
+.ip .m-confirm,
+.ip .m-err {
+  display: none;
+}
+.ip[data-state='done'] .eye-open,
+.ip[data-state='error'] .eye-open {
+  display: none;
+}
+.ip[data-state='done'] .eye-happy,
+.ip[data-state='error'] .eye-err {
+  display: inline;
+}
+.ip[data-state='done'] .m-rest,
+.ip[data-state='thinking'] .m-rest,
+.ip[data-state='confirm'] .m-rest,
+.ip[data-state='error'] .m-rest {
+  display: none;
+}
+.ip[data-state='done'] .m-done,
+.ip[data-state='thinking'] .m-think,
+.ip[data-state='confirm'] .m-confirm,
+.ip[data-state='error'] .m-err {
+  display: inline;
+}
+.ip[data-state='listening'] .fx-listen,
+.ip[data-state='searching'] .fx-search,
+.ip[data-state='thinking'] .fx-think,
+.ip[data-state='done'] .fx-done,
+.ip[data-state='confirm'] .fx-confirm,
+.ip[data-state='error'] .fx-error {
+  display: inline;
+}
+
+/* 尺寸简化 */
+.ip[data-size='m'] .cheek,
+.ip[data-size='m'] .tuft {
+  display: none;
+}
+.ip[data-size='s'] .cheek,
+.ip[data-size='s'] .tuft,
+.ip[data-size='s'] .mouth,
+.ip[data-size='s'] .nostril,
+.ip[data-size='s'] .eye-glint {
+  display: none;
+}
+.ip[data-size='s'] .fx:not(.fx-confirm) {
+  display: none !important;
+}
+.ip[data-size='s'] .fx-confirm .q {
+  display: none;
+}
+
+/* 眨眼：静止、倾听、检索时 */
+.ip[data-state='rest'] .eye-open,
+.ip[data-state='listening'] .eye-open,
+.ip[data-state='searching'] .eye-open {
+  animation: ip-blink 4.6s infinite;
+}
+@keyframes ip-blink {
+  0%,
+  93%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.08);
+  }
+}
+
+/* 倾听 */
+.ip[data-state='listening'] .ip-body {
+  animation: ip-breathe 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes ip-breathe {
+  50% {
+    transform: scale(1.03, 0.975);
+  }
+}
+.ip[data-state='listening'] .ear-l {
+  animation: ip-perk-l 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.ip[data-state='listening'] .ear-r {
+  animation: ip-perk-r 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite 1.2s;
+}
+@keyframes ip-perk-l {
+  0%,
+  40%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(14deg);
+  }
+}
+@keyframes ip-perk-r {
+  0%,
+  40%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(-14deg);
+  }
+}
+.ip .fx-listen path {
+  opacity: 0;
+  animation: ip-wave 1.4s ease-in-out infinite;
+}
+.ip .fx-listen path:nth-child(2) {
+  animation-delay: 0.2s;
+}
+@keyframes ip-wave {
+  30%,
+  60% {
+    opacity: 1;
+  }
+}
+
+/* 检索 */
+.ip[data-state='searching'] .ip-eyes {
+  animation: ip-scan 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes ip-scan {
+  25% {
+    transform: translateX(-2.4px);
+  }
+  75% {
+    transform: translateX(2.4px);
+  }
+}
+.ip[data-state='searching'] .ear-l {
+  animation: ip-flick-l 1.6s ease-in-out infinite;
+}
+.ip[data-state='searching'] .ear-r {
+  animation: ip-flick-r 1.6s ease-in-out infinite;
+}
+@keyframes ip-flick-l {
+  25% {
+    transform: rotate(8deg);
+  }
+  75% {
+    transform: rotate(0);
+  }
+}
+@keyframes ip-flick-r {
+  25% {
+    transform: rotate(0);
+  }
+  75% {
+    transform: rotate(-8deg);
+  }
+}
+.ip .fx-search {
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: ip-orbit 1.8s linear infinite;
+}
+@keyframes ip-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 思考 */
+.ip[data-state='thinking'] .ip-head {
+  transform: rotate(4deg);
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ip[data-state='thinking'] .ip-eyes {
+  transform: translate(1.6px, -1.8px);
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ip .fx-think circle {
+  opacity: 0;
+  animation: ip-bubble 1.8s ease-in-out infinite;
+}
+.ip .fx-think circle:nth-child(2) {
+  animation-delay: 0.3s;
+}
+.ip .fx-think circle:nth-child(3) {
+  animation-delay: 0.6s;
+}
+@keyframes ip-bubble {
+  20%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+/* 完成 */
+.ip[data-state='done'] .ip-body {
+  animation: ip-hop 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 1;
+}
+@keyframes ip-hop {
+  40% {
+    transform: translateY(-6px) scale(0.97, 1.04);
+  }
+  72% {
+    transform: translateY(0) scale(1.04, 0.96);
+  }
+}
+.ip .fx-done path {
+  animation: ip-spark 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.ip .fx-done path:nth-child(2) {
+  animation-delay: 0.12s;
+}
+@keyframes ip-spark {
+  0% {
+    transform: scale(0) rotate(-45deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 需要你确认 */
+.ip[data-state='confirm'] .ip-head {
+  animation: ip-nod 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes ip-nod {
+  0%,
+  100% {
+    transform: rotate(-7deg);
+  }
+  50% {
+    transform: rotate(-7deg) translateY(-2px);
+  }
+}
+.ip .fx-confirm {
+  animation: ip-nudge 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes ip-nudge {
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+
+/* 出错 */
+.ip[data-state='error'] .ip-body {
+  animation: ip-shake 0.5s ease-in-out 1;
+}
+@keyframes ip-shake {
+  20% {
+    transform: translateX(-2.2px);
+  }
+  40% {
+    transform: translateX(2.2px);
+  }
+  60% {
+    transform: translateX(-1.5px);
+  }
+  80% {
+    transform: translateX(1px);
+  }
+}
+.ip[data-state='error'] .ear-l {
+  transform: rotate(-22deg);
+}
+.ip[data-state='error'] .ear-r {
+  transform: rotate(22deg);
+}
+.ip .fx-error {
+  animation: ip-drip 1.8s ease-in infinite;
+}
+@keyframes ip-drip {
+  0% {
+    transform: translateY(-2px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(4px);
+    opacity: 0;
+  }
+}
+
+.ip .ear {
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ip *,
+  .ip .ip-body,
+  .ip .ip-head,
+  .ip .ip-eyes,
+  .ip .ear {
+    animation: none !important;
+    transition: none !important;
+  }
+  .ip .fx-listen path,
+  .ip .fx-think circle,
+  .ip .fx-error {
+    opacity: 1;
+  }
+  .ip[data-state='listening'] .ear-l {
+    transform: rotate(14deg);
+  }
+  .ip[data-state='listening'] .ear-r {
+    transform: rotate(-14deg);
+  }
+  .ip[data-state='searching'] .ip-eyes {
+    transform: translateX(2.4px);
+  }
+  .ip[data-state='searching'] .fx-search {
+    transform: rotate(45deg);
+  }
+  .ip[data-state='confirm'] .ip-head {
+    transform: rotate(-7deg);
+  }
+}

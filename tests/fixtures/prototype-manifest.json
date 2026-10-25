@@ -1,0 +1,308 @@
+{
+  "files": [
+    {
+      "path": "prototype/y/404.html",
+      "sha": "2d4507d290092c19c93dc704bf420b42d4d5920d"
+    },
+    {
+      "path": "prototype/y/app/actions.html",
+      "sha": "4244b1980439ac7718f3496dc4a6e9838bbb8ba7"
+    },
+    {
+      "path": "prototype/y/app/admin.html",
+      "sha": "63d521df32e0061804332f11b3d2910d3408ed28"
+    },
+    {
+      "path": "prototype/y/app/app.css",
+      "sha": "01d1ee2024053def84afd6e01c73a22bcc8e25db"
+    },
+    {
+      "path": "prototype/y/app/calibrate.html",
+      "sha": "ccfe64c75cb47cc2cf73b845551a553fa861d77b"
+    },
+    {
+      "path": "prototype/y/app/inbox.html",
+      "sha": "9c06c5526aae4e5be2b0206a2cad0a242703b50a"
+    },
+    {
+      "path": "prototype/y/app/index.html",
+      "sha": "b349cbe4373265a644aceeb6b3a56bb0f113ce93"
+    },
+    {
+      "path": "prototype/y/app/js/core.js",
+      "sha": "77f4587dbbafae6bf6880878019d5abee1cb36a9"
+    },
+    {
+      "path": "prototype/y/app/js/data-xe6.js",
+      "sha": "54b8c41229fa220a79e20eef48afafa71af81c79"
+    },
+    {
+      "path": "prototype/y/app/js/data.js",
+      "sha": "48cacc14105d496159e633dd392128629f03e3f9"
+    },
+    {
+      "path": "prototype/y/app/js/pages/actions.js",
+      "sha": "145da6aa871cfa361fa3d8462e7e19b1e16c6bbb"
+    },
+    {
+      "path": "prototype/y/app/js/pages/admin.js",
+      "sha": "82c61ee4242141cf56ad3d7108c543546cd5a3fb"
+    },
+    {
+      "path": "prototype/y/app/js/pages/calibrate.js",
+      "sha": "bcd34cb20226af7aad57b4dc01993b04b4158626"
+    },
+    {
+      "path": "prototype/y/app/js/pages/inbox.js",
+      "sha": "8c38ecb094a7ef83a535aa960e722604c7f226b5"
+    },
+    {
+      "path": "prototype/y/app/js/pages/judge.js",
+      "sha": "b44967202bc30814314c366f2707b54e9ada9816"
+    },
+    {
+      "path": "prototype/y/app/js/pages/landing.js",
+      "sha": "dc7ed50665eb8fe2ad9f4f6aa4286851f3581aa3"
+    },
+    {
+      "path": "prototype/y/app/js/pages/landingreview.js",
+      "sha": "66f8e6f1956f83d2c1c233ee3c27e620b72b90a2"
+    },
+    {
+      "path": "prototype/y/app/js/pages/people.js",
+      "sha": "084f168cf65d056f56d3aa925c1f62300ecaf48e"
+    },
+    {
+      "path": "prototype/y/app/js/pages/person.js",
+      "sha": "db5cf87acd0c7295263152399e91bc999655c721"
+    },
+    {
+      "path": "prototype/y/app/js/pages/plan.js",
+      "sha": "b1a0028ec268c8947be45b0abe896f98df56b358"
+    },
+    {
+      "path": "prototype/y/app/js/pages/project.js",
+      "sha": "37d793c59f89187415b0ff5b217889ce4d91e44e"
+    },
+    {
+      "path": "prototype/y/app/js/pages/projects.js",
+      "sha": "729e09d12f57010d1d5b6bbfa144dac508614013"
+    },
+    {
+      "path": "prototype/y/app/js/pages/queue.js",
+      "sha": "7cdbe9a04f88a0c789f8d6db90d394b18933f7a7"
+    },
+    {
+      "path": "prototype/y/app/js/pages/record.js",
+      "sha": "b5f267fe1864b6d9d1322b44329474d30dfe43db"
+    },
+    {
+      "path": "prototype/y/app/js/pages/review.js",
+      "sha": "53f1d5dc74a1c57ecb6a5b9fdda3bf60cca16b5e"
+    },
+    {
+      "path": "prototype/y/app/js/pages/reviews.js",
+      "sha": "74892d7217874f5377d2dd638fe3e758590c539a"
+    },
+    {
+      "path": "prototype/y/app/js/pages/rules.js",
+      "sha": "ceebe608e7d251258aac944a273cb8d1ddebaea9"
+    },
+    {
+      "path": "prototype/y/app/js/pages/staffing.js",
+      "sha": "91e7bc61e2dbe529ec8468abc7116ea6f196c045"
+    },
+    {
+      "path": "prototype/y/app/js/pages/tags.js",
+      "sha": "533321385694cdf65ff3612c57c60f798a2a6e2b"
+    },
+    {
+      "path": "prototype/y/app/js/pages/workbench.js",
+      "sha": "60d17ae5212ad6841f1eec2dd0e297a951d2130c"
+    },
+    {
+      "path": "prototype/y/app/js/parse.js",
+      "sha": "38b9fb61af4fc5e7c23f0543c4d5278defdb46e5"
+    },
+    {
+      "path": "prototype/y/app/js/shell.js",
+      "sha": "832e785cfe45142d0beb84fb27bc665c86120b08"
+    },
+    {
+      "path": "prototype/y/app/js/store.js",
+      "sha": "9a4e68ce43786f69705e6e1ca5d2493335e49514"
+    },
+    {
+      "path": "prototype/y/app/js/ui.js",
+      "sha": "1a01aed77647d0101a7b5ec3cdda6dec56290079"
+    },
+    {
+      "path": "prototype/y/app/judge.html",
+      "sha": "51f8a988d8175e5b9fba7ee8a328d270b69316ba"
+    },
+    {
+      "path": "prototype/y/app/landing-review.html",
+      "sha": "10d54c8a2d06ee9c8d943209a16c6d6d944c0204"
+    },
+    {
+      "path": "prototype/y/app/landing.html",
+      "sha": "8464b967e8e93a8a7a5207620e7afbcdea25073b"
+    },
+    {
+      "path": "prototype/y/app/people.html",
+      "sha": "c29afbffb70b78aae09406fabe5675da9796fc4a"
+    },
+    {
+      "path": "prototype/y/app/person.html",
+      "sha": "01cd18c4c47f09d1fb74afa99ee117f58d7cbac7"
+    },
+    {
+      "path": "prototype/y/app/plan.html",
+      "sha": "91e0bd96d960414ae8fec102cf2eaf7ceb0b2062"
+    },
+    {
+      "path": "prototype/y/app/project.html",
+      "sha": "63f57833052398ccd9832299c4e5f4adefd82596"
+    },
+    {
+      "path": "prototype/y/app/projects.html",
+      "sha": "5a1af571ab73892e381e3415ab31d56b45b01553"
+    },
+    {
+      "path": "prototype/y/app/queue.html",
+      "sha": "0da87ce200587007f69c4c60579f3483b29dce26"
+    },
+    {
+      "path": "prototype/y/app/record.html",
+      "sha": "28c4ddfa1c8e556035f58b434db6b38cf65edf88"
+    },
+    {
+      "path": "prototype/y/app/review.html",
+      "sha": "d362d1dd4456218000691939de6689594b714b41"
+    },
+    {
+      "path": "prototype/y/app/reviews.html",
+      "sha": "03d0ab46e7f9cde072a0c3a21c089595b8ee871c"
+    },
+    {
+      "path": "prototype/y/app/rules.html",
+      "sha": "1768fff565e4b3f6f0c97217b51cbf66790bcb71"
+    },
+    {
+      "path": "prototype/y/app/staffing.html",
+      "sha": "e485da1b76deca7c386fbc84496a3688e502159f"
+    },
+    {
+      "path": "prototype/y/app/tags.html",
+      "sha": "e18da66c3b678be1ce9ef3e4fa9932a093b3c1d7"
+    },
+    {
+      "path": "prototype/y/assets/avatars/gu-nan.jpg",
+      "sha": "7f4c557c85ef9e51c221c033e81892c1d3913e17"
+    },
+    {
+      "path": "prototype/y/assets/avatars/he-yining.jpg",
+      "sha": "217630db2ec494ac076ccd85a7e0607359547c69"
+    },
+    {
+      "path": "prototype/y/assets/avatars/lin-zhiyuan.jpg",
+      "sha": "5e526b13f333dbc24209ca489850a0d9180d1c63"
+    },
+    {
+      "path": "prototype/y/assets/avatars/song-xiaoman.jpg",
+      "sha": "795238cfa32baf34d556f6d11210ccb5acb54c9d"
+    },
+    {
+      "path": "prototype/y/assets/avatars/zhou-yu.jpg",
+      "sha": "99ade0c79afa81ea8c0fc8f3ceb47c4d83e7506b"
+    },
+    {
+      "path": "prototype/y/assets/niu-components.css",
+      "sha": "86658f6dac21ae18a28f8fbee0d57960c6969991"
+    },
+    {
+      "path": "prototype/y/assets/niu-ip.js",
+      "sha": "291a08f96d54af9e79d9b2f1f90d42ca98f9cdf9"
+    },
+    {
+      "path": "prototype/y/assets/niu-tokens.css",
+      "sha": "fffcda349fafee5d38c878e48c4aa4bad2e37191"
+    },
+    {
+      "path": "prototype/y/design-system.html",
+      "sha": "c63d6fa94683ef8475ebbd8cac2127b75b7f6448"
+    },
+    {
+      "path": "prototype/y/m/inbox.html",
+      "sha": "6338829c1ed118ef7ba3c4181dd04b20e337bb8b"
+    },
+    {
+      "path": "prototype/y/m/index.html",
+      "sha": "002986fe132f4353551bf43f21dd717099865798"
+    },
+    {
+      "path": "prototype/y/m/js/mshell.js",
+      "sha": "3816c4da66de7f2f516511a9ccf469895ebf10ba"
+    },
+    {
+      "path": "prototype/y/m/js/pages/inbox.js",
+      "sha": "47d169e5b875088cfb3acaa3e914b1788b07268f"
+    },
+    {
+      "path": "prototype/y/m/js/pages/index.js",
+      "sha": "42a13c3ada9f1cdf20a77534c50e0e7e9947d7c3"
+    },
+    {
+      "path": "prototype/y/m/js/pages/me.js",
+      "sha": "63cbe98d0d13b62ff1702bee1e5bd1d45a808c6e"
+    },
+    {
+      "path": "prototype/y/m/js/pages/mentor.js",
+      "sha": "ff9a7212349e5017489efc9d4ae00b940b0a370f"
+    },
+    {
+      "path": "prototype/y/m/js/pages/people.js",
+      "sha": "3c83429eb01b1c8d9c46adf625456bfbbc992a87"
+    },
+    {
+      "path": "prototype/y/m/js/pages/person.js",
+      "sha": "ceaab1fdaf451f677aeadf6b16042b60c71ddacf"
+    },
+    {
+      "path": "prototype/y/m/js/pages/quick.js",
+      "sha": "77a14e947e9045dcb151db230a279a4f4f29a490"
+    },
+    {
+      "path": "prototype/y/m/js/pages/record.js",
+      "sha": "3fa8ddcabbc8e39994fb1bd33e551d41e06bf3f0"
+    },
+    {
+      "path": "prototype/y/m/m.css",
+      "sha": "e4f1064b4d7d8be86118bf57a0208bbdce515b19"
+    },
+    {
+      "path": "prototype/y/m/me.html",
+      "sha": "6795b96911d2ec8d287ff032d4ee68bfae5e12e8"
+    },
+    {
+      "path": "prototype/y/m/mentor.html",
+      "sha": "43698779d56a82bc4a0c180707bf7995d5e2e448"
+    },
+    {
+      "path": "prototype/y/m/people.html",
+      "sha": "738cff23846ba48c4193085a94bf71ed1f0aacd6"
+    },
+    {
+      "path": "prototype/y/m/person.html",
+      "sha": "bd3ce0be30b41058367c3ae76839db2d688c6134"
+    },
+    {
+      "path": "prototype/y/m/quick.html",
+      "sha": "32c2157a900b8de170f46744c9a8e052e35dd2f1"
+    },
+    {
+      "path": "prototype/y/m/record.html",
+      "sha": "77dfe118dac48dabcecc95bf6ae3656ad116d3f4"
+    }
+  ]
+}

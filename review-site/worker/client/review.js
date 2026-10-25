@@ -18,12 +18,16 @@
   let replies = new Map(); // 讨论 id → 回复列表
   let filter = 'open';
   let pending = null;      // 正在写的新讨论的锚点
+  let commentDraft = '';   // 只在当前页面内存中保留未发送评论
+  const replyDrafts = new Map(); // 讨论 id → 尚未发送的回复
   let focusId = null;
   let located = new Map(); // 讨论 id → { type, el?, top }
   let loadState = 'loading';
   let loadError = '';
   let picking = false;
   let applying = false;
+  let postingComment = false;
+  const postingReplies = new Set();
 
   // ---------- 小工具 ----------
   function h(tag, attrs, ...kids) {
@@ -204,7 +208,9 @@
   function replyBox(t) {
     const wrap = h('div', { class: 'rv-reply' });
     const ta = h('textarea', { rows: '1', placeholder: '回复…', 'aria-label': '回复这条讨论' });
-    const send = h('button', { class: 'rv-btn is-primary', type: 'button', onclick: () => submitReply(t, ta, send) }, '回复');
+    ta.value = replyDrafts.get(t.id) || '';
+    ta.addEventListener('input', () => { if (ta.value) replyDrafts.set(t.id, ta.value); else replyDrafts.delete(t.id); });
+    const send = h('button', { class: 'rv-btn is-primary', type: 'button', disabled: postingReplies.has(t.id), onclick: () => submitReply(t, ta, send) }, '回复');
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitReply(t, ta, send); });
     const toggleDone = h('button', { class: 'rv-btn', type: 'button', onclick: () => setResolved(t, !t.resolved) }, t.resolved ? '重新打开' : '标为已解决');
     wrap.append(ta, h('div', { class: 'rv-reply__acts' }, toggleDone, send));
@@ -214,23 +220,31 @@
   function composer() {
     const box = h('div', { class: 'rv-compose' });
     const ta = h('textarea', { rows: '3', placeholder: '写下你的意见。⌘/Ctrl + Enter 发表', 'aria-label': '评论内容' });
+    ta.value = commentDraft;
+    ta.addEventListener('input', () => { commentDraft = ta.value; });
     const err = h('p', { class: 'rv-err', hidden: true });
-    const send = h('button', { class: 'rv-btn is-primary', type: 'button' }, '发表评论');
-    const cancel = h('button', { class: 'rv-btn', type: 'button', onclick: () => { pending = null; clearPendingMark(); renderPanel(); } }, '取消');
+    const send = h('button', { class: 'rv-btn is-primary', type: 'button', disabled: postingComment }, postingComment ? '发表中…' : '发表评论');
+    const cancel = h('button', { class: 'rv-btn', type: 'button', onclick: () => { pending = null; commentDraft = ''; clearPendingMark(); renderPanel(); } }, '取消');
     const submit = async () => {
+      if (postingComment) return;
       const text = ta.value.trim();
       if (!text) { err.hidden = false; err.textContent = '先写点内容再发表。'; ta.focus(); return; }
+      postingComment = true;
       send.disabled = true; send.textContent = '发表中…'; err.hidden = true;
       try {
         const { comment: c } = await api('POST', '/api/comments', { ...pending, body: text, page: PAGE, context: context() });
         threads.push(c);
-        pending = null; clearPendingMark();
+        pending = null; commentDraft = ''; clearPendingMark();
         focusId = c.id;
         refresh();
         toast('评论已发表');
       } catch (e) {
         err.hidden = false; err.textContent = `没有发表成功：${e.message}。内容还在，可以再试一次。`;
         send.disabled = false; send.textContent = '发表评论';
+      } finally {
+        postingComment = false;
+        const current = panel.querySelector('.rv-compose .is-primary');
+        if (current) { current.disabled = false; current.textContent = '发表评论'; }
       }
     };
     send.addEventListener('click', submit);
@@ -241,18 +255,25 @@
   }
 
   async function submitReply(t, ta, btn) {
+    if (postingReplies.has(t.id)) return;
     const text = ta.value.trim();
     if (!text) { ta.focus(); return; }
+    postingReplies.add(t.id);
     btn.disabled = true;
     try {
       const { comment: c } = await api('POST', '/api/comments', { parent_id: t.id, body: text });
       const list = replies.get(t.id) || [];
       list.push(c); replies.set(t.id, list);
+      replyDrafts.delete(t.id);
       focusId = t.id;
       renderPanel();
     } catch (e) {
       toast(`回复没有发出去：${e.message}`);
       btn.disabled = false;
+    } finally {
+      postingReplies.delete(t.id);
+      const current = panel.querySelector(`[data-thread="${t.id}"] .rv-reply .is-primary`);
+      if (current) current.disabled = false;
     }
   }
 
@@ -496,6 +517,7 @@
     const idx = buildIndex();
     const off = rangeToOffsets(r, idx);
     if (!off) return;
+    commentDraft = '';
     pending = {
       kind: 'text',
       quote: idx.text.slice(off.s, off.e).slice(0, 1000),
@@ -536,6 +558,7 @@
     if (!el) return;
     e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
     stopPick();
+    commentDraft = '';
     pending = { kind: 'element', selector: selectorFor(el), label: elementLabel(el) };
     clearPendingMark();
     el.setAttribute('data-rv-el', 'pending');

@@ -30,7 +30,7 @@
     const prevSnap = b.compareTo && snapOf(st.batch(b.compareTo));
     const pos = (pid) => {
       if (snap?.entries[pid]) { const e = snap.entries[pid]; return e.uncal ? { q: e.ref, na: e.na, miss: e.miss, ref: true, frozen: true } : { q: e.q, na: e.na, miss: e.miss, frozen: true }; }
-      const r = st.refPos(pid, conf ? b.cutoff : NT.TODAY); return { q: r.na ? null : r.q, na: r.na, miss: r.miss, ref: true };
+      const r = st.refPos(pid, b.cutoff); return { q: r.na ? null : r.q, na: r.na, miss: r.miss, ref: true };
     };
     const dist = (fn) => { const d = { hl: 0, hh: 0, ll: 0, lh: 0, na: 0 }; fn.forEach((x) => { d[x || 'na'] += 1; }); return d; };
     const now = dist(list.map((p) => pos(p.id).q));
@@ -82,7 +82,7 @@
             <div class="n-seg" data-manual role="group" aria-label="筛选" id="fshow">${[['all', '全部'], ['todo', '未写结论'], ['na', '资料不足'], ['chg', '有变化']].map(([k, l]) => html`<button type="button" data-k="${k}" aria-pressed="${k === show}">${l}</button>`)}</div></div></div>
         <div class="n-rollwrap"><table class="n-roll"><thead><tr><th>人员</th><th>资料</th><th>变化</th><th>位置</th><th>结论</th></tr></thead><tbody>
           ${shown.map((p) => {
-            const ps = pos(p.id), r = st.refPos(p.id), c = S.conclusions[p.id], chs = chOf(p.id);
+            const ps = pos(p.id), r = snap?.entries[p.id] || st.refPos(p.id, b.cutoff), c = S.conclusions[p.id], chs = chOf(p.id);
             return html`<tr><td>${UI.plink(p.id)}<small>${st.orgShort(p.org)}</small></td>
               <td>${r.n} 条分${ps.na ? html`<small>${ps.miss}</small>` : html`<small>${Object.values(r.dims).filter((d) => d.n).length} 个维度有分</small>`}</td>
               <td>${chs.length ? chs.map((x) => html`<span class="n-rule" style="margin:2px 2px 2px 0">${icon('flag')}${x.t === 'trend' ? `${st.dim(x.dim).name}${x.up ? '↑' : '↓'}` : x.t === 'quad' ? '跨象限' : '90 天无事件'}</span>`) : st.needsRecal(p.id) ? html`<span class="n-badge n-badge--recal">可能需要重新校准</span>` : '—'}</td>

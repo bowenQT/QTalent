@@ -148,15 +148,17 @@
   }
 
   async function setState(a, s) {
+    const hadWhy = Object.prototype.hasOwnProperty.call(a, 'why');
+    const prev = { state: a.state, did: a.did, stateAt: a.stateAt, stateTs: a.stateTs, why: a.why };
     if (s === 'cancel') {
       const r = await NT.dialog({ title: '记录未执行的原因', body: html`<p>写一句原因。</p><textarea class="n-calib__reason" id="why" aria-label="原因" style="margin-top:var(--s-3)" placeholder="比如：项目优先级下调，换到下一期"></textarea>`,
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '记录', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#why').value.trim(), read: (d) => d.querySelector('#why').value.trim() }] });
       if (r?.value !== 'ok') return;
       a.why = r.data;
     }
-    const prev = { state: a.state, did: a.did, stateAt: a.stateAt, stateTs: a.stateTs };
+
     a.state = s; a.stateAt = NT.TODAY; a.stateTs = Date.now(); if (s === 'done' && !a.did) a.did = NT.TODAY; // stateAt：关注动态里的行动状态变化（v1.5 3.26.2）
     st.save(); render($('#main'));
-    NT.toast(`已改为「${LABEL[s]}」`, { undo: () => { Object.assign(a, prev); st.save(); render($('#main')); } });
+    NT.toast(`已改为「${LABEL[s]}」`, { undo: () => { Object.assign(a, prev); if (!hadWhy) delete a.why; st.save(); render($('#main')); } });
   }
 })();

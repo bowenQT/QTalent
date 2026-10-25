@@ -24,7 +24,7 @@
   .ds-sec > .lead { margin: 0 0 var(--s-6); max-width: 40em; color: var(--ink-2); line-height: var(--lh-read); }
   .ds-sub { margin: var(--s-10) 0 var(--s-3); font-size: var(--t-lg); }
   .ds-sub + p { margin: 0 0 var(--s-4); color: var(--ink-2); max-width: 42em; line-height: var(--lh-read); font-size: var(--t-sm); }
-  .ds-grid { display: grid; gap: var(--s-4); }
+  .ds-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-4); } /* 单列也用 minmax(0, 1fr)，内容过宽时在卡内换行，不撑开整页 */
   .ds-grid:has(> div:not(.n-card)) > .n-card { align-self: start; } /* 单卡对一列叠放的卡时按内容高，不拉出空白 */
   .ds-grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ds-grid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -181,7 +181,7 @@
     .ds-nav a { white-space: nowrap; }
     .ds-main { padding: 0 var(--s-4) var(--s-14); }
     .hero h1 { font-size: var(--t-3xl); }
-    .ds-grid.c2, .ds-grid.c3, .ds-grid.ceo-layout, .ds-rules, .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout, .ds-grid.nav-layout, .hands, .src-cards, .quad-layout { grid-template-columns: 1fr; }
+    .ds-grid.c2, .ds-grid.c3, .ds-grid.ceo-layout, .ds-rules, .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout, .ds-grid.nav-layout, .hands, .src-cards, .quad-layout { grid-template-columns: minmax(0, 1fr); }
     .n-calib__pair { grid-template-columns: 1fr; }
     .type-row { grid-template-columns: 1fr; gap: 2px; }
     .ip-strip { grid-template-columns: repeat(3, 1fr); }
@@ -883,6 +883,16 @@
             </ol>
           </div>
           <p class="ds-caption">点标题收起。进行中的步骤用靛色脉冲点；完成的步骤变成实心墨点。</p>
+          <div class="n-trail" data-open="true" style="margin-top:var(--s-5)">
+            <button class="n-trail__head" type="button" aria-expanded="true"><svg class="n-trail__chev"><use href="#i-chev"/></svg>为「海外加速搜索」找 owner · 第 3 步失败</button>
+            <ol class="n-trail__steps">
+              <li class="n-trail__step" data-state="done">读取需求，拆出 4 项要求</li>
+              <li class="n-trail__step" data-state="done">检索你有权限查看的 38 人 <small>增长产品部、业务成功部</small></li>
+              <li class="n-trail__step" data-state="failed"><svg class="n-trail__x" aria-hidden="true"><use href="#i-x"/></svg>逐项核对证据 <small>失败 · 前两步结果已保留，可重新核对</small></li>
+              <li class="n-trail__step" data-state="pending">生成候选与缺口</li>
+            </ol>
+          </div>
+          <p class="ds-caption">失败的步骤用墨色实心圆加 ×，旁边写明失败和下一步；颜色保持中性，后面的步骤停在待处理。</p>
         </div>
       </div>
     </section>
@@ -1695,6 +1705,22 @@
       <div class="ds-stage" style="margin-top: var(--s-4)">
         <h4 class="n-section-title" style="font-size:var(--t-sm)">差异视图 · v3 对比 v2</h4>
         <p class="n-diff" style="margin:0;font-size:var(--t-sm);line-height:2">owner：<del>待定</del> <ins>周屿</ins>。前端：<ins>林知远（兼职，观察到 12-15）</ins>。关键要求：<del>有海外客户经验</del> <ins>有海外客户经验，或愿意在 Q4 跟一次海外交付</ins>。依据新增 <ins>1 条</ins>：融合线路配置改造复盘。</p>
+      </div>
+      <h3 class="ds-sub">处理进度</h3>
+      <p>找人时，每位候选人的判断按顺序完成。四个中性标签只说明处理到哪一步，判断结论仍用上面的支持、不支持、资料不足、证据冲突。</p>
+      <div class="ds-grid c2">
+        <article class="n-card">
+          <ul class="n-reqs n-reqs--proc" style="margin-top:0">
+            <li><span class="n-badge n-badge--proc" data-state="queued"><svg aria-hidden="true"><use href="#i-clock"/></svg>排队中</span><span>王一舟<br><small class="n-proc__note">前面还有 2 位，轮到后自动开始</small></span></li>
+            <li><span class="n-badge n-badge--proc" data-state="judging"><svg aria-hidden="true"><use href="#i-pulse"/></svg>判断中</span><span>周屿<br><small class="n-proc__note">逐项核对要求 · 2/4</small></span></li>
+            <li><span class="n-badge n-badge--proc" data-state="review"><svg aria-hidden="true"><use href="#i-info"/></svg>待人工判断</span><span>顾南<br><small class="n-proc__note">「海外客户经验」的证据互相矛盾，等你来定</small></span></li>
+            <li><span class="n-badge n-badge--proc" data-state="failed"><svg aria-hidden="true"><use href="#i-x"/></svg>失败</span><span>宋小满<br><small class="n-proc__note">判断服务超时，已有证据都保留着</small><br><button class="n-btn n-btn--sm n-btn--ghost n-proc__retry" type="button">重新判断</button></span></li>
+          </ul>
+        </article>
+        <div>
+          <p class="ds-caption" style="margin-top:0">排队中：灰框加时钟，等待开始。判断中：脉冲图标，减少动态时图标保持静止，文字照常说明状态。待人工判断：墨色细框加信息图标，系统给不出结论，由有权限的人判断。失败：灰底加 ×，写明发生了什么并给出重新判断。</p>
+          <p class="ds-caption">这组标签不用绿、红、琥珀，也不表示支持或不支持。出结果后，标签换成该候选人对应的四态徽标。</p>
+        </div>
       </div>
     </section>
 
