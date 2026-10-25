@@ -11,7 +11,8 @@
   const CTX = 40;
   const EPHEMERAL = new Set(['as', 'q', 'hold', 'mic', 'created', 'fresh', 'add']);
   const isKeyParam = ([k, v]) => !k.startsWith('rv') && !EPHEMERAL.has(k) && /^\w{1,20}$/.test(k) && /^[\w.-]{1,40}$/.test(v);
-  const PAGE = pageKey();
+  let pageSeen = pageKey();
+  let loadGen = 0;
 
   let me = '';
   let threads = [];        // 顶层讨论
@@ -51,11 +52,42 @@
   const norm = (s) => String(s || '').replace(/\s+/g, '');
   // 页面键只留路由和对象 id 一类的参数（id=p-lin、tab=ev）：视角 as 记在 context 里，
   // 一次性的输入（q 里的原话、hold、mic 这类演示开关）也不算页面的一部分，放进 context.params
+  // 静态资源会把 /foo.html 307 到 /foo；页面里的 replaceState 常写回带 .html 的相对地址
+  function canonicalPath(pathname) {
+    const path = pathname || '/';
+    if (path.endsWith('/index.html')) return path.slice(0, -'index.html'.length);
+    if (path.endsWith('.html')) return path.slice(0, -'.html'.length);
+    return path;
+  }
   function pageKey() {
     const keep = [...new URLSearchParams(location.search).entries()].filter(isKeyParam).sort(([a], [b]) => a.localeCompare(b));
-    const path = location.pathname.replace(/\/index\.html$/, '/');
+    const path = canonicalPath(location.pathname);
     const key = path + (keep.length ? `?${keep.map(([k, v]) => `${k}=${v}`).join('&')}` : '');
     return key.length <= 200 ? key : path;
+  }
+  function syncPage() {
+    const next = pageKey();
+    if (next === pageSeen) return;
+    pageSeen = next;
+    pending = null;
+    commentDraft = '';
+    replyDrafts.clear();
+    focusId = null;
+    clearPendingMark();
+    load();
+  }
+  function followHistory() {
+    if (typeof history === 'undefined' || !history || typeof history.replaceState !== 'function') return;
+    for (const name of ['pushState', 'replaceState']) {
+      const orig = history[name];
+      if (typeof orig !== 'function') continue;
+      history[name] = function (...args) {
+        const result = orig.apply(this, args);
+        syncPage();
+        return result;
+      };
+    }
+    window.addEventListener('popstate', syncPage);
   }
   const transient = () => [...new URLSearchParams(location.search).entries()].filter((e) => !isKeyParam(e) && e[0] !== 'as' && !e[0].startsWith('rv'));
   function droppedParams() {
@@ -243,7 +275,8 @@
       const text = ta.value.trim();
       if (!text) { err.hidden = false; err.textContent = '先写点内容再发表。'; ta.focus(); return; }
       const gen = ++commentGen;
-      const payload = { ...pending, body: text, page: PAGE, context: context() };
+      const page = pageKey();
+      const payload = { ...pending, body: text, page, context: context() };
       const ac = typeof AbortController === 'function' ? new AbortController() : { signal: undefined, abort() {} };
       commentAbort = ac;
       postingComment = true;
@@ -254,6 +287,7 @@
           api('DELETE', `/api/comments/${c.id}`).catch(() => {});
           return;
         }
+        if (pageKey() !== page) return;
         threads.push(c);
         pending = null; commentDraft = ''; clearPendingMark();
         focusId = c.id;
@@ -628,9 +662,13 @@
 
   // ---------- 启动 ----------
   async function load() {
+    const gen = ++loadGen;
+    const page = pageKey();
+    pageSeen = page;
     loadState = 'loading'; renderPanel();
     try {
-      const data = await api('GET', `/api/comments?page=${encodeURIComponent(PAGE)}`);
+      const data = await api('GET', `/api/comments?page=${encodeURIComponent(page)}`);
+      if (gen !== loadGen) return;
       me = data.me || '';
       threads = []; replies = new Map();
       for (const c of data.comments || []) {
@@ -642,6 +680,7 @@
       if (want && threads.some((t) => t.id === want)) { focus(want, true); }
       refresh();
     } catch (e) {
+      if (gen !== loadGen) return;
       loadState = 'error'; loadError = e.message;
       renderLauncher(); renderPanel();
     }
@@ -653,6 +692,7 @@
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     load();
   }
+  followHistory();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
