@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
+import { fromDrizzle, type PgBoss } from 'pg-boss';
 import { createClock } from '../../lib/clock';
 import { activeRoles } from '../authz';
 import {
   buildAuthorizedModelInput,
   type LoadTalentSnapshot,
+  type TalentSource,
 } from '../authz/talent';
 import {
   staffingDemandSchema,
@@ -16,24 +19,25 @@ import {
   MatchingError,
   type MatchStore,
   type MatchScope,
+  type EventConfirmationFact,
 } from '../modules/staffing/matching/types';
 import { referenceKey } from '../modules/staffing/matching/prompt';
+import { assembleMatchingEvidence } from '../modules/staffing/matching/evidence';
+import {
+  createPostgresMatchStore,
+  loadMatchRun,
+} from '../modules/staffing/matching/store';
+import {
+  staffingMatchJobPolicy,
+  staffingMatchQueue,
+  registerStaffingMatch,
+} from '../jobs/staffing-match';
+import type { Database, Transaction } from '../db/client';
+import { loadProjectContext } from './project-context';
+import { readEvidenceForTalent } from '../modules/records';
 
 /** Facts come from the event confirmation authority, never inferred from scores. */
-export interface EventConfirmationFact {
-  recordId: string;
-  personId: string;
-  active: boolean;
-  state: 'draft' | 'confirmed';
-  confirmation:
-    | { kind: 'human'; id: string; actorId: string; confirmedAt: string }
-    | { kind: 'prototype_baseline'; id: string; demo: true };
-  nature:
-    | 'original_fact'
-    | 'self_report'
-    | 'management_observation'
-    | 'human_conclusion';
-}
+export type { EventConfirmationFact } from '../modules/staffing/matching/types';
 export interface StaffingMatchDependencies<C> {
   environment: string;
   store: MatchStore<C>;
@@ -117,10 +121,17 @@ export function createStaffingMatchUsecase<C>(
         person.fieldKinds.orgName !== 'person'
       )
         continue;
-      if (
-        candidates.some((candidate) => candidate.person.id === person.personId)
-      )
-        throw new MatchingError('conflict');
+      const existing = candidates.find(
+        (candidate) => candidate.person.id === person.personId,
+      );
+      if (existing) {
+        if (
+          existing.person.name !== name ||
+          existing.person.orgName !== orgName
+        )
+          throw new MatchingError('conflict');
+        continue;
+      }
       const evidence: MatchScope['candidates'][number]['evidence'] = [];
       for (const fact of loaded.confirmations) {
         if (
@@ -194,4 +205,79 @@ export function createStaffingMatchUsecase<C>(
     now: () => wallNow().toISOString(),
     id: deps.id ?? randomUUID,
   });
+}
+
+export type StaffingMatchEvidenceData = Awaited<
+  ReturnType<typeof loadProjectContext>
+> &
+  Awaited<ReturnType<typeof readEvidenceForTalent>>;
+/** 846 supplies actual event confirmation facts; 837 supplies the shared complete
+ * source projection. This loader performs all domain reads in one real snapshot.
+ */
+export function createStaffingMatchEvidenceLoader(ports: {
+  db: Database;
+  readConfirmations(
+    tx: Transaction,
+    data: StaffingMatchEvidenceData,
+  ): Promise<EventConfirmationFact[]>;
+  projectSources(
+    data: StaffingMatchEvidenceData,
+  ): Promise<{ sources: TalentSource[]; details: Source[] }>;
+}): StaffingMatchDependencies<Transaction>['loadEvidence'] {
+  return (accountId, today) =>
+    ports.db.transaction(
+      async (tx) => {
+        const data = {
+          ...(await loadProjectContext(tx, accountId, today)),
+          ...(await readEvidenceForTalent(tx)),
+        };
+        const confirmations = await ports.readConfirmations(tx, data);
+        const projection = await ports.projectSources(data);
+        return assembleMatchingEvidence({
+          context: data.context,
+          directory: data.directory,
+          projects: data.staffing.projects,
+          events: data.events,
+          eventSources: data.eventSources,
+          confirmations,
+          sources: projection.sources,
+          sourceDetails: projection.details,
+        });
+      },
+      { isolationLevel: 'repeatable read', accessMode: 'read only' },
+    );
+}
+/** Composition only; no database, queue or provider access at construction. */
+export function createStaffingMatchRuntime(
+  deps: Omit<StaffingMatchDependencies<Transaction>, 'store'> & {
+    db: Database;
+    boss(queue: typeof staffingMatchQueue): Promise<PgBoss>;
+  },
+) {
+  const enqueue: Parameters<typeof createPostgresMatchStore>[1] = async (
+    tx,
+    job,
+  ) => {
+    const boss = await deps.boss(staffingMatchQueue);
+    const id = await boss.send(
+      staffingMatchQueue,
+      { jobId: job.jobId, attempt: job.attempt },
+      { db: fromDrizzle(tx, sql) },
+    );
+    if (!id) throw new Error('Matching enqueue rejected');
+  };
+  const service = createStaffingMatchUsecase({
+    ...deps,
+    store: createPostgresMatchStore(deps.db, enqueue),
+  });
+  return {
+    service,
+    policy: staffingMatchJobPolicy({
+      loadRun: loadMatchRun,
+      project: service.project,
+      enqueue,
+    }),
+    registerWorker: (boss: PgBoss) =>
+      registerStaffingMatch(boss, service.execute),
+  };
 }

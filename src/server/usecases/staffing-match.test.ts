@@ -629,4 +629,58 @@ describe('BOW-854 authorized matching', () => {
       'fragment-hidden',
     );
   });
+  it('rejects a reused trusted snapshot bound to a different account or actor', async () => {
+    const f = matchingFixture(),
+      load = f.loadEvidence.getMockImplementation()!;
+    f.loadEvidence.mockImplementation(async (account, today) => {
+      const value = await load(account, today);
+      value.snapshot.context.account.id = 'different-account';
+      return value;
+    });
+    expect(await f.service.start('account-hr', input)).toMatchObject({
+      status: 'forbidden',
+    });
+    expect(f.store.state.enqueued).toHaveLength(0);
+    expect(f.decide).not.toHaveBeenCalled();
+  });
+  it('retains a safe category for unexpected provider exceptions and never discloses their evidence-bearing message', async () => {
+    const f = matchingFixture();
+    f.decide.mockRejectedValue(
+      new Error('private-provider-payload-do-not-expose'),
+    );
+    const result = await start(f);
+    await f.service.execute(result.runId, 1);
+    const value = await page(f, result.runId);
+    expect(
+      value.candidates.every(
+        (candidate) =>
+          candidate.requirements[0]?.progress === 'awaiting_manual',
+      ),
+    ).toBe(true);
+    expect(
+      f.store.state.runs.get(result.runId)?.candidates[0]?.cells[0]
+        ?.providerError,
+    ).toBe('outcome_unknown');
+    expect(JSON.stringify(value)).not.toContain('private-provider-payload');
+  });
+  it('does not replay a different human conclusion under the same operation id', async () => {
+    const f = matchingFixture(),
+      result = await start(f);
+    await f.service.execute(result.runId, 1);
+    expect(
+      await f.service.judge('account-hr', result.runId, judgment),
+    ).toMatchObject({ status: 'success' });
+    expect(
+      await f.service.judge('account-hr', result.runId, {
+        ...judgment,
+        conclusion: 'insufficient',
+        sources: [],
+      }),
+    ).toMatchObject({ status: 'conflict' });
+    expect(
+      (await page(f, result.runId)).candidates.find(
+        (candidate) => candidate.person.id === 'demo-a',
+      )?.requirements[0]?.humanJudgment?.conclusion,
+    ).toBe('not_supported');
+  });
 });

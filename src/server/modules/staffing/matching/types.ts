@@ -7,6 +7,20 @@ import type {
 import type { Source } from '../../../../contracts/sources';
 import type { JevClient, JevErrorKind } from '../../../integrations/jev';
 import type { JobRecord } from '../../../jobs/state';
+export interface EventConfirmationFact {
+  recordId: string;
+  personId: string;
+  active: boolean;
+  state: 'draft' | 'confirmed';
+  confirmation:
+    | { kind: 'human'; id: string; actorId: string; confirmedAt: string }
+    | { kind: 'prototype_baseline'; id: string; demo: true };
+  nature:
+    | 'original_fact'
+    | 'self_report'
+    | 'management_observation'
+    | 'human_conclusion';
+}
 
 export type Match = StaffingCandidate['requirements'][number];
 export interface EvidenceUnit {

@@ -41,62 +41,80 @@ AI 已完成后的人工作为 canonical cell 追加；原 job 处理结果保�
 每次读/人工动作的范围为原 run 候选/证据与当前操作者权限的交集；管理者不能把新候选塞入原 run。
 业务日期由 `createClock(environment).today()` 生成；任务/署名用单独的真实 `wallNow()`，未使用演示时钟充当安全时间。
 
-## 父协调接线片段
+## 已实现的最小接线
 
-以下片段放在**获准的组合入口**；本 PR 不改共享 index、worker/runtime、环境或 852 的惰性 producer。
-`loadConfirmedMatchingEvidence` 是上述现有数据 owner 提供的适配端口，当前未注册，不能视作已有实现。
+[staffing-match.ts](../../../usecases/staffing-match.ts) 已提供可调用实现：
+
+- `createStaffingMatchRuntime`：组合 PostgreSQL store、同事务真实 pg-boss enqueue、共享 policy、consumer 注册；构造时不访问数据库、队列或模型。只调用传入的既有 boss getter，不创建 singleton。
+- `createStaffingMatchEvidenceLoader`：一次真实 `repeatable read / read only` 事务复用 `loadProjectContext` 和 837 的公开 `readEvidenceForTalent`，再读有效事件确认事实和共用来源投影。
+- [assembleMatchingEvidence](./evidence.ts)：把领域读模型组装成最小人物和已确认事件记录；演员/姓名/组织取真实目录，保留实际项目期次与事实性质，不从评分推断确认。来源使用 837 完整投影，不复制授权算法，不删共同主体。多期次相同身份去重，身份冲突失败关闭。
+
+授权文件写者只需在现有组合入口填以下两个 owner adapter；`readConfirmations` 和 `projectSources` 是本卡明确请求的端口名，不冒称它们已在其他模块导出：
 
 ```ts
-import { sql } from 'drizzle-orm';
-import { fromDrizzle } from 'pg-boss';
-import { getAppJobProducer } from '@/server/platform/jobs/app-runtime';
 import {
-  createPostgresMatchStore,
-  loadMatchRun,
-} from '@/server/modules/staffing/matching';
-import { createStaffingMatchUsecase } from '@/server/usecases/staffing-match';
-import {
-  staffingMatchQueue,
-  staffingMatchJobPolicy,
-  registerStaffingMatch,
-} from '@/server/jobs/staffing-match';
+  createStaffingMatchEvidenceLoader,
+  createStaffingMatchRuntime,
+} from '@/server/usecases/staffing-match';
 
-const enqueueMatch = async (tx: Transaction, job: JobRecord) => {
-  const boss = await getAppJobProducer(staffingMatchQueue);
-  const id = await boss.send(
-    staffingMatchQueue,
-    { jobId: job.jobId, attempt: job.attempt },
-    { db: fromDrizzle(tx, sql) },
-  );
-  if (!id) throw new Error('Matching enqueue rejected');
+const loadEvidence = createStaffingMatchEvidenceLoader({
+  db,
+  readConfirmations, // 846 owner，必须使用当前事件确认状态/明确演示基线
+  projectSources, // 837/846 owner，复用框架无关的完整来源投影
+});
+const ports = {
+  db,
+  environment: env.APP_ENV,
+  demands: demandService, // 852 service.read；job completed 不当确认
+  loadEvidence,
+  jev: explicitJevClient, // 本轮用 fake；真实服务须另获授权
 };
-const matching = createStaffingMatchUsecase({
-  environment: getEnv().APP_ENV,
-  store: createPostgresMatchStore(db, enqueueMatch),
-  demands: demandService, // 852 read，不使用生成job的completed标记
-  loadEvidence: loadConfirmedMatchingEvidence,
-  jev: explicitJevClient, // 测试用fake；真实client只在获准组合时显式选择
-});
-const policy = staffingMatchJobPolicy({
-  loadRun: loadMatchRun,
-  project: matching.project,
-  enqueue: enqueueMatch,
-});
-// 将 policy 追加到既有共享 policy 列表；只注册一次。
-await registerStaffingMatch(existingWorkerBoss, matching.execute);
 ```
 
-worker 需要框架无关的证据适配端口；不能从 `queries/person-data.ts` 的 `server-only` 入口直接导入。
-先复用 owner 已抽出的来源投影，不在本卡复制完整查询或新建 singleton。
-公开 actions/queries 还需按已确认合同映射 start/read 的 runId/stale 资源上下文；本 PR 没有私自增加前端合同字段或开放动作。
+846 adapter 的精确类型是 `Parameters<typeof createStaffingMatchEvidenceLoader>[0]['readConfirmations']`：
+`(tx: Transaction, data: StaffingMatchEvidenceData) => Promise<EventConfirmationFact[]>`。
+`data` 为同一事务实际 `loadProjectContext + readEvidenceForTalent` 结果；确认读取须使用传入 tx。
+返回每个有效事件的真实 `recordId/personId/state/active/nature`；人工确认含真实 `id/actorId/confirmedAt`，演示基线显式 `kind=prototype_baseline/id/demo=true`。同一事件不能返回两个有效事实，不编确认时间，不以 active 维度评分或 completed job 代替事件确认。撤销/改回草稿后不再返回有效确认。
+
+837 adapter 的精确类型是 `Parameters<typeof createStaffingMatchEvidenceLoader>[0]['projectSources']`：
+`(data: StaffingMatchEvidenceData) => Promise<{sources: TalentSource[]; details: Source[]}>`。
+须复用现有 `talent-source-projection`，保留所有同片段事件/参与人/历史敏感分类和原件类别；`details` 逐字对应来源版本、位置与片段。两者须框架无关，不能把 `queries/person-data.ts` 的 `server-only` runtime 导入 worker。
+
+应用组合入口复用 852 的唯一惰性 getter：
+
+```ts
+import { getAppJobProducer } from '@/server/platform/jobs/app-runtime';
+const appMatching = createStaffingMatchRuntime({
+  ...ports,
+  boss: getAppJobProducer,
+});
+// 追加 appMatching.policy 到既有 policy 列表；actions/queries 调用
+// appMatching.service.start/read/judge，显式传当前会话账号和 runId。
+```
+
+worker 在自己的现有 boss 实例上组合，不能导入上面的 server-only 应用入口：
+
+```ts
+const workerMatching = createStaffingMatchRuntime({
+  ...ports,
+  boss: async (queue) => {
+    await existingWorkerBoss.createQueue(queue);
+    return existingWorkerBoss;
+  },
+});
+await workerMatching.registerWorker(existingWorkerBoss); // 只注册一次
+```
+
+共享 worker/runtime、policy 列表、应用动作、环境和 staffing 总 index 仍由指定单写者修改；本卡已给出实际工厂和受测端口，不要求他们重写业务实现。
+公开动作须保留 `runId` 资源上下文和 `stale` 返回；人工 body 继续严格用原合同，不悄悄添加 actor/时间或查询 latest run。
 
 ## 存储和迁移
 
 独立 `matching/schema.ts` 声明 `staffing_match_runs` / `staffing_match_operations`；cell 的处理进度、AI、人工结论为独立具名字段，schema 严格验证。run 以 job ID 关联，需求 ID/revision 外键指向 852 不可变版本，操作账本按账号+operationId 唯一。
 store 采用 advisory 操作锁与 **job → run** 行锁顺序；run/job/operation/pg-boss enqueue 同事务，失败回滚。模型调用在事务外，回写重新授权并检查 attempt、claim、人工和取消栅栏。
 
-迁移顺序由父协调：PR94 → 852 demand → 本卡 matching。只提供 schema，不手写 SQL/metadata，不改已合迁移。
-父原生生成并应用迁移后再执行真实 PG 测试。回退代码不删除判断、需求、证据和任务历史。
+发布迁移顺序由唯一 runner 协调：PR94 已合 → 852 → 846 → 本卡 matching。只提供 schema，不手写 SQL/metadata，不改已合迁移，也不发布私有组合产生的冲突编号。
+本机可将已合迁移复制到私有临时目录，使用 Drizzle 原生命令对明确固定依赖和本卡 schema 生成组合迁移；通过测试专用 `BOW854_TEST_MIGRATIONS` 指向该目录。默认和 CI 仍要求正式发布的串行迁移，不跳过迁移、不 db:push、不伪造表。回退代码不删除判断、需求、证据和任务历史。
 
 ## 验证边界
 
@@ -104,6 +122,8 @@ store 采用 advisory 操作锁与 **job → run** 行锁顺序；run/job/operat
 本卡单测使用真实授权投影/状态机和边界 fake，不读 key，不调用真实模型或业务 API。
 `store.integration.test.ts` 强制隔离 loopback `_test` PostgreSQL，覆盖同事务真实 pg-boss、重复请求、回滚、人工并发、约束与实际 consumer；缺 `TEST_DATABASE_URL` 失败，不能以 skip/fake 替代。
 
-开始实现时临时组合 PR130@209739ed、852@e78e5b6、jobs@8fd71c0；这些依赖 blob 不作为本卡提交。PR94 后续已合 main，最终基线和实际检查以 PR188 当前 head 的验证记录为准。
-本地最终组合的额外输入只有：PR130@209739edb5b35966c5b1a5c71bc9a8ce3e0bbd30 的 `src/contracts/staffing.ts`、PR161@e78e5b6788418025b40ddf78bbf5d5adc7eb7f85 的 `demand/schema.ts`、PR131@8192dc2cc891cc570eb4f20c437fc82c7a2aca9b 的 `authz/talent.ts`（原 snapshot_field 支持）。它们只在独立 checkout 临时取原 blob，验证后还原；本卡没有提交依赖复制或修改授权算法。
-837 完整来源/事件确认适配、共享接线、父串行迁移、当前 head 完整 CI 和一次真实 Jev 验收仍是门禁。未满足时保持 Draft，使用 `Refs #46 / Part of BOW-854`，不标 Done，不合并/部署。
+PR130 合同与 PR94 已正式合入 main，当前不再覆盖 staffing 合同。剩余固定组合输入为 PR161@e78e5b6788418025b40ddf78bbf5d5adc7eb7f85 的 `demand/schema.ts`，以及 PR131@8192dc2cc891cc570eb4f20c437fc82c7a2aca9b 的 `authz/talent.ts`、`records/index.ts`、`records/read.ts` 原 blob；它们只用于独立验证，不作为本卡代码提交。
+
+Docker PostgreSQL 17 使用本卡新建、无宿主卷的临时容器，随机 loopback 端口和随机 `_test` root 库；测试进一步创建/清理自己的随机 `_test` 库。只使用本次合成账号，无现成业务库或凭据。私有原生组合迁移已实跑真实 pg-boss/事务检查；精确受检 head、统一测试/覆盖与最新 CI 以 PR188 验证记录为准，不把组合结果说成 main 已具备。
+
+共享两个 adapter、注册和官方串行迁移需指定 owner 接入后继续验收；一次真实 Jev 仍 Pending。本卡持续在原 PR188 收口，未满足门禁时不标 Done、不合并/部署。
