@@ -1,4 +1,4 @@
-import type { StaffingPage } from './staffing';
+import type { StaffingPage, StaffingDemandJobSnapshot } from './staffing';
 
 const source = {
   fragmentId: 'demo-fragment-1',
@@ -50,5 +50,23 @@ export function staffingFixture(): StaffingPage {
       },
     ],
     plan: { status: 'not_connected' },
+  };
+}
+
+export function staffingDemandJobFixture(): StaffingDemandJobSnapshot {
+  return {
+    schemaVersion: 1,
+    jobId: 'demo-demand-job',
+    kind: 'staffing_demand',
+    status: 'queued',
+    attempt: 1,
+    revision: 1,
+    updatedAt: '2026-10-25T10:00:00Z',
+    progress: null,
+    result: null,
+    error: null,
+    canRetry: false,
+    canCancel: true,
+    cancelRequestedAt: null,
   };
 }

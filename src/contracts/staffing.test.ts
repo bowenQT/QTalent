@@ -10,9 +10,11 @@ import {
   staffingDemandResultSchema,
   staffingJudgmentResultSchema,
   staffingJobSnapshotSchema,
+  staffingDemandJobSnapshotSchema,
+  staffingCreateDemandResultSchema,
   orderStaffingCandidates,
 } from './staffing';
-import { staffingFixture } from './staffing.fixtures';
+import { staffingFixture, staffingDemandJobFixture } from './staffing.fixtures';
 
 const operationId = 'demo-operation';
 const humanInput = () => ({
@@ -370,5 +372,64 @@ describe('staffing contracts', () => {
     expect(staffingJobSnapshotSchema.safeParse(snapshot).success).toBe(true);
     const invalid = { ...snapshot, result: { vendorPayload: true } };
     expect(staffingJobSnapshotSchema.safeParse(invalid).success).toBe(false);
+  });
+});
+
+describe('asynchronous demand creation', () => {
+  it('returns a trackable shared snapshot before a demand exists', () => {
+    const snapshot = staffingDemandJobFixture();
+    expect(staffingDemandJobSnapshotSchema.parse(snapshot).result).toBeNull();
+    const result = { status: 'success', snapshot, replayed: false };
+    const parsed = staffingCreateDemandResultSchema.parse(result);
+    expect(parsed.status).toBe('success');
+    const syncResult = {
+      status: 'success',
+      demand: staffingFixture().demand,
+      replayed: false,
+    };
+    const rejected = staffingCreateDemandResultSchema.safeParse(syncResult);
+    expect(rejected.success).toBe(false);
+  });
+
+  it('uses the demand kind and a typed completed result', () => {
+    const snapshot = staffingDemandJobFixture();
+    const completed = {
+      ...snapshot,
+      status: 'completed',
+      result: staffingFixture().demand,
+      canCancel: false,
+    };
+    expect(staffingDemandJobSnapshotSchema.safeParse(completed).success).toBe(
+      true,
+    );
+    const wrongKind = { ...snapshot, kind: 'staffing_match' };
+    const invalid = staffingDemandJobSnapshotSchema.safeParse(wrongKind);
+    expect(invalid.success).toBe(false);
+    const untyped = { ...completed, result: { vendorPayload: true } };
+    expect(staffingDemandJobSnapshotSchema.safeParse(untyped).success).toBe(
+      false,
+    );
+  });
+
+  it('keeps creation errors separate from edit and confirm results', () => {
+    const input = {
+      operationId: 'demo-create',
+      projectId: 'demo-project',
+      inputText: '演示：寻找负责人',
+    };
+    for (const status of ['forbidden', 'not_found', 'conflict']) {
+      const error = { status, message: '演示：保留输入', input };
+      expect(staffingCreateDemandResultSchema.safeParse(error).success).toBe(
+        true,
+      );
+      expect(staffingDemandResultSchema.safeParse(error).success).toBe(false);
+    }
+    const validation = {
+      status: 'validation_error',
+      fieldErrors: { inputText: ['请填写'] },
+      input,
+    };
+    const result = staffingCreateDemandResultSchema.safeParse(validation);
+    expect(result.success).toBe(true);
   });
 });
