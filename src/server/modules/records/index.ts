@@ -12,3 +12,4 @@ export {
   importSnapshots,
 } from './schema';
 export type { SourceLocation } from './schema';
+export { readEvidenceForTalent } from './read';
