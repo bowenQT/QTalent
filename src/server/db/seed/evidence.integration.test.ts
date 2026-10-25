@@ -470,32 +470,26 @@ it('rejects existing but unrelated previous revisions, suggestions, and source f
       originalVersionId: other.version,
     }),
   ).rejects.toMatchObject({ cause: { code: '23503' } });
-  await f.db
-    .insert(confirmations)
-    .values({
-      ...f.score,
-      id: `${f.p}-other-evaluator-score`,
-      evaluatorId: f.other,
-    });
+  await f.db.insert(confirmations).values({
+    ...f.score,
+    id: `${f.p}-other-evaluator-score`,
+    evaluatorId: f.other,
+  });
   await expect(
-    f.db
-      .insert(confirmations)
-      .values({
-        ...f.score,
-        revision: 2,
-        previousRevision: 1,
-        previousId: `${f.p}-other-evaluator-score`,
-        reason: 'Synthetic correction',
-      }),
+    f.db.insert(confirmations).values({
+      ...f.score,
+      revision: 2,
+      previousRevision: 1,
+      previousId: `${f.p}-other-evaluator-score`,
+      reason: 'Synthetic correction',
+    }),
   ).rejects.toMatchObject({ cause: { code: '23503' } });
-  await f.db
-    .insert(fragments)
-    .values({
-      id: `${f.p}-unlinked`,
-      originalVersionId: f.version,
-      location: { kind: 'document', paragraph: 'second' },
-      excerpt: 'Synthetic unlinked source',
-    });
+  await f.db.insert(fragments).values({
+    id: `${f.p}-unlinked`,
+    originalVersionId: f.version,
+    location: { kind: 'document', paragraph: 'second' },
+    excerpt: 'Synthetic unlinked source',
+  });
   await expect(
     f.db
       .insert(confirmations)
