@@ -6,10 +6,10 @@
   let openId = location.hash.slice(1) || null;
 
   NT.shell({
-    nav: 'queue', title: '校准队列',
+    nav: 'queue', title: '评分复核',
     allow: (r) => st.can('calibrate', null, r),
     denyText: '校准分数只对 CEO 和 HRBP 开放。部门负责人可以在事件上提出异议。',
-    view: () => `校准队列 · ${st.queue().length} 条`,
+    view: () => `评分复核 · ${st.queue().length} 条`,
     state: () => ({ openId }),
     restore: (s) => { openId = s.openId; render($('#main')); },
     render,
@@ -20,7 +20,7 @@
     const done = st.get().events.flatMap((e) => e.scores.filter((s) => s.st === 'calibrated' && s.hist?.[0]?.kind === 'calib' && st.scope(s.p)).map((s) => ({ e, s })));
     if (!openId && q[0]) openId = q[0].id;
     mount(main, html`
-      <header class="nt-head"><div><h1>校准队列</h1><p>两位评价人分差 ≥ 2、改了 AI 的分但理由待补、参考位置离开正式象限的，都会进这里。校准后的分数带朱点，理由留在修订历史里。</p></div></header>
+      <header class="nt-head"><div><h1>评分复核</h1><p>两位评价人打分差 2 分以上、改了 AI 的分还没写理由、新事件让象限位置变了的，都在这里复核。复核后定下的分数带朱点，理由留在修订历史里。</p></div></header>
       <div class="nt-split nt-split--wide">
         <article class="n-card"><h3 class="n-section-title">待处理${q.length ? html`<span class="n-count">${q.length}</span>` : ''}</h3>
           ${q.length ? html`<ul class="n-queue">${q.map((it) => html`<li id="${it.id}"><button class="nt-qrow" type="button" data-open="${it.id}" aria-expanded="${it.id === openId}"><div><span class="n-badge ${it.kind === 'conflict' ? 'n-badge--conflict' : it.kind === 'recal' ? 'n-badge--recal' : ''}">${it.kind === 'conflict' ? icon('split') : ''}${it.kind === 'conflict' ? '证据冲突' : it.kindLabel}</span> ${it.kind === 'conflict' ? `${st.person(it.s.p).name} · ${st.dim(it.s.d).name} · ${it.ev.title}` : it.title}<small>${it.sub}</small></div><span class="n-queue__pair">${it.pair}</span></button>

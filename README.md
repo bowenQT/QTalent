@@ -40,6 +40,7 @@ python3 -m http.server 4173 --bind 127.0.0.1 --directory prototype
 ## 文档入口
 
 - [最新需求基线：需求定稿 v1.6](docs/requirements/需求定稿-v1.6.md)，未提及的部分沿用前序版本，权威顺序见 AGENTS.md
+- [版本 Y 需求：需求定稿 · 版本 Y](docs/requirements/需求定稿-版本Y.md)，从 v1.6 衍生，随版本 Y 的设计系统和原型同步更新
 - [Agent 共同入口与阶段约束](AGENTS.md)
 - [工程、UI 与验证规范](docs/engineering.md)
 - [界面文案规范](docs/ui-copy.md)

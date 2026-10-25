@@ -79,7 +79,7 @@
             <div class="n-quad__say ${isFrozen ? 'is-ink' : ''}" id="quad-say" aria-live="polite"><span id="quad-say-text">${isFrozen ? NT.raw(frozenText(sn)) : `正在根据 ${nScores} 条已确认的维度分计算参考位置……`}</span>
               <textarea id="quad-reason" hidden placeholder="写一句理由" aria-label="和参考位置不同的理由"></textarea></div>
             ${na.length ? html`<div class="n-quad__wait"><b>还在等材料 · ${na.length} 人</b>${na.map((x) => html`<a class="nt-plink" href="person.html?id=${x.pid}"><span class="chip">${UI.avatar(x.pid, 'sm')}${st.person(x.pid).name} <small>${x.miss}</small></span></a>`)}</div>` : ''}
-            ${conflicts.length && !isFrozen ? html`<div class="n-quad__wait" style="border-top:0;margin-top:0"><b>证据冲突 · ${conflicts.length} 人</b>${conflicts.map((pid) => html`<a class="n-badge n-badge--conflict" href="queue.html">${icon('split')}${st.person(pid).name} · 先在校准队列处理</a>`)}</div>` : ''}
+            ${conflicts.length && !isFrozen ? html`<div class="n-quad__wait" style="border-top:0;margin-top:0"><b>证据冲突 · ${conflicts.length} 人</b>${conflicts.map((pid) => html`<a class="n-badge n-badge--conflict" href="queue.html">${icon('split')}${st.person(pid).name} · 先在评分复核里处理</a>`)}</div>` : ''}
           </div>
         </div>
         <aside class="nt-grid nt-sticky">

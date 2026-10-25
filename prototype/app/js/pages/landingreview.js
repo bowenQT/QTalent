@@ -29,7 +29,7 @@
         ${done ? html`<span class="n-seal" style="position:absolute;right:24px;top:20px">已<br>确认</span>` : ''}
         <div class="n-batch__head" style="margin-bottom:var(--s-4)">${UI.person(pid, { meta: `${NT.md(r.from)} – ${NT.md(r.to)} · 带入 ${r.events.length} 条事件、${audio} 段录音 · 导师 ${land.row[2].map((m) => st.person(m).name).join('、')}` , after: html` · ${week} 对人复盘` })}</div>
         ${r.rows.map((row) => dimRow(row, canConfirm && !done, canCal && !done))}
-        <div class="n-review__foot">导师确认 ${r.confirmed}/${r.total}${r.conflicts ? ` · ${r.conflicts} 项冲突在 HRBP 校准队列` : ''}${pendingAll ? ` · ${pendingAll} 项 AI 建议分待确认` : ''}
+        <div class="n-review__foot">导师确认 ${r.confirmed}/${r.total}${r.conflicts ? ` · ${r.conflicts} 项冲突待 HRBP 复核` : ''}${pendingAll ? ` · ${pendingAll} 项 AI 建议分待确认` : ''}
           ${done ? html`<span class="ink-hand" style="margin-left:auto;font-size:var(--t-md);color:var(--ink)">${st.person(r.by).name}</span><span>${NT.md(r.at)} 确认</span>`
             : html`<button class="n-btn n-btn--ink" type="button" id="rv-ok" ${NT.raw(r.conflicts || pendingAll || !canConfirm ? 'disabled' : '')} title="${r.conflicts ? '还有冲突未校准' : pendingAll ? '还有 AI 建议分未确认' : ''}">确认这次复盘</button>`}
         </div>
@@ -58,7 +58,7 @@
         ${canCal ? html`<div class="n-calib" data-ev="${e.id}" data-i="${i}"><label class="nt-muted" for="cr-${d.id}">校准为 <select class="n-select" style="width:auto;min-height:28px;display:inline-block" id="cv-${d.id}">${[2, 3, 4].map((v) => html`<option ${v === 3 ? 'selected' : ''}>${v}</option>`)}</select> 分，理由</label>
           <textarea class="n-calib__reason" id="cr-${d.id}" placeholder="写一句理由，会留在修订历史里">方案表达到位，排查过程确实发散，各取一半。</textarea>
           <div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-cal>校准</button><span class="nt-muted">HRBP 校准后，这一项计入档案</span></div></div>`
-          : html`<div class="n-lock">${icon('split')}两位评价人分差 ≥ 2，已进 HRBP 校准队列。校准后这一项才计入档案。</div>`}
+          : html`<div class="n-lock">${icon('split')}两位评价人分差 ≥ 2，已转给 HRBP 复核。复核后这一项才计入档案。</div>`}
       </div>`;
     }
     if (row.state === 'ai') {

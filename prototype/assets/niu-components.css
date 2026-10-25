@@ -1120,8 +1120,8 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 .n-mhist { list-style: none; margin: var(--s-2) 0 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-xs); line-height: 1.9; color: var(--ink-2); }
 .n-mhist time { display: inline-block; min-width: 3.4em; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .n-queue { list-style: none; margin: 0; padding: 0; }
-.n-queue li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); }
-.n-queue li:first-child { border-top: 0; }
+.n-queue > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); }
+.n-queue > li:first-child { border-top: 0; }
 .n-queue small { display: block; margin-top: 2px; font-size: var(--t-xs); color: var(--ink-3); }
 .n-queue__pair { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 .n-badge--recal { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-2); color: var(--ink); }
@@ -1289,6 +1289,7 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 .n-todogrp__head > svg { width: 14px; height: 14px; margin-left: auto; color: var(--ink-3); transition: rotate var(--d-quick) var(--ease-out); }
 .n-todogrp__head[aria-expanded="true"] > svg { rotate: 90deg; }
 .n-todogrp__head .n-count { margin-left: 0; }
+.n-todogrp__head { white-space: nowrap; } /* 组名不折行，右侧的预览小字按宽度截断 */
 .n-todogrp__head small { min-width: 0; overflow: hidden; font-weight: 400; color: var(--ink-3); text-overflow: ellipsis; white-space: nowrap; }
 .n-todomore { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-xs); color: var(--ink-2); }
 .n-todomore > svg { flex: none; width: 14px; height: 14px; color: var(--ink-3); }

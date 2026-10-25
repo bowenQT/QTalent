@@ -14,10 +14,17 @@
     if (!p) return html`<span class="n-avatar ${size ? `n-avatar--${size}` : ''}" style="--hue:0;background:var(--sheet-sunk)">?</span>`;
     return html`<span class="n-avatar ${size ? `n-avatar--${size}` : ''}" style="--hue:${p.hue}">${p.photo ? raw(`<img src="${UI.root}/assets/avatars/${p.photo}.jpg" alt="">`) : ''}${p.name[0]}</span>`;
   };
-  // 评价体系的页头：标题 → 两个页签 → 当前页签的说明。规则是标准本身，判断对照用前后两段判断检验标准，结论回到规则修订
-  UI.evalHead = (cur, desc) => html`<header class="nt-head nt-head--tabs"><div><h1>评价体系</h1></div></header>
-    <nav class="n-tabs nt-subtabs" aria-label="评价体系">${[['rules', '规则', 'rules.html'], ['judge', '判断对照', 'judge.html']].map(([k, l, h]) => html`<a href="${h}" ${raw(k === cur ? 'aria-current="page"' : '')}>${l}</a>`)}</nav>
+  // 人才评价规则的页头：标题 → 两个页签 → 当前页签的说明。规则是标准本身，判断对照用前后两段判断检验标准，结论回到规则修订
+  UI.evalHead = (cur, desc) => html`<header class="nt-head nt-head--tabs"><div><h1>人才评价规则</h1></div></header>
+    <nav class="n-tabs nt-subtabs" aria-label="人才评价规则">${[['rules', '规则', 'rules.html'], ['judge', '判断对照', 'judge.html']].map(([k, l, h]) => html`<a href="${h}" ${raw(k === cur ? 'aria-current="page"' : '')}>${l}</a>`)}</nav>
     <p class="nt-tabdesc">${desc}</p>`;
+  // 人才项目的页头：各期工作区和关键节点复盘是同一个入口下的两个页签；看不到复盘的视角（导师）只有工作区，不显示页签
+  UI.programHead = (cur, desc) => {
+    const tabs = [['landing', 'XEngineer 第六期', 'landing.html'], ...(['ceo', 'hrbp', 'lead'].includes(st.role()) ? [['actions', '关键节点复盘', 'actions.html']] : [])];
+    return html`<header class="nt-head nt-head--tabs"><div><h1>人才项目</h1></div></header>
+    ${tabs.length > 1 ? html`<nav class="n-tabs nt-subtabs" aria-label="人才项目">${tabs.map(([k, l, h]) => html`<a href="${h}" ${raw(k === cur ? 'aria-current="page"' : '')}>${l}</a>`)}</nav>` : ''}
+    <p class="nt-tabdesc">${desc}</p>`;
+  };
   UI.plink = (pid, text) => {
     const p = st.person(pid);
     if (!p) return text || '';
@@ -242,7 +249,7 @@
   UI.scoreLine = (s, o = {}) => {
     const d = st.dim(s.d);
     if (s.st === 'conflict') {
-      return html`<div class="n-score" data-state="confirmed"><span class="n-score__dim">${d.name}</span><span class="n-badge n-badge--conflict">${icon('split')}证据冲突 ${s.raters.map((r) => r.v).join(' / ')}</span><span class="n-score__note">${s.raters.map((r) => st.person(r.by).name).join('、')}分差 ≥ 2 · 在 HR 校准队列</span></div>`;
+      return html`<div class="n-score" data-state="confirmed"><span class="n-score__dim">${d.name}</span><span class="n-badge n-badge--conflict">${icon('split')}证据冲突 ${s.raters.map((r) => r.v).join(' / ')}</span><span class="n-score__note">${s.raters.map((r) => st.person(r.by).name).join('、')}分差 ≥ 2 · 待 HR 复核</span></div>`;
     }
     const state = UI.scoreState(s);
     const who = s.by ? st.person(s.by) : null;
@@ -350,22 +357,22 @@
     const evli = (list) => html`<ul>${list.map((s) => html`<li><b>${s.v}</b>${s.ev.title} <small>${NT.md(s.date)} · ${st.person(s.by)?.name || ''}</small></li>`)}</ul>`;
     const why = {
       trend: c.up ? '上升和下降一样按规则提示，便于在盘点里及时看到。先看事件再判断。' : '下降可能和情境变化有关（换了项目、任务更模糊），建议先看事件再判断，不直接下结论。',
-      activity: c.hit ? '近 90 天的事件待补记。' : '这是一条记录层面的变化，没有命中规则。',
-      quad: '正式位置不会自动移动，需要在下一次校准时处理。',
+      activity: c.hit ? '近 90 天的事件待补记。' : '这是一条记录变动，供了解。',
+      quad: '校准过的位置保持原样，要在象限校准里重新确认。',
       team: '资料不足上升，需要补录事件。',
     }[c.t];
     const acts = {
       trend: [['转为跟踪', `person.html?id=${c.person}&track=1`], ['看档案', `person.html?id=${c.person}`]],
       activity: c.hit ? [['看「值得聊一聊」', `person.html?id=${c.person}#signal`], ['看档案', `person.html?id=${c.person}`]] : [['看档案', `person.html?id=${c.person}`]],
       // 校准由 HR 完成：管理者只看档案，不给校准入口
-      quad: st.can('calibrate') ? [['加入下次校准', `calibrate.html?id=b-xe6-end&team=${p?.org || ''}`]] : [['看档案', `person.html?id=${c.person}`]],
+      quad: st.can('calibrate') ? [st.recalTarget(c.person) ? ['去象限校准', st.recalTarget(c.person)] : ['发起新的盘点后校准', 'reviews.html']] : [['看档案', `person.html?id=${c.person}`]],
       team: [['看盘点清单', `review.html?id=b-xe6-end`]],
     }[c.t];
     const detail = c.t === 'trend'
       ? html`<div><h5>${base === 'ver' ? '中期档案版本' : '之前 9 个月'}</h5>${evli(c.before)}</div><div><h5>近 3 个月</h5>${evli(c.after)}</div><p class="n-change__why">${why}</p>`
       : html`<p class="n-change__why" style="border:0;padding:0">${why}</p>`;
     return html`<div class="n-change ${st.get().seen[c.id] ? 'is-seen' : ''}" data-id="${c.id}"><button class="n-change__row" type="button" aria-expanded="false">${ava}
-      <span class="n-change__what"><span class="n-change__line"><b>${who}</b>${c.what}${delta}${mini}${c.hit ? html`<span class="n-rule">${icon('flag')}${c.rule}</span>` : ''}</span><span class="n-change__sub">${sub}</span></span>
+      <span class="n-change__what"><span class="n-change__line"><b>${who}</b>${c.what}${delta}${mini}${c.hit && c.rule ? html`<span class="n-rule">${icon('flag')}${c.rule}</span>` : ''}</span><span class="n-change__sub">${sub}</span></span>
       <span class="n-change__side">${NT.md(c.when)}${icon('chev')}</span></button>
       <div class="n-change__detail" hidden>${detail}<div class="n-change__acts">${acts.map(([l, h], k) => html`<a class="n-btn n-btn--sm ${k ? 'n-btn--ghost' : ''}" href="${h}">${l}</a>`)}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-seen>${st.get().seen[c.id] ? '取消已看过' : '标为已看过'}</button></div></div></div>`;
   };

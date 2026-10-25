@@ -71,7 +71,7 @@
           </article>
           ${pverBar || jchg.length ? html`<article class="n-card" id="judgechg"><h3 class="n-section-title">判断变化</h3>
             ${pverBar}
-            ${jchg.length ? html`<div id="pchanges" ${raw(pverBar ? 'style="margin-top:var(--s-3)"' : '')}>${jchg.map((c) => UI.change(c, 'win'))}</div>` : html`<p class="nt-caption">近 3 个月能力走向和象限没有命中规则的变化。没有变化不等于没有成长。</p>`}
+            ${jchg.length ? html`<div id="pchanges" ${raw(pverBar ? 'style="margin-top:var(--s-3)"' : '')}>${jchg.map((c) => UI.change(c, 'win'))}</div>` : html`<p class="nt-caption">近 3 个月能力走向和象限里符合提醒条件的变化会出现在这里。</p>`}
           </article>` : ''}
           ${summaryBlock(p, events, canScore, ref, f, canQuad)}
           ${spec ? html`<article class="n-card n-spectrum" id="spectrum">

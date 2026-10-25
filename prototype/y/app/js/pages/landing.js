@@ -5,7 +5,7 @@
   const { html, icon, mount } = NT;
 
   NT.shell({
-    nav: 'landing', title: 'XEngineer 第六期',
+    nav: 'programs', title: 'XEngineer 第六期', crumbs: [['人才项目', 'landing.html']],
     allow: (r) => r !== 'self',
     view: () => 'XEngineer 第六期 · 批次概览',
     render(main) {
@@ -19,10 +19,11 @@
       const quad = st.can('quad');
       const placed = b.newcomers.filter(([pid]) => !st.refPos(pid).na).length;
       mount(main, html`
+        ${UI.programHead('landing', role === 'mentor' ? '你带的这一期：学员、课题、每周节奏和结营。' : '各期训练营、校招和黑客松。这里是进行中的一期：学员、课题、每周节奏和结营。')}
         <article class="n-card">
           <div class="n-batch__head">
             <span class="n-avatar n-avatar--lg" style="--hue:220;border-radius:14px">${icon('users', 22)}</span>
-            <div><h1 class="n-batch__title">${b.name}</h1><div class="n-batch__meta">${st.orgShort(b.org)} · ${NT.md(b.from)} – ${NT.md(b.to)} · ${b.newcomers.length} 名学员 · ${b.topics.length} 个课题 · 导师 ${new Set(b.newcomers.map((n) => n[2][0])).size} 位、助教 ${new Set(b.newcomers.flatMap((n) => n[2].slice(1))).size} 位 · ${st.person(b.starter).name}发起</div></div>
+            <div><h2 class="n-batch__title">${b.name}</h2><div class="n-batch__meta">${st.orgShort(b.org)} · ${NT.md(b.from)} – ${NT.md(b.to)} · ${b.newcomers.length} 名学员 · ${b.topics.length} 个课题 · 导师 ${new Set(b.newcomers.map((n) => n[2][0])).size} 位、助教 ${new Set(b.newcomers.flatMap((n) => n[2].slice(1))).size} 位 · ${st.person(b.starter).name}发起</div></div>
             <span class="n-badge">${icon('check')}已结营 · ${NT.md(b.to)}</span>
           </div>
           <div class="n-weeks">

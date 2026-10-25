@@ -48,7 +48,7 @@
       <div class="m-card m-rvhead">${done ? html`<span class="n-seal n-seal--sm" id="rv-seal">已<br>确认</span>` : ''}
         ${UI.person(pid, { size: '', meta: `议题「${st.project(land.row[1]).name}」 · 导师 ${land.row[2].map((m) => st.person(m).name).join('、')}` })}
         <div class="m-rvprog"><span style="width:${r.total ? (r.confirmed / r.total) * 100 : 0}%"></span></div>
-        <p class="nt-muted" style="margin:6px 0 0">${NT.md(r.from)} – ${NT.md(r.to)} · 带入 ${r.events.length} 条事件 · 已确认 ${r.confirmed}/${r.total}${r.conflicts ? ` · ${r.conflicts} 项在 HRBP 校准队列` : ''}</p>
+        <p class="nt-muted" style="margin:6px 0 0">${NT.md(r.from)} – ${NT.md(r.to)} · 带入 ${r.events.length} 条事件 · 已确认 ${r.confirmed}/${r.total}${r.conflicts ? ` · ${r.conflicts} 项待 HRBP 复核` : ''}</p>
       </div>
 
       ${done ? '' : html`<section class="m-card m-say" id="say">
@@ -85,7 +85,7 @@
         ${row.items.map(evLine)}
         ${UI.reviewEval(pid, WEEK, row)}
         <div class="n-calib__pair">${s.raters.map((x) => html`<div class="n-calib__side"><span style="color:var(--ink-3)">${st.person(x.by).name}</span><b>${x.v}</b>「${x.why}」</div>`)}</div>
-        <div class="n-lock">${icon('split')}${canCal ? html`在桌面版校准队列里处理：<a href="queue.html">去校准</a>` : '两位评价人分差 ≥ 2，已进 HRBP 校准队列。校准后这一项才计入档案。'}</div></div>`;
+        <div class="n-lock">${icon('split')}${canCal ? html`在桌面版「评分复核」里处理：<a href="queue.html">去复核</a>` : '两位评价人分差 ≥ 2，已转给 HRBP 复核。复核后这一项才计入档案。'}</div></div>`;
     }
     if (row.state === 'ai') {
       return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(html`<span class="n-badge n-badge--ai">${icon('spark')}AI 建议，待确认</span>`)}
@@ -122,7 +122,7 @@
         const sc = picks[ok.dataset.ok];
         st.confirmScore(evId, +i, sc.v, sc.why || '');
         ok.closest('.n-review__dim').classList.add('is-settling');
-        NT.toast(`已确认 ${sc.v} 分，署名 ${st.me().name}${sc.ai != null && Math.abs(sc.v - sc.ai) >= 2 && !sc.why ? '，和 AI 差 2 分以上，进了校准队列' : ''}`, { undo: () => { st.unconfirmScore(evId, +i); renderOne(main); } });
+        NT.toast(`已确认 ${sc.v} 分，署名 ${st.me().name}${sc.ai != null && Math.abs(sc.v - sc.ai) >= 2 && !sc.why ? '，和 AI 差 2 分以上，转给了 HRBP 复核' : ''}`, { undo: () => { st.unconfirmScore(evId, +i); renderOne(main); } });
         setTimeout(() => renderOne(main), NT.reduced ? 0 : 450);
         return;
       }

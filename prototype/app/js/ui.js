@@ -238,7 +238,7 @@
   UI.scoreLine = (s, o = {}) => {
     const d = st.dim(s.d);
     if (s.st === 'conflict') {
-      return html`<div class="n-score" data-state="confirmed"><span class="n-score__dim">${d.name}</span><span class="n-badge n-badge--conflict">${icon('split')}证据冲突 ${s.raters.map((r) => r.v).join(' / ')}</span><span class="n-score__note">${s.raters.map((r) => st.person(r.by).name).join('、')}分差 ≥ 2 · 在 HRBP 校准队列</span></div>`;
+      return html`<div class="n-score" data-state="confirmed"><span class="n-score__dim">${d.name}</span><span class="n-badge n-badge--conflict">${icon('split')}证据冲突 ${s.raters.map((r) => r.v).join(' / ')}</span><span class="n-score__note">${s.raters.map((r) => st.person(r.by).name).join('、')}分差 ≥ 2 · 待 HRBP 复核</span></div>`;
     }
     const state = UI.scoreState(s);
     const who = s.by ? st.person(s.by) : null;
@@ -348,8 +348,8 @@
     const evli = (list) => html`<ul>${list.map((s) => html`<li><b>${s.v}</b>${s.ev.title} <small>${NT.md(s.date)} · ${st.person(s.by)?.name || ''}</small></li>`)}</ul>`;
     const why = {
       trend: c.up ? '上升和下降一样按规则提示，便于在盘点里及时看到。先看事件再判断。' : '下降可能和情境变化有关（换了项目、任务更模糊），建议先看事件再判断，不直接下结论。',
-      activity: c.hit ? '近 90 天的事件待补记。' : '这是一条记录层面的变化，没有命中规则。',
-      quad: '正式位置不会自动移动，需要在下一次校准时处理。',
+      activity: c.hit ? '近 90 天的事件待补记。' : '这是一条记录变动，供了解。',
+      quad: '校准过的位置保持原样，要在象限校准里重新确认。',
       team: '资料不足上升，需要补录事件。',
     }[c.t];
     const acts = {
@@ -362,7 +362,7 @@
       ? html`<div><h5>${base === 'ver' ? '2026 H1 档案版本' : '之前 9 个月'}</h5>${evli(c.before)}</div><div><h5>近 3 个月</h5>${evli(c.after)}</div><p class="n-change__why">${why}</p>`
       : html`<p class="n-change__why" style="border:0;padding:0">${why}</p>`;
     return html`<div class="n-change ${st.get().seen[c.id] ? 'is-seen' : ''}" data-id="${c.id}"><button class="n-change__row" type="button" aria-expanded="false">${ava}
-      <span class="n-change__what"><span class="n-change__line"><b>${who}</b>${c.what}${delta}${mini}${c.hit ? html`<span class="n-rule">${icon('flag')}${c.rule}</span>` : ''}</span><span class="n-change__sub">${sub}</span></span>
+      <span class="n-change__what"><span class="n-change__line"><b>${who}</b>${c.what}${delta}${mini}${c.hit && c.rule ? html`<span class="n-rule">${icon('flag')}${c.rule}</span>` : ''}</span><span class="n-change__sub">${sub}</span></span>
       <span class="n-change__side">${NT.md(c.when)}${icon('chev')}</span></button>
       <div class="n-change__detail" hidden>${detail}<div class="n-change__acts">${acts.map(([l, h], k) => html`<a class="n-btn n-btn--sm ${k ? 'n-btn--ghost' : ''}" href="${h}">${l}</a>`)}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-seen>${st.get().seen[c.id] ? '取消已看过' : '标为已看过'}</button></div></div></div>`;
   };

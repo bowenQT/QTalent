@@ -133,7 +133,7 @@
       title: `${st.ruleKindName(k)} ${v}`,
       sub: `${st.person(r.by).name}起草 · 在 ${r.base} 上修订 · ${r.state === 'pending' ? '待你确认' : '已排期，从下一个盘点批次开始'}`,
       body: html`<p>${r.why}</p>`,
-      facts: [impact && html`影响：${impact}`, html`生效点：${r.effect === 'now' ? '确认后立即对新的评价生效' : '从下一个盘点批次开始'}`, r.state === 'pending' && html`确认发布在电脑上完成：评价体系 · ${st.ruleKindName(k)}`].filter(Boolean),
+      facts: [impact && html`影响：${impact}`, html`生效点：${r.effect === 'now' ? '确认后立即对新的评价生效' : '从下一个盘点批次开始'}`, r.state === 'pending' && html`确认发布在电脑上完成：人才评价规则 · ${st.ruleKindName(k)}`].filter(Boolean),
     });
   }
 
