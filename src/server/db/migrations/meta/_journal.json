@@ -15,6 +15,13 @@
       "when": 1792935028561,
       "tag": "0001_salty_pestilence",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792942095377,
+      "tag": "0002_cold_secret_warriors",
+      "breakpoints": true
     }
   ]
 }
