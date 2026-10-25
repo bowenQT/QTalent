@@ -47,6 +47,22 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm reference:prepare
+      - name: Generate BOW-834 pending migration and formatted evidence test
+        run: |
+          rm src/server/db/migrations/0001_chunky_fenris.sql src/server/db/migrations/meta/0001_snapshot.json
+          node --input-type=module -e "import fs from 'node:fs'; const p='src/server/db/migrations/meta/_journal.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); j.entries=j.entries.filter(e=>e.idx===0); fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
+          pnpm db:generate
+          pnpm exec prettier --write src/server/modules/records/schema.ts src/server/db/seed/evidence.integration.test.ts
+          mkdir -p recovery-generated/src/server/db/seed recovery-generated/src/server/modules/records
+          cp -R src/server/db/migrations recovery-generated/src/server/db/
+          cp src/server/db/seed/evidence.integration.test.ts recovery-generated/src/server/db/seed/
+          cp src/server/modules/records/schema.ts recovery-generated/src/server/modules/records/
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          function walk(dir) { for (const entry of fs.readdirSync(dir,{withFileTypes:true})) { const p=dir+'/'+entry.name; if(entry.isDirectory())walk(p); else { const content=fs.readFileSync(p,'utf8'); const path=p.replace('recovery-generated/',''); const bytes=Buffer.from(content); const sha=crypto.createHash('sha1').update(Buffer.from('blob '+bytes.length+'\0')).update(bytes).digest('hex'); console.log('BOW834_GENERATED '+JSON.stringify({path,content,sha})); } } }
+          walk('recovery-generated');
+          NODE
       - run: pnpm check
         id: quality
       - run: pnpm test:e2e
@@ -57,6 +73,7 @@ jobs:
         with:
           name: foundation-verification
           path: |
+            recovery-generated/
             coverage/
             playwright-report/
             test-results/

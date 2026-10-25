@@ -104,7 +104,7 @@ export const events = pgTable(
     unique('records_event_rule_version').on(t.id, t.ruleVersionId),
     check(
       'records_sbi',
-      sql`length(trim(${t.situation})) > 0 and length(trim(${t.behavior})) > 0`,
+      sql`length(trim(${t.situation})) > 0 and (${t.demo} or length(trim(${t.behavior})) > 0)`,
     ),
   ],
 );
@@ -213,9 +213,7 @@ export const historicalEvaluations = pgTable(
     kind: text('kind').notNull(),
     period: text('period'),
     scale: jsonb('scale').$type<[string, string][]>().notNull(),
-    ruleVersionId: text('rule_version_id')
-      .notNull()
-      .references(() => ruleVersions.id),
+    ruleVersionId: text('rule_version_id').references(() => ruleVersions.id),
     originalVersionId: text('original_version_id').notNull(),
     fragmentId: text('fragment_id').notNull(),
     sourceCategory: text('source_category', {
