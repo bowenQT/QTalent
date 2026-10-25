@@ -1,17 +1,7 @@
 import { createHash } from 'node:crypto';
-import { z } from 'zod';
-export const kodoConfigSchema = z.object({
-  endpoint: z.url().startsWith('https://'),
-  accessKey: z.string().min(1),
-  secretKey: z.string().min(1),
-  bucket: z.string().min(1),
-});
-const keySchema = z.string().min(1).max(750);
-export type ObjectReceipt = { key: string; byteLength: number; sha256: string };
-export interface KodoClient {
-  write(input: { key: string; bytes: Uint8Array }): Promise<ObjectReceipt>;
-  read(key: string): Promise<Uint8Array>;
-}
+import { keySchema, type KodoClient } from './protocol';
+export { kodoConfigSchema } from './protocol';
+export type { ObjectReceipt, KodoClient } from './protocol';
 export function createFakeKodo(): KodoClient {
   const objects = new Map<string, Uint8Array>();
   return {
@@ -36,3 +26,18 @@ export function createFakeKodo(): KodoClient {
     },
   };
 }
+
+export { createKodoClient } from './client';
+export {
+  takeTranscriptionSourceUrl,
+  TRANSCRIPTION_MIN_TTL_MS,
+  TRANSCRIPTION_SAFETY_MS,
+} from './source';
+export type { TranscriptionSource } from './source';
+export { KodoError } from './protocol';
+export type {
+  UploadInput,
+  UploadGrant,
+  ObjectStat,
+  ByteRange,
+} from './protocol';
