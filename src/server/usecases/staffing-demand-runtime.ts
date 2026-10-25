@@ -25,15 +25,20 @@ export function createStaffingDemandRuntime(input: {
   boss: PgBoss | (() => Promise<PgBoss>);
   maas?: StructuredMaasClient;
   now?: () => string;
+  businessDate: () => string;
 }) {
   const getBoss = async () =>
     typeof input.boss === 'function' ? input.boss() : input.boss;
   const deps: DemandDependencies = {
     db: input.db,
     now: input.now ?? (() => new Date().toISOString()),
-    async loadContext(tx, accountId, now) {
+    async loadContext(tx, accountId) {
       try {
-        const result = await loadProjectContext(tx, accountId, now);
+        const result = await loadProjectContext(
+          tx,
+          accountId,
+          input.businessDate(),
+        );
         const actor = result.directory.people.find(
           (person) => person.id === result.context.account.personId,
         );
