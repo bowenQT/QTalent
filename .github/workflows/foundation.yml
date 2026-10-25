@@ -1,13 +1,26 @@
 name: foundation
+# 原型、评审站和文档不进入工程检查：原型材料只从 prototype-reference.json 固定的提交读取，
+# 改参照本身（根目录的 prototype-reference.json）照常触发。
 on:
   pull_request:
+    paths-ignore:
+      - 'prototype/**'
+      - 'review-site/**'
+      - 'docs/**'
+      - '*.md'
   push:
     branches: [main]
+    paths-ignore:
+      - 'prototype/**'
+      - 'review-site/**'
+      - 'docs/**'
+      - '*.md'
 permissions:
   contents: read
+# PR 只保留最新一次运行；main 的每个提交单独运行，后续合并不再取消前一次。
 concurrency:
-  group: foundation-${{ github.ref }}
-  cancel-in-progress: true
+  group: foundation-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   checks:
     runs-on: ubuntu-latest
