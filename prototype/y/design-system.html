@@ -186,6 +186,13 @@
     .type-row { grid-template-columns: 1fr; gap: 2px; }
     .ip-strip { grid-template-columns: repeat(3, 1fr); }
   }
+/* 修订历史样张：卡片内容不足约 340px 时，说明另起一行、面板不再缩进，修订历史链接和文字不被挤成竖排；按卡片宽度判断，与视口断点无关 */
+.ds-hist-card { container-type: inline-size; }
+@container (max-width: 340px) {
+  .ds-hist-row { grid-template-columns: 5.5em auto; }
+  .ds-hist-row .n-score__note { grid-column: 1 / -1; flex-wrap: wrap; }
+  .ds-hist-card .n-score + .n-history { margin-left: 0; } /* 卡片窄时不再缩进，面板够宽才读得下来 */
+}
 .avatar-spec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-6); align-items: end; margin-bottom: var(--s-6); }
 .avatar-spec > div { display: flex; align-items: flex-end; gap: var(--s-3); flex-wrap: wrap; }
 .avatar-spec > div p { flex-basis: 100%; margin: 0; font-size: var(--t-xs); color: var(--ink-3); }
@@ -977,9 +984,11 @@
               <li data-v="5"><b>5</b>高难情境下突出，并带动他人或形成可复用方法</li>
             </ol>
           </div>
-          <div class="n-card" style="padding: var(--s-4) var(--s-5)">
-            <b style="font-size:var(--t-sm)">内生动力 · 修订历史</b>
-            <ul class="n-history" style="margin-top: var(--s-2)">
+          <div class="n-card ds-hist-card" style="padding: var(--s-4) var(--s-5)">
+            <b style="font-size:var(--t-sm)">修订历史</b>
+            <p class="ds-caption" style="margin: var(--s-1) 0 var(--s-3)">从分数行的「修订历史」展开，嵌在该行下方，最新一次在最上面。</p>
+            <div class="n-score ds-hist-row" data-state="calibrated"><span class="n-score__dim">内生动力</span><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span><span class="n-score__note"><span class="ink-hand">苏晚</span>校准 <button class="n-link" type="button" id="hist-toggle" aria-expanded="true" aria-controls="hist-demo">修订历史</button></span></div>
+            <ul class="n-history" id="hist-demo">
               <li><span class="n-history__v">4</span><div><span class="n-history__why">两周内三次主动补位，不止这一次。</span><small>苏晚 · HR 校准 · 10-23</small></div></li>
               <li><span class="n-history__v">3</span><div>确认<small>叶青 · 导师 · 10-21</small></div></li>
               <li><span class="n-history__v is-ai">4</span><div>AI 建议 · 锚点 4 · 引用录音 03:12<small>rubric-v1 · 10-21</small></div></li>
@@ -2484,6 +2493,13 @@
     sign.innerHTML = '<span class="ink-hand">叶青</span>导师 · 刚刚保存到林知远的档案';
     sign.hidden = false; $('#event-actions').hidden = true;
     NiuIP.setState(evIp, 'done');
+  });
+
+  /* ── 修订历史：分数行下方展开 ── */
+  $('#hist-toggle').addEventListener('click', e => {
+    const open = e.currentTarget.getAttribute('aria-expanded') !== 'true';
+    e.currentTarget.setAttribute('aria-expanded', open);
+    $('#hist-demo').hidden = !open;
   });
 
   /* ── 标签库与候选 ── */

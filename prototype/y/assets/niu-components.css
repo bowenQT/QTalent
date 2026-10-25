@@ -321,6 +321,8 @@ button.n-score__dot:hover { transform: scale(1.18); }
 .n-history__v.is-ai { color: var(--light); }
 .n-history__why { font-family: var(--font-ink); color: var(--ink); font-size: var(--t-body); }
 .n-history small { color: var(--ink-3); font-size: var(--t-xs); display: block; }
+/* 从分数行的「修订历史」展开：嵌在该行下方，缩进到维度名之后，浅底圆角。规则页的版本历史是独立列表，不套这一层 */
+.n-score + .n-history { margin: 0 0 var(--s-2) calc(5.5em + var(--s-3)); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); }
 
 /* ── 能力象限：光点落位 ─────────────────────────
    纸面 + 两笔墨色十字；AI 参考位置是流光光点，人校准后的位置是墨色头像。
