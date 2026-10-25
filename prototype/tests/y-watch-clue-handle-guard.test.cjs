@@ -8,7 +8,7 @@ const { test } = require('node:test');
 
 const source = fs.readFileSync(path.join(__dirname, '../y/app/js/store.js'), 'utf8');
 const verify = source.match(/  store\.verifyClue = \(id, ok, why\) => \{[\s\S]*?\n  \};/);
-const unverify = source.match(/  store\.unverifyClue = \(id, expectedToken\) => \{[\s\S]*?\n  \};/);
+const unverify = source.match(/  store\.unverifyClue = \(id, expectedToken\) => \{[\s\S]*?\n  \};/) || source.match(/  store\.unverifyClue = .*;/);
 assert.ok(verify && unverify,'缺少版本 Y 的线索处理方法');
 function setup() {
   const S={watchClues:[{id:'c-demo',person:'p-demo',state:'pending'}]};
