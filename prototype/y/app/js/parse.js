@@ -14,7 +14,7 @@
   ];
   const TAGS = [['方案对比', /方案|对比/], ['主动推进', /主动|认领/], ['任务拆解', /拆/], ['需求变更', /需求.{0,4}(改|变)/], ['线上故障', /故障/], ['跨团队协作', /协调|对齐|跨/],
     ['客户现场', /客户/], ['故障定位', /定位|排查/], ['导师带教', /带新人|熟悉|带教/], ['复盘习惯', /复盘/]];
-  // 否定修饰词不能当成正向行为证据；「不够主动」另产生须人工确认的 2 分演示候选。
+  // 否定说法（含「不太 / 不够 / 未能 / 没能」这类带修饰的否定）不当正向证据。
   const NEG = /(没有?|没能|未能?|不(?:太|够|能)?|别)$/;
   const UNKNOWN_NOTE = { grit: '受挫后的反应待补充', mot: '主动还是被安排，待补充', wis: '判断与取舍待补充', prof: '具体做了什么、结果如何，待补充' };
 
@@ -56,12 +56,6 @@
         if (r.up && r.up.test(acts)) v += 1;
         if (r.down && r.down.test(acts)) v = 2;
         scores.push({ p: pid, d: r.d, v, ai: v, st: 'ai', note: `锚点 ${v} · 引用「${snippet(text, m)}」` });
-      } else if (r.d === 'mot' && /不够主动/.test(acts)) {
-        // 演示用低档候选：由记录者明确判断「不够主动」时建议 2 分，
-        // 但尚缺可观察的具体行为，必须单独确认才能成为已确认分数。
-        const low = /不够主动/.exec(acts);
-        scores.push({ p: pid, d: r.d, v: 2, ai: 2, st: 'ai', reviewRequired: true,
-          note: `候选 2 分 · 引用「${snippet(text, low)}」；请补充具体行为并逐项确认` });
       } else if (all.length) {
         // 「没有主动推进」这类否定说法：不当正向证据，也不当反向证据，留给人判断
         scores.push({ p: pid, d: r.d, v: null, st: 'unknown', note: '原话为否定说法，待补充具体行为' });
@@ -89,9 +83,7 @@
     const me = st.me();
     const scores = d.scores.map((s) => {
       if (s.v == null) return { p: d.pid, d: s.d, v: null, st: 'unknown', note: s.note };
-      if (d.pending || (s.reviewRequired && s.st !== 'confirmed')) {
-        return { p: d.pid, d: s.d, v: s.ai, ai: s.ai, st: 'ai', note: s.note };
-      }
+      if (d.pending) return { p: d.pid, d: s.d, v: s.ai, ai: s.ai, st: 'ai', note: s.note };
       const edited = s.ai != null && s.v !== s.ai;
       const big = edited && Math.abs(s.v - s.ai) >= 2 && !s.why;
       return { p: d.pid, d: s.d, v: s.v, st: 'confirmed', ai: s.ai, by: me.id, note: s.note, bigGap: big || undefined,

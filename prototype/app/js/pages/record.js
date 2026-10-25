@@ -228,11 +228,7 @@
   }
   function hint() {
     const left = draft.scores.filter((s) => s.row?.dataset.state === 'ai').length;
-    const manual = draft.scores.filter((s) => s.reviewRequired && s.row?.dataset.state === 'ai').length;
-    $('#score-hint').textContent = manual
-      ? `还有 ${manual} 项低分候选须逐项确认；未确认将作为 AI 建议保留，不计入已确认分数`
-      : left
-        ? `文字可以直接改；还有 ${left} 项 AI 建议分，保存时一并确认` : '分数都已由你确认';
+    $('#score-hint').textContent = left ? `文字可以直接改；还有 ${left} 项 AI 建议分，保存时一并确认` : '分数都已由你确认';
   }
   function save() {
     const me = st.me();
@@ -244,7 +240,7 @@
       tags: $$('#tag-list .n-tag:not(.is-candidate)').map((c) => c.firstChild.textContent), cand: $$('#tag-list .is-candidate').map((c) => c.firstChild.textContent), atts: att.srcs() });
     ev.dataset.step = 'done';
     att.lock();
-    draft.scores.forEach((s) => { if (s.row.dataset.state === 'ai' && !s.reviewRequired) { s.row.dataset.state = 'confirmed'; paint(s); } });
+    draft.scores.forEach((s) => { if (s.row.dataset.state === 'ai') { s.row.dataset.state = 'confirmed'; paint(s); } });
     $$('.n-edit', ev).forEach((el) => { el.classList.remove('is-light'); el.removeAttribute('contenteditable'); });
     $$('#tag-list .n-tag', ev).forEach((c) => { c.classList.remove('is-ai'); $('.n-tag__x', c)?.remove(); });
     $$('.n-score__why', ev).forEach((i) => { if (!i.value.trim()) i.remove(); else i.readOnly = true; });
