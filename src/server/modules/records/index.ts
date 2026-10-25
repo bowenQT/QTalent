@@ -14,6 +14,7 @@ export {
 export type { SourceLocation } from './schema';
 export { readEvidenceForTalent } from './read';
 export {
+  persistRecordDraft,
   lockRecordDraft,
   readRecordOperation,
   readRecordSave,
