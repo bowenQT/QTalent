@@ -57,7 +57,7 @@
       const h = c.diff.filter((u) => u.state === 'high').length, l = c.diff.length - h;
       const mid = chain.grades[Math.floor(chain.grades.length / 2)];
       const back = (chain.backGrades || chain.grades).slice().reverse().map((g) => [g, c.mid.filter((u) => u.back.v === g).length]).filter(([, k]) => k);
-      return `前段评为最高或最低一档的 ${c.clear.length} 人里，${c.diff.length ? `${c.diff.length} 人前后判断不一致（${[h && `${h} 人前段偏高`, l && `${l} 人前段偏低`].filter(Boolean).join('、')}）` : '前后判断都一致'}${c.mid.length ? `；前段「${mid}」的 ${c.mid.length} 人没有表态，${chain.back}${back.map(([g, k]) => `${g} ${k}`).join('、')}` : ''}`;
+      return `前段评为最高或最低一档的 ${c.clear.length} 人里，${c.diff.length ? `${c.diff.length} 人前后判断不一致（${[h && `${h} 人前段偏高`, l && `${l} 人前段偏低`].filter(Boolean).join('、')}）` : '前后判断都一致'}${c.mid.length ? `；前段在中间档「${mid}」的 ${c.mid.length} 人，${chain.back}${back.map(([g, k]) => `${g} ${k}`).join('、')}` : ''}`;
     }
     const parts = [t.high && `${t.high} 人前段偏高`, t.low && `${t.low} 人前段偏低`, t.same && `${t.same} 人一致`].filter(Boolean);
     return parts.length ? `${n} 人中 ${parts.join('，')}` : `${n} 人的判断都标为不可比或资料不足`;
@@ -242,7 +242,7 @@
     return html`<article class="n-card" id="acts"><h3 class="n-section-title">改进动作</h3>
       ${acts.length ? html`<ul class="nt-list">${acts.map((a) => html`<li><a class="nt-plink" href="actions.html#${a.id}"><b style="font-weight:600">${a.title}</b></a><div class="nt-muted">${a.kind} · 负责人 ${name(a.owner)} · ${LABEL[a.state]}${a.did ? ` · ${NT.md(a.did)} 执行` : ` · 预计 ${NT.md(a.due)}`}</div></li>`)}</ul>`
         : html`<div class="nt-empty">归因确认后，改进动作会出现在这里。</div>`}
-      <p class="nt-caption">改进动作挂在「项目复盘」对应的节点下跟进；修订评价标准会产生新版本，新记录按新版本，旧记录保留原版本。</p></article>`;
+      <p class="nt-caption">改进动作挂在「人才项目复盘」对应的节点下跟进；修订评价标准会产生新版本，新记录按新版本，旧记录保留原版本。</p></article>`;
   }
 
   // ---------- 归因：AI 提出带证据的假设（光），HR 选类别、写理由、确认后落墨 ----------
@@ -382,7 +382,7 @@
         render(main);
         if (!a) { NT.toast('依据已经变化，这条结论要先复核，暂不能生成动作'); return; }
         if (kind === '修订评价标准' && frontLink(chain)) { location.href = frontLink(chain); return; }
-        NT.toast(`已生成「${a.title}」，在「项目复盘」对应的节点下跟进`);
+        NT.toast(`已生成「${a.title}」，在「人才项目复盘」对应的节点下跟进`);
       }
     };
   }

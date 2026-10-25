@@ -144,7 +144,7 @@
   // 评分人本人：只列自己给的、待按新版本复核的分
   function renderRaterReview(main) {
     const mine = st.myHeldScores(), vers = [...new Set(mine.map((x) => x.ver))];
-    mount(main, html`<header class="nt-head"><div><h1>按新版本复核你的评分</h1><p>维度与锚点改了等级含义，你在旧版本下给的分要按新版本再看一遍。原分保留；你确认前这些分暂停参与取数，你不在时由 HR 代确认。</p></div></header>
+    mount(main, html`<header class="nt-head"><div><h1>按新版本复核你的评分</h1><p>维度与锚点改了等级含义，你在旧版本下给的分要按新版本再看一遍。原分保留；你确认前，这些分暂停计入档案和象限；你请假或离开时由 HR 代为确认。</p></div></header>
       ${vers.length ? vers.map((v) => reviewTable(st.reviewHolds().find((h) => h.ver === v), true)) : UI.state({ ip: 'done', size: 48, title: '都复核完了', text: '新版本下你的评分已经全部确认。' })}`);
     wire(main);
   }

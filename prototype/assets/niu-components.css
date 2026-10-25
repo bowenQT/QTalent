@@ -732,6 +732,7 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 .n-shell { display: grid; grid-template-columns: 188px minmax(0, 1fr); min-height: 380px; border-radius: var(--r-sheet); overflow: hidden; background: var(--paper); box-shadow: var(--e-2); }
 .n-shell__side { display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-4) var(--s-3); border-right: 1px solid var(--line); }
 .n-shell__brand { display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-2) var(--s-4); font-weight: 700; font-size: var(--t-sm); }
+.n-shell__brand small { display: block; margin-top: 1px; font-size: var(--t-xs); font-weight: 400; color: var(--ink-3); }
 .n-navitem { display: flex; align-items: center; gap: var(--s-2); width: 100%; padding: 7px var(--s-2); border: 0; border-radius: var(--r-field); background: transparent; font-size: var(--t-sm); color: var(--ink-2); text-align: left; }
 .n-navitem svg { width: 16px; height: 16px; }
 .n-navitem:hover { background: rgb(27 30 37 / .05); }
@@ -1164,7 +1165,7 @@ button.n-spectrum__row:hover { background: rgb(27 30 37 / .03); }
 
 /* ══ v1.3 ════════════════════════════════════════════════════════════ */
 
-/* ── 判断复盘：前后两段对称呈现，后段不当作正确答案 ──
+/* ── 判断对照：前后两段对称呈现，后段不当作正确答案 ──
    差异只分方向（前段偏高 / 偏低）和档数，用同一种琥珀色，不用对错色；一致用墨色描边；
    不可比用斜纹 + ≠，资料不足沿用灰色斜纹。 */
 .n-jstate { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--r-chip); font-size: var(--t-xs); font-weight: 600; white-space: nowrap; }

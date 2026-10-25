@@ -782,7 +782,7 @@
   };
   store.unmarkJudge = (uid) => { delete S.judgeMarks[uid]; store.save(); };
   store.markJudge = (uid, reason) => { S.judgeMarks[uid] = { reason, by: store.me().id, at: NT.TODAY }; store.save(); };
-  // 改进动作挂到项目复盘里产生这次对照的节点下；修订评价标准要产生新版本，在动作里写明
+  // 改进动作挂到人才项目复盘里产生这次对照的节点下；修订评价标准要产生新版本，在动作里写明
   store.addJudgeAction = (batchId, hypId, a) => {
     const h = store.judgeHyps(batchId).find((x) => x.id === hypId);
     if (!h || !S.judgeAttribs[hypId] || !store.hypCheck(h).ok) return null;
@@ -827,7 +827,7 @@
     if (pgId !== 'pg-xe6') return g.people.length ? [{ k: '参与', v: `${g.people.length} 人` }] : [];
     if (node.id === 'w4') {
       const miss = S6.filter((x) => !x.front).length;
-      return [{ k: '交了周评', v: `${S6.length - miss} / ${S6.length} 人${miss ? `，${miss} 人没有记录` : ''}` },
+      return [{ k: '交了周评', v: `${S6.length - miss} / ${S6.length} 人${miss ? `，${miss} 人缺记录` : ''}` },
         { k: '三档分布', v: tally(S6, ['表现突出', '正常发挥', '需关注'], (x) => x.front) },
         ...(store.canJudge() ? [{ k: '到结营时看', v: judgeLine(), href: 'judge.html?id=jr-xe6' }] : [])];
     }
@@ -844,7 +844,7 @@
     }
     if (node.id === 'end') {
       const miss = S6.filter((x) => !x.backJ).length;
-      return [{ k: '结营结论', v: tally(S6, ['建议留用', '继续观察', '不建议'], (x) => x.backJ) + (miss ? `，${miss} 人没有结论` : '') },
+      return [{ k: '结营结论', v: tally(S6, ['建议留用', '继续观察', '不建议'], (x) => x.backJ) + (miss ? `，${miss} 人缺结论` : '') },
         { k: '去向', v: tally(S6, ['应届 · 正式 offer 提前锁定', '应届 · 继续实习观察', '非应届 · 实习 offer', '不建议 offer'], (x) => x.final) }];
     }
     if (node.id === 'place') {
@@ -867,7 +867,7 @@
     }
     if (node.id === 'end') {
       const miss = S6.filter((x) => !x.backJ).length;
-      return { good: ['结营结论和导师留用建议在同一张表里，对得上'], improve: [`${judgeLine()}，先在判断对照里归因`, ...(miss ? [`${miss} 人没有结营结论，要补齐后再定去向`] : [])] };
+      return { good: ['结营结论和导师留用建议在同一张表里，对得上'], improve: [`${judgeLine()}，先在判断对照里归因`, ...(miss ? [`${miss} 人缺结营结论，补齐后再定去向`] : [])] };
     }
     return null;
   };

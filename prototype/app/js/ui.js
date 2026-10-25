@@ -70,7 +70,7 @@
     let text = draft, from = 'ai';
     if (b.dataset.evalSave) {
       const t = document.getElementById(`rv-eval-${dim}`); text = t.value.trim();
-      if (!text) { t.focus(); t.placeholder = '评价不能为空；不想改就点取消'; return true; }
+      if (!text) { t.focus(); t.placeholder = '至少写一句；保持原样就点取消'; return true; }
       if (saved && text === saved.text) { evalEditing = null; rerender(); return true; }
       from = saved ? 'fix' : text === draft ? 'ai' : draft ? 'edit' : 'new';
     }
@@ -629,7 +629,7 @@
     NT.toast('已取消，理由已记录', { undo: () => { st.uncancelPush(id); rerender && rerender(); } });
   };
 
-  // CEO 请 HRBP 复核判断复盘（v1.4 3.22）：写一句评论；归因与标准修订仍由 HRBP 确认
+  // CEO 请 HRBP 复核判断对照（v1.4 3.22）：写一句评论；归因与标准修订仍由 HRBP 确认
   UI.judgeAskDialog = async (batchId, rerender) => {
     const b = st.judgeBatch(batchId);
     const r = await NT.dialog({ title: `请 HRBP 复核：${b.name}`,

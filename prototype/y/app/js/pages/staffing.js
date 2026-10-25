@@ -281,7 +281,7 @@
           <button class="n-btn n-btn--ink" type="button" id="confirm">${icon('stamp')}确认 v${ver}</button>
           <button class="n-btn n-btn--ghost" type="button" id="savedraft">保存草稿</button>
         </div>
-        ${canConfirm ? html`<p class="nt-caption">确认后冻结快照，owner 和成员写入项目，并生成跟进行动，执行情况在「项目复盘」里跟踪。</p>` : ''}
+        ${canConfirm ? html`<p class="nt-caption">确认后冻结快照，owner 和成员写入项目，并生成跟进行动，执行情况在「人才项目复盘」里跟踪。</p>` : ''}
         <div id="deny"></div>`}
     </article>
     <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">手动补入</h3>
@@ -297,7 +297,7 @@
     const old = $$('.n-candidate', host);
     const render = () => {
       mount(host, main.length ? main.map((c) => candCard(c.pid)) : UI.state({ ip: 'confirm', title: '换个条件再找', text: '可以先补材料，或者放宽一项要求。' }));
-      mount($('#pending'), html`<h4 class="n-section-title" style="font-size:var(--t-sm)">条件待确认 · ${pend.length} 人</h4>${pend.length ? html`<ul class="n-pending">${pend.map((c) => html`<li>${UI.avatar(c.pid, 'sm')}${UI.plink(c.pid)}<small>${reqs.filter((r) => r.must && evOf(c.pid, r)[0] === 'unknown').map((r) => (r.useAlt ? r.alt : r.text)).join('、')}资料不足</small></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">没有。</p>`}<p class="nt-caption">资料还缺的人放在这里，不当作「不满足」。进入正式方案前再核对关键条件。</p>`);
+      mount($('#pending'), html`<h4 class="n-section-title" style="font-size:var(--t-sm)">条件待确认 · ${pend.length} 人</h4>${pend.length ? html`<ul class="n-pending">${pend.map((c) => html`<li>${UI.avatar(c.pid, 'sm')}${UI.plink(c.pid)}<small>${reqs.filter((r) => r.must && evOf(c.pid, r)[0] === 'unknown').map((r) => (r.useAlt ? r.alt : r.text)).join('、')}资料不足</small></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">没有。</p>`}<p class="nt-caption">资料待补充的人放在这里，补齐后再看是否满足。进入正式方案前再核对关键条件。</p>`);
     };
     if (old.length && changedReq) {
       // 需求即时重排：记住旧位置，重画后做位置过渡，变化的证据高亮

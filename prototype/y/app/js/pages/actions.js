@@ -15,9 +15,9 @@
   let editing = null; // 'new' | 'edit' | 'fix'
 
   NT.shell({
-    nav: 'actions', title: '项目复盘',
+    nav: 'actions', title: '人才项目复盘',
     allow: (r) => ['ceo', 'hrbp', 'lead'].includes(r),
-    view: () => { const { g, node } = sel(); return `项目复盘 · ${g.name} · ${node.name}`; },
+    view: () => { const { g, node } = sel(); return `人才项目复盘 · ${g.name} · ${node.name}`; },
     state: () => ({ key, editing }),
     restore: (s) => { if (s.key) { key = s.key; editing = s.editing || null; render($('#main')); } },
     render,
@@ -54,7 +54,7 @@
     key = k;
     const others = sorted(S.actions.filter((a) => visible(a) && !st.actionNode(a)));
     mount(main, html`
-      <header class="nt-head"><div><h1>项目复盘</h1><p>按人才项目的关键节点回看：每个节点做得怎么样、哪里要改。改进事项挂在节点下，跟到完成。</p></div></header>
+      <header class="nt-head"><div><h1>人才项目复盘</h1><p>按人才项目的关键节点回看：每个节点做得怎么样、哪里要改。改进事项挂在节点下，跟到完成。</p></div></header>
       <div class="nt-split nt-split--nav">
         <aside class="nt-grid">
           <nav class="n-card" aria-label="人才项目与关键节点">${PROGRAMS.map((p) => html`<div class="n-pgroup">
@@ -62,7 +62,7 @@
             <ol class="n-pnodes">${st.programNodes(p.id).map((n) => { const s = st.nodeState(p.id, n), nk = st.nodeKey(p.id, n.id); return html`<li><button class="n-pnode" type="button" data-node="${nk}" aria-current="${nk === k}">
               <span class="n-pnode__date">${n.at ? NT.md(n.at) : '—'}</span><span class="n-pnode__dot" data-s="${s}" aria-hidden="true"></span><span class="n-pnode__name">${n.name}${n.sub ? html`<small>${n.sub}</small>` : ''}</span><span class="n-pstate" data-s="${s}">${NODE_LABEL[s]}</span></button></li>`; })}</ol></div>`)}
           </nav>
-          ${others.length ? html`<article class="n-card"><h3 class="n-section-title">其他行动<span class="n-count is-quiet">${others.length}</span></h3><p class="nt-muted" style="margin:0 0 var(--s-2)">项目找人和「值得聊一聊」生成的行动，不属于某个项目节点。</p>${others.map(actionRow)}</article>` : ''}
+          ${others.length ? html`<article class="n-card"><h3 class="n-section-title">其他行动<span class="n-count is-quiet">${others.length}</span></h3><p class="nt-muted" style="margin:0 0 var(--s-2)">项目找人和「值得聊一聊」生成的行动在这里跟进。</p>${others.map(actionRow)}</article>` : ''}
         </aside>
         <article class="n-card" id="retro">${detail(g, node, k)}</article>
       </div>`);
@@ -84,19 +84,19 @@
     return html`<div class="nt-row" style="justify-content:space-between;align-items:baseline"><h2 class="n-section-title" style="margin:0">${g.name} · ${node.name}</h2><span class="n-pstate" data-s="${s}">${node.at ? `${NT.md(node.at)} · ` : ''}${NODE_LABEL[s]}</span></div>
       <h3 class="n-pnode-h">结果</h3>
       ${facts.length ? html`<dl class="n-pfacts">${facts.map((f) => html`<div><dt>${f.k}</dt><dd>${f.v}${f.href ? html` <a class="n-link" href="${f.href}">查看</a>` : ''}</dd></div>`)}</dl>`
-        : html`<p class="nt-muted" style="margin:0">这一期的明细没有导入演示数据。</p>`}
+        : html`<p class="nt-muted" style="margin:0">这一期的结果明细待导入。</p>`}
       <h3 class="n-pnode-h">复盘</h3>
       ${retroBlock(g, node, k, s)}
       <h3 class="n-pnode-h">改进事项${acts.length ? html`<span class="n-count is-quiet">${acts.length}</span>` : ''}</h3>
-      ${acts.length ? acts.map(actionRow) : html`<p class="nt-muted" style="margin:0">还没有改进事项。</p>`}
+      ${acts.length ? acts.map(actionRow) : html`<p class="nt-muted" style="margin:0">改进事项会出现在这里。</p>`}
       ${st.canWriteRetro() && s !== 'future' ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-add-act style="margin-top:var(--s-2)">${icon('plus')}加一条改进事项</button>` : ''}`;
   }
 
-  const lists = (r) => html`<div><h5>做得好</h5>${r.good.length ? html`<ul>${r.good.map((t) => html`<li>${t}</li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">没有写</p>`}</div>
-    <div><h5>要改进</h5>${r.improve.length ? html`<ul>${r.improve.map((t) => html`<li>${t}</li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">没有写</p>`}</div>`;
+  const lists = (r) => html`<div><h5>做得好</h5>${r.good.length ? html`<ul>${r.good.map((t) => html`<li>${t}</li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">待补充</p>`}</div>
+    <div><h5>要改进</h5>${r.improve.length ? html`<ul>${r.improve.map((t) => html`<li>${t}</li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">待补充</p>`}</div>`;
 
   function retroBlock(g, node, k, s) {
-    if (s === 'future') return html`<p class="nt-muted" style="margin:0">节点还没到，到了之后再复盘。</p>`;
+    if (s === 'future') return html`<p class="nt-muted" style="margin:0">${node.at ? `${NT.md(node.at)} 之后` : '节点结束后'}再复盘。</p>`;
     const saved = st.nodeRetro(k), can = st.canWriteRetro();
     const draft = s === 'doing' ? null : st.nodeDraft(g.id, node);
     if (can && editing) {
@@ -112,7 +112,7 @@
       return html`<div class="n-block n-pretro" data-state="ink">${lists(saved)}<div class="n-block__by"><span class="n-block__sig">${st.person(saved.by).name}</span>${NT.md(saved.at)} ${FROM[saved.from] || '写下复盘'}${n > 1 ? ` · 改过 ${n - 1} 次` : ''}${can ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-retro="fix" style="margin-left:auto">${icon('pen')}修正</button>` : ''}</div></div>`;
     }
     if (s === 'doing') return html`<p class="nt-muted" style="margin:0">${node.name}还在进行，方案确认后再复盘。</p>`;
-    if (!can) return html`<p class="nt-muted" style="margin:0">HR 还没写这个节点的复盘。</p>`;
+    if (!can) return html`<p class="nt-muted" style="margin:0">待 HR 复盘。</p>`;
     if (draft) {
       return html`<div class="n-block n-pretro" data-state="light">${lists(draft)}<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 草拟 · 仅供参考</span><span class="n-review__evact"><button class="n-btn n-btn--sm" type="button" data-retro="adopt">${icon('check')}采用</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-retro="edit">${icon('pen')}改写</button></span></div></div>`;
     }
@@ -128,7 +128,7 @@
     else {
       const read = (id) => $(id).value.split('\n').map((t) => t.trim()).filter(Boolean);
       good = read('#rt-good'); improve = read('#rt-improve');
-      if (!good.length && !improve.length) { const t = $('#rt-good'); t.focus(); t.placeholder = '至少写一条；不想改就点取消'; return; }
+      if (!good.length && !improve.length) { const t = $('#rt-good'); t.focus(); t.placeholder = '至少写一条；保持原样就点取消'; return; }
       fromKind = editing;
     }
     const undo = st.setNodeRetro(k, good, improve, fromKind);

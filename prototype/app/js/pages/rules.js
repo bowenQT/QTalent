@@ -81,7 +81,7 @@
   function judgeSignal(r) {
     const b = (r?.basis || []).find((x) => x.type === 'judge');
     if (!b) return null;
-    return [icon('split'), `${st.judgeBatch(b.batch)?.name.replace('判断复盘', '')}：${b.dim}${b.n}，${b.hyp && !st.judgeAttrib(b.hyp) ? '归因待确认' : `归因为${b.cat}`}`];
+    return [icon('split'), `${st.judgeBatch(b.batch)?.name.replace('判断对照', '')}：${b.dim}${b.n}，${b.hyp && !st.judgeAttrib(b.hyp) ? '归因待确认' : `归因为${b.cat}`}`];
   }
   function frontCard() {
     const lives = st.FRONT_LINES.map(([l]) => st.ruleLive('front', l)).filter(Boolean);
@@ -89,7 +89,7 @@
     const sig = judgeSignal(open);
     return html`<a class="n-rcard" href="rules.html?r=front">
       <div class="n-rcard__head"><span class="n-rcard__name">${KINDS.front.n}</span><span class="n-rcard__ro">${icon('lock')}只读</span></div>
-      <p class="n-rcard__what">${KINDS.front.w}；判断复盘按它对照。</p>
+      <p class="n-rcard__what">${KINDS.front.w}；判断对照按它对照。</p>
       <div class="n-rcard__ver">${lives.map((r) => html`<b>${r.v}</b>`)}</div>
       ${open ? html`<div class="nt-row">${rstate(open, open.v)}<span class="nt-muted">${openNote(open)}</span></div>` : ''}
       ${sig ? html`<div class="n-rcard__signal">${sig[0]}<span>${sig[1]}</span></div>` : ''}
@@ -138,7 +138,7 @@
   // 评分人本人：只列自己给的、待按新版本复核的分
   function renderRaterReview(main) {
     const mine = st.myHeldScores(), vers = [...new Set(mine.map((x) => x.ver))];
-    mount(main, html`<header class="nt-head"><div><h1>按新版本复核你的评分</h1><p>维度与锚点改了等级含义，你在旧版本下给的分要按新版本再看一遍。原分保留；你确认前这些分暂停参与取数，你不在时由 HRBP 代确认。</p></div></header>
+    mount(main, html`<header class="nt-head"><div><h1>按新版本复核你的评分</h1><p>维度与锚点改了等级含义，你在旧版本下给的分要按新版本再看一遍。原分保留；你确认前，这些分暂停计入档案和象限；你请假或离开时由 HRBP 代为确认。</p></div></header>
       ${vers.length ? vers.map((v) => reviewTable(st.reviewHolds().find((h) => h.ver === v), true)) : UI.state({ ip: 'done', size: 48, title: '都复核完了', text: '新版本下你的评分已经全部确认。' })}`);
     wire(main);
   }
@@ -283,7 +283,7 @@
           </div>
           <div class="n-checkbar__sec">
             <span class="n-checkbar__label">依据</span>
-            ${(d.basis || []).length ? html`<div class="nt-row">${d.basis.map((b, i) => basisChip(b, i, ed))}</div>` : html`<p class="n-checkbar__text">可以关联判断复盘、校准理由、修订建议或你的核对结果。</p>`}
+            ${(d.basis || []).length ? html`<div class="nt-row">${d.basis.map((b, i) => basisChip(b, i, ed))}</div>` : html`<p class="n-checkbar__text">可以关联判断对照、校准理由、修订建议或你的核对结果。</p>`}
             ${ed ? html`<span class="n-menuwrap" style="justify-self:start"><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="basis-add">${icon('plus')}关联依据</button></span>` : ''}
           </div>
           <div class="n-checkbar__sec">
@@ -316,7 +316,7 @@
       </aside>
     </div>`;
   }
-  // 依据：按查看人的权限呈现。CEO 看判断复盘的批次、维度、偏差人数和归因类别，修订建议与核对只看来源和条数
+  // 依据：按查看人的权限呈现。CEO 看判断对照的批次、维度、偏差人数和归因类别，修订建议与核对只看来源和条数
   const ROLE_OF = (pid) => Object.keys(st.roles).find((r) => st.roles[r].person === pid) || (st.person(pid)?.isLead ? 'lead' : 'mentor');
   const SRC = { lead: '部门负责人', mentor: '导师 / 助教' };
   function basisText(b) {
@@ -357,7 +357,7 @@
   const teamsLine = (p) => (p.teams.length ? p.teams.map((t) => `${st.orgShort(t.team)} ${t.n > 0 ? '+' : ''}${t.n}`).join(' · ') + ' · 其余团队保持' : '各团队人数保持');
   function impactLine(p) {
     if (p.kind === 'watch') return html`值得关注 <b>${p.from} → ${p.to} 人</b>：进入 ${p.enter.length} 人，离开 ${p.leave.length} 人。按团队：${teamsLine(p)}。`;
-    if (p.kind === 'map') return html`下一次判断复盘里受影响的对照单元 <b>${p.cells} 个</b>。`;
+    if (p.kind === 'map') return html`下一次判断对照里受影响的对照单元 <b>${p.cells} 个</b>。`;
     return html`取数窗口内用到这些锚点的事件 <b>${p.events} 件</b>，涉及 ${p.people} 人、${p.raters.length} 位评分人；${p.tasks ? html`将生成 <b>${p.tasks} 条复核任务</b>` : '旧分继续参与取数'}。`;
   }
   function impactFull(p, who) {
@@ -448,7 +448,7 @@
     const ls = line ? [line] : st.FRONT_LINES.map(([l]) => l);
     const pending = st.ruleVers('front').find((r) => r.state === 'pending' && (!line || r.line === line));
     mount(main, html`
-      <header class="nt-head"><div><h1>${line ? lineName(line) : KINDS.front.n}</h1><p>${KINDS.front.w}；判断复盘按它对照。</p></div>
+      <header class="nt-head"><div><h1>${line ? lineName(line) : KINDS.front.n}</h1><p>${KINDS.front.w}；判断对照按它对照。</p></div>
         <div class="nt-head__acts">${sealFor(st.ruleVers('front', line))}<span class="n-rcard__ro">${icon('lock')}只读</span></div></header>
       ${pending && role === 'ceo' ? reviewView(pending) : ''}
       <div class="nt-grid">${ls.map((l) => {

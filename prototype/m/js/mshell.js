@@ -173,7 +173,7 @@
   }
 
   // ---------- 手机页面常用片段 ----------
-  // 待办在手机上的落点：复盘去导师评价，方案去确认方案，其余沿用；判断复盘、找人这类没有手机页的转到桌面版
+  // 待办在手机上的落点：复盘去导师评价，方案去确认方案，其余沿用；判断对照、找人这类没有手机页的转到桌面版
   const M_PAGES = ['index', 'people', 'person', 'quick', 'record', 'plan', 'inbox', 'mentor', 'me'];
   const mHref = (h) => (M_PAGES.includes(h.split(/[?#]/)[0].replace('.html', '')) ? h : `../app/${h}`);
   M.todoHref = (t) => (t.kind === 'review' ? `mentor.html?id=${t.person}` : t.kind === 'plan' ? `plan.html?id=${t.plan}` : mHref(t.href));

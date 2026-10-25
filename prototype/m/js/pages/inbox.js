@@ -19,7 +19,7 @@
     const others = todos.filter((t) => t.kind !== 'verify');
     mount(main, html`
       ${role !== 'self' && role !== 'lead' ? html`<h3 class="m-h" style="margin-top:0">待核对${verify.length ? html`<span class="n-count">${verify.length}</span>` : ''}</h3>
-        <p class="nt-muted" style="margin:-4px 0 var(--s-3)">录音和文档里有几处 AI 拿不准是谁、是哪个项目。选一下就生效。</p>
+        <p class="nt-muted" style="margin:-4px 0 var(--s-3)">选出这几处说的是谁、哪个项目，选完即生效。</p>
         ${verify.length ? verify.map(card) : html`<div class="m-card">${UI.state({ ip: 'done', size: 40, title: '都核对完了', text: '新的录音或文档里有拿不准的地方时，会出现在这里。' })}</div>`}` : ''}
 
       ${others.length ? html`<h3 class="m-h">${role === 'self' ? '发布给你的' : '其他待办'}</h3><ul class="m-list">${others.map(M.todoRow)}</ul>`

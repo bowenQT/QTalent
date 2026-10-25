@@ -110,7 +110,7 @@
       <p class="nt-caption">按写明的规则入选，按触发时间排列，不按分数挑人。点人看依据；推动请在电脑上发起。</p>
 
       <h3 class="m-h">判断提醒</h3>
-      ${sigs.length ? html`<ul class="m-list">${sigs.map((g) => M.row(`../app/judge.html?id=${g.b.id}`, icon('swap'), g.b.name.replace('判断复盘', ''), UI.judgeTipText(g)))}</ul>`
+      ${sigs.length ? html`<ul class="m-list">${sigs.map((g) => M.row(`../app/judge.html?id=${g.b.id}`, icon('swap'), g.b.name.replace('判断对照', ''), UI.judgeTipText(g)))}</ul>`
         : html`<div class="nt-empty">需要复核的差异会出现在这里。</div>`}`);
     NT.$('#m-find').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -128,7 +128,7 @@
   function ruleSheet(v) {
     const r = st.ruleVer(v), k = st.ruleKind(v), p = r.preview;
     const impact = !p ? '' : p.kind === 'watch' ? `值得关注 ${p.from} → ${p.to} 人：进入 ${p.enter.length} 人，离开 ${p.leave.length} 人${p.teams.length ? `；${p.teams.map((t) => `${st.orgShort(t.team)} ${t.n > 0 ? '+' : ''}${t.n}`).join('、')}` : ''}`
-      : p.kind === 'map' ? `下一次判断复盘里受影响的对照单元 ${p.cells} 个` : `用到这些锚点的事件 ${p.events} 件；${p.tasks ? `生效时生成 ${p.tasks} 条复核任务` : '旧分继续参与取数'}`;
+      : p.kind === 'map' ? `下一次判断对照里受影响的对照单元 ${p.cells} 个` : `用到这些锚点的事件 ${p.events} 件；${p.tasks ? `生效时生成 ${p.tasks} 条复核任务` : '旧分继续参与取数'}`;
     M.sheet({
       title: `${st.ruleKindName(k)} ${v}`,
       sub: `${st.person(r.by).name}起草 · 在 ${r.base} 上修订 · ${r.state === 'pending' ? '待你确认' : '已排期，从下一个盘点批次开始'}`,

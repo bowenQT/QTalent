@@ -14,7 +14,7 @@
   const MORE = [
     { id: 'projects', label: '项目', icon: 'folder', href: 'projects.html' },
     { id: 'landing', label: 'XEngineer 第六期', icon: 'book', href: 'landing.html', roles: ['ceo', 'hrbp', 'lead', 'mentor'], hideFor: ['ceo'] },
-    { id: 'actions', label: '项目复盘', icon: 'check2', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'] },
+    { id: 'actions', label: '人才项目复盘', icon: 'check2', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'] },
     { id: 'queue', label: '校准队列', icon: 'split', href: 'queue.html', roles: ['hrbp'] },
     // 判断对照归在「评价体系」下（规则 / 判断对照两个页签）；导航里只给不能看汇总、但做过评价的人留「我的判断对照」
     { id: 'judge', label: '我的判断对照', icon: 'swap', href: 'judge.html?rater=me' },
@@ -67,7 +67,7 @@
     mount(root, html`
       <a class="nt-skip" href="#main">跳到正文</a>
       <aside class="nt-side" aria-label="主导航">
-        <a class="n-shell__brand nt-brand" href="index.html"><span class="nt-ip" data-ip="rest" data-size="24"></span>Niu-Talent</a>
+        <a class="n-shell__brand nt-brand" href="index.html"><span class="nt-ip" data-ip="rest" data-size="24"></span><span>Niu-Talent<small>人才识别、追踪与盘点</small></span></a>
         <nav class="nt-nav">${[NAV[0], people, NAV[2]].filter(allow).map(navItem)}</nav>
         <nav class="nt-nav nt-nav--more" aria-label="更多">${more.filter(allow).map(navItem)}</nav>
         ${recent.length ? html`<div class="n-shell__recent nt-recent">最近${recent.map(([t, h]) => html`<a href="${h}">${t}</a>`)}</div>` : ''}

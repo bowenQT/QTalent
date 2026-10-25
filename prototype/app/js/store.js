@@ -197,11 +197,11 @@
       e.scores.forEach((s) => {
         if (s.p !== pid || s.v == null) return;
         // 不兼容修订生效后，旧版本下的分待按新版本复核：原分保留，复核前不参与当前版本的取数（v1.6 3.35.5）。
-        // 判断复盘按原版本对照证据，传 anyVer: true
+        // 判断对照按原版本对照证据，传 anyVer: true
         if (!o.anyVer && store.heldBy(e, s)) return;
         if (!o.all && !COUNTED.includes(s.st)) return;
         if (o.dim && s.d !== o.dim) return;
-        // 按新版本复核过的分，当前取数用复核后的值、版本与确认人；原分和原版本保留在事件上，判断复盘按原分
+        // 按新版本复核过的分，当前取数用复核后的值、版本与确认人；原分和原版本保留在事件上，判断对照按原分
         const rev = !o.anyVer && lastRev(s);
         out.push({ ...s, v: rev ? rev.v : s.v, by: rev ? rev.by : s.by, ver: rev ? rev.ver : e.rubric, ev: e, date: e.date });
       });
@@ -615,7 +615,7 @@
   store.template = (id) => SEED.TEMPLATES.find((t) => t.id === id);
   store.tplVersion = (t, v) => (v ? t.versions.find((x) => x.v === v) : t.versions[t.versions.length - 1]);
 
-  // ---------- 判断复盘（v1.3 3.16）：对照两段判断，归因只作用于评价体系，不写回被评价人 ----------
+  // ---------- 判断对照（v1.3 3.16）：对照两段判断，归因只作用于评价体系，不写回被评价人 ----------
   const J = SEED.JUDGE;
   const RATER_MIN = 5; // 评价人可对照案例的门槛，少于它只显示「样本不足」
   store.RATER_MIN = RATER_MIN;
@@ -1005,7 +1005,7 @@
     store.save();
   };
 
-  // ---------- 判断复盘：CEO 看批次级信号，可以请 HRBP 复核（v1.4 3.22） ----------
+  // ---------- 判断对照：CEO 看批次级信号，可以请 HRBP 复核（v1.4 3.22） ----------
   store.judgeSignals = () => {
     if (!store.canJudge()) return [];
     return J.batches.filter((b) => b.status === 'open').map((b) => {

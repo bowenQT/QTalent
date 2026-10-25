@@ -74,7 +74,7 @@
     let text = draft, from = 'ai';
     if (b.dataset.evalSave) {
       const t = document.getElementById(`rv-eval-${dim}`); text = t.value.trim();
-      if (!text) { t.focus(); t.placeholder = '评价不能为空；不想改就点取消'; return true; }
+      if (!text) { t.focus(); t.placeholder = '至少写一句；保持原样就点取消'; return true; }
       if (saved && text === saved.text) { evalEditing = null; rerender(); return true; }
       from = saved ? 'fix' : text === draft ? 'ai' : draft ? 'edit' : 'new';
     }
@@ -548,7 +548,7 @@
   // 判断提醒的一句差异：取差异最多的维度，偏高、偏低都写，其余维度只给个数（桌面与手机共用）
   UI.judgeTipText = (g) => {
     const d = g.dims.slice().sort((a, b) => b.diff - a.diff)[0];
-    return `${d.name}：前段评为最高或最低一档的 ${d.clear} 人里，${[d.diffHigh && `${d.diffHigh} 人前段偏高`, d.diffLow && `${d.diffLow} 人前段偏低`].filter(Boolean).join('、')}；前段在中间档的不计入${g.dims.length > 1 ? `，共 ${g.dims.length} 个维度有差异` : ''}`;
+    return `${d.name}：前段评为最高或最低一档的 ${d.clear} 人里，${[d.diffHigh && `${d.diffHigh} 人前段偏高`, d.diffLow && `${d.diffLow} 人前段偏低`].filter(Boolean).join('、')}（中间档另看）${g.dims.length > 1 ? `，共 ${g.dims.length} 个维度有差异` : ''}`;
   };
 
   // ---------- 关注（v1.5 3.26.2）：个人的观察名单 ----------

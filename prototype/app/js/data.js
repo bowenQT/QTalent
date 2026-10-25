@@ -94,7 +94,7 @@
     P('p-lian', '黎安', 'sea', '海外客户经理', 'N4', '2021-04-12', 12, null),
     P('p-peiyuan', '裴远', 'ka', 'KA 销售', 'N5', '2018-10-08', 260, null, { gen: 'lh' }),
 
-    // 2026 年社招入职（判断复盘的社招批次，入职后的事件见下方「社招新人」）
+    // 2026 年社招入职（判断对照的社招批次，入职后的事件见下方「社招新人」）
     P('p-gengyu', '耿雨', 'gp-acq', '增长分析师', 'N3', '2026-02-23', 48, null, { hire: 'social' }),
     P('p-ningxi', '宁希', 'gp-conv', '客户经理', 'N3', '2026-03-09', 284, null, { hire: 'social' }),
     P('p-zhuoran', '卓然', 'gp-ai', '算法工程师', 'N4', '2026-03-16', 196, null, { hire: 'social' }),
@@ -102,7 +102,7 @@
     // 评价体系演示：第一件事在 90 天之前，值得关注的 N1 时间窗改为 120 天后进入「新发现」
     P('p-baizhou', '柏舟', 'gp-ret', '客户成功经理', 'N3', '2026-06-08', 120, null),
   ];
-  // XEngineer 训练营学员：只出现在判断复盘里，不进入人才盘点和人员列表
+  // XEngineer 训练营学员：只出现在判断对照里，不进入人才盘点和人员列表
   [['p-xe-wenxi', '闻溪', 'gp-ops'], ['p-xe-chuhe', '楚河', 'gp-ai'], ['p-xe-jianghe', '姜禾', 'gp-ops'], ['p-xe-luming', '鹿鸣', 'gp-cs'],
     ['p-xe-lanyu', '蓝屿', 'gp-ai'], ['p-xe-yezhou', '叶舟', 'gp-ops'], ['p-xe-chengmo', '程墨', 'gp-cs'], ['p-xe-wenyu', '温瑜', 'gp-ai']]
     .forEach(([id, name, org], i) => PEOPLE.push(P(id, name, org, '工程师（XEngineer 第一期）', 'N2', '2026-03-02', 20 + i * 41, null, { noReview: true, xe: 'xe-1' })));
@@ -496,8 +496,8 @@
     { id: 'a-lin', title: '林知远以兼职加入海外加速搜索体验', from: 'sp-search-3', person: 'p-lin', owner: 'p-zhouyu', due: '2026-10-15', did: '2026-10-15', state: 'done', observe: '2026-12-15' },
     { id: 'a-luoyi', title: '罗伊参与存量客户召回议题的带教', kind: '激活', from: 'signal', person: 'p-luoyi', owner: 'p-jianning', due: '2026-10-20', did: '2026-10-20', state: 'doing', observe: '2026-12-31' },
     { id: 'a-xe-v2', title: '修订入营选拔标准：内驱力必须写出具体行为与结果（xe-select-v2）', kind: '修订评价标准', from: 'jr-xe1', owner: 'p-suwan', due: '2026-06-30', did: '2026-07-01', state: 'done', observe: '2026-10-31',
-      then: ['目标：内驱力的前段偏高人数减少', '依据：XEngineer 第一期判断复盘，内驱力 8 人中 6 人前段偏高，5 人的入营记录只有「有热情」一类描述', '观察：第二期按 v2 入营，看第二期判断复盘的内驱力偏差'],
-      now: [['第二期判断复盘：内驱力 8 人中 2 人前段偏高（第一期 6 人）', null], ['样本不足：只有一期 8 人，下一期再看改进效果', null]] },
+      then: ['目标：内驱力的前段偏高人数减少', '依据：XEngineer 第一期判断对照，内驱力 8 人中 6 人前段偏高，5 人的入营记录只有「有热情」一类描述', '观察：第二期按 v2 入营，看第二期判断对照的内驱力偏差'],
+      now: [['第二期判断对照：内驱力 8 人中 2 人前段偏高（第一期 6 人）', null], ['样本不足：只有一期 8 人，下一期再看改进效果', null]] },
     { id: 'a-wang', title: '王一舟牵头黑客松项目的后续落地', person: 'p-wangyz', owner: 'p-baizhi', due: '2026-10-08', state: 'cancel', why: '项目优先级下调，换到下一期，不是个人原因' },
   ];
 
@@ -653,7 +653,7 @@
       versions: [{ v: 1, by: 'p-suwan', at: '2026-09-18', reqs: [{ id: 'f1', text: '独立交付过客户现场的技术方案', must: true }, { id: 'f2', text: '能把客户问题翻译成产品需求', must: true }, { id: 'f3', text: '有线上故障处理经验', must: false }] }] },
   ];
 
-  // ---------- 判断复盘（v1.3 D-35～D-40） ----------
+  // ---------- 判断对照（v1.3 D-35～D-40） ----------
   // 一次判断 = 评价人 + 阶段 + 标准版本 + 被评价人 + 维度 + 结论 + 原始评语。前后两段都是判断，后段不当作正确答案。
   const JUDGE = {
     chains: [
@@ -662,7 +662,7 @@
       { id: 'hire', name: '社招', front: '面试评价', back: '入职后 6 个月的已确认事件', scale: 'score', window: 180,
         dims: [{ id: 'prof', name: '专业能力' }, { id: 'pot', name: '潜力' }, { id: 'comm', name: '沟通协作' }, { id: 'mgmt', name: '管理能力' }] },
     ],
-    // 维度与等级对应表：只用于判断复盘的对照，不把历史分数换算进档案维度分和象限
+    // 维度与等级对应表：只用于判断对照的对照，不把历史分数换算进档案维度分和象限
     maps: [
       { id: 'map-xe-v1', chain: 'xe', by: 'p-suwan', at: '2026-03-20', rows: [['pd', '产品设计力', '同名同级'], ['eng', '工程能力', '同名同级'], ['drive', '内驱力', '同名同级']] },
       { id: 'map-hire-v1', chain: 'hire', by: 'p-suwan', at: '2026-09-30', rows: [['prof', '专业度', '5 / 4 / 3 / 2 / 1 ↔ 同档'], ['pot', '内生动力、智慧力、坚毅力', '取三项已确认分的均值所在档'], ['comm', '领导力', '同档'], ['mgmt', '领导力', '同档']],
@@ -674,9 +674,9 @@
       { id: 'hire-v1', chain: 'hire', at: '2025-12-01', note: '社招面试评价表 2025 版：四个维度 1–5 分，附综合评价' },
     ],
     batches: [
-      { id: 'jr-xe1', chain: 'xe', name: 'XEngineer 第一期判断复盘', std: 'xe-select-v1', map: 'map-xe-v1', status: 'concluded', at: '2026-06-12', by: 'p-suwan', range: '入营 03-02 · 训练营评审 05-29' },
-      { id: 'jr-xe2', chain: 'xe', name: 'XEngineer 第二期判断复盘', std: 'xe-select-v2', map: 'map-xe-v1', status: 'open', at: '2026-10-20', by: 'p-suwan', range: '入营 07-06 · 训练营评审 10-17' },
-      { id: 'jr-hire26', chain: 'hire', name: '2026 年 2–8 月社招入职判断复盘', std: 'hire-v1', map: 'map-hire-v1', status: 'open', at: '2026-10-21', by: 'p-suwan', range: '入职后 6 个月窗口，未满的按到今天为止',
+      { id: 'jr-xe1', chain: 'xe', name: 'XEngineer 第一期判断对照', std: 'xe-select-v1', map: 'map-xe-v1', status: 'concluded', at: '2026-06-12', by: 'p-suwan', range: '入营 03-02 · 训练营评审 05-29' },
+      { id: 'jr-xe2', chain: 'xe', name: 'XEngineer 第二期判断对照', std: 'xe-select-v2', map: 'map-xe-v1', status: 'open', at: '2026-10-20', by: 'p-suwan', range: '入营 07-06 · 训练营评审 10-17' },
+      { id: 'jr-hire26', chain: 'hire', name: '2026 年 2–8 月社招入职判断对照', std: 'hire-v1', map: 'map-hire-v1', status: 'open', at: '2026-10-21', by: 'p-suwan', range: '入职后 6 个月窗口，未满的按到今天为止',
         people: ['p-gengyu', 'p-ningxi', 'p-zhuoran', 'p-weilan', 'p-lin', 'p-xuqh'] },
     ],
     // XEngineer：前后两段都是 S / A / B 的人工判断。[学员, 入营面试官, 入营 {维度: 等级}, 入营评语, 训练营评审 {维度: 等级}, 评审评语]
@@ -765,11 +765,11 @@
       { v: 'watch-v2', state: 'live', base: 'watch-v1', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-10-20', effect: 'now', effAt: '2026-10-20',
         why: '提名来源加入导师 / 助教的推荐方向', params: WATCH_PARAMS, t2: '负责人、导师 / 助教或 HRBP 的提名与推荐，经 HRBP 核实' },
     ],
-    // 前段评价标准与对应表：本期只读；xe-select-v3 是 XEngineer 第二期判断复盘之后起草、待 CEO 确认的预置草稿
+    // 前段评价标准与对应表：本期只读；xe-select-v3 是 XEngineer 第二期判断对照之后起草、待 CEO 确认的预置草稿
     front: [
       { v: 'xe-select-v1', line: 'xe-select', state: 'old', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-03-01', effect: 'now', effAt: '2026-03-01', why: '第一版：入营选拔按 S / A / B 评三个维度', note: '内驱力：面试官按印象给 S / A / B，评语不限' },
       { v: 'xe-select-v2', line: 'xe-select', state: 'live', base: 'xe-select-v1', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-07-01', effect: 'now', effAt: '2026-07-01',
-        why: '第一期判断复盘：内驱力 8 人中 6 人前段偏高，入营记录缺具体行为', basis: [{ type: 'judge', batch: 'jr-xe1', hyp: 'h-xe1-1', dim: '内驱力', n: '8 人中 6 人前段偏高', cat: '评价方式与信息不足' }], note: '内驱力：必须写出一个具体行为及结果，才能给 S' },
+        why: '第一期判断对照：内驱力 8 人中 6 人前段偏高，入营记录缺具体行为', basis: [{ type: 'judge', batch: 'jr-xe1', hyp: 'h-xe1-1', dim: '内驱力', n: '8 人中 6 人前段偏高', cat: '评价方式与信息不足' }], note: '内驱力：必须写出一个具体行为及结果，才能给 S' },
       { v: 'xe-select-v3', line: 'xe-select', state: 'pending', base: 'xe-select-v2', by: 'p-suwan', at: '2026-10-22', effect: 'next', compat: 'ok',
         why: '第二期仍有 2 人内驱力前段偏高，入营面试增加行为追问：这件事之后有没有持续', basis: [{ type: 'judge', batch: 'jr-xe2', hyp: 'h-xe2-1', dim: '内驱力', n: '8 人中 2 人前段偏高', cat: '评价方式与信息不足' }],
         note: '内驱力：写出一个具体行为及结果，并追问之后是否持续，才能给 S', preview: { kind: 'map', cells: 8 } },
@@ -785,7 +785,7 @@
   ];
 
   NT.SEED = {
-    version: 8, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
+    version: 9, DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES, FOLLOWS,
     FAMILIES, ENG_THEMES, RULES, RULE_SUGS,
   };

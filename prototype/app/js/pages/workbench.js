@@ -175,10 +175,10 @@
       }
     };
   }
-  // HRBP 的判断复盘入口：有待确认的 AI 假设时提示数量
+  // HRBP 的判断对照入口：有待确认的 AI 假设时提示数量
   function judgeCard() {
     const rows = st.judgeBatches().filter((b) => b.status === 'open').map((b) => ({ b, n: st.judgeHyps(b.id).filter((h) => !st.judgeAttrib(h.id)).length }));
-    return html`<article class="n-card"><h3 class="n-section-title">判断复盘<a class="n-link" href="judge.html">全部</a></h3>
+    return html`<article class="n-card"><h3 class="n-section-title">判断对照<a class="n-link" href="judge.html">全部</a></h3>
       <ul class="nt-list">${rows.map(({ b, n }) => html`<li><a class="nt-plink" href="judge.html?id=${b.id}"><b style="font-weight:600">${b.name}</b></a><div class="nt-muted">${n ? `${n} 条 AI 归因假设待确认` : '归因都已确认'} · ${b.range}</div></li>`)}</ul></article>`;
   }
 
@@ -411,18 +411,18 @@
     </li>`)}</ul>`;
   }
 
-  // 判断提醒：首页只放 1–2 条值得复核的批次差异，一行一条；详情和「请 HRBP 复核」在判断复盘页（v1.4 3.22）
+  // 判断提醒：首页只放 1–2 条值得复核的批次差异，一行一条；详情和「请 HRBP 复核」在判断对照页（v1.4 3.22）
   const ASTATE = { 待你确认: 'todo', 待处理: 'todo', 进行中: 'doing', 'HRBP 复核中': 'doing', 已有结果: 'done', 已复核: 'done', 已取消: 'cancel' };
   function drawJudge() {
     const host = $('#jsig'); if (!host) return;
     const sigs = st.judgeSignals(), top = sigs.slice(0, 2);
     const item = (g) => {
       const [label, s] = g.ask?.state === 'open' ? ['HRBP 复核中', 'doing'] : g.attrib === 'open' ? ['待 HRBP 归因', 'todo'] : ['归因已确认', 'done'];
-      return html`<li><a href="judge.html?id=${g.b.id}"><span><b>${g.b.name.replace('判断复盘', '')}</b><small>${UI.judgeTipText(g)}</small></span><span class="n-astate" data-s="${s}">${label}</span></a></li>`;
+      return html`<li><a href="judge.html?id=${g.b.id}"><span><b>${g.b.name.replace('判断对照', '')}</b><small>${UI.judgeTipText(g)}</small></span><span class="n-astate" data-s="${s}">${label}</span></a></li>`;
     };
-    mount(host, html`<h3 class="n-section-title" id="jsig-h">判断提醒<a class="n-link" href="judge.html">去判断复盘</a></h3>
+    mount(host, html`<h3 class="n-section-title" id="jsig-h">判断提醒<a class="n-link" href="judge.html">去判断对照</a></h3>
       ${top.length ? html`<ul class="n-jtip__list">${top.map(item)}</ul><p class="nt-caption">差异需要复核，不代表员工退步，也不直接认定标准或评价人有错。</p>`
-        : html`<div class="nt-empty">最近的判断复盘没有需要复核的差异。</div>`}`);
+        : html`<div class="nt-empty">最近的判断对照没有需要复核的差异。</div>`}`);
   }
 
   // 需要我看：只放需要 CEO 本人决定的事；CEO 发起、还在推进的事折叠在下面（v1.5 3.26.1）

@@ -60,7 +60,7 @@
     const canConfirm = st.can('quadConfirm');
     const nScores = placed.reduce((n, x) => n + x.r.n, 0);
     mount(main, html`
-      <header class="nt-head"><div><h1>${LABEL} · 象限校准</h1><p>${isLanding ? 'XEngineer 第六期结营：学员第一次落位，形成第一份档案。' : `${b.name} · HR 发起。`}同意参考位置的人不用动；和参考不同的要写一句理由。</p></div>
+      <header class="nt-head"><div><h1>${LABEL} · 象限校准</h1><p>${isLanding ? 'XEngineer 第六期结营：学员第一次落位，形成第一份档案。' : `${b.name} · HR 发起。`}同意参考位置的人保持原样；调整位置要写一句理由。</p></div>
         ${!isLanding ? html`<div class="nt-head__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="review.html?id=${id}">回到盘点清单</a></div>` : ''}</header>
       ${!isLanding ? html`<div class="n-seg n-seg--md" role="group" aria-label="团队" data-manual id="teams" style="margin-bottom:var(--s-4)">${teams.map((t) => html`<button type="button" data-t="${t}" aria-pressed="${t === team}">${st.orgShort(t)}${sn?.teams?.includes(t) ? ' · 已冻结' : ''}</button>`)}</div>` : ''}
       <div class="nt-split nt-split--wide">
