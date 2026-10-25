@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const source = fs.readFileSync(path.join(__dirname, '../y/app/js/store.js'), 'utf8');
-const method = source.match(/  store\.removeRuleSug = \(id\) => \{[\s\S]*?\n  \};/);
+const method = source.match(/  store\.removeRuleSug = \(id\) => \{[\s\S]*?\n  \};/) || source.match(/  store\.removeRuleSug = .*;/);
 assert.ok(method, '缺少版本 Y store.removeRuleSug');
 function setup(state='open') {
   const S = {
