@@ -275,7 +275,12 @@ describe('MiniQuad', () => {
 
   it('rejects a quadrant outside the four', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    for (const quadrant of ['mm', 'toString', '__proto__']) {
+    for (const quadrant of [
+      'mm',
+      'toString',
+      '__proto__',
+      ...[['failed'], new String('failed'), 1, null, undefined, {}],
+    ]) {
       expect(() =>
         render(
           <MiniQuad

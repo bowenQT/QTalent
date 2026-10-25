@@ -14,7 +14,7 @@
     },
     {
       "path": "prototype/y/app/app.css",
-      "sha": "57ad70e695f32c249c9659daeccd5f06b4fa1157"
+      "sha": "f32954dd332c412334ebf7db7c46450c5de06bc5"
     },
     {
       "path": "prototype/y/app/calibrate.html",
@@ -97,6 +97,10 @@
       "sha": "b5f267fe1864b6d9d1322b44329474d30dfe43db"
     },
     {
+      "path": "prototype/y/app/js/pages/recording.js",
+      "sha": "ee5fbeb36529efe87fe511aceef067be11e9e3f2"
+    },
+    {
       "path": "prototype/y/app/js/pages/review.js",
       "sha": "e7958d479918bf1cc58cc7594968e8520222f213"
     },
@@ -118,7 +122,7 @@
     },
     {
       "path": "prototype/y/app/js/pages/workbench.js",
-      "sha": "60d17ae5212ad6841f1eec2dd0e297a951d2130c"
+      "sha": "5c336e5ec62958fdeeb57737146847158fa70043"
     },
     {
       "path": "prototype/y/app/js/parse.js",
@@ -126,7 +130,7 @@
     },
     {
       "path": "prototype/y/app/js/shell.js",
-      "sha": "832e785cfe45142d0beb84fb27bc665c86120b08"
+      "sha": "9337dd0106e24b671e2a58554b4edf3450a9a3fc"
     },
     {
       "path": "prototype/y/app/js/store.js",
@@ -177,6 +181,10 @@
       "sha": "28c4ddfa1c8e556035f58b434db6b38cf65edf88"
     },
     {
+      "path": "prototype/y/app/recording.html",
+      "sha": "b478c04d77f6c1981d03a7cb918bea4d84186643"
+    },
+    {
       "path": "prototype/y/app/review.html",
       "sha": "d362d1dd4456218000691939de6689594b714b41"
     },
@@ -218,7 +226,7 @@
     },
     {
       "path": "prototype/y/assets/niu-components.css",
-      "sha": "539608a0309ea93fd5082a25f1ea7bf09ddd7683"
+      "sha": "ab4171698b9b49c915113f06a18f6673e2a5c561"
     },
     {
       "path": "prototype/y/assets/niu-ip.js",
@@ -230,7 +238,7 @@
     },
     {
       "path": "prototype/y/design-system.html",
-      "sha": "75701ce28d96d61396b9f2694d7beba7fda82b97"
+      "sha": "d04cab609a9b01d3f2f9a12e11aca9dae2e033e7"
     },
     {
       "path": "prototype/y/m/inbox.html",
