@@ -1,135 +1,154 @@
 # Niu-Talent
 
-七牛云内部的人才识别、追踪与盘点工作台。导师和 HR 随手记下的事、上传的材料和录音，经 AI 整理成可追溯的证据；管理者据此找人、盘点、调整组织。AI 只给建议，正式结论由有权限的人确认。
+七牛云内部的 AI 原生人才工作台，帮公司做好三件事：**找得到人**（人才搜索）、**看得清人**（人才档案）、**评得准人**（人才评价体系的建立与迭代）。AI 负责整理证据、起草判断，正式结论由有权限的人确认，每一条都能回到来源。
 
 | | |
 | --- | --- |
-| 参赛议题 | 自选题目：AI 原生的人才识别、追踪与盘点工作台 |
+| 参赛议题 | 自选题目：AI 原生的人才搜索、档案与评价体系 |
 | 交付形态 | 高保真可交互产品原型（桌面 + 导师手机版），浏览器直接打开 |
 | 在线原型 | <https://qtalent-review.aidoudoulong123.workers.dev/>（`@qiniu.com` 邮箱登录，每页可划线评论） |
 | Demo 视频 | <!-- 待补：视频链接 -->待补 |
 | 架构设计 | [docs/architecture.md](docs/architecture.md) |
 
-## 解决什么问题
+## 为什么做
 
-公司做人才判断时，依据散落在会议、周报、导师印象里，结论常常回答不了「凭什么」。Niu-Talent 把每一条判断都钉在来源上：
+公司里关于「这个人行不行」的判断，依据散落在会议、周报、面试记录和导师印象里：
 
-- **重点跟踪**：导师说一句话、传一份附件或录一段复盘，AI 整理成情境、行为、结果（SBI）并给出 1–5 的建议分；评价人确认后才进档案，分差大的自动交 HR 复核。
-- **项目找人**：管理者写下项目对人的要求，系统逐条对照已确认的证据，只给「支持 / 不支持 / 资料不足 / 证据冲突」四种状态，每条都能点回原文、表格单元格或录音时间点。
-- **人才盘点**：按专业度 × 潜力的 2×2 象限给参考位置，HR 校准后冻结快照，形成留用与落位方案。
+- **找人靠记忆**：要为一个新项目找 owner，只能问「谁认识合适的人」，说不清候选人凭什么合适。
+- **档案是空的或是一句评语**：评语和分数离开了当时的情境，没人能回答「这个分是怎么来的」。
+- **评价标准没人检验**：周评、面试、盘点各用一套口径，标准偏了也不知道，更谈不上改。
 
-产品刻意不做综合总分、排名、能力百分比和雷达图；「资料不足」不会被当作反向证据；AI 的建议和人的结论分开呈现。完整规则见 [AGENTS.md 的产品不变量](AGENTS.md#产品不变量)。
+Niu-Talent 用一条证据链把三件事连起来：评价体系规定怎么判断，判断沉淀进档案，档案支撑搜索；搜索和盘点的结果再回头检验评价体系。
+
+```mermaid
+flowchart LR
+  E[人才评价体系<br/>维度与锚点 · 规则版本] -->|按锚点整理和打分| P[人才档案<br/>可追溯的关键事件与确认分]
+  P -->|已确认的证据| S[人才搜索<br/>需求卡逐条对照]
+  S -->|任用与盘点的结果| J[判断对照<br/>前后两段判断放在一起]
+  P --> J
+  J -->|归因后起草修订| E
+```
+
+## 核心价值
+
+演示数据是化名的 XEngineer 第六期（93 名学员、398 条事件），所有人员都标「演示」。下面每个价值点都附了原型的直达入口。
+
+### 一、人才搜索：用一句话找到对的人，并说清凭什么
+
+管理者写一句「MaaS 智能体平台要一个能牵头应用后端的人，10 月到岗」，系统帮他建项目、起草需求卡，再拿公司里**已确认的证据**逐条对照候选人。
+
+- **需求卡由 AI 起草、人来定稿**：要求分「必须」和「加分」，可以逐条改写；常用岗位沉淀为目标角色模板，下次直接套用。
+- **逐条给结论，不给总分**：每条要求只有「支持 / 不支持 / 资料不足 / 证据冲突」四种状态，每个状态都能点开看到原文、表格单元格或录音时间点。候选人按「必须项支持了几条」排列，不按分数排序；「资料不足」和「不支持」分开，不会把没记录当成不行。
+- **方案确认后才生效**：候选人拖进方案的角色槽位，管理者确认后写入项目成员，形成可回溯的版本。
+- **日常检索**：人才列表按团队和姓名排列，可按标签筛选；标签只用于检索和找人，不参与打分。
+
+| 体验什么 | 入口 |
+| --- | --- |
+| 为 MaaS 智能体平台找 owner：需求卡、逐条四态、拖进槽位、确认方案 | [找人（管理者）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/staffing.html?project=pr-agent&as=ceo) |
+| 从一句话开始找人，先建项目和需求卡 | [新的找人](https://qtalent-review.aidoudoulong123.workers.dev/y/app/staffing.html?new=1&as=ceo) |
+| 人才列表：按团队浏览、标签筛选、重点跟踪 | [人才（管理者）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/people.html?as=ceo) |
+| 目标角色与发展通道：找人用到的角色模板 | [目标角色模板](https://qtalent-review.aidoudoulong123.workers.dev/y/app/rules.html?r=tpl&as=ceo) |
+| 标签库：收录、并入、停用候选标签 | [标签库（HR）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/tags.html?as=hrbp) |
+
+### 二、人才档案：每个判断都能回到原话
+
+导师说一句话、HR 录一场复盘、上传一份材料，AI 把它们整理成关键事件（情境、行为、结果，即 SBI），按锚点给出建议分；评价人确认后才进入档案。
+
+- **一条证据链**：材料 → 来源片段（页与段、单元格、时间点）→ 关键事件 → AI 建议分 → 人确认或改分 → 档案。档案里每一个分数都带行为锚点、原文引用、评分人和规则版本。
+- **内容性质分开**：原始事实、本人自述、管理观察、AI 推断、人工结论分开存、分开显示，AI 的内容不会冒充人的结论。
+- **档案会生长**：能力谱、象限与校准轨迹、档案版本与变化、时间线、参与的项目，都由已确认的事件实时算出；新事件让位置可能变化时，会提醒 HR 重新校准。
+- **AI 先问，不乱猜**：「小孟」「分镜那个组」指谁、录音里的说话人是谁，AI 列出候选等人核对，选定后才生成事件。
+- **同一份档案，按视角看到不同内容**：导师看不到象限和管理观察，员工看不到本人的分数，系统管理员看不到任何人才数据。
+
+| 体验什么 | 入口 |
+| --- | --- |
+| 孟逸尘的档案：能力谱、象限与校准轨迹、档案版本、时间线，点引用回到原文 | [人员档案（管理者）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/person.html?id=p-x11&as=ceo) |
+| 同一份档案的导师视角：看不到象限 | [人员档案（导师）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/person.html?id=p-x11&as=mentor) |
+| 记一件事：一句话整理成 SBI 和建议分，确认或改分 | [记一件事](https://qtalent-review.aidoudoulong123.workers.dev/y/app/record.html?as=mentor) |
+| 手机上按住说一段话，自动转写并整理成关键事件 | [按住说话](https://qtalent-review.aidoudoulong123.workers.dev/y/m/quick.html?hold=1) |
+| 核对「小孟」「分镜那个组」指谁 | [手机待办](https://qtalent-review.aidoudoulong123.workers.dev/y/m/inbox.html) |
+| 录一场导师团复盘：实时文字、打标记、@某人、暂停与继续 | [桌面录音](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp) |
+| 录音的异常情况：网络中断后补传、刷新后恢复、麦克风未授权 | [网络中断](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp&net=drop) · [刷新恢复](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp&step=resume) · [未授权](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp&mic=deny) |
+
+### 三、人才评价体系：标准先立起来，再用结果持续校准
+
+评价体系是整套产品的地基：它决定 AI 怎么整理、评价人怎么打分、谁会被关注、象限怎么落位。Niu-Talent 把它做成一套**有版本、可检验、可迭代**的规则。
+
+**建立：六类规则集中管理**
+
+| 规则 | 决定什么 |
+| --- | --- |
+| 维度与锚点 | 每个维度 1–5 分各代表什么行为；记录打分、AI 建议分都按它，专业度按岗位族分锚点 |
+| 象限落位 | 取多长时间的证据、分界线和落位门槛，决定参考位置和「资料不足」 |
+| 值得关注 | 谁会出现在管理者首页「值得关注」里，按哪几条规则入选 |
+| 前段评价标准与对应表 | 社招面试、入营选拔怎么评，以及和入职后的维度怎么对照 |
+| 目标角色与发展通道 | 找人和发展方向用到的角色模板：职责、必须与加分要求 |
+| 标签库 | 档案和找人里能用的标签 |
+
+**执行：分数要经得起复核**
+
+- 分数只有关键事件上的维度分（1–5），必须对上锚点；「资料不足 / 未体现」不出分。没有综合总分、排名、百分比和雷达图。
+- 评价人之间分差 2 分以上、改了 AI 建议分却没写理由、新事件让参考位置跨象限，都会自动进入 HR 的评分复核。
+- 盘点时系统给参考位置，HR 按课题组校准并冻结快照，再形成留用与落位方案。
+
+**迭代：用后来的结果检验当初的判断**
+
+- **判断对照**：把同一个人同一维度在前后两个阶段的判断放在一起，比如入营时的周评和结营时的评审，找出系统性偏差；AI 给出归因假设（评价人、标准还是评价方式），HR 采纳或改写后生成改进动作。后一阶段不当作标准答案，对照的结论只作用于评价体系，不改变任何人的分数和档案。
+- **修订流程**：HR 起草修订、写明理由与依据、预览影响范围，管理者对比新旧版本后确认发布或退回；规则经历草稿、待确认、已排期、生效中、已替代几个状态。
+- **不改写历史**：新版本按生效点生效，已有的分数、冻结快照和档案版本保持原样；盘点进行中不切换所用版本。
+- **保护评价人**：按评价人的偏差只给 HR 和评价人本人看，管理者只看汇总，不做评价人排行。
+
+| 体验什么 | 入口 |
+| --- | --- |
+| 六类规则总览、版本历史与对比 | [人才评价规则（HR）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/rules.html?as=hrbp) |
+| 起草维度与锚点 rubric-v2：专业度按岗位族分锚点，生效点定在下一个盘点批次 | [维度与锚点](https://qtalent-review.aidoudoulong123.workers.dev/y/app/rules.html?r=rubric&as=hrbp) |
+| 管理者确认周评标准修订：看改了什么、为什么改、影响多少对照单元 | [确认修订（管理者）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/rules.html?r=front&as=ceo) |
+| 第六期判断对照：前段评为最高或最低一档的 24 人里 8 人不一致，采纳 AI 归因 | [判断对照（HR）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/judge.html?id=jr-xe6&as=hrbp) |
+| 管理者看判断对照：只有汇总和已确认的归因 | [判断对照（管理者）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/judge.html?id=jr-xe6&as=ceo) |
+| 评分复核：分差 2 分、改分无理由、跨象限三类条目 | [评分复核（HR）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/queue.html?as=hrbp) |
+| 结营盘点 → 按课题组校准象限 → 留用与落位方案 | [盘点批次](https://qtalent-review.aidoudoulong123.workers.dev/y/app/review.html?id=b-xe6-end&as=hrbp) · [象限校准](https://qtalent-review.aidoudoulong123.workers.dev/y/app/calibrate.html?id=b-xe6-end&as=hrbp) · [留用与落位](https://qtalent-review.aidoudoulong123.workers.dev/y/app/plan.html?id=b-xe6-end&as=hrbp) |
+| 导师的 W8 对人复盘：AI 草拟每一维的评价，分差大的转 HR | [对人复盘](https://qtalent-review.aidoudoulong123.workers.dev/y/app/landing-review.html?id=p-x11&as=mentor) |
+| 关键节点复盘：判断对照生成的「修订周评标准」挂在 W4 周评节点下 | [W4 周评节点](https://qtalent-review.aidoudoulong123.workers.dev/y/app/actions.html?node=pg-xe6:w4&as=hrbp) |
 
 ## 体验原型
 
-原型放在 `prototype/y/`，演示数据是化名的 XEngineer 第六期（93 名学员、398 条事件），所有人员都标「演示」。下文链接都指向在线原型；本地运行时把域名换成 `http://127.0.0.1:4173/` 即可（见 [本地运行](#本地运行原型)）。
-
 ### 按角色进入
 
-| 角色 | 入口 | 这个角色关心什么 |
+| 角色 | 入口 | 这个角色在三件事里做什么 |
 | --- | --- | --- |
-| 程远 · 管理者 | [桌面工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=ceo) | 公司层：看值得关注的人、为项目找 owner、确认评价规则与方案 |
-| 苏晚 · HR | [桌面工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=hrbp) | 负责的人才项目：整理档案、评分复核、盘点校准、留用与落位 |
-| 叶青 · 导师 | [桌面工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=mentor) | 所带学员：记录、确认本人评分、对人复盘、推荐发展方向 |
+| 程远 · 管理者 | [桌面工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=ceo) | 为项目找人、看值得关注的人、确认评价规则的修订 |
+| 苏晚 · HR | [桌面工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=hrbp) | 整理档案、评分复核、盘点校准、做判断对照、起草规则修订 |
+| 叶青 · 导师 | [桌面工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=mentor) | 记录所带学员、确认本人评分、对人复盘、提规则修订建议 |
 | 叶青 · 导师手机版 | [手机首页](https://qtalent-review.aidoudoulong123.workers.dev/y/m/index.html) | 录音、按住说一段话、导师评价、待核对 |
 | 许衡 · 系统管理员 | [系统管理](https://qtalent-review.aidoudoulong123.workers.dev/y/app/admin.html?as=admin) | 账号与权限、北森同步、集成与审计；看不到人才数据 |
 
-进入后也可以在顶栏切换视角。视角切换只是演示手段；原型按「先按权限过滤、再呈现」模拟服务端的行为，例如导师看不到象限，系统管理员打开业务页面会被整页拦下。
-
-[评审导览页](https://qtalent-review.aidoudoulong123.workers.dev/) 把下面的走查路线做成了可点击的清单，第一次看建议从那里开始。
-
-### 推荐走查路线
-
-**1. 管理者首页：先看人，再找人**
-
-| 看什么 | 入口 |
-| --- | --- |
-| 首页最上面的判断提醒：第六期 8 人前后判断不一致，下一行是待确认的周评标准修订 | [管理者工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=ceo) |
-| 值得关注的 13 人分三组，点「查看依据」看为什么关注 | [管理者工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=ceo) |
-| 为 MaaS 智能体平台找 owner：AI 起草需求卡，候选人逐条显示四态，拖进槽位后确认方案 | [找人](https://qtalent-review.aidoudoulong123.workers.dev/y/app/staffing.html?project=pr-agent&as=ceo) |
-
-**2. 导师：记录、核对与对人复盘**
-
-| 看什么 | 入口 |
-| --- | --- |
-| 手机首页：录音、一句话记录、导师评价三个入口和所带学员 | [手机首页](https://qtalent-review.aidoudoulong123.workers.dev/y/m/index.html) |
-| 按住说一段话，自动转写后整理成关键事件 | [按住说话](https://qtalent-review.aidoudoulong123.workers.dev/y/m/quick.html?hold=1) |
-| 核对「小孟」「分镜那个组」指谁：列出候选，选定后生成事件 | [手机待办](https://qtalent-review.aidoudoulong123.workers.dev/y/m/inbox.html) |
-| W8 导师评价：10 名学员逐个确认，有冲突和待确认项 | [导师评价](https://qtalent-review.aidoudoulong123.workers.dev/y/m/mentor.html) |
-| 孟逸尘的 W8 对人复盘：AI 草拟每一维的评价，分差 2 分转 HR 复核 | [对人复盘](https://qtalent-review.aidoudoulong123.workers.dev/y/app/landing-review.html?id=p-x11&as=mentor) |
-| 在工作台「我的推荐」里推荐学员的发展方向 | [导师工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=mentor) |
-
-**3. 桌面录音：边录边看**
-
-| 看什么 | 入口 |
-| --- | --- |
-| 录一场导师团复盘：逐句出现的实时文字、打标记、随手记、@某人、暂停与继续 | [录音](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp) |
-| 网络中断：第 8 秒断开、第 20 秒恢复，计时照走，结束时先补传 | [网络中断](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp&net=drop) |
-| 刷新后回来：选继续录音或结束并整理 | [刷新恢复](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp&step=resume) |
-| 结束后处理中：依次走转写中、整理中、部分待核对 | [处理中](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp&step=processing) |
-| 麦克风未授权：改为打字或上传已有录音 | [未授权](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp&mic=deny) |
-
-**4. HR：第六期结营盘点到留用与落位**
-
-| 看什么 | 入口 |
-| --- | --- |
-| 工作台里有变化的人：4 人的象限可能要重新校准 | [HR 工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=hrbp) |
-| 评分复核：分差 2 分、改了 AI 分没写理由、参考位置跨象限三类条目 | [评分复核](https://qtalent-review.aidoudoulong123.workers.dev/y/app/queue.html?as=hrbp) |
-| 结营盘点：93 人与中期对比，资料不足的 30 人写出缺哪条事件 | [盘点批次](https://qtalent-review.aidoudoulong123.workers.dev/y/app/review.html?id=b-xe6-end&as=hrbp) |
-| 按课题组校准象限并冻结 | [象限校准](https://qtalent-review.aidoudoulong123.workers.dev/y/app/calibrate.html?id=b-xe6-end&as=hrbp) |
-| 留用与落位方案：每条动作写依据、本人意愿和可否释放 | [留用与落位方案](https://qtalent-review.aidoudoulong123.workers.dev/y/app/plan.html?id=b-xe6-end&as=hrbp) |
-
-**5. 判断对照：周评准不准，改哪条规则**
-
-| 看什么 | 入口 |
-| --- | --- |
-| 第六期判断对照：前段评为最高或最低一档的 24 人里 8 人不一致；采纳 AI 归因假设 | [判断对照（HR）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/judge.html?id=jr-xe6&as=hrbp) |
-| 起草维度与锚点 rubric-v2：专业度按岗位族分锚点，生效点从下一个盘点批次开始 | [人才评价规则](https://qtalent-review.aidoudoulong123.workers.dev/y/app/rules.html?r=rubric&as=hrbp) |
-| 管理者只看汇总，看不到按评价人的数字 | [判断对照（管理者）](https://qtalent-review.aidoudoulong123.workers.dev/y/app/judge.html?id=jr-xe6&as=ceo) |
-| 管理者确认周评标准 xe-weekly-v2：看改了什么和影响范围 | [确认规则修订](https://qtalent-review.aidoudoulong123.workers.dev/y/app/rules.html?r=front&as=ceo) |
-
-**6. 人才项目：按关键节点复盘**
-
-| 看什么 | 入口 |
-| --- | --- |
-| 第六期关键节点时间线：每个节点标出复盘状态 | [关键节点](https://qtalent-review.aidoudoulong123.workers.dev/y/app/actions.html?as=hrbp) |
-| 结营评审节点待复盘：AI 草拟「做得好」「要改进」，采用或改写后署名 | [结营评审节点](https://qtalent-review.aidoudoulong123.workers.dev/y/app/actions.html?node=pg-xe6:end&as=hrbp) |
-| W4 周评节点的改进事项：判断对照生成的修订挂在这里 | [W4 周评节点](https://qtalent-review.aidoudoulong123.workers.dev/y/app/actions.html?node=pg-xe6:w4&as=hrbp) |
-| 管理者只看已署名的复盘 | [管理者视角](https://qtalent-review.aidoudoulong123.workers.dev/y/app/actions.html?as=ceo) |
-
-**7. 系统管理员：只管系统配置**
-
-| 看什么 | 入口 |
-| --- | --- |
-| 账号与权限：给 HR 增加期次需管理者确认 | [账号与权限](https://qtalent-review.aidoudoulong123.workers.dev/y/app/admin.html?as=admin) |
-| 北森同步：同步哪些数据、写到哪里、怎么用 | [北森同步](https://qtalent-review.aidoudoulong123.workers.dev/y/app/admin.html?tab=hr&as=admin) |
-| 打开业务页面会被整页拦下，标题里没有人名 | [被拦下的工作台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=admin) |
+进入后也可以在顶栏切换视角。视角切换只是演示手段；原型按「先按权限过滤、再呈现」模拟服务端的行为，例如导师看不到象限，系统管理员打开业务页面会被整页拦下。[评审导览页](https://qtalent-review.aidoudoulong123.workers.dev/) 还按角色整理了一份逐步走查清单。
 
 ### 全部页面
 
 桌面版（`prototype/y/app/`）：
 
-| 页面 | 侧栏位置 | 谁能看到 | 示例入口 |
+| 价值点 | 页面 | 谁能看到 | 示例入口 |
 | --- | --- | --- | --- |
-| 工作台 | 工作台 | 管理者、HR、导师 | [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=ceo) · [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=hrbp) · [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=mentor) |
-| 人才 | 人 › 人才（导师显示为「所带学员」） | 管理者、HR、导师 | [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/people.html?as=ceo) · [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/people.html?as=mentor) |
-| 人员档案 | 从人才列表进入 | 管理者、HR、导师（导师看不到象限） | [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/person.html?id=p-x11&as=ceo) · [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/person.html?id=p-x11&as=mentor) |
-| 记一件事 | 工作台、⌘K | 管理者、HR、导师 | [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/record.html?as=mentor) |
-| 录音 | 工作台「上传材料」 | HR、导师 | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp) |
-| 待核对 | 工作台待办 | 管理者、HR、导师 | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/inbox.html?as=hrbp) |
-| 盘点 / 盘点批次 | 人 › 盘点 | 管理者、HR | [盘点列表](https://qtalent-review.aidoudoulong123.workers.dev/y/app/reviews.html?as=hrbp) · [结营盘点](https://qtalent-review.aidoudoulong123.workers.dev/y/app/review.html?id=b-xe6-end&as=hrbp) |
-| 象限校准 | 从盘点批次进入 | HR | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/calibrate.html?id=b-xe6-end&as=hrbp) |
-| 留用与落位方案 | 从盘点批次进入 | 管理者、HR | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/plan.html?id=b-xe6-end&as=hrbp) |
-| 评分复核 | 人 › 评分复核 | HR | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/queue.html?as=hrbp) |
-| 人才项目（期次） | 项目 › 人才项目 | 管理者、HR、导师 | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/landing.html?as=hrbp) |
-| 关键节点复盘 | 项目 › 人才项目（管理者直接进入） | 管理者、HR | [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/actions.html?as=ceo) · [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/actions.html?as=hrbp) |
-| 对人复盘 | 从人才项目进入 | HR、导师 | [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/landing-review.html?id=p-x11&as=mentor) |
-| 项目与课题 / 项目详情 | 项目 › 项目与课题 | 管理者、HR、导师 | [项目列表](https://qtalent-review.aidoudoulong123.workers.dev/y/app/projects.html?as=ceo) · [MaaS 智能体平台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/project.html?id=pr-agent&as=ceo) |
-| 找人 | 从项目详情进入 | 管理者、HR | [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/staffing.html?project=pr-agent&as=ceo) |
-| 人才评价规则 | 规则 › 人才评价规则 | 管理者、HR | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/rules.html?as=hrbp) · [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/rules.html?r=front&as=ceo) |
-| 判断对照 | 规则 › 我的判断对照 | HR、导师看自己范围；管理者从首页提醒进入，只看汇总 | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/judge.html?id=jr-xe6&as=hrbp) · [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/judge.html?rater=me&as=mentor) |
-| 标签库 | 规则 › 标签库（HR 侧栏） | HR、管理者 | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/tags.html?as=hrbp) |
-| 系统管理 | 系统 › 系统管理 | 系统管理员 | [系统管理员](https://qtalent-review.aidoudoulong123.workers.dev/y/app/admin.html?as=admin) |
+| 人才搜索 | 人才 | 管理者、HR、导师（导师显示为「所带学员」） | [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/people.html?as=ceo) · [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/people.html?as=mentor) |
+| 人才搜索 | 找人 | 管理者、HR | [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/staffing.html?project=pr-agent&as=ceo) |
+| 人才搜索 | 项目与课题 / 项目详情 | 管理者、HR、导师 | [项目列表](https://qtalent-review.aidoudoulong123.workers.dev/y/app/projects.html?as=ceo) · [MaaS 智能体平台](https://qtalent-review.aidoudoulong123.workers.dev/y/app/project.html?id=pr-agent&as=ceo) |
+| 人才搜索 | 标签库 | HR、管理者 | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/tags.html?as=hrbp) |
+| 人才档案 | 人员档案 | 管理者、HR、导师（导师看不到象限） | [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/person.html?id=p-x11&as=ceo) · [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/person.html?id=p-x11&as=mentor) |
+| 人才档案 | 记一件事 | 管理者、HR、导师 | [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/record.html?as=mentor) |
+| 人才档案 | 录音 | HR、导师 | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/recording.html?as=hrbp) |
+| 人才档案 | 待核对 | 管理者、HR、导师 | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/inbox.html?as=hrbp) |
+| 评价体系 | 人才评价规则 | 管理者、HR | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/rules.html?as=hrbp) · [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/rules.html?r=front&as=ceo) |
+| 评价体系 | 判断对照 | HR、导师看自己范围；管理者只看汇总 | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/judge.html?id=jr-xe6&as=hrbp) · [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/judge.html?rater=me&as=mentor) |
+| 评价体系 | 评分复核 | HR | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/queue.html?as=hrbp) |
+| 评价体系 | 盘点 / 盘点批次 | 管理者、HR | [盘点列表](https://qtalent-review.aidoudoulong123.workers.dev/y/app/reviews.html?as=hrbp) · [结营盘点](https://qtalent-review.aidoudoulong123.workers.dev/y/app/review.html?id=b-xe6-end&as=hrbp) |
+| 评价体系 | 象限校准 | HR | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/calibrate.html?id=b-xe6-end&as=hrbp) |
+| 评价体系 | 留用与落位方案 | 管理者、HR | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/plan.html?id=b-xe6-end&as=hrbp) |
+| 评价体系 | 人才项目（期次） | 管理者、HR、导师 | [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/landing.html?as=hrbp) |
+| 评价体系 | 对人复盘 | HR、导师 | [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/landing-review.html?id=p-x11&as=mentor) |
+| 评价体系 | 关键节点复盘 | 管理者、HR | [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/actions.html?as=ceo) · [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/actions.html?as=hrbp) |
+| 入口 | 工作台 | 管理者、HR、导师 | [管理者](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=ceo) · [HR](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=hrbp) · [导师](https://qtalent-review.aidoudoulong123.workers.dev/y/app/index.html?as=mentor) |
+| 平台 | 系统管理 | 系统管理员 | [账号与权限](https://qtalent-review.aidoudoulong123.workers.dev/y/app/admin.html?as=admin) · [北森同步](https://qtalent-review.aidoudoulong123.workers.dev/y/app/admin.html?tab=hr&as=admin) |
 
 导师手机版（`prototype/y/m/`，桌面浏览器里显示在手机框中）：
 
@@ -147,7 +166,7 @@
 
 ### 演示说明
 
-- 原型里的 AI 行为（整理 SBI、建议分、找人四态、转写、复盘草拟）都是预置结果，按真实节奏流式输出，用来验证体验和规则，不调用真实模型。
+- 原型里的 AI 行为（起草需求卡、四态判断、整理 SBI、建议分、转写、归因假设、复盘草拟）都是预置结果，按真实节奏流式输出，用来验证体验和规则，不调用真实模型。
 - 演示中的操作只保存在你的浏览器本地，彼此互不影响。想从头再看，在导览页或「更多 → 重置演示数据」清空。
 - 象限参考位置、变化提醒、档案版本都由原型按规则从已确认的事件分实时算出，所以确认或改分后会看到相应变化。
 
@@ -165,7 +184,7 @@ python3 -m http.server 4173 --bind 127.0.0.1 --directory prototype
 
 比赛交付的是原型。团队同时在仓库根目录按正式工程标准搭建可上线的版本，赛后在同一工程上继续：界面 1:1 还原原型 Y，接真实数据库、服务端权限和真实 AI 与语音服务（七牛 MaaS、Jev、七牛 Kodo、通义听悟）。
 
-目前已合入登录、外壳、项目与课题页，授权核心，证据模型与演示数据导入，前后端契约，任务进度，四个外部服务的适配器和设计系统组件；工作台、人才读取、记一件事、找人、录音上传等正在评审。逐条链路的状态见 [架构设计第 12 节](docs/architecture.md#12-实现状态)。
+三个价值点在工程里的落地顺序是：先把评价体系的数据底座（维度、锚点、规则版本）和证据模型建好，再接人才档案的读取与记一件事，然后是人才搜索的需求卡与逐条四态。目前已合入登录与外壳、授权核心、证据与评分模型、演示数据导入、前后端契约、任务进度、四个外部服务的适配器和设计系统组件；档案读取、记一件事、找人、录音上传等正在评审。逐条状态见 [架构设计第 12 节](docs/architecture.md#12-实现状态)。
 
 <details>
 <summary>运行正式工程</summary>
@@ -233,7 +252,7 @@ python3 -m http.server 4173 --bind 127.0.0.1 --directory prototype
 - **原型**：原生 HTML、CSS、JavaScript，无构建；自建「光与墨」设计系统与小犇 IP 形象；评审站用 Cloudflare Worker + D1。
 - **正式工程**：Next.js 16（App Router）· React 19 · TypeScript · Tailwind CSS 4 · Radix · Motion · PostgreSQL 17 · Drizzle ORM · pg-boss · Better Auth · Zod · Vitest · Playwright；外部服务为七牛 MaaS（DeepSeek V4.1 Flash）、Jev、七牛 Kodo、通义听悟。
 
-原型的结构、正式工程的模块规格、权限模型和部署方式见 [架构设计](docs/architecture.md)。
+三个价值点在原型和正式工程里分别由哪些模块支撑、权限模型和部署方式，见 [架构设计](docs/architecture.md)。
 
 ## 团队与分工
 
@@ -257,8 +276,8 @@ python3 -m http.server 4173 --bind 127.0.0.1 --directory prototype
 
 | 文档 | 内容 |
 | --- | --- |
-| [架构设计](docs/architecture.md) | 原型结构、正式工程的模块规格、数据流、权限、部署、实现状态、分工 |
-| [需求定稿 · 版本 Y](docs/requirements/需求定稿-版本Y.md) | 版本 Y 的需求，未提及部分沿用 [需求定稿 v1.6](docs/requirements/需求定稿-v1.6.md) |
+| [架构设计](docs/architecture.md) | 三个价值点的模块支撑、原型结构、正式工程的模块规格、数据流、权限、部署、实现状态、分工 |
+| [需求定稿 · 版本 Y](docs/requirements/需求定稿-版本Y.md) | 版本 Y 的需求，未提及部分沿用 [需求定稿 v1.6](docs/requirements/需求定稿-v1.6.md)（评价体系见其第 3.35 节） |
 | [架构分期提案](docs/proposals/2026-10-25-y-architecture-phases.md) | 长期 / 中期 / 本次比赛的规划与决策记录 |
 | [工程规范](docs/engineering.md) | 职责划分、契约、测试与覆盖率、UI 还原与验证 |
 | [界面文案规范](docs/ui-copy.md) | 面向用户的文案写法 |
