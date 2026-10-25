@@ -646,3 +646,28 @@ it('preserves AI versus human field kinds after projection and into model input 
   expect(JSON.stringify(model)).not.toContain('management-observation');
   expect(JSON.stringify(model)).not.toContain('quadrant');
 });
+
+it('preserves snapshot field provenance without forwarding raw metadata', async () => {
+  const location = {
+    kind: 'snapshot_field',
+    fieldPath: 'events[test].srcs[0]',
+    originalLocation: 'Original location label',
+    secret: 'must-not-leak',
+  };
+  const snapshotSource = source({
+    location: location as unknown as TalentSource['location'],
+  });
+  const result = await readTalentSource(
+    async () => ({
+      context: context('manager'),
+      records: [],
+      sources: [snapshotSource],
+    }),
+    snapshotSource,
+  );
+  expect(result?.location).toEqual({
+    kind: 'snapshot_field',
+    fieldPath: location.fieldPath,
+    originalLocation: location.originalLocation,
+  });
+});
