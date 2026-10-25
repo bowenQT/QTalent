@@ -260,6 +260,7 @@ describe('server-only projection, sources and model boundary', () => {
         text: 'Synthetic evaluation by another mentor',
         confirmedScore: 4,
       },
+      fieldKinds: { text: 'evaluation', confirmedScore: 'confirmed-score' },
       sources: [],
     });
     expect(
@@ -603,4 +604,45 @@ describe('provenance restriction and expiry edge cases', () => {
       'synthetic read failure',
     );
   });
+});
+
+it('preserves AI versus human field kinds after projection and into model input without leaking hidden classifications', async () => {
+  const candidate = source();
+  const input = record({
+    fields: [
+      ...record().fields,
+      {
+        name: 'suggestion',
+        kind: 'ai-inference',
+        value: 'Synthetic AI suggestion',
+        subjects: [],
+        sources: [
+          {
+            fragmentId: candidate.fragmentId,
+            originalVersionId: candidate.originalVersionId,
+          },
+        ],
+      },
+    ],
+  });
+  const ctx = context();
+  const projected = projectTalentRecord(
+    ctx,
+    input,
+    [candidate],
+    'person-profile',
+  );
+  expect(projected?.fieldKinds).toEqual({
+    text: 'evaluation',
+    confirmedScore: 'confirmed-score',
+    suggestion: 'ai-inference',
+  });
+  const model = await buildAuthorizedModelInput(async () => ({
+    context: ctx,
+    records: [input],
+    sources: [candidate],
+  }));
+  expect(model.items[0]?.fieldKinds).toEqual(projected?.fieldKinds);
+  expect(JSON.stringify(model)).not.toContain('management-observation');
+  expect(JSON.stringify(model)).not.toContain('quadrant');
 });

@@ -41,7 +41,7 @@
 ### 读取接入约束
 
 - `canReadTalent(context, resource, purpose)` 仅判断直接内容。用途只接受 `people-list`、`person-preview`、`person-profile`、`workbench`、`source-read`、`model-input`，拒绝项目用途复用。AI 推断必须使用带来源的 `projectTalentRecord`，直接权限判断不放行推断。
-- `TalentRecord` / `TalentField` 是服务端适配器输入，不是客户端请求或响应契约。每个字段是独立标量，明确内容类别、额外涉及的人员与全部贡献来源。禁止展开原始对象或把未分类嵌套对象装进字段。服务端必须按内容分类，不把来源的展示材质当成权限类别；分数只有人工已确认状态能映射为 `confirmed-score`。AI 输出保留 `ai-inference` 类别，不能冒充人工确认分或结论。
+- `TalentRecord` / `TalentField` 是服务端适配器输入，不是客户端请求或响应契约。每个字段是独立标量，明确内容类别、额外涉及的人员与全部贡献来源。禁止展开原始对象或把未分类嵌套对象装进字段。服务端必须按内容分类，不把来源的展示材质当成权限类别；分数只有人工已确认状态能映射为 `confirmed-score`。AI 输出保留 `ai-inference` 类别，不能冒充人工确认分或结论。`fieldKinds` 只列已通过投影字段的内容类别，保留混合记录内的 AI / 人工区别；模型输入沿用，调用方无需回读未过滤对象来恢复类别。
 - `subject.cohortId` 指内容产生的期次，不是人的当前期次。全人档案与留用后资料用 `null`，不能为通过待确认名单过滤而补当前期次。来源 `subjects` 必须从该片段所有关联事件反查完整人员集合；`requiredKinds` 列出片段额外涉及的管理观察、象限、变化、绩效等限制。任何关联尚未核实、来源缺失或归类不完整的片段不能送入此入口。多人物文本作为原子片段处理，任一人无权限则整段不返回，不通过不可靠的文本替换去标识。
 - `readTalentCollection`、`readTalentRecord`、`readTalentSource` 和 `buildAuthorizedModelInput` 每次调用服务端 `LoadTalentSnapshot`。实现者必须重新读取当前认证账号、grant、名单、分配及业务时钟，禁止从客户端 role、可见 ID 列表或旧页面缓存恢复权限。适配器输出来自权威数据源，不能让客户端创建此快照。该调用点不是新的鉴权缓存或会话系统。
 - 投影只返回可见字段和引用，不返回内部权限元数据、空占位字段、隐藏字段名或隐藏数量。来源逐次核验 `fragmentId + originalVersionId` 的精确关联，返回授权片段及定位，不返回原件其他片段。推断/派生字段的任何来源不可见或不存在时整字段省略，不仅隐藏引用。列表 `total` 只等于当前输出 `items.length`；业务筛选、排序与分页须在授权后完成，或使用等价服务端授权查询。

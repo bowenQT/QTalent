@@ -69,6 +69,8 @@ export interface VisibleTalentRecord {
   personId: string;
   kind: TalentKind;
   fields: Record<string, TalentField['value']>;
+  /** Preserve content provenance without re-reading unfiltered records. */
+  fieldKinds: Record<string, TalentKind>;
   sources: VisibleTalentSource[];
 }
 /** Trusted server adapter, not a client list or a cached authorization decision.
@@ -207,6 +209,7 @@ export function projectTalentRecord(
   if (!canReadTalent(ctx, { ...record.subject, kind: recordKind }, purpose))
     return null;
   const entries: [string, TalentField['value']][] = [];
+  const fieldKinds: [string, TalentKind][] = [];
   const references = new Map<string, VisibleTalentSource>();
   for (const field of record.fields) {
     const inference =
@@ -230,6 +233,10 @@ export function projectTalentRecord(
     )
       continue;
     entries.push([field.name, field.value]);
+    fieldKinds.push([
+      field.name,
+      record.kind === 'ai-inference' ? 'ai-inference' : field.kind,
+    ]);
     for (const source of resolved) {
       references.set(
         JSON.stringify([source.fragmentId, source.originalVersionId]),
@@ -243,6 +250,7 @@ export function projectTalentRecord(
     personId: record.subject.personId,
     kind: record.kind,
     fields: Object.fromEntries(entries),
+    fieldKinds: Object.fromEntries(fieldKinds),
     sources: [...references.values()],
   };
 }
