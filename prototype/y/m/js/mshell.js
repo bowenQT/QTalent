@@ -17,10 +17,12 @@
 
   // 页面入口：NT.mshell({ tab, title, back, action, allow, denyTitle, denyText, demos, view, state, restore, render(main), bare })
   NT.mshell = (cfg) => NT.ready(() => {
-    NT.reviewPage(cfg);
     st.tickTasks();
     document.title = `${cfg.title} · Niu-Talent 手机版`;
     const role = st.role(), me = st.me();
+    const denied = cfg.allow && !cfg.allow(role);
+    // 被拦下的页面不把业务页面的现场交给评论层，避免还原现场时重新渲染被拦的内容
+    NT.reviewPage(denied ? { view: () => cfg.title } : cfg);
     const page = document.body.dataset.page;
     const todos = st.todos().length;
     const tabs = [
@@ -74,7 +76,7 @@
     UI.mountIPs(root);
 
     const main = NT.$('#main');
-    if (cfg.allow && !cfg.allow(role)) {
+    if (denied) {
       mount(main, UI.state({ ip: 'confirm', size: 56, title: cfg.denyTitle || '这一页不在导师的范围内', text: cfg.denyText || '回到工作台，或在桌面版查看。', actions: html`<a class="n-btn n-btn--sm" href="index.html">回到工作台</a>` }));
     } else cfg.render(main);
     UI.mountIPs(main);

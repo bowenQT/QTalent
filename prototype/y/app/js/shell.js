@@ -25,12 +25,14 @@
 
   // 页面入口：NT.shell({ nav, title, crumbs, render(main), view(), state(), restore(state) })
   NT.shell = (cfg) => NT.ready(() => {
-    NT.reviewPage(cfg);
     st.tickTasks();
     const role = st.role();
     // 系统管理员打开业务页面：标题和面包屑也不带出人名、项目名
     const blocked = role === 'admin' && cfg.nav !== 'admin';
+    const denied = blocked || (cfg.allow && !cfg.allow(role));
     const title = blocked ? '系统管理员看不到这一页' : cfg.title;
+    // 被拦下的页面不把业务页面的现场交给评论层：还原现场会调用页面自己的 restore 重新渲染，绕过拦截
+    NT.reviewPage(denied ? { view: () => title } : cfg);
     document.title = `${title} · Niu-Talent`;
     const me = st.me();
     // 管理者视角收敛：工作台不挂待办数，盘点不挂草稿数；评分复核、标签库不进导航
@@ -114,7 +116,7 @@
       // 业务页面一律不对系统管理员渲染：先拦在外层，不依赖各页面自己的 allow
       mount(main, NT.ui.state({ ip: 'confirm', title: '系统管理员看不到人才数据', text: '这一页属于业务视角。系统管理员负责账号与权限、北森同步、集成配置和审计日志。', actions: html`<a class="n-btn n-btn--sm" href="admin.html">打开系统管理</a>` }));
       NT.ui.mountIPs(main);
-    } else if (cfg.allow && !cfg.allow(role)) {
+    } else if (denied) {
       mount(main, NT.ui.state({ ip: 'confirm', title: cfg.denyTitle || '这一页属于其他视角', text: cfg.denyText || '切换演示视角，或回到工作台。', actions: cfg.denyActions || html`<a class="n-btn n-btn--sm" href="index.html">回到工作台</a>` }));
       NT.ui.mountIPs(main);
     } else {
