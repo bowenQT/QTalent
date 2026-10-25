@@ -1,6 +1,8 @@
 'use strict';
 // 调用版本 Y 原始 confirmScore 函数；检查重复确认不抹除旧审计记录。
 const assert = require('node:assert/strict');
+// 沙箱里返回的数组属于另一个 realm，先转成本地普通值再做深比较。
+const plain = (value) => JSON.parse(JSON.stringify(value));
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -20,8 +22,8 @@ test('两次人工改分均保留分数、理由和唯一 AI 来源', () => {
   const f = setup();
   f.store.confirmScore('ev-demo',0,3,'首次观察');
   f.store.confirmScore('ev-demo',0,5,'复核证据');
-  assert.deepEqual(f.score.hist.map(h => h.v), [5,3,4]);
-  assert.deepEqual(f.score.hist.map(h => h.kind), ['edit','edit','ai']);
+  assert.deepEqual(plain(f.score.hist.map(h => h.v)), [5,3,4]);
+  assert.deepEqual(plain(f.score.hist.map(h => h.kind)), ['edit','edit','ai']);
   assert.equal(f.score.hist[0].why,'复核证据');
   assert.equal(f.score.hist[1].why,'首次观察');
   assert.equal(f.score.hist.filter(h=>h.kind==='ai').length,1);
