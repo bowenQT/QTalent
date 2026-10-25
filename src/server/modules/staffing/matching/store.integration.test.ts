@@ -20,9 +20,7 @@ import { jobSnapshots } from '../../../jobs/schema';
 import { createJobService } from '../../../jobs/service';
 import { createJobStore } from '../../../jobs/repository';
 import { JevError } from '../../../integrations/jev';
-import {
-  staffingMatchJobPolicy,
-} from '../../../jobs/staffing-match';
+import { staffingMatchJobPolicy } from '../../../jobs/staffing-match';
 import { createPostgresMatchStore, loadMatchRun } from './store';
 import { matchRuns, matchOperations } from './schema';
 
