@@ -1415,7 +1415,9 @@
     store.save(); return s;
   };
   store.unhandleRuleSug = (id) => {
-    const s = S.ruleSugs.find((x) => x.id === id); if (!s) return;
+    const s = S.ruleSugs.find((x) => x.id === id);
+    // 撤销审批与采纳/拒绝一样必须由 HR 执行，且仅对已处理项生效。
+    if (!s || !isHrbp() || s.state === 'open') return null;
     if (s.draft) { const d = store.ruleVer(s.draft); if (d) d.basis = (d.basis || []).filter((b) => b.sug !== id); }
     s.state = 'open'; delete s.handledBy; delete s.handledAt; delete s.why; delete s.draft; store.save();
   };
