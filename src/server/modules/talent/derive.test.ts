@@ -15,17 +15,6 @@ const score = (
   core,
   occurredOn,
   ruleVersionId: 'rubric-v1',
-  it('checks compatibility only inside the placement window', () => {
-    const unknown = {
-      ...score('c', 'mot', 4),
-      ruleVersionId: 'future-rule',
-    };
-    expect(derive([...ready, unknown]).status).toBe('unknown');
-    for (const occurredOn of ['2025-06-01', '2026-07-02']) {
-      const outside = { ...unknown, occurredOn };
-      expect(derive([...ready, outside])).toEqual(derive(ready));
-    }
-  });
 });
 const ready = [
   score('a', 'prof', 3, 'prof'),
@@ -79,5 +68,16 @@ describe('reference position from authorized confirmations', () => {
           },
         });
       }
+  });
+  it('checks compatibility only inside the placement window', () => {
+    const unknown = {
+      ...score('c', 'mot', 4),
+      ruleVersionId: 'future-rule',
+    };
+    expect(derive([...ready, unknown]).status).toBe('unknown');
+    for (const occurredOn of ['2025-06-01', '2026-07-02']) {
+      const outside = { ...unknown, occurredOn };
+      expect(derive([...ready, outside])).toEqual(derive(ready));
+    }
   });
 });
