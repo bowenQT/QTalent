@@ -452,7 +452,15 @@
     return { key, week, from, to, events: evs, rows, total: relevant.length, confirmed: relevant.filter((r) => r.state === 'confirmed').length,
       conflicts: rows.filter((r) => r.state === 'conflict').length, ai: rows.filter((r) => r.state === 'ai').length, state: saved.state || 'draft', by: saved.by, at: saved.at };
   };
-  store.confirmReview = (pid, week) => { S.reviews[`${pid}-${week}`] = { state: 'confirmed', by: store.me().id, at: NT.TODAY }; store.save(); };
+  store.confirmReview = (pid, week) => {
+    // 与页面禁用条件保持一致，提交时重新核验，避免旧按钮或重入绕过。
+    if (!store.canEditReview(pid)) return null;
+    const r = store.review(pid, week);
+    if (!r || r.state === 'confirmed' || r.ai || r.conflicts) return null;
+    const confirmed = { state: 'confirmed', by: store.me().id, at: NT.TODAY };
+    S.reviews[r.key] = confirmed; store.save();
+    return confirmed;
+  };
   // 对人复盘每一维的评价：AI 草拟只作参考，HR 和所带导师可以采用、改写、修正；每次保存署名，旧版本保留
   store.canEditReview = (pid, role = store.role()) => (role === 'hrbp' && store.scope(pid, role) === 'full') || (role === 'mentor' && store.scope(pid, role) === 'mentor');
   store.reviewEvalHist = (pid, week, dim) => S.reviewEvals?.[`${pid}-${week}`]?.[dim] || [];
