@@ -97,7 +97,7 @@
   let note = '';
 
   NT.shell({
-    nav: 'projects', title: '找人', crumbs: [['项目', 'projects.html']],
+    nav: 'projects', title: '找人', crumbs: [['项目与课题', 'projects.html']],
     allow: (r) => st.canStaff(projectId, r),
     denyText: '找 owner 和项目找人只对管理者和 HR 开放。',
     view: () => `找人 · ${projectId ? st.project(projectId)?.name : '新项目'} · 方案 ${Object.values(slots).filter(Boolean).length} 个槽位已填`,
@@ -281,7 +281,7 @@
           <button class="n-btn n-btn--ink" type="button" id="confirm">${icon('stamp')}确认 v${ver}</button>
           <button class="n-btn n-btn--ghost" type="button" id="savedraft">保存草稿</button>
         </div>
-        ${canConfirm ? html`<p class="nt-caption">确认后冻结快照，owner 和成员写入项目，并生成跟进行动，执行情况在「人才项目复盘」里跟踪。</p>` : ''}
+        ${canConfirm ? html`<p class="nt-caption">确认后冻结快照，owner 和成员写入项目，并生成跟进行动，执行情况在「人才项目」的关键节点复盘里跟踪。</p>` : ''}
         <div id="deny"></div>`}
     </article>
     <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">手动补入</h3>

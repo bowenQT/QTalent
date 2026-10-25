@@ -208,6 +208,8 @@
     <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
     <symbol id="i-quote" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 7h4v4c0 3-1.5 5-4 6M14 7h4v4c0 3-1.5 5-4 6"/></symbol>
     <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 3h8l5 5v13H6zM14 3v5h5"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1 1 0 0 1 0 1.4l-7.3 7.3a1 1 0 0 1-1.4 0z"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/></symbol>
     <symbol id="i-spark" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5c.6 5 2.8 7.5 8.5 8.5-5.7 1-7.9 3.5-8.5 8.5-.6-5-2.8-7.5-8.5-8.5 5.7-1 7.9-3.5 8.5-8.5Z"/></symbol>
     <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16z"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
@@ -279,9 +281,9 @@
       <li><a href="#c-project">人与项目</a></li>
       <li><a href="#c-plan">找人与方案</a></li>
       <li><a href="#c-template">目标角色模板</a></li>
-      <li><a href="#c-action">人才项目复盘</a></li>
+      <li><a href="#c-action">关键节点复盘</a></li>
       <li><a href="#c-judge">判断对照</a></li>
-      <li class="grp">评价体系</li>
+      <li class="grp">人才评价规则</li>
       <li><a href="#c-eval">规则与修订</a></li>
       <li class="grp">反馈</li>
       <li><a href="#c-feedback">反馈与状态</a></li>
@@ -501,13 +503,21 @@
     <!-- ═════════ 外壳：应用外壳、视角、⌘K ═════════ -->
     <section class="ds-sec" id="c-shell">
       <h2>应用外壳与视角</h2>
-      <p class="lead">桌面只有三个主入口：工作台、人才、盘点，项目和方案从工作台与上下文进入。顶栏有全局搜索（⌘K）和演示视角下拉：按钮只占一个头像加一个名称的宽度，展开后每个视角写明能看到的范围。视角切换只是原型的演示手段，真实权限由服务端判断。</p>
+      <p class="lead">侧栏最上面是工作台，其余按「人、项目、规则」分组，组名是一行小字；人才项目（各期训练营、校招等）和项目与课题（人实际做事的地方）分在两个入口。顶栏有全局搜索（⌘K）和演示视角下拉：按钮只占一个头像加一个名称的宽度，展开后每个视角写明能看到的范围。视角切换只是原型的演示手段，真实权限由服务端判断。</p>
       <div class="n-shell" id="shell">
         <aside class="n-shell__side">
-          <div class="n-shell__brand"><span data-ip-s="rest" data-ip-size="22"></span>Niu-Talent</div>
+          <div class="n-shell__brand"><span data-ip-s="rest" data-ip-size="22"></span><span>Niu-Talent<small>人才识别、追踪与盘点</small></span></div>
           <button class="n-navitem" type="button" aria-current="page"><svg><use href="#i-home"/></svg>工作台<span class="n-count">6</span></button>
+                    <span style="display:block;margin-top:var(--s-4);padding:0 var(--s-2) 2px;font-size:var(--t-xs);color:var(--ink-3)">人</span>
           <button class="n-navitem" type="button"><svg><use href="#i-users"/></svg>人才</button>
           <button class="n-navitem" type="button"><svg><use href="#i-layers"/></svg>盘点<span class="n-count is-quiet">1</span></button>
+          <button class="n-navitem" type="button"><svg><use href="#i-check2"/></svg>评分复核</button>
+          <span style="display:block;margin-top:var(--s-4);padding:0 var(--s-2) 2px;font-size:var(--t-xs);color:var(--ink-3)">项目</span>
+          <button class="n-navitem" type="button"><svg><use href="#i-book"/></svg>人才项目</button>
+          <button class="n-navitem" type="button"><svg><use href="#i-folder"/></svg>项目与课题</button>
+          <span style="display:block;margin-top:var(--s-4);padding:0 var(--s-2) 2px;font-size:var(--t-xs);color:var(--ink-3)">规则</span>
+          <button class="n-navitem" type="button"><svg><use href="#i-grid"/></svg>人才评价规则</button>
+          <button class="n-navitem" type="button"><svg><use href="#i-tag"/></svg>标签库</button>
           <div class="n-shell__recent">最近
             <a href="#c-project">课题 · 分镜工厂 · 二组</a>
             <a href="#c-review">盘点 · 第六期结营盘点</a>
@@ -641,22 +651,22 @@
     <!-- ═════════ 工作台：变化、待办、任务、上传 ═════════ -->
     <section class="ds-sec" id="c-desk">
       <h2>工作台：变化、待办与任务</h2>
-      <p class="lead">HR 打开工作台，第一眼看到的是「变化」：谁的能力走向变了、谁很久没有新事件、谁的参考位置离开了正式象限、哪个团队的分布变了。命中规则的变化写明是哪条规则；变化按发生时间排列，不按幅度给人排名。下面才是待办、进行中的任务和上传。</p>
+      <p class="lead">HR 打开工作台，第一眼看到的是「有变化的人」：谁的能力走向变了、谁很久没有新事件、谁的象限可能要重新校准、哪个团队的分布变了。符合提醒条件的变化写明是哪条规则；变化按发生时间排列，不按幅度给人排名。下面才是待办、进行中的任务和上传。</p>
 
       <article class="n-card n-changes" id="changes">
         <header class="n-changes__head">
-          <h3>变化</h3>
-          <span class="n-changes__meta">增长产品部 · <span id="chg-count">6</span> 条，其中 <span id="chg-hit">4</span> 条命中规则 · 规则版本 change-v1</span>
+          <h3>有变化的人</h3>
+          <span class="n-changes__meta">增长产品部 · <span id="chg-count">6</span> 条变化，<span id="chg-hit">4</span> 条符合提醒条件 · 规则版本 change-v1</span>
           <div class="n-seg" role="group" aria-label="比较基准" id="chg-base">
-            <button type="button" data-b="win" aria-pressed="true">近 3 个月 vs 之前</button>
-            <button type="button" data-b="ver" aria-pressed="false">vs 2026 H1 档案版本</button>
+            <button type="button" data-b="win" aria-pressed="true">近 3 个月和之前比</button>
+            <button type="button" data-b="ver" aria-pressed="false">和 2026 H1 盘点比</button>
           </div>
         </header>
         <div class="n-chips" role="group" aria-label="按类型筛选" id="chg-filter">
           <button class="n-chip" type="button" data-t="all" aria-pressed="true">全部</button>
           <button class="n-chip" type="button" data-t="trend" aria-pressed="false">能力走向</button>
           <button class="n-chip" type="button" data-t="activity" aria-pressed="false">活跃度与安排</button>
-          <button class="n-chip" type="button" data-t="quad" aria-pressed="false">象限偏移</button>
+          <button class="n-chip" type="button" data-t="quad" aria-pressed="false">象限变化</button>
           <button class="n-chip" type="button" data-t="team" aria-pressed="false">团队分布</button>
         </div>
         <div id="chg-list"></div>
@@ -689,19 +699,19 @@
       </div>
 
       <h3 class="ds-sub">HR：分组待办</h3>
-      <p>HR 的待办按类型分组，一次只展开一组，默认展开最紧急的一组。「待核实线索」可以就地处理，其余点进去处理。</p>
+      <p>HR 的待办按类型分组，一次只展开一组，默认展开最紧急的一组。「待核实的关注线索」可以就地处理，其余点进去处理。</p>
       <div class="ds-grid c2">
         <div class="ds-grid">
           <article class="n-card" id="todo-groups">
             <h3 class="n-section-title">待办<span class="n-count">12</span></h3>
-            <div class="n-todogrp"><button class="n-todogrp__head" type="button" aria-expanded="true">待核实线索<span class="n-count is-quiet">1</span><small>夏遥：三份周报里都提到她在联调延期时主动补位</small><svg><use href="#i-chev"/></svg></button>
+            <div class="n-todogrp"><button class="n-todogrp__head" type="button" aria-expanded="true">待核实的关注线索<span class="n-count is-quiet">1</span><small>夏遥：三份周报里都提到她在联调延期时主动补位</small><svg><use href="#i-chev"/></svg></button>
               <ul class="n-todo"><li class="has-acts"><a href="#c-ceo"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待核实</span><span>夏遥：三份周报里都提到她在联调延期时主动补位<small>AI 线索 · 核实后进入 管理者的「值得关注」</small></span><span class="due">10-22</span></a><div class="n-todo__acts"><div class="n-todo__src"><svg><use href="#i-quote"/></svg><span>原文依据</span><span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用 1：召回项目周报 W2">1</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src"><svg><use href="#i-doc"/></svg>召回项目周报 W2 · 第 2 段</span><p class="n-cite__quote">联调延期两天，夏遥主动加了两个晚上补上。</p></span></span><span>点角标看原文与位置</span></div><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-check"/></svg>核实，给 管理者看</button><button class="n-btn n-btn--sm n-btn--ghost" type="button">不采纳</button></div></li></ul></div>
             <div class="n-todogrp"><button class="n-todogrp__head" type="button" aria-expanded="false">待核对<span class="n-count is-quiet">3</span><small>录音里的「小王」指的是谁 等</small><svg><use href="#i-chev"/></svg></button>
               <ul class="n-todo" hidden>
                 <li><a href="#c-verify"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待核对</span><span>录音里的「小王」指的是谁<small>W2 导师团复盘 · 05:40</small></span><span class="due">今天</span></a></li>
                 <li><a href="#c-verify"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待核对</span><span>「海外那个项目」指的是哪个项目<small>Landing W2 周报 · 第 5 段</small></span><span class="due">今天</span></a></li>
               </ul></div>
-            <div class="n-todogrp"><button class="n-todogrp__head" type="button" aria-expanded="false">待校准<span class="n-count is-quiet">3</span><small>智慧力分差 2 分 等</small><svg><use href="#i-chev"/></svg></button>
+            <div class="n-todogrp"><button class="n-todogrp__head" type="button" aria-expanded="false">待复核的评分<span class="n-count is-quiet">3</span><small>智慧力分差 2 分 等</small><svg><use href="#i-chev"/></svg></button>
               <ul class="n-todo" hidden><li><a href="#c-verify"><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>待校准</span><span>智慧力分差 2 分<small>林知远 · 叶青 4 / 宋川 2</small></span><span class="due">4 / 2</span></a></li></ul></div>
             <div class="n-todogrp"><button class="n-todogrp__head" type="button" aria-expanded="false">待确认<span class="n-count is-quiet">2</span><small>组织调整方案 v1 等</small><svg><use href="#i-chev"/></svg></button>
               <ul class="n-todo" hidden><li><a href="#c-review"><span class="n-badge n-badge--seal">待确认</span><span>组织调整方案 v1<small>增长产品部 · 2026 H2 盘点</small></span><span class="due">HR</span></a></li></ul></div>
@@ -713,7 +723,7 @@
           </article>
           <article class="n-card">
             <h3 class="n-section-title">判断对照</h3>
-            <ul class="n-todo"><li><a href="#c-judge"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待归因</span><span>XEngineer 第二期判断对照<small>2 条 AI 归因假设待确认 · 入营 07-06 · 训练营评审 10-17</small></span><span class="due"></span></a></li></ul>
+            <ul class="n-todo"><li><a href="#c-judge"><span class="n-badge n-badge--ai"><svg><use href="#i-spark"/></svg>待归因</span><span>XEngineer 第二期判断对照<small>2 条 AI 给的偏差原因待你确认 · 入营 07-06 · 训练营评审 10-17</small></span><span class="due"></span></a></li></ul>
           </article>
         </div>
         <div class="ds-grid" style="align-content:start">
@@ -773,7 +783,7 @@
         <div class="ds-rule"><b>风险先说，再分组</b><p>「需要介入」收成列表顶部的一行：几个人、HR 在跟、每人一个短原因，点名字看速览，点人数只看这一类。下面按突出表现、新发现分组，组内按入选时间排列，每类先看最近 2 人。分类说明放在悬停提示里。</p></div>
         <div class="ds-rule"><b>一行只放管理者要的</b><p>名字、方向、去向，加一句简述；提名人、原文角标和入选日期都在速览里，AI 来源保留小标记。「查看依据」常显，点行里的空白处同样拉起速览；星标悬停或已关注时出现。未接受 offer、部门待定用琥珀色文字标出。</p></div>
         <div class="ds-rule"><b>两个集合</b><p>「值得关注」是系统按规则列出的候选名单，「我的关注」是自己点「加关注」保存的人，人数分开写。「我的关注」只列关注之后的新进展，不重复左侧的入选简述。关注只对本人可见，不产生分数，也不改变排序。</p></div>
-        <div class="ds-rule"><b>判断提醒只占一行</b><p>只告诉管理者哪一期的判断和结果对不上、谁在处理；细节在评价体系的判断对照里。差异需要复核，不代表员工退步。</p></div>
+        <div class="ds-rule"><b>判断提醒只占一行</b><p>只告诉管理者哪一期的判断和结果对不上、谁在处理；细节在人才评价规则的判断对照里。差异需要复核，不代表员工退步。</p></div>
         <div class="ds-rule"><b>不在这里审批</b><p>留用与落位方案由 HR 在方案页修改和确认，管理者在方案页查看。工作台不放「需要我看」和推动入口。</p></div>
       </div>
 
@@ -1129,7 +1139,7 @@
         </article>
       </div>
       <article class="n-card" style="margin-top: var(--s-4)">
-        <h3 class="n-section-title">HR 校准队列<span class="n-count">3</span></h3>
+        <h3 class="n-section-title">评分复核<span class="n-count">3</span></h3>
         <ul class="n-queue">
           <li><div><span class="n-badge n-badge--conflict"><svg><use href="#i-split"/></svg>证据冲突</span> 林知远 · 智慧力 · W2 导师团复盘<small>两位评价人分差 ≥ 2</small></div><span class="n-queue__pair">4 / 2</span></li>
           <li><div><span class="n-badge">与 AI 分差大</span> 何以宁 · 内生动力 · 客户现场演示<small>导师改分 5，AI 建议 2，导师没写理由</small></div><span class="n-queue__pair">5 / <span style="color:var(--light)">2</span></span></li>
@@ -1464,7 +1474,7 @@
           <div class="n-review__dimhead"><h4>坚毅力</h4><span class="n-badge n-badge--unknown"><svg><use href="#i-dash"/></svg>资料不足</span></div>
           <div class="n-review__ev" style="color:var(--ink-3)">这两周没有受挫后的反应记录。下次复盘可以留意：方案被否之后怎么做。</div>
         </div>
-        <div class="n-review__foot">导师确认 2/3 · 1 项冲突在 HR 校准队列<button class="n-btn n-btn--ink" type="button" disabled title="还有 1 项冲突未校准">确认这次复盘</button></div>
+        <div class="n-review__foot">导师确认 2/3 · 1 项冲突待 HR 复核<button class="n-btn n-btn--ink" type="button" disabled title="还有 1 项冲突未校准">确认这次复盘</button></div>
       </article>
       <p class="ds-caption">复盘自动带入这段时间里的事件。导师在复盘里补说的一件事按当天记日期，同时归入这次复盘：即使日期在复盘周期之后，也会出现在对应维度下，AI 建议分逐项确认后才计入。</p>
       <h3 class="ds-sub">每一维的评价</h3>
@@ -1686,10 +1696,10 @@
       </div>
     </section>
 
-    <!-- ═════════ 人才项目复盘 ═════════ -->
+    <!-- ═════════ 人才项目 · 关键节点复盘 ═════════ -->
     <section class="ds-sec" id="c-action">
-      <h2>人才项目复盘</h2>
-      <p class="lead">按人才项目的关键节点回看一件事做得怎么样，不逐人复盘。左边一期一组，节点按时间排，点的形状和文字区分已复盘、待复盘、进行中、未开始。右边是选中节点的三段：结果从现有数据算；复盘由 HR 写做得好和要改进并署名，AI 草拟只作参考，管理者只看署名的复盘；改进事项是挂在节点下的行动，有五种状态，没执行要写原因。</p>
+      <h2>人才项目 · 关键节点复盘</h2>
+      <p class="lead">侧栏「人才项目」下有两个页签：进行中一期的工作区，和各期的关键节点复盘。复盘按人才项目的关键节点回看一件事做得怎么样，不逐人复盘。左边一期一组，节点按时间排，点的形状和文字区分已复盘、待复盘、进行中、未开始。右边是选中节点的三段：结果从现有数据算；复盘由 HR 写做得好和要改进并署名，AI 草拟只作参考，管理者只看署名的复盘；改进事项是挂在节点下的行动，有五种状态，没执行要写原因。</p>
       <div class="ds-grid nav-layout">
         <nav class="n-card" aria-label="关键节点示例">
           <div class="n-pgroup"><h3 class="n-pgroup__name">XEngineer 第六期<small>07-06–08-31</small></h3>
@@ -1720,7 +1730,7 @@
     <!-- ═════════ 判断对照 ═════════ -->
     <section class="ds-sec" id="c-judge">
       <h2>判断对照</h2>
-      <p class="lead">需求里叫「判断复盘」。界面上改叫判断对照，和「人才项目复盘」分开：人才项目复盘回头看一个节点的事做得怎么样，判断对照回头看评价标准和评价人准不准，从不落到被评价人身上。它归在「评价体系」下，和规则共用一个页头。把前一阶段的判断（入营选拔、面试评价）和后一阶段对同一个人、同一维度的结论放在一起看，找出系统性偏差，归因后去改评价标准、评价方式或培训评价人。对照的单位是「人 × 维度」。这里不给评价人排名，也不算准确率；结论只作用于评价体系，不改被评价人的分数、象限和档案。</p>
+      <p class="lead">需求里叫「判断复盘」。界面上改叫判断对照，和「关键节点复盘」分开：关键节点复盘回头看一个节点的事做得怎么样，判断对照回头看评价标准和评价人准不准，从不落到被评价人身上。它归在「人才评价规则」下，和规则共用一个页头。把前一阶段的判断（入营选拔、面试评价）和后一阶段对同一个人、同一维度的结论放在一起看，找出系统性偏差，归因后去改评价标准、评价方式或培训评价人。对照的单位是「人 × 维度」。这里不给评价人排名，也不算准确率；结论只作用于人才评价规则，不改被评价人的分数、象限和档案。</p>
 
       <h3 class="ds-sub">五种对照状态</h3>
       <p>状态同时用符号和文字区分，不只靠颜色。「不可比」由人标注并写理由，「资料不足」不当作偏差。</p>
@@ -1816,16 +1826,16 @@
       <p class="ds-caption">归因有五类：评价标准、评价人、评价方式与信息不足、本人或环境变化、后段评价偏差。归为「本人或环境变化」时不修正标准，只记录情境。动作标题不点名评价人。</p>
     </section>
 
-    <!-- ═════════ 组件：评价体系 ═════════ -->
+    <!-- ═════════ 组件：人才评价规则 ═════════ -->
     <section class="ds-sec" id="c-eval">
-      <h2>评价体系</h2>
+      <h2>人才评价规则</h2>
       <p class="lead">维度与锚点、象限落位、值得关注这些规则可以修订，但每次修订都要写理由、看影响、经确认才生效，并且不改写已经发生的判断。修订在原处进行，右侧检查栏把发布前要做的事按顺序排好。</p>
 
       <h3 class="ds-sub">页头：规则 / 判断对照</h3>
-      <p>评价体系分两个页签，是同一个闭环：规则定标准，判断对照用前后两段判断检验标准，结论回到规则修订。页签是两个页面之间的链接，当前页用 aria-current；说明文字跟着页签变。导航里不再单列判断对照，只给不能看汇总、但做过评价的人留「我的判断对照」。</p>
+      <p>人才评价规则分两个页签，是同一个闭环：规则定标准，判断对照用前后两段判断检验标准，结论回到规则修订。页签是两个页面之间的链接，当前页用 aria-current；说明文字跟着页签变。导航里不再单列判断对照，只给不能看汇总、但做过评价的人留「我的判断对照」。</p>
       <div class="ds-stage is-paper">
-        <header class="nt-head nt-head--tabs" style="margin-bottom:var(--s-3)"><div><h1 style="margin:0;font-size:var(--t-xl)">评价体系</h1></div></header>
-        <nav class="n-tabs nt-subtabs" aria-label="评价体系"><a href="#c-eval" aria-current="page">规则</a><a href="#c-judge">判断对照</a></nav>
+        <header class="nt-head nt-head--tabs" style="margin-bottom:var(--s-3)"><div><h1 style="margin:0;font-size:var(--t-xl)">人才评价规则</h1></div></header>
+        <nav class="n-tabs nt-subtabs" aria-label="人才评价规则"><a href="#c-eval" aria-current="page">规则</a><a href="#c-judge">判断对照</a></nav>
         <p class="nt-tabdesc" style="margin-bottom:0">人才判断用到的规则都在这里：每条规则按版本保存，修订要写理由、看影响、经管理者确认才生效，已经做出的判断保留原来的版本。</p>
       </div>
 
@@ -1841,7 +1851,7 @@
       </div>
 
       <h3 class="ds-sub">规则卡</h3>
-      <p>评价体系的总览，每类规则一张卡：名称、它决定什么、当前版本与生效时间、修订状态，以及来自判断对照或修订建议的信号。会改变评价结果的四类在前，修订要 管理者确认；找人和整理用的两类在后。原型里只读的卡写「只读」。</p>
+      <p>人才评价规则的总览，每类规则一张卡：名称、它决定什么、当前版本与生效时间、修订状态，以及来自判断对照或修订建议的信号。会改变评价结果的四类在前，修订要 管理者确认；找人和整理用的两类在后。原型里只读的卡写「只读」。</p>
       <div class="ds-row" style="margin-bottom:var(--s-4)"><span class="n-rstate" data-s="draft">草稿</span><span class="n-rstate" data-s="pending">待确认</span><span class="n-rstate" data-s="scheduled">已排期 · 下一个盘点批次</span><span class="n-rstate" data-s="live">生效中</span><span class="n-rstate" data-s="old">已替代</span></div>
       <div class="n-rcards">
         <p class="n-rcards__grp">会改变评价结果 · 修订由 HR 起草、管理者确认</p>
@@ -2946,9 +2956,9 @@
     { t: 'activity', hit: 1, icon: 'i-clock', who: '沈砚', hue: 60, what: '90 天没有新事件', win: null, rule: '90 天无新事件', when: '10-20',
       sub: '最近一条：07-22 冷数据迁移方案评审 · 4 月后没有加入新项目',
       why: '没有新事件只说明没有被记录，不代表表现下降。和「值得聊一聊」里的两条信号一致。', acts: ['看「值得聊一聊」', '提醒负责人记录'] },
-    { t: 'quad', hit: 1, icon: 'i-grid', who: '周屿', hue: 30, what: '参考位置离开正式象限', win: null, rule: '参考位置跨象限', when: '10-18',
-      sub: '正式位置：双高（2026 H1 校准）→ 参考位置：专业骨干 · 新事件 3 条',
-      why: '新事件里潜力维度的分偏低（坚毅力 3、开放性 3），专业度不变。正式位置不会自动移动，需要在下一次校准时处理。', acts: ['加入下次校准'] },
+    { t: 'quad', hit: 1, icon: 'i-grid', who: '周屿', hue: 30, what: '象限可能要重新校准', win: null, rule: '', when: '10-18',
+      sub: '2026 H1 校准为双高，按新事件算是专业骨干 · 新事件 3 条',
+      why: '新事件里潜力维度的分偏低（坚毅力 3、开放性 3），专业度不变。校准过的位置保持原样，要在象限校准里重新确认。', acts: ['加入下次校准'] },
     { t: 'team', hit: 1, icon: 'i-layers', who: '客户转化组', team: 1, what: '资料不足比例上升', win: [21, 45, 0], ver: [18, 45, 0], unit: '%', rule: '资料不足 +20 个百分点', when: '10-20',
       sub: '11 人中 5 人资料不足 · SDR 并入的 4 人还没有事件', why: '主要来自新并入的人员：他们的记录还在原系统里。这不是团队能力的变化。', acts: ['发起补录'] },
     { t: 'trend', hit: 1, icon: 'i-up-r', who: '林知远', hue: 200, what: '内生动力走高', win: [3.2, 4.4, 4], ver: [3.0, 4.4, 4], rule: '均值变化 ≥ 1.5', when: '10-22',
@@ -2971,9 +2981,9 @@
           <div><h5>${chgBase === 'win' ? '之前 9 个月' : '2026 H1 档案版本'}</h5><ul>${c.before.map(e => `<li><b>${e[0]}</b>${e[1]} <small>${e[2]}</small></li>`).join('')}</ul></div>
           <div><h5>近 3 个月</h5><ul>${c.after.map(e => `<li><b>${e[0]}</b>${e[1]} <small>${e[2]}</small></li>`).join('')}</ul></div>
           <p class="n-change__why">${c.why}</p><div class="n-change__acts">${c.acts.map((a, k) => `<button class="n-btn n-btn--sm${k ? ' n-btn--ghost' : ''}" type="button">${a}</button>`).join('')}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-seen>标为已看过</button></div></div>`
-        : `<div class="n-change__detail" hidden><p class="n-change__why" style="border:0;padding:0">${c.why || '这是一条记录层面的变化，没有命中规则。'}</p><div class="n-change__acts">${c.acts.map((a, k) => `<button class="n-btn n-btn--sm${k ? ' n-btn--ghost' : ''}" type="button">${a}</button>`).join('')}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-seen>标为已看过</button></div></div>`;
+        : `<div class="n-change__detail" hidden><p class="n-change__why" style="border:0;padding:0">${c.why || '这是一条记录变动，供了解。'}</p><div class="n-change__acts">${c.acts.map((a, k) => `<button class="n-btn n-btn--sm${k ? ' n-btn--ghost' : ''}" type="button">${a}</button>`).join('')}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-seen>标为已看过</button></div></div>`;
       return `<div class="n-change" data-i="${i}"><button class="n-change__row" type="button" aria-expanded="false">${ava}
-        <span class="n-change__what"><span class="n-change__line"><b>${c.who}</b>${c.what}${delta}${mini}${c.hit ? `<span class="n-rule"><svg><use href="#i-flag"/></svg>${c.rule}</span>` : ''}</span><span class="n-change__sub">${sub}</span></span>
+        <span class="n-change__what"><span class="n-change__line"><b>${c.who}</b>${c.what}${delta}${mini}${c.hit && c.rule ? `<span class="n-rule"><svg><use href="#i-flag"/></svg>${c.rule}</span>` : ''}</span><span class="n-change__sub">${sub}</span></span>
         <span class="n-change__side">${c.when}<svg><use href="#i-chev"/></svg></span></button>${detail}</div>`;
     }).join('');
   }
@@ -3024,7 +3034,7 @@
     e.currentTarget.textContent = on ? '恢复跟踪' : '停止跟踪';
   });
 
-  /* ── 评价体系：参数修订行、检查栏、影响预览、锚点修订态（v1.6 3.39） ── */
+  /* ── 人才评价规则：参数修订行、检查栏、影响预览、锚点修订态（v1.6 3.39） ── */
   {
     const segPick = (box, on) => box.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b || b.disabled) return;

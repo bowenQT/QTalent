@@ -98,7 +98,7 @@
   let note = '';
 
   NT.shell({
-    nav: 'projects', title: '找人', crumbs: [['项目', 'projects.html']],
+    nav: 'projects', title: '找人', crumbs: [[st.role() === 'ceo' ? '项目与批次' : '项目与课题', 'projects.html']],
     allow: (r) => st.canStaff(projectId, r),
     denyText: '找 owner 和项目找人只对 CEO、HRBP 和部门负责人开放。',
     view: () => `找人 · ${projectId ? st.project(projectId)?.name : '新项目'} · 方案 ${Object.values(slots).filter(Boolean).length} 个槽位已填`,

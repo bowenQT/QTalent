@@ -22,7 +22,7 @@
 
   NT.shell({
     nav: 'work', title: '工作台',
-    view: () => (st.role() === 'ceo' ? `值得关注的人：${watchCat === 'all' ? '全部' : Object.fromEntries(st.WATCH_CATS)[watchCat]}${watchAll ? ' · 展开全部' : ''}` : `变化：${base === 'win' ? '近 3 个月 vs 之前' : 'vs 中期'}${type !== 'all' ? ` · 筛选 ${type}` : ''}`),
+    view: () => (st.role() === 'ceo' ? `值得关注的人：${watchCat === 'all' ? '全部' : Object.fromEntries(st.WATCH_CATS)[watchCat]}${watchAll ? ' · 展开全部' : ''}` : `有变化的人：${base === 'win' ? '近 3 个月和之前比' : '和中期盘点比'}${type !== 'all' ? ` · 筛选 ${type}` : ''}`),
     state: () => ({ base, type, watchCat, watchAll }),
     restore: (s) => { base = s.base || base; type = s.type || type; watchCat = s.watchCat || watchCat; watchAll = !!s.watchAll; renderChanges(); drawWatch(); },
     render(main) {
@@ -31,13 +31,13 @@
       if (role === 'ceo') return renderCeo(main, me);
       const todos = st.todos();
       const changesCard = st.can('changes') ? html`<article class="n-card n-changes" id="changes" style="margin-bottom:var(--s-5)">
-          <header class="n-changes__head"><h3>变化</h3><span class="n-changes__meta" id="chg-meta"></span>
+          <header class="n-changes__head"><h3>有变化的人</h3><span class="n-changes__meta" id="chg-meta"></span>
             <div class="n-seg" role="group" aria-label="比较基准" data-manual id="chg-base">
-              <button type="button" data-b="win" aria-pressed="true">近 3 个月 vs 之前</button>
-              <button type="button" data-b="ver" aria-pressed="false">vs 中期档案版本</button>
+              <button type="button" data-b="win" aria-pressed="true">近 3 个月和之前比</button>
+              <button type="button" data-b="ver" aria-pressed="false">和中期盘点比</button>
             </div></header>
           <div class="n-chips" role="group" aria-label="按类型筛选" id="chg-filter">
-            ${[['all', '全部'], ['trend', '能力走向'], ['activity', '活跃度与安排'], ['quad', '象限偏移'], ['team', '团队分布']].map(([k, l]) => html`<button class="n-chip" type="button" data-t="${k}" aria-pressed="${k === type}">${l}<b data-n="${k}"></b></button>`)}
+            ${[['all', '全部'], ['trend', '能力走向'], ['activity', '活跃度与安排'], ['quad', '象限变化'], ['team', '团队分布']].map(([k, l]) => html`<button class="n-chip" type="button" data-t="${k}" aria-pressed="${k === type}">${l}<b data-n="${k}"></b></button>`)}
           </div>
           <div id="chg-list"></div>
           <p class="nt-caption">按时间列出已确认的变化。</p>
@@ -107,7 +107,7 @@
   const peekBtn = (pid) => (pid ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-peek="p:${pid}">${icon('user')}看速览</button>` : '');
   const todoActs = (t) => (t.kind === 'clue' ? html`<div class="n-todo__acts">${clueSrc(t.clue)}${peekBtn(st.get().watchClues.find((c) => c.id === t.clue)?.person)}<button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，进入值得关注</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
   const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li class="${t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
-  const GROUPS = [['verify', '待核对', ['verify']], ['clue', '待核实线索', ['clue']], ['plan', '待确认', ['plan', 'ruleback']], ['rulesug', '规则修订建议', ['rulesug']], ['rulereview', '按新版本复核', ['rulereview']], ['calib', '待校准', ['calib']], ['follow', '待跟进', ['track', 'talk']]];
+  const GROUPS = [['verify', '待核对', ['verify']], ['clue', '待核实的关注线索', ['clue']], ['plan', '待确认', ['plan', 'ruleback']], ['rulesug', '规则修订建议', ['rulesug']], ['rulereview', '按新版本复核', ['rulereview']], ['calib', '待复核的评分', ['calib']], ['follow', '待回访', ['track', 'talk']]];
   let openGroup = null, showHandled = false;
   // 已处理的线索：核实的和不采纳的都留痕，不采纳的写出理由，可以改回待核实
   function handledBlock() {
@@ -154,7 +154,7 @@
   function judgeCard() {
     const rows = st.judgeBatches().filter((b) => b.status === 'open').map((b) => ({ b, n: st.judgeHyps(b.id).filter((h) => !st.judgeAttrib(h.id)).length }));
     return html`<article class="n-card"><h3 class="n-section-title">判断对照<a class="n-link" href="judge.html">全部</a></h3>
-      <ul class="nt-list">${rows.map(({ b, n }) => html`<li><a class="nt-plink" href="judge.html?id=${b.id}"><b style="font-weight:600">${b.name}</b></a><div class="nt-muted">${n ? `${n} 条 AI 归因假设待确认` : '归因都已确认'} · ${b.range}</div></li>`)}</ul></article>`;
+      <ul class="nt-list">${rows.map(({ b, n }) => html`<li><a class="nt-plink" href="judge.html?id=${b.id}"><b style="font-weight:600">${b.name}</b></a><div class="nt-muted">${n ? `${n} 条 AI 给的偏差原因待你确认` : '偏差原因都已确认'} · ${b.range}</div></li>`)}</ul></article>`;
   }
 
   function renderChanges() {
@@ -165,7 +165,8 @@
     $$('#chg-filter button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === type));
     const list = all.filter((c) => type === 'all' || c.t === type);
     const scope = 'XEngineer 第六期';
-    $('#chg-meta').textContent = `${scope} · ${list.length} 条，其中 ${list.filter((c) => c.hit).length} 条命中规则`;
+    const ppl = new Set(list.filter((c) => c.person).map((c) => c.person)).size, hit = list.filter((c) => c.hit).length;
+    $('#chg-meta').textContent = `${scope} · ${ppl} 人${hit ? `，${hit === list.length ? '都' : `${hit} 条`}符合提醒条件` : ''}`;
     const cut = expanded ? list.length : 6;
     mount(host, list.length ? html`${list.slice(0, cut).map((c) => UI.change(c, base))}${list.length > cut ? html`<button class="n-btn n-btn--ghost n-btn--sm" type="button" id="chg-more" style="margin-top:var(--s-2)">再看 ${list.length - cut} 条</button>` : ''}` : html`<div class="nt-empty">这一类的变化会出现在这里。</div>`);
     $('#chg-more')?.addEventListener('click', () => { expanded = true; renderChanges(); });
@@ -464,7 +465,7 @@
     };
   }
 
-  // 判断提醒：一行告知差异与待确认的规则修订，不展开细节；详情在评价体系的判断对照和规则里
+  // 判断提醒：一行告知差异与待确认的规则修订，不展开细节；详情在人才评价规则的判断对照和规则里
   function drawJudge() {
     const host = $('#jsig'); if (!host) return;
     const sigs = st.judgeSignals().slice(0, 1), rules = st.rulesToConfirm();

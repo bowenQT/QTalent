@@ -309,7 +309,7 @@
   const BASE_FROM = NT.addDays(NT.TODAY, -365);
   store.changes = (o = {}) => {
     const base = o.base || 'win'; // win：近 3 个月 vs 之前 9 个月；ver：vs 中期档案版本
-    const role = o.role || store.role(); // o.role：评价体系的影响预览按全公司口径算
+    const role = o.role || store.role(); // o.role：人才评价规则的影响预览按全公司口径算
     if (!store.can('changes', null, role)) return [];
     const people = store.visiblePeople(role).filter((p) => store.scope(p.id, role) === 'full');
     const out = [];
@@ -336,8 +336,8 @@
       const f = store.formal(p.id), r = store.refPos(p.id);
       if (f && !r.na && f.q !== r.q) {
         const after = store.scoresOf(p.id, { from: NT.addDays(f.snap.cutoff, 1) });
-        out.push({ id: `quad-${p.id}`, t: 'quad', hit: true, person: p.id, what: '参考位置离开正式象限', when: after[0]?.date || NT.TODAY, rule: '参考位置跨象限',
-          sub: `正式位置：${QN[f.q]}（${f.snap.label} 校准）→ 参考位置：${QN[r.q]} · 之后新增 ${new Set(after.map((s) => s.ev.id)).size} 条事件`, fq: f.q, rq: r.q });
+        out.push({ id: `quad-${p.id}`, t: 'quad', hit: true, person: p.id, what: '象限可能要重新校准', when: after[0]?.date || NT.TODAY, rule: '',
+          sub: `${f.snap.label}校准为${QN[f.q]}，按新事件算是${QN[r.q]} · 之后新增 ${new Set(after.map((s) => s.ev.id)).size} 条事件`, fq: f.q, rq: r.q });
       }
     });
     // 活跃度：项目进出、调岗（记录层面的变化，不命中规则）
@@ -374,13 +374,13 @@
     const visibleInbox = S.inbox.filter((i) => !i.done && (role === 'hrbp' || i.by === me || (role === 'mentor')));
     if (role !== 'self' && role !== 'lead') visibleInbox.slice().sort((a, b) => (a.later ? 1 : 0) - (b.later ? 1 : 0)).forEach((i) => list.push({ kind: 'verify', badge: '待核对', cls: 'n-badge--ai', icon: 'spark', title: i.q.replace(/？$/, ''), sub: `${i.src} · ${i.at}${i.later ? ' · 已选稍后处理' : ''}`, due: i.later ? '稍后' : '今天', href: `inbox.html#${i.id}` }));
     if (store.can('calibrate')) store.queue().forEach((q) => list.push({ kind: 'calib', badge: q.kindLabel, cls: q.kind === 'conflict' ? 'n-badge--conflict' : '', icon: q.kind === 'conflict' ? 'split' : '', title: q.title, sub: q.sub, due: q.pair, href: `queue.html#${q.id}` }));
-    S.tracks.filter((t) => t.state === 'on' && (t.owner === me || t.helper === me) && store.scope(t.person)).forEach((t) => list.push({ kind: 'track', badge: '跟踪到期', title: `${store.person(t.person).name}的观察问题`, sub: t.q, due: NT.md(t.next), href: `person.html?id=${t.person}#track` }));
+    S.tracks.filter((t) => t.state === 'on' && (t.owner === me || t.helper === me) && store.scope(t.person)).forEach((t) => list.push({ kind: 'track', badge: '跟踪到期', title: `重点跟踪 · ${store.person(t.person).name}`, sub: t.q, due: NT.md(t.next), href: `person.html?id=${t.person}#track` }));
     S.signals.filter((s) => s.state === 'talk' && s.result?.who === me).forEach((s) => list.push({ kind: 'talk', badge: '待跟进', title: `和${store.person(s.person).name}聊一次`, sub: '来自「值得聊一聊」', due: s.result.when, href: `person.html?id=${s.person}#signal` }));
     if (role === 'mentor') {
       const b = store.batch('b-xe6');
       b.newcomers.filter((n) => n[2][0] === me).forEach(([pid]) => {
         const r = store.review(pid, 'W8');
-        if (r.state !== 'confirmed') list.push({ kind: 'review', person: pid, badge: '对人复盘', title: `${store.person(pid).name} · ${r.week} 对人复盘`, sub: `${store.reviewProgress(r)}${r.conflicts ? ` · ${r.conflicts} 项在校准队列` : ''}`, due: NT.md(NT.TODAY), href: `landing-review.html?id=${pid}` });
+        if (r.state !== 'confirmed') list.push({ kind: 'review', person: pid, badge: '对人复盘', title: `${store.person(pid).name} · ${r.week} 对人复盘`, sub: `${store.reviewProgress(r)}${r.conflicts ? ` · ${r.conflicts} 项待 HR 复核` : ''}`, due: NT.md(NT.TODAY), href: `landing-review.html?id=${pid}` });
       });
     }
     S.plans.filter((p) => p.status === 'draft').forEach((p) => {
@@ -670,7 +670,7 @@
   store.template = (id) => SEED.TEMPLATES.find((t) => t.id === id);
   store.tplVersion = (t, v) => (v ? t.versions.find((x) => x.v === v) : t.versions[t.versions.length - 1]);
 
-  // ---------- 判断对照（需求里的「判断复盘」，v1.3 3.16）：对照两段判断，归因只作用于评价体系，不写回被评价人 ----------
+  // ---------- 判断对照（需求里的「判断复盘」，v1.3 3.16）：对照两段判断，归因只作用于人才评价规则，不写回被评价人 ----------
   const J = SEED.JUDGE;
   const RATER_MIN = 5; // 评价人可对照案例的门槛，少于它只显示「样本不足」
   store.RATER_MIN = RATER_MIN;
@@ -782,7 +782,7 @@
   };
   store.unmarkJudge = (uid) => { delete S.judgeMarks[uid]; store.save(); };
   store.markJudge = (uid, reason) => { S.judgeMarks[uid] = { reason, by: store.me().id, at: NT.TODAY }; store.save(); };
-  // 改进动作挂到人才项目复盘里产生这次对照的节点下；修订评价标准要产生新版本，在动作里写明
+  // 改进动作挂到人才项目的关键节点复盘里产生这次对照的节点下；修订评价标准要产生新版本，在动作里写明
   store.addJudgeAction = (batchId, hypId, a) => {
     const h = store.judgeHyps(batchId).find((x) => x.id === hypId);
     if (!h || !S.judgeAttribs[hypId] || !store.hypCheck(h).ok) return null;
@@ -1108,7 +1108,7 @@
     return { list: rows.filter((g) => g.why.length).sort(byAt), quiet: rows.filter((g) => !g.why.length).sort(byAt) };
   };
 
-  // ---------- 评价体系（v1.6 3.35）：规则按版本保存，修订走 草稿 → 待确认 → 已排期 / 生效中 → 已替代 ----------
+  // ---------- 人才评价规则（v1.6 3.35）：规则按版本保存，修订走 草稿 → 待确认 → 已排期 / 生效中 → 已替代 ----------
   // 不改写历史：已确认的分数、快照、档案版本保留原来的版本标记，这里只决定新的评价按哪一版
   const OPEN = ['draft', 'pending', 'scheduled'];
   store.RULE_KINDS = [

@@ -6,19 +6,18 @@
   const st = NT.store;
   const { html, icon, mount } = NT;
 
+  // 侧栏分三组：人、项目、规则；组名只是一行小字。人才项目（Landing 等期次）和项目与课题（人实际做事的地方）分开
   const NAV = [
     { id: 'work', label: '工作台', icon: 'home', href: 'index.html' },
-    { id: 'people', label: '人才', icon: 'users', href: 'people.html' },
-    { id: 'review', label: '盘点', icon: 'layers', href: 'reviews.html', roles: ['ceo', 'hrbp', 'lead'] },
-  ];
-  const MORE = [
-    { id: 'projects', label: '项目', icon: 'folder', href: 'projects.html' },
-    { id: 'landing', label: 'Landing 第三期', icon: 'book', href: 'landing.html', roles: ['ceo', 'hrbp', 'lead', 'mentor'], hideFor: ['ceo'] },
-    { id: 'actions', label: '行动与复盘', icon: 'check2', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'] },
-    { id: 'queue', label: '校准队列', icon: 'split', href: 'queue.html', roles: ['ceo', 'hrbp'], hideFor: ['ceo'] },
-    { id: 'judge', label: '判断对照', icon: 'swap', href: 'judge.html', roles: ['ceo', 'hrbp'] },
-    { id: 'rules', label: '评价体系', icon: 'grid', href: 'rules.html', roles: ['ceo', 'hrbp'] },
-    { id: 'tags', label: '标签库', icon: 'tag', href: 'tags.html', roles: ['ceo', 'hrbp', 'lead'], hideFor: ['ceo'] },
+    { id: 'people', label: '人才', icon: 'users', href: 'people.html', group: '人' },
+    { id: 'review', label: '盘点', icon: 'layers', href: 'reviews.html', roles: ['ceo', 'hrbp', 'lead'], group: '人' },
+    { id: 'queue', label: '评分复核', icon: 'check2', href: 'queue.html', roles: ['ceo', 'hrbp'], hideFor: ['ceo'], group: '人' },
+    { id: 'actions', label: '行动与复盘', icon: 'target', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'], group: '人' },
+    { id: 'landing', label: '人才项目', icon: 'book', href: 'landing.html', roles: ['ceo', 'hrbp', 'lead', 'mentor'], hideFor: ['ceo'], group: '项目' },
+    { id: 'projects', label: '项目与课题', icon: 'folder', href: 'projects.html', group: '项目' },
+    { id: 'rules', label: '人才评价规则', icon: 'grid', href: 'rules.html', roles: ['ceo', 'hrbp'], group: '规则' },
+    { id: 'judge', label: '判断对照', icon: 'swap', href: 'judge.html', roles: ['ceo', 'hrbp'], group: '规则' },
+    { id: 'tags', label: '标签库', icon: 'tag', href: 'tags.html', roles: ['ceo', 'hrbp', 'lead'], hideFor: ['ceo'], group: '规则' },
   ];
   const ROLE_ORDER = ['ceo', 'hrbp', 'lead', 'mentor', 'self'];
 
@@ -31,14 +30,17 @@
     const role = st.role();
     const me = st.me();
     const todos = role === 'ceo' ? st.myPushes().confirm.length : st.todos().length;
-    // CEO 视角收敛（v1.4 3.19.3）：盘点不挂草稿数；校准队列、标签库不进导航，直接打开时权限不变
+    // CEO 视角收敛（v1.4 3.19.3）：盘点不挂草稿数；评分复核、标签库不进导航，直接打开时权限不变
     const drafts = role === 'ceo' ? 0 : st.get().batches.filter((b) => b.kind === 'inventory' && b.status === 'draft').length;
     // 判断对照：CEO、HRBP 看汇总；其他视角只有本人做过评价时才有「我的判断对照」，员工没有这个入口
     const allow = (n) => (!n.roles || n.roles.includes(role) || (n.id === 'judge' && st.isRater())) && !(n.hideFor || []).includes(role);
     // CEO 视角：项目与 Landing 批次合并成一个入口，侧栏不放「最近」（v1.5 3.26.4）
-    const more = MORE.map((n) => (n.id === 'judge' && !st.canJudge() ? { ...n, label: '我的判断对照', href: 'judge.html?rater=me' } : n.id === 'projects' && role === 'ceo' ? { ...n, label: '项目与批次' } : n));
+    const items = NAV.map((n) => (n.id === 'judge' && !st.canJudge() ? { ...n, label: '我的判断对照', href: 'judge.html?rater=me' }
+      : n.id === 'projects' && role === 'ceo' ? { ...n, label: '项目与批次' }
+      : n.id === 'people' && role === 'self' ? { ...n, label: '我的档案', href: `person.html?id=${me.id}` }
+      : n.id === 'people' && role === 'mentor' ? { ...n, label: '所带学员' } : n)).filter(allow);
+    const groups = [...new Set(items.map((n) => n.group).filter(Boolean))];
     const navItem = (n) => html`<a class="n-navitem" href="${n.href}" ${NT.raw(cfg.nav === n.id ? 'aria-current="page"' : '')}>${icon(n.icon)}${n.label}${n.id === 'work' && todos ? html`<span class="n-count">${todos}</span>` : ''}${n.id === 'review' && drafts ? html`<span class="n-count is-quiet">${drafts}</span>` : ''}</a>`;
-    const people = role === 'self' ? { ...NAV[1], label: '我的档案', href: `person.html?id=${me.id}` } : role === 'mentor' ? { ...NAV[1], label: '所带学员' } : NAV[1];
     const recent = [
       ['项目 · 海外加速搜索体验', 'project.html?id=pr-search', ['ceo', 'hrbp', 'lead']],
       ['盘点 · 增长产品部 2026 H2', 'review.html?id=b-h2', ['ceo', 'hrbp', 'lead']],
@@ -52,8 +54,7 @@
       <a class="nt-skip" href="#main">跳到正文</a>
       <aside class="nt-side" aria-label="主导航">
         <a class="n-shell__brand nt-brand" href="index.html"><span class="nt-ip" data-ip="rest" data-size="24"></span><span>Niu-Talent<small>人才识别、追踪与盘点</small></span></a>
-        <nav class="nt-nav">${[NAV[0], people, NAV[2]].filter(allow).map(navItem)}</nav>
-        <nav class="nt-nav nt-nav--more" aria-label="更多">${more.filter(allow).map(navItem)}</nav>
+        <nav class="nt-nav">${items.filter((n) => !n.group).map(navItem)}${groups.map((g) => html`<div class="nt-nav__grp" role="group" aria-label="${g}"><span class="nt-nav__h" aria-hidden="true">${g}</span>${items.filter((n) => n.group === g).map(navItem)}</div>`)}</nav>
         ${recent.length ? html`<div class="n-shell__recent nt-recent">最近${recent.map(([t, h]) => html`<a href="${h}">${t}</a>`)}</div>` : ''}
         <div class="nt-side__foot">
           <a href="../index.html">${icon('book')}评审导览</a>

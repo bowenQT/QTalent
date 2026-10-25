@@ -133,7 +133,7 @@
     mount(sign, html`<span class="ink-hand">${me.name}</span>${st.roles[st.role()].label} · 刚刚保存到${st.person(draft.pid).name}的档案`);
     sign.hidden = false;
     mount($('#ev-actions'), html`<a class="n-btn n-btn--ink m-big" href="person.html?id=${draft.pid}#ev-${e.id}">去${st.person(draft.pid).name}的档案看看</a><a class="n-btn n-btn--ghost" href="quick.html">再记一条</a>`);
-    NT.toast(`已保存到${st.person(draft.pid).name}的档案${big ? `，${big} 项进了校准队列` : ''}`, {
+    NT.toast(`已保存到${st.person(draft.pid).name}的档案${big ? `，${big} 项转给了 HRBP 复核` : ''}`, {
       undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('quick.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销，这条记录没有保存',
     });
   }

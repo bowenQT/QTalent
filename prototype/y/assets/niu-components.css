@@ -1331,6 +1331,7 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-todogrp__head > svg { width: 14px; height: 14px; margin-left: auto; color: var(--ink-3); transition: rotate var(--d-quick) var(--ease-out); }
 .n-todogrp__head[aria-expanded="true"] > svg { rotate: 90deg; }
 .n-todogrp__head .n-count { margin-left: 0; }
+.n-todogrp__head { white-space: nowrap; } /* 组名不折行，右侧的预览小字按宽度截断 */
 .n-todogrp__head small { min-width: 0; overflow: hidden; font-weight: 400; color: var(--ink-3); text-overflow: ellipsis; white-space: nowrap; }
 .n-todomore { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-xs); color: var(--ink-2); }
 .n-todomore > svg { flex: none; width: 14px; height: 14px; color: var(--ink-3); }

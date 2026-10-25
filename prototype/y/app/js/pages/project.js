@@ -12,7 +12,7 @@
   };
   const exists = !!st.project(id);
   NT.shell({
-    nav: 'projects', title: st.project(id)?.name || '项目', crumbs: [['项目', 'projects.html']],
+    nav: 'projects', title: st.project(id)?.name || '项目', crumbs: [['项目与课题', 'projects.html']],
     allow: visible,
     ...(exists
       ? { denyTitle: '这个项目在你的查看范围之外', denyText: '员工只能看到本人参与的项目，导师只能看到所带批次的课题。' }

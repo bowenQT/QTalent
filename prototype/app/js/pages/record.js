@@ -214,7 +214,7 @@
       sc.row.append(input); input.focus({ preventScroll: true });
       input.addEventListener('input', () => { sc.why = input.value; });
     }
-    input.placeholder = `为什么改成 ${sc.v} 分？（可选）${Math.abs(sc.v - sc.ai) >= 2 ? ' 和 AI 差 2 分以上，请写一句理由；留空会进 HRBP 校准队列' : ''}`;
+    input.placeholder = `为什么改成 ${sc.v} 分？（可选）${Math.abs(sc.v - sc.ai) >= 2 ? ' 和 AI 差 2 分以上，请写一句理由；留空会转给 HRBP 复核' : ''}`;
   }
   function paint(sc) {
     $$('.n-score__dot', sc.row).forEach((b) => {
@@ -249,7 +249,7 @@
     mount(sign, html`<span class="ink-hand">${me.name}</span>${st.roles[st.role()].label} · 刚刚保存到${st.person(draft.pid).name}的档案 · <a href="person.html?id=${draft.pid}#ev-${e.id}">去档案看看</a>`);
     sign.hidden = false; $('#ev-actions').hidden = true;
     NT.ipState($('#ev-ip'), 'done');
-    NT.toast(`已保存到${st.person(draft.pid).name}的档案${big ? `，${big} 项进了校准队列` : ''}`, {
+    NT.toast(`已保存到${st.person(draft.pid).name}的档案${big ? `，${big} 项转给了 HRBP 复核` : ''}`, {
       undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('record.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销，这条记录没有保存',
     });
   }
@@ -314,7 +314,7 @@
             <ul class="nt-list" style="font-size:var(--t-sm)">
               <li>导师逐个确认学员的建议分：<a href="landing-review.html?id=p-lin">林知远 W2 对人复盘</a></li>
               <li>核对人名和项目：<a href="inbox.html">待核对</a></li>
-              <li>分差大的分数由 HRBP 校准：<a href="queue.html">校准队列</a></li>
+              <li>分差大的分数由 HRBP 校准：<a href="queue.html">评分复核</a></li>
             </ul></div>
         </aside>
       </div>`);

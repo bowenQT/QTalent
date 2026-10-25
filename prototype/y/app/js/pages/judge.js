@@ -1,5 +1,5 @@
-/* 判断对照（需求里的「判断复盘」）：把同一个人同一维度在前后两个阶段的判断放在一起对照，找出评价体系的系统性偏差，归因后生成改进动作。
-   归在「评价体系」下，和规则是同一个闭环：规则定标准，判断对照检验标准，结论回到规则修订。
+/* 判断对照（需求里的「判断复盘」）：把同一个人同一维度在前后两个阶段的判断放在一起对照，找出人才评价规则的系统性偏差，归因后生成改进动作。
+   归在「人才评价规则」下，和规则是同一个闭环：规则定标准，判断对照检验标准，结论回到规则修订。
    对照的对象是判断，不是被评价的人：结论只作用于评价标准、评价人与评价方式，不改变任何人的分数、象限和档案。
    两段都是判断，后段不当作正确答案。按评价人的偏差只给 HR 和评价人本人看；管理者只看汇总与结论；被评价人看不到这一页。 */
 (function () {
@@ -21,14 +21,14 @@
   const stateText = (u) => (u.gap ? `${STATE[u.state]} · ${u.state === 'high' ? '高' : '低'}${GAP[u.gap]}` : STATE[u.state]);
   const jstate = (u) => html`<span class="n-jstate" data-s="${u.state}">${stateText(u)}</span>`;
   const name = (pid) => st.person(pid)?.name || '';
-  // 判断对照的链对应评价体系里的前段评价标准；没有对应条目的链不跳转
+  // 判断对照的链对应人才评价规则里的前段评价标准；没有对应条目的链不跳转
   const FRONT_LINE = { xe: 'xe-weekly' };
   const frontLink = (chain) => (FRONT_LINE[chain.id] ? NT.link('rules.html', { r: 'front', line: FRONT_LINE[chain.id] }) : null);
 
   NT.shell({
     nav: st.canJudge() ? 'rules' : 'judge',
     title: raterId ? (raterId === me.id ? '我的判断对照' : `${name(raterId)}的判断`) : id ? st.judgeBatch(id)?.name || '判断对照' : '判断对照',
-    crumbs: !st.canJudge() ? [] : id || raterId ? [['评价体系', 'rules.html'], ['判断对照', 'judge.html']] : [['评价体系', 'rules.html']],
+    crumbs: !st.canJudge() ? [] : id || raterId ? [['人才评价规则', 'rules.html'], ['判断对照', 'judge.html']] : [['人才评价规则', 'rules.html']],
     allow: (r) => {
       if (raterId) return !!st.person(raterId) && st.canSeeRater(raterId, r);
       if (id) return st.canJudge(r) && !!st.judgeBatch(id);
@@ -117,7 +117,7 @@
       <div class="nt-row" style="margin-top:var(--s-2)">${pending && role === 'hrbp' ? html`<span class="n-badge n-badge--ai">${icon('spark')}${pending} 条 AI 假设待确认</span>` : ''}${acts ? html`<span class="n-badge">${acts} 条改进动作</span>` : ''}</div>
     </a>`;
   }
-  const lockNote = () => html`<div class="n-lock">${icon('lock')}对照结论只用于修订评价体系。</div>`;
+  const lockNote = () => html`<div class="n-lock">${icon('lock')}对照结论只用于修订人才评价规则。</div>`;
 
   // ---------- 一次判断对照 ----------
   function renderBatch(main) {
@@ -242,7 +242,7 @@
     return html`<article class="n-card" id="acts"><h3 class="n-section-title">改进动作</h3>
       ${acts.length ? html`<ul class="nt-list">${acts.map((a) => html`<li><a class="nt-plink" href="actions.html#${a.id}"><b style="font-weight:600">${a.title}</b></a><div class="nt-muted">${a.kind} · 负责人 ${name(a.owner)} · ${LABEL[a.state]}${a.did ? ` · ${NT.md(a.did)} 执行` : ` · 预计 ${NT.md(a.due)}`}</div></li>`)}</ul>`
         : html`<div class="nt-empty">归因确认后，改进动作会出现在这里。</div>`}
-      <p class="nt-caption">改进动作挂在「人才项目复盘」对应的节点下跟进；修订评价标准会产生新版本，新记录按新版本，旧记录保留原版本。</p></article>`;
+      <p class="nt-caption">改进动作挂在「人才项目」关键节点复盘的对应节点下跟进；修订评价标准会产生新版本，新记录按新版本，旧记录保留原版本。</p></article>`;
   }
 
   // ---------- 归因：AI 提出带证据的假设（光），HR 选类别、写理由、确认后落墨 ----------
@@ -273,7 +273,7 @@
         ${wait ? html`<p class="nt-caption">另有 ${wait} 条 AI 假设待 HR 确认。</p>` : ''}`;
     }
     return html`<div class="nt-grid">${hyps.map((h) => (st.judgeAttrib(h.id) ? conclusion(h, chain, false) : hypBlock(h, chain)))}</div>
-      <p class="nt-caption">AI 提出带证据的假设，HR 选类别、写理由并确认归因。结论用于修订评价体系。</p>`;
+      <p class="nt-caption">AI 提出带证据的假设，HR 选类别、写理由并确认归因。结论用于修订人才评价规则。</p>`;
   }
   // 依据变化的说明：评价人只在 HR 视角下点名
   const checkText = (h, chk, forCeo) => [chk.dropped.length && `${chk.dropped.length} 个依据案例已标为不可比或资料不足`, chk.few && (forCeo ? '涉及的评价人可对照案例不到门槛，样本不足' : `${name(h.rater)}的可对照案例不到 ${st.RATER_MIN} 个，样本不足`), chk.changed && !chk.dropped.length && '依据范围内的事件或分数有变化，正文里的统计可能已经过时'].filter(Boolean).join('；');
@@ -311,10 +311,10 @@
         ${hideRater ? html`<p style="margin:var(--s-2) 0 0" class="nt-muted">这条归因的依据涉及评价人，此处显示归因类别和改进动作。</p>` : html`<p style="margin:var(--s-2) 0 0">${a.text || h.text}</p><p class="n-jcase__why" style="margin:var(--s-1) 0 0">${a.reason}</p>`}
         <div class="n-block__by"><span class="n-block__sig">${name(a.by)}</span>${NT.md(a.at)} 确认归因${a.text && a.text !== h.text ? ' · 改写过 AI 假设' : ''}</div>
       </div>
-      ${acts.length ? html`<div class="nt-row">${acts.map((x) => html`<a class="n-badge" href="actions.html#${x.id}">${icon('check2')}${x.title}</a>`)}${acts.some((x) => x.kind === '修订评价标准') && frontLink(chain) ? html`<a class="n-link" href="${frontLink(chain)}">在评价体系里看这条标准</a>` : ''}</div>` : ''}
+      ${acts.length ? html`<div class="nt-row">${acts.map((x) => html`<a class="n-badge" href="actions.html#${x.id}">${icon('check2')}${x.title}</a>`)}${acts.some((x) => x.kind === '修订评价标准') && frontLink(chain) ? html`<a class="n-link" href="${frontLink(chain)}">在人才评价规则里看这条标准</a>` : ''}</div>` : ''}
       ${!chk.ok ? html`<p class="nt-caption" style="margin:0">确认后依据有变化：${checkText(h, chk, forCeo)}。这条结论需要复核，暂不能生成新的改进动作。</p>` : ''}
       ${chk.ok && a.cats.includes('env') && !sug.length && !acts.length ? html`<p class="nt-caption" style="margin:0">本人或环境变化：记录情境，评价标准保持原样；需要时转为跟踪或沟通。</p>` : ''}
-      ${sug.length ? html`<div class="nt-row">${sug.map((k) => (k === '修订评价标准' // v1.6 3.35.7：归因到评价标准的，直接打开评价体系里对应规则的草稿
+      ${sug.length ? html`<div class="nt-row">${sug.map((k) => (k === '修订评价标准' // v1.6 3.35.7：归因到评价标准的，直接打开人才评价规则里对应规则的草稿
           ? html`<button class="n-btn n-btn--sm" type="button" data-act="${h.id}" data-kind="${k}">${icon('pen')}起草修订</button>`
           : html`<button class="n-btn n-btn--sm" type="button" data-act="${h.id}" data-kind="${k}">${icon('plus')}生成「${k}」动作</button>`))}</div>` : ''}
     </div>`;
@@ -370,7 +370,7 @@
         if (!st.confirmAttrib(id, h, { cats: drafting.cats, reason, text: drafting.text })) { drafting = null; render(main); NT.toast('依据已经变化，这条假设不能按原文确认'); return; }
         drafting = null; render(main);
         $(`[data-hyp="${h.id}"] .n-block`)?.classList.add('is-settling');
-        NT.toast('归因已确认并署名。结论只作用于评价体系，不改变被评价人的档案');
+        NT.toast('归因已确认并署名。结论只作用于人才评价规则，不改变被评价人的档案');
         return;
       }
       const ac = e.target.closest('[data-act]');
@@ -382,7 +382,7 @@
         render(main);
         if (!a) { NT.toast('依据已经变化，这条结论要先复核，暂不能生成动作'); return; }
         if (kind === '修订评价标准' && frontLink(chain)) { location.href = frontLink(chain); return; }
-        NT.toast(`已生成「${a.title}」，在「人才项目复盘」对应的节点下跟进`);
+        NT.toast(`已生成「${a.title}」，在「人才项目」关键节点复盘的对应节点下跟进`);
       }
     };
   }
@@ -399,7 +399,7 @@
     if (!all.length) {
       return mount(main, html`
         <header class="nt-head"><div><h1>${self ? '我的判断对照' : `${name(raterId)}的判断`}</h1></div></header>
-        ${UI.state({ ip: 'rest', title: self ? '你作为评价人给出的判断会出现在这里' : '这位评价人的判断会出现在这里', text: '每条判断和后一阶段对同一个人同一维度的结论放在一起，供修订评价体系参考。' })}`);
+        ${UI.state({ ip: 'rest', title: self ? '你作为评价人给出的判断会出现在这里' : '这位评价人的判断会出现在这里', text: '每条判断和后一阶段对同一个人同一维度的结论放在一起，供修订人才评价规则参考。' })}`);
     }
     mount(main, html`
       <header class="nt-head"><div><h1>${self ? '我的判断对照' : `${name(raterId)}的判断`}</h1>
@@ -415,7 +415,7 @@
         </div>
         <aside class="nt-grid">
           ${self ? html`<div class="n-lock">${icon('lock')}这里只显示你本人做过的判断和对应的后段等级。</div>` : html`<a class="n-btn n-btn--ghost" href="${NT.param('from') ? `judge.html?id=${NT.param('from')}` : 'judge.html'}">${icon('back')}回到判断对照</a>`}
-          <div class="n-lock">${icon('info')}这些对照只用来修正评价体系：结论不改变被评价人的分数、象限和档案，也不进入评价人本人的档案。</div>
+          <div class="n-lock">${icon('info')}这些对照只用来修正人才评价规则：结论不改变被评价人的分数、象限和档案，也不进入评价人本人的档案。</div>
         </aside>
       </div>`);
     main.onclick = (e) => { markClick(e, main); };

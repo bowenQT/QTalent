@@ -189,7 +189,7 @@
       let why = el.querySelector('.n-score__why');
       if (edited && Math.abs(sc.v - sc.ai) >= 2) {
         if (!why) { why = document.createElement('input'); why.className = 'n-score__why'; why.setAttribute('aria-label', `${d.name}改分理由`); why.oninput = () => { sc.why = why.value; }; el.append(why); }
-        why.placeholder = `为什么改成 ${sc.v} 分？留空会进 HR 校准队列`;
+        why.placeholder = `为什么改成 ${sc.v} 分？留空会转给 HR 复核`;
       } else why?.remove();
     };
     row.addEventListener('click', (e) => {

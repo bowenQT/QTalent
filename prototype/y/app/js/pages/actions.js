@@ -15,9 +15,9 @@
   let editing = null; // 'new' | 'edit' | 'fix'
 
   NT.shell({
-    nav: 'actions', title: '人才项目复盘',
+    nav: 'programs', title: '关键节点复盘', crumbs: [['人才项目', 'landing.html']],
     allow: (r) => ['ceo', 'hrbp', 'lead'].includes(r),
-    view: () => { const { g, node } = sel(); return `人才项目复盘 · ${g.name} · ${node.name}`; },
+    view: () => { const { g, node } = sel(); return `关键节点复盘 · ${g.name} · ${node.name}`; },
     state: () => ({ key, editing }),
     restore: (s) => { if (s.key) { key = s.key; editing = s.editing || null; render($('#main')); } },
     render,
@@ -38,7 +38,7 @@
     const p = st.plan(a.from); if (!p) return '';
     return p.kind === 'staffing' ? `来自项目用人方案 v${p.version}` : `来自${p.title || '组织调整方案'} v${p.version}`;
   }
-  // 判断对照生成的改进作用于评价体系，只给能看判断对照汇总的视角；对人的行动按归属范围过滤
+  // 判断对照生成的改进作用于人才评价规则，只给能看判断对照汇总的视角；对人的行动按归属范围过滤
   const visible = (a) => (st.judgeBatch(a.from) ? st.canJudge() : !a.person || st.scope(a.person));
   const sorted = (l) => l.slice().sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state));
 
@@ -54,7 +54,7 @@
     key = k;
     const others = sorted(S.actions.filter((a) => visible(a) && !st.actionNode(a)));
     mount(main, html`
-      <header class="nt-head"><div><h1>人才项目复盘</h1><p>按人才项目的关键节点回看：每个节点做得怎么样、哪里要改。改进事项挂在节点下，跟到完成。</p></div></header>
+      ${UI.programHead('actions', '按人才项目的关键节点回看：每个节点做得怎么样、哪里要改。改进事项挂在节点下，跟到完成。')}
       <div class="nt-split nt-split--nav">
         <aside class="nt-grid">
           <nav class="n-card" aria-label="人才项目与关键节点">${PROGRAMS.map((p) => html`<div class="n-pgroup">

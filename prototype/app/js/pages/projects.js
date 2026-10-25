@@ -6,7 +6,7 @@
   let status = 'all';
 
   NT.shell({
-    nav: 'projects', title: st.role() === 'ceo' ? '项目与批次' : '项目',
+    nav: 'projects', title: st.role() === 'ceo' ? '项目与批次' : '项目与课题',
     view: () => `项目 · ${status === 'all' ? '全部' : status}`,
     state: () => ({ status }),
     restore: (s) => { status = s.status || 'all'; draw(); },
@@ -14,7 +14,7 @@
       const role = st.role();
       const canNew = ['ceo', 'hrbp', 'lead'].includes(role);
       mount(main, html`
-        <header class="nt-head"><div><h1>${role === 'ceo' ? '项目与批次' : '项目'}</h1><p>${role === 'self' ? '你参与的项目。这里只显示项目基本信息。' : role === 'mentor' ? '你所带批次的议题项目，以及你参与的项目。' : '业务项目、Landing 议题、训练营课题、黑客松和专项。一个人可以同时在几个项目里，进出都留有记录。'}</p></div>
+        <header class="nt-head"><div><h1>${role === 'ceo' ? '项目与批次' : '项目与课题'}</h1><p>${role === 'self' ? '你参与的项目。这里只显示项目基本信息。' : role === 'mentor' ? '你所带批次的议题项目，以及你参与的项目。' : '业务项目、Landing 议题、训练营课题、黑客松和专项。一个人可以同时在几个项目里，进出都留有记录。'}</p></div>
           ${canNew ? html`<div class="nt-head__acts"><a class="n-btn n-btn--sm" href="staffing.html?new=1">${icon('spark')}为项目找人</a><button class="n-btn n-btn--sm n-btn--ink" type="button" id="new">${icon('plus')}新建项目</button></div>` : ''}</header>
         ${role === 'ceo' ? batchStrip() : ''}
         <div class="n-chips" role="group" aria-label="按状态筛选" id="chips">${['all', '筹备中', '进行中', '已结束', '已归档'].map((s) => html`<button class="n-chip" type="button" data-s="${s}" aria-pressed="${s === status}">${s === 'all' ? '全部' : s}</button>`)}</div>

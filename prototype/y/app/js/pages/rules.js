@@ -1,4 +1,4 @@
-/* 评价体系（v1.6 3.35）：六类规则的总览、详情、版本历史与对比。
+/* 人才评价规则（v1.6 3.35）：六类规则的总览、详情、版本历史与对比。
    值得关注、维度与锚点可以修订：HR 起草 → 写理由与依据 → 预览影响 → 提交，管理者看对比与预览后确认发布（朱印）或退回。
    象限落位、前段评价标准与对应表、目标角色与发展通道在原型里只读；标签库沿用标签库页面。
    这一页可以出现规则版本号与规则编号（界面文案规范的例外）。 */
@@ -19,19 +19,19 @@
 
   NT.shell({
     nav: 'rules',
-    title: kind ? KINDS[kind]?.n || '评价体系' : '评价体系',
-    crumbs: kind ? [['评价体系', 'rules.html']] : [],
+    title: kind ? KINDS[kind]?.n || '人才评价规则' : '人才评价规则',
+    crumbs: kind ? [['人才评价规则', 'rules.html']] : [],
     // 评分人本人有待复核的分时，可以进维度与锚点页按新版本复核（v1.6 3.35.5）
     allow: (r) => ['ceo', 'hrbp'].includes(r) || (kind === 'rubric' && st.myHeldScores(r).length > 0),
-    denyTitle: '评价体系由 HR 和管理者维护',
+    denyTitle: '人才评价规则由 HR 和管理者维护',
     denyText: '修订由 HR 起草、管理者确认发布。对锚点有想法，可以在记录页的锚点面板提修订建议。',
-    view: () => (kind ? `评价体系 · ${KINDS[kind]?.n || '链接失效'}${line && lineName(line) ? ` · ${lineName(line)}` : ''}` : '评价体系 · 总览'),
+    view: () => (kind ? `人才评价规则 · ${KINDS[kind]?.n || '链接失效'}${line && lineName(line) ? ` · ${lineName(line)}` : ''}` : '人才评价规则 · 总览'),
     render,
   });
 
   function render(main) {
     if (!kind) return renderOverview(main);
-    if (!KINDS[kind]) return mount(main, UI.state({ ip: 'confirm', title: '链接失效', text: '这条评价规则不存在，或链接有误。回到评价体系重新进入。', actions: html`<a class="n-btn n-btn--sm" href="rules.html">回到评价体系</a>` }));
+    if (!KINDS[kind]) return mount(main, UI.state({ ip: 'confirm', title: '链接失效', text: '这条评价规则不存在，或链接有误。回到人才评价规则重新进入。', actions: html`<a class="n-btn n-btn--sm" href="rules.html">回到人才评价规则</a>` }));
     if (kind === 'tags') return mount(main, UI.state({ ip: 'rest', title: '标签库在单独的页面维护', text: '收录、并入和停用标签都在标签库里完成。', actions: html`<a class="n-btn n-btn--sm" href="tags.html">打开标签库</a>` }));
     if (kind === 'front') return renderFront(main);
     if (kind === 'tpl') return renderTpl(main);

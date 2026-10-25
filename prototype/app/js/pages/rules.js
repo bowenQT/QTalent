@@ -1,4 +1,4 @@
-/* 评价体系（v1.6 3.35）：六类规则的总览、详情、版本历史与对比。
+/* 人才评价规则（v1.6 3.35）：六类规则的总览、详情、版本历史与对比。
    值得关注、维度与锚点可以修订：HRBP 起草 → 写理由与依据 → 预览影响 → 提交，CEO 看对比与预览后确认发布（朱印）或退回。
    象限落位、前段评价标准与对应表、目标角色与发展通道在原型里只读；标签库沿用标签库页面。
    这一页可以出现规则版本号与规则编号（界面文案规范的例外）。 */
@@ -19,13 +19,13 @@
 
   NT.shell({
     nav: 'rules',
-    title: kind ? KINDS[kind]?.n || '评价体系' : '评价体系',
-    crumbs: kind ? [['评价体系', 'rules.html']] : [],
+    title: kind ? KINDS[kind]?.n || '人才评价规则' : '人才评价规则',
+    crumbs: kind ? [['人才评价规则', 'rules.html']] : [],
     // 评分人本人有待复核的分时，可以进维度与锚点页按新版本复核（v1.6 3.35.5）
     allow: (r) => (['ceo', 'hrbp'].includes(r) && (!kind || (!!KINDS[kind] && kind !== 'tags'))) || (kind === 'rubric' && st.myHeldScores(r).length > 0),
-    denyTitle: '评价体系由 HRBP 和 CEO 维护',
+    denyTitle: '人才评价规则由 HRBP 和 CEO 维护',
     denyText: '修订由 HRBP 起草、CEO 确认发布。对锚点有想法，可以在记录页的锚点面板提修订建议。',
-    view: () => (kind ? `评价体系 · ${KINDS[kind]?.n}${line ? ` · ${lineName(line)}` : ''}` : '评价体系 · 总览'),
+    view: () => (kind ? `人才评价规则 · ${KINDS[kind]?.n}${line ? ` · ${lineName(line)}` : ''}` : '人才评价规则 · 总览'),
     render,
   });
 
@@ -40,7 +40,7 @@
   function renderOverview(main) {
     const lock = st.inventoryLock();
     mount(main, html`
-      <header class="nt-head"><div><h1>评价体系</h1><p>人才判断用到的规则都在这里：每条规则按版本保存，修订要写理由、看影响、经 CEO 确认才生效，已经做出的判断保留原来的版本。</p></div></header>
+      <header class="nt-head"><div><h1>人才评价规则</h1><p>人才判断用到的规则都在这里：每条规则按版本保存，修订要写理由、看影响、经 CEO 确认才生效，已经做出的判断保留原来的版本。</p></div></header>
       <div class="n-rcards">
         <p class="n-rcards__grp">会改变评价结果 · 修订由 HRBP 起草、CEO 确认</p>
         ${card('rubric', { signal: rubricSignal() })}
