@@ -13,3 +13,15 @@ export {
 } from './schema';
 export type { SourceLocation } from './schema';
 export { readEvidenceForTalent } from './read';
+export {
+  lockRecordDraft,
+  readRecordOperation,
+  readRecordSave,
+  readDraftEvents,
+  readWithdrawnRecordEventIds,
+  beginRecordSave,
+  appendRecordEvent,
+  finishRecordSave,
+  withdrawRecordSave,
+  appendRecordOperation,
+} from './write';

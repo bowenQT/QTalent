@@ -3,3 +3,12 @@ export { aiSuggestions, confirmations, scoreReviews } from './schema';
 export { readActiveConfirmations } from './read';
 export { deriveReferencePosition } from './derive';
 export type { PositionScore } from './derive';
+export {
+  lockScoreEvents,
+  readEventScoreState,
+  insertConfirmedScore,
+  withdrawSavedScores,
+  readEffectiveScoreReviews,
+  insertRecordSuggestion,
+} from './write';
+export { canConfirmOwnScore, isUndoWindowOpen } from './write-policy';
