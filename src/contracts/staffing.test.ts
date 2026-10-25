@@ -337,7 +337,8 @@ describe('staffing contracts', () => {
     };
     expect(staffingJudgmentResultSchema.safeParse(success).success).toBe(true);
     const unsigned = { ...success, match };
-    expect(staffingJudgmentResultSchema.safeParse(unsigned).success).toBe(false);
+    const rejected = staffingJudgmentResultSchema.safeParse(unsigned);
+    expect(rejected.success).toBe(false);
     const failed = {
       ...success,
       match: {
