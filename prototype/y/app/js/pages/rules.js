@@ -606,8 +606,9 @@
       const v = await NT.dialog({ title: `退回 ${d.v}？`, body: html`<p>草稿回到${name(d.by)}那里，你写的理由会出现在${name(d.by)}的待办里。</p><textarea class="n-textarea" rows="2" id="rt" placeholder="${RETURN_PH[k] || ''}"></textarea>`,
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '退回修改', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#rt', dl).value.trim(), read: (dl) => $('#rt', dl).value.trim() }] });
       if (v?.value !== 'ok') return;
-      st.returnDraft(k, v.data, frontLine); rerender();
-      NT.toast(`已退回给${name(d.by)}修改，理由在${name(d.by)}的待办里`, { undo: () => { d.state = 'pending'; delete d.returned; st.save(); rerender(); } });
+      const undo = st.returnDraft(k, v.data, frontLine); if (!undo) { NT.toast('规则状态已变化，退回未执行'); rerender(); return; }
+      rerender();
+      NT.toast(`已退回给${name(d.by)}修改，理由在${name(d.by)}的待办里`, { undo: () => { if (!undo()) NT.toast('草稿已被修改或再次处理，不能撤销旧退回'); rerender(); } });
     });
     $('#rv-toggle')?.addEventListener('click', () => { reviewing = !reviewing; rerender(); $('#rv-toggle')?.focus(); });
     $$('[data-rv]', main).forEach((b) => b.addEventListener('click', () => {
