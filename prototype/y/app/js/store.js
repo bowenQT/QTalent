@@ -1005,18 +1005,27 @@
   // 已处理的线索留在 HR 视图里：核实的、不采纳的连同理由（v1.4 3.20.3），管理者不经过这里
   store.watchHandled = () => (store.role() === 'hrbp' ? S.watchClues.filter((c) => ['verified', 'rejected'].includes(c.state) && store.scope(c.person) === 'full').sort((a, b) => (b.verifiedAt || '').localeCompare(a.verifiedAt || '')) : []);
   store.verifyClue = (id, ok, why) => {
-    const c = S.watchClues.find((x) => x.id === id); if (!c) return null;
+    const c = S.watchClues.find((x) => x.id === id);
+    // 核实线索是 HR 的有范围写操作；处理时重查状态，防止旧按钮重复覆盖。
+    if (!c || store.role() !== 'hrbp' || store.scope(c.person) !== 'full' || c.state !== 'pending' || (!ok && !why?.trim())) return null;
+    const handledToken = NT.uid('vh');
     if (ok) {
-      Object.assign(c, { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now() });
+      Object.assign(c, { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now(), handledToken });
       delete c.rejectWhy; // 已核实不能保留先前的「不采纳」理由
     } else {
-      Object.assign(c, { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
+      Object.assign(c, { state: 'rejected', rejectWhy: why.trim(), verifiedBy: store.me().id, verifiedAt: NT.TODAY, handledToken });
       delete c.verifiedTs; // 已不采纳不再保留先前核实时刻
     }
     store.save();
     return c;
   };
-  store.unverifyClue = (id) => { const c = S.watchClues.find((x) => x.id === id); c.state = 'pending'; delete c.verifiedBy; delete c.verifiedAt; delete c.verifiedTs; delete c.rejectWhy; store.save(); };
+  store.unverifyClue = (id, expectedToken) => {
+    const c = S.watchClues.find((x) => x.id === id);
+    if (!c || store.role() !== 'hrbp' || store.scope(c.person) !== 'full' || !['verified', 'rejected'].includes(c.state)
+      || (expectedToken != null && c.handledToken !== expectedToken)) return false;
+    c.state = 'pending'; delete c.verifiedBy; delete c.verifiedAt; delete c.verifiedTs; delete c.rejectWhy; delete c.handledToken;
+    store.save(); return true;
+  };
 
   // ---------- 推荐方向（v1.5 3.31）：带目标角色的提名，走值得关注的核实流程 ----------
   // 「适合做 FDE」「适合做产品架构师」：中英文之间留空格，中文之间不留
