@@ -112,7 +112,6 @@ a.n-btn { text-decoration: none; }
 .nt-tl-open[aria-expanded="true"]::after { rotate: 45deg; }
 .nt-tl-card { margin-top: var(--s-3); }
 .nt-tl-card .n-card { box-shadow: var(--e-0); }
-.n-history { margin: 0 0 var(--s-2) calc(5.5em + var(--s-3)); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); }
 
 /* 找人：需求卡里可改写的要求、重排后变化的证据 */
 .nt-req { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted var(--ink-4); text-underline-offset: 4px; }
