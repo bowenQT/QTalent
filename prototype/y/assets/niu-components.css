@@ -70,6 +70,22 @@ a.n-btn { text-decoration: none; }
 .n-badge--ai { background: var(--foil), var(--sheet); color: var(--light); box-shadow: inset 0 0 0 1px rgb(61 99 133 / .14); }
 .n-badge--seal { background: transparent; color: var(--seal); box-shadow: inset 0 0 0 1px rgb(194 59 34 / .35); } /* 朱印不做底色，只留字和细框 */
 .n-badge--demo { height: 18px; padding: 0 5px; font-size: 11px; font-weight: 500; background: transparent; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+/* 处理进度：排队中 / 判断中 / 待人工判断 / 失败。中性墨色加图标和文字，不用 --yes / --no / --unknown / --conflict；只说明处理到哪一步，不表达判断结论 */
+.n-badge--proc[data-state="queued"] { background: transparent; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.n-badge--proc[data-state="judging"] { color: var(--ink-2); }
+.n-badge--proc[data-state="judging"] svg { animation: proc-pulse 1.2s var(--ease-in-out) infinite; }
+.n-badge--proc[data-state="review"] { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink-2); }
+.n-badge--proc[data-state="failed"] { color: var(--ink); }
+@keyframes proc-pulse { 50% { opacity: .3; } }
+.n-reqs.n-reqs--proc { grid-template-columns: max-content minmax(0, 1fr); gap: var(--s-3); align-items: start; font-size: var(--t-sm); line-height: 1.55; }
+.n-reqs.n-reqs--proc li { display: contents; }
+.n-reqs.n-reqs--proc li > span:last-child { color: var(--ink-2); }
+.n-reqs.n-reqs--proc li > .n-badge { justify-self: start; }
+.n-proc__note { font-size: var(--t-xs); color: var(--ink-3); }
+.n-proc__retry { margin: var(--s-1) 0 0 calc(-1 * var(--s-2)); }
+@media (prefers-reduced-motion: reduce) {
+  .n-badge--proc[data-state="judging"] svg { animation: none; }
+}
 
 /* ── 流光：AI 内容的材质 ──────────────────────── */
 .is-foil {
@@ -182,6 +198,10 @@ a.n-btn { text-decoration: none; }
 .n-trail__step[data-state="active"]::before { background: var(--light); box-shadow: 0 0 0 4px var(--light-soft); animation: pulse-dot 1.2s var(--ease-in-out) infinite; }
 @keyframes pulse-dot { 50% { box-shadow: 0 0 0 7px rgb(61 99 133 / .08); } }
 .n-trail__step small { color: var(--ink-3); font-weight: 400; margin-left: 6px; }
+/* 失败步骤：墨色实心圆加 ×，与完成的小实心点区分；颜色保持中性，沿用 .n-fail 的处理 */
+.n-trail__step[data-state="failed"] { color: var(--ink); font-weight: 600; }
+.n-trail__step[data-state="failed"]::before { content: none; }
+.n-trail__x { position: absolute; left: calc(-1 * var(--s-4) - 7.5px); top: 7.5px; box-sizing: border-box; width: 14px; height: 14px; padding: 2px; border-radius: 50%; background: var(--ink); color: var(--sheet); }
 
 /* ── 引用角标与原文浮层 ───────────────────────── */
 .n-cite { position: relative; display: inline-block; }
