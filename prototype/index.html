@@ -7,23 +7,60 @@
 <link rel="stylesheet" href="assets/niu-tokens.css">
 <link rel="stylesheet" href="assets/niu-components.css">
 <style>
-  /* 评审导览：一张铺在宣纸上的流程单。四条叙事是真实的先后顺序，所以用编号；每一步都带上该用的视角直接打开。 */
+  /* 评审导览：版本 Y 是这一轮的评审重点，放在前面；版本 X 收在后面。每条走查默认收起，只露标题、一句话和步数，展开后按真实先后排的步骤都带着该用的视角直接打开。 */
   body { margin: 0; min-height: 100vh; background: var(--paper); color: var(--ink); }
-  .g { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--s-10); max-width: 1160px; margin: 0 auto; padding: var(--s-14) var(--s-8) var(--s-20); }
-  .g-hero { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-6); align-items: center; }
+  a.n-btn { text-decoration: none; }
+  .g { max-width: 1040px; margin: 0 auto; padding: var(--s-14) var(--s-8) var(--s-20); }
+
+  .g-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-6); align-items: center; margin-bottom: var(--s-10); }
   .g-hero h1 { margin: 0; font-size: var(--t-3xl); line-height: var(--lh-tight); font-weight: 700; letter-spacing: -.01em; }
-  .g-hero p { margin: var(--s-3) 0 0; max-width: 40em; font-size: var(--t-md); line-height: var(--lh-read); color: var(--ink-2); }
+  .g-hero p { margin: var(--s-3) 0 0; max-width: 42em; font-size: var(--t-md); line-height: var(--lh-read); color: var(--ink-2); }
   .g-hero .ink-hand { font-size: var(--t-lg); color: var(--ink); }
-  .g-cast { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-2); }
+  .g-hero__links { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); margin-top: var(--s-3); font-size: var(--t-sm); }
+  .g-hero__links a { color: var(--ink-2); }
+
+  /* 版本区：版本 Y 用白卡承托，版本 X 直接铺在底色上，靠层次分出主次 */
+  .g-ver { padding: var(--s-6) var(--s-8) var(--s-3); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
+  .g-ver + .g-ver { margin-top: var(--s-10); }
+  .g-ver--sub { padding: 0; background: none; box-shadow: none; }
+  .g-ver__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--s-3) var(--s-6); }
+  .g-ver__head h2 { margin: 0; font-size: var(--t-xl); }
+  .g-ver--sub .g-ver__head h2 { font-size: var(--t-lg); }
+  .g-ver__head p { margin: var(--s-2) 0 0; max-width: 40em; color: var(--ink-2); line-height: 1.7; }
+  .g-ver__links { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+
+  .g-cast { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: var(--s-2); margin: var(--s-5) 0 var(--s-6); }
   .g-cast a { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px var(--s-3); align-items: center; padding: var(--s-3); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); color: inherit; text-decoration: none; transition: box-shadow var(--d-instant); }
+  .g-ver:not(.g-ver--sub) .g-cast a { background: var(--sheet-sunk); box-shadow: none; }
   .g-cast a:hover { box-shadow: var(--e-2); }
+  .g-cast a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .g-cast .n-avatar { grid-row: span 2; }
   .g-cast b { font-size: var(--t-sm); }
   .g-cast small { font-size: var(--t-xs); color: var(--ink-3); line-height: 1.4; }
-  .g-story { padding: var(--s-6) var(--s-8) var(--s-4); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
-  .g-story + .g-story { margin-top: var(--s-5); }
-  .g-story h2 { margin: 0; font-size: var(--t-xl); }
-  .g-story > p { margin: var(--s-2) 0 var(--s-4); color: var(--ink-2); line-height: 1.7; }
+
+  .g-sub { margin: 0 0 var(--s-1); font-size: var(--t-sm); font-weight: 600; color: var(--ink-3); }
+  .g-routes { margin: 0; padding: 0; list-style: none; }
+  .g-ver--sub .g-routes { padding: 0 var(--s-6); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
+
+  /* 一条走查：收起时是一行标题、一句话和步数 */
+  .g-route + .g-route { border-top: 1px solid var(--line); }
+  .g-route > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-4); align-items: center; padding: var(--s-4) 0; cursor: pointer; list-style: none; }
+  .g-route > summary::-webkit-details-marker { display: none; }
+  .g-route > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-field); }
+  .g-route h3 { margin: 0; font-size: var(--t-md); font-weight: 600; }
+  .g-route summary p { margin: 2px 0 0; font-size: var(--t-sm); color: var(--ink-2); line-height: 1.6; }
+  .g-route__meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: var(--s-2); }
+  .g-route__meta span { padding: 0 6px; border-radius: var(--r-chip); background: var(--sheet-sunk); color: var(--ink-2); font-size: 11px; line-height: 18px; }
+  .g-route__meta span:first-child { background: none; padding-left: 0; color: var(--ink-3); }
+  .g-route__fold { display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-sm); color: var(--ink-3); white-space: nowrap; }
+  .g-route__fold svg { width: 16px; height: 16px; transition: transform var(--d-quick) var(--ease-out); }
+  .g-route[open] .g-route__fold svg { transform: rotate(180deg); }
+  .g-route__fold::before { content: "展开"; }
+  .g-route[open] .g-route__fold::before { content: "收起"; }
+  .g-route > summary:hover h3 { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
+  .g-route__body { padding: 0 0 var(--s-4); }
+  .g-route__body > p { margin: 0 0 var(--s-3); max-width: 46em; font-size: var(--t-sm); color: var(--ink-2); line-height: 1.7; }
+
   .g-steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
   .g-steps li { counter-increment: s; position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: var(--s-3); align-items: start; padding: var(--s-3) 0; border-top: 1px solid var(--line); }
   .g-steps li::before { content: counter(s); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; }
@@ -32,29 +69,31 @@
   .g-steps div > span { display: block; margin-top: 2px; font-size: var(--t-sm); color: var(--ink-3); line-height: 1.6; }
   .g-steps a { white-space: nowrap; align-self: center; }
   .g-role { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: var(--r-chip); background: var(--sheet-sunk); color: var(--ink-2); font-size: 11px; font-weight: 500; vertical-align: 2px; }
-  .g-side { display: grid; gap: var(--s-4); align-content: start; position: sticky; top: var(--s-6); }
+
+  .g-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); margin-top: var(--s-10); }
   .g-box { padding: var(--s-5); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-sm); line-height: 1.7; color: var(--ink-2); }
-  .g-box h3 { margin: 0 0 var(--s-2); font-size: var(--t-body); color: var(--ink); }
+  .g-box h2 { margin: 0 0 var(--s-2); font-size: var(--t-body); color: var(--ink); }
   .g-box ol, .g-box ul { margin: 0; padding-left: 1.2em; }
   .g-box li + li { margin-top: 4px; }
-  .g-links { display: grid; gap: var(--s-2); }
-  .g-links .n-btn { justify-content: flex-start; }
-  .g-legend { display: flex; gap: var(--s-4); margin-top: var(--s-2); font-size: var(--t-xs); color: var(--ink-3); }
-  .g-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 50%; background: var(--ink); vertical-align: -1px; }
-  .g-legend i.p { background: var(--sheet); box-shadow: inset 0 0 0 1.5px var(--ink); }
-  a.n-btn { text-decoration: none; }
+  .g-box .n-btn { margin-top: var(--s-4); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .g-route__fold svg, .g-cast a { transition: none; }
+  }
   @media (max-width: 960px) {
-    .g { grid-template-columns: minmax(0, 1fr); padding: var(--s-8) var(--s-4) var(--s-14); gap: var(--s-6); }
+    .g { padding: var(--s-8) var(--s-4) var(--s-14); }
     .g-cast { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .g-side { position: static; }
+    .g-foot { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 600px) {
-    .g-hero { grid-template-columns: minmax(0, 1fr); }
+    .g-hero { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
     .g-hero h1 { font-size: var(--t-2xl); }
-    .g-story { padding: var(--s-5) var(--s-4) var(--s-2); }
+    .g-ver { padding: var(--s-5) var(--s-4) var(--s-2); }
+    .g-ver--sub { padding: 0; }
+    .g-ver--sub .g-routes { padding: 0 var(--s-4); }
+    .g-cast { grid-template-columns: minmax(0, 1fr); }
     .g-steps li { grid-template-columns: 28px minmax(0, 1fr); }
     .g-steps a { grid-column: 2; justify-self: start; }
-    .g-cast { grid-template-columns: minmax(0, 1fr); }
   }
 </style>
 </head>
@@ -64,128 +103,233 @@
     <span id="ip"></span>
     <div>
       <h1>Niu-Talent 评审原型</h1>
-      <p>七牛内部的人才识别、追踪与盘点工作台。下面四条叙事、一条 CEO 首页走查和评价体系的修订流程按真实顺序排好，每一步都会用对应的身份打开页面；看到哪里有问题，<span class="ink-hand">直接划线写评论</span>。</p>
+      <p>七牛内部的人才识别、追踪与盘点工作台，有两个平行版本：这一轮先看版本 Y，版本 X 放在后面对比。每条走查展开后按真实顺序排好，每一步都用对应的身份打开页面；看到哪里有问题，<span class="ink-hand">直接划线写评论</span>。</p>
+      <div class="g-hero__links"><a href="#help">怎么写评论</a><a href="#help">重置我的演示数据</a></div>
     </div>
   </header>
 
-  <nav class="g-cast" aria-label="五个演示身份">
-    <a href="app/index.html?as=ceo"><span class="n-avatar" style="--hue:212">程</span><b>程远 · CEO</b><small>全公司</small></a>
-    <a href="app/index.html?as=hrbp"><span class="n-avatar" style="--hue:340">苏</span><b>苏晚 · HRBP</b><small>增长产品部、产品市场部</small></a>
-    <a href="app/index.html?as=lead"><span class="n-avatar" style="--hue:320">韩</span><b>韩策 · 部门负责人</b><small>业务成功部</small></a>
-    <a href="m/index.html?as=mentor"><span class="n-avatar" style="--hue:170">叶</span><b>叶青 · 导师</b><small>Landing 第三期，手机为主</small></a>
-    <a href="app/person.html?id=p-lin&amp;as=self"><span class="n-avatar" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><b>林知远 · 员工</b><small>只看自己的经历</small></a>
-  </nav>
-
-  <div>
-    <section class="g-story" aria-labelledby="s1">
-      <h2 id="s1">Landing 第三期：从一次复盘会到第一份档案</h2>
-      <p>导师用手机录下对人复盘会，AI 整理成事件和建议分；拿不准的人名交给人核对，两位评价人分差大时由 HRBP 校准；结营时新人从「资料不足」区落进象限。</p>
-      <ol class="g-steps">
-        <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>录一次对人复盘会</b><span>选「多人会议」开始，试试打标记、随手记、@某人和收起成悬浮条；完成后进入处理中，可以直接返回。</span></div><a class="n-btn n-btn--sm" href="m/record.html?as=mentor">打开</a></li>
-        <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>读人才纪要并追问</b><span>点事件旁的时间点跳到录音位置；底部推荐追问会按真实节奏流式回答。</span></div><a class="n-btn n-btn--sm" href="m/record.html?m=w2&amp;as=mentor">打开</a></li>
-        <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>核对「小王」「宋老师」指谁</b><span>一次只问一件事，选完立刻生效，5 秒内可撤销。桌面版有证据飞入的动效。</span></div><a class="n-btn n-btn--sm" href="m/inbox.html?as=mentor">打开</a></li>
-        <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>逐个评价学员</b><span>对唐果按住说一段话，AI 整理成事件后逐项确认；林知远的智慧力两位导师分差 2 分，进了校准队列。</span></div><a class="n-btn n-btn--sm" href="m/mentor.html?as=mentor">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>在校准队列处理冲突</b><span>看双方分数、理由和锚点，校准并写一句理由；原评价保留在修订历史里。</span></div><a class="n-btn n-btn--sm" href="app/queue.html?as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">导师</span>确认 W2 对人复盘</b><span>冲突校准完、建议分都确认后，整份复盘才能确认并计入档案。</span></div><a class="n-btn n-btn--sm" href="app/landing-review.html?id=p-lin&amp;as=mentor">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>结营校准：从资料不足落入象限</b><span>小犇放出光点给参考位置，头像以墨色落下；拖到别的象限要写理由，全部确认后盖印冻结。</span></div><a class="n-btn n-btn--sm" href="app/calibrate.html?id=b-land3&amp;as=hrbp">打开</a></li>
-      </ol>
-    </section>
-
-    <section class="g-story" aria-labelledby="s2">
-      <h2 id="s2">找业务负责人 / 关键岗位</h2>
-      <p>CEO 从目标角色模板发起找人，需求卡带出模板要求，就地补一句就能改；候选人卡多一行发展方向；拖进槽位后确认方案，人选回填到组织调整方案里。</p>
-      <ol class="g-steps">
-        <li><div><b><span class="g-role">CEO</span>在首页的找人输入框说一句，或选「找业务负责人」模板</b><span>找人输入框是 CEO 首页的第一块，模板是它下面的次要入口；业务负责人模板有 v2，点开能看到这一版改了什么。发起后，这件事会留在「需要我看」下面的「在推进」里；方案起草后，置顶到「需要我看」等你确认。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo">打开</a></li>
-        <li><div><b><span class="g-role">CEO</span>需求卡带出模板要求，补一句「11 月能到岗」</b><span>候选人即时重排；每张候选人卡多一行发展方向，本人意愿和管理判断分开写，没有记录的写「未知」，排序不看它。四种匹配状态：支持、不支持、资料不足、证据冲突。</span></div><a class="n-btn n-btn--sm" href="app/staffing.html?tpl=tpl-biz&amp;as=ceo">打开</a></li>
-        <li><div><b><span class="g-role">CEO</span>拖进槽位并确认 v1</b><span>确认后冻结快照、写入项目 owner、生成跟进行动；确认不等于人事动作已执行。</span></div><a class="n-btn n-btn--sm" href="app/staffing.html?project=pr-newconv&amp;as=ceo">打开</a></li>
-        <li class="is-phone"><div><b><span class="g-role">CEO · 手机</span>在手机上确认另一份方案</b><span>海外加速搜索体验 v3：看摘要和与 v2 的差异，确认当前版本。换成部门负责人视角会被拦下。</span></div><a class="n-btn n-btn--sm" href="m/plan.html?id=sp-search-3&amp;as=ceo">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>组织调整方案里人选已回填</b><span>「新转化团队 owner」这一条等的就是上一步的结果。</span></div><a class="n-btn n-btn--sm" href="app/plan.html?id=b-h2&amp;as=hrbp">打开</a></li>
-      </ol>
-    </section>
-
-    <section class="g-story" aria-labelledby="s3">
-      <h2 id="s3">HR 盘点闭环：盘点 → 校准 → 方案 → 复盘</h2>
-      <p>工作台先看变化（按时间排，不按幅度排）；盘点里看分布和缺口；按团队校准象限并冻结；方案确认后变成行动，到期对照当时的判断对照。</p>
-      <ol class="g-steps">
-        <li><div><b><span class="g-role">HRBP</span>工作台里的变化</b><span>趋势、长期无事件、参考位置跨象限、团队资料不足占比上升。资料不足不是反向证据。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>2026 H2 盘点</b><span>和 H1 对比分布，提醒补缺口，逐人写结论。</span></div><a class="n-btn n-btn--sm" href="app/review.html?id=b-h2&amp;as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>按团队校准象限并冻结</b><span>运营平台部的周屿：参考位置从双高移到了专业骨干，正式位置不会自动移动。</span></div><a class="n-btn n-btn--sm" href="app/calibrate.html?id=b-h2&amp;as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>确认组织调整方案</b><span>意愿和释放是「未知」的照实写；确认后每条动作生成一条行动。</span></div><a class="n-btn n-btn--sm" href="app/plan.html?id=b-h2&amp;as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>任用后复盘</b><span>左边是冻结的当时判断，右边是后来的事实，结论只有继续、调整、撤回。</span></div><a class="n-btn n-btn--sm" href="app/actions.html?as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">员工</span>本人视角</b><span>林知远只看到自己的经历、参与的项目和发布给他的安排；问「我在哪个象限」会被拒绝。</span></div><a class="n-btn n-btn--sm" href="app/person.html?id=p-lin&amp;as=self">打开</a></li>
-      </ol>
-    </section>
-
-    <section class="g-story" aria-labelledby="s4">
-      <h2 id="s4">判断对照：当时的判断，后来准不准</h2>
-      <p>把前一阶段的判断（入营选拔、面试评价）和后一阶段对同一个人同一维度的结论对照起来，找出系统性偏差，归因后改评价标准或培训评价人。结论不改被评价人的分数、象限和档案。</p>
-      <ol class="g-steps">
-        <li><div><b><span class="g-role">HRBP</span>XEngineer 第二期：内驱力仍有 2 人偏高</b><span>按维度看前后差异的分布，展开内驱力对照双方证据；把一个案例标为「不可比」并写理由，可以撤销。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;dim=drive&amp;as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>对比第一期 v1 与第二期 v2</b><span>第一期按 v1 入营，内驱力 8 人中 6 人偏高；修订成 v2 后降到 2 人。样本只有一期，还不能说改进有效。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;as=hrbp#ver">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>采纳 AI 假设，归因并生成动作</b><span>两条假设先以浅色出现；选「评价方式与信息不足」「评价人」并写理由，确认后以墨色署名，再生成「修订评价标准」和「评价人培训」两条动作。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;as=hrbp#attrib">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>2026 年 2–8 月社招入职</b><span>韩策 5 个可对照案例，「潜力」偏高方向稳定；周屿只有 2 个，显示「样本不足」，不下结论。项目被砍的一例归为环境变化。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-hire26&amp;as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">部门负责人</span>我的判断对照</b><span>韩策只看到自己做过的判断和后段的等级，看不到别的面试官、后段评语和归因讨论。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?rater=me&amp;as=lead">打开</a></li>
-        <li><div><b><span class="g-role">CEO</span>从首页的「判断提醒」进来，请 HRBP 复核</b><span>首页只有 1–2 条批次级提醒。进来后 CEO 看得到按维度的汇总和已确认的结论，看不到单个评价人的数字；在「复核请求」里写一句评论发给 HRBP。员工没有这个入口。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo#jsig">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>回复 CEO 的复核请求</b><span>待办里出现「CEO 请你」；在判断对照页回复并标为已复核，归因和标准修订仍由 HRBP 确认。回到 CEO 首页，展开「需要我看」下面的「在推进」能看到回复。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;as=hrbp#ask">打开</a></li>
-      </ol>
-      <div class="g-legend"><span><i></i>桌面</span><span><i class="p"></i>手机</span></div>
-    </section>
-
-    <section class="g-story" aria-labelledby="s5">
-      <h2 id="s5">CEO 首页走查：看人、速览与关注</h2>
-      <p>CEO 首页是看人的地方：找人、值得关注、需要我看、我的关注，判断提醒退到右栏最后。点人名先拉起速览，30 秒看完为什么关注、关键事实和能力线索；推动在速览和档案里发起，发起后这个人进入「我的关注」。</p>
-      <ol class="g-steps">
-        <li><div><b><span class="g-role">CEO</span>看值得关注，点「查看依据」</b><span>每行只有关注原因、一句话和证据角标，规则编号不上首页。点「查看依据」从右侧拉起速览：为什么关注（含规则与核实人）→ 关键事实 → 能力线索 → 已经在做的事；点另一个人直接切换。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo#watch">打开</a></li>
-        <li><div><b><span class="g-role">CEO</span>加关注，再在速览里发起推动</b><span>「值得关注」和「我的关注」人数分开写；加关注后右栏「我的关注」多一人。在速览底部点「推动」选动作和负责人，「需要我看」下面的「在推进」随之更新，5 秒内可撤销。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo#watch">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>记进展、确认结果，核实推荐</b><span>待办最上面是「CEO 请你」；确认结果后写进员工档案时间线，标「来自 CEO 推动」，不产生分数。「待核实线索」里有导师对唐果的推荐，核实后进入档案的发展方向和 CEO 的值得关注。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=hrbp#todo">打开</a></li>
-        <li><div><b><span class="g-role">导师</span>给学员记一件事，推荐方向</b><span>导师首页先列所带学员；按情境、行为、影响记一件事，在事件里给维度分。「推荐」要选目标角色、写理由、勾两件不同的事；导师只看到自己推荐的处理状态，看不到值得关注。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=mentor">打开</a></li>
-        <li><div><b><span class="g-role">部门负责人</span>本团队的 CEO 视角</b><span>先看本团队已核实的值得关注，可以加关注；之后是「变化」、待办和我的关注。没有推动入口。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=lead">打开</a></li>
-        <li class="is-phone"><div><b><span class="g-role">CEO · 手机</span>手机上看同样的内容</b><span>顺序是找人、需要我看、我的关注、值得关注、判断提醒；点人是底部速览，可以加关注，推动在电脑上发起。</span></div><a class="n-btn n-btn--sm" href="m/index.html?as=ceo">打开</a></li>
-        <li><div><b><span class="g-role">员工</span>本人看不到</b><span>林知远的档案里没有被关注、被推荐、被推动的任何痕迹；导师也看不到推动的结果和值得关注。</span></div><a class="n-btn n-btn--sm" href="app/person.html?id=p-lin&amp;as=self">打开</a></li>
-      </ol>
-    </section>
-
-    <section class="g-story" aria-labelledby="s6">
-      <h2 id="s6">评价体系：修订规则，保留历史</h2>
-      <p>人才判断用到的规则都按版本保存。HRBP 起草修订、写理由、看影响，CEO 确认发布；已经确认的分数、冻结的快照和档案版本保留原来的版本。原型里值得关注、维度与锚点可以修订，其余四类只读。</p>
-      <ol class="g-steps">
-        <li><div><b><span class="g-role">HRBP</span>打开评价体系，看到值得关注的修订信号</b><span>六类规则各一张卡；值得关注的卡上写着：入职半年内有 1 人同一维度已有 2 件事印证，第一件早于近 90 天，N1 把这人排除在外。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>起草 watch-v3：N1 时间窗从近 90 天改为近 120 天</b><span>点「起草修订」，在原处改参数，改过的行写出原值、可以还原；写修订理由，「关联依据」里选你的核对结果。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?r=watch&amp;as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>预览影响，提交 CEO 确认</b><span>值得关注 9 → 10 人，进入的是存量经营部的柏舟，按团队写增减。改了参数要重新预览；四项检查都满足才能提交，提交后修改入口关闭，可以撤回到草稿。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?r=watch&amp;as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">CEO</span>在「需要我看」里确认发布</b><span>点「评价规则修订待你确认」：看改了什么、理由、依据和影响人数，进出名单只对 HRBP 展开；确认发布时盖朱印，5 秒内可以撤销，也可以写一句理由退回。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo">打开</a></li>
-        <li><div><b><span class="g-role">CEO</span>回到首页，值得关注按新版本计算</b><span>筛「新发现」能看到柏舟；点「查看依据」，速览「为什么关注」里写的是 watch-v3。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo#watch">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>维度与锚点：rubric-v2 的工程族锚点</b><span>工程族锚点首次启用，兼容声明锁定为不兼容；增长产品部 2026 H2 盘点进行中，生效点只能选下一个盘点批次。预览写出将生成多少条复核任务、分给哪些评分人。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?r=rubric&amp;as=hrbp">打开</a></li>
-        <li><div><b><span class="g-role">导师</span>在记录页的锚点面板提修订建议</b><span>锚点面板写着岗位族和版本；点「提修订建议」，选维度和锚点、写一句理由，可以引用一件事。建议只用于修订规则，分数保持原样。</span></div><a class="n-btn n-btn--sm" href="app/record.html?as=mentor">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>待办里出现「规则修订建议」</b><span>在维度与锚点的修订页里纳入草稿，或写理由不采纳；导师在记录页能看到处理结果。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=hrbp#todo">打开</a></li>
-        <li><div><b><span class="g-role">HRBP</span>判断对照里的「起草修订」</b><span>归因确认后，「修订评价标准」这一项的按钮是「起草修订」，打开评价体系里对应的前段标准；XEngineer 入营选拔的 xe-select-v3 已经预置为待确认。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;as=hrbp#attrib">打开</a></li>
-        <li class="is-phone"><div><b><span class="g-role">CEO · 手机</span>手机上看待确认的修订</b><span>「需要我看」里点修订，看理由、生效点和影响人数；确认发布在电脑上完成。</span></div><a class="n-btn n-btn--sm" href="m/index.html?as=ceo">打开</a></li>
-      </ol>
-    </section>
-  </div>
-
-  <aside class="g-side">
-    <div class="g-box">
-      <h3>产品架构与分期</h3>
-      <p style="margin:0 0 var(--s-3)">以版本 Y 为主线，本次比赛、赛后试点和长期各做到哪一步：分层架构、功能模块规划、北森同步与系统管理、部署方式。</p>
-      <div class="g-links">
-        <a class="n-btn n-btn--sm" href="architecture.html">打开架构与分期</a>
-        <a class="n-btn n-btn--sm n-btn--ghost" href="y/app/admin.html?as=admin">系统管理 · 版本 Y</a>
+  <section class="g-ver" aria-labelledby="vy">
+    <div class="g-ver__head">
+      <div>
+        <h2 id="vy">版本 Y · 中性工作台</h2>
+        <p>管理者、HR、导师三种角色，另有只管系统配置的系统管理员；人员来自 XEngineer 第六期的演示数据，手机端只给导师用。</p>
+      </div>
+      <div class="g-ver__links">
+        <a class="n-btn n-btn--sm" href="architecture.html">产品架构与分期</a>
+        <a class="n-btn n-btn--sm n-btn--ghost" href="y/design-system.html">设计系统</a>
       </div>
     </div>
-    <!-- 探测到版本 Y 的页面存在时才显示入口 -->
-    <div class="g-box" id="ver-y" hidden>
-      <h3>版本 Y · 中性工作台</h3>
-      <p style="margin:0 0 var(--s-3)">和左侧的版本 X 平行的另一条方向：管理者、HR、导师三种角色，人员来自 XEngineer 第六期的演示数据，手机端只给导师用。两个版本的演示数据分开保存。</p>
-      <div class="g-links">
-        <a class="n-btn n-btn--sm" href="y/app/index.html?as=ceo">管理者工作台</a>
-        <a class="n-btn n-btn--sm" href="y/app/index.html?as=hrbp">HR 工作台</a>
-        <a class="n-btn n-btn--sm" href="y/app/index.html?as=mentor">导师工作台</a>
-        <a class="n-btn n-btn--sm" href="y/m/index.html">导师手机版</a>
-        <a class="n-btn n-btn--sm n-btn--ghost" href="y/design-system.html">设计系统 · 版本 Y</a>
+
+    <nav class="g-cast" style="--n:5" aria-label="版本 Y 的演示身份">
+      <a href="y/app/index.html?as=ceo"><span class="n-avatar" style="--hue:212">程</span><b>程远 · 管理者</b><small>公司层：看人、找人，确认规则与方案</small></a>
+      <a href="y/app/index.html?as=hrbp"><span class="n-avatar" style="--hue:340">苏</span><b>苏晚 · HR</b><small>XEngineer、Landing、校招、黑客松</small></a>
+      <a href="y/app/index.html?as=mentor"><span class="n-avatar" style="--hue:66">叶</span><b>叶青 · 导师</b><small>分镜工厂 · 二组、口语搭子 · 一组</small></a>
+      <a href="y/m/index.html"><span class="n-avatar" style="--hue:66">叶</span><b>叶青 · 导师手机版</b><small>录音、一句话记录、导师评价</small></a>
+      <a href="y/app/admin.html?as=admin"><span class="n-avatar" style="--hue:28">许</span><b>许衡 · 系统管理员</b><small>账号与权限、北森同步、集成与审计</small></a>
+    </nav>
+
+    <p class="g-sub">走查路线</p>
+    <div class="g-routes">
+      <details class="g-route" id="y-ceo">
+        <summary><div><h3>管理者首页：先看人，再找人</h3><p>判断提醒只占一行，值得关注的人和项目分开；用人项目缺 owner 时从这里发起找人。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">管理者</span>首页最上面的判断提醒</b><span>一行写第六期 8 人前后判断不一致、HR 在归因；下一行是待你确认的周评标准修订。</span></div><a class="n-btn n-btn--sm" href="y/app/index.html?as=ceo">打开</a></li>
+            <li><div><b><span class="g-role">管理者</span>值得关注的人与项目</b><span>13 人分突出表现、新发现、需要介入三组，点「查看依据」看为什么关注；项目卡写各期走到哪个节点、多少人新进入值得关注。</span></div><a class="n-btn n-btn--sm" href="y/app/index.html?as=ceo">打开</a></li>
+            <li><div><b><span class="g-role">管理者</span>为 MaaS 智能体平台找 owner</b><span>需求卡由 AI 起草，点要求可以改写、切换必须与加分；候选人按必须项的证据排列，匹配状态只有支持、不支持、资料不足、证据冲突。拖进槽位后确认 v1。</span></div><a class="n-btn n-btn--sm" href="y/app/staffing.html?project=pr-agent&amp;as=ceo">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="y-mentor">
+        <summary><div><h3>导师：记录、核对与 W8 对人复盘</h3><p>导师主要用手机：录音或一句话记下学员的事，核对录音里指代不清的人和课题，再逐个确认 W8 对人复盘。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <ol class="g-steps">
+            <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>手机首页</b><span>录音、一句话记录、导师评价三个入口在最上面，下面是待办和所带的 10 名学员。</span></div><a class="n-btn n-btn--sm" href="y/m/index.html">打开</a></li>
+            <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>按住说一段话</b><span>演示里会自动转写一段，再整理成关键事件。</span></div><a class="n-btn n-btn--sm" href="y/m/quick.html?hold=1">打开</a></li>
+            <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>核对「小孟」「分镜那个组」指谁</b><span>每处列出候选和可能性，选定后生成一条事件；分数是 AI 建议，等导师确认。</span></div><a class="n-btn n-btn--sm" href="y/m/inbox.html">打开</a></li>
+            <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>W8 导师评价</b><span>10 名学员逐个确认：孟逸尘有一项冲突，周初晴还有 2 项待确认。</span></div><a class="n-btn n-btn--sm" href="y/m/mentor.html">打开</a></li>
+            <li><div><b><span class="g-role">导师</span>孟逸尘的 W8 对人复盘</b><span>每一维的评价由 AI 草拟，可以采用或改写；领导力叶青给 4、魏闻笛给 2，分差 2 分转给 HR 复核。</span></div><a class="n-btn n-btn--sm" href="y/app/landing-review.html?id=p-x11&amp;as=mentor">打开</a></li>
+            <li><div><b><span class="g-role">导师</span>推荐学员的发展方向</b><span>工作台「我的推荐」里，方景深等 HR 核实，孟逸尘已核实并写进档案的发展方向。</span></div><a class="n-btn n-btn--sm" href="y/app/index.html?as=mentor">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="y-hr">
+        <summary><div><h3>HR：第六期结营盘点到留用与落位</h3><p>工作台先看有变化的人，评分复核处理分差和跨象限，按课题组校准象限，留用与落位方案确认后这次盘点一并确认。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">HR</span>工作台里有变化的人</b><span>4 人的象限可能要重新校准，每行写出中期校准的位置和按新事件算出的位置；待办按待核对、待核实的关注线索、待复核的评分、待回访分组。</span></div><a class="n-btn n-btn--sm" href="y/app/index.html?as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HR</span>评分复核</b><span>三类条目都在：孟逸尘领导力 4 分对 2 分，对照锚点校准并写理由；方景深改了 AI 的分还没写理由；4 人参考位置跨象限，可以去象限校准。</span></div><a class="n-btn n-btn--sm" href="y/app/queue.html?as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HR</span>结营盘点</b><span>93 人和中期盘点对比分布；资料不足的 30 人写出缺哪条事件，可以提醒导师补录；逐人写结论。</span></div><a class="n-btn n-btn--sm" href="y/app/review.html?id=b-xe6-end&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HR</span>按课题组校准象限</b><span>19 个课题组逐组确认并冻结；陆晚晴中期校准为专业骨干，参考位置移到了待观察，正式位置由你来定。</span></div><a class="n-btn n-btn--sm" href="y/app/calibrate.html?id=b-xe6-end&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HR</span>留用与落位方案</b><span>每条动作写依据、本人意愿和可否释放，季思齐未接受 offer、谷嘉树继续观察都照实写；确认方案时这次盘点一并确认并冻结。</span></div><a class="n-btn n-btn--sm" href="y/app/plan.html?id=b-xe6-end&amp;as=hrbp">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="y-judge">
+        <summary><div><h3>判断对照：周评准不准，改哪条规则</h3><p>W4 周评和结营评审放在一起对照，归因后修订人才评价规则，管理者确认发布。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">HR</span>第六期判断对照</b><span>前段评为最高或最低一档的 24 人里 8 人不一致；中间档「正常发挥」的 54 人单独列出结营时的分布。</span></div><a class="n-btn n-btn--sm" href="y/app/judge.html?id=jr-xe6&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HR</span>采纳 AI 假设并归因</b><span>温可欣的 8 个可对照案例里 6 个前段偏高，AI 建议归为「评价人」；采纳或改写后才能生成改进动作。按评价人的数字只给 HR 和评价人本人看。</span></div><a class="n-btn n-btn--sm" href="y/app/judge.html?id=jr-xe6&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HR</span>起草维度与锚点 rubric-v2</b><span>专业度按岗位族分锚点，工程族首次启用、按不兼容处理；结营盘点进行中，生效点从下一个盘点批次开始。叶青对坚毅力锚点的修订建议可以纳入草稿。</span></div><a class="n-btn n-btn--sm" href="y/app/rules.html?r=rubric&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">管理者</span>判断对照只看汇总</b><span>按维度的分布和已确认的归因都在，按评价人的部分只给 HR 和评价人本人。</span></div><a class="n-btn n-btn--sm" href="y/app/judge.html?id=jr-xe6&amp;as=ceo">打开</a></li>
+            <li><div><b><span class="g-role">管理者</span>确认周评标准 xe-weekly-v2</b><span>看改了什么、修订理由、依据和影响的 54 个对照单元，确认发布；前段标准这一期只读，有疑问先和 HR 沟通。</span></div><a class="n-btn n-btn--sm" href="y/app/rules.html?r=front&amp;as=ceo">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="y-nodes">
+        <summary><div><h3>人才项目：按关键节点复盘</h3><p>每期人才项目按关键节点回看做得怎么样：结果从数据算出，HR 写复盘并署名，改进事项挂在节点下跟到完成。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">HR</span>关键节点时间线</b><span>第六期按 W4 周评、中期盘点、里程碑路演、结营评审、留用与落位排开，每个节点标出已复盘、待复盘、进行中或未开始；其他人才项目先用期次本身的节点。</span></div><a class="n-btn n-btn--sm" href="y/app/actions.html?as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HR</span>结营评审节点待复盘</b><span>结营结论和去向分布从数据算出；AI 草拟了「做得好」「要改进」，采用或改写后署名。</span></div><a class="n-btn n-btn--sm" href="y/app/actions.html?node=pg-xe6:end&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HR</span>W4 周评节点的改进事项</b><span>判断对照生成的「修订周评标准」挂在这里，状态可以一路走到已复盘，选未执行要写原因。</span></div><a class="n-btn n-btn--sm" href="y/app/actions.html?node=pg-xe6:w4&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">管理者</span>只看署名的复盘</b><span>侧栏「人才项目」直接进这一页；结营评审节点显示「待 HR 复盘」，AI 草拟只给 HR。</span></div><a class="n-btn n-btn--sm" href="y/app/actions.html?as=ceo">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="y-admin">
+        <summary><div><h3>系统管理员：只管系统配置</h3><p>系统管理员管账号与权限、北森同步、集成配置和审计日志，业务页面整页拦下；授予业务权限要管理者确认。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">系统管理员</span>账号与权限</b><span>四个账号各写角色和范围；给苏晚增加 Landing 第四期由许衡发起，显示「待管理者确认」。</span></div><a class="n-btn n-btn--sm" href="y/app/admin.html?as=admin">打开</a></li>
+            <li><div><b><span class="g-role">系统管理员</span>北森同步</b><span>写明同步哪些数据、写到哪里、怎么用；只读，绩效和晋升记录只给管理者和 HR 看。</span></div><a class="n-btn n-btn--sm" href="y/app/admin.html?tab=hr&amp;as=admin">打开</a></li>
+            <li><div><b><span class="g-role">系统管理员</span>打开业务页面</b><span>工作台整页拦下，标题和面包屑里没有人名、项目名，只给一个回到系统管理的入口。</span></div><a class="n-btn n-btn--sm" href="y/app/index.html?as=admin">打开</a></li>
+          </ol>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section class="g-ver g-ver--sub" aria-labelledby="vx">
+    <div class="g-ver__head">
+      <div>
+        <h2 id="vx">版本 X · 光与墨</h2>
+        <p>CEO、HRBP、部门负责人、导师、员工五种角色，演示人员来自 Landing 第三期等；和版本 Y 用同一套产品规则，演示数据分开保存。</p>
+      </div>
+      <div class="g-ver__links">
+        <a class="n-btn n-btn--sm n-btn--ghost" href="app/index.html">桌面版</a>
+        <a class="n-btn n-btn--sm n-btn--ghost" href="m/index.html">手机版</a>
+        <a class="n-btn n-btn--sm n-btn--ghost" href="design-system.html">设计系统</a>
       </div>
     </div>
+
+    <nav class="g-cast" style="--n:5" aria-label="版本 X 的演示身份">
+      <a href="app/index.html?as=ceo"><span class="n-avatar" style="--hue:212">程</span><b>程远 · CEO</b><small>全公司</small></a>
+      <a href="app/index.html?as=hrbp"><span class="n-avatar" style="--hue:340">苏</span><b>苏晚 · HRBP</b><small>增长产品部、产品市场部</small></a>
+      <a href="app/index.html?as=lead"><span class="n-avatar" style="--hue:320">韩</span><b>韩策 · 部门负责人</b><small>业务成功部</small></a>
+      <a href="m/index.html?as=mentor"><span class="n-avatar" style="--hue:170">叶</span><b>叶青 · 导师</b><small>Landing 第三期，手机为主</small></a>
+      <a href="app/person.html?id=p-lin&amp;as=self"><span class="n-avatar" style="--hue:200"><img src="assets/avatars/lin-zhiyuan.jpg" alt="">林</span><b>林知远 · 员工</b><small>只看自己的经历</small></a>
+    </nav>
+
+    <p class="g-sub">走查路线</p>
+    <div class="g-routes">
+      <details class="g-route" id="x-landing">
+        <summary><div><h3>Landing 第三期：从一次复盘会到第一份档案</h3><p>导师用手机录复盘会，HRBP 校准分差，结营时新人落进象限。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <p>导师用手机录下对人复盘会，AI 整理成事件和建议分；拿不准的人名交给人核对，两位评价人分差大时由 HRBP 校准；结营时新人从「资料不足」区落进象限。</p>
+          <ol class="g-steps">
+            <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>录一次对人复盘会</b><span>选「多人会议」开始，试试打标记、随手记、@某人和收起成悬浮条；完成后进入处理中，可以直接返回。</span></div><a class="n-btn n-btn--sm" href="m/record.html?as=mentor">打开</a></li>
+            <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>读人才纪要并追问</b><span>点事件旁的时间点跳到录音位置；底部推荐追问会按真实节奏流式回答。</span></div><a class="n-btn n-btn--sm" href="m/record.html?m=w2&amp;as=mentor">打开</a></li>
+            <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>核对「小王」「宋老师」指谁</b><span>一次只问一件事，选完立刻生效，5 秒内可撤销。桌面版有证据飞入的动效。</span></div><a class="n-btn n-btn--sm" href="m/inbox.html?as=mentor">打开</a></li>
+            <li class="is-phone"><div><b><span class="g-role">导师 · 手机</span>逐个评价学员</b><span>对唐果按住说一段话，AI 整理成事件后逐项确认；林知远的智慧力两位导师分差 2 分，进了校准队列。</span></div><a class="n-btn n-btn--sm" href="m/mentor.html?as=mentor">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>在校准队列处理冲突</b><span>看双方分数、理由和锚点，校准并写一句理由；原评价保留在修订历史里。</span></div><a class="n-btn n-btn--sm" href="app/queue.html?as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">导师</span>确认 W2 对人复盘</b><span>冲突校准完、建议分都确认后，整份复盘才能确认并计入档案。</span></div><a class="n-btn n-btn--sm" href="app/landing-review.html?id=p-lin&amp;as=mentor">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>结营校准：从资料不足落入象限</b><span>小犇放出光点给参考位置，头像以墨色落下；拖到别的象限要写理由，全部确认后盖印冻结。</span></div><a class="n-btn n-btn--sm" href="app/calibrate.html?id=b-land3&amp;as=hrbp">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="x-staffing">
+        <summary><div><h3>找业务负责人 / 关键岗位</h3><p>CEO 从目标角色模板发起找人，拖进槽位确认方案，人选回填到组织调整方案。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <p>CEO 从目标角色模板发起找人，需求卡带出模板要求，就地补一句就能改；候选人卡多一行发展方向；拖进槽位后确认方案，人选回填到组织调整方案里。</p>
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">CEO</span>在首页的找人输入框说一句，或选「找业务负责人」模板</b><span>找人输入框是 CEO 首页的第一块，模板是它下面的次要入口；业务负责人模板有 v2，点开能看到这一版改了什么。发起后，这件事会留在「需要我看」下面的「在推进」里；方案起草后，置顶到「需要我看」等你确认。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo">打开</a></li>
+            <li><div><b><span class="g-role">CEO</span>需求卡带出模板要求，补一句「11 月能到岗」</b><span>候选人即时重排；每张候选人卡多一行发展方向，本人意愿和管理判断分开写，没有记录的写「未知」，排序不看它。四种匹配状态：支持、不支持、资料不足、证据冲突。</span></div><a class="n-btn n-btn--sm" href="app/staffing.html?tpl=tpl-biz&amp;as=ceo">打开</a></li>
+            <li><div><b><span class="g-role">CEO</span>拖进槽位并确认 v1</b><span>确认后冻结快照、写入项目 owner、生成跟进行动；确认不等于人事动作已执行。</span></div><a class="n-btn n-btn--sm" href="app/staffing.html?project=pr-newconv&amp;as=ceo">打开</a></li>
+            <li class="is-phone"><div><b><span class="g-role">CEO · 手机</span>在手机上确认另一份方案</b><span>海外加速搜索体验 v3：看摘要和与 v2 的差异，确认当前版本。换成部门负责人视角会被拦下。</span></div><a class="n-btn n-btn--sm" href="m/plan.html?id=sp-search-3&amp;as=ceo">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>组织调整方案里人选已回填</b><span>「新转化团队 owner」这一条等的就是上一步的结果。</span></div><a class="n-btn n-btn--sm" href="app/plan.html?id=b-h2&amp;as=hrbp">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="x-review">
+        <summary><div><h3>HR 盘点闭环：盘点 → 校准 → 方案 → 复盘</h3><p>工作台看变化，盘点里看分布和缺口，按团队校准并冻结，方案变成行动后到期复盘。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <p>工作台先看变化（按时间排，不按幅度排）；盘点里看分布和缺口；按团队校准象限并冻结；方案确认后变成行动，到期对照当时的判断对照。</p>
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">HRBP</span>工作台里的变化</b><span>趋势、长期无事件、参考位置跨象限、团队资料不足占比上升。资料不足不是反向证据。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>2026 H2 盘点</b><span>和 H1 对比分布，提醒补缺口，逐人写结论。</span></div><a class="n-btn n-btn--sm" href="app/review.html?id=b-h2&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>按团队校准象限并冻结</b><span>运营平台部的周屿：参考位置从双高移到了专业骨干，正式位置不会自动移动。</span></div><a class="n-btn n-btn--sm" href="app/calibrate.html?id=b-h2&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>确认组织调整方案</b><span>意愿和释放是「未知」的照实写；确认后每条动作生成一条行动。</span></div><a class="n-btn n-btn--sm" href="app/plan.html?id=b-h2&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>任用后复盘</b><span>左边是冻结的当时判断，右边是后来的事实，结论只有继续、调整、撤回。</span></div><a class="n-btn n-btn--sm" href="app/actions.html?as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">员工</span>本人视角</b><span>林知远只看到自己的经历、参与的项目和发布给他的安排；问「我在哪个象限」会被拒绝。</span></div><a class="n-btn n-btn--sm" href="app/person.html?id=p-lin&amp;as=self">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="x-judge">
+        <summary><div><h3>判断对照：当时的判断，后来准不准</h3><p>前后两段判断对照找系统性偏差，归因后改评价标准或培训评价人。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <p>把前一阶段的判断（入营选拔、面试评价）和后一阶段对同一个人同一维度的结论对照起来，找出系统性偏差，归因后改评价标准或培训评价人。结论不改被评价人的分数、象限和档案。</p>
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">HRBP</span>XEngineer 第二期：内驱力仍有 2 人偏高</b><span>按维度看前后差异的分布，展开内驱力对照双方证据；把一个案例标为「不可比」并写理由，可以撤销。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;dim=drive&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>对比第一期 v1 与第二期 v2</b><span>第一期按 v1 入营，内驱力 8 人中 6 人偏高；修订成 v2 后降到 2 人。样本只有一期，还不能说改进有效。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;as=hrbp#ver">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>采纳 AI 假设，归因并生成动作</b><span>两条假设先以浅色出现；选「评价方式与信息不足」「评价人」并写理由，确认后以墨色署名，再生成「修订评价标准」和「评价人培训」两条动作。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;as=hrbp#attrib">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>2026 年 2–8 月社招入职</b><span>韩策 5 个可对照案例，「潜力」偏高方向稳定；周屿只有 2 个，显示「样本不足」，不下结论。项目被砍的一例归为环境变化。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-hire26&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">部门负责人</span>我的判断对照</b><span>韩策只看到自己做过的判断和后段的等级，看不到别的面试官、后段评语和归因讨论。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?rater=me&amp;as=lead">打开</a></li>
+            <li><div><b><span class="g-role">CEO</span>从首页的「判断提醒」进来，请 HRBP 复核</b><span>首页只有 1–2 条批次级提醒。进来后 CEO 看得到按维度的汇总和已确认的结论，看不到单个评价人的数字；在「复核请求」里写一句评论发给 HRBP。员工没有这个入口。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo#jsig">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>回复 CEO 的复核请求</b><span>待办里出现「CEO 请你」；在判断对照页回复并标为已复核，归因和标准修订仍由 HRBP 确认。回到 CEO 首页，展开「需要我看」下面的「在推进」能看到回复。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;as=hrbp#ask">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="x-ceo">
+        <summary><div><h3>CEO 首页走查：看人、速览与关注</h3><p>点人名先拉起速览，推动在速览和档案里发起，发起后这个人进入「我的关注」。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <p>CEO 首页是看人的地方：找人、值得关注、需要我看、我的关注，判断提醒退到右栏最后。点人名先拉起速览，30 秒看完为什么关注、关键事实和能力线索；推动在速览和档案里发起，发起后这个人进入「我的关注」。</p>
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">CEO</span>看值得关注，点「查看依据」</b><span>每行只有关注原因、一句话和证据角标，规则编号不上首页。点「查看依据」从右侧拉起速览：为什么关注（含规则与核实人）→ 关键事实 → 能力线索 → 已经在做的事；点另一个人直接切换。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo#watch">打开</a></li>
+            <li><div><b><span class="g-role">CEO</span>加关注，再在速览里发起推动</b><span>「值得关注」和「我的关注」人数分开写；加关注后右栏「我的关注」多一人。在速览底部点「推动」选动作和负责人，「需要我看」下面的「在推进」随之更新，5 秒内可撤销。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo#watch">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>记进展、确认结果，核实推荐</b><span>待办最上面是「CEO 请你」；确认结果后写进员工档案时间线，标「来自 CEO 推动」，不产生分数。「待核实线索」里有导师对唐果的推荐，核实后进入档案的发展方向和 CEO 的值得关注。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=hrbp#todo">打开</a></li>
+            <li><div><b><span class="g-role">导师</span>给学员记一件事，推荐方向</b><span>导师首页先列所带学员；按情境、行为、影响记一件事，在事件里给维度分。「推荐」要选目标角色、写理由、勾两件不同的事；导师只看到自己推荐的处理状态，看不到值得关注。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=mentor">打开</a></li>
+            <li><div><b><span class="g-role">部门负责人</span>本团队的 CEO 视角</b><span>先看本团队已核实的值得关注，可以加关注；之后是「变化」、待办和我的关注。没有推动入口。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=lead">打开</a></li>
+            <li class="is-phone"><div><b><span class="g-role">CEO · 手机</span>手机上看同样的内容</b><span>顺序是找人、需要我看、我的关注、值得关注、判断提醒；点人是底部速览，可以加关注，推动在电脑上发起。</span></div><a class="n-btn n-btn--sm" href="m/index.html?as=ceo">打开</a></li>
+            <li><div><b><span class="g-role">员工</span>本人看不到</b><span>林知远的档案里没有被关注、被推荐、被推动的任何痕迹；导师也看不到推动的结果和值得关注。</span></div><a class="n-btn n-btn--sm" href="app/person.html?id=p-lin&amp;as=self">打开</a></li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="g-route" id="x-rules">
+        <summary><div><h3>评价体系：修订规则，保留历史</h3><p>HRBP 起草修订、看影响，CEO 确认发布；已有的分数、快照和档案保留原来的版本。</p><div class="g-route__meta" data-meta></div></div><span class="g-route__fold"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></span></summary>
+        <div class="g-route__body">
+          <p>人才判断用到的规则都按版本保存。HRBP 起草修订、写理由、看影响，CEO 确认发布；已经确认的分数、冻结的快照和档案版本保留原来的版本。原型里值得关注、维度与锚点可以修订，其余四类只读。</p>
+          <ol class="g-steps">
+            <li><div><b><span class="g-role">HRBP</span>打开评价体系，看到值得关注的修订信号</b><span>六类规则各一张卡；值得关注的卡上写着：入职半年内有 1 人同一维度已有 2 件事印证，第一件早于近 90 天，N1 把这人排除在外。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>起草 watch-v3：N1 时间窗从近 90 天改为近 120 天</b><span>点「起草修订」，在原处改参数，改过的行写出原值、可以还原；写修订理由，「关联依据」里选你的核对结果。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?r=watch&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>预览影响，提交 CEO 确认</b><span>值得关注 9 → 10 人，进入的是存量经营部的柏舟，按团队写增减。改了参数要重新预览；四项检查都满足才能提交，提交后修改入口关闭，可以撤回到草稿。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?r=watch&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">CEO</span>在「需要我看」里确认发布</b><span>点「评价规则修订待你确认」：看改了什么、理由、依据和影响人数，进出名单只对 HRBP 展开；确认发布时盖朱印，5 秒内可以撤销，也可以写一句理由退回。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo">打开</a></li>
+            <li><div><b><span class="g-role">CEO</span>回到首页，值得关注按新版本计算</b><span>筛「新发现」能看到柏舟；点「查看依据」，速览「为什么关注」里写的是 watch-v3。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=ceo#watch">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>维度与锚点：rubric-v2 的工程族锚点</b><span>工程族锚点首次启用，兼容声明锁定为不兼容；增长产品部 2026 H2 盘点进行中，生效点只能选下一个盘点批次。预览写出将生成多少条复核任务、分给哪些评分人。</span></div><a class="n-btn n-btn--sm" href="app/rules.html?r=rubric&amp;as=hrbp">打开</a></li>
+            <li><div><b><span class="g-role">导师</span>在记录页的锚点面板提修订建议</b><span>锚点面板写着岗位族和版本；点「提修订建议」，选维度和锚点、写一句理由，可以引用一件事。建议只用于修订规则，分数保持原样。</span></div><a class="n-btn n-btn--sm" href="app/record.html?as=mentor">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>待办里出现「规则修订建议」</b><span>在维度与锚点的修订页里纳入草稿，或写理由不采纳；导师在记录页能看到处理结果。</span></div><a class="n-btn n-btn--sm" href="app/index.html?as=hrbp#todo">打开</a></li>
+            <li><div><b><span class="g-role">HRBP</span>判断对照里的「起草修订」</b><span>归因确认后，「修订评价标准」这一项的按钮是「起草修订」，打开评价体系里对应的前段标准；XEngineer 入营选拔的 xe-select-v3 已经预置为待确认。</span></div><a class="n-btn n-btn--sm" href="app/judge.html?id=jr-xe2&amp;as=hrbp#attrib">打开</a></li>
+            <li class="is-phone"><div><b><span class="g-role">CEO · 手机</span>手机上看待确认的修订</b><span>「需要我看」里点修订，看理由、生效点和影响人数；确认发布在电脑上完成。</span></div><a class="n-btn n-btn--sm" href="m/index.html?as=ceo">打开</a></li>
+          </ol>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <footer class="g-foot" id="help">
     <div class="g-box">
-      <h3>怎么写评论</h3>
+      <h2>怎么写评论</h2>
       <ol>
         <li>选中页面上的文字，点出现的「评论」。</li>
         <li>图表、头像这类没有文字的地方，打开右下角「评审评论」用「点选元素」。</li>
@@ -194,29 +338,76 @@
       </ol>
     </div>
     <div class="g-box">
-      <h3>关于演示数据</h3>
+      <h2>关于演示数据</h2>
       <ul>
         <li>人员都是化名并标了「演示」；组织名称来自真实组织表。</li>
         <li>AI 的整理和回答是预置结果，按真实节奏流式出现。</li>
-        <li>你做的确认、校准只保存在本浏览器，不影响别人；评论保存在服务器上。</li>
+        <li>你做的确认、校准只保存在本浏览器，两个版本分开保存，也不影响别人；评论保存在服务器上。</li>
         <li>页面上方的视角切换只是演示手段，正式产品由服务端判断权限。</li>
       </ul>
+      <button class="n-btn n-btn--sm" type="button" id="reset">重置我的演示数据</button>
     </div>
-    <div class="g-links">
-      <a class="n-btn" href="app/index.html">打开桌面版</a>
-      <a class="n-btn" href="m/index.html">打开手机版</a>
-      <a class="n-btn n-btn--ghost" href="design-system.html">设计系统</a>
-      <button class="n-btn n-btn--ghost" type="button" id="reset">重置我的演示数据</button>
-    </div>
-  </aside>
+  </footer>
 </main>
 <script src="assets/niu-ip.js"></script>
 <script>
   if (window.NiuIP) NiuIP.mount(document.getElementById('ip'), { state: 'rest', size: 88 });
-  fetch('y/app/index.html', { method: 'HEAD', cache: 'no-store' }).then((r) => { if (r.ok) document.getElementById('ver-y').hidden = false; }).catch(() => { /* 版本 Y 不在当前站点时不显示入口 */ });
+
+  const routes = [...document.querySelectorAll('.g-route')];
+  const OPEN_KEY = 'nt-guide-open';
+
+  // 收起时也能看出这条走查有几步、要用哪些身份、要不要拿手机
+  routes.forEach((d) => {
+    const steps = d.querySelectorAll('.g-steps li');
+    const roles = [...new Set([...d.querySelectorAll('.g-role')].map((r) => r.textContent.split(' · ')[0].trim()))];
+    const meta = [`${steps.length} 步`, ...roles];
+    if (d.querySelector('.g-steps li.is-phone')) meta.push('含手机');
+    d.querySelector('[data-meta]').innerHTML = meta.map((t) => `<span>${t}</span>`).join('');
+  });
+
+  // 展开过的走查在本浏览器里记住；地址里带 #走查 时只展开那一条
+  const openIds = () => routes.filter((d) => d.open).map((d) => d.id);
+  const setOpen = (ids) => routes.forEach((d) => { d.open = ids.includes(d.id); });
+  const openFromHash = () => {
+    const d = routes.find((x) => x.id === location.hash.slice(1));
+    if (!d) return false;
+    setOpen([d.id]);
+    d.scrollIntoView();
+    return true;
+  };
+  if (!openFromHash()) {
+    try { setOpen(JSON.parse(localStorage.getItem(OPEN_KEY) || '[]')); } catch (e) { /* 读不到存储时全部收起 */ }
+  }
+  window.addEventListener('hashchange', openFromHash);
+  routes.forEach((d) => d.addEventListener('toggle', () => {
+    try { localStorage.setItem(OPEN_KEY, JSON.stringify(openIds())); } catch (e) { /* 存不下就不记住 */ }
+    // 评论层按窗口变化重画元素评论的图钉；展开收起改变了版面，也让它重画一次
+    window.dispatchEvent(new Event('resize'));
+  }));
+
+  // 评论现场：记下展开了哪几条走查，还原时照样展开
+  window.NTReview = {
+    context() {
+      const open = openIds();
+      const names = routes.filter((d) => d.open).map((d) => d.querySelector('h3').textContent);
+      return { view: names.length ? `评审导览 · 展开「${names.join('」「')}」` : '评审导览', state: { open } };
+    },
+    restore(ctx) { if (ctx && ctx.state && Array.isArray(ctx.state.open)) setOpen(ctx.state.open); },
+  };
+
+  // 在评论面板里点一条评论时，划线的原文可能在收起的走查里：展开那一条再滚过去。
+  // 评论层在卡片自己的点击里先定位并重画高亮，冒泡到这里时高亮已经在页面上；每次点击都重新判断，收起后再点同一条也会展开
+  document.addEventListener('click', (e) => {
+    const card = e.target.closest('.rv-thread[data-thread]');
+    if (!card || e.target.closest('button, textarea, a')) return;
+    const m = document.querySelector(`mark.rv-hl[data-rv="${CSS.escape(card.dataset.thread)}"]`);
+    const d = m && m.closest('details.g-route');
+    if (d && !d.open) { d.open = true; m.scrollIntoView({ block: 'center' }); }
+  });
+
   document.getElementById('reset').addEventListener('click', (e) => {
-    if (!confirm('清空你在本浏览器里做过的确认、校准和记录，回到初始演示数据？评论会保留。')) return;
-    try { localStorage.removeItem('nt-demo'); localStorage.removeItem('nt-role'); sessionStorage.clear(); } catch (err) { /* 浏览器禁用了存储时无需清理 */ }
+    if (!confirm('清空你在本浏览器里对两个版本做过的确认、校准和记录，回到初始演示数据？评论会保留。')) return;
+    try { ['nt-demo', 'nt-role', 'nty-demo', 'nty-role'].forEach((k) => localStorage.removeItem(k)); sessionStorage.clear(); } catch (err) { /* 浏览器禁用了存储时无需清理 */ }
     e.target.textContent = '已重置';
   });
 </script>
