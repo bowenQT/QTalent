@@ -224,9 +224,11 @@ it('reauthorizes persistent cancellation replay and never enqueues retry/resume 
   expect(
     await shared.command('account-hr', { ...command, action: 'resume' }),
   ).toEqual({ status: 'forbidden' });
-  expect(
-    await shared.command('account-hr', { ...command, action: 'cancel' }),
-  ).toMatchObject({
+  const cancellation = await shared.command('account-hr', {
+    ...command,
+    action: 'cancel',
+  });
+  expect(cancellation).toMatchObject({
     status: 'success',
     snapshot: { cancelRequestedAt: '2031-04-05T06:08:00.000Z' },
   });
@@ -237,6 +239,17 @@ it('reauthorizes persistent cancellation replay and never enqueues retry/resume 
     status: 'success',
     snapshot: { status: 'cancelled' },
   });
+  expect(
+    await shared.command('account-hr', { ...command, action: 'cancel' }),
+  ).toEqual(cancellation);
+  expect(
+    await shared.command('account-hr', {
+      ...command,
+      expectedRevision: command.expectedRevision + 1,
+      action: 'cancel',
+    }),
+  ).toEqual({ status: 'conflict' });
+  expect(f.decide).not.toHaveBeenCalled();
   expect(
     (await boss!.findJobs<{ jobId: string }>(queue)).filter(
       (value) => value.data.jobId === result.runId,
