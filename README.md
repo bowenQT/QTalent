@@ -7,7 +7,7 @@
 | 参赛议题 | 自选题目：AI 原生的人才搜索、档案与评价体系 |
 | 交付形态 | 高保真可交互产品原型（桌面 + 导师手机版），浏览器直接打开 |
 | 在线原型 | <https://qtalent-review.aidoudoulong123.workers.dev/>（`@qiniu.com` 邮箱登录，每页可划线评论） |
-| Demo 视频 | [产品演示视频 1](https://drive.google.com/file/d/1L2a9YWhO1Ff9z7VZW2va_fMQzyep2mIW/view?usp=sharing)（Google Drive） |
+| Demo 视频 | [带讲解版](https://drive.google.com/file/d/1ZfX0eRM3sM1o3GMwPB_J4BH5MIBlngNo/view?usp=sharing) · [操作演示版](https://drive.google.com/file/d/1L2a9YWhO1Ff9z7VZW2va_fMQzyep2mIW/view?usp=sharing)（Google Drive） |
 | 架构设计 | [docs/architecture.md](docs/architecture.md) |
 
 ## 为什么做
