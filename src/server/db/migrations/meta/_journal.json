@@ -8,6 +8,13 @@
       "when": 1792927355330,
       "tag": "0000_secret_white_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792935028561,
+      "tag": "0001_salty_pestilence",
+      "breakpoints": true
     }
   ]
 }
