@@ -15,8 +15,20 @@
   ];
   const TAGS = [['方案对比', /方案|对比/], ['主动推进', /主动|认领/], ['任务拆解', /拆/], ['需求变更', /需求.{0,4}(改|变)/], ['线上故障', /故障/], ['跨团队协作', /协调|对齐|跨/],
     ['客户现场', /客户/], ['故障定位', /定位|排查/], ['导师带教', /带新人|熟悉|带教/], ['复盘习惯', /复盘/]];
-  // 否定说法（含「不太 / 不够 / 未能 / 没能」这类带修饰的否定）不当正向证据。
-  const NEG = /(没有?|没能|未能?|不(?:太|够|能)?|别)$/;
+  // 否定说法不当正向证据。否定词和关键词之间只允许「很 / 太 / 是 / 会」这类修饰，
+  // 不把「不仅 / 不过 / 不同 / 未来」整段吞掉。同一分句里只要有一处被否定，这一句的其他命中也不出分。
+  const NEG_TAIL = /(?:没有?|没能|未能?|不|别)(?:太|够|能|会|是|必|算|怎么|很)*$/;
+  function clauseFrom(text, index) {
+    let from = 0;
+    for (const sep of ['，', '。', '；', '！', '？', '、', '\n', ',', ';']) {
+      const i = text.lastIndexOf(sep, index - 1);
+      if (i >= from) from = i + 1;
+    }
+    return from;
+  }
+  function negatedAt(text, index) {
+    return NEG_TAIL.test(text.slice(clauseFrom(text, index), index).slice(-8));
+  }
   const UNKNOWN_NOTE = { grit: '原话没写受挫后的反应', mot: '没写是主动还是被安排', wis: '原话里没有判断与取舍', prof: '没写具体做了什么、结果如何' };
 
   function snippet(text, m) {
@@ -38,11 +50,16 @@
     const scores = [];
     RULES.forEach((r) => {
       const all = [...acts.matchAll(new RegExp(r.re.source, 'g'))];
-      const m = all.find((x) => !NEG.test(acts.slice(Math.max(0, x.index - 3), x.index)));
+      const blocked = new Set(all.filter((x) => negatedAt(acts, x.index)).map((x) => clauseFrom(acts, x.index)));
+      const m = all.find((x) => !negatedAt(acts, x.index) && !blocked.has(clauseFrom(acts, x.index)));
       if (m) {
         let v = r.v;
-        if (r.up && r.up.test(acts)) v += 1;
-        if (r.down && r.down.test(acts)) v = 2;
+        const ups = r.up ? [...acts.matchAll(new RegExp(r.up.source, 'g'))] : [];
+        const upBlocked = new Set(ups.filter((x) => negatedAt(acts, x.index)).map((x) => clauseFrom(acts, x.index)));
+        const upHit = ups.some((x) => !negatedAt(acts, x.index) && !upBlocked.has(clauseFrom(acts, x.index)) && !blocked.has(clauseFrom(acts, x.index)));
+        const downHit = r.down && [...acts.matchAll(new RegExp(r.down.source, 'g'))].some((x) => !negatedAt(acts, x.index));
+        if (upHit) v += 1;
+        if (downHit) v = 2;
         scores.push({ p: pid, d: r.d, v, ai: v, st: 'ai', note: `锚点 ${v} · 引用「${snippet(text, m)}」` });
       } else if (all.length) {
         // 「没有主动推进」这类否定说法：不当正向证据，也不当反向证据，留给人判断
