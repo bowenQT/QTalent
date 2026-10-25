@@ -122,9 +122,7 @@ describe('authorized workbench reads', () => {
     expect(JSON.stringify(result)).not.toContain('fragment-0');
   });
   it('rejects admin, absent and expired business grants', async () => {
-    await expect(workbenchFromData(fixture('admin'))).rejects.toThrow(
-      '无权限',
-    );
+    await expect(workbenchFromData(fixture('admin'))).rejects.toThrow('无权限');
     const data = fixture('hr');
     data.context.grants[0].validTo = data.context.now;
     await expect(workbenchFromData(data)).rejects.toThrow('无权限');
