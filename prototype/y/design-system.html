@@ -1110,6 +1110,29 @@
           </div>
         </article>
       </div>
+      <h3 class="ds-sub">桌面录音</h3>
+      <p>桌面端的录音是一整页：顶部吸住控制条，左边是实时文字，右边是打标记、随手记、@某人。实时文字只做预览，说话人用编号；结束后按完整录音重新转写和整理，是谁在「待核对」里确认。收起后，顶栏出现上面那条录音条。</p>
+      <div class="ds-grid">
+        <div><div class="n-recctl" data-state="live" role="group" aria-label="录音控制：录制中"><span class="n-recctl__state"><span class="n-recbar__dot"></span>录制中</span><span class="n-recctl__title"><b>W8 导师团复盘</b><small>多人会议 · 普通话</small></span><span class="n-wave" aria-hidden="true"><i></i><i style="animation-delay:.15s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.45s"></i><i style="animation-delay:.6s"></i></span><span class="n-recctl__time"><b>12:34</b> / 120:00</span><div class="n-recctl__acts"><button class="n-btn" type="button">暂停</button><button class="n-btn n-btn--ink" type="button">结束录音</button><button class="n-btn n-btn--ghost" type="button">收起</button></div></div><p class="ds-caption">录制中：红点闪动，波形跟着声音动。剩 5 分钟时计时旁出现「还剩 5 分钟，到 120:00 自动结束」。</p></div>
+        <div><div class="n-recctl" data-state="paused" role="group" aria-label="录音控制：已暂停"><span class="n-recctl__state"><span class="n-recbar__dot"></span>已暂停</span><span class="n-recctl__title"><b>W8 导师团复盘</b><small>多人会议 · 普通话</small></span><span class="n-wave" aria-hidden="true"><i></i><i style="animation-delay:.15s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.45s"></i><i style="animation-delay:.6s"></i></span><span class="n-recctl__time"><b>12:34</b> / 120:00</span><div class="n-recctl__acts"><button class="n-btn" type="button">继续</button><button class="n-btn n-btn--ink" type="button">结束录音</button><button class="n-btn n-btn--ghost" type="button">收起</button></div></div><p class="ds-caption">已暂停：红点变灰，计时和波形停住；工具仍可用，时间点记为暂停时刻。</p></div>
+        <div><div class="n-recctl" data-state="reconnecting" role="group" aria-label="录音控制：重连中"><span class="n-recctl__state"><span class="n-recbar__dot"></span>重连中</span><span class="n-recctl__title"><b>W8 导师团复盘</b><small>多人会议 · 普通话</small></span><span class="n-wave" aria-hidden="true"><i></i><i style="animation-delay:.15s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.45s"></i><i style="animation-delay:.6s"></i></span><span class="n-recctl__time"><b>12:51</b> / 120:00</span><div class="n-recctl__acts"><button class="n-btn" type="button">暂停</button><button class="n-btn n-btn--ink" type="button">结束录音</button><button class="n-btn n-btn--ghost" type="button">收起</button></div></div><div class="n-notice" style="margin-top:var(--s-2);align-items:center"><svg><use href="#i-retry"/></svg><div style="flex:1">网络已断开，录音继续保存在这台电脑上，恢复后自动补传。</div><span style="font-size:var(--t-xs);color:var(--ink-2);white-space:nowrap">重连中 · 第 2 次</span></div><p class="ds-caption">重连中：本机仍在录，计时照走；空心红点和「重连中」三个字一起表达，不只靠颜色。</p></div>
+        <div><div class="n-recctl" data-state="uploading" role="group" aria-label="录音控制：补传中"><span class="n-recctl__state"><span class="n-recbar__dot"></span>补传中</span><span class="n-recctl__title"><b>W8 导师团复盘</b><small>多人会议 · 普通话</small></span><span class="n-wave" aria-hidden="true"><i></i><i style="animation-delay:.15s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.45s"></i><i style="animation-delay:.6s"></i></span><span class="n-recctl__time"><b>38:20</b> / 120:00</span><span class="n-recctl__up"><span>补传中 3/5 段</span><span class="n-progress"><i style="width:60%"></i></span></span></div><p class="ds-caption">补传中：断网时结束录音，先把攒下的分段传完，传完自动进入处理中。</p></div>
+      </div>
+      <div class="n-card" style="margin-top:var(--s-4);max-width:720px">
+        <h4 class="n-section-title">实时文字<span class="n-badge" style="font-weight:500">实时预览</span></h4>
+        <div class="n-live" tabindex="0" aria-label="实时文字样张">
+          <div class="n-live__sp">说话人 1 · 11:40</div>
+          <p class="n-live__s">孟逸尘技术水平还不错，接触面多，悟性高、韧性强。</p>
+          <p class="n-live__s is-flag">分镜那个组最后的打磨还是不错的，难度确实大。</p>
+          <div class="n-live__note"><svg><use href="#i-note"/></svg><span>孟逸尘这里的说法要和周报对一下</span><small>随手记 · 12:20</small></div>
+          <div class="n-live__gap"><svg><use href="#i-clock"/></svg>12:40–12:58 · 结束后补齐文字</div>
+          <div class="n-live__sp">说话人 2 · 12:58</div>
+          <p class="n-live__s">孟逸尘分工的时候没同步任务池，组员接不上，</p>
+          <div><span class="n-live__at">@孟逸尘<small>· 13:05</small></span></div>
+          <p class="n-live__s is-pending">活都压在 TA 身上</p>
+        </div>
+      </div>
+      <p class="ds-caption">从上到下：说话人分段、打过标记的句子（下划线）、随手记、断网缺口、@某人、还没定稿的浅墨字。</p>
     </section>
 
     <!-- ═════════ 组件：核对与校准 ═════════ -->

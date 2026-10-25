@@ -57,11 +57,13 @@
           ${[['note', '记一件事', '/记', 'record.html'], st.can('findOwner') && ['folder', '为项目找人', '/找', 'staffing.html?new=1'], st.can('calibrate') && ['eye', '发起盘点', '/盘', 'reviews.html#new'], st.canOpenMinutes('w8') && ['wave', '打开会议人才纪要', '/录', 'record.html?m=w8']].filter(Boolean).map(([ic, l, k, h], i) => html`<a class="n-slash__item" role="option" aria-selected="${i === 0}" href="${h}" data-label="${l}" data-key="${k.slice(1)}">${icon(ic, 16)}${l}<kbd>${k}</kbd></a>`)}
         </div>
         <div class="n-asks" style="margin:var(--s-2) 0 var(--s-6)">${(SUGGEST[role] || []).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>`;
+      // 实时录音入口：HR 和导师（桌面录音页 recording.html）
+      const recStart = html`<div class="nt-recstart"><a class="n-btn n-btn--sm n-btn--ink" href="recording.html">${icon('mic')}开始录音</a><span class="nt-muted">多人会议或观察速记</span></div>`;
       const head = html`<header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · ${role === 'mentor' ? 'XEngineer 第六期已结营 · W8 对人复盘今天截止' : `XEngineer 第六期结营盘点进行中 · 证据截至 ${NT.md(NT.TODAY)}`}</p></div></header>`;
       // 导师：进行中的任务和上传材料收进「材料与任务」，默认折叠
       const fold = html`<details class="n-card nt-fold" id="fold" ${raw(location.hash === '#upload' ? 'open' : '')}><summary><h3 class="n-section-title">材料与任务</h3><span class="nt-muted">${st.visibleTasks().filter((t) => t.state !== 'done').length} 个在处理</span>${icon('chev')}</summary>
           <div id="tasks"></div>
-          <div id="upload" style="margin-top:var(--s-4)"><button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>${UI.ATT_TYPES}，可以一次拖入多个 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button><ul class="n-files" id="files"></ul></div></details>`;
+          <div id="upload" style="margin-top:var(--s-4)">${recStart}<button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>${UI.ATT_TYPES}，可以一次拖入多个 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button><ul class="n-files" id="files"></ul></div></details>`;
       if (role === 'mentor') {
         mount(main, html`${head}${composer}
           <div class="nt-ceo">
@@ -83,6 +85,7 @@
             ${judgeCard()}
             <article class="n-card"><h3 class="n-section-title">进行中的任务</h3><div id="tasks"></div></article>
             <article class="n-card" id="upload"><h3 class="n-section-title">上传材料</h3>
+              ${recStart}
               <button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>${UI.ATT_TYPES}，可以一次拖入多个 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button>
               <ul class="n-files" id="files"></ul>
             </article>
