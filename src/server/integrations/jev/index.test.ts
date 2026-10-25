@@ -11,7 +11,7 @@ const input = {
   evidence: [{ sourceRef: 'demo-1', text: '演示材料' }],
 };
 afterEach(() => vi.useRealTimers());
-describe('Jev decision boundary (offline, no provider selected)', () => {
+describe('Jev normalized decision boundary (offline)', () => {
   it.each(['supported', 'not_supported', 'insufficient', 'conflict'] as const)(
     'preserves %s without diagnostics',
     async (conclusion) => {
