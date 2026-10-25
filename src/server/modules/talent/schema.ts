@@ -198,6 +198,14 @@ export const scoreReviews = pgTable(
       .references(() => dimensions.id),
     reason: text('reason').notNull(),
     status: text('status').notNull().default('open'),
+    saveId: text('save_id'),
+    confirmationId: text('confirmation_id').references(() => confirmations.id),
+    counterpartConfirmationId: text('counterpart_confirmation_id').references(
+      () => confirmations.id,
+    ),
+    suggestionId: text('suggestion_id').references(() => aiSuggestions.id),
+    revision: integer('revision').notNull().default(1),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
   },
   (t) => [
     check(

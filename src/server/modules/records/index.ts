@@ -12,3 +12,17 @@ export {
   importSnapshots,
 } from './schema';
 export type { SourceLocation } from './schema';
+export { readEvidenceForTalent } from './read';
+export {
+  persistRecordDraft,
+  lockRecordDraft,
+  readRecordOperation,
+  readRecordSave,
+  readDraftEvents,
+  readWithdrawnRecordEventIds,
+  beginRecordSave,
+  appendRecordEvent,
+  finishRecordSave,
+  withdrawRecordSave,
+  appendRecordOperation,
+} from './write';
