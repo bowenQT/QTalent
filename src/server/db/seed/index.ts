@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { z } from 'zod';
+import { evidenceSeedFields, mapEvidenceSeed } from './evidence';
 import type {
   Assignment,
   AuthzContext,
@@ -37,6 +38,7 @@ const project = z.object({
   batch: id.optional(),
 });
 const seedSchema = z.object({
+  ...evidenceSeedFields,
   ORGS: z.array(
     z.object({
       id,
@@ -174,6 +176,16 @@ export function validatePrototypeSeed(input: unknown): PrototypeSeed {
       for (const mentor of mentors) ref(people, mentor);
     }
   }
+  for (const event of seed.EVENTS) {
+    for (const personId of event.people) ref(people, personId);
+    ref(people, event.recorder);
+    ref(projects, event.project);
+    for (const score of event.scores) {
+      ref(people, score.p);
+      ref(people, score.by);
+      for (const rater of score.raters ?? []) ref(people, rater.by);
+    }
+  }
   return seed;
 }
 export function mapPrototypeSeed(input: PrototypeSeed) {
@@ -246,6 +258,7 @@ export function mapPrototypeSeed(input: PrototypeSeed) {
     return null;
   };
   return {
+    evidence: mapEvidenceSeed(raw),
     raw,
     accounts,
     cohorts,

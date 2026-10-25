@@ -95,3 +95,15 @@ it('CLI closes its pool even when import fails', async () => {
   await expect(runImport()).rejects.toThrow('db failure');
   expect(end).toHaveBeenCalledOnce();
 });
+it('persists rules and isolated evidence snapshots in the existing transaction, reporting IDs only', async () => {
+  const { importSnapshots, events } = await import('../modules/records');
+  const seed = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
+  const report = await importDemo(db, seed, 'Test-password-123');
+  expect(records.filter((r) => r.table === importSnapshots)).toHaveLength(
+    seed.evidence.snapshots.length,
+  );
+  expect(records.filter((r) => r.table === events)).toHaveLength(
+    seed.evidence.events.length,
+  );
+  expect(report).toEqual({ gaps: seed.evidence.gaps });
+});
