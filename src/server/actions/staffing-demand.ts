@@ -2,8 +2,11 @@
 import 'server-only';
 import { requireSession } from '../auth/next';
 import {
-  createStaffingDemandInputSchema, editStaffingDemandInputSchema,
-  confirmStaffingDemandInputSchema, staffingCreateDemandResultSchema, staffingDemandResultSchema,
+  createStaffingDemandInputSchema,
+  editStaffingDemandInputSchema,
+  confirmStaffingDemandInputSchema,
+  staffingCreateDemandResultSchema,
+  staffingDemandResultSchema,
 } from '../../contracts/staffing';
 import { staffingDemandRuntime } from '../queries/staffing-runtime';
 import { DemandAccessError } from '../modules/staffing/demand/service';
@@ -20,9 +23,17 @@ function invalid(input: unknown, error: z.ZodError) {
 }
 function rejected(error: unknown, input: unknown) {
   if (error instanceof DemandAccessError)
-    return { status: 'forbidden' as const, message: '你没有执行此操作的权限', input };
+    return {
+      status: 'forbidden' as const,
+      message: '你没有执行此操作的权限',
+      input,
+    };
   if (error instanceof DemandConflictError)
-    return { status: 'conflict' as const, message: '需求已变化，请保留输入并刷新', input };
+    return {
+      status: 'conflict' as const,
+      message: '需求已变化，请保留输入并刷新',
+      input,
+    };
   throw error;
 }
 export async function createStaffingDemandAction(input: unknown) {
@@ -32,7 +43,8 @@ export async function createStaffingDemandAction(input: unknown) {
   try {
     const runtime = await staffingDemandRuntime();
     return staffingCreateDemandResultSchema.parse({
-      status: 'success', ...await runtime.service.create(session.user.id, parsed.data),
+      status: 'success',
+      ...(await runtime.service.create(session.user.id, parsed.data)),
     });
   } catch (error) {
     return staffingCreateDemandResultSchema.parse(rejected(error, parsed.data));
@@ -44,11 +56,16 @@ export async function editStaffingDemandAction(input: unknown) {
   const session = await requireSession();
   try {
     const runtime = await staffingDemandRuntime();
-    return staffingDemandResultSchema.parse({ status: 'success',
-      ...await runtime.service.change(session.user.id, parsed.data,
-        { action: 'edit', requirements: parsed.data.requirements }),
+    return staffingDemandResultSchema.parse({
+      status: 'success',
+      ...(await runtime.service.change(session.user.id, parsed.data, {
+        action: 'edit',
+        requirements: parsed.data.requirements,
+      })),
     });
-  } catch (error) { return staffingDemandResultSchema.parse(rejected(error, parsed.data)); }
+  } catch (error) {
+    return staffingDemandResultSchema.parse(rejected(error, parsed.data));
+  }
 }
 export async function confirmStaffingDemandAction(input: unknown) {
   const parsed = confirmStaffingDemandInputSchema.safeParse(input);
@@ -56,8 +73,13 @@ export async function confirmStaffingDemandAction(input: unknown) {
   const session = await requireSession();
   try {
     const runtime = await staffingDemandRuntime();
-    return staffingDemandResultSchema.parse({ status: 'success',
-      ...await runtime.service.change(session.user.id, parsed.data, { action: 'confirm' }),
+    return staffingDemandResultSchema.parse({
+      status: 'success',
+      ...(await runtime.service.change(session.user.id, parsed.data, {
+        action: 'confirm',
+      })),
     });
-  } catch (error) { return staffingDemandResultSchema.parse(rejected(error, parsed.data)); }
+  } catch (error) {
+    return staffingDemandResultSchema.parse(rejected(error, parsed.data));
+  }
 }

@@ -10,16 +10,24 @@ it('lazily shares startup and queue creation, then closes the isolated instance'
   const factory = vi.fn(async () => boss);
   const runtime = createAppJobProducer(factory);
   expect(factory).not.toHaveBeenCalled();
-  expect(await Promise.all([runtime.get('demand'), runtime.get('demand')])).toEqual([boss, boss]);
+  expect(
+    await Promise.all([runtime.get('demand'), runtime.get('demand')]),
+  ).toEqual([boss, boss]);
   expect(factory).toHaveBeenCalledTimes(1);
   expect(createQueue).toHaveBeenCalledTimes(1);
   await runtime.close();
   expect(stop).toHaveBeenCalledTimes(1);
 });
 it('clears failed initialization and failed queue setup without caching a broken producer', async () => {
-  const createQueue = vi.fn().mockRejectedValueOnce(new Error('queue failed')).mockResolvedValue(undefined);
+  const createQueue = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('queue failed'))
+    .mockResolvedValue(undefined);
   const boss = { createQueue, stop: vi.fn() } as unknown as PgBoss;
-  const factory = vi.fn().mockRejectedValueOnce(new Error('startup failed')).mockResolvedValue(boss);
+  const factory = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('startup failed'))
+    .mockResolvedValue(boss);
   const runtime = createAppJobProducer(factory);
   await expect(runtime.get('demand')).rejects.toThrow('startup failed');
   await expect(runtime.get('demand')).rejects.toThrow('queue failed');

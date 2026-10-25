@@ -4,11 +4,21 @@ import { z } from 'zod';
 import type { Database } from '../db/client';
 import type { StructuredMaasClient } from '../integrations/maas';
 import { loadProjectContext, ForbiddenError } from './project-context';
-import { createDemandService, DemandAccessError, type DemandDependencies } from '../modules/staffing/demand/service';
-import { demandJobPolicy, runDemandGeneration } from '../modules/staffing/demand/job';
+import {
+  createDemandService,
+  DemandAccessError,
+  type DemandDependencies,
+} from '../modules/staffing/demand/service';
+import {
+  demandJobPolicy,
+  runDemandGeneration,
+} from '../modules/staffing/demand/job';
 
 export const staffingDemandQueue = 'staffing-demand';
-const payloadSchema = z.strictObject({ jobId: z.string().min(1), attempt: z.number().int().positive() });
+const payloadSchema = z.strictObject({
+  jobId: z.string().min(1),
+  attempt: z.number().int().positive(),
+});
 /** Explicit composition; constructing/importing never calls the provider or starts a queue. */
 export function createStaffingDemandRuntime(input: {
   db: Database;
@@ -16,14 +26,17 @@ export function createStaffingDemandRuntime(input: {
   maas?: StructuredMaasClient;
   now?: () => string;
 }) {
-  const getBoss = async () => typeof input.boss === 'function' ? input.boss() : input.boss;
+  const getBoss = async () =>
+    typeof input.boss === 'function' ? input.boss() : input.boss;
   const deps: DemandDependencies = {
     db: input.db,
     now: input.now ?? (() => new Date().toISOString()),
     async loadContext(tx, accountId, now) {
       try {
         const result = await loadProjectContext(tx, accountId, now);
-        const actor = result.directory.people.find((person) => person.id === result.context.account.personId);
+        const actor = result.directory.people.find(
+          (person) => person.id === result.context.account.personId,
+        );
         if (!actor) throw new DemandAccessError();
         return { context: result.context, actorName: actor.name };
       } catch (error) {
@@ -32,8 +45,13 @@ export function createStaffingDemandRuntime(input: {
       }
     },
     async enqueue(tx, job) {
-      const id = await (await getBoss()).send(staffingDemandQueue,
-        { jobId: job.jobId, attempt: job.attempt }, { db: fromDrizzle(tx, sql) });
+      const id = await (
+        await getBoss()
+      ).send(
+        staffingDemandQueue,
+        { jobId: job.jobId, attempt: job.attempt },
+        { db: fromDrizzle(tx, sql) },
+      );
       if (!id) throw new Error('Demand job enqueue rejected');
     },
   };
@@ -41,12 +59,14 @@ export function createStaffingDemandRuntime(input: {
     service: createDemandService(deps),
     policy: demandJobPolicy(deps),
     async run(payload: unknown) {
-      if (!input.maas) throw new Error('Demand worker requires an explicit MaaS client');
+      if (!input.maas)
+        throw new Error('Demand worker requires an explicit MaaS client');
       await runDemandGeneration(deps, input.maas, payloadSchema.parse(payload));
     },
     async register() {
       const maas = input.maas;
-      if (!maas) throw new Error('Demand worker requires an explicit MaaS client');
+      if (!maas)
+        throw new Error('Demand worker requires an explicit MaaS client');
       const boss = await getBoss();
       await boss.createQueue(staffingDemandQueue);
       await boss.work(staffingDemandQueue, async (jobs) => {

@@ -1,7 +1,9 @@
 import { expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 const mocks = vi.hoisted(() => ({ read: vi.fn(), runtime: vi.fn() }));
-vi.mock('../auth/next', () => ({ requireSession: async () => ({ user: { id: 'account' } }) }));
+vi.mock('../auth/next', () => ({
+  requireSession: async () => ({ user: { id: 'account' } }),
+}));
 vi.mock('./staffing-runtime', () => ({ staffingDemandRuntime: mocks.runtime }));
 import { readStaffingDemand } from './staffing-demand';
 import { DemandAccessError } from '../modules/staffing/demand/service';
