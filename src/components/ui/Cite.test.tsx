@@ -8,6 +8,7 @@ import {
   screen,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { Cite, citeSourceKinds, type CiteProps, type CiteSource } from './Cite';
 
 const source: CiteSource = {
@@ -331,5 +332,30 @@ describe('Cite placement', () => {
     await user.hover(mark());
     expect(pop(view).style.width).toBe('264px');
     expect(pop(view).style.left).toBe('488px');
+  });
+});
+
+describe('Cite inside running text', () => {
+  it('keeps the original inside the popover when it sits in a paragraph', () => {
+    // A nested paragraph would be closed early by the HTML parser, pushing the quote out.
+    const html = renderToStaticMarkup(
+      <>
+        <p>
+          判断依据
+          <Cite {...granted} />
+        </p>
+        <h3>
+          标题
+          <Cite {...granted} index={2} />
+        </h3>
+      </>,
+    );
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    expect(host.querySelectorAll('p')).toHaveLength(1);
+    for (const quote of host.querySelectorAll('.n-cite__quote'))
+      expect(quote.closest('.n-cite__pop')).not.toBeNull();
+    expect(host.querySelector('p')?.textContent).toContain('判断依据');
+    expect(host.querySelector('p > .n-cite')).not.toBeNull();
   });
 });

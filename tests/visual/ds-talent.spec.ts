@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import type { Browser, Page } from '@playwright/test';
 import { test, expect } from '../e2e/fixtures';
 import { compareElements, stabilize } from './compare';
@@ -103,14 +104,19 @@ const groups: readonly Group[] = [
     name: 'event-anchor-and-history',
     // The engineering stylesheet is global, so the app's nested-panel `.n-history` rule
     // (prototype app.css) also applies here, while design-system.html does not load it.
-    // Give the prototype page that same rule so both sides render the in-app look.
+    // The prototype page gets that same rule; it is first proven identical to the one in
+    // src/styles/desk.css, so both sides render the in-app look and nothing else changes.
     prepare: async (prototype) => {
       const css = await prototype.evaluate(async () =>
         (await fetch('app/app.css')).text(),
       );
-      const rule = css.match(/^\.n-history \{[^}]*\}/m)?.[0];
-      if (!rule)
-        throw new Error('.n-history rule missing from prototype app.css');
+      const pattern = /^\.n-history \{[^}]*\}/m;
+      const rule = css.match(pattern)?.[0];
+      const ported = (await readFile('src/styles/desk.css', 'utf8')).match(
+        pattern,
+      )?.[0];
+      if (!rule || rule !== ported)
+        throw new Error('.n-history app rule differs from src/styles/desk.css');
       await prototype.addStyleTag({ content: rule });
     },
     samples: [
@@ -286,9 +292,15 @@ test('citation popover opens by hover, focus and click and closes with Escape in
   const cite = page.locator('[data-sample="block-ink"] .n-cite').first();
   const mark = cite.locator('.n-cite__mark');
   const pop = cite.locator('.n-cite__pop');
-  await expect(pop).toBeHidden();
+  // A placed popover stays in layout at opacity 0 when closed, so judge what the viewer sees.
+  const seen = () =>
+    pop.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return style.display !== 'none' && style.opacity === '1';
+    });
+  await expect.poll(seen).toBe(false);
   await mark.hover();
-  await expect(pop).toBeVisible();
+  await expect.poll(seen).toBe(true);
   await expect(pop).toContainText('验收标准都写清楚了');
   // Placed against the viewport, fully inside it.
   const box = await pop.boundingBox();
@@ -299,17 +311,17 @@ test('citation popover opens by hover, focus and click and closes with Escape in
     referenceConfig.desktop.width,
   );
   await page.keyboard.press('Escape');
-  await expect(pop).toBeHidden();
+  await expect.poll(seen).toBe(false);
   await page.mouse.move(0, 0);
   await mark.focus();
-  await expect(pop).toBeVisible();
+  await expect.poll(seen).toBe(true);
   await page.keyboard.press('Escape');
-  await expect(pop).toBeHidden();
+  await expect.poll(seen).toBe(false);
   await page.locator('h1').click();
   await mark.click();
   await page.mouse.move(0, 0);
   await page.locator('h1').hover();
-  await expect(pop).toBeVisible();
+  await expect.poll(seen).toBe(true);
   // A locked citation shows provenance and no original.
   const locked = page
     .locator('p', { hasText: '来源受限的引用' })

@@ -119,7 +119,13 @@ describe('Score states', () => {
     );
     lower.unmount();
     const higher = render(
-      <Score dimension="内生动力" state="confirmed" value={4} aiOriginal={3} />,
+      <Score
+        dimension="内生动力"
+        state="confirmed"
+        value={4}
+        aiOriginal={3}
+        by="叶青"
+      />,
     );
     expect(
       dots(row(higher)).some((dot) => dot.classList.contains('is-ghost')),
@@ -129,14 +135,20 @@ describe('Score states', () => {
     );
     higher.unmount();
     const same = render(
-      <Score dimension="内生动力" state="confirmed" value={4} aiOriginal={4} />,
+      <Score
+        dimension="内生动力"
+        state="confirmed"
+        value={4}
+        aiOriginal={4}
+        by="叶青"
+      />,
     );
     expect(row(same).querySelector('.n-score__delta')).toBeNull();
   });
 
   it('renders the inline variant as dots only', () => {
     const view = render(
-      <Score dimension="智慧力" state="confirmed" value={2} inline />,
+      <Score dimension="智慧力" state="confirmed" value={2} by="叶青" inline />,
     );
     const el = view.container.querySelector('.n-score--inline');
     expect(el?.getAttribute('data-state')).toBe('confirmed');
@@ -151,6 +163,7 @@ describe('Score states', () => {
         dimension="智慧力"
         state="calibrated"
         value={4}
+        by="苏晚"
         onOpenHistory={open}
       />,
     );
@@ -158,6 +171,33 @@ describe('Score states', () => {
       .setup()
       .click(screen.getByRole('button', { name: '修订历史' }));
     expect(open).toHaveBeenCalledOnce();
+  });
+
+  it('requires a scorer on every confirmed or calibrated score', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    for (const state of ['confirmed', 'calibrated'] as const)
+      for (const by of [undefined, '', '  ']) {
+        expect(() =>
+          render(
+            <Score
+              {...({
+                dimension: 'x',
+                state,
+                value: 3,
+                by,
+              } as unknown as ScoreProps)}
+            />,
+          ),
+        ).toThrow('needs its scorer');
+      }
+    // @ts-expect-error a confirmed score without a scorer must not type-check
+    const unsigned: ScoreProps = {
+      dimension: 'x',
+      state: 'confirmed',
+      value: 3,
+    };
+    expect(unsigned.state).toBe('confirmed');
+    vi.restoreAllMocks();
   });
 
   it('rejects values and states outside the model', () => {
@@ -182,6 +222,7 @@ describe('Score states', () => {
             dimension: 'x',
             state: 'confirmed',
             value: 3,
+            by: '叶青',
             aiOriginal: 9,
           } as unknown as ScoreProps)}
         />,

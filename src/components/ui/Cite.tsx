@@ -222,7 +222,10 @@ export function Cite(props: CiteProps) {
           </span>
         ) : (
           <>
-            <p className="n-cite__quote">{props.quote}</p>
+            {/* A span, not a p: a paragraph inside the host paragraph would be closed early by the HTML parser. */}
+            <span className="n-cite__quote" style={{ display: 'block' }}>
+              {props.quote}
+            </span>
             {canPlay || props.jump ? (
               <span className="n-cite__foot">
                 {canPlay ? (

@@ -18,8 +18,8 @@ export type ScoreProps = Base &
     | {
         state: 'confirmed' | 'calibrated';
         value: ScoreValue;
-        /** Signer shown in hand-written type. */
-        by?: string;
+        /** Who confirmed or calibrated it, shown in hand-written type; every confirmed score has a scorer. */
+        by: string;
         /** The AI proposal this score replaced; differing values show a ghost and a delta. */
         aiOriginal?: ScoreValue;
         inline?: boolean;
@@ -116,6 +116,8 @@ export function Score(props: ScoreProps) {
     );
   }
   const { value, aiOriginal, by, onOpenHistory } = props;
+  if (!by?.trim())
+    throw new Error('A confirmed or calibrated score needs its scorer');
   if (aiOriginal !== undefined) assertValue(aiOriginal);
   const delta = aiOriginal !== undefined ? value - aiOriginal : 0;
   return (
@@ -131,7 +133,7 @@ export function Score(props: ScoreProps) {
         label={label}
       />
       <span className="n-score__note">
-        {by ? <span className="ink-hand">{by}</span> : null}
+        <span className="ink-hand">{by}</span>
         {note ?? (props.state === 'calibrated' ? '校准' : '确认')}
         {delta !== 0 ? (
           <>
