@@ -14,10 +14,7 @@ import {
   reviewQueueItemSchema,
   reviewQueueListSchema,
 } from './review-queue';
-import {
-  recordDraftFixture,
-  reviewGapFixture,
-} from './record-review.fixtures';
+import { recordDraftFixture, reviewGapFixture } from './record-review.fixtures';
 
 describe('record evidence and actions', () => {
   it('validates demo fixtures and pending entity selection', () => {
