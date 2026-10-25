@@ -469,9 +469,9 @@
     const host = $('#jsig'); if (!host) return;
     const sigs = st.judgeSignals().slice(0, 1), rules = st.rulesToConfirm();
     // 只说一句结论，细节放在悬停说明和目标页里
-    // 口径：前后两段都有结论、能对照的人里，判断不一致的人数；多维度时取不一致最多的那个维度并写明
-    const worst = (g) => g.dims.slice().sort((a, b) => (b.high + b.low) - (a.high + a.low))[0];
-    const sigText = (g) => { const d = worst(g); return `${g.b.name.replace('判断对照', '').trim()}${g.chain.dims.length > 1 ? ` · ${d.name}` : ''} ${d.comp} 人中 ${d.high + d.low} 人前后判断不一致${g.attrib === 'open' ? '，HR 归因中' : ''}`; };
+    // 口径：前段给了明确判断的人里，后段结论不同的人数（见 store.judgeSignals）；多维度时取不一致最多的那个维度并写明
+    const worst = (g) => g.dims.slice().sort((a, b) => b.diff - a.diff)[0];
+    const sigText = (g) => { const d = worst(g); return `${g.b.name.replace('判断对照', '').trim()}${g.chain.dims.length > 1 ? ` · ${d.name}` : ''} ${d.diff} 人前后判断不一致${g.attrib === 'open' ? '，HR 归因中' : ''}`; };
     const ruleName = (x) => (x.r.line ? st.FRONT_LINES.find((l) => l[0] === x.r.line)?.[1] : '') || `「${st.ruleKindName(x.kind)}」规则`;
     const lines = [
       ...sigs.map((g) => html`<a href="judge.html?id=${g.b.id}" title="${UI.judgeTipText(g)}">${icon('swap')}<span>${sigText(g)}</span></a>`),

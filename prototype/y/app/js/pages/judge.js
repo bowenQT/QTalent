@@ -49,8 +49,16 @@
   }
 
   // ---------- 汇总口径 ----------
-  const tallyText = (units) => {
+  const tallyText = (units, chain) => {
     const t = st.judgeTally(units), n = units.length;
+    if (chain.scale === 'grade') {
+      const c = st.judgeClear(units, chain);
+      if (!c.clear.length && !c.mid.length) return `${n} 人的判断都标为不可比或资料不足`;
+      const h = c.diff.filter((u) => u.state === 'high').length, l = c.diff.length - h;
+      const mid = chain.grades[Math.floor(chain.grades.length / 2)];
+      const back = (chain.backGrades || chain.grades).slice().reverse().map((g) => [g, c.mid.filter((u) => u.back.v === g).length]).filter(([, k]) => k);
+      return `前段评为最高或最低一档的 ${c.clear.length} 人里，${c.diff.length ? `${c.diff.length} 人前后判断不一致（${[h && `${h} 人前段偏高`, l && `${l} 人前段偏低`].filter(Boolean).join('、')}）` : '前后判断都一致'}${c.mid.length ? `；前段「${mid}」的 ${c.mid.length} 人没有表态，${chain.back}${back.map(([g, k]) => `${g} ${k}`).join('、')}` : ''}`;
+    }
     const parts = [t.high && `${t.high} 人前段偏高`, t.low && `${t.low} 人前段偏低`, t.same && `${t.same} 人一致`].filter(Boolean);
     return parts.length ? `${n} 人中 ${parts.join('，')}` : `${n} 人的判断都标为不可比或资料不足`;
   };
@@ -99,13 +107,13 @@
   function batchCard(b, chain, S) {
     const units = unitsOf(b.id);
     const dims = dimsOf(chain, units).map((d) => ({ d, us: units.filter((u) => u.dim === d.id) }));
-    const worst = dims.slice().sort((x, y) => (st.judgeTally(y.us).high + st.judgeTally(y.us).low) - (st.judgeTally(x.us).high + st.judgeTally(x.us).low))[0];
+    const worst = dims.slice().sort((x, y) => st.judgeClear(y.us, chain).diff.length - st.judgeClear(x.us, chain).diff.length)[0];
     const pending = st.judgeHyps(b.id).filter((h) => !st.judgeAttrib(h.id)).length;
     const acts = st.judgeHyps(b.id).flatMap((h) => st.judgeAttrib(h.id)?.actions || []).length;
     return html`<a class="n-card nt-plink" href="judge.html?id=${b.id}" style="display:block">
       <div class="nt-row" style="justify-content:space-between"><b>${b.name}</b>${b.status === 'concluded' ? html`<span class="n-badge n-badge--seal">${icon('stamp')}已归因</span>` : html`<span class="n-badge">进行中</span>`}</div>
       <div class="nt-muted" style="margin-top:2px">${b.range} · 标准 ${b.std} · 对应表 ${b.map}</div>
-      ${worst ? html`<p style="margin:var(--s-2) 0 0;font-size:var(--t-sm)">${worst.d.name}：${tallyText(worst.us)}</p>` : ''}
+      ${worst ? html`<p style="margin:var(--s-2) 0 0;font-size:var(--t-sm)">${worst.d.name}：${tallyText(worst.us, chain)}</p>` : ''}
       <div class="nt-row" style="margin-top:var(--s-2)">${pending && role === 'hrbp' ? html`<span class="n-badge n-badge--ai">${icon('spark')}${pending} 条 AI 假设待确认</span>` : ''}${acts ? html`<span class="n-badge">${acts} 条改进动作</span>` : ''}</div>
     </a>`;
   }
@@ -155,10 +163,10 @@
         ${cells.map((c, i) => html`<span class="n-jdist__cell ${i === 2 ? 'is-mid' : ''}" aria-hidden="true">${c.map((u) => (sumOnly
           ? html`<span class="n-jdot is-anon" data-s="${u.state}"></span>`
           : html`<span class="n-jdot" data-s="${u.state}" title="${name(u.person)} · ${stateText(u)}">${name(u.person).slice(0, 1)}</span>`))}</span>`)}
-        <span class="n-jdist__sum">${tallyText(us)}${rest || sp ? html`<small>${[rest, sp].filter(Boolean).join(' · ')}</small>` : ''}</span>`;
+        <span class="n-jdist__sum">${tallyText(us, chain)}${rest || sp ? html`<small>${[rest, sp].filter(Boolean).join(' · ')}</small>` : ''}</span>`;
     return html`<div role="listitem">${sumOnly
       ? html`<div class="n-jdist__row is-static">${inner}</div>`
-      : html`<button class="n-jdist__row" type="button" data-dim="${d.id}" aria-expanded="${open}" aria-label="${d.name}：${tallyText(us)}${rest ? `，${rest}` : ''}。${open ? '收起' : '展开'}案例">${inner}</button>`}
+      : html`<button class="n-jdist__row" type="button" data-dim="${d.id}" aria-expanded="${open}" aria-label="${d.name}：${tallyText(us, chain)}${rest ? `，${rest}` : ''}。${open ? '收起' : '展开'}案例">${inner}</button>`}
       ${open ? html`<div class="nt-grid" style="gap:0;padding:var(--s-3) 0 var(--s-4)">${sortCases(us).map((u) => caseCard(u, chain, map))}</div>` : ''}</div>`;
   }
   const ORDER = ['high', 'low', 'nc', 'same', 'na'];

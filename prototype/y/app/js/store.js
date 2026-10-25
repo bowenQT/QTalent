@@ -968,15 +968,24 @@
     return out.sort((a, b) => b.at.localeCompare(a.at) || (b.ts || 0) - (a.ts || 0)).filter((x) => { const k = `${x.person}|${x.at}|${x.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
   };
 
+  // 不一致的口径：只看前段给了明确判断（最高档或最低档）的人，后段结论和它不同才算不一致。
+  // 前段落在中间档时没有表态，后段走向哪边都不算矛盾，单独列出；分数制的对照每一条都算明确判断
+  store.judgeClear = (units, chain) => {
+    const comp = units.filter((u) => ['same', 'high', 'low'].includes(u.state));
+    const top = chain.scale === 'grade' ? chain.grades.length - 1 : null;
+    const clear = top == null ? comp : comp.filter((u) => u.front.r === 0 || u.front.r === top);
+    return { clear, diff: clear.filter((u) => u.state !== 'same'), mid: comp.filter((u) => !clear.includes(u)) };
+  };
   // ---------- 判断提醒：管理者只读的批次级信号 ----------
   store.judgeSignals = () => {
     if (!store.canJudge()) return [];
     return J.batches.filter((b) => b.status === 'open').map((b) => {
       const units = store.judgeUnits(b.id), chain = store.judgeChain(b.chain);
       const dims = chain.dims.map((d) => {
-        const us = units.filter((u) => u.dim === d.id), t = store.judgeTally(us);
-        return { id: d.id, name: d.name, n: us.length, comp: t.same + t.high + t.low, high: t.high, low: t.low };
-      }).filter((d) => d.high + d.low >= 2);
+        const us = units.filter((u) => u.dim === d.id), t = store.judgeTally(us), c = store.judgeClear(us, chain);
+        return { id: d.id, name: d.name, n: us.length, comp: t.same + t.high + t.low, high: t.high, low: t.low, clear: c.clear.length, diff: c.diff.length,
+          diffHigh: c.diff.filter((u) => u.state === 'high').length, diffLow: c.diff.filter((u) => u.state === 'low').length };
+      }).filter((d) => d.diff >= 2);
       const hyps = store.judgeHyps(b.id), open = hyps.filter((h) => !store.judgeAttrib(h.id)).length;
       return { b, chain, dims, attrib: open ? 'open' : 'done', open };
     }).filter((x) => x.dims.length);
