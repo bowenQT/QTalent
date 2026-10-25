@@ -70,7 +70,7 @@
 - 正式工程建立后提供清晰的开发、构建、格式检查、代码检查、类型检查和测试入口；具体工具、脚本名称和组合方式在第 3 阶段决定，并记录实际可运行命令。必要检查失败时整体失败，检查入口不吞错、不隐式部署或迁移真实数据。
 - 开发迭代先运行覆盖改动面的最小检查；正式应用集成交付执行已建立的必要检查，再按影响面补集成或浏览器验证。若上层命令已经包含某组测试，不重复运行同一组。只有新改动、失败或未解决疑点才扩大或重跑。
 - 仅文档或规则变更检查差异、路径、链接及规则一致性，不触发无关应用构建。原型按影响面实看与操作，不为执行未来命令提前引入工程。
-- 当前尚未建立 CI；未来建立 CI 时复用同一批脚本和锁定依赖，不维护另一套检查逻辑。阻断检查与报告项明确区分，不用 `continue-on-error` 把必要检查伪装成成功。
+- 当前 BOW-830 建立 CI，复用同一批脚本和锁定依赖，不维护另一套检查逻辑。阻断检查与报告项明确区分，不用 `continue-on-error` 把必要检查伪装成成功。
 
 ## 协作、审查与交付
 
@@ -81,3 +81,50 @@
 - 架构或工程细则变化在本文更新；阶段与核心约束变化同步 AGENTS；确需长篇取舍说明时另写简短决策记录并链接，不维护第二份规则副本。远端状态见 [协作规范](../CONTRIBUTING.md#远端配置与复核)；当前不引入发布流水线或全套 Agent 治理系统。
 
 来源与未生效的选型建议见 [本机工程规范调研](research/2026-10-23-本机工程规范调研.md)，仅在回查依据或第 3 阶段选型时按需阅读；当前设计系统工作无需加载或执行其中的工程建议。
+
+## 正式工程目录与引入边界
+
+BOW-830 沿用已接受的 [工程基础规格](research/2026-10-25-y-architecture-alignment/engineering-foundation-prompt.md)，只建立登录、桌面外壳、项目与课题切片。没有另设需求审批。
+
+- `src/app` 只负责 Next 路由与组装；`features` 按页面区域管理交互；`components/ui` 是与业务无关的基础组件。数据只通过 `server/queries`，客户端写入只通过带 `use server` 的 `server/actions`。唯一认证路由例外是 `app/api/auth` 引入 `auth/next`。
+- `contracts` 是前后端 Zod 契约；`lib` 不依赖框架。`server/modules/{directory,programs,staffing}` 各自维护 schema 和领域入口，跨域只读入口，不跨域引用内部表。跨域事务由 `server/usecases` 编排。
+- `server/auth`、`authz`、`db` 不依赖 Next 请求上下文或 `server-only`；只有 Next 的查询、动作与认证适配器是框架入口。worker 与 app 不互相引用。Access 验签与业务时钟独立。
+- `integrations` 只提供供应商边界，不访问数据库、不授权。当前只提供接口、配置校验与离线 fake；业务发送前必须先按当前权限筛选。
+- `pnpm check:boundaries` 使用 TypeScript AST 检查静态 import/export、dynamic import 与 require，阻断上述越界。动态模块路径须为静态字面量，不能借拼接绕过检查。
+
+## 契约与错误语义
+
+`src/contracts/projects.ts` 统一动作结果：`validation_error` 带字段错误且保留输入；`forbidden`、`not_found`、`conflict` 表达权限、资源与旧版本/请求键冲突；成功包含结果。重复请求使用同一 requestId 返回原结果，但仍先检查当前权限。相同 requestId 携带不同语义 payload 返回 conflict，不能静默重放别的内容。
+
+创建项目中项目、owner/成员、成员日志、审计与请求结果在同一 PostgreSQL 事务提交。UI 禁用重复点击只改善体验，数据库请求键与 payload fingerprint 才是幂等边界。本卡没有修改项目动作，后续编辑须带 expected_revision，不能把创建请求键当作乐观锁。
+
+壳层 counts/recent 使用 `not_connected`，不是 0；客户端不渲染这些角标与条目。未实现路由按统一 404 处理，不做占位页。路由、原型差异与遮罩见 [映射表](reference-route-map.md)。
+
+## 迁移规则
+
+表结构由后端任务维护，Drizzle 配置扫描 `src/server/**/schema.ts`，每域一个 schema，避免共享汇总表文件。执行 `pnpm db:generate` 生成 SQL 与 metadata，禁止手工改生成 SQL。合并前先对齐最新 main，删除本分支尚未发布的冲突生成产物后重新生成；带迁移 PR 一次只合一个。迁移与 seed 是显式命令，Web/worker 启动、普通构建不隐式迁移生产数据库。
+
+测试使用独立本地 PostgreSQL，集成测试建唯一随机 `_test` 数据库并在结束时清理自己创建的库。没有 TEST_DATABASE_URL 就失败，不用 fake、空集或 skip 当通过。种子从固定原型源读取、校验摘要及关系后映射，演示数据不另外手工维护副本。
+
+## 并行开发与共享文件责任
+
+契约先合入，读取、动作和界面才能按契约并行；每张 Linear 卡列出可改路径、依赖和验收。共用文件集中在唯一协调卡，不能多个任务同时改。
+
+| 共享文件/责任 | 本卡唯一写入方 | 后续改动方式 |
+| --- | --- | --- |
+| package.json、pnpm-lock.yaml、Node/pnpm版本 | BOW-830 工程协调 | 独立共享配置卡 |
+| TS、ESLint、Vitest、Playwright、边界检查 | BOW-830 工程协调 | 独立共享配置卡 |
+| Tailwind/PostCSS、components.json、样式入口 | BOW-830 工程协调，样式移植由 UI 指定范围 | 设计同步卡 |
+| 导航契约与导航配置 | BOW-830 权限/外壳协调 | 契约先行卡 |
+| drizzle.config、迁移元数据与生成顺序 | BOW-830 工程协调 | 迁移后端卡，串行合入 |
+| 后续 BOW-842 的查询/动作门面与任务进度契约 | 基础协调卡先冻结门面；842 仅按授权路径实现 | 共享入口变更单独协调，不能各集成卡并改 |
+| GitHub Actions | BOW-830 工程协调 | 独立 CI 卡 |
+| prototype-reference.json、视觉摘要与遮罩 | BOW-830 工程协调/UI指定范围 | 同一设计同步 PR 更新 |
+
+本次内部拆分按互斥目录临时工作区完成，最终汇入唯一 BOW-830 分支；没有扩展其他业务页面或创建长期集成分支。
+
+## 自动检查口径
+
+`pnpm test` 只运行无需 PostgreSQL 的单元测试。`pnpm test:integration` 在同一 Vitest 运行中加入真实 PostgreSQL 测试；`pnpm test:coverage` 使用相同全集进行统一覆盖率统计，行和分支门槛均为 85%。未导入的逻辑也纳入，不整体排除业务路径。浏览器与视觉独立报告，不混入覆盖率。
+
+`foundation` GitHub Actions 使用同一锁定安装和脚本：格式、lint/边界、类型、统一覆盖、构建、e2e、当次视觉比较，失败即失败。无生产凭据、无付费/供应商真实调用、无部署步骤。CI 定义存在不等于本次 CI 已通过；实际受检版本与未验证边界以 PR 证据为准。required checks 仓库设置仍须在稳定实跑后按 CONTRIBUTING 另行设置，本卡不改变权限设置。
