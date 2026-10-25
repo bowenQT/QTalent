@@ -1045,6 +1045,12 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-review__dimhead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); margin-bottom: var(--s-2); }
 .n-review__dimhead h4 { margin: 0; font-size: var(--t-body); }
 .n-review__ev { font-size: var(--t-sm); line-height: 1.7; color: var(--ink-2); }
+/* 评价和事件证据分开：AI 草拟是光，采用或改写后落墨署名 */
+.n-review__eval { margin: var(--s-3) 0 var(--s-1); font-size: var(--t-sm); }
+.n-review__eval.n-block { padding: var(--s-3) var(--s-4); }
+.n-review__eval .n-block__by { flex-wrap: wrap; }
+.n-review__evact { display: inline-flex; flex-wrap: wrap; gap: var(--s-2); margin-left: auto; }
+.n-review__evlabel { display: block; margin-bottom: var(--s-1); font-size: var(--t-xs); font-weight: 600; color: var(--ink-3); }
 .n-review__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1px dashed var(--line); font-size: var(--t-xs); color: var(--ink-3); }
 .n-review__foot .n-btn { margin-left: auto; }
 

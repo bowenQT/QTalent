@@ -16,7 +16,7 @@
       v: SEED.version, events: SEED.EVENTS, projects: SEED.PROJECTS, members: SEED.MEMBERS, memberLog: SEED.MEMBER_LOG,
       needs: SEED.NEEDS, plans: SEED.PLANS, actions: SEED.ACTIONS, tracks: SEED.TRACKS, signals: SEED.SIGNALS, inbox: SEED.INBOX,
       tasks: SEED.TASKS, batches: SEED.BATCHES, conclusions: SEED.CONCLUSIONS, tagCands: SEED.TAG_CANDIDATES, taglibAdd: [],
-      seen: {}, snaps: [], reviews: {}, corrections: [], selfNotes: [], directions: SEED.DIRECTIONS,
+      seen: {}, snaps: [], reviews: {}, reviewEvals: {}, corrections: [], selfNotes: [], directions: SEED.DIRECTIONS,
       watchClues: SEED.WATCH_CLUES, follows: SEED.FOLLOWS, rules: SEED.RULES, ruleSugs: SEED.RULE_SUGS, reviewHolds: [],
       recalKeeps: {}, judgeMarks: {}, judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])),
     });
@@ -448,6 +448,26 @@
       conflicts: rows.filter((r) => r.state === 'conflict').length, ai: rows.filter((r) => r.state === 'ai').length, state: saved.state || 'draft', by: saved.by, at: saved.at };
   };
   store.confirmReview = (pid, week) => { S.reviews[`${pid}-${week}`] = { state: 'confirmed', by: store.me().id, at: NT.TODAY }; store.save(); };
+  // 对人复盘每一维的评价：AI 草拟只作参考，HR 和所带导师可以采用、改写、修正；每次保存署名，旧版本保留
+  store.canEditReview = (pid, role = store.role()) => (role === 'hrbp' && store.scope(pid, role) === 'full') || (role === 'mentor' && store.scope(pid, role) === 'mentor');
+  store.reviewEvalHist = (pid, week, dim) => S.reviewEvals?.[`${pid}-${week}`]?.[dim] || [];
+  store.reviewEval = (pid, week, dim) => store.reviewEvalHist(pid, week, dim)[0] || null;
+  store.setReviewEval = (pid, week, dim, text, from) => {
+    if (!store.canEditReview(pid) || !text?.trim()) return null;
+    S.reviewEvals ??= {};
+    const m = (S.reviewEvals[`${pid}-${week}`] ??= {}), prev = m[dim] || [];
+    m[dim] = [{ text: text.trim(), by: store.me().id, at: NT.TODAY, from }, ...prev]; store.save();
+    return () => { m[dim] = prev; store.save(); };
+  };
+  // AI 草拟：按这一维的事件和分数（已确认的用确认分，否则用 AI 建议分）对上锚点；没有分数就不草拟
+  store.reviewEvalDraft = (pid, row) => {
+    const scored = row?.items.filter(({ s }) => (s.v ?? s.ai) != null) || [];
+    if (!scored.length) return '';
+    const v = Math.round(mean(scored.map(({ s }) => s.v ?? s.ai)));
+    const list = store.anchors(row.d.id, pid, store.eventRubric(scored[0].e) || undefined).list;
+    const titles = [...new Set(scored.map(({ e }) => e.title))];
+    return `${titles.slice(0, 2).map((t) => `「${t}」`).join('、')}${titles.length > 2 ? ` 等 ${titles.length} 件事` : ''}显示，${row.d.name}接近锚点 ${v}：${list[v - 1]}。`;
+  };
   // 对人复盘的进度：还有几项没确认，或者逐项都确认了、只差整份确认
   store.reviewProgress = (r) => {
     if (r.state === 'confirmed') return '已确认';

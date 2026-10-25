@@ -59,7 +59,7 @@
       </section>`}
 
       <h3 class="m-h">逐项确认<span class="nt-muted" style="font-weight:400">按能力象限的维度组织</span></h3>
-      <div class="m-dims">${r.rows.map((row) => dimRow(row, !done, canCal))}</div>
+      <div class="m-dims">${r.rows.map((row) => dimRow(row, st.canEditReview(pid) && !done, canCal))}</div>
 
       <div class="m-actions">
         ${done ? html`<p class="nt-muted" style="text-align:center;margin:0"><span class="ink-hand" style="font-size:var(--t-md);color:var(--ink)">${st.person(r.by).name}</span> ${NT.md(r.at)} 确认 · 已计入${p.name}的档案</p>
@@ -83,18 +83,20 @@
       const { s } = row.items.find((x) => x.s.st === 'conflict');
       return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(html`<span class="n-badge n-badge--conflict">${icon('split')}证据冲突 ${s.raters.map((x) => x.v).join(' / ')}</span>`)}
         ${row.items.map(evLine)}
+        ${UI.reviewEval(pid, WEEK, row)}
         <div class="n-calib__pair">${s.raters.map((x) => html`<div class="n-calib__side"><span style="color:var(--ink-3)">${st.person(x.by).name}</span><b>${x.v}</b>「${x.why}」</div>`)}</div>
         <div class="n-lock">${icon('split')}${canCal ? html`在桌面版校准队列里处理：<a href="queue.html">去校准</a>` : '两位评价人分差 ≥ 2，已进 HRBP 校准队列。校准后这一项才计入档案。'}</div></div>`;
     }
     if (row.state === 'ai') {
       return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(html`<span class="n-badge n-badge--ai">${icon('spark')}AI 建议，待确认</span>`)}
         ${row.items.map(evLine)}
+        ${UI.reviewEval(pid, WEEK, row)}
         ${row.items.filter((x) => x.s.st === 'ai').map(({ e, i }) => html`<div class="m-pick" data-ev="${e.id}" data-i="${i}"></div>${canConfirm ? html`<button class="n-btn n-btn--sm n-btn--ink" type="button" data-ok="${e.id}:${i}" style="margin-top:var(--s-2)">${icon('check')}确认</button>` : ''}`)}</div>`;
     }
     if (row.state === 'confirmed') {
       const counted = row.items.filter((x) => ['confirmed', 'calibrated'].includes(x.s.st));
       const last = counted[0].s;
-      return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(html`${UI.dotsInline(Math.round(st.mean(counted.map((x) => x.s.v))), last.st === 'calibrated' ? 'calibrated' : 'confirmed')}<span class="n-badge">${[...new Set(counted.map((x) => st.person(x.s.by).name))].join('、')}${last.st === 'calibrated' ? '校准' : '已确认'}</span>`)}${counted.map(evLine)}</div>`;
+      return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(html`${UI.dotsInline(Math.round(st.mean(counted.map((x) => x.s.v))), last.st === 'calibrated' ? 'calibrated' : 'confirmed')}<span class="n-badge">${[...new Set(counted.map((x) => st.person(x.s.by).name))].join('、')}${last.st === 'calibrated' ? '校准' : '已确认'}</span>`)}${counted.map(evLine)}${UI.reviewEval(pid, WEEK, row)}</div>`;
     }
     if (row.state === 'unknown') {
       return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(UI.na())}<div class="n-review__ev" style="color:var(--ink-3)">${d.id === 'grit' ? '这两周待补受挫后的反应。可以留意：方案被否之后怎么做。' : '这两周的记录待补具体行为。'}</div></div>`;
@@ -113,6 +115,7 @@
       const b = el.nextElementSibling; if (b?.dataset.ok) b.innerHTML = `<svg><use href="#i-check"/></svg>确认 ${sc.v} 分`;
     });
     main.onclick = (ev) => {
+      if (UI.reviewEvalClick(ev, pid, WEEK, () => renderOne(main))) return;
       const ok = ev.target.closest('[data-ok]');
       if (ok) {
         const [evId, i] = ok.dataset.ok.split(':');

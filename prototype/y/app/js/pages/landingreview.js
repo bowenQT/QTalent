@@ -19,7 +19,7 @@
     const r = st.review(pid, week);
     const p = st.person(pid), land = st.landingOf(pid);
     const role = st.role();
-    const canConfirm = ['mentor', 'hrbp', 'ceo'].includes(role);
+    const canConfirm = st.canEditReview(pid); // 分数和评价由 HR 和所带导师修正
     const canCal = st.can('calibrate');
     const audio = r.events.flatMap((e) => e.srcs.filter((s) => s.type === 'audio')).length;
     const pendingAll = r.rows.filter((x) => x.state === 'ai').length;
@@ -53,6 +53,7 @@
       const { e, s, i } = row.items.find((x) => x.s.st === 'conflict');
       return html`<div class="n-review__dim" data-dim="${d.id}"><div class="n-review__dimhead"><h4>${d.name}</h4>${theme}<span class="n-badge n-badge--conflict">${icon('split')}证据冲突 ${s.raters.map((x) => x.v).join(' / ')}</span></div>
         ${evText(row.items)}
+        ${UI.reviewEval(pid, week, row)}
         <div class="n-calib__pair">${s.raters.map((x) => html`<div class="n-calib__side"><span style="color:var(--ink-3)">${st.person(x.by).name} · ${st.person(x.by).staff === 'ta' ? '助教' : '导师'}</span><b>${x.v}</b>「${x.why}」</div>`)}</div>
         ${canCal ? html`<div class="n-calib" data-ev="${e.id}" data-i="${i}"><label class="nt-muted" for="cr-${d.id}">校准为 <select class="n-select" style="width:auto;min-height:28px;display:inline-block" id="cv-${d.id}">${[2, 3, 4].map((v) => html`<option ${v === 3 ? 'selected' : ''}>${v}</option>`)}</select> 分，理由</label>
           <textarea class="n-calib__reason" id="cr-${d.id}" placeholder="写一句理由，会留在修订历史里。比如：方案表达到位，排查过程发散，各取一半"></textarea>
@@ -63,6 +64,7 @@
     if (row.state === 'ai') {
       return html`<div class="n-review__dim" data-dim="${d.id}"><div class="n-review__dimhead"><h4>${d.name}</h4>${theme}<span class="n-badge n-badge--ai">${icon('spark')}AI 建议，待导师确认</span></div>
         ${evText(row.items)}
+        ${UI.reviewEval(pid, week, row)}
         ${row.items.filter((x) => x.s.st === 'ai').map(({ e, s, i }) => html`<div class="n-score nt-pick" data-state="ai" data-ev="${e.id}" data-i="${i}" data-ai="${s.ai}"><span class="n-score__dim">建议 ${s.ai} 分</span><span class="n-score__dots" role="radiogroup" aria-label="${d.name}分数">${[1, 2, 3, 4, 5].map((v) => html`<button type="button" class="n-score__dot ${v <= s.ai ? 'is-on' : ''}" role="radio" aria-checked="${v === s.ai}" aria-label="${v} 分" data-v="${v}" ${NT.raw(canConfirm ? '' : 'disabled')}></button>`)}</span><span class="n-score__note">${s.note || ''}</span></div>
           ${canConfirm ? html`<div class="nt-row" style="margin:var(--s-2) 0 0 calc(5.5em + var(--s-3))"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-ok="${e.id}:${i}">${icon('check')}确认 ${s.ai} 分</button><span class="nt-muted">点圆点可以改分</span></div>` : ''}`)}
       </div>`;
@@ -70,7 +72,7 @@
     if (row.state === 'confirmed') {
       const counted = row.items.filter((x) => ['confirmed', 'calibrated'].includes(x.s.st));
       const last = counted[0].s;
-      return html`<div class="n-review__dim" data-dim="${d.id}"><div class="n-review__dimhead"><h4>${d.name}</h4>${theme}${UI.dotsInline(Math.round(st.mean(counted.map((x) => x.s.v))), last.st === 'calibrated' ? 'calibrated' : 'confirmed')}<span class="n-badge">${[...new Set(counted.map((x) => st.person(x.s.by).name))].join('、')}${last.st === 'calibrated' ? '校准' : '已确认'}</span></div>${evText(counted)}</div>`;
+      return html`<div class="n-review__dim" data-dim="${d.id}"><div class="n-review__dimhead"><h4>${d.name}</h4>${theme}${UI.dotsInline(Math.round(st.mean(counted.map((x) => x.s.v))), last.st === 'calibrated' ? 'calibrated' : 'confirmed')}<span class="n-badge">${[...new Set(counted.map((x) => st.person(x.s.by).name))].join('、')}${last.st === 'calibrated' ? '校准' : '已确认'}</span></div>${evText(counted)}${UI.reviewEval(pid, week, row)}</div>`;
     }
     if (row.state === 'unknown') {
       return html`<div class="n-review__dim" data-dim="${d.id}"><div class="n-review__dimhead"><h4>${d.name}</h4>${theme}${UI.na()}</div><div class="n-review__ev" style="color:var(--ink-3)">${d.id === 'grit' ? '待补受挫后的反应。下次复盘可以留意：方案被否之后怎么做。' : `${row.items.length ? '只记到参与，待补具体行为' : '待补相关行为的记录'}。`}</div></div>`;
@@ -80,6 +82,7 @@
 
   function wire(main) {
     main.onclick = (e) => {
+      if (UI.reviewEvalClick(e, pid, week, () => render(main))) return;
       const dot = e.target.closest('.nt-pick .n-score__dot');
       if (dot && !dot.disabled) {
         const row = dot.closest('.nt-pick'), v = +dot.dataset.v, ai = +row.dataset.ai;
