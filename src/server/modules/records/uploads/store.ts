@@ -73,36 +73,28 @@ export function createPostgresUploadStore(
             return row.count;
           },
           async insertIntent(intent) {
-            await executor
-              .insert(uploadIntents)
-              .values({
-                ...intent,
-                declaredBytes: intent.request.declaredBytes,
-              });
+            await executor.insert(uploadIntents).values({
+              ...intent,
+              declaredBytes: intent.request.declaredBytes,
+            });
           },
           async archiveAndDispatch(intent, object, ids) {
-            await executor
-              .insert(originals)
-              .values({
-                id: ids.originalId,
-                title: intent.request.filename,
-                kind: 'original',
-              });
-            await executor
-              .insert(originalVersions)
-              .values({
-                id: ids.originalVersionId,
-                originalId: ids.originalId,
-                version: 1,
-                contentDigest: object.sha256,
-              });
-            await executor
-              .insert(uploadObjects)
-              .values({
-                ...object,
-                uploadId: intent.id,
-                originalVersionId: ids.originalVersionId,
-              });
+            await executor.insert(originals).values({
+              id: ids.originalId,
+              title: intent.request.filename,
+              kind: 'original',
+            });
+            await executor.insert(originalVersions).values({
+              id: ids.originalVersionId,
+              originalId: ids.originalId,
+              version: 1,
+              contentDigest: object.sha256,
+            });
+            await executor.insert(uploadObjects).values({
+              ...object,
+              uploadId: intent.id,
+              originalVersionId: ids.originalVersionId,
+            });
             const { jobId } = await dispatch(executor, {
               ...ids,
               uploadId: intent.id,
