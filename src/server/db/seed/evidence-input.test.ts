@@ -56,6 +56,15 @@ it('parses the ordinary complete chain with formal defaults and an actual confir
     confirmedAt: new Date('2026-07-24T00:00:00Z'),
   });
 });
+it('preserves an explicitly empty situation without inventing context for a formal event', () => {
+  const input = ordinary();
+  input.events[0].situation = '';
+  expect(parseFormalEvidence(input).events[0]).toMatchObject({
+    situation: '',
+    behavior: 'Synthetic behavior',
+    demo: false,
+  });
+});
 it.each([
   { demo: true },
   { mode: 'demo' },
@@ -76,14 +85,17 @@ it.each([
   Object.assign(input.originals[0], patch);
   expect(() => parseFormalEvidence(input)).toThrow();
 });
-it.each([{ demo: true }, { behavior: ' \t\n' }, { env: 'local' }])(
-  'rejects demo or incomplete formal events',
-  (patch) => {
-    const input = ordinary();
-    Object.assign(input.events[0], patch);
-    expect(() => parseFormalEvidence(input)).toThrow();
-  },
-);
+it.each([
+  { demo: true },
+  { behavior: ' \t\n' },
+  { situation: null },
+  { situation: undefined },
+  { env: 'local' },
+])('rejects demo or incomplete formal events', (patch) => {
+  const input = ordinary();
+  Object.assign(input.events[0], patch);
+  expect(() => parseFormalEvidence(input)).toThrow();
+});
 it.each([
   { sourceCategory: 'prototype_baseline' },
   { evaluatorId: null },

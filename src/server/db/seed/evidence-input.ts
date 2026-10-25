@@ -90,7 +90,7 @@ export const evidenceRecordsSchema = z.strictObject({
         projectId: nullableId,
         occurredOn: z.iso.date(),
         title: text,
-        situation: text,
+        situation: z.string(),
         behavior: z.string(),
         impact: z.string(),
         ruleVersionId: id,
