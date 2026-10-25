@@ -16,13 +16,15 @@
   const TAGS = [['方案对比', /方案|对比/], ['主动推进', /主动|认领/], ['任务拆解', /拆/], ['需求变更', /需求.{0,4}(改|变)/], ['线上故障', /故障/], ['跨团队协作', /协调|对齐|跨/],
     ['客户现场', /客户/], ['故障定位', /定位|排查/], ['导师带教', /带新人|熟悉|带教/], ['复盘习惯', /复盘/]];
   // 否定说法不当正向证据。否定词和关键词之间只允许「很 / 太 / 是 / 会」这类修饰，
-  // 不把「不仅 / 不过 / 不同 / 未来」整段吞掉。同一分句里只要有一处被否定，这一句的其他命中也不出分。
+  // 不把「不仅 / 不过 / 不同 / 未来」整段吞掉。同一分句里有被否定的命中时，这一句不再出分；
+  // 「但 / 不过」另起一句，后面的正向行为保留。被否定的加分词只压住它后面的加分，不压住前面已经写成的行为。
   const NEG_TAIL = /(?:没有?|没能|未能?|不|别)(?:太|够|能|会|是|必|算|怎么|很)*$/;
+  const CLAUSE_SEPS = ['，', '。', '；', '！', '？', '、', '\n', ',', ';', '但是', '不过', '然而', '可是', '但'];
   function clauseFrom(text, index) {
     let from = 0;
-    for (const sep of ['，', '。', '；', '！', '？', '、', '\n', ',', ';']) {
-      const i = text.lastIndexOf(sep, index - 1);
-      if (i >= from) from = i + 1;
+    for (const sep of CLAUSE_SEPS) {
+      const i = text.lastIndexOf(sep, index - sep.length);
+      if (i >= 0 && i + sep.length > from) from = i + sep.length;
     }
     return from;
   }
@@ -50,14 +52,21 @@
     const scores = [];
     RULES.forEach((r) => {
       const all = [...acts.matchAll(new RegExp(r.re.source, 'g'))];
-      const blocked = new Set(all.filter((x) => negatedAt(acts, x.index)).map((x) => clauseFrom(acts, x.index)));
+      const downs = r.down ? [...acts.matchAll(new RegExp(r.down.source, 'g'))] : [];
+      const blocked = new Set([
+        ...all.filter((x) => negatedAt(acts, x.index)).map((x) => clauseFrom(acts, x.index)),
+        ...downs.filter((x) => negatedAt(acts, x.index)).map((x) => clauseFrom(acts, x.index)),
+      ]);
       const m = all.find((x) => !negatedAt(acts, x.index) && !blocked.has(clauseFrom(acts, x.index)));
       if (m) {
         let v = r.v;
         const ups = r.up ? [...acts.matchAll(new RegExp(r.up.source, 'g'))] : [];
-        const upBlocked = new Set(ups.filter((x) => negatedAt(acts, x.index)).map((x) => clauseFrom(acts, x.index)));
-        const upHit = ups.some((x) => !negatedAt(acts, x.index) && !upBlocked.has(clauseFrom(acts, x.index)) && !blocked.has(clauseFrom(acts, x.index)));
-        const downHit = r.down && [...acts.matchAll(new RegExp(r.down.source, 'g'))].some((x) => !negatedAt(acts, x.index));
+        const upHit = ups.some((x) => {
+          if (negatedAt(acts, x.index) || blocked.has(clauseFrom(acts, x.index))) return false;
+          const start = clauseFrom(acts, x.index);
+          return !ups.some((n) => negatedAt(acts, n.index) && clauseFrom(acts, n.index) === start && n.index <= x.index);
+        });
+        const downHit = downs.some((x) => !negatedAt(acts, x.index));
         if (upHit) v += 1;
         if (downHit) v = 2;
         scores.push({ p: pid, d: r.d, v, ai: v, st: 'ai', note: `锚点 ${v} · 引用「${snippet(text, m)}」` });
