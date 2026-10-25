@@ -84,9 +84,26 @@ export function talentSources(data: PersonData): TalentSource[] {
       )
     )
       requiredKinds.push('management-observation');
-    // Historical kind is free text. Until the importer's exact classification
-    // is supplied, do not infer sensitivity from a substring or drop a link.
-    if (history.length > 0) subjects.length = 0;
+    // Only the four classified baseline categories in BOW-834 are ordinary
+    // evaluations. Free-text kinds are not a sensitivity classification.
+    const ordinaryHistory = [
+      '训练营周评',
+      '结营评审',
+      'MS 路演评审',
+      '奖项答辩',
+    ];
+    if (
+      history.some(
+        (row) =>
+          row.sourceCategory !== 'prototype_baseline' ||
+          !ordinaryHistory.includes(row.kind) ||
+          (!row.personId &&
+            !data.historicalParticipants.some(
+              (participant) => participant.evaluationId === row.id,
+            )),
+      )
+    )
+      subjects.length = 0;
     return {
       ...reference,
       subjects,

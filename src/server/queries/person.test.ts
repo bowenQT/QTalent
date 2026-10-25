@@ -127,4 +127,41 @@ describe('people, profile and shared sources', () => {
     vi.mocked(loadCurrentPersonData).mockRejectedValue(new Error('database failed'));
     await expect(readSourceForCurrentUser(reference)).rejects.toThrow('database failed');
   });
+  it('does not infer compatibility between rule versions', async () => {
+    const data = fixture();
+    data.confirmations[0].ruleVersionId = 'future-rule';
+    data.anchors.find((row) => row.id === 'prof')!.ruleVersionId = 'future-rule';
+    const profile = await personFromData(data, 'one');
+    expect(profile?.capabilityProfile.status).toBe('ready');
+    expect(profile).toHaveProperty('referencePosition.status', 'unknown');
+  });
+  it('classifies known baseline history but fails closed on unknown shared history', async () => {
+    const data = fixture('mentor');
+    data.historical.push({
+      id: 'history',
+      sourceRecordId: 'snapshot-history',
+      personId: 'one',
+      recorderId: 'actor',
+      occurredOn: '2026-06-01',
+      kind: '训练营周评',
+      period: null,
+      scale: [['本周总结', '正常发挥']],
+      ruleVersionId: null,
+      originalVersionId: 'version',
+      fragmentId: 'fragment-0',
+      sourceCategory: 'prototype_baseline',
+    });
+    expect((await sourceFromData(data, reference)).status).toBe('success');
+    data.historical[0].kind = 'Unclassified confidential material';
+    expect((await sourceFromData(data, reference)).status).toBe('not_found');
+    data.historical[0].kind = '结营评审';
+    data.historical[0].personId = null;
+    expect((await sourceFromData(data, reference)).status).toBe('not_found');
+    data.historicalParticipants.push({
+      evaluationId: 'history',
+      personId: 'two',
+    });
+    expect((await sourceFromData(data, reference)).status).toBe('not_found');
+  });
+
 });

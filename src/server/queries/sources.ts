@@ -5,6 +5,7 @@ import {
   type SourceReadResult,
 } from '../../contracts/sources';
 import { readTalentSource } from '../authz/talent';
+import { ForbiddenError } from '../usecases/project-context';
 import {
   type PersonData,
   talentSources,
@@ -78,6 +79,12 @@ export async function readSourceForCurrentUser(
       fieldErrors: { source: ['请提供有效的片段和原件版本'] },
       input,
     };
-  const data = await loadCurrentPersonData();
-  return sourceFromData(data, parsed.data);
+  try {
+    const data = await loadCurrentPersonData();
+    return sourceFromData(data, parsed.data);
+  } catch (error) {
+    if (error instanceof ForbiddenError)
+      return { status: 'forbidden', message: '当前账号没有业务读取权限' };
+    throw error;
+  }
 }
