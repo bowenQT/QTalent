@@ -51,10 +51,14 @@ export function deriveReferencePosition(
       ),
     ),
   );
+  // Extra potential items (not core): their mean of at least 4 only sets a flag.
+  // It never moves the quadrant and never adds a coordinate.
+  const extras = recent.filter((score) => score.axis === 'pot' && !score.core);
   return {
     status: 'ready',
     data: {
       kind: 'reference',
+      bonus: extras.length > 0 && mean(extras.map((score) => score.value)) >= 4,
       quadrant:
         prof >= 3.5
           ? pot >= 3.5
