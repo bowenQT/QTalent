@@ -392,7 +392,7 @@
     ],
   };
   const RULE_SUGS = [
-    { id: 'rs-yq-grit', rule: 'rubric', dim: 'grit', level: 3, by: 'p-yeqing', at: '2026-08-30', state: 'open', ev: 'e-x15-3',
+    { id: 'rs-yq-grit', rule: 'rubric', dim: 'grit', level: 3, ver: 'rubric-v1', by: 'p-yeqing', at: '2026-08-30', state: 'open', ev: 'e-x15-3',
       text: '锚点 3「常规情境下稳定表现」太宽：按期交付和攻下一个难题后坚持到有结果，都能落到 3 分，建议写清楚' },
   ];
 

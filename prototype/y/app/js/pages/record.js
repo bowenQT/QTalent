@@ -95,7 +95,8 @@
       onOpen: (dl) => $('#sg-t', dl).focus(),
     });
     if (v?.value !== 'ok') return;
-    const sg = st.addRuleSug(v.data);
+    const a = st.anchors(v.data.dim, pid); // 记下针对哪一套锚点、哪个版本，HR 处理时知道要改哪段文字
+    const sg = st.addRuleSug({ ...v.data, person: pid, fam: v.data.dim === 'prof' ? a.fam || 'all' : null, ver: a.v });
     mySugs();
     NT.toast(`已提交给${st.person(st.roles.hrbp.person).name}，处理结果会显示在锚点下面`, { undo: () => { st.removeRuleSug(sg.id); mySugs(); } });
   }
@@ -103,7 +104,7 @@
     const host = $('#my-sugs'); if (!host) return;
     const list = st.ruleSugs({ by: st.me().id });
     const S = { open: '待 HR 处理', adopted: '已纳入修订草稿', rejected: '不采纳' };
-    mount(host, list.length ? html`<div style="margin-top:var(--s-2)">${list.map((x) => html`<div style="padding:var(--s-2) 0;border-top:1px solid var(--line);font-size:var(--t-xs);color:var(--ink-2)"><b>你的建议 · ${st.dim(x.dim).name}锚点 ${x.level} 分</b> · ${S[x.state]}${x.state === 'rejected' && x.why ? `：${x.why}` : ''}<div class="nt-muted">「${x.text}」</div></div>`)}</div>` : '');
+    mount(host, list.length ? html`<div style="margin-top:var(--s-2)">${list.map((x) => html`<div style="padding:var(--s-2) 0;border-top:1px solid var(--line);font-size:var(--t-xs);color:var(--ink-2)"><b>你的建议 · ${st.sugLabel(x)}</b> · ${S[x.state]}${x.state === 'rejected' && x.why ? `：${x.why}` : ''}<div class="nt-muted">「${x.text}」</div></div>`)}</div>` : '');
   }
 
   let draft = null, att = null;

@@ -71,7 +71,7 @@
   function rubricSignal() {
     const open = st.ruleSugs({ state: 'open' });
     if (!open.length) return null;
-    if (role === 'hrbp') return [icon('note'), `${open.length} 条修订建议待处理：${open.map((s) => `${name(s.by)}对${st.dim(s.dim).name}锚点 ${s.level}`).join('、')}`];
+    if (role === 'hrbp') return [icon('note'), `${open.length} 条修订建议待处理：${open.map((s) => `${name(s.by)}对${st.sugLabel(s)}`).join('、')}`];
     return [icon('note'), `${open.length} 条修订建议，HR 处理中`];
   }
   function watchSignal() {
@@ -318,7 +318,7 @@
   const SRC = { lead: '部门负责人', mentor: '导师 / 助教' };
   function basisText(b) {
     if (b.type === 'judge') { const cat = judgeCat(b); return `${st.judgeBatch(b.batch)?.name} · ${b.dim}：${b.n} · ${cat ? `归因：${cat}` : '归因待确认'}`; }
-    if (b.type === 'sug') { const s = st.ruleSugs().find((x) => x.id === b.sug); if (!s) return '修订建议'; return role === 'hrbp' ? `${name(s.by)}的修订建议 · ${st.dim(s.dim).name}锚点 ${s.level}` : `修订建议 · 来自${SRC[ROLE_OF(s.by)]} 1 条`; }
+    if (b.type === 'sug') { const s = st.ruleSugs().find((x) => x.id === b.sug); if (!s) return '修订建议'; return role === 'hrbp' ? `${name(s.by)}的修订建议 · ${st.sugLabel(s)}` : `修订建议 · 来自${SRC[ROLE_OF(s.by)]} 1 条`; }
     if (b.type === 'gap') return role === 'hrbp' ? `HR 核对 · ${b.people.map(name).join('、')}的第一件事早于时间窗` : `HR 核对 · ${b.people.length} 人`;
     return b.text;
   }
@@ -343,7 +343,7 @@
     const open = st.ruleOpen(kind), locked = open && open.state !== 'draft' ? open : null;
     return html`<article class="n-card" id="sugs"><h3 class="n-section-title">修订建议<span class="nt-muted" style="margin-left:auto;font-weight:400">建议只用于修订规则，分数保持原样</span></h3>
       <ul class="nt-list">${list.map((s) => html`<li style="padding:var(--s-3) 0;border-top:1px solid var(--line)">
-        <div class="nt-row"><b style="font-size:var(--t-sm)">${st.dim(s.dim).name}锚点 ${s.level} 分</b><span class="nt-muted">${name(s.by)} · ${SRC[ROLE_OF(s.by)]} · ${NT.md(s.at)}</span><span class="n-badge" style="margin-left:auto">${STATE_S[s.state]}</span></div>
+        <div class="nt-row"><b style="font-size:var(--t-sm)">${st.sugLabel(s)}</b><span class="nt-muted">${name(s.by)} · ${SRC[ROLE_OF(s.by)]} · ${NT.md(s.at)}</span><span class="n-badge" style="margin-left:auto">${STATE_S[s.state]}</span></div>
         <p style="margin:var(--s-1) 0 0;font-size:var(--t-sm)">「${s.text}」</p>
         ${s.ev && st.event(s.ev) ? html`<p class="nt-muted" style="margin:2px 0 0">例子：${st.event(s.ev).title} · ${NT.md(st.event(s.ev).date)}</p>` : ''}
         ${s.state === 'rejected' ? html`<p class="nt-muted" style="margin:2px 0 0">理由：${s.why}</p>` : ''}
@@ -396,7 +396,7 @@
           <div class="n-checkbar__foot">
             ${st.lockBlocks(d) ? html`<div class="n-lock">${icon('lock')}<span>${st.inventoryLock().name}进行中，这份草稿选的是立即生效；退回请${name(d.by)}把生效点改为下一个盘点批次。</span></div>` : ''}
             <button class="n-btn n-btn--seal" type="button" id="confirm" ${NT.raw(st.lockBlocks(d) ? 'disabled' : '')}>${icon('stamp')}确认发布 ${d.v}</button>
-            <button class="n-btn n-btn--ghost" type="button" id="return">退回修改</button>
+            ${kind === 'front' ? html`<span class="nt-muted">前段标准这一期只读，不能退回修改；有疑问先和${name(d.by)}沟通再确认</span>` : html`<button class="n-btn n-btn--ghost" type="button" id="return">退回修改</button>`}
           </div>
         </div>
       </aside>
@@ -524,7 +524,7 @@
       const gap = kind === 'watch' ? st.watchGap() : [];
       const items = [];
       if (gap.length && !has('gap')) items.push({ label: `你的核对：第一件事早于时间窗的 ${gap.length} 人`, sub: gap.map((p) => p.name).join('、'), icon: 'users', run: () => { st.setDraft(kind, { basis: [...(d.basis || []), { type: 'gap', people: gap.map((p) => p.id) }] }); rerender(); } });
-      if (kind === 'rubric') st.ruleSugs({ state: 'open' }).forEach((s) => items.push({ label: `${s.by ? name(s.by) : ''}的修订建议 · ${st.dim(s.dim).name}锚点 ${s.level}`, icon: 'note', run: () => { if (adoptSug(s.id)) { rerender(); NT.toast('已把这条建议纳入草稿，提建议的人能看到结果'); } } }));
+      if (kind === 'rubric') st.ruleSugs({ state: 'open' }).forEach((s) => items.push({ label: `${s.by ? name(s.by) : ''}的修订建议 · ${st.sugLabel(s)}`, icon: 'note', run: () => { if (adoptSug(s.id)) { rerender(); NT.toast('已把这条建议纳入草稿，提建议的人能看到结果'); } } }));
       items.push({ label: '写一条说明', icon: 'doc', run: async () => {
         const v = await NT.dialog({ title: '写一条依据说明', body: html`<textarea class="n-textarea" rows="3" id="note" placeholder="比如：两次校准会上都提到新人的第一件事落在时间窗外"></textarea>`,
           actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '加入依据', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#note', dl).value.trim(), read: (dl) => $('#note', dl).value.trim() }] });

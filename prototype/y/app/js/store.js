@@ -393,7 +393,7 @@
     });
     if (role === 'hrbp') {
       store.reviewHolds().forEach((h) => list.push({ kind: 'rulereview', badge: '按新版本复核', title: `${h.ver}：${h.n} 条旧分待按新版本复核`, sub: `涉及 ${h.people} 人、${h.raters} 位评分人；复核确认前暂停参与取数`, due: NT.md(h.at), href: 'rules.html?r=rubric' }));
-      S.ruleSugs.filter((x) => x.state === 'open').forEach((x) => list.push({ kind: 'rulesug', sug: x.id, badge: '修订建议', title: `${store.dim(x.dim).name}锚点 ${x.level} 分：${store.person(x.by).name}的建议`, sub: `「${x.text}」`, due: NT.md(x.at), href: `rules.html?r=${x.rule}#sugs` }));
+      S.ruleSugs.filter((x) => x.state === 'open').forEach((x) => list.push({ kind: 'rulesug', sug: x.id, badge: '修订建议', title: `${store.sugLabel(x)}：${store.person(x.by).name}的建议`, sub: `「${x.text}」`, due: NT.md(x.at), href: `rules.html?r=${x.rule}#sugs` }));
       Object.keys(S.rules).forEach((k) => S.rules[k].filter((r) => r.state === 'draft' && r.returned && r.by === me).forEach((r) => list.push({ kind: 'ruleback', badge: '管理者退回', cls: 'n-badge--seal', title: `${store.ruleKindName(k)} ${r.v} 退回到草稿`, sub: `「${r.returned.why}」`, due: NT.md(r.returned.at), href: `rules.html?r=${k}${r.line ? `&line=${r.line}` : ''}` })));
       store.watchPending().forEach((c) => list.push({ kind: 'clue', clue: c.id, badge: '待核实', cls: 'n-badge--ai', icon: 'spark', title: `${store.person(c.person).name}：${c.why}`, sub: c.dir ? `${store.person(c.by).name}推荐${store.fitText(c.dir)} · 核实后进入档案的发展方向和「值得关注的人」` : `${c.by === 'ai' ? 'AI 线索' : `${store.person(c.by).name}提名`} · 核实后进入「值得关注的人」`, due: NT.md(c.at), href: `person.html?id=${c.person}` }));
     }
@@ -1261,6 +1261,8 @@
   };
   // 修订建议（3.35.8）：负责人、导师 / 助教在锚点处提，进 HR 待办；不改分数，也不自动形成草稿
   store.canSuggestRule = (role = store.role()) => ['lead', 'mentor'].includes(role);
+  // 建议针对的锚点：专业度写明岗位族（或通用），并带提交时的锚点版本；早先的建议没有记录就不写
+  store.sugLabel = (s) => `${store.dim(s.dim).name}${s.dim === 'prof' && s.fam ? ` · ${s.fam === 'all' ? '通用' : `${store.familyName(s.fam)}族`}` : ''}锚点 ${s.level} 分${s.ver ? `（${s.ver}）` : ''}`;
   store.addRuleSug = (o) => {
     if (!store.canSuggestRule()) return null;
     const s = { id: NT.uid('rs'), rule: 'rubric', state: 'open', by: store.me().id, at: NT.TODAY, ...o };
