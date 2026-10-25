@@ -9,7 +9,8 @@ import {
 // `entries` is the only source of authorized actions: the find-people box is shown
 // when it contains `find_people`, the one-line composer when it contains `record`.
 // Navigation targets (people, projects) belong to the shell contract, not here.
-// Managers get ['find_people'], HR ['record', 'find_people'], mentors ['record'].
+// Managers and HR get ['record', 'find_people'] (a manager may record an event, as in
+// the final prototype), mentors ['record']: a mentor never gets `find_people`.
 const entrySchema = z.enum(['record', 'find_people']);
 const entriesFor = (allowed: readonly z.infer<typeof entrySchema>[]) =>
   z
@@ -48,7 +49,7 @@ export const workbenchSchema = z.discriminatedUnion('role', [
   z.strictObject({
     role: z.literal('manager'),
     ...shared,
-    entries: entriesFor(['find_people']),
+    entries: entriesFor(['record', 'find_people']),
     judgmentReminders: notConnectedSchema,
     noteworthyPeople: notConnectedSchema,
     noteworthyProjects: notConnectedSchema,

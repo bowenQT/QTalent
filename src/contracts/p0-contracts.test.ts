@@ -1141,8 +1141,14 @@ describe('workbench', () => {
     ).toBe(true);
     expect(ok(workbenchSchema, { ...wb('hr'), entries: [] })).toBe(true);
     expect(ok(workbenchSchema, { ...wb('manager'), entries: ['record'] })).toBe(
-      false,
+      true,
     );
+    expect(
+      ok(workbenchSchema, {
+        ...wb('manager'),
+        entries: ['record', 'find_people'],
+      }),
+    ).toBe(true);
     expect(
       ok(workbenchSchema, { ...wb('mentor'), entries: ['find_people'] }),
     ).toBe(false);
@@ -1156,7 +1162,7 @@ describe('workbench', () => {
       }),
     ).toBe(false);
     expect(fixtures.workbench.map((x) => x.entries)).toEqual([
-      ['find_people'],
+      ['record', 'find_people'],
       ['record', 'find_people'],
       ['record'],
     ]);

@@ -18,38 +18,38 @@
 
 下表的 feature、contract 和 server 入口是后续任务的建议边界，不代表已创建文件或对未来接口作出承诺。
 
-| 原型页（`prototype/y/` 相对路径） | 工程路由                          | 后续 feature / contract             | 后续读取、动作 / 领域                        | 当前状态       |
-| --------------------------------- | --------------------------------- | ----------------------------------- | -------------------------------------------- | -------------- |
-| `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
-| `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
-| `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
-| `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
-| `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
-| `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
-| `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
-| `app/review.html`                 | `/review?id=…`                    | review / review                     | review / talent                              | 后续 / 404     |
-| `app/calibrate.html`              | `/calibrate`                      | calibrate / calibrate               | calibrate / talent                           | 后续 / 404     |
-| `app/plan.html`                   | `/plan?id=…`                      | plan / plan                         | plan / talent、staffing                      | 后续 / 404     |
-| `app/landing.html`                | `/programs`                       | programs / programs                 | programs / programs                          | 后续 / 404     |
-| `app/landing-review.html`         | `/program-review`                 | program-review / program-review     | program-review / programs、evaluation-system | 后续 / 404     |
-| `app/actions.html`                | `/program-actions`                | program-actions / program-actions   | program-actions / programs                   | 后续 / 404     |
-| `app/projects.html`               | `/projects`                       | projects / projects                 | projects / staffing                          | 已实现参考切片 |
-| `app/project.html`                | `/project?id=…`                   | project / project                   | project / staffing                           | 后续 / 404     |
-| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 契约已定义，查询与 UI 待接入 / 404 |
-| `app/rules.html`                  | `/rules`                          | rules / rules                       | rules / evaluation-system                    | 后续 / 404     |
-| `app/judge.html`                  | `/judge?rater=me`                 | judge / judge                       | judge / evaluation-system                    | 后续 / 404     |
-| `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
-| `app/admin.html`                  | `/admin`                          | admin / admin                       | admin / directory、平台                      | 后续 / 404     |
-| `m/index.html`                    | `/m`                              | mobile-workbench / mobile-workbench | mobile-workbench / 多领域聚合                | 后续 / 404     |
-| `m/mentor.html`                   | `/m/mentor`                       | mobile-mentor / mobile-mentor       | mobile-mentor / programs                     | 后续 / 404     |
-| `m/quick.html`                    | `/m/quick`                        | mobile-quick / mobile-quick         | mobile-quick / records                       | 后续 / 404     |
-| `m/record.html`                   | `/m/record`                       | mobile-record / mobile-record       | mobile-record / records                      | 后续 / 404     |
-| `m/inbox.html`                    | `/m/inbox`                        | mobile-inbox / mobile-inbox         | mobile-inbox / records                       | 后续 / 404     |
-| `m/people.html`                   | `/m/people`                       | mobile-people / mobile-people       | mobile-people / directory                    | 后续 / 404     |
-| `m/person.html`                   | `/m/person?id=…`                  | mobile-person / mobile-person       | mobile-person / directory、talent            | 后续 / 404     |
-| `m/me.html`                       | `/m/me`                           | mobile-account / mobile-account     | mobile-account / directory                   | 后续 / 404     |
-| `design-system.html`              | `/dev/design-system`              | 已移植基础组件                      | —                                            | 已实现开发样张 |
-| `404.html`                        | 全局 404                          | State                               | —                                            | 已实现         |
+| 原型页（`prototype/y/` 相对路径） | 工程路由                          | 后续 feature / contract             | 后续读取、动作 / 领域                        | 当前状态                           |
+| --------------------------------- | --------------------------------- | ----------------------------------- | -------------------------------------------- | ---------------------------------- |
+| `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404                         |
+| `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404                         |
+| `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404                         |
+| `app/record.html`                 | `/record`                         | record / record.ts                  | record / records、talent                     | 契约已定义，读写与 UI 待接入 / 404 |
+| `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404                         |
+| `app/queue.html`                  | `/queue`                          | queue / review-queue.ts             | queue / talent                               | 契约已定义，读写与 UI 待接入 / 404 |
+| `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404                         |
+| `app/review.html`                 | `/review?id=…`                    | review / review                     | review / talent                              | 后续 / 404                         |
+| `app/calibrate.html`              | `/calibrate`                      | calibrate / calibrate               | calibrate / talent                           | 后续 / 404                         |
+| `app/plan.html`                   | `/plan?id=…`                      | plan / plan                         | plan / talent、staffing                      | 后续 / 404                         |
+| `app/landing.html`                | `/programs`                       | programs / programs                 | programs / programs                          | 后续 / 404                         |
+| `app/landing-review.html`         | `/program-review`                 | program-review / program-review     | program-review / programs、evaluation-system | 后续 / 404                         |
+| `app/actions.html`                | `/program-actions`                | program-actions / program-actions   | program-actions / programs                   | 后续 / 404                         |
+| `app/projects.html`               | `/projects`                       | projects / projects                 | projects / staffing                          | 已实现参考切片                     |
+| `app/project.html`                | `/project?id=…`                   | project / project                   | project / staffing                           | 后续 / 404                         |
+| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts              | staffing / staffing                          | 契约已定义，查询与 UI 待接入 / 404 |
+| `app/rules.html`                  | `/rules`                          | rules / rules                       | rules / evaluation-system                    | 后续 / 404                         |
+| `app/judge.html`                  | `/judge?rater=me`                 | judge / judge                       | judge / evaluation-system                    | 后续 / 404                         |
+| `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404                         |
+| `app/admin.html`                  | `/admin`                          | admin / admin                       | admin / directory、平台                      | 后续 / 404                         |
+| `m/index.html`                    | `/m`                              | mobile-workbench / mobile-workbench | mobile-workbench / 多领域聚合                | 后续 / 404                         |
+| `m/mentor.html`                   | `/m/mentor`                       | mobile-mentor / mobile-mentor       | mobile-mentor / programs                     | 后续 / 404                         |
+| `m/quick.html`                    | `/m/quick`                        | mobile-quick / mobile-quick         | mobile-quick / records                       | 后续 / 404                         |
+| `m/record.html`                   | `/m/record`                       | mobile-record / mobile-record       | mobile-record / records                      | 后续 / 404                         |
+| `m/inbox.html`                    | `/m/inbox`                        | mobile-inbox / mobile-inbox         | mobile-inbox / records                       | 后续 / 404                         |
+| `m/people.html`                   | `/m/people`                       | mobile-people / mobile-people       | mobile-people / directory                    | 后续 / 404                         |
+| `m/person.html`                   | `/m/person?id=…`                  | mobile-person / mobile-person       | mobile-person / directory、talent            | 后续 / 404                         |
+| `m/me.html`                       | `/m/me`                           | mobile-account / mobile-account     | mobile-account / directory                   | 后续 / 404                         |
+| `design-system.html`              | `/dev/design-system`              | 已移植基础组件                      | —                                            | 已实现开发样张                     |
+| `404.html`                        | 全局 404                          | State                               | —                                            | 已实现                             |
 
 ## BOW-851 找人契约
 
@@ -156,22 +156,22 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 
 依据：[已交叉审规格](https://linear.app/bowenzhong/document/51834ba3247b)。仅新增 Zod 合同和合成夹具，不实现页面或读取。前端 BOW-839/840/841 负责人评审仍是独立合入条件，本表不宣称已获评审。原型基线仍为 `prototype-reference.json` 的 `2e51b50`，没有新遮罩或 UI 修改。
 
-| 消费页面 / 区块 | 合同字段 | 数据来源 / 当前表达 | 后续责任 |
-| --- | --- | --- | --- |
-| `/work` 问候、业务日与入口 | `workbench.greeting / asOf / entries` | directory 身份及服务端授权；`entries` 是动作授权唯一来源（管理者 `find_people`、HR `record, find_people`、导师 `record`），导航由 shell 决定；合同就绪，查询尚未接入 | BOW-838/841 |
-| 管理者判断提醒、值得关注的人/项目、我的关注 | `judgmentReminders / noteworthyPeople / noteworthyProjects / myWatch` | evaluation-system / talent / programs；固定 `not_connected` | P2/P4 对应链路 |
-| HR 有变化的人、判断对照 | `changedPeople / judgmentComparison` | talent / evaluation-system；固定 `not_connected` | P4/P7 对应链路 |
-| HR/导师待办与材料任务 | `todos / materialTasks` | records / jobs；固定 `not_connected`，无伪零角标 | P3 待办汇总与材料链路 |
-| 导师学员 / 推荐 | `trainees / recommendations` | `trainees` 是精简投影（头像四项、课题、本人本周记录活跃度 ready/unknown），不含摘要、分数、来源；推荐固定 `not_connected` | BOW-838/841；推荐后续卡 |
-| `/people` 列表、速览 | `peopleList / quickView` | 身份（含 teamPath、level、batch、tenureLabel）、`projectLoad`、`recentFacts`（≤3，原文角标）、`capabilityLines`（无窗口，只有事件数与锚点）；先授权后聚合；合同就绪，读取/UI 未接入 | BOW-837/839 |
-| `/person?id=…` 摘要 | `summary` | 署名、有日期的人工结论，带授权类别 `category`；事实与自述在时间线，AI 在 `aiInferences` | BOW-837/840 |
-| 档案能力谱 | `capabilityProfile` | 服务端按 `asOf` 前 365 天（含边界日）切窗口，带 `windowFrom`、维度状态与窗口内确认分（锚点、评价人姓名、规则版本、来源、事件）；分差 ≥ 2 的证据冲突不计入；演示种子的 prototype_baseline 例外计入，无 AI 建议分 | BOW-834/835/837/840 |
-| 档案小象限 | `referencePosition` | talent 当前有效确认分计算；只给参考分类或资料不足/未知，档案另有 `bonus`（加分项均值 ≥ 4，不改象限），不设新阈值，无正式位置 | BOW-837/840 |
-| 校准轨迹、档案版本与变化 | `calibrationHistory / versionsAndChanges` | talent 盘点冻结未接入；固定 `not_connected` | 后续盘点冻结链路 |
-| AI 推断 | `aiInferences` | 独立块，不冒充人工结论；`category` 随输入内容定类，导师变体只能是 `evaluation` | BOW-835/837/840 |
-| 时间线、参与项目 | `timeline / projects` | 关键事件、自述、历史量表三种条目：`label`（界面来源标签）与 `category`（授权类别）分开，事件带逐分来源与证据冲突；项目含角色、方式、起止；均为已授权入口 | BOW-837/840 |
-| 所有引用角标展开 | `sourceReadInput / sourceReadResult` | 入参只有 fragmentId + originalVersionId（`toSourceReadInput`），结果含 `originalTitle`、可空的 `recordedByName`；每次核对关联及当前权限，不整件返回 | BOW-834/835/837；播放 URL 由 BOW-873 后续接入 |
-| 三个页面的结果包络 | `peoplePage / workbenchPage / personPage` | `ok` / `forbidden`（档案另有 `not_found`），拒绝不带 message 与人名；返回前须解析 | BOW-837/838 |
+| 消费页面 / 区块                             | 合同字段                                                              | 数据来源 / 当前表达                                                                                                                                                                                             | 后续责任                                      |
+| ------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `/work` 问候、业务日与入口                  | `workbench.greeting / asOf / entries`                                 | directory 身份及服务端授权；`entries` 是动作授权唯一来源（管理者与 HR `record, find_people`、导师 `record`），导航由 shell 决定；合同就绪，查询尚未接入                                                         | BOW-838/841                                   |
+| 管理者判断提醒、值得关注的人/项目、我的关注 | `judgmentReminders / noteworthyPeople / noteworthyProjects / myWatch` | evaluation-system / talent / programs；固定 `not_connected`                                                                                                                                                     | P2/P4 对应链路                                |
+| HR 有变化的人、判断对照                     | `changedPeople / judgmentComparison`                                  | talent / evaluation-system；固定 `not_connected`                                                                                                                                                                | P4/P7 对应链路                                |
+| HR/导师待办与材料任务                       | `todos / materialTasks`                                               | records / jobs；固定 `not_connected`，无伪零角标                                                                                                                                                                | P3 待办汇总与材料链路                         |
+| 导师学员 / 推荐                             | `trainees / recommendations`                                          | `trainees` 是精简投影（头像四项、课题、本人本周记录活跃度 ready/unknown），不含摘要、分数、来源；推荐固定 `not_connected`                                                                                       | BOW-838/841；推荐后续卡                       |
+| `/people` 列表、速览                        | `peopleList / quickView`                                              | 身份（含 teamPath、level、batch、tenureLabel）、`projectLoad`、`recentFacts`（≤3，原文角标）、`capabilityLines`（无窗口，只有事件数与锚点）；先授权后聚合；合同就绪，读取/UI 未接入                             | BOW-837/839                                   |
+| `/person?id=…` 摘要                         | `summary`                                                             | 署名、有日期的人工结论，带授权类别 `category`；事实与自述在时间线，AI 在 `aiInferences`                                                                                                                         | BOW-837/840                                   |
+| 档案能力谱                                  | `capabilityProfile`                                                   | 服务端按 `asOf` 前 365 天（含边界日）切窗口，带 `windowFrom`、维度状态与窗口内确认分（锚点、评价人姓名、规则版本、来源、事件）；分差 ≥ 2 的证据冲突不计入；演示种子的 prototype_baseline 例外计入，无 AI 建议分 | BOW-834/835/837/840                           |
+| 档案小象限                                  | `referencePosition`                                                   | talent 当前有效确认分计算；只给参考分类或资料不足/未知，档案另有 `bonus`（加分项均值 ≥ 4，不改象限），不设新阈值，无正式位置                                                                                    | BOW-837/840                                   |
+| 校准轨迹、档案版本与变化                    | `calibrationHistory / versionsAndChanges`                             | talent 盘点冻结未接入；固定 `not_connected`                                                                                                                                                                     | 后续盘点冻结链路                              |
+| AI 推断                                     | `aiInferences`                                                        | 独立块，不冒充人工结论；`category` 随输入内容定类，导师变体只能是 `evaluation`                                                                                                                                  | BOW-835/837/840                               |
+| 时间线、参与项目                            | `timeline / projects`                                                 | 关键事件、自述、历史量表三种条目：`label`（界面来源标签）与 `category`（授权类别）分开，事件带逐分来源与证据冲突；项目含角色、方式、起止；均为已授权入口                                                        | BOW-837/840                                   |
+| 所有引用角标展开                            | `sourceReadInput / sourceReadResult`                                  | 入参只有 fragmentId + originalVersionId（`toSourceReadInput`），结果含 `originalTitle`、可空的 `recordedByName`；每次核对关联及当前权限，不整件返回                                                             | BOW-834/835/837；播放 URL 由 BOW-873 后续接入 |
+| 三个页面的结果包络                          | `peoplePage / workbenchPage / personPage`                             | `ok` / `forbidden`（档案另有 `not_found`），拒绝不带 message 与人名；返回前须解析                                                                                                                               | BOW-837/838                                   |
 
 状态规则：已接入的事实块 `ready` 必有非空 payload；`empty` 仅表示权限范围内确无记录；`insufficient_evidence` / `unknown` 带原因而无数值。来源读取失败沿用 `validation_error / forbidden / not_found / conflict`，不得伪装空状态。加载中是前端本地状态。未接入区块只含 `{status: 'not_connected'}`，不携带伪计数、数组或业务记录。
 

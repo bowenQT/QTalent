@@ -394,7 +394,7 @@ const workbench: Workbench[] = [
     role: 'manager',
     greeting: { displayName: '演示管理者' },
     asOf,
-    entries: ['find_people'],
+    entries: ['record', 'find_people'],
     judgmentReminders: notConnected,
     noteworthyPeople: notConnected,
     noteworthyProjects: notConnected,
