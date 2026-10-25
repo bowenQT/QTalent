@@ -439,3 +439,94 @@ it('imports the same baseline twice without overwriting data and rolls an entire
       .where(eq(organizations.id, 'test-rollback-org')),
   ).toHaveLength(0);
 });
+it('rejects existing but unrelated previous revisions, suggestions, and source fragments', async () => {
+  const f = await fixture(),
+    other = await fixture();
+  await other.db.insert(confirmations).values(other.score);
+  await expect(
+    f.db.insert(confirmations).values({
+      ...f.score,
+      revision: 2,
+      previousRevision: 1,
+      previousId: other.score.id,
+      reason: 'Synthetic correction',
+    }),
+  ).rejects.toMatchObject({ cause: { code: '23503' } });
+  await other.db.insert(aiSuggestions).values({
+    ...other.score,
+    id: `${other.p}-ai`,
+    modelVersion: 'synthetic-v1',
+    rationale: 'Synthetic',
+  });
+  await expect(
+    f.db
+      .insert(confirmations)
+      .values({ ...f.score, suggestionId: `${other.p}-ai` }),
+  ).rejects.toMatchObject({ cause: { code: '23503' } });
+  await expect(
+    f.db.insert(confirmations).values({
+      ...f.score,
+      fragmentId: other.fragment,
+      originalVersionId: other.version,
+    }),
+  ).rejects.toMatchObject({ cause: { code: '23503' } });
+  await f.db
+    .insert(confirmations)
+    .values({
+      ...f.score,
+      id: `${f.p}-other-evaluator-score`,
+      evaluatorId: f.other,
+    });
+  await expect(
+    f.db
+      .insert(confirmations)
+      .values({
+        ...f.score,
+        revision: 2,
+        previousRevision: 1,
+        previousId: `${f.p}-other-evaluator-score`,
+        reason: 'Synthetic correction',
+      }),
+  ).rejects.toMatchObject({ cause: { code: '23503' } });
+  await f.db
+    .insert(fragments)
+    .values({
+      id: `${f.p}-unlinked`,
+      originalVersionId: f.version,
+      location: { kind: 'document', paragraph: 'second' },
+      excerpt: 'Synthetic unlinked source',
+    });
+  await expect(
+    f.db
+      .insert(confirmations)
+      .values({ ...f.score, fragmentId: `${f.p}-unlinked` }),
+  ).rejects.toMatchObject({ cause: { code: '23503' } });
+  // Same event but another dimension is also not the suggestion that was confirmed.
+  const dimension = `${f.p}-other-dimension`;
+  await f.db.insert(dimensions).values({
+    id: dimension,
+    name: 'Synthetic second dimension',
+    axis: 'pot',
+    core: true,
+  });
+  await f.db.insert(anchors).values({
+    id: `${f.p}-other-anchor`,
+    dimensionId: dimension,
+    ruleVersionId: f.rule,
+    value: 3,
+    text: 'Synthetic behavior',
+  });
+  await f.db.insert(aiSuggestions).values({
+    ...f.score,
+    id: `${f.p}-other-ai`,
+    dimensionId: dimension,
+    anchorId: `${f.p}-other-anchor`,
+    modelVersion: 'synthetic-v1',
+    rationale: 'Synthetic',
+  });
+  await expect(
+    f.db
+      .insert(confirmations)
+      .values({ ...f.score, suggestionId: `${f.p}-other-ai` }),
+  ).rejects.toMatchObject({ cause: { code: '23503' } });
+});
