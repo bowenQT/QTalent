@@ -146,10 +146,13 @@ describe('attachment parser', () => {
     ],
     ['file.pdf', 'application/pdf'],
   ])(
-    'reports an absent approved adapter as unavailable for %s',
+    'reports an explicitly disabled adapter as unavailable for %s',
     async (filename, mediaType) => {
       expect(
-        await parseAttachment(input('fixture', { filename, mediaType })),
+        await parseAttachment({
+          ...input('fixture', { filename, mediaType }),
+          decoders: {},
+        }),
       ).toMatchObject({ status: 'failed', reason: 'dependency_unavailable' });
     },
   );

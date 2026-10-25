@@ -2,6 +2,7 @@ import type { SourceReference } from '../../../../contracts/sources';
 import type { ParsedAttachment } from './types';
 export * from './types';
 export { parseAttachment, attachmentVersionSchema } from './parse';
+export { createDocumentDecoders } from './document-decoders';
 export function resolveAttachmentQuote(
   parsed: ParsedAttachment,
   fragmentId: string,

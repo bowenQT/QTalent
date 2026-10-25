@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { sourceLocationSchema } from '../../../../contracts/sources';
+import { parseLimitsSchema } from './limits';
+import { createDocumentDecoders } from './document-decoders';
 import type {
   AttachmentParseOutcome,
   AttachmentSegment,
@@ -20,11 +22,6 @@ export const attachmentVersionSchema = z.strictObject({
   byteLength: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
-const limitsSchema = z.strictObject({
-  maxBytes: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-  maxFragments: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-  maxFragmentChars: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-});
 const segmentSchema = z.strictObject({
   excerpt: z.string().min(1).regex(/\S/),
   location: sourceLocationSchema.options[1],
@@ -37,6 +34,15 @@ const decodedSchema = z.discriminatedUnion('status', [
   z.strictObject({
     status: z.literal('unsupported'),
     reason: z.enum(['format', 'scanned']),
+  }),
+  z.strictObject({
+    status: z.literal('failed'),
+    reason: z.enum([
+      'invalid_content',
+      'resource_limit',
+      'processing_failed',
+      'cancelled',
+    ]),
   }),
 ]);
 const mime = {
@@ -106,7 +112,7 @@ export async function parseAttachment(
 ): Promise<AttachmentParseOutcome> {
   const version = attachmentVersionSchema.safeParse(input.version);
   if (!version.success) return failure('invalid_content');
-  const limits = limitsSchema.parse(input.limits);
+  const limits = parseLimitsSchema.parse(input.limits);
   if (input.signal?.aborted) return failure('cancelled');
   const format = (Object.keys(mime) as Format[]).find((format) =>
     version.data.filename.toLowerCase().endsWith(`.${format}`),
@@ -117,7 +123,10 @@ export async function parseAttachment(
     mime[format]
   )
     return failure('invalid_content');
-  const decoder = format === 'txt' ? undefined : input.decoders?.[format];
+  const decoder =
+    format === 'txt'
+      ? undefined
+      : (input.decoders ?? createDocumentDecoders())[format];
   if (format !== 'txt' && !decoder) return failure('dependency_unavailable');
   if (version.data.byteLength > limits.maxBytes)
     return failure('resource_limit');
@@ -172,6 +181,7 @@ export async function parseAttachment(
       if (!decoded.success) return failure('invalid_content');
       if (decoded.data.status === 'unsupported')
         return unsupported(decoded.data.reason);
+      if (decoded.data.status === 'failed') return failure(decoded.data.reason);
       segments = decoded.data.segments;
       if (
         format === 'pdf' &&

@@ -322,7 +322,10 @@ describe('attachment parse transaction pipeline', () => {
     f.binding.version.filename = 'document.pdf';
     f.binding.version.mediaType = 'application/pdf';
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, payload, {
+        ...options,
+        decoders: {},
+      }),
     ).toEqual({ status: 'failed' });
     expect(f.state.record.errorCode).toBe('dependency_unavailable');
     expect(f.ports.open).not.toHaveBeenCalled();
