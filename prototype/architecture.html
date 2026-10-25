@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>产品架构与分期 · Niu-Talent</title>
+<link rel="stylesheet" href="y/assets/niu-tokens.css">
+<style>
+  /* 产品架构与分期：内容与 docs/proposals/2026-10-25-y-architecture-phases.md 一致。
+     模块状态只维护在下方脚本的一份数据里，分层图、模块矩阵和详情面板都从它生成。 */
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: var(--t-body)/var(--lh-ui) var(--font-sans); -webkit-font-smoothing: antialiased; }
+  a { color: var(--light); }
+  :focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--r-chip); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* 顶栏 */
+  .a-top { position: sticky; top: 0; z-index: 10; background: rgb(255 255 255 / .94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .a-top__in { display: flex; align-items: center; gap: var(--s-5); max-width: 1200px; height: 56px; margin: 0 auto; padding: 0 var(--s-8); }
+  .a-brand { flex: none; font-weight: 700; font-size: var(--t-body); color: var(--ink); text-decoration: none; }
+  .a-brand span { color: var(--ink-3); font-weight: 500; }
+  .a-nav { display: flex; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .a-nav::-webkit-scrollbar { display: none; }
+  .a-nav a { flex: none; padding: 6px 10px; border-radius: var(--r-chip); color: var(--ink-2); font-size: var(--t-sm); text-decoration: none; }
+  .a-nav a:hover { background: var(--hover); color: var(--ink); }
+  .a-back { flex: none; margin-left: auto; font-size: var(--t-sm); text-decoration: none; }
+
+  .a-wrap { max-width: 1200px; margin: 0 auto; padding: var(--s-10) var(--s-8) var(--s-20); }
+  .a-hero h1 { margin: 0; font-size: var(--t-3xl); line-height: var(--lh-tight); letter-spacing: -.01em; }
+  .a-hero p { max-width: 46em; margin: var(--s-3) 0 0; color: var(--ink-2); font-size: var(--t-md); line-height: var(--lh-read); }
+  .a-hero .a-meta { font-size: var(--t-sm); color: var(--ink-3); }
+  .a-sec { margin-top: var(--s-14); }
+  .a-sec > h2 { margin: 0; font-size: var(--t-xl); line-height: var(--lh-tight); }
+  .a-sec > .a-lead { max-width: 52em; margin: var(--s-2) 0 var(--s-5); color: var(--ink-2); line-height: var(--lh-read); }
+  .a-card { padding: var(--s-5); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
+  .a-card h3 { margin: 0; font-size: var(--t-md); }
+  .a-kicker { display: block; margin-bottom: 2px; font-size: var(--t-xs); color: var(--ink-3); font-weight: 500; }
+
+  /* 状态记号：形状区分，不靠颜色 */
+  .mk { flex: none; width: 12px; height: 12px; color: var(--ink); }
+  .mk--x { color: var(--ink-4); }
+  .a-legend { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); font-size: var(--t-sm); color: var(--ink-2); }
+  .a-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  /* 三个阶段 */
+  .a-phases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+  .a-phase { display: grid; align-content: start; gap: var(--s-3); }
+  .a-phase dl { display: grid; gap: var(--s-3); margin: 0; }
+  .a-phase dt { font-size: var(--t-xs); color: var(--ink-3); font-weight: 500; }
+  .a-phase dd { margin: 2px 0 0; font-size: var(--t-sm); line-height: 1.65; color: var(--ink-2); }
+  .a-phase dd b { color: var(--ink); font-weight: 600; }
+  .a-gate { padding: var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); }
+  .a-gate dt { color: var(--ink-2); }
+
+  /* 阶段切换 */
+  .a-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3) var(--s-5); margin-bottom: var(--s-4); }
+  .a-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; margin: 0; padding: 3px; border: 0; border-radius: var(--r-field); background: var(--sheet); box-shadow: var(--e-1); }
+  .a-seg legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .a-seg label { position: relative; }
+  .a-seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .a-seg span { display: block; padding: 6px 12px; border-radius: 6px; font-size: var(--t-sm); color: var(--ink-2); transition: background var(--d-instant), color var(--d-instant); }
+  .a-seg input:hover + span { background: var(--hover); color: var(--ink); }
+  .a-seg input:checked + span { background: var(--ink-btn); color: #fff; }
+  .a-seg input:focus-visible + span { box-shadow: var(--focus); }
+
+  /* 分层图 */
+  .a-arch { display: grid; gap: 0; padding: var(--s-5); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
+  .a-layer { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: var(--s-4); padding: var(--s-4) 0; }
+  .a-layer + .a-layer, .a-flow + .a-layer { border-top: 1px solid var(--line); }
+  .a-layer > header b { display: block; font-size: var(--t-body); }
+  .a-layer > header small { display: block; margin-top: 2px; font-size: var(--t-xs); color: var(--ink-3); line-height: 1.5; }
+  .a-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .a-groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-4); }
+  .a-groups h4 { margin: 0 0 var(--s-2); font-size: var(--t-xs); color: var(--ink-3); font-weight: 500; }
+  .a-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-field); background: var(--sheet); color: var(--ink); font: inherit; font-size: var(--t-sm); line-height: 1.35; text-align: left; cursor: pointer; transition: background var(--d-quick), border-color var(--d-quick), color var(--d-quick), opacity var(--d-quick); }
+  .a-chip:hover { background: var(--hover); }
+  .a-chip[aria-pressed="true"] { border-color: var(--light); box-shadow: 0 0 0 1px var(--light); }
+  .a-chip.is-p { background: var(--sheet); border-style: solid; }
+  .a-chip.is-o { background: var(--sheet-sunk); border-style: dashed; color: var(--ink-2); }
+  .a-chip.is-x { background: transparent; border-style: dotted; color: var(--ink-3); }
+  .a-domains { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--s-2); }
+  .a-dom { display: grid; gap: 4px; align-content: start; min-height: 0; padding: var(--s-3); border-radius: var(--r-card); }
+  .a-dom__h { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .a-dom__h code { margin-left: auto; font: 11px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-3); }
+  .a-dom__f { font-size: var(--t-xs); color: var(--ink-2); line-height: 1.55; }
+  .a-dom__n { font-size: var(--t-xs); color: var(--ink-3); line-height: 1.55; }
+  .a-chip.is-x .a-dom__f { color: var(--ink-3); }
+  .a-new { margin-left: 4px; padding: 0 5px; border-radius: var(--r-chip); background: var(--light-soft); color: var(--light); font-size: 11px; font-weight: 500; }
+  .a-flow { display: flex; align-items: center; justify-content: center; gap: var(--s-2); padding: var(--s-2) 0; border-top: 1px solid var(--line); color: var(--ink-2); font-size: var(--t-xs); text-align: center; }
+  .a-flow svg { flex: none; width: 14px; height: 14px; color: var(--light); }
+
+  .a-detail { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: var(--s-4); margin-top: var(--s-3); padding: var(--s-4) var(--s-5); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); }
+  .a-detail > header b { display: block; font-size: var(--t-body); }
+  .a-detail > header small { font-size: var(--t-xs); color: var(--ink-3); }
+  .a-detail__empty { color: var(--ink-3); font-size: var(--t-sm); align-self: center; }
+  .a-detail ol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
+  .a-detail li { display: grid; gap: 4px; align-content: start; padding: var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-sm); }
+  .a-detail li.is-cur { background: var(--light-soft); box-shadow: inset 0 0 0 1px var(--light); }
+  .a-detail li > span { font-size: var(--t-xs); color: var(--ink-3); }
+  .a-detail li > b { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .a-detail li > p { margin: 0; color: var(--ink-2); line-height: 1.6; }
+
+  /* 模块矩阵 */
+  .a-filter { display: flex; flex-wrap: wrap; gap: 4px; }
+  .a-filter button { padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-pill); background: var(--sheet); color: var(--ink-2); font: inherit; font-size: var(--t-sm); cursor: pointer; }
+  .a-filter button:hover { background: var(--hover); }
+  .a-filter button[aria-pressed="true"] { border-color: var(--ink-btn); background: var(--ink-btn); color: #fff; }
+  .a-matrix { width: 100%; border-collapse: separate; border-spacing: 0; border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-sm); }
+  .a-matrix th, .a-matrix td { padding: 10px 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; line-height: 1.5; }
+  .a-matrix thead th { border-top: 0; font-size: var(--t-xs); color: var(--ink-3); font-weight: 500; }
+  .a-matrix tbody th { font-weight: 600; }
+  .a-matrix .g { width: 64px; color: var(--ink-3); font-weight: 400; font-size: var(--t-xs); }
+  .a-matrix td { width: 17%; }
+  .a-matrix .c { display: flex; gap: 6px; align-items: flex-start; }
+  .a-matrix .c .mk { margin-top: 4px; }
+  .a-matrix .c.is-x { color: var(--ink-4); }
+  .a-matrix .is-cur { background: var(--light-soft); }
+  .a-matrix thead .is-cur { color: var(--light); }
+
+  /* 证据链 */
+  .a-chain { display: grid; gap: var(--s-4); padding: var(--s-5); border-radius: var(--r-sheet); background: var(--sheet); box-shadow: var(--e-1); }
+  .a-row { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: var(--s-4); align-items: start; }
+  .a-row > b { font-size: var(--t-sm); color: var(--ink-2); font-weight: 500; padding-top: 6px; }
+  .a-steps { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+  .a-steps li { display: flex; align-items: center; gap: var(--s-2); }
+  .a-steps li + li::before { content: "→"; color: var(--ink-4); }
+  .a-node { display: grid; gap: 2px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-field); font-size: var(--t-sm); }
+  .a-node small { font-size: 11px; color: var(--ink-3); }
+  .a-node.is-run { border-color: var(--ink); }
+  .a-node.is-run small { color: var(--ink-2); }
+  .a-node.is-demo { border-style: dashed; background: var(--sheet-sunk); color: var(--ink-2); }
+  .a-node .mk { display: inline-block; vertical-align: -1px; margin-right: 4px; }
+
+  /* 两栏内容 */
+  .a-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
+  .a-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+  .a-table th, .a-table td { padding: 8px 10px 8px 0; border-top: 1px solid var(--line); text-align: left; vertical-align: top; line-height: 1.55; }
+  .a-table thead th { border-top: 0; font-size: var(--t-xs); color: var(--ink-3); font-weight: 500; }
+  .a-table td { color: var(--ink-2); }
+  .a-table tbody th { font-weight: 600; white-space: nowrap; }
+  .a-card > .a-table { margin-top: var(--s-3); }
+  .a-note { margin: var(--s-3) 0 0; font-size: var(--t-sm); color: var(--ink-2); line-height: 1.7; }
+  .a-list { margin: var(--s-3) 0 0; padding-left: 1.3em; font-size: var(--t-sm); color: var(--ink-2); line-height: 1.7; }
+  .a-list li + li { margin-top: 4px; }
+  .a-list b { color: var(--ink); font-weight: 600; }
+  .a-formula { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: var(--s-3); font-size: var(--t-sm); }
+  .a-formula span { padding: 3px 8px; border-radius: var(--r-chip); background: var(--light-soft); color: var(--light); font-weight: 500; }
+  .a-formula i { font-style: normal; color: var(--ink-3); }
+
+  /* 北森流向 */
+  .a-pipe { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2); margin-top: var(--s-3); }
+  .a-pipe > div { position: relative; display: grid; gap: 2px; align-content: start; padding: var(--s-3); border: 1px solid var(--line-strong); border-radius: var(--r-field); font-size: var(--t-sm); }
+  .a-pipe > div small { font-size: var(--t-xs); color: var(--ink-3); line-height: 1.5; }
+  .a-pipe > div + div::before { content: "→"; position: absolute; left: -12px; top: 12px; color: var(--ink-4); font-size: 12px; }
+  .a-pipe .out { display: grid; gap: 4px; }
+  .a-pipe .out span { display: block; padding: 4px 8px; border-radius: 6px; background: var(--sheet-sunk); font-size: var(--t-xs); color: var(--ink-2); }
+
+  /* 比赛链路 */
+  .a-plan { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+  .a-plan li { display: grid; grid-template-columns: 44px minmax(0, 1.3fr) minmax(0, 1fr) 96px; gap: var(--s-4); padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); line-height: 1.6; }
+  .a-plan li:first-child { border-top: 0; }
+  .a-plan .p { display: grid; place-items: center; width: 36px; height: 24px; border-radius: var(--r-chip); background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; }
+  .a-plan b { display: block; color: var(--ink); }
+  .a-plan span { color: var(--ink-2); }
+  .a-plan small { color: var(--ink-3); font-size: var(--t-xs); }
+  .a-plan .h { font-size: var(--t-xs); color: var(--ink-3); font-weight: 500; border-top: 0; padding-top: 0; }
+  .a-contracts { counter-reset: c; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2) var(--s-5); margin: var(--s-3) 0 0; padding: 0; list-style: none; font-size: var(--t-sm); line-height: 1.6; }
+  .a-contracts li { counter-increment: c; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-2); color: var(--ink-2); }
+  .a-contracts li::before { content: counter(c); display: grid; place-items: center; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink); color: var(--ink); font-size: 11px; font-weight: 700; }
+  .a-contracts b { color: var(--ink); font-weight: 600; }
+
+  /* 部署 */
+  .a-deploy { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+  .a-stack { display: grid; gap: 4px; margin-top: var(--s-3); }
+  .a-stack > div { padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-field); font-size: var(--t-sm); line-height: 1.5; }
+  .a-stack > div small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
+  .a-stack > i { justify-self: center; font-style: normal; color: var(--ink-4); font-size: 12px; line-height: 1; }
+  .a-stack .split { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 0; border: 0; }
+  .a-stack .split > div { padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-field); }
+  .a-stack .ext { background: var(--sheet-sunk); border-style: dashed; }
+
+  .a-never { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2) var(--s-5); margin: 0; padding: var(--s-5); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); list-style: none; font-size: var(--t-sm); line-height: 1.6; color: var(--ink-2); }
+  .a-never li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: var(--s-2); }
+  .a-never li::before { content: ""; width: 10px; height: 2px; margin-top: 10px; background: var(--ink-2); }
+  .a-foot { margin-top: var(--s-14); padding-top: var(--s-5); border-top: 1px solid var(--line); font-size: var(--t-sm); color: var(--ink-3); line-height: 1.7; }
+
+  @media (max-width: 1000px) {
+    .a-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .a-detail ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .a-pipe { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .a-pipe > div:nth-child(3)::before { display: none; }
+    .a-never { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 900px) {
+    .a-phases, .a-two, .a-deploy { grid-template-columns: minmax(0, 1fr); }
+    .a-contracts { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 720px) {
+    .a-top__in { padding: 0 var(--s-4); gap: var(--s-3); }
+    .a-brand span { display: none; }
+    .a-back { display: none; }
+    .a-wrap { padding: var(--s-8) var(--s-4) var(--s-14); }
+    .a-hero h1 { font-size: var(--t-2xl); }
+    .a-arch, .a-chain { padding: var(--s-4); }
+    .a-layer, .a-detail, .a-row { grid-template-columns: minmax(0, 1fr); gap: var(--s-2); }
+    .a-groups { grid-template-columns: minmax(0, 1fr); }
+    .a-detail ol { grid-template-columns: minmax(0, 1fr); }
+    .a-pipe { grid-template-columns: minmax(0, 1fr); }
+    .a-pipe > div + div::before { display: none; }
+    .a-plan li { grid-template-columns: 44px minmax(0, 1fr); gap: var(--s-2) var(--s-3); }
+    .a-plan li > :nth-child(3), .a-plan li > :nth-child(4) { grid-column: 2; }
+    .a-plan .h { display: none; }
+    .a-never { grid-template-columns: minmax(0, 1fr); }
+    /* 矩阵在窄屏改成每个模块一张卡，四个阶段逐行写 */
+    .a-matrix, .a-matrix tbody, .a-matrix tr, .a-matrix th, .a-matrix td { display: block; width: auto; }
+    .a-matrix thead { display: none; }
+    .a-matrix tr { padding: var(--s-3) var(--s-4); border-top: 1px solid var(--line); }
+    .a-matrix tr:first-child { border-top: 0; }
+    .a-matrix th, .a-matrix td { padding: 2px 0; border: 0; }
+    .a-matrix .g { width: auto; }
+    .a-matrix tbody th:not(.g) { margin-bottom: 4px; }
+    .a-matrix td { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: var(--s-2); }
+    .a-matrix td::before { content: attr(data-ph); font-size: var(--t-xs); color: var(--ink-3); padding-top: 1px; }
+    .a-matrix .is-cur { background: transparent; }
+    .a-matrix td.is-cur::before { color: var(--light); font-weight: 600; }
+  }
+</style>
+</head>
+<body>
+<header class="a-top">
+  <div class="a-top__in">
+    <a class="a-brand" href="#top">Niu-Talent <span>· 产品架构与分期</span></a>
+    <nav class="a-nav" aria-label="本页章节">
+      <a href="#phases">三个阶段</a>
+      <a href="#arch">分层架构</a>
+      <a href="#modules">功能模块</a>
+      <a href="#chain">证据链</a>
+      <a href="#platform">权限与北森</a>
+      <a href="#hackathon">比赛链路</a>
+      <a href="#deploy">部署</a>
+      <a href="#never">始终不做</a>
+    </nav>
+    <a class="a-back" href="index.html">返回评审导览</a>
+  </div>
+</header>
+
+<main class="a-wrap" id="top">
+  <section class="a-hero">
+    <h1>产品架构与分期规划</h1>
+    <p>以版本 Y 为主线，把产品终局、赛后试点和这次比赛画在同一张图上。三个阶段共用一条证据链和同一组产品不变量，每个阶段做到哪一步按模块标在下面。</p>
+    <p class="a-meta">依据：架构提案 v2（2026-10-25，<code>docs/proposals/2026-10-25-y-architecture-phases.md</code>）与需求定稿 · 版本 Y；两者有出入时以提案为准。</p>
+  </section>
+
+  <section class="a-sec" id="phases" aria-labelledby="h-phases">
+    <h2 id="h-phases">三个阶段</h2>
+    <p class="a-lead">比赛证明证据链能在真实服务上跑通；中期让一个真实人才项目用起来；长期补齐角色、同步和主助手。每个阶段写明进入下一阶段要满足什么。</p>
+    <div class="a-phases">
+      <article class="a-card a-phase">
+        <div><span class="a-kicker">短期 · 本次比赛</span><h3>原型演示完整体验，验证工程跑通真实链路</h3></div>
+        <dl>
+          <div><dt>定位</dt><dd><b>可丢弃的技术验证</b>，独立目录、单独分支；演示时说清哪部分是真实链路、哪部分是原型。</dd></div>
+          <div><dt>范围</dt><dd>六条链路全部必做：骨架与权限 → 记一件事 → 找人（含 Jev）→ 离线转写 → 实时推流 → 文本附件。北森同步和系统管理只在原型里给演示视角。</dd></div>
+          <div><dt>形态</dt><dd>Next.js + PostgreSQL（Supabase）+ 常驻后台，部署在 DigitalOcean 新加坡 VPS，Cloudflare 代理域名并只放 <code>@qiniu.com</code>。</dd></div>
+          <div><dt>守住</dt><dd><a href="#hackathon">八条合同</a>：来源链、建议与确认分开、服务端先过滤、结论与处理进度分开、录音以归档为准、无总分、确认只生效一次、版本标记。</dd></div>
+          <div class="a-gate"><dt>进入中期</dt><dd>Y 收口并完成 UI/UX 定稿评审；提案与 v21 方案确认；北森只读凭证到位；国内可运行常驻进程的部署环境。</dd></div>
+        </dl>
+      </article>
+      <article class="a-card a-phase">
+        <div><span class="a-kicker">中期 · 赛后试点（正式一期）</span><h3>一个真实人才项目的 HR 与导师实际使用</h3></div>
+        <dl>
+          <div><dt>范围</dt><dd>Y 的全部页面与流程，管理者只读加确认；加入<b>系统管理员</b>、正式账号与范围授权、<b>北森同步</b>（组织与任职先上，绩效与晋升只读）、审计日志、导师手机端录音。</dd></div>
+          <div><dt>形态</dt><dd>七个业务领域的模块化单体，由 Codex 在第 3 阶段建立正式工程；行与分支覆盖率各不低于 85%。比赛代码默认不转正。</dd></div>
+          <div class="a-gate"><dt>第一条真实资料录入前</dt><dd>外部服务的数据处理合同；北森组织与任职同步并全量对账；越权、撤权与会话失效；访问审计；并发确认与规则发布；数据库加原件的备份恢复；试点设备上的录音路径。</dd></div>
+          <div class="a-gate"><dt>进入长期</dt><dd>一期人才项目在系统内完整走完；至少一次规则修订按版本生效并能在判断对照里分组比较；有成本基线；长录音和并发录音实测。</dd></div>
+        </dl>
+      </article>
+      <article class="a-card a-phase">
+        <div><span class="a-kicker">长期 · 产品终局</span><h3>全公司可用的人才识别、追踪与盘点工作台</h3></div>
+        <dl>
+          <div><dt>范围</dt><dd>管理者细分为 <b>CEO 与部门负责人</b>（确认权先只给 CEO）；<b>员工本人入口</b>；公司 SSO；多期人才项目；AgentAPI Native 主助手；北森增量同步与自动对账，离职自动撤权；数据保留与清除。</dd></div>
+          <div><dt>形态</dt><dd>Next.js 模块化单体 + PostgreSQL + Kodo 私有空间 + 常驻 Node 后台，同一份代码分别启动。录音并发出现资源竞争时，先把音频入口与任务执行分进程。</dd></div>
+          <div><dt>不变</dt><dd>证据链与产品不变量和比赛时完全一致；角色只是权限预设，加角色只加预设和范围类型，人员、事件、评分数据不用改。</dd></div>
+        </dl>
+      </article>
+    </div>
+  </section>
+
+  <section class="a-sec" id="arch" aria-labelledby="h-arch">
+    <h2 id="h-arch">分层架构</h2>
+    <p class="a-lead">从上到下：谁在用、用哪些功能、事实归哪个领域、靠哪些平台能力、接哪些外部服务。切换阶段看每一层点亮了多少；点任一项看它在四个阶段的状态。</p>
+    <div class="a-tools">
+      <fieldset class="a-seg" id="phase">
+        <legend>选择阶段</legend>
+      </fieldset>
+      <div class="a-legend" id="legend"></div>
+    </div>
+    <div class="a-arch" id="arch-board"></div>
+    <div class="a-detail" id="detail" aria-live="polite"></div>
+  </section>
+
+  <section class="a-sec" id="modules" aria-labelledby="h-mod">
+    <h2 id="h-mod">功能模块规划</h2>
+    <p class="a-lead">按侧栏的「人 / 项目 / 规则」分组，加上入口和平台两组。比赛一栏分开写原型和验证工程；上面选中的阶段在这里高亮。</p>
+    <div class="a-tools">
+      <div class="a-filter" id="filter" role="group" aria-label="按分组筛选"></div>
+      <div class="a-legend" id="legend2"></div>
+    </div>
+    <table class="a-matrix" id="matrix"></table>
+  </section>
+
+  <section class="a-sec" id="chain" aria-labelledby="h-chain">
+    <h2 id="h-chain">一条证据链，三条主线</h2>
+    <p class="a-lead">项目找人读已确认的证据，重点跟踪读已确认的事件，盘点读已确认的分和冻结快照。实线框是比赛验证工程要真实跑通的环节，虚线框留在原型演示。</p>
+    <div class="a-chain" id="chain-board"></div>
+  </section>
+
+  <section class="a-sec" id="platform" aria-labelledby="h-plat">
+    <h2 id="h-plat">权限、北森同步与系统管理</h2>
+    <p class="a-lead">这三块是平台能力，不新增业务领域：同步来的事实归人员与组织、材料与记录两个领域，授权仍由人员与组织领域维护；同步任务、集成配置和审计在平台层。</p>
+    <div class="a-two">
+      <article class="a-card">
+        <span class="a-kicker">角色是权限预设</span>
+        <h3>每次读取都按这四项判断</h3>
+        <div class="a-formula"><span>当前账号</span><i>×</i><span>动作</span><i>×</i><span>范围</span><i>×</i><span>用途</span></div>
+        <table class="a-table">
+          <thead><tr><th>预设</th><th>能做什么</th><th>范围</th></tr></thead>
+          <tbody>
+            <tr><th>管理者</th><td>看人与档案、找人、确认规则修订和找人方案；读 HR 的复核、方案与复盘</td><td>全公司</td></tr>
+            <tr><th>HR</th><td>记录、整理档案、评分复核、象限校准、留用与落位方案、节点复盘、规则起草、判断对照归因、标签库</td><td>按学员名单与有效期</td></tr>
+            <tr><th>导师</th><td>记录所带学员、确认本人评分、对人复盘、提修订建议、我的判断对照；看不到象限</td><td>所带学员</td></tr>
+            <tr><th>系统管理员</th><td>账号、角色与范围、北森同步、集成配置、审计日志</td><td>系统配置；看不到人才数据</td></tr>
+            <tr><th>CEO <span class="a-new">长期</span></th><td>管理者细分；规则修订与找人方案的确认权先只给 CEO</td><td>全公司</td></tr>
+            <tr><th>部门负责人 <span class="a-new">长期</span></th><td>管理者细分；项目 owner 身份不扩大团队名单</td><td>本组织子树</td></tr>
+            <tr><th>员工本人 <span class="a-new">长期</span></th><td>本人的经历、已发布的反馈与行动、自述与发展意愿；看不到维度分、象限、被关注与被推荐</td><td>本人</td></tr>
+          </tbody>
+        </table>
+      </article>
+      <article class="a-card">
+        <span class="a-kicker">HR 授权口径</span>
+        <h3>HR 按学员名单看这个人的全部资料</h3>
+        <p class="a-note">包括学员进入下一期、留用进部门之后的资料。执行时有三条：</p>
+        <ol class="a-list">
+          <li><b>名单带有效期，各有唯一维护方</b>：「HR 负责哪些期次」由系统管理员配置，「期次里有哪些学员」由 HR 在人才项目里维护；不再负责这一期，访问随之结束。名单就是授权，增补只能加北森在职人员，开营时整份名单和之后的逐人增补都要管理者确认，确认前只看本期资料。</li>
+          <li><b>多重身份取完整授权的并集</b>：同时是导师和评价人、或同时负责两个期次时，按各身份各自的「动作 + 范围」合并，不把一个身份的动作和另一个身份的范围拼在一起。</li>
+          <li><b>访问留审计</b>：档案、原件、绩效这类敏感读取都记访问日志，系统管理员和 HR 负责人可查。</li>
+        </ol>
+        <span class="a-kicker" style="margin-top:var(--s-5)">系统管理员与数据访问分开</span>
+        <p class="a-note" style="margin-top:0">管理员能配置谁看什么，自己默认什么人才数据都看不到。管理员账号不持有业务预设；授予或扩大管理者、HR 预设和 HR 负责的期次，由管理员发起、管理者确认后生效。每次授权变更都留审计，排查问题只看任务状态、错误类型和同步记录。</p>
+      </article>
+    </div>
+
+    <article class="a-card" style="margin-top:var(--s-4)">
+      <span class="a-kicker">北森同步 · 中期上线</span>
+      <h3>北森是组织、人员与人事数据的主数据源，只读同步，不回写</h3>
+      <div class="a-pipe" aria-label="北森同步的数据流向">
+        <div><b>北森开放接口</b><small>只读凭证只在服务端；只申请下表里的字段</small></div>
+        <div><b>北森适配器</b><small>定时增量拉取，定期全量对账；每次同步留批次记录</small></div>
+        <div><b>暂存与校验</b><small>字段白名单、人员编号对照、冲突检查；校验通过后按实体在事务里写入</small></div>
+        <div class="out">
+          <span>组织、人员、任职、职级、入离调转 → 人员与组织</span>
+          <span>绩效、晋升（原口径历史事实）→ 材料与记录</span>
+          <span>接口失败、映射缺失 → 系统管理员处理</span>
+          <span>匹配不到、疑似同一人、任职重叠 → HR 负责人确认，确认前隔离</span>
+          <span>离职、调岗 → 撤销或调整账号与范围</span>
+        </div>
+      </div>
+      <table class="a-table">
+        <thead><tr><th>数据</th><th>用法与边界</th></tr></thead>
+        <tbody>
+          <tr><th>组织架构</th><td>部门负责人的「组织子树」范围和团队分布都按它算</td></tr>
+          <tr><th>人员与任职</th><td>按需求定稿的字段白名单取；健康、家庭、联系方式等不同步</td></tr>
+          <tr><th>入离调转</th><td>离职当天停用账号并收回范围；调岗按新组织重算范围</td></tr>
+          <tr><th>职级</th><td>档案里展示当前职级与变化</td></tr>
+          <tr><th>绩效结果、晋升记录</th><td>单独的来源类型「北森人事记录」，用途只有档案展示：只给管理者和 HR 看，按原口径展示；不换算成维度分，不进象限、值得关注、判断对照和找人证据，不进入任何模型输入，不排序</td></tr>
+        </tbody>
+      </table>
+      <p class="a-note">冲突时组织、人员、任职以北森为准；人才项目名单、导师关系、评价与校准是 Niu-Talent 自己的事实，北森同步不覆盖。人才项目、期次、学员名单、导师分配是 HR 的业务操作，归人才项目领域，不放进系统管理。</p>
+    </article>
+
+    <article class="a-card" style="margin-top:var(--s-4)">
+      <span class="a-kicker">系统管理 · 系统管理员使用</span>
+      <h3>七个模块，按阶段上线</h3>
+      <table class="a-table">
+        <thead><tr><th>模块</th><th>内容</th><th>何时</th></tr></thead>
+        <tbody>
+          <tr><th>账号与登录</th><td>预置账号 → 正式账号（关闭公开注册）→ 公司 SSO</td><td>比赛预置；中期正式；长期 SSO</td></tr>
+          <tr><th>角色与范围</th><td>给账号分配预设、设定 HR 负责的期次（管理者确认后生效）；学员名单和导师关系只读展示；「这个账号能看到谁」的说明</td><td>中期</td></tr>
+          <tr><th>北森同步</th><td>同步计划、最近批次、技术异常处理；身份与任职歧义转 HR 负责人</td><td>中期</td></tr>
+          <tr><th>集成配置</th><td>MaaS、Jev、听悟、Kodo、北森的连接状态和限额；密钥只引用环境变量，界面不显示</td><td>中期</td></tr>
+          <tr><th>AI 运行</th><td>模型与提示词版本、用量与费用、失败与「结果待核实」的任务</td><td>中期看用量；长期可配置</td></tr>
+          <tr><th>审计日志</th><td>授权变更、敏感读取（档案、原件、绩效）、导出、配置变更</td><td>真实资料上线前</td></tr>
+          <tr><th>数据保留</th><td>离职人员资料、原件与转写的保留期限和清除，按公司政策</td><td>长期</td></tr>
+        </tbody>
+      </table>
+      <p class="a-note">原型 Y 加了系统管理员视角：<a href="y/app/admin.html?as=admin">打开系统管理</a>，四个页签只示意结构，数据为演示。</p>
+    </article>
+  </section>
+
+  <section class="a-sec" id="hackathon" aria-labelledby="h-hack">
+    <h2 id="h-hack">比赛链路与八条合同</h2>
+    <p class="a-lead">执行顺序 P0 → P1 → P2 → P3 → P5 → P4，六条全部必做。实时推流建在完整归档和离线稿之上，实时稿只做预览；时间不够时先压缩各条链路内部的范围。</p>
+    <div class="a-card">
+      <ol class="a-plan">
+        <li class="h" aria-hidden="true"><span></span><span>做什么</span><span>演示要证明的事</span><span>依赖</span></li>
+        <li><span class="p">P0</span><div><b>骨架与权限</b><span>三个预置账号登录、范围过滤、PostgreSQL、第六期演示数据导入，工作台与档案读真实库</span></div><span>权限在服务端生效</span><small>—</small></li>
+        <li><span class="p">P1</span><div><b>记一件事</b><span>一句话 → MaaS 整理 SBI 和建议分 → 服务端校验引用与锚点 → 导师确认或改分 → 分差大的进 HR 复核 → 档案更新</span></div><span>AI 只给建议，人确认才生效，引用可回查</span><small>P0</small></li>
+        <li><span class="p">P2</span><div><b>找人（含 Jev）</b><span>需求卡逐条匹配已确认证据 → Jev 判四态 → 每条回到来源；Jev 出错只改处理进度，显示「待人工判断」</span></div><span>找人只用四种状态、不出总分，判断能追溯</span><small>P0；可用 P1 的事件</small></li>
+        <li><span class="p">P3</span><div><b>离线转写</b><span>上传录音 → Kodo → 听悟离线 → 说话人与人员绑定 → 走 P1 的整理，引用到时间点</span></div><span>录音进入同一条证据链</span><small>P0、P1</small></li>
+        <li><span class="p">P5</span><div><b>实时推流</b><span>桌面浏览器 → WebSocket → 常驻后台 → 听悟实时预览；断线重连、暂停续录，结束后以离线稿为准</span></div><span>现场录音的实时体验</span><small>P3；常驻进程</small></li>
+        <li><span class="p">P4</span><div><b>文本附件</b><span>TXT、DOCX、文字型 PDF → 段落 → 走 P1，引用到页和段</span></div><span>文件进入同一条证据链</span><small>P0、P1</small></li>
+      </ol>
+    </div>
+    <div class="a-two" style="margin-top:var(--s-4)">
+      <article class="a-card">
+        <span class="a-kicker">比赛必须守住的八条合同</span>
+        <h3>守住这些，中期复用还是重建都不返工</h3>
+        <ol class="a-contracts">
+          <li><span><b>来源链</b>：引用存来源片段 ID、原件版本和位置</span></li>
+          <li><span><b>建议与确认分开</b>：确认后才进档案和象限；分差 2 分以上进 HR 复核</span></li>
+          <li><span><b>服务端先过滤</b>：接口响应和模型输入都按范围构造</span></li>
+          <li><span><b>结论与处理进度分开</b>：四态是结论；排队、判断中、待人工判断、失败是进度</span></li>
+          <li><span><b>录音以归档为准</b>：音频先完整存入 Kodo，离线稿是事件提取的唯一来源</span></li>
+          <li><span><b>不出现</b>总分、排名、百分比；Jev confidence 不出前端</span></li>
+          <li><span><b>确认只生效一次</b>：请求重放、业务唯一键、修订冲突三层</span></li>
+          <li><span><b>版本标记</b>：事件保存时记录生效的锚点版本，之后不静默重算</span></li>
+        </ol>
+      </article>
+      <article class="a-card">
+        <span class="a-kicker">留在原型演示</span>
+        <h3>主要是库内规则与事务，技术不确定性低</h3>
+        <ul class="a-list">
+          <li>判断对照、节点复盘与改进事项</li>
+          <li>人才评价规则的修订、预览与发布</li>
+          <li>盘点、象限校准与冻结、留用与落位</li>
+          <li>值得关注、我的关注、推荐方向</li>
+          <li>系统管理员与北森同步（演示视角）</li>
+        </ul>
+        <p class="a-note">验证工程的时间优先花在外部服务和证据链这些不确定的地方。手机端的锁屏、切页、长录音这次验证不了，演示时照实说明。</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="a-sec" id="deploy" aria-labelledby="h-dep">
+    <h2 id="h-dep">部署</h2>
+    <p class="a-lead">比赛用一台新加坡 VPS，录音 WebSocket 没有时长限制，形态和长期一致；中期起放到国内可运行常驻进程的环境。评审站本身仍是 Cloudflare Worker，只发布原型。</p>
+    <div class="a-deploy">
+      <article class="a-card">
+        <span class="a-kicker">比赛 · 验证工程</span>
+        <h3>DigitalOcean 新加坡 VPS</h3>
+        <div class="a-stack">
+          <div>桌面与手机浏览器<small>HTTPS 与 WSS</small></div><i aria-hidden="true">↓</i>
+          <div>Cloudflare Access<small>只放 @qiniu.com；应用再用三个预置账号登录</small></div><i aria-hidden="true">↓</i>
+          <div>命名隧道 · cloudflared<small>VPS 主动连出，不开放网页端口；/stream 转给录音进程</small></div><i aria-hidden="true">↓</i>
+          <div class="split"><div>Next.js<small>网页与接口</small></div><div>常驻后台<small>录音 WebSocket、任务执行</small></div></div><i aria-hidden="true">↓</i>
+          <div class="ext">Supabase PostgreSQL（新加坡）· Kodo 私有空间 · 听悟 · MaaS · Jev</div>
+        </div>
+        <p class="a-note">应用在每个请求和 WebSocket 握手时校验 Access 令牌；验收时直连 VPS 地址、伪造令牌都要被拒绝。</p>
+        <p class="a-note">不选 Vercel：录音 WebSocket 要放在函数里，用的是实验接口且仍在公测，Pro 函数最长 800 秒，38 分钟的录音要中途续接；Daemons 不接入站连接。</p>
+      </article>
+      <article class="a-card">
+        <span class="a-kicker">中期 · 试点</span>
+        <h3>国内常驻环境</h3>
+        <div class="a-stack">
+          <div>公司已备案域名<small>优先复用；接入公司 SSO 前用正式账号</small></div><i aria-hidden="true">↓</i>
+          <div class="split"><div>Next.js<small>网页与接口</small></div><div>常驻后台<small>pg-boss 持久任务、录音</small></div></div><i aria-hidden="true">↓</i>
+          <div>PostgreSQL<small>七个领域同库分模块</small></div><i aria-hidden="true">↓</i>
+          <div class="ext">Kodo · 北森开放接口（只读）· 听悟 · MaaS · Jev（真实资料能否使用单独判断）</div>
+        </div>
+        <p class="a-note">真实资料上线前做一次数据库与原件一起恢复的演练。</p>
+      </article>
+      <article class="a-card">
+        <span class="a-kicker">长期</span>
+        <h3>同中期，按容量扩展</h3>
+        <div class="a-stack">
+          <div>公司 SSO</div><i aria-hidden="true">↓</i>
+          <div class="split"><div>Web<small>按需多实例</small></div><div>音频入口 · 任务执行<small>出现资源竞争时分进程</small></div></div><i aria-hidden="true">↓</i>
+          <div>PostgreSQL · 监控与告警</div><i aria-hidden="true">↓</i>
+          <div class="ext">Kodo · 北森（增量同步 + 自动对账）· AgentAPI Native · 听悟 · MaaS · Jev</div>
+        </div>
+        <p class="a-note">没有容量证据前，不拆微服务，不引入 Redis 或向量库。</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="a-sec" id="never" aria-labelledby="h-never">
+    <h2 id="h-never">三个阶段始终不做</h2>
+    <p class="a-lead">这些是产品不变量，任何实现细节都不能绕过。</p>
+    <ul class="a-never">
+      <li>综合人才总分、能力百分比、全公司排名、按分数排序的人员列表</li>
+      <li>雷达图、没有标准的九宫格；能力象限只用 2×2</li>
+      <li>AI 建议分未经人确认就计入档案和象限</li>
+      <li>把北森绩效、晋升换算成维度分、象限或任何综合分</li>
+      <li>向北森回写数据</li>
+      <li>把「资料不足」当作反向证据或低潜力</li>
+      <li>把 Jev confidence 显示为能力分或胜任率</li>
+      <li>静默重算历史分数、冻结快照和档案版本</li>
+      <li>由系统自动做人事决定</li>
+    </ul>
+  </section>
+
+  <footer class="a-foot">
+    七个业务领域的英文名是代码模块名，界面上不出现。人员均为化名演示数据。讨论与审查记录见提案第 9 节与 <code>docs/research/2026-10-25-y-architecture-alignment/</code>。
+  </footer>
+</main>
+
+<script>
+(() => {
+  // ---------- 一份数据：四个阶段 × 每一项的状态 ----------
+  // r 真实可用 · p 原型演示 · o 演示视角 · x 该阶段不做
+  const PH = [
+    { k: 'proto', t: '比赛 · 原型' },
+    { k: 'spike', t: '比赛 · 验证工程' },
+    { k: 'mid', t: '中期 · 试点' },
+    { k: 'long', t: '长期' },
+  ];
+  const ST = { r: '真实可用', p: '原型演示', o: '演示视角', x: '该阶段不做' };
+  const MK = {
+    r: '<circle cx="6" cy="6" r="5" fill="currentColor"/>',
+    p: '<circle cx="6" cy="6" r="4.75" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 1.25a4.75 4.75 0 0 1 0 9.5z" fill="currentColor"/>',
+    o: '<circle cx="6" cy="6" r="4.75" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+    x: '<path d="M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  };
+  const mark = (s) => `<svg class="mk mk--${s}" viewBox="0 0 12 12" aria-hidden="true">${MK[s]}</svg>`;
+  // s: 四个阶段的状态，依次为原型、验证工程、中期、长期；n: 各阶段说明
+  const S = (str) => Object.fromEntries(PH.map((p, i) => [p.k, str[i]]));
+
+  const ENTRIES = [
+    { id: 'e-mgr', name: '管理者', alt: { long: 'CEO · 部门负责人' }, s: S('prrr'), n: { proto: '首页看人、找人、确认修订与方案', spike: '三个预置账号之一，范围全公司', long: '管理者细分为 CEO 与部门负责人；确认权先只给 CEO' } },
+    { id: 'e-hr', name: 'HR', s: S('prrr'), n: { spike: '预置账号，范围为负责的期次', mid: '按学员名单与有效期授权，可看留用后的资料；名单增补要管理者确认' } },
+    { id: 'e-mentor', name: '导师 · 桌面', s: S('prrr'), n: { spike: '预置账号，范围为所带学员' } },
+    { id: 'e-mobile', name: '导师 · 手机', s: S('pxrr'), n: { proto: '录音、核对、逐个评价', spike: '手机的锁屏、切页、长录音这次验证不了', mid: '试点设备真机验收后才开放录音' } },
+    { id: 'e-admin', name: '系统管理员', s: S('oxrr'), n: { proto: '账号与权限、北森同步、集成与设置、审计日志四个页签', spike: '三个预置账号写在配置里', mid: '默认看不到人才数据；账号不持有业务预设，授予业务角色要管理者确认' } },
+    { id: 'e-self', name: '员工本人', s: S('xxxr'), n: { long: '看自己的经历、已发布的反馈与行动、自述与发展意愿；看不到维度分、象限、被关注与被推荐' } },
+  ];
+
+  // 功能模块：与提案 4.4 的矩阵一致
+  const GROUPS = ['入口', '人', '项目', '规则', '平台'];
+  const MODULES = [
+    { g: '入口', name: '管理者、HR、导师工作台', s: S('prrr'), n: { spike: '读真实库', long: '细分 CEO、部门负责人' } },
+    { g: '入口', name: '导师手机端', s: S('pxrr'), n: { mid: '真机验收后开放录音' } },
+    { g: '入口', name: '员工本人入口', s: S('xxxr') },
+    { g: '人', name: '人才列表、档案与速览', s: S('prrr') },
+    { g: '人', name: '记一件事（SBI 与建议分）', s: S('prrr'), n: { spike: 'P1' } },
+    { g: '人', name: '录音：离线转写、实时推流', s: S('prrr'), n: { spike: 'P3、P5（桌面）', long: '长录音、并发' } },
+    { g: '人', name: '会议人才纪要与追问', s: S('pxrr') },
+    { g: '人', name: '附件解析', s: S('prrr'), n: { spike: 'P4：TXT、DOCX、文字型 PDF', mid: '按 v1.5 §3.34 的范围' } },
+    { g: '人', name: '待核对（人名、说话人）', s: S('prrr'), n: { spike: '说话人绑定' } },
+    { g: '人', name: '评分复核', s: S('prrr'), n: { spike: '分差 2 分以上', mid: '三类条目' } },
+    { g: '人', name: '盘点、象限校准与冻结、留用与落位', s: S('pxrr') },
+    { g: '人', name: '值得关注、我的关注、推荐方向', s: S('pxrr') },
+    { g: '人', name: '值得聊一聊与回访', s: S('pxrr') },
+    { g: '项目', name: '人才项目：期次、节奏、对人复盘', s: S('pxrr'), n: { long: '多期' } },
+    { g: '项目', name: '关键节点复盘与改进事项', s: S('pxrr'), n: { mid: 'HR 署名即生效' } },
+    { g: '项目', name: '项目与课题', s: S('pxrr') },
+    { g: '项目', name: '找人：需求卡与逐条四态', s: S('prrr'), n: { spike: 'P2，含 Jev' } },
+    { g: '项目', name: '找人方案：槽位、确认与冻结', s: S('pxrr') },
+    { g: '规则', name: '人才评价规则：修订、预览、发布', s: S('pxrr'), n: { mid: '原子发布' } },
+    { g: '规则', name: '判断对照', s: S('pxrr') },
+    { g: '规则', name: '标签库', s: S('pxrr') },
+    { g: '平台', name: '系统管理：账号、角色与范围', s: S('oxrr'), n: { spike: '三个预置账号写在配置里，无管理界面', mid: '授予业务角色需管理者确认', long: '公司 SSO' } },
+    { g: '平台', name: '北森同步', s: S('oxrr'), n: { mid: '组织、任职先上；绩效、晋升只读', long: '自动对账' } },
+    { g: '平台', name: '集成配置、AI 运行与用量', s: S('oxrr'), n: { spike: '用环境变量配置，无管理界面' } },
+    { g: '平台', name: '审计日志', s: S('oxrr'), n: { mid: '真实资料上线前' } },
+    { g: '平台', name: '主助手（AgentAPI Native）', s: S('xxxr'), n: { mid: '后段视试点反馈接入' } },
+  ];
+  MODULES.forEach((m, i) => { m.id = `m-${i}`; });
+
+  const DOMAINS = [
+    { id: 'd-dir', name: '人员、组织与授权', code: 'directory', f: '人员与组织、任职与职级、账号与角色预设、范围授权、北森人员编号对照', s: S('prrr'), n: { proto: '浏览器本地数据', spike: '三个预置账号与范围；第六期种子数据', mid: '组织、人员、任职、职级由北森同步写入' } },
+    { id: 'd-rec', name: '材料与记录', code: 'records', f: '原件与版本、来源片段、录音与转写、关键事件、自述、管理观察、评价意见、历史评价', s: S('prrr'), n: { proto: '浏览器本地数据', spike: '一句话、录音、附件进入来源片段', mid: '+ 北森人事记录（绩效、晋升）：单独的来源类型，只用于档案展示' } },
+    { id: 'd-tal', name: '人才评价与盘点', code: 'talent', f: '建议分与确认分、评分复核、标签、盘点批次、象限与冻结快照、档案版本、留用与落位方案', s: S('prrr'), n: { proto: '浏览器本地数据', spike: '建议分、确认分与分差复核；盘点留在原型' } },
+    { id: 'd-stf', name: '项目用人', code: 'staffing', f: '项目与课题、需求卡版本、逐条四态、找人方案与确认、目标角色模板', s: S('prrr'), n: { proto: '浏览器本地数据', spike: '需求卡与四态匹配' } },
+    { id: 'd-prg', name: '人才项目', code: 'programs', isNew: true, f: '人才项目与期次、学员与导师关系、节奏、关键节点、对人复盘场次、节点复盘', s: S('pxrr'), n: { proto: '浏览器本地数据', spike: '留在原型演示' } },
+    { id: 'd-eng', name: '关注与行动', code: 'engagement', f: '值得关注、我的关注、推荐方向、值得聊一聊与回访、重点跟踪、行动与改进事项', s: S('pxrr'), n: { proto: '浏览器本地数据', spike: '留在原型演示' } },
+    { id: 'd-evs', name: '人才评价规则', code: 'evaluation_system', isNew: true, f: '四类规则的版本、草稿、待确认、生效点与替代；修订建议；判断对照', s: S('pxrr'), n: { proto: '浏览器本地数据', spike: '留在原型演示', mid: '规则发布是一个原子用例：锁规则、查盘点、存版本、建复核任务、写审计' } },
+  ];
+
+  const PLATFORM = [
+    { id: 'c-auth', name: '权限与授权', s: S('prrr'), n: { proto: '视角切换只是演示手段', spike: '服务端按范围过滤接口响应和模型输入', mid: '名单与有效期、多重身份取并集、撤权与会话失效；名单增补和业务角色授予要第二人确认', long: '+ 新预设与组织子树范围；公司 SSO' } },
+    { id: 'c-ver', name: '确认与版本', s: S('prrr'), n: { proto: '浏览器本地模拟', spike: '请求重放、业务唯一键、修订冲突三层；事件记录锚点版本', mid: '+ 规则原子发布与跨域事务' } },
+    { id: 'c-job', name: '后台任务', s: S('prrr'), n: { proto: '脚本化流式模拟', spike: '单个常驻进程：录音 WebSocket 与任务执行', mid: 'pg-boss 持久任务，进程退出后可恢复', long: '按容量分进程' } },
+    { id: 'c-obj', name: '原件存储', s: S('xrrr'), n: { spike: 'Kodo 私有空间，读原件经应用代理', mid: '+ 数据库与原件一起的备份恢复演练' } },
+    { id: 'c-ai', name: 'AI 适配与校验', s: S('prrr'), n: { proto: '预置结果按真实节奏流式输出', spike: '直接调用；服务端校验结构、引用与锚点', mid: '+ 预算、并发上限、结果未知时的恢复', long: '+ AgentAPI Native 主助手' } },
+    { id: 'c-hr', name: '北森适配器', s: S('oxrr'), n: { proto: '演示视角', spike: '用第六期种子数据', mid: '暂存、校验、按实体事务写入；身份与任职歧义由 HR 负责人确认，确认前隔离', long: '增量同步 + 自动对账，离职自动撤权' } },
+    { id: 'c-aud', name: '审计记录', s: S('oxrr'), n: { proto: '演示视角', mid: '授权变更、敏感读取、导出；真实资料上线前', long: '+ 数据保留与清除' } },
+  ];
+
+  const EXTERNAL = [
+    { id: 'x-bs', name: '北森开放接口', s: S('xxrr'), n: { mid: '只读，不回写；凭证只在服务端' } },
+    { id: 'x-maas', name: '七牛 MaaS', s: S('xrrr'), n: { spike: '整理 SBI、会议纪要、复盘草拟；JSON mode 加服务端校验' } },
+    { id: 'x-jev', name: 'Jev（海外端点）', s: S('xrrr'), n: { spike: '找人逐条四态；出错只改处理进度', mid: '能否用于真实资料单独判断' } },
+    { id: 'x-tw', name: '通义听悟', s: S('xrrr'), n: { spike: '离线为准，实时只做预览；说话人不自动认人' } },
+    { id: 'x-kodo', name: '七牛 Kodo', s: S('xrrr'), n: { spike: '私有空间，分片续传' } },
+    { id: 'x-native', name: '七牛 AgentAPI Native', s: S('xxxr'), n: { mid: '后段视试点反馈接入', long: '主助手：活文档、追问、跨页操作' } },
+    { id: 'x-sso', name: '公司 SSO', s: S('xxxr') },
+  ];
+
+  const ALL = {};
+  [ENTRIES, MODULES, DOMAINS, PLATFORM, EXTERNAL].forEach((list, li) => list.forEach((it) => { ALL[it.id] = { ...it, layer: ['入口', '功能模块', '业务领域', '平台能力', '外部服务'][li] }; }));
+
+  // ---------- 状态：阶段与选中项，写进地址栏方便评论还原 ----------
+  const q = new URLSearchParams(location.search);
+  let phase = PH.some((p) => p.k === q.get('phase')) ? q.get('phase') : 'long';
+  let picked = ALL[q.get('item')] ? q.get('item') : '';
+  let group = '';
+  const syncURL = () => {
+    const u = new URL(location.href);
+    u.searchParams.set('phase', phase);
+    if (picked) u.searchParams.set('item', picked); else u.searchParams.delete('item');
+    history.replaceState(null, '', u);
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const legendHTML = Object.entries(ST).map(([k, t]) => `<span>${mark(k)}${t}</span>`).join('');
+  $('legend').innerHTML = legendHTML;
+  $('legend2').innerHTML = legendHTML;
+
+  $('phase').insertAdjacentHTML('beforeend', PH.map((p) => `<label><input type="radio" name="phase" value="${p.k}"${p.k === phase ? ' checked' : ''}><span>${p.t}</span></label>`).join(''));
+  $('phase').addEventListener('change', (e) => { phase = e.target.value; render(); });
+
+  const nameOf = (it) => (it.alt && it.alt[phase]) || it.name;
+  const chip = (it) => {
+    const s = it.s[phase];
+    return `<button type="button" class="a-chip is-${s}" data-id="${it.id}" aria-pressed="${picked === it.id}">${mark(s)}<span>${nameOf(it)}</span><span class="sr">，${ST[s]}</span></button>`;
+  };
+  const dom = (d) => {
+    const s = d.s[phase];
+    const note = d.n && d.n[phase];
+    return `<button type="button" class="a-chip a-dom is-${s}" data-id="${d.id}" aria-pressed="${picked === d.id}">
+      <span class="a-dom__h">${mark(s)}<span>${d.name}${d.isNew ? '<span class="a-new">新增</span>' : ''}</span><code>${d.code}</code></span>
+      <span class="a-dom__f">${d.f}</span>
+      ${note ? `<span class="a-dom__n">${note}</span>` : ''}
+      <span class="sr">，${ST[s]}</span>
+    </button>`;
+  };
+  const flow = (t) => `<div class="a-flow"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v9M3.5 7.5 7 11l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>${t}</div>`;
+
+  const renderArch = () => {
+    const groups = ['人', '项目', '规则', '平台'].map((g) => `<div><h4>${g === '平台' ? '平台（系统管理员）' : g}</h4><div class="a-chips">${MODULES.filter((m) => m.g === g).map(chip).join('')}</div></div>`).join('');
+    $('arch-board').innerHTML = `
+      <section class="a-layer"><header><b>使用者与入口</b><small>角色是权限预设</small></header><div class="a-chips">${ENTRIES.map(chip).join('')}</div></section>
+      <section class="a-layer"><header><b>功能模块</b><small>按侧栏的人、项目、规则分组</small></header><div class="a-groups">${groups}</div></section>
+      ${flow('服务端先按「账号 × 动作 × 范围 × 用途」过滤，再交给页面和模型')}
+      <section class="a-layer"><header><b>七个业务领域</b><small>按谁有权改变哪份事实划分</small></header><div class="a-domains">${DOMAINS.map(dom).join('')}</div></section>
+      ${flow('七个领域在同一个仓库、同一个 PostgreSQL 里按模块划分')}
+      <section class="a-layer"><header><b>平台能力</b><small>各领域共用</small></header><div class="a-chips">${PLATFORM.map(chip).join('')}</div></section>
+      ${flow('密钥只在服务端；北森只读，不回写')}
+      <section class="a-layer"><header><b>外部服务</b><small>经适配器调用</small></header><div class="a-chips">${EXTERNAL.map(chip).join('')}</div></section>`;
+  };
+
+  const renderDetail = () => {
+    const it = ALL[picked];
+    if (!it) {
+      $('detail').innerHTML = `<header><b>阶段对照</b><small>未选择</small></header><p class="a-detail__empty">点上面任一项，看它在四个阶段分别做到哪一步。</p>`;
+      return;
+    }
+    $('detail').innerHTML = `<header><b>${it.name}</b><small>${it.layer}${it.code ? ` · ${it.code}` : ''}</small></header>
+      <ol>${PH.map((p) => { const s = it.s[p.k]; const n = it.n && it.n[p.k]; const label = (it.alt && it.alt[p.k]) ? `${ST[s]}：${it.alt[p.k]}` : ST[s]; return `<li class="${p.k === phase ? 'is-cur' : ''}"><span>${p.t}</span><b>${mark(s)}${label}</b>${n ? `<p>${n}</p>` : ''}</li>`; }).join('')}</ol>`;
+  };
+
+  const renderFilter = () => {
+    $('filter').innerHTML = ['', ...GROUPS].map((g) => `<button type="button" data-g="${g}" aria-pressed="${group === g}">${g || '全部'}</button>`).join('');
+  };
+
+  const renderMatrix = () => {
+    const rows = MODULES.filter((m) => !group || m.g === group);
+    $('matrix').innerHTML = `<caption class="sr">功能模块在四个阶段的状态</caption>
+      <thead><tr><th class="g" scope="col">分组</th><th scope="col">模块</th>${PH.map((p) => `<th scope="col" class="${p.k === phase ? 'is-cur' : ''}">${p.t}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map((m) => `<tr><th class="g" scope="row">${m.g}</th><th scope="row">${m.name}</th>${PH.map((p) => { const s = m.s[p.k]; const n = m.n && m.n[p.k]; return `<td data-ph="${p.t}" class="${p.k === phase ? 'is-cur' : ''}"><span class="c is-${s}">${mark(s)}<span>${n || ST[s]}${n ? `<span class="sr">，${ST[s]}</span>` : ''}</span></span></td>`; }).join('')}</tr>`).join('')}</tbody>`;
+  };
+
+  // 证据链：run 为比赛验证工程跑通的环节
+  const CHAIN = {
+    main: [
+      ['材料', '一句话 P1 · 录音 P3、P5 · 附件 P4', 1], ['来源片段', '页与段、单元格、时间点', 1], ['关键事件 SBI', 'P1', 1], ['AI 建议分', '仅供参考', 1],
+      ['评价人确认或改分', '确认后才计入', 1], ['评分复核', '分差 2 分以上', 1], ['象限参考位置', '系统给参考', 0], ['盘点校准与冻结', '人工校准', 0], ['档案版本', '冻结后只读', 0],
+    ],
+    branches: [
+      ['从「确认」分出', [['找人：需求卡逐条四态', 'P2 · 读已确认证据', 1], ['值得关注、我的关注', '按写明的规则入选', 0]]],
+      ['从「档案」回到规则', [['判断对照', '前段与后段', 0], ['人才评价规则修订', '新版本按生效点生效', 0], ['回到确认与象限', '只作用于以后', 0]]],
+      ['人才项目', [['关键节点', '按期次组织', 0], ['节点复盘', 'HR 署名即生效', 0], ['改进事项', '挂在节点下的行动', 0]]],
+    ],
+  };
+  const node = ([t, d, run]) => `<li><span class="a-node ${run ? 'is-run' : 'is-demo'}"><span>${mark(run ? 'r' : 'p')}${t}</span><small>${d}</small><span class="sr">，${run ? '比赛验证工程跑通' : '原型演示'}</span></span></li>`;
+  $('chain-board').innerHTML = `
+    <div class="a-legend"><span>${mark('r')}实线框：比赛验证工程跑通</span><span>${mark('p')}虚线框：原型演示</span></div>
+    <div class="a-row"><b>主链</b><ol class="a-steps">${CHAIN.main.map(node).join('')}</ol></div>
+    ${CHAIN.branches.map(([t, list]) => `<div class="a-row"><b>${t}</b><ol class="a-steps">${list.map(node).join('')}</ol></div>`).join('')}`;
+
+  const render = () => { renderArch(); renderDetail(); renderMatrix(); syncURL(); };
+
+  document.addEventListener('click', (e) => {
+    const c = e.target.closest('.a-chip[data-id]');
+    if (c) {
+      picked = picked === c.dataset.id ? '' : c.dataset.id;
+      render();
+      document.querySelector(`.a-chip[data-id="${c.dataset.id}"]`)?.focus();
+      return;
+    }
+    const f = e.target.closest('#filter button');
+    if (f) { group = f.dataset.g; renderFilter(); renderMatrix(); }
+  });
+
+  renderFilter();
+  render();
+})();
+</script>
+</body>
+</html>

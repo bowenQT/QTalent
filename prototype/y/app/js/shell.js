@@ -18,20 +18,25 @@
     // 判断对照归在「人才评价规则」下（规则 / 判断对照两个页签）；导航里只给不能看汇总、但做过评价的人留「我的判断对照」
     { id: 'judge', label: '我的判断对照', icon: 'swap', href: 'judge.html?rater=me', group: '规则' },
     { id: 'tags', label: '标签库', icon: 'tag', href: 'tags.html', roles: ['hrbp'], group: '规则' },
+    { id: 'admin', label: '系统管理', icon: 'lock', href: 'admin.html', roles: ['admin'], group: '系统' },
   ];
-  const ROLE_ORDER = ['ceo', 'hrbp', 'mentor'];
+  const ROLE_ORDER = ['ceo', 'hrbp', 'mentor', 'admin'];
 
 
   // 页面入口：NT.shell({ nav, title, crumbs, render(main), view(), state(), restore(state) })
   NT.shell = (cfg) => NT.ready(() => {
     NT.reviewPage(cfg);
     st.tickTasks();
-    document.title = `${cfg.title} · Niu-Talent`;
     const role = st.role();
+    // 系统管理员打开业务页面：标题和面包屑也不带出人名、项目名
+    const blocked = role === 'admin' && cfg.nav !== 'admin';
+    const title = blocked ? '系统管理员看不到这一页' : cfg.title;
+    document.title = `${title} · Niu-Talent`;
     const me = st.me();
     // 管理者视角收敛：工作台不挂待办数，盘点不挂草稿数；评分复核、标签库不进导航
-    const counts = () => (role === 'ceo' ? { work: 0, review: 0 } : { work: st.todos().length, review: st.get().batches.filter((b) => b.kind === 'inventory' && b.status === 'draft').length });
-    const allow = (n) => (n.id === 'judge' ? !st.canJudge() && st.isRater() : !n.roles || n.roles.includes(role)) && !(n.hideFor || []).includes(role);
+    const counts = () => (['ceo', 'admin'].includes(role) ? { work: 0, review: 0 } : { work: st.todos().length, review: st.get().batches.filter((b) => b.kind === 'inventory' && b.status === 'draft').length });
+    // 系统管理员只有「系统管理」一个入口；其他视角看不到它
+    const allow = (n) => (role === 'admin' ? n.id === 'admin' : n.id === 'judge' ? !st.canJudge() && st.isRater() : !n.roles || n.roles.includes(role)) && !(n.hideFor || []).includes(role);
     const navCount = (id, n) => (n ? html`<span class="n-count${id === 'review' ? ' is-quiet' : ''}" data-nav-count>${n}</span>` : '');
     const first = counts();
     const navItem = (n) => html`<a class="n-navitem" data-nav="${n.id}" href="${n.href}" ${NT.raw(cfg.nav === n.id ? 'aria-current="page"' : '')}>${icon(n.icon)}${n.label}${navCount(n.id, first[n.id])}</a>`;
@@ -67,7 +72,7 @@
     mount(root, html`
       <a class="nt-skip" href="#main">跳到正文</a>
       <aside class="nt-side" aria-label="主导航">
-        <a class="n-shell__brand nt-brand" href="index.html"><span class="nt-ip" data-ip="rest" data-size="24"></span><span>Niu-Talent<small>人才识别、追踪与盘点</small></span></a>
+        <a class="n-shell__brand nt-brand" href="${role === 'admin' ? 'admin.html' : 'index.html'}"><span class="nt-ip" data-ip="rest" data-size="24"></span><span>Niu-Talent<small>人才识别、追踪与盘点</small></span></a>
         <nav class="nt-nav">${items.filter((n) => !n.group).map(navItem)}${groups.map((g) => html`<div class="nt-nav__grp" role="group" aria-label="${g}"><span class="nt-nav__h" aria-hidden="true">${g}</span>${items.filter((n) => n.group === g).map(navItem)}</div>`)}</nav>
         ${recent.length ? html`<div class="n-shell__recent nt-recent">最近${recent.map(([t, h]) => html`<a href="${h}">${t}</a>`)}</div>` : ''}
         <div class="nt-side__foot">
@@ -77,8 +82,8 @@
       </aside>
       <div class="nt-main">
         <header class="nt-top">
-          <nav class="nt-crumbs" aria-label="位置">${(cfg.crumbs || []).map(([t, h]) => html`<a href="${h}">${t}</a><span aria-hidden="true">/</span>`)}<b>${cfg.title}</b></nav>
-          ${role === 'ceo' ? html`<button class="n-btn n-btn--ghost n-btn--icon" style="margin-left:auto" type="button" id="nt-cmdk-open" aria-label="搜人或项目（⌘K）" title="搜人或项目 · ⌘K">${icon('search')}</button>` : html`<button class="n-search nt-search" type="button" id="nt-cmdk-open">${icon('search')}<span>搜人、项目，或输入要做的事</span><kbd>⌘K</kbd></button>`}
+          <nav class="nt-crumbs" aria-label="位置">${(blocked ? [] : cfg.crumbs || []).map(([t, h]) => html`<a href="${h}">${t}</a><span aria-hidden="true">/</span>`)}<b>${title}</b></nav>
+          ${role === 'admin' ? html`<span style="margin-left:auto"></span>` : role === 'ceo' ? html`<button class="n-btn n-btn--ghost n-btn--icon" style="margin-left:auto" type="button" id="nt-cmdk-open" aria-label="搜人或项目（⌘K）" title="搜人或项目 · ⌘K">${icon('search')}</button>` : html`<button class="n-search nt-search" type="button" id="nt-cmdk-open">${icon('search')}<span>搜人、项目，或输入要做的事</span><kbd>⌘K</kbd></button>`}
           <span class="n-menuwrap"><button class="n-rolepick" type="button" id="nt-roles" aria-label="演示视角：${st.roles[role].label}，点击切换">${NT.ui.avatar(me.id, 'sm')}<small>演示视角</small>${st.roles[role].label}${icon('chev')}</button></span>
           <span class="n-menuwrap"><button class="n-btn n-btn--ghost n-btn--icon" type="button" id="nt-more" aria-label="更多">${icon('more')}</button></span>
         </header>
@@ -99,13 +104,17 @@
       { sep: true },
       { label: '重置演示数据', icon: 'retry', danger: true, run: () => NT.resetDemo() },
     ]);
-    wireCmdk();
+    if (role !== 'admin') wireCmdk(); // 系统管理员不能搜人
     NT.ui.mountIPs(root);
     // 窄屏时侧栏变成横向滚动条：当前页的入口滚到可见处，两侧有渐隐提示还能滚动
     if (matchMedia('(max-width: 860px)').matches) document.querySelector('.nt-side [aria-current="page"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 
     const main = NT.$('#main');
-    if (cfg.allow && !cfg.allow(role)) {
+    if (blocked) {
+      // 业务页面一律不对系统管理员渲染：先拦在外层，不依赖各页面自己的 allow
+      mount(main, NT.ui.state({ ip: 'confirm', title: '系统管理员看不到人才数据', text: '这一页属于业务视角。系统管理员负责账号与权限、北森同步、集成配置和审计日志。', actions: html`<a class="n-btn n-btn--sm" href="admin.html">打开系统管理</a>` }));
+      NT.ui.mountIPs(main);
+    } else if (cfg.allow && !cfg.allow(role)) {
       mount(main, NT.ui.state({ ip: 'confirm', title: cfg.denyTitle || '这一页属于其他视角', text: cfg.denyText || '切换演示视角，或回到工作台。', actions: cfg.denyActions || html`<a class="n-btn n-btn--sm" href="index.html">回到工作台</a>` }));
       NT.ui.mountIPs(main);
     } else {
