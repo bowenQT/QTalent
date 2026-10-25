@@ -6,6 +6,7 @@ import {
 } from '../../contracts/staffing';
 import { JevError } from '../integrations/jev';
 import { applyJobCommand } from '../jobs/state';
+import { sourceSchema } from '../../contracts/sources';
 import { matchingFixture } from '../../../tests/fixtures/staffing-matching';
 
 const input = {
@@ -522,5 +523,110 @@ describe('BOW-854 authorized matching', () => {
     expect(
       await f.service.judge('account-hr', result.runId, judgment),
     ).toMatchObject({ status: 'conflict' });
+  });
+  it.each([
+    { kind: 'document' as const, page: 2, paragraph: '第七段' },
+    { kind: 'spreadsheet' as const, sheet: '演示验收', cell: 'C4' },
+    { kind: 'recording' as const, startMs: 1200, endMs: 2500 },
+    {
+      kind: 'snapshot_field' as const,
+      fieldPath: 'events.demo-a.behavior',
+      originalLocation: '固定演示快照',
+    },
+  ])(
+    'preserves exact $kind references, including confirmed baseline evidence without inventing a confirmation time',
+    async (location) => {
+      const f = matchingFixture();
+      f.records.splice(
+        0,
+        f.records.length,
+        ...f.records.filter((record) => record.subject.personId === 'demo-a'),
+      );
+      const before = f.sources[0]!;
+      f.sources[0] = sourceSchema.parse(
+        location.kind === 'snapshot_field'
+          ? {
+              ...before,
+              location,
+              sourceCategory: 'prototype_baseline',
+              sourceType: 'prototype_snapshot',
+              displayNotice: '演示快照；不代表原始业务文件',
+              demo: true,
+            }
+          : { ...before, location, sourceType: location.kind },
+      );
+      f.rawSources[0]!.location = location;
+      if (location.kind === 'snapshot_field')
+        f.facts[0]!.confirmation = {
+          kind: 'prototype_baseline',
+          id: 'baseline-confirmed-event',
+          demo: true,
+        };
+      const result = await start(f);
+      await f.service.execute(result.runId, 1);
+      expect(
+        (await page(f, result.runId)).candidates[0]?.requirements[0]?.aiJudgment
+          ?.sources,
+      ).toEqual([f.sources[0]]);
+      const submitted = f.decide.mock.calls[0]![0];
+      expect(submitted.evidence[0]?.sourceRef).toContain(location.kind);
+      expect(submitted.evidence[0]?.text).not.toContain('confirmedAt');
+    },
+  );
+  it('does not create a human confirmation timestamp or classify an original as a confirmed baseline', async () => {
+    const f = matchingFixture();
+    f.facts[0]!.confirmation = {
+      kind: 'human',
+      id: 'confirmed-a',
+      actorId: 'hr',
+      confirmedAt: '',
+    };
+    f.facts[1]!.confirmation = {
+      kind: 'prototype_baseline',
+      id: 'baseline-b',
+      demo: true,
+    };
+    const result = await start(f);
+    await f.service.execute(result.runId, 1);
+    const value = await page(f, result.runId);
+    expect(
+      value.candidates
+        .slice(0, 2)
+        .every((candidate) => candidate.requirements[0]?.aiJudgment === null),
+    ).toBe(true);
+    expect(f.decide).toHaveBeenCalledTimes(2);
+  });
+  it('does not expand a run when a broader manager reads it and always executes using the initiating account', async () => {
+    const f = matchingFixture(),
+      result = await start(f);
+    f.context.grants.push({
+      accountId: 'account-manager',
+      role: 'manager',
+      scope: 'company',
+      cohortId: null,
+      validFrom: '2026-01-01',
+      validTo: null,
+      revokedAt: null,
+    });
+    const managerPage = pageResultSchema.parse(
+      await f.service.read('account-manager', result.runId),
+    ).page;
+    expect(
+      managerPage.candidates.map((candidate) => candidate.person.id),
+    ).toEqual(['demo-a', 'demo-b', 'demo-c', 'demo-d']);
+    expect(
+      await f.service.judge('account-manager', result.runId, {
+        ...judgment,
+        personId: 'hidden',
+      }),
+    ).toMatchObject({ status: 'not_found' });
+    f.loadEvidence.mockClear();
+    await f.service.execute(result.runId, 1);
+    expect(
+      f.loadEvidence.mock.calls.every(([account]) => account === 'account-hr'),
+    ).toBe(true);
+    expect(JSON.stringify(f.decide.mock.calls)).not.toContain(
+      'fragment-hidden',
+    );
   });
 });

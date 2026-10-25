@@ -50,15 +50,24 @@ AI 已完成后的人工作为 canonical cell 追加；原 job 处理结果保�
 import { sql } from 'drizzle-orm';
 import { fromDrizzle } from 'pg-boss';
 import { getAppJobProducer } from '@/server/platform/jobs/app-runtime';
-import { createPostgresMatchStore, loadMatchRun } from '@/server/modules/staffing/matching';
+import {
+  createPostgresMatchStore,
+  loadMatchRun,
+} from '@/server/modules/staffing/matching';
 import { createStaffingMatchUsecase } from '@/server/usecases/staffing-match';
-import { staffingMatchQueue, staffingMatchJobPolicy, registerStaffingMatch } from '@/server/jobs/staffing-match';
+import {
+  staffingMatchQueue,
+  staffingMatchJobPolicy,
+  registerStaffingMatch,
+} from '@/server/jobs/staffing-match';
 
 const enqueueMatch = async (tx: Transaction, job: JobRecord) => {
   const boss = await getAppJobProducer(staffingMatchQueue);
-  const id = await boss.send(staffingMatchQueue,
+  const id = await boss.send(
+    staffingMatchQueue,
     { jobId: job.jobId, attempt: job.attempt },
-    { db: fromDrizzle(tx, sql) });
+    { db: fromDrizzle(tx, sql) },
+  );
   if (!id) throw new Error('Matching enqueue rejected');
 };
 const matching = createStaffingMatchUsecase({
@@ -96,4 +105,5 @@ store 采用 advisory 操作锁与 **job → run** 行锁顺序；run/job/operat
 `store.integration.test.ts` 强制隔离 loopback `_test` PostgreSQL，覆盖同事务真实 pg-boss、重复请求、回滚、人工并发、约束与实际 consumer；缺 `TEST_DATABASE_URL` 失败，不能以 skip/fake 替代。
 
 开始实现时临时组合 PR130@209739ed、852@e78e5b6、jobs@8fd71c0；这些依赖 blob 不作为本卡提交。PR94 后续已合 main，最终基线和实际检查以 PR188 当前 head 的验证记录为准。
+本地最终组合的额外输入只有：PR130@209739edb5b35966c5b1a5c71bc9a8ce3e0bbd30 的 `src/contracts/staffing.ts`、PR161@e78e5b6788418025b40ddf78bbf5d5adc7eb7f85 的 `demand/schema.ts`、PR131@8192dc2cc891cc570eb4f20c437fc82c7a2aca9b 的 `authz/talent.ts`（原 snapshot_field 支持）。它们只在独立 checkout 临时取原 blob，验证后还原；本卡没有提交依赖复制或修改授权算法。
 837 完整来源/事件确认适配、共享接线、父串行迁移、当前 head 完整 CI 和一次真实 Jev 验收仍是门禁。未满足时保持 Draft，使用 `Refs #46 / Part of BOW-854`，不标 Done，不合并/部署。

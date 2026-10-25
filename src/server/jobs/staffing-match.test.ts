@@ -5,15 +5,13 @@ import { matchingFixture } from '../../../tests/fixtures/staffing-matching';
 
 async function fixture() {
   const f = matchingFixture();
-  const { runId } = z
-    .object({ runId: z.string() })
-    .parse(
-      await f.service.start('account-hr', {
-        operationId: 'start',
-        demandId: 'demand-a',
-        expectedRevision: 2,
-      }),
-    );
+  const { runId } = z.object({ runId: z.string() }).parse(
+    await f.service.start('account-hr', {
+      operationId: 'start',
+      demandId: 'demand-a',
+      expectedRevision: 2,
+    }),
+  );
   await f.service.execute(runId, 1);
   const enqueue = vi.fn(async () => undefined);
   const policy = staffingMatchJobPolicy({
