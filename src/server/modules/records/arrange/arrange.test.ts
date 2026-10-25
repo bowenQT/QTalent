@@ -73,6 +73,46 @@ describe('authorized shared record arrangement', () => {
       /VISIBLE_BUT_UNNEEDED|OTHER_EVENT|private-summary/,
     );
   });
+  it.each(['input', 'source'] as const)(
+    'keeps padded/newline %s citations exact, including UTF-16 input offsets',
+    async (kind) => {
+      const snapshot = exampleSnapshot();
+      const text = '🙂前缀 \n林舟补写回滚步骤。\n ';
+      const quote = ' \n林舟补写回滚步骤。\n ';
+      const start = text.indexOf(quote);
+      snapshot.originalInput.text = text;
+      snapshot.authorization.sources[0]!.excerpt = text;
+      snapshot.authorization.records[0]!.fields[0]!.value = text;
+      const response = exampleResponse();
+      const score = response.scores[0]!;
+      if (score.state !== 'suggested') throw new Error('fixture');
+      const citation =
+        kind === 'input'
+          ? { kind, quote, start, end: start + quote.length }
+          : {
+              kind,
+              quote,
+              reference: {
+                fragmentId: 'fragment-text',
+                originalVersionId: 'original-v1',
+                location: snapshot.authorization.sources[0]!.location,
+              },
+            };
+      score.citations = [citation];
+      const { result } = await run(snapshot, response);
+      expect(result.status).toBe('arranged');
+      if (result.status !== 'arranged') throw new Error('expected draft');
+      expect(result.value.draft.originalInput.text).toBe(text);
+      expect(result.value.draft.scores[0]).toMatchObject({
+        state: 'suggested',
+        citations: [citation],
+      });
+      expect(result.value.evidence[0]).toMatchObject({
+        fragmentId: 'fragment-text',
+        originalVersionId: 'original-v1',
+      });
+    },
+  );
   it.each(['missing', 'outside', 'mixed', 'performance'] as const)(
     'refuses %s provenance without a model call',
     async (kind) => {

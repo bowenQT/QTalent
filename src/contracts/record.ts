@@ -3,6 +3,10 @@ import { createJobSnapshotSchema } from './jobs';
 import { sourceReferenceSchema } from './sources';
 
 const text = z.string().trim().min(1);
+// Original wording and quotes retain their exact bytes for provenance/offsets.
+const verbatimText = z.string().refine((value) => value.trim().length > 0, {
+  message: '不能为空白',
+});
 const revision = z.number().int().positive();
 export const recordValueSchema = z.number().int().min(1).max(5);
 export const recordAnchorSchema = z.strictObject({
@@ -14,14 +18,14 @@ export const recordCitationSchema = z.discriminatedUnion('kind', [
   z
     .strictObject({
       kind: z.literal('input'),
-      quote: text,
+      quote: verbatimText,
       start: z.number().int().nonnegative(),
       end: z.number().int().positive(),
     })
     .refine((x) => x.end > x.start),
   z.strictObject({
     kind: z.literal('source'),
-    quote: text,
+    quote: verbatimText,
     reference: sourceReferenceSchema,
   }),
 ]);
@@ -60,7 +64,7 @@ export const recordSbiSchema = z.strictObject({
 });
 export const recordInputSchema = z.strictObject({
   operation_id: text,
-  text,
+  text: verbatimText,
   attachmentIds: z.array(text),
   personId: text.nullable(),
   projectId: text.nullable(),

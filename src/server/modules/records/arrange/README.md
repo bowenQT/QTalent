@@ -14,7 +14,7 @@
 
 ## 实际请求与持久化
 
-`usecases/record-arrange-requests.ts` 实现首次输入、幂等创建/入队、查询和选择后新整理。`record-arrange-context.ts` 在传入事务内读取当前账户、目录、来源和规则，复用846的 `canConfirmOwnScore` 与837/846的 `sourcesForDraft`。只有当前有权评分的 HR/导师可写；读取权限不替代写权限。规则只接受唯一 published 且有锚点的版本；非 production 可接受唯一 demo_import_snapshot。多候选不猜“最新”，直接拒绝不明确配置。
+`usecases/record-arrange-requests.ts` 实现首次输入、幂等创建/入队、查询和选择后新整理。`record-arrange-context.ts` 在传入事务内读取当前账户、目录、来源和规则，复用846的 `canConfirmOwnScore` 与837/846的 `sourcesForDraft`，不另写角色特判。用户最新以202/203为准，manager可记录/确认本人评分；当前固定846候选仍仅允许HR/导师，须等该owner统一适配SHA后复验，不能把旧组合当作新权限验收。规则只接受唯一 published 且有锚点的版本；非 production 可接受唯一 demo_import_snapshot。多候选不猜“最新”，直接拒绝不明确配置。
 
 `records/arrange/input-state/schema.ts` 只增加两表：
 
@@ -48,7 +48,7 @@ await requests.createFromSources(accountId, {
 });
 ```
 
-首次纯文本入口拒绝未解析的 attachmentIds。已解析附件走上面的可信来源入口，原 attachmentIds 保留。当前公共 RecordInput 仍要求非空 text；无原话的 source-only 输入不能填占位句绕过，需合同方另定。父已收到原始 text 被合同 `.trim()` 改写的精确回归及最小补丁；本卡保留原始字节，writer 回执发生改写就拒绝提交，不静默改偏移。
+首次纯文本入口拒绝未解析的 attachmentIds。已解析附件走上面的可信来源入口，原 attachmentIds 保留。当前公共 RecordInput 仍要求非空 text；无原话的 source-only 输入不能填占位句绕过，需按可信来源上下文另定。父已授本卡唯一窄修改权：recordInput.text与recordCitation两种quote使用非空白refine、不做transform，保留前后空格/换行与UTF-16引用偏移；ID、标题、普通标签仍原schema。writer回执发生改写仍拒绝提交，不静默改偏移。
 
 ## Worker、846及共享接线
 
@@ -82,4 +82,4 @@ runner 在842行锁下 queued→running，模型在事务外；最终同事务�
 
 历史0c4b044固定组合的pnpm check（100文件/912tests）、e2e10/10和visual32/32只证明当时受检范围；不作为本次新增入口的通过证据。当前结果以PR当前head更新为准。
 
-Pending：两表串行生成迁移、846候选及852共享producer正式整合、当前完整PG/覆盖/构建、共享注册、一次化名真实模型验收。本次不调用真实模型/业务API，不配置凭据或部署。PR使用 Refs #37 / Part of BOW-845，不关闭卡；最终合并由父负责。
+Pending：两表串行生成迁移、202权限适配后的846候选及852共享producer正式整合、当前完整PG/覆盖/构建、共享注册、source-only最小合同及一次化名真实模型验收。本次不调用真实模型/业务API，不配置凭据或部署。PR使用 Refs #37 / Part of BOW-845，不关闭卡；最终合并由父负责。
