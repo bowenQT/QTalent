@@ -26,7 +26,8 @@
     const draw = () => {
       const list = people.filter((p) => (!q || p.name.includes(q) || p.title.includes(q))
         && (kind === 'all' || (kind === 'track' && tracks.includes(p.id)) || (kind === 'landing' && p.landing) || (kind === 'na' && st.refPos(p.id).na)));
-      const teams = [...new Set(list.map((p) => p.org))];
+      // 团队按团队名的中文拼音排序（与桌面版一致），组内按姓名拼音
+      const teams = [...new Set(list.map((p) => p.org))].sort((a, b) => st.orgShort(a).localeCompare(st.orgShort(b), 'zh-Hans-CN') || (a < b ? -1 : a > b ? 1 : 0));
       mount($('#plist'), list.length ? teams.map((t) => html`<h3 class="m-h" style="font-weight:500;color:var(--ink-3);font-size:var(--t-xs)">${st.orgPath(t)} · ${list.filter((p) => p.org === t).length} 人</h3>
         <ul class="m-list">${list.filter((p) => p.org === t).sort((a, b) => a.name.localeCompare(b.name, 'zh')).map((p) => M.row(`person.html?id=${p.id}`, UI.avatar(p.id, 'sm'), html`${p.name}${tracks.includes(p.id) ? html` <span class="n-badge" style="font-size:10px">${icon('target')}跟踪中</span>` : ''}`, p.title, quad ? tail(p.id) : undefined))}</ul>`)
         : html`<div class="nt-empty">换个筛选条件试试。</div>`);
