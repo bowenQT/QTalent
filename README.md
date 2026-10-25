@@ -7,7 +7,7 @@
 | 参赛议题 | 自选题目：AI 原生的人才搜索、档案与评价体系 |
 | 交付形态 | 高保真可交互产品原型（桌面 + 导师手机版），浏览器直接打开 |
 | 在线原型 | <https://qtalent-review.aidoudoulong123.workers.dev/>（`@qiniu.com` 邮箱登录，每页可划线评论） |
-| Demo 视频 | [带讲解版](https://drive.google.com/file/d/1ZfX0eRM3sM1o3GMwPB_J4BH5MIBlngNo/view?usp=sharing) · [操作演示版](https://drive.google.com/file/d/1L2a9YWhO1Ff9z7VZW2va_fMQzyep2mIW/view?usp=sharing)（Google Drive） |
+| Demo 视频 | [带讲解版](https://drive.google.com/file/d/1ZfX0eRM3sM1o3GMwPB_J4BH5MIBlngNo/view?usp=sharing) · [操作演示版](https://drive.google.com/file/d/1L2a9YWhO1Ff9z7VZW2va_fMQzyep2mIW/view?usp=sharing) · [90 秒短片](https://drive.google.com/file/d/1mJXs7BtGMy58aZPd1daLzJqJA3lXxK0p/view?usp=sharing) · [30 秒短片](https://drive.google.com/file/d/184f-nOHuBhl73kbH97CaOB1fNM97dmYc/view?usp=sharing)（Google Drive） |
 | 架构设计 | [docs/architecture.md](docs/architecture.md) |
 
 ## 为什么做
@@ -184,7 +184,7 @@ python3 -m http.server 4173 --bind 127.0.0.1 --directory prototype
 
 比赛交付的是原型。团队同时在仓库根目录按正式工程标准搭建可上线的版本，赛后在同一工程上继续：界面 1:1 还原原型 Y，接真实数据库、服务端权限和真实 AI 与语音服务（七牛 MaaS、Jev、七牛 Kodo、通义听悟）。
 
-三个价值点在工程里的落地顺序是：先把评价体系的数据底座（维度、锚点、规则版本）和证据模型建好，再接人才档案的读取与记一件事，然后是人才搜索的需求卡与逐条四态。目前已合入登录与外壳、授权核心、证据与评分模型、演示数据导入、前后端契约、任务进度、四个外部服务的适配器和设计系统组件；档案读取、记一件事、找人、录音上传等正在评审。逐条状态见 [架构设计第 12 节](docs/architecture.md#12-实现状态)。
+三个价值点在工程里的落地顺序是：先把评价体系的数据底座（维度、锚点、规则版本）和证据模型建好，再接人才档案的读取与记一件事，然后是人才搜索的需求卡与逐条四态。目前已合入登录与外壳、授权核心、证据与评分模型、演示数据导入、人才与来源读取、记一件事 / 评分复核 / 找人 / 上传的前后端契约、任务进度、四个外部服务的适配器（含听悟离线与实时）和设计系统组件；工作台读取、记一件事的整理与确认、找人的需求卡与逐条四态、录音上传与附件解析正在评审。逐条状态见 [架构设计第 12 节](docs/architecture.md#12-实现状态)。
 
 <details>
 <summary>运行正式工程</summary>
@@ -256,15 +256,7 @@ python3 -m http.server 4173 --bind 127.0.0.1 --directory prototype
 
 ## 团队与分工
 
-<!-- 待补：成员与职责，与 docs/architecture.md 第 13 节保持一致 -->
-
-| 成员 | 职责 |
-| --- | --- |
-| bowenQT | 待补 |
-| Joanrecruiting | 待补 |
-| yiyih7077-cell | 待补 |
-
-团队使用 Codex、Cursor、Claude Code 等编码 Agent 在各自的分支上并行实现 Linear 任务卡，成员负责拆卡、审查与合并。协作方式见 [架构设计第 13 节](docs/architecture.md#13-分工)。
+团队成员：bowenQT、Joanrecruiting、yiyih7077-cell。团队使用 Codex、Cursor、Claude Code 等编码 Agent 在各自的分支上并行实现 Linear 任务卡，成员负责拆卡、审查与合并。协作方式见 [架构设计第 13 节](docs/architecture.md#13-分工)。
 
 ## 开发过程
 
@@ -277,6 +269,7 @@ python3 -m http.server 4173 --bind 127.0.0.1 --directory prototype
 | 文档 | 内容 |
 | --- | --- |
 | [架构设计](docs/architecture.md) | 三个价值点的模块支撑、原型结构、正式工程的模块规格、数据流、权限、部署、实现状态、分工 |
+| [北森数据与权限对接清单](docs/research/2026-10-25-北森对接清单.md) | 可提供的数据、缺口、HR 最小权限申请项和待联调验收 |
 | [需求定稿 · 版本 Y](docs/requirements/需求定稿-版本Y.md) | 版本 Y 的需求，未提及部分沿用 [需求定稿 v1.6](docs/requirements/需求定稿-v1.6.md)（评价体系见其第 3.35 节） |
 | [架构分期提案](docs/proposals/2026-10-25-y-architecture-phases.md) | 长期 / 中期 / 本次比赛的规划与决策记录 |
 | [工程规范](docs/engineering.md) | 职责划分、契约、测试与覆盖率、UI 还原与验证 |

@@ -1,4 +1,4 @@
-import type { Browser, Locator, Page, TestInfo } from '@playwright/test';
+import type { Browser, Page, TestInfo } from '@playwright/test';
 import { test, expect } from '../e2e/fixtures';
 import { referenceConfig } from './reference-config';
 import { startPrototypeServer } from './prototype-server';
@@ -132,32 +132,6 @@ const failures: Sample[] = [
   },
 ];
 
-/**
- * compareElements 靠 position: relative 把两侧样张的原点挪到整像素，只改绘制位置，不改布局。
- * Chrome 对文字基线的取整取决于布局坐标的小数部分，布局小数不同的两个样张会出现
- * 整行 1px 位移（高的速览样张最明显）。比较前统一把两侧元素的布局纵坐标取整：
- * 给 html 加一段 padding-top，整页一起平移，不改变任何元素之间的相对关系。
- */
-async function snapLayout(locator: Locator) {
-  await locator.evaluate((element) => {
-    const root = document.documentElement;
-    root.style.paddingTop = '';
-    const top = element.getBoundingClientRect().top + window.scrollY;
-    const fraction = top - Math.floor(top);
-    if (fraction) root.style.paddingTop = `${1 - fraction}px`;
-  });
-}
-async function compareSnapped(
-  reference: Locator,
-  actual: Locator,
-  testInfo: TestInfo,
-  name: string,
-) {
-  await snapLayout(reference);
-  await snapLayout(actual);
-  await compareElements(reference, actual, testInfo, name);
-}
-
 /** 同一个视口里并排打开原型与工程样张，逐项比较。 */
 async function openPair(browser: Browser, page: Page) {
   const server = await startPrototypeServer();
@@ -189,11 +163,12 @@ async function compareSamples(
 ) {
   for (const sample of samples) {
     const reference = prototype.locator(sample.reference);
-    await compareSnapped(
+    await compareElements(
       sample.nth === undefined ? reference : reference.nth(sample.nth),
       page.locator(sample.actual),
       testInfo,
       sample.name,
+      { snap: true },
     );
   }
 }
@@ -239,11 +214,12 @@ test('opened menu and both confirmation dialogs match the prototype', async ({
         right: 'auto',
       });
     });
-    await compareSnapped(
+    await compareElements(
       prototype.locator('#menu'),
       page.getByRole('menu'),
       testInfo,
       'menu',
+      { snap: true },
     );
     await prototype.keyboard.press('Escape');
     await page.keyboard.press('Escape');
@@ -311,11 +287,12 @@ test('undo toast, state cards and failure panel match the feedback section', asy
     // 提示 5 秒后自己消失，放在最后、点开后马上比较
     await pair.prototype.locator('#toast-run').click();
     await page.locator('[data-sample="toast-run"]').click();
-    await compareSnapped(
+    await compareElements(
       pair.prototype.locator('#toast-slot .n-toast'),
       page.locator('.nt-toasts .n-toast'),
       testInfo,
       'toast',
+      { snap: true },
     );
   } finally {
     await pair.close();

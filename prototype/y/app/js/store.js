@@ -452,7 +452,15 @@
     return { key, week, from, to, events: evs, rows, total: relevant.length, confirmed: relevant.filter((r) => r.state === 'confirmed').length,
       conflicts: rows.filter((r) => r.state === 'conflict').length, ai: rows.filter((r) => r.state === 'ai').length, state: saved.state || 'draft', by: saved.by, at: saved.at };
   };
-  store.confirmReview = (pid, week) => { S.reviews[`${pid}-${week}`] = { state: 'confirmed', by: store.me().id, at: NT.TODAY }; store.save(); };
+  store.confirmReview = (pid, week) => {
+    // 与页面禁用条件保持一致，提交时重新核验，避免旧按钮或重入绕过。
+    if (!store.canEditReview(pid)) return null;
+    const r = store.review(pid, week);
+    if (!r || r.state === 'confirmed' || r.ai || r.conflicts) return null;
+    const confirmed = { state: 'confirmed', by: store.me().id, at: NT.TODAY };
+    S.reviews[r.key] = confirmed; store.save();
+    return confirmed;
+  };
   // 对人复盘每一维的评价：AI 草拟只作参考，HR 和所带导师可以采用、改写、修正；每次保存署名，旧版本保留
   store.canEditReview = (pid, role = store.role()) => (role === 'hrbp' && store.scope(pid, role) === 'full') || (role === 'mentor' && store.scope(pid, role) === 'mentor');
   store.reviewEvalHist = (pid, week, dim) => S.reviewEvals?.[`${pid}-${week}`]?.[dim] || [];
@@ -660,8 +668,15 @@
     store.save();
   };
   store.addProject = (p) => { S.projects.unshift(p); store.save(); return p; };
-  store.removeProject = (id) => { S.projects = S.projects.filter((p) => p.id !== id); S.members = S.members.filter((m) => m.project !== id); store.save(); };
-  store.projectLinked = (id) => S.events.some((e) => e.project === id) || S.plans.some((p) => p.project === id);
+  store.removeProject = (id) => {
+    // 有任何成员、成员历史、事件或方案的项目只能归档，不能删除其关联证据。
+    if (!store.project(id) || store.projectLinked(id)) return false;
+    S.projects = S.projects.filter((p) => p.id !== id);
+    store.save();
+    return true;
+  };
+  store.projectLinked = (id) => S.events.some((e) => e.project === id) || S.plans.some((p) => p.project === id)
+    || S.members.some((m) => m.project === id) || (S.memberLog || []).some((l) => l.project === id);
 
   // ---------- 标签 ----------
   store.tagCounts = () => {
@@ -1404,6 +1419,8 @@
     return b ? `calibrate.html?id=${b.id}&team=${org}&person=${pid}` : null;
   };
   store.startInventory = (b) => {
+    // 相同批次 ID 重复启动不应新增第二个快照入口，也不能重复激活规则版本。
+    if (!b?.id || S.batches.some((x) => x.id === b.id)) return null;
     const busy = !!store.inventoryLock();
     if (!busy) Object.keys(S.rules).forEach((k) => S.rules[k].filter((r) => r.state === 'scheduled').forEach((r) => activate(k, r)));
     Object.assign(b, { rubric: store.ruleLive('rubric').v, place: store.ruleLive('place').v });

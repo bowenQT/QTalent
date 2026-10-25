@@ -137,7 +137,7 @@
   const scoreToasts = [];
   function confirmReview(main) {
     const key = st.review(pid, week).key;
-    st.confirmReview(pid, week);
+    if (!st.confirmReview(pid, week)) { NT.toast('复盘状态已有变化，请先处理未确认项或检查权限'); render(main); return; }
     scoreToasts.splice(0).forEach((close) => close());
     render(main);
     const seal = $('.n-seal', main); seal?.classList.add('is-stamping');

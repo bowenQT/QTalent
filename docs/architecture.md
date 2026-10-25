@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 适用版本 | `main` 提交 `37f987d`（2026-10-26）。第 12 节的实现状态以这个提交为准，之后合入的 PR 需同步更新该节 |
+| 适用版本 | `main` 提交 `d4903d4`（2026-10-26）。第 12 节的实现状态以这个提交为准，之后合入的 PR 需同步更新该节 |
 | 本文回答 | 三个核心价值点由哪些模块支撑（1.1）；原型怎么组织（1.2）；正式工程由哪些部分组成、每个模块负责什么、模块之间怎么协作（第 2～11 节）；现在做到哪一步、团队如何分工（第 12～13 节） |
 | 决策记录 | 选型的取舍过程、已确认决定 U-1～U-21 和多轮审查记录见 [产品架构分期提案](proposals/2026-10-25-y-architecture-phases.md)；本文只写结论，两者冲突时以已确认决定为准 |
 | 可视化 | [产品架构与分期规划](../prototype/architecture.html)（原型评审站页面） |
@@ -31,7 +31,7 @@ Niu-Talent 是七牛云内部的 AI 原生人才工作台，核心价值是三�
 
 | 价值点 | 关键能力 | 原型页面（`prototype/y/app/`） | 原型逻辑 | 正式工程的支撑 | 工程链路 |
 | --- | --- | --- | --- | --- | --- |
-| 人才搜索 | 一句话建需求卡；必须 / 加分要求；逐条四态并附来源；按必须项支持数排列；目标角色模板；标签检索 | `staffing`、`people`、`projects` / `project`、`tags`、`rules?r=tpl` | `pages/staffing.js`（预置场景、候选排序、方案槽位）、`pages/people.js` | staffing 领域（项目、成员、需求卡与四态）；talent 读取；Jev 适配器；`people.ts`、`projects.ts` 契约，找人契约在评审中 | P2 |
+| 人才搜索 | 一句话建需求卡；必须 / 加分要求；逐条四态并附来源；按必须项支持数排列；目标角色模板；标签检索 | `staffing`、`people`、`projects` / `project`、`tags`、`rules?r=tpl` | `pages/staffing.js`（预置场景、候选排序、方案槽位）、`pages/people.js` | staffing 领域（项目、成员、需求卡与四态）；talent 读取；Jev 适配器；`people.ts`、`projects.ts`、`staffing.ts` 契约 | P2 |
 | 人才档案 | 证据链；SBI 整理与建议分；确认或改分；五种内容性质分开；人名与说话人核对；按视角投影 | `person`、`record`、`recording`、`inbox`，手机 `quick`、`record`、`inbox` | `parse.js`（整理）、`pages/person.js`、`pages/record.js`、`pages/recording.js`；引用与事件卡在 `ui.js` | records 领域（原件、版本、片段、事件、陈述）；talent 领域（建议分与确认分）；authz 的按用途投影；MaaS、听悟、Kodo 适配器；`person.ts`、`sources.ts`、`workbench.ts` 契约 | P0、P1、P3、P4、P5 |
 | 人才评价体系 | 六类规则与版本；修订、影响预览、确认发布、按生效点生效；评分复核；盘点校准与冻结；判断对照与归因；节点复盘 | `rules`、`judge`、`queue`、`reviews` / `review`、`calibrate`、`plan`、`landing-review`、`actions` | `pages/rules.js`、`pages/judge.js`、`pages/queue.js`；参考位置、变化与档案版本在 `store.js` 中按规则实时计算 | evaluation-system 领域（维度、锚点、规则版本）；事件保存时记录规则版本，锚点用复合外键防止跨版本引用；talent 领域的评分复核 | 规则数据底座已建；修订流程与判断对照本次留在原型 |
 
@@ -162,7 +162,7 @@ src/
 | --- | --- | --- | --- | --- |
 | directory 人员、组织与授权 | 人员与组织、任职、账号绑定、角色预设与范围授权 | `directory_people`、`directory_organizations`、`directory_employments`、`directory_account_bindings`、`directory_grants` | `readDirectory(db, accountId)` | 已实现 |
 | records 材料与记录 | 原件与版本、来源片段（页与段 / 单元格 / 时间点）、关键事件、参与人、本人自述与管理观察、历史评价 | `records_originals`、`records_original_versions`、`records_fragments`、`records_events`、`records_event_participants`、`records_event_sources`、`records_statements`、`records_historical_evaluations`、`records_historical_participants`、`records_import_snapshots` | 表定义与 `SourceLocation` 类型 | 模型已实现；整理、附件、上传用例在 PR 中 |
-| talent 人才评价与盘点 | AI 建议分、人工确认分、评分复核；后续加盘点批次、象限、冻结快照、档案版本 | `talent_ai_suggestions`、`talent_confirmations`、`talent_score_reviews` | 表定义；人才读取在 PR 中 | 模型已实现；确认改分、读取在 PR 中 |
+| talent 人才评价与盘点 | AI 建议分、人工确认分、评分复核；后续加盘点批次、象限、冻结快照、档案版本 | `talent_ai_suggestions`、`talent_confirmations`、`talent_score_reviews` | 表定义；人才读取经 `queries/person.ts`、`people.ts` | 模型与读取已实现；确认改分在 PR 中 |
 | staffing 项目用人 | 项目与课题、成员历史、需求卡版本、候选逐条四态、找人方案 | `staffing_projects`、`staffing_members`、`staffing_member_logs`、`staffing_create_requests` | `readStaffing`、`insertProject`、`readCreateRequest` | 项目与课题已实现；需求卡与四态在 PR 中 |
 | programs 人才项目 | 人才项目与期次、学员名单、导师与学员关系 | `programs_cohorts`、`programs_enrollments`、`programs_assignments` | `readProgramScopes(db)` | 已实现（授权所需部分） |
 | evaluation-system 人才评价规则 | 维度与行为锚点、规则版本；后续加修订、预览、发布与判断对照 | `evaluation_dimensions`、`evaluation_rule_versions`、`evaluation_anchors` | 表定义 | 锚点与版本已实现；修订流程留在原型 |
@@ -194,7 +194,7 @@ src/
 | `integrations/maas` | 结构化生成：输入已授权、最小化的文字证据和业务 Zod schema，输出通过校验的 JSON | 超时、非 JSON、截断、模型不符、结构不符全部拒绝；结果未知时不冒充成功 | 真实客户端已合入 |
 | `integrations/jev` | 找人逐条四态、标签判定等离散判断 | 出错或超时只改处理进度为「待人工判断」，结论留空，不记为「资料不足」；输出按白名单投影，confidence 和原始响应不出适配器 | 真实客户端已合入 |
 | `integrations/kodo` | 私有对象读写、受限直传凭证、v2 分片续传、给听悟的限时来源 | 写入以 stat 核对完整对象为准；响应丢失先查再报；分片 checkpoint 只在服务端 | 真实客户端已合入 |
-| `integrations/tingwu` | 实时推流预览（`realtime/`）与离线转写 | 实时稿只做预览；暂停只停止当前识别周期；结束结果未知时不重建记录掩盖 | 实时适配器已合入；离线转写当前为 fake |
+| `integrations/tingwu` | 实时推流预览（`realtime/`）与离线转写 | 实时稿只做预览；暂停只停止当前识别周期；结束结果未知时不重建记录掩盖 | 实时适配器与离线转写客户端已合入 |
 
 ### 5.4 前后端契约
 
@@ -210,7 +210,7 @@ src/
 | `sources.ts` | 来源读取：位置类型与原件 / 原型基线两类来源 |
 | `jobs.ts` | 任务状态、进度、错误码与控制命令 |
 
-记一件事与评分复核、找人需求、上传录音与附件三组契约在评审中（见第 12 节）。
+另有 `record.ts`（记一件事）、`review-queue.ts`（评分复核）、`staffing.ts`（找人需求与逐条判断）、`media.ts`（上传录音与附件），对应的实现 PR 见第 12 节。
 
 ### 5.5 前端
 
@@ -239,7 +239,7 @@ flowchart LR
 
 ### 6.2 人才档案：记一件事（P1）
 
-下图是 P1 契约（#129）与实现 PR（#185、#162）的设计流程，合入后以实际代码为准。
+下图是 P1 契约（#129，已合入）与实现 PR（#185、#162）的设计流程，实现合入后以实际代码为准。
 
 ```mermaid
 sequenceDiagram
@@ -354,34 +354,28 @@ flowchart LR
 - 迁移与演示数据导入在维护步骤里显式执行，启动不自动迁移。
 - 不选 Vercel：实时推流需要长时间的 WebSocket 和常驻进程，Vercel 上只能用实验接口且函数有时长上限。
 
-**当前状态**：<!-- 待补：演示环境是否已部署、访问地址、验收结果 -->待补。
+**当前状态**：本次比赛交付的是原型，演示使用在线原型站（`review-site/`，Cloudflare Worker 发布，`@qiniu.com` 登录）；上面的正式工程演示环境在赛后试点阶段部署，届时按 [架构分期提案](proposals/2026-10-25-y-architecture-phases.md) 6.5 的部署验收执行。
 
 ## 12. 实现状态
 
-截至 `main` `37f987d`。「原型」指 `prototype/y/` 中可完整演示；「工程」指正式工程中的真实实现。
+截至 `main` `d4903d4`。「原型」指 `prototype/y/` 中可完整演示；「工程」指正式工程中的真实实现。
 
 | 链路 | 原型 | 工程已合入 | 评审中的 PR |
 | --- | --- | --- | --- |
-| P0 骨架：登录、范围过滤、演示数据、工作台与档案读真实库 | 完整 | 工程基础与项目页（#67）、授权扩展（#80）、证据模型与演示数据导入（#83、#158）、P0 契约（#77）、任务进度（#94）、设计系统组件（#102、#113、#120、#187） | 外壳路由（#191）、工作台读取（#171）、人才读取（#131）、引用角标（#190） |
-| P1 记一件事：AI 整理 SBI 与建议分 → 确认 → 复核 | 完整 | MaaS 客户端（#78） | 契约（#129）、整理 SBI（#185）、确认改分（#162） |
-| P2 找人：需求卡 → 逐条四态 → 来源 | 完整 | Jev 客户端（#91、#105） | 契约（#130）、需求卡（#161）、逐条四态（#188） |
-| P3 离线转写：上传 → Kodo → 听悟 → 说话人绑定 | 完整 | Kodo 客户端（#82） | 上传契约（#112）、上传校验与原件代理（#186）；听悟离线未开始 |
+| P0 骨架：登录、范围过滤、演示数据、工作台与档案读真实库 | 完整 | 工程基础与项目页（#67）、授权扩展（#80）、证据模型与演示数据导入（#83、#158）、P0 契约（#77）、任务进度（#94）、外壳路由（#200）、人才与来源读取（#131）、引用角标（#190）、设计系统组件（#102、#113、#120、#187） | 工作台读取（#171） |
+| P1 记一件事：AI 整理 SBI 与建议分 → 确认 → 复核 | 完整 | MaaS 客户端（#78）、契约（#129） | 整理 SBI（#185）、确认改分（#162） |
+| P2 找人：需求卡 → 逐条四态 → 来源 | 完整 | Jev 客户端（#91、#105）、契约（#130） | 需求卡（#161）、逐条四态（#188） |
+| P3 离线转写：上传 → Kodo → 听悟 → 说话人绑定 | 完整 | Kodo 客户端（#82、#164）、上传契约（#112）、听悟离线转写客户端（#199） | 上传校验与原件代理（#186）；说话人绑定未开始 |
 | P5 实时推流：浏览器 → WebSocket → 听悟预览 | 完整（桌面） | 听悟实时适配器（#92） | 浏览器推流与归档编排未开始 |
-| P4 文本附件：TXT / DOCX / 文字型 PDF → 段落 | 完整 | — | 附件解析（#189） |
+| P4 文本附件：TXT / DOCX / 文字型 PDF → 段落 | 完整 | 上传契约（#112，与 P3 共用） | 附件解析（#189） |
 
 留在原型演示、本次不进工程：判断对照、节点复盘、人才评价规则修订、盘点冻结与留用落位、值得关注。
 
 ## 13. 分工
 
-### 13.1 人员职责
+### 13.1 团队成员
 
-<!-- 待补：每位成员负责的模块与主要贡献 -->
-
-| 成员 | 角色 | 负责模块 | 主要贡献 |
-| --- | --- | --- | --- |
-| bowenQT | 待补 | 待补 | 待补 |
-| Joanrecruiting | 待补 | 待补 | 待补 |
-| yiyih7077-cell | 待补 | 待补 | 待补 |
+bowenQT、Joanrecruiting、yiyih7077-cell。各自的提交与审查记录见仓库的提交历史和 Pull Request。
 
 ### 13.2 模块与任务卡的归属
 
