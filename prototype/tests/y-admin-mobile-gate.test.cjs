@@ -27,7 +27,7 @@ function bootShell(role) {
     tickTasks() {},
     me: () => ({ id: 'p-demo', name: '演示' }),
     todos: () => [],
-    get: () => ({ batches: [] }),
+    get: () => ({ batches: [], tasks: [] }),
     roles: {
       ceo: { label: '管理者', person: 'p-cheng', scope: '公司层' },
       hrbp: { label: 'HR', person: 'p-suwan', scope: '人才项目' },
@@ -47,7 +47,8 @@ function bootShell(role) {
     html, icon: () => '', raw: (s) => s,
     mount: (el, content) => { const text = String(content); el.innerHTML = text; mounted.push(text); },
     menu: (_btn, items) => { menus.push(items); },
-    $: () => ({ addEventListener() {}, setAttribute() {} }),
+    // 没有进行中的录音：录音条的计时元素不存在
+    $: (sel) => (sel === '#nt-rectime' ? null : { addEventListener() {}, setAttribute() {} }),
     ui: { avatar: () => '', mountIPs() {}, state: (o) => o.title },
     ready: (fn) => { ready = fn; },
     applyRestore() {}, reviewPage() {}, esc: (s) => String(s ?? ''), link: () => '', resetDemo() {},
@@ -63,6 +64,8 @@ function bootShell(role) {
   };
   vm.runInNewContext(shellSrc, {
     window: { NT }, NT, document, location: { href: 'http://local/prototype/y/app/admin.html', hash: '', search: '' }, matchMedia: () => ({ matches: false }),
+    // 桌面壳在加载时挂录音状态：给出空的 sessionStorage、页面事件和导航类型
+    addEventListener() {}, setTimeout() { return 0; }, clearTimeout() {}, sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} }, performance: { getEntriesByType: () => [] },
   });
   return { NT, menus, mounted, start: () => ready() };
 }
