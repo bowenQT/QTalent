@@ -18,7 +18,7 @@
 
 846拟议的 `persistRecordDraft` **尚未发布**，本卡只声明 `DraftPersistence` port。传递字段为id、creatorAccountId、ruleVersionId、draft（不含revision）、sources（含完整subjects）和evidence（person/dimension与真实主引用、modelVersion、rationale、suggestedValue）。rationale缺失保留空；不编确认人/确认时间。promptVersion/modelVersion/inputVersion由本卡持久job result保存，并关联同一draftId；父已确认846的records_draft_events保留eventId→draftId、record_saves也保留draftId，事件由此回溯整理版本，无需扩展846 schema，也不把promptVersion拼入modelVersion。该回调必须使用传入的事务，返回revision=1的同一草稿；不得另开连接或悄悄改写输入。846之后原子生成逐人事件、独立AI建议、人工确认与复核，保存回执沿用 `events[{personId,eventId}]`。
 
-当前参照manifest为已合的 `1f10b5e`。已核`record.js`相对旧2e51b50未变：撤销保留原话/附件，跳回记事页重新整理，产生新draft；不复活原draft。
+当前main387ad10的参照manifest为已合的 `451ecec`，不自行升级。已核`record.js`仍是b5f267fe，与旧2e51b50相同：撤销保留原话/附件，跳回记事页重新整理，产生新draft；不复活原draft。
 
 内部job result严格持久保存失败分类和attempt预算；public policy只投影合同RecordDraft或null，隐藏元数据与主体信息，读取/控制独立重新授权。只有可信MaaS adapter明确证明未发送的network/retryable失败允许最多一次显式retry。invalid_response/outcome_unknown/cancelled均不自动重发；真实transport组合必须使用maxAttempts:1。独立pg-boss队列retryLimit=0，仍须用数据库claim抵御至少一次投递。
 
@@ -62,6 +62,6 @@ selection_required的job为awaiting_manual且public result:null；前置选人�
 
 核心32项、任务编排13项、队列/policy8项先Red后Green；另有unknown evidence接缝的新增回归先Red。真实PostgreSQL测试验证并发claim、取消、持久重试与事务回滚。846未发布的writer在这些测试中替换为同事务合成标记，只证明port事务边界，不代表846业务持久化已验收。
 
-隔离组合依赖：PR129@407838b94a9358fd59f76523f47718a7afae32db的record/sources合同；PR94@a9da11e416c158d94527fc47ce161f0fba6ecf42的jobs合同/状态/服务/仓库/原生0002迁移。这些依赖原blob不属于本PR交付，不手改或提交其迁移；组合验证不能冒充它们已合main。最终净diff与CI须依赖合入后复核。
+已append整合main387ad10，包含已合PR94@49f11ce和PR77；本轮隔离组合只需PR129@606c4e6fbbb9f8d937c287110d310d3590e1377d的5个record/review-queue合同与专属测试原blob。record/sources/jobs合同相对此前固定407838b9逐字未变，共用port没有改形态。该未合合同不属于本PR交付；无本卡迁移或迁移overlay。此前main29606e7与旧PR129/94的10-blob组合验证保留为历史，不冒充新main证据。最终净diff与CI须129合入后复核。
 
 Pending：846具体writer组合联调、前置选人消费、首次输入与共享入口接线、一次化名真实模型运行及目标模型验收。本轮不调用真实模型/业务API，不配置凭据或部署。PR使用Refs #37 / Part of BOW-845，卡片与issue不关闭；最终合并由父协调方执行。
