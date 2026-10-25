@@ -102,7 +102,7 @@
     const rows = [];
     const hintText = () => { const left = draft.scores.filter((x) => x.v != null && !x.touched).length; $('#score-hint').textContent = left ? `还有 ${left} 项 AI 建议分，保存时一并确认` : '分数都已由你确认'; };
     for (const sc of draft.scores) {
-      const r = M.scoreRow(sc, { onChange: hintText });
+      const r = M.scoreRow(sc, { onChange: hintText, pid: () => draft.pid });
       rows.push(r); $('#scores').append(r.el);
       r.el.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: NT.reduced ? 1 : 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
       await NT.wait(220);

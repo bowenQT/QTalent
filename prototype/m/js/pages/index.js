@@ -92,7 +92,7 @@
   let needOpen = false;
   function renderCeo(main, me, hello) {
     const m = st.myPushes(), watch = st.watch(), sigs = st.judgeSignals().slice(0, 2);
-    const mineHref = (it) => (it.kind === 'plan' ? `plan.html?id=${it.plan}` : it.kind === 'push' ? `person.html?id=${it.person}` : `../app/${it.href}`);
+    const mineHref = (it) => (it.kind === 'plan' ? `plan.html?id=${it.plan}` : it.kind === 'push' ? `person.html?id=${it.person}` : it.kind === 'rule' ? `#rule-${it.v}` : `../app/${it.href}`);
     const going = [...m.doing, ...m.done]; // 手机上是 CEO 查看推动进展的入口之一，不截断
     mount(main, html`
       <h2 class="m-hello">${hello}，${me.name}<small>${NT.md(NT.TODAY)} 周五 · 全公司</small></h2>
@@ -119,8 +119,22 @@
       location.href = NT.link('../app/staffing.html', { new: 1, q });
     });
     NT.$('#m-need-more')?.addEventListener('click', () => { needOpen = !needOpen; renderCeo(main, me, hello); });
+    NT.$$('a[href^="#rule-"]', main).forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); ruleSheet(a.getAttribute('href').slice(6)); }));
     wireFollow(main, () => renderCeo(main, me, hello));
     UI.peek.changed = () => renderCeo(main, me, hello);
+  }
+
+  // 评价规则修订（v1.6 4.2）：手机上看摘要和影响人数，确认发布在电脑上完成
+  function ruleSheet(v) {
+    const r = st.ruleVer(v), k = st.ruleKind(v), p = r.preview;
+    const impact = !p ? '' : p.kind === 'watch' ? `值得关注 ${p.from} → ${p.to} 人：进入 ${p.enter.length} 人，离开 ${p.leave.length} 人${p.teams.length ? `；${p.teams.map((t) => `${st.orgShort(t.team)} ${t.n > 0 ? '+' : ''}${t.n}`).join('、')}` : ''}`
+      : p.kind === 'map' ? `下一次判断复盘里受影响的对照单元 ${p.cells} 个` : `用到这些锚点的事件 ${p.events} 件；${p.tasks ? `生效时生成 ${p.tasks} 条复核任务` : '旧分继续参与取数'}`;
+    M.sheet({
+      title: `${st.ruleKindName(k)} ${v}`,
+      sub: `${st.person(r.by).name}起草 · 在 ${r.base} 上修订 · ${r.state === 'pending' ? '待你确认' : '已排期，从下一个盘点批次开始'}`,
+      body: html`<p>${r.why}</p>`,
+      facts: [impact && html`影响：${impact}`, html`生效点：${r.effect === 'now' ? '确认后立即对新的评价生效' : '从下一个盘点批次开始'}`, r.state === 'pending' && html`确认发布在电脑上完成：评价体系 · ${st.ruleKindName(k)}`].filter(Boolean),
+    });
   }
 
   function renderSelf(main, me, todos) {

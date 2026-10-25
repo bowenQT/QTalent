@@ -75,7 +75,7 @@
           </article>` : ''}
           ${summaryBlock(p, events, canScore, ref, f, canQuad)}
           ${spec ? html`<article class="n-card n-spectrum" id="spectrum">
-            <div class="n-spectrum__head"><div><h3 class="n-section-title" style="margin:0">个人能力谱</h3><div class="nt-muted">详细维度 · 近 12 个月 · 已确认 ${spec.total} 条事件分 · rubric-v1</div></div>${canQuad ? UI.miniquad(pid) : ''}</div>
+            <div class="n-spectrum__head"><div><h3 class="n-section-title" style="margin:0">个人能力谱</h3><div class="nt-muted">详细维度 · 近 12 个月 · 已确认 ${spec.total} 条事件分 · ${['ceo', 'hrbp'].includes(st.role()) ? html`<a class="nt-plink" href="rules.html?r=rubric">${spec.vers.join('、') || st.ruleLive('rubric').v}</a>` : spec.vers.join('、') || st.ruleLive('rubric').v}</div></div>${canQuad ? UI.miniquad(pid) : ''}</div>
             <div class="n-spectrum__scale"><span></span><div class="n-spectrum__ticks">${[1, 2, 3, 4, 5].map((v, i) => html`<span style="left:${i * 25}%">${v}</span>`)}</div><span></span></div>
             <div id="spec-rows">${spec.html}</div>
             <div class="n-spectrum__legend"><span><i class="k-all"></i>外圈：这个分值的全部事件</span><span><i class="k-recent"></i>实心：其中近 3 个月</span><span><i class="k-mean"></i>均值</span><span><i class="k-unknown"></i>资料不足</span><span>点一行展开事件</span></div>

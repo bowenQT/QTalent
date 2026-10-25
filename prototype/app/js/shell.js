@@ -17,6 +17,7 @@
     { id: 'actions', label: '行动与复盘', icon: 'check2', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'] },
     { id: 'queue', label: '校准队列', icon: 'split', href: 'queue.html', roles: ['ceo', 'hrbp'], hideFor: ['ceo'] },
     { id: 'judge', label: '判断复盘', icon: 'swap', href: 'judge.html', roles: ['ceo', 'hrbp'] },
+    { id: 'rules', label: '评价体系', icon: 'grid', href: 'rules.html', roles: ['ceo', 'hrbp'] },
     { id: 'tags', label: '标签库', icon: 'tag', href: 'tags.html', roles: ['ceo', 'hrbp', 'lead'], hideFor: ['ceo'] },
   ];
   const ROLE_ORDER = ['ceo', 'hrbp', 'lead', 'mentor', 'self'];

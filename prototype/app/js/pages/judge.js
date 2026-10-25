@@ -281,10 +281,12 @@
         ${hideRater ? html`<p style="margin:var(--s-2) 0 0" class="nt-muted">依据涉及具体评价人，CEO 视角只看归因类别和改进动作。</p>` : html`<p style="margin:var(--s-2) 0 0">${a.text || h.text}</p><p class="n-jcase__why" style="margin:var(--s-1) 0 0">${a.reason}</p>`}
         <div class="n-block__by"><span class="n-block__sig">${name(a.by)}</span>${NT.md(a.at)} 确认归因${a.text && a.text !== h.text ? ' · 改写过 AI 假设' : ''}</div>
       </div>
-      ${acts.length ? html`<div class="nt-row">${acts.map((x) => html`<a class="n-badge" href="actions.html#${x.id}">${icon('check2')}${x.title}</a>`)}</div>` : ''}
+      ${acts.length ? html`<div class="nt-row">${acts.map((x) => html`<a class="n-badge" href="actions.html#${x.id}">${icon('check2')}${x.title}</a>`)}${acts.some((x) => x.kind === '修订评价标准') ? html`<a class="n-link" href="${NT.link('rules.html', { r: 'front', line: chain.id === 'xe' ? 'xe-select' : 'hire' })}">在评价体系里看这条标准</a>` : ''}</div>` : ''}
       ${!chk.ok ? html`<p class="nt-caption" style="margin:0">确认后依据有变化：${checkText(h, chk, forCeo)}。这条结论需要复核，暂不能生成新的改进动作。</p>` : ''}
       ${chk.ok && a.cats.includes('env') && !sug.length && !acts.length ? html`<p class="nt-caption" style="margin:0">本人或环境变化：不修正评价标准，记录情境；需要时转为跟踪或沟通。</p>` : ''}
-      ${sug.length ? html`<div class="nt-row">${sug.map((k) => html`<button class="n-btn n-btn--sm" type="button" data-act="${h.id}" data-kind="${k}">${icon('plus')}生成「${k}」动作</button>`)}</div>` : ''}
+      ${sug.length ? html`<div class="nt-row">${sug.map((k) => (k === '修订评价标准' // v1.6 3.35.7：归因到评价标准的，直接打开评价体系里对应规则的草稿
+          ? html`<button class="n-btn n-btn--sm" type="button" data-act="${h.id}" data-kind="${k}">${icon('pen')}起草修订</button>`
+          : html`<button class="n-btn n-btn--sm" type="button" data-act="${h.id}" data-kind="${k}">${icon('plus')}生成「${k}」动作</button>`))}</div>` : ''}
     </div>`;
   }
 
@@ -371,6 +373,7 @@
           then: [`目标：下一批判断复盘里「${dim}」前段偏差的人数减少`, `依据：${b.name}，${dim} ${t.high + t.low} 人有偏差（${CAT[st.judgeAttrib(h.id).cats[0]]}）`, '观察：下一批判断复盘按标准版本分组对比，样本够了再看改进效果'] });
         render(main);
         if (!a) { NT.toast('依据已经变化，这条结论要先复核，暂不能生成动作'); return; }
+        if (kind === '修订评价标准') { location.href = NT.link('rules.html', { r: 'front', line: chain.id === 'xe' ? 'xe-select' : 'hire' }); return; }
         NT.toast(`已生成「${a.title}」，在「行动与复盘」里跟进`);
       }
     };

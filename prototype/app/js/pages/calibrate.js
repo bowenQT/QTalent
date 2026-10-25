@@ -239,7 +239,7 @@
     const v = await NT.dialog({
       title: `确认并冻结${isLanding ? '结营校准' : `「${st.orgShort(team)}」的校准`}？`,
       body: html`<p>冻结为快照：当时的位置、维度分、证据和规则版本都保存下来，成为每个人${isLanding ? '的第一份' : '这一期的'}档案版本。</p>`,
-      facts: [html`${people.length} 人落位 · ${people.filter((x) => x.reason).length} 人和参考不同`, html`规则版本 rubric-v1 · 证据截止 ${NT.md(NT.TODAY)}`],
+      facts: [html`${people.length} 人落位 · ${people.filter((x) => x.reason).length} 人和参考不同`, html`规则版本 ${b?.rubric || st.ruleLive('rubric').v}、${st.ruleLive('place').v} · 证据截止 ${NT.md(NT.TODAY)}`],
       actions: [{ label: '再看看', value: 'cancel', cls: 'n-btn--ghost' }, { label: '确认并冻结', value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
     if (v !== 'ok') return;
