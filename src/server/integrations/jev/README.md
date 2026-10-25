@@ -79,8 +79,9 @@ retryable 恒 false；无自动重试/退避。状态码和 Retry-After 不证�
 
 ## 验证与剩余验收
 
-本轮新增 70 项离线测试先 red（真实客户端/环境工厂缺失），实现后 green；连同既有边界与
-fake 共 109/109 通过，类型检查与定向 ESLint 通过。用合成 key、fetch 边界 stub、真实
+本轮新增 70 项离线测试先 red（真实客户端/环境工厂缺失），实现后 green；另用真实 Node
+子进程复现并修复 `server-only` 标记阻止 worker 导入的问题，不依赖 Vitest 的模块别名。
+连同既有边界与 fake 共 110 项。用合成 key、fetch 边界 stub、真实
 Response/ReadableStream 和可控时钟验证；不是供应商调用。工程统一门禁见 PR 对应 head。
 
 本机只读核对了 v23 研究报告、2026-10-24 Jev 1.14 海外完整复测 README 及非秘密协议脚本，

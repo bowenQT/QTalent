@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import { createJevClient, createJevClientFromEnv, JevError } from './index';
 
 const endpoint = 'https://api.modelink.ai/v1/systemone';
@@ -40,6 +41,29 @@ afterEach(() => {
 });
 
 describe('Modelink Jev transport (synthetic, offline)', () => {
+  it('imports and runs fake/configuration paths in the actual Node worker runtime', () => {
+    // Vitest aliases server-only to an empty module. A real child process must
+    // prove that this reusable adapter needs no React server condition or key.
+    const output = execFileSync(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        '--input-type=module',
+        '--eval',
+        `import { createFakeJev, createJevClient } from ${JSON.stringify(new URL('./index.ts', import.meta.url).href)};
+         const input = { requirement: '演示', evidence: [{ sourceRef: 'demo', text: '演示' }] };
+         const result = await createFakeJev('supported').decide(input);
+         const error = await createJevClient({}).decide(input).catch(error => error.kind);
+         console.log(JSON.stringify({ result, error }));`,
+      ],
+      { encoding: 'utf8', env: { PATH: process.env.PATH, NODE_ENV: 'test' } },
+    );
+    expect(JSON.parse(output)).toEqual({
+      result: { conclusion: 'supported' },
+      error: 'configuration',
+    });
+  });
   it.each([
     ['supported', 'supported'],
     ['not_supported', 'not_supported'],
