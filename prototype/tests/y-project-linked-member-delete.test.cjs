@@ -11,7 +11,8 @@ const lines = file.split('\n');
 const funcs = ['removeProject', 'projectLinked'].map(name => {
   const line = lines.find(x => x.includes('store.' + name + ' ='));
   assert.ok(line, '缺少 ' + name);
-  if (line.trimEnd().endsWith('};')) return line;
+  // projectLinked 是单行箭头表达式，不能把后面的无关函数一并提取。
+  if (line.trimEnd().endsWith('};') || (line.trimEnd().endsWith(';') && !line.includes('=> {'))) return line;
   const start = lines.indexOf(line);
   const tail = lines.slice(start).findIndex((x, i) => i > 0 && x === '  };');
   assert.ok(tail > 0, '找不到函数结束 ' + name);
