@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import TalentDesignSystem from './page';
 
 const { reduced } = vi.hoisted(() => ({ reduced: vi.fn(() => false) }));
@@ -43,6 +44,8 @@ describe('talent design-system sub-route', () => {
       '.n-badge--conflict',
       '.n-score[data-state="absent"]',
       '.n-trail',
+      '.n-trail__step[data-state="failed"]',
+      '.n-badge--proc[data-state="review"]',
       '.n-block[data-state="light"]',
       '.n-cite__locked',
       '.n-event',
@@ -86,5 +89,22 @@ describe('talent design-system sub-route', () => {
       ),
     ).toEqual(['done', 'done', 'done', 'done']);
     expect(done.querySelectorAll('p')).toHaveLength(3);
+  });
+
+  it('opens and closes the revision history panel under its score row', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const view = render(<TalentDesignSystem />);
+    const card = view.container.querySelector(
+      '[data-sample="history-card"]',
+    ) as HTMLElement;
+    const toggle = screen.getByRole('button', { name: '修订历史' });
+    const panel = card.querySelector('.n-history') as HTMLElement;
+    expect(card.querySelector('.n-score + .n-history')).toBe(panel);
+    expect(toggle.getAttribute('aria-controls')).toBe(panel.id);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(panel.hidden).toBe(false);
+    await userEvent.setup().click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(panel.hidden).toBe(true);
   });
 });
