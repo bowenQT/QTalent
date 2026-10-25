@@ -108,11 +108,22 @@ describe('Cite opening and closing', () => {
     expect(root(view).className).toContain('is-open');
     await user.click(screen.getByText('正文'));
     expect(root(view).className).toBe('n-cite');
-    // A second click on the mark unpins it again.
+  });
+
+  it('closes on the second click or key press while pointer and focus stay on the mark', async () => {
+    const user = userEvent.setup();
+    const view = render(<Cite {...granted} />);
     await user.click(mark());
+    expect(root(view).className).toContain('is-open');
     await user.click(mark());
-    await user.unhover(mark());
-    act(() => mark().blur());
+    expect(document.activeElement).toBe(mark());
+    expect(root(view).className).toBe('n-cite');
+    expect(pop(view).style.display).toBe('none');
+    // The next activation opens it again, from the keyboard this time.
+    await user.keyboard('{Enter}');
+    expect(root(view).className).toContain('is-open');
+    expect(pop(view).style.display).toBe('');
+    await user.keyboard('{Enter}');
     expect(root(view).className).toBe('n-cite');
   });
 

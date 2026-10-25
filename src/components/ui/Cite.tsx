@@ -196,7 +196,9 @@ export function Cite(props: CiteProps) {
         aria-expanded={open}
         aria-describedby={popId}
         onClick={() => {
-          setDismissed(false);
+          // A second activation closes it even while the pointer or focus is still here.
+          // The first activation pins it (hover may already be showing it); the next one dismisses.
+          setDismissed(pinned);
           setPinned(!pinned);
         }}
       >
