@@ -194,15 +194,17 @@ a.n-btn { text-decoration: none; }
 }
 .n-cite__mark:hover, .n-cite.is-open .n-cite__mark { background: var(--ink); color: #fff; }
 .n-cite__pop {
-  position: absolute; z-index: 30; left: 50%; bottom: calc(100% + 10px); width: 320px;
+  display: none; position: absolute; z-index: 30; left: 50%; bottom: calc(100% + 10px); width: 320px;
   translate: -50% 6px; opacity: 0; pointer-events: none;
   padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-3);
   font-size: var(--t-sm); line-height: 1.65; color: var(--ink-2); text-align: left; letter-spacing: 0; font-weight: 400;
   transition: opacity var(--d-quick) var(--ease-out), translate var(--d-quick) var(--ease-out);
 }
-.n-cite:hover .n-cite__pop, .n-cite.is-open .n-cite__pop, .n-cite:focus-within .n-cite__pop { opacity: 1; translate: -50% 0; pointer-events: auto; }
+.n-cite:hover .n-cite__pop, .n-cite.is-open .n-cite__pop, .n-cite:focus-within .n-cite__pop { display: block; opacity: 1; translate: -50% 0; pointer-events: auto; }
+/* 收起的浮层不参与布局：否则贴近右缘的角标会把 320px 的隐形浮层撑出滚动容器（如速览抽屉），出现横向滚动条 */
+@starting-style { .n-cite:hover .n-cite__pop, .n-cite.is-open .n-cite__pop, .n-cite:focus-within .n-cite__pop { opacity: 0; translate: -50% 6px; } .n-cite__pop.is-placed { opacity: 0; translate: 0 6px; } }
 /* 由脚本按视口放置（placeCite）：不再受滚动容器裁切 */
-.n-cite__pop.is-placed { position: fixed; bottom: auto; z-index: 90; translate: 0 6px; }
+.n-cite__pop.is-placed { display: block; position: fixed; bottom: auto; z-index: 90; translate: 0 6px; }
 .n-cite:hover .n-cite__pop.is-placed, .n-cite.is-open .n-cite__pop.is-placed, .n-cite:focus-within .n-cite__pop.is-placed { translate: 0 0; }
 .n-cite__src { display: flex; align-items: center; gap: var(--s-2); margin-bottom: var(--s-2); font-size: var(--t-xs); color: var(--ink-3); }
 .n-cite__quote { margin: 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); color: var(--ink); }
