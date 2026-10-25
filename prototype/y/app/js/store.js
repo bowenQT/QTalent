@@ -526,7 +526,11 @@
     const e = store.event(evId), s = e.scores[idx];
     const me = store.me().id;
     const prev = s.ai ?? s.v;
-    s.hist = [{ v, kind: v !== prev && s.ai != null ? 'edit' : 'confirm', by: me, at: NT.TODAY, why }, ...(s.ai != null ? [{ v: s.ai, kind: 'ai', at: e.date }] : [])];
+    // 保留既往人工确认与校准历史；AI 来源只保留一条，不随重复确认增加。
+    const history = s.hist || [];
+    const aiOrigin = history.find((h) => h.kind === 'ai') || (s.ai != null ? { v: s.ai, kind: 'ai', at: e.date } : null);
+    s.hist = [{ v, kind: v !== prev && s.ai != null ? 'edit' : 'confirm', by: me, at: NT.TODAY, why },
+      ...history.filter((h) => h.kind !== 'ai'), ...(aiOrigin ? [aiOrigin] : [])];
     s.v = v; s.st = 'confirmed'; s.by = me;
     // 每次确认都按当前分差与理由重算，不能留下之前的待校准标记。
     if (s.ai != null && Math.abs(s.ai - v) >= 2 && !why) s.bigGap = true;
