@@ -1452,6 +1452,7 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-todo__src .nt-muted, .n-todo__src > span:last-child { color: var(--ink-3); }
 
 @media (max-width: 760px) {
+  .n-todo li.has-acts .n-todo__acts { grid-column: 1 / -1; } /* 手机上只有两列，操作区跨满整行；落在第 2 列（auto）会把正文列挤成 0 宽 */
   .n-watch__item { grid-template-columns: auto minmax(0, 1fr); }
   .n-watch__acts { grid-column: 2; flex-direction: row; flex-wrap: wrap; }
   .n-find__hint { display: none; }
