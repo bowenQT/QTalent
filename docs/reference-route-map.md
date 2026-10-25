@@ -109,22 +109,58 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 
 第三轮 CI 的输入样例两侧均为 464×62、起点均已对齐整数，剩余差异集中在文字的 LCD 彩色抗锯齿与灰阶抗锯齿。独立样例采集在两侧统一使用 `translateZ(0)` 零位移合成层，避免不同样张页面的合成条件影响文字栅格；此规则不进入生产 CSS，不改变字体、尺寸或阈值，实际像素结果仍须由下一轮 CI 确认。按钮选择器限定真实 `.n-btn`，不匹配隐藏菜单项；冻结原型 DOM 单测同时核对三个选择器唯一性、文案、输入值与徽标图标。当前视觉测试共 10 项。
 
+## P0 工作台、人员与来源合同（BOW-836）
+
+依据：[已交叉审规格](https://linear.app/bowenzhong/document/51834ba3247b)。仅新增 Zod 合同和合成夹具，不实现页面或读取。前端 BOW-839/840/841 负责人评审仍是独立合入条件，本表不宣称已获评审。原型基线仍为 `prototype-reference.json` 的 `2e51b50`，没有新遮罩或 UI 修改。
+
+| 消费页面 / 区块 | 合同字段 | 数据来源 / 当前表达 | 后续责任 |
+| --- | --- | --- | --- |
+| `/work` 问候与入口 | `workbench.greeting / entries` | directory 身份及服务端授权；合同就绪，查询尚未接入 | BOW-838/841 |
+| 管理者找人入口 | `findPeople` | 仅可用动作，不包含找人结果 | BOW-838；P2 找人链路 |
+| 管理者判断提醒、值得关注的人/项目、我的关注 | `judgmentReminders / noteworthyPeople / noteworthyProjects / myWatch` | evaluation-system / talent / programs；固定 `not_connected` | P2/P4 对应链路 |
+| HR 有变化的人、判断对照 | `changedPeople / judgmentComparison` | talent / evaluation-system；固定 `not_connected` | P4/P7 对应链路 |
+| HR/导师待办与材料任务 | `todos / materialTasks` | records / jobs；固定 `not_connected`，无伪零角标 | P3 待办汇总与材料链路 |
+| 导师学员 / 推荐 | `trainees / recommendations` | directory + records 授权学员可 ready/empty/insufficient_evidence/unknown；推荐固定 `not_connected` | BOW-838/841；推荐后续卡 |
+| `/people` 列表、速览 | `peopleList / quickView` | directory、records、staffing 公开入口；合同就绪，读取/UI 未接入 | BOW-837/839 |
+| `/person?id=…` 摘要 | `summary` | directory 身份；records 已授权事实、自述、人工结论分性质呈现 | BOW-837/840 |
+| 档案能力谱 | `capabilityProfile` | records 确认表维度分：锚点、评价人、规则版本、有效来源及 sourceCategory；演示种子的 prototype_baseline 例外计入，无 AI 建议分 | BOW-834/835/837/840 |
+| 档案小象限 | `referencePosition` | talent 当前有效确认分计算；只给参考分类或资料不足/未知，不设新阈值，无正式位置 | BOW-837/840 |
+| 校准轨迹、档案版本与变化 | `calibrationHistory / versionsAndChanges` | talent 盘点冻结未接入；固定 `not_connected` | 后续盘点冻结链路 |
+| 管理观察 / AI 推断 | `managementObservations / aiInferences` | records 按性质与当前权限分别投影，AI 继承来源权限 | BOW-835/837/840 |
+| 时间线、参与项目 | `timeline / projects` | records / staffing 已授权公开入口 | BOW-837/840 |
+| 所有引用角标展开 | `sourceReadInput / sourceReadResult` | records 的 fragmentId + originalVersionId + location；每次核对关联及当前权限，不整件返回 | BOW-834/835/837；播放 URL 由 BOW-873 后续接入 |
+
+状态规则：已接入的事实块 `ready` 必有非空 payload；`empty` 仅表示权限范围内确无记录；`insufficient_evidence` / `unknown` 带原因而无数值。来源读取失败沿用 `validation_error / forbidden / not_found / conflict`，不得伪装空状态。加载中是前端本地状态。未接入区块只含 `{status: 'not_connected'}`，不携带伪计数、数组或业务记录。
+
+角色规则：档案摘要、能力谱、时间线、项目供管理者、范围内 HR、所带学员导师读取；管理观察、小象限、校准轨迹、版本变化仅管理者/范围内 HR。导师严格变体不含这些字段，也没有 hiddenN；系统管理员无业务成功变体，查询入口拒绝后使用现有通用权限提示。AI 推断只可来自该角色已授权来源。schema 是边界校验，不替代服务端授权。
+
+列表按授权 → 姓名/岗位检索与团队筛选 → teamName、name、id 稳定排序；本次有界演示目录不分页，total 恰为可见筛选结果数。排序由 BOW-837 查询实现并测试，合同不重排数据、不提供 score 或校准变化参数。ID tie-break 仅确保重名稳定，非人才排名。
+
+来源位置为 document（可选 page、必填 paragraph）、spreadsheet（sheet、cell）、recording（startMs、endMs）或 snapshot_field（fieldPath，可选 originalLocation）。按 BOW-834 已定方案 A，固定原型作为 prototype_snapshot 原件登记，片段定位到 events[id].srcs[i] 或 events[id].act；originalLocation 仅为原表位置说明，不伪装单元格坐标。来源详情必须区分 sourceCategory=original / prototype_baseline，后者要求 demo=true，携带原件 displayNotice「原型基线 2e51b50，评语按原意压缩」，不得冒充原观察表。快照 commit/blob 由 originalVersionId 对应版本承载，不逐位置重复。无版本/位置不成引用，不用合成夹具补齐真实链路。录音播放 URL 在 P0 完全省略，不能包含永久公开地址或存储 key。读取输入不接受调用者 role。
+
+前端开发夹具：`tests/fixtures/p0-contracts.ts`，只含 `test-*` 标识和明确合成描述，涵盖三角色、ready/empty/insufficient_evidence/unknown/not_connected、来源拒绝。不得作为生产 fallback。测试：`src/contracts/p0-contracts.test.ts`；不改变工程共享配置与覆盖率排除。
+
+BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认分一样参加能力谱和参考位置；原型 AI 建议及资料不足不计入。这个合同不决定授权或正式导入许可，正式入口拒绝 prototype_baseline 由 BOW-834 保证。前端负责人需评审新增快照位置、来源类别与提示的展示；当前尚无该验收证据。
+
 ## BOW-858：上传、录音与附件契约（待前端消费评审）
 
 依据 [SDD v1.1](https://linear.app/bowenzhong/document/5c7ff2471a3f)。`src/contracts/media.ts` 只定义输入/输出与合成用例，不代表下列路由、动作或前端已接通；现有未实现路由仍返回 404。
 
 | 页面 / 入口 | 读取与动作门面 | 契约与状态 | 实现责任 |
 | --- | --- | --- | --- |
-| 工作台上传材料、记事附件 | requestUpload、completeUpload、readOriginal | uploadRequest / uploadGrant / uploadCompleted；10 个累计、单个 2×1024³ 字节；实际内容与当前权限服务端校验 | 873 / 861 / 870 |
+| 工作台上传材料、记事附件 | requestUpload、completeUpload、readOriginal | uploadRequest / uploadGrant / uploadCompleted；共用稳定 recordCollectionId，当前记录累计 10 个、单个 2×1024³ 字节；实际内容与当前权限服务端校验 | 873 / 861 / 870 |
 | 工作台长任务 | readMedia、后台 job retry/resume/cancel | mediaRead / mediaJobSnapshot，复用 jobs.ts；needs_review→awaiting_manual，已产出待确认草稿→completed，不表示人工已确认 | 842 / 859 / 861 |
 | 待核对·说话人 | bind / defer / mark_irrelevant / unbind | speakerItem / speakerCommand / bindingResult；人名与项目未接入 | 860 / 862 |
 | 桌面实时录音 | 浏览器↔常驻进程 WebSocket | recordingClientMessage / recordingServerMessage；ack 仅表示独立完整音频段已验证归档，preview 永远不是正式事件来源 | 868 / 869 |
 | 文字附件解析 | parse / readMedia | attachmentParseResult；parsing→running/partial、parsed→completed、unsupported→failed；扫描件不冒充空成功；未 parsed 不可保存事件 | 866 / 870 |
 
 - 仅支持 MP3/M4A/WAV/AAC、TXT/DOCX/文字型 PDF。文件名/MIME 一致性仅是声明检查，服务端仍须检查实际内容、累计数量和授权。上传凭证只含受约束 token、服务器指定 key；客户端不能选 bucket/key。原件读取经授权应用代理，不返回私有供应商读签名。
+- recordCollectionId 是当前记录（新建草稿或既有记录）的稳定附件集合不透明身份，请求必须携带，凭证与完成响应回显同一身份；跨文件、重试和编辑保持不变，与 target 人员或事件分开。它只是客户端提供的查找身份，不授予权限。873 resolver 每次同时接收 recordCollectionId + target，验证集合归属、记录写授权与目标范围后解析到可信 quotaScope，以事务中的权威计数判断额度；不能相信客户端 existingAttachmentCount 或让客户端指定 quotaScope。前端取得集合身份、873 resolver 接线和持久业务由对应任务实现，本卡没有新增草稿路由。
+- 归档完成时 source 可以为 null，表示解析或转写尚未产生真实片段；后续有 source 时复用公共 fragmentId / originalVersionId 并验证版本一致。禁止为满足完成响应编造占位 fragment。
+- 产品上限保持单文件 2×1024³ 字节。856 适配器当前 1 GiB 是实现能力缺口；大于当前能力且不超过产品上限的服务端申请应明确返回 unavailable，不能冒充格式 unsupported，也不能偷偷降低产品上限或只调高能力参数就声称已支持。真实 2 GiB 链路由 856/873 后续完成验收；BOW-858 合并门禁保持既定前端消费评审，不另增真实联调条件。
 - 快照内 result 严格白名单；浏览器上传字节进度不混入后台持久状态。媒体阶段 queued→queued、transcribing/parsing/shaping→running、needs_review→awaiting_manual、completed/parsed→completed、failed/unsupported→failed、cancelled→cancelled。partial 仅用于仍在 transcribing/parsing/shaping 且已有可安全展示的部分结果，不用于纯等待说话人绑定；unsupported 通过媒体阶段保留“暂不支持”语义，不当作已解析或空文本成功。
 - 取消命令沿用 operationId/expectedRevision，关闭页面或取消订阅不是取消任务；cancelRequestedAt 是持久栅栏，只有安全停止才 cancelled。失败重试新 attempt，旧结果不能覆盖当前。业务事务由 842/859/860 实现，本契约验证不等于这些行为已验收。
 - 离线稿有 transcriptVersionId，实时预览没有可用于事件提取的来源身份。音频来源统一 fragmentId + originalVersionId + recording 时间段；文档使用真实段号，PDF 可带真实页码，不为 TXT/DOCX 虚构页码。
 - 完整原件归档、离线转写及确定片段保存不等说话人绑定；事件整理只在全部说话人已绑定或明确无关后恢复。defer 不满足恢复门槛。撤销使依赖旧绑定修订的未确认草稿失效、保留历史，已确认结果须另行修订，不自动删除或重算；与确认的竞态由后端同事务校验。
 - 浏览器协议与供应商协议分离，采用 PCM16 little-endian / 单声道 / 16kHz。chunk JSON 头后接一帧二进制，868 核实际字节数、SHA-256、窗口/帧上限和授权；这些运行参数仍由 868 spec 冻结。sequence 从 1 开始、连续归档水位从 0 开始；同段同摘要去重，不同摘要冲突。ack 的 sequence 表示本次确认的段，archivedThrough 表示当前连续归档水位；重发旧段时累计水位可高于该 sequence。finish 必须等所有已发段归档及容器完整性校验后才发 archived 并触发一次离线链路。
-- 前端 855/861/862/869/870 负责人评审与消费验收尚未完成，BOW-842 / BOW-836 依赖尚待合入。本表不宣称任何 UI、真实上传或真实听悟验收通过。
+- BOW-842 / BOW-836 已合入本分支整合的 main；前端 855/861/862/869/870 负责人评审与消费验收仍是合并条件，不阻止合同在完成工程门禁后转 Ready 接受审查。本表不宣称任何 UI、真实上传或真实听悟验收通过。

@@ -5,6 +5,7 @@ const f = vi.hoisted(() => ({
   start: vi.fn(),
   stop: vi.fn(),
   register: vi.fn(),
+  registerProgress: vi.fn(),
   access: vi.fn(),
   session: vi.fn(),
   failListen: false,
@@ -21,6 +22,10 @@ vi.mock('../server/env', () => ({
 vi.mock('../server/auth', () => ({ getSession: f.session }));
 vi.mock('../server/access', () => ({ verifyAccessRequest: f.access }));
 vi.mock('../server/jobs/example', () => ({ registerExampleJob: f.register }));
+vi.mock('../server/jobs/progress-worker', () => ({
+  registerProgressExample: f.registerProgress,
+}));
+vi.mock('../server/db/client', () => ({ getDatabase: () => ({}) }));
 vi.mock('pg-boss', () => ({
   PgBoss: class {
     on() {
@@ -83,6 +88,7 @@ describe('worker lifecycle with transport boundaries replaced', () => {
     const worker = await startWorker();
     expect(f.start).toHaveBeenCalledOnce();
     expect(f.register).toHaveBeenCalledOnce();
+    expect(f.registerProgress).toHaveBeenCalledOnce();
     await worker.stop();
     expect(f.clientClose).toHaveBeenCalledWith(1001, 'Service stopping');
     expect(f.stop).toHaveBeenCalledOnce();

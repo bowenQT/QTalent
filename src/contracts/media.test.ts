@@ -18,6 +18,7 @@ import {
   uploadCompletedSchema,
   MEDIA_FORMATS,
   resumeRecordingProcessingSchema,
+  requestUploadResultSchema,
 } from './media';
 
 const source = {
@@ -27,6 +28,7 @@ const source = {
 };
 const file = {
   purpose: 'audio',
+  recordCollectionId: 'demo-collection',
   filename: 'demo.wav',
   declaredBytes: 128,
   declaredMediaType: 'audio/wav',
@@ -137,9 +139,91 @@ describe('BOW-858 media contracts', () => {
       completeUploadSchema.safeParse({ ...complete, success: true }).success,
     ).toBe(false);
   });
+  it('preserves the stable collection lookup independently of the target', () => {
+    for (const recordCollectionId of [
+      'demo-collection-a',
+      'demo-collection-b',
+    ]) {
+      expect(
+        uploadRequestSchema.parse({ ...file, recordCollectionId }),
+      ).toMatchObject({ recordCollectionId, target: file.target });
+    }
+  });
+  it('requires the collection lookup and rejects empty or caller-supplied quota authority', () => {
+    const input = { ...file, recordCollectionId: 'demo-collection' };
+    const missing = { ...input };
+    Reflect.deleteProperty(missing, 'recordCollectionId');
+    for (const value of [
+      missing,
+      { ...input, recordCollectionId: '' },
+      { ...input, recordCollectionId: '   ' },
+      { ...input, quotaScope: 'client-selected-quota' },
+    ]) {
+      expect(uploadRequestSchema.safeParse(value).success).toBe(false);
+    }
+  });
+  it('echoes a required collection lookup in grants and completed uploads', () => {
+    const recordCollectionId = 'demo-collection';
+    const grant = {
+      uploadId: 'demo-upload',
+      recordCollectionId,
+      revision: 1,
+      expiresAt: '2026-10-25T01:00:00Z',
+      method: 'form',
+      uploadEndpoint: 'https://upload.example.test',
+      uploadToken: 'scoped-token',
+      objectKey: 'assigned-key',
+      maxBytes: 128,
+    };
+    const completed = {
+      uploadId: 'demo-upload',
+      recordCollectionId,
+      originalId: 'demo-original',
+      originalVersionId: 'demo-original-v1',
+      source: null,
+      jobId: 'demo-job',
+      revision: 1,
+    };
+    expect(uploadGrantSchema.parse(grant)).toMatchObject({
+      recordCollectionId,
+    });
+    expect(uploadCompletedSchema.parse(completed)).toMatchObject({
+      recordCollectionId,
+    });
+    for (const [schema, value] of [
+      [uploadGrantSchema, grant],
+      [uploadCompletedSchema, completed],
+    ] as const) {
+      const missing = { ...value };
+      Reflect.deleteProperty(missing, 'recordCollectionId');
+      expect(schema.safeParse(missing).success).toBe(false);
+      expect(
+        schema.safeParse({ ...value, recordCollectionId: '' }).success,
+      ).toBe(false);
+    }
+  });
+  it('keeps the 2 GiB product boundary separate from adapter availability', () => {
+    expect(
+      uploadRequestSchema.safeParse({ ...file, declaredBytes: 1024 ** 3 + 1 })
+        .success,
+    ).toBe(true);
+    expect(
+      requestUploadResultSchema.safeParse({
+        status: 'unavailable',
+        message: '上传能力待接通',
+      }).success,
+    ).toBe(true);
+    expect(
+      requestUploadResultSchema.safeParse({
+        status: 'unsupported',
+        message: '暂不支持',
+      }).success,
+    ).toBe(false);
+  });
   it('confines direct upload grant to scoped token; no server keys or read signature', () => {
     const grant = {
       uploadId: 'u',
+      recordCollectionId: 'demo-collection',
       revision: 1,
       expiresAt: '2026-10-25T01:00:00Z',
       method: 'form',
@@ -202,6 +286,7 @@ describe('BOW-858 media contracts', () => {
   it('checks complete version identity and safe byte ranges', () => {
     const completed = {
       uploadId: 'u',
+      recordCollectionId: 'demo-collection',
       originalId: 'o',
       originalVersionId: 'v',
       source: { fragmentId: 'f', originalVersionId: 'v' },
@@ -295,6 +380,22 @@ describe('BOW-858 media contracts', () => {
           },
         ],
       }).success,
+    ).toBe(false);
+  });
+  it('allows an archived original to complete before any real source fragment exists', () => {
+    const completed = {
+      uploadId: 'demo-upload',
+      recordCollectionId: 'demo-collection',
+      originalId: 'demo-original',
+      originalVersionId: 'demo-original-v1',
+      source: null,
+      jobId: 'demo-job',
+      revision: 1,
+    };
+    expect(uploadCompletedSchema.safeParse(completed).success).toBe(true);
+    expect(
+      uploadCompletedSchema.safeParse({ ...completed, source: undefined })
+        .success,
     ).toBe(false);
   });
   it('does not accept scanned or failed parsing as empty success', () => {

@@ -45,10 +45,11 @@ const uploadTargetSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('people'), personIds: uniqueIds.min(1) }),
   z.strictObject({ kind: z.literal('event'), eventId: id }),
 ]);
-/** Declaration validation only. BOW-873 must verify content, authorization and persisted count. */
+/** Declaration only. BOW-873 must authorize the collection lookup and resolve its trusted quota scope/count. */
 export const uploadRequestSchema = z
   .strictObject({
     purpose: z.enum(['audio', 'attachment']),
+    recordCollectionId: id,
     filename: text.refine((name) => !/[\\/\0]/.test(name)),
     declaredBytes: bytes,
     declaredMediaType: text,
@@ -67,6 +68,7 @@ export const uploadRequestSchema = z
       ),
     '暂不支持，请上传 MP3、M4A、WAV、AAC、TXT、DOCX 或文字型 PDF',
   );
+/** Client preflight only; the server owns the persisted collection count. */
 export const uploadBatchSchema = z
   .strictObject({
     existingAttachmentCount: z
@@ -83,6 +85,7 @@ export const uploadBatchSchema = z
 /** Scoped write token is intentional; never include the signing key or private read URL. */
 export const uploadGrantSchema = z.strictObject({
   uploadId: id,
+  recordCollectionId: id,
   revision,
   expiresAt: z.iso.datetime(),
   method: z.enum(['form', 'resumable_v2']),
@@ -99,13 +102,17 @@ export const completeUploadSchema = z.strictObject({
 export const uploadCompletedSchema = z
   .strictObject({
     uploadId: id,
+    recordCollectionId: id,
     originalId: id,
     originalVersionId: id,
-    source: sourceReadInputSchema,
+    source: sourceReadInputSchema.nullable(),
     jobId: id,
     revision,
   })
-  .refine((x) => x.originalVersionId === x.source.originalVersionId);
+  .refine(
+    (x) =>
+      x.source === null || x.originalVersionId === x.source.originalVersionId,
+  );
 const failureSchema = z.strictObject({
   status: z.enum([
     'unauthenticated',
