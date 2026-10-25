@@ -29,6 +29,16 @@ npx -y wrangler dev --config review-site/wrangler.jsonc --port 8799 --ip localho
 
 本地登录靠 `review-site/.dev.vars`（不进仓库）里的一行 `DEV_BYPASS_EMAIL=你的名字@qiniu.com`，只在 `localhost` 生效。打开 `http://localhost:8799/`。
 
+### 评论提交回归检查
+
+在仓库根目录运行 `python3 -m http.server 4182 --bind 127.0.0.1`，打开
+`http://127.0.0.1:4182/review-site/tests/submit-regression.html`。
+页面直接运行真实评论脚本，以内存 fixture 延迟或拒绝 POST，检查新评论与回复的重复快捷键、
+面板重绘、失败保留输入及重试；两行均显示 `PASS` 即通过。不需要登录、依赖安装或真实 D1 数据。
+
+对应的桌面和手机检查截图：[`submit-desktop.png`](tests/evidence/submit-desktop.png)、
+[`submit-mobile.png`](tests/evidence/submit-mobile.png)。
+
 ## 首次部署
 
 1. 登录 Cloudflare：`npx -y wrangler login`。
