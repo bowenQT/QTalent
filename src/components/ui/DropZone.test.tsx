@@ -141,12 +141,15 @@ describe('DropZone', () => {
     const opened = vi.spyOn(HTMLInputElement.prototype, 'click');
     const user = userEvent.setup();
     const { onSelect, button } = setup({ disabled: true });
-    expect(button.hasAttribute('disabled')).toBe(true);
+    expect(button.getAttribute('aria-disabled')).toBe('true');
     await user.click(button);
     expect(opened).not.toHaveBeenCalled();
-    fireEvent.dragEnter(button, filesDrag());
-    fireEvent.dragOver(button, filesDrag());
-    fireEvent.drop(button, filesDrag([file('a.pdf')]));
+    // 仍要取消默认行为，否则浏览器会把拖入的文件当页面打开。
+    expect(fireEvent.dragEnter(button, filesDrag())).toBe(false);
+    const over = filesDrag();
+    expect(fireEvent.dragOver(button, over)).toBe(false);
+    expect(over.dataTransfer.dropEffect).toBe('none');
+    expect(fireEvent.drop(button, filesDrag([file('a.pdf')]))).toBe(false);
     expect(button.className).not.toContain('is-over');
     expect(onSelect).not.toHaveBeenCalled();
   });

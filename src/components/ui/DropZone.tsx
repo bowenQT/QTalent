@@ -40,17 +40,19 @@ export function DropZone({
   function choose(files: readonly File[]) {
     if (files.length) onSelect(selectFiles(files, rules, currentCount));
   }
+  // 不可用时也要接住拖入的文件：否则浏览器会直接打开它，离开当前页面。
   function enter(event: DragEvent) {
-    if (disabled || !carriesFiles(event)) return;
+    if (!carriesFiles(event)) return;
     event.preventDefault();
+    if (disabled) return;
     depth.current += 1;
     setOver(true);
   }
   function hover(event: DragEvent) {
-    if (disabled || !carriesFiles(event)) return;
+    if (!carriesFiles(event)) return;
     // 不阻止默认行为，浏览器就不允许放下。
     event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
+    event.dataTransfer.dropEffect = disabled ? 'none' : 'copy';
   }
   function leave() {
     // 经过内部子元素时 enter 与 leave 成对出现，计数归零才算真正离开。
@@ -58,8 +60,9 @@ export function DropZone({
     if (depth.current === 0) setOver(false);
   }
   function drop(event: DragEvent) {
-    if (disabled || !carriesFiles(event)) return;
+    if (!carriesFiles(event)) return;
     event.preventDefault();
+    if (disabled) return;
     depth.current = 0;
     setOver(false);
     choose(Array.from(event.dataTransfer.files));
@@ -70,8 +73,11 @@ export function DropZone({
       <button
         type="button"
         className={`n-drop${over ? ' is-over' : ''}`}
-        disabled={disabled}
-        onClick={() => input.current?.click()}
+        // 不用原生 disabled：禁用的按钮收不到拖放事件，文件会被浏览器直接打开。
+        aria-disabled={disabled || undefined}
+        onClick={() => {
+          if (!disabled) input.current?.click();
+        }}
         onDragEnter={enter}
         onDragOver={hover}
         onDragLeave={leave}
