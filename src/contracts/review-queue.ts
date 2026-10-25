@@ -19,7 +19,7 @@ const itemBase = z.strictObject({
   personId: text,
   dimensionId: text,
 });
-export const reviewQueueItemSchema = z.discriminatedUnion('kind', [
+export const reviewActiveItemSchema = z.discriminatedUnion('kind', [
   itemBase
     .extend({
       kind: z.literal('rater_gap'),
@@ -35,10 +35,14 @@ export const reviewQueueItemSchema = z.discriminatedUnion('kind', [
     })
     .refine((x) => Math.abs(x.human.value - x.ai.value) >= 2)
     .refine((x) => x.human.reason.trim() === ''),
-  z.strictObject({
-    kind: z.literal('recalibration'),
-    status: z.literal('not_connected'),
-  }),
+]);
+const recalibrationSchema = z.strictObject({
+  kind: z.literal('recalibration'),
+  status: z.literal('not_connected'),
+});
+export const reviewQueueItemSchema = z.union([
+  reviewActiveItemSchema,
+  recalibrationSchema,
 ]);
 const actionBase = z.strictObject({
   operation_id: text,
@@ -62,14 +66,15 @@ export const reviewCalibrationSchema = z.strictObject({
   itemId: text,
   revision,
   score: reviewHumanScoreSchema,
-  original: reviewQueueItemSchema,
+  original: reviewActiveItemSchema,
 });
 export const reviewQueueResultSchema = recordActionResultSchema(
   reviewQueueActionSchema,
   reviewCalibrationSchema,
 );
 export const reviewQueueListSchema = z.strictObject({
-  items: z.array(reviewQueueItemSchema),
+  items: z.array(reviewActiveItemSchema),
+  recalibration: recalibrationSchema,
 });
 export type ReviewQueueItem = z.infer<typeof reviewQueueItemSchema>;
 export type ReviewQueueAction = z.infer<typeof reviewQueueActionSchema>;

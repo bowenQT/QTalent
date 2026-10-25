@@ -108,11 +108,10 @@ export const recordSaveInputSchema = z
   })
   .refine((x) => new Set(x.personIds).size === x.personIds.length)
   .refine((x) => x.decisions.every((d) => x.personIds.includes(d.personId)))
-  .refine(
-    (x) =>
-      new Set(x.decisions.map((d) => JSON.stringify([d.personId, d.dimensionId])))
-        .size === x.decisions.length,
-  );
+  .refine((x) => {
+    const keys = x.decisions.map((d) => [d.personId, d.dimensionId]);
+    return new Set(keys.map((key) => JSON.stringify(key))).size === keys.length;
+  });
 
 // Identity, current permissions, quote authenticity and the business uniqueness
 // key (event, dimension, rater) remain server-side checks, including on replay.
@@ -145,10 +144,10 @@ export const recordUndoReceiptSchema = z.strictObject({
 });
 
 // Typed input is returned on conflicts so callers can retain edits.
-export function recordActionResultSchema<I extends z.ZodType, R extends z.ZodType>(
-  input: I,
-  result: R,
-) {
+export function recordActionResultSchema<
+  I extends z.ZodType,
+  R extends z.ZodType,
+>(input: I, result: R) {
   return z.discriminatedUnion('status', [
     z.strictObject({
       status: z.literal('success'),

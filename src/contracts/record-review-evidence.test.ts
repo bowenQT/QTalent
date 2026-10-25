@@ -8,7 +8,12 @@ import {
   recordSaveReceiptSchema,
   recordSaveResultSchema,
 } from './record';
-import { reviewQueueActionSchema, reviewQueueItemSchema } from './review-queue';
+import {
+  reviewCalibrationSchema,
+  reviewQueueActionSchema,
+  reviewQueueItemSchema,
+  reviewQueueListSchema,
+} from './review-queue';
 import {
   recordDraftFixture,
   reviewGapFixture,
@@ -57,10 +62,8 @@ describe('record evidence and actions', () => {
       },
     };
     expect(recordCitationSchema.safeParse(document).success).toBe(true);
-    expect(
-      recordCitationSchema.safeParse({ kind: 'source', quote: '只有引文' })
-        .success,
-    ).toBe(false);
+    const unlocated = { kind: 'source', quote: '只有引文' };
+    expect(recordCitationSchema.safeParse(unlocated).success).toBe(false);
     expect(
       recordCitationSchema.safeParse({
         kind: 'input',
@@ -89,7 +92,7 @@ describe('record evidence and actions', () => {
     ],
   };
 
-  it('allows reasonless edits but rejects duplicate or unrelated decisions', () => {
+  it('validates explicit save decisions', () => {
     expect(recordSaveInputSchema.safeParse(save).success).toBe(true);
     const duplicate = {
       ...save,
@@ -113,7 +116,7 @@ describe('record evidence and actions', () => {
     undoUntil: '2026-10-25T10:00:05Z',
   };
 
-  it('defines exactly five server seconds and typed replay/conflict outcomes', () => {
+  it('defines five seconds and typed outcomes', () => {
     expect(recordSaveReceiptSchema.safeParse(receipt).success).toBe(true);
     const invalid = { ...receipt, undoUntil: '2026-10-25T10:00:06Z' };
     expect(recordSaveReceiptSchema.safeParse(invalid).success).toBe(false);
@@ -123,7 +126,7 @@ describe('record evidence and actions', () => {
     expect(recordSaveResultSchema.safeParse(conflict).success).toBe(true);
   });
 
-  it('uses the existing jobs envelope without promoting a failed job to a draft', () => {
+  it('keeps failed jobs separate from results', () => {
     const job = {
       schemaVersion: 1,
       jobId: 'demo-job',
@@ -140,13 +143,33 @@ describe('record evidence and actions', () => {
       cancelRequestedAt: null,
     };
     expect(recordJobSchema.safeParse(job).success).toBe(true);
-    expect(recordJobSchema.safeParse({ ...job, result: {} }).success).toBe(false);
+    const malformed = { ...job, result: {} };
+    expect(recordJobSchema.safeParse(malformed).success).toBe(false);
   });
 });
 
 describe('review thresholds and calibration', () => {
+  it('does not turn an unavailable integration into a calibration', () => {
+    if (reviewGapFixture.kind !== 'ai_gap') throw new Error('fixture kind');
+    const unavailable = {
+      kind: 'recalibration',
+      status: 'not_connected',
+    };
+    const result = {
+      itemId: 'demo-queue',
+      revision: 2,
+      score: reviewGapFixture.human,
+      original: unavailable,
+    };
+    expect(reviewCalibrationSchema.safeParse(result).success).toBe(false);
+    const list = { items: [], recalibration: unavailable };
+    expect(reviewQueueListSchema.safeParse(list).success).toBe(true);
+    expect(reviewQueueListSchema.safeParse({ items: [] }).success).toBe(false);
+  });
+
   it('accepts exactly two points but not one or an explained AI edit', () => {
-    expect(reviewQueueItemSchema.safeParse(reviewGapFixture).success).toBe(true);
+    const parsed = reviewQueueItemSchema.safeParse(reviewGapFixture);
+    expect(parsed.success).toBe(true);
     if (reviewGapFixture.kind !== 'ai_gap') throw new Error('fixture kind');
     const one = {
       ...reviewGapFixture,
