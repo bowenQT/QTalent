@@ -127,4 +127,4 @@ BOW-830 沿用已接受的 [工程基础规格](research/2026-10-25-y-architectu
 
 `pnpm test` 只运行无需 PostgreSQL 的单元测试。`pnpm test:integration` 在同一 Vitest 运行中加入真实 PostgreSQL 测试；`pnpm test:coverage` 使用相同全集进行统一覆盖率统计，行和分支门槛均为 85%。未导入的逻辑也纳入，不整体排除业务路径。浏览器与视觉独立报告，不混入覆盖率。
 
-`foundation` GitHub Actions 使用同一锁定安装和脚本：格式、lint/边界、类型、统一覆盖、构建、e2e、当次视觉比较，失败即失败。无生产凭据、无付费/供应商真实调用、无部署步骤。CI 定义存在不等于本次 CI 已通过；实际受检版本与未验证边界以 PR 证据为准。required checks 仓库设置仍须在稳定实跑后按 CONTRIBUTING 另行设置，本卡不改变权限设置。
+`foundation` GitHub Actions 使用同一锁定安装和脚本：格式、lint/边界、类型、统一覆盖、构建、e2e、当次视觉比较，失败即失败。无生产凭据、无付费/供应商真实调用、无部署步骤。只改 `prototype/`、`review-site/`、`docs/` 或根目录 Markdown 的提交不触发（原型材料只从固定参照读取，改参照照常触发）；`main` 的每个提交单独运行，不被后续合并取消。CI 定义存在不等于本次 CI 已通过；实际受检版本与未验证边界以 PR 证据为准。required checks 仓库设置仍须在稳定实跑后按 CONTRIBUTING 另行设置，本卡不改变权限设置。
