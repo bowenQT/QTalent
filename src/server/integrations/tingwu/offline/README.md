@@ -24,4 +24,6 @@
 
 自动测试只替换 `request` 和 `fetch` 外部边界，运行同一 TTL、状态、解析及错误规则，全部使用合成资料。真实合成录音调用、真实账号的结果域名/HTTPS，以及 873/859 的实际内容探测和持久化联测仍待验收；旧的六十分钟实验不能作为本实现的验收结果。
 
-协议于 2026-10-25 只读核对：[CreateTask](https://help.aliyun.com/zh/tingwu/api-tingwu-2023-09-30-createtask)、[GetTaskInfo](https://help.aliyun.com/zh/tingwu/api-tingwu-2023-09-30-gettaskinfo)、[转写结果字段](https://help.aliyun.com/zh/tingwu/voice-transcription)。API 版本 `2023-09-30` 与 ACS3 签名由上级 HTTP 适配器负责。本目录依赖 BOW-865 / PR #92 的 `http.ts`，依赖未进入 main 前不宣称可独立集成或合并。
+协议于 2026-10-25 只读核对：[CreateTask](https://help.aliyun.com/zh/tingwu/api-tingwu-2023-09-30-createtask)、[GetTaskInfo](https://help.aliyun.com/zh/tingwu/api-tingwu-2023-09-30-gettaskinfo)、[转写结果字段](https://help.aliyun.com/zh/tingwu/voice-transcription)。API 版本 `2023-09-30` 与 ACS3 签名由上级 HTTP 适配器负责。BOW-865 / PR #92 的 HTTP 与实时模块已随 main `37f987dd019cc2f10f25346301dc83244aa7837b` 合入，本卡仅交付 `offline/`。
+
+历史组合验证使用 main `387ad10`、本卡离线候选及固定 #92 head `1abcf717d7251593ea73a3e34efbe683ab13b4be` 的临时 HTTP 源码与测试；该验证只能证明当时组合，临时依赖随后完整移除。最终独立检查以包含 #92 的已合 main 为基线，使用仓库内正式 HTTP 与实时模块，不再依赖临时文件。`check`、e2e、visual 的最终结果与受检 head 在 PR 中分别记录，历史组合结果不替代独立分支结果。
