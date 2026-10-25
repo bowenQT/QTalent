@@ -436,6 +436,42 @@ it('reads matching material in an actual repeatable-read, read-only snapshot usi
   expect(value.snapshot.context.now).toBe('2026-09-04');
   expect(seen).toEqual(['repeatable read', 'on']);
 });
+it('denies a missing actual account before allocating a run or starting the queue producer', async () => {
+  const f = matchingFixture(),
+    producer = vi.fn(async () => boss!),
+    confirmations = vi.fn(async () => []),
+    projection = vi.fn(async () => ({ sources: [], details: [] }));
+  const runtime = createStaffingMatchRuntime({
+    ...f.dependencies,
+    db: connection!.db,
+    id: randomUUID,
+    boss: producer,
+    loadEvidence: createStaffingMatchEvidenceLoader({
+      db: connection!.db,
+      readConfirmations: confirmations,
+      projectSources: projection,
+    }),
+  });
+  const before = await connection!.db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(matchRuns);
+  expect(
+    await runtime.service.start('missing-account', {
+      operationId: randomUUID(),
+      demandId: 'demand-a',
+      expectedRevision: 2,
+    }),
+  ).toMatchObject({ status: 'forbidden' });
+  expect(
+    await connection!.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(matchRuns),
+  ).toEqual(before);
+  expect(producer).not.toHaveBeenCalled();
+  expect(confirmations).not.toHaveBeenCalled();
+  expect(projection).not.toHaveBeenCalled();
+  expect(f.decide).not.toHaveBeenCalled();
+});
 it('prevents the confirmation adapter from writing through the read-only evidence transaction', async () => {
   const load = createStaffingMatchEvidenceLoader({
     db: connection!.db,

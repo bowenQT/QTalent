@@ -33,7 +33,7 @@ import {
   registerStaffingMatch,
 } from '../jobs/staffing-match';
 import type { Database, Transaction } from '../db/client';
-import { loadProjectContext } from './project-context';
+import { loadProjectContext, ForbiddenError } from './project-context';
 import { readEvidenceForTalent } from '../modules/records';
 
 /** Facts come from the event confirmation authority, never inferred from scores. */
@@ -66,7 +66,7 @@ export function createStaffingMatchUsecase<C>(
 ) {
   const wallNow = deps.wallNow ?? (() => new Date());
   const clock = createClock(deps.environment, wallNow);
-  async function scope(
+  async function loadScope(
     accountId: string,
     demandId: string,
     revision: number,
@@ -77,6 +77,7 @@ export function createStaffingMatchUsecase<C>(
     if (parsedCurrent.id !== demandId || parsedCurrent.revision !== revision)
       throw new MatchingError('stale');
     const pinned = await deps.demands.read(accountId, demandId, revision);
+    if (!pinned) throw new MatchingError('forbidden');
     const demand = staffingDemandSchema.parse(pinned);
     if (
       demand.status !== 'confirmed' ||
@@ -200,7 +201,15 @@ export function createStaffingMatchUsecase<C>(
   }
   return createMatchingService({
     store: deps.store,
-    scope,
+    scope: async (accountId, demandId, revision) => {
+      try {
+        return await loadScope(accountId, demandId, revision);
+      } catch (error) {
+        if (error instanceof ForbiddenError)
+          throw new MatchingError('forbidden');
+        throw error;
+      }
+    },
     jev: deps.jev,
     now: () => wallNow().toISOString(),
     id: deps.id ?? randomUUID,

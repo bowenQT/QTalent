@@ -7,6 +7,7 @@ import {
 import { JevError } from '../integrations/jev';
 import { applyJobCommand } from '../jobs/state';
 import { sourceSchema } from '../../contracts/sources';
+import { ForbiddenError } from './project-context';
 import { matchingFixture } from '../../../tests/fixtures/staffing-matching';
 
 const input = {
@@ -52,6 +53,33 @@ const judgment = {
 };
 
 describe('BOW-854 authorized matching', () => {
+  it('denies a pinned revision that disappears after the current authorized read', async () => {
+    const f = matchingFixture();
+    f.readDemand.mockImplementation(async (_account, _id, revision) =>
+      revision === undefined ? structuredClone(f.demand) : null,
+    );
+    expect(await f.service.start('account-hr', input)).toMatchObject({
+      status: 'forbidden',
+    });
+    expect(f.store.state.runs.size).toBe(0);
+    expect(f.store.state.enqueued).toHaveLength(0);
+    expect(f.decide).not.toHaveBeenCalled();
+  });
+  it.each(['demand', 'evidence'] as const)(
+    'maps the actual %s context denial into the matching authorization boundary',
+    async (port) => {
+      const f = matchingFixture();
+      if (port === 'demand')
+        f.readDemand.mockRejectedValueOnce(new ForbiddenError());
+      else f.loadEvidence.mockRejectedValueOnce(new ForbiddenError());
+      expect(await f.service.start('account-hr', input)).toMatchObject({
+        status: 'forbidden',
+      });
+      expect(f.store.state.runs.size).toBe(0);
+      expect(f.store.state.enqueued).toHaveLength(0);
+      expect(f.decide).not.toHaveBeenCalled();
+    },
+  );
   it('requires a current confirmed demand, not a completed generation or old revision', async () => {
     const f = matchingFixture();
     f.readDemand.mockImplementation(async () => ({
