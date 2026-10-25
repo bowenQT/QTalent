@@ -118,6 +118,7 @@ function grantAllows(
         (entry.confirmed || resource.cohortId === entry.cohortId),
     );
   }
+  if (grant.role !== 'mentor') return false;
   return (
     mentorKinds.includes(resource.kind) &&
     ctx.assignments.some(
