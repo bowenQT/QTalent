@@ -75,10 +75,35 @@ export const recordDraftSchema = z.strictObject({
   project: selectionSchema,
   scores: z.array(recordScoreSchema),
 });
+// Before identity is selected, no model-derived SBI or scores exist.
+export const recordSelectionRequiredSchema = z.strictObject({
+  state: z.literal('selection_required'),
+  draftId: text,
+  inputVersion: text,
+  originalInput: recordInputSchema,
+  people: z.array(selectionSchema),
+  project: selectionSchema,
+});
+export const recordArrangeResultSchema = z.union([
+  recordDraftSchema,
+  recordSelectionRequiredSchema,
+]);
 export const recordJobSchema = createJobSnapshotSchema(
   'record_organize',
-  recordDraftSchema,
+  recordArrangeResultSchema,
 );
+// This starts arrangement for a newly selected input, not a generic job resume.
+// The server rechecks current candidate visibility and the input version.
+export const recordSelectionInputSchema = z.strictObject({
+  operation_id: text,
+  draftId: text,
+  expected_input_version: text,
+  personIds: z
+    .array(text)
+    .min(1)
+    .refine((ids) => new Set(ids).size === ids.length),
+  projectId: text.nullable(),
+});
 export const recordOpenDraftInputSchema = z.strictObject({ draftId: text });
 const decisionBase = z.strictObject({
   personId: text,
@@ -192,6 +217,10 @@ export const recordStartResultSchema = recordActionResultSchema(
   recordInputSchema,
   recordJobSchema,
 );
+export const recordSelectionResultSchema = recordActionResultSchema(
+  recordSelectionInputSchema,
+  recordJobSchema,
+);
 export const recordOpenDraftResultSchema = recordActionResultSchema(
   recordOpenDraftInputSchema,
   recordDraftSchema,
@@ -202,3 +231,5 @@ export type RecordSaveInput = z.infer<typeof recordSaveInputSchema>;
 export type RecordUndoInput = z.infer<typeof recordUndoInputSchema>;
 export type RecordSaveResult = z.infer<typeof recordSaveResultSchema>;
 export type RecordUndoResult = z.infer<typeof recordUndoResultSchema>;
+export type RecordArrangeResult = z.infer<typeof recordArrangeResultSchema>;
+export type RecordSelectionInput = z.infer<typeof recordSelectionInputSchema>;
