@@ -80,17 +80,9 @@ export async function prepareArrange(
     return { status: 'not_found' };
   snapshot.people = people;
   snapshot.project = project;
-  if (
+  const selectionRequired =
     people.length === 0 ||
-    people.some((selection) => selection.state !== 'resolved')
-  ) {
-    return {
-      status: 'selection_required',
-      originalInput: snapshot.originalInput,
-      people,
-      project,
-    };
-  }
+    people.some((selection) => selection.state !== 'resolved');
   const projected = await buildAuthorizedModelInput(
     async () => snapshot.authorization,
   );
@@ -112,7 +104,22 @@ export async function prepareArrange(
     const original = snapshot.authorization.sources.find(
       (source) => referenceKey(source) === key,
     );
-    if (!visible || !original) return { status: 'not_found' };
+    if (!original) return { status: 'not_found' };
+    // Newly typed, creator-owned text has no subject until explicit selection.
+    // This narrow case may expose its own input for selection, but never reaches
+    // the model. Existing media or classified/shared text still needs835 now.
+    if (
+      !visible &&
+      selectionRequired &&
+      snapshot.origin === 'text' &&
+      snapshot.inputSource !== null &&
+      referenceKey(snapshot.inputSource) === key &&
+      original.excerpt === snapshot.originalInput.text &&
+      original.subjects.length === 0 &&
+      request.attributedPersonIds.length === 0
+    )
+      continue;
+    if (!visible) return { status: 'not_found' };
     if (
       request.attributedPersonIds.some(
         (id) => !original.subjects.some((subject) => subject.personId === id),
@@ -125,6 +132,13 @@ export async function prepareArrange(
       attributedPersonIds: request.attributedPersonIds,
     });
   }
+  if (selectionRequired)
+    return {
+      status: 'selection_required',
+      originalInput: snapshot.originalInput,
+      people,
+      project,
+    };
   // Includes exact evidence, complete subjects and attribution so changes during a
   // model call invalidate the result. Unrelated directory/profile fields do not.
   const fingerprint = createHash('sha256')

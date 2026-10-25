@@ -105,12 +105,35 @@ describe('authorized shared record arrangement', () => {
     ];
     snapshot.originalInput.personId = null;
     snapshot.authorization.sources[0]!.subjects = [];
+    snapshot.requestedSources[0]!.attributedPersonIds = [];
     const { result, generate } = await run(snapshot);
     expect(result.status).toBe('selection_required');
     if (result.status === 'selection_required')
       expect(result.people[0]!.state).toBe('needs_selection');
     expect(generate).not.toHaveBeenCalled();
   });
+  it.each(['recording', 'attachment'] as const)(
+    'does not reveal selection input from unauthorized %s sources before a person is selected',
+    async (origin) => {
+      const snapshot = exampleSnapshot();
+      snapshot.origin = origin;
+      snapshot.inputSource = null;
+      snapshot.people = [
+        {
+          state: 'needs_selection',
+          candidates: [{ id: 'demo-lin', label: '林舟（演示）' }],
+          reason: '请记录人选定',
+        },
+      ];
+      snapshot.authorization.sources[0]!.subjects.push({
+        personId: 'hidden',
+        cohortId: 'other',
+      });
+      const { result, generate } = await run(snapshot);
+      expect(result).toEqual({ status: 'not_found' });
+      expect(generate).not.toHaveBeenCalled();
+    },
+  );
   it('uses the actual content cohort for an authorized current-cohort person before enrollment confirmation', async () => {
     const snapshot = exampleSnapshot();
     snapshot.authorization.context.enrollments[0]!.confirmed = false;

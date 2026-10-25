@@ -1,6 +1,9 @@
 import type { PgBoss } from 'pg-boss';
 import { z } from 'zod';
-import { recordDraftSchema } from '../../contracts/record';
+import {
+  recordArrangeResultSchema,
+  recordSelectionRequiredSchema,
+} from '../../contracts/record';
 import type { JobPolicy } from './service';
 import type { JobRecord } from './state';
 import {
@@ -37,7 +40,7 @@ export function createRecordArrangePolicy<C>(
   }
   return {
     kind: 'record_organize',
-    resultSchema: recordDraftSchema,
+    resultSchema: recordArrangeResultSchema,
     async can(context, accountId, job, action) {
       if (
         job.kind !== 'record_organize' ||
@@ -45,6 +48,10 @@ export function createRecordArrangePolicy<C>(
         !(await deps.authorize(context, accountId, job, action))
       )
         return false;
+      // A superseded selection is retained as an empty cancelled snapshot.
+      // Current control authority is still checked, but its old candidates and
+      // original text must never be reconstructed for a historical receipt.
+      if (job.status === 'cancelled' && action === 'read') return true;
       const current = await visible(context, accountId, job);
       if (!current || current.status === 'not_found') return false;
       if (action !== 'retry') return true;
@@ -72,6 +79,25 @@ export function createRecordArrangePolicy<C>(
         return empty;
       if (job.result === null) return empty;
       const result = arrangeJobResultSchema.parse(job.result);
+      if (result.state === 'selection_required') {
+        const snapshot = await deps.load(context, job.resourceId, accountId);
+        if (!snapshot || snapshot.inputVersion !== result.inputVersion)
+          return empty;
+        const prepared = await prepareArrange(snapshot);
+        return prepared.status === 'selection_required'
+          ? {
+              result: recordSelectionRequiredSchema.parse({
+                state: 'selection_required',
+                draftId: snapshot.draftId,
+                inputVersion: snapshot.inputVersion,
+                originalInput: prepared.originalInput,
+                people: prepared.people,
+                project: prepared.project,
+              }),
+              progress: null,
+            }
+          : empty;
+      }
       if (result.state !== 'draft') return empty;
       const current = await visible(context, accountId, job);
       return current?.status === 'ready' &&

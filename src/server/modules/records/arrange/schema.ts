@@ -113,7 +113,7 @@ export const arrangeFailureSchema = z.strictObject({
   ]),
   retryable: z.boolean(),
 });
-/** Internal persistence only. Public jobs always project this through recordDraftSchema. */
+/** Internal persistence only. Public jobs project the draft/selection contract without private metadata. */
 export const arrangeJobResultSchema = z.discriminatedUnion('state', [
   z.strictObject({
     state: z.literal('draft'),

@@ -10,7 +10,11 @@ import {
   exampleResponse,
   exampleSnapshot,
 } from '../modules/records/arrange/examples';
-import { arrangeRecord, prepareArrange } from '../modules/records/arrange';
+import {
+  arrangeRecord,
+  prepareArrange,
+  type ArrangeSnapshot,
+} from '../modules/records/arrange';
 import { createFakeMaas } from '../integrations/maas';
 
 const now = '2026-10-25T16:00:00.000Z';
@@ -29,7 +33,9 @@ function policyHarness() {
   const snapshot = exampleSnapshot();
   const authorize = vi.fn(async () => true);
   const enqueue = vi.fn(async () => {});
-  const load = vi.fn(async () => structuredClone(snapshot));
+  const load = vi.fn(async (): Promise<ArrangeSnapshot | null> =>
+    structuredClone(snapshot),
+  );
   return {
     snapshot,
     authorize,
@@ -166,5 +172,54 @@ describe('record arrange consumer definition', () => {
     expect(await h.policy.canResume({}, job())).toBe(false);
     expect(await h.policy.can({}, 'demo-account', job(), 'resume')).toBe(false);
     expect(await h.policy.inputVersion({}, job())).toBe('input-v1');
+  });
+  it('returns cancelled history without reloading a superseded input or exposing its old selection', async () => {
+    const h = policyHarness();
+    h.load.mockResolvedValue(null);
+    const cancelled = {
+      ...job(),
+      status: 'cancelled' as const,
+      result: { state: 'selection_required', inputVersion: 'input-v1' },
+    };
+    expect(await h.policy.can({}, 'demo-account', cancelled, 'read')).toBe(
+      true,
+    );
+    expect(await h.policy.project({}, 'demo-account', cancelled)).toEqual({
+      result: null,
+      progress: null,
+    });
+    expect(h.load).not.toHaveBeenCalled();
+    h.authorize.mockResolvedValue(false);
+    expect(await h.policy.can({}, 'demo-account', cancelled, 'read')).toBe(
+      false,
+    );
+  });
+  it('projects current authorized selection candidates and reasons without SBI', async () => {
+    const h = policyHarness();
+    h.snapshot.people = [
+      {
+        state: 'needs_selection',
+        candidates: [{ id: 'demo-lin', label: '林舟（演示）' }],
+        reason: '请选人',
+      },
+    ];
+    const pending = {
+      ...job(),
+      status: 'awaiting_manual' as const,
+      result: { state: 'selection_required', inputVersion: 'input-v1' },
+    };
+    const result = await h.policy.project({}, 'demo-account', pending);
+    expect(result.result).toMatchObject({
+      state: 'selection_required',
+      draftId: 'draft-demo-text',
+      inputVersion: 'input-v1',
+      people: [{ state: 'needs_selection', reason: '请选人' }],
+    });
+    expect(result.result).not.toHaveProperty('sbi');
+    h.snapshot.inputVersion = 'changed';
+    expect(await h.policy.project({}, 'demo-account', pending)).toEqual({
+      result: null,
+      progress: null,
+    });
   });
 });
