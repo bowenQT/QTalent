@@ -22,6 +22,14 @@
 4. 服务端专用 upload actions、source query 和 `GET /api/uploads/original?ticket=...`：每个入口先按现有 Access+应用会话认证，调用核心并做安全错误映射；GET 把当前请求 Range 传 `open`。真实短链请求路径目前未注册。敏感读取审计由应用入口串行接现有 audit。
 5. 在上述依赖可用后构造本目录服务，将已合 Kodo 实例作为 `storage` 显式传入；不新增 env 或 singleton。真实 key、网络、部署不在本卡本次授权内。
 
+### BOW-866 / 859 冻结交接 port v1
+
+分派类型就是 `store.ts` 的 `UploadDispatch`，上述字段冻结；`purpose:'attachment'` 路由866，`purpose:'audio'`路由859。分派的事务内只持久入队，外部解析/下载在提交后执行。解析器不复建原件或上传会话，不从客户端receipt构造任务。
+
+Worker 使用 `readValidatedUpload(store, {uploadId, originalVersionId})`（`handoff.ts`）读取已提交的上传事实；缺失/未完成/版本或upload不匹配返回null。成功的 `ValidatedUpload` 包含 `uploadId,originalId,originalVersionId,jobId,purpose,filename,target,accountId,quotaScope` 与 `object:{objectKey,byteLength,mediaType,sha256,etag}`。Worker校验自己的jobId/purpose和版本；只用原件版本定位输入，不拿客户端MIME或供应商receipt当验证结果。
+
+该getter由uploads唯一维护，866不直接读写上传内部表。objectKey仅给server worker供Kodo端口读取，禁止进入前端DTO、job公开结果或日志；任务当前授权/模型输入筛选仍由业务处理链执行，上传已验证不代表永久授权。getter不返回fragment/parseVersion/确认时间，相关版本由866/859自己建立。它复用既有三张新表，**无需额外schema扩展**；解析状态与job关系属于866自己的attachments范围。
+
 ## Schema 所有权与迁移顺序
 
 本卡唯一新增 `uploads/schema.ts` 三表：`records_upload_intents`、`records_upload_objects`、`records_upload_read_tickets`。原件/版本沿既有 records 表；不修改846拥有的 `records/schema.ts`、write/save-state，或837 person-data/投影。
