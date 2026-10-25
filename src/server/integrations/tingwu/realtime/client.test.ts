@@ -137,6 +137,56 @@ describe('Tingwu realtime preview lifecycle', () => {
     next.abort();
     await next.ready;
   });
+  it('preserves zero-index interim and final previews through normal stop', async () => {
+    const f = fixture();
+    const { cycle, socket } = await f.start();
+    socket.event('TranscriptionResultChanged', cycle.task_id, {
+      index: 0,
+      result: '演示',
+    });
+    expect(f.onPreview).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sentenceId: 0,
+        revision: 1,
+        finalWithinPreview: false,
+      }),
+    );
+    const stop = cycle.stopGracefully();
+    socket.event('SentenceEnd', cycle.task_id, {
+      index: 0,
+      result: '演示结束。',
+      begin_time: 0,
+      time: 1000,
+    });
+    expect(f.onPreview).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sentenceId: 0,
+        revision: 2,
+        finalWithinPreview: true,
+        text: '演示结束。',
+      }),
+    );
+    expect(cycle.state).toBe('stopping');
+    expect(socket.close).not.toHaveBeenCalled();
+    socket.event('TranscriptionCompleted', cycle.task_id);
+    expect(await stop).toEqual({ status: 'stopped' });
+    expect(f.onDisconnected).not.toHaveBeenCalled();
+    expect(socket.close).toHaveBeenCalledOnce();
+  });
+  it.each(['TranscriptionResultChanged', 'SentenceEnd'])(
+    'rejects negative sentence indices in %s',
+    async (name) => {
+      const f = fixture();
+      const { cycle, socket } = await f.start();
+      socket.event(name, cycle.task_id, { index: -1, result: '演示' });
+      expect(cycle.state).toBe('failed');
+      expect(f.onPreview).not.toHaveBeenCalled();
+      expect(f.onDisconnected).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'protocol_error' }),
+      );
+      expect(socket.close).toHaveBeenCalledOnce();
+    },
+  );
   it('hard disconnect and provider failure never count as completion', async () => {
     const f = fixture();
     const { cycle, socket } = await f.start();
