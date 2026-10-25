@@ -395,16 +395,15 @@
     restore(ctx) { if (ctx && ctx.state && Array.isArray(ctx.state.open)) setOpen(ctx.state.open); },
   };
 
-  // 在评论面板里点一条评论时，划线的原文可能在收起的走查里：展开那一条再滚过去
-  let lastFocus = null;
-  new MutationObserver(() => {
-    const m = document.querySelector('mark.rv-hl.is-focus');
-    const id = m ? m.dataset.rv : null;
-    if (!m || id === lastFocus) { lastFocus = id; return; }
-    lastFocus = id;
-    const d = m.closest('details.g-route');
-    if (d && !d.open) { d.open = true; requestAnimationFrame(() => m.scrollIntoView({ block: 'center' })); }
-  }).observe(document.body, { childList: true, subtree: true });
+  // 在评论面板里点一条评论时，划线的原文可能在收起的走查里：展开那一条再滚过去。
+  // 评论层在卡片自己的点击里先定位并重画高亮，冒泡到这里时高亮已经在页面上；每次点击都重新判断，收起后再点同一条也会展开
+  document.addEventListener('click', (e) => {
+    const card = e.target.closest('.rv-thread[data-thread]');
+    if (!card || e.target.closest('button, textarea, a')) return;
+    const m = document.querySelector(`mark.rv-hl[data-rv="${CSS.escape(card.dataset.thread)}"]`);
+    const d = m && m.closest('details.g-route');
+    if (d && !d.open) { d.open = true; m.scrollIntoView({ block: 'center' }); }
+  });
 
   document.getElementById('reset').addEventListener('click', (e) => {
     if (!confirm('清空你在本浏览器里对两个版本做过的确认、校准和记录，回到初始演示数据？评论会保留。')) return;
