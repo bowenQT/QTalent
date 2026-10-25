@@ -21,7 +21,6 @@ import { createJobService } from '../../../jobs/service';
 import { createJobStore } from '../../../jobs/repository';
 import { JevError } from '../../../integrations/jev';
 import {
-  staffingMatchQueue,
   staffingMatchJobPolicy,
 } from '../../../jobs/staffing-match';
 import { createPostgresMatchStore, loadMatchRun } from './store';

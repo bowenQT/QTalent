@@ -120,15 +120,13 @@ it('keeps actual project period and fact nature while rejecting an unresolved pr
       (record) => record.id === 'event-demo-a',
     ),
   ).toMatchObject({ subject: { cohortId: 'cohort-a' }, kind: 'evaluation' });
-  const result = z
-    .object({ runId: z.string() })
-    .parse(
-      await f.service.start('account-hr', {
-        operationId: 'period',
-        demandId: 'demand-a',
-        expectedRevision: 2,
-      }),
-    );
+  const result = z.object({ runId: z.string() }).parse(
+    await f.service.start('account-hr', {
+      operationId: 'period',
+      demandId: 'demand-a',
+      expectedRevision: 2,
+    }),
+  );
   await f.service.execute(result.runId, 1);
   expect(f.decide.mock.calls[0]![0].evidence[0]!.text).toContain(
     'original_fact',
