@@ -1,5 +1,5 @@
 {
-  "id": "0923544a-aeb6-4251-8969-43125d781213",
+  "id": "14f644e4-8bff-467b-99ca-52dd82349291",
   "prevId": "18c43228-5c05-4d6a-8db5-f551fe584d34",
   "version": "7",
   "dialect": "postgresql",
@@ -1352,7 +1352,7 @@
       "checkConstraints": {
         "records_sbi": {
           "name": "records_sbi",
-          "value": "length(trim(\"records_events\".\"situation\")) > 0 and length(trim(\"records_events\".\"behavior\")) > 0"
+          "value": "length(trim(\"records_events\".\"situation\")) > 0 and (\"records_events\".\"demo\" or length(trim(\"records_events\".\"behavior\")) > 0)"
         }
       },
       "isRLSEnabled": false
@@ -1482,7 +1482,7 @@
           "name": "rule_version_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "original_version_id": {
           "name": "original_version_id",

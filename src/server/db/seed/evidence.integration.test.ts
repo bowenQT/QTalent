@@ -615,22 +615,20 @@ it('allows marked baseline scores without fake confirmation time or modifier, bu
 it('keeps historical group reviews in their own scale without generating individual scores', async () => {
   const f = await fixture();
   const id = `${f.p}-history`;
-  await f.db
-    .insert(historicalEvaluations)
-    .values({
-      id,
-      sourceRecordId: 'test-history',
-      personId: null,
-      recorderId: f.evaluator,
-      occurredOn: '2026-07-24',
-      kind: '训练营评审',
-      period: 'W1–W3',
-      scale: [['本周总结', '正常发挥']],
-      ruleVersionId: f.rule,
-      originalVersionId: f.version,
-      fragmentId: f.fragment,
-      sourceCategory: 'prototype_baseline',
-    });
+  await f.db.insert(historicalEvaluations).values({
+    id,
+    sourceRecordId: 'test-history',
+    personId: null,
+    recorderId: f.evaluator,
+    occurredOn: '2026-07-24',
+    kind: '训练营评审',
+    period: 'W1–W3',
+    scale: [['本周总结', '正常发挥']],
+    ruleVersionId: f.rule,
+    originalVersionId: f.version,
+    fragmentId: f.fragment,
+    sourceCategory: 'prototype_baseline',
+  });
   await f.db.insert(historicalParticipants).values([
     { evaluationId: id, personId: f.person },
     { evaluationId: id, personId: f.other },
@@ -657,9 +655,41 @@ it('keeps historical group reviews in their own scale without generating individ
 });
 
 it('retains empty behavior only for explicit demo events and leaves unknown historical rule versions empty', async () => {
- const f = await fixture();
- await expect(f.db.insert(events).values({ ...f.eventRow, id: randomUUID(), behavior: '', demo: false })).rejects.toMatchObject({ cause: { code: '23514' } });
- await f.db.insert(events).values({ ...f.eventRow, id: `${f.p}-demo-empty`, behavior: '', demo: true });
- expect((await f.db.select().from(events).where(eq(events.id, `${f.p}-demo-empty`)))[0].behavior).toBe('');
- await f.db.insert(historicalEvaluations).values({ id: `${f.p}-unknown-rule`, sourceRecordId: 'test-history', personId: f.person, recorderId: f.evaluator, occurredOn: '2026-07-24', kind: 'Synthetic history', scale: [['Original scale', 'B']], ruleVersionId: null, originalVersionId: f.version, fragmentId: f.fragment, sourceCategory: 'prototype_baseline' });
+  const f = await fixture();
+  await expect(
+    f.db
+      .insert(events)
+      .values({ ...f.eventRow, id: randomUUID(), behavior: '', demo: false }),
+  ).rejects.toMatchObject({ cause: { code: '23514' } });
+  await f.db
+    .insert(events)
+    .values({
+      ...f.eventRow,
+      id: `${f.p}-demo-empty`,
+      behavior: '',
+      demo: true,
+    });
+  expect(
+    (
+      await f.db
+        .select()
+        .from(events)
+        .where(eq(events.id, `${f.p}-demo-empty`))
+    )[0].behavior,
+  ).toBe('');
+  await f.db
+    .insert(historicalEvaluations)
+    .values({
+      id: `${f.p}-unknown-rule`,
+      sourceRecordId: 'test-history',
+      personId: f.person,
+      recorderId: f.evaluator,
+      occurredOn: '2026-07-24',
+      kind: 'Synthetic history',
+      scale: [['Original scale', 'B']],
+      ruleVersionId: null,
+      originalVersionId: f.version,
+      fragmentId: f.fragment,
+      sourceCategory: 'prototype_baseline',
+    });
 });

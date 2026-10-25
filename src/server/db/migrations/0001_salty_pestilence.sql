@@ -52,7 +52,7 @@ CREATE TABLE "records_events" (
 	"rule_version_id" text NOT NULL,
 	"demo" boolean DEFAULT false NOT NULL,
 	CONSTRAINT "records_event_rule_version" UNIQUE("id","rule_version_id"),
-	CONSTRAINT "records_sbi" CHECK (length(trim("records_events"."situation")) > 0 and length(trim("records_events"."behavior")) > 0)
+	CONSTRAINT "records_sbi" CHECK (length(trim("records_events"."situation")) > 0 and ("records_events"."demo" or length(trim("records_events"."behavior")) > 0))
 );
 --> statement-breakpoint
 CREATE TABLE "records_fragments" (
@@ -79,7 +79,7 @@ CREATE TABLE "records_historical_evaluations" (
 	"kind" text NOT NULL,
 	"period" text,
 	"scale" jsonb NOT NULL,
-	"rule_version_id" text NOT NULL,
+	"rule_version_id" text,
 	"original_version_id" text NOT NULL,
 	"fragment_id" text NOT NULL,
 	"source_category" text DEFAULT 'original' NOT NULL,
