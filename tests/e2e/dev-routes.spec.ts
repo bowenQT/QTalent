@@ -14,7 +14,7 @@ const devRoutes = [
   '/dev/design-system',
   '/dev/design-system/general',
   '/dev/design-system/media',
-  // BOW-832 的 talent 子页面合入后在这里补上
+  '/dev/design-system/talent',
 ];
 
 async function freePort() {
