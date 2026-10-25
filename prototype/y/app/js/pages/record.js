@@ -98,7 +98,7 @@
     const a = st.anchors(v.data.dim, pid); // 记下针对哪一套锚点、哪个版本，HR 处理时知道要改哪段文字
     const sg = st.addRuleSug({ ...v.data, person: pid, fam: v.data.dim === 'prof' ? a.fam || 'all' : null, ver: a.v });
     mySugs();
-    NT.toast(`已提交给${st.person(st.roles.hrbp.person).name}，处理结果会显示在锚点下面`, { undo: () => { st.removeRuleSug(sg.id); mySugs(); } });
+    NT.toast(`已提交给${st.person(st.roles.hrbp.person).name}，处理结果会显示在锚点下面`, { undo: () => { if (!st.removeRuleSug(sg.id)) NT.toast('建议已由 HR 处理或当前无权撤回，记录保留'); mySugs(); } });
   }
   function mySugs() {
     const host = $('#my-sugs'); if (!host) return;
