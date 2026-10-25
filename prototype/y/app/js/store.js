@@ -598,7 +598,8 @@
     let created = 0;
     plan.moves.forEach((m) => {
       const title = m.type === '继续观察' ? `${store.person(m.person)?.name || ''}：${m.next}` : `${m.person ? store.person(m.person).name : '人选待定'}${m.type === '负责人安排' ? `接任${m.to}` : `：${m.from ? `${m.from} → ` : ''}${m.to}`}`;
-      if (S.actions.some((a) => a.title === title)) return;
+      // 只阻止同一方案重复生成；其他方案中同名行动不能被误删。
+      if (S.actions.some((a) => a.from === plan.id && a.title === title)) return;
       created += 1;
       S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title, kind: m.kind, from: plan.id, person: m.person, owner: m.owner || 'p-suwan', due: m.due || '2026-11-15', state: 'todo', observe: m.type === '继续观察' ? null : '2027-02-15' });
     });
