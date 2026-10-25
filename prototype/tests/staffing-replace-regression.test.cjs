@@ -17,6 +17,8 @@ function loadConfirm() {
     'p-zhouyu': { name: '周屿' },
     'p-chengnuo': { name: '程诺' },
     'p-lin': { name: '林知远' },
+    'p-jia': { name: '甲' },
+    'p-yi': { name: '乙' },
   };
   const project = { id: 'pr-search', name: '海外搜索', owner: 'p-zhouyu' };
   const S = {
@@ -65,4 +67,35 @@ test('同一个人换角色时只保留一条在任记录', () => {
   assert.deepEqual(open.map((m) => [m.person, m.role]).sort(), [['p-chengnuo', 'owner'], ['p-zhouyu', '前端']]);
   const lin = S.members.find((m) => m.person === 'p-lin');
   assert.equal(lin.to, '2026-10-23');
+});
+
+test('两个槽位同名时，两边的人都还在任', () => {
+  const { store, S, project } = loadConfirm();
+  const roles = [
+    { id: 'fe', name: '前端' },
+    { id: 'fe2', name: '前端' },
+  ];
+  store.confirmStaffing({
+    id: 'sp', project: 'pr-search', version: 3, status: 'draft', reqs: [],
+    slots: { fe: 'p-jia', fe2: 'p-yi' },
+  }, roles);
+  const open = S.members.filter((m) => m.role === '前端' && !m.to).map((m) => m.person).sort();
+  assert.deepEqual(open, ['p-jia', 'p-yi']);
+  assert.equal(S.members.find((m) => m.person === 'p-lin').to, '2026-10-23');
+  assert.equal(project.owner, 'p-zhouyu');
+});
+
+test('owner 槽和名为 owner 的角色不会互相结束', () => {
+  const { store, S, project } = loadConfirm();
+  const roles = [
+    { id: 'owner', name: '项目 owner' },
+    { id: 'shadow', name: 'owner' },
+  ];
+  store.confirmStaffing({
+    id: 'sp', project: 'pr-search', version: 3, status: 'draft', reqs: [],
+    slots: { owner: 'p-chengnuo', shadow: 'p-zhouyu' },
+  }, roles);
+  const openOwners = S.members.filter((m) => m.role === 'owner' && !m.to).map((m) => m.person).sort();
+  assert.deepEqual(openOwners, ['p-chengnuo', 'p-zhouyu']);
+  assert.equal(project.owner, 'p-chengnuo');
 });
