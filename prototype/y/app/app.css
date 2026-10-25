@@ -39,7 +39,7 @@ body.nt-desk { min-height: 100vh; }
 .nt-head p { margin: 6px 0 0; font-size: var(--t-sm); color: var(--ink-3); max-width: 46em; line-height: 1.6; }
 .nt-head__acts { margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .nt-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
-.nt-grid { display: grid; gap: var(--s-4); align-content: start; }
+.nt-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-4); align-content: start; } /* 单列也用 minmax(0, 1fr)：内容过宽时在卡内换行，不撑开整页 */
 .nt-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); align-items: start; }
 .nt-cols-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); align-items: start; }
 .nt-ceo { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--s-4); align-items: start; }
@@ -102,7 +102,7 @@ a.n-btn { text-decoration: none; }
   .nt-search { order: 3; flex-basis: 100%; max-width: none; margin-left: 0; }
   .nt-who { padding: 6px var(--s-4); }
   .nt-body { padding: var(--s-4) var(--s-4) var(--s-14); }
-  .nt-cols, .nt-cols-3 { grid-template-columns: 1fr; }
+  .nt-cols, .nt-cols-3 { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* 时间线里可展开的事件标题 */

@@ -1,6 +1,6 @@
 # 固定演示证据导入（BOW-834 方案 A）
 
-本实现依赖 schema PR #83，组合基线为 f367445。以 Linear [已定评论](https://linear.app/bowenzhong/issue/BOW-834) 与 [SDD/TDD](https://linear.app/bowenzhong/document/2a841c4d4090) 为合同。本目录不提供读取接口、授权策略、评分确认或冻结用例；代码和自动测试结果不代表真实业务验收。
+本实现基于已合入 main 的 schema PR #83（25af415）。以 Linear [已定评论](https://linear.app/bowenzhong/issue/BOW-834) 与 [SDD/TDD](https://linear.app/bowenzhong/document/2a841c4d4090) 为合同。本目录不提供读取接口、授权策略、评分确认或冻结用例；代码和自动测试结果不代表真实业务验收。
 
 ## 来源与映射
 

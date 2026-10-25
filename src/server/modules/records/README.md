@@ -29,7 +29,7 @@
 - `historicalEvaluations` 保存训练营周评和历史评审的原量表及版本，绝不自动换算为维度分。多人历史评审使用独立 historicalParticipants，不为每人复制维度分；单人事件与多人评审分别存储。周评沿用 `xe-weekly-v1`，维度分沿用 `rubric-v1`。
 - `importSnapshots` 仍是完整导入归档，不替代 originals / originalVersions / fragments 的来源链。保存 398 个事件快照，不执行 store.js，不导入其派生档案、象限或冻结快照。
 
-schema PR #83 交付模型、外键、生成迁移与合成测试；同卡 mapper 分支按方案 A 接入固定加载器、演示导入和正式入口门禁，详见[导入合同](../../db/seed/README.md)。代码与自动检查不代表整卡或真实产品验收完成，BOW-834 不能提前 Done。原始 HR 文件访问及四项待核实不是本卡新增前置。
+已合入的 schema PR #83 交付模型、外键、生成迁移与合成测试；同卡 mapper PR 按方案 A 接入固定加载器、演示导入和正式入口门禁，详见[导入合同](../../db/seed/README.md)。代码与自动检查不代表整卡或真实产品验收完成，BOW-834 不能提前 Done。原始 HR 文件访问及四项待核实不是本卡新增前置。
 
 ## 迁移、验证和恢复
 

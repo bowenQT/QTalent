@@ -24,7 +24,7 @@
   .ds-sec > .lead { margin: 0 0 var(--s-6); max-width: 40em; color: var(--ink-2); line-height: var(--lh-read); }
   .ds-sub { margin: var(--s-10) 0 var(--s-3); font-size: var(--t-lg); }
   .ds-sub + p { margin: 0 0 var(--s-4); color: var(--ink-2); max-width: 42em; line-height: var(--lh-read); font-size: var(--t-sm); }
-  .ds-grid { display: grid; gap: var(--s-4); }
+  .ds-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-4); } /* 单列也用 minmax(0, 1fr)，内容过宽时在卡内换行，不撑开整页 */
   .ds-grid:has(> div:not(.n-card)) > .n-card { align-self: start; } /* 单卡对一列叠放的卡时按内容高，不拉出空白 */
   .ds-grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ds-grid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -181,7 +181,7 @@
     .ds-nav a { white-space: nowrap; }
     .ds-main { padding: 0 var(--s-4) var(--s-14); }
     .hero h1 { font-size: var(--t-3xl); }
-    .ds-grid.c2, .ds-grid.c3, .ds-grid.ceo-layout, .ds-rules, .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout, .ds-grid.nav-layout, .hands, .src-cards, .quad-layout { grid-template-columns: 1fr; }
+    .ds-grid.c2, .ds-grid.c3, .ds-grid.ceo-layout, .ds-rules, .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout, .ds-grid.nav-layout, .hands, .src-cards, .quad-layout { grid-template-columns: minmax(0, 1fr); }
     .n-calib__pair { grid-template-columns: 1fr; }
     .type-row { grid-template-columns: 1fr; gap: 2px; }
     .ip-strip { grid-template-columns: repeat(3, 1fr); }
