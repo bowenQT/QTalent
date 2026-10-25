@@ -153,3 +153,25 @@ test('版本 X：转折后面的正向行为仍然出分', () => {
   assert.equal(scoreOf('他主动整理成文档但没有形成例行。', 'mot').v, 5);
   assert.equal(scoreOf('他主动推进并形成了例行但没整理成文档。', 'mot').v, 5);
 });
+
+test('版本 X：同一句里的另一件正向行为不被否定带走', () => {
+  assert.equal(scoreOf('他对比了方案而不是靠试。', 'wis').v, 4);
+  assert.equal(scoreOf('他没有靠试而是对比了方案。', 'wis').v, 4);
+  assert.equal(scoreOf('他没有直接改方案只做了对比。', 'wis').v, 4);
+  assert.equal(scoreOf('对比了两个方案后他没有直接改。', 'wis').v, 4);
+  assert.equal(scoreOf('他先对比再改不是直接改。', 'wis').v, 4);
+  assert.equal(scoreOf('最小验证不是靠试。', 'wis').v, 4);
+  assert.equal(scoreOf('他不靠试直接改了方案。', 'wis').v, 2);
+  assert.equal(scoreOf('方案不是直接改的，是一个个试出来的。', 'wis').v, 2);
+  assert.equal(scoreOf('他不是直接改方案，靠试才定下来。', 'wis').v, 2);
+  assert.equal(scoreOf('他不对比而是讲清了取舍。', 'wis').v, 4);
+  assert.equal(scoreOf('他没有认领而是自己查的。', 'mot').v, 4);
+  assert.equal(scoreOf('他主动认领了没有自己查的问题。', 'mot').v, 4);
+  assert.equal(scoreOf('他独立定位了没有交付的故障。', 'prof').v, 4);
+  assert.equal(scoreOf('他写了复盘说明没有交付的原因。', 'prof').v, 3);
+  assert.equal(scoreOf('他处理了没有上线的需求。', 'prof').v, 3);
+  assert.equal(scoreOf('他坚持把没有重新验证的部分补完了。', 'grit').v, 4);
+  assert.equal(scoreOf('他组织大家复盘了没有推动的项目。', 'lead').v, 3);
+  assert.equal(scoreOf('他主动做了，没有形成例行又整理成文档。', 'mot').v, 5);
+  assert.equal(scoreOf('他特别主动地认领了。', 'mot').v, 4);
+});
