@@ -138,7 +138,7 @@ a.n-btn { text-decoration: none; }
 .n-tag.is-merged::after { content: none; }
 /* 校准队列：可展开的行 */
 .nt-qrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
-.n-queue li { grid-template-columns: 1fr; }
+.n-queue > li { grid-template-columns: 1fr; }
 .nt-qdetail { margin-top: var(--s-3); padding: var(--s-4); border-radius: var(--r-card); background: var(--sheet-sunk); font-size: var(--t-sm); }
 .nt-qdetail .n-calib__side { background: var(--sheet); }
 /* 项目与批次（CEO）：Landing 批次放在项目列表上方 */
