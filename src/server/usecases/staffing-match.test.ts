@@ -464,6 +464,35 @@ describe('BOW-854 authorized matching', () => {
       )?.requirements[0],
     ).toMatchObject({ progress: 'awaiting_manual', aiJudgment: null });
   });
+  it.each(['originalTitle', 'recordedByName'] as const)(
+    'suppresses derived judgments when current source %s changes without inventing metadata',
+    async (field) => {
+      const f = matchingFixture(),
+        result = await start(f);
+      await f.service.execute(result.runId, 1);
+      const before = (await page(f, result.runId)).candidates.find(
+        (candidate) => candidate.person.id === 'demo-a',
+      )!.requirements[0]!.aiJudgment!;
+      expect(before.sources[0]).toMatchObject({
+        originalTitle: '演示·接口验收记录',
+        recordedByName: null,
+      });
+      f.sources[0]![field] =
+        field === 'originalTitle' ? '演示·已更正的原件标题' : '演示·原件记录人';
+      const current = (await page(f, result.runId)).candidates.find(
+        (candidate) => candidate.person.id === 'demo-a',
+      )!.requirements[0]!;
+      expect(current).toMatchObject({
+        progress: 'awaiting_manual',
+        aiJudgment: null,
+        humanJudgment: null,
+      });
+      expect(
+        await f.service.judge('account-hr', result.runId, judgment),
+      ).toMatchObject({ status: 'conflict' });
+      expect(f.decide).toHaveBeenCalledTimes(4);
+    },
+  );
   it('orders only by supported required items and keeps unknowns and bonus items from becoming penalties', async () => {
     const f = matchingFixture();
     f.demand.requirements.push(

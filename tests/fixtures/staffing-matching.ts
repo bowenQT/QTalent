@@ -140,6 +140,8 @@ export function matchingFixture() {
       ...reference,
       location: { kind: 'document', paragraph: '段落-' + sample.id },
       excerpt: sample.behavior,
+      originalTitle: '演示·接口验收记录',
+      recordedByName: null,
       sourceType: 'document',
       sourceCategory: 'original',
       demo: true,

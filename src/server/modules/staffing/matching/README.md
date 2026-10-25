@@ -1,7 +1,7 @@
 # BOW-854 候选匹配
 
 依据：[原卡](https://linear.app/bowenzhong/issue/BOW-854)、
-[SDD v0.2 / 独立交叉审](https://linear.app/bowenzhong/document/bow-854-候选匹配-sdd-tdd-v01-ef53cd2dae26)。
+[SDD v0.2 / 独立交叉审](https://linear.app/bowenzhong/document/bow-854-候选匹配-sdd-tdd-v02-ef53cd2dae26)。
 本模块提供匹配核心、PostgreSQL store 与 jobs 工厂；应用入口和共享注册尚待父协调接线。
 
 ## 使用边界
@@ -34,7 +34,7 @@ AI 已完成后的人工作为 canonical cell 追加；原 job 处理结果保�
 - 人物 record：`kind=person`，受授权的 `name` / `orgName` 原子字段。用例只投影这两个字段，不从事件文本猜身份或组织。
 - 事件 record：真实 event ID，`kind=evaluation` 或 `management-observation`，有 `behavior`；`situation` / `impact` 可缺省，空 situation 合法。字段须保留完整来源限制，AI 字段不进入输入。
 - `confirmations`：来自 **事件确认权威** 的有效确认事实，包含 recordId/personId/state/active/nature；人工事实携带真实确认 ID、人员和时间。已确认演示基线显式 `prototype_baseline` / `demo=true`，不编历史确认时间。不能用“有 active 维度评分”替代事件确认。
-- `sources`：837 已分类的严格 `Source` 元数据，原件版本/位置/片段必须与授权投影完全一致。模型文字和结论引用都不能从客户端输入补造。
+- `sources`：837 已分类的严格 `Source` 元数据，原件版本/位置/片段必须与授权投影完全一致。按用户指定 PR202@88ebd4be9ff2de1ac0a0ce9454209afaa8e577ff，保留实际 `originalTitle` 和 `recordedByName`；记录人未知时为 `null`，不能拿事件记录人补充来源记录人。模型文字和结论引用都不能从客户端输入补造。
 - 当前账号真实 `actor`，须与 context 绑定的人员一致。
 
 用例自身调用 `buildAuthorizedModelInput`，不复制 835 授权算法。
@@ -47,7 +47,7 @@ AI 已完成后的人工作为 canonical cell 追加；原 job 处理结果保�
 
 - `createStaffingMatchRuntime`：组合 PostgreSQL store、同事务真实 pg-boss enqueue、共享 policy、consumer 注册；构造时不访问数据库、队列或模型。只调用传入的既有 boss getter，不创建 singleton。
 - `createStaffingMatchEvidenceLoader`：一次真实 `repeatable read / read only` 事务复用 `loadProjectContext` 和 837 的公开 `readEvidenceForTalent`，再读有效事件确认事实和共用来源投影。
-- [assembleMatchingEvidence](./evidence.ts)：把领域读模型组装成最小人物和已确认事件记录；演员/姓名/组织取真实目录，保留实际项目期次与事实性质，不从评分推断确认。来源使用 837 完整投影，不复制授权算法，不删共同主体。多期次相同身份去重，身份冲突失败关闭。
+- [assembleMatchingEvidence](./evidence.ts)：把领域读模型组装成最小人物和已确认事件记录；操作者/姓名/组织取真实目录，保留实际项目期次与事实性质，不从评分推断确认。来源使用 837 完整投影，不复制授权算法，不删共同主体。多期次相同身份去重，身份冲突失败关闭。
 
 授权文件写者只需在现有组合入口填以下两个 owner adapter；`readConfirmations` 和 `projectSources` 是本卡明确请求的端口名，不冒称它们已在其他模块导出：
 
@@ -78,7 +78,7 @@ const ports = {
 
 837 adapter 的精确类型是 `Parameters<typeof createStaffingMatchEvidenceLoader>[0]['projectSources']`：
 `(data: StaffingMatchEvidenceData) => Promise<{sources: TalentSource[]; details: Source[]}>`。
-须复用现有 `talent-source-projection`，保留所有同片段事件/参与人/历史敏感分类和原件类别；`details` 逐字对应来源版本、位置与片段。两者须框架无关，不能把 `queries/person-data.ts` 的 `server-only` runtime 导入 worker。
+须复用现有 `talent-source-projection`，保留所有同片段事件/参与人/历史敏感分类和原件类别；`details` 逐字对应来源版本、位置与片段，按 PR202 返回真实原件标题及可空的来源记录人姓名。本卡把这两个字段纳入来源身份核对，元数据变更后旧来源不能继续支撑旧结论或人工提交。两者须框架无关，不能把 `queries/person-data.ts` 的 `server-only` runtime 导入 worker。
 
 应用组合入口复用 852 的唯一惰性 getter：
 
@@ -122,8 +122,24 @@ store 采用 advisory 操作锁与 **job → run** 行锁顺序；run/job/operat
 本卡单测使用真实授权投影/状态机和边界 fake，不读 key，不调用真实模型或业务 API。
 `store.integration.test.ts` 强制隔离 loopback `_test` PostgreSQL，覆盖同事务真实 pg-boss、重复请求、回滚、人工并发、约束与实际 consumer；缺 `TEST_DATABASE_URL` 失败，不能以 skip/fake 替代。
 
-PR130 合同与 PR94 已正式合入 main，当前不再覆盖 staffing 合同。剩余固定组合输入为 PR161@e78e5b6788418025b40ddf78bbf5d5adc7eb7f85 的 `demand/schema.ts`，以及 PR131@8192dc2cc891cc570eb4f20c437fc82c7a2aca9b 的 `authz/talent.ts`、`records/index.ts`、`records/read.ts` 原 blob；它们只用于独立验证，不作为本卡代码提交。
+PR130、PR94、PR131 已正式合入；当前正常 append 整合 main dd34dd2，已移除 staffing 合同和 837 三个原 blob 的临时覆盖。剩余固定组合输入为 PR161@e78e5b6788418025b40ddf78bbf5d5adc7eb7f85 的 `demand/schema.ts` 和用户指定 PR202@88ebd4be9ff2de1ac0a0ce9454209afaa8e577ff 的 `contracts/sources.ts` 原 blob；它们只用于独立验证，不作为本卡代码提交。其余 PR202 消费者由父统一协调，不在本卡另造合同/适配或改前端。
 
 Docker PostgreSQL 17 使用本卡新建、无宿主卷的临时容器，随机 loopback 端口和随机 `_test` root 库；测试进一步创建/清理自己的随机 `_test` 库。只使用本次合成账号，无现成业务库或凭据。私有原生组合迁移已实跑真实 pg-boss/事务检查；精确受检 head、统一测试/覆盖与最新 CI 以 PR188 验证记录为准，不把组合结果说成 main 已具备。
+
+### 验证检查点（2026-10-25 UTC）
+
+生产源码 `e41878590b1661cce52fa6af5a6bc277d0460cf6`，另有仅单行 import 格式改动，固定组合 PR161 schema / PR131 三个原 blob 和私有原生迁移：
+
+| 检查                                   | 实际结果                                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------- |
+| `pnpm test:coverage`，含真实 PG        | 109 文件 / 990 测试通过；统一行 97.52% / 分支 95.83%                            |
+| 同一覆盖报告中的本卡全部 11 个生产文件 | 行 96.34%（369/383）/ 分支 90.37%（272/301）；语句 94.05% / 函数 94.44%         |
+| `pnpm build`                           | 隔离 Linux Node 24.21.0 容器通过，未改标准脚本；宿主 Turbopack 子进程绑定被限制 |
+| `pnpm test:e2e`                        | 10/10 通过，包含实际 worker 握手与生产构建样例路由检查                          |
+| `pnpm test:visual`                     | 32/32 通过，manifest 451ecec；未修改参照、遮罩、截图基线或原型                  |
+
+覆盖率来自单次单元+真实 PG 全集，不相加百分比、未降低 85% 门槛或扩大排除。Linux 构建使用锁定 pnpm 11.25.0 与锁定 JS 依赖，加载对应平台的同版本原生包：Next SWC 16.4.3、Tailwind Oxide 4.3.3、lightningcss 1.33.0。构建不连接真实服务。
+
+后续整合 main dd34dd2 并适配上述 PR202 来源合同：新增标题/来源记录人变化两项真实 Red，修正来源身份核对后，本卡 **5 文件 / 58 项（含 10 项真实 PG）全部通过**，lint/架构边界通过。全工程 typecheck 在未适配的 `contracts/staffing.fixtures.ts`、`features/sources/SourceCite.test.tsx` 报缺少这两个新字段；本卡未改它们。上表属于前一受检检查点，不移植成新合同全工程验收；待父提供集中适配/正式迁移输入后继续统一门禁。
 
 共享两个 adapter、注册和官方串行迁移需指定 owner 接入后继续验收；一次真实 Jev 仍 Pending。本卡持续在原 PR188 收口，未满足门禁时不标 Done、不合并/部署。

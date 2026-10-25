@@ -27,6 +27,8 @@ export const sourceKey = (source: Source) =>
   JSON.stringify([
     referenceKey(source),
     source.excerpt,
+    source.originalTitle,
+    source.recordedByName,
     source.sourceCategory,
     source.sourceType,
     source.demo,
