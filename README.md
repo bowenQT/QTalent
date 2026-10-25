@@ -7,7 +7,7 @@
 | 参赛议题 | 自选题目：AI 原生的人才搜索、档案与评价体系 |
 | 交付形态 | 高保真可交互产品原型（桌面 + 导师手机版），浏览器直接打开 |
 | 在线原型 | <https://qtalent-review.aidoudoulong123.workers.dev/>（`@qiniu.com` 邮箱登录，每页可划线评论） |
-| Demo 视频 | [带讲解版](https://drive.google.com/file/d/1ZfX0eRM3sM1o3GMwPB_J4BH5MIBlngNo/view?usp=sharing) · [操作演示版](https://drive.google.com/file/d/1L2a9YWhO1Ff9z7VZW2va_fMQzyep2mIW/view?usp=sharing) · [90 秒短片](https://drive.google.com/file/d/1mJXs7BtGMy58aZPd1daLzJqJA3lXxK0p/view?usp=sharing) · [30 秒短片](https://drive.google.com/file/d/184f-nOHuBhl73kbH97CaOB1fNM97dmYc/view?usp=sharing)（Google Drive） |
+| Demo 视频 | 仓库内（`docs/demo/`）：[带讲解版](docs/demo/niu-talent-narrated.mp4) · [操作演示版](docs/demo/niu-talent-walkthrough.mp4) · [90 秒短片](docs/demo/niu-talent-90s.mp4) · [30 秒短片](docs/demo/niu-talent-30s.mp4)<br>Google Drive：[带讲解版](https://drive.google.com/file/d/1ZfX0eRM3sM1o3GMwPB_J4BH5MIBlngNo/view?usp=sharing) · [操作演示版](https://drive.google.com/file/d/1L2a9YWhO1Ff9z7VZW2va_fMQzyep2mIW/view?usp=sharing) · [90 秒短片](https://drive.google.com/file/d/1mJXs7BtGMy58aZPd1daLzJqJA3lXxK0p/view?usp=sharing) · [30 秒短片](https://drive.google.com/file/d/184f-nOHuBhl73kbH97CaOB1fNM97dmYc/view?usp=sharing)（带讲解版为原始画质） |
 | 架构设计 | [docs/architecture.md](docs/architecture.md) |
 
 ## 为什么做
