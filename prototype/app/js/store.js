@@ -501,6 +501,8 @@
   store.unconfirmScore = (evId, idx) => { const s = store.event(evId).scores[idx]; s.st = 'ai'; s.v = s.ai; delete s.by; delete s.hist; delete s.bigGap; store.save(); };
   store.resolveInbox = (id, choice) => {
     const it = S.inbox.find((x) => x.id === id);
+    // 事件以待核对项 id 为唯一来源；重复确认不应再次写入相同 ID 的证据。
+    if (!it || it.done) return;
     it.done = true; it.choice = choice;
     if (it.draft && choice && choice !== 'skip') {
       const d = it.draft;
