@@ -197,8 +197,7 @@ export const staffingJudgmentResultSchema = z.discriminatedUnion('status', [
     personId: text,
     revision,
     match: staffingMatchSchema.refine(
-      (match) =>
-        match.progress === 'completed' && match.humanJudgment !== null,
+      (match) => match.progress === 'completed' && match.humanJudgment !== null,
       '人工判断成功必须返回署名结论',
     ),
     replayed: z.boolean(),

@@ -192,6 +192,10 @@ describe('staffing contracts', () => {
     };
     const overridden = structuredClone(supported);
     overridden.person.id = 'overridden';
+    overridden.requirements[1] = {
+      ...structuredClone(supported.requirements[0]),
+      requirementId: 'bonus-1',
+    };
     overridden.requirements[0].humanJudgment = {
       conclusion: 'insufficient',
       rationale: '演示：未能确认',
@@ -314,6 +318,36 @@ describe('staffing contracts', () => {
       input,
     };
     expect(staffingJudgmentResultSchema.safeParse(invalid).success).toBe(true);
+  });
+
+  it('requires a completed signed match on human success', () => {
+    const match = staffingFixture().candidates[0].requirements[0];
+    const humanJudgment = {
+      ...match.aiJudgment,
+      judgedBy: { id: 'demo-reviewer', name: '演示审核人' },
+      judgedAt: '2026-10-25T10:00:00Z',
+    };
+    const success = {
+      status: 'success',
+      demandId: 'demo-demand',
+      personId: 'demo-person',
+      revision: 2,
+      replayed: false,
+      match: { ...match, aiJudgment: null, humanJudgment },
+    };
+    expect(staffingJudgmentResultSchema.safeParse(success).success).toBe(true);
+    const unsigned = { ...success, match };
+    expect(staffingJudgmentResultSchema.safeParse(unsigned).success).toBe(false);
+    const failed = {
+      ...success,
+      match: {
+        ...match,
+        progress: 'failed',
+        aiJudgment: null,
+        humanJudgment: null,
+      },
+    };
+    expect(staffingJudgmentResultSchema.safeParse(failed).success).toBe(false);
   });
 
   it('reuses the typed job envelope without vendor payloads', () => {
