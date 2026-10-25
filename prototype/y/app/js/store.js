@@ -461,8 +461,15 @@
     if (!store.canEditReview(pid) || !text?.trim()) return null;
     S.reviewEvals ??= {};
     const m = (S.reviewEvals[`${pid}-${week}`] ??= {}), prev = m[dim] || [];
-    m[dim] = [{ text: text.trim(), by: store.me().id, at: NT.TODAY, from }, ...prev]; store.save();
-    return () => { m[dim] = prev; store.save(); };
+    const entry = { text: text.trim(), by: store.me().id, at: NT.TODAY, from };
+    m[dim] = [entry, ...prev]; store.save();
+    // 撤销本次评价，而不是回写旧数组把之后保存的修订覆盖掉。
+    return () => {
+      const list = m[dim] || [];
+      if (!list.includes(entry)) return;
+      m[dim] = list.filter((x) => x !== entry);
+      store.save();
+    };
   };
   // AI 草拟：按这一维的事件和分数（已确认的用确认分，否则用 AI 建议分）对上锚点；没有分数就不草拟
   store.reviewEvalDraft = (pid, row) => {
