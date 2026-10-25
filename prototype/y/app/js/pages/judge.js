@@ -242,7 +242,7 @@
     return html`<article class="n-card" id="acts"><h3 class="n-section-title">改进动作</h3>
       ${acts.length ? html`<ul class="nt-list">${acts.map((a) => html`<li><a class="nt-plink" href="actions.html#${a.id}"><b style="font-weight:600">${a.title}</b></a><div class="nt-muted">${a.kind} · 负责人 ${name(a.owner)} · ${LABEL[a.state]}${a.did ? ` · ${NT.md(a.did)} 执行` : ` · 预计 ${NT.md(a.due)}`}</div></li>`)}</ul>`
         : html`<div class="nt-empty">归因确认后，改进动作会出现在这里。</div>`}
-      <p class="nt-caption">改进动作在「行动与复盘」的「评价体系改进」里跟进；修订评价标准会产生新版本，新记录按新版本，旧记录保留原版本。</p></article>`;
+      <p class="nt-caption">改进动作挂在「项目复盘」对应的节点下跟进；修订评价标准会产生新版本，新记录按新版本，旧记录保留原版本。</p></article>`;
   }
 
   // ---------- 归因：AI 提出带证据的假设（光），HR 选类别、写理由、确认后落墨 ----------
@@ -382,7 +382,7 @@
         render(main);
         if (!a) { NT.toast('依据已经变化，这条结论要先复核，暂不能生成动作'); return; }
         if (kind === '修订评价标准' && frontLink(chain)) { location.href = frontLink(chain); return; }
-        NT.toast(`已生成「${a.title}」，在「行动与复盘」的「评价体系改进」里跟进`);
+        NT.toast(`已生成「${a.title}」，在「项目复盘」对应的节点下跟进`);
       }
     };
   }

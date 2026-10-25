@@ -14,7 +14,7 @@
   const MORE = [
     { id: 'projects', label: '项目', icon: 'folder', href: 'projects.html' },
     { id: 'landing', label: 'XEngineer 第六期', icon: 'book', href: 'landing.html', roles: ['ceo', 'hrbp', 'lead', 'mentor'], hideFor: ['ceo'] },
-    { id: 'actions', label: '行动与复盘', icon: 'check2', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'] },
+    { id: 'actions', label: '项目复盘', icon: 'check2', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'] },
     { id: 'queue', label: '校准队列', icon: 'split', href: 'queue.html', roles: ['hrbp'] },
     // 判断对照归在「评价体系」下（规则 / 判断对照两个页签）；导航里只给不能看汇总、但做过评价的人留「我的判断对照」
     { id: 'judge', label: '我的判断对照', icon: 'swap', href: 'judge.html?rater=me' },

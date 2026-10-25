@@ -281,7 +281,7 @@
           <button class="n-btn n-btn--ink" type="button" id="confirm">${icon('stamp')}确认 v${ver}</button>
           <button class="n-btn n-btn--ghost" type="button" id="savedraft">保存草稿</button>
         </div>
-        ${canConfirm ? html`<p class="nt-caption">确认后冻结快照，owner 和成员写入项目，并生成跟进行动，执行情况在「行动与复盘」里跟踪。</p>` : ''}
+        ${canConfirm ? html`<p class="nt-caption">确认后冻结快照，owner 和成员写入项目，并生成跟进行动，执行情况在「项目复盘」里跟踪。</p>` : ''}
         <div id="deny"></div>`}
     </article>
     <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">手动补入</h3>

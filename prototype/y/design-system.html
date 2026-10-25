@@ -29,6 +29,7 @@
   .ds-grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ds-grid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .ds-grid.nav-layout { grid-template-columns: 300px minmax(0, 1fr); align-items: start; }
   .ds-grid.ceo-layout { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
   .ds-rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3) var(--s-5); margin-top: var(--s-4); }
   .ds-rule b { font-size: var(--t-sm); }
@@ -180,7 +181,7 @@
     .ds-nav a { white-space: nowrap; }
     .ds-main { padding: 0 var(--s-4) var(--s-14); }
     .hero h1 { font-size: var(--t-3xl); }
-    .ds-grid.c2, .ds-grid.c3, .ds-grid.ceo-layout, .ds-rules, .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout, .hands, .src-cards, .quad-layout { grid-template-columns: 1fr; }
+    .ds-grid.c2, .ds-grid.c3, .ds-grid.ceo-layout, .ds-rules, .ds-grid.c2.signal-layout, .ds-grid.c2.tl-layout, .ds-grid.nav-layout, .hands, .src-cards, .quad-layout { grid-template-columns: 1fr; }
     .n-calib__pair { grid-template-columns: 1fr; }
     .type-row { grid-template-columns: 1fr; gap: 2px; }
     .ip-strip { grid-template-columns: repeat(3, 1fr); }
@@ -278,7 +279,7 @@
       <li><a href="#c-project">人与项目</a></li>
       <li><a href="#c-plan">找人与方案</a></li>
       <li><a href="#c-template">目标角色模板</a></li>
-      <li><a href="#c-action">行动与复盘</a></li>
+      <li><a href="#c-action">项目复盘</a></li>
       <li><a href="#c-judge">判断对照</a></li>
       <li class="grp">评价体系</li>
       <li><a href="#c-eval">规则与修订</a></li>
@@ -1685,41 +1686,41 @@
       </div>
     </section>
 
-    <!-- ═════════ 行动与复盘 ═════════ -->
+    <!-- ═════════ 项目复盘 ═════════ -->
     <section class="ds-sec" id="c-action">
-      <h2>行动与复盘</h2>
-      <p class="lead">方案确认后的每件事都是一条行动，有五种状态。预计日期和实际日期分开记；没执行要写原因，不算员工的失败。复盘时左边是当时的安排（冻结的版本），右边是后来的事实，结论只有继续、调整、撤回三种。行动分两组：对人的安排，和判断对照生成的评价体系改进；后者作用于规则，复盘叫「效果复盘」，不进任何人的档案。</p>
-      <div class="ds-grid c2">
+      <h2>项目复盘</h2>
+      <p class="lead">按人才项目的关键节点回看一件事做得怎么样，不逐人复盘。左边一期一组，节点按时间排，点的形状和文字区分已复盘、待复盘、进行中、未开始。右边是选中节点的三段：结果从现有数据算；复盘由 HR 写做得好和要改进并署名，AI 草拟只作参考，管理者只看署名的复盘；改进事项是挂在节点下的行动，有五种状态，没执行要写原因。</p>
+      <div class="ds-grid nav-layout">
+        <nav class="n-card" aria-label="关键节点示例">
+          <div class="n-pgroup"><h3 class="n-pgroup__name">XEngineer 第六期<small>07-06–08-31</small></h3>
+            <ol class="n-pnodes">
+              <li><button class="n-pnode" type="button"><span class="n-pnode__date">08-02</span><span class="n-pnode__dot" data-s="done" aria-hidden="true"></span><span class="n-pnode__name">W4 周评</span><span class="n-pstate" data-s="done">已复盘</span></button></li>
+              <li><button class="n-pnode" type="button"><span class="n-pnode__date">08-29</span><span class="n-pnode__dot" data-s="todo" aria-hidden="true"></span><span class="n-pnode__name">里程碑路演<small>MS1–MS4</small></span><span class="n-pstate" data-s="todo">待复盘</span></button></li>
+              <li><button class="n-pnode" type="button" aria-current="true"><span class="n-pnode__date">08-31</span><span class="n-pnode__dot" data-s="todo" aria-hidden="true"></span><span class="n-pnode__name">结营评审</span><span class="n-pstate" data-s="todo">待复盘</span></button></li>
+              <li><button class="n-pnode" type="button"><span class="n-pnode__date">—</span><span class="n-pnode__dot" data-s="doing" aria-hidden="true"></span><span class="n-pnode__name">留用与落位</span><span class="n-pstate" data-s="doing">进行中</span></button></li>
+            </ol></div>
+          <div class="n-pgroup"><h3 class="n-pgroup__name">Landing 第四期<small>09-14–10-09</small></h3>
+            <ol class="n-pnodes"><li><button class="n-pnode" type="button"><span class="n-pnode__date">09-14</span><span class="n-pnode__dot" data-s="future" aria-hidden="true"></span><span class="n-pnode__name">入营</span><span class="n-pstate" data-s="future">未开始</span></button></li></ol></div>
+        </nav>
         <article class="n-card">
-          <h3 class="n-section-title">行动</h3>
-          <h4 class="n-action__grp">人员安排<span>5</span></h4>
-          <div class="n-action"><div><div class="n-action__title">周屿接任新转化团队 owner</div><div class="n-action__meta">来自方案 v3 · 预计 11-01 · 负责人 苏晚</div></div><span class="n-astate" data-s="todo">待沟通</span></div>
-          <div class="n-action"><div><div class="n-action__title">沈砚试任灰度发布平台 <span class="n-kind">激活</span></div><div class="n-action__meta">来自「值得聊一聊」· 预计 11-10 · 观察 3 个月</div></div><span class="n-astate" data-s="doing">进行中</span></div>
-          <div class="n-action"><div><div class="n-action__title">林知远加入海外加速搜索体验</div><div class="n-action__meta">预计 10-15 · 实际 10-15 · 观察到 12-15</div></div><span class="n-astate" data-s="done">已执行待观察</span></div>
-          <div class="n-action"><div><div class="n-action__title">陈一禾转入后端组</div><div class="n-action__meta">预计 08-01 · 实际 08-04 · 10-20 已复盘：继续</div></div><span class="n-astate" data-s="reviewed">已复盘</span></div>
-          <div class="n-action"><div><div class="n-action__title">王一舟负责采购流程课题</div><div class="n-action__meta">未执行 · <span class="why">课题优先级下调，换到下一期，不是个人原因</span></div></div><span class="n-astate" data-s="cancel">未执行</span></div>
-          <h4 class="n-action__grp">评价体系改进<span>1</span></h4>
+          <h2 class="n-section-title" style="margin:0">XEngineer 第六期 · 结营评审</h2>
+          <h3 class="n-pnode-h">结果</h3>
+          <dl class="n-pfacts"><div><dt>结营结论</dt><dd>建议留用 45 · 继续观察 11 · 不建议 33</dd></div><div><dt>到结营时看</dt><dd>前段评为最高或最低一档的 24 人里，8 人和结营结论不一致 <a class="n-link" href="#c-judge">查看</a></dd></div></dl>
+          <h3 class="n-pnode-h">复盘</h3>
+          <div class="n-block n-pretro" data-state="light"><div><h5>做得好</h5><ul><li>结营结论和导师留用建议在同一张表里，对得上</li></ul></div><div><h5>要改进</h5><ul><li>8 人前后判断不一致，先在判断对照里归因</li></ul></div><div class="n-block__by"><span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>AI 草拟 · 仅供参考</span><span class="n-review__evact"><button class="n-btn n-btn--sm" type="button">采用</button><button class="n-btn n-btn--sm n-btn--ghost" type="button">改写</button></span></div></div>
+          <div class="n-block n-pretro" data-state="ink" style="margin-top:var(--s-3)"><div><h5>做得好</h5><ul><li>交了周评的同学都有导师评语</li></ul></div><div><h5>要改进</h5><ul><li>「正常发挥」一档没有写行为要求，结营时分成两头</li></ul></div><div class="n-block__by"><span class="n-block__sig">苏晚</span>09-03 改写 AI 草拟</div></div>
+          <h3 class="n-pnode-h">改进事项<span class="n-count is-quiet">2</span></h3>
           <div class="n-action"><div><div class="n-action__title">修订周评标准：每一档都写明行为证据 <span class="n-kind">修订评价标准</span></div><div class="n-action__meta">来自第六期判断对照 · 预计 09-15 · 观察到 11-30 · 负责人 苏晚</div></div><span class="n-astate" data-s="todo">待沟通</span></div>
-        </article>
-        <article class="n-card">
-          <h3 class="n-section-title">任用后复盘 · 陈一禾转入后端组</h3>
-          <div class="n-retro">
-            <div class="n-retro__col n-retro__then"><h5>当时的安排 · 方案 v1 · 07-20 冻结</h5><ul><li>目标：补上后端组的存储经验</li><li>假设：陈一禾在实训营做过存储相关课题</li><li>观察：3 个月内独立负责一个模块</li></ul></div>
-            <div class="n-retro__col n-retro__now"><h5>后来的事实 · 08-04 至今</h5><ul><li>独立负责缓存模块，2 次上线无回滚<span class="n-cite"><button class="n-cite__mark" type="button" aria-label="引用">1</button></span></li><li>背景变化：Q4 预算削减，模块范围缩小</li></ul></div>
-            <div class="n-retro__foot">
-              <div class="n-seg n-seg--md" role="group" aria-label="复盘结论"><button type="button" aria-pressed="true">继续</button><button type="button" aria-pressed="false">调整</button><button type="button" aria-pressed="false">撤回</button></div>
-              <textarea class="n-calib__reason" aria-label="复盘说明">范围缩小是预算原因；在缩小后的范围内达成了观察目标。</textarea>
-              <div class="ds-row"><button class="n-btn n-btn--ink" type="button">记录复盘</button><span class="ds-caption" style="margin:0">结果回到陈一禾的档案时间线</span></div>
-            </div>
-          </div>
+          <div class="n-action"><div><div class="n-action__title">MS3 后加一次带教检查</div><div class="n-action__meta">未执行 · <span class="why">课题优先级下调，换到下一期</span></div></div><span class="n-astate" data-s="cancel">未执行</span></div>
         </article>
       </div>
+      <p class="ds-caption">上面是 HR 看到的 AI 草拟和署名后的复盘；管理者看不到草拟，节点没写复盘时显示「HR 还没写这个节点的复盘」。</p>
     </section>
 
     <!-- ═════════ 判断对照 ═════════ -->
     <section class="ds-sec" id="c-judge">
       <h2>判断对照</h2>
-      <p class="lead">需求里叫「判断复盘」。界面上改叫判断对照，和「行动与复盘」分开：行动复盘回头看对一个人的安排有没有用，判断对照回头看评价标准和评价人准不准，从不落到被评价人身上。它归在「评价体系」下，和规则共用一个页头。把前一阶段的判断（入营选拔、面试评价）和后一阶段对同一个人、同一维度的结论放在一起看，找出系统性偏差，归因后去改评价标准、评价方式或培训评价人。对照的单位是「人 × 维度」。这里不给评价人排名，也不算准确率；结论只作用于评价体系，不改被评价人的分数、象限和档案。</p>
+      <p class="lead">需求里叫「判断复盘」。界面上改叫判断对照，和「项目复盘」分开：项目复盘回头看一个节点的事做得怎么样，判断对照回头看评价标准和评价人准不准，从不落到被评价人身上。它归在「评价体系」下，和规则共用一个页头。把前一阶段的判断（入营选拔、面试评价）和后一阶段对同一个人、同一维度的结论放在一起看，找出系统性偏差，归因后去改评价标准、评价方式或培训评价人。对照的单位是「人 × 维度」。这里不给评价人排名，也不算准确率；结论只作用于评价体系，不改被评价人的分数、象限和档案。</p>
 
       <h3 class="ds-sub">五种对照状态</h3>
       <p>状态同时用符号和文字区分，不只靠颜色。「不可比」由人标注并写理由，「资料不足」不当作偏差。</p>

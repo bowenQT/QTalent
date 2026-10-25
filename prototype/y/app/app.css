@@ -46,6 +46,7 @@ body.nt-desk { min-height: 100vh; }
 .nt-ceo { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--s-4); align-items: start; }
 .nt-split { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--s-5); align-items: start; }
 .nt-split--wide { grid-template-columns: minmax(0, 1fr) 400px; }
+.nt-split--nav { grid-template-columns: 320px minmax(0, 1fr); }
 .nt-sticky { position: sticky; top: 76px; }
 .nt-sec { margin-top: var(--s-6); }
 .nt-sec > h2, .nt-h2 { display: flex; align-items: center; gap: var(--s-2); margin: 0 0 var(--s-3); font-size: var(--t-md); font-weight: 650; }
@@ -83,7 +84,7 @@ a.n-btn { text-decoration: none; }
 .nt-tablewrap { overflow-x: auto; }
 
 @media (max-width: 1080px) {
-  .nt-split, .nt-split--wide, .nt-ceo { grid-template-columns: 1fr; }
+  .nt-split, .nt-split--wide, .nt-split--nav, .nt-ceo { grid-template-columns: 1fr; }
   /* 单列时：值得关注的人 → 值得关注的项目 → 我的关注 */
   .nt-ceo > .nt-grid { display: contents; }
   .nt-ceo .n-follows { order: 1; }

@@ -18,7 +18,7 @@
       tasks: SEED.TASKS, batches: SEED.BATCHES, conclusions: SEED.CONCLUSIONS, tagCands: SEED.TAG_CANDIDATES, taglibAdd: [],
       seen: {}, snaps: [], reviews: {}, reviewEvals: {}, corrections: [], selfNotes: [], directions: SEED.DIRECTIONS,
       watchClues: SEED.WATCH_CLUES, follows: SEED.FOLLOWS, rules: SEED.RULES, ruleSugs: SEED.RULE_SUGS, reviewHolds: [],
-      recalKeeps: {}, judgeMarks: {}, judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])),
+      recalKeeps: {}, nodeRetros: SEED.NODE_RETROS, judgeMarks: {}, judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])),
     });
     S = s;
     // 每件事固定保存时生效的维度与锚点版本（v1.6 3.35.6）；之后补日期、确认分数都按这一版。种子只有 rubric-v1 生效过
@@ -551,7 +551,6 @@
     const me = store.me().id, p = store.project(plan.project);
     S.plans.filter((x) => x.project === plan.project && x.status === 'confirmed' && x !== plan).forEach((x) => { x.status = 'superseded'; });
     Object.assign(plan, { status: 'confirmed', confirmedBy: me, confirmedAt: NT.TODAY });
-    const musts = (plan.reqs || S.needs.find((n) => n.project === plan.project)?.reqs || []).filter((x) => x.must).map((x) => x.text);
     roles.forEach((r) => {
       const pid = plan.slots[r.id]; if (!pid) return;
       const name = store.person(pid).name;
@@ -568,9 +567,8 @@
         S.members.push({ project: plan.project, person: pid, role, mode, from: NT.TODAY, to: null, by: me });
         S.memberLog.unshift({ project: plan.project, at: NT.TODAY, text: `${name}${r.id === 'owner' ? '成为 owner' : `加入：${r.name}`}：来自项目用人方案 v${plan.version}`, by: me });
       }
-      // 行动带上冻结的判断，到期后可以进入任用后复盘
-      S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title: `${name}${r.id === 'owner' ? `接任${p.name} owner` : `加入${p.name}（${r.name}）`}`, from: plan.id, person: pid, owner: 'p-suwan', due: '2026-11-01', state: 'todo', observe: '2027-01-31',
-        then: [`目标：${r.id === 'owner' ? `负责${p.name}` : `在${p.name}承担${r.name}`}`, `依据：用人方案 v${plan.version}${musts.length ? `，必须项：${musts.join('、')}` : ''}`, `缺口：${plan.slotNote?.[r.id] || '待复盘时补充'}`] });
+      // 每个人选生成一条跟进行动，执行情况在项目复盘里跟进
+      S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title: `${name}${r.id === 'owner' ? `接任${p.name} owner` : `加入${p.name}（${r.name}）`}`, from: plan.id, person: pid, owner: 'p-suwan', due: '2026-11-01', state: 'todo', observe: '2027-01-31' });
     });
     // 只回填还能改的草稿；已确认的组织方案是冻结快照，人选由上面生成的行动跟进
     S.plans.filter((x) => x.kind === 'org' && x.status === 'draft').forEach((op) => op.moves.forEach((m) => { if (m.pending === plan.project && !m.person && plan.slots.owner) { m.person = plan.slots.owner; m.will = '未知 · 待沟通'; } }));
@@ -598,7 +596,7 @@
       const title = m.type === '继续观察' ? `${store.person(m.person)?.name || ''}：${m.next}` : `${m.person ? store.person(m.person).name : '人选待定'}${m.type === '负责人安排' ? `接任${m.to}` : `：${m.from ? `${m.from} → ` : ''}${m.to}`}`;
       if (S.actions.some((a) => a.title === title)) return;
       created += 1;
-      S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title, kind: m.kind, from: plan.id, person: m.person, owner: m.owner || 'p-suwan', due: m.due || '2026-11-15', state: 'todo', observe: m.type === '继续观察' ? null : '2027-02-15', then: m.type === '继续观察' ? null : [`目标：${m.to}`, `依据：${m.basis}`, `缺口：${m.gap || '—'}`] });
+      S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title, kind: m.kind, from: plan.id, person: m.person, owner: m.owner || 'p-suwan', due: m.due || '2026-11-15', state: 'todo', observe: m.type === '继续观察' ? null : '2027-02-15' });
     });
     store.save();
     return created;
@@ -784,7 +782,7 @@
   };
   store.unmarkJudge = (uid) => { delete S.judgeMarks[uid]; store.save(); };
   store.markJudge = (uid, reason) => { S.judgeMarks[uid] = { reason, by: store.me().id, at: NT.TODAY }; store.save(); };
-  // 改进动作沿用「行动与复盘」，在那里归入「评价体系改进」；修订评价标准要产生新版本，在动作里写明
+  // 改进动作挂到项目复盘里产生这次对照的节点下；修订评价标准要产生新版本，在动作里写明
   store.addJudgeAction = (batchId, hypId, a) => {
     const h = store.judgeHyps(batchId).find((x) => x.id === hypId);
     if (!h || !S.judgeAttribs[hypId] || !store.hypCheck(h).ok) return null;
@@ -793,6 +791,99 @@
     S.judgeAttribs[hypId].actions.push(act.id);
     store.save();
     return act;
+  };
+
+  // ---------- 项目复盘：按人才项目的关键节点回看一件事做得怎么样 ----------
+  // 结果从现有数据算；复盘由 HR 写并署名，AI 草拟只作参考；改进事项是挂在节点下的行动
+  const XE = NT.XE6;
+  const tally = (list, keys, f) => keys.map((k) => [k, list.filter((x) => f(x) === k).length]).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join(' · ');
+  store.programNodes = (pgId) => {
+    const g = SEED.PROGRAMS.find((x) => x.id === pgId);
+    return SEED.RETRO_NODES[pgId] || g.nodes.map(([at, name], i) => ({ id: `n${i}`, at, name }));
+  };
+  store.nodeKey = (pgId, nodeId) => `${pgId}:${nodeId}`;
+  store.nodeRetroHist = (key) => S.nodeRetros?.[key] || [];
+  store.nodeRetro = (key) => store.nodeRetroHist(key)[0] || null;
+  // 进行中：节点还没到结束点（留用与落位以方案确认为结束）；未开始：日期在今天之后
+  store.nodeState = (pgId, node) => {
+    if (node.id === 'place') { const op = S.plans.find((p) => p.kind === 'org' && p.batch === 'b-xe6-end' && p.status === 'confirmed'); if (!op) return 'doing'; }
+    else if (node.at > NT.TODAY) return 'future';
+    return store.nodeRetro(store.nodeKey(pgId, node.id)) ? 'done' : 'todo';
+  };
+  // 节点下的行动：显式挂上的，或由节点产生的盘点、判断对照、方案生成的
+  store.actionNode = (a) => {
+    if (a.node) return a.node;
+    const src = [a.from, store.plan(a.from)?.batch].filter(Boolean);
+    for (const [pg, nodes] of Object.entries(SEED.RETRO_NODES)) { const n = nodes.find((x) => x.from?.some((f) => src.includes(f))); if (n) return store.nodeKey(pg, n.id); }
+    return null;
+  };
+  const judgeLine = () => {
+    const us = store.judgeUnits('jr-xe6'), c = store.judgeClear(us, store.judgeChain('xe'));
+    return `前段评为最高或最低一档的 ${c.clear.length} 人里，${c.diff.length} 人和结营结论不一致`;
+  };
+  // 每条结果：k 是看什么，v 是数，href 可以回到来源页面
+  store.nodeFacts = (pgId, node) => {
+    const g = SEED.PROGRAMS.find((x) => x.id === pgId), S6 = XE.students, T = XE.teams;
+    if (pgId !== 'pg-xe6') return g.people.length ? [{ k: '参与', v: `${g.people.length} 人` }] : [];
+    if (node.id === 'w4') {
+      const miss = S6.filter((x) => !x.front).length;
+      return [{ k: '交了周评', v: `${S6.length - miss} / ${S6.length} 人${miss ? `，${miss} 人没有记录` : ''}` },
+        { k: '三档分布', v: tally(S6, ['表现突出', '正常发挥', '需关注'], (x) => x.front) },
+        ...(store.canJudge() ? [{ k: '到结营时看', v: judgeLine(), href: 'judge.html?id=jr-xe6' }] : [])];
+    }
+    if (node.id === 'mid') {
+      const E = Object.values(S.snaps.find((x) => x.batch === 'b-xe6-mid')?.entries || {});
+      const acts = S.actions.filter((a) => store.actionNode(a) === store.nodeKey(pgId, 'mid'));
+      return [{ k: '盘点', v: `${E.length} 人，${E.filter((e) => e.q).length} 人正式落位，${E.filter((e) => e.na).length} 人资料不足` }, { k: '在营调整', v: `${acts.length} 项` }];
+    }
+    if (node.id === 'ms') {
+      const avg = (k) => { const v = T.map((t) => t.ms[k]).filter((x) => x != null); return (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1); };
+      return [{ k: '课题组', v: `${T.length} 个，公开路演 ${T.filter((t) => t.live === '公开路演').length} 个` },
+        { k: '各组平均分', v: ['MS1', 'MS2', 'MS3', 'MS4'].map((k) => `${k} ${avg(k)}`).join(' · ') },
+        { k: 'MS4 低于 MS3', v: `${T.filter((t) => t.ms.MS4 < t.ms.MS3).length} 个组` }];
+    }
+    if (node.id === 'end') {
+      const miss = S6.filter((x) => !x.backJ).length;
+      return [{ k: '结营结论', v: tally(S6, ['建议留用', '继续观察', '不建议'], (x) => x.backJ) + (miss ? `，${miss} 人没有结论` : '') },
+        { k: '去向', v: tally(S6, ['应届 · 正式 offer 提前锁定', '应届 · 继续实习观察', '非应届 · 实习 offer', '不建议 offer'], (x) => x.final) }];
+    }
+    if (node.id === 'place') {
+      const keep = S6.filter((x) => x.final && x.final !== '不建议 offer');
+      const op = S.plans.filter((p) => p.kind === 'org' && p.batch === 'b-xe6-end').sort((a, b) => b.version - a.version)[0];
+      return [{ k: '留用沟通', v: `${keep.length} 人：${tally(keep, ['接受', '拒绝'], (x) => x.accept).replace('拒绝', '未接受')}${keep.filter((x) => !x.accept).length ? ` · 待沟通 ${keep.filter((x) => !x.accept).length}` : ''}` },
+        { k: '部门待定', v: `${S6.filter((x) => x.dest === '待定部门').length} 人` },
+        ...(op ? [{ k: '方案', v: `${op.title} v${op.version} · ${op.status === 'confirmed' ? '已确认' : '草稿'}`, href: 'plan.html?id=b-xe6-end' }] : [])];
+    }
+    return [];
+  };
+  // AI 草拟：只从上面的结果里取数，写成做得好 / 要改进两组；没有可用的结果就不草拟
+  store.nodeDraft = (pgId, node) => {
+    if (pgId !== 'pg-xe6') return null;
+    const T = XE.teams, S6 = XE.students;
+    if (node.id === 'ms') {
+      const drop = T.filter((t) => t.ms.MS4 < t.ms.MS3).length;
+      const avg = (k) => T.reduce((a, t) => a + t.ms[k], 0) / T.length, a1 = avg('MS1'), a4 = avg('MS4');
+      return { good: [`${T.filter((t) => t.live === '公开路演').length} 个组走到了公开路演`, ...(a4 > a1 ? [`各组平均分从 MS1 的 ${a1.toFixed(1)} 到 MS4 的 ${a4.toFixed(1)}，收尾比起步好`] : [])], improve: [`${drop} 个组 MS4 比 MS3 低，要看是课题收尾还是带教跟进的问题`] };
+    }
+    if (node.id === 'end') {
+      const miss = S6.filter((x) => !x.backJ).length;
+      return { good: ['结营结论和导师留用建议在同一张表里，对得上'], improve: [`${judgeLine()}，先在判断对照里归因`, ...(miss ? [`${miss} 人没有结营结论，要补齐后再定去向`] : [])] };
+    }
+    return null;
+  };
+  store.canWriteRetro = (role = store.role()) => role === 'hrbp';
+  store.setNodeRetro = (key, good, improve, from) => {
+    S.nodeRetros ||= {};
+    const list = (S.nodeRetros[key] ||= []);
+    list.unshift({ good, improve, by: store.me().id, at: NT.TODAY, from });
+    store.save();
+    return () => { list.shift(); if (!list.length) delete S.nodeRetros[key]; store.save(); };
+  };
+  store.addNodeAction = (key, title, due) => {
+    const a = { id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title, node: key, person: null, owner: store.me().id, due, state: 'todo' };
+    S.actions.unshift(a);
+    store.save();
+    return () => { S.actions = S.actions.filter((x) => x !== a); store.save(); };
   };
 
   // ---------- 值得关注（v1.4 3.20，watch-v1）：按写明的规则入选，按触发时间排，不按分数挑人，不显示分数 ----------

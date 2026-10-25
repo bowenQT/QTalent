@@ -174,6 +174,24 @@
     { id: 'pg-xe5', kind: 'XEngineer', name: 'XEngineer 第五期', from: '2026-04-06', to: '2026-05-29', people: [], nodes: [['2026-05-29', '结营评审']] },
   ];
 
+  // 项目复盘：每期人才项目的关键节点。from 是这个节点产生的盘点、判断对照或方案，由它们生成的行动挂到这个节点下
+  const RETRO_NODES = {
+    'pg-xe6': [
+      { id: 'w4', at: '2026-08-02', name: 'W4 周评', from: ['jr-xe6'] },
+      { id: 'mid', at: '2026-08-10', name: '中期盘点', from: ['b-xe6-mid'] },
+      { id: 'ms', at: '2026-08-29', name: '里程碑路演', sub: 'MS1–MS4' },
+      { id: 'end', at: '2026-08-31', name: '结营评审' },
+      { id: 'place', at: null, name: '留用与落位', from: ['b-xe6-end'] },
+    ],
+  };
+  // 节点复盘：做得好 / 要改进，HR 署名；最新一条在前，旧的保留
+  const NODE_RETROS = {
+    'pg-xe6:w4': [{ good: ['交了周评的同学都有导师评语，三档用法一致'], improve: ['「正常发挥」一档没有写行为要求，一半以上的同学落在这一档，结营时分成两头', '13 人没有 W4 周评记录，中期盘点只能标资料不足'], by: 'p-suwan', at: '2026-09-03', from: 'edit' }],
+    'pg-xe6:mid': [{ good: ['周评需关注的同学都约了导师一对一，两项在营调整按时落实'], improve: ['盘点时大多数人资料不足，下一期中期前先补齐周评和路演记录'], by: 'p-suwan', at: '2026-08-12', from: 'new' }],
+    'pg-land3:n0': [{ good: ['结营前完成了全部去向沟通'], improve: ['部门接收确认偏晚，下一期结营前两周发需求'], by: 'p-suwan', at: '2026-07-08', from: 'new' }],
+    'pg-xe5:n0': [{ good: ['结营评审和导师留用建议在同一张表里，对得上'], improve: ['周评只有三档，区分不开，下一期补写法要求'], by: 'p-suwan', at: '2026-06-03', from: 'new' }],
+  };
+
   // ---------- 用人需求与方案 ----------
   const NEEDS = [
     { id: 'n-ts', project: 'pr-ts', version: 1, by: 'p-suwan', at: '2026-09-01', text: 'TS 新人组要一个能带大家对齐节奏的牵头人',
@@ -196,12 +214,9 @@
 
   // ---------- 行动 ----------
   const ACTIONS = [
-    { id: 'a-x08', title: '谷嘉树：导师每周一对一，W6 起负责全组的测试与 CI', from: 'b-xe6-mid', person: 'p-x08', owner: 'p-yeqing', due: '2026-08-14', did: '2026-08-12', state: 'done', observe: '2026-09-15',
-      then: ['目标：把 W4「需关注」的原因弄清楚', '依据：中期盘点资料不足，周评只写了「需关注」', '观察：W8 前能不能独立负责一块工作'],
-      now: [['W8 负责 CI 整体覆盖率提升', 'e-x08-3'], ['结营建议：应届 · 继续实习观察', null]] },
+    { id: 'a-x08', title: '谷嘉树：导师每周一对一，W6 起负责全组的测试与 CI', from: 'b-xe6-mid', person: 'p-x08', owner: 'p-yeqing', due: '2026-08-14', did: '2026-08-12', state: 'done', observe: '2026-09-15' },
     { id: 'a-x15', title: '周初晴：W6 起和后端一起对齐接口', from: 'b-xe6-mid', person: 'p-x15', owner: 'p-yeqing', due: '2026-08-12', did: '2026-08-11', state: 'done', observe: '2026-09-30' },
-    { id: 'a-weekly', title: '修订周评标准：每一档都写明行为证据（xe-weekly-v2）', kind: '修订评价标准', from: 'jr-xe6', owner: 'p-suwan', due: '2026-09-15', state: 'todo', observe: '2026-11-30',
-      then: ['目标：周评「正常发挥」一档的区分度提高', '依据：第六期判断对照，周评正常发挥的同学结营结论分成两头', '观察：第七期按 v2 周评，看判断对照里的偏差'] },
+    { id: 'a-weekly', title: '修订周评标准：每一档都写明行为证据（xe-weekly-v2）', kind: '修订评价标准', from: 'jr-xe6', owner: 'p-suwan', due: '2026-09-15', state: 'todo', observe: '2026-11-30' },
   ];
 
   // ---------- 重点跟踪 ----------
@@ -397,8 +412,8 @@
   ];
 
   NT.SEED = {
-    version: 'y4', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
+    version: 'y5', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES: [], FOLLOWS,
-    FAMILIES, ENG_THEMES, RULES, RULE_SUGS,
+    FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS,
   };
 })();

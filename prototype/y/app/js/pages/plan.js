@@ -165,6 +165,6 @@
     render($('#main'));
     const seal = $('#seal'); seal?.classList.add('is-stamping');
     $('#doc')?.classList.add('is-settling');
-    NT.toast(`已确认 v${p.version} 并冻结${created ? `，新增 ${created} 条行动` : ''}，在「行动与复盘」里跟进`);
+    NT.toast(`已确认 v${p.version} 并冻结${created ? `，新增 ${created} 条行动` : ''}，在「项目复盘」里跟进`);
   }
 })();
