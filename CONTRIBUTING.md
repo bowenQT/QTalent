@@ -5,7 +5,7 @@
 ## 适用阶段与唯一入口
 
 - 本文是协作流程的维护源；AGENTS 只保留入口，模板提供填写结构，调研报告解释依据。规则变化在此更新，并同步链接和模板，不复制到其他指令文件。
-- 远端为 [bowenQT/QTalent](https://github.com/bowenQT/QTalent)，私有，默认分支 `main`。使用 GitHub issue / PR 跟踪新工作，工程基础合入后的开发任务卡在 Linear（见 Issue 一节）；不为既有本地历史补造编号或审批，不另建一套本地任务台账。
+- 远端为 [bowenQT/QTalent](https://github.com/bowenQT/QTalent)，私有，默认分支 `main`。使用 GitHub issue / PR 跟踪新工作；按 Linear 任务卡推进的工作由 Linear 管规划、GitHub issue 管开发，两边状态保持一致（见 Issue 一节）；不为既有本地历史补造编号或审批，不另建一套本地任务台账。
 - 新提交采用下方格式，已发布历史不重写。UI/UX 已定稿，项目处于第 3 阶段工程基建（见 [AGENTS.md](AGENTS.md#当前阶段)）。
 - 仓库设置以文末回读记录为准。CI 由工程基础建立，复用工程的检查脚本；不安装提交格式 hook 或 commitlint。文字规范、模板和工具配置不能代替平台强制门禁。
 
@@ -26,7 +26,11 @@ Issue 记录“要解决什么、何时算完成”；Proposal 记录“选什�
 - 缺陷写实际行为、预期依据、复现步骤、版本 / 环境和影响；偶发问题允许如实写“尚不能稳定复现”，附已知条件与证据，不编造步骤或根因。任务写目标、范围、已确认的完成条件和依赖；方案讨论的完成条件可以是“作出并记录决策”，不预设功能验收。
 - 开始执行时明确一个负责人；阻塞时写清依赖、解除条件和跟进人。优先级按实际影响和时效判断，报告者的紧急判断由维护者核实。标签只用 `type:bug`、`type:feature`、`type:task`、`type:proposal` 四选一，按需加 `blocked`、`priority:urgent`；不维护重复的状态标签。
 - GitHub issue 的 open / closed 与关联 PR 表达进度；只有确实需要跨任务排期时才引入 milestone 或项目看板。不引入自动过期关闭或例行填状态。
-- 工程基础合入后的开发任务以 Linear 任务卡为准（[架构提案](docs/proposals/2026-10-25-y-architecture-phases.md) U-21），同一任务不再建 GitHub issue，避免双录。每张卡写明类型、可改的目录与文件、依赖的卡和完成条件；分支名和 PR 标题带卡的编号，PR 正文链接该卡。其他事项仍按本节使用 GitHub issue。
+- 工程基础及之后的开发任务按 Linear 任务卡推进（[架构提案](docs/proposals/2026-10-25-y-architecture-phases.md) U-21），Linear 与 GitHub 分工如下，其他事项仍按本节只用 GitHub issue：
+  - **Linear 管规划**：每张卡写明类型、可改的目录与文件、依赖的卡和完成条件，spec 作为 Linear 文档挂在卡上；范围、spec、依赖与里程碑以卡为准。
+  - **GitHub issue 管开发**：每张卡对应一个 GitHub issue，用于领取、开发和关联 PR。issue 标题带卡号，正文链接卡片并列出先合入的依赖，依赖同时建成 GitHub 的 blocked-by 关系；卡上附 issue 链接。issue 不复写卡的范围细节，两边不一致时以卡为准并同步 issue。
+  - **状态同步**：分支名和 PR 标题带卡号（如 `codex/bow-123-<短名>`）。开工时把卡改为 In Progress，开 PR 后 Linear 也会按团队工作流设置自动移动。PR 正文按下方规则选 `Closes` 或 `Refs` 关联 issue，同时写卡号：`Closes #<issue>` 配 `Fixes BOW-123`，合并后 issue 关闭、卡进入 Done；`Refs #<issue>` 配 `Part of BOW-123`，卡不随合并完成，验收后再关闭 issue、把卡改为 Done。
+  - **变更**：新增、拆分、改范围或取消时先改 Linear 卡，再同步 issue；新卡同时补建 issue 并互相链接，取消的 issue 写明原因后按 not planned 关闭。当前未开启 Linear 的 GitHub Issues 双向同步；开启前先处理已建 issue 会被导入成重复卡的问题。
 - 关闭时对照完成条件，留下结果及 PR / 验证链接。部分实现继续 open；重复、拒绝或取消写原因及去向，标为 not planned，不记成完成。Proposal 的讨论 issue 可在决策落文档后关闭，实施任务另行关联。
 - 只有该 PR 合入默认分支就能满足全部完成条件时，正文才用 `Closes #123`；部分交付、父任务、还需部署或人工验收的事项用 `Refs #123`，待实际验收后关闭。不要在中间 commit 里放自动关闭关键词。
 
