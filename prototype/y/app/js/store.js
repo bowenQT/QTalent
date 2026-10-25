@@ -886,9 +886,18 @@
   store.setNodeRetro = (key, good, improve, from) => {
     S.nodeRetros ||= {};
     const list = (S.nodeRetros[key] ||= []);
-    list.unshift({ good, improve, by: store.me().id, at: NT.TODAY, from });
+    const entry = { good, improve, by: store.me().id, at: NT.TODAY, from };
+    list.unshift(entry);
     store.save();
-    return () => { list.shift(); if (!list.length) delete S.nodeRetros[key]; store.save(); };
+    // 撤销只移除本次写入，不能误删在此之后保存的新复盘。
+    return () => {
+      if (S.nodeRetros[key] !== list) return;
+      const i = list.indexOf(entry);
+      if (i < 0) return;
+      list.splice(i, 1);
+      if (!list.length) delete S.nodeRetros[key];
+      store.save();
+    };
   };
   store.addNodeAction = (key, title, due) => {
     const a = { id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title, node: key, person: null, owner: store.me().id, due, state: 'todo' };
