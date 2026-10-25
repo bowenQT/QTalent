@@ -66,7 +66,19 @@ function Note({ children }: { children: ReactNode }) {
  * 引用角标：展开时才读取原文，把读取结果映射成 Cite 的各个状态。
  * 没有引用的条目不要渲染它；不要拿一段引文代替引用。
  */
-export function SourceCite({ source, index, loadSource }: SourceCiteProps) {
+export function SourceCite(props: SourceCiteProps) {
+  // 换了一条引用就是另一份读取：重新挂载，旧结果、在途响应和「已读取」标记都不带过去。
+  const { fragmentId, originalVersionId } = props.source;
+  return (
+    <SourceCiteReader
+      key={`${fragmentId}\u0000${originalVersionId}`}
+      {...props}
+    />
+  );
+}
+
+function SourceCiteReader({ source, index, loadSource }: SourceCiteProps) {
+  const host = useRef<HTMLSpanElement>(null);
   const [phase, setPhase] = useState<Phase>({ status: 'idle' });
   const alive = useRef(true);
   const started = useRef(false);
@@ -92,6 +104,11 @@ export function SourceCite({ source, index, loadSource }: SourceCiteProps) {
       // 卸载后或已有更新的请求时，晚到的响应直接丢弃。
       if (alive.current && mine === request.current) setPhase(next);
     })();
+  };
+  // 重试按钮会随读取中状态消失：先把焦点交回角标，Cite 内部的焦点状态才不会悬空。
+  const retry = () => {
+    host.current?.querySelector<HTMLElement>('.n-cite__mark')?.focus();
+    read();
   };
   // 首次展开才读取；读取中、已有结果时重复展开不再请求，只有失败后点「重试」才重来。
   const first = () => {
@@ -157,7 +174,7 @@ export function SourceCite({ source, index, loadSource }: SourceCiteProps) {
           ) : (
             <>
               <Note>读取失败</Note>{' '}
-              <button type="button" className="n-link" onClick={read}>
+              <button type="button" className="n-link" onClick={retry}>
                 重试
               </button>
             </>
@@ -167,7 +184,7 @@ export function SourceCite({ source, index, loadSource }: SourceCiteProps) {
     );
   }
   return (
-    <span onMouseEnter={first} onFocus={first} onClick={first}>
+    <span ref={host} onMouseEnter={first} onFocus={first} onClick={first}>
       {cite}
     </span>
   );

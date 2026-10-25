@@ -273,6 +273,87 @@ describe('SourceCite failures', () => {
   });
 });
 
+describe('SourceCite identity and focus', () => {
+  const other: SourceReference = {
+    fragmentId: 'frag-test-2',
+    originalVersionId: 'ver-test-2',
+    location: { kind: 'spreadsheet', sheet: '观察表', cell: 'D9' },
+  };
+  const otherSource: Source = {
+    ...other,
+    excerpt: '另一条引用的原文',
+    sourceType: 'spreadsheet',
+    sourceCategory: 'original',
+    demo: true,
+  };
+
+  it('does not show or reuse a read that belongs to the previous reference', async () => {
+    let resolveFirst!: (value: SourceReadResult) => void;
+    const load = vi.fn<LoadSource>((input) =>
+      input.fragmentId === reference.fragmentId
+        ? new Promise<SourceReadResult>((r) => (resolveFirst = r))
+        : Promise.resolve(success(otherSource)),
+    );
+    const view = setup(load);
+    const user = userEvent.setup();
+    await user.hover(mark());
+    view.rerender(<SourceCite source={other} index="原文" loadSource={load} />);
+    expect(popText(view)).toContain('「观察表」D9');
+    expect(popText(view)).not.toContain('读取失败');
+    await act(async () => resolveFirst(success(original)));
+    expect(popText(view)).not.toContain('联调时能独立定位问题');
+    await user.unhover(mark());
+    await user.hover(mark());
+    await waitFor(() => expect(popText(view)).toContain('另一条引用的原文'));
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(load.mock.calls[1]![0]).toEqual({
+      fragmentId: 'frag-test-2',
+      originalVersionId: 'ver-test-2',
+    });
+  });
+
+  it('forgets a finished read when the reference changes', async () => {
+    const load = vi
+      .fn<LoadSource>()
+      .mockResolvedValueOnce(success(original))
+      .mockResolvedValueOnce(success(otherSource));
+    const view = setup(load);
+    const user = userEvent.setup();
+    await user.hover(mark());
+    await waitFor(() => expect(popText(view)).toContain('联调时'));
+    view.rerender(<SourceCite source={other} index="原文" loadSource={load} />);
+    expect(popText(view)).not.toContain('联调时');
+    await user.unhover(mark());
+    await user.hover(mark());
+    await waitFor(() => expect(popText(view)).toContain('另一条引用的原文'));
+  });
+
+  it('keeps the popover closable by an outside click after retrying', async () => {
+    const load = vi
+      .fn<LoadSource>()
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(success(original));
+    const view = render(
+      <>
+        <SourceCite source={reference} index="原文" loadSource={load} />
+        <button type="button">页面其他位置</button>
+      </>,
+    );
+    const user = userEvent.setup();
+    await user.tab();
+    await waitFor(() => expect(popText(view)).toContain('读取失败'));
+    await user.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: '重试' }),
+    );
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(popText(view)).toContain('联调时'));
+    expect(document.activeElement).toBe(mark());
+    await user.click(screen.getByRole('button', { name: '页面其他位置' }));
+    expect(mark().getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
 describe('SourceCite recordings', () => {
   it('shows the time range and excerpt without any play button', async () => {
     const recording: SourceReference = {
