@@ -223,6 +223,41 @@ describe('Kodo transport and immutable contract', () => {
   });
 });
 describe('private proxy stream', () => {
+  it('requests identity for text downloads so wire length matches decoded bytes', async () => {
+    const text = 'synthetic text '.repeat(100);
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, init) => {
+      const identity =
+        new Headers(init?.headers).get('Accept-Encoding') === 'identity';
+      // Node fetch transparently decodes gzip but retains its compressed length.
+      return new Response(text, {
+        headers: {
+          'content-length': identity ? String(Buffer.byteLength(text)) : '62',
+          'content-type': 'text/plain',
+          ...(identity ? {} : { 'content-encoding': 'gzip' }),
+        },
+      });
+    });
+    expect(
+      new TextDecoder().decode(
+        await createKodoClient(config, { fetch }).read('text'),
+      ),
+    ).toBe(text);
+  });
+  it('refuses an encoded response that ignores identity before proxying bytes', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response(bytes, {
+        headers: {
+          'content-length': '3',
+          'content-type': 'text/plain',
+          'content-encoding': 'gzip',
+        },
+      }),
+    );
+    await expect(
+      createKodoClient(config, { fetch }).read('text'),
+    ).rejects.toMatchObject({ code: 'integrity' });
+  });
+
   it('redacts transport errors from rejected metadata cleanup and explicit cancellation', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(
       new Response(

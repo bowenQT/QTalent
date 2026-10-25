@@ -194,14 +194,16 @@ export function createKodoClient(
       ? AbortSignal.any([input.signal, controller.signal])
       : controller.signal;
     const response = await request(signedUrl(key, now() + 300000), {
-      headers: range
-        ? { Range: `bytes=${range.start}-${range.end ?? ''}` }
-        : {},
+      headers: {
+        'Accept-Encoding': 'identity',
+        ...(range ? { Range: `bytes=${range.start}-${range.end ?? ''}` } : {}),
+      },
       signal,
     });
     const length = response.headers.get('content-length');
     const contentType = response.headers.get('content-type');
     const contentRange = response.headers.get('content-range');
+    const contentEncoding = response.headers.get('content-encoding');
     const matched = contentRange?.match(/^bytes (\d+)-(\d+)\/(\d+)$/);
     const validRange =
       range &&
@@ -214,6 +216,7 @@ export function createKodoClient(
         : Number(matched[2]) === Math.min(range.end, Number(matched[3]) - 1)) &&
       Number(length) === Number(matched[2]) - Number(matched[1]) + 1;
     if (
+      (contentEncoding !== null && contentEncoding !== 'identity') ||
       !length ||
       !/^\d+$/.test(length) ||
       !Number.isSafeInteger(Number(length)) ||
