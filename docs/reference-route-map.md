@@ -23,9 +23,9 @@
 | `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
-| `app/record.html`                 | `/record`                         | record / record                     | record / records                             | 后续 / 404     |
+| `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
-| `app/queue.html`                  | `/queue`                          | queue / queue                       | queue / evaluation-system                    | 后续 / 404     |
+| `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
 | `app/review.html`                 | `/review?id=…`                    | review / review                     | review / talent                              | 后续 / 404     |
 | `app/calibrate.html`              | `/calibrate`                      | calibrate / calibrate               | calibrate / talent                           | 后续 / 404     |
@@ -35,7 +35,7 @@
 | `app/actions.html`                | `/program-actions`                | program-actions / program-actions   | program-actions / programs                   | 后续 / 404     |
 | `app/projects.html`               | `/projects`                       | projects / projects                 | projects / staffing                          | 已实现参考切片 |
 | `app/project.html`                | `/project?id=…`                   | project / project                   | project / staffing                           | 后续 / 404     |
-| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing                 | staffing / staffing                          | 后续 / 404     |
+| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 契约已定义，查询与 UI 待接入 / 404 |
 | `app/rules.html`                  | `/rules`                          | rules / rules                       | rules / evaluation-system                    | 后续 / 404     |
 | `app/judge.html`                  | `/judge?rater=me`                 | judge / judge                       | judge / evaluation-system                    | 后续 / 404     |
 | `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
@@ -50,6 +50,12 @@
 | `m/me.html`                       | `/m/me`                           | mobile-account / mobile-account     | mobile-account / directory                   | 后续 / 404     |
 | `design-system.html`              | `/dev/design-system`              | 已移植基础组件                      | —                                            | 已实现开发样张 |
 | `404.html`                        | 全局 404                          | State                               | —                                            | 已实现         |
+
+## BOW-851 找人契约
+
+`src/contracts/staffing.ts` 定义需求卡起草、编辑与确认、候选人逐条四态判断及来源、署名人工判断，以及复用 jobs 的 `staffing_match` 进度消息。方案槽位、方案确认和冻结保持 `not_connected`。
+
+本切片只交付契约与合成测试；`/staffing?new=1` 与 `?project=…` 的查询、动作和页面由 BOW-852、BOW-853、BOW-854 接入，当前继续返回 404。契约不将加分项换成候选排名，不向前端输出 confidence。
 
 ## 已移植组件与样式
 
@@ -141,3 +147,9 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 前端开发夹具：`tests/fixtures/p0-contracts.ts`，只含 `test-*` 标识和明确合成描述，涵盖三角色、ready/empty/insufficient_evidence/unknown/not_connected、来源拒绝。不得作为生产 fallback。测试：`src/contracts/p0-contracts.test.ts`；不改变工程共享配置与覆盖率排除。
 
 BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认分一样参加能力谱和参考位置；原型 AI 建议及资料不足不计入。这个合同不决定授权或正式导入许可，正式入口拒绝 prototype_baseline 由 BOW-834 保证。前端负责人需评审新增快照位置、来源类别与提示的展示；当前尚无该验收证据。
+
+## BOW-844 记事与评分复核契约
+
+`src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
+
+本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
