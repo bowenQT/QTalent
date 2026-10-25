@@ -6,12 +6,13 @@
   const { html, raw, icon, mount, $, $$ } = NT;
   const pid = NT.param('id') || st.me().id;
   let ver = 'now';
+  const gone = !st.person(pid);
 
   NT.shell({
     nav: 'people', title: st.person(pid)?.name || '人员档案', crumbs: st.role() === 'self' ? [] : [['人才', 'people.html']],
     allow: () => !!st.scope(pid),
-    denyTitle: '你没有查看这个人的权限',
-    denyText: '档案只对管理者、归属 HR 和所带学员的导师开放。切换演示视角，或回到人才列表。',
+    denyTitle: gone ? '人员链接失效' : '这个人在你的查看范围之外',
+    denyText: gone ? '可能已删除，或链接有误。回到工作台重新进入。' : '档案对管理者、归属 HR 和所带学员的导师开放。切换演示视角，或回到工作台。',
     view: () => `档案 · ${ver === 'now' ? '当前版本' : ver}`,
     state: () => ({ ver }),
     restore: (s) => { if (s.ver) { ver = s.ver; render($('#main')); } },
@@ -57,8 +58,8 @@
           ${st.can('record', pid) ? html`<a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${pid}">${icon('pen')}记一件事</a>` : ''}
           ${UI.followBtn(pid)}
           ${st.canRecommend(pid) ? html`<button class="n-btn n-btn--sm" type="button" id="btn-reco">${icon('target')}推荐方向</button>` : ''}
-          ${canQuad && !tracks.some((t) => t.state === 'on') ? html`<button class="n-btn n-btn--sm" type="button" id="btn-track">${icon('target')}重点跟踪</button>` : ''}
-          ${st.can('record', pid) ? html`<a class="n-btn n-btn--sm n-btn--ghost" href="index.html#upload">${icon('upload')}上传材料</a>` : ''}
+          ${canQuad && role !== 'ceo' && !tracks.some((t) => t.state === 'on') ? html`<button class="n-btn n-btn--sm" type="button" id="btn-track">${icon('target')}重点跟踪</button>` : ''}
+          ${st.can('record', pid) && role !== 'ceo' ? html`<a class="n-btn n-btn--sm n-btn--ghost" href="index.html#upload">${icon('upload')}上传材料</a>` : ''}
         </div>
       </header>
 
@@ -74,7 +75,7 @@
           </article>` : ''}
           ${summaryBlock(p, events, canScore, ref, f, canQuad)}
           ${spec ? html`<article class="n-card n-spectrum" id="spectrum">
-            <div class="n-spectrum__head"><div><h3 class="n-section-title" style="margin:0">个人能力谱</h3><div class="nt-muted">详细维度 · 近 12 个月 · 已确认 ${spec.total} 条事件分 · ${['ceo', 'hrbp'].includes(st.role()) ? html`<a class="nt-plink" href="rules.html?r=rubric">${spec.vers.join('、') || st.ruleLive('rubric').v}</a>` : spec.vers.join('、') || st.ruleLive('rubric').v}</div></div>${canQuad ? UI.miniquad(pid) : ''}</div>
+            <div class="n-spectrum__head"><div><h3 class="n-section-title" style="margin:0">个人能力谱</h3><div class="nt-muted">详细维度 · 近 12 个月 · 已确认 ${spec.total} 条事件分 · ${['ceo', 'hrbp'].includes(st.role()) ? html`<a class="nt-plink" href="rules.html?r=rubric" title="${spec.vers.join('、') || st.ruleLive('rubric').v}">评价规则</a>` : html`<span title="${spec.vers.join('、') || st.ruleLive('rubric').v}">评价规则</span>`}</div></div>${canQuad ? UI.miniquad(pid) : ''}</div>
             <div class="n-spectrum__scale"><span></span><div class="n-spectrum__ticks">${[1, 2, 3, 4, 5].map((v, i) => html`<span style="left:${i * 25}%">${v}</span>`)}</div><span></span></div>
             <div id="spec-rows">${spec.html}</div>
             <div class="n-spectrum__legend"><span><i class="k-all"></i>外圈：这个分值的全部事件</span><span><i class="k-recent"></i>实心：其中近 3 个月</span><span><i class="k-mean"></i>均值</span><span><i class="k-unknown"></i>资料不足</span><span>点一行展开事件</span></div>
@@ -88,14 +89,15 @@
         </div>
 
         <aside class="nt-grid">
-          <div id="dirwrap">${UI.directionBlock(pid, { canWrite: mgmt ? 'mgmt' : '' })}</div>
-          ${tracks.length ? html`<div id="trackwrap" class="nt-grid">${tracks.map((t) => UI.trackCard(t))}</div>` : ''}
+          <div id="dirwrap">${UI.directionBlock(pid, { canWrite: st.can('curate', pid) ? 'mgmt' : '' })}</div>
+          ${tracks.length ? html`<div id="track" data-trackwrap class="nt-grid">${tracks.map((t) => UI.trackCard(t, { readonly: role === 'ceo' }))}</div>` : ''}
           ${achg.length ? html`<article class="n-card"><h3 class="n-section-title">活跃度与安排</h3><div id="pachanges">${achg.map((c) => UI.change(c, 'win'))}</div></article>` : ''}
           ${sig ? html`<div id="sigwrap">${UI.signalBlock(sig)}</div>` : ''}
           ${canQuad ? html`<article class="n-card"><h3 class="n-section-title">能力象限</h3>
             <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)} <span class="nt-muted">${f.snap.label} 校准 · ${NT.md(f.snap.at)} · ${st.person(f.snap.by).name}确认</span>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
-              <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted">规则 rubric-v1</span>`}</dd></dl>
-            ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后新增的已确认事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm" href="calibrate.html?id=b-xe6-end&team=${p.org}">加入下次校准</a></div></div></div>` : ''}
+              <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted" title="rubric-v1">按当前评价规则</span>`}</dd></dl>
+            ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后新增的已确认事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。${st.can('calibrate') ? html`<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm" href="calibrate.html?id=b-xe6-end&team=${p.org}">加入下次校准</a></div>` : ''}</div></div>` : ''}
+            ${st.recalKept(pid) ? (() => { const k = st.recalKept(pid); return html`<p class="nt-caption">参考位置在「${st.QN[k.refQ]}」，${st.person(k.by).name} ${NT.md(k.at)} 决定保持正式位置：<span class="ink-hand">${k.why}</span></p>`; })() : ''}
             ${ref.na ? html`<p class="nt-caption">落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分。</p>` : ''}
           </article>` : ''}
 
@@ -114,7 +116,7 @@
     if ($('#pchanges')) UI.wireChanges($('#pchanges'));
     if ($('#pachanges')) UI.wireChanges($('#pachanges'));
     if ($('#sigwrap')) UI.wireSignal($('#sigwrap'), () => render(main));
-    if ($('#trackwrap')) UI.wireTracks($('#trackwrap'), () => render(main));
+    if ($('[data-trackwrap]')) UI.wireTracks($('[data-trackwrap]'), () => render(main));
     $('#pver')?.addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; ver = b.dataset.v; render(main); });
     $('#btn-track')?.addEventListener('click', () => startTrack());
     wireTimeline(main);
@@ -123,14 +125,14 @@
     if (NT.param('track') && !tracks.some((t) => t.state === 'on') && !render.asked) { render.asked = true; startTrack(); }
   }
 
-  // 为什么值得关注：与首页那一行、速览里的说法一致，规则编号与版本放在末尾供追溯
+  // 为什么值得关注：与首页那一行、速览里的说法一致，规则编号与版本放进 title 供追溯
   function whyBlock(w) {
     const rule = st.WATCH_RULES[w.rule], cat = Object.fromEntries(st.WATCH_CATS)[w.cat];
     const src = w.verifiedBy ? `${w.by === 'ai' ? 'AI 从材料里发现' : `${st.person(w.by).name}${w.dir ? '推荐' : '提名'}`} · ${st.person(w.verifiedBy).name}核实` : '按写明的规则得出';
     return html`<article class="n-card n-pwhy" id="why"><h3 class="n-section-title">为什么值得关注</h3>
       <div class="n-peek__why"><span class="n-watch__cat">${cat}</span>${w.why}${w.srcs ? UI.cites(w.srcs) : (w.evs || []).slice(0, 3).map((id, i) => UI.evCite(id, i + 1))}</div>
-      <p class="n-peek__src">${src} · ${NT.md(w.when)}${w.also.length ? ` · 也命中 ${w.also.map((a) => `${a.rule}（${a.why}）`).join('、')}` : ''}</p>
-      <p class="n-peek__rule">规则 ${w.rule}：${rule.text} · ${st.WATCH_VER}</p></article>`;
+      <p class="n-peek__src">${src} · ${NT.md(w.when)}${w.also.length ? ` · 另有 ${w.also.length} 条依据：${w.also.map((a) => a.why).join('；')}` : ''}</p>
+      <p class="n-peek__rule" title="${w.rule} · ${st.WATCH_VER}">入选依据：${rule.text}</p></article>`;
   }
 
   async function startTrack() {
@@ -165,7 +167,7 @@
     if (canQuad && st.needsRecal(pid)) text += `冻结后的新事件让参考位置离开了正式象限，建议在下次校准时讨论。`;
     if (saved) return html`<div class="n-block" data-state="ink" id="summary">${saved.text}<div class="n-block__by"><span class="n-block__sig">${st.person(saved.by).name}</span>${NT.md(saved.at)} 采纳 AI 摘要</div></div>`;
     return html`<div><div class="n-block" data-state="light" id="summary"><span id="sum-text">${text}</span><div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>依据 ${obs.length} 条事件 · 只用你有权限查看的资料</div></div>
-      ${st.role() !== 'mentor' ? html`<div class="nt-row" style="margin-top:var(--s-2);padding-left:var(--s-5)" id="sum-acts"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-sum="ok">${icon('check')}采纳</button><button class="n-btn n-btn--sm" type="button" data-sum="edit">${icon('pen')}改写</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-sum="drop">删去</button></div>` : ''}</div>`;
+      ${st.can('curate', pid) ? html`<div class="nt-row" style="margin-top:var(--s-2);padding-left:var(--s-5)" id="sum-acts"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-sum="ok">${icon('check')}采纳</button><button class="n-btn n-btn--sm" type="button" data-sum="edit">${icon('pen')}改写</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-sum="drop">删去</button></div>` : ''}</div>`;
   }
   function wireSummary(main) {
     const acts = $('#sum-acts'); if (!acts) return;
@@ -239,7 +241,7 @@
       }
       const d = e.target.closest('[data-date]');
       if (d) {
-        const r = await NT.dialog({ title: '补上时间', body: html`<p>一对一记录里没说是哪一次。补上之后，这条事件才会参与「近 3 个月」的统计和象限计算。</p><label class="n-field" style="margin-top:var(--s-3)"><span class="n-field__label">大约什么时候</span><input class="n-input" type="date" id="dd" value="2026-10-16" max="${NT.TODAY}"></label>`,
+        const r = await NT.dialog({ title: '补上时间', body: html`<p>一对一记录里没说是哪一次。补上之后，这条事件才会参与「近 3 个月」的统计和象限计算。</p><label class="n-field" style="margin-top:var(--s-3)"><span class="n-field__label">大约什么时候</span><input class="n-input" type="date" id="dd" value="${NT.TODAY}" max="${NT.TODAY}"></label>`,
           actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '保存', value: 'ok', cls: 'n-btn--ink', read: (x) => x.querySelector('#dd').value }] });
         if (r?.value === 'ok' && r.data) { st.event(d.dataset.date).date = r.data; st.save(); render(main); NT.toast('时间已补上，时间线和统计随之更新'); }
       }

@@ -15,19 +15,32 @@
   const TAGS = [['方案对比', /方案|对比/], ['主动推进', /主动|认领/], ['任务拆解', /拆/], ['需求变更', /需求.{0,4}(改|变)/], ['线上故障', /故障/], ['跨团队协作', /协调|对齐|跨/],
     ['客户现场', /客户/], ['故障定位', /定位|排查/], ['导师带教', /带新人|熟悉|带教/], ['复盘习惯', /复盘/]];
   const NEG = /(没有?|未|不|别)$/;
-  const UNKNOWN_NOTE = { grit: '原话没写受挫后的反应', mot: '没写是主动还是被安排', wis: '原话里没有判断与取舍', prof: '没写具体做了什么、结果如何' };
+  const UNKNOWN_NOTE = { grit: '受挫后的反应待补充', mot: '主动还是被安排，待补充', wis: '判断与取舍待补充', prof: '具体做了什么、结果如何，待补充' };
 
+  // 引用对齐到分句：从命中词所在分句的开头取到分句末尾，不以标点开头，也不在词中间截断；分句太长时两端标「…」
+  const CLAUSE_END = /[，。；！？、\n,.;!?]/;
+  const QUOTE_MAX = 30;
   function snippet(text, m) {
-    const i = Math.max(0, m.index - 4), s = text.slice(i, m.index + m[0].length + 8).replace(/[，。；\s]+$/, '');
-    return s.length > 18 ? `${s.slice(0, 18)}…` : s;
+    let a = m.index, b = m.index + m[0].length;
+    while (a > 0 && !CLAUSE_END.test(text[a - 1])) a -= 1;
+    while (b < text.length && !CLAUSE_END.test(text[b])) b += 1;
+    let s = text.slice(a, b).trim();
+    if (s.length <= QUOTE_MAX) return s;
+    const at = m.index - a;
+    const from = Math.max(0, Math.min(at - 6, s.length - QUOTE_MAX));
+    return `${from > 0 ? '…' : ''}${s.slice(from, from + QUOTE_MAX)}${from + QUOTE_MAX < s.length ? '…' : ''}`;
   }
   function shape(text, pid) {
     const p = st.person(pid);
     const clean = text.replace(new RegExp(`^${p.name}`), '').replace(/^(今天|这周|昨天|上周)/, '');
     const parts = clean.split(/[。！？；\n]/).map((s) => s.trim()).filter(Boolean);
     let bg = '', act = '', res = '';
-    if (parts.length >= 3) { bg = parts[0]; act = parts.slice(1, -1).join('，'); res = parts[parts.length - 1]; }
-    else if (parts.length === 2) { bg = parts[0]; act = parts[1]; }
+    // 三句及以上：首句是情境，末句是影响，其余是行为；两句：先行为后影响；一句：只有行为，情境和影响待补充
+    // 首句本身写了具体行为时，它归行为，情境留给本人补充
+    if (parts.length >= 3) {
+      const lead = RULES.some((r) => r.re.test(parts[0]));
+      bg = lead ? '' : parts[0]; act = parts.slice(lead ? 0 : 1, -1).join('，'); res = parts[parts.length - 1];
+    } else if (parts.length === 2) { act = parts[0]; res = parts[1]; }
     else act = parts[0] || clean;
     const titleSrc = (act || bg).replace(new RegExp(`^${p.name}`), '').replace(/^[，、]/, '');
     const title = titleSrc.length > 24 ? `${titleSrc.slice(0, 24)}…` : titleSrc;
@@ -44,7 +57,7 @@
         scores.push({ p: pid, d: r.d, v, ai: v, st: 'ai', note: `锚点 ${v} · 引用「${snippet(text, m)}」` });
       } else if (all.length) {
         // 「没有主动推进」这类否定说法：不当正向证据，也不当反向证据，留给人判断
-        scores.push({ p: pid, d: r.d, v: null, st: 'unknown', note: '原话是否定说法，不据此出分' });
+        scores.push({ p: pid, d: r.d, v: null, st: 'unknown', note: '原话为否定说法，待补充具体行为' });
       } else if (r.d === 'grit' || (r.d === 'prof' && !scores.some((x) => x.v != null))) {
         scores.push({ p: pid, d: r.d, v: null, st: 'unknown', note: UNKNOWN_NOTE[r.d] });
       }
@@ -75,7 +88,7 @@
       return { p: d.pid, d: s.d, v: s.v, st: 'confirmed', ai: s.ai, by: me.id, note: s.note, bigGap: big || undefined,
         hist: [{ v: s.v, kind: edited ? 'edit' : 'confirm', by: me.id, at: NT.TODAY, why: s.why || '' }, ...(s.ai != null ? [{ v: s.ai, kind: 'ai', at: NT.TODAY }] : [])] };
     });
-    const e = st.addEvent({ id: NT.uid('e'), kind: 'obs', date: d.date || NT.TODAY, project: d.proj?.id, recorder: me.id, people: [d.pid], title: d.title, bg: d.bg, act: d.act, res: d.res,
+    const e = st.addEvent({ id: NT.uid('e'), kind: 'obs', date: d.date || NT.TODAY, project: d.proj?.id, recorder: me.id, people: [d.pid], review: d.review, title: d.title, bg: d.bg, act: d.act, res: d.res,
       srcs: [{ type: 'note', label: d.label || '一句话记录', loc: `${me.name} · ${NT.md(NT.TODAY)}`, quote: d.text }, ...(d.atts || [])], tags: d.tags || [], tagsAI: d.cand || [], scores });
     return { e, big: scores.filter((s) => s.bigGap).length };
   }

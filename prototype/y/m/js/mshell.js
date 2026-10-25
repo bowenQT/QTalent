@@ -34,7 +34,7 @@
     const root = document.getElementById('app');
     mount(root, html`
       <div class="m-stage">
-        <aside class="m-side" aria-label="手机原型说明">
+        <aside class="m-side" aria-label="手机版说明">
           <h1><span class="nt-ip" data-ip="rest" data-size="24"></span>Niu-Talent 手机版</h1>
           <p>手机端只给导师用，做复盘现场最常用的几件事。管理者和 HR 的工作在桌面版完成。</p>
           <div><h2>四条流程</h2><ol class="m-flows">${FLOWS.map(([id, t, href, sub]) => html`<li><a href="${href}" ${NT.raw(page === id || (id === 'mentor' && (page === 'people' || page === 'person')) ? 'aria-current="page"' : '')}>${t}<small>${sub}</small></a></li>`)}</ol></div>
@@ -163,7 +163,7 @@
   }
 
   // ---------- 手机页面常用片段 ----------
-  // 待办在手机上的落点：复盘去导师评价，方案去确认方案，其余沿用；判断复盘、找人这类没有手机页的转到桌面版
+  // 待办在手机上的落点：复盘去导师评价，方案去确认方案，其余沿用；判断对照、找人这类没有手机页的转到桌面版
   const M_PAGES = ['index', 'people', 'person', 'quick', 'record', 'plan', 'inbox', 'mentor', 'me'];
   const mHref = (h) => (M_PAGES.includes(h.split(/[?#]/)[0].replace('.html', '')) ? h : `../app/${h}`);
   M.todoHref = (t) => (t.kind === 'review' ? `mentor.html?id=${t.person}` : t.kind === 'plan' ? `../app/plan.html?id=${t.plan}` : mHref(t.href));

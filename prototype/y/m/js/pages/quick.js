@@ -8,7 +8,7 @@
 
   NT.mshell({
     tab: 'work', title: '一句话记录', back: true, noTabbar: true,
-    demos: [['按住说话', 'quick.html?hold=1'], ['确认说的是谁', `quick.html?q=${encodeURIComponent('今天联调时他先把日志都拉出来了。')}`]],
+    demos: [['按住说话', 'quick.html?hold=1'], ['确认说的是谁', `quick.html?q=${encodeURIComponent('今天联调时 TA 先把日志都拉出来了。')}`]],
     view: () => `快速记录 · ${step}`,
     render: renderWrite,
   });
@@ -16,11 +16,13 @@
   function renderWrite(main) {
     step = 'write';
     const pre = NT.param('person');
+    const track = pre && NT.param('track') && st.get().tracks.find((t) => t.id === NT.param('track') && t.person === pre);
     const can = st.visiblePeople().filter((p) => st.can('record', p.id) && !p.noReview);
     const recent = [...new Set([pre, 'p-x11', 'p-x07', 'p-x15', 'p-x06', 'p-x14'].filter(Boolean))].filter((id) => can.some((p) => p.id === id)).slice(0, 5);
     mount(main, html`
       <div class="m-qin">
         <label class="m-qin__label" for="q-text">说说这次发生了什么</label>
+        ${track ? html`<div class="n-notice is-plain" style="margin-bottom:var(--s-3)">${icon('target')}<div><b>跟踪中的观察问题：</b>${track.q}</div></div>` : ''}
         <div class="m-chips" role="group" aria-label="记录给谁"><span class="nt-muted">给</span><button type="button" class="n-chip" aria-pressed="${!pre}" data-p="">从原话识别</button>${recent.map((id) => html`<button type="button" class="n-chip" aria-pressed="${pre === id}" data-p="${id}">${st.person(id).name}</button>`)}</div>
         <textarea class="n-eventin__field m-qin__field" id="q-text" rows="6" placeholder="写原话就行，不用分段。比如：孟逸尘今天主动把任务池同步给了全组，下午组员就接上了。">${NT.param('q') || ''}</textarea>
         <p class="nt-muted" id="q-hint">谁、在什么情境下、做了什么、结果如何。只写了「参与」的地方标为资料不足。</p>
@@ -56,7 +58,7 @@
     const found = NT.parse.findPeople(text);
     if (!pid) {
       if (found.hit.length) pid = found.hit[0].id;
-      else if (found.hidden.length) { hint.innerHTML = `<span style="color:var(--no)">${NT.esc(found.hidden[0].name)}不是你带的学员，由所带导师记录。</span>换一个人，或请对方的导师来记。`; return; }
+      else if (found.hidden.length) { hint.innerHTML = `<span style="color:var(--no)">${NT.esc(found.hidden[0].name)}的事件由所带导师记录。</span>换一个人，或请对方的导师来记。`; return; }
       else { hint.innerHTML = '<span style="color:var(--conflict)">这句话说的是谁？</span>在上面点一个人，或在原话里写上名字。'; $('.m-chips').classList.add('nt-flash'); return; }
     }
     step = 'shaping';
@@ -84,7 +86,7 @@
     UI.mountIPs(main);
     att.list($('#q-atts'));
     const trailRun = NT.runTrail($('.n-trail', main), 480);
-    const ph = { bg: '原话没写情境，可以补上', res: '原话没写影响，可以补上' };
+    const ph = { bg: '补充情境', res: '补充影响' };
     for (const el of $$('.n-edit', main)) {
       const t = s[el.dataset.k];
       if (!t) { el.textContent = ph[el.dataset.k] || ''; el.classList.remove('is-light'); el.style.color = 'var(--ink-3)'; el.dataset.empty = 1; continue; }
@@ -94,7 +96,10 @@
     const tags = [...s.tags.map((t) => [t, false]), ...s.cand.map((t) => [t, true])];
     if (tags.length) { $('#ev-tags').hidden = false; mount($('#tag-list'), tags.map(([t, cand]) => html`<span class="n-tag ${cand ? 'is-candidate' : 'is-ai'}">${t}${cand ? html`<small>候选</small>` : ''}</span>`)); }
     const rows = [];
-    const hintText = () => { const left = draft.scores.filter((x) => x.v != null && !x.touched).length; $('#score-hint').textContent = left ? `还有 ${left} 项 AI 建议分，保存时一并确认` : '分数都已由你确认'; };
+    const hintText = () => {
+      const scored = draft.scores.filter((x) => x.v != null).length, left = draft.scores.filter((x) => x.v != null && !x.touched).length;
+      $('#score-hint').textContent = !scored ? '文字可以直接改；补充具体行为后，可以再整理出建议分' : left ? `还有 ${left} 项 AI 建议分，保存时一并确认` : '分数都已由你确认';
+    };
     for (const sc of draft.scores) {
       const r = M.scoreRow(sc, { onChange: hintText, pid: () => draft.pid });
       rows.push(r); $('#scores').append(r.el);
@@ -128,7 +133,7 @@
     sign.hidden = false;
     mount($('#ev-actions'), html`<a class="n-btn n-btn--ink m-big" href="person.html?id=${draft.pid}#ev-${e.id}">去${st.person(draft.pid).name}的档案看看</a><a class="n-btn n-btn--ghost" href="quick.html">再记一条</a>`);
     NT.toast(`已保存到${st.person(draft.pid).name}的档案${big ? `，${big} 项进了校准队列` : ''}`, {
-      undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('quick.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销，这条记录没有保存',
+      undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('quick.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销这条记录',
     });
   }
 })();

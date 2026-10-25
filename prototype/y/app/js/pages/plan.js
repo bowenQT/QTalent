@@ -18,6 +18,7 @@
   const cur = () => plans()[plans().length - 1];
   const confirmed = () => plans().filter((p) => p.status === 'confirmed').pop();
   const key = (m) => m.person || m.pending || m.to;
+  const typeLabel = (m) => (m.type === '未接受' ? '未接受 offer' : m.type);
 
   function render(main) {
     const b = st.batch(bid);
@@ -40,7 +41,7 @@
           ${!draft ? html`<span class="n-seal" style="position:absolute;right:22px;top:18px" id="seal">定</span>` : ''}
           ${hiddenN ? html`<p class="nt-muted" style="margin:0 0 var(--s-3)">另有 ${hiddenN} 条动作涉及你范围以外的人，已隐藏。</p>` : ''}
           ${p.moves.length ? p.moves.map((m, i) => (st.canSeeMove(m) ? move(m, i, draft && canEdit, diff) : '')) : html`<div class="nt-empty">还没有动作。从盘点清单和象限校准的结论出发，加第一条。</div>`}
-          ${diff?.removed.length ? html`<div class="n-move"><div class="n-move__head"><span class="n-move__type is-watch">已删去</span><span class="n-diff">${diff.removed.map((m) => html`<del>${m.type} · ${m.person ? st.person(m.person).name : m.to}</del> `)}</span></div></div>` : ''}
+          ${diff?.removed.length ? html`<div class="n-move"><div class="n-move__head"><span class="n-move__type is-watch">已删去</span><span class="n-diff">${diff.removed.map((m) => html`<del>${typeLabel(m)} · ${m.person ? st.person(m.person).name : m.to}</del> `)}</span></div></div>` : ''}
         </article>
         <aside class="nt-grid nt-sticky">
           <article class="n-card"><h3 class="n-section-title">版本</h3>
@@ -68,7 +69,7 @@
       return html`<div class="n-move" data-i="${i}"><div class="n-move__head"><span class="n-move__type is-watch">继续观察</span><b>${who ? UI.plink(m.person) : ''}</b><span class="n-move__path">${m.to}</span>${tag}${editable ? menu(i) : ''}</div>
         <div class="n-move__grid"><div>依据${val('basis', m.basis)}</div><div>下次补什么${val('next', m.next)}</div><div>负责人${val('owner', `${st.person(m.owner)?.name || ''} · ${NT.md(m.due)} 前`)}</div></div></div>`;
     }
-    return html`<div class="n-move" data-i="${i}"><div class="n-move__head"><span class="n-move__type">${m.type}</span>
+    return html`<div class="n-move" data-i="${i}"><div class="n-move__head"><span class="n-move__type">${typeLabel(m)}</span>
       ${who ? html`<b>${UI.plink(m.person)}</b>` : html`<span class="n-badge n-badge--unknown">${icon('dash')}人选待定</span>`}
       <span class="n-move__path">${m.from || ''}${m.from ? icon('chev') : ''}${m.to}</span>${m.kind === '激活' ? html`<span class="n-kind">激活</span>` : ''}${tag}${editable ? menu(i) : ''}</div>
       ${!who && pendingLink ? html`<div class="n-ownerless" style="margin-top:var(--s-3)"><span class="n-slot__empty">${icon('plus', 14)}</span><div><b>人选来自项目用人方案</b><div class="nt-muted">项目用人方案确认后，这里自动填上人</div></div><a class="n-btn n-btn--sm n-btn--light" href="${pendingLink}">${icon('spark')}去找 owner</a></div>` : ''}
@@ -102,8 +103,16 @@
           <label class="n-field"><span class="n-field__label">谁</span><select class="n-select" data-k="person"><option value="">人选待定</option>${people.map((x) => html`<option value="${x.id}" ${x.id === m.person ? 'selected' : ''}>${x.name} · ${st.orgShort(x.org)}</option>`)}</select></label></div>
         <div class="nt-cols" style="gap:var(--s-3)">${f('from', '从', '原团队 / 原角色')}${f('to', '到', '新团队 / 新角色')}</div>
         ${f('basis', '依据', '能回到证据的事实')}${f('gap', '缺口', '还缺什么证据')}
-        <div class="nt-cols" style="gap:var(--s-3)">${f('will', '本人意愿', '未知')}${f('release', '可否释放', '未知')}</div>${f('impact', '对两边团队的影响')}</div>`,
-      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '保存', value: 'ok', cls: 'n-btn--ink', read: (d) => Object.fromEntries(NT.$$('[data-k]', d).map((x) => [x.dataset.k, x.value.trim()])) }],
+        <div class="nt-cols" style="gap:var(--s-3)">${f('will', '本人意愿', '未知')}${f('release', '可否释放', '未知')}</div>${f('impact', '对两边团队的影响')}
+        <p class="n-field__err" id="mv-err" role="alert" hidden>「谁」和「到」至少填写一项。</p></div>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '保存', value: 'ok', cls: 'n-btn--ink',
+        validate: (d) => {
+          const who = d.querySelector('[data-k="person"]'), to = d.querySelector('[data-k="to"]'), ok = !!(who.value || to.value.trim());
+          d.querySelector('#mv-err').hidden = ok;
+          if (!ok) who.focus();
+          return ok;
+        },
+        read: (d) => Object.fromEntries(NT.$$('[data-k]', d).map((x) => [x.dataset.k, x.value.trim()])) }],
     });
     if (r?.value !== 'ok') return;
     const d = r.data;
@@ -142,11 +151,14 @@
       return;
     }
     const pending = p.moves.filter((m) => !m.person && m.type !== '继续观察');
+    // 范围内还没有校准快照的人，确认时按参考位置冻结，记为未校准
+    const b = st.batch(bid), sn = st.get().snaps.find((x) => x.batch === bid);
+    const uncal = st.people().filter((x) => !x.noReview && st.inOrg(x.org, b.org) && !sn?.entries[x.id]).length;
     const v = await NT.dialog({
       title: `确认${p.title || '组织调整方案'} v${p.version}？`,
       body: html`<p>确认后冻结快照，每条动作生成一条跟进行动。</p>`,
-      facts: [html`${p.moves.length} 条动作：${p.moves.slice(0, 6).map((m) => `${m.kind || m.type}${m.person ? ` · ${st.person(m.person).name}` : ''}`).join('、')}${p.moves.length > 6 ? ' 等' : ''}`, pending.length ? html`<span style="color:var(--conflict)">${pending.length} 条人选待定，确认后在行动里继续跟进</span>` : html`意愿或释放为「未知」的，行动会先从沟通开始`],
-      actions: [{ label: '再看看', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并冻结 v${p.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
+      facts: [uncal ? html`${uncal} 人待校准，确认时按参考位置记为「未校准」` : html`范围内的人都已有校准结果`, html`${p.moves.length} 条动作：${p.moves.slice(0, 6).map((m) => `${m.kind || typeLabel(m)}${m.person ? ` · ${st.person(m.person).name}` : ''}`).join('、')}${p.moves.length > 6 ? ' 等' : ''}`, pending.length ? html`<span style="color:var(--conflict)">${pending.length} 条人选待定，确认后在行动里继续跟进</span>` : html`意愿或释放为「未知」的，行动会先从沟通开始`],
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并冻结 v${p.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
     if (v !== 'ok') return;
     const created = st.confirmOrg(p);

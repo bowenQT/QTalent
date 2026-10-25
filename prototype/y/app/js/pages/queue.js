@@ -8,7 +8,7 @@
   NT.shell({
     nav: 'queue', title: '校准队列',
     allow: (r) => st.can('calibrate', null, r),
-    denyText: '校准分数只对 HR 开放。导师可以在事件上提出异议。',
+    denyText: `校准分数由 HR 处理。分数有疑问，请联系 HR ${st.person(st.roles.hrbp.person).name}。`,
     view: () => `校准队列 · ${st.queue().length} 条`,
     state: () => ({ openId }),
     restore: (s) => { openId = s.openId; render($('#main')); },
@@ -17,6 +17,7 @@
 
   function render(main) {
     const q = st.queue();
+    const kept = st.recalKeptList();
     const done = st.get().events.flatMap((e) => e.scores.filter((s) => s.st === 'calibrated' && s.hist?.[0]?.kind === 'calib' && st.scope(s.p)).map((s) => ({ e, s })));
     if (!openId && q[0]) openId = q[0].id;
     mount(main, html`
@@ -29,20 +30,28 @@
         </article>
         <aside class="nt-grid">
           <article class="n-card"><h3 class="n-section-title">已校准</h3>
-            ${done.length ? html`<ul class="nt-list" style="font-size:var(--t-sm)">${done.map(({ e, s }) => html`<li><div class="nt-row" style="justify-content:space-between"><span>${UI.plink(s.p)} · ${st.dim(s.d).name}</span>${UI.dotsInline(s.v, 'calibrated')}</div><div class="ink-hand" style="font-size:var(--t-body);margin-top:2px">${s.hist[0].why}</div><div class="nt-muted">${st.person(s.hist[0].by).name} · ${NT.md(s.hist[0].at)} · ${e.title}</div></li>`)}</ul>` : html`<p class="nt-muted">还没有。</p>`}
+            ${done.length ? html`<ul class="nt-list" style="font-size:var(--t-sm)">${done.map(({ e, s }) => html`<li><div class="nt-row" style="justify-content:space-between"><span>${UI.plink(s.p)} · ${st.dim(s.d).name}</span>${UI.dotsInline(s.v, 'calibrated')}</div><div class="ink-hand" style="font-size:var(--t-body);margin-top:2px">${s.hist[0].why}</div><div class="nt-muted">${st.person(s.hist[0].by).name} · ${NT.md(s.hist[0].at)} · ${e.title}</div></li>`)}</ul>` : html`<p class="nt-muted">校准过的分数会出现在这里。</p>`}
           </article>
-          <div class="n-notice is-plain">${icon('info')}<div>校准不会改写原评价：导师和助教各自的分数、理由都保留在修订历史里，校准分是新的一条。</div></div>
+          ${kept.length ? html`<article class="n-card"><h3 class="n-section-title">保持正式位置</h3>
+            <ul class="nt-list" style="font-size:var(--t-sm)">${kept.map((k) => html`<li><div class="nt-row" style="justify-content:space-between"><span>${UI.plink(k.person)}</span>${UI.qBadge(k.q)}</div><div class="ink-hand" style="font-size:var(--t-body);margin-top:2px">${k.why}</div><div class="nt-muted">${st.person(k.by).name} · ${NT.md(k.at)} · 参考位置在「${st.QN[k.refQ]}」</div></li>`)}</ul></article>` : ''}
+          <div class="n-notice is-plain">${icon('info')}<div>导师和助教各自的分数、理由都保留在修订历史里，校准分作为新的一条记下。</div></div>
         </aside>
       </div>`);
     main.onclick = (e) => {
       const o = e.target.closest('[data-open]'); if (o) { openId = openId === o.dataset.open ? null : o.dataset.open; render(main); return; }
       const c = e.target.closest('[data-cal]'); if (c) cal(c.dataset.cal);
       const k = e.target.closest('[data-keep]'); if (k) keep(k.dataset.keep);
+      const kf = e.target.closest('[data-keepformal]'); if (kf) keepFormal(kf.dataset.keepformal);
     };
   }
 
   function detail(it) {
-    if (it.kind === 'recal') return html`<div class="nt-qdetail"><p style="margin:0">冻结后的新事件让参考位置离开了正式象限。正式位置不会自动移动，在下一次象限校准时处理。</p><div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm n-btn--ink" href="calibrate.html?id=b-xe6-end&team=${st.person(it.person).org}&person=${it.person}">${icon('grid')}去象限校准</a><a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${it.person}#spectrum">看能力谱</a></div></div>`;
+    if (it.kind === 'recal') {
+      const f = st.formal(it.person), r = st.refPos(it.person);
+      return html`<div class="nt-qdetail"><p style="margin:0">冻结后的新事件让参考位置从「${st.QN[f.q]}」移到了「${st.QN[r.q]}」。正式位置保持冻结时的样子：可以去象限校准里调整，也可以写明理由保持正式位置。</p>
+        <textarea class="n-calib__reason" id="kr" aria-label="保持正式位置的理由" placeholder="写一句理由，会留在这个人的档案里。比如：新增的两件事都在同一个项目里，等下一次盘点再看"></textarea>
+        <div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm n-btn--ink" href="calibrate.html?id=b-xe6-end&team=${st.person(it.person).org}&person=${it.person}">${icon('grid')}去象限校准</a><button class="n-btn n-btn--sm" type="button" data-keepformal="${it.person}">${icon('check')}保持正式位置</button><a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${it.person}#spectrum">看能力谱</a></div></div>`;
+    }
     const e = it.ev, s = it.s;
     const audio = e.srcs.filter((x) => x.type === 'audio');
     const sides = it.kind === 'conflict' ? s.raters.map((r) => ({ who: `${st.person(r.by).name} · ${st.person(r.by).staff === 'ta' ? '助教' : '导师'}`, v: r.v, why: r.why, src: audio.find((a) => a.by === r.by) }))
@@ -53,7 +62,7 @@
       <div class="n-calib__pair">${sides.map((x) => html`<div class="n-calib__side"><span style="color:${x.ai ? 'var(--light)' : 'var(--ink-3)'}">${x.who}</span><b ${NT.raw(x.ai ? 'style="color:var(--light)"' : '')}>${x.v}</b>「${x.why}」${x.src ? html`<div style="margin-top:4px">${UI.cite(x.src, 1)} <span class="nt-muted">${x.src.loc}</span></div>` : ''}</div>`)}</div>
       <div class="n-anchor" style="box-shadow:var(--e-0);margin-bottom:var(--s-3)"><b>${st.dim(s.d).name} · 锚点</b><ol>${st.anchors(s.d, s.p, st.eventRubric(e)).list.map((t, i) => html`<li class="${[...sides.map((x) => x.v)].includes(i + 1) ? 'is-hit' : ''}"><b>${i + 1}</b>${t}</li>`)}</ol></div>
       <label class="nt-muted" for="cv">校准为 <select class="n-select" id="cv" style="width:auto;min-height:28px;display:inline-block">${[1, 2, 3, 4, 5].map((v) => html`<option ${v === suggest ? 'selected' : ''}>${v}</option>`)}</select> 分，理由</label>
-      <textarea class="n-calib__reason" id="cr" placeholder="写一句理由，会留在修订历史里">${it.kind === 'conflict' ? '方案表达到位，排查过程确实发散，各取一半。' : ''}</textarea>
+      <textarea class="n-calib__reason" id="cr" aria-label="校准理由" placeholder="${it.kind === 'conflict' ? '写一句理由，会留在修订历史里。比如：两位评价人各有依据，取中间值，因为……' : '写一句理由，会留在修订历史里'}"></textarea>
       <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--ink" type="button" data-cal="${it.id}">校准</button>${it.kind === 'gap' ? html`<button class="n-btn n-btn--ghost" type="button" data-keep="${it.id}">保留 ${s.v} 分，补一句理由</button>` : ''}<button class="n-btn n-btn--ghost" type="button" data-open="${it.id}">稍后</button></div>
     </div>`;
   }
@@ -66,6 +75,14 @@
     st.calibrate(it.ev.id, it.i, v, why);
     openId = null; render($('#main'));
     NT.toast(`已把${st.person(it.s.p).name}的${st.dim(it.s.d).name}校准为 ${v} 分，计入档案`);
+  }
+  function keepFormal(pid) {
+    const why = $('#kr').value.trim();
+    if (!why) { $('#kr').focus(); $('#kr').placeholder = '保持正式位置需要写一句理由'; return; }
+    const undo = st.keepFormal(pid, why);
+    if (!undo) return;
+    openId = null; render($('#main'));
+    NT.toast(`已保持${st.person(pid).name}的正式位置，理由记在档案里`, { undo: () => { undo(); render($('#main')); } });
   }
   function keep(id) {
     const it = st.queue().find((x) => x.id === id);

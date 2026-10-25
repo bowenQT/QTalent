@@ -13,7 +13,6 @@
   };
   const SAY_ANY = (name) => `${name}这周主动认领了结营演示的联调，先把问题列成清单再逐个排查，演示前一天全部跑通。`;
   const batch = st.batch('b-xe6');
-  const wk = batch.weeks.find((w) => w[0] === WEEK);
   const mine = () => batch.newcomers.filter((n) => st.role() !== 'mentor' || n[2].includes(st.me().id)).map((n) => n[0]);
 
   NT.mshell({
@@ -27,8 +26,9 @@
 
   function renderList(main) {
     const ids = mine();
+    const rv = st.review(ids[0] || batch.newcomers[0][0], WEEK);
     mount(main, html`
-      <div class="m-card"><b>XEngineer 第六期 · ${WEEK} 对人复盘</b><p class="nt-muted" style="margin:4px 0 0">${NT.md(wk[3])} – ${NT.md(wk[4])} · 自动带入两周内的事件、录音证据和导师评价。逐个确认分数后，复盘计入学员档案。</p>
+      <div class="m-card"><b>XEngineer 第六期 · ${WEEK} 对人复盘</b><p class="nt-muted" style="margin:4px 0 0">${NT.md(rv.from)} – ${NT.md(rv.to)} · 自动带入这段时间的事件、录音证据和导师评价。逐个确认分数后，复盘计入学员档案。</p>
         <a class="m-link" href="record.html?m=w8">${icon('wave')}W8 导师团复盘纪要 · ${NT.SEED.MINUTES.w8.events.length} 条事件已整理${icon('chev')}</a></div>
       <h3 class="m-h">${st.role() === 'mentor' ? '你带的学员' : '全部学员'} · ${ids.length} 人</h3>
       <ul class="m-list">${ids.map((id) => {
@@ -60,7 +60,7 @@
         <div id="say-out"></div>
       </section>`}
 
-      <h3 class="m-h">逐项确认<span class="nt-muted" style="font-weight:400">按能力象限的维度组织</span></h3>
+      <h3 class="m-h">逐项确认<span class="nt-muted" style="font-weight:400">${r.confirmed}/${r.total}</span></h3>
       <div class="m-dims">${r.rows.map((row) => dimRow(row, !done, canCal))}</div>
 
       <div class="m-actions">
@@ -99,11 +99,13 @@
       return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(html`${UI.dotsInline(Math.round(st.mean(counted.map((x) => x.s.v))), last.st === 'calibrated' ? 'calibrated' : 'confirmed')}<span class="n-badge">${[...new Set(counted.map((x) => st.person(x.s.by).name))].join('、')}${last.st === 'calibrated' ? '校准' : '已确认'}</span>`)}${counted.map(evLine)}</div>`;
     }
     if (row.state === 'unknown') {
-      return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(UI.na())}<div class="n-review__ev" style="color:var(--ink-3)">${d.id === 'grit' ? '这两周待补受挫后的反应。可以留意：方案被否之后怎么做。' : '这两周的记录待补具体行为。'}</div></div>`;
+      return html`<div class="n-review__dim m-card" data-dim="${d.id}">${head(UI.na())}<div class="n-review__ev" style="color:var(--ink-3)">${d.id === 'grit' ? '待补受挫后的反应。可以留意：方案被否之后怎么做。' : '待补具体行为的记录。'}</div></div>`;
     }
-    return html`<div class="n-review__dim m-card is-quiet" data-dim="${d.id}">${head(html`<span class="n-badge">未体现</span>`)}<div class="n-review__ev" style="color:var(--ink-3)">加分项只在有对应行为时计入。</div></div>`;
+    return html`<div class="n-review__dim m-card is-quiet" data-dim="${d.id}">${head(html`<span class="n-badge">未体现</span>`)}<div class="n-review__ev" style="color:var(--ink-3)">加分项在出现对应行为后计入。</div></div>`;
   }
 
+  // 整份复盘确认后，更早的「撤销」提示一并收起
+  const scoreToasts = [];
   function wire(main) {
     const picks = {};
     $$('.m-pick', main).forEach((el) => {
@@ -121,16 +123,24 @@
         const sc = picks[ok.dataset.ok];
         st.confirmScore(evId, +i, sc.v, sc.why || '');
         ok.closest('.n-review__dim').classList.add('is-settling');
-        NT.toast(`已确认 ${sc.v} 分，署名 ${st.me().name}${sc.ai != null && Math.abs(sc.v - sc.ai) >= 2 && !sc.why ? '，和 AI 差 2 分以上，进了校准队列' : ''}`, { undo: () => { st.unconfirmScore(evId, +i); renderOne(main); } });
+        const opts = { undo: () => {
+          if (st.review(pid, WEEK).state === 'confirmed') { opts.undoneText = '复盘已确认，撤销只在确认前可用'; return; }
+          st.unconfirmScore(evId, +i); renderOne(main);
+        } };
+        scoreToasts.push(NT.toast(`已确认 ${sc.v} 分，署名 ${st.me().name}${sc.ai != null && Math.abs(sc.v - sc.ai) >= 2 && !sc.why ? '，和 AI 差 2 分以上，进了校准队列' : ''}`, opts));
         setTimeout(() => renderOne(main), NT.reduced ? 0 : 450);
         return;
       }
       if (ev.target.closest('#rv-ok')) {
+        const key = st.review(pid, WEEK).key;
         st.confirmReview(pid, WEEK);
+        scoreToasts.splice(0).forEach((close) => close());
         renderOne(main);
         $('#rv-seal')?.classList.add('is-stamping');
         $('#m-scroll').scrollTop = 0;
-        NT.toast(`${WEEK} 对人复盘已确认，计入${st.person(pid).name}的档案`);
+        NT.toast(`${WEEK} 对人复盘已确认，计入${st.person(pid).name}的档案`, {
+          undo: () => { delete st.get().reviews[key]; st.save(); renderOne(main); }, undoneText: '已撤销确认，复盘回到草稿',
+        });
       }
     };
     const field = $('#say-text'); if (!field) return;
@@ -151,7 +161,7 @@
     mount(out, html`<div class="m-sayev">
       <div class="nt-row"><span class="n-src n-src--ai">${icon('spark')}AI 整理</span><span class="nt-ip" data-ip="thinking" data-size="24" id="say-ip"></span></div>
       <b class="m-sayev__t" id="say-t"></b>
-      <dl class="n-event__sbar"><dt>背景</dt><dd id="say-bg"></dd><dt>行为</dt><dd id="say-act"></dd><dt>结果</dt><dd id="say-res"></dd></dl>
+      <dl class="n-event__sbar"><dt>情境</dt><dd id="say-bg"></dd><dt>行为</dt><dd id="say-act"></dd><dt>影响</dt><dd id="say-res"></dd></dl>
       <div class="m-sayev__scores" id="say-sc"></div>
       <div class="nt-row" id="say-acts" hidden><button class="n-btn n-btn--sm n-btn--ink" type="button" id="say-add">加入复盘，逐项确认</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="say-x">删掉这条</button></div>
     </div>`);
@@ -163,7 +173,7 @@
     $('#say-acts').hidden = false;
     $('#say-x').onclick = () => { out.innerHTML = ''; $('#say-text').value = ''; };
     $('#say-add').onclick = () => {
-      const { e } = NT.parse.commit({ pid, proj, text, ...s, label: `${WEEK} 导师评价`, date: st.review(pid, WEEK).to, pending: true });
+      const { e } = NT.parse.commit({ pid, proj, text, ...s, label: `${WEEK} 导师评价`, review: `${pid}-${WEEK}`, pending: true });
       renderOne(main);
       const first = $(`.m-pick[data-ev="${e.id}"]`);
       first?.closest('.n-review__dim')?.scrollIntoView({ block: 'center' });

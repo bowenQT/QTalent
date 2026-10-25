@@ -41,7 +41,10 @@
   X.students.forEach((s) => PEOPLE.push(P(s.id, s.name, s.team, s.track, `${s.grad} 届`, '2026-07-06', s.hue, {
     landing: true, xe: s, manager: s.mentor, hrbp: 'p-suwan',
   })));
+  // 演示头像：随机给到管理者工作台默认展示的几个人，其余用姓氏首字
+  const PHOTOS = { 'p-x86': 'zhou-yu', 'p-x01': 'gu-nan', 'p-x63': 'lin-zhiyuan', 'p-x11': 'song-xiaoman', 'p-x06': 'he-yining' };
   PEOPLE.forEach((p) => {
+    p.photo = PHOTOS[p.id] || null;
     p.hrbp = p.hrbp || null;
     p.manager = p.manager || null;
     p.orgHist = [[p.org, p.joined, null]];
@@ -49,7 +52,7 @@
 
   // ---------- 演示视角：管理者、HR、导师 ----------
   const ROLES = {
-    ceo: { label: '管理者', person: 'p-cheng', scope: '全部人才项目与学员' },
+    ceo: { label: '管理者', person: 'p-cheng', scope: '公司层：看人、找人，确认规则与方案' },
     hrbp: { label: 'HR', person: 'p-suwan', scope: '人才项目：XEngineer、Landing、校招、黑客松' },
     mentor: { label: '导师', person: 'p-yeqing', scope: '分镜工厂 · 二组、口语搭子 · 一组的学员' },
   };
@@ -82,6 +85,22 @@
   // ---------- 关键事件：第六期观察表、MS 评审、奖项答辩（生成数据）+ 黑客松（演示） ----------
   const s = (p, d, v, st, by, x) => ({ p, d, v, st: st || 'confirmed', by, ...(x || {}) });
   const EVENTS = NT.clone(X.events).map((e) => ({ srcs: [], tags: [], scores: [], people: [], ...e }));
+  // 周评里的标题多是一句话的前半截，作为事件标题读不出做了什么；按原意改成能独立读懂的说法
+  const TITLE_FIX = {
+    'e-x07-2': '从零搭起服务端主流程 MVP，是核心框架的主要搭建者',
+    'e-x62-3': '推进 Runner 控制面与 Checkpoint 持久化的开发联调',
+    'e-x65-3': '实现回归测试框架和生产工作流装配',
+    'e-x80-1': '梳理产品链路，用问卷和白板讨论定下功能优先级',
+    'e-x80-3': '用 ASR + LLM + TTS 组合替代实时模型，降低成本',
+    'e-x01-3': '把自动触达做到增量同步和断点续传',
+    'e-x01-2': '当组长的同时，搭起线索到 CRM 准入的运营工作台',
+    'e-x62-1': '带团队讨论，推动完成功能拆分和架构设计',
+    'e-x65-2': '实现内部 Agent 工作流，接通文生图、图生 3D 和打印机',
+    'e-x86-1': '提出接入 Blender 直接生成 3D 图形的方案',
+    'e-x42-3': '钻研技术，对工程规范要求高',
+    'e-x28-3': '交付节点上自我加压，向组内讲清技术选型',
+  };
+  EVENTS.forEach((e) => { if (TITLE_FIX[e.id]) e.title = TITLE_FIX[e.id]; });
   const HACK_EV = [
     ['p-x53', '48 小时内把方言识别接进语音助手原型', '赛前没有方言数据，第一晚自己录了两段样本做验证，第二天接进原型。', '演示时三种方言都能识别出指令。', [['prof', 4], ['grit', 4]]],
     ['p-x07', '负责语音唤醒与打断，现场演示一次跑通', '把唤醒词和打断做成两个独立开关，联调时先单测每个开关。', '现场演示没有重来。', [['prof', 4], ['mot', 4]]],
@@ -164,7 +183,7 @@
   const outcome = (st) => (st.accept === '接受' ? '已沟通 · 接受' : st.accept === '拒绝' ? '已沟通 · 未接受' : '待沟通');
   const moves = X.students.filter((st) => st.final && st.final !== '不建议 offer').map((st) => {
     const t = TEAM[st.team];
-    if (st.accept === '拒绝') return { type: '未接受', person: st.id, from: t.name, to: '不留用', basis: `${st.final}；导师结营建议：${st.adv8 || '—'}`, gap: '本人未接受 offer', will: outcome(st), release: '训练营已结束', impact: '不涉及' };
+    if (st.accept === '拒绝') return { type: '未接受', person: st.id, from: t.name, to: '去向待沟通', basis: `${st.final}；导师结营建议：${st.adv8 || '—'}`, gap: '本人未接受 offer', will: outcome(st), release: '训练营已结束', impact: '不涉及' };
     if (st.final === '应届 · 继续实习观察') return { type: '继续观察', person: st.id, from: t.name, to: st.dest && st.dest !== '待定部门' ? `${st.dest} · 继续实习观察` : '继续实习观察', basis: `导师结营建议：${st.adv8 || '—'}`, next: '实习满 8 周后再评一次', owner: 'p-suwan', due: '2026-11-15', will: outcome(st) };
     return { type: st.dest && st.dest !== '待定部门' ? '落位' : '留用', person: st.id, from: t.name, to: st.dest && st.dest !== '待定部门' ? st.dest : '部门待定',
       basis: `${st.final}；导师结营建议：${st.adv8 || '—'}${st.posFinal || st.posMentor ? `；岗位建议：${st.posFinal || st.posMentor}` : ''}`,
@@ -182,20 +201,20 @@
       now: [['W8 负责 CI 整体覆盖率提升', 'e-x08-3'], ['结营建议：应届 · 继续实习观察', null]] },
     { id: 'a-x15', title: '周初晴：W6 起和后端一起对齐接口', from: 'b-xe6-mid', person: 'p-x15', owner: 'p-yeqing', due: '2026-08-12', did: '2026-08-11', state: 'done', observe: '2026-09-30' },
     { id: 'a-weekly', title: '修订周评标准：每一档都写明行为证据（xe-weekly-v2）', kind: '修订评价标准', from: 'jr-xe6', owner: 'p-suwan', due: '2026-09-15', state: 'todo', observe: '2026-11-30',
-      then: ['目标：周评「正常发挥」一档的区分度提高', '依据：第六期判断复盘，周评正常发挥的同学结营结论分成两头', '观察：第七期按 v2 周评，看判断复盘里的偏差'] },
+      then: ['目标：周评「正常发挥」一档的区分度提高', '依据：第六期判断对照，周评正常发挥的同学结营结论分成两头', '观察：第七期按 v2 周评，看判断对照里的偏差'] },
   ];
 
   // ---------- 重点跟踪 ----------
   const TRACKS = [
-    { id: 't-x08', person: 'p-x08', why: 'W4 周评需关注，结营建议继续实习观察', q: '到 TS 新人组后，能不能独立把一块测试或排障工作推进到上线？', owner: 'p-yeqing', helper: 'p-suwan', next: '2026-09-02', since: '2026-08-29', state: 'on' },
-    { id: 't-x15', person: 'p-x15', why: 'W4 周评表现突出，结营没有给出留用建议', q: '前端之外，能不能把服务端那一侧的方案讲清楚？', owner: 'p-suwan', helper: 'p-yeqing', next: '2026-09-18', since: '2026-09-01', state: 'on' },
+    { id: 't-x08', person: 'p-x08', why: 'W4 周评需关注，之后承担数据库表结构设计，并提升 CI 整体覆盖率', q: '到 TS 后能不能独立把一块测试或排障推到上线？', owner: 'p-yeqing', helper: 'p-suwan', next: '2026-09-02', since: '2026-08-29', state: 'on' },
+    { id: 't-x15', person: 'p-x15', why: 'W4 周评表现突出，08-07 独立完成全部前端页面的设计开发落地', q: '前端之外，能不能把服务端那一侧的方案讲清楚？', owner: 'p-suwan', helper: 'p-yeqing', next: '2026-09-18', since: '2026-09-01', state: 'on' },
   ];
 
   // ---------- 值得聊一聊 ----------
   const SIGNALS = [
     { person: 'p-x06', state: 'open', since: '2026-08-20', items: [
-      { src: 'fact', text: '未接受正式 offer', from: '录用记录', detail: '结营结论：应届 · 正式 offer 提前锁定；录用记录：未接受（08-20）' },
-      { src: 'fact', text: '导师结营建议：建议留用', from: '结营评审', detail: 'XEngineer 第六期观察表 · 结营评审 · 导师留用建议' },
+      { src: 'fact', text: '获优秀学员提名', from: '结营评审', detail: 'XEngineer 第六期 · 结营评审 · 优秀学员提名，导师建议留用' },
+      { src: 'fact', text: '没有接受正式 offer', from: '录用记录', detail: '结营结论：应届 · 正式 offer 提前锁定；录用记录：未接受（08-20）' },
     ] },
     { person: 'p-x75', state: 'open', since: '2026-08-28', items: [
       { src: 'fact', text: '未接受实习 offer', from: '录用记录', detail: '结营结论：非应届 · 实习 offer；录用记录：未接受（08-28）' },
@@ -205,18 +224,18 @@
 
   // ---------- 值得关注：提名与 AI 线索（N1、T1、I1、I2、I3 由规则实时算出） ----------
   const WATCH_CLUES = [
-    { id: 'wc-x42', person: 'p-x42', rule: 'T2', by: 's-04', at: '2026-08-31', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-01', why: '最佳架构设计奖、最佳工程习惯奖两项答辩；带前端整体架构，先 review 组员代码再找导师', evs: ['e-x42-2', 'e-x42-1'] },
-    { id: 'wc-x28', person: 'p-x28', rule: 'T2', by: 's-22', at: '2026-08-31', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-01', why: '最佳架构设计奖答辩；交付节点上能自我加压，早期主动认领 Agent 编排方向', evs: ['e-x28-3', 'e-x28-2'] },
-    { id: 'wc-x63', person: 'p-x63', rule: 'T2', by: 's-15', at: '2026-08-31', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-02', why: '最佳 AI 探索实践答辩；把硬件方案从组装、走线到无线控制完整跑通', evs: ['e-x63-2', 'e-x63-3'] },
-    { id: 'wc-x86', person: 'p-x86', rule: 'T2', by: 's-19', at: '2026-08-31', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-02', why: '最佳 AI 探索实践答辩；中期起担任组长，把分散的挖孔路线收成一个引擎', evs: ['e-x86-1', 'e-x86-3'] },
+    { id: 'wc-x42', person: 'p-x42', rule: 'T2', by: 's-04', at: '2026-08-31', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-01', why: '进入最佳架构设计、最佳工程习惯两项答辩；牵头前端整体架构和核心数据模型，日常带组内前端协同', evs: ['e-x42-2', 'e-x42-1'] },
+    { id: 'wc-x28', person: 'p-x28', rule: 'T2', by: 's-22', at: '2026-08-31', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-01', why: '进入最佳架构设计答辩；早期主动认领 Agent 编排方向，交付节点上能自我加压，也能向组内讲清选型依据', evs: ['e-x28-3', 'e-x28-2'] },
+    { id: 'wc-x63', person: 'p-x63', rule: 'T2', by: 's-15', at: '2026-08-31', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-02', why: '进入最佳 AI 探索实践答辩；从组装、走线到无线控制把硬件方案跑通，已能用手机 App 和语音控制小车', evs: ['e-x63-2', 'e-x63-3'] },
+    { id: 'wc-x86', person: 'p-x86', rule: 'T2', by: 's-19', at: '2026-08-31', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-02', why: '进入最佳 AI 探索实践答辩；产品方向由其提出，中期起担任组长，把分散的挖孔路线收成一条主链', evs: ['e-x86-1', 'e-x86-3'] },
     { id: 'wc-x53', person: 'p-x53', rule: 'N2', by: 'ai', at: '2026-09-01', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-02',
-      why: '观察表三周都记到语音核心模块由 TA 完成，黑客松里也是 TA 接通方言识别',
+      why: 'W7、W8 两周观察都写到语音核心模块由许承宇完成；黑客松赛前没有方言数据，自录样本当晚接通了方言识别',
       srcs: [{ type: 'sheet', label: 'XEngineer 第六期观察表', loc: 'W7–W8 · 突出表现', quote: '语音的核心模块均由TA完成，多模型接口复杂设计是亮点' }, { type: 'sheet', label: '夏季黑客松评审表（演示）', loc: '第 3 行', quote: '赛前没有方言数据，第一晚自己录了两段样本做验证' }], evs: ['e-x53-3', 'e-hack-1'] },
     { id: 'wc-x68', person: 'p-x68', rule: 'T2', by: 's-17', at: '2026-09-02', state: 'pending', why: '深耕 MySQL 交付，从参数配置到生命周期管理连续三周有可见产出', evs: ['e-x68-2', 'e-x68-3'] },
-    { id: 'wc-x89', person: 'p-x89', rule: 'N2', by: 'ai', at: '2026-09-03', state: 'pending', why: '两份材料都提到 TA 最早跑通整条链路、提前准备好环境',
+    { id: 'wc-x89', person: 'p-x89', rule: 'N2', by: 'ai', at: '2026-09-03', state: 'pending', why: '观察表和黑客松评审都提到：第一周最早跑通整条链路，没人负责部署时主动认领',
       srcs: [{ type: 'sheet', label: 'XEngineer 第六期观察表', loc: 'W1–W3 · 重点贡献', quote: 'W1最早手动跑通整套流程' }, { type: 'sheet', label: '夏季黑客松评审表（演示）', loc: '第 5 行', quote: '没人负责部署，主动认领' }], evs: ['e-x89-1', 'e-hack-3'] },
-    { id: 'wc-reco-x11', person: 'p-x11', rule: 'T2', by: 'p-yeqing', dir: 'tpl-be', at: '2026-09-01', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-02', why: '独立完成 Java MVP，承接了大部分核心开发，适合往后端研发方向练', evs: ['e-x11-2', 'e-x11-3'] },
-    { id: 'wc-reco-x14', person: 'p-x14', rule: 'T2', by: 'p-yeqing', dir: 'tpl-fde', at: '2026-09-03', state: 'pending', why: '会主动找导师交流，路演材料和客户场景都愿意投入，适合往 FDE 方向练', evs: ['e-x14-1', 'e-x14-3'] },
+    { id: 'wc-reco-x11', person: 'p-x11', rule: 'T2', by: 'p-yeqing', dir: 'tpl-be', at: '2026-09-01', state: 'verified', verifiedBy: 'p-suwan', verifiedAt: '2026-09-02', why: '独立完成 Java 主功能 MVP，承接组里大部分核心开发', evs: ['e-x11-2', 'e-x11-3'] },
+    { id: 'wc-reco-x14', person: 'p-x14', rule: 'T2', by: 'p-yeqing', dir: 'tpl-fde', at: '2026-09-03', state: 'pending', why: '会主动找导师交流，路演材料和客户场景都愿意投入', evs: ['e-x14-1', 'e-x14-3'] },
   ];
 
   // ---------- 我的关注：个人观察名单 ----------
@@ -282,8 +301,8 @@
   };
 
   // ---------- 发展方向：本人意愿取自入营登记，管理判断取自结营的岗位建议 ----------
-  const CHANNELS = [{ id: 'be', name: '后端研发' }, { id: 'pa', name: '产品架构师' }, { id: 'pm', name: '产品经理' }, { id: 'fde', name: 'FDE（业务导向技术人才）' }, { id: 'ts', name: '技术支持（TS）' }];
-  const chOf = (t) => (/产品架构|架构师/.test(t) ? 'pa' : /FDE/i.test(t) ? 'fde' : /技术支持|TS/.test(t) ? 'ts' : /产品/.test(t) ? 'pm' : /后端|服务端|研发|开发|全栈|SRE|运维/.test(t) ? 'be' : null);
+  const CHANNELS = [{ id: 'be', name: '后端研发' }, { id: 'pa', name: '产品架构师' }, { id: 'pm', name: '产品经理' }, { id: 'fe', name: '前端研发' }, { id: 'fde', name: 'FDE（业务导向技术人才）' }, { id: 'ts', name: '技术支持（TS）' }];
+  const chOf = (t) => (/产品架构|架构师/.test(t) ? 'pa' : /FDE/i.test(t) ? 'fde' : /技术支持|TS/.test(t) ? 'ts' : /产品/.test(t) ? 'pm' : /前端/.test(t) ? 'fe' : /后端|服务端|研发|开发|全栈|SRE|运维/.test(t) ? 'be' : null);
   const DIRECTIONS = [];
   X.students.forEach((st) => {
     const first = (st.intent || '').split(/[、,，]/).map((x) => x.trim()).find((x) => x && !/暂未确定/.test(x));
@@ -304,7 +323,7 @@
       versions: [{ v: 1, by: 'p-suwan', at: '2026-08-28', reqs: [{ id: 't1', text: '做过测试、部署或排障相关的工作', must: true }, { id: 't2', text: '能把问题复现步骤写清楚', must: true }, { id: 't3', text: '沟通顺畅，愿意面对客户', must: false }] }] },
   ];
 
-  // ---------- 判断复盘：W4 周评（助教）× 结营评审（导师） ----------
+  // ---------- 判断对照：W4 周评（助教）× 结营评审（导师） ----------
   const ROWS = X.judge.map((r) => [...r, X.students.find((st) => st.id === r[0]).mentor]);
   const GR = ['需关注', '正常发挥', '表现突出'], BG = ['不建议', '继续观察', '建议留用'];
   const stateOf = (r) => { const a = GR.indexOf(r[2].overall), b = BG.indexOf(r[4].overall); return a === b ? 'same' : a > b ? 'high' : 'low'; };
@@ -321,7 +340,7 @@
     chains: [{ id: 'xe', name: 'XEngineer', front: 'W4 周评', back: '结营评审', scale: 'grade', grades: GR, backGrades: BG, dims: [{ id: 'overall', name: '综合判断' }] }],
     maps: [{ id: 'map-xe-v1', chain: 'xe', by: 'p-suwan', at: '2026-07-01', rows: [['overall', '综合判断', '需关注 ↔ 不建议；正常发挥 ↔ 继续观察；表现突出 ↔ 建议留用']] }],
     stds: [{ id: 'xe-weekly-v1', chain: 'xe', at: '2026-07-01', note: '周评三档：表现突出 / 正常发挥 / 需关注，评语不限' }],
-    batches: [{ id: 'jr-xe6', chain: 'xe', name: 'XEngineer 第六期判断复盘', std: 'xe-weekly-v1', map: 'map-xe-v1', status: 'open', at: '2026-09-02', by: 'p-suwan', range: 'W4 周评 08-02 · 结营评审 08-31' }],
+    batches: [{ id: 'jr-xe6', chain: 'xe', name: 'XEngineer 第六期判断对照', std: 'xe-weekly-v1', map: 'map-xe-v1', status: 'open', at: '2026-09-02', by: 'p-suwan', range: 'W4 周评 08-02 · 结营评审 08-31' }],
     xe: { 'jr-xe6': { back: null, src: { front: ['XEngineer 第六期观察表.xlsx', 'W4 周评', '08-02'], back: ['XEngineer 第六期观察表.xlsx', '结营评审', '08-31'], cols: { overall: 'Q', note: 'R' } }, rows: ROWS } },
     hire: {},
     hyps: {
@@ -336,6 +355,7 @@
       ],
     },
     attribs: {
+      'jr-xe6:h-xe6-1': { hyp: 'h-xe6-1', batch: 'jr-xe6', cats: ['std'], reason: '周评只有三档、评语不限，正常发挥一档没有写行为的要求；先在标准里补上写法要求，下一期按新标准对照。', by: 'p-suwan', at: '2026-09-03', actions: ['a-weekly'] },
       'jr-xe6:h-xe6-3': { hyp: 'h-xe6-3', cats: ['env'], reason: 'W4 前后课题方向调整是事实，周评标准保持原样，记录情境。', by: 'p-suwan', at: '2026-09-03', actions: [] },
     },
   };
@@ -366,8 +386,8 @@
     front: [
       { v: 'xe-weekly-v1', line: 'xe-weekly', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-07-01', effect: 'now', effAt: '2026-07-01', why: '第一版：周评按三档评综合表现', note: '周评三档：表现突出 / 正常发挥 / 需关注，评语不限' },
       { v: 'xe-weekly-v2', line: 'xe-weekly', state: 'pending', base: 'xe-weekly-v1', by: 'p-suwan', at: '2026-09-03', submittedAt: '2026-09-03', effect: 'next', compat: 'ok',
-        why: `第六期判断复盘：周评正常发挥的 ${normal.length} 人，结营结论分成两头`, basis: [{ type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: `${normal.length} 人中 ${nUp.length + nDown.length} 人与结营结论不一致`, cat: '评价方式与信息不足' }],
-        note: '周评三档不变；每一档都要写出本周一个具体行为及结果，正常发挥一档写清是哪件事', preview: { kind: 'map', cells: normal.length } },
+        why: `第六期判断对照：周评正常发挥的 ${normal.length} 人，结营结论分成两头`, basis: [{ type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: `周评正常发挥的 ${normal.length} 人中 ${nUp.length + nDown.length} 人与结营结论不一致`, cat: '评价标准' }],
+        note: '周评三档：表现突出 / 正常发挥 / 需关注；每一档都写出本周一个具体行为及结果，正常发挥一档写清是哪件事', preview: { kind: 'map', cells: normal.length } },
       { v: 'map-xe-v1', line: 'map-xe', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-07-01', effect: 'now', effAt: '2026-07-01', why: '周评三档与结营结论三档对应', note: '需关注 ↔ 不建议；正常发挥 ↔ 继续观察；表现突出 ↔ 建议留用' },
     ],
   };
@@ -377,7 +397,7 @@
   ];
 
   NT.SEED = {
-    version: 'y2', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
+    version: 'y4', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES: [], FOLLOWS,
     FAMILIES, ENG_THEMES, RULES, RULE_SUGS,
   };

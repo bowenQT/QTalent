@@ -45,9 +45,10 @@
           <article class="n-card"><h3 class="n-section-title">课题</h3>
             <ul class="nt-list">${b.topics.map((id) => {
               const p = st.project(id);
-              const team = st.membersOf(id);
-              return html`<li><div class="nt-row" style="justify-content:space-between"><a class="nt-plink" href="project.html?id=${id}"><b>${p.name}</b></a><span class="nt-muted">导师 ${team.filter((m) => ['导师', '助教'].includes(m.role)).map((m) => `${st.person(m.person).name}${m.role === '助教' ? '（助教）' : ''}`).join('、')}</span></div>
-                <p class="nt-muted" style="margin:4px 0 6px">${p.goal}</p><div class="n-project__members" style="margin:0">${team.filter((m) => m.role === '学员').map((m) => UI.avatar(m.person, 'sm'))}<span>${team.filter((m) => m.role === '学员').map((m) => st.person(m.person).name).join('、')}</span></div></li>`;
+              // 课题已结营，成员都有退出日期：取所有参与过的人
+              const team = st.membersOf(id, true), staff = team.filter((m) => ['导师', '助教'].includes(m.role)), stu = team.filter((m) => m.role === '学员' && st.scope(m.person)); // 只列本视角能看到的学员
+              return html`<li><div class="nt-row" style="justify-content:space-between"><a class="nt-plink" href="project.html?id=${id}"><b>${p.name}</b></a>${staff.length ? html`<span class="nt-muted">导师 ${staff.map((m) => `${st.person(m.person).name}${m.role === '助教' ? '（助教）' : ''}`).join('、')}</span>` : ''}</div>
+                <p class="nt-muted" style="margin:4px 0 6px">${p.goal}</p>${stu.length ? html`<div class="n-project__members" style="margin:0">${stu.map((m) => UI.avatar(m.person, 'sm'))}<span>${stu.map((m) => st.person(m.person).name).join('、')}</span></div>` : ''}</li>`;
             })}</ul>
           </article>
           <div class="nt-grid">

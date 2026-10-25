@@ -17,8 +17,10 @@
 
   NT.shell({
     nav: isLanding ? 'landing' : 'review', title: `${LABEL} · 象限校准`, crumbs: isLanding ? [['XEngineer 第六期', 'landing.html']] : [['盘点', 'reviews.html'], [b?.name || '', `review.html?id=${id}`]],
-    allow: (r) => ['ceo', 'hrbp', 'lead'].includes(r) && !!b,
-    denyText: '象限仅管理者和 HR 可见。',
+    allow: (r) => ['hrbp', 'lead'].includes(r) && !!b,
+    // 管理者在盘点批次页看校准结果；校准本身由 HR 完成
+    denyTitle: st.role() === 'ceo' ? '象限校准由 HR 完成' : undefined,
+    denyText: st.role() === 'ceo' ? html`确认后的位置和各团队分布，在<a href="${isLanding ? 'landing.html' : `review.html?id=${id}`}">${isLanding ? 'XEngineer 第六期' : '盘点批次'}</a>里查看。` : '象限仅管理者和 HR 可见。',
     view: () => `象限校准 · ${isLanding ? '新人' : st.orgShort(team)}${frozen() ? ' · 已冻结' : ''}`,
     state: () => ({ team }),
     restore: (s) => { if (s.team) { team = s.team; render($('#main')); } },
@@ -76,7 +78,7 @@
           </div>
           <div class="n-quad__foot">
             <span id="quad-ip"></span>
-            <div class="n-quad__say ${isFrozen ? 'is-ink' : ''}" id="quad-say" aria-live="polite"><span id="quad-say-text">${isFrozen ? NT.raw(frozenText(sn)) : `正在根据 ${nScores} 条已确认的维度分计算参考位置……`}</span>
+            <div class="n-quad__say ${isFrozen ? 'is-ink' : ''}" id="quad-say" aria-live="polite"><span id="quad-say-text">${isFrozen ? NT.raw(frozenText(sn)) : `参考位置计算中 · ${nScores} 条已确认分`}</span>
               <textarea id="quad-reason" hidden placeholder="写一句理由" aria-label="和参考位置不同的理由"></textarea></div>
             ${na.length ? html`<div class="n-quad__wait"><b>还在等材料 · ${na.length} 人</b>${na.map((x) => html`<a class="nt-plink" href="person.html?id=${x.pid}"><span class="chip">${UI.avatar(x.pid, 'sm')}${st.person(x.pid).name} <small>${x.miss}</small></span></a>`)}</div>` : ''}
             ${conflicts.length && !isFrozen ? html`<div class="n-quad__wait" style="border-top:0;margin-top:0"><b>证据冲突 · ${conflicts.length} 人</b>${conflicts.map((pid) => html`<a class="n-badge n-badge--conflict" href="queue.html">${icon('split')}${st.person(pid).name} · 先在校准队列处理</a>`)}</div>` : ''}
@@ -85,9 +87,9 @@
         <aside class="nt-grid nt-sticky">
           <div class="n-card" id="panel"></div>
           <div class="n-card">
-            ${isFrozen ? html`<p class="nt-muted" style="margin:0">${NT.md(sn.at)} 由${st.person(sn.by).name}确认冻结。之后有新证据时，只提示「可能需要重新校准」，不会挪动位置。</p>`
+            ${isFrozen ? html`<p class="nt-muted" style="margin:0">${NT.md(sn.at)} 由${st.person(sn.by).name}确认冻结。之后有新证据时，档案里提示「可能需要重新校准」，正式位置保持冻结时的样子。</p>`
               : html`<div class="nt-row"><button class="n-btn n-btn--ink" type="button" id="quad-confirm" ${NT.raw(canConfirm ? '' : 'disabled')}>${icon('stamp')}确认并冻结${isLanding ? '' : `「${st.orgShort(team)}」`}</button><button class="n-btn n-btn--ghost" type="button" id="quad-reset">${icon('retry')}重新给出参考位置</button></div>
-              ${!canConfirm ? html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>校准由 HR 确认冻结。</b>你的拖动和理由会作为建议交给苏晚。</div></div>` : ''}
+              ${!canConfirm ? html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>校准由 HR 确认冻结。</b></div></div>` : ''}
               <p class="nt-caption">选中头像后可以用方向键移动，点头像查看维度分和证据。</p>`}
           </div>
         </aside>
@@ -115,7 +117,7 @@
 
   function frozenText(sn) {
     const moved = people.filter((x) => x.reason).map((x) => `${x.p.name}（${NT.esc(x.reason)}）`);
-    return `已冻结快照 · <span class="ink-hand">${NT.esc(st.person(sn.by).name)}</span> · ${NT.md(sn.at)}。${moved.length ? `调整：${moved.join('；')}。` : ''}之后有新证据时，我只提示可能需要重新校准，不会挪动位置。`;
+    return `已冻结快照 · <span class="ink-hand">${NT.esc(st.person(sn.by).name)}</span> · ${NT.md(sn.at)}。${moved.length ? `调整：${moved.join('；')}。` : ''}之后有新证据时提示「可能需要重新校准」，正式位置保持冻结时的样子。`;
   }
 
   function place(x) {
@@ -163,7 +165,7 @@
   function ask(x) {
     asking = x;
     NT.ipState($('#quad-ip'), 'confirm');
-    $('#quad-say-text').textContent = `你把${x.p.name}从「${QN[x.refQ]}」放到了「${QN[qOf(x.pos)]}」，和我给的参考不同。为什么？`;
+    $('#quad-say-text').textContent = `${x.p.name}从「${QN[x.refQ]}」调到「${QN[qOf(x.pos)]}」，和参考位置不同，写一句理由。`;
     const r = $('#quad-reason'); r.hidden = false; r.value = x.reason; r.focus({ preventScroll: true });
   }
   // 不能确认的人每次调整都存成建议，离开页面也不丢
@@ -182,7 +184,7 @@
     const shift = people.filter((x) => x.prevQ && x.prevQ !== x.refQ);
     const sg = st.can('quadConfirm') ? people.filter((x) => x.sug).length : 0;
     $('#quad-say-text').textContent = sg && !n ? `有 ${sg} 人收到调整建议，点头像查看，可以按建议放。` : n ? `已调整 ${n} 人的位置。确认后冻结。`
-      : `参考位置已给出。把头像拖到你判断的位置，同意参考位置的人保持原位。${shift.length ? `${shift.map((x) => `${x.p.name}的参考位置移出了上次的正式位置（${QN[x.prevQ]}）`).join('；')}，请你判断。` : ''}`;
+      : `参考位置已给出。拖动头像到你判断的位置，同意参考位置的人保持原位。${shift.length ? `${shift.map((x) => `${x.p.name}的参考位置离开了上次的正式位置（${QN[x.prevQ]}）`).join('；')}，待你判断。` : ''}`;
   }
 
   async function intro() {
@@ -235,12 +237,12 @@
 
   async function confirmTeam() {
     const next = pending()[0];
-    if (next) { ask(next); NT.toast('还有和参考不同的位置没写理由'); return; }
+    if (next) { ask(next); NT.toast('和参考位置不同的人待补理由'); return; }
     const v = await NT.dialog({
       title: `确认并冻结${isLanding ? '结营校准' : `「${st.orgShort(team)}」的校准`}？`,
       body: html`<p>冻结为快照：当时的位置、维度分、证据和规则版本都保存下来，成为每个人${isLanding ? '的第一份' : '这一期的'}档案版本。</p>`,
       facts: [html`${people.length} 人落位 · ${people.filter((x) => x.reason).length} 人和参考不同`, html`规则版本 ${b?.rubric || st.ruleLive('rubric').v}、${st.ruleLive('place').v} · 证据截止 ${NT.md(NT.TODAY)}`],
-      actions: [{ label: '再看看', value: 'cancel', cls: 'n-btn--ghost' }, { label: '确认并冻结', value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '确认并冻结', value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
     if (v !== 'ok') return;
     const S = st.get();

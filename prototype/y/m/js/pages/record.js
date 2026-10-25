@@ -9,10 +9,10 @@
   const MODES = [
     { id: 'obs', icon: 'mic', name: '观察速记', sub: '一个人说，记一条或几条事件', limit: '最长 10 分钟', cap: '一个人说，AI 拆成一条或几条关键事件' },
     { id: 'meet', icon: 'users', name: '多人会议', sub: '复盘会、一对一，区分说话人', limit: '最长 2 小时', cap: '区分说话人，整理成人才纪要' },
-    { id: 'upload', icon: 'upload', name: '上传录音文件', sub: '已经录好的会议', limit: '以联调为准', cap: '上传后转写和整理在后台进行' },
+    { id: 'upload', icon: 'upload', name: '上传录音文件', sub: '已经录好的会议', limit: '最大 2 GB', cap: '上传后转写和整理在后台进行' },
   ];
   const W8 = NT.SEED.MINUTES.w8;
-  const DUR = 38 * 60 + 20;
+  const DUR = W8.dur.split(':').reduce((a, x) => a * 60 + +x, 0); // 「38:20」→ 秒
   let step = minutesId ? 'minutes' : NT.param('step') || 'mode';
   let mode = 'meet', lang = '普通话';
   let tabsApi = null;
@@ -102,7 +102,10 @@
     const put = (i, done) => {
       const [, by, text] = lines[i];
       const prev = lines[i - 1];
-      if (!prev || prev[1] !== by) live.insertAdjacentHTML('beforeend', `<div class="sp">${NT.esc(sp(by))} · ${M.fmt(M.rec.elapsed(r))}</div>`);
+      // 说话人旁的时间点在这句出现时记下，收起再展开后原样恢复
+      r.stamps = r.stamps || {};
+      if (r.stamps[i] == null) r.stamps[i] = M.rec.elapsed(r);
+      if (!prev || prev[1] !== by) live.insertAdjacentHTML('beforeend', `<div class="sp">${NT.esc(sp(by))} · ${M.fmt(r.stamps[i])}</div>`);
       const d = document.createElement('div'); d.dataset.i = i;
       if (r.marks.includes(i)) d.classList.add('flag');
       live.append(d);
@@ -149,7 +152,7 @@
       }
       if (tool === 'at') {
         const ids = st.batch('b-xe6').newcomers.map((n) => n[0]).filter((id) => st.scope(id));
-        const pid = await NT.dialog({ title: `在 ${at} 关联一个人`, sub: '这一段会作为这个人的证据来源，整理时优先归到他名下',
+        const pid = await NT.dialog({ title: `在 ${at} 关联一个人`, sub: '这一段会作为这个人的证据来源，整理时优先归到这个人名下',
           body: html`<ul class="m-list">${ids.map((id) => html`<li><button class="m-row m-rolebtn" type="button" data-value="${id}">${UI.avatar(id, 'sm')}<span>${st.person(id).name}<small>${st.project(st.landingOf(id).row[1]).name}</small></span><span></span></button></li>`)}</ul>`,
           actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }] });
         if (st.person(pid)) { const n = `<div class="m-live__at">@${NT.esc(st.person(pid).name)} <small>${at}</small></div>`; r.notes.push({ i: r.line, kind: 'at', html: n }); live.insertAdjacentHTML('beforeend', n); M.rec.set(r); live.scrollTop = live.scrollHeight; }
@@ -184,15 +187,15 @@
       <div class="n-player m-card" style="margin-top:var(--s-2)"><button class="n-player__play nt-play" type="button" aria-label="播放">${icon('play')}</button><div class="n-player__track">${Array.from({ length: 48 }, (_, i) => raw(`<i style="height:${30 + Math.round(Math.abs(Math.sin(i * 1.7)) * 70)}%"></i>`))}</div><span>${M.fmt(info.dur)}</span></div>
       <div class="m-proc"><span class="nt-ip" data-ip="thinking" data-size="72" id="proc-ip"></span><div><b id="proc-t">转写与整理中</b><p class="nt-muted" id="proc-s">约需 1–3 分钟，可以直接返回。结果会出现在工作台的「进行中的任务」里。</p></div></div>
       <div class="m-card">${UI.trail('处理这段录音 · 5 步', ['上传完成', '转写 · 区分说话人', '提取人员与项目', '整理关键事件', '标出需要人确认的地方'])}</div>
-      ${info.marks || info.notes || info.ats ? html`<p class="nt-muted">${[info.marks && `${info.marks} 个标记`, info.notes && `${info.notes} 条随手记`, info.ats && `${info.ats} 处 @`].filter(Boolean).join('、')}会一起带进纪要。</p>` : ''}
       <div class="m-actions"><a class="n-btn n-btn--ink m-big" href="index.html" id="proc-go">回到工作台</a></div>`);
     UI.mountIPs(main);
     await NT.runTrail($('.n-trail', main), 900);
     if (!$('#proc-ip')) return;
-    task.state = 'partial'; task.note = '9 条事件已整理，3 处待核对'; delete task.readyAt; st.save();
+    const open = st.get().inbox.filter((i) => i.src === W8.title && !i.done).length;
+    task.state = 'partial'; task.note = `${W8.events.length} 条事件已整理，${open} 处待核对`; delete task.readyAt; st.save();
     NT.ipState($('#proc-ip'), 'done');
     $('#proc-t').textContent = '人才纪要已生成';
-    $('#proc-s').textContent = '9 条事件已整理，3 处需要你确认是谁。';
+    $('#proc-s').textContent = `${W8.events.length} 条事件已整理，${open} 处需要你确认是谁。`;
     mount($('.m-actions', main), html`<a class="n-btn n-btn--ink m-big" href="record.html?m=w8">查看人才纪要</a><a class="n-btn n-btn--ghost" href="index.html">回到工作台</a>`);
   }
 
@@ -217,7 +220,7 @@
       </div>
       <div class="n-tabpanel" role="tabpanel" id="mp-1">
         <p class="n-minutes__sum" id="sum"></p>
-        <div class="n-minutes__people">${m.people.filter(([pid]) => st.scope(pid)).map(([pid, n]) => html`<a class="nt-plink" href="person.html?id=${pid}"><span>${UI.avatar(pid, 'sm')}${st.person(pid).name} · ${n} 条</span></a>`)}</div>
+        <div class="n-minutes__people">${m.people.filter(([pid]) => st.scope(pid)).map(([pid]) => html`<a class="nt-plink" href="person.html?id=${pid}"><span>${UI.avatar(pid, 'sm')}${st.person(pid).name} · ${evs.filter((e) => e.people.includes(pid)).length} 条</span></a>`)}</div>
         <h3 class="m-h">新事件 · ${evs.length} 条</h3>
         ${evs.map((e) => {
           const pend = e.scores.filter((s) => s.st === 'ai').length, conf = e.scores.some((s) => s.st === 'conflict');

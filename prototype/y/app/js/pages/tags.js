@@ -35,7 +35,7 @@
             </dl>
             ${c.done ? html`<div class="n-cand__done"><span class="ink-hand">${st.person(c.by).name}</span>${{ add: '收录进库', merge: `并入「${c.similar}」`, drop: '不要' }[c.done]} · ${NT.md(c.doneAt)}<button type="button" data-undo="${i}">撤销</button></div>`
               : can ? html`<div class="n-cand__actions"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-add="${i}">收录</button>${c.similar ? html`<button class="n-btn n-btn--sm" type="button" data-merge="${i}">并入「${c.similar}」</button>` : ''}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-drop="${i}">不要</button></div>`
-                : html`<div class="n-lock" style="margin-top:var(--s-3)">${icon('lock')}收录候选标签需要 HR 或管理者。</div>`}
+                : html`<div class="n-lock" style="margin-top:var(--s-3)">${icon('lock')}候选标签由 HR 收录。</div>`}
           </div>`)}
         </article>
       </div>`);
@@ -49,7 +49,7 @@
       c.by = st.me().id; c.doneAt = NT.TODAY;
       if (c.done === 'add') S.taglibAdd.push([c.name === 'AI 产出核对' ? '做事方式' : '技术方向', c.name]);
       st.save(); render(main);
-      NT.toast({ add: `已收录「${c.name}」，相关事件上的候选标签随之落墨`, merge: `已并入「${c.similar}」`, drop: `不收录「${c.name}」` }[c.done]);
+      NT.toast({ add: `已收录「${c.name}」进标签库`, merge: `已并入「${c.similar}」`, drop: `不收录「${c.name}」` }[c.done]);
     };
   }
 })();

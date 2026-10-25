@@ -10,12 +10,22 @@
     const p = st.project(id); if (!p) return false;
     return st.search('').projects.some((x) => x.id === id);
   };
+  const exists = !!st.project(id);
   NT.shell({
     nav: 'projects', title: st.project(id)?.name || '项目', crumbs: [['项目', 'projects.html']],
-    allow: visible, denyTitle: '这个项目在你的查看范围之外', denyText: '员工只能看到本人参与的项目，导师只能看到所带批次的课题。',
-    view: () => `项目 · ${st.project(id)?.status}`,
+    allow: visible,
+    ...(exists
+      ? { denyTitle: '这个项目在你的查看范围之外', denyText: '员工只能看到本人参与的项目，导师只能看到所带批次的课题。' }
+      : { denyTitle: '项目链接失效', denyText: '项目可能已删除，或链接有误。回到项目列表重新进入。', denyActions: html`<a class="n-btn n-btn--sm" href="projects.html">回到项目列表</a>` }),
+    view: () => `项目 · ${st.project(id)?.status || ''}`,
     render,
   });
+
+  // 添加成员的候选：本视角能完整查看或所带的学员里，还不在项目里的人
+  const candidates = () => {
+    const cur = new Set(st.membersOf(id).map((m) => m.person));
+    return st.visiblePeople().filter((x) => !cur.has(x.id) && ['full', 'mentor'].includes(st.scope(x.id)));
+  };
 
   function render(main) {
     const p = st.project(id), role = st.role(), S = st.get();
@@ -23,6 +33,11 @@
     const edit = st.canEditProject(p);
     const staff = st.canStaff(id);
     const all = st.membersOf(id, true).sort((a, b) => (a.to ? 1 : 0) - (b.to ? 1 : 0) || (a.role === 'owner' ? -1 : 1));
+    // 已结束、已归档的项目：成员都有退出日期，列出所有参与过的人；进行中的项目：现任成员一组，已退出的另列一组，计数与列表行数一致
+    const ended = ['已结束', '已归档'].includes(p.status);
+    const curM = all.filter((m) => !m.to), goneM = ended ? [] : all.filter((m) => m.to), shownM = ended ? all : curM;
+    const cand = edit && !basic ? candidates() : [];
+    const mrow = (m) => html`<li class="${m.to ? 'is-left' : ''}"><div class="n-person">${UI.avatar(m.person, 'sm')}<span class="n-person__name">${basic ? st.person(m.person).name : UI.plink(m.person)}</span></div><span class="n-members__role">${m.role}${m.mode ? ` · ${m.mode}` : ''}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}${edit && !m.to && !basic ? html` <button class="n-link" type="button" data-end="${m.person}">退出</button>` : ''}</span></li>`;
     const log = S.memberLog.filter((l) => l.project === id);
     const evs = basic ? [] : S.events.filter((e) => e.project === id && e.kind === 'obs' && e.people.some((x) => st.scope(x) && st.scope(x) !== 'self')).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const plans = S.plans.filter((x) => x.project === id);
@@ -33,15 +48,16 @@
         <div class="n-project__head" style="flex:1;min-width:0"><span class="n-avatar n-avatar--lg" style="--hue:220;border-radius:14px">${icon('folder', 20)}</span>
           <div style="min-width:0"><h1 style="margin:0;font-size:var(--t-xl)">${p.name}</h1><p class="n-project__goal" style="font-size:var(--t-body)">${p.goal}</p>
             <div class="nt-row" style="margin-top:var(--s-2)">${UI.pstatus(p.status)}<span class="nt-muted">${p.type} · ${st.orgPath(p.org)} · ${NT.md(p.from)} – ${NT.md(p.to)} · ${st.person(p.creator).name}创建</span></div></div></div>
-        ${edit && !basic ? html`<div class="nt-head__acts"><button class="n-btn n-btn--sm" type="button" id="add">${icon('plus')}添加成员</button>
+        ${edit && !basic ? html`<div class="nt-head__acts">${cand.length ? html`<button class="n-btn n-btn--sm" type="button" id="add">${icon('plus')}添加成员</button>` : ''}
           <span class="n-menuwrap"><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="more">${icon('more')}更多</button></span></div>` : ''}
       </header>
       ${NT.param('created') ? html`<div class="n-notice is-plain" style="margin-bottom:var(--s-4)">${icon('check')}<div>项目已创建。${p.owner ? '' : '还没有 owner，可以'}${!p.owner && st.can('findOwner') ? html`<a href="staffing.html?project=${id}">发起找 owner</a>` : ''}</div></div>` : ''}
       <div class="nt-split">
         <div class="nt-grid">
-          <article class="n-card"><h3 class="n-section-title">成员与角色<span class="n-count is-quiet">${all.filter((m) => !m.to).length}</span></h3>
+          <article class="n-card"><h3 class="n-section-title">成员与角色${!shownM.length ? '' : ended ? html`<span class="nt-muted" style="margin-left:6px;font-weight:400">${shownM.length} 人参与</span>` : html`<span class="n-count is-quiet">${shownM.length}</span>`}</h3>
             ${!p.owner ? html`<div class="n-ownerless" style="margin-bottom:var(--s-3)"><span class="n-slot__empty">${icon('plus', 14)}</span><div><b>owner 待定</b><div class="nt-muted">${p.status}</div></div>${st.can('findOwner') ? html`<a class="n-btn n-btn--sm n-btn--light" href="staffing.html?project=${id}">${icon('spark')}发起找 owner</a>` : ''}</div>` : ''}
-            <ul class="n-members">${all.map((m) => html`<li class="${m.to ? 'is-left' : ''}"><div class="n-person">${UI.avatar(m.person, 'sm')}<span class="n-person__name">${basic ? st.person(m.person).name : UI.plink(m.person)}</span></div><span class="n-members__role">${m.role}${m.mode ? ` · ${m.mode}` : ''}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}${edit && !m.to && !basic ? html` <button class="n-link" type="button" data-end="${m.person}">退出</button>` : ''}</span></li>`)}</ul>
+            ${shownM.length ? html`<ul class="n-members">${shownM.map(mrow)}</ul>` : html`<div class="nt-empty">项目成员会出现在这里。</div>`}
+            ${goneM.length ? html`<h4 class="n-action__grp">已退出<span>${goneM.length}</span></h4><ul class="n-members">${goneM.map(mrow)}</ul>` : ''}
           </article>
           ${!basic ? html`<article class="n-card"><h3 class="n-section-title">关联事件<span class="n-count is-quiet">${evs.length}</span></h3>
             ${evs.length ? html`<ul class="nt-list">${evs.map((e) => html`<li><div class="nt-row" style="justify-content:space-between"><a class="nt-plink" href="person.html?id=${e.people[0]}#ev-${e.id}"><b>${e.title}</b></a><span class="nt-muted">${e.date ? NT.md(e.date) : '时间未知'}</span></div><div class="nt-muted">${e.people.map((x) => st.person(x).name).join('、')} · ${st.person(e.recorder).name}记录${e.scores.some((s) => s.st === 'ai') ? ' · 有 AI 建议分待确认' : ''}</div></li>`)}</ul>` : html`<div class="nt-empty">还没有挂在这个项目上的事件。</div>`}
@@ -76,18 +92,19 @@
 
   async function addMember() {
     const p = st.project(id);
-    const cur = new Set(st.membersOf(id).map((m) => m.person));
-    const cand = st.visiblePeople().filter((x) => !cur.has(x.id) && st.scope(x.id) === 'full');
+    const cand = candidates();
+    if (!cand.length) { NT.toast('你能查看的人都已经在这个项目里了'); return; }
     const r = await NT.dialog({
       title: `添加成员到「${p.name}」`,
-      body: html`<div class="nt-grid" style="gap:var(--s-3)"><label class="n-field"><span class="n-field__label">谁</span><select class="n-select" id="am-p">${cand.map((x) => html`<option value="${x.id}">${x.name} · ${st.orgShort(x.org)} · 已在 ${st.projectsOf(x.id).length} 个项目</option>`)}</select></label>
+      body: html`<div class="nt-grid" style="gap:var(--s-3)"><label class="n-field"><span class="n-field__label">谁</span><select class="n-select" id="am-p">${cand.map((x) => html`<option value="${x.id}">${x.name} · ${st.orgShort(x.org)}${st.projectLoad(x.id).cur ? ` · 已在 ${st.projectLoad(x.id).cur} 个项目` : ''}</option>`)}</select></label>
         <div class="nt-cols" style="gap:var(--s-3)"><label class="n-field"><span class="n-field__label">角色</span><input class="n-input" id="am-r" value="成员"></label><label class="n-field"><span class="n-field__label">投入</span><select class="n-select" id="am-m"><option>全职</option><option selected>兼职</option><option>顾问</option></select></label></div></div>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '添加', value: 'ok', cls: 'n-btn--ink', read: (d) => ({ person: d.querySelector('#am-p').value, role: d.querySelector('#am-r').value.trim() || '成员', mode: d.querySelector('#am-m').value }) }],
     });
     if (r?.value !== 'ok') return;
-    st.addMember({ project: id, ...r.data, from: NT.TODAY, to: null, by: st.me().id });
+    const added = st.addMember({ project: id, ...r.data, from: NT.TODAY, to: null, by: st.me().id });
+    if (!added) { NT.toast('没能添加：这个人已在项目里，或不在你的查看范围内'); return; }
     render($('#main'));
-    const n = st.projectsOf(r.data.person).length;
+    const n = st.projectLoad(r.data.person).cur;
     NT.toast(`已添加${st.person(r.data.person).name}${n > 1 ? `，现在在 ${n} 个项目里` : ''}`);
   }
   async function editInfo() {

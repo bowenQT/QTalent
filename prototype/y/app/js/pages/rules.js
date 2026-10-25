@@ -21,15 +21,17 @@
     nav: 'rules',
     title: kind ? KINDS[kind]?.n || '评价体系' : '评价体系',
     crumbs: kind ? [['评价体系', 'rules.html']] : [],
-    allow: (r) => ['ceo', 'hrbp'].includes(r) && (!kind || (!!KINDS[kind] && kind !== 'tags')),
+    allow: (r) => ['ceo', 'hrbp'].includes(r),
     denyTitle: '评价体系由 HR 和管理者维护',
     denyText: '修订由 HR 起草、管理者确认发布。对锚点有想法，可以在记录页的锚点面板提修订建议。',
-    view: () => (kind ? `评价体系 · ${KINDS[kind]?.n}${line ? ` · ${lineName(line)}` : ''}` : '评价体系 · 总览'),
+    view: () => (kind ? `评价体系 · ${KINDS[kind]?.n || '链接失效'}${line && lineName(line) ? ` · ${lineName(line)}` : ''}` : '评价体系 · 总览'),
     render,
   });
 
   function render(main) {
     if (!kind) return renderOverview(main);
+    if (!KINDS[kind]) return mount(main, UI.state({ ip: 'confirm', title: '链接失效', text: '这条评价规则不存在，或链接有误。回到评价体系重新进入。', actions: html`<a class="n-btn n-btn--sm" href="rules.html">回到评价体系</a>` }));
+    if (kind === 'tags') return mount(main, UI.state({ ip: 'rest', title: '标签库在单独的页面维护', text: '收录、并入和停用标签都在标签库里完成。', actions: html`<a class="n-btn n-btn--sm" href="tags.html">打开标签库</a>` }));
     if (kind === 'front') return renderFront(main);
     if (kind === 'tpl') return renderTpl(main);
     return renderRule(main);
@@ -39,7 +41,7 @@
   function renderOverview(main) {
     const lock = st.inventoryLock();
     mount(main, html`
-      <header class="nt-head"><div><h1>评价体系</h1><p>人才判断用到的规则都在这里：每条规则按版本保存，修订要写理由、看影响、经管理者确认才生效，已经做出的判断保留原来的版本。</p></div></header>
+      ${UI.evalHead('rules', '人才判断用到的规则都在这里：每条规则按版本保存，修订要写理由、看影响、经管理者确认才生效，已经做出的判断保留原来的版本。')}
       <div class="n-rcards">
         <p class="n-rcards__grp">会改变评价结果 · 修订由 HR 起草、管理者确认</p>
         ${card('rubric', { signal: rubricSignal() })}
@@ -77,18 +79,22 @@
     if (!gap.length) return null;
     return [icon('info'), `入职半年内 ${gap.length} 人同一维度已有 ${P.n1Count} 件以上的事印证，第一件早于近 ${P.n1Days} 天，N1 把这${gap.length > 1 ? '些' : ''}人排除在外`];
   }
+  // 判断对照依据的归因：已确认的取 HR 选的类别，没有确认的写待确认
+  const CATN = { std: '评价标准', rater: '评价人', method: '评价方式与信息不足', env: '本人或环境变化', later: '后段评价偏差' };
+  const judgeCat = (b) => { const a = b.hyp && st.judgeAttrib(b.hyp); return a ? a.cats.map((c) => CATN[c]).join('、') : b.hyp ? '' : b.cat; };
   function judgeSignal(r) {
     const b = (r?.basis || []).find((x) => x.type === 'judge');
     if (!b) return null;
-    return [icon('split'), `${st.judgeBatch(b.batch)?.name.replace('判断复盘', '')}：${b.dim}${b.n}，${b.hyp && !st.judgeAttrib(b.hyp) ? '归因待确认' : `归因为${b.cat}`}`];
+    const cat = judgeCat(b);
+    return [icon('split'), `${st.judgeBatch(b.batch)?.name.replace('判断对照', '').trim()} ${b.dim}：${b.n}，${cat ? `归因为${cat}` : '归因待确认'}`];
   }
   function frontCard() {
     const lives = st.FRONT_LINES.map(([l]) => st.ruleLive('front', l)).filter(Boolean);
     const open = st.ruleVers('front').find((r) => ['draft', 'pending', 'scheduled'].includes(r.state));
     const sig = judgeSignal(open);
     return html`<a class="n-rcard" href="rules.html?r=front">
-      <div class="n-rcard__head"><span class="n-rcard__name">${KINDS.front.n}</span><span class="n-rcard__ro">${icon('lock')}只读</span></div>
-      <p class="n-rcard__what">${KINDS.front.w}；判断复盘按它对照。</p>
+      <div class="n-rcard__head"><span class="n-rcard__name">${KINDS.front.n}</span>${open ? '' : html`<span class="n-rcard__ro">${icon('lock')}只读</span>`}</div>
+      <p class="n-rcard__what">${KINDS.front.w}；判断对照以它为准。</p>
       <div class="n-rcard__ver">${lives.map((r) => html`<b>${r.v}</b>`)}</div>
       ${open ? html`<div class="nt-row">${rstate(open, open.v)}<span class="nt-muted">${openNote(open)}</span></div>` : ''}
       ${sig ? html`<div class="n-rcard__signal">${sig[0]}<span>${sig[1]}</span></div>` : ''}
@@ -274,7 +280,7 @@
           </div>
           <div class="n-checkbar__sec">
             <span class="n-checkbar__label">依据</span>
-            ${(d.basis || []).length ? html`<div class="nt-row">${d.basis.map((b, i) => basisChip(b, i, ed))}</div>` : html`<p class="n-checkbar__text">可以关联判断复盘、校准理由、修订建议或你的核对结果。</p>`}
+            ${(d.basis || []).length ? html`<div class="nt-row">${d.basis.map((b, i) => basisChip(b, i, ed))}</div>` : html`<p class="n-checkbar__text">可以关联判断对照、校准理由、修订建议或你的核对结果。</p>`}
             ${ed ? html`<span class="n-menuwrap" style="justify-self:start"><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="basis-add">${icon('plus')}关联依据</button></span>` : ''}
           </div>
           <div class="n-checkbar__sec">
@@ -307,11 +313,11 @@
       </aside>
     </div>`;
   }
-  // 依据：按查看人的权限呈现。管理者看判断复盘的批次、维度、偏差人数和归因类别，修订建议与核对只看来源和条数
+  // 依据：按查看人的权限呈现。管理者看判断对照的批次、维度、偏差人数和归因类别，修订建议与核对只看来源和条数
   const ROLE_OF = (pid) => Object.keys(st.roles).find((r) => st.roles[r].person === pid) || (st.person(pid)?.isLead ? 'lead' : 'mentor');
-  const SRC = { lead: '管理者', mentor: '导师 / 助教' };
+  const SRC = { lead: '部门负责人', mentor: '导师 / 助教' };
   function basisText(b) {
-    if (b.type === 'judge') return `${st.judgeBatch(b.batch)?.name} · ${b.dim}${b.n} · ${b.hyp && !st.judgeAttrib(b.hyp) ? '归因待确认' : b.cat}`;
+    if (b.type === 'judge') { const cat = judgeCat(b); return `${st.judgeBatch(b.batch)?.name} · ${b.dim}：${b.n} · ${cat ? `归因：${cat}` : '归因待确认'}`; }
     if (b.type === 'sug') { const s = st.ruleSugs().find((x) => x.id === b.sug); if (!s) return '修订建议'; return role === 'hrbp' ? `${name(s.by)}的修订建议 · ${st.dim(s.dim).name}锚点 ${s.level}` : `修订建议 · 来自${SRC[ROLE_OF(s.by)]} 1 条`; }
     if (b.type === 'gap') return role === 'hrbp' ? `HR 核对 · ${b.people.map(name).join('、')}的第一件事早于时间窗` : `HR 核对 · ${b.people.length} 人`;
     return b.text;
@@ -321,6 +327,13 @@
     ? html`<button class="n-casechip" type="button" data-rm="${i}" aria-label="移除依据：${basisText(b)}">${icon(BASIS_ICON[b.type] || 'doc')}${basisText(b)}${icon('x')}</button>`
     : html`<span class="n-casechip">${icon(BASIS_ICON[b.type] || 'doc')}${basisText(b)}</span>`);
 
+  // 纳入草稿：当前版本已提交或已排期时不能再挂依据，写明原因，不弹成功提示
+  function adoptSug(id) {
+    if (st.handleRuleSug(id, true)) return true;
+    const o = st.ruleOpen('rubric');
+    NT.toast(o && o.state !== 'draft' ? `${o.v} 处于${STATE[o.state]}，撤回到草稿后再纳入这条建议` : '暂时无法纳入这条建议，刷新页面后重试');
+    return false;
+  }
   // 修订建议：HR 纳入草稿或不采纳（写理由）；提建议的人能看到处理结果
   function sugSec() {
     const list = st.ruleSugs().filter((s) => s.rule === kind);
@@ -340,7 +353,7 @@
   const teamsLine = (p) => (p.teams.length ? p.teams.map((t) => `${st.orgShort(t.team)} ${t.n > 0 ? '+' : ''}${t.n}`).join(' · ') + ' · 其余团队保持' : '各团队人数保持');
   function impactLine(p) {
     if (p.kind === 'watch') return html`值得关注 <b>${p.from} → ${p.to} 人</b>：进入 ${p.enter.length} 人，离开 ${p.leave.length} 人。按团队：${teamsLine(p)}。`;
-    if (p.kind === 'map') return html`下一次判断复盘里受影响的对照单元 <b>${p.cells} 个</b>。`;
+    if (p.kind === 'map') return html`下一次判断对照里受影响的对照单元 <b>${p.cells} 个</b>。`;
     return html`取数窗口内用到这些锚点的事件 <b>${p.events} 件</b>，涉及 ${p.people} 人、${p.raters.length} 位评分人；${p.tasks ? html`将生成 <b>${p.tasks} 条复核任务</b>` : '旧分继续参与取数'}。`;
   }
   function impactFull(p, who) {
@@ -428,11 +441,13 @@
 
   // ---------- 前段评价标准与对应表（只读；待确认的 xe-select-v3 是预置草稿） ----------
   function renderFront(main) {
-    const ls = line ? [line] : st.FRONT_LINES.map(([l]) => l);
+    // 每条标准都要有生效中的版本；链接里的 line 不存在时给出路，不渲染半截页面
+    const ls = (line ? [line] : st.FRONT_LINES.map(([l]) => l)).filter((l) => st.FRONT_LINES.some(([x]) => x === l) && st.ruleLive('front', l));
+    if (!ls.length) return mount(main, UI.state({ ip: 'confirm', title: '链接失效', text: '这条前段评价标准不存在，或链接有误。回到前段评价标准查看现有的几条。', actions: html`<a class="n-btn n-btn--sm" href="rules.html?r=front">查看前段评价标准</a>` }));
     const pending = st.ruleVers('front').find((r) => r.state === 'pending' && (!line || r.line === line));
     mount(main, html`
-      <header class="nt-head"><div><h1>${line ? lineName(line) : KINDS.front.n}</h1><p>${KINDS.front.w}；判断复盘按它对照。</p></div>
-        <div class="nt-head__acts">${sealFor(st.ruleVers('front', line))}<span class="n-rcard__ro">${icon('lock')}只读</span></div></header>
+      <header class="nt-head"><div><h1>${line ? lineName(line) : KINDS.front.n}</h1><p>${KINDS.front.w}；判断对照以它为准。</p></div>
+        <div class="nt-head__acts">${sealFor(st.ruleVers('front', line))}${pending ? html`<span class="n-rstate" data-s="pending">${role === 'ceo' ? `${name(pending.by)}起草 · 待你确认` : `待${name(MGR)}确认`}</span>` : html`<span class="n-rcard__ro">${icon('lock')}只读</span>`}</div></header>
       ${pending && role === 'ceo' ? reviewView(pending) : ''}
       <div class="nt-grid">${ls.map((l) => {
         const live = st.ruleLive('front', l), open = st.ruleOpen('front', l);
@@ -450,7 +465,7 @@
   // ---------- 目标角色与发展通道（只读，沿用 v1.3 模板版本） ----------
   function renderTpl(main) {
     mount(main, html`
-      <header class="nt-head"><div><h1>${KINDS.tpl.n}</h1><p>${KINDS.tpl.w}。HR 维护、管理者可改，发布即生效；这里只读。</p></div>
+      <header class="nt-head"><div><h1>${KINDS.tpl.n}</h1><p>${KINDS.tpl.w}。由 HR 维护，发布即生效。</p></div>
         <div class="nt-head__acts"><span class="n-rcard__ro">${icon('lock')}只读</span></div></header>
       <div class="nt-grid">${st.templates().map((t) => {
         const vs = t.versions.slice().reverse();
@@ -463,6 +478,7 @@
   }
 
   // ---------- 交互 ----------
+  const RETURN_PH = { watch: '比如：先确认 120 天会把哪些更早的事算进来', rubric: '比如：锚点 3 的两种情形先拆开写清楚', front: '比如：每一档的写法要求再补一个具体例子' };
   function wire(main, frontLine) {
     const rerender = () => render($('#main'));
     $('#start')?.addEventListener('click', () => { st.startDraft(kind); rerender(); NT.toast(`已起草 ${st.ruleOpen(kind).v}，改完后预览影响再提交`); });
@@ -505,7 +521,7 @@
       const gap = kind === 'watch' ? st.watchGap() : [];
       const items = [];
       if (gap.length && !has('gap')) items.push({ label: `你的核对：第一件事早于时间窗的 ${gap.length} 人`, sub: gap.map((p) => p.name).join('、'), icon: 'users', run: () => { st.setDraft(kind, { basis: [...(d.basis || []), { type: 'gap', people: gap.map((p) => p.id) }] }); rerender(); } });
-      if (kind === 'rubric') st.ruleSugs({ state: 'open' }).forEach((s) => items.push({ label: `${s.by ? name(s.by) : ''}的修订建议 · ${st.dim(s.dim).name}锚点 ${s.level}`, icon: 'note', run: () => { st.handleRuleSug(s.id, true); rerender(); NT.toast('已把这条建议纳入草稿，提建议的人能看到结果'); } }));
+      if (kind === 'rubric') st.ruleSugs({ state: 'open' }).forEach((s) => items.push({ label: `${s.by ? name(s.by) : ''}的修订建议 · ${st.dim(s.dim).name}锚点 ${s.level}`, icon: 'note', run: () => { if (adoptSug(s.id)) { rerender(); NT.toast('已把这条建议纳入草稿，提建议的人能看到结果'); } } }));
       items.push({ label: '写一条说明', icon: 'doc', run: async () => {
         const v = await NT.dialog({ title: '写一条依据说明', body: html`<textarea class="n-textarea" rows="3" id="note" placeholder="比如：两次校准会上都提到新人的第一件事落在时间窗外"></textarea>`,
           actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '加入依据', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#note', dl).value.trim(), read: (dl) => $('#note', dl).value.trim() }] });
@@ -525,7 +541,7 @@
       const miss = !c.lock ? '把生效点改为「从下一个盘点批次开始」' : !c.changed ? '先改至少一处' : !c.why ? '写修订理由' : !c.range ? '把标错的参数改回允许范围' : !c.preview ? '按当前草稿预览一次影响' : '';
       if (miss) { err.hidden = false; err.textContent = `提交前还要：${miss}。`; if (!c.why) $('#why')?.focus(); else $('#preview')?.focus(); return; }
       st.submitDraft(kind); rerender();
-      NT.toast(`已提交 ${d.v}，${name(MGR)}的「需要我看」里会出现这条修订`, { undo: () => { st.withdrawDraft(kind); rerender(); } });
+      NT.toast(`已提交 ${d.v}，待${name(MGR)}确认`, { undo: () => { st.withdrawDraft(kind); rerender(); } });
     });
     $('#withdraw')?.addEventListener('click', async () => {
       const d = st.ruleOpen(kind);
@@ -542,7 +558,7 @@
       const restore = st.deleteDraft(kind); rerender();
       NT.toast(`已删除草稿 ${d.v}`, { undo: () => { if (!restore()) NT.toast('已经有一份新草稿，删除的草稿保持删除'); rerender(); } });
     });
-    $$('[data-adopt]', main).forEach((b) => b.addEventListener('click', () => { st.handleRuleSug(b.dataset.adopt, true); rerender(); NT.toast('已纳入草稿作为依据，提建议的人能看到结果', { undo: () => { st.unhandleRuleSug(b.dataset.adopt); rerender(); } }); }));
+    $$('[data-adopt]', main).forEach((b) => b.addEventListener('click', () => { if (!adoptSug(b.dataset.adopt)) return; rerender(); NT.toast('已纳入草稿作为依据，提建议的人能看到结果', { undo: () => { st.unhandleRuleSug(b.dataset.adopt); rerender(); } }); }));
     $$('[data-reject]', main).forEach((b) => b.addEventListener('click', async () => {
       const v = await NT.dialog({ title: '不采纳这条修订建议？', body: html`<p>写一句理由，提建议的人能看到。</p><textarea class="n-textarea" rows="2" id="rj" placeholder="比如：锚点 3 的范围本来就包含两种情形，先补示例"></textarea>`,
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '不采纳', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#rj', dl).value.trim(), read: (dl) => $('#rj', dl).value.trim() }] });
@@ -557,7 +573,7 @@
         title: `确认发布 ${d.v}？`,
         body: html`<p>${d.effect === 'now' ? `确认后新的评价按 ${d.v} 计算，${d.base} 变为已替代。` : `确认后进入已排期，从下一个盘点批次开始生效，之前 ${d.base} 继续生效。`}已确认的分数、冻结的快照和档案版本保留原来的版本。</p>`,
         facts: [html`理由：${d.why}`, d.preview ? impactLine(d.preview) : ''].filter(Boolean),
-        actions: [{ label: '再看看', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认发布 ${d.v}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
+        actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认发布 ${d.v}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
       });
       if (v !== 'ok') return;
       const undo = st.confirmDraft(k, frontLine); rerender();
@@ -566,11 +582,11 @@
     });
     $('#return')?.addEventListener('click', async () => {
       const k = frontLine ? 'front' : kind, d = st.ruleOpen(k, frontLine);
-      const v = await NT.dialog({ title: `退回 ${d.v}？`, body: html`<p>草稿回到${name(d.by)}那里，你写的理由会出现在${name(d.by)}的待办里。</p><textarea class="n-textarea" rows="2" id="rt" placeholder="比如：先确认 120 天会把哪些更早的事算进来"></textarea>`,
+      const v = await NT.dialog({ title: `退回 ${d.v}？`, body: html`<p>草稿回到${name(d.by)}那里，你写的理由会出现在${name(d.by)}的待办里。</p><textarea class="n-textarea" rows="2" id="rt" placeholder="${RETURN_PH[k] || ''}"></textarea>`,
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '退回修改', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#rt', dl).value.trim(), read: (dl) => $('#rt', dl).value.trim() }] });
       if (v?.value !== 'ok') return;
       st.returnDraft(k, v.data, frontLine); rerender();
-      NT.toast(`已退回给${name(d.by)}，理由在${name(d.by)}的待办里`);
+      NT.toast(`已退回给${name(d.by)}修改，理由在${name(d.by)}的待办里`, { undo: () => { d.state = 'pending'; delete d.returned; st.save(); rerender(); } });
     });
     $('#rv-toggle')?.addEventListener('click', () => { reviewing = !reviewing; rerender(); $('#rv-toggle')?.focus(); });
     $$('[data-rv]', main).forEach((b) => b.addEventListener('click', () => {

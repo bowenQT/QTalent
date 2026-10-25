@@ -23,7 +23,14 @@
       ['quick.html', 'pen', '一句话记录', '说一件具体的事'],
       ['mentor.html', 'users', '导师评价', 'W8 对人复盘'],
     ];
-    const tasks = st.visibleTasks().filter((t) => t.state !== 'done').slice(0, 4);
+    const open = st.visibleTasks().filter((t) => t.state !== 'done');
+    const tasks = open.filter((t) => t.state !== 'failed').slice(0, 4), failed = open.filter((t) => t.state === 'failed');
+    const taskRow = (t) => {
+      const [ic, label] = STATE[t.state] || ['spark', ''];
+      const link = t.state === 'partial' ? (t.link || 'record.html?m=w8') : t.state === 'shaping' && t.live ? 'record.html?step=processing' : '';
+      const act = t.state === 'failed' ? html`<button class="n-btn n-btn--sm" type="button" data-retry="${t.id}">${icon('retry')}重试整理</button>` : link ? html`<a class="n-btn n-btn--sm" href="${link}">${t.state === 'partial' ? '去看' : '查看'}</a>` : '';
+      return html`<div class="n-task" data-state="${t.state}"><span class="n-task__icon">${icon(ic)}</span><div style="min-width:0"><div class="n-task__name">${t.name}${t.preset ? html` <span class="n-badge n-badge--preset">演示任务</span>` : ''}</div><div class="n-task__state"><b>${label}</b> · ${t.note}</div>${t.state === 'uploading' ? html`<div class="n-progress"><i style="width:${t.progress}%"></i></div>` : t.state === 'shaping' ? html`<div class="n-progress is-indeterminate"><i></i></div>` : ''}</div>${act ? html`<div class="n-task__acts">${act}</div>` : ''}</div>`;
+    };
     mount(main, html`
       <h2 class="m-hello">${hello}，${me.name}<small>${NT.md(NT.TODAY)} 周五 · ${st.roles[role].scope}</small></h2>
       <a class="m-composer" href="quick.html"><span class="nt-ip" data-ip="listening" data-size="32"></span><span>说一件刚发生的事…</span><span class="m-composer__mic" aria-hidden="true">${icon('mic')}</span></a>
@@ -31,17 +38,25 @@
 
       <h3 class="m-h">待办${todos.length ? html`<span class="n-count">${todos.length}</span>` : ''}<a class="n-link" href="inbox.html">全部</a></h3>
       ${todos.length ? html`<ul class="m-list">${todos.slice(0, 4).map(M.todoRow)}</ul>`
-        : html`<div class="m-card">${UI.state({ ip: 'done', size: 40, title: '没有待办', text: '新的待核对、待确认会出现在这里。' })}</div>`}
+        : html`<div class="m-card">${UI.state({ ip: 'done', size: 40, title: '待办都处理完了', text: '新的待核对、待确认会出现在这里。' })}</div>`}
 
       ${mentorBlocks()}
-      ${tasks.length ? html`<h3 class="m-h">进行中的任务</h3><div class="m-card m-tasks">${tasks.map((t) => {
-        const [ic, label] = STATE[t.state] || ['spark', ''];
-        const link = t.state === 'partial' ? (t.link || 'record.html?m=w8') : t.state === 'shaping' && t.live ? 'record.html?step=processing' : '';
-        return html`<div class="n-task" data-state="${t.state}"><span class="n-task__icon">${icon(ic)}</span><div style="min-width:0"><div class="n-task__name">${t.name}${t.preset ? html` <span class="n-badge n-badge--preset">演示任务</span>` : ''}</div><div class="n-task__state"><b>${label}</b> · ${t.note}</div>${t.state === 'uploading' ? html`<div class="n-progress"><i style="width:${t.progress}%"></i></div>` : t.state === 'shaping' ? html`<div class="n-progress is-indeterminate"><i></i></div>` : ''}</div>${link ? html`<div class="n-task__acts"><a class="n-btn n-btn--sm" href="${link}">${t.state === 'partial' ? '去看' : '查看'}</a></div>` : ''}</div>`;
-      })}</div>` : ''}
+      ${tasks.length ? html`<h3 class="m-h">进行中的任务</h3><div class="m-card m-tasks">${tasks.map(taskRow)}</div>` : ''}
+      ${failed.length ? html`<h3 class="m-h">待重试的任务</h3><div class="m-card m-tasks" id="m-failed">${failed.map(taskRow)}</div>` : ''}
 
       <h3 class="m-h">最近看过</h3>
       <ul class="m-list">${['p-x11', 'p-x07', 'p-x15', 'p-x06'].filter((id) => st.scope(id)).slice(0, 3).map((id) => { const p = st.person(id); return M.prow(id, p.name, `${st.orgShort(p.org)} · ${p.title}`); })}</ul>`);
+    main.onclick = (e) => { const r = e.target.closest('[data-retry]'); if (r) retry(main, r.dataset.retry); };
+  }
+
+  // 失败任务重试：重新整理几秒后回到工作台，结果和桌面一致
+  async function retry(main, id) {
+    const t = st.get().tasks.find((x) => x.id === id); if (!t) return;
+    t.state = 'shaping'; t.note = '重新提取人员和事件'; st.save(); render(main);
+    await NT.wait(2400);
+    const done = st.finishTask(id);
+    render(main);
+    if (done) NT.toast(done.state === 'partial' ? `「${done.name}」整理完成，1 处人名待核对` : `「${done.name}」整理完成`);
   }
 
   // 我的推荐：本人提交的推荐与处理状态

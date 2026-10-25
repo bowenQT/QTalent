@@ -20,7 +20,7 @@
         { id: 'r4', text: '写过测试并让 CI 稳定通过', must: false },
       ],
       cands: {
-        'p-x53': { r1: ['yes', '负责核心语音模块：切分、网络传输和打断', 'e-x53-2'], r1alt: ['yes', '负责核心语音模块', 'e-x53-2'], r2: ['yes', 'WebRTC 落地前做了多方案调研，Live Demo 的语音接口由他完成', 'e-x53-1'], r2alt: ['yes', '课题里负责语音模块', 'e-x53-3'], r3: ['yes', '10-12 回来，可以直接进项目', null], r3alt: ['yes', '10-12 回来', null], r4: ['unknown', '没有测试或 CI 相关事件'],
+        'p-x53': { r1: ['yes', '负责核心语音模块：切分、网络传输和打断', 'e-x53-2'], r1alt: ['yes', '负责核心语音模块', 'e-x53-2'], r2: ['yes', 'WebRTC 落地前做了多方案调研，负责 Live Demo 的语音接口', 'e-x53-1'], r2alt: ['yes', '课题里负责语音模块', 'e-x53-3'], r3: ['yes', '10-12 回来，可以直接进项目', null], r3alt: ['yes', '10-12 回来', null], r4: ['unknown', '没有测试或 CI 相关事件'],
           will: ['未知 · 结营去向灵矽，对这个项目还没问', true], release: '不涉及', now: '结营后待回来', next: '回来前确认意愿', dims: ['prof', 'wis'] },
         'p-x07': { r1: ['yes', '独立完成服务端主流程 MVP，是核心框架的主要搭建者', 'e-x07-2'], r1alt: ['yes', '服务端主流程 MVP', 'e-x07-2'], r2: ['unknown', '没有实时语音链路的事件'], r2alt: ['yes', '口语陪练课题里负责服务端主流程', 'e-x07-2'], r3: ['unknown', '到岗时间还没确认'], r3alt: ['unknown', '到岗时间还没确认'], r4: ['unknown', '资料不足'],
           will: ['未知 · 结营去向灵矽，对这个项目还没问', true], release: '不涉及', now: '—', next: '确认到岗时间', dims: ['prof', 'wis'] },
@@ -45,14 +45,14 @@
         'p-x16': { r1: ['yes', '重构 Agent 工具体系，提高 RCA 准确率', 'e-x16-2'], r1alt: ['yes', 'Agent 工具体系', 'e-x16-2'], r2: ['yes', '经验注入改为按告警分桶，线上相关经验从 0 份到 3 份以上', 'e-x16-3'], r3: ['yes', '结营去向 MaaS，本部门项目', null], r3alt: ['yes', '本部门项目', null],
           will: ['未知 · 还没问过', true], release: '不涉及', now: '—', next: '和本人确认意愿', dims: ['prof', 'wis'] },
         'p-x60': { r1: ['yes', '完成 Knowledge MCP 客户端接入和 fetch MCP 服务部署', 'e-x60-3'], r1alt: ['yes', 'MCP 客户端接入', 'e-x60-3'], r2: ['yes', '实现后端骨架代码和审计', 'e-x60-2'], r3: ['no', '已在 TS 新人组全职'], r3alt: ['no', 'TS 新人组全职'],
-          will: ['未知', true], release: 'TS 新人组需要他', now: 'TS 新人组', next: '—', dims: ['prof'] },
+          will: ['未知', true], release: 'TS 新人组在岗，先和组里确认', now: 'TS 新人组', next: '—', dims: ['prof'] },
         'p-x52': { r1: ['unknown', '没有 Agent 工具链的事件'], r1alt: ['yes', '调研产品对接灵矽，接入企业微信等入口', 'e-x52-2'], r2: ['yes', '负责用户系统', 'e-x52-2'], r3: ['yes', '结营去向 MaaS', null], r3alt: ['yes', '结营去向 MaaS', null],
           will: ['未知', true], release: '不涉及', now: '—', next: '和林一诺一起聊', dims: ['lead', 'prof'] },
       },
       manual: {},
     },
     search: {
-      project: { id: 'pr-ts' }, pool: KEPT,
+      project: { id: 'pr-ts' }, say: 'TS 新人组还缺一个懂测试和部署、能带大家对齐节奏的人', pool: KEPT,
       roles: [{ id: 'owner', name: '新人组牵头人' }],
       reqs: [
         { id: 'r1', text: '在训练营里担任过组长或牵头过分工', must: true, alt: '在组里主动推动过协作' },
@@ -69,16 +69,20 @@
     },
   };
 
-  const TPL_SAY = '语音硬件端云联调要一个独立负责过服务端模块的 owner';
+  // 演示数据只准备了后端研发和技术支持两个模板的候选人
+  const TPL_SAY = { 'tpl-be': '语音硬件端云联调要一个独立负责过服务端模块的 owner', 'tpl-ts': SCEN.search.say };
+  const TPL_SCEN = { 'tpl-be': 'newconv', 'tpl-ts': 'search' };
+  // 一句话落到哪个预置场景：智能体 → 平台应用后端；TS / 新人组 → 业务成功部新人组；其余 → 语音硬件
+  const sceneOf = (text) => (/智能体|Agent|MCP/i.test(text) ? 'gray' : /\bTS\b|技术支持|新人组/.test(text) ? 'search' : 'newconv');
 
   // ---------- 状态 ----------
   const isNew = !!NT.param('new');
   let projectId = NT.param('project');
   let key = projectId === 'pr-ts' ? 'search' : projectId === 'pr-agent' ? 'gray' : projectId === 'pr-newconv' ? 'newconv' : null;
   const q = NT.param('q') || '';
-  // 目标角色模板（v1.3 3.15.2）：原型只为「后端研发」预置了候选人（语音硬件端云联调）
+  // 目标角色模板（v1.3 3.15.2）：后端研发、技术支持各预置了一个场景
   const tplId = NT.param('tpl'), tpl = tplId && st.template(tplId);
-  if (isNew) key = tpl ? (tpl.id === 'tpl-be' ? 'newconv' : null) : /智能体|Agent|MCP/i.test(q) ? 'gray' : 'newconv';
+  if (isNew) key = tpl ? TPL_SCEN[tpl.id] || null : q.trim() ? sceneOf(q) : null;
   const sc = key && SCEN[key];
   // 从模板生成的需求卡：要求取自生成时的模板版本，之后就地补的要求也存在需求卡上
   const need0 = sc && st.get().needs.find((n) => n.project === (projectId || sc.project.id));
@@ -103,6 +107,7 @@
   });
 
   function render(main) {
+    if (!isNew && projectId && !st.project(projectId)) return mount(main, UI.state({ ip: 'confirm', title: '项目链接失效', text: '可能已删除，或链接有误。回到项目列表重新进入。', actions: html`<a class="n-btn n-btn--sm" href="projects.html">回到项目列表</a><a class="n-btn n-btn--sm n-btn--ghost" href="staffing.html">为新项目找人</a>` }));
     if (!sc) {
       const T = st.templates(), tv = tpl && st.tplVersion(tpl);
       mount(main, html`<header class="nt-head"><div><h1>为一个项目或关键岗位找人</h1><p>说一句要做什么、要什么样的人，或者从目标角色模板开始。</p></div></header>
@@ -112,20 +117,19 @@
           <dl class="nt-dl" style="margin-top:var(--s-3)"><dt>对应通道</dt><dd>${st.channel(tpl.ch).name}</dd><dt>典型职责</dt><dd>${tpl.duties}</dd><dt>相关维度</dt><dd>${tpl.dims.map((d) => st.dim(d).name).join('、')}</dd></dl>
           <ul class="n-reqs">${tv.reqs.map((r) => html`<li><span class="n-badge ${r.must ? '' : 'n-badge--demo'}">${r.must ? '必须' : '加分'}</span><span>${r.text}${r.alt ? html` <span class="nt-muted">（可放宽为「${r.alt}」）</span>` : ''}</span></li>`)}</ul>
           ${tv.note ? html`<p class="nt-caption">v${tv.v} 的改动：${tv.note}。之前生成的需求卡保留当时的版本。</p>` : ''}
-          ${tpl.id === 'tpl-be' ? '' : html`<div class="n-notice is-plain" style="margin-top:var(--s-3)">${icon('info')}<div>原型只为「后端研发」模板预置了候选人（语音硬件端云联调），这里可以看模板生成的需求卡长什么样。</div></div>`}
+          ${TPL_SCEN[tpl.id] ? '' : html`<div class="n-notice is-plain" id="demo-note" style="margin-top:var(--s-3)">${icon('info')}<div>${UI.demo()} 候选人只准备了后端研发和技术支持两个模板，其他模板可以先看上面的要求。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm" href="staffing.html?tpl=tpl-be">用后端研发走一遍</a><a class="n-btn n-btn--sm" href="staffing.html?tpl=tpl-ts">用技术支持走一遍</a></div></div></div>`}
         </article>` : ''}
-        <div class="n-composer" style="max-width:720px"><span class="nt-ip" data-ip="rest" data-size="36"></span><textarea class="n-composer__field" id="sq" rows="2" aria-label="描述项目和要找的人" placeholder="${tpl ? `比如：${TPL_SAY}` : "比如：语音硬件端云联调要找一个能打通设备端和服务端的 owner，10 月到岗"}"></textarea>
+        <div class="n-composer" style="max-width:720px"><span class="nt-ip" data-ip="rest" data-size="36"></span><textarea class="n-composer__field" id="sq" rows="2" aria-label="描述项目和要找的人" placeholder="${tpl ? (TPL_SAY[tpl.id] ? `比如：${TPL_SAY[tpl.id]}` : '比如：说一句要做什么、要什么样的人') : "比如：语音硬件端云联调要找一个能打通设备端和服务端的 owner，10 月到岗"}"></textarea>
           <div class="n-composer__bar"><span class="spacer"></span><button class="n-btn n-btn--ink n-btn--icon" type="button" id="sgo" aria-label="开始">${icon('up')}</button></div></div>
-        <div class="n-asks" style="margin-top:var(--s-3)">${(tpl ? (tpl.id === 'tpl-be' ? [TPL_SAY] : []) : [SCEN.newconv.say, SCEN.gray.say]).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>`);
+        <div class="n-asks" style="margin-top:var(--s-3)">${(tpl ? (TPL_SAY[tpl.id] ? [TPL_SAY[tpl.id]] : []) : [SCEN.newconv.say, SCEN.gray.say, SCEN.search.say]).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>`);
       main.onclick = (e) => {
         const b = e.target.closest('[data-say]'); if (b) $('#sq').value = b.dataset.say;
         if (!e.target.closest('#sgo') || !$('#sq').value.trim()) return;
-        if (tpl && tpl.id !== 'tpl-be') { NT.toast(`原型没有为「${tpl.name}」预置候选人，可以换「后端研发」模板走一遍`); return; }
+        if (tpl && !TPL_SCEN[tpl.id]) { const note = $('#demo-note'); note?.scrollIntoView({ block: 'center', behavior: NT.reduced ? 'auto' : 'smooth' }); note?.classList.add('nt-flash'); $('a', note)?.focus({ preventScroll: true }); return; }
         location.href = NT.link('staffing.html', { new: 1, q: $('#sq').value.trim(), ...(tpl ? { tpl: tpl.id } : {}) });
       };
       return;
     }
-    if (!isNew && !st.project(projectId)) return mount(main, UI.state({ ip: 'confirm', title: '项目链接失效', text: '可能已删除，或链接有误。回到项目列表重新进入。', actions: html`<a class="n-btn n-btn--sm" href="staffing.html?new=1">为新项目找人</a>` }));
     if (isNew && key === 'newconv' && !st.project('pr-newconv')) return runNew(main);
     if (isNew) { projectId = sc.project.id; history.replaceState(null, '', `staffing.html?project=${projectId}`); }
     loadPlan();
@@ -359,7 +363,7 @@
     if (!st.can('confirmPlan')) {
       saveDraft();
       mount($('#deny'), html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>方案由管理者或指定的 HR 确认。</b>其他有权限的人可以起草和提出修改。草稿已保存。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="askceo">请程远确认</button></div></div></div>`);
-      $('#askceo').onclick = () => { NT.toast('已发给程远确认，会出现在他的待办里'); $('#deny').innerHTML = ''; };
+      $('#askceo').onclick = () => { NT.toast('已发给程远确认，会出现在程远的待办里'); $('#deny').innerHTML = ''; };
       return;
     }
     const p = st.project(projectId);
@@ -368,7 +372,7 @@
       title: `确认「${p.name}」用人方案 v${d.version}？`,
       body: html`<p>确认后冻结快照并生成跟进行动，之后的修改进入新草稿。</p>`,
       facts: [...sc.roles.map((r) => html`${r.name}：<b>${slots[r.id] ? st.person(slots[r.id]).name : '待定'}</b>`), empty.length ? html`<span style="color:var(--conflict)">${empty.map((r) => r.name).join('、')}还空着，之后可以再补</span>` : html`写入项目成员，生成跟进行动`],
-      actions: [{ label: '再看看', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并冻结 v${d.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并冻结 v${d.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
     if (v !== 'ok') return;
     st.confirmStaffing(d, sc.roles);

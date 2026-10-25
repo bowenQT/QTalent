@@ -60,7 +60,7 @@ body.nt-mob { min-height: 100vh; background: var(--paper); }
 .m-list small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
 .m-list .chev { width: 14px; height: 14px; color: var(--ink-4); }
 .m-big { width: 100%; min-height: 48px; font-size: var(--t-body); border-radius: var(--r-card); }
-.m-actions { position: sticky; bottom: 0; display: grid; gap: var(--s-2); padding: var(--s-3) 0 var(--s-1); background: linear-gradient(transparent, var(--paper) 30%); }
+.m-actions { position: sticky; bottom: 0; z-index: 2; display: grid; gap: var(--s-2); margin-inline: calc(-1 * var(--s-4)); padding: var(--s-3) var(--s-4) var(--s-1); background: var(--paper); box-shadow: 0 -1px 0 var(--line); }
 
 /* 录音 */
 .m-rec { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: var(--paper); }
@@ -89,6 +89,7 @@ body.nt-mob { min-height: 100vh; background: var(--paper); }
   .m-phone { width: 100%; height: 100vh; height: 100dvh; padding: 0; border-radius: 0; background: none; box-shadow: none; }
   .m-screen { border-radius: 0; }
   .m-status { display: none; }
+  .m-screen .nt-toasts { top: 56px; } /* 没有状态栏时，提示紧贴在标题栏下面 */
 }
 @media (min-width: 761px) and (max-height: 900px) {
   .m-phone { height: calc(100vh - 64px); min-height: 640px; }
@@ -125,12 +126,11 @@ body.nt-mob #app { display: block; min-height: 0; }
 .m-watchcats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin-bottom: var(--s-2); }
 .m-watchcats span { display: grid; gap: 2px; padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-xs); color: var(--ink-3); }
 .m-watchcats b { font-size: var(--t-sm); color: var(--ink); }
-.m-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); margin-top: var(--s-3); }
+.m-quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin-top: var(--s-3); }
 .m-quick a { display: grid; gap: 2px; padding: var(--s-3); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); color: var(--ink); text-decoration: none; }
 .m-quick svg { width: 20px; height: 20px; margin-bottom: var(--s-1); color: var(--ink-2); }
 .m-quick b { font-size: var(--t-sm); }
-.m-quick a:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.m-quick small { font-size: var(--t-xs); color: var(--ink-3); }
+.m-quick small { font-size: 11px; line-height: 1.45; color: var(--ink-3); }
 .m-tasks { padding: 0 var(--s-4); }
 .m-list .n-badge { white-space: nowrap; }
 .m-list a > svg:last-child, .m-list .m-row > svg:last-child { width: 14px; height: 14px; color: var(--ink-4); }
@@ -264,7 +264,7 @@ body.nt-mob #app { display: block; min-height: 0; }
 .m-ask { position: sticky; bottom: 0; margin: var(--s-4) calc(var(--s-4) * -1) 0; padding: var(--s-3) var(--s-4) var(--s-4); background: rgb(255 255 255 / .96); box-shadow: 0 -1px 0 var(--line); backdrop-filter: blur(8px); }
 .m-ask .n-ask { flex: none; white-space: nowrap; }
 .m-ask__bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-2); align-items: center; }
-.m-ask__bar .m-hold--sm { width: 40px; height: 40px; box-shadow: none; }
+.m-ask__bar .m-hold--sm { width: 44px; height: 44px; box-shadow: none; }
 .m-ask__bar .m-hold--sm svg { width: 18px; height: 18px; }
 /* 底部操作区贴底：内容少时也停在屏幕下方 */
 .m-body { display: flex; flex-direction: column; }
@@ -277,3 +277,55 @@ body.nt-mob #app { display: block; min-height: 0; }
 .m-body > main:has(> .m-actions:last-child), .m-body > main:has(> .m-ask:last-child) { padding-bottom: 0; }
 .m-actions { padding-bottom: var(--s-4); }
 .m-body:has(.m-ask) { scroll-padding-bottom: 150px; }
+
+/* ── 触控区不小于 44px（真实尺寸，不靠透明遮罩） ───────────────── */
+.m-bar a, .m-bar button { width: 44px; height: 44px; }
+.m-screen .n-btn, .m-screen .n-btn--sm { min-height: 44px; }
+.m-screen .n-btn--icon { width: 44px; }
+.m-list > li.has-act > .n-btn { min-height: 44px; }
+.m-screen .n-chip { height: 44px; padding: 0 var(--s-3); }
+.m-screen .n-input, .m-screen .n-select { min-height: 44px; }
+.m-screen .n-tabs [role="tab"] { min-height: 44px; }
+/* 「全部」这类文字入口：点按区加大，版面位置不变 */
+.m-screen .m-h .n-link { display: inline-flex; align-items: center; justify-content: flex-end; min-width: 44px; min-height: 44px; margin: -13px calc(-1 * var(--s-3)) -13px auto; padding: 0 var(--s-3); }
+/* 引用角标：可视尺寸不变，边框透明撑出 44px 的点按区，外围用负边距还给版面 */
+.m-screen .n-cite__mark { box-sizing: border-box; min-width: 44px; height: 44px; padding: 0; border: 13.5px solid transparent; border-radius: 18.5px; background-clip: padding-box; margin: -13.5px -12.5px; }
+/* 评分点：可视 22px，点按区 44px；AI 建议的流光放到伪元素上，只裹住圆点 */
+.m-screen button.n-score__dot, .m-screen .n-score[data-state] button.n-score__dot { box-sizing: border-box; width: 44px; height: 44px; border: 11px solid transparent; background-clip: padding-box; }
+.m-screen .n-score__dots:has(> button) { gap: 0; padding: 0; }
+.m-screen .n-score[data-state="ai"] .n-score__dots:has(> button) { position: relative; isolation: isolate; background: none; animation: none; }
+.m-screen .n-score[data-state="ai"] .n-score__dots:has(> button)::before { content: ""; position: absolute; inset: 8px 8px; z-index: -1; border-radius: var(--r-pill); background: var(--foil); background-size: 300% 100%; animation: foil-drift 7s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .m-screen .n-score[data-state="ai"] .n-score__dots:has(> button)::before { animation: none; } }
+.m-score .n-score { min-height: 44px; }
+
+/* 理由输入栏占满一行，提示语写全 */
+.m-score .n-score__why { width: 100%; margin-left: 0; }
+
+/* 撤销提示：「撤销」不换行；长句折行，不挤压按钮 */
+.m-screen .n-toast { align-items: center; }
+.m-screen .n-toast > span:first-child { min-width: 0; }
+.m-screen .n-toast__undo { flex: none; white-space: nowrap; }
+
+/* 播放、页签、追问和纪要里的人与事件入口 */
+.m-screen .n-player__play { width: 44px; height: 44px; }
+.m-screen .n-cite__pop .n-player__play { width: 44px !important; height: 44px !important; }
+.m-screen .n-tabs [role="tab"] { min-width: 44px; padding-inline: var(--s-3); }
+.m-screen .n-minutes__people a { display: inline-flex; align-items: center; min-height: 44px; }
+.m-screen .n-minievent a.nt-plink, .m-screen .n-minievent .n-link { padding-block: 14px; }
+.m-screen .n-ask { min-height: 44px; }
+
+/* 带链接的徽标（课题、项目）和人名链接：边框透明撑出 44px，负边距还给版面 */
+.m-screen a.n-badge, .m-screen button.n-badge { height: 44px; margin: -11px; border: 11px solid transparent; background-clip: padding-box; border-radius: calc(var(--r-chip) + 11px); }
+.m-screen .n-person__name a.nt-plink { padding-block: 12px; }
+/* 引文行里的小播放键：可视 24px，边框透明撑出 44px */
+.m-screen .m-quote .n-player__play { width: 44px; height: 44px; margin: -10px -10px -10px -4px; padding: 0; border: 10px solid transparent; background-clip: padding-box; }
+.m-screen .n-person__name a.nt-plink { padding-inline: 2px; margin-inline: -2px; }
+
+/* 整理结果里的可改文字、原话展开、进度轨迹标题 */
+.m-screen .n-event .n-edit { display: inline-block; vertical-align: top; min-height: 44px; padding: 10px 6px; }
+.m-screen .n-event__title .n-edit { margin-inline: -6px; }
+.m-screen .n-event__sbar dt { padding-top: 10px; }
+.m-screen .n-event__sbar dd { margin-left: -6px; }
+.m-screen .n-event__raw summary { display: flex; align-items: center; width: auto; min-width: 44px; min-height: 44px; }
+.m-screen .n-trail__head { min-height: 44px; }
+.m-screen .m-link { min-height: 56px; }

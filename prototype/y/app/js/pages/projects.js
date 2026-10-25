@@ -36,13 +36,15 @@
     mount(host, list.length ? list.map(card) : html`<div class="nt-empty" style="grid-column:1/-1">这个状态的项目会出现在这里。</div>`);
   }
   function card(p) {
-    const ms = st.membersOf(p.id);
+    // 已结束、已归档的项目成员都有退出日期：显示参与过的人，写「N 人参与」；没有成员记录时不写人数
+    const ended = ['已结束', '已归档'].includes(p.status);
+    const ms = st.membersOf(p.id, ended);
     const role = st.role();
     return html`<article class="n-card n-project">
       <div class="n-project__head"><span class="n-avatar" style="--hue:220;border-radius:10px">${icon('folder', 16)}</span>
         <div style="flex:1;min-width:0"><h3 class="n-project__name"><a class="nt-plink" href="project.html?id=${p.id}">${p.name}</a></h3><p class="n-project__goal">${p.goal}</p></div>${UI.pstatus(p.status)}</div>
       <div class="nt-muted" style="margin-top:var(--s-2)">${p.type} · ${st.orgShort(p.org)} · ${NT.md(p.from)} – ${NT.md(p.to)}</div>
-      ${p.owner ? html`<div class="n-project__members">${ms.slice(0, 6).map((m) => UI.avatar(m.person, 'sm'))}<span>owner ${st.person(p.owner).name} · ${ms.length} 人</span></div>`
+      ${p.owner ? html`<div class="n-project__members">${ms.slice(0, 6).map((m) => UI.avatar(m.person, 'sm'))}<span>owner ${st.person(p.owner).name}${ms.length ? ` · ${ms.length} 人${ended ? '参与' : ''}` : ''}</span></div>`
         : html`<div class="n-ownerless" style="margin-top:var(--s-4)"><span class="n-slot__empty">${icon('plus', 14)}</span><div><b>owner 待定</b><div class="nt-muted">${p.status}</div></div>${st.can('findOwner') && role !== 'self' ? html`<a class="n-btn n-btn--sm n-btn--light" href="staffing.html?project=${p.id}">${icon('spark')}发起找 owner</a>` : ''}</div>`}
     </article>`;
   }
@@ -58,7 +60,7 @@
         <label class="n-field"><span class="n-field__label">目标 <small>一句话</small></span><input class="n-input" id="np-goal" placeholder="比如：让新客户第一次登录就能找到要用的产品"></label>
         <label class="n-field"><span class="n-field__label">owner <small>可以先空着，之后发起找 owner</small></span><select class="n-select" id="np-owner"><option value="">待定</option>${people.map((p) => html`<option value="${p.id}">${p.name} · ${st.orgShort(p.org)}</option>`)}</select></label>
         <fieldset class="n-field" style="border:0;padding:0;margin:0"><legend class="n-field__label" style="margin-bottom:6px">成员 <small>可以多选；已在别的项目里的人也能加</small></legend>
-          <div style="max-height:180px;overflow:auto;display:grid;gap:4px;padding:var(--s-2);border-radius:var(--r-field);background:var(--sheet-sunk)">${people.map((p) => html`<label class="n-check"><input type="checkbox" value="${p.id}">${p.name}<span class="nt-muted">${st.orgShort(p.org)} · 在 ${st.projectsOf(p.id).length} 个项目</span></label>`)}</div></fieldset></div>`,
+          <div style="max-height:180px;overflow:auto;display:grid;gap:4px;padding:var(--s-2);border-radius:var(--r-field);background:var(--sheet-sunk)">${people.map((p) => html`<label class="n-check"><input type="checkbox" value="${p.id}">${p.name}<span class="nt-muted">${st.orgShort(p.org)}${st.projectLoad(p.id).cur ? ` · 在 ${st.projectLoad(p.id).cur} 个项目` : ''}</span></label>`)}</div></fieldset></div>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '创建', value: 'ok', cls: 'n-btn--ink',
         validate: (d) => { const n = d.querySelector('#np-name'); if (!n.value.trim()) { n.focus(); n.closest('.n-field').classList.add('is-error'); return false; } return true; },
         read: (d) => ({ name: d.querySelector('#np-name').value.trim(), type: d.querySelector('#np-type').value, status: d.querySelector('#np-status').value, goal: d.querySelector('#np-goal').value.trim() || '目标待补充', owner: d.querySelector('#np-owner').value || null, members: $$('input[type=checkbox]:checked', d).map((c) => c.value) }) }],

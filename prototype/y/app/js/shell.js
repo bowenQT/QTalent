@@ -16,7 +16,8 @@
     { id: 'landing', label: 'XEngineer 第六期', icon: 'book', href: 'landing.html', roles: ['ceo', 'hrbp', 'lead', 'mentor'], hideFor: ['ceo'] },
     { id: 'actions', label: '行动与复盘', icon: 'check2', href: 'actions.html', roles: ['ceo', 'hrbp', 'lead'] },
     { id: 'queue', label: '校准队列', icon: 'split', href: 'queue.html', roles: ['hrbp'] },
-    { id: 'judge', label: '判断复盘', icon: 'swap', href: 'judge.html', roles: ['ceo', 'hrbp'] },
+    // 判断对照归在「评价体系」下（规则 / 判断对照两个页签）；导航里只给不能看汇总、但做过评价的人留「我的判断对照」
+    { id: 'judge', label: '我的判断对照', icon: 'swap', href: 'judge.html?rater=me' },
     { id: 'rules', label: '评价体系', icon: 'grid', href: 'rules.html', roles: ['ceo', 'hrbp'] },
     { id: 'tags', label: '标签库', icon: 'tag', href: 'tags.html', roles: ['hrbp'] },
   ];
@@ -31,13 +32,28 @@
     const role = st.role();
     const me = st.me();
     // 管理者视角收敛：工作台不挂待办数，盘点不挂草稿数；校准队列、标签库不进导航
-    const drafts = role === 'ceo' ? 0 : st.get().batches.filter((b) => b.kind === 'inventory' && b.status === 'draft').length;
-    // 判断复盘：管理者、HR 看汇总；其他视角只有本人做过评价时才有「我的判断复盘」，员工没有这个入口
-    const allow = (n) => (!n.roles || n.roles.includes(role) || (n.id === 'judge' && st.isRater())) && !(n.hideFor || []).includes(role);
+    const counts = () => (role === 'ceo' ? { work: 0, review: 0 } : { work: st.todos().length, review: st.get().batches.filter((b) => b.kind === 'inventory' && b.status === 'draft').length });
+    const allow = (n) => (n.id === 'judge' ? !st.canJudge() && st.isRater() : !n.roles || n.roles.includes(role)) && !(n.hideFor || []).includes(role);
     // 管理者视角：项目与训练营批次合并成一个入口，侧栏不放「最近」（v1.5 3.26.4）
-    const more = MORE.map((n) => (n.id === 'judge' && !st.canJudge() ? { ...n, label: '我的判断复盘', href: 'judge.html?rater=me' } : n.id === 'projects' && role === 'ceo' ? { ...n, label: '项目与批次' } : n));
-    const todos = role === 'ceo' ? 0 : st.todos().length;
-    const navItem = (n) => html`<a class="n-navitem" href="${n.href}" ${NT.raw(cfg.nav === n.id ? 'aria-current="page"' : '')}>${icon(n.icon)}${n.label}${n.id === 'work' && todos ? html`<span class="n-count">${todos}</span>` : ''}${n.id === 'review' && drafts ? html`<span class="n-count is-quiet">${drafts}</span>` : ''}</a>`;
+    const more = MORE.map((n) => (n.id === 'projects' && role === 'ceo' ? { ...n, label: '项目与批次' } : n));
+    const navCount = (id, n) => (n ? html`<span class="n-count${id === 'review' ? ' is-quiet' : ''}" data-nav-count>${n}</span>` : '');
+    const first = counts();
+    const navItem = (n) => html`<a class="n-navitem" data-nav="${n.id}" href="${n.href}" ${NT.raw(cfg.nav === n.id ? 'aria-current="page"' : '')}>${icon(n.icon)}${n.label}${navCount(n.id, first[n.id])}</a>`;
+    // 待办和草稿数随数据变化：store.save() 之后统一重算，页面里处理完一件事，侧栏角标跟着变
+    let navTimer = 0;
+    NT.refreshNav = () => {
+      clearTimeout(navTimer);
+      navTimer = setTimeout(() => {
+        const c = counts();
+        ['work', 'review'].forEach((id) => {
+          const a = document.querySelector(`.n-navitem[data-nav="${id}"]`); if (!a) return;
+          const cur = a.querySelector('[data-nav-count]');
+          if (!c[id]) cur?.remove();
+          else if (cur) cur.textContent = c[id];
+          else a.insertAdjacentHTML('beforeend', String(navCount(id, c[id])));
+        });
+      }, 0);
+    };
     const people = role === 'self' ? { ...NAV[1], label: '我的档案', href: `person.html?id=${me.id}` } : role === 'mentor' ? { ...NAV[1], label: '所带学员' } : NAV[1];
     const recent = [
       ['盘点 · 第六期结营盘点', 'review.html?id=b-xe6-end', ['hrbp']],
@@ -67,7 +83,7 @@
           <span class="n-menuwrap"><button class="n-rolepick" type="button" id="nt-roles" aria-label="演示视角：${st.roles[role].label}，点击切换">${NT.ui.avatar(me.id, 'sm')}<small>演示视角</small>${st.roles[role].label}${icon('chev')}</button></span>
           <span class="n-menuwrap"><button class="n-btn n-btn--ghost n-btn--icon" type="button" id="nt-more" aria-label="更多">${icon('more')}</button></span>
         </header>
-        <div class="nt-who">${NT.ui.avatar(me.id, 'sm')}<span>以 <b>${me.name}</b>（${st.roles[role].label}）的身份查看 · ${st.roles[role].scope}</span><span class="n-badge n-badge--demo">演示视角</span></div>
+        <div class="nt-who">${NT.ui.avatar(me.id, 'sm')}<span>当前视角：<b>${me.name}</b>（${st.roles[role].label}） · ${st.roles[role].scope}</span><span class="n-badge n-badge--demo">演示视角</span></div>
         <main id="main" class="nt-body" tabindex="-1"></main>
       </div>`);
 
@@ -86,10 +102,12 @@
     ]);
     wireCmdk();
     NT.ui.mountIPs(root);
+    // 窄屏时侧栏变成横向滚动条：当前页的入口滚到可见处，两侧有渐隐提示还能滚动
+    if (matchMedia('(max-width: 860px)').matches) document.querySelector('.nt-side [aria-current="page"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 
     const main = NT.$('#main');
     if (cfg.allow && !cfg.allow(role)) {
-      mount(main, NT.ui.state({ ip: 'confirm', title: cfg.denyTitle || '这一页属于其他视角', text: cfg.denyText || '切换演示视角，或回到工作台。', actions: html`<a class="n-btn n-btn--sm" href="index.html">回到工作台</a>` }));
+      mount(main, NT.ui.state({ ip: 'confirm', title: cfg.denyTitle || '这一页属于其他视角', text: cfg.denyText || '切换演示视角，或回到工作台。', actions: cfg.denyActions || html`<a class="n-btn n-btn--sm" href="index.html">回到工作台</a>` }));
       NT.ui.mountIPs(main);
     } else {
       cfg.render(main);
@@ -104,16 +122,16 @@
   function wireCmdk() {
     const dlg = document.createElement('dialog');
     dlg.className = 'n-cmdk'; dlg.setAttribute('aria-label', '命令面板');
-    dlg.innerHTML = '<div class="n-cmdk__input"><svg><use href="#i-search"/></svg><input placeholder="搜人、项目，或输入要做的事" autocomplete="off" aria-controls="nt-cmdk-list"><kbd class="n-kbd">esc</kbd></div><div class="n-cmdk__list" id="nt-cmdk-list" role="listbox"></div><div class="n-cmdk__foot"><span>↑↓ 选择</span><span>↵ 打开</span><span style="margin-left:auto">只搜索你有权限查看的人员</span></div>';
+    dlg.innerHTML = '<div class="n-cmdk__input"><svg><use href="#i-search"/></svg><input placeholder="搜人、项目，或输入要做的事" autocomplete="off" aria-controls="nt-cmdk-list"><kbd class="n-kbd">esc</kbd></div><div class="n-cmdk__list" id="nt-cmdk-list" role="listbox"></div><div class="n-cmdk__foot"><span>↑↓ 选择</span><span>↵ 打开</span></div>';
     document.body.append(dlg);
     const input = dlg.querySelector('input'), list = dlg.querySelector('.n-cmdk__list');
     const role = st.role();
     const acts = [
-      role !== 'self' && ['做事', 'pen', '记一条关键事件', '一句话或按住说话', 'record.html'],
+      role !== 'self' && ['做事', 'pen', '记一件事', '一句话或语音输入', 'record.html'],
       st.can('findOwner') && ['做事', 'spark', '为一个项目找人', '会先建项目和需求卡', 'staffing.html?new=1'],
-      st.can('review') && role !== 'lead' && ['做事', 'layers', '发起一次盘点', '选团队和时间范围', 'reviews.html#new'],
+      st.can('calibrate') && ['做事', 'layers', '发起一次盘点', '选团队和时间范围', 'reviews.html#new'],
       !['self', 'ceo'].includes(role) && ['做事', 'upload', '上传材料', 'Office 文件或录音', 'index.html#upload'],
-      st.canOpenMinutes('w8') && ['做事', 'wave', '打开 W8 导师团复盘纪要', '预先处理的演示任务', 'record.html?m=w8'],
+      st.canOpenMinutes('w8') && ['做事', 'wave', '打开 W8 导师团复盘纪要', '会议纪要', 'record.html?m=w8', true],
     ].filter(Boolean);
     let sel = 0, shown = [];
     const render = () => {
@@ -128,7 +146,7 @@
       if (!shown.length) { list.innerHTML = `<div class="n-cmdk__empty">按回车，把「${NT.esc(q)}」交给 AI 记录</div>`; return; }
       let g = '';
       list.innerHTML = shown.map((c, i) => (c[0] !== g ? `<div class="n-cmdk__grp">${(g = c[0])}</div>` : '')
-        + `<a class="n-cmdk__item" role="option" aria-selected="${i === sel}" href="${c[4]}"><svg><use href="#i-${c[1]}"/></svg>${NT.esc(c[2])}<small>${NT.esc(c[3])}</small></a>`).join('');
+        + `<a class="n-cmdk__item" role="option" aria-selected="${i === sel}" href="${c[4]}"><svg><use href="#i-${c[1]}"/></svg>${NT.esc(c[2])}${c[5] ? ' <span class="n-badge n-badge--demo">演示</span>' : ''}<small>${NT.esc(c[3])}</small></a>`).join('');
     };
     const open = () => { input.value = ''; sel = 0; render(); dlg.showModal(); input.focus(); };
     NT.$('#nt-cmdk-open')?.addEventListener('click', open);

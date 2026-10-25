@@ -139,7 +139,32 @@
   };
 
   // ---------- 弹窗 ----------
-  // NT.dialog({ title, body, facts, actions: [{ label, value, cls, icon }] }) → Promise<value | 'cancel'>
+  // NT.dialog({ title, body, facts, actions: [{ label, value, cls, icon, validate(d), hint }] }) → Promise<value | 'cancel'>
+  // validate 返回假值（或一句提示）时弹窗不关闭：聚焦第一个空着的必填项，并在按钮栏上方给一句提示
+  function nudge(d, msg) {
+    // 弹窗自己已经显示了错误提示（带 role="alert" 的元素）时不重复提示
+    if (NT.$$('[role="alert"]', d).some((x) => !x.classList.contains('n-dialog__hint') && !x.hidden && x.textContent.trim())) return;
+    const fields = NT.$$('textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])', d);
+    const labelOf = (f) => f.closest('.n-field')?.querySelector('.n-field__label');
+    const optional = (f) => f.hasAttribute('data-optional') || /可选/.test(labelOf(f)?.textContent || '');
+    const empty = fields.find((f) => !f.value.trim() && !optional(f));
+    let text = msg;
+    if (empty) {
+      empty.closest('.n-field')?.classList.add('is-error');
+      empty.focus();
+      if (!text) {
+        const lab = labelOf(empty)?.cloneNode(true);
+        lab?.querySelectorAll('small').forEach((s) => s.remove());
+        const name = (lab?.textContent || empty.getAttribute('aria-label') || '').replace(/[（(]必填[）)]/g, '').trim();
+        text = name ? `请先填写「${name}」` : '请先填写这一项';
+      }
+    }
+    d.querySelector('.n-dialog__hint')?.remove();
+    const hint = document.createElement('p');
+    hint.className = 'n-dialog__hint'; hint.setAttribute('role', 'alert');
+    hint.textContent = text || '还有必填项没填';
+    d.querySelector('.n-dialog__bar')?.before(hint);
+  }
   NT.dialog = (o) => new Promise((resolve) => {
     const d = document.createElement('dialog');
     d.className = 'n-dialog';
@@ -154,11 +179,16 @@
       const b = e.target.closest('[data-i]');
       if (b) {
         const a = o.actions[+b.dataset.i];
-        if (a.validate && !a.validate(d)) return;
+        if (a.validate) {
+          const ok = a.validate(d);
+          if (!ok || typeof ok === 'string') { nudge(d, typeof ok === 'string' ? ok : a.hint); return; }
+        }
         value = a.value; if (a.read) value = { value: a.value, data: a.read(d) };
         d.close();
       } else if (e.target === d) d.close();
     });
+    // 校验没通过：聚焦第一个空着的必填项，并在按钮栏上方给一句可见的提示
+    d.addEventListener('input', () => { d.querySelector('.n-dialog__hint')?.remove(); NT.$$('.is-error', d).forEach((x) => x.classList.remove('is-error')); });
     d.addEventListener('close', () => { d.remove(); resolve(value); });
     d.showModal();
     // 浏览器默认聚焦第一个可聚焦元素，常常是正文里的引用角标，会直接弹出引用浮层；有输入项时先聚焦输入项，否则不停在引用上
@@ -168,11 +198,17 @@
   });
 
   // ---------- 流式输出（脚本化 mock：结果预置，按真实节奏出现） ----------
-  NT.stream = async (el, text, speed = 26) => {
-    el.textContent = '';
-    if (NT.reduced) { el.textContent = text; return; }
+  // 表单控件（textarea、input）写 value，其他元素写 textContent；opts.onTick(当前文本) 每次更新后调用，opts.stop() 返回 true 时中断
+  NT.stream = async (el, text, speed = 26, opts = {}) => {
+    const field = el.matches('textarea, input');
+    const put = (v) => { if (field) el.value = v; else el.textContent = v; if (opts.onTick) opts.onTick(v); };
+    put('');
+    if (NT.reduced) { put(text); return; }
+    let out = '';
     for (const ch of text) {
-      el.textContent += ch;
+      if (opts.stop && opts.stop()) return;
+      out += ch;
+      put(out);
       await new Promise((r) => setTimeout(r, '，。；：'.includes(ch) ? speed * 5 : speed));
     }
   };

@@ -14,6 +14,10 @@
     if (!p) return html`<span class="n-avatar ${size ? `n-avatar--${size}` : ''}" style="--hue:0;background:var(--sheet-sunk)">?</span>`;
     return html`<span class="n-avatar ${size ? `n-avatar--${size}` : ''}" style="--hue:${p.hue}">${p.photo ? raw(`<img src="${UI.root}/assets/avatars/${p.photo}.jpg" alt="">`) : ''}${p.name[0]}</span>`;
   };
+  // 评价体系的页头：标题 → 两个页签 → 当前页签的说明。规则是标准本身，判断对照用前后两段判断检验标准，结论回到规则修订
+  UI.evalHead = (cur, desc) => html`<header class="nt-head nt-head--tabs"><div><h1>评价体系</h1></div></header>
+    <nav class="n-tabs nt-subtabs" aria-label="评价体系">${[['rules', '规则', 'rules.html'], ['judge', '判断对照', 'judge.html']].map(([k, l, h]) => html`<a href="${h}" ${raw(k === cur ? 'aria-current="page"' : '')}>${l}</a>`)}</nav>
+    <p class="nt-tabdesc">${desc}</p>`;
   UI.plink = (pid, text) => {
     const p = st.person(pid);
     if (!p) return text || '';
@@ -79,7 +83,7 @@
   // 不能加入的原因；能加入返回空。记录页的附件和工作台的上传材料共用
   UI.attachCheck = (f) => {
     const k = UI.attachKind(f.name);
-    return !k.ok ? `不支持 .${k.ext.toLowerCase()} 格式，可以上传 ${UI.ATT_TYPES}` : (f.size || 0) > ATT_SIZE ? '超过 2 GB，传不上来；可以先剪成几段再传' : '';
+    return !k.ok ? `暂时读不了 .${k.ext.toLowerCase()} 格式，可以上传 ${UI.ATT_TYPES}` : (f.size || 0) > ATT_SIZE ? '超过 2 GB，传不上来；可以先剪成几段再传' : '';
   };
   // 解析后的引用位置（示意）：文档到段，PDF 与演示文稿到页，表格到单元格，音视频到时间段
   UI.attachLoc = (name, unit) => {
@@ -179,7 +183,7 @@
       // 出处：已解析的给到具体位置和原文示意；扫描件只作附件，不给位置
       srcs: () => items.filter((x) => x.st === 'ok').map((x) => (x.scan
         ? { type: x.type, att: 1, label: `附件：${x.name}`, loc: '扫描件，未识别出文字' }
-        : { type: x.type, att: 1, label: `附件：${x.name}`, loc: x.loc, quote: `（原型示意）正式版在这里显示${x.loc}的原文。` })),
+        : { type: x.type, att: 1, label: `附件：${x.name}`, loc: x.loc, quote: `演示附件：这里显示${x.loc}的原文。` })),
       lock() { locked = true; items = items.filter((x) => x.st === 'ok'); draw(); },
       keep() { try { sessionStorage.setItem(SKEY, JSON.stringify(items.filter((x) => x.st === 'ok'))); } catch (e) { /* 存不下就不保留 */ } },
       restore() { try { const v = JSON.parse(sessionStorage.getItem(SKEY) || '[]'); if (Array.isArray(v)) items = v.filter((x) => x && x.id && x.st === 'ok'); } catch (e) { /* 忽略 */ } api.clear(); draw(); return api; },
@@ -263,8 +267,8 @@
   };
   UI.missText = (pid, dimId) => {
     const any = NT.store.visibleEvents(pid).events.some((e) => e.scores.some((s) => s.p === pid && s.d === dimId));
-    if (any) return '有记录，没写具体行为';
-    return { grit: '还没有受挫后如何反应的事件', prof: '还没有专业度评分', mot: '还没有主动性相关的事件', wis: '还没有判断与取舍相关的事件', lead: '还没有带动他人的事件', open: '还没有接受反馈相关的事件' }[dimId];
+    if (any) return '有记录，待补具体行为';
+    return { grit: '待补受挫后如何反应的事件', prof: '待补专业度评分', mot: '待补主动性相关的事件', wis: '待补判断与取舍相关的事件', lead: '待补带动他人的事件', open: '待补接受反馈相关的事件' }[dimId];
   };
   UI.wireSpectrum = (host) => host.addEventListener('click', (e) => {
     const row = e.target.closest('button.n-spectrum__row'); if (!row) return;
@@ -308,7 +312,8 @@
     const acts = {
       trend: [['转为跟踪', `person.html?id=${c.person}&track=1`], ['看档案', `person.html?id=${c.person}`]],
       activity: c.hit ? [['看「值得聊一聊」', `person.html?id=${c.person}#signal`], ['看档案', `person.html?id=${c.person}`]] : [['看档案', `person.html?id=${c.person}`]],
-      quad: [['加入下次校准', `calibrate.html?id=b-xe6-end&team=${p?.org || ''}`]],
+      // 校准由 HR 完成：管理者只看档案，不给校准入口
+      quad: st.can('calibrate') ? [['加入下次校准', `calibrate.html?id=b-xe6-end&team=${p?.org || ''}`]] : [['看档案', `person.html?id=${c.person}`]],
       team: [['看盘点清单', `review.html?id=b-xe6-end`]],
     }[c.t];
     const detail = c.t === 'trend'
@@ -332,22 +337,24 @@
     e.stopPropagation();
     if (b.dataset.playing) return;
     b.dataset.playing = 1; b.innerHTML = '<svg width="10" height="10"><use href="#i-pause"/></svg>';
-    NT.toast('正在播放这一段录音（原型不含真实音频）', { duration: 2200 });
+    NT.toast('正在播放这一段（演示录音只显示进度）', { duration: 2200 });
     setTimeout(() => { delete b.dataset.playing; b.innerHTML = '<svg width="10" height="10"><use href="#i-play"/></svg>'; }, 2400);
   });
   // ---------- 重点跟踪 ----------
-  UI.trackCard = (t) => {
+  // opts.readonly：只读（管理者）——不出现记观察、改问题、停止、恢复，写明由 HR 跟进
+  UI.trackCard = (t, opts = {}) => {
     const p = st.person(t.person);
     // 只列当前视角在档案里能看到的事件（导师看不到管理观察和管理受限的记录）
     const seen = new Set(st.visibleEvents(t.person).events.map((e) => e.id));
     const since = st.get().events.filter((e) => e.kind === 'obs' && e.date && e.date > t.since && e.people.includes(t.person) && seen.has(e.id));
     const scoreTxt = (e) => e.scores.filter((s) => s.p === t.person).map((s) => (s.v != null ? `${st.dim(s.d).name} ${s.v}${s.st === 'ai' ? '（AI 建议）' : ''}` : `${st.dim(s.d).name}资料不足`)).join('、');
-    return html`<article class="n-card n-track ${t.state !== 'on' ? 'is-stopped' : ''}" data-track="${t.id}" id="track">
+    return html`<article class="n-card n-track ${t.state !== 'on' ? 'is-stopped' : ''}" data-track="${t.id}" id="track-${t.id}">
       <div class="n-track__head">${UI.person(t.person, { meta: `${st.orgShort(p.org)} · ${p.title}` })}<span class="n-badge">${icon('target')}${t.state === 'on' ? '跟踪中' : '已结束'}</span></div>
       <dl class="n-track__dl"><dt>为什么关注</dt><dd>${t.why}</dd><dt>想观察</dt><dd class="n-track__q">${t.q}</dd>
         <dt>负责人</dt><dd>${st.person(t.owner).name}${t.helper ? ` · ${st.person(t.helper).name}协助` : ''}</dd><dt>下次</dt><dd>${NT.md(t.next)} 前，或下一次对人复盘</dd></dl>
-      <div class="n-track__new"><h5>上次（${NT.md(t.since)}）之后新增</h5>${since.length ? html`<span class="n-diff"><ins>${since.length} 条事件</ins>：${since.map((e) => `${e.title}（${scoreTxt(e) || '待评分'}）`).join('；')}</span>` : '还没有新的材料。'}</div>
-      ${t.state === 'on' ? html`<div class="n-track__acts"><a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${t.person}">${icon('plus')}记一条观察</a><button class="n-btn n-btn--sm" type="button" data-edit="${t.id}">改观察问题</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-stop="${t.id}">停止跟踪</button></div>`
+      <div class="n-track__new"><h5>上次（${NT.md(t.since)}）之后新增</h5>${since.length ? html`<span class="n-diff"><ins>${since.length} 条事件</ins>：${since.map((e) => `${e.title}（${scoreTxt(e) || '待评分'}）`).join('；')}</span>` : '新增的材料会出现在这里。'}</div>
+      ${opts.readonly ? html`<div class="n-track__acts"><span class="nt-muted">${t.state === 'on' ? 'HR 在跟' : `${NT.md(t.stoppedAt || NT.TODAY)} 停止 · HR 在跟的观察问题和期间的事件都在档案里`}</span></div>`
+        : t.state === 'on' ? html`<div class="n-track__acts"><a class="n-btn n-btn--sm n-btn--ink" href="${mob() ? 'quick.html' : 'record.html'}?person=${t.person}&track=${t.id}">${icon('plus')}记一条观察</a><button class="n-btn n-btn--sm" type="button" data-edit="${t.id}">改观察问题</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-stop="${t.id}">停止跟踪</button></div>`
         : html`<div class="n-track__acts"><span class="nt-muted">${NT.md(t.stoppedAt || NT.TODAY)} 停止 · 观察问题和期间的事件都还在档案里</span><button class="n-link" type="button" data-resume="${t.id}">恢复跟踪</button></div>`}
     </article>`;
   };
@@ -410,7 +417,7 @@
         const self = b.dataset.dir === 'self';
         mount(form, html`<div class="n-card" style="box-shadow:var(--e-0);margin-top:var(--s-3)">
           <label class="n-field"><span class="n-field__label">${self ? '想往哪个方向发展' : '适合往哪个通道发展'}</span><select class="n-select" data-dir-ch>${self ? html`<option value="">还没想好</option>` : ''}${st.channels.map((c) => html`<option value="${c.id}">${c.name}</option>`)}</select></label>
-          <label class="n-field" style="margin-top:var(--s-3)"><span class="n-field__label">${self ? '说说你的想法（可以不写）' : '依据（必填：引用事件或观察）'}</span><textarea class="n-textarea" rows="2" data-dir-text placeholder="${self ? '比如：下个阶段想离客户近一点，试试售前。' : '比如：两次客户方案都由他牵头，取舍写得清楚'}"></textarea></label>
+          <label class="n-field" style="margin-top:var(--s-3)"><span class="n-field__label">${self ? '说说你的想法（可以不写）' : '依据（必填：引用事件或观察）'}</span><textarea class="n-textarea" rows="2" data-dir-text placeholder="${self ? '比如：下个阶段想离客户近一点，试试售前。' : '比如：两次客户方案都由本人牵头，取舍写得清楚'}"></textarea></label>
           <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-dir-save="${b.dataset.dir}">保存</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-dir-x>取消</button><span class="nt-muted">${self ? '旧的记录会保留，你随时可以再改' : '仅管理者和 HR 可见'}</span></div></div>`);
         form.querySelector('select').focus();
         return;
@@ -435,22 +442,23 @@
 
   UI.signalBlock = (sig) => {
     const p = st.person(sig.person);
+    const canAct = st.role() !== 'ceo'; // 管理者只看信号与来源；沟通与暂不处理由 HR 办理
     const mgr = p.manager && st.person(p.manager);
     const items = sig.items.map((it, i) => html`<li>${UI.src(it.src)}<span class="n-signal__text ${it.src === 'self' ? 'ink-hand' : ''}">${it.text}</span><button class="n-signal__from" type="button" aria-expanded="false" data-from="${i}">${it.from}</button><div class="n-signal__detail" hidden>${it.src === 'self' ? icon('play') : ''}${it.detail}</div></li>`);
-    let tail;
+    let tail = '';
     if (sig.state === 'open') {
-      tail = html`<div class="n-signal__actions" data-acts><button class="n-btn n-btn--ink" type="button" data-talk>安排一次沟通</button><button class="n-btn n-btn--ghost" type="button" data-hold>暂不处理</button></div>
+      if (canAct) tail = html`<div class="n-signal__actions" data-acts><button class="n-btn n-btn--ink" type="button" data-talk>安排一次沟通</button><button class="n-btn n-btn--ghost" type="button" data-hold>暂不处理</button></div>
         <form class="n-signal__form" data-talkform hidden><label>谁来聊<select name="who">${[p.manager, p.hrbp].filter(Boolean).map((id) => html`<option value="${id}">${st.person(id).name}（${id === p.hrbp ? 'HR' : '直属负责人'}）</option>`)}</select></label>
           <label>什么时候前<select name="when"><option>11-06 前</option><option>11-13 前</option><option>本月内</option></select></label>
           <div class="n-signal__formbar"><button class="n-btn n-btn--sm n-btn--ink" type="submit">创建跟进</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button></div></form>
-        <form class="n-signal__form" data-holdform hidden><label class="is-wide">为什么暂不处理<input class="n-score__why" name="reason" placeholder="写一句原因，比如：上周刚聊过，他在准备转岗" required></label>
+        <form class="n-signal__form" data-holdform hidden><label class="is-wide">为什么暂不处理<input class="n-score__why" name="reason" placeholder="写一句原因，比如：上周刚聊过，正在准备转岗" required></label>
           <div class="n-signal__formbar"><button class="n-btn n-btn--sm n-btn--ink" type="submit" disabled data-holdok>确认暂不处理</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button></div></form>`;
     } else {
       const r = sig.result;
-      const body = sig.state === 'talk' ? html`<div class="n-signal__todo"><span class="n-badge">待沟通</span><b>${st.person(r.who).name}和${p.name}聊一次</b><span>${r.when}</span></div><p>聊完在这里记一笔，结果会进${p.name}的档案，这几条信号随之收起。</p><div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" data-talked>记录沟通结果</button></div>`
+      const body = sig.state === 'talk' ? html`<div class="n-signal__todo"><span class="n-badge">待沟通</span><b>${st.person(r.who).name}和${p.name}聊一次</b><span>${r.when}</span></div><p>${canAct ? `聊完在这里记一笔，结果会进${p.name}的档案，这几条信号随之收起。` : `聊完后，沟通结果会进${p.name}的档案。`}</p>${canAct ? html`<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" data-talked>记录沟通结果</button></div>` : ''}`
         : sig.state === 'hold' ? html`<p class="n-signal__reason"><span class="n-badge">暂不处理</span><span class="ink-hand">${r.reason}</span></p><p>信号保留在档案里；有新的信号出现时会重新提示。</p>`
           : html`<div class="n-signal__todo"><span class="n-badge n-badge--yes">${icon('check')}已沟通</span><b>${r.note}</b></div>${r.action ? html`<p>已生成行动：<a href="actions.html#${r.action}">${st.get().actions.find((a) => a.id === r.action)?.title || '查看行动'}</a></p>` : ''}`;
-      tail = html`<div class="n-signal__result">${body}<div class="n-block__by"><span class="n-block__sig">${st.person(r.by).name}</span>${NT.md(r.at)}</div>${sig.state !== 'acted' ? html`<button type="button" class="n-signal__undo" data-reopen>撤销</button>` : ''}</div>`;
+      tail = html`<div class="n-signal__result">${body}<div class="n-block__by"><span class="n-block__sig">${st.person(r.by).name}</span>${NT.md(r.at)}</div>${sig.state !== 'acted' && canAct ? html`<button type="button" class="n-signal__undo" data-reopen>撤销</button>` : ''}</div>`;
     }
     return html`<article class="n-card n-signal ${sig.state !== 'open' ? 'is-resolved' : ''}" id="signal" data-sig="${sig.person}">
       <header class="n-signal__head"><h3 class="n-section-title" style="margin:0">值得聊一聊</h3><span class="n-signal__vis">${icon('lock')}管理者、归属 HR、直属负责人可见</span></header>
@@ -516,24 +524,38 @@
   };
 
   // ---------- 推荐方向（v1.5 3.31）：目标角色 + 理由 + 至少 2 件不同的已确认事件，HR 核实 ----------
+  const recoDup = (pid, dir) => {
+    if (!st.recoExists(pid, dir)) return '';
+    const c = (st.get().watchClues || []).find((x) => x.person === pid && x.dir === dir && ['pending', 'verified'].includes(x.state));
+    return c?.state === 'verified' ? '已有同一方向的推荐，已核实' : '已有同一方向的推荐在核实中';
+  };
+  const recoMsg = (d, pid) => recoDup(pid, d.querySelector('#rc-dir').value)
+    || (!d.querySelector('#rc-why').value.trim() ? '写一句理由。' : d.querySelectorAll('.n-recoevs input:checked').length < 2 ? '至少勾选 2 件不同的事。' : '');
   UI.recoDialog = async (pid, rerender) => {
     const p = st.person(pid), evs = st.recoEvidence(pid), self = st.role() === 'hrbp';
     const r = await NT.dialog({ title: `推荐方向：${p.name}`,
+      // 提示出现后，改到满足条件就收起
+      onOpen: (d) => { const clear = () => { const err = d.querySelector('#rc-err'); if (!err.hidden && recoMsg(d, pid) !== err.textContent) err.hidden = true; }; d.addEventListener('input', clear); d.addEventListener('change', clear); },
       body: html`<p style="margin:0 0 var(--s-3)">推荐${p.name}往一个目标角色发展，写理由并勾选至少 2 件不同的事作为依据。${self ? '提交后直接记入档案的发展方向。' : 'HR 核实后进入档案的发展方向。'}</p>
         <label class="n-field"><span class="n-field__label">适合做</span><select class="n-select" id="rc-dir">${st.templates().map((t) => html`<option value="${t.id}">${t.name}</option>`)}</select></label>
         <label class="n-field"><span class="n-field__label">理由</span><textarea class="n-textarea" rows="2" id="rc-why" placeholder="比如：联调时能独立定位问题，也会主动接没人认领的事"></textarea></label>
         <fieldset class="n-field n-recoevs"><legend class="n-field__label">依据（至少 2 件不同的事）</legend>${evs.length ? evs.slice(0, 8).map((e) => html`<label class="n-check"><input type="checkbox" value="${e.id}"><span>${e.title}<small>${NT.md(e.date)}${e.project ? ` · ${st.project(e.project)?.name}` : ''}</small></span></label>`) : html`<p class="nt-muted">推荐要以已确认的关键事件为依据，先记一件事。</p>`}</fieldset>
-        <p class="n-field__err" id="rc-err" role="alert" hidden></p>`,
+        <div class="n-field__err" id="rc-err" role="alert" aria-live="assertive" hidden></div>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: self ? '记入档案' : '提交给 HR', value: 'ok', cls: 'n-btn--ink',
         validate: (d) => {
-          const why = d.querySelector('#rc-why').value.trim(), n = d.querySelectorAll('.n-recoevs input:checked').length, err = d.querySelector('#rc-err');
-          const msg = !why ? '写一句理由。' : n < 2 ? '至少勾选 2 件不同的事。' : '';
-          err.hidden = !msg; err.textContent = msg; return !msg;
+          const msg = recoMsg(d, pid), err = d.querySelector('#rc-err');
+          err.hidden = !msg; err.textContent = msg;
+          if (msg) (d.querySelector(recoDup(pid, d.querySelector('#rc-dir').value) ? '#rc-dir' : !d.querySelector('#rc-why').value.trim() ? '#rc-why' : '.n-recoevs input:not(:checked)') || d.querySelector('#rc-why')).focus();
+          return !msg;
         },
         read: (d) => ({ dir: d.querySelector('#rc-dir').value, why: d.querySelector('#rc-why').value.trim(), evs: [...d.querySelectorAll('.n-recoevs input:checked')].map((x) => x.value) }) }] });
     if (r?.value !== 'ok') return null;
     const c = st.addReco(pid, r.data.dir, r.data.why, r.data.evs);
-    if (!c) { NT.toast('选好方向、写上理由，并勾选至少 2 件不同的事后再提交'); return null; }
+    if (!c) {
+      // 弹窗里已校验过理由、依据和重复；这里拿到空值时，按同一方向已有的推荐给出提示
+      NT.toast(recoDup(pid, r.data.dir) || '这条推荐没有提交成功，请检查方向、理由和依据后再试');
+      return null;
+    }
     rerender && rerender();
     NT.toast(c.state === 'verified' ? `已记入${p.name}档案的发展方向` : '已提交，HR 核实后会进入档案的发展方向', { undo: () => { st.removeReco(c.id); rerender && rerender(); } });
     return c;
@@ -566,7 +588,7 @@
     return html`<header class="n-peek__head">${UI.avatar(pid, 'lg')}<div><h2 id="peek-h">${p.name}</h2><p>${st.orgShort(p.org)} · ${p.title} · ${st.tenure(p)}</p></div></header>
       ${st.canFollow(pid) ? html`<div class="n-peek__acts">${UI.followBtn(pid)}</div>` : ''}
       ${w ? html`<section class="n-peek__sec"><h3>为什么值得关注</h3><div class="n-peek__why"><span class="n-watch__cat">${cat}</span>${w.why}${w.srcs ? UI.cites(w.srcs) : (w.evs || []).slice(0, 3).map((id, i) => UI.evCite(id, i + 1))}</div>
-        <p class="n-peek__src">${src}${w.also.length ? ` · 也命中 ${w.also.map((a) => a.rule).join('、')}` : ''}</p><p class="n-peek__rule">规则 ${w.rule}：${rule.text} · ${st.WATCH_VER}</p></section>` : ''}
+        <p class="n-peek__src">${src}${w.also.length ? ` · 另有 ${w.also.length} 条依据` : ''}</p><p class="n-peek__rule" title="${w.rule} · ${st.WATCH_VER}">入选依据：${rule.text}</p></section>` : ''}
       <section class="n-peek__sec"><h3>关键事实${facts.length ? html`<a class="n-link" href="${href}#timeline">查看全部</a>` : ''}</h3>
         ${facts.length ? html`<ol class="n-peek__facts">${facts.map((e) => html`<li><span class="n-peek__date">${NT.md(e.date)}</span><span>${e.title}${UI.evCite(e.id, '原文')}<small>${[e.project && st.project(e.project)?.name, `${st.person(e.recorder)?.name}记录`].filter(Boolean).join(' · ')}</small></span></li>`)}</ol>` : html`<p class="nt-muted">还没有你能看到的关键事件。</p>`}</section>
       ${cap ? html`<section class="n-peek__sec"><h3>能力线索</h3>${cap.dims.length ? html`<ul class="n-peek__caps">${cap.dims.map((d) => html`<li><b>${d.name}</b><span>${d.n} 件事</span><small>${d.anchor}</small></li>`)}</ul>` : ''}
@@ -603,13 +625,19 @@
       if (!el) return;
       NT.mount(el.querySelector('.n-peek__body'), body()); UI.mountIPs(el);
     };
+    // 找回焦点：同一个 data-peek 常有头像、人名、「查看依据」几个入口；跳过 aria-hidden / 不可见的，优先和原触发元素同类的
+    const backTarget = (trigger) => {
+      const cands = [...document.querySelectorAll(`[data-peek="${trigger.dataset.peek}"]`)]
+        .filter((x) => !x.closest('[aria-hidden="true"]') && x.tabIndex >= 0 && x.getClientRects().length);
+      return cands.find((x) => x.className === trigger.className) || cands[0];
+    };
     const close = () => {
       if (!el) return;
       const node = el, sc = scrim; el = null; scrim = null; cur = null;
       node.classList.remove('is-open');
       setTimeout(() => { node.remove(); sc?.remove(); }, NT.reduced ? 0 : 220);
       // 触发元素可能已随页面重绘被替换：按同一个 data-peek 找回来再还焦点
-      const back = from?.isConnected ? from : from?.dataset?.peek && document.querySelector(`[data-peek="${from.dataset.peek}"]`);
+      const back = from?.isConnected ? from : from?.dataset?.peek && backTarget(from);
       back?.focus?.(); from = null;
     };
     const open = (key, trigger) => {

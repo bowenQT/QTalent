@@ -1,5 +1,6 @@
-/* 判断复盘：把同一个人同一维度在前后两个阶段的判断放在一起对照，找出评价体系的系统性偏差，归因后生成改进动作。
-   复盘的对象是判断，不是被评价的人：结论只作用于评价标准、评价人与评价方式，不改变任何人的分数、象限和档案。
+/* 判断对照（需求里的「判断复盘」）：把同一个人同一维度在前后两个阶段的判断放在一起对照，找出评价体系的系统性偏差，归因后生成改进动作。
+   归在「评价体系」下，和规则是同一个闭环：规则定标准，判断对照检验标准，结论回到规则修订。
+   对照的对象是判断，不是被评价的人：结论只作用于评价标准、评价人与评价方式，不改变任何人的分数、象限和档案。
    两段都是判断，后段不当作正确答案。按评价人的偏差只给 HR 和评价人本人看；管理者只看汇总与结论；被评价人看不到这一页。 */
 (function () {
   'use strict';
@@ -8,7 +9,9 @@
   const id = NT.param('id');
   const role = st.role(), me = st.me();
   const raterId = NT.param('rater') === 'me' ? me.id : NT.param('rater');
-  let openDim = NT.param('dim') || null, focus = null, marking = null;
+  // 管理者只看汇总与结论：圆点不带姓名，维度行不展开案例，不出现按评价人的内容
+  const sumOnly = role !== 'hrbp';
+  let openDim = sumOnly ? null : NT.param('dim') || null, focus = null, marking = null;
 
   const STATE = { same: '一致', high: '前段偏高', low: '前段偏低', nc: '不可比', na: '资料不足' };
   const CAT = { std: '评价标准', rater: '评价人', method: '评价方式与信息不足', env: '本人或环境变化', later: '后段评价偏差' };
@@ -18,18 +21,21 @@
   const stateText = (u) => (u.gap ? `${STATE[u.state]} · ${u.state === 'high' ? '高' : '低'}${GAP[u.gap]}` : STATE[u.state]);
   const jstate = (u) => html`<span class="n-jstate" data-s="${u.state}">${stateText(u)}</span>`;
   const name = (pid) => st.person(pid)?.name || '';
+  // 判断对照的链对应评价体系里的前段评价标准；没有对应条目的链不跳转
+  const FRONT_LINE = { xe: 'xe-weekly' };
+  const frontLink = (chain) => (FRONT_LINE[chain.id] ? NT.link('rules.html', { r: 'front', line: FRONT_LINE[chain.id] }) : null);
 
   NT.shell({
-    nav: 'judge',
-    title: raterId ? (raterId === me.id ? '我的判断复盘' : `${name(raterId)}的判断`) : id ? st.judgeBatch(id)?.name || '判断复盘' : '判断复盘',
-    crumbs: id || (raterId && st.canJudge()) ? [['判断复盘', 'judge.html']] : [],
+    nav: st.canJudge() ? 'rules' : 'judge',
+    title: raterId ? (raterId === me.id ? '我的判断对照' : `${name(raterId)}的判断`) : id ? st.judgeBatch(id)?.name || '判断对照' : '判断对照',
+    crumbs: !st.canJudge() ? [] : id || raterId ? [['评价体系', 'rules.html'], ['判断对照', 'judge.html']] : [['评价体系', 'rules.html']],
     allow: (r) => {
       if (raterId) return !!st.person(raterId) && st.canSeeRater(raterId, r);
       if (id) return st.canJudge(r) && !!st.judgeBatch(id);
       return st.canJudge(r) || st.isRater(r);
     },
-    denyText: raterId ? '按评价人的偏差只对 HR 和评价人本人开放；管理者只看汇总与归因结论。' : st.isRater() ? '这个视角只能看到你作为评价人做出的判断。' : '',
-    view: () => (id ? `判断复盘 · ${st.judgeBatch(id)?.name}${openDim ? ` · 展开「${openDim}」` : ''}` : raterId ? `判断复盘 · 评价人 ${name(raterId)}` : '判断复盘 · 列表'),
+    denyText: raterId ? (role === 'ceo' ? html`按评价人的偏差仅 HR 和评价人本人可见。<a href="judge.html">查看判断对照汇总</a>` : '按评价人的偏差仅 HR 和评价人本人可见。') : st.isRater() ? '这个视角只显示你作为评价人做出的判断。' : '',
+    view: () => (id ? `判断对照 · ${st.judgeBatch(id)?.name}${openDim ? ` · 展开「${openDim}」` : ''}` : raterId ? `判断对照 · 评价人 ${name(raterId)}` : '判断对照 · 列表'),
     state: () => ({ openDim }),
     restore: (s) => { openDim = s.openDim || null; render($('#main')); },
     render,
@@ -61,13 +67,26 @@
   }
   const unitsOf = (bid) => st.judgeUnits(bid).filter((u) => st.judgeScope(u));
   const dimsOf = (chain, units) => chain.dims.filter((d) => units.some((u) => u.dim === d.id));
+  // 批次头的范围说明：多少人进入对照，其余因缺少前段或后段判断、或标为不可比没有进入（按数据计算）
+  function scopeLine(units, chain) {
+    const byP = new Map();
+    units.forEach((u) => { if (!byP.has(u.person)) byP.set(u.person, []); byP.get(u.person).push(u); });
+    const groups = [...byP.values()];
+    const cmp = groups.filter((us) => us.some(st.judgeComparable)).length;
+    const nc = groups.filter((us) => !us.some(st.judgeComparable) && us.some((u) => u.state === 'nc')).length;
+    const pool = chain.id === 'xe' ? st.people().filter((p) => p.xe && st.judgeScope({ person: p.id })).length : 0;
+    const total = Math.max(pool, groups.length);
+    if (!total) return '';
+    const miss = total - cmp - nc;
+    return `共 ${total} 人，${cmp} 人进入对照${miss > 0 ? `；另有 ${miss} 人缺少 ${chain.front}或${chain.back}的判断` : ''}${nc ? `；${nc} 人标为不可比` : ''}`;
+  }
 
   // ---------- 列表 ----------
   function renderList(main) {
     const S = st.get();
     const chains = [...new Set(st.judgeBatches().map((b) => b.chain))].map((c) => st.judgeChain(c));
     mount(main, html`
-      <header class="nt-head"><div><h1>判断复盘</h1><p>把招聘、入营这类前段判断，和后一阶段对同一个人同一维度的判断放在一起对照，找出评价标准、评价人和评价方式里的系统性偏差。</p></div></header>
+      ${UI.evalHead('judge', '把招聘、入营这类前段判断，和后一阶段对同一个人同一维度的判断放在一起对照，找出评价标准、评价人和评价方式里的系统性偏差，结论回到规则修订。')}
       <div class="nt-split">
         <div class="nt-grid">${chains.map((c) => html`<section><h2 class="nt-h2">${c.name}<small>${c.front} → ${c.back}</small></h2><div class="nt-grid" style="gap:var(--s-3)">${st.judgeBatches(c.id).slice().reverse().map((b) => batchCard(b, c, S))}</div></section>`)}</div>
         <aside class="nt-grid">
@@ -90,21 +109,22 @@
       <div class="nt-row" style="margin-top:var(--s-2)">${pending && role === 'hrbp' ? html`<span class="n-badge n-badge--ai">${icon('spark')}${pending} 条 AI 假设待确认</span>` : ''}${acts ? html`<span class="n-badge">${acts} 条改进动作</span>` : ''}</div>
     </a>`;
   }
-  const lockNote = () => html`<div class="n-lock">${icon('lock')}复盘结论只用于修订评价体系。</div>`;
+  const lockNote = () => html`<div class="n-lock">${icon('lock')}对照结论只用于修订评价体系。</div>`;
 
-  // ---------- 一次判断复盘 ----------
+  // ---------- 一次判断对照 ----------
   function renderBatch(main) {
     const b = st.judgeBatch(id), chain = st.judgeChain(b.chain), map = st.judgeMap(b.map), std = st.judgeStd(b.std);
     const units = unitsOf(id);
     const dims = dimsOf(chain, units);
     const siblings = st.judgeBatches(b.chain);
     mount(main, html`
-      <header class="nt-head"><div><h1>${b.name}</h1><p>${chain.name}：${chain.front} → ${chain.back} · ${b.range} · ${name(b.by)} ${NT.md(b.at)} 发起</p></div>
+      <header class="nt-head"><div><h1>${b.name}</h1><p>${chain.name}：${chain.front} → ${chain.back} · ${b.range} · ${name(b.by)} ${NT.md(b.at)} 发起</p>
+          ${scopeLine(units, chain) ? html`<p class="nt-muted" style="margin-top:2px">${scopeLine(units, chain)}</p>` : ''}</div>
         <div class="nt-head__acts"><span class="n-rule">${icon('doc')}标准 ${std.id}</span><span class="n-rule">${icon('swap')}对应表 ${map.id}</span>${b.status === 'concluded' ? html`<span class="n-badge n-badge--seal">${icon('stamp')}已归因</span>` : ''}</div></header>
       <div class="nt-split nt-split--wide">
         <div class="nt-grid">
           <article class="n-card" id="dims">
-            <h3 class="n-section-title">按维度<small class="nt-muted" style="font-weight:400;margin-left:auto">每个点是一个人 · 点一行看案例</small></h3>
+            <h3 class="n-section-title">按维度<small class="nt-muted" style="font-weight:400;margin-left:auto">${sumOnly ? '每个点代表一人' : '每个点是一个人 · 点一行看案例'}</small></h3>
             <div class="n-jdist" role="list">
               <div class="n-jdist__head" aria-hidden="true"><span></span><span>前段低两档+</span><span>前段低一档</span><span class="is-mid">一致</span><span>前段高一档</span><span>前段高两档+</span></div>
               ${dims.map((d) => dimRow(d, units.filter((u) => u.dim === d.id), chain, map))}
@@ -115,9 +135,8 @@
           <article class="n-card" id="attrib"><h3 class="n-section-title">归因</h3>${attribBody(b, chain, units)}</article>
         </div>
         <aside class="nt-grid">
-          ${askCard(b)}
           ${ruleCard(chain, map, std)}
-          ${role === 'hrbp' ? raterCard(units, b.id) : html`<div class="n-lock">${icon('lock')}按评价人的偏差只对 HR 和评价人本人可见，管理者只看按维度、阶段与标准版本的汇总和归因结论。</div>`}
+          ${role === 'hrbp' ? raterCard(units, b.id) : ''}
           ${actionsCard(b)}
           ${lockNote()}
         </aside>
@@ -130,13 +149,16 @@
   function dimRow(d, us, chain, map) {
     const col = (u) => (u.state === 'same' ? 2 : u.state === 'high' ? (u.gap >= 2 ? 4 : 3) : u.state === 'low' ? (u.gap >= 2 ? 0 : 1) : -1);
     const cells = [0, 1, 2, 3, 4].map((i) => us.filter((u) => col(u) === i));
-    const open = openDim === d.id;
+    const open = !sumOnly && openDim === d.id;
     const rest = restText(us), sp = spread(chain, us);
-    return html`<div role="listitem"><button class="n-jdist__row" type="button" data-dim="${d.id}" aria-expanded="${open}" aria-label="${d.name}：${tallyText(us)}${rest ? `，${rest}` : ''}。${open ? '收起' : '展开'}案例">
-        <span class="n-jdist__dim">${d.name}</span>
-        ${cells.map((c, i) => html`<span class="n-jdist__cell ${i === 2 ? 'is-mid' : ''}" aria-hidden="true">${c.map((u) => html`<span class="n-jdot" data-s="${u.state}" title="${name(u.person)} · ${stateText(u)}">${name(u.person).slice(0, 1)}</span>`)}</span>`)}
-        <span class="n-jdist__sum">${tallyText(us)}${rest || sp ? html`<small>${[rest, sp].filter(Boolean).join(' · ')}</small>` : ''}</span>
-      </button>
+    const inner = html`<span class="n-jdist__dim">${d.name}</span>
+        ${cells.map((c, i) => html`<span class="n-jdist__cell ${i === 2 ? 'is-mid' : ''}" aria-hidden="true">${c.map((u) => (sumOnly
+          ? html`<span class="n-jdot is-anon" data-s="${u.state}"></span>`
+          : html`<span class="n-jdot" data-s="${u.state}" title="${name(u.person)} · ${stateText(u)}">${name(u.person).slice(0, 1)}</span>`))}</span>`)}
+        <span class="n-jdist__sum">${tallyText(us)}${rest || sp ? html`<small>${[rest, sp].filter(Boolean).join(' · ')}</small>` : ''}</span>`;
+    return html`<div role="listitem">${sumOnly
+      ? html`<div class="n-jdist__row is-static">${inner}</div>`
+      : html`<button class="n-jdist__row" type="button" data-dim="${d.id}" aria-expanded="${open}" aria-label="${d.name}：${tallyText(us)}${rest ? `，${rest}` : ''}。${open ? '收起' : '展开'}案例">${inner}</button>`}
       ${open ? html`<div class="nt-grid" style="gap:0;padding:var(--s-3) 0 var(--s-4)">${sortCases(us).map((u) => caseCard(u, chain, map))}</div>` : ''}</div>`;
   }
   const ORDER = ['high', 'low', 'nc', 'same', 'na'];
@@ -177,7 +199,7 @@
     const per = bs.map((b) => ({ b, units: unitsOf(b.id) }));
     return html`<article class="n-card" id="ver"><h3 class="n-section-title">按标准版本对比</h3>
       <div class="n-jver">
-        <span class="is-h">维度</span>${per.map(({ b }) => html`<span class="is-h">${b.name.replace('判断复盘', '')} · ${b.std}</span>`)}
+        <span class="is-h">维度</span>${per.map(({ b }) => html`<span class="is-h">${b.name.replace('判断对照', '')} · ${b.std}</span>`)}
         ${chain.dims.map((d) => html`<span class="is-dim">${d.name}</span>${per.map(({ units }) => { const us = units.filter((u) => u.dim === d.id); const t = st.judgeTally(us); return html`<span><b>${t.high}</b> 人前段偏高${t.low ? html`，<b>${t.low}</b> 人偏低` : ''}<span class="nt-muted"> / ${us.length} 人</span></span>`; })}`)}
       </div>
       <p class="nt-caption">第二期的后段来自 10-17 完成的训练营评审（演示用的历史时间线）。每期只有 8 人，偏差减少只作为提示，不能据此下「改进有效」的结论。</p>
@@ -191,7 +213,7 @@
         <thead><tr><th scope="col" style="text-align:left;color:var(--ink-3);font-weight:500;padding:4px 0">${chain.front}</th><th scope="col" style="text-align:left;color:var(--ink-3);font-weight:500">${chain.back}</th><th scope="col" style="text-align:left;color:var(--ink-3);font-weight:500">等级</th></tr></thead>
         <tbody>${map.rows.map(([k, to, g]) => html`<tr style="border-top:1px solid var(--line)"><td style="padding:6px 8px 6px 0">${chain.dims.find((d) => d.id === k).name}</td><td style="padding-right:8px">${to}</td><td>${g}</td></tr>`)}</tbody>
       </table>
-      <p class="nt-caption">${chain.scale === 'score' ? '后段取对照窗口内对应维度已确认分的均值所在档；同一维度至少 2 条来自不同事件的分数才参与对照。' : ''}对应表只在判断复盘里使用，历史分数不换算进档案维度分，也不参与象限。对应表改版后，旧复盘不重算。</p>
+      <p class="nt-caption">${chain.scale === 'score' ? '后段取对照窗口内对应维度已确认分的均值所在档；同一维度至少 2 条来自不同事件的分数才参与对照。' : ''}对应表只用于判断对照；改版后，已有的对照保持当时的结果。</p>
     </article>`;
   }
 
@@ -211,8 +233,8 @@
     const LABEL = { todo: '待沟通', doing: '进行中', done: '已执行待观察', reviewed: '已复盘', cancel: '未执行' };
     return html`<article class="n-card" id="acts"><h3 class="n-section-title">改进动作</h3>
       ${acts.length ? html`<ul class="nt-list">${acts.map((a) => html`<li><a class="nt-plink" href="actions.html#${a.id}"><b style="font-weight:600">${a.title}</b></a><div class="nt-muted">${a.kind} · 负责人 ${name(a.owner)} · ${LABEL[a.state]}${a.did ? ` · ${NT.md(a.did)} 执行` : ` · 预计 ${NT.md(a.due)}`}</div></li>`)}</ul>`
-        : html`<div class="nt-empty">确认归因后，从这里生成改进动作。</div>`}
-      <p class="nt-caption">改进动作进入「行动与复盘」；修订评价标准会产生新版本，之后的评价记录所用版本，旧记录保留原版本。</p></article>`;
+        : html`<div class="nt-empty">归因确认后，改进动作会出现在这里。</div>`}
+      <p class="nt-caption">改进动作在「行动与复盘」的「评价体系改进」里跟进；修订评价标准会产生新版本，新记录按新版本，旧记录保留原版本。</p></article>`;
   }
 
   // ---------- 归因：AI 提出带证据的假设（光），HR 选类别、写理由、确认后落墨 ----------
@@ -223,10 +245,10 @@
   function actTitle(kind, chain, dim) {
     const xe = chain.id === 'xe';
     return {
-      修订评价标准: xe ? `修订入营选拔标准：${dim}追问行为是否持续（xe-select-v3）` : `修订社招面试评价表：${dim}必须写出具体行为（hire-v2）`,
-      补充评价方式: xe ? `入营选拔增加一次实操环节，观察${dim}` : `社招面试增加行为追问环节：${dim}`,
-      评价人培训: `${chain.front}面试官培训：${dim}怎么追问具体行为`,
-      调整评价人组合: `调整${chain.front}面试官组合：同一人至少两位面试官分别给${dim}`,
+      修订评价标准: xe ? `修订周评标准：${dim}每一档都写明行为证据` : `修订社招面试评价表：${dim}必须写出具体行为（hire-v2）`,
+      补充评价方式: xe ? `周评之外增加一次现场观察，补充${dim}的依据` : `社招面试增加行为追问环节：${dim}`,
+      评价人培训: xe ? `${chain.front}评价人培训：${dim}怎么写出具体行为` : `${chain.front}面试官培训：${dim}怎么追问具体行为`,
+      调整评价人组合: xe ? `调整${chain.front}评价人组合：同一学员至少两位评价人分别给${dim}` : `调整${chain.front}面试官组合：同一人至少两位面试官分别给${dim}`,
       后段评价校准: `请后段记录人补充${dim}的证据，必要时进入校准`,
     }[kind];
   }
@@ -240,7 +262,7 @@
       const done = hyps.filter((h) => st.judgeAttrib(h.id));
       const wait = hyps.length - done.length;
       return html`${done.length ? done.map((h) => conclusion(h, chain, true)) : html`<div class="nt-empty">还没有确认的归因。</div>`}
-        ${wait ? html`<p class="nt-caption">还有 ${wait} 条 AI 假设等 HR 确认；未确认的假设不显示，也不能生成动作。</p>` : ''}`;
+        ${wait ? html`<p class="nt-caption">另有 ${wait} 条 AI 假设待 HR 确认。</p>` : ''}`;
     }
     return html`<div class="nt-grid">${hyps.map((h) => (st.judgeAttrib(h.id) ? conclusion(h, chain, false) : hypBlock(h, chain)))}</div>
       <p class="nt-caption">AI 提出带证据的假设，HR 选类别、写理由并确认归因。结论用于修订评价体系。</p>`;
@@ -248,7 +270,7 @@
   // 依据变化的说明：评价人只在 HR 视角下点名
   const checkText = (h, chk, forCeo) => [chk.dropped.length && `${chk.dropped.length} 个依据案例已标为不可比或资料不足`, chk.few && (forCeo ? '涉及的评价人可对照案例不到门槛，样本不足' : `${name(h.rater)}的可对照案例不到 ${st.RATER_MIN} 个，样本不足`), chk.changed && !chk.dropped.length && '依据范围内的事件或分数有变化，正文里的统计可能已经过时'].filter(Boolean).join('；');
   function caseChips(h, chk) {
-    return html`<div class="n-attrib__cases">${h.cases.map((cid) => { const [bid, pid, dim] = cid.split(':'); const u = st.judgeUnits(bid).find((x) => x.id === cid); const out = chk?.dropped.includes(cid); return html`<button class="n-casechip ${out ? 'is-out' : ''}" type="button" data-case="${cid}" ${NT.raw(out ? 'title="已标为不可比或资料不足，不再作为依据"' : '')}>${name(pid)} · ${u?.dimName || dim}${bid !== id ? ` · ${st.judgeBatch(bid).name.replace(/判断复盘|XEngineer /g, '')}` : ''}${out ? '（已排除）' : ''}</button>`; })}${h.std ? html`<span class="n-casechip" style="cursor:default">标准 ${h.std}</span>` : ''}</div>`;
+    return html`<div class="n-attrib__cases">${h.cases.map((cid) => { const [bid, pid, dim] = cid.split(':'); const u = st.judgeUnits(bid).find((x) => x.id === cid); const out = chk?.dropped.includes(cid); return html`<button class="n-casechip ${out ? 'is-out' : ''}" type="button" data-case="${cid}" ${NT.raw(out ? 'title="已标为不可比或资料不足，不再作为依据"' : '')}>${name(pid)} · ${u?.dimName || dim}${bid !== id ? ` · ${st.judgeBatch(bid).name.replace(/判断对照|XEngineer /g, '')}` : ''}${out ? '（已排除）' : ''}</button>`; })}${h.std ? html`<span class="n-casechip" style="cursor:default">标准 ${h.std}</span>` : ''}</div>`;
   }
   function hypBlock(h, chain) {
     const chk = st.hypCheck(h);
@@ -262,7 +284,7 @@
           <ul class="n-attrib__qs">${Object.entries(CAT).map(([k, l]) => html`<li><b>${l}</b>${CAT_Q[k]}</li>`)}</ul>
           <label class="n-field" style="margin-top:var(--s-3)"><span class="n-field__label">理由（必填，会署名留档）</span><textarea class="n-textarea" id="why-${h.id}" rows="2" placeholder="比如：两期都偏高，记录多是印象描述；先培训，再看下一期">${drafting.reason}</textarea></label>
           <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-confirm="${h.id}">${icon('check')}确认归因</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel>取消</button><span class="nt-muted">确认后署名留档，之后从这条结论生成改进动作${h.rater || drafting.cats.includes('rater') ? '；涉及评价人，管理者只看到类别和动作' : '；结论和理由管理者可见'}</span></div></div>`
-        : !chk.ok ? html`<div class="n-notice">${icon('split')}<div><b>依据变了，这条假设不能按原文确认。</b>${checkText(h, chk, false)}。${chk.dropped.length ? '撤销相关标注后可以继续；否则等 AI 按现在的案例重新整理。' : '等 AI 按现在的数据重新整理后再确认。'}</div></div>`
+        : !chk.ok ? html`<div class="n-notice">${icon('split')}<div><b>依据有变化，这条假设要重新核对后再确认。</b>${checkText(h, chk, false)}。${chk.dropped.length ? '撤销相关标注后可以继续；否则等 AI 按现在的案例重新整理。' : '等 AI 按现在的数据重新整理后再确认。'}</div></div>`
         : html`<div class="nt-row"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-adopt="${h.id}">${icon('check')}采纳并归因</button><button class="n-btn n-btn--sm" type="button" data-rewrite="${h.id}">${icon('pen')}改写</button><span class="nt-muted">未确认的假设不能生成改进动作</span></div>`}
     </div>`;
   }
@@ -278,12 +300,12 @@
     return html`<div class="n-attrib" data-hyp="${h.id}">
       <div class="n-block" data-state="ink" style="padding-left:0;padding-right:0">
         <div class="n-attrib__done">${a.cats.map((c) => html`<span class="n-badge" style="background:var(--ink);color:#fff">${CAT[c]}</span>`)}<span class="nt-muted">${dim}</span></div>
-        ${hideRater ? html`<p style="margin:var(--s-2) 0 0" class="nt-muted">依据涉及具体评价人，管理者视角只看归因类别和改进动作。</p>` : html`<p style="margin:var(--s-2) 0 0">${a.text || h.text}</p><p class="n-jcase__why" style="margin:var(--s-1) 0 0">${a.reason}</p>`}
+        ${hideRater ? html`<p style="margin:var(--s-2) 0 0" class="nt-muted">这条归因的依据涉及评价人，此处显示归因类别和改进动作。</p>` : html`<p style="margin:var(--s-2) 0 0">${a.text || h.text}</p><p class="n-jcase__why" style="margin:var(--s-1) 0 0">${a.reason}</p>`}
         <div class="n-block__by"><span class="n-block__sig">${name(a.by)}</span>${NT.md(a.at)} 确认归因${a.text && a.text !== h.text ? ' · 改写过 AI 假设' : ''}</div>
       </div>
-      ${acts.length ? html`<div class="nt-row">${acts.map((x) => html`<a class="n-badge" href="actions.html#${x.id}">${icon('check2')}${x.title}</a>`)}${acts.some((x) => x.kind === '修订评价标准') ? html`<a class="n-link" href="${NT.link('rules.html', { r: 'front', line: chain.id === 'xe' ? 'xe-select' : 'hire' })}">在评价体系里看这条标准</a>` : ''}</div>` : ''}
+      ${acts.length ? html`<div class="nt-row">${acts.map((x) => html`<a class="n-badge" href="actions.html#${x.id}">${icon('check2')}${x.title}</a>`)}${acts.some((x) => x.kind === '修订评价标准') && frontLink(chain) ? html`<a class="n-link" href="${frontLink(chain)}">在评价体系里看这条标准</a>` : ''}</div>` : ''}
       ${!chk.ok ? html`<p class="nt-caption" style="margin:0">确认后依据有变化：${checkText(h, chk, forCeo)}。这条结论需要复核，暂不能生成新的改进动作。</p>` : ''}
-      ${chk.ok && a.cats.includes('env') && !sug.length && !acts.length ? html`<p class="nt-caption" style="margin:0">本人或环境变化：不修正评价标准，记录情境；需要时转为跟踪或沟通。</p>` : ''}
+      ${chk.ok && a.cats.includes('env') && !sug.length && !acts.length ? html`<p class="nt-caption" style="margin:0">本人或环境变化：记录情境，评价标准保持原样；需要时转为跟踪或沟通。</p>` : ''}
       ${sug.length ? html`<div class="nt-row">${sug.map((k) => (k === '修订评价标准' // v1.6 3.35.7：归因到评价标准的，直接打开评价体系里对应规则的草稿
           ? html`<button class="n-btn n-btn--sm" type="button" data-act="${h.id}" data-kind="${k}">${icon('pen')}起草修订</button>`
           : html`<button class="n-btn n-btn--sm" type="button" data-act="${h.id}" data-kind="${k}">${icon('plus')}生成「${k}」动作</button>`))}</div>` : ''}
@@ -306,33 +328,11 @@
     return false;
   }
 
-  // 管理者请 HR 复核；HR 在这里回复并标为已复核（v1.4 3.22）
-  function askCard(b) {
-    const asks = st.judgeAsksFor(b.id);
-    if (role !== 'ceo' && !(role === 'hrbp' && asks.length)) return '';
-    const open = asks.find((a) => a.state === 'open');
-    const one = (a) => html`<li><div class="n-jsig__ask">${icon('quote')}<div><b>${name(a.by)}</b> · ${NT.md(a.at)}：${a.note}${a.state === 'done' ? html`<div><b>${name(a.replyBy)}回复</b> · ${NT.md(a.replyAt)}：${a.reply}</div>` : ''}</div></div>
-      ${a.state === 'open' && role === 'hrbp' ? html`<label class="n-field" style="margin-top:var(--s-2)"><span class="n-field__label">回复管理者</span><textarea class="n-textarea" rows="2" id="reply-${a.id}" placeholder="写复核了什么、结论是什么、下一步由谁做"></textarea></label><div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-jreply="${a.id}">${icon('check')}回复并标为已复核</button><span class="nt-muted">归因和标准修订仍在下方由你确认</span></div>` : ''}</li>`;
-    return html`<article class="n-card" id="ask"><h3 class="n-section-title">复核请求${open ? html`<span class="n-astate" data-s="doing" style="margin-left:auto">HR 复核中</span>` : ''}</h3>
-      ${asks.length ? html`<ul class="nt-list">${asks.map(one)}</ul>` : html`<p class="nt-muted" style="margin:0">看完汇总觉得需要再查一查，可以请 HR 复核原始评价证据和评价标准。归因和标准修订仍由 HR 确认。</p>`}
-      ${role === 'ceo' && !open ? html`<button class="n-btn n-btn--sm" type="button" data-jask="${b.id}" style="margin-top:var(--s-3)">${icon('pen')}请 HR 复核</button>` : ''}</article>`;
-  }
-
   function wireBatch(main, b, chain, units) {
     main.onclick = (e) => {
-      const ja = e.target.closest('[data-jask]');
-      if (ja) { UI.judgeAskDialog(ja.dataset.jask, () => render(main)); return; }
-      const jr = e.target.closest('[data-jreply]');
-      if (jr) {
-        const t = $(`#reply-${jr.dataset.jreply}`), text = t.value.trim();
-        if (!text) { t.focus(); NT.toast('先写一句回复'); return; }
-        st.replyJudgeAsk(jr.dataset.jreply, text); render(main);
-        NT.toast('已回复管理者，复核请求标为已复核', { undo: () => { Object.assign(st.get().judgeAsks.find((x) => x.id === jr.dataset.jreply), { state: 'open', reply: undefined }); st.save(); render(main); } });
-        return;
-      }
-      const row = e.target.closest('[data-dim]');
+      const row = !sumOnly && e.target.closest('[data-dim]');
       if (row) { openDim = openDim === row.dataset.dim ? null : row.dataset.dim; render(main); $(`[data-dim="${row.dataset.dim}"]`)?.focus(); return; }
-      const chip = e.target.closest('[data-case]');
+      const chip = !sumOnly && e.target.closest('[data-case]');
       if (chip) {
         const [bid, , dim] = chip.dataset.case.split(':');
         if (bid !== id) { location.href = NT.link('judge.html', { id: bid, dim }); return; }
@@ -370,11 +370,11 @@
         const h = st.judgeHyps(id).find((x) => x.id === ac.dataset.act), kind = ac.dataset.kind, dim = hypDim(h);
         const t = st.judgeTally(units.filter((u) => u.dimName === dim));
         const a = st.addJudgeAction(id, h.id, { title: actTitle(kind, chain, dim), kind,
-          then: [`目标：下一批判断复盘里「${dim}」前段偏差的人数减少`, `依据：${b.name}，${dim} ${t.high + t.low} 人有偏差（${CAT[st.judgeAttrib(h.id).cats[0]]}）`, '观察：下一批判断复盘按标准版本分组对比，样本够了再看改进效果'] });
+          then: [`目标：下一批判断对照里「${dim}」前段偏差的人数减少`, `依据：${b.name}，${dim} ${t.high + t.low} 人有偏差（${CAT[st.judgeAttrib(h.id).cats[0]]}）`, '观察：下一批判断对照按标准版本分组对比，样本够了再看改进效果'] });
         render(main);
         if (!a) { NT.toast('依据已经变化，这条结论要先复核，暂不能生成动作'); return; }
-        if (kind === '修订评价标准') { location.href = NT.link('rules.html', { r: 'front', line: chain.id === 'xe' ? 'xe-select' : 'hire' }); return; }
-        NT.toast(`已生成「${a.title}」，在「行动与复盘」里跟进`);
+        if (kind === '修订评价标准' && frontLink(chain)) { location.href = frontLink(chain); return; }
+        NT.toast(`已生成「${a.title}」，在「行动与复盘」的「评价体系改进」里跟进`);
       }
     };
   }
@@ -388,20 +388,25 @@
     const t = st.judgeTally(cases);
     const batches = [...new Set(all.map((u) => u.batch))].map((x) => st.judgeBatch(x));
     const vals = all.map((u) => u.front.v).filter((v) => v != null);
+    if (!all.length) {
+      return mount(main, html`
+        <header class="nt-head"><div><h1>${self ? '我的判断对照' : `${name(raterId)}的判断`}</h1></div></header>
+        ${UI.state({ ip: 'rest', title: self ? '你作为评价人给出的判断会出现在这里' : '这位评价人的判断会出现在这里', text: '每条判断和后一阶段对同一个人同一维度的结论放在一起，供修订评价体系参考。' })}`);
+    }
     mount(main, html`
-      <header class="nt-head"><div><h1>${self ? '我的判断复盘' : `${name(raterId)}的判断`}</h1>
+      <header class="nt-head"><div><h1>${self ? '我的判断对照' : `${name(raterId)}的判断`}</h1>
         <p>${self ? '这里是你做过的判断，和后一阶段对同一个人同一维度的等级与差异状态。' : '按评价人看偏差，按姓名排列。案例少于门槛时只列案例。'}</p></div></header>
       <div class="nt-split">
         <div class="nt-grid">
           <article class="n-card"><h3 class="n-section-title">${enough ? `${cases.length} 个可对照案例` : '样本不足'}</h3>
             ${enough ? html`<p style="margin:0">${[t.high && `前段偏高 ${t.high} 个`, t.low && `前段偏低 ${t.low} 个`, t.same && `一致 ${t.same} 个`].filter(Boolean).join('，')}。${byDimLine(cases)}</p>`
               : html`<p style="margin:0">样本不足：可对照案例 ${cases.length} 个，门槛 ${st.RATER_MIN} 个。下面列出案例。</p>`}
-            <p class="nt-caption">${self ? '你' : name(raterId)}给出的等级：${countLine(vals)}。等级过于集中时会提示「区分度低」，只作为归因参考，不作为评价人的分数。${all.length - cases.length ? ` 另有 ${all.length - cases.length} 个判断因不可比或资料不足不计入。` : ''}</p>
+            <p class="nt-caption">${gradeLine(self ? '你' : name(raterId), vals, batches)}${all.length - cases.length ? ` 另有 ${all.length - cases.length} 个判断是不可比或资料不足。` : ''}</p>
           </article>
           ${batches.map((b) => { const chain = st.judgeChain(b.chain), map = st.judgeMap(b.map); const us = sortCases(all.filter((u) => u.batch === b.id)); return html`<section><h2 class="nt-h2">${b.name}<small>${b.std} · ${b.range}</small></h2>${us.map((u) => caseCard(u, chain, map, { raterOnly: self }))}</section>`; })}
         </div>
         <aside class="nt-grid">
-          ${self ? html`<div class="n-lock">${icon('lock')}这里只显示你本人做过的判断和对应的后段等级。</div>` : html`<a class="n-btn n-btn--ghost" href="${NT.param('from') ? `judge.html?id=${NT.param('from')}` : 'judge.html'}">${icon('back')}回到判断复盘</a>`}
+          ${self ? html`<div class="n-lock">${icon('lock')}这里只显示你本人做过的判断和对应的后段等级。</div>` : html`<a class="n-btn n-btn--ghost" href="${NT.param('from') ? `judge.html?id=${NT.param('from')}` : 'judge.html'}">${icon('back')}回到判断对照</a>`}
           <div class="n-lock">${icon('info')}这些对照只用来修正评价体系：结论不改变被评价人的分数、象限和档案，也不进入评价人本人的档案。</div>
         </aside>
       </div>`);
@@ -409,7 +414,15 @@
   }
   // 等级从高到低：S / A / B，或 5 到 1 分
   const RANK = ['S', 'A', 'B', 5, 4, 3, 2, 1];
-  const countLine = (vals) => RANK.map((k) => [k, vals.filter((v) => v === k).length]).filter(([, n]) => n).map(([k, n]) => `${k}${typeof k === 'number' ? ' 分' : ''} ${n}`).join(' · ') || '无';
+  // 前段是等级（S / A / B 或 1–5 分）时列出分布；前段是文字判断时如实说明条数
+  function gradeLine(who, vals, batches) {
+    const line = countLine(vals);
+    if (line) return `${who}给出的等级：${line}。`;
+    const labels = [...new Set(batches.flatMap((b) => st.judgeChain(b.chain).grades || []))];
+    const dist = labels.map((g) => [g, vals.filter((v) => v === g).length]).filter(([, n]) => n).map(([g, n]) => `${g} ${n}`).join(' · ');
+    return `${who}的前段是文字判断，共 ${vals.length} 条${dist ? `（${dist}）` : ''}。`;
+  }
+  const countLine = (vals) => RANK.map((k) => [k, vals.filter((v) => v === k).length]).filter(([, n]) => n).map(([k, n]) => `${k}${typeof k === 'number' ? ' 分' : ''} ${n}`).join(' · ');
   const byDimLine = (cases) => {
     const dims = [...new Set(cases.map((u) => u.dimName))];
     return dims.map((d) => { const us = cases.filter((u) => u.dimName === d); const h = us.filter((u) => u.state === 'high').length; return `${d} ${us.length} 个${h ? `里 ${h} 个前段偏高` : ''}`; }).join('；');

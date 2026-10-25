@@ -160,3 +160,14 @@ a.n-btn { text-decoration: none; }
 .nt-top { background: rgb(255 255 255 / .9); }
 .nt-who { border-bottom-style: solid; background: var(--sheet); }
 
+/* 窄屏侧栏变成横向滚动条：还有入口没露出来的一侧有渐隐提示，滚到头自动消失 */
+@media (max-width: 860px) {
+  .nt-side {
+    background:
+      linear-gradient(to right, var(--sheet) 30%, transparent) left center / 40px 100% no-repeat local,
+      linear-gradient(to left, var(--sheet) 30%, transparent) right center / 40px 100% no-repeat local,
+      linear-gradient(to right, rgb(36 42 48 / .14), transparent) left center / 12px 100% no-repeat scroll,
+      linear-gradient(to left, rgb(36 42 48 / .14), transparent) right center / 12px 100% no-repeat scroll,
+      var(--sheet);
+  }
+}

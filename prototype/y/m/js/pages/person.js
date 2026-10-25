@@ -5,12 +5,13 @@
   const NT = window.NT, st = NT.store, UI = NT.ui, M = NT.m;
   const { html, icon, mount, $ } = NT;
   const pid = NT.param('id') || st.me().id;
+  const gone = !st.person(pid);
 
   NT.mshell({
     tab: 'people', title: st.person(pid)?.name || '人员档案', back: 'people.html',
     allow: () => !!st.scope(pid),
-    denyTitle: '这个人在你的查看范围之外',
-    denyText: '导师只能看所带学员的档案。管理者和 HR 在桌面版查看。',
+    denyTitle: gone ? '人员链接失效' : '这个人在你的查看范围之外',
+    denyText: gone ? '可能已删除，或链接有误。回到工作台重新进入。' : '手机版显示所带学员的档案。管理者和 HR 在桌面版查看。',
     demos: [['看孟逸尘', 'person.html?id=p-x11'], ['看不在所带范围的人', 'person.html?id=p-x62']],
     view: () => `档案 · ${st.roles[st.role()].label}视角`,
     render,
@@ -54,7 +55,7 @@
 
       ${changes.length ? html`<h3 class="m-h">变化标记</h3><ul class="m-list">${changes.map((c) => html`<li><div class="m-row">${icon(c.up ? 'up-r' : c.t === 'idle' ? 'clock' : 'split')}<span>${c.what}<small>${c.from != null ? `${c.from.toFixed(1)} → ${c.to.toFixed(1)} · ` : ''}${c.rule}</small></span><span></span></div></li>`)}</ul>` : ''}
       ${sig ? html`<div id="sigwrap" style="margin-top:var(--s-3)">${UI.signalBlock(sig)}</div>` : ''}
-      ${tracks.length ? html`<div id="trackwrap" class="nt-grid" style="margin-top:var(--s-3)">${tracks.map((t) => UI.trackCard(t))}</div>` : ''}
+      ${tracks.length ? html`<div id="track" data-trackwrap class="nt-grid" style="margin-top:var(--s-3)">${tracks.map((t) => UI.trackCard(t))}</div>` : ''}
 
       <h3 class="m-h" id="timeline">时间线<span class="nt-muted" style="font-weight:400">${obs.length} 条关键事件 · 按真实发生时间</span></h3>
       <div class="m-tl">${timeline(events)}</div>
@@ -65,7 +66,7 @@
 
     if (spec) UI.wireSpectrum($('#spec-rows'));
     if ($('#sigwrap')) UI.wireSignal($('#sigwrap'), () => render(main));
-    if ($('#trackwrap')) UI.wireTracks($('#trackwrap'), () => render(main));
+    if ($('[data-trackwrap]')) UI.wireTracks($('[data-trackwrap]'), () => render(main));
     main.onclick = (e) => {
       const h = e.target.closest('.nt-hist');
       if (h) {

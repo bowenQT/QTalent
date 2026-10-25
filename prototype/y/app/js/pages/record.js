@@ -1,4 +1,4 @@
-/* 记录关键事件：一句话 → AI 整理成情境、行为、影响（SBI）→ 建议分逐项出现 → 确认或改分 → 保存（5 秒撤销）。
+/* 记一件事：一句话 → AI 整理成情境、行为、影响（SBI）→ 建议分逐项出现 → 确认或改分 → 保存（5 秒撤销）。
    ?m=w2 打开会议人才纪要（预先处理的演示任务）。员工视角只能补充本人自述，不打分。 */
 (function () {
   'use strict';
@@ -9,7 +9,7 @@
   const { shape, findPeople, findProject } = NT.parse;
 
   NT.shell({
-    nav: 'work', title: minutesId ? '会议人才纪要' : '记录关键事件', crumbs: [['工作台', 'index.html']],
+    nav: 'work', title: minutesId ? '会议人才纪要' : '记一件事', crumbs: [['工作台', 'index.html']],
     view: () => (minutesId ? `纪要 · ${$('[role="tab"][aria-selected="true"]')?.textContent || ''}` : `记录 · ${$('#ev')?.dataset.step || 'write'}`),
     state: () => ({ tab: $('[role="tab"][aria-selected="true"]')?.dataset.tab }),
     restore: (s) => { if (s.tab && tabsApi) tabsApi.pick(s.tab); },
@@ -24,8 +24,9 @@
   function renderRecord(main) {
     const q = NT.param('q') || '';
     const pre = NT.param('person');
+    const track = pre && NT.param('track') && st.get().tracks.find((t) => t.id === NT.param('track') && t.person === pre);
     mount(main, html`
-      <header class="nt-head"><div><h1>记录关键事件</h1><p>写原话就行。AI 按情境、行为、影响整理，给涉及的维度打建议分，文字和分数都可以直接改。保存后 5 秒内可以撤销。</p></div></header>
+      <header class="nt-head"><div><h1>记一件事</h1><p>写原话就行。AI 按情境、行为、影响整理，给涉及的维度打建议分，文字和分数都可以直接改。保存后 5 秒内可以撤销。</p></div></header>
       <div class="nt-split">
         <article class="n-card n-event" id="ev" data-step="write">
           <div class="n-event__head" id="ev-head"><span>谁</span><select class="n-select" id="ev-person" style="width:auto;min-height:30px" aria-label="记录给谁">
@@ -33,6 +34,7 @@
             <span class="n-event__ip nt-ip" data-ip="rest" data-size="36" id="ev-ip"></span></div>
           <div id="ev-in">
             <label class="n-eventin__label" for="ev-text">说说这次发生了什么</label>
+            ${track ? html`<div class="n-notice is-plain" style="margin-bottom:var(--s-3)">${icon('target')}<div><b>跟踪中的观察问题：</b>${track.q}</div></div>` : ''}
             <textarea class="n-eventin__field" id="ev-text" rows="5" placeholder="比如：孟逸尘今天主动把任务池同步给了全组，下午组员就接上了，分工比之前清楚多了。">${q}</textarea>
             <div class="n-eventin__bar">
               <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="ev-mic" aria-label="按住说话">${icon('mic')}</button>
@@ -90,6 +92,7 @@
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '提交建议', value: 'ok', cls: 'n-btn--ink',
         validate: (dl) => { const ok = !!$('#sg-t', dl).value.trim(); if (!ok) $('#sg-t', dl).focus(); return ok; },
         read: (dl) => ({ dim: $('#sg-d', dl).value, level: +$('#sg-l', dl).value, text: $('#sg-t', dl).value.trim(), ev: $('#sg-e', dl)?.value || null }) }],
+      onOpen: (dl) => $('#sg-t', dl).focus(),
     });
     if (v?.value !== 'ok') return;
     const sg = st.addRuleSug(v.data);
@@ -213,7 +216,7 @@
       sc.row.append(input); input.focus({ preventScroll: true });
       input.addEventListener('input', () => { sc.why = input.value; });
     }
-    input.placeholder = `为什么改成 ${sc.v} 分？（可选）${Math.abs(sc.v - sc.ai) >= 2 ? ' 和 AI 差 2 分以上，请写一句理由；留空会进 HR 校准队列' : ''}`;
+    input.placeholder = Math.abs(sc.v - sc.ai) >= 2 ? `为什么改成 ${sc.v} 分？留空会进 HR 校准队列` : `为什么改成 ${sc.v} 分？（选填）`;
   }
   function paint(sc) {
     $$('.n-score__dot', sc.row).forEach((b) => {
@@ -226,8 +229,9 @@
     if (sc.row.dataset.state === 'confirmed') note.innerHTML = sc.edited ? `<span class="n-score__delta">${sc.v > sc.ai ? '+' : ''}${sc.v - sc.ai}</span>AI 原为 ${sc.ai}` : sc.ai == null ? '你补的分' : '已确认';
   }
   function hint() {
+    const scored = draft.scores.filter((s) => s.v != null).length;
     const left = draft.scores.filter((s) => s.row?.dataset.state === 'ai').length;
-    $('#score-hint').textContent = left ? `文字可以直接改；还有 ${left} 项 AI 建议分，保存时一并确认` : '分数都已由你确认';
+    $('#score-hint').textContent = !scored ? '文字可以直接改；补充具体行为后，可以再整理出建议分' : left ? `文字可以直接改；还有 ${left} 项 AI 建议分，保存时一并确认` : '分数都已由你确认';
   }
   function save() {
     const me = st.me();
@@ -249,7 +253,7 @@
     sign.hidden = false; $('#ev-actions').hidden = true;
     NT.ipState($('#ev-ip'), 'done');
     NT.toast(`已保存到${st.person(draft.pid).name}的档案${big ? `，${big} 项进了校准队列` : ''}`, {
-      undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('record.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销，这条记录没有保存',
+      undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('record.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销这条记录',
     });
   }
 
@@ -277,7 +281,8 @@
     const evs = m.events.map((id) => st.event(id)).filter(Boolean);
     const verify = S.inbox.filter((i) => i.src === m.title);
     const bars = Array.from({ length: 80 }, (_, i) => i);
-    const durS = 42 * 60 + 10;
+    const durS = m.dur.split(':').reduce((a, x) => a * 60 + +x, 0); // 「38:20」→ 秒，波形上的标记位置按真实时长摆放
+    const speakers = new Set(m.lines.map((l) => l[1])).size;
     mount(main, html`
       <header class="nt-head"><div><h1>${m.title}</h1><p>${m.mode} · ${m.dur} · ${st.person(m.by).name}录制 · ${NT.md(m.at)} · 关联「${st.batch(m.batch).name}」</p></div>
         <div class="nt-head__acts"><span class="n-badge n-badge--preset">预先处理的演示任务</span></div></header>
@@ -290,7 +295,7 @@
           </div>
           <div class="n-tabpanel" role="tabpanel" id="mp-1">
             <p class="n-minutes__sum" id="sum"></p>
-            <div class="n-minutes__people">${m.people.filter(([pid]) => st.scope(pid)).map(([pid, n]) => html`<a class="nt-plink" href="person.html?id=${pid}"><span>${UI.avatar(pid, 'sm')}${st.person(pid).name} · ${n} 条</span></a>`)}${verify.filter((v) => !v.done).map((v) => html`<a class="nt-plink" href="inbox.html#${v.id}"><span><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>${v.quote.match(/「?(小孟|分镜那个组)/)?.[1] || '待核对'} · 待核对</span></a>`)}</div>
+            <div class="n-minutes__people">${m.people.filter(([pid]) => st.scope(pid)).map(([pid]) => html`<a class="nt-plink" href="person.html?id=${pid}"><span>${UI.avatar(pid, 'sm')}${st.person(pid).name} · ${evs.filter((e) => e.people.includes(pid)).length} 条</span></a>`)}${verify.filter((v) => !v.done).map((v) => html`<a class="nt-plink" href="inbox.html#${v.id}"><span><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>${v.quote.match(/「?(小孟|分镜那个组)/)?.[1] || '待核对'} · 待核对</span></a>`)}</div>
             <h4 class="nt-h2" style="font-size:var(--t-sm)">新事件 · ${evs.length} 条</h4>
             ${evs.map((e) => {
               const pend = e.scores.filter((s) => s.st === 'ai').length, conf = e.scores.some((s) => s.st === 'conflict');
@@ -308,12 +313,12 @@
           </div>
         </article>
         <aside class="nt-grid nt-sticky">
-          <div class="n-card">${UI.trail('处理这段录音 · 5 步', ['上传完成 · 182 MB', '转写 · 区分 3 位说话人', '提取人员与项目', '整理出 9 条事件', '标出 3 处需要人确认'], false)}</div>
+          <div class="n-card">${UI.trail('处理这段录音 · 5 步', ['上传完成 · 182 MB', `转写 · 区分 ${speakers} 位说话人`, '提取人员与项目', `整理出 ${evs.length} 条事件`, `标出 ${verify.length} 处需要人确认`], false)}</div>
           <div class="n-card"><h3 class="n-section-title">接下来</h3>
             <ul class="nt-list" style="font-size:var(--t-sm)">
               <li>导师逐个确认学员的建议分：<a href="landing-review.html?id=p-x11">孟逸尘 W8 对人复盘</a></li>
               <li>核对人名和项目：<a href="inbox.html">待核对</a></li>
-              <li>分差大的分数由 HR 校准：<a href="queue.html">校准队列</a></li>
+              ${st.can('calibrate') ? html`<li>分差大的分数由 HR 校准：<a href="queue.html">校准队列</a></li>` : ''}
             </ul></div>
         </aside>
       </div>`);
