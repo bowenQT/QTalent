@@ -1430,7 +1430,13 @@
     const s = { id: NT.uid('rs'), rule: 'rubric', state: 'open', by: store.me().id, at: NT.TODAY, ...o };
     S.ruleSugs.unshift(s); store.save(); return s;
   };
-  store.removeRuleSug = (id) => { S.ruleSugs = S.ruleSugs.filter((s) => s.id !== id); store.save(); };
+  store.removeRuleSug = (id) => {
+    const i = S.ruleSugs.findIndex((s) => s.id === id);
+    const s = S.ruleSugs[i];
+    // 已被 HR 处理的建议及其草稿依据必须保留；只允许提交者撤回待处理建议。
+    if (!s || !store.canSuggestRule() || s.by !== store.me().id || s.state !== 'open') return false;
+    S.ruleSugs.splice(i, 1); store.save(); return true;
+  };
   store.ruleSugs = (o = {}) => S.ruleSugs.filter((s) => (!o.state || s.state === o.state) && (!o.by || s.by === o.by));
   // HR 处理：纳入草稿（作为依据挂到草稿上）或不采纳（写理由）
   store.handleRuleSug = (id, ok, why) => {
