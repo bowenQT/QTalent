@@ -62,6 +62,30 @@ function snapshot(role: 'mentor' | 'hr' | 'manager'): OriginalAccessSnapshot {
   };
 }
 describe('whole original uses existing talent source authorization', () => {
+  it('authorizes original-only identities through the complete source graph and validates original ownership', async () => {
+    const data = snapshot('mentor');
+    data.originalId = 'original';
+    const authorize = createOriginalAuthorizer(async () => data);
+    expect(
+      await authorize('account', {
+        originalId: 'original',
+        originalVersionId: 'version',
+      }),
+    ).toBe(true);
+    expect(
+      await authorize('account', {
+        originalId: 'wrong',
+        originalVersionId: 'version',
+      }),
+    ).toBe(false);
+    data.sources = [];
+    expect(
+      await authorize('account', {
+        originalId: 'original',
+        originalVersionId: 'version',
+      }),
+    ).toBe(false);
+  });
   const reference = { fragmentId: 'fragment', originalVersionId: 'version' };
   it.each(['mentor', 'hr', 'manager'] as const)(
     'allows a complete classified version for authorized %s',
@@ -100,6 +124,16 @@ describe('whole original uses existing talent source authorization', () => {
     expect(await authorize('different', reference)).toBe(false);
     expect(
       await authorize('account', { ...reference, fragmentId: 'forged' }),
+    ).toBe(false);
+  });
+  it('rejects duplicate fragment identities rather than authorizing the first classification twice', async () => {
+    const data = snapshot('mentor');
+    data.sources.push({
+      ...data.sources[0],
+      requiredKinds: ['management-observation'],
+    });
+    expect(
+      await createOriginalAuthorizer(async () => data)('account', reference),
     ).toBe(false);
   });
 });

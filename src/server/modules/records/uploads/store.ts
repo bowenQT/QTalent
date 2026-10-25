@@ -1,7 +1,12 @@
-import { and, count, eq, gt, isNotNull, or, sql } from 'drizzle-orm';
-import type { Database, DbExecutor } from '../../../db/client';
+import { and, count, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import type { Database, DbExecutor, Transaction } from '../../../db/client';
 import { originals, originalVersions } from '../schema';
-import { uploadIntents, uploadObjects, uploadReadTickets } from './schema';
+import {
+  uploadCollections,
+  uploadIntents,
+  uploadObjects,
+  uploadReadTickets,
+} from './schema';
 import {
   UploadError,
   type UploadIntent,
@@ -22,6 +27,18 @@ export type UploadDispatch = (
   },
 ) => Promise<{ jobId: string }>;
 
+/** 846 calls this in its existing save/undo transaction BEFORE checking upload
+ * membership and writing its ledger. Release/grant use the identical lock key.
+ */
+export async function lockUploadCollection(
+  tx: Transaction,
+  recordCollectionId: string,
+) {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`quota:${recordCollectionId}`}, 0))`,
+  );
+}
+
 /** dispatch MUST persist a real 859/866 job with this same executor. No detached
  * enqueue, singleton producer, or fabricated queued result is provided here.
  */
@@ -38,6 +55,28 @@ export function createPostgresUploadStore(
           );
         const tx: UploadTransaction = {
           executor,
+          async findCollection(id) {
+            const [row] = await executor
+              .select()
+              .from(uploadCollections)
+              .where(eq(uploadCollections.id, id));
+            return row ?? null;
+          },
+          async findCollectionOperation(accountId, operationId) {
+            const [row] = await executor
+              .select()
+              .from(uploadCollections)
+              .where(
+                and(
+                  eq(uploadCollections.creatorAccountId, accountId),
+                  eq(uploadCollections.operationId, operationId),
+                ),
+              );
+            return row ?? null;
+          },
+          async insertCollection(collection) {
+            await executor.insert(uploadCollections).values(collection);
+          },
           async findOperation(accountId, operationId) {
             const [row] = await executor
               .select()
@@ -64,6 +103,7 @@ export function createPostgresUploadStore(
               .where(
                 and(
                   eq(uploadIntents.quotaScope, scope),
+                  isNull(uploadIntents.releasedAt),
                   or(
                     isNotNull(uploadIntents.completed),
                     gt(uploadIntents.expiresAt, now),
@@ -76,6 +116,7 @@ export function createPostgresUploadStore(
             await executor.insert(uploadIntents).values({
               ...intent,
               declaredBytes: intent.request.declaredBytes,
+              recordCollectionId: intent.request.recordCollectionId,
             });
           },
           async archiveAndDispatch(intent, object, ids) {
@@ -120,6 +161,26 @@ export function createPostgresUploadStore(
                 and(
                   eq(uploadIntents.id, intent.id),
                   eq(uploadIntents.revision, intent.revision - 1),
+                ),
+              )
+              .returning({ id: uploadIntents.id });
+            if (rows.length !== 1)
+              throw new UploadError('conflict', 'upload_changed');
+          },
+          async saveRelease(intent) {
+            const rows = await executor
+              .update(uploadIntents)
+              .set({
+                releasedAt: intent.releasedAt,
+                releaseOperationId: intent.releaseOperationId,
+                releaseFingerprint: intent.releaseFingerprint,
+                revision: intent.revision,
+              })
+              .where(
+                and(
+                  eq(uploadIntents.id, intent.id),
+                  eq(uploadIntents.revision, intent.revision - 1),
+                  isNull(uploadIntents.releasedAt),
                 ),
               )
               .returning({ id: uploadIntents.id });

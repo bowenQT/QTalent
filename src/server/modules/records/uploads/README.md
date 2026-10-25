@@ -1,60 +1,65 @@
-# 上传与原件代理核心（BOW-873）
+# 上传、集合与原件读取（BOW-873）
 
-[SDD v0.2 与独立交叉评审](https://linear.app/bowenzhong/document/bow-873-sdd-v01-上传校验与原件授权读取-cdf1289eb171) · [任务 #65](https://github.com/bowenQT/QTalent/issues/65)。本目录是可注入的核心，**尚未接应用 actions/queries/HTTP 或真实处理 jobs，不是整卡完成**。
+[SDD 与独立交叉评审](https://linear.app/bowenzhong/document/bow-873-sdd-v02-上传校验与原件授权读取-cdf1289eb171) · [PR186](https://github.com/bowenQT/QTalent/pull/186) · [任务65](https://github.com/bowenQT/QTalent/issues/65)。本卡仍是 Draft：实际记录写策略/保存 ledger、完整来源投影、处理器与公共路由尚需各责任方接线，不能把依赖组合验证当作已在 main 完成。
 
-## 入口与当前行为
+## 已有入口
 
-- `createUploadService({store, storage, policy, now?})`：`request(accountId, input)` / `complete(accountId, input)`。`accountId` 只能来自服务端已验证的会话，不可从客户端参数取。输入严格消费 PR112 的申请/完成 schema。
-- `UploadPolicy.resolveWriteTarget` 每次重载记录写权限并返回稳定 `quotaScope`。不得以读权限代替写权限，也不得以人员集合或事件目标代替一条记录。`externalAttachmentCount` 是该集合已存在、但没有对应本目录上传 intent 的附件数；事务内从权威记录表加载，不能取客户端 count。跨账号同集合共用 quota 锁；本目录再计入已完成和有效的预留，总计最多十个。
-- 申请由服务器生成 UUID 路径，Kodo 签发精确对象、大小/MIME与五分钟期限。intent 有二十四小时的完成窗口；相同 operation 与相同 payload 可在窗口内重新授权续签同一个 key，不延长 intent。已完成/过期的申请不能再签上传凭证。
-- 完成忽略客户端“成功”暗示，独立 stat、读取字节、流式长度/SHA256和有界头尾格式探测，再次 stat 检查对象漂移。供应商 etag 和本地 SHA256 分开保存。外部读取在事务外，提交时重读写权限、期限、revision。原件、版本、对象映射、完成账本与 `dispatch` 同一事务；重放先重验权限，任何新版本/入队不重复执行。
-- 格式鉴别是有界容器检查，不承诺完整解码或可提取正文。TXT 全流严格 UTF8/控制字符检查；PDF 头尾、DOCX 中央目录必需部件、WAV/MP3/M4A/AAC 签名。当前有界探测对头部超过 128 KiB 的 MP3 ID3、超过窗口的 DOCX 中央目录明确拒绝。扫描件仍由 BOW-866 返回 `unsupported/scanned`；损坏容器由后续解析/转写返回真实失败。这里不实现文本提取、OCR、音频解码。
-- `createOriginalReader`：`grant(accountId, sourceReference)` 返回六十秒应用代理路径；`open(accountId, ticket, rangeHeader?)` 返回 `Response`。ticket 为随机 32 字节，只保存 SHA256，绑定账号和真实引用，每个请求重新授权、检查安全时钟和原件完整性。支持单个 `bytes=start-end` / `bytes=start-` 范围；拒绝多个范围、后缀范围和非法整数。流错误和取消不伪装成功，`private, no-store` / `nosniff`，前端不接收 Kodo URL/key。
-- `createOriginalAuthorizer(load)` 复用主线 `readTalentSource` 算法，对整个版本的所有来源检查当前授权。`load` 必须由 BOW-837 的权威投影提供完整、已分类的来源集合及 `complete=true`；未知范围、未关联/未决片段、其他隐藏片段都不能给 true。只授权一个引用不能读取整个对象，即使请求的是 Range。未解析上传没有公共片段，不生成占位引用。
+- `createRecordCollectionService`：`create(accountId,{target,operationId})` 为新 people 记录签发服务器 UUID；同账号/operation 幂等，同键异目标冲突，重放仍检查当前写权限。target 规范化后不可变。它只是附件集合/配额容器，不承接 SBI 草稿、事件或保存状态。
+- `collections.resolveWriteTarget(accountId,{recordCollectionId,target},tx?)`：真实表查集合，未保存时只允许创建者；已保存时依据846 ledger的 eventIds及反向映射解析事件别名。一个集合允许产生多个事件，没有 eventId UNIQUE，也不猜 people→event 关系。每次调用835/846当前写策略；creator不授予永久读取权。
+- `createUploadService({store,storage,policy,...})`：`request`、`complete` 消费媒体合同。客户端不能指定账号/key，不能以人员集合或 client count 代替记录身份。凭证精确到对象、大小/MIME和五分钟；intent完成窗口最多24小时且不超过集合期限，续签不扩大范围或无限延长 intent。已完成事实的授权重放不因上传窗口到期而被改写。
+- 完成只把 receipt 当通知，独立stat存在/长度/MIME，消费实际字节并流式计算SHA256、有界头尾格式鉴别，再stat确认对象未漂移；供应商etag不是SHA256。外部读取在事务外，提交前重查权限、期限与revision；原件、版本、对象映射、完成账本和dispatch同事务。这里不生成片段、解析版本或人工确认时间。
+- `collections.release(accountId,{uploadId,operationId,expectedRevision})`：仅未保存集合的创建者在当前写权限下移除成员；同配额锁、revision及幂等账本释放slot，不删除原件/来源历史，不声称撤回外部上传或取消处理器。已保存集合拒绝直接移除；改原话/撤销后的阶段必须由846 ledger如实提供。移除后的旧complete被拒。
+- `readValidatedUpload(store,{uploadId,originalVersionId})`：只返回匹配已提交完成的验证事实；`ValidatedUpload`为原件/版本/job身份、purpose/filename/target/account/quotaScope及`object:{objectKey,byteLength,mediaType,sha256,etag}`。它不是永久任务授权；worker仍核对jobId/purpose、当前授权与业务成员状态。没有fragment/parseVersion输出，原件移除出当前集合也不会被删除。
 
-核心不提供默认真实配置、全局 singleton、授权 allow-all 或内存生产 store；fake 只在 `tests/fixtures/upload-fake.ts`，底层复用已合 `createFakeKodo()`。
+格式探测不是解码器：TXT全流严格UTF8；PDF头尾、DOCX中央目录必需部件、WAV/MP3/M4A/AAC容器签名。有界窗口为128KiB，超大ID3/中央目录无法确认时拒绝，不能据此声称所有合法容器均可解析。扫描件/损坏文档的解析结果由866提供，禁止以空正文冒充成功。
 
-## 父协调的精确接线
+## 原件与请求边界
 
-1. `createPostgresUploadStore(db, dispatch)`：`dispatch(tx, {purpose,uploadId,originalId,originalVersionId,accountId,quotaScope,target}) -> {jobId}`，其中 audio 进入 BOW-859，attachment 进入 BOW-866。必须使用传入 `tx` 原子持久入队；不得在此目录另造852的 lazy producer / worker 注册。
-2. `resolveWriteTarget(accountId, target, transaction?)`：组合835/846责任方真实记录写策略和稳定记录集合；有 `transaction.executor` 时用它加载同一事务的当前授权与外部附件计数。不存在正确集合或策略就拒绝，不能以假授权作为生产 fallback。
-3. `createOriginalAuthorizer(load)` 的 `load(accountId, originalVersionId, transaction?)`：父串行接837的来源投影；包括全部版本内容及事件/参与者/敏感性质。`complete` 必须由服务端完整分类事实产生，不能由请求布尔值提供。
-4. 服务端专用 upload actions、source query 和 `GET /api/uploads/original?ticket=...`：每个入口先按现有 Access+应用会话认证，调用核心并做安全错误映射；GET 把当前请求 Range 传 `open`。真实短链请求路径目前未注册。敏感读取审计由应用入口串行接现有 audit。
-5. 在上述依赖可用后构造本目录服务，将已合 Kodo 实例作为 `storage` 显式传入；不新增 env 或 singleton。真实 key、网络、部署不在本卡本次授权内。
+`createOriginalReader` 的 `grant` 接真实片段+版本，或原件ID+版本；`open` 接随机ticket及HTTP Range。原件身份先与已验证对象/完成版本匹配，不能拼接另一个原件。ticket为32随机字节，只存SHA256，绑定当前账号、原件/版本及可空片段，最长60秒；不造占位fragment、不发Kodo读取URL。请求中的range在未带HTTP Range时作为默认读取范围；两种路径始终要求整份原件已授权。
 
-### BOW-866 / 859 冻结交接 port v1
+`createOriginalAuthorizer(load)`复用主线`readTalentSource`，对该版本所有真实来源检查当前权限。`load`须由837/859/866权威投影给出完整分类事实`complete=true`；原件身份读取还须提供真实originalId。未解析/未关联/未决内容、重复身份、无来源或任一隐藏片段均失败关闭。可见一个引用不能读整份对象，Range也不能绕过。
 
-分派类型就是 `store.ts` 的 `UploadDispatch`，上述字段冻结；`purpose:'attachment'` 路由866，`purpose:'audio'`路由859。分派的事务内只持久入队，外部解析/下载在提交后执行。解析器不复建原件或上传会话，不从客户端receipt构造任务。
+`createUploadHttpHandlers`提供POST申请/完成与GET原件的实际Request→Response边界；校验同源、会话和有界JSON，结果经媒体schema验证。匿名401、越权403/404、冲突409、依赖失败503分开；只返回白名单原因，保留合法解析的失败输入，不泄漏上游错误。读取必须审计成功后才返回流；审计只记ticket摘要，不记原始能力。流错误/取消不伪装成功，使用private/no-store、nosniff及安全文件名。
 
-Worker 使用 `readValidatedUpload(store, {uploadId, originalVersionId})`（`handoff.ts`）读取已提交的上传事实；缺失/未完成/版本或upload不匹配返回null。成功的 `ValidatedUpload` 包含 `uploadId,originalId,originalVersionId,jobId,purpose,filename,target,accountId,quotaScope` 与 `object:{objectKey,byteLength,mediaType,sha256,etag}`。Worker校验自己的jobId/purpose和版本；只用原件版本定位输入，不拿客户端MIME或供应商receipt当验证结果。
+`server/queries/upload-runtime.ts`已实现无singleton的应用组合：真实PostgreSQL store、集合服务、上传/读取服务、HTTP边界，复用现有`jobAccount`（Access+应用会话）和`recordAudit`。构造不连接数据库、不启动队列、不配置或读取Kodo key；调用方显式注入storage、当前业务策略和唯一producer的dispatch。测试fake仅在tests/fixtures，底层复用已合createFakeKodo。
 
-该getter由uploads唯一维护，866不直接读写上传内部表。objectKey仅给server worker供Kodo端口读取，禁止进入前端DTO、job公开结果或日志；任务当前授权/模型输入筛选仍由业务处理链执行，上传已验证不代表永久授权。getter不返回fragment/parseVersion/确认时间，相关版本由866/859自己建立。它复用既有三张新表，**无需额外schema扩展**；解析状态与job关系属于866自己的attachments范围。
+## 父需串行接的精确接口
 
-## Schema 所有权与迁移顺序
+`createUploadRuntime`需要以下服务器依赖；没有allow-all或fake生产默认值：
 
-本卡唯一新增 `uploads/schema.ts` 三表：`records_upload_intents`、`records_upload_objects`、`records_upload_read_tickets`。原件/版本沿既有 records 表；不修改846拥有的 `records/schema.ts`、write/save-state，或837 person-data/投影。
+1. `collectionPolicy.canWriteTarget(accountId,target,tx)`：835/846真实记录写策略，使用`tx.executor`加载同一事务的当前授权；不能用人才读取或`canConfirmOwnScore`代替。
+2. `collectionPolicy.loadBinding(collectionId,tx)`：846保存ledger，返回`{state:'draft',externalAttachmentCount}`或`{state:'saved',eventIds,externalAttachmentCount}`；依赖不可用时抛错，不默认draft/0。externalAttachmentCount只计算本集合不由upload intents代表的真实成员。
+3. `collectionPolicy.collectionForEvent(eventId,tx)`：846 ledger的权威反向映射。缺映射拒绝，不能另造配额桶。一次记录保存只绑定一个集合，所有upload归该集合，附件并集≤10；改原话/撤销保留集合ID。
+4. 846保存/撤销事务在核对成员、解析状态和写ledger前调用`lockUploadCollection(nativeTransaction,id)`。该入口与grant/release使用完全相同的quota锁，防止保存/移除竞态；它不授予写权限。846还须拒绝released、未完成、未解析或跨集合的上传，不能仅使用归档事实getter当作保存许可。
+5. `canReadOriginal`：用`createOriginalAuthorizer`对接837的完整版本来源投影和处理器完整分类状态，不复制授权算法；未知内容不准播放。
+6. Kodo实例、trustedOrigin及`dispatch`由父/唯一配置方注入；实际upload/source actions、短链路由与来源播放字段由父串行登记。本目录不改共享index、worker注册或env，不另造852的lazy producer。
 
-- intent 维护账户/operation 唯一、payload fingerprint、可信记录集合、精确对象路径、申请声明、有效期、revision和完成结果。字节用 bigint，保持 2 GiB 边界有效；完成三字段一致性有 CHECK。
-- object 以原件版本为 PK/FK，upload/key 唯一，保存字节数、MIME、本地SHA256、供应商etag。
-- ticket 只存随机能力摘要、账户、片段/版本与到期时间，复合 FK 验证真实片段/版本一致。过期 ticket 不再读；清理可由父现有维护入口按 expiry 实施，不提前注册 worker。
+### 866/859冻结分派port v1
 
-**本 PR 不含迁移。** 父先在 PR94 的 `0002_cold_secret_warriors` 之后协调唯一生成者，从当时最新 main 原生执行 `pnpm db:generate` 并复验；不得手写SQL、改0000/0001或抢占迁移编号。迁移前不启用此 store；真实 PG 的并发/回滚/FK 验收仍 Pending，不把测试 fake 当 PG。
+`UploadDispatch(tx,{purpose,uploadId,originalId,originalVersionId,accountId,quotaScope,target})->Promise<{jobId}>`。audio交859，attachment交866；必须以传入同一原生事务持久任务/入队，提交后才下载/处理。复用852的`getAppJobProducer(queue)`和`fromDrizzle(tx,sql)`，queue/payload由各处理器提供服务器常量，不能来自客户端。不复制供应商签名或另建producer。
 
-## 依赖与已知阻点
+worker使用上述`readValidatedUpload`，不直接读写uploads内部表，不重建原件/会话。objectKey只给server worker，不能进入前端DTO、公开job结果或日志；该getter复用现有上传表，无解析侧额外schema要求。
 
-- PR112 固定 `2397ad13d577e79bba4824fc691d62ec013ed5d2` 仍 Draft/前端消费评审 Pending；PR77 sources `63af7eaddb6da8ea59a59cb361442f537f260ad1`、PR94 jobs `a9da11e416c158d94527fc47ce161f0fba6ecf42` 未合。组合测试临时复制三份合同，不提交，也不称已在 main 可用。
-- PR112 完成成功强制 `source`，上传完成尚无解析片段。本核心返回真实 `source:null`；合同责任方须允许 null 并修订 refine，之后才能适配公共成功 DTO，禁止强转/伪造 fragment。
-- PR112 没有稳定 record collection ID。`quotaScope` 必须来自可信上下文；公开合同需责任方协调，不用 targetKey 冒充。
-- 产品上限 2 GiB，当前已合 Kodo grant 上限 1 GiB。核心默认如实对超过 adapter 能力的申请报 `unavailable/adapter_limit`，不暗降产品上限。需856协调后传准确 `adapterMaxBytes`，不能只提高参数绕过供应商能力。
-- 已只读检查 PR164 `375a4cb00a7650f008a95d2d01dc3ab7349c3a91` 的真实 diff（returnBody、mimeLimit与源站规范化）；本卡没有重写这些 adapter 修复。它仍 open，不代合、不联系外部 agent。
-- 已按父更新 fast-forward 到 main `e96385ee187690946a2f2e32cde245601806ac6e`，工程参照按 manifest `1f10b5e` 准备76文件，种子两个data摘要不变。没有本卡原型改动。
+## Schema与串行迁移
 
-## 验证口径
+本卡独占`uploads/schema.ts`四表：
 
-上传11项、原件代理9项均先 Red 再 Green；后续格式边界另先复现单字节 TXT 拒绝再修正。包含 merged Kodo fake 的原件字节/Range链路，以及现有授权算法下导师、范围外HR、混合人员、敏感片段、未知版本和不完整分类拒绝。
+- `records_upload_collections`：服务器身份、creator/创建operation唯一、不可变target/摘要、版本和上传期限；不存SBI或事件草稿，不建立单事件唯一关系。
+- `records_upload_intents`：集合FK、账户/operation唯一、payload摘要、精确key、声明、期限/revision、完成和移除幂等账本；quotaScope与请求集合ID有一致性CHECK。计数排除released及过期未完成，已完成未移除仍计数。
+- `records_upload_objects`：原件版本PK/FK、upload/key唯一、bigint字节数、MIME、本地SHA256和供应商etag。原件/版本沿用既有records表，不改846 schema。
+- `records_upload_read_tickets`：随机能力摘要、账号、原件/版本、可空fragment、请求range和期限。非空fragment受复合FK约束，不用假引用填空。
 
-`playback-flow.test.ts` 另覆盖一秒合成PCM WAV：上传完成仍无来源，后续处理器分类夹具提供真实版本身份/0–1000ms引用；复用主线导师来源授权，经票据代理读出完全相同WAV字节。同版本增加隐藏人物片段后，旧票据与Range读取拒绝。它验证合成引用/授权/代理组合，不声称837档案查询和859处理器已上线。
+**不含新迁移，不手写DDL或push schema。** 父在852→846之后从届时main原生生成873迁移并完整验证；不得改已合0000–0002或抢编号。过期/移除不删除已完成来源与历史；代码回退不等于数据回退，不自动DROP生产表。
 
-当前固定三合同组合的全单元72文件/648项通过，后续新增播放组合与既有附件计数测试单列。类型、lint/边界通过；标准Next/Turbopack构建因PostCSS子进程绑定本地端口返回`Operation not permitted`而失败，提权后仍相同，未完成构建。远端独立head CI缺media/sources合同而失败，PG/覆盖率/build/e2e/visual未执行，不能把组合结果当远端通过。
+## 当前验证范围
 
-这些不是真实应用HTTP、真实PG、真实jobs/处理器或真实Kodo验收。当前未接应用、未生成迁移，保持 Draft 与 `Part of BOW-873`，最终父负责合并。代码回退不能删除已有原件与任务历史，不自动DROP表。
+当前本地已正常merge main dd34dd2，包含#94/#77、837读取实现、正式媒体合同#112与Kodo修复#164；媒体临时overlay已移除，当前消费者直接使用已合合同。工程参照按仓库manifest451ecec准备78文件，种子data摘要不变，本卡没有原型/前端净改动。
+
+PR202是用户新指定的P0合同依据，当前未合。最终Source的originalTitle/recordedByName与权限由837/838集中适配；873沿用其权威投影和共享授权，不自行补空名字或复制权限。等待父提供整合SHA后验证该组合，不能将当前main结果说成202已适配。
+
+- 上传、代理、集合创建/移除、新读取身份等按行为Red→Green推进；包含匿名/范围外HR/导师敏感片段、混合人员、撤权、伪通知、大小/MIME/内容不符、幂等、quota及range。
+- 精确2GiB合成流以复用1MiB块验证全长及SHA256，对照独立OpenSSL golden；不分配2GiB文件缓冲。这仅证明873校验边界，不代表浏览器/真实Kodo上传已支持。
+- 真实PG17.6只应用已合迁移，独立随机_test库的四项事务锁/提交/回滚测试通过；完整持久adapter六项测试已准备，当前因四表迁移未发布而在beforeAll失败，六项未执行不计通过，也没有用临时DDL替代。
+- 当前main dd34dd2加本卡工作树的全单元115文件/1106项、全格式、lint/边界、类型及标准Next生产构建通过。全单元不含PG，也不代表统一覆盖率已过；e2e/visual与完整PG门禁尚待持久接线后执行。当前head与CI结果以PR正文为准。
+
+2GiB产品上限保持；已合Kodo grant的1GiB仍是adapter缺口。873直传只调用grant，可由856先扩精确grant上限并验证现有v2浏览器分片；buffer式server multipart的1GiB/256片限制另行处理，不能只调873参数冒充能力。已只读核PR164，不重复修复。没有真实Kodo/模型/业务API、实际key或部署；最终父合并。

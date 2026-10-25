@@ -19,11 +19,42 @@ async function ready() {
     fragmentId: 'real-fragment-from-parser',
   };
   const reader = createOriginalReader(f.options);
-  return { ...f, reference, reader };
+  return { ...f, reference, reader, originalId: result.originalId };
 }
 const ticket = (url: string) =>
   new URL(url, 'https://app.invalid').searchParams.get('ticket')!;
 describe('short lived authenticated original proxy', () => {
+  it('accepts an authorized original/version identity without inventing a fragment and honors its requested range', async () => {
+    const f = await ready();
+    const lookup = vi.spyOn(f.options.policy, 'canReadOriginal');
+    const identity = {
+      originalId: f.originalId,
+      originalVersionId: f.reference.originalVersionId,
+    };
+    const grant = await f.reader.grant('account', {
+      ...identity,
+      range: { start: 0, endInclusive: 2 },
+    });
+    expect(f.snapshot().tickets[0]).toMatchObject({
+      originalId: f.originalId,
+      fragmentId: null,
+      requestedRange: { start: 0, endInclusive: 2 },
+    });
+    const response = await f.reader.open('account', ticket(grant.url));
+    expect(response.status).toBe(206);
+    expect(await response.text()).toBe('演');
+    expect(
+      lookup.mock.calls.every(
+        (call) => JSON.stringify(call[1]) === JSON.stringify(identity),
+      ),
+    ).toBe(true);
+    await expect(
+      f.reader.grant('account', {
+        ...identity,
+        originalId: 'different-original',
+      }),
+    ).rejects.toMatchObject({ status: 'not_found' });
+  });
   it('refuses anonymous, invalid references and unknown versions', async () => {
     const f = await ready();
     await expect(f.reader.grant(null, f.reference)).rejects.toMatchObject({
@@ -101,16 +132,22 @@ describe('short lived authenticated original proxy', () => {
     const g = await f.reader.grant('account', f.reference);
     const original = f.options.storage.openObject;
     const cancel = vi.fn();
+    const close = vi.fn();
     vi.spyOn(f.options.storage, 'openObject').mockImplementation(
       async (input) => {
         const opened = await original(input);
         f.deny();
-        return { ...opened, body: new ReadableStream<Uint8Array>({ cancel }) };
+        return {
+          ...opened,
+          close,
+          body: new ReadableStream<Uint8Array>({ cancel }),
+        };
       },
     );
     await expect(f.reader.open('account', ticket(g.url))).rejects.toMatchObject(
       { status: 'not_found' },
     );
     expect(cancel).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
   });
 });

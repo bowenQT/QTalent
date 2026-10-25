@@ -1,5 +1,8 @@
-import type { UploadRequest, UploadGrant } from '../../../../contracts/media';
-import type { SourceReadInput } from '../../../../contracts/sources';
+import type {
+  UploadRequest,
+  UploadGrant,
+  ReadOriginalInput,
+} from '../../../../contracts/media';
 import type { createKodoClient } from '../../../integrations/kodo';
 import type { DbExecutor } from '../../../db/client';
 
@@ -9,6 +12,7 @@ export type UploadStorage = Pick<
 >;
 export type UploadCompletion = {
   uploadId: string;
+  recordCollectionId: string;
   originalId: string;
   originalVersionId: string;
   jobId: string;
@@ -29,6 +33,19 @@ export type UploadIntent = {
   completionOperationId: string | null;
   completionFingerprint: string | null;
   completed: UploadCompletion | null;
+  releasedAt: number | null;
+  releaseOperationId: string | null;
+  releaseFingerprint: string | null;
+};
+export type UploadCollection = {
+  id: string;
+  creatorAccountId: string;
+  operationId: string;
+  target: UploadRequest['target'];
+  targetFingerprint: string;
+  createdAt: number;
+  expiresAt: number;
+  revision: number;
 };
 export type VerifiedObject = {
   objectKey: string;
@@ -41,14 +58,24 @@ export type UploadedObject = VerifiedObject & {
   uploadId: string;
   originalVersionId: string;
 };
-export type ReadTicket = SourceReadInput & {
+export type ReadTicket = {
   digest: string;
   accountId: string;
+  originalId: string;
+  originalVersionId: string;
+  fragmentId: string | null;
+  requestedRange: NonNullable<ReadOriginalInput['range']> | null;
   expiresAt: number;
 };
 /** The implementation must atomically roll back all these writes and dispatch. */
 export interface UploadTransaction {
   readonly executor?: DbExecutor;
+  findCollection(id: string): Promise<UploadCollection | null>;
+  findCollectionOperation(
+    accountId: string,
+    operationId: string,
+  ): Promise<UploadCollection | null>;
+  insertCollection(collection: UploadCollection): Promise<void>;
   findOperation(
     accountId: string,
     operationId: string,
@@ -62,6 +89,7 @@ export interface UploadTransaction {
     ids: { originalId: string; originalVersionId: string },
   ): Promise<string>;
   saveCompletion(intent: UploadIntent): Promise<void>;
+  saveRelease(intent: UploadIntent): Promise<void>;
   findObject(originalVersionId: string): Promise<UploadedObject | null>;
   insertTicket(ticket: ReadTicket): Promise<void>;
   findTicket(digest: string): Promise<ReadTicket | null>;
@@ -79,9 +107,11 @@ export interface UploadPolicy {
    */
   resolveWriteTarget(
     accountId: string,
-    target: UploadRequest['target'],
+    input: Pick<UploadRequest, 'recordCollectionId' | 'target'>,
     transaction?: UploadTransaction,
   ): Promise<{
+    recordCollectionId: string;
+    collectionExpiresAt?: number;
     quotaScope: string;
     /** Existing attachments in this record collection not represented by these
      * upload intents. Resolved from authoritative storage in the same transaction.
@@ -94,7 +124,7 @@ export interface UploadPolicy {
    */
   canReadOriginal(
     accountId: string,
-    reference: SourceReadInput,
+    reference: ReadOriginalInput,
     transaction?: UploadTransaction,
   ): Promise<boolean>;
 }

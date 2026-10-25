@@ -9,16 +9,18 @@ import type {
   UploadStorage,
   UploadStore,
   UploadTransaction,
+  UploadCollection,
 } from '../../src/server/modules/records/uploads/types';
 
 /** Synthetic protocol around the merged immutable Kodo fake; no signing key. */
-export function fixture() {
+export function fixture(recordCollectionId = 'trusted-record-collection-1') {
   let now = Date.parse('2026-10-25T16:00:00Z');
   let allowed = true;
   let dispatchFails = false;
   const fake = createFakeKodo();
   const mime = new Map<string, string>();
   let intents: UploadIntent[] = [];
+  let collections: UploadCollection[] = [];
   let objects: UploadedObject[] = [];
   let tickets: ReadTicket[] = [];
   let jobs: string[] = [];
@@ -73,6 +75,20 @@ export function fixture() {
     },
   };
   const tx: UploadTransaction = {
+    async findCollection(id) {
+      return collections.find((c) => c.id === id) ?? null;
+    },
+    async findCollectionOperation(accountId, operationId) {
+      return (
+        collections.find(
+          (c) =>
+            c.creatorAccountId === accountId && c.operationId === operationId,
+        ) ?? null
+      );
+    },
+    async insertCollection(collection) {
+      collections.push(structuredClone(collection));
+    },
     async findOperation(account, operation) {
       return (
         intents.find(
@@ -87,6 +103,7 @@ export function fixture() {
       return intents.filter(
         (i) =>
           i.quotaScope === scope &&
+          i.releasedAt === null &&
           (i.completed !== null || i.expiresAt > instant),
       ).length;
     },
@@ -109,6 +126,11 @@ export function fixture() {
         i.id === intent.id ? structuredClone(intent) : i,
       );
     },
+    async saveRelease(intent) {
+      intents = intents.map((i) =>
+        i.id === intent.id ? structuredClone(intent) : i,
+      );
+    },
     async findObject(version) {
       return objects.find((o) => o.originalVersionId === version) ?? null;
     },
@@ -122,11 +144,17 @@ export function fixture() {
   const store: UploadStore = {
     transaction(_locks, work) {
       const result = tail.then(async () => {
-        const before = structuredClone({ intents, objects, tickets, jobs });
+        const before = structuredClone({
+          intents,
+          objects,
+          tickets,
+          jobs,
+          collections,
+        });
         try {
           return await work(tx);
         } catch (error) {
-          ({ intents, objects, tickets, jobs } = before);
+          ({ intents, objects, tickets, jobs, collections } = before);
           throw error;
         }
       });
@@ -135,10 +163,11 @@ export function fixture() {
     },
   };
   const policy: UploadPolicy = {
-    async resolveWriteTarget() {
-      return allowed
+    async resolveWriteTarget(_accountId, input) {
+      return allowed && input.recordCollectionId === recordCollectionId
         ? {
-            quotaScope: 'trusted-record-collection-1',
+            recordCollectionId,
+            quotaScope: recordCollectionId,
             externalAttachmentCount: 0,
           }
         : null;
@@ -148,6 +177,7 @@ export function fixture() {
     },
   };
   const request: UploadRequest = {
+    recordCollectionId,
     purpose: 'attachment',
     filename: 'demo.txt',
     declaredBytes: 7,
@@ -180,7 +210,7 @@ export function fixture() {
       mime.set(key, mediaType);
     },
     snapshot() {
-      return structuredClone({ intents, objects, tickets, jobs });
+      return structuredClone({ intents, objects, tickets, jobs, collections });
     },
   };
 }

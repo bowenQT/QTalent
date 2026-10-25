@@ -1,6 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { sourceReadInputSchema } from '../../../../contracts/sources';
-import { UploadError, type UploadOptions } from './types';
+import {
+  readOriginalSchema,
+  type ReadOriginalInput,
+} from '../../../../contracts/media';
+import { UploadError, type UploadOptions, type ReadTicket } from './types';
 import { requireUploadAccount, safeUpload } from './service';
 const hash = (token: string) =>
   createHash('sha256').update(token).digest('hex');
@@ -17,6 +20,19 @@ function parseRange(header?: string) {
     throw new UploadError('validation_error', 'invalid_range');
   return { start, ...(end === undefined ? {} : { end }) };
 }
+function identity(value: ReadOriginalInput | ReadTicket): ReadOriginalInput {
+  if ('fragmentId' in value && typeof value.fragmentId === 'string')
+    return {
+      fragmentId: value.fragmentId,
+      originalVersionId: value.originalVersionId,
+    };
+  if ('originalId' in value)
+    return {
+      originalId: value.originalId,
+      originalVersionId: value.originalVersionId,
+    };
+  throw new UploadError('validation_error', 'invalid_input');
+}
 export function createOriginalReader(options: UploadOptions) {
   const now = options.now ?? Date.now;
   const missing = () => new UploadError('not_found', 'original_not_found');
@@ -27,23 +43,30 @@ export function createOriginalReader(options: UploadOptions) {
     ): Promise<{ url: string; expiresAt: string }> {
       return safeUpload(async () => {
         requireUploadAccount(accountId);
-        const parsed = sourceReadInputSchema.safeParse(input);
+        const parsed = readOriginalSchema.safeParse(input);
         if (!parsed.success)
           throw new UploadError('validation_error', 'invalid_input');
         const token = randomBytes(32).toString('base64url');
+        const reference = identity(parsed.data);
         return options.store.transaction([], async (tx) => {
+          const object = await tx.findObject(reference.originalVersionId);
+          const intent = object ? await tx.findIntent(object.uploadId) : null;
+          const completed = intent?.completed;
           if (
-            !(await options.policy.canReadOriginal(
-              accountId,
-              parsed.data,
-              tx,
-            )) ||
-            !(await tx.findObject(parsed.data.originalVersionId))
+            !completed ||
+            completed.originalVersionId !== reference.originalVersionId ||
+            ('originalId' in reference &&
+              reference.originalId !== completed.originalId)
           )
+            throw missing();
+          if (!(await options.policy.canReadOriginal(accountId, reference, tx)))
             throw missing();
           const expiresAt = now() + 60000;
           await tx.insertTicket({
-            ...parsed.data,
+            originalId: completed.originalId,
+            originalVersionId: completed.originalVersionId,
+            fragmentId: 'fragmentId' in reference ? reference.fragmentId : null,
+            requestedRange: parsed.data.range ?? null,
             digest: hash(token),
             accountId,
             expiresAt,
@@ -63,7 +86,7 @@ export function createOriginalReader(options: UploadOptions) {
       return safeUpload(async () => {
         requireUploadAccount(accountId);
         if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw missing();
-        const range = parseRange(rangeHeader);
+        const headerRange = parseRange(rangeHeader);
         const { ticket, object, intent } = await options.store.transaction(
           [],
           async (tx) => {
@@ -71,16 +94,36 @@ export function createOriginalReader(options: UploadOptions) {
             if (
               !ticket ||
               ticket.accountId !== accountId ||
-              ticket.expiresAt <= now() ||
-              !(await options.policy.canReadOriginal(accountId, ticket, tx))
+              ticket.expiresAt <= now()
             )
               throw missing();
             const object = await tx.findObject(ticket.originalVersionId);
             const intent = object ? await tx.findIntent(object.uploadId) : null;
-            if (!object || !intent?.completed) throw missing();
+            if (
+              !object ||
+              !intent?.completed ||
+              intent.completed.originalId !== ticket.originalId ||
+              intent.completed.originalVersionId !== ticket.originalVersionId ||
+              !(await options.policy.canReadOriginal(
+                accountId,
+                identity(ticket),
+                tx,
+              ))
+            )
+              throw missing();
             return { ticket, object, intent };
           },
         );
+        const range =
+          headerRange ??
+          (ticket.requestedRange
+            ? {
+                start: ticket.requestedRange.start,
+                ...(ticket.requestedRange.endInclusive === undefined
+                  ? {}
+                  : { end: ticket.requestedRange.endInclusive }),
+              }
+            : undefined);
         const stat = await options.storage.statObject({
           objectKey: object.objectKey,
         });
@@ -98,7 +141,7 @@ export function createOriginalReader(options: UploadOptions) {
         try {
           if (
             ticket.expiresAt <= now() ||
-            !(await options.policy.canReadOriginal(accountId, ticket))
+            !(await options.policy.canReadOriginal(accountId, identity(ticket)))
           )
             throw missing();
           const source = opened.body.getReader();
@@ -140,6 +183,7 @@ export function createOriginalReader(options: UploadOptions) {
             },
           });
         } catch (error) {
+          opened.close();
           await opened.body.cancel().catch(() => {});
           throw error;
         }

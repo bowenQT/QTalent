@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   completeUploadSchema,
+  uploadCompletedSchema,
   MAX_ATTACHMENTS,
   uploadGrantSchema,
   uploadRequestSchema,
@@ -42,10 +43,17 @@ export function createUploadService(options: UploadOptions) {
   ) {
     const target = await options.policy.resolveWriteTarget(
       accountId,
-      intent.request.target,
+      {
+        recordCollectionId: intent.request.recordCollectionId,
+        target: intent.request.target,
+      },
       tx,
     );
-    if (!target) throw new UploadError('forbidden', 'record_write_required');
+    if (
+      !target ||
+      target.recordCollectionId !== intent.request.recordCollectionId
+    )
+      throw new UploadError('forbidden', 'record_write_required');
     if (target.quotaScope !== intent.quotaScope)
       throw new UploadError('conflict', 'record_collection_changed');
     if (
@@ -76,11 +84,11 @@ export function createUploadService(options: UploadOptions) {
                 }
               : parsed.data.target,
         };
-        const target = await options.policy.resolveWriteTarget(
-          accountId,
-          request.target,
-        );
-        if (!target)
+        const target = await options.policy.resolveWriteTarget(accountId, {
+          recordCollectionId: request.recordCollectionId,
+          target: request.target,
+        });
+        if (!target || target.recordCollectionId !== request.recordCollectionId)
           throw new UploadError('forbidden', 'record_write_required');
         if (!target.quotaScope.trim())
           throw new UploadError('unavailable', 'record_collection_unresolved');
@@ -105,8 +113,19 @@ export function createUploadService(options: UploadOptions) {
                 intent.quotaScope !== target.quotaScope)
             )
               throw new UploadError('conflict', 'operation_payload_changed');
-            if (intent && (intent.completed || intent.expiresAt <= now()))
+            if (
+              intent &&
+              (intent.completed ||
+                intent.releasedAt !== null ||
+                intent.expiresAt <= now())
+            )
               throw new UploadError('conflict', 'upload_closed');
+            const expiresAt = Math.min(
+              now() + INTENT_TTL,
+              currentTarget.collectionExpiresAt ?? Infinity,
+            );
+            if (expiresAt <= now())
+              throw new UploadError('conflict', 'record_collection_expired');
             if (!intent) {
               if (
                 currentTarget.externalAttachmentCount +
@@ -123,15 +142,22 @@ export function createUploadService(options: UploadOptions) {
                 fingerprint: digest,
                 quotaScope: target.quotaScope,
                 objectKey: `uploads/${id}/original`,
-                expiresAt: now() + INTENT_TTL,
+                expiresAt,
                 revision: 1,
                 completionOperationId: null,
                 completionFingerprint: null,
                 completed: null,
+                releasedAt: null,
+                releaseOperationId: null,
+                releaseFingerprint: null,
               };
               await tx.insertIntent(intent);
             }
-            const expiry = Math.min(now() + TOKEN_TTL, intent.expiresAt);
+            const expiry = Math.min(
+              now() + TOKEN_TTL,
+              intent.expiresAt,
+              expiresAt,
+            );
             const grant = options.storage.issueUploadGrant({
               objectKey: intent.objectKey,
               byteLimit: request.declaredBytes,
@@ -146,6 +172,7 @@ export function createUploadService(options: UploadOptions) {
               throw new UploadError('unavailable', 'invalid_storage_grant');
             return uploadGrantSchema.parse({
               uploadId: intent.id,
+              recordCollectionId: currentTarget.recordCollectionId,
               revision: intent.revision,
               expiresAt: new Date(grant.expiresAt).toISOString(),
               method: 'resumable_v2',
@@ -174,7 +201,9 @@ export function createUploadService(options: UploadOptions) {
           const intent = await tx.findIntent(command.uploadId);
           if (!intent || intent.accountId !== accountId)
             throw new UploadError('not_found', 'upload_not_found');
-          await authorize(accountId!, intent, tx);
+          const scope = await authorize(accountId!, intent, tx);
+          if (intent.releasedAt !== null)
+            throw new UploadError('conflict', 'upload_removed');
           if (intent.completed) {
             if (
               intent.completionOperationId !== command.operationId ||
@@ -183,6 +212,8 @@ export function createUploadService(options: UploadOptions) {
               throw new UploadError('conflict', 'completion_payload_changed');
           } else if (
             intent.expiresAt <= now() ||
+            (scope.collectionExpiresAt !== undefined &&
+              scope.collectionExpiresAt <= now()) ||
             intent.revision !== command.expectedRevision
           )
             throw new UploadError('conflict', 'upload_expired_or_changed');
@@ -205,11 +236,13 @@ export function createUploadService(options: UploadOptions) {
           const jobId = await tx.archiveAndDispatch(latest, object, ids);
           const completed: UploadCompletion = {
             uploadId: latest.id,
+            recordCollectionId: latest.request.recordCollectionId,
             ...ids,
             jobId,
             revision: latest.revision + 1,
             source: null,
           };
+          uploadCompletedSchema.parse(completed);
           await tx.saveCompletion({
             ...latest,
             revision: completed.revision,

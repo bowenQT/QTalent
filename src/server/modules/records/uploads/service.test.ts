@@ -3,11 +3,70 @@ import { createUploadService } from './service';
 import { fixture } from '../../../../../tests/fixtures/upload-fake';
 
 describe('authorized immutable upload lifecycle', () => {
+  it('never signs beyond the collection window but still replays an already completed fact after expiry', async () => {
+    const f = fixture();
+    const deadline = f.now() + 60000;
+    vi.spyOn(f.options.policy, 'resolveWriteTarget').mockResolvedValue({
+      recordCollectionId: f.request.recordCollectionId,
+      quotaScope: f.request.recordCollectionId,
+      externalAttachmentCount: 0,
+      collectionExpiresAt: deadline,
+    });
+    const s = createUploadService(f.options);
+    const grant = await s.request('account', f.request);
+    expect(Date.parse(grant.expiresAt)).toBe(deadline);
+    await f.put(grant.objectKey);
+    const command = {
+      uploadId: grant.uploadId,
+      receiptRef: 'notice',
+      operationId: 'complete',
+      expectedRevision: 1,
+    };
+    const done = await s.complete('account', command);
+    f.advance(60001);
+    await expect(s.complete('account', command)).resolves.toEqual(done);
+    await expect(
+      s.request('account', { ...f.request, operationId: 'new' }),
+    ).rejects.toMatchObject({
+      status: 'conflict',
+      reason: 'record_collection_expired',
+    });
+  });
+  it('resolves the supplied collection on the server and preserves its identity in grant and completion', async () => {
+    const f = fixture();
+    const lookup = vi.spyOn(f.options.policy, 'resolveWriteTarget');
+    const service = createUploadService(f.options);
+    const grant = await service.request('account', f.request);
+    expect(lookup).toHaveBeenCalledWith('account', {
+      recordCollectionId: f.request.recordCollectionId,
+      target: f.request.target,
+    });
+    expect(grant.recordCollectionId).toBe(f.request.recordCollectionId);
+    await f.put(grant.objectKey);
+    const result = await service.complete('account', {
+      uploadId: grant.uploadId,
+      receiptRef: 'notice',
+      operationId: 'complete',
+      expectedRevision: 1,
+    });
+    expect(result).toMatchObject({
+      recordCollectionId: f.request.recordCollectionId,
+      source: null,
+    });
+    await expect(
+      service.request('account', {
+        ...f.request,
+        recordCollectionId: 'unowned-collection',
+        operationId: 'forged-collection',
+      }),
+    ).rejects.toMatchObject({ status: 'forbidden' });
+  });
   it('includes authoritative pre-existing attachments and fails closed when the count is unknown', async () => {
     const f = fixture();
     const policy = vi
       .spyOn(f.options.policy, 'resolveWriteTarget')
       .mockResolvedValue({
+        recordCollectionId: f.request.recordCollectionId,
         quotaScope: 'trusted-record-collection-1',
         externalAttachmentCount: 9,
       });
@@ -20,6 +79,7 @@ describe('authorized immutable upload lifecycle', () => {
       reason: 'attachment_limit',
     });
     policy.mockResolvedValue({
+      recordCollectionId: f.request.recordCollectionId,
       quotaScope: 'trusted-record-collection-1',
       externalAttachmentCount: NaN,
     });
