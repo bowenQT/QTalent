@@ -33,12 +33,19 @@ export async function prepareArrange(
 > {
   const snapshot = structuredClone(source);
   const context = snapshot.authorization.context;
-  const readablePerson = (id: string) =>
-    canReadTalent(
-      context,
-      { personId: id, cohortId: null, kind: 'evaluation' },
-      'model-input',
+  const readablePerson = (id: string) => {
+    const subjects = [
+      ...snapshot.authorization.records.map((record) => record.subject),
+      ...snapshot.authorization.sources.flatMap((source) => source.subjects),
+    ].filter((subject) => subject.personId === id);
+    // The existing policy distinguishes current-cohort content from full-profile
+    // access. Do not erase the content's cohort before asking that policy.
+    return (
+      subjects.length ? subjects : [{ personId: id, cohortId: null }]
+    ).some((subject) =>
+      canReadTalent(context, { ...subject, kind: 'evaluation' }, 'model-input'),
     );
+  };
   const people: Selection[] = snapshot.people.map((selection) =>
     selection.state === 'needs_selection'
       ? {

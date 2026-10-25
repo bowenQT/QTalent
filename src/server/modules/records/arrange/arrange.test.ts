@@ -111,6 +111,22 @@ describe('authorized shared record arrangement', () => {
       expect(result.people[0]!.state).toBe('needs_selection');
     expect(generate).not.toHaveBeenCalled();
   });
+  it('uses the actual content cohort for an authorized current-cohort person before enrollment confirmation', async () => {
+    const snapshot = exampleSnapshot();
+    snapshot.authorization.context.enrollments[0]!.confirmed = false;
+    const { result, generate } = await run(snapshot);
+    expect(result.status).toBe('arranged');
+    expect(generate).toHaveBeenCalledOnce();
+  });
+  it('still refuses prior-cohort content before enrollment confirmation', async () => {
+    const snapshot = exampleSnapshot();
+    snapshot.authorization.context.enrollments[0]!.confirmed = false;
+    snapshot.authorization.records[0]!.subject.cohortId = 'cohort-prior';
+    snapshot.authorization.sources[0]!.subjects[0]!.cohortId = 'cohort-prior';
+    const { result, generate } = await run(snapshot);
+    expect(result).toEqual({ status: 'not_found' });
+    expect(generate).not.toHaveBeenCalled();
+  });
   it('keeps project ambiguity for human selection while arranging selected people', async () => {
     const snapshot = exampleSnapshot();
     snapshot.project = {
