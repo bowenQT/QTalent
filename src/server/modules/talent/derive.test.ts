@@ -75,6 +75,11 @@ describe('reference position from authorized confirmations', () => {
       ruleVersionId: 'future-rule',
     };
     expect(derive([...ready, unknown]).status).toBe('unknown');
+    const bonus = {
+      ...score('c', 'lead', 1, 'pot', false),
+      ruleVersionId: 'future-rule',
+    };
+    expect(derive([...ready, bonus])).toEqual(derive(ready));
     for (const occurredOn of ['2025-06-01', '2026-07-02']) {
       const outside = { ...unknown, occurredOn };
       expect(derive([...ready, outside])).toEqual(derive(ready));
