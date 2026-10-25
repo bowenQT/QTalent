@@ -50,7 +50,7 @@
       const f = st.formal(it.person), r = st.refPos(it.person);
       return html`<div class="nt-qdetail"><p style="margin:0">冻结后的新事件让参考位置从「${st.QN[f.q]}」移到了「${st.QN[r.q]}」。正式位置保持冻结时的样子：可以去象限校准里调整，也可以写明理由保持正式位置。</p>
         <textarea class="n-calib__reason" id="kr" aria-label="保持正式位置的理由" placeholder="写一句理由，会留在这个人的档案里。比如：新增的两件事都在同一个项目里，等下一次盘点再看"></textarea>
-        <div class="nt-row" style="margin-top:var(--s-3)">${st.recalTarget(it.person) ? html`<a class="n-btn n-btn--sm n-btn--ink" href="${st.recalTarget(it.person)}">${icon('grid')}去象限校准</a>` : html`<a class="n-btn n-btn--sm n-btn--ink" href="reviews.html">${icon('grid')}发起新的盘点后校准</a>`}<button class="n-btn n-btn--sm" type="button" data-keepformal="${it.person}">${icon('check')}保持正式位置</button><a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${it.person}#spectrum">看能力谱</a></div></div>`;
+        <div class="nt-row">${st.recalTarget(it.person) ? html`<a class="n-btn n-btn--sm n-btn--ink" href="${st.recalTarget(it.person)}">${icon('grid')}去象限校准</a>` : html`<a class="n-btn n-btn--sm n-btn--ink" href="reviews.html">${icon('grid')}发起新的盘点后校准</a>`}<button class="n-btn n-btn--sm" type="button" data-keepformal="${it.person}">${icon('check')}保持正式位置</button><a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${it.person}#spectrum">看能力谱</a></div></div>`;
     }
     const e = it.ev, s = it.s;
     const audio = e.srcs.filter((x) => x.type === 'audio');
@@ -58,12 +58,12 @@
       : [{ who: `${st.person(s.by).name} · 确认`, v: s.v, why: '理由待补' }, { who: 'AI 建议', v: s.ai, why: s.note || '按锚点给出', ai: true }];
     const suggest = it.kind === 'conflict' ? Math.round((s.raters[0].v + s.raters[1].v) / 2) : s.v;
     return html`<div class="nt-qdetail">
-      <div class="nt-muted">${e.title} · ${NT.md(e.date)} · ${st.person(e.recorder).name}记录 ${UI.cites(e.srcs)}</div>
+      <div class="nt-qdetail__src">${e.title} · ${NT.md(e.date)} · ${st.person(e.recorder).name}记录 ${UI.cites(e.srcs)}</div>
       <div class="n-calib__pair">${sides.map((x) => html`<div class="n-calib__side"><span style="color:${x.ai ? 'var(--light)' : 'var(--ink-3)'}">${x.who}</span><b ${NT.raw(x.ai ? 'style="color:var(--light)"' : '')}>${x.v}</b>「${x.why}」${x.src ? html`<div style="margin-top:4px">${UI.cite(x.src, 1)} <span class="nt-muted">${x.src.loc}</span></div>` : ''}</div>`)}</div>
-      <div class="n-anchor" style="box-shadow:var(--e-0);margin-bottom:var(--s-3)"><b>${st.dim(s.d).name} · 锚点</b><ol>${st.anchors(s.d, s.p, st.eventRubric(e)).list.map((t, i) => html`<li class="${[...sides.map((x) => x.v)].includes(i + 1) ? 'is-hit' : ''}"><b>${i + 1}</b>${t}</li>`)}</ol></div>
-      <label class="nt-muted" for="cv">校准为 <select class="n-select" id="cv" style="width:auto;min-height:28px;display:inline-block">${[1, 2, 3, 4, 5].map((v) => html`<option ${v === suggest ? 'selected' : ''}>${v}</option>`)}</select> 分，理由</label>
-      <textarea class="n-calib__reason" id="cr" aria-label="校准理由" placeholder="${it.kind === 'conflict' ? '写一句理由，会留在修订历史里。比如：两位评价人各有依据，取中间值，因为……' : '写一句理由，会留在修订历史里'}"></textarea>
-      <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--ink" type="button" data-cal="${it.id}">校准</button>${it.kind === 'gap' ? html`<button class="n-btn n-btn--ghost" type="button" data-keep="${it.id}">保留 ${s.v} 分，补一句理由</button>` : ''}<button class="n-btn n-btn--ghost" type="button" data-open="${it.id}">稍后</button></div>
+      <div class="n-anchor"><b>${st.dim(s.d).name} · 锚点</b><ol>${st.anchors(s.d, s.p, st.eventRubric(e)).list.map((t, i) => html`<li class="${[...sides.map((x) => x.v)].includes(i + 1) ? 'is-hit' : ''}"><b>${i + 1}</b>${t}</li>`)}</ol></div>
+      <div class="nt-qdetail__form"><label class="nt-qdetail__label" for="cv">校准为 <select class="n-select" id="cv">${[1, 2, 3, 4, 5].map((v) => html`<option ${v === suggest ? 'selected' : ''}>${v}</option>`)}</select> 分，理由</label>
+      <textarea class="n-calib__reason" id="cr" aria-label="校准理由" placeholder="${it.kind === 'conflict' ? '写一句理由，会留在修订历史里。比如：两位评价人各有依据，取中间值，因为……' : '写一句理由，会留在修订历史里'}"></textarea></div>
+      <div class="nt-row"><button class="n-btn n-btn--ink" type="button" data-cal="${it.id}">校准</button>${it.kind === 'gap' ? html`<button class="n-btn n-btn--ghost" type="button" data-keep="${it.id}">保留 ${s.v} 分，补一句理由</button>` : ''}<button class="n-btn n-btn--ghost" type="button" data-open="${it.id}">稍后</button></div>
     </div>`;
   }
 

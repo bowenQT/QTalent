@@ -139,8 +139,17 @@ a.n-btn { text-decoration: none; }
 /* 校准队列：可展开的行 */
 .nt-qrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .n-queue > li { grid-template-columns: 1fr; }
-.nt-qdetail { margin-top: var(--s-3); padding: var(--s-4); border-radius: var(--r-card); background: var(--sheet-sunk); font-size: var(--t-sm); }
-.nt-qdetail .n-calib__side { background: var(--sheet); }
+.nt-qdetail { display: grid; gap: var(--s-3); margin-top: var(--s-3); padding: var(--s-4); border-radius: var(--r-card); background: var(--sheet-sunk); font-size: var(--t-sm); }
+.nt-qdetail > p, .nt-qdetail .n-calib__pair { margin: 0; }
+.nt-qdetail__src { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); color: var(--ink-3); }
+/* 分数卡与锚点卡同一套内边距，锚点编号与卡片标题左对齐 */
+.nt-qdetail .n-calib__side, .nt-qdetail .n-anchor { padding: var(--s-3) var(--s-4); background: var(--sheet); box-shadow: var(--e-0); }
+.nt-qdetail .n-calib__side b { margin: var(--s-2) 0; }
+.nt-qdetail .n-anchor ol { margin-inline: calc(-1 * var(--s-2)); }
+.nt-qdetail__form { display: grid; gap: var(--s-2); margin-top: var(--s-1); }
+.nt-qdetail__label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); color: var(--ink-3); }
+.nt-qdetail__label .n-select { width: auto; min-height: 32px; }
+.nt-qdetail .n-calib__reason { font-size: var(--t-body); }
 /* 项目与批次（CEO）：Landing 批次放在项目列表上方 */
 .nt-batches { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--s-3); margin-bottom: var(--s-4); }
 .n-batchlink { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); color: var(--ink); text-decoration: none; }
