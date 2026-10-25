@@ -50,7 +50,7 @@ export interface JobPolicy<C> {
   enqueue(
     context: C,
     job: JobRecord,
-    action: 'retry' | 'resume',
+    action: JobCommand['action'],
   ): Promise<void>;
 }
 const safeErrors = {
@@ -152,7 +152,7 @@ export function createJobService<C>(
             return { status: 'conflict' };
           const next = applyJobCommand(current, input, now());
           await tx.save(next);
-          if (input.action !== 'cancel')
+          if (next !== current)
             await policy.enqueue(tx.context, next, input.action);
           await tx.saveOperation(accountId, input.operationId, {
             fingerprint,

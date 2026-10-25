@@ -342,3 +342,62 @@ it('database constraints reject malformed state without relying on TypeScript', 
     ).rejects.toThrow();
   }
 });
+
+it('wakes stopped failed/manual attempts to acknowledge cancellation, without duplicate queue messages', async () => {
+  for (const status of ['failed', 'awaiting_manual'] as const) {
+    const job = await create(status);
+    const operationId = randomUUID();
+    const first = await post(job, 'cancel', operationId);
+    const replay = await post(job, 'cancel', operationId);
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(200);
+    expect(await first.json()).toEqual(await replay.json());
+    await expect
+      .poll(async () => (await (await get(job.jobId)).json()).status, {
+        timeout: 15000,
+        interval: 200,
+      })
+      .toBe('cancelled');
+    expect(
+      (await boss.findJobs<{ jobId: string }>(progressExampleQueue)).filter(
+        (queued) => queued.data.jobId === job.jobId,
+      ),
+    ).toHaveLength(1);
+    expect(
+      await connection.db
+        .select()
+        .from(jobOperations)
+        .where(eq(jobOperations.jobId, job.jobId)),
+    ).toHaveLength(1);
+  }
+}, 35000);
+
+it('serializes concurrent completion and cancellation at one revision with exactly one winning mutation', async () => {
+  const job = await create('running');
+  const businessWrite = vi.fn();
+  const [completion, cancellation] = await Promise.allSettled([
+    commitJobUpdate(
+      connection.db,
+      job.jobId,
+      {
+        status: 'completed',
+        attempt: 1,
+        expectedRevision: job.revision,
+        result: { units: [] },
+      },
+      now,
+      exampleResultSchema,
+      businessWrite,
+    ),
+    post(job, 'cancel'),
+  ]);
+  expect(cancellation.status).toBe('fulfilled');
+  if (cancellation.status !== 'fulfilled') throw cancellation.reason;
+  if (completion.status === 'fulfilled') {
+    expect(cancellation.value.status).toBe(409);
+    expect(businessWrite).toHaveBeenCalledTimes(1);
+  } else {
+    expect(cancellation.value.status).toBe(200);
+    expect(businessWrite).not.toHaveBeenCalled();
+  }
+});

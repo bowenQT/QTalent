@@ -8,7 +8,7 @@
 - `createJobSnapshotSchema(kind, strictResultSchema)` 由消费者组合明确的结果白名单。未知状态/字段/负计数拒绝。消费者负责对嵌套结果也使用 strict schema，不允许 unknown / 任意 JSON；内部持久 result 不等于公共 DTO。
 - 消费者在 `JobPolicy` 实现独立 read / retry / resume / cancel 权限，按当前账号×动作×范围×用途重新验证。已读取或任务创建者不是写许可。`project` 必须先逐主体过滤，再计算可见计数；来源引用等业务合同由消费者维护，jobs 不反向导入人才/来源契约。
 - 当前 production 仅注册 `test-job` 的合成示例：按现有 project read 权限读取；所有控制动作拒绝。它不是人才结论，也不引入新业务写权限。未注册 kind 默认拒绝。真实消费者控制、输入版本、人工前置条件和授权投影仍待对应业务卡接入。
-- `JobStore` 用 PostgreSQL 行锁串行化同一任务。控制、操作账本和 `policy.enqueue` 必须在传入的同一事务上执行。pg-boss 提供 `fromDrizzle(tx, sql)` 适配器；不能在 callback 内另开连接。相同 operationId 先检查当前权限，再重放原操作结果；同键不同语义冲突。
+- `JobStore` 用 PostgreSQL 行锁串行化同一任务。控制、操作账本和 `policy.enqueue`（retry/resume/cancel；cancel负责唤醒已停机的任务确认安全停止）必须在传入的同一事务上执行。pg-boss 提供 `fromDrizzle(tx, sql)` 适配器；不能在 callback 内另开连接。相同 operationId 先检查当前权限，再重放原操作结果；同键不同语义冲突。
 - worker 使用 `commitJobUpdate`，提供具体结果 schema。attempt / revision / cancel fence 和业务写入在同一事务中检查/提交；校验失败不提交业务。此入口不能保证外部供应商撤回，只阻止取消后结果写入本地业务。
 - `insertJob(tx, record)` 仅供已有授权的业务 usecase 调用。创建快照和首次 pg-boss send 也应在同一事务提交，不暴露任意创建任务的公共 API。
 

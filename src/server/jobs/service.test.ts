@@ -204,14 +204,14 @@ it('requires manual prerequisites, resumes once and returns sanitized errors', a
     },
   });
 });
-it('persists a cancellation fence without enqueue and rejects stale completion', async () => {
+it('persists a cancellation fence with one wakeup and rejects stale completion', async () => {
   const f = fixture();
   const input = { ...cmd, action: 'cancel' as const, expectedRevision: 2 };
   expect(await f.service.command('a', input)).toMatchObject({
     status: 'success',
     snapshot: { cancelRequestedAt: now, canCancel: false, canRetry: false },
   });
-  expect(f.enqueue).not.toHaveBeenCalled();
+  expect(f.enqueue).toHaveBeenCalledTimes(1);
   expect(await f.service.command('a', input)).toMatchObject({
     status: 'success',
     snapshot: { revision: 3 },
@@ -238,4 +238,30 @@ it('rejects duplicate policy registration and propagates transaction errors', as
   await expect(f.service.command('a', cmd)).rejects.toThrow(
     'queue unavailable',
   );
+});
+
+it('wakes a stopped attempt for cancellation acknowledgement exactly once', async () => {
+  const f = fixture();
+  f.record = advanceJob(
+    f.record,
+    { status: 'awaiting_manual', attempt: 1, expectedRevision: 2 },
+    now,
+  );
+  const input = { ...cmd, action: 'cancel' as const };
+  expect(await f.service.command('a', input)).toMatchObject({
+    status: 'success',
+    snapshot: { cancelRequestedAt: now },
+  });
+  expect(f.enqueue).toHaveBeenCalledWith(
+    null,
+    expect.objectContaining({ status: 'awaiting_manual' }),
+    'cancel',
+  );
+  await f.service.command('a', input);
+  await f.service.command('a', {
+    ...input,
+    operationId: 'second-cancel',
+    expectedRevision: 4,
+  });
+  expect(f.enqueue).toHaveBeenCalledTimes(1);
 });
