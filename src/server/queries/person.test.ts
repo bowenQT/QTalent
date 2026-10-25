@@ -184,21 +184,33 @@ describe('people, profile and shared sources', () => {
     await readPersonPreviewForCurrentUser({ id: 'one' });
     await readSourceForCurrentUser(reference);
     expect(recordAudit).toHaveBeenCalledTimes(3);
-    expect(recordAudit).toHaveBeenNthCalledWith(1, {}, {
-      actorId: 'account',
-      action: 'person.read',
-      resourceId: 'one',
-    });
-    expect(recordAudit).toHaveBeenNthCalledWith(2, {}, {
-      actorId: 'account',
-      action: 'person.read',
-      resourceId: 'one',
-    });
-    expect(recordAudit).toHaveBeenNthCalledWith(3, {}, {
-      actorId: 'account',
-      action: 'source.read',
-      resourceId: '["fragment-0","version"]',
-    });
+    expect(recordAudit).toHaveBeenNthCalledWith(
+      1,
+      {},
+      {
+        actorId: 'account',
+        action: 'person.read',
+        resourceId: 'one',
+      },
+    );
+    expect(recordAudit).toHaveBeenNthCalledWith(
+      2,
+      {},
+      {
+        actorId: 'account',
+        action: 'person.read',
+        resourceId: 'one',
+      },
+    );
+    expect(recordAudit).toHaveBeenNthCalledWith(
+      3,
+      {},
+      {
+        actorId: 'account',
+        action: 'source.read',
+        resourceId: '["fragment-0","version"]',
+      },
+    );
   });
   it('never returns sensitive data when audit persistence fails', async () => {
     vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture());
