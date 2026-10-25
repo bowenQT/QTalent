@@ -1,102 +1,162 @@
 # Niu-Talent
 
-七牛云内部的人才识别、追踪与盘点工作台。AI 提供可追溯的建议，正式结论由有权限的人确认。
+七牛云内部的人才识别、追踪与盘点工作台。导师和 HR 随手记下的事、上传的材料和录音，经 AI 整理成可追溯的证据；管理者据此找人、盘点、调整组织。AI 只给建议，正式结论由有权限的人确认。
 
-设计系统已定稿，高保真可交互原型正在评审，目标是完成 UI/UX 定稿。原型是独立 HTML、CSS 和 JavaScript，AI 行为用预置结果按真实节奏流式输出；正式应用、后端与 CI 尚未建立。
+| | |
+| --- | --- |
+| 参赛议题 | <!-- 待补：赛组与议题名称 -->待补 |
+| Demo 视频 | <!-- 待补：视频链接 -->待补 |
+| 演示环境 | <!-- 待补：演示地址与访问方式 -->待补 |
+| 原型评审站 | <https://qtalent-review.aidoudoulong123.workers.dev/>（`@qiniu.com` 邮箱登录） |
+| 架构设计 | [docs/architecture.md](docs/architecture.md) |
 
-## 原型
+## 解决什么问题
 
-原型有两条平行的方向，都分桌面版和手机版，各自带一份设计系统：
+公司做人才判断时，依据散落在会议、周报、导师印象里，结论常常回答不了「凭什么」。Niu-Talent 把每一条判断都钉在来源上：
 
-| 版本 | 位置 | 内容 |
+- **重点跟踪**：导师说一句话、传一份附件或录一段复盘，AI 整理成情境、行为、结果（SBI）并给出 1–5 的建议分；评价人确认后才进档案，分差大的自动交 HR 复核。
+- **项目找人**：管理者写下项目对人的要求，系统逐条对照已确认的证据，只给「支持 / 不支持 / 资料不足 / 证据冲突」四种状态，每条都能点回原文、表格单元格或录音时间点。
+- **人才盘点**：按专业度 × 潜力的 2×2 象限给参考位置，HR 校准后冻结快照，形成留用与落位方案。
+
+产品刻意不做综合总分、排名、能力百分比和雷达图；「资料不足」不会被当作反向证据。完整规则见 [AGENTS.md 的产品不变量](AGENTS.md#产品不变量)。
+
+## 交付内容与实现状态
+
+仓库里有两部分，演示时会分开说明：
+
+| 部分 | 位置 | 说明 |
 | --- | --- | --- |
-| 版本 X | `prototype/app/`、`prototype/m/` | 按需求定稿 v1.6 实现：CEO、HRBP、部门负责人、导师、员工五种视角，Landing 第三期等演示数据 |
-| 版本 Y | `prototype/y/` | 中性工作台：管理者、HR、导师三种角色，人员是 XEngineer 第六期的演示数据；手机版只给导师用。管理者是公司层视角，看人、找人，确认规则与方案；整理档案和校准由 HR 做 |
+| 高保真原型 Y | `prototype/y/` | 管理者、HR、导师三种角色的完整体验，含导师手机版；AI 行为用预置结果按真实节奏流式输出 |
+| 正式工程 | `src/` 等 | 真实数据库、服务端权限、真实 AI 与语音服务；界面 1:1 还原原型 Y，逐条链路接入 |
 
-演示人员都是化名并标「演示」。顶栏的视角切换只是演示手段，不是权限实现。
+正式工程六条链路的进度（截至 `main` `37f987d`，逐项明细见 [架构设计第 12 节](docs/architecture.md#12-实现状态)）：
 
-### 本地查看
+| 链路 | 工程已合入 | 评审中 |
+| --- | --- | --- |
+| P0 骨架：登录、服务端权限、演示数据、工作台与档案 | 登录、外壳、项目与课题页；授权核心；证据模型与演示数据导入；P0 契约；任务进度；设计系统组件 | 外壳路由、工作台读取、人才读取、引用角标 |
+| P1 记一件事 | MaaS 结构化客户端 | 契约、SBI 整理、确认改分 |
+| P2 找人 | Jev 判断客户端 | 契约、需求卡、逐条四态 |
+| P3 离线转写 | Kodo 私有存储与续传 | 上传契约与原件代理；听悟离线未开始 |
+| P5 实时推流 | 听悟实时预览适配器 | 浏览器推流未开始 |
+| P4 文本附件 | — | 附件解析 |
 
-在仓库根目录运行：
+判断对照、节点复盘、人才评价规则修订、盘点冻结、值得关注这几块本次只在原型里演示。
+
+## 快速开始
+
+### 查看原型（无需安装）
 
 ```sh
 python3 -m http.server 4173 --bind 127.0.0.1 --directory prototype
 ```
 
-然后访问 `http://127.0.0.1:4173/`，这是评审导览页，列出走查路线和两个版本的入口。常用页面：
+打开 <http://127.0.0.1:4173/> 进入评审导览。版本 Y 的常用入口：
 
 | 页面 | 地址 |
 | --- | --- |
-| 版本 X 工作台 / 手机版 / 设计系统 | `/app/index.html`、`/m/index.html`、`/design-system.html` |
-| 版本 Y 工作台（按角色） | `/y/app/index.html?as=ceo`、`?as=hrbp`、`?as=mentor` |
-| 版本 Y 导师手机版 / 设计系统 | `/y/m/index.html`、`/y/design-system.html` |
+| 管理者 / HR / 导师工作台 | `/y/app/index.html?as=ceo`、`?as=hrbp`、`?as=mentor` |
+| 导师手机版 | `/y/m/index.html` |
+| 设计系统 | `/y/design-system.html` |
 
-无需安装前端依赖或执行构建。演示操作只存在浏览器本地，可以在导览页或「更多 → 重置演示数据」清空。
+演示操作只保存在浏览器本地，可在导览页或「更多 → 重置演示数据」清空。演示人员都是化名并标「演示」。
 
-### 评审站
+### 运行正式工程
 
-[评审站](review-site/README.md)把 `prototype/` 原样发布给 `@qiniu.com` 邮箱登录查看，并在每页挂上划线评论。线上地址：<https://qtalent-review.aidoudoulong123.workers.dev/>（版本 Y 从导览页右栏进入）。它只服务原型评审，不代表正式工程的架构选型。
+需要 Node.js 24 LTS、pnpm 11 和一个独立的 PostgreSQL 17。
 
-## 文档入口
+1. 启动数据库（以 Docker 为例）：
 
-- [最新需求基线：需求定稿 v1.6](docs/requirements/需求定稿-v1.6.md)，未提及的部分沿用前序版本，权威顺序见 AGENTS.md
-- [版本 Y 需求：需求定稿 · 版本 Y](docs/requirements/需求定稿-版本Y.md)，从 v1.6 衍生，随版本 Y 的设计系统和原型同步更新
-- [Agent 共同入口与阶段约束](AGENTS.md)
-- [工程、UI 与验证规范](docs/engineering.md)
-- [界面文案规范](docs/ui-copy.md)
-- [Issue、Proposal、Commit 与 PR 协作规范](CONTRIBUTING.md)
+   ```sh
+   docker run -d --name qtalent-pg -p 5432:5432 -e POSTGRES_USER=qtalent -e POSTGRES_PASSWORD=qtalent-local -e POSTGRES_DB=qtalent postgres:17
+   ```
 
-## 仓库与本地资料
+2. 在当前终端设置环境变量。命令行脚本不读取 `.env` 文件，变量要放在进程环境里：
 
-远端为私有仓库 [bowenQT/QTalent](https://github.com/bowenQT/QTalent)，默认分支 `main`；后续改动通过任务分支和 PR 协作。实际设置与平台限制见 [远端配置与复核](CONTRIBUTING.md#远端配置与复核)。
+   ```sh
+   export APP_ENV=local
+   export DATABASE_URL=postgres://qtalent:qtalent-local@127.0.0.1:5432/qtalent
+   export BETTER_AUTH_URL=http://127.0.0.1:3000
+   export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
+   export DEMO_PASSWORD=change-me-demo-password
+   export ACCESS_ENFORCED=false
+   ```
 
-`docs/sources/` 原始材料和 `docs/design-refs/` 设计参考资料仅在本地保留，已忽略，不随 clone 分发。文档中的来源路径仅用于回查；这些资料不影响已提交原型和设计系统的加载。
+3. 安装依赖、准备原型基线、迁移并导入演示数据，然后启动：
 
-首次推送保留了 8 条既有提交的顺序、作者、时间与说明，并在推送前从全部历史移除了设计参考截图，因此提交哈希与建仓前不同。原始历史已在仓库外本地备份；后续以远端 `main` 为准，不合并或推送包含旧参考资料的历史分支。
+   ```sh
+   pnpm install --frozen-lockfile --ignore-scripts
+   pnpm reference:prepare
+   pnpm db:migrate
+   pnpm db:seed
+   pnpm dev
+   ```
 
-## 正式工程（BOW-830，Draft）
+4. 打开 <http://127.0.0.1:3000>，用演示账号登录，密码是上面的 `DEMO_PASSWORD`：
 
-本卡只覆盖登录 → 外壳 → 项目与课题，工程基础仍在验收，不代表正式开发门禁已经通过。原型和评审站仍是独立目录，原型只读。
+   | 账号 | 角色 | 范围 |
+   | --- | --- | --- |
+   | `ceo@qtalent.test` | 管理者 | 全公司 |
+   | `hrbp@qtalent.test` | HR | XEngineer 第六期 |
+   | `mentor@qtalent.test` | 导师 | 所带学员 |
+   | `admin@qtalent.test` | 系统管理员 | 只管配置，看不到人才数据 |
 
-### 本地启动
+`pnpm reference:prepare` 从 Git 历史里的固定提交生成原型基线缓存，演示数据和截图比较都读这份缓存。如果源码来自不带 Git 历史的压缩包，要先逐文件核对摘要，再执行 `pnpm reference:prepare --verified-snapshot`。
 
-Node.js 24 LTS、pnpm 11.25.0，使用独立 PostgreSQL 17。本项目不带生产凭据。先按 [环境变量清单](deploy/README.md) 在进程环境中提供 `APP_ENV=local`、`DATABASE_URL`、`BETTER_AUTH_URL`、`BETTER_AUTH_SECRET`、`DEMO_PASSWORD`、`ACCESS_ENFORCED=false`。demo/production 必须配置 Access，禁止旁路。
+`pnpm dev` 同时启动 Web（3000）和 Worker（3001，录音 WebSocket 与持久任务），也可以分别用 `pnpm dev:web`、`pnpm dev:worker` 启动。
 
-```sh
-pnpm install --frozen-lockfile --ignore-scripts
-pnpm reference:prepare
-pnpm db:migrate
-pnpm db:seed
-pnpm dev
-```
+**外部服务**：以上步骤不需要任何外部凭据，目前已合入的页面也不调用外部服务。七牛 MaaS、Jev、Kodo、通义听悟的适配器只在服务端显式创建，自动测试使用测试替身；接入真实服务时，所需环境变量见各适配器的 README（`src/server/integrations/*/README.md`），部署相关变量见 [deploy/README.md](deploy/README.md)。
 
-开发同时启动 Next 和 worker；也可分别执行 `pnpm dev:web` / `pnpm dev:worker`。Web 默认 `http://127.0.0.1:3000`，worker 在本机 3001 提供经会话鉴权的 `/stream` 心跳。四个演示账号邮箱与导入方式见种子模块，密码仅从 DEMO_PASSWORD 读取，注册关闭。
-
-### 命令
+### 常用命令
 
 | 命令 | 作用 |
 | --- | --- |
-| pnpm build / pnpm start | 构建 / 启动 Web，不迁移数据库 |
-| pnpm start:worker | 启动常驻 pg-boss 与 WebSocket 骨架 |
-| pnpm format:check / pnpm lint | 格式 / ESLint 与引入边界 |
-| pnpm typecheck | TypeScript 严格检查 |
-| pnpm test | 无数据库的单元测试 |
-| pnpm test:integration | 单元与真实本地 PostgreSQL 集成测试 |
-| pnpm test:coverage | 统一统计单元+集成，行/分支各 ≥85% |
-| pnpm test:e2e | 四账号、权限、新建与重复提交等浏览器流程 |
-| pnpm test:visual | 当次固定原型与工程截图比较，数据先一致再比较 |
-| pnpm db:generate | Drizzle 生成 SQL 与元数据 |
-| pnpm db:migrate / pnpm db:seed | 显式迁移 / 校验后幂等导入演示数据 |
-| pnpm check | 格式、lint、类型、统一覆盖率、构建 |
+| `pnpm check` | 一次跑完格式、lint 与引入边界、类型、覆盖率（行与分支各 ≥ 85%）、构建 |
+| `pnpm test` | 单元测试，不需要数据库 |
+| `pnpm test:integration` / `pnpm test:coverage` | 单元 + 真实 PostgreSQL 集成测试 / 统一统计覆盖率 |
+| `pnpm test:e2e` | 四个账号的登录、权限、新建与重复提交等浏览器流程 |
+| `pnpm test:visual` | 固定原型基线与工程页面的截图比较 |
+| `pnpm db:generate` | 根据 Drizzle schema 生成迁移 |
+| `pnpm build` / `pnpm start` / `pnpm start:worker` | 生产构建与启动（启动时不自动迁移） |
 
-集成及浏览器检查要求 `TEST_DATABASE_URL` 指向 loopback 且数据库名以 `_test` 结尾，账号需能创建/删除本次测试生成的随机数据库，禁止生产数据库。首次浏览器测试先 `pnpm exec playwright install chromium`。`pnpm test` 成功不能替代集成、覆盖率、浏览器或视觉验收。
+集成、浏览器和视觉测试需要 `TEST_DATABASE_URL` 指向本机、数据库名以 `_test` 结尾，测试会自行创建和删除随机数据库；首次运行浏览器测试前执行 `pnpm exec playwright install chromium`。
 
-- [工程规范与共享文件责任](docs/engineering.md)
-- [原型路由、模块与视觉遮罩](docs/reference-route-map.md)
-- [环境变量与部署样例](deploy/README.md)
-- [BOW-830 原规格](docs/research/2026-10-25-y-architecture-alignment/engineering-foundation-prompt.md)
+## 技术栈
 
-固定原型通过 `pnpm reference:prepare` 从唯一配置提交的 Git blob 生成 `.reference-cache`，种子和截图均读取该缓存；后续工作树原型改动不影响冻结基线。源码导出环境没有 Git 历史时，只有已逐文件核对摘要的快照可以显式执行 `pnpm reference:prepare --verified-snapshot`；不会静默退回工作树。缓存不提交。
+Next.js 16（App Router）· React 19 · TypeScript · Tailwind CSS 4 · Radix · Motion · PostgreSQL 17 · Drizzle ORM · pg-boss · Better Auth · Zod · Vitest · Playwright。外部服务：七牛 MaaS（DeepSeek V4.1 Flash）、Jev、七牛 Kodo、通义听悟。
 
-- [切片权限用例表](docs/foundation-permissions.md)
-- [本次实际验证与未验证边界](docs/evidence/foundation/README.md)
+系统组成、模块规格、权限模型和部署方式见 [架构设计](docs/architecture.md)。
+
+## 团队与分工
+
+<!-- 待补：成员与职责，与 docs/architecture.md 第 13 节保持一致 -->
+
+| 成员 | 职责 |
+| --- | --- |
+| bowenQT | 待补 |
+| Joanrecruiting | 待补 |
+| yiyih7077-cell | 待补 |
+
+团队使用 Codex、Cursor、Claude Code 等编码 Agent 在各自的分支上并行实现 Linear 任务卡，成员负责拆卡、审查与合并。协作方式见 [架构设计第 13 节](docs/architecture.md#13-分工)。
+
+## 开发过程
+
+- 本项目从零开发，没有引入既有 codebase。
+- 需求、设计和架构决策都留在仓库里：[需求定稿](docs/requirements/)、[架构分期提案](docs/proposals/2026-10-25-y-architecture-phases.md)、[调研与审查记录](docs/research/)。
+- 远端仓库建立后，每一次变更都通过 Pull Request 合入 `main`，经 CI（格式、lint、类型、覆盖率、构建、浏览器流程、视觉比较）和审查；建仓时一并推送的 9 条初始提交保留了原来的顺序、作者和时间。
+
+## 文档索引
+
+| 文档 | 内容 |
+| --- | --- |
+| [架构设计](docs/architecture.md) | 系统组成、模块规格、数据流、权限、部署、实现状态、分工 |
+| [需求定稿 · 版本 Y](docs/requirements/需求定稿-版本Y.md) | 版本 Y 的需求，未提及部分沿用 [需求定稿 v1.6](docs/requirements/需求定稿-v1.6.md) |
+| [架构分期提案](docs/proposals/2026-10-25-y-architecture-phases.md) | 长期 / 中期 / 本次比赛的规划与决策记录 |
+| [工程规范](docs/engineering.md) | 职责划分、契约、测试与覆盖率、UI 还原与验证 |
+| [界面文案规范](docs/ui-copy.md) | 面向用户的文案写法 |
+| [协作规范](CONTRIBUTING.md) | Issue、Proposal、Commit 与 PR |
+| [AGENTS.md](AGENTS.md) | 编码 Agent 的共同入口、阶段约束与产品不变量 |
+| [评审站](review-site/README.md) | 原型发布与划线评论，只服务评审 |
+
+## 数据与隐私
+
+演示数据全部是化名并标「演示」。`docs/sources/` 的原始材料和 `docs/design-refs/` 的设计参考只在本地保留，不随仓库分发。仓库不包含任何密钥或生产凭据。
