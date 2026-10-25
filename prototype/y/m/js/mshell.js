@@ -209,27 +209,39 @@
     };
   };
 
-  // 按住说话：按下开始把脚本里的话逐字「转写」进输入框，松开结束；没按够就提示
+  // 按住说话：按下开始把脚本里的话逐字「转写」进输入框，在按钮上松开才结束。
+  // 轻点、滑出按钮或手势被取消时恢复按下前的原话，不提交，也不开始整理。
   M.hold = (btn, field, script, o = {}) => {
-    let timer = 0, i = 0, down = 0;
+    let timer = 0, i = 0, down = 0, prev = '';
     const start = (e) => {
-      e.preventDefault(); down = Date.now(); i = field.value.length && field.value === script.slice(0, field.value.length) ? field.value.length : 0;
-      if (!i) field.value = '';
+      if (down) return;
+      e.preventDefault();
+      prev = field.value; down = Date.now(); i = 0;
       btn.classList.add('is-on'); o.onStart && o.onStart();
+      if (e.pointerId != null && btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch (err) { /* 没有指针捕获时仍靠离开和松开判断 */ } }
       timer = setInterval(() => { if (i < script.length) { field.value = script.slice(0, ++i); field.scrollTop = field.scrollHeight; } }, NT.reduced ? 1 : 55);
     };
-    const end = () => {
+    const inside = (e) => {
+      if (!e || e.clientX == null || e.clientY == null || !btn.getBoundingClientRect) return true;
+      const r = btn.getBoundingClientRect();
+      return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    };
+    const stop = () => { clearInterval(timer); timer = 0; btn.classList.remove('is-on'); down = 0; };
+    const restore = () => { field.value = prev; o.onCancel && o.onCancel(); };
+    const end = (e) => {
       if (!down) return;
-      clearInterval(timer); btn.classList.remove('is-on');
-      const held = Date.now() - down; down = 0;
-      if (held < 350 && i < 3) { field.value = ''; NT.toast('按住说话，松开结束'); o.onCancel && o.onCancel(); return; }
+      const held = Date.now() - down;
+      const kind = e && e.type;
+      if (kind === 'pointerleave' || kind === 'pointercancel' || (kind === 'pointerup' && !inside(e))) { stop(); restore(); return; }
+      stop();
+      if (held < 350) { restore(); NT.toast('按住说话，松开结束'); return; }
       field.value = script; o.onEnd && o.onEnd(script);
     };
     btn.addEventListener('pointerdown', start);
     ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => btn.addEventListener(ev, end));
     btn.addEventListener('contextmenu', (e) => e.preventDefault());
     btn.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat && !down) start(e); });
-    btn.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') end(); });
+    btn.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') end(e); });
   };
 
   // 人的行：点一下拉起速览（底部弹层），速览里再打开档案（v1.5 3.27）
