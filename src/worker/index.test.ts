@@ -104,14 +104,15 @@ describe('worker lifecycle with transport boundaries replaced', () => {
       ['/other', 'https://test.local', '404'],
       ['/stream', 'https://attacker.test', '403'],
     ]) {
-      const socket = { end: vi.fn() };
+      const socket = { end: vi.fn(), on: vi.fn(), destroy: vi.fn() };
       await upgrade({ url, headers: { origin } }, socket, Buffer.alloc(0));
+      expect(socket.on).toHaveBeenCalledWith('error', expect.any(Function));
       expect(socket.end).toHaveBeenCalledWith(expect.stringContaining(status));
     }
     for (const missing of ['session', 'access']) {
       if (missing === 'session') f.session.mockResolvedValueOnce(null);
       else f.access.mockRejectedValueOnce(new Error('bad access'));
-      const socket = { end: vi.fn() };
+      const socket = { end: vi.fn(), on: vi.fn(), destroy: vi.fn() };
       await upgrade(
         {
           url: '/stream',
@@ -126,7 +127,12 @@ describe('worker lifecycle with transport boundaries replaced', () => {
       );
       expect(socket.end).toHaveBeenCalledWith(expect.stringContaining('401'));
     }
-    const socket = { end: vi.fn(), destroyed: false };
+    const socket = {
+      end: vi.fn(),
+      on: vi.fn(),
+      destroy: vi.fn(),
+      destroyed: false,
+    };
     await upgrade(
       { url: '/stream', headers: { origin: 'https://test.local' } },
       socket,
