@@ -6,6 +6,7 @@ export interface PositionScore {
   axis: 'prof' | 'pot';
   core: boolean;
   value: number;
+  ruleVersionId: string;
 }
 const mean = (values: number[]) =>
   values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -23,6 +24,8 @@ export function deriveReferencePosition(
     const time = new Date(score.occurredOn + 'T00:00:00Z');
     return time >= start && time <= end;
   });
+  if (recent.some((score) => score.ruleVersionId !== 'rubric-v1'))
+    return { status: 'unknown', reason: '评分规则版本兼容性尚未接入' };
   const professional = recent.filter((score) => score.axis === 'prof');
   const potential = recent.filter(
     (score) => score.axis === 'pot' && score.core,

@@ -1,5 +1,5 @@
 import 'server-only';
-import type { DbExecutor } from '../db/client';
+import type { Database } from '../db/client';
 import { loadProjectContext } from '../usecases/project-context';
 import { readEvidenceForTalent } from '../modules/records';
 import { readTalentEvaluationRules } from '../modules/evaluation-system';
@@ -10,17 +10,22 @@ import type { TalentSource, TalentSubject, TalentKind } from '../authz/talent';
  * fragments. This bounded P0 read does not use the prototype import archive.
  */
 export async function loadPersonData(
-  db: DbExecutor,
+  db: Database,
   accountId: string,
   today: string,
 ) {
-  const base = await loadProjectContext(db, accountId, today);
-  return {
-    ...base,
-    ...(await readEvidenceForTalent(db)),
-    ...(await readTalentEvaluationRules(db)),
-    confirmations: await readActiveConfirmations(db),
-  };
+  return db.transaction(
+    async (tx) => {
+      const base = await loadProjectContext(tx, accountId, today);
+      return {
+        ...base,
+        ...(await readEvidenceForTalent(tx)),
+        ...(await readTalentEvaluationRules(tx)),
+        confirmations: await readActiveConfirmations(tx),
+      };
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' },
+  );
 }
 export type PersonData = Awaited<ReturnType<typeof loadPersonData>>;
 export function eventSubject(
@@ -89,6 +94,7 @@ export function talentSources(data: PersonData): TalentSource[] {
       '奖项答辩',
     ];
     if (
+      links.some((link) => !linkedEvents.some((e) => e.id === link.eventId)) ||
       history.some(
         (row) =>
           row.sourceCategory !== 'prototype_baseline' ||

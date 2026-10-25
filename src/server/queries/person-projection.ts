@@ -101,7 +101,6 @@ export async function personFromData(
   });
   const scores: CapabilityScore[] = [];
   const positionScores: PositionScore[] = [];
-  let unknownRuleVersion = false;
   for (const confirmation of data.confirmations) {
     if (!confirmation.active || confirmation.status !== 'scored') continue;
     const event = data.events.find((row) => row.id === confirmation.eventId);
@@ -138,7 +137,6 @@ export async function personFromData(
     );
     if (!dimension || !anchor || !evaluator || confirmation.value === null)
       continue;
-    if (confirmation.ruleVersionId !== 'rubric-v1') unknownRuleVersion = true;
     scores.push({
       id: confirmation.id,
       dimensionId: dimension.id,
@@ -171,6 +169,7 @@ export async function personFromData(
         axis: dimension.axis,
         core: dimension.core,
         value: confirmation.value,
+        ruleVersionId: confirmation.ruleVersionId,
       });
   }
   scores.sort(
@@ -242,11 +241,9 @@ export async function personFromData(
       ? shared
       : {
           ...shared,
-          referencePosition: !allowed('quadrant')
-            ? { status: 'unknown', reason: '当前权限不可读取参考位置' }
-            : unknownRuleVersion
-              ? { status: 'unknown', reason: '评分规则版本兼容性尚未接入' }
-              : deriveReferencePosition(positionScores, data.context.now),
+          referencePosition: allowed('quadrant')
+            ? deriveReferencePosition(positionScores, data.context.now)
+            : { status: 'unknown', reason: '当前权限不可读取参考位置' },
           managementObservations: block(
             visibleStatement
               .filter((row) => row.nature === 'management_observation')

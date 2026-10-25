@@ -209,4 +209,12 @@ describe('people, profile and shared sources', () => {
     });
     expect((await sourceFromData(data, reference)).status).toBe('not_found');
   });
+  it('fails closed on an unresolved event sharing an existing fragment', async () => {
+    const data = fixture('mentor');
+    data.eventSources.push({ ...reference, eventId: 'unresolved-event' });
+    const source = await sourceFromData(data, reference);
+    expect(source.status).toBe('not_found');
+    const profile = await personFromData(data, 'one');
+    expect(profile?.capabilityProfile).toHaveProperty('data.length', 2);
+  });
 });
