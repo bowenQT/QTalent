@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import type { Browser, Page } from '@playwright/test';
 import { test, expect } from '../e2e/fixtures';
 import { compareElements, stabilize } from './compare';
@@ -32,7 +31,7 @@ const stage = '[data-sample="spectrum"]';
  *   (ui.js:332); the whole element would measure that difference and the absolutely
  *   positioned plane cannot be isolated by the shared capture helper. DOM tests cover it.
  * - EventCard, Cite popover: no static counterpart in the design-system page; covered by
- *   DOM tests. JudgeProgress and failed trail steps are PR-2.
+ *   DOM tests.
  */
 const groups: readonly Group[] = [
   {
@@ -86,6 +85,26 @@ const groups: readonly Group[] = [
     ],
   },
   {
+    name: 'input-trail-failed',
+    samples: [
+      {
+        name: 'trail-failed',
+        reference: '#c-input .ds-stage > .n-trail:nth-of-type(2)',
+        actual: '[data-sample="trail-failed"] .n-trail',
+      },
+    ],
+  },
+  {
+    name: 'plan-judge-progress',
+    samples: [
+      {
+        name: 'judge-progress',
+        reference: '#c-plan .n-reqs--proc',
+        actual: '[data-sample="judge-progress"] .n-reqs--proc',
+      },
+    ],
+  },
+  {
     name: 'doc-blocks',
     samples: [
       {
@@ -102,23 +121,6 @@ const groups: readonly Group[] = [
   },
   {
     name: 'event-anchor-and-history',
-    // The engineering stylesheet is global, so the app's nested-panel `.n-history` rule
-    // (prototype app.css) also applies here, while design-system.html does not load it.
-    // The prototype page gets that same rule; it is first proven identical to the one in
-    // src/styles/desk.css, so both sides render the in-app look and nothing else changes.
-    prepare: async (prototype) => {
-      const css = await prototype.evaluate(async () =>
-        (await fetch('app/app.css')).text(),
-      );
-      const pattern = /^\.n-history \{[^}]*\}/m;
-      const rule = css.match(pattern)?.[0];
-      const ported = (await readFile('src/styles/desk.css', 'utf8')).match(
-        pattern,
-      )?.[0];
-      if (!rule || rule !== ported)
-        throw new Error('.n-history app rule differs from src/styles/desk.css');
-      await prototype.addStyleTag({ content: rule });
-    },
     samples: [
       {
         name: 'anchor',
@@ -127,8 +129,28 @@ const groups: readonly Group[] = [
       },
       {
         name: 'history',
-        reference: '#c-event .n-history',
-        actual: '[data-sample="history-card"] .n-history',
+        reference: '#c-event .ds-hist-card',
+        actual: '[data-sample="history-card"]',
+      },
+    ],
+  },
+  {
+    name: 'event-history-narrow',
+    // The card's own container query, not the viewport, moves the note to its own line
+    // and drops the panel indent; compare the same narrow card on both pages.
+    prepare: async (prototype, actual) => {
+      await prototype
+        .locator('#c-event .ds-hist-card')
+        .evaluate((el) => ((el as HTMLElement).style.width = '300px'));
+      await actual
+        .locator('[data-sample="history-card"]')
+        .evaluate((el) => ((el as HTMLElement).style.width = '300px'));
+    },
+    samples: [
+      {
+        name: 'history-narrow',
+        reference: '#c-event .ds-hist-card',
+        actual: '[data-sample="history-card"]',
       },
     ],
   },
@@ -241,6 +263,13 @@ test('active trail step pulses and the caret blinks, unless the viewer prefers l
     expect(
       await normal.page.evaluate(animationOf('[data-sample="caret"] .n-caret')),
     ).toContain('caret-blink');
+    expect(
+      await normal.page.evaluate(
+        animationOf(
+          '[data-sample="judge-progress"] [data-state="judging"] svg',
+        ),
+      ),
+    ).toBe('proc-pulse');
     // Streaming is still under way: one paragraph, the trail has not finished.
     await expect(
       normal.page.locator(
@@ -263,6 +292,13 @@ test('active trail step pulses and the caret blinks, unless the viewer prefers l
     expect(
       await reduced.page.evaluate(
         animationOf('[data-sample="caret"] .n-caret'),
+      ),
+    ).toBe('none');
+    expect(
+      await reduced.page.evaluate(
+        animationOf(
+          '[data-sample="judge-progress"] [data-state="judging"] svg',
+        ),
       ),
     ).toBe('none');
     // Reduced motion shows the whole result at once instead of typing it out.

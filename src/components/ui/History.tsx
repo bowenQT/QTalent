@@ -16,9 +16,19 @@ export type HistoryEntry = {
  * Every revision of one score, in the order given (newest first in the prototype).
  * Older versions stay listed; nothing is collapsed or dropped here.
  */
-export function History({ entries }: { entries: readonly HistoryEntry[] }) {
+export function History({
+  entries,
+  id,
+  hidden,
+}: {
+  entries: readonly HistoryEntry[];
+  /** Lets the score row's history button point at this panel (aria-controls). */
+  id?: string;
+  /** Collapsed state of the panel under its score row. */
+  hidden?: boolean;
+}) {
   return (
-    <ul className="n-history">
+    <ul className="n-history" id={id} hidden={hidden}>
       {entries.map((entry, index) => (
         <li key={index}>
           <span

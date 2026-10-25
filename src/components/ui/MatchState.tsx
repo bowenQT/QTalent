@@ -1,4 +1,5 @@
 import { Badge } from './Badge';
+import { isEnumKey } from './enum';
 import { Icon, type IconName } from './Icon';
 
 /** Requirement matching uses exactly these four states; colour never carries meaning alone. */
@@ -13,7 +14,7 @@ const meta: Record<MatchStateValue, { icon: IconName; label: string }> = {
 };
 
 export function MatchState({ state }: { state: MatchStateValue }) {
-  if (!Object.hasOwn(meta, state))
+  if (!isEnumKey(meta, state))
     throw new Error(`Unknown match state: ${String(state)}`);
   return (
     <Badge className={`n-badge--${state}`}>
