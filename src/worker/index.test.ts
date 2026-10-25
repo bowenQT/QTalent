@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 const f = vi.hoisted(() => ({
   serverEvents: new Map<string, (...args: unknown[]) => unknown>(),
   socketEvents: new Map<string, (...args: unknown[]) => unknown>(),
@@ -6,6 +7,8 @@ const f = vi.hoisted(() => ({
   stop: vi.fn(),
   register: vi.fn(),
   registerProgress: vi.fn(),
+  registerDemand: vi.fn(),
+  demandRuntime: vi.fn(),
   access: vi.fn(),
   session: vi.fn(),
   failListen: false,
@@ -14,6 +17,8 @@ const f = vi.hoisted(() => ({
 }));
 vi.mock('../server/env', () => ({
   getEnv: () => ({
+    APP_ENV: 'test',
+    QINIU_MAAS_API_KEY: undefined,
     DATABASE_URL: 'test',
     BETTER_AUTH_URL: 'https://test.local',
     WORKER_PORT: 3001,
@@ -24,6 +29,9 @@ vi.mock('../server/access', () => ({ verifyAccessRequest: f.access }));
 vi.mock('../server/jobs/example', () => ({ registerExampleJob: f.register }));
 vi.mock('../server/jobs/progress-worker', () => ({
   registerProgressExample: f.registerProgress,
+}));
+vi.mock('../server/usecases/staffing-demand-runtime', () => ({
+  createStaffingDemandRuntime: f.demandRuntime,
 }));
 vi.mock('../server/db/client', () => ({ getDatabase: () => ({}) }));
 vi.mock('pg-boss', () => ({
@@ -77,6 +85,9 @@ beforeEach(() => {
   f.start.mockResolvedValue(undefined);
   f.stop.mockResolvedValue(undefined);
   f.register.mockResolvedValue(undefined);
+  f.registerProgress.mockResolvedValue(undefined);
+  f.registerDemand.mockResolvedValue(undefined);
+  f.demandRuntime.mockReturnValue({ register: f.registerDemand });
   f.access.mockResolvedValue(undefined);
   f.session.mockResolvedValue({
     user: { id: 'synthetic' },
@@ -84,6 +95,40 @@ beforeEach(() => {
   });
 });
 describe('worker lifecycle with transport boundaries replaced', () => {
+  it('reuses the worker boss and registers demand with optional MaaS key without fetch', async () => {
+    const send = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('No live network'));
+    try {
+      const worker = await startWorker();
+      expect(f.registerDemand).toHaveBeenCalledOnce();
+      const input = f.demandRuntime.mock.calls[0][0];
+      expect(input.boss).toBe(worker.boss);
+      expect(input.businessDate()).toBe('2026-09-04');
+      expect(input).not.toHaveProperty('now');
+      expect(f.register).toHaveBeenCalledOnce();
+      expect(f.registerProgress).toHaveBeenCalledOnce();
+      const result = await input.maas.generateStructured({
+        messages: [{ role: 'user', content: 'Return JSON for synthetic test' }],
+        promptVersion: 'test',
+        schema: z.object({ value: z.string() }),
+      });
+      expect(result).toMatchObject({
+        ok: false,
+        kind: 'configuration',
+        retryable: false,
+      });
+      expect(send).not.toHaveBeenCalled();
+      await worker.stop();
+    } finally {
+      send.mockRestore();
+    }
+  });
+  it('stops the shared boss when demand registration fails', async () => {
+    f.registerDemand.mockRejectedValueOnce(new Error('demand register failed'));
+    await expect(startWorker()).rejects.toThrow('demand register failed');
+    expect(f.stop).toHaveBeenCalledOnce();
+  });
   it('starts durable queue before listener and shuts down cleanly', async () => {
     const worker = await startWorker();
     expect(f.start).toHaveBeenCalledOnce();
