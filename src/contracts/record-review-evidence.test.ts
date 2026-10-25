@@ -1,0 +1,268 @@
+import { describe, expect, it } from 'vitest';
+import {
+  recordCitationSchema,
+  recordDraftSchema,
+  recordInputSchema,
+  recordJobSchema,
+  recordSaveInputSchema,
+  recordSaveReceiptSchema,
+  recordSaveResultSchema,
+  recordUndoReceiptSchema,
+  recordUndoResultSchema,
+} from './record';
+import {
+  reviewCalibrationSchema,
+  reviewQueueActionSchema,
+  reviewQueueItemSchema,
+  reviewQueueListSchema,
+} from './review-queue';
+import { recordDraftFixture, reviewGapFixture } from './record-review.fixtures';
+
+describe('record evidence and actions', () => {
+  it('validates demo fixtures and pending entity selection', () => {
+    expect(recordDraftSchema.safeParse(recordDraftFixture).success).toBe(true);
+    const draft = {
+      ...recordDraftFixture,
+      people: [
+        {
+          state: 'needs_selection',
+          candidates: [{ id: 'demo-person', label: '演示人员' }],
+          reason: '请记录人选定',
+        },
+      ],
+    };
+    expect(recordDraftSchema.safeParse(draft).success).toBe(true);
+  });
+
+  it('rejects client actor claims and blank original input', () => {
+    const input = recordDraftFixture.originalInput;
+    const forged = recordInputSchema.safeParse({ ...input, actorId: 'other' });
+    expect(forged.success).toBe(false);
+    const blank = recordInputSchema.safeParse({ ...input, text: ' ' });
+    expect(blank.success).toBe(false);
+  });
+
+  it('preserves resolvable audio and document references', () => {
+    const citation = {
+      kind: 'source',
+      quote: '合成引文',
+      reference: {
+        fragmentId: 'demo-fragment',
+        originalVersionId: 'demo-version',
+        location: { kind: 'recording', startMs: 0, endMs: 1000 },
+      },
+    };
+    expect(recordCitationSchema.safeParse(citation).success).toBe(true);
+    const document = {
+      ...citation,
+      reference: {
+        ...citation.reference,
+        location: { kind: 'document', page: 1, paragraph: 'p-1' },
+      },
+    };
+    expect(recordCitationSchema.safeParse(document).success).toBe(true);
+    const unlocated = { kind: 'source', quote: '只有引文' };
+    expect(recordCitationSchema.safeParse(unlocated).success).toBe(false);
+    expect(
+      recordCitationSchema.safeParse({
+        kind: 'input',
+        quote: '合成引文',
+        start: 4,
+        end: 4,
+      }).success,
+    ).toBe(false);
+  });
+
+  const save = {
+    operation_id: 'demo-save',
+    expected_revision: 1,
+    draftId: 'demo-draft',
+    personIds: ['demo-person'],
+    projectId: null,
+    sbi: recordDraftFixture.sbi,
+    decisions: [
+      {
+        personId: 'demo-person',
+        dimensionId: 'prof',
+        action: 'edit',
+        value: 5,
+        reason: '',
+      },
+    ],
+  };
+
+  it('validates explicit save decisions', () => {
+    expect(recordSaveInputSchema.safeParse(save).success).toBe(true);
+    const duplicate = {
+      ...save,
+      decisions: [...save.decisions, ...save.decisions],
+    };
+    expect(recordSaveInputSchema.safeParse(duplicate).success).toBe(false);
+    const unrelated = { ...save, personIds: ['other-person'] };
+    expect(recordSaveInputSchema.safeParse(unrelated).success).toBe(false);
+    const stale = { ...save, expected_revision: 0 };
+    expect(recordSaveInputSchema.safeParse(stale).success).toBe(false);
+  });
+
+  const receipt = {
+    saveId: 'demo-save',
+    events: [{ personId: 'demo-person', eventId: 'demo-event' }],
+    revision: 1,
+    confirmationIds: ['demo-confirmation'],
+    reviewItemIds: ['demo-queue'],
+    savedBy: 'demo-rater',
+    savedAt: '2026-10-25T10:00:00Z',
+    undoUntil: '2026-10-25T10:00:05Z',
+  };
+
+  it('returns every person event in one save and undo batch', () => {
+    const events = [
+      { personId: 'demo-person', eventId: 'demo-event' },
+      { personId: 'demo-second', eventId: 'demo-second-event' },
+    ];
+    const batch = { ...receipt, events };
+    const saved = recordSaveReceiptSchema.parse(batch);
+    expect(saved.events).toEqual(events);
+    const undo = {
+      saveId: saved.saveId,
+      withdrawnEvents: saved.events,
+      withdrawnConfirmationIds: saved.confirmationIds,
+      withdrawnReviewItemIds: saved.reviewItemIds,
+      originalInput: recordDraftFixture.originalInput,
+    };
+    const withdrawn = recordUndoReceiptSchema.parse(undo);
+    expect(withdrawn.saveId).toBe(saved.saveId);
+    expect(withdrawn.withdrawnEvents).toEqual(events);
+    const empty = { ...batch, events: [] };
+    expect(recordSaveReceiptSchema.safeParse(empty).success).toBe(false);
+    const duplicatePerson = {
+      ...batch,
+      events: [events[0], { ...events[1], personId: events[0].personId }],
+    };
+    const duplicateEvent = {
+      ...batch,
+      events: [events[0], { ...events[1], eventId: events[0].eventId }],
+    };
+    const invalidPerson = recordSaveReceiptSchema.safeParse(duplicatePerson);
+    const invalidEvent = recordSaveReceiptSchema.safeParse(duplicateEvent);
+    expect(invalidPerson.success).toBe(false);
+    expect(invalidEvent.success).toBe(false);
+    const oldShape = { ...undo, withdrawnEventId: 'demo-event' };
+    expect(recordUndoReceiptSchema.safeParse(oldShape).success).toBe(false);
+    const additionalRater = { ...undo, withdrawnEvents: [] };
+    const withdrawnScores = recordUndoReceiptSchema.parse(additionalRater);
+    expect(withdrawnScores.withdrawnEvents).toEqual([]);
+    expect(withdrawnScores.withdrawnConfirmationIds).toEqual(
+      saved.confirmationIds,
+    );
+    const conflict = {
+      status: 'conflict',
+      message: '后续人工结果已变更，整批保留',
+      input: { operation_id: 'demo-undo', saveId: saved.saveId },
+    };
+    expect(recordUndoResultSchema.safeParse(conflict).success).toBe(true);
+    const partial = { ...conflict, withdrawnEvents: events };
+    expect(recordUndoResultSchema.safeParse(partial).success).toBe(false);
+  });
+
+  it('defines five seconds and typed outcomes', () => {
+    expect(recordSaveReceiptSchema.safeParse(receipt).success).toBe(true);
+    const invalid = { ...receipt, undoUntil: '2026-10-25T10:00:06Z' };
+    expect(recordSaveReceiptSchema.safeParse(invalid).success).toBe(false);
+    const replay = { status: 'success', replayed: true, result: receipt };
+    expect(recordSaveResultSchema.safeParse(replay).success).toBe(true);
+    const conflict = { status: 'conflict', message: '版本已更新', input: save };
+    expect(recordSaveResultSchema.safeParse(conflict).success).toBe(true);
+  });
+
+  it('keeps failed jobs separate from results', () => {
+    const job = {
+      schemaVersion: 1,
+      jobId: 'demo-job',
+      kind: 'record_organize',
+      status: 'failed',
+      attempt: 1,
+      revision: 1,
+      updatedAt: '2026-10-25T10:00:00Z',
+      progress: null,
+      result: null,
+      error: { code: 'processing_failed', message: '整理失败' },
+      canRetry: true,
+      canCancel: false,
+      cancelRequestedAt: null,
+    };
+    expect(recordJobSchema.safeParse(job).success).toBe(true);
+    const malformed = { ...job, result: {} };
+    expect(recordJobSchema.safeParse(malformed).success).toBe(false);
+  });
+});
+
+describe('review thresholds and calibration', () => {
+  it('does not turn an unavailable integration into a calibration', () => {
+    if (reviewGapFixture.kind !== 'ai_gap') throw new Error('fixture kind');
+    const unavailable = {
+      kind: 'recalibration',
+      status: 'not_connected',
+    };
+    const result = {
+      itemId: 'demo-queue',
+      revision: 2,
+      score: reviewGapFixture.human,
+      original: unavailable,
+    };
+    expect(reviewCalibrationSchema.safeParse(result).success).toBe(false);
+    const list = { items: [], recalibration: unavailable };
+    expect(reviewQueueListSchema.safeParse(list).success).toBe(true);
+    expect(reviewQueueListSchema.safeParse({ items: [] }).success).toBe(false);
+  });
+
+  it('accepts exactly two points but not one or an explained AI edit', () => {
+    const parsed = reviewQueueItemSchema.safeParse(reviewGapFixture);
+    expect(parsed.success).toBe(true);
+    if (reviewGapFixture.kind !== 'ai_gap') throw new Error('fixture kind');
+    const one = {
+      ...reviewGapFixture,
+      human: { ...reviewGapFixture.human, value: 4 },
+    };
+    expect(reviewQueueItemSchema.safeParse(one).success).toBe(false);
+    const explained = {
+      ...reviewGapFixture,
+      human: { ...reviewGapFixture.human, reason: '已有理由' },
+    };
+    expect(reviewQueueItemSchema.safeParse(explained).success).toBe(false);
+  });
+
+  it('requires different confirmed raters with a two-point difference', () => {
+    if (reviewGapFixture.kind !== 'ai_gap') throw new Error('fixture kind');
+    const first = reviewGapFixture.human;
+    const base = {
+      id: 'demo-rater-queue',
+      revision: 1,
+      eventId: 'demo-event',
+      personId: 'demo-person',
+      dimensionId: 'prof',
+      kind: 'rater_gap',
+    };
+    const second = { ...first, value: 3, raterId: 'demo-second' };
+    const item = { ...base, sides: [first, second] };
+    expect(reviewQueueItemSchema.safeParse(item).success).toBe(true);
+    const repeated = { ...base, sides: [first, { ...first, value: 3 }] };
+    expect(reviewQueueItemSchema.safeParse(repeated).success).toBe(false);
+  });
+
+  it('requires reasons and limits keep-score to AI gaps', () => {
+    const action = {
+      operation_id: 'demo-calibrate',
+      expected_revision: 1,
+      itemId: 'demo-queue',
+      kind: 'ai_gap',
+      action: 'keep_score',
+      reason: '复核后保留',
+    };
+    expect(reviewQueueActionSchema.safeParse(action).success).toBe(true);
+    const blank = { ...action, reason: ' ' };
+    expect(reviewQueueActionSchema.safeParse(blank).success).toBe(false);
+    const invalid = { ...action, kind: 'rater_gap' };
+    expect(reviewQueueActionSchema.safeParse(invalid).success).toBe(false);
+  });
+});
