@@ -140,6 +140,12 @@ Docker PostgreSQL 17 使用本卡新建、无宿主卷的临时容器，随机 l
 
 覆盖率来自单次单元+真实 PG 全集，不相加百分比、未降低 85% 门槛或扩大排除。Linux 构建使用锁定 pnpm 11.25.0 与锁定 JS 依赖，加载对应平台的同版本原生包：Next SWC 16.4.3、Tailwind Oxide 4.3.3、lightningcss 1.33.0。构建不连接真实服务。
 
-后续整合 main dd34dd2 并适配上述 PR202 来源合同：新增标题/来源记录人变化两项真实 Red，修正来源身份核对后，本卡 **5 文件 / 58 项（含 10 项真实 PG）全部通过**，lint/架构边界通过。全工程 typecheck 在未适配的 `contracts/staffing.fixtures.ts`、`features/sources/SourceCite.test.tsx` 报缺少这两个新字段；本卡未改它们。上表属于前一受检检查点，不移植成新合同全工程验收；待父提供集中适配/正式迁移输入后继续统一门禁。
+后续整合 main dd34dd2 并适配上述 PR202 来源合同：新增标题/来源记录人变化两项真实 Red，修正来源身份核对后，本卡 **5 文件 / 58 项（含 10 项真实 PG）全部通过**，format/lint/架构边界通过。
+
+另外在独立临时副本应用 **完整 PR202 精确 88ebd4be** 的 10 个原 blob（包括它自带的合同/来源组件测试夹具），与本卡 ff065298 / PR161 schema / 私有原生迁移组合：本卡 58 项 + PR202 合同 63 项共 **6 文件 / 121 项通过**。专项覆盖显式列出本卡全部 11 个生产文件，保持原 85% 门槛：行 **96.34%（369/383）**、分支 **90.36%（272/301）**，语句 94.04%、函数 94.44%。这是本卡专项报告，不是全工程覆盖报告，未改共享配置。
+
+完整 PR202 组合的全工程 typecheck 阻在 837 的 `talent/derive.ts`（reference bonus）、`queries/person-projection.ts`（评分署名）与 `person*.test.ts`（timeline statement 旧字段）。早先仅 sources 合同的部分组合报夹具缺字段，已由完整 PR202 输入核实消除，不能误记为 PR202 自身未带齐夹具。父已指定 837 集中适配，本卡不重复改它。上表属于前一完整受检检查点，不移植成新合同全工程验收；待父提供集中适配/正式迁移输入后继续统一门禁。
+
+ff065298 的原 CI [40219938655](https://github.com/bowenQT/QTalent/actions/runs/40219938655) 已回读 completed/failure：format/lint/架构边界通过；typecheck 因 main 尚缺 PR202 两个来源字段及 852 demand/schema 失败，后续 PG/coverage/build/e2e/visual 未执行。正式依赖未入当前 PR 时，固定组合通过不替代这个结果。
 
 共享两个 adapter、注册和官方串行迁移需指定 owner 接入后继续验收；一次真实 Jev 仍 Pending。本卡持续在原 PR188 收口，未满足门禁时不标 Done、不合并/部署。
