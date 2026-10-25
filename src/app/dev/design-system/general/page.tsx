@@ -18,6 +18,9 @@ import {
   SegMenuSample,
   ToastSample,
 } from './GeneralInteractive';
+/** 徽标的行高随所在位置继承；原型里待办与队列中的徽标行高是 18px，其余位置是 19.2px。样张照原型取值，才能和原型逐像素对上。 */
+const listContext = { lineHeight: '18px' };
+
 export default function GeneralSamples() {
   if (process.env.NODE_ENV === 'production') notFound();
   return (
@@ -41,10 +44,15 @@ export default function GeneralSamples() {
           <Badge tone="conflict" icon="split" data-sample="badge-conflict">
             证据冲突
           </Badge>
-          <Badge tone="ai" icon="spark" data-sample="badge-ai">
+          <Badge
+            tone="ai"
+            icon="spark"
+            data-sample="badge-ai"
+            style={listContext}
+          >
             待核对
           </Badge>
-          <Badge tone="seal" data-sample="badge-seal">
+          <Badge tone="seal" data-sample="badge-seal" style={listContext}>
             待确认
           </Badge>
           <Badge tone="demo" data-sample="badge-demo">
@@ -53,7 +61,7 @@ export default function GeneralSamples() {
           <Badge tone="preset" data-sample="badge-preset">
             预先处理的演示任务
           </Badge>
-          <Badge tone="recal" data-sample="badge-recal">
+          <Badge tone="recal" data-sample="badge-recal" style={listContext}>
             可能需要重新校准
           </Badge>
           <Badge tone="prep">筹备中</Badge>
