@@ -33,7 +33,10 @@ export function deriveReferencePosition(
     new Set(potential.map((score) => score.eventId)).size < 2 ||
     dimensions.length < 2
   )
-    return { status: 'insufficient_evidence', reason: '尚未达到参考位置的证据门槛' };
+    return {
+      status: 'insufficient_evidence',
+      reason: '尚未达到参考位置的证据门槛',
+    };
   const prof = mean(professional.map((score) => score.value));
   const pot = mean(
     dimensions.map((id) =>

@@ -6,7 +6,10 @@ import { fixture } from './person-test-helpers';
 import { personFromData } from './person-projection';
 import { peopleFromData } from './people';
 import { sourceFromData, readSourceForCurrentUser } from './sources';
-import { readPersonForCurrentUser, readPersonPreviewForCurrentUser } from './person';
+import {
+  readPersonForCurrentUser,
+  readPersonPreviewForCurrentUser,
+} from './person';
 import { loadCurrentPersonData } from './person-session';
 vi.mock('./person-session', () => ({ loadCurrentPersonData: vi.fn() }));
 const reference = {
@@ -32,20 +35,31 @@ describe('people, profile and shared sources', () => {
         expect(result).not.toHaveProperty('versionsAndChanges');
       } else {
         expect(result).toHaveProperty('referencePosition.status', 'ready');
-        expect(result).toHaveProperty('calibrationHistory.status', 'not_connected');
-        expect(result).toHaveProperty('versionsAndChanges.status', 'not_connected');
+        expect(result).toHaveProperty(
+          'calibrationHistory.status',
+          'not_connected',
+        );
+        expect(result).toHaveProperty(
+          'versionsAndChanges.status',
+          'not_connected',
+        );
       }
       const list = await peopleFromData(data);
       expect(peopleListSchema.safeParse(list).success).toBe(true);
       expect(list.total).toBe(role === 'manager' ? 3 : 1);
-      const filtered = await peopleFromData(data, { query: 'ONE', teamId: 'org' });
+      const filtered = await peopleFromData(data, {
+        query: 'ONE',
+        teamId: 'org',
+      });
       expect(filtered.total).toBe(1);
       expect(await personFromData(data, 'missing')).toBeNull();
     });
   it('rejects client roles, score sorting and invalid source input', async () => {
     for (const input of [{ role: 'manager' }, { sort: 'score' }])
       await expect(peopleFromData(fixture(), input)).rejects.toThrow();
-    expect((await readSourceForCurrentUser({ role: 'manager' })).status).toBe('validation_error');
+    expect((await readSourceForCurrentUser({ role: 'manager' })).status).toBe(
+      'validation_error',
+    );
   });
   it('rechecks revoked grants and assignments and excludes noReview people', async () => {
     const data = fixture('mentor');
@@ -70,8 +84,14 @@ describe('people, profile and shared sources', () => {
     data.statements[0].kind = 'ai_inference';
     const result = await personFromData(data, 'one');
     expect(result?.capabilityProfile).toHaveProperty('data.length', 2);
-    expect(result?.aiInferences).toHaveProperty('data.0.nature', 'ai_inference');
-    expect(result).toHaveProperty('referencePosition.status', 'insufficient_evidence');
+    expect(result?.aiInferences).toHaveProperty(
+      'data.0.nature',
+      'ai_inference',
+    );
+    expect(result).toHaveProperty(
+      'referencePosition.status',
+      'insufficient_evidence',
+    );
     expect(JSON.stringify(result)).not.toMatch(/totalScore|confidence|ranking/);
   });
   it('authorizes every subject sharing a source before derived values', async () => {
@@ -102,35 +122,61 @@ describe('people, profile and shared sources', () => {
     const data = fixture();
     const result = await sourceFromData(data, reference);
     expect(sourceReadResultSchema.safeParse(result).success).toBe(true);
-    expect(result).toHaveProperty('source.sourceCategory', 'prototype_baseline');
+    expect(result).toHaveProperty(
+      'source.sourceCategory',
+      'prototype_baseline',
+    );
     expect(result).toHaveProperty('source.location.kind', 'snapshot_field');
     expect(result).toHaveProperty('source.displayNotice');
-    expect(JSON.stringify(result)).not.toMatch(/sourceBlob|sourceCommit|storageKey|playback/);
-    expect((await sourceFromData(data, { ...reference, originalVersionId: 'wrong' })).status).toBe('not_found');
+    expect(JSON.stringify(result)).not.toMatch(
+      /sourceBlob|sourceCommit|storageKey|playback/,
+    );
+    expect(
+      (await sourceFromData(data, { ...reference, originalVersionId: 'wrong' }))
+        .status,
+    ).toBe('not_found');
     data.events[0].demo = false;
     expect((await sourceFromData(data, reference)).status).toBe('not_found');
-    expect((await personFromData(data, 'one'))?.capabilityProfile).toHaveProperty('data.length', 2);
+    expect(
+      (await personFromData(data, 'one'))?.capabilityProfile,
+    ).toHaveProperty('data.length', 2);
   });
   it('keeps old evidence in the timeline, but not the reference position window', async () => {
     const data = fixture();
-    data.events.forEach((event) => { event.occurredOn = '2020-01-01'; });
+    data.events.forEach((event) => {
+      event.occurredOn = '2020-01-01';
+    });
     const result = await personFromData(data, 'one');
     expect(result?.timeline).toHaveProperty('data.length', 2);
-    expect(result).toHaveProperty('referencePosition.status', 'insufficient_evidence');
+    expect(result).toHaveProperty(
+      'referencePosition.status',
+      'insufficient_evidence',
+    );
   });
   it('returns source read errors rather than swallowing data-load failures', async () => {
     vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture());
     expect((await readSourceForCurrentUser(reference)).status).toBe('success');
-    expect((await readPersonForCurrentUser({ id: 'one' })).status).toBe('success');
-    expect((await readPersonPreviewForCurrentUser({ id: 'one' })).status).toBe('success');
-    expect((await readPersonForCurrentUser({ id: 'missing' })).status).toBe('not_found');
-    vi.mocked(loadCurrentPersonData).mockRejectedValue(new Error('database failed'));
-    await expect(readSourceForCurrentUser(reference)).rejects.toThrow('database failed');
+    expect((await readPersonForCurrentUser({ id: 'one' })).status).toBe(
+      'success',
+    );
+    expect((await readPersonPreviewForCurrentUser({ id: 'one' })).status).toBe(
+      'success',
+    );
+    expect((await readPersonForCurrentUser({ id: 'missing' })).status).toBe(
+      'not_found',
+    );
+    vi.mocked(loadCurrentPersonData).mockRejectedValue(
+      new Error('database failed'),
+    );
+    await expect(readSourceForCurrentUser(reference)).rejects.toThrow(
+      'database failed',
+    );
   });
   it('does not infer compatibility between rule versions', async () => {
     const data = fixture();
     data.confirmations[0].ruleVersionId = 'future-rule';
-    data.anchors.find((row) => row.id === 'prof')!.ruleVersionId = 'future-rule';
+    data.anchors.find((row) => row.id === 'prof')!.ruleVersionId =
+      'future-rule';
     const profile = await personFromData(data, 'one');
     expect(profile?.capabilityProfile.status).toBe('ready');
     expect(profile).toHaveProperty('referencePosition.status', 'unknown');
@@ -163,5 +209,4 @@ describe('people, profile and shared sources', () => {
     });
     expect((await sourceFromData(data, reference)).status).toBe('not_found');
   });
-
 });

@@ -20,7 +20,11 @@ import {
   eventParticipants,
   statements,
 } from '../modules/records';
-import { dimensions, anchors, ruleVersions } from '../modules/evaluation-system';
+import {
+  dimensions,
+  anchors,
+  ruleVersions,
+} from '../modules/evaluation-system';
 import { confirmations, aiSuggestions } from '../modules/talent';
 import { loadPersonData } from './person-data';
 import { personFromData } from './person-projection';
@@ -121,11 +125,18 @@ it('reads actual PostgreSQL confirmation and evidence tables for four accounts',
       expect(result).not.toHaveProperty('managementObservations');
     } else {
       expect(result).toHaveProperty('referencePosition.status', 'ready');
-      expect(result).toHaveProperty('versionsAndChanges.status', 'not_connected');
+      expect(result).toHaveProperty(
+        'versionsAndChanges.status',
+        'not_connected',
+      );
     }
   }
-  await expect(loadPersonData(db, 'admin', '2026-07-01')).rejects.toThrow('无权限');
-  await expect(loadPersonData(db, 'missing', '2026-07-01')).rejects.toThrow('无权限');
+  await expect(loadPersonData(db, 'admin', '2026-07-01')).rejects.toThrow(
+    '无权限',
+  );
+  await expect(loadPersonData(db, 'missing', '2026-07-01')).rejects.toThrow(
+    '无权限',
+  );
 });
 it('re-reads authorization and complete source relationships', async () => {
   const db = connection!.db;
@@ -141,7 +152,10 @@ it('re-reads authorization and complete source relationships', async () => {
   expect(source.status).toBe('not_found');
   const result = await personFromData(data, 'one');
   expect(result?.capabilityProfile).toHaveProperty('data.length', 2);
-  await db.update(grants).set({ revokedAt: '2026-07-01' }).where(eq(grants.id, 'mentor'));
+  await db
+    .update(grants)
+    .set({ revokedAt: '2026-07-01' })
+    .where(eq(grants.id, 'mentor'));
   const revoked = await loadPersonData(db, 'mentor', '2026-07-01');
   expect(await personFromData(revoked, 'one')).toBeNull();
 });

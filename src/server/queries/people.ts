@@ -48,10 +48,11 @@ export async function peopleFromData(
       continue;
     people.push(quickViewOf(profile));
   }
-  people.sort((a, b) =>
-    a.person.teamName.localeCompare(b.person.teamName) ||
-    a.person.name.localeCompare(b.person.name) ||
-    a.person.id.localeCompare(b.person.id),
+  people.sort(
+    (a, b) =>
+      a.person.teamName.localeCompare(b.person.teamName) ||
+      a.person.name.localeCompare(b.person.name) ||
+      a.person.id.localeCompare(b.person.id),
   );
   return peopleListSchema.parse({ role, people, total: people.length });
 }

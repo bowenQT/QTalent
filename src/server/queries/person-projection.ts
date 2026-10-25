@@ -13,11 +13,7 @@ import {
 } from '../authz/talent';
 import { deriveReferencePosition } from '../modules/talent';
 import type { PositionScore } from '../modules/talent';
-import {
-  type PersonData,
-  eventSubject,
-  talentSources,
-} from './person-data';
+import { type PersonData, eventSubject, talentSources } from './person-data';
 import { sourceFromData } from './sources';
 
 export function personRole(data: PersonData) {
@@ -38,7 +34,7 @@ function personSubjects(data: PersonData, id: string): TalentSubject[] {
       .map((row) => ({ personId: id, cohortId: row.cohortId })),
   ];
 }
-const block = <T>(items: T[]) =>
+const block = <T,>(items: T[]) =>
   items.length
     ? { status: 'ready' as const, data: items }
     : { status: 'empty' as const };
@@ -89,17 +85,19 @@ export async function personFromData(
       'person-profile',
     );
     if (!projected || typeof projected.fields.text !== 'string') return [];
-    return [{
-      id: statement.id,
-      text: projected.fields.text,
-      nature: statement.kind,
-      occurredAt: event.occurredOn + 'T00:00:00.000Z',
-      sources: projected.sources.map((source) => ({
-        fragmentId: source.fragmentId,
-        originalVersionId: source.originalVersionId,
-        location: source.location,
-      })),
-    }];
+    return [
+      {
+        id: statement.id,
+        text: projected.fields.text,
+        nature: statement.kind,
+        occurredAt: event.occurredOn + 'T00:00:00.000Z',
+        sources: projected.sources.map((source) => ({
+          fragmentId: source.fragmentId,
+          originalVersionId: source.originalVersionId,
+          location: source.location,
+        })),
+      },
+    ];
   });
   const scores: CapabilityScore[] = [];
   const positionScores: PositionScore[] = [];
@@ -151,11 +149,13 @@ export async function personFromData(
       anchor: anchor.text,
       scoredBy: evaluator.name,
       ruleVersionId: confirmation.ruleVersionId,
-      sources: [{
-        fragmentId: source.source.fragmentId,
-        originalVersionId: source.source.originalVersionId,
-        location: source.source.location,
-      }],
+      sources: [
+        {
+          fragmentId: source.source.fragmentId,
+          originalVersionId: source.source.originalVersionId,
+          location: source.source.location,
+        },
+      ],
     });
     if (
       canReadTalent(
@@ -173,8 +173,9 @@ export async function personFromData(
         value: confirmation.value,
       });
   }
-  scores.sort((a, b) =>
-    a.dimensionId.localeCompare(b.dimensionId) || a.id.localeCompare(b.id),
+  scores.sort(
+    (a, b) =>
+      a.dimensionId.localeCompare(b.dimensionId) || a.id.localeCompare(b.id),
   );
   const cited = visibleStatement.filter((row) =>
     ['original_fact', 'self_report', 'human_conclusion'].includes(row.nature),
@@ -186,14 +187,16 @@ export async function personFromData(
     sources: row.sources,
   });
   const projects = data.staffing.projects
-    .filter((project) =>
-      canReadProject(data.context, project) &&
-      (project.ownerId === id || data.staffing.members.some(
-        (member) =>
-          member.projectId === project.id &&
-          member.personId === id &&
-          isCurrent(member, data.context.now),
-      )),
+    .filter(
+      (project) =>
+        canReadProject(data.context, project) &&
+        (project.ownerId === id ||
+          data.staffing.members.some(
+            (member) =>
+              member.projectId === project.id &&
+              member.personId === id &&
+              isCurrent(member, data.context.now),
+          )),
     )
     .map((project) => ({
       id: project.id,
@@ -221,8 +224,10 @@ export async function personFromData(
           occurredAt: row.occurredAt,
           statement: statementOnly(row),
         }))
-        .sort((a, b) =>
-          b.occurredAt.localeCompare(a.occurredAt) || a.id.localeCompare(b.id),
+        .sort(
+          (a, b) =>
+            b.occurredAt.localeCompare(a.occurredAt) ||
+            a.id.localeCompare(b.id),
         ),
     ),
     projects: block(projects),

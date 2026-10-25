@@ -6,11 +6,7 @@ import {
 } from '../../contracts/sources';
 import { readTalentSource } from '../authz/talent';
 import { ForbiddenError } from '../usecases/project-context';
-import {
-  type PersonData,
-  talentSources,
-  sourceKey,
-} from './person-data';
+import { type PersonData, talentSources, sourceKey } from './person-data';
 import { loadCurrentPersonData } from './person-session';
 
 export async function sourceFromData(
@@ -25,7 +21,10 @@ export async function sourceFromData(
     }),
     reference,
   );
-  const missing = { status: 'not_found', message: '来源不存在或不可见' } as const;
+  const missing = {
+    status: 'not_found',
+    message: '来源不存在或不可见',
+  } as const;
   if (!visible) return missing;
   const version = data.versions.find(
     (row) => row.id === reference.originalVersionId,
@@ -38,24 +37,26 @@ export async function sourceFromData(
   const linkedEvents = data.events.filter((row) =>
     links.some((link) => link.eventId === row.id),
   );
-  const source = original.kind === 'prototype_snapshot'
-    ? {
-        ...visible,
-        sourceType: 'prototype_snapshot',
-        sourceCategory: 'prototype_baseline',
-        demo: true,
-        displayNotice: original.displayNotice,
-      }
-    : {
-        ...visible,
-        sourceType: visible.location.kind,
-        sourceCategory: 'original',
-        demo: linkedEvents.length > 0 && linkedEvents.every((row) => row.demo),
-      };
+  const source =
+    original.kind === 'prototype_snapshot'
+      ? {
+          ...visible,
+          sourceType: 'prototype_snapshot',
+          sourceCategory: 'prototype_baseline',
+          demo: true,
+          displayNotice: original.displayNotice,
+        }
+      : {
+          ...visible,
+          sourceType: visible.location.kind,
+          sourceCategory: 'original',
+          demo:
+            linkedEvents.length > 0 && linkedEvents.every((row) => row.demo),
+        };
   if (original.kind === 'prototype_snapshot') {
-    const subjects = talentSources(data).find(
-      (row) => sourceKey(row) === sourceKey(reference),
-    )?.subjects ?? [];
+    const subjects =
+      talentSources(data).find((row) => sourceKey(row) === sourceKey(reference))
+        ?.subjects ?? [];
     if (
       linkedEvents.some((row) => !row.demo) ||
       !subjects.every((subject) =>

@@ -4,11 +4,7 @@ import { loadProjectContext } from '../usecases/project-context';
 import { readEvidenceForTalent } from '../modules/records';
 import { readTalentEvaluationRules } from '../modules/evaluation-system';
 import { readActiveConfirmations } from '../modules/talent';
-import type {
-  TalentSource,
-  TalentSubject,
-  TalentKind,
-} from '../authz/talent';
+import type { TalentSource, TalentSubject, TalentKind } from '../authz/talent';
 
 /** Complete provenance is loaded before person filtering, including shared
  * fragments. This bounded P0 read does not use the prototype import archive.
@@ -114,4 +110,3 @@ export function talentSources(data: PersonData): TalentSource[] {
     };
   });
 }
-
