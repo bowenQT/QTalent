@@ -980,7 +980,13 @@
   store.watchHandled = () => (store.role() === 'hrbp' ? S.watchClues.filter((c) => ['verified', 'rejected'].includes(c.state) && store.scope(c.person) === 'full').sort((a, b) => (b.verifiedAt || '').localeCompare(a.verifiedAt || '')) : []);
   store.verifyClue = (id, ok, why) => {
     const c = S.watchClues.find((x) => x.id === id); if (!c) return null;
-    Object.assign(c, ok ? { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now() } : { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
+    if (ok) {
+      Object.assign(c, { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now() });
+      delete c.rejectWhy; // 已核实不能保留先前的「不采纳」理由
+    } else {
+      Object.assign(c, { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
+      delete c.verifiedTs; // 已不采纳不再保留先前核实时刻
+    }
     store.save();
     return c;
   };
