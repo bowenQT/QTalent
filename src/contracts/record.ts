@@ -116,10 +116,19 @@ export const recordSaveInputSchema = z
 // Identity, current permissions, quote authenticity and the business uniqueness
 // key (event, dimension, rater) remain server-side checks, including on replay.
 export const RECORD_UNDO_WINDOW_MS = 5_000;
+const eventMappingsSchema = z
+  .array(z.strictObject({ personId: text, eventId: text }))
+  .refine((events) => {
+    const people = new Set(events.map((event) => event.personId));
+    const ids = new Set(events.map((event) => event.eventId));
+    return people.size === events.length && ids.size === events.length;
+  });
+// One saveId identifies the whole atomic batch, not a representative event.
+// The server permits undo only at savedAt <= now < undoUntil.
 export const recordSaveReceiptSchema = z
   .strictObject({
     saveId: text,
-    eventId: text,
+    events: eventMappingsSchema.min(1),
     revision,
     confirmationIds: z.array(text),
     reviewItemIds: z.array(text),
@@ -137,7 +146,8 @@ export const recordUndoInputSchema = z.strictObject({
 });
 export const recordUndoReceiptSchema = z.strictObject({
   saveId: text,
-  withdrawnEventId: text,
+  // Only events created by this batch; a second rater may create none.
+  withdrawnEvents: eventMappingsSchema,
   withdrawnConfirmationIds: z.array(text),
   withdrawnReviewItemIds: z.array(text),
   originalInput: recordInputSchema,

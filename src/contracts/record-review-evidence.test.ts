@@ -8,6 +8,7 @@ import {
   recordSaveReceiptSchema,
   recordSaveResultSchema,
   recordUndoReceiptSchema,
+  recordUndoResultSchema,
 } from './record';
 import {
   reviewCalibrationSchema,
@@ -148,8 +149,20 @@ describe('record evidence and actions', () => {
     expect(invalidEvent.success).toBe(false);
     const oldShape = { ...undo, withdrawnEventId: 'demo-event' };
     expect(recordUndoReceiptSchema.safeParse(oldShape).success).toBe(false);
-    const partialShape = { ...undo, withdrawnEvents: [] };
-    expect(recordUndoReceiptSchema.safeParse(partialShape).success).toBe(false);
+    const additionalRater = { ...undo, withdrawnEvents: [] };
+    const withdrawnScores = recordUndoReceiptSchema.parse(additionalRater);
+    expect(withdrawnScores.withdrawnEvents).toEqual([]);
+    expect(withdrawnScores.withdrawnConfirmationIds).toEqual(
+      saved.confirmationIds,
+    );
+    const conflict = {
+      status: 'conflict',
+      message: '后续人工结果已变更，整批保留',
+      input: { operation_id: 'demo-undo', saveId: saved.saveId },
+    };
+    expect(recordUndoResultSchema.safeParse(conflict).success).toBe(true);
+    const partial = { ...conflict, withdrawnEvents: events };
+    expect(recordUndoResultSchema.safeParse(partial).success).toBe(false);
   });
 
   it('defines five seconds and typed outcomes', () => {
