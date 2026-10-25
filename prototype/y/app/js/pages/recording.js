@@ -116,6 +116,8 @@
     $('#res-go').onclick = () => { delete r.away; resume(r); R.set(r); renderLive(r, { focus: true }); };
     $('#res-end').onclick = async () => {
       if (await confirmEnd(r) !== 'end') return;
+      // 断网时被刷新的录音：与录制页结束一样，先补传没传完的分段再进入处理中
+      if (r.net) { delete r.away; delete r.net; Object.assign(r, { uploading: true, up: 0 }); R.set(r); renderLive(r); return; }
       R.set(null);
       renderProcessing({ title: r.title, dur: R.elapsed(r) });
     };
