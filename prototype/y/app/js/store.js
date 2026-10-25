@@ -461,8 +461,15 @@
     if (!store.canEditReview(pid) || !text?.trim()) return null;
     S.reviewEvals ??= {};
     const m = (S.reviewEvals[`${pid}-${week}`] ??= {}), prev = m[dim] || [];
-    m[dim] = [{ text: text.trim(), by: store.me().id, at: NT.TODAY, from }, ...prev]; store.save();
-    return () => { m[dim] = prev; store.save(); };
+    const entry = { text: text.trim(), by: store.me().id, at: NT.TODAY, from };
+    m[dim] = [entry, ...prev]; store.save();
+    // 撤销本次评价，而不是回写旧数组把之后保存的修订覆盖掉。
+    return () => {
+      const list = m[dim] || [];
+      if (!list.includes(entry)) return;
+      m[dim] = list.filter((x) => x !== entry);
+      store.save();
+    };
   };
   // AI 草拟：按这一维的事件和分数（已确认的用确认分，否则用 AI 建议分）对上锚点；没有分数就不草拟
   store.reviewEvalDraft = (pid, row) => {
@@ -526,16 +533,22 @@
     const e = store.event(evId), s = e.scores[idx];
     const me = store.me().id;
     const prev = s.ai ?? s.v;
-    s.hist = [{ v, kind: v !== prev && s.ai != null ? 'edit' : 'confirm', by: me, at: NT.TODAY, why }, ...(s.ai != null ? [{ v: s.ai, kind: 'ai', at: e.date }] : [])];
+    // 保留既往人工确认与校准历史；AI 来源只保留一条，不随重复确认增加。
+    const history = s.hist || [];
+    const aiOrigin = history.find((h) => h.kind === 'ai') || (s.ai != null ? { v: s.ai, kind: 'ai', at: e.date } : null);
+    s.hist = [{ v, kind: v !== prev && s.ai != null ? 'edit' : 'confirm', by: me, at: NT.TODAY, why },
+      ...history.filter((h) => h.kind !== 'ai'), ...(aiOrigin ? [aiOrigin] : [])];
     s.v = v; s.st = 'confirmed'; s.by = me;
+    // 每次确认都按当前分差与理由重算，不能留下之前的待校准标记。
     if (s.ai != null && Math.abs(s.ai - v) >= 2 && !why) s.bigGap = true;
+    else delete s.bigGap;
     store.save();
   };
   store.unconfirmScore = (evId, idx) => { const s = store.event(evId).scores[idx]; s.st = 'ai'; s.v = s.ai; delete s.by; delete s.hist; delete s.bigGap; store.save(); };
-  // 选「都不是，稍后处理」不算核对完成：条目留在待核对里，标记为稍后（later），待办数照旧计入。
-  // 已经核对完成的不再改：重复点选不会再写一条同 id 的事件，也不能把已归好的选项清成稍后。
+  // 选「都不是，稍后处理」不算核对完成：条目留在待核对里，标记为稍后（later），待办数照旧计入
   store.resolveInbox = (id, choice) => {
     const it = S.inbox.find((x) => x.id === id);
+    // 事件以待核对项 id 为唯一来源；重复确认不应再次写入相同 ID 的证据。
     if (!it || it.done) return;
     if (choice === 'skip') { it.later = true; it.choice = null; store.save(); return; }
     it.done = true; it.later = false; it.choice = choice;
@@ -550,6 +563,8 @@
   // 确认项目用人方案：冻结版本，写入成员与 owner，生成行动；组织调整方案里等这个人选的那一条随之填上
   store.slotRoles = (plan) => S.needs.find((n) => n.id === plan.need)?.roles || Object.keys(plan.slots).map((id) => ({ id, name: id === 'owner' ? '项目 owner' : id }));
   store.confirmStaffing = (plan, roles = store.slotRoles(plan)) => {
+    // 已冻结/被替代的版本不能再确认，避免重复写入成员历史。
+    if (plan.status === 'confirmed' || plan.status === 'superseded') return;
     const me = store.me().id, p = store.project(plan.project);
     S.plans.filter((x) => x.project === plan.project && x.status === 'confirmed' && x !== plan).forEach((x) => { x.status = 'superseded'; });
     Object.assign(plan, { status: 'confirmed', confirmedBy: me, confirmedAt: NT.TODAY });
@@ -596,7 +611,8 @@
     let created = 0;
     plan.moves.forEach((m) => {
       const title = m.type === '继续观察' ? `${store.person(m.person)?.name || ''}：${m.next}` : `${m.person ? store.person(m.person).name : '人选待定'}${m.type === '负责人安排' ? `接任${m.to}` : `：${m.from ? `${m.from} → ` : ''}${m.to}`}`;
-      if (S.actions.some((a) => a.title === title)) return;
+      // 只阻止同一方案重复生成；其他方案中同名行动不能被误删。
+      if (S.actions.some((a) => a.from === plan.id && a.title === title)) return;
       created += 1;
       S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title, kind: m.kind, from: plan.id, person: m.person, owner: m.owner || 'p-suwan', due: m.due || '2026-11-15', state: 'todo', observe: m.type === '继续观察' ? null : '2027-02-15' });
     });
@@ -877,9 +893,18 @@
   store.setNodeRetro = (key, good, improve, from) => {
     S.nodeRetros ||= {};
     const list = (S.nodeRetros[key] ||= []);
-    list.unshift({ good, improve, by: store.me().id, at: NT.TODAY, from });
+    const entry = { good, improve, by: store.me().id, at: NT.TODAY, from };
+    list.unshift(entry);
     store.save();
-    return () => { list.shift(); if (!list.length) delete S.nodeRetros[key]; store.save(); };
+    // 撤销只移除本次写入，不能误删在此之后保存的新复盘。
+    return () => {
+      if (S.nodeRetros[key] !== list) return;
+      const i = list.indexOf(entry);
+      if (i < 0) return;
+      list.splice(i, 1);
+      if (!list.length) delete S.nodeRetros[key];
+      store.save();
+    };
   };
   store.addNodeAction = (key, title, due) => {
     const a = { id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title, node: key, person: null, owner: store.me().id, due, state: 'todo' };
@@ -981,7 +1006,13 @@
   store.watchHandled = () => (store.role() === 'hrbp' ? S.watchClues.filter((c) => ['verified', 'rejected'].includes(c.state) && store.scope(c.person) === 'full').sort((a, b) => (b.verifiedAt || '').localeCompare(a.verifiedAt || '')) : []);
   store.verifyClue = (id, ok, why) => {
     const c = S.watchClues.find((x) => x.id === id); if (!c) return null;
-    Object.assign(c, ok ? { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now() } : { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
+    if (ok) {
+      Object.assign(c, { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now() });
+      delete c.rejectWhy; // 已核实不能保留先前的「不采纳」理由
+    } else {
+      Object.assign(c, { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
+      delete c.verifiedTs; // 已不采纳不再保留先前核实时刻
+    }
     store.save();
     return c;
   };
@@ -1022,7 +1053,7 @@
   store.isFollowing = (pid) => store.followList().some((f) => f.person === pid);
   store.follow = (pid, via) => {
     if (!store.canFollow(pid) || store.isFollowing(pid)) return null;
-    const f = { by: store.me().id, person: pid, at: NT.TODAY, ...(via ? { via } : {}) };
+    const f = { by: store.me().id, person: pid, at: NT.TODAY, ts: Date.now(), ...(via ? { via } : {}) };
     S.follows.unshift(f); store.save();
     return f;
   };
@@ -1056,9 +1087,18 @@
       });
       store.recosFor(p).filter((c) => c.verifiedAt >= f.at).forEach((c) => out.push({ person: p, at: c.verifiedAt, ts: c.verifiedTs, kind: 'reco', text: `${store.person(c.by).name}推荐${store.fitText(c.dir)}`, by: c.verifiedBy }));
     });
+    // 新关注用精确时刻筛选；旧记录没有关注 ts，维持原有按日期的兼容口径。
+    const followAt = new Map(store.followList().map((f) => [f.person, f]));
+    const afterFollow = (x) => {
+      const f = followAt.get(x.person);
+      if (!f || x.at < f.at) return false;
+      if (x.at > f.at || f.ts == null) return true;
+      // 同一天的历史无时间戳记录不能证明发生于关注后，故不误推为新动态。
+      return x.ts != null && x.ts >= f.ts;
+    };
     // 同一天按记录时刻（ts）从新到旧，同一天的同一件事只留一条
     const seen = new Set();
-    return out.sort((a, b) => b.at.localeCompare(a.at) || (b.ts || 0) - (a.ts || 0)).filter((x) => { const k = `${x.person}|${x.at}|${x.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
+    return out.filter(afterFollow).sort((a, b) => b.at.localeCompare(a.at) || (b.ts || 0) - (a.ts || 0)).filter((x) => { const k = `${x.person}|${x.at}|${x.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
   };
 
   // 不一致的口径：只看前段给了明确判断（最高档或最低档）的人，后段结论和它不同才算不一致。
@@ -1187,10 +1227,13 @@
     const sug = b.type === 'sug' ? S.ruleSugs.find((x) => x.id === b.sug && x.state === 'adopted' && x.draft === d.v) : null, snap = sug && NT.clone(sug);
     if (sug) { sug.state = 'open'; delete sug.handledBy; delete sug.handledAt; delete sug.draft; }
     store.save();
+    let restored = false;
     return () => {
-      if (draftOf(kind) !== d) return false;
+      // 旧 Toast 再次触发不能重复写回同一条依据。
+      if (restored || draftOf(kind) !== d) return false;
       d.basis.splice(Math.min(i, d.basis.length), 0, b);
       if (snap) { const x = S.ruleSugs.find((y) => y.id === snap.id); if (x && x.state === 'open') Object.assign(x, snap); }
+      restored = true;
       store.save(); return true;
     };
   };
@@ -1391,17 +1434,19 @@
   store.ruleSugs = (o = {}) => S.ruleSugs.filter((s) => (!o.state || s.state === o.state) && (!o.by || s.by === o.by));
   // HR 处理：纳入草稿（作为依据挂到草稿上）或不采纳（写理由）
   store.handleRuleSug = (id, ok, why) => {
-    const s = S.ruleSugs.find((x) => x.id === id); if (!s || !isHrbp()) return null;
+    const s = S.ruleSugs.find((x) => x.id === id); if (!s || !isHrbp() || s.state !== 'open') return null;
     if (ok) {
       const d = store.startDraft(s.rule);
-      if (d.state !== 'draft') return null;
+      if (d.state !== 'draft' || (d.basis || []).some((b) => b.type === 'sug' && b.sug === s.id)) return null;
       d.basis = [...(d.basis || []), { type: 'sug', sug: s.id }];
       Object.assign(s, { state: 'adopted', handledBy: store.me().id, handledAt: NT.TODAY, draft: d.v });
     } else Object.assign(s, { state: 'rejected', handledBy: store.me().id, handledAt: NT.TODAY, why });
     store.save(); return s;
   };
   store.unhandleRuleSug = (id) => {
-    const s = S.ruleSugs.find((x) => x.id === id); if (!s) return;
+    const s = S.ruleSugs.find((x) => x.id === id);
+    // 撤销审批与采纳/拒绝一样必须由 HR 执行，且仅对已处理项生效。
+    if (!s || !isHrbp() || s.state === 'open') return null;
     if (s.draft) { const d = store.ruleVer(s.draft); if (d) d.basis = (d.basis || []).filter((b) => b.sug !== id); }
     s.state = 'open'; delete s.handledBy; delete s.handledAt; delete s.why; delete s.draft; store.save();
   };
