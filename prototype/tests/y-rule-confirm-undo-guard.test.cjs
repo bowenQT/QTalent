@@ -50,6 +50,13 @@ test('新版本生效后旧 Toast 不能恢复过时的旧版本',()=>{
   assert.deepEqual(f.S.rules.watch.filter(x=>x.state==='live').map(x=>x.v),['watch-v3']);
   assert.equal(f.saves,1);
 });
+test('新草稿已基于本次发布版本起草时不能撤销其依据',()=>{
+  const f=setup(),undo=f.store.confirmDraft('watch');
+  f.S.rules.watch.push({v:'watch-v3',state:'draft',base:'watch-v2'});
+  assert.equal(undo(),false);
+  assert.equal(f.S.rules.watch.find(x=>x.v==='watch-v2').state,'live');
+  assert.equal(f.saves,1);
+});
 test('撤销不能截断发布之后新增的其他复核暂停',()=>{
   const f=setup(),undo=f.store.confirmDraft('watch');
   const unrelated={ver:'rubric-v3'};
