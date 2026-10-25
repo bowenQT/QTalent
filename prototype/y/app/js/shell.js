@@ -22,10 +22,72 @@
   ];
   const ROLE_ORDER = ['ceo', 'hrbp', 'mentor', 'admin'];
 
+  // 桌面录音状态：存在本标签页的 sessionStorage，与手机端的 nty-rec 分开。
+  // 站内跳转时录音继续（工程里录音组件挂在桌面布局层）；整页刷新等同录音页被关掉，录音暂停，回到录音页时问继续还是结束
+  const REC_KEY = 'nty-drec';
+  NT.rec = {
+    get() { try { return JSON.parse(sessionStorage.getItem(REC_KEY) || 'null'); } catch (e) { return null; } },
+    set(v) { try { v ? sessionStorage.setItem(REC_KEY, JSON.stringify(v)) : sessionStorage.removeItem(REC_KEY); } catch (e) { /* 存不下时只在本页生效 */ } },
+    elapsed(r) { return Math.floor(((r.paused ? r.pausedAt : Date.now()) - r.t0) / 1000); },
+    fmt: (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`,
+    // 录音只属于录的人：切换演示视角后不带出别人的录音
+    mine() { const r = NT.rec.get(); return r && ['hrbp', 'mentor'].includes(st.role()) && r.by === st.me().id ? r : null; },
+    LIMIT: { meet: 7200, obs: 600 }, // 时长上限（秒）：多人会议 2 小时，观察速记 10 分钟
+    overLimit(r) { return !r.paused && NT.rec.elapsed(r) >= NT.rec.LIMIT[r.mode]; },
+    // 结束后的整理任务进工作台「进行中的任务」：转写中 → 整理中 → 部分待核对（演示里结果是预先处理好的 W8 纪要）
+    addTask({ title, dur }) {
+      const S = st.get(), now = Date.now();
+      S.tasks = S.tasks.filter((t) => t.id !== 'tk-drec');
+      const task = { id: 'tk-drec', name: `${title}.m4a`, state: 'transcribing', minutes: 'w8', by: st.me().id, note: `录音 ${NT.rec.fmt(dur)} · 可以离开，结果会回到这里`, link: 'record.html?m=w8', shapeAt: now + 3000, readyAt: now + 6000 };
+      S.tasks.unshift(task); st.save(); watchRecTask();
+      return task;
+    },
+  };
+  // 收起后到达时长上限：直接结束，不弹确认，整理任务照常生成（录音页里由页面自己结束）
+  const recAutoEnd = (r) => {
+    NT.rec.addTask({ title: r.title, dur: NT.rec.LIMIT[r.mode] });
+    NT.rec.set(null);
+    return `录音已到 ${NT.rec.fmt(NT.rec.LIMIT[r.mode])}，自动结束，整理结果会出现在工作台「进行中的任务」`;
+  };
+  addEventListener('pagehide', () => { const r = NT.rec.get(); if (r && !r.paused) { r.hiddenAt = Date.now(); NT.rec.set(r); } });
+  (() => {
+    const r = NT.rec.get();
+    if (!r || r.paused || performance.getEntriesByType('navigation')[0]?.type !== 'reload') return;
+    Object.assign(r, { paused: true, pausedAt: r.hiddenAt || Date.now(), away: true });
+    NT.rec.set(r);
+  })();
+  // 桌面录音的整理任务先转写再整理：转写的约定时间到了先进入整理中，之后由 store.tickTasks 按 readyAt 收尾
+  const recTask = () => {
+    const t = st.get().tasks.find((x) => x.id === 'tk-drec' && x.state === 'transcribing' && Date.now() >= x.shapeAt);
+    if (t) { t.state = 'shaping'; t.note = '转写完成，正在整理事件'; st.save(); }
+  };
+  // 停在某一页时任务也按约定时间往下走：到点推进一步并发出 nt:tasks，工作台据此刷新任务列表
+  let recTaskTimer = 0;
+  function watchRecTask() {
+    clearTimeout(recTaskTimer);
+    const t = st.get().tasks.find((x) => x.id === 'tk-drec' && ['transcribing', 'shaping'].includes(x.state));
+    if (!t) return;
+    recTaskTimer = setTimeout(() => {
+      recTask(); st.tickTasks();
+      dispatchEvent(new Event('nt:tasks'));
+      watchRecTask();
+    }, Math.max(0, (t.state === 'transcribing' ? t.shapeAt : t.readyAt) - Date.now()) + 50);
+  }
+  // 录音收起后，顶栏的录音条：计时、波形、标题（暂停时写「已暂停」），点「展开」回到录音页
+  const recBar = () => {
+    const r = NT.rec.mine();
+    if (!r || document.body.dataset.page === 'recording') return '';
+    return html`<div class="n-recbar nt-recbar${r.paused ? ' is-paused' : ''}" role="group" aria-label="录音"><span class="n-recbar__dot"></span><span class="n-recbar__time" id="nt-rectime">${NT.rec.fmt(NT.rec.elapsed(r))}</span><span class="n-wave" aria-hidden="true">${[0, 1, 2, 3, 4].map((i) => html`<i style="animation-delay:${i * 0.15}s"></i>`)}</span><span class="nt-recbar__t">${r.paused ? '已暂停' : r.title}</span><a class="n-btn n-btn--sm" href="recording.html" aria-label="展开录音">展开</a></div>`;
+  };
+
 
   // 页面入口：NT.shell({ nav, title, crumbs, render(main), view(), state(), restore(state) })
   NT.shell = (cfg) => NT.ready(() => {
+    const live = NT.rec.mine();
+    const ended = live && document.body.dataset.page !== 'recording' && NT.rec.overLimit(live) ? recAutoEnd(live) : '';
+    recTask();
     st.tickTasks();
+    watchRecTask();
     const role = st.role();
     // 系统管理员打开业务页面：标题和面包屑也不带出人名、项目名
     const blocked = role === 'admin' && cfg.nav !== 'admin';
@@ -85,6 +147,7 @@
       <div class="nt-main">
         <header class="nt-top">
           <nav class="nt-crumbs" aria-label="位置">${(blocked ? [] : cfg.crumbs || []).map(([t, h]) => html`<a href="${h}">${t}</a><span aria-hidden="true">/</span>`)}<b>${title}</b></nav>
+          ${blocked ? '' : recBar()}
           ${role === 'admin' ? html`<span style="margin-left:auto"></span>` : role === 'ceo' ? html`<button class="n-btn n-btn--ghost n-btn--icon" style="margin-left:auto" type="button" id="nt-cmdk-open" aria-label="搜人或项目（⌘K）" title="搜人或项目 · ⌘K">${icon('search')}</button>` : html`<button class="n-search nt-search" type="button" id="nt-cmdk-open">${icon('search')}<span>搜人、项目，或输入要做的事</span><kbd>⌘K</kbd></button>`}
           <span class="n-menuwrap"><button class="n-rolepick" type="button" id="nt-roles" aria-label="演示视角：${st.roles[role].label}，点击切换">${NT.ui.avatar(me.id, 'sm')}<small>演示视角</small>${st.roles[role].label}${icon('chev')}</button></span>
           <span class="n-menuwrap"><button class="n-btn n-btn--ghost n-btn--icon" type="button" id="nt-more" aria-label="更多">${icon('more')}</button></span>
@@ -107,6 +170,16 @@
       { label: '重置演示数据', icon: 'retry', danger: true, run: () => NT.resetDemo() },
     ]);
     if (role !== 'admin') wireCmdk(); // 系统管理员不能搜人
+    if (ended) NT.toast(ended, { duration: 6000 });
+    const rec = NT.$('#nt-rectime');
+    if (rec && !NT.rec.mine().paused) {
+      const timer = setInterval(() => {
+        const r = NT.rec.get();
+        if (!r) { clearInterval(timer); NT.$('.nt-recbar')?.remove(); return; }
+        if (NT.rec.overLimit(r)) { clearInterval(timer); NT.$('.nt-recbar')?.remove(); NT.toast(recAutoEnd(r), { duration: 6000 }); return; }
+        rec.textContent = NT.rec.fmt(NT.rec.elapsed(r));
+      }, 1000);
+    }
     NT.ui.mountIPs(root);
     // 窄屏时侧栏变成横向滚动条：当前页的入口滚到可见处，两侧有渐隐提示还能滚动
     if (matchMedia('(max-width: 860px)').matches) document.querySelector('.nt-side [aria-current="page"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -140,6 +213,7 @@
       role !== 'self' && ['做事', 'pen', '记一件事', '一句话或语音输入', 'record.html'],
       st.can('findOwner') && ['做事', 'spark', '为一个项目找人', '会先建项目和需求卡', 'staffing.html?new=1'],
       st.can('calibrate') && ['做事', 'layers', '发起一次盘点', '选团队和时间范围', 'reviews.html#new'],
+      ['hrbp', 'mentor'].includes(role) && ['做事', 'mic', '开始录音', '多人会议或观察速记', 'recording.html'],
       !['self', 'ceo'].includes(role) && ['做事', 'upload', '上传材料', 'Office 文件或录音', 'index.html#upload'],
       st.canOpenMinutes('w8') && ['做事', 'wave', '打开 W8 导师团复盘纪要', '会议纪要', 'record.html?m=w8', true],
     ].filter(Boolean);
