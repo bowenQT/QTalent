@@ -514,8 +514,6 @@
   // 刚录完的录音在后台整理：约定时间一到，任务变成「部分完成」，结果回到工作台
   store.tickTasks = () => {
     let changed = false;
-    // 桌面录音先转写再整理：转写的约定时间到了先进入整理中
-    S.tasks.forEach((t) => { if (t.shapeAt && t.state === 'transcribing' && Date.now() >= t.shapeAt) { t.state = 'shaping'; t.note = '转写完成，正在整理事件'; changed = true; } });
     S.tasks.forEach((t) => { if (t.readyAt && t.state === 'shaping' && Date.now() >= t.readyAt) { const mi = t.minutes && SEED.MINUTES[t.minutes]; t.state = 'partial'; t.note = mi ? `${mi.events.length} 条事件已整理，${S.inbox.filter((i) => i.src === mi.title && !i.done).length} 处待核对` : '整理完成'; changed = true; } });
     if (changed) store.save();
   };
