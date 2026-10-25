@@ -1383,6 +1383,7 @@
       const rules = S.rules[kind], i = rules.indexOf(d), j = live ? rules.indexOf(live) : -1;
       // 旧 Toast 不能撤销后续发布，也不能撤销已被盘点启动激活的排期。
       if (undone || i < 0 || (live && j < 0)
+        || rules.some((r) => r !== d && r.base === d.v && ['draft', 'pending', 'scheduled', 'live'].includes(r.state))
         || d.state !== (immediate ? 'live' : 'scheduled')
         || store.ruleLive(kind, line) !== (immediate ? d : live)
         || (live && live.state !== (immediate ? 'old' : 'live'))) return false;
