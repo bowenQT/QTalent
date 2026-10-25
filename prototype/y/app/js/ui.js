@@ -669,13 +669,34 @@
       <footer class="n-peek__foot"><a class="n-btn n-btn--sm n-btn--ink" href="${href}">打开${b ? '批次' : '项目'}</a></footer>`;
   };
   UI.peek = (() => {
-    let el = null, scrim = null, cur = null, from = null;
+    let el = null, scrim = null, cur = null, from = null, lastIn = null;
     const body = () => (cur.t === 'p' ? UI.peekPerson(cur.id) : UI.peekProject(cur.id));
     // 速览里的操作完成后：速览还开着就重绘，已经关了也照样刷新页面（撤销可能在关闭之后才点）
-    const after = () => { if (el) draw(); UI.peek.changed(); };
+    // 速览里的操作完成后重绘：焦点原来在抽屉里（或操作后落到 body），就回到重绘后对应的控件，找不到则落到抽屉本身，不掉到 body
+    const after = () => {
+      if (el) {
+        const a = document.activeElement;
+        const keep = !a || a === document.body || el.contains(a);
+        draw();
+        if (keep) (focusBack() || el).focus();
+      }
+      UI.peek.changed();
+    };
     const draw = () => {
       if (!el) return;
       NT.mount(el.querySelector('.n-peek__body'), body()); UI.mountIPs(el);
+    };
+    // 抽屉内控件的定位：优先按 data-follow / data-pk-reco，其余按在抽屉内可操作控件里的序号
+    const ctlSel = (n) => (n.dataset.follow ? `[data-follow="${n.dataset.follow}"]` : n.dataset.pkReco ? `[data-pk-reco="${n.dataset.pkReco}"]` : null);
+    const ctls = () => [...el.querySelectorAll('.n-peek__body button, .n-peek__body a[href], .n-peek__x')];
+    const mark = (n) => {
+      const c = n.closest('button, a[href]');
+      if (!c || !el.contains(c)) return null;
+      return { sel: ctlSel(c), i: ctls().indexOf(c) };
+    };
+    const focusBack = () => {
+      if (!lastIn) return null;
+      return (lastIn.sel && el.querySelector(lastIn.sel)) || ctls()[lastIn.i] || null;
     };
     // 找回焦点：同一个 data-peek 常有头像、人名、「查看依据」几个入口；跳过 aria-hidden / 不可见的，优先和原触发元素同类的
     const backTarget = (trigger) => {
@@ -683,28 +704,31 @@
         .filter((x) => !x.closest('[aria-hidden="true"]') && x.tabIndex >= 0 && x.getClientRects().length);
       return cands.find((x) => x.className === trigger.className) || cands[0];
     };
-    const close = () => {
+    // restore：Esc、关闭按钮、再点同一触发才把焦点还给触发元素；点抽屉外的控件关闭时，不抢走那个控件刚得到的焦点
+    const close = (restore = true) => {
       if (!el) return;
-      const node = el, sc = scrim; el = null; scrim = null; cur = null;
+      const node = el, sc = scrim; el = null; scrim = null; cur = null; lastIn = null;
       node.classList.remove('is-open');
       setTimeout(() => { node.remove(); sc?.remove(); }, NT.reduced ? 0 : 220);
       // 触发元素可能已随页面重绘被替换：按同一个 data-peek 找回来再还焦点
-      const back = from?.isConnected ? from : from?.dataset?.peek && backTarget(from);
-      back?.focus?.(); from = null;
+      const back = restore && (from?.isConnected ? from : from?.dataset?.peek && backTarget(from));
+      if (back) back.focus?.();
+      from = null;
     };
     const open = (key, trigger) => {
       const [t, id] = key.split(':');
       if (el && cur && cur.t === t && cur.id === id) { close(); return; }
-      cur = { t, id }; if (trigger) from = trigger;
+      cur = { t, id }; lastIn = null; if (trigger) from = trigger;
       if (!el) {
         el = document.createElement('aside');
         el.className = `n-peek ${mob() ? 'is-sheet' : ''}`;
         el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', mob() ? 'true' : 'false'); el.setAttribute('aria-labelledby', 'peek-h'); el.tabIndex = -1;
         el.innerHTML = `${mob() ? '<div class="n-sheet__grip"></div>' : ''}<button class="n-btn n-btn--ghost n-btn--icon n-peek__x" type="button" aria-label="关闭速览"><svg><use href="#i-x"/></svg></button><div class="n-peek__body"></div>`;
         const host = document.getElementById('m-screen') || document.body;
-        if (mob()) { scrim = document.createElement('div'); scrim.className = 'm-scrim'; scrim.addEventListener('click', close); host.append(scrim); }
+        if (mob()) { scrim = document.createElement('div'); scrim.className = 'm-scrim'; scrim.addEventListener('click', () => close()); host.append(scrim); }
         host.append(el);
         el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+        el.addEventListener('focusin', (e) => { lastIn = mark(e.target); });
         el.addEventListener('click', (e) => {
           if (e.target.closest('.n-peek__x')) { close(); return; }
           const f = e.target.closest('[data-follow]');
@@ -727,7 +751,7 @@
       }
       // 用事件派发时的原始路径判断里外：速览里的按钮点完会被重绘替换，不能再用 target 判断
       const inside = e.composedPath().some((n) => n.nodeType === 1 && n.matches('.n-peek, .n-menu, dialog, .n-toast, .n-cite__pop'));
-      if (el && !mob() && !inside) close();
+      if (el && !mob() && !inside) close(false);
     });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el && !document.querySelector('dialog[open]')) close(); });
     return { open, close, changed: () => {}, isOpen: () => !!el };
