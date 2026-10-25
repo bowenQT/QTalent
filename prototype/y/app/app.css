@@ -181,3 +181,73 @@ a.n-btn { text-decoration: none; }
       var(--sheet);
   }
 }
+
+/* 桌面录音：准备、录制中、处理中（组件 .n-recctl、.n-live 在 niu-components.css） */
+.nt-recprep { display: grid; gap: var(--s-5); max-width: 720px; margin: 0 auto; padding: var(--s-6) var(--s-8) var(--s-8); }
+.nt-recprep__head { display: flex; align-items: center; gap: var(--s-4); }
+.nt-recprep__head h1 { margin: 0; font-size: var(--t-xl); font-weight: 650; line-height: var(--lh-tight); }
+.nt-recprep__head p { margin: 6px 0 0; font-size: var(--t-body); color: var(--ink-2); }
+.nt-recmodes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
+.nt-recmodes .n-mode { grid-template-columns: 36px minmax(0, 1fr); min-height: 64px; cursor: pointer; }
+.nt-recmodes .n-mode:focus-visible { outline: none; box-shadow: var(--focus); }
+.nt-recprep__up { display: inline-flex; align-items: center; gap: 4px; margin-top: var(--s-3); }
+.nt-recopts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: var(--s-3); }
+.nt-recprep__start { min-height: 44px; padding-inline: var(--s-6); }
+.nt-recresume { max-width: 560px; margin: 0 auto; }
+.nt-recresume h1.n-state__title { font-size: var(--t-lg); }
+
+.nt-rec { display: grid; gap: var(--s-3); }
+.nt-rec .n-recctl { position: sticky; top: calc(var(--nt-top-h, 57px) + var(--s-2)); z-index: 30; box-shadow: var(--e-2); }
+.nt-rec__net { align-items: center; }
+.nt-rec__net > div { flex: 1; }
+.nt-rec__tries { font-size: var(--t-xs); color: var(--ink-2); white-space: nowrap; }
+.nt-rec__cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: var(--s-4); align-items: start; margin-top: var(--s-1); }
+.nt-rec__cols > * { min-width: 0; }
+.nt-rec__tools, .nt-rtool, .nt-rmarks, .nt-rpeople { grid-template-columns: minmax(0, 1fr); }
+.nt-rec__live { position: relative; }
+.nt-rec__live .n-section-title .n-badge { font-weight: 500; }
+.nt-rec__live .n-live { height: clamp(360px, calc(100vh - 330px), 680px); }
+.nt-rec__latest { position: absolute; left: 50%; bottom: var(--s-4); translate: -50% 0; box-shadow: var(--e-2); }
+.nt-rec__tools { display: grid; gap: var(--s-4); padding: var(--s-4) var(--s-5); }
+.nt-rtool { display: grid; gap: var(--s-2); }
+.nt-rtool + .nt-rtool { padding-top: var(--s-4); border-top: 1px dashed var(--line); }
+.nt-rtool__head { display: flex; align-items: center; gap: var(--s-2); }
+.nt-rtool__head h3 { margin: 0; font-size: var(--t-sm); font-weight: 650; }
+.nt-rtool__head .n-btn { margin-left: auto; }
+.nt-rtool__bar { display: flex; align-items: center; gap: var(--s-2); }
+.nt-rtool .n-textarea { min-height: 72px; }
+.nt-rmarks, .nt-rpeople { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: var(--t-sm); }
+.nt-rmarks button, .nt-rpeople button { display: flex; align-items: center; gap: var(--s-2); width: 100%; min-height: 36px; padding: 4px var(--s-2); border: 0; border-radius: var(--r-field); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.nt-rmarks button:hover, .nt-rpeople button:hover { background: var(--hover); }
+.nt-rmarks button:focus-visible, .nt-rpeople button:focus-visible { outline: none; box-shadow: var(--focus); }
+.nt-rmarks time { flex: none; font-size: var(--t-xs); font-weight: 600; color: var(--light); font-variant-numeric: tabular-nums; }
+.nt-rmarks span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.nt-rpeople { max-height: 200px; overflow-y: auto; }
+.nt-rpeople small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
+.nt-rmarks .nt-muted, .nt-rpeople .nt-muted { padding: 4px var(--s-2); }
+
+.nt-recproc { display: grid; gap: var(--s-4); max-width: 640px; margin: 0 auto; }
+.nt-recproc__head { display: flex; align-items: center; gap: var(--s-4); }
+.nt-recproc__head h1 { margin: 0; font-size: var(--t-xl); font-weight: 650; line-height: var(--lh-tight); }
+.nt-recproc__head p { margin: 6px 0 0; font-size: var(--t-sm); color: var(--ink-2); line-height: 1.6; }
+
+/* 收起后顶栏的录音条 */
+.nt-top .nt-recbar { margin-left: auto; padding: 4px 4px 4px 12px; gap: var(--s-2); box-shadow: none; font-size: var(--t-xs); }
+.nt-top .nt-recbar + .nt-search { margin-left: 0; }
+.nt-recbar .n-wave { height: 16px; }
+.nt-recbar__t { max-width: 12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .75; }
+.nt-recbar .n-btn { min-height: 26px; background: rgb(255 255 255 / .14); color: #fff; box-shadow: none; }
+.nt-recbar.is-paused .n-recbar__dot { animation: none; background: var(--ink-4); }
+.nt-recbar.is-paused .n-wave i { animation-play-state: paused; opacity: .35; }
+/* 工作台里的录音入口 */
+.nt-recstart { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); margin-bottom: var(--s-3); }
+
+@media (max-width: 1100px) {
+  .nt-rec__cols { grid-template-columns: 1fr; }
+  .nt-rec__live .n-live { height: 420px; }
+}
+@media (max-width: 860px) {
+  .nt-recprep { padding: var(--s-5); }
+  .nt-recmodes, .nt-recopts { grid-template-columns: 1fr; }
+  .n-recctl__acts { width: 100%; margin-left: 0; }
+}
