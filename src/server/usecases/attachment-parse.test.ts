@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { applyJobCommand, newJob, type JobRecord } from '../jobs/state';
 import type { JobStore } from '../jobs/service';
 import type {
@@ -48,22 +49,27 @@ function fixture() {
     ),
     context: { bundles: new Map(), enqueues: [] },
   };
+  let pending: Promise<unknown> = Promise.resolve();
   const store: JobStore<Context> = {
-    locked: async (_id, run) => {
-      const context = structuredClone(state.context);
-      let record = structuredClone(state.record);
-      const result = await run({
-        context,
-        record,
-        save: async (next) => {
-          record = next;
-        },
-        operation: async () => null,
-        saveOperation: async () => {},
+    locked: (_id, run) => {
+      const work = pending.then(async () => {
+        const context = structuredClone(state.context);
+        let record = structuredClone(state.record);
+        const result = await run({
+          context,
+          record,
+          save: async (next) => {
+            record = next;
+          },
+          operation: async () => null,
+          saveOperation: async () => {},
+        });
+        state.context = context;
+        state.record = record;
+        return result;
       });
-      state.context = context;
-      state.record = record;
-      return result;
+      pending = work.catch(() => undefined);
+      return work;
     },
   };
   const ports: AttachmentParsePorts<Context> = {
@@ -251,6 +257,32 @@ describe('attachment parse transaction pipeline', () => {
     ).toEqual({ status: 'ignored' });
     expect(f.state.context.enqueues).toHaveLength(1);
   });
+  it('only commits the latest claim when overlapping deliveries finish out of order', async () => {
+    const f = fixture();
+    let release: () => void = () => {};
+    let started: () => void = () => {};
+    const waiting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const opened = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    vi.mocked(f.ports.open).mockImplementationOnce(async () => {
+      started();
+      await waiting;
+      return (async function* () {
+        yield Buffer.from('第一段原文。\n\n第二段原文。');
+      })();
+    });
+    const first = runAttachmentParse(f.store, f.ports, payload, options);
+    await opened;
+    const second = await runAttachmentParse(f.store, f.ports, payload, options);
+    release();
+    expect(second).toEqual({ status: 'parsed' });
+    expect(await first).toEqual({ status: 'ignored' });
+    expect(f.state.context.bundles.size).toBe(1);
+    expect(f.state.context.enqueues).toHaveLength(1);
+  });
   it('will not take over a running media task in another processing stage', async () => {
     const f = fixture();
     f.state.record.status = 'running';
@@ -304,7 +336,7 @@ describe('attachment parse transaction pipeline', () => {
     const f = fixture();
     await expect(
       runAttachmentParse(f.store, f.ports, invalid, options),
-    ).rejects.toThrow();
+    ).rejects.toThrow(z.ZodError);
     expect(f.ports.loadAuthorizedAttachment).not.toHaveBeenCalled();
   });
 });

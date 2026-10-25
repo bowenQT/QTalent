@@ -1,20 +1,27 @@
 import type { SourceReference } from '../../../../contracts/sources';
-import type {
-  AttachmentParseOutcome,
-  ParsedAttachment,
-  ParseAttachmentInput,
-} from './types';
+import type { ParsedAttachment } from './types';
 export * from './types';
-export async function parseAttachment(
-  _input: ParseAttachmentInput,
-): Promise<AttachmentParseOutcome> {
-  throw new Error('not implemented');
-}
+export { parseAttachment, attachmentVersionSchema } from './parse';
 export function resolveAttachmentQuote(
-  _parsed: ParsedAttachment,
-  _fragmentId: string,
-  _quote: string,
-  _start: number,
+  parsed: ParsedAttachment,
+  fragmentId: string,
+  quote: string,
+  start: number,
 ): SourceReference | null {
-  throw new Error('not implemented');
+  if (!Number.isSafeInteger(start) || start < 0 || !/\S/.test(quote))
+    return null;
+  const fragment = parsed.fragments.find(
+    (fragment) => fragment.fragmentId === fragmentId,
+  );
+  if (
+    !fragment ||
+    fragment.originalVersionId !== parsed.originalVersionId ||
+    fragment.excerpt.slice(start, start + quote.length) !== quote
+  )
+    return null;
+  return {
+    fragmentId,
+    originalVersionId: fragment.originalVersionId,
+    location: { ...fragment.location },
+  };
 }

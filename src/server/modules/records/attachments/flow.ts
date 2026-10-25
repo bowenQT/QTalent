@@ -1,11 +1,50 @@
+import { z } from 'zod';
 import type { JobCommand } from '../../../../contracts/jobs';
-import type { UploadRequest } from '../../../../contracts/media';
+import {
+  uploadRequestSchema,
+  type UploadRequest,
+} from '../../../../contracts/media';
+import { sourceReadInputSchema } from '../../../../contracts/sources';
+import { attachmentVersionSchema } from './parse';
 import type {
   SourceReadInput,
   SourceReference,
 } from '../../../../contracts/sources';
 import type { JobRecord } from '../../../jobs/state';
 import type { AttachmentVersion, ParsedAttachment } from './types';
+
+const id = z.string().min(1).max(200).regex(/\S/);
+export const attachmentJobPayloadSchema = z.strictObject({
+  jobId: id,
+  attempt: z.number().int().positive(),
+});
+export const attachmentBindingSchema = z.strictObject({
+  purpose: z.literal('attachment'),
+  completedJobId: id,
+  accountId: id,
+  quotaScope: id,
+  target: uploadRequestSchema.shape.target,
+  version: attachmentVersionSchema,
+});
+export const attachmentJobResultSchema = z.strictObject({
+  stage: z.enum(['parsing', 'parsed', 'unsupported', 'failed', 'cancelled']),
+  mediaId: id,
+  source: sourceReadInputSchema.nullable(),
+  fragmentIds: z.array(id).refine((ids) => new Set(ids).size === ids.length),
+  failureReason: z
+    .enum([
+      'format',
+      'scanned',
+      'empty',
+      'invalid_content',
+      'integrity',
+      'resource_limit',
+      'dependency_unavailable',
+      'processing_failed',
+      'cancelled',
+    ])
+    .optional(),
+});
 
 export interface AttachmentBinding {
   purpose: 'attachment';
