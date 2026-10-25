@@ -339,13 +339,15 @@
     const list = st.ruleSugs().filter((s) => s.rule === kind);
     if (!list.length) return '';
     const STATE_S = { open: '待处理', adopted: '已纳入草稿', rejected: '不采纳' };
+    // 修订已提交或已排期时不能往里加依据，先撤回到草稿
+    const open = st.ruleOpen(kind), locked = open && open.state !== 'draft' ? open : null;
     return html`<article class="n-card" id="sugs"><h3 class="n-section-title">修订建议<span class="nt-muted" style="margin-left:auto;font-weight:400">建议只用于修订规则，分数保持原样</span></h3>
       <ul class="nt-list">${list.map((s) => html`<li style="padding:var(--s-3) 0;border-top:1px solid var(--line)">
         <div class="nt-row"><b style="font-size:var(--t-sm)">${st.dim(s.dim).name}锚点 ${s.level} 分</b><span class="nt-muted">${name(s.by)} · ${SRC[ROLE_OF(s.by)]} · ${NT.md(s.at)}</span><span class="n-badge" style="margin-left:auto">${STATE_S[s.state]}</span></div>
         <p style="margin:var(--s-1) 0 0;font-size:var(--t-sm)">「${s.text}」</p>
         ${s.ev && st.event(s.ev) ? html`<p class="nt-muted" style="margin:2px 0 0">例子：${st.event(s.ev).title} · ${NT.md(st.event(s.ev).date)}</p>` : ''}
         ${s.state === 'rejected' ? html`<p class="nt-muted" style="margin:2px 0 0">理由：${s.why}</p>` : ''}
-        ${s.state === 'open' && role === 'hrbp' ? html`<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" data-adopt="${s.id}">${icon('plus')}纳入草稿</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-reject="${s.id}">不采纳</button></div>` : ''}
+        ${s.state === 'open' && role === 'hrbp' ? html`<div class="nt-row" style="margin-top:var(--s-2)">${locked ? html`<span class="nt-muted">${locked.v} ${STATE[locked.state]}，撤回到草稿后才能纳入</span>` : html`<button class="n-btn n-btn--sm" type="button" data-adopt="${s.id}">${icon('plus')}纳入草稿</button>`}<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-reject="${s.id}">不采纳</button></div>` : ''}
       </li>`)}</ul></article>`;
   }
 
