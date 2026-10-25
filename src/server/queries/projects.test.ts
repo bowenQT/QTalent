@@ -147,6 +147,23 @@ it('successful page retains discriminated result', async () => {
   expect((await getProjectsPage()).status).toBe('ok');
 });
 
+// Read the pinned prototype prepared by `pnpm reference:prepare`, never the working tree:
+// prototype fixes after the pinned commit must not change or break this oracle.
+const manifest = JSON.parse(
+  readFileSync('tests/fixtures/prototype-manifest.json', 'utf8'),
+) as { files: { path: string; sha: string }[] };
+function pinnedPrototype(file: string): string {
+  const path = `prototype/y/app/js/${file}`;
+  const source = readFileSync(`.reference-cache/${path}`);
+  expect(
+    createHash('sha1')
+      .update(`blob ${source.length}\0`)
+      .update(source)
+      .digest('hex'),
+  ).toBe(manifest.files.find((entry) => entry.path === path)?.sha);
+  return source.toString();
+}
+
 // Execute the pinned prototype implementation as the oracle, not a copy of its counting rule.
 function prototypePickerCounts(
   role: 'ceo' | 'hrbp',
@@ -160,17 +177,13 @@ function prototypePickerCounts(
     },
     { codeGeneration: { strings: false, wasm: false } },
   );
-  runInContext(readFileSync('prototype/y/app/js/core.js', 'utf8'), vm, {
-    timeout: 1000,
-  });
+  runInContext(pinnedPrototype('core.js'), vm, { timeout: 1000 });
   runInContext(
     'window.NT.clone = value => JSON.parse(JSON.stringify(value)); window.NT.param = () => role;',
     vm,
   );
   for (const file of ['data-xe6.js', 'data.js'])
-    runInContext(readFileSync(`prototype/y/app/js/${file}`, 'utf8'), vm, {
-      timeout: 1000,
-    });
+    runInContext(pinnedPrototype(file), vm, { timeout: 1000 });
   // Use a pristine saved seed state, bypassing unrelated derived snapshot initialization.
   runInContext(
     `const seed = window.NT.SEED;
@@ -178,18 +191,7 @@ function prototypePickerCounts(
     globalThis.localStorage = { getItem: key => key === 'nty-demo' ? saved : role, setItem: () => {} };`,
     vm,
   );
-  const path = 'prototype/y/app/js/store.js';
-  const source = readFileSync(path);
-  const manifest = JSON.parse(
-    readFileSync('tests/fixtures/prototype-manifest.json', 'utf8'),
-  ) as { files: { path: string; sha: string }[] };
-  expect(
-    createHash('sha1')
-      .update(`blob ${source.length}\0`)
-      .update(source)
-      .digest('hex'),
-  ).toBe(manifest.files.find((file) => file.path === path)?.sha);
-  runInContext(source.toString(), vm, { timeout: 1000 });
+  runInContext(pinnedPrototype('store.js'), vm, { timeout: 1000 });
   return JSON.parse(
     runInContext(
       `JSON.stringify(window.NT.store.visiblePeople().filter(p => window.NT.store.scope(p.id) === 'full').map(p => ({id: p.id, count: window.NT.store.projectLoad(p.id).cur})))`,
