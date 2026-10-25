@@ -300,22 +300,28 @@ describe('BOW-858 media contracts', () => {
         source: { fragmentId: 'f', originalVersionId: 'other' },
       }).success,
     ).toBe(false);
-    const read = { fragmentId: 'f', originalVersionId: 'v' };
-    for (const range of [
-      undefined,
-      { start: 0 },
-      { start: 5, endInclusive: 5 },
-      { start: 5, endInclusive: 9 },
-    ])
-      expect(readOriginalSchema.safeParse({ ...read, range }).success).toBe(
-        true,
-      );
-    expect(
-      readOriginalSchema.safeParse({
-        ...read,
-        range: { start: 5, endInclusive: 4 },
-      }).success,
-    ).toBe(false);
+    for (const read of [
+      { fragmentId: 'f', originalVersionId: 'v' },
+      { originalId: 'o', originalVersionId: 'v' },
+    ]) {
+      for (const range of [
+        undefined,
+        { start: 0 },
+        { start: 5, endInclusive: 5 },
+        { start: 5, endInclusive: 9 },
+      ])
+        expect(readOriginalSchema.safeParse({ ...read, range }).success).toBe(
+          true,
+        );
+      for (const range of [
+        { start: 5, endInclusive: 4 },
+        { start: -1 },
+        { start: 0, unexpected: true },
+      ])
+        expect(readOriginalSchema.safeParse({ ...read, range }).success).toBe(
+          false,
+        );
+    }
     expect(
       recordingServerMessageSchema.safeParse({
         type: 'ready',
@@ -397,6 +403,37 @@ describe('BOW-858 media contracts', () => {
       uploadCompletedSchema.safeParse({ ...completed, source: undefined })
         .success,
     ).toBe(false);
+  });
+  it('constructs an original read from a completed upload with no source fragment', () => {
+    const completed = uploadCompletedSchema.parse({
+      uploadId: 'demo-upload',
+      recordCollectionId: 'demo-collection',
+      originalId: 'demo-original',
+      originalVersionId: 'demo-original-v1',
+      source: null,
+      jobId: 'demo-job',
+      revision: 1,
+    });
+    expect(
+      readOriginalSchema.safeParse({
+        originalId: completed.originalId,
+        originalVersionId: completed.originalVersionId,
+      }).success,
+    ).toBe(true);
+  });
+  it('rejects mixed, missing and unknown original read identities', () => {
+    for (const input of [
+      { originalVersionId: 'v' },
+      { originalId: 'o' },
+      { fragmentId: 'f' },
+      { originalId: 'o', fragmentId: 'f', originalVersionId: 'v' },
+      { originalId: '', originalVersionId: 'v' },
+      { fragmentId: '', originalVersionId: 'v' },
+      { originalId: 'o', originalVersionId: '   ' },
+      { originalId: 'o', originalVersionId: 'v', ownerId: 'caller' },
+      { fragmentId: 'f', originalVersionId: 'v', ownerId: 'caller' },
+    ])
+      expect(readOriginalSchema.safeParse(input).success).toBe(false);
   });
   it('does not accept scanned or failed parsing as empty success', () => {
     expect(

@@ -144,18 +144,24 @@ export const completeUploadResultSchema = z.discriminatedUnion('status', [
   }),
   failureSchema,
 ]);
-export const readOriginalSchema = sourceReadInputSchema.extend({
-  range: z
-    .strictObject({
-      start: z.number().int().nonnegative(),
-      endInclusive: z.number().int().nonnegative().optional(),
-    })
-    .refine(
-      (range) =>
-        range.endInclusive === undefined || range.endInclusive >= range.start,
-    )
-    .optional(),
-});
+const byteRangeSchema = z
+  .strictObject({
+    start: z.number().int().nonnegative(),
+    endInclusive: z.number().int().nonnegative().optional(),
+  })
+  .refine(
+    (range) =>
+      range.endInclusive === undefined || range.endInclusive >= range.start,
+  );
+// These are lookup identities only; BOW-873 validates ownership and full-content authorization.
+export const readOriginalSchema = z.union([
+  sourceReadInputSchema.extend({ range: byteRangeSchema.optional() }),
+  z.strictObject({
+    originalId: id,
+    originalVersionId: sourceReadInputSchema.shape.originalVersionId,
+    range: byteRangeSchema.optional(),
+  }),
+]);
 const fragmentSchema = sourceReferenceSchema.extend({ excerpt: text });
 const documentFragmentSchema = fragmentSchema.refine(
   (x) => x.location.kind === 'document',
@@ -402,6 +408,7 @@ export const recordingServerMessageSchema = z.discriminatedUnion('type', [
 ]);
 export type UploadRequest = z.infer<typeof uploadRequestSchema>;
 export type UploadGrant = z.infer<typeof uploadGrantSchema>;
+export type ReadOriginalInput = z.infer<typeof readOriginalSchema>;
 export type MediaRead = z.infer<typeof mediaReadSchema>;
 export type MediaJobSnapshot = z.infer<typeof mediaJobSnapshotSchema>;
 export type SpeakerItem = z.infer<typeof speakerItemSchema>;
