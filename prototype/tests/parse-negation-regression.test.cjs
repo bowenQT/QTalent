@@ -25,6 +25,9 @@ const negatives = [
   ['没有主动', '林知远没有主动提出方案。'],
   ['不够主动', '林知远不够主动提出方案。'],
   ['没能主动', '林知远没能主动提出方案。'],
+  ['不是主动', '林知远不是主动提出方案。'],
+  ['并非主动', '并非主动提出方案'],
+  ['没怎么主动', '林知远没怎么主动。'],
 ];
 
 for (const version of Object.keys(versions)) {
@@ -55,6 +58,18 @@ for (const version of Object.keys(versions)) {
     const result = motivation(version, '林知远没有主动探索，后来主动改进了方案。');
     assert.equal(result.v, 4);
     assert.equal(result.ai, 4);
+    assert.equal(result.st, 'ai');
+  });
+
+  test(`版本 ${version}：被否定的整理成文档不再把主动认领抬到 5 分`, () => {
+    const result = motivation(version, '没有整理成文档，但是主动认领了任务。');
+    assert.equal(result.v, 4);
+    assert.equal(result.st, 'ai');
+  });
+
+  test(`版本 ${version}：肯定的整理成文档仍抬高一档`, () => {
+    const result = motivation(version, '林知远主动认领了任务，还整理成文档。');
+    assert.equal(result.v, 5);
     assert.equal(result.st, 'ai');
   });
 }

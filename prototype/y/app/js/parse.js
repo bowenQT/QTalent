@@ -15,8 +15,14 @@
   ];
   const TAGS = [['方案对比', /方案|对比/], ['主动推进', /主动|认领/], ['任务拆解', /拆/], ['需求变更', /需求.{0,4}(改|变)/], ['线上故障', /故障/], ['跨团队协作', /协调|对齐|跨/],
     ['客户现场', /客户/], ['故障定位', /定位|排查/], ['导师带教', /带新人|熟悉|带教/], ['复盘习惯', /复盘/]];
-  // 否定说法（含「不太 / 不够 / 未能 / 没能」这类带修饰的否定）不当正向证据。
-  const NEG = /(没有?|没能|未能?|不(?:太|够|能)?|别)$/;
+  // 否定说法（含「不太 / 不够 / 未能 / 没能 / 不是 / 并非 / 没怎么」）不当正向证据。
+  const NEG = /(没有?|没能|未能?|不是|并非|没怎么|不(?:太|够|能)?|别)$/;
+  function negatedBefore(acts, index) {
+    return NEG.test(acts.slice(Math.max(0, index - 3), index));
+  }
+  function affirmed(acts, re) {
+    return [...acts.matchAll(new RegExp(re.source, 'g'))].some((m) => !negatedBefore(acts, m.index));
+  }
   const UNKNOWN_NOTE = { grit: '受挫后的反应待补充', mot: '主动还是被安排，待补充', wis: '判断与取舍待补充', prof: '具体做了什么、结果如何，待补充' };
 
   // 引用对齐到分句：从命中词所在分句的开头取到分句末尾，不以标点开头，也不在词中间截断；分句太长时两端标「…」
@@ -51,11 +57,11 @@
     const scores = [];
     RULES.forEach((r) => {
       const all = [...acts.matchAll(new RegExp(r.re.source, 'g'))];
-      const m = all.find((x) => !NEG.test(acts.slice(Math.max(0, x.index - 3), x.index)));
+      const m = all.find((x) => !negatedBefore(acts, x.index));
       if (m) {
         let v = r.v;
-        if (r.up && r.up.test(acts)) v += 1;
-        if (r.down && r.down.test(acts)) v = 2;
+        if (r.up && affirmed(acts, r.up)) v += 1;
+        if (r.down && affirmed(acts, r.down)) v = 2;
         scores.push({ p: pid, d: r.d, v, ai: v, st: 'ai', note: `锚点 ${v} · 引用「${snippet(text, m)}」` });
       } else if (all.length) {
         // 「没有主动推进」这类否定说法：不当正向证据，也不当反向证据，留给人判断
