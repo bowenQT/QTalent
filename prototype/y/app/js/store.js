@@ -550,6 +550,8 @@
   // 确认项目用人方案：冻结版本，写入成员与 owner，生成行动；组织调整方案里等这个人选的那一条随之填上
   store.slotRoles = (plan) => S.needs.find((n) => n.id === plan.need)?.roles || Object.keys(plan.slots).map((id) => ({ id, name: id === 'owner' ? '项目 owner' : id }));
   store.confirmStaffing = (plan, roles = store.slotRoles(plan)) => {
+    // 已冻结/被替代的版本不能再确认，避免重复写入成员历史。
+    if (plan.status === 'confirmed' || plan.status === 'superseded') return;
     const me = store.me().id, p = store.project(plan.project);
     S.plans.filter((x) => x.project === plan.project && x.status === 'confirmed' && x !== plan).forEach((x) => { x.status = 'superseded'; });
     Object.assign(plan, { status: 'confirmed', confirmedBy: me, confirmedAt: NT.TODAY });
