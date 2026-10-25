@@ -7,6 +7,7 @@ import {
   recordSaveInputSchema,
   recordSaveReceiptSchema,
   recordSaveResultSchema,
+  recordUndoReceiptSchema,
 } from './record';
 import {
   reviewCalibrationSchema,
@@ -104,7 +105,7 @@ describe('record evidence and actions', () => {
 
   const receipt = {
     saveId: 'demo-save',
-    eventId: 'demo-event',
+    events: [{ personId: 'demo-person', eventId: 'demo-event' }],
     revision: 1,
     confirmationIds: ['demo-confirmation'],
     reviewItemIds: ['demo-queue'],
@@ -112,6 +113,44 @@ describe('record evidence and actions', () => {
     savedAt: '2026-10-25T10:00:00Z',
     undoUntil: '2026-10-25T10:00:05Z',
   };
+
+  it('returns every person event in one save and undo batch', () => {
+    const events = [
+      { personId: 'demo-person', eventId: 'demo-event' },
+      { personId: 'demo-second', eventId: 'demo-second-event' },
+    ];
+    const batch = { ...receipt, events };
+    const saved = recordSaveReceiptSchema.parse(batch);
+    expect(saved.events).toEqual(events);
+    const undo = {
+      saveId: saved.saveId,
+      withdrawnEvents: saved.events,
+      withdrawnConfirmationIds: saved.confirmationIds,
+      withdrawnReviewItemIds: saved.reviewItemIds,
+      originalInput: recordDraftFixture.originalInput,
+    };
+    const withdrawn = recordUndoReceiptSchema.parse(undo);
+    expect(withdrawn.saveId).toBe(saved.saveId);
+    expect(withdrawn.withdrawnEvents).toEqual(events);
+    const empty = { ...batch, events: [] };
+    expect(recordSaveReceiptSchema.safeParse(empty).success).toBe(false);
+    const duplicatePerson = {
+      ...batch,
+      events: [events[0], { ...events[1], personId: events[0].personId }],
+    };
+    const duplicateEvent = {
+      ...batch,
+      events: [events[0], { ...events[1], eventId: events[0].eventId }],
+    };
+    const invalidPerson = recordSaveReceiptSchema.safeParse(duplicatePerson);
+    const invalidEvent = recordSaveReceiptSchema.safeParse(duplicateEvent);
+    expect(invalidPerson.success).toBe(false);
+    expect(invalidEvent.success).toBe(false);
+    const oldShape = { ...undo, withdrawnEventId: 'demo-event' };
+    expect(recordUndoReceiptSchema.safeParse(oldShape).success).toBe(false);
+    const partialShape = { ...undo, withdrawnEvents: [] };
+    expect(recordUndoReceiptSchema.safeParse(partialShape).success).toBe(false);
+  });
 
   it('defines five seconds and typed outcomes', () => {
     expect(recordSaveReceiptSchema.safeParse(receipt).success).toBe(true);
