@@ -1,3 +1,5 @@
+import { isEnumKey } from './enum';
+
 /** Capability quadrant: professional level x potential, nothing finer than 2x2. */
 export const quadrants = ['hh', 'hl', 'lh', 'll'] as const;
 export type Quadrant = (typeof quadrants)[number];
@@ -17,9 +19,9 @@ export type MiniQuadReference =
   /** Not enough material: no dot is drawn, never the lower-left corner. */
   | { state: 'insufficient' };
 
-function assertQuadrant(quadrant: string) {
-  if (!Object.hasOwn(quadrantNames, quadrant))
-    throw new Error(`Unknown quadrant: ${quadrant}`);
+function assertQuadrant(quadrant: unknown) {
+  if (!isEnumKey(quadrantNames, quadrant))
+    throw new Error(`Unknown quadrant: ${String(quadrant)}`);
 }
 
 /**

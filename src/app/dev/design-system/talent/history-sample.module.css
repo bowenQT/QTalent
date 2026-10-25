@@ -1,0 +1,35 @@
+/*
+ * Page-level rules of the design-system page's revision-history sample, ported from
+ * prototype/y/design-system.html (.ds-hist-card). They decide by card width, not by
+ * viewport, so the sample stays readable when its card is narrow.
+ */
+.card {
+  container-type: inline-size;
+  padding: var(--s-4) var(--s-5);
+}
+
+.title {
+  font-size: var(--t-sm);
+}
+
+.caption {
+  margin: var(--s-1) 0 var(--s-3);
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+@container (max-width: 340px) {
+  .card :global(.n-score) {
+    grid-template-columns: 5.5em auto;
+  }
+
+  .card :global(.n-score .n-score__note) {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+  }
+
+  .card :global(.n-score + .n-history) {
+    margin-left: 0;
+  }
+}
