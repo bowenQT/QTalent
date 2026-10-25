@@ -158,7 +158,15 @@
     }
 
     a.state = s; a.stateAt = NT.TODAY; a.stateTs = Date.now(); if (s === 'done' && !a.did) a.did = NT.TODAY; // stateAt：关注动态里的行动状态变化（v1.5 3.26.2）
+    // 不持久化的操作标记：新一次状态修改会让旧 Toast 的撤销失效。
+    const undoKey = Symbol.for('qtalent.action-state-undo'), revision = {};
+    a[undoKey] = revision;
     st.save(); render($('#main'));
-    NT.toast(`已改为「${LABEL[s]}」`, { undo: () => { Object.assign(a, prev); if (!hadWhy) delete a.why; st.save(); render($('#main')); } });
+    NT.toast(`已改为「${LABEL[s]}」`, { undo: () => {
+      if (a[undoKey] !== revision) return;
+      delete a[undoKey];
+      Object.assign(a, prev); if (!hadWhy) delete a.why;
+      st.save(); render($('#main'));
+    } });
   }
 })();
