@@ -5,7 +5,7 @@
 ## 适用阶段与唯一入口
 
 - 本文是协作流程的维护源；AGENTS 只保留入口，模板提供填写结构，调研报告解释依据。规则变化在此更新，并同步链接和模板，不复制到其他指令文件。
-- 远端为 [bowenQT/QTalent](https://github.com/bowenQT/QTalent)，私有，默认分支 `main`。使用 GitHub issue / PR 跟踪新工作；按 Linear 任务卡推进的工作由 Linear 管规划、GitHub issue 管开发，两边状态保持一致（见 Issue 一节）；不为既有本地历史补造编号或审批，不另建一套本地任务台账。
+- 远端为 [bowenQT/QTalent](https://github.com/bowenQT/QTalent)，默认分支 `main`；当前可见性与分支保护见文末回读记录。使用 GitHub issue / PR 跟踪新工作；按 Linear 任务卡推进的工作由 Linear 管规划、GitHub issue 管开发，两边状态保持一致（见 Issue 一节）；不为既有本地历史补造编号或审批，不另建一套本地任务台账。
 - 新提交采用下方格式，已发布历史不重写。UI/UX 已定稿，项目处于第 3 阶段工程基建（见 [AGENTS.md](AGENTS.md#当前阶段)）。
 - 仓库设置以文末回读记录为准。CI 由工程基础建立，复用工程的检查脚本；不安装提交格式 hook 或 commitlint。文字规范、模板和工具配置不能代替平台强制门禁。
 
@@ -83,6 +83,16 @@ fix(prototype): 保留取消弹窗前的输入
 
 ## 远端配置与复核
 
+2026-10-26（Asia/Singapore）按仓库负责人要求配置并回读：
+
+- 当前仓库为公开仓库，默认分支 `main`；负责人具有 admin 权限，另有两位 write 权限协作者。本次只设置 `main` 的分支保护，未调整可见性和成员权限。
+- [`main` 分支保护](https://github.com/bowenQT/QTalent/settings/branches)已生效：必须通过 PR 合入，至少 1 位非作者批准；内容变化后旧批准失效；所有审查讨论必须处理完毕。
+- 管理员也受上述保护约束，未配置 PR 绕过名单。禁止强推、删除 `main`，要求线性历史；仓库仍只允许 Squash 合并。
+- [`foundation` 工作流](.github/workflows/foundation.yml)已有实际运行，但对仅涉及 `prototype/**`、`review-site/**`、`docs/**` 或根目录 `*.md` 的改动会整体跳过。因此本次未设置 required status checks，避免这些 PR 永久等待未生成的检查。工程改动合并前仍须人工核对适用 CI 的当前 head 结果；本次没有把 CI 失败自动阻止合并。
+- 若后续需要平台强制 CI，先让所有 PR 都能产生明确结论，并区分「不适用」与「测试通过」，验证后再添加必需检查；不把整个工作流可能被路径过滤跳过的 `checks` 直接设为必过。
+
+### 初始化记录（历史）
+
 2026-10-23（Asia/Singapore）初始化并回读 [bowenQT/QTalent](https://github.com/bowenQT/QTalent)：
 
 - 已启用：私有仓库、`origin`、默认分支 `main`、Issues、上文六个标签；未添加其他协作者。
@@ -92,7 +102,7 @@ fix(prototype): 保留取消弹窗前的输入
 - 正式工程、CI、required checks 与发布尚未建立；建仓不自动触发这些工作。
 - 原型评审站：`review-site/` 以 Cloudflare Worker + D1 部署到 workers.dev，由 Cloudflare Access 限定 `@qiniu.com` 登录，Worker 二次校验凭证。部署与读取评论的命令见 [review-site/README.md](review-site/README.md)；部署须经仓库负责人授权，Access 应用由其在 Zero Trust 中创建。
 
-后续维护：
+### 后续维护
 
 1. 所有权、可见性或成员权限变化须有明确授权；继续检查拟推送文件与历史，禁止原始资料、设计参考、凭证或 AI 署名进入提交及 PR。
 2. 套餐或权限变化后重新核对分支保护能力；可用时保护 `main`，要求 PR、禁止强推和删除、要求讨论处理完毕。单维护者批准数为 0；有第二位可参与的维护者后至少 1 个非作者批准，并使内容变化后的旧批准失效。不用 Agent 账号假扮第二人。
