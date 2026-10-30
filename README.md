@@ -1,5 +1,28 @@
 # Niu-Talent
 
+[![foundation](https://github.com/bowenQT/QTalent/actions/workflows/foundation.yml/badge.svg?branch=main)](https://github.com/bowenQT/QTalent/actions/workflows/foundation.yml)
+[![codecov](https://codecov.io/gh/bowenQT/QTalent/branch/main/graph/badge.svg)](https://app.codecov.io/gh/bowenQT/QTalent)
+[![coverage gate](https://img.shields.io/badge/coverage%20gate-%E2%89%A5%2085%25%20lines%20%26%20branches-blue)](docs/engineering.md#测试原则与-85-覆盖率基线)
+[![online prototype](https://img.shields.io/website?url=https%3A%2F%2Fqtalent-review.aidoudoulong123.workers.dev%2F&label=online%20prototype)](https://qtalent-review.aidoudoulong123.workers.dev/)
+[![last commit](https://img.shields.io/github/last-commit/bowenQT/QTalent/main)](https://github.com/bowenQT/QTalent/commits/main)
+
+[![Node.js](https://img.shields.io/badge/Node.js-24%20LTS-5FA04E?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![pnpm](https://img.shields.io/badge/pnpm-11-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
+[![TypeScript](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/dev/typescript?logo=typescript&logoColor=white&label=TypeScript&color=3178C6)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/next?logo=nextdotjs&label=Next.js&color=000000)](https://nextjs.org/)
+[![React](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/react?logo=react&logoColor=black&label=React&color=61DAFB)](https://react.dev/)
+[![Tailwind CSS](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/tailwindcss?logo=tailwindcss&logoColor=white&label=Tailwind%20CSS&color=06B6D4)](https://tailwindcss.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Drizzle ORM](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/drizzle-orm?logo=drizzle&logoColor=black&label=Drizzle%20ORM&color=C5F74F)](https://orm.drizzle.team/)
+[![Better Auth](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/better-auth?logo=betterauth&logoColor=white&label=Better%20Auth&color=000000)](https://www.better-auth.com/)
+[![Zod](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/zod?logo=zod&logoColor=white&label=Zod&color=3E67B1)](https://zod.dev/)
+
+[![Vitest](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/dev/vitest?logo=vitest&logoColor=white&label=Vitest&color=6E9F18)](https://vitest.dev/)
+[![Playwright](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/dev/@playwright/test?logo=playwright&logoColor=white&label=Playwright&color=2EAD33)](https://playwright.dev/)
+[![ESLint](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/dev/eslint?logo=eslint&logoColor=white&label=ESLint&color=4B32C3)](https://eslint.org/)
+[![Prettier](https://img.shields.io/github/package-json/dependency-version/bowenQT/QTalent/dev/prettier?logo=prettier&logoColor=black&label=Prettier&color=F7B93E)](https://prettier.io/)
+[![Cloudflare Workers](https://img.shields.io/badge/review%20site-Cloudflare%20Workers%20%2B%20D1-F38020?logo=cloudflareworkers&logoColor=white)](review-site/README.md)
+
 七牛云内部的 AI 原生人才工作台，帮公司做好三件事：**找得到人**（人才搜索）、**看得清人**（人才档案）、**评得准人**（人才评价体系的建立与迭代）。AI 负责整理证据、起草判断，正式结论由有权限的人确认，每一条都能回到来源。
 
 | | |

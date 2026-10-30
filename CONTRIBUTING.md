@@ -90,6 +90,7 @@ fix(prototype): 保留取消弹窗前的输入
 - **分支保护未启用，当前为人工检查、无平台强制。** 规则集读取和 `main` 分支保护设置均被 GitHub 以 HTTP 403 拒绝，要求升级套餐或公开仓库；本仓库保持私有，不升级套餐。仍按上述 PR、审查和合并规则工作，由仓库负责人或其明确授权的 Agent 执行。
 - `.github/` 模板已随默认分支推送；模板文件存在不代表表单必填或审批已经受平台强制。使用时核对实际页面和信息完整性。
 - 正式工程、CI、required checks 与发布尚未建立；建仓不自动触发这些工作。
+- 覆盖率展示：`foundation` 在 `pnpm check` 通过后用 GitHub OIDC 向 Codecov 上传 `coverage/lcov.info`，仓库不保存上传令牌；Codecov GitHub App 由仓库负责人安装。门槛只在 `vitest.config.ts` 维护，`codecov.yml` 让 Codecov 的状态检查仅作提示、不发 PR 评论，不加入 required checks。
 - 原型评审站：`review-site/` 以 Cloudflare Worker + D1 部署到 workers.dev，由 Cloudflare Access 限定 `@qiniu.com` 登录，Worker 二次校验凭证。部署与读取评论的命令见 [review-site/README.md](review-site/README.md)；部署须经仓库负责人授权，Access 应用由其在 Zero Trust 中创建。
 
 后续维护：
