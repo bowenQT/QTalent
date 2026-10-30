@@ -28,6 +28,8 @@
   let picking = false;
   let applying = false;
   let postingComment = false;
+  let commentGen = 0;
+  let commentAbort = null;
   const postingReplies = new Set();
 
   // ---------- 小工具 ----------
@@ -96,11 +98,12 @@
     for (const [k, v] of rest) out[k] = [...String(v)].slice(0, 800).join('');
     return out;
   }
-  async function api(method, url, body) {
+  async function api(method, url, body, signal) {
     const r = await fetch(url, {
       method, credentials: 'same-origin',
       headers: body ? { 'Content-Type': 'application/json' } : {},
       body: body ? JSON.stringify(body) : undefined,
+      signal,
     });
     let data = {};
     try { data = await r.json(); } catch (e) { /* 非 JSON 响应 */ }
@@ -253,6 +256,16 @@
     return wrap;
   }
 
+  function cancelCompose() {
+    commentGen += 1;
+    if (commentAbort) commentAbort.abort();
+    commentAbort = null;
+    pending = null;
+    commentDraft = '';
+    postingComment = false;
+    clearPendingMark();
+    renderPanel();
+  }
   function composer() {
     const box = h('div', { class: 'rv-compose' });
     const ta = h('textarea', { rows: '3', placeholder: '写下你的意见。⌘/Ctrl + Enter 发表', 'aria-label': '评论内容' });
@@ -260,17 +273,24 @@
     ta.addEventListener('input', () => { commentDraft = ta.value; });
     const err = h('p', { class: 'rv-err', hidden: true });
     const send = h('button', { class: 'rv-btn is-primary', type: 'button', disabled: postingComment }, postingComment ? '发表中…' : '发表评论');
-    const cancel = h('button', { class: 'rv-btn', type: 'button', onclick: () => { pending = null; commentDraft = ''; clearPendingMark(); renderPanel(); } }, '取消');
+    const cancel = h('button', { class: 'rv-btn', type: 'button', onclick: cancelCompose }, '取消');
     const submit = async () => {
       if (postingComment) return;
       const text = ta.value.trim();
       if (!text) { err.hidden = false; err.textContent = '先写点内容再发表。'; ta.focus(); return; }
+      const gen = ++commentGen;
       const page = pageKey();
       const payload = { ...pending, body: text, page, context: context() };
+      const ac = typeof AbortController === 'function' ? new AbortController() : { signal: undefined, abort() {} };
+      commentAbort = ac;
       postingComment = true;
       send.disabled = true; send.textContent = '发表中…'; err.hidden = true;
       try {
-        const { comment: c } = await api('POST', '/api/comments', payload);
+        const { comment: c } = await api('POST', '/api/comments', payload, ac.signal);
+        if (gen !== commentGen) {
+          api('DELETE', `/api/comments/${c.id}`).catch(() => {});
+          return;
+        }
         if (pageKey() !== page) return;
         threads.push(c);
         pending = null; commentDraft = ''; clearPendingMark();
@@ -278,10 +298,13 @@
         refresh();
         toast('评论已发表');
       } catch (e) {
+        if (gen !== commentGen || e.name === 'AbortError') return;
         err.hidden = false; err.textContent = `没有发表成功：${e.message}。内容还在，可以再试一次。`;
         send.disabled = false; send.textContent = '发表评论';
       } finally {
+        if (gen !== commentGen) return;
         postingComment = false;
+        if (commentAbort === ac) commentAbort = null;
         const current = panel.querySelector('.rv-compose .is-primary');
         if (current) { current.disabled = false; current.textContent = '发表评论'; }
       }
