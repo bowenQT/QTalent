@@ -5,7 +5,7 @@
 ## 适用阶段与唯一入口
 
 - 本文是协作流程的维护源；AGENTS 只保留入口，模板提供填写结构，调研报告解释依据。规则变化在此更新，并同步链接和模板，不复制到其他指令文件。
-- 远端为 [bowenQT/QTalent](https://github.com/bowenQT/QTalent)，私有，默认分支 `main`。使用 GitHub issue / PR 跟踪新工作；按 Linear 任务卡推进的工作由 Linear 管规划、GitHub issue 管开发，两边状态保持一致（见 Issue 一节）；不为既有本地历史补造编号或审批，不另建一套本地任务台账。
+- 远端为 [bowenQT/QTalent](https://github.com/bowenQT/QTalent)，公开，默认分支 `main`，只有仓库所有者能合并（见[远端配置与复核](#远端配置与复核)）。使用 GitHub issue / PR 跟踪新工作；按 Linear 任务卡推进的工作由 Linear 管规划、GitHub issue 管开发，两边状态保持一致（见 Issue 一节）；不为既有本地历史补造编号或审批，不另建一套本地任务台账。
 - 新提交采用下方格式，已发布历史不重写。UI/UX 已定稿，项目处于第 3 阶段工程基建（见 [AGENTS.md](AGENTS.md#当前阶段)）。
 - 仓库设置以文末回读记录为准。CI 由工程基础建立，复用工程的检查脚本；不安装提交格式 hook 或 commitlint。文字规范、模板和工具配置不能代替平台强制门禁。
 
