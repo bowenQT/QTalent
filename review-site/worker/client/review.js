@@ -90,7 +90,11 @@
   const transient = () => [...new URLSearchParams(location.search).entries()].filter((e) => !isKeyParam(e) && e[0] !== 'as' && !e[0].startsWith('rv'));
   function droppedParams() {
     const rest = transient();
-    return rest.length ? new URLSearchParams(rest).toString().slice(0, 300) : undefined;
+    if (!rest.length) return undefined;
+    // 存解码后的原文。按百分号编码再截断会切在半个 %XX 上，中文参数会丢尾巴
+    const out = {};
+    for (const [k, v] of rest) out[k] = [...String(v)].slice(0, 800).join('');
+    return out;
   }
   async function api(method, url, body) {
     const r = await fetch(url, {
