@@ -1394,14 +1394,30 @@
   store.confirmDraft = (kind, line) => {
     const d = store.ruleOpen(kind, line); if (!d || !isCeo() || d.state !== 'pending' || store.lockBlocks(d, kind)) return null;
     const live = store.ruleLive(kind, line), snap = NT.clone({ d, live }), holds = S.reviewHolds.length;
+    const immediate = d.effect === 'now';
     Object.assign(d, { confirmedBy: store.me().id, confirmedAt: NT.TODAY });
-    if (d.effect === 'now') activate(kind, d); else d.state = 'scheduled';
+    if (immediate) activate(kind, d); else d.state = 'scheduled';
+    // 只撤销本次发布新增的复核暂停，不能截断之后其他规则产生的暂停。
+    const addedHolds = S.reviewHolds.slice(holds);
     store.save();
+    let undone = false;
     return () => {
-      const i = S.rules[kind].indexOf(d); S.rules[kind][i] = snap.d;
-      if (live) S.rules[kind][S.rules[kind].indexOf(live)] = snap.live;
-      S.reviewHolds.length = holds;
+      const rules = S.rules[kind], i = rules.indexOf(d), j = live ? rules.indexOf(live) : -1;
+      // 旧 Toast 不能撤销后续发布，也不能撤销已被盘点启动激活的排期。
+      if (undone || i < 0 || (live && j < 0)
+        || rules.some((r) => r !== d && r.base === d.v && ['draft', 'pending', 'scheduled', 'live'].includes(r.state))
+        || d.state !== (immediate ? 'live' : 'scheduled')
+        || store.ruleLive(kind, line) !== (immediate ? d : live)
+        || (live && live.state !== (immediate ? 'old' : 'live'))) return false;
+      rules[i] = snap.d;
+      if (live) rules[j] = snap.live;
+      addedHolds.forEach((h) => {
+        const n = S.reviewHolds.indexOf(h);
+        if (n >= 0) S.reviewHolds.splice(n, 1);
+      });
+      undone = true;
       store.save();
+      return true;
     };
   };
   // 生效：替代旧版本；不兼容的维度与锚点版本为受影响的旧分建立复核暂停
