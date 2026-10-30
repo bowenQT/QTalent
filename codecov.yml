@@ -1,0 +1,11 @@
+# 覆盖率门槛只在 vitest.config.ts 维护（行与分支各 ≥ 85%），由 CI 的 pnpm check 执行。
+# Codecov 只展示覆盖率与趋势：状态检查仅作提示、不拦截合并，也不在 PR 里发评论。
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+comment: false

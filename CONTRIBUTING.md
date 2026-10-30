@@ -88,6 +88,7 @@ fix(prototype): 保留取消弹窗前的输入
 - 仓库已改为公开，协作者 yiyih7077-cell、Joanrecruiting 为 write 权限；合并设置不变（只启用 Squash、合并后删除任务分支、自动合并关闭）。
 - `main` 不再使用经典分支保护，也不要求 PR 批准。改用规则集「main：只有仓库所有者能合并」：作用于默认分支，禁止更新、删除和强推，只有仓库管理员（所有者）可以绕过。其他协作者能开 PR、评论，但不能合并或推送 `main`；所有者合并时需显式绕过（命令行为 `gh pr merge --squash --admin`）。
 - required checks 仍未设置；`foundation` 对只改原型、评审站、文档的提交不触发（见[工程规范](docs/engineering.md#自动检查口径)）。
+- 覆盖率展示：Codecov GitHub App 已由仓库所有者安装。`foundation` 在 `pnpm check` 通过后用 GitHub OIDC 向 Codecov 上传 `coverage/lcov.info`，仓库不保存上传令牌。门槛只在 `vitest.config.ts` 维护，`codecov.yml` 让 Codecov 的状态检查仅作提示、不发 PR 评论，不加入 required checks。
 
 以下为 2026-10-23 的初始化记录，与上文冲突处以上文为准。
 
