@@ -36,7 +36,8 @@ export interface TalentSourceReference {
 export type TalentSourceLocation =
   | { kind: 'document'; page?: number; paragraph: string }
   | { kind: 'spreadsheet'; sheet: string; cell: string }
-  | { kind: 'recording'; startMs: number; endMs: number };
+  | { kind: 'recording'; startMs: number; endMs: number }
+  | { kind: 'snapshot_field'; fieldPath: string; originalLocation?: string };
 export interface TalentSource extends TalentSourceReference {
   /** Complete server-resolved subjects, including every event sharing a fragment. */
   subjects: TalentSubject[];
@@ -174,6 +175,19 @@ function findSource(
 function visibleSource(source: TalentSource): VisibleTalentSource {
   // Reconstruct, rather than forwarding a raw original or relation metadata.
   const location = source.location;
+  if (location.kind === 'snapshot_field')
+    return {
+      fragmentId: source.fragmentId,
+      originalVersionId: source.originalVersionId,
+      excerpt: source.excerpt,
+      location: {
+        kind: 'snapshot_field',
+        fieldPath: location.fieldPath,
+        ...(location.originalLocation === undefined
+          ? {}
+          : { originalLocation: location.originalLocation }),
+      },
+    };
   const safeLocation: TalentSourceLocation =
     location.kind === 'document'
       ? {

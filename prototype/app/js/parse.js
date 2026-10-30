@@ -15,8 +15,44 @@
   ];
   const TAGS = [['方案对比', /方案|对比/], ['主动推进', /主动|认领/], ['任务拆解', /拆/], ['需求变更', /需求.{0,4}(改|变)/], ['线上故障', /故障/], ['跨团队协作', /协调|对齐|跨/],
     ['客户现场', /客户/], ['故障定位', /定位|排查/], ['导师带教', /带新人|熟悉|带教/], ['复盘习惯', /复盘/]];
-  // 否定说法（含「不太 / 不够 / 未能 / 没能」这类带修饰的否定）不当正向证据。
-  const NEG = /(没有?|没能|未能?|不(?:太|够|能)?|别)$/;
+  // 否定只盖住紧挨着的那个说法，不把同一句里另外的行为一起抹掉。
+  // 「特别」里的「别」不算否定。「但 / 不过 / 而 / 又」后面的说法另算。
+  // 「方案 / 故障」这种词只有在同一句里没有别的正向行为时，才跟着被否定的说法一起不出分。
+  const NEG_TAIL = /(?:没有?|没能|未能?|并非|不|别)(?:太|够|能|会|是|必|算|怎么|很)*$/;
+  const CLAUSE_SEPS = ['，', '。', '；', '！', '？', '、', '\n', ',', ';', '但是', '不过', '然而', '可是', '但'];
+  const RESTART = /[而又还并但只才再后的]/;
+  const WEAK_WORD = new Set(['方案', '故障', '口径']);
+  function clauseFrom(text, index) {
+    let from = 0;
+    for (const sep of CLAUSE_SEPS) {
+      const i = text.lastIndexOf(sep, index - sep.length);
+      if (i >= 0 && i + sep.length > from) from = i + sep.length;
+    }
+    return from;
+  }
+  function rawNegated(text, index) {
+    const tail = text.slice(clauseFrom(text, index), index).slice(-8);
+    const m = tail.match(NEG_TAIL);
+    if (!m) return false;
+    return !(m[0].startsWith('别') && text[index - m[0].length - 1] === '特');
+  }
+  // 被否定的词再往后只带紧挨着的下一个词，例如「没有独立定位」。中间有「而 / 又 / 的」就断开。
+  function boundNegatives(text, matches) {
+    const flags = matches.map((m) => rawNegated(text, m.index));
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let i = 0; i < matches.length; i++) {
+        if (flags[i]) continue;
+        for (let j = 0; j < i; j++) {
+          if (!flags[j] || clauseFrom(text, matches[j].index) !== clauseFrom(text, matches[i].index)) continue;
+          const gap = text.slice(matches[j].index + matches[j][0].length, matches[i].index);
+          if (gap.length <= 2 && !RESTART.test(gap)) { flags[i] = true; changed = true; }
+        }
+      }
+    }
+    return flags;
+  }
   const UNKNOWN_NOTE = { grit: '原话没写受挫后的反应', mot: '没写是主动还是被安排', wis: '原话里没有判断与取舍', prof: '没写具体做了什么、结果如何' };
 
   function snippet(text, m) {
@@ -38,12 +74,29 @@
     const scores = [];
     RULES.forEach((r) => {
       const all = [...acts.matchAll(new RegExp(r.re.source, 'g'))];
-      const m = all.find((x) => !NEG.test(acts.slice(Math.max(0, x.index - 3), x.index)));
-      if (m) {
+      const downs = r.down ? [...acts.matchAll(new RegExp(r.down.source, 'g'))] : [];
+      const ups = r.up ? [...acts.matchAll(new RegExp(r.up.source, 'g'))] : [];
+      const baseNeg = boundNegatives(acts, all);
+      const downNeg = downs.map((x) => rawNegated(acts, x.index));
+      const upNeg = boundNegatives(acts, ups);
+      const weakOff = all.map((x, i) => {
+        if (baseNeg[i] || !WEAK_WORD.has(x[0])) return false;
+        const start = clauseFrom(acts, x.index);
+        const positiveVerb = all.some((o, j) => !baseNeg[j] && !WEAK_WORD.has(o[0]) && clauseFrom(acts, o.index) === start);
+        const affirmedDown = downs.some((o, j) => !downNeg[j] && clauseFrom(acts, o.index) === start);
+        const negatedNear = baseNeg.some((f, j) => f && clauseFrom(acts, all[j].index) === start)
+          || downNeg.some((f, j) => f && clauseFrom(acts, downs[j].index) === start);
+        return negatedNear && !positiveVerb && !affirmedDown;
+      });
+      const m = all.find((x, i) => !baseNeg[i] && !weakOff[i]);
+      const downLive = downs.find((x, i) => !downNeg[i]);
+      const upHit = upNeg.some((f) => !f);
+      if (m || (downLive && all.length)) {
         let v = r.v;
-        if (r.up && r.up.test(acts)) v += 1;
-        if (r.down && r.down.test(acts)) v = 2;
-        scores.push({ p: pid, d: r.d, v, ai: v, st: 'ai', note: `锚点 ${v} · 引用「${snippet(text, m)}」` });
+        if (upHit) v += 1;
+        if (downLive) v = 2;
+        const quote = m || downLive;
+        scores.push({ p: pid, d: r.d, v, ai: v, st: 'ai', note: `锚点 ${v} · 引用「${snippet(text, quote)}」` });
       } else if (all.length) {
         // 「没有主动推进」这类否定说法：不当正向证据，也不当反向证据，留给人判断
         scores.push({ p: pid, d: r.d, v: null, st: 'unknown', note: '原话是否定说法，不据此出分' });

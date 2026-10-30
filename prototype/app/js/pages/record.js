@@ -160,7 +160,7 @@
     NT.ipState($('#ev-ip'), 'confirm');
     $('#ev-actions').hidden = false; hint();
     $('#ev-save').addEventListener('click', save);
-    $('#ev-back').addEventListener('click', () => { att.keep(); location.href = NT.link('record.html', { q: text }); });
+    $('#ev-back').addEventListener('click', () => { att.keep(); location.href = NT.link('record.html', { q: text, person: draft.pid }); });
   }
   async function buildTags(s) {
     const host = $('#tag-list'); $('#ev-tags').hidden = false;

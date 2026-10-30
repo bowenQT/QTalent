@@ -1,7 +1,11 @@
 import { readdir, readFile } from 'node:fs/promises';
+import { isBuiltin } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
+function isNodeBuiltin(specifier: string): boolean {
+  return isBuiltin(specifier);
+}
 export function checkImport(file: string, specifier: string): string | null {
   const target = specifier.startsWith('@/')
     ? `src/${specifier.slice(2)}`
@@ -14,7 +18,7 @@ export function checkImport(file: string, specifier: string): string | null {
   if (
     frontend &&
     (/^(pg|pg-boss|drizzle-orm|better-auth)(?:[/:]|$)/.test(target) ||
-      /^node:/.test(target))
+      isNodeBuiltin(target))
   )
     return 'UI cannot import server runtime packages';
   if (/^src\/(contracts|lib)\//.test(file) && /^src\/server\//.test(target))
@@ -92,6 +96,73 @@ export function checkDomainSymbols(
     return 'Cross-domain table access is reserved for usecases';
   return null;
 }
+/** Only FK column references inside a pgTable declaration may cross domain table boundaries. */
+export function isForeignKeyOnlyImport(
+  file: string,
+  source: string,
+  names: string[],
+): boolean {
+  if (!file.endsWith('/schema.ts') || names.includes('*')) return false;
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  let valid = true;
+  const used = new Set<string>();
+  const wanted = new Set(names);
+  function visit(node: ts.Node) {
+    if (ts.isImportDeclaration(node)) {
+      const bindings = node.importClause?.namedBindings;
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const specifier of bindings.elements)
+          if (specifier.propertyName && wanted.has(specifier.propertyName.text))
+            valid = false;
+      }
+      return;
+    }
+    if (ts.isIdentifier(node) && wanted.has(node.text)) {
+      used.add(node.text);
+      const column = node.parent;
+      if (
+        !ts.isPropertyAccessExpression(column) ||
+        column.expression !== node
+      ) {
+        valid = false;
+        return;
+      }
+      const parent = column.parent;
+      const directReference =
+        ts.isArrowFunction(parent) &&
+        parent.body === column &&
+        ts.isCallExpression(parent.parent) &&
+        ts.isPropertyAccessExpression(parent.parent.expression) &&
+        parent.parent.expression.name.text === 'references' &&
+        parent.parent.arguments[0] === parent;
+      const array = parent;
+      const property = array.parent;
+      const foreignColumns =
+        ts.isArrayLiteralExpression(array) &&
+        ts.isPropertyAssignment(property) &&
+        ts.isIdentifier(property.name) &&
+        property.name.text === 'foreignColumns' &&
+        ts.isObjectLiteralExpression(property.parent) &&
+        ts.isCallExpression(property.parent.parent) &&
+        ts.isIdentifier(property.parent.parent.expression) &&
+        property.parent.parent.expression.text === 'foreignKey';
+      let ancestor: ts.Node | undefined = column.parent;
+      while (
+        ancestor &&
+        !(
+          ts.isCallExpression(ancestor) &&
+          ts.isIdentifier(ancestor.expression) &&
+          ancestor.expression.text === 'pgTable'
+        )
+      )
+        ancestor = ancestor.parent;
+      if (!(directReference || foreignColumns) || !ancestor) valid = false;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  return valid && names.length > 0 && names.every((name) => used.has(name));
+}
 export async function checkBoundaries() {
   const errors: string[] = [];
   const sourceFiles = await files('src');
@@ -165,7 +236,14 @@ export async function checkBoundaries() {
           imported,
           tableNames,
         );
-        if (symbolsError)
+        if (
+          symbolsError &&
+          !isForeignKeyOnlyImport(
+            file,
+            source,
+            imported.filter((name) => name === '*' || tableNames.has(name)),
+          )
+        )
           errors.push(`${file}: ${literal.text}: ${symbolsError}`);
         const error = checkImport(file, literal.text);
         if (error) errors.push(`${file}: ${literal.text}: ${error}`);

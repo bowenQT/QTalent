@@ -173,6 +173,33 @@ describe('Score states', () => {
     expect(open).toHaveBeenCalledOnce();
   });
 
+  it('tells assistive tech which panel the history button opens and whether it is open', () => {
+    const view = render(
+      <Score
+        dimension="内生动力"
+        state="calibrated"
+        value={4}
+        by="苏晚"
+        onOpenHistory={() => undefined}
+        historyPanel={{ id: 'hist-demo', expanded: false }}
+      />,
+    );
+    const button = screen.getByRole('button', { name: '修订历史' });
+    expect(button.getAttribute('aria-controls')).toBe('hist-demo');
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    view.rerender(
+      <Score
+        dimension="内生动力"
+        state="calibrated"
+        value={4}
+        by="苏晚"
+        onOpenHistory={() => undefined}
+        historyPanel={{ id: 'hist-demo', expanded: true }}
+      />,
+    );
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('requires a scorer on every confirmed or calibrated score', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     for (const state of ['confirmed', 'calibrated'] as const)
@@ -228,7 +255,12 @@ describe('Score states', () => {
         />,
       ),
     ).toThrow('Score value must be 1-5');
-    for (const state of ['total', 'toString', '__proto__']) {
+    for (const state of [
+      'total',
+      'toString',
+      '__proto__',
+      ...[['failed'], new String('failed'), 1, null, undefined, {}],
+    ]) {
       expect(() =>
         render(
           <Score

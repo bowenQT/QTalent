@@ -321,6 +321,8 @@ button.n-score__dot:hover { transform: scale(1.18); }
 .n-history__v.is-ai { color: var(--light); }
 .n-history__why { font-family: var(--font-ink); color: var(--ink); font-size: var(--t-body); }
 .n-history small { color: var(--ink-3); font-size: var(--t-xs); display: block; }
+/* 从分数行的「修订历史」展开：嵌在该行下方，缩进到维度名之后，浅底圆角。规则页的版本历史是独立列表，不套这一层 */
+.n-score + .n-history { margin: 0 0 var(--s-2) calc(5.5em + var(--s-3)); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); }
 
 /* ── 能力象限：光点落位 ─────────────────────────
    纸面 + 两笔墨色十字；AI 参考位置是流光光点，人校准后的位置是墨色头像。
@@ -974,7 +976,7 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 /* ══════════════ 录音补全 ══════════════ */
 .n-modes { display: grid; gap: var(--s-2); }
 .n-mode { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); width: 100%; padding: var(--s-3); border: 0; border-radius: var(--r-card); background: var(--sheet-sunk); text-align: left; font-size: var(--t-sm); }
-.n-mode[aria-pressed="true"] { background: var(--sheet); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.n-mode[aria-pressed="true"], .n-mode[aria-checked="true"] { background: var(--sheet); box-shadow: inset 0 0 0 1.5px var(--ink); }
 .n-mode__icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--sheet); color: var(--ink); }
 .n-mode__icon svg { width: 18px; height: 18px; }
 .n-mode small { display: block; color: var(--ink-3); font-size: var(--t-xs); }
@@ -1778,3 +1780,45 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-jdist__row.is-static { cursor: default; }
 .n-jdist__row.is-static:hover { background: none; }
 .n-jdot.is-anon { width: 14px; height: 14px; }
+
+/* ══════════════ 桌面录音：控制条与实时预览 ══════════════ */
+/* 控制条四态：录制中（红点闪动）、已暂停（灰点、波形停住）、重连中（空心红点：本机仍在录）、补传中（灰点 + 进度）。状态都有文字，不只靠颜色 */
+.n-recctl { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-sm); }
+.n-recctl__state { display: inline-flex; align-items: center; gap: var(--s-2); font-weight: 600; white-space: nowrap; }
+.n-recctl__title { min-width: 0; display: grid; }
+.n-recctl__title b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.n-recctl__title small { font-size: var(--t-xs); color: var(--ink-3); }
+.n-recctl .n-wave { color: var(--ink-2); height: 18px; }
+.n-recctl__time { font-size: var(--t-xs); color: var(--ink-3); white-space: nowrap; }
+.n-recctl__time b { font-size: var(--t-md); font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
+.n-recctl__warn { font-size: var(--t-xs); color: var(--ink-2); white-space: nowrap; }
+.n-recctl__up { display: grid; gap: 2px; min-width: 140px; font-size: var(--t-xs); color: var(--ink-2); }
+.n-recctl__up .n-progress { margin-top: 0; }
+.n-recctl__acts { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-left: auto; }
+.n-recctl[data-state="paused"] .n-recbar__dot, .n-recctl[data-state="uploading"] .n-recbar__dot { animation: none; background: var(--ink-4); }
+.n-recctl[data-state="reconnecting"] .n-recbar__dot { animation: none; background: transparent; box-shadow: inset 0 0 0 2px #ff5a4a; }
+.n-recctl:not([data-state="live"]):not([data-state="reconnecting"]) .n-wave i { animation-play-state: paused; opacity: .35; }
+
+/* 实时预览：逐句出现，未定稿的字是浅墨；说话人用编号，结束后在待核对里确认是谁 */
+.n-live { position: relative; overflow-y: auto; padding: var(--s-2) var(--s-1) var(--s-6) 0; font-size: var(--t-md); line-height: var(--lh-read); outline: none; }
+.n-live:focus-visible { box-shadow: var(--focus); border-radius: var(--r-field); }
+.n-live__sp { margin: var(--s-5) 0 2px; font-size: var(--t-xs); font-weight: 600; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.n-live__sp:first-child { margin-top: 0; }
+.n-live__s { margin: 0; animation: live-in var(--d-quick) var(--ease-out); }
+.n-live__s.is-pending { color: var(--ink-3); }
+.n-live__s.is-flag { text-decoration: underline 2px var(--light); text-underline-offset: 5px; text-decoration-skip-ink: none; }
+.n-live__s.is-jump { background: var(--light-soft); border-radius: var(--r-chip); }
+.n-live__note, .n-live__at, .n-live__gap { margin: var(--s-3) 0; font-size: var(--t-sm); line-height: 1.6; }
+.n-live__note { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px var(--s-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); }
+.n-live__note svg { width: 15px; height: 15px; margin-top: 3px; color: var(--ink-3); }
+.n-live__note small, .n-live__at small { font-size: var(--t-xs); font-weight: 400; color: var(--ink-3); }
+.n-live__note small { grid-column: 2; }
+.n-live__at { display: inline-flex; align-items: baseline; gap: var(--s-2); padding: 2px var(--s-2); border-radius: var(--r-chip); background: var(--light-soft); color: var(--light); font-weight: 600; }
+.n-live__gap { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: repeating-linear-gradient(-45deg, var(--sheet-sunk) 0 6px, #e5e7e2 6px 7px); color: var(--ink-2); font-size: var(--t-xs); font-variant-numeric: tabular-nums; }
+.n-live__gap svg { width: 14px; height: 14px; color: var(--ink-3); }
+.n-live__empty { margin: 0; font-size: var(--t-sm); color: var(--ink-3); }
+@keyframes live-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .n-live__s { animation: none; }
+}
+

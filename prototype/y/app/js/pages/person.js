@@ -141,7 +141,12 @@
     const t = { id: NT.uid('t'), person: pid, ...r, owner: st.me().id, helper: null, since: NT.TODAY, ts: Date.now(), state: 'on' };
     st.get().tracks.unshift(t); st.save();
     render($('#main'));
-    NT.toast(`已开始跟踪${st.person(pid).name}`, { undo: () => { st.get().tracks.shift(); st.save(); render($('#main')); } });
+    NT.toast(`已开始跟踪${st.person(pid).name}`, { undo: () => {
+      // 撤销只移除本次新增的跟踪；后续新增的记录不能被 shift() 误删。
+      const tracks = st.get().tracks, i = tracks.indexOf(t);
+      if (i < 0) return;
+      tracks.splice(i, 1); st.save(); render($('#main'));
+    } });
   }
 
   function verCompare(e, ref, f) {
