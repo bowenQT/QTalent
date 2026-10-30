@@ -657,7 +657,17 @@
     if (applying) return;
     if (records.every((r) => r.target.closest && r.target.closest('#rv-ui, #rv-pins'))) return;
     clearTimeout(mutTimer);
-    mutTimer = setTimeout(() => { if (!pending) { apply(); renderPanel(); } else drawPins(); }, 200);
+    mutTimer = setTimeout(() => {
+      if (pending) { drawPins(); return; }
+      const active = document.activeElement;
+      if (active && active.tagName === 'TEXTAREA' && panel.contains(active)) {
+        apply();
+        drawPins();
+        return;
+      }
+      apply();
+      renderPanel();
+    }, 200);
   });
   let rafPins = 0;
   const schedulePins = () => { cancelAnimationFrame(rafPins); rafPins = requestAnimationFrame(drawPins); };
