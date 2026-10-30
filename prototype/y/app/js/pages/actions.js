@@ -39,7 +39,8 @@
     return p.kind === 'staffing' ? `来自项目用人方案 v${p.version}` : `来自${p.title || '组织调整方案'} v${p.version}`;
   }
   // 判断对照生成的改进作用于人才评价规则，只给能看判断对照汇总的视角；对人的行动按归属范围过滤
-  const visible = (a) => (st.judgeBatch(a.from) ? st.canJudge() : !a.person || st.scope(a.person));
+  // 具体人员的管理行动必须有完整管理范围；仅有跨项目可见权限不能读取任用判断。
+  const visible = (a) => (st.judgeBatch(a.from) ? st.canJudge() : !a.person || st.can('mgmt', a.person));
   const sorted = (l) => l.slice().sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state));
 
   function actionRow(a) {
