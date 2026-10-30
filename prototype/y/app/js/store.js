@@ -812,7 +812,10 @@
     return { ok: !dropped.length && !few && !changed, dropped, few, changed };
   };
   store.confirmAttrib = (batchId, hyp, a) => {
-    if (!store.hypCheck(hyp).ok) return false;
+    // 归因只能由 HR 首次确认，不能因重入覆盖已经生成的改进行动。
+    if (store.role() !== 'hrbp' || !hyp || !store.judgeHyps(batchId).some((h) => h.id === hyp.id)
+      || S.judgeAttribs[hyp.id] || !Array.isArray(a?.cats) || !a.cats.length
+      || !a.reason?.trim() || !store.hypCheck(hyp).ok) return false;
     S.judgeAttribs[hyp.id] = { hyp: hyp.id, batch: batchId, ...a, by: store.me().id, at: NT.TODAY, actions: [] };
     store.save();
     return true;
