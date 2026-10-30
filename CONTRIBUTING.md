@@ -88,6 +88,7 @@ fix(prototype): 保留取消弹窗前的输入
 - 仓库已改为公开，协作者 yiyih7077-cell、Joanrecruiting 为 write 权限；合并设置不变（只启用 Squash、合并后删除任务分支、自动合并关闭）。
 - `main` 不再使用经典分支保护，也不要求 PR 批准。改用规则集「main：只有仓库所有者能合并」：作用于默认分支，禁止更新、删除和强推，只有仓库管理员（所有者）可以绕过。其他协作者能开 PR、评论，但不能合并或推送 `main`；所有者合并时需显式绕过（命令行为 `gh pr merge --squash --admin`）。
 - required checks 仍未设置；`foundation` 对只改原型、评审站、文档的提交不触发（见[工程规范](docs/engineering.md#自动检查口径)）。
+- 覆盖率展示：Codecov GitHub App 已由仓库所有者安装。`foundation` 在 `pnpm check` 通过后用 GitHub OIDC 向 Codecov 上传 `coverage/lcov.info`，仓库不保存上传令牌。门槛只在 `vitest.config.ts` 维护，`codecov.yml` 让 Codecov 的状态检查仅作提示、不发 PR 评论，不加入 required checks。
 
 以下为 2026-10-23 的初始化记录，与上文冲突处以上文为准。
 
@@ -98,7 +99,6 @@ fix(prototype): 保留取消弹窗前的输入
 - **分支保护未启用，当前为人工检查、无平台强制。** 规则集读取和 `main` 分支保护设置均被 GitHub 以 HTTP 403 拒绝，要求升级套餐或公开仓库；本仓库保持私有，不升级套餐。仍按上述 PR、审查和合并规则工作，由仓库负责人或其明确授权的 Agent 执行。
 - `.github/` 模板已随默认分支推送；模板文件存在不代表表单必填或审批已经受平台强制。使用时核对实际页面和信息完整性。
 - 正式工程、CI、required checks 与发布尚未建立；建仓不自动触发这些工作。
-- 覆盖率展示：`foundation` 在 `pnpm check` 通过后用 GitHub OIDC 向 Codecov 上传 `coverage/lcov.info`，仓库不保存上传令牌；Codecov GitHub App 由仓库负责人安装。门槛只在 `vitest.config.ts` 维护，`codecov.yml` 让 Codecov 的状态检查仅作提示、不发 PR 评论，不加入 required checks。
 - 原型评审站：`review-site/` 以 Cloudflare Worker + D1 部署到 workers.dev，由 Cloudflare Access 限定 `@qiniu.com` 登录，Worker 二次校验凭证。部署与读取评论的命令见 [review-site/README.md](review-site/README.md)；部署须经仓库负责人授权，Access 应用由其在 Zero Trust 中创建。
 
 后续维护：
