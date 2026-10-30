@@ -562,6 +562,23 @@
       S.actions.unshift({ id: NT.uid('a'), at: NT.TODAY, ts: Date.now(), title: `${name}${r.id === 'owner' ? `接任${p.name} owner` : `加入${p.name}（${r.name}）`}`, from: plan.id, person: pid, owner: 'p-suwan', due: '2026-11-01', state: 'todo', observe: '2027-01-31',
         then: [`目标：${r.id === 'owner' ? `负责${p.name}` : `在${p.name}承担${r.name}`}`, `依据：用人方案 v${plan.version}${musts.length ? `，必须项：${musts.join('、')}` : ''}`, `缺口：${plan.slotNote?.[r.id] || '待复盘时补充'}`] });
     });
+    // 槽位上换了人或空出来的角色：结束原来的在任记录。多个槽位落成同一个角色时，占住任一槽的人都还在任。
+    const stillIn = new Set(roles.flatMap((r) => {
+      const pid = plan.slots[r.id];
+      if (!pid) return [];
+      const role = r.id === 'owner' ? 'owner' : r.name;
+      return [`${role}\0${pid}`];
+    }));
+    roles.forEach((r) => {
+      const role = r.id === 'owner' ? 'owner' : r.name;
+      S.members.forEach((m) => {
+        if (m.project !== plan.project || m.to || m.role !== role) return;
+        if (stillIn.has(`${role}\0${m.person}`)) return;
+        m.to = NT.TODAY;
+        S.memberLog.unshift({ project: plan.project, at: NT.TODAY, text: `${store.person(m.person).name}退出：方案 v${plan.version} 不再担任${r.name}`, by: me });
+      });
+    });
+    if (roles.some((r) => r.id === 'owner') && !plan.slots.owner) p.owner = null;
     // 只回填还能改的草稿；已确认的组织方案是冻结快照，人选由上面生成的行动跟进
     S.plans.filter((x) => x.kind === 'org' && x.status === 'draft').forEach((op) => op.moves.forEach((m) => { if (m.pending === plan.project && !m.person && plan.slots.owner) { m.person = plan.slots.owner; m.will = '未知 · 待沟通'; } }));
     store.save();
