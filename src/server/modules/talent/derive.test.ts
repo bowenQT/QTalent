@@ -38,11 +38,26 @@ describe('reference position from authorized confirmations', () => {
       status: 'ready',
       data: {
         kind: 'reference',
+        bonus: false,
         quadrant: 'high_professional_high_potential',
       },
     });
     const extras = [score('c', 'mot', 4), score('d', 'mot', 4)];
     expect(derive([...ready, ...extras])).toEqual(derive(ready));
+  });
+  it('sets the bonus flag from extra items without moving the quadrant', () => {
+    const quadrant = (rows: PositionScore[]) =>
+      (derive(rows) as { data: { quadrant: string } }).data.quadrant;
+    const flagged = [
+      score('c', 'lead', 4, 'pot', false),
+      score('d', 'open', 5, 'pot', false),
+    ];
+    expect(derive([...ready, ...flagged])).toHaveProperty('data.bonus', true);
+    expect(quadrant([...ready, ...flagged])).toBe(quadrant(ready));
+    expect(
+      derive([...ready, score('c', 'lead', 3, 'pot', false)]),
+    ).toHaveProperty('data.bonus', false);
+    expect(derive(ready)).toHaveProperty('data.bonus', false);
   });
   it('uses a 12-month inclusive window and excludes future events', () => {
     const withDate = (occurredOn: string) =>
@@ -64,6 +79,7 @@ describe('reference position from authorized confirmations', () => {
           status: 'ready',
           data: {
             kind: 'reference',
+            bonus: false,
             quadrant: `${x}_professional_${y}_potential`,
           },
         });

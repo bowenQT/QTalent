@@ -89,7 +89,7 @@ describe('people, profile and shared sources', () => {
     data.confirmations[1].active = false;
     data.statements[0].kind = 'ai_inference';
     const result = await personFromData(data, 'one');
-    expect(result?.capabilityProfile).toHaveProperty('data.length', 2);
+    expect(result?.capabilityProfile).toHaveProperty('data.scores.length', 2);
     expect(result?.aiInferences).toHaveProperty(
       'data.0.nature',
       'ai_inference',
@@ -106,7 +106,7 @@ describe('people, profile and shared sources', () => {
     const source = await sourceFromData(data, reference);
     expect(source.status).toBe('not_found');
     const profile = await personFromData(data, 'one');
-    expect(profile?.capabilityProfile).toHaveProperty('data.length', 2);
+    expect(profile?.capabilityProfile).toHaveProperty('data.scores.length', 2);
     expect(profile?.timeline).toHaveProperty('data.length', 1);
     data.eventSources.push({
       eventId: 'event-1',
@@ -121,7 +121,7 @@ describe('people, profile and shared sources', () => {
     data.statements[0].kind = 'management_observation';
     const profile = await personFromData(data, 'one');
     expect(profile).not.toHaveProperty('managementObservations');
-    expect(profile?.capabilityProfile).toHaveProperty('data.length', 2);
+    expect(profile?.capabilityProfile).toHaveProperty('data.scores.length', 2);
     expect((await sourceFromData(data, reference)).status).toBe('not_found');
   });
   it('marks baseline origin and snapshot position, rejects wrong version or non-demo provenance', async () => {
@@ -145,7 +145,7 @@ describe('people, profile and shared sources', () => {
     expect((await sourceFromData(data, reference)).status).toBe('not_found');
     expect(
       (await personFromData(data, 'one'))?.capabilityProfile,
-    ).toHaveProperty('data.length', 2);
+    ).toHaveProperty('data.scores.length', 2);
   });
   it('keeps old evidence in the timeline, but not the reference position window', async () => {
     const data = fixture();
@@ -154,6 +154,8 @@ describe('people, profile and shared sources', () => {
     });
     const result = await personFromData(data, 'one');
     expect(result?.timeline).toHaveProperty('data.length', 2);
+    // The spectrum only holds the last 12 months; older scores stay on the cards.
+    expect(result?.capabilityProfile.status).toBe('insufficient_evidence');
     expect(result).toHaveProperty(
       'referencePosition.status',
       'insufficient_evidence',
@@ -295,25 +297,30 @@ describe('people, profile and shared sources', () => {
     const source = await sourceFromData(data, reference);
     expect(source.status).toBe('not_found');
     const profile = await personFromData(data, 'one');
-    expect(profile?.capabilityProfile).toHaveProperty('data.length', 2);
+    expect(profile?.capabilityProfile).toHaveProperty('data.scores.length', 2);
   });
 });
 
-it('keeps authorized observation nature in timelines and rejects it for mentors', async () => {
+it('keeps authorized observation category in timelines and rejects it for mentors', async () => {
   const data = fixture('hr');
   data.statements[0].kind = 'management_observation';
   const profile = await personFromData(data, 'one');
   expect(profile?.timeline.status).toBe('ready');
   if (profile?.timeline.status !== 'ready') throw new Error('Missing timeline');
   const observation = profile.timeline.data.find(
-    (row) => row.id === data.statements[0].id,
+    (row) => row.id === data.events[0].id,
   );
-  expect(observation?.statement.nature).toBe('management_observation');
-  expect(observation?.statement.sources).toHaveLength(1);
+  expect(observation).toMatchObject({
+    kind: 'key_event',
+    label: 'observation',
+    category: 'management-observation',
+  });
+  expect(observation?.sources).toHaveLength(1);
   const mentor = fixture('mentor');
   mentor.statements[0].kind = 'management_observation';
   const restricted = await personFromData(mentor, 'one');
   expect(restricted?.timeline).toHaveProperty('data.length', 1);
+  expect(JSON.stringify(restricted)).not.toContain('management-observation');
   expect(
     personSchema.safeParse({ ...restricted, timeline: profile.timeline })
       .success,
@@ -347,7 +354,14 @@ it('retains ended non-owner participation only under current project authorizati
     by: 'actor',
   });
   const profile = await personFromData(data, 'one');
-  expect(profile?.projects).toHaveProperty('data.0.participation', 'member');
+  expect(profile?.projects).toHaveProperty('data.0', {
+    id: 'past-project',
+    name: 'Synthetic past project',
+    role: 'member',
+    mode: 'full',
+    from: '2026-01-01',
+    to: '2026-05-01',
+  });
   data.staffing.projects[0].cohortId = 'other-cohort';
   expect((await personFromData(data, 'one'))?.projects.status).toBe('empty');
   data.staffing.projects[0].cohortId = 'cohort';
