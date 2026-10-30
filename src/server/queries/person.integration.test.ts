@@ -163,7 +163,7 @@ it('re-reads authorization and complete source relationships', async () => {
 });
 
 // Imports the full demo seed and reads profiles four times; loadPersonData reads every
-// evidence table per call, which took 20–34 s in CI with coverage instrumentation.
+// evidence table per call, which took 20–42 s in CI with coverage instrumentation.
 it('projects actual pinned seed observations and ended project participation', async () => {
   const seedName =
     'qtalent_profile_seed_' + randomUUID().replaceAll('-', '') + '_test';
@@ -238,4 +238,4 @@ it('projects actual pinned seed observations and ended project participation', a
     await seeded.pool.end();
     await admin!.query('DROP DATABASE "' + seedName + '"');
   }
-}, 60_000);
+}, 120_000);
