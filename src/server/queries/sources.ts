@@ -14,13 +14,10 @@ import { loadCurrentPersonData } from './person-session';
 export async function sourceFromData(
   data: PersonData,
   reference: { fragmentId: string; originalVersionId: string },
+  sources = talentSources(data),
 ): Promise<SourceReadResult> {
   const visible = await readTalentSource(
-    async () => ({
-      context: data.context,
-      records: [],
-      sources: talentSources(data),
-    }),
+    async () => ({ context: data.context, records: [], sources }),
     reference,
   );
   const missing = {
@@ -57,7 +54,7 @@ export async function sourceFromData(
         };
   if (original.kind === 'prototype_snapshot') {
     const subjects =
-      talentSources(data).find((row) => sourceKey(row) === sourceKey(reference))
+      sources.find((row) => sourceKey(row) === sourceKey(reference))
         ?.subjects ?? [];
     if (
       linkedEvents.some((row) => !row.demo) ||

@@ -148,6 +148,20 @@
     if (role === 'mentor') return !!p.batch && isMentorOf(p.id, me);
     return false;
   };
+  // 查看比编辑宽：成员看自己在做的项目；导师看本期自己带过学员的全部课题；其他视角看范围内可编辑的项目
+  store.canSeeProject = (p, role = store.role()) => {
+    if (!p) return false;
+    if (role === 'ceo') return true;
+    const me = ROLES[role]?.person;
+    if (!me) return false;
+    const member = S.members.some((m) => m.project === p.id && m.person === me && !m.to);
+    if (role === 'self') return member;
+    if (member) return true;
+    if (role === 'mentor') {
+      return !!p.batch && S.batches.some((b) => b.kind === 'landing' && b.id === p.batch && (b.newcomers || []).some(([, , mentors]) => mentors.includes(me)));
+    }
+    return store.canEditProject(p, role);
+  };
   // 用人需求与方案属于管理受限资料：发起人、管理者、相关 HR、范围内的部门负责人
   store.canStaff = (projectId, role = store.role()) => {
     if (!store.can('findOwner', null, role)) return false;
@@ -601,6 +615,10 @@
   };
   // 确认组织调整方案：冻结版本，每条动作生成一条行动
   store.confirmOrg = (plan) => {
+    // 已冻结/被替代的版本不能再次确认；盘点结束后不再允许确认同批次方案。
+    const batch = plan && S.batches.find((b) => b.id === plan.batch);
+    if (!plan || plan.kind !== 'org' || plan.status !== 'draft' || !S.plans.includes(plan)
+      || !store.can('calibrate') || batch?.status === 'confirmed') return null;
     const me = store.me().id;
     S.plans.filter((x) => x.kind === 'org' && x.batch === plan.batch && x.status === 'confirmed' && x !== plan).forEach((x) => { x.status = 'superseded'; });
     Object.assign(plan, { status: 'confirmed', confirmedBy: me, confirmedAt: NT.TODAY });
@@ -610,9 +628,11 @@
       let sn = S.snaps.find((x) => x.batch === b.id);
       if (!sn) { sn = { id: `s-${b.id}`, batch: b.id, label: b.name.match(/\d{4} H\d/)?.[0] || b.name, org: b.org, cutoff: b.cutoff, at: NT.TODAY, by: me, entries: {}, teams: [] }; S.snaps.push(sn); }
       SEED.PEOPLE.forEach((p) => {
-        if (p.noReview || sn.entries[p.id] || !store.inOrg(p.org, b.org)) return;
+        if (p.noReview || sn.entries[p.id]) return;
+        const org = store.orgAt(p, b.cutoff);
+        if (!org || !store.inOrg(org, b.org)) return;
         const r = store.refPos(p.id, b.cutoff);
-        sn.entries[p.id] = { q: null, ref: r.na ? null : r.q, na: !!r.na, miss: r.miss || '', uncal: true, dims: r.dims, n: r.n, py: r.py, bonus: !!r.bonus, org: p.org };
+        sn.entries[p.id] = { q: null, ref: r.na ? null : r.q, na: !!r.na, miss: r.miss || '', uncal: true, dims: r.dims, n: r.n, py: r.py, bonus: !!r.bonus, org };
       });
       Object.assign(b, { status: 'confirmed', confirmedAt: NT.TODAY, confirmedBy: me });
     }
@@ -808,7 +828,10 @@
     return { ok: !dropped.length && !few && !changed, dropped, few, changed };
   };
   store.confirmAttrib = (batchId, hyp, a) => {
-    if (!store.hypCheck(hyp).ok) return false;
+    // 归因只能由 HR 首次确认，不能因重入覆盖已经生成的改进行动。
+    if (store.role() !== 'hrbp' || !hyp || !store.judgeHyps(batchId).some((h) => h.id === hyp.id)
+      || S.judgeAttribs[hyp.id] || !Array.isArray(a?.cats) || !a.cats.length
+      || !a.reason?.trim() || !store.hypCheck(hyp).ok) return false;
     S.judgeAttribs[hyp.id] = { hyp: hyp.id, batch: batchId, ...a, by: store.me().id, at: NT.TODAY, actions: [] };
     store.save();
     return true;
@@ -1387,14 +1410,30 @@
   store.confirmDraft = (kind, line) => {
     const d = store.ruleOpen(kind, line); if (!d || !isCeo() || d.state !== 'pending' || store.lockBlocks(d, kind)) return null;
     const live = store.ruleLive(kind, line), snap = NT.clone({ d, live }), holds = S.reviewHolds.length;
+    const immediate = d.effect === 'now';
     Object.assign(d, { confirmedBy: store.me().id, confirmedAt: NT.TODAY });
-    if (d.effect === 'now') activate(kind, d); else d.state = 'scheduled';
+    if (immediate) activate(kind, d); else d.state = 'scheduled';
+    // 只撤销本次发布新增的复核暂停，不能截断之后其他规则产生的暂停。
+    const addedHolds = S.reviewHolds.slice(holds);
     store.save();
+    let undone = false;
     return () => {
-      const i = S.rules[kind].indexOf(d); S.rules[kind][i] = snap.d;
-      if (live) S.rules[kind][S.rules[kind].indexOf(live)] = snap.live;
-      S.reviewHolds.length = holds;
+      const rules = S.rules[kind], i = rules.indexOf(d), j = live ? rules.indexOf(live) : -1;
+      // 旧 Toast 不能撤销后续发布，也不能撤销已被盘点启动激活的排期。
+      if (undone || i < 0 || (live && j < 0)
+        || rules.some((r) => r !== d && r.base === d.v && ['draft', 'pending', 'scheduled', 'live'].includes(r.state))
+        || d.state !== (immediate ? 'live' : 'scheduled')
+        || store.ruleLive(kind, line) !== (immediate ? d : live)
+        || (live && live.state !== (immediate ? 'old' : 'live'))) return false;
+      rules[i] = snap.d;
+      if (live) rules[j] = snap.live;
+      addedHolds.forEach((h) => {
+        const n = S.reviewHolds.indexOf(h);
+        if (n >= 0) S.reviewHolds.splice(n, 1);
+      });
+      undone = true;
       store.save();
+      return true;
     };
   };
   // 生效：替代旧版本；不兼容的维度与锚点版本为受影响的旧分建立复核暂停
@@ -1472,11 +1511,7 @@
   store.search = (q) => {
     const people = store.visiblePeople().filter((p) => !q || p.name.includes(q) || store.orgShort(p.org).includes(q) || p.title.includes(q));
     const role = store.role();
-    const projects = S.projects.filter((p) => {
-      if (role === 'self') return S.members.some((m) => m.project === p.id && m.person === store.me().id);
-      if (role === 'mentor') return p.batch || S.members.some((m) => m.project === p.id && m.person === store.me().id);
-      return true;
-    }).filter((p) => !q || p.name.includes(q));
+    const projects = S.projects.filter((p) => store.canSeeProject(p, role)).filter((p) => !q || p.name.includes(q));
     return { people, projects };
   };
 

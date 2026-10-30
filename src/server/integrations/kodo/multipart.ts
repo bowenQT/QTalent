@@ -102,9 +102,11 @@ export function multipart(ports: Ports) {
   }
   async function beginMultipart(input: MultipartInput): Promise<string> {
     const value = validate(input);
+    const bytes = new Uint8Array(value.bytes);
+    const digest = sha256(bytes);
     const grant = ports.grant({
       objectKey: value.objectKey,
-      byteLimit: value.bytes.length,
+      byteLimit: bytes.length,
       contentType: value.contentType,
       expiresAt: ports.now() + 3600000,
     });
@@ -125,8 +127,8 @@ export function multipart(ports: Ports) {
     return seal({
       bucket: ports.bucket,
       objectKey: value.objectKey,
-      byteLength: value.bytes.length,
-      sha256: sha256(value.bytes),
+      byteLength: bytes.length,
+      sha256: digest,
       contentType: value.contentType,
       uploadId: result.data.uploadId,
       expiresAt: result.data.expireAt * 1000,

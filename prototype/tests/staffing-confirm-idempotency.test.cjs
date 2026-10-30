@@ -70,7 +70,16 @@ for (const version of Object.keys(SOURCES)) {
     f.store.confirmStaffing(next, f.roles);
     assert.equal(next.status, 'confirmed');
     assert.equal(old.status, 'superseded');
-    assert.equal(f.S.memberLog.length, 2);
+    const open = f.S.members.filter((m) => !m.to);
+    if (version === 'X') {
+      // 换人后原来的在任记录要结束，多一条退出日志。
+      assert.equal(f.S.memberLog.length, 3);
+      assert.equal(open.length, 1);
+      assert.equal(open[0].person, 'person-b');
+      assert.equal(f.S.members.find((m) => m.person === 'person-a').to, '2026-10-25');
+    } else {
+      assert.equal(f.S.memberLog.length, 2);
+    }
     assert.equal(f.S.actions.length, 2);
     assert.equal(f.saves, 2);
   });
