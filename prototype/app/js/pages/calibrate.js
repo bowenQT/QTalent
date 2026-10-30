@@ -8,7 +8,7 @@
   const id = NT.param('id') || 'b-h2';
   const b = st.batch(id);
   const isLanding = b?.kind === 'landing';
-  const LABEL = isLanding ? 'Landing 结营' : '2026 H2';
+  const LABEL = isLanding ? 'Landing 结营' : (b?.name?.match(/\d{4} H\d/)?.[0] || '2026 H2');
   const QN = st.QN;
   const qOf = ([x, y]) => (y < 0.5 ? 'h' : 'l') + (x < 0.5 ? 'l' : 'h');
   const clamp = (v) => Math.min(0.95, Math.max(0.05, v));
@@ -26,7 +26,7 @@
   });
 
   const snap = () => st.get().snaps.find((s) => s.batch === id);
-  const frozen = () => !!snap()?.teams?.includes(team);
+  const frozen = () => b.status === 'confirmed' || !!snap()?.teams?.includes(team);
   function scopeTeams() {
     if (isLanding) return ['newcomers'];
     return [...new Set(st.people().filter((p) => !p.noReview && st.inOrg(p.org, b.org) && st.scope(p.id) === 'full').map((p) => p.org))];
@@ -234,6 +234,7 @@
   }
 
   async function confirmTeam() {
+    if (b.status === 'confirmed' || frozen()) return;
     const next = pending()[0];
     if (next) { ask(next); NT.toast('还有和参考不同的位置没写理由'); return; }
     const v = await NT.dialog({
