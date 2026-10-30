@@ -73,7 +73,7 @@ Niu-Talent：七牛云内部的人才识别、追踪与盘点工作台，用于�
 - 默认使用中文沟通与撰写文档；代码、标识符和配置保持英文。
 - 多个 Agent 并行时，每个任务使用独立分支或 worktree，只改任务范围内的文件；不回滚、不覆盖他人未提交的修改。
 - 提交、审查与协作流程见下方按需读取指引；不擅自提交他人的修改。
-- 远端为 [bowenQT/QTalent](https://github.com/bowenQT/QTalent)，保持私有，默认分支 `main`；提交、推送与合并按用户授权和 [协作规范](CONTRIBUTING.md) 执行。建仓不代表获准部署或进入工程基建。
+- 远端为 [bowenQT/QTalent](https://github.com/bowenQT/QTalent)，公开仓库，默认分支 `main`，只有仓库所有者能合并（见 [远端配置与复核](CONTRIBUTING.md#远端配置与复核)）；可见性与成员权限的变更须仓库所有者决定。提交、推送与合并按用户授权和 [协作规范](CONTRIBUTING.md) 执行。建仓不代表获准部署或进入工程基建。
 - 核心约束在本文件维护，工程细则在 `docs/engineering.md`、协作流程在 `CONTRIBUTING.md` 维护；变更时同步引用，不复制规则。
 
 ## 按需读取
