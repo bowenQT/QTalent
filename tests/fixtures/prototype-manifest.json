@@ -42,7 +42,7 @@
     },
     {
       "path": "prototype/y/app/js/pages/actions.js",
-      "sha": "10301d5a7570c99d3ba301b88cc4658d1b227925"
+      "sha": "e51a2789f43097374fa34c59f97261f3ba6266bd"
     },
     {
       "path": "prototype/y/app/js/pages/admin.js",
@@ -50,15 +50,15 @@
     },
     {
       "path": "prototype/y/app/js/pages/calibrate.js",
-      "sha": "69bdbad1ae053722ae7c1c11d91a587ac8a03823"
+      "sha": "e01f3c6fd12db0975133c34f8fcd5e51abef43f9"
     },
     {
       "path": "prototype/y/app/js/pages/inbox.js",
-      "sha": "8c38ecb094a7ef83a535aa960e722604c7f226b5"
+      "sha": "b49813051b661af079177b17f21665e722b488be"
     },
     {
       "path": "prototype/y/app/js/pages/judge.js",
-      "sha": "b44967202bc30814314c366f2707b54e9ada9816"
+      "sha": "085fa946bc932fd18c6dc2ddda197d671ea736e6"
     },
     {
       "path": "prototype/y/app/js/pages/landing.js",
@@ -66,7 +66,7 @@
     },
     {
       "path": "prototype/y/app/js/pages/landingreview.js",
-      "sha": "66f8e6f1956f83d2c1c233ee3c27e620b72b90a2"
+      "sha": "f09e3444545c1554c385e18633f45684196ad8a9"
     },
     {
       "path": "prototype/y/app/js/pages/people.js",
@@ -74,15 +74,15 @@
     },
     {
       "path": "prototype/y/app/js/pages/person.js",
-      "sha": "db5cf87acd0c7295263152399e91bc999655c721"
+      "sha": "bd0f153d7ab5e4ad9a70cc6390a371a9a15ffdd5"
     },
     {
       "path": "prototype/y/app/js/pages/plan.js",
-      "sha": "b1a0028ec268c8947be45b0abe896f98df56b358"
+      "sha": "7d0834009fa34b856b272d1fd78ca7df9a0e96bf"
     },
     {
       "path": "prototype/y/app/js/pages/project.js",
-      "sha": "37d793c59f89187415b0ff5b217889ce4d91e44e"
+      "sha": "cfc38dd1eac62aeb1cbe59fb47624ae3eb04be4b"
     },
     {
       "path": "prototype/y/app/js/pages/projects.js",
@@ -110,7 +110,7 @@
     },
     {
       "path": "prototype/y/app/js/pages/rules.js",
-      "sha": "ceebe608e7d251258aac944a273cb8d1ddebaea9"
+      "sha": "6eab20ff564641ba9285a20a735c518cf573a34c"
     },
     {
       "path": "prototype/y/app/js/pages/staffing.js",
@@ -126,19 +126,19 @@
     },
     {
       "path": "prototype/y/app/js/parse.js",
-      "sha": "8d53ace38ef4ea34e8ff0ae32c649f96e27ca061"
+      "sha": "bfbfc43f38e46bd1a74e5e774fc985b2b7449d38"
     },
     {
       "path": "prototype/y/app/js/shell.js",
-      "sha": "9337dd0106e24b671e2a58554b4edf3450a9a3fc"
+      "sha": "d1a094f870e95c0911132b881dc1afed12f6eca9"
     },
     {
       "path": "prototype/y/app/js/store.js",
-      "sha": "ff56def6fac48120043bc92519ea4794224eb873"
+      "sha": "f044223d9b4c5da44c1d60279e69af7f5d99f737"
     },
     {
       "path": "prototype/y/app/js/ui.js",
-      "sha": "1a01aed77647d0101a7b5ec3cdda6dec56290079"
+      "sha": "0b8956552d3e222db18bf4d464b5286c980be3fc"
     },
     {
       "path": "prototype/y/app/judge.html",
@@ -238,7 +238,7 @@
     },
     {
       "path": "prototype/y/design-system.html",
-      "sha": "d04cab609a9b01d3f2f9a12e11aca9dae2e033e7"
+      "sha": "cdc25969209a9924b53bfeeed309251c8e3b9516"
     },
     {
       "path": "prototype/y/m/inbox.html",
@@ -250,11 +250,11 @@
     },
     {
       "path": "prototype/y/m/js/mshell.js",
-      "sha": "3816c4da66de7f2f516511a9ccf469895ebf10ba"
+      "sha": "6e0acd093c4d133b58345030536a7eb521f49502"
     },
     {
       "path": "prototype/y/m/js/pages/inbox.js",
-      "sha": "47d169e5b875088cfb3acaa3e914b1788b07268f"
+      "sha": "831a89b33174fb3c45afbe5fc2a90dd2c36a8eee"
     },
     {
       "path": "prototype/y/m/js/pages/index.js",
@@ -270,7 +270,7 @@
     },
     {
       "path": "prototype/y/m/js/pages/people.js",
-      "sha": "3c83429eb01b1c8d9c46adf625456bfbbc992a87"
+      "sha": "eacdf7e8f70390e52c0640dacf8f8f9a1251a913"
     },
     {
       "path": "prototype/y/m/js/pages/person.js",
