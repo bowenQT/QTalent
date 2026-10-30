@@ -601,6 +601,10 @@
   };
   // 确认组织调整方案：冻结版本，每条动作生成一条行动
   store.confirmOrg = (plan) => {
+    // 已冻结/被替代的版本不能再次确认；盘点结束后不再允许确认同批次方案。
+    const batch = plan && S.batches.find((b) => b.id === plan.batch);
+    if (!plan || plan.kind !== 'org' || plan.status !== 'draft' || !S.plans.includes(plan)
+      || !store.can('calibrate') || batch?.status === 'confirmed') return null;
     const me = store.me().id;
     S.plans.filter((x) => x.kind === 'org' && x.batch === plan.batch && x.status === 'confirmed' && x !== plan).forEach((x) => { x.status = 'superseded'; });
     Object.assign(plan, { status: 'confirmed', confirmedBy: me, confirmedAt: NT.TODAY });
