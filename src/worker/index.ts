@@ -47,6 +47,9 @@ export async function startWorker() {
     });
   });
   server.on('upgrade', async (request, socket, head) => {
+    socket.on('error', () => {
+      socket.destroy();
+    });
     if (request.url !== '/stream') {
       socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
       return;
@@ -86,9 +89,21 @@ export async function startWorker() {
     for (const client of sockets.clients)
       client.close(1001, 'Service stopping');
     sockets.close();
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    );
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(force);
+        if (error) reject(error);
+        else resolve();
+      };
+      const force = setTimeout(() => {
+        server.closeAllConnections();
+        finish();
+      }, 10_000);
+      server.close((error) => finish(error ?? undefined));
+    });
     await boss.stop();
   }
   return { stop, boss, server };
@@ -100,8 +115,18 @@ if (
   const worker = await startWorker();
   for (const signal of ['SIGTERM', 'SIGINT'])
     process.once(signal, () => {
-      void worker.stop().catch(() => {
-        process.exitCode = 1;
-      });
+      const kill = setTimeout(() => {
+        process.exit(1);
+      }, 15_000);
+      void worker.stop().then(
+        () => {
+          clearTimeout(kill);
+          process.exit(0);
+        },
+        () => {
+          clearTimeout(kill);
+          process.exit(1);
+        },
+      );
     });
 }

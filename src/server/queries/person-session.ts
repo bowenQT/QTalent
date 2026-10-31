@@ -1,0 +1,11 @@
+import 'server-only';
+import { requireSession } from '../auth/next';
+import { getDatabase } from '../db/client';
+import { getEnv } from '../env';
+import { createClock } from '../../lib/clock';
+import { loadPersonData } from './person-data';
+export async function loadCurrentPersonData() {
+  const session = await requireSession();
+  const today = createClock(getEnv().APP_ENV).today();
+  return loadPersonData(getDatabase(), session.user.id, today);
+}

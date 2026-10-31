@@ -598,8 +598,9 @@
       });
       if (v !== 'ok') return;
       const undo = st.confirmDraft(k, frontLine); rerender();
+      if (!undo) { NT.toast('规则状态已变化，无法确认发布，请重新核对'); return; }
       const seal = $('#seal'); seal?.classList.add('is-stamping');
-      NT.toast(d.effect === 'now' ? `已发布 ${d.v}，${k === 'watch' ? '首页「值得关注」按新版本计算' : '新的评价按新版本计算'}` : `已确认 ${d.v}，从下一个盘点批次开始生效`, { undo: () => { undo(); rerender(); } });
+      NT.toast(d.effect === 'now' ? `已发布 ${d.v}，${k === 'watch' ? '首页「值得关注」按新版本计算' : '新的评价按新版本计算'}` : `已确认 ${d.v}，从下一个盘点批次开始生效`, { undo: () => { if (!undo()) NT.toast('规则已发生后续变更，旧发布不能撤销'); rerender(); } });
     });
     $('#return')?.addEventListener('click', async () => {
       const k = frontLine ? 'front' : kind, d = st.ruleOpen(k, frontLine);
