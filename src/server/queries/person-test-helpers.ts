@@ -109,6 +109,8 @@ export function fixture(
       personId: 'one',
       recorderId: 'actor',
       projectId: null,
+      // Synthetic legacy fixture; node-aware cases supply explicit node facts.
+      evaluationNodeId: null,
       occurredOn: '2026-06-01',
       title: 'Synthetic event',
       situation: 'Synthetic',
