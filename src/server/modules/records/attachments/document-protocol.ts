@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { parseLimitsSchema } from './limits';
 import { sourceLocationSchema } from '../../../../contracts/sources';
 export const DOCX_DECODER_VERSION = 'mammoth@1.13.0:body-v1';
-export const PDF_DECODER_VERSION = 'pdfjs-dist@6.4.299:items-v1';
+export const PDF_DECODER_VERSION = 'pdfjs-dist@6.4.299:items-v2';
 export const documentBudgetSchema = z.strictObject({
   maxDurationMs: z.number().int().positive().max(60000).default(60000),
   maxOldGenerationSizeMb: z.number().int().min(16).max(256).default(256),

@@ -75,8 +75,13 @@ def pdf(name, pages, image_size=1, action=False, table=False):
         else:
             parts = []
             for index, line in enumerate(lines):
-                encoded = line.encode('utf-16-be').hex().upper()
-                parts.append(f'BT /F1 12 Tf 40 {730 - index * 30} Td <{encoded}> Tj ET')
+                if isinstance(line, tuple):
+                    value, matrix = line
+                    encoded = value.encode('utf-16-be').hex().upper()
+                    parts.append(f'BT /F1 12 Tf {matrix} Tm <{encoded}> Tj ET')
+                else:
+                    encoded = line.encode('utf-16-be').hex().upper()
+                    parts.append(f'BT /F1 12 Tf 40 {730 - index * 30} Td <{encoded}> Tj ET')
             content = '\n'.join(parts).encode()
         if table:
             content = b'/P << /MCID 0 >> BDC\n' + content + b'\nEMC'
@@ -116,4 +121,5 @@ pdf('oversized-image.pdf', [['第一页演示原文。'], 'image'], image_size=1
 pdf('missing-image-size.pdf', [['第一页演示原文。'], 'image'], image_size=None)
 pdf('javascript.pdf', [['正文不会执行脚本。']], action=True)
 pdf('tagged-table.pdf', [['已标记的表格内容。']], table=True)
+pdf('filtered-text.pdf', [['演示正文一。', ('非水平装饰。', '0.707107 0.707107 -0.707107 0.707107 40 690'), 'www.beisen.com', '北森平台对接说明。', '演示正文二。']])
 print('Generated synthetic DOCX/PDF fixtures')

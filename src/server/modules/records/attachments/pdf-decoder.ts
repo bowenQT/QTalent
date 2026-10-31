@@ -16,14 +16,55 @@ function containsTable(value: unknown): boolean {
     (Array.isArray(item.children) && item.children.some(containsTable))
   );
 }
+// These pinned PDF.js diagnostics concern optional TrueType hint bytecode,
+// not the text mapping or operator stream. Unknown warnings still fail closed.
+const fontHintWarnings = new Set([
+  'Warning: TT: CALL invalid functions stack delta.',
+  'Warning: TT: CALL non-existent function',
+  'Warning: TT: nested FDEFs not allowed',
+  'Warning: TT: ENDF bad stack',
+  'Warning: TT: nested IDEFs not allowed',
+  'Warning: TT: complementing a missing function tail',
+  'Warning: TT: more functions defined than expected',
+]);
+function benignFontHint(args: unknown[]): boolean {
+  return (
+    args.length === 1 &&
+    typeof args[0] === 'string' &&
+    (fontHintWarnings.has(args[0]) ||
+      /^Warning: TT: (?:undefined function|invalid function id): \d+$/.test(
+        args[0],
+      ))
+  );
+}
+const platformMarks = new Set([
+  '北森',
+  'beisen',
+  'italent',
+  '北森italent',
+  'www.beisen.com',
+  'www.italent.cn',
+]);
+function platformWatermark(text: string): boolean {
+  // Whole lines only: a body sentence mentioning the platform remains evidence.
+  return platformMarks.has(
+    text.normalize('NFKC').replace(/\s+/g, '').toLowerCase(),
+  );
+}
+function horizontal(item: { dir: string; transform: number[] }): boolean {
+  const [a, b] = item.transform;
+  const scale = Math.hypot(a, b);
+  // Baseline direction, not glyph slant: horizontal italic text may have c != 0.
+  return item.dir !== 'ttb' && scale > 0 && Math.abs(b) <= scale * 1e-6;
+}
 /** Called only in the dedicated worker in production; no canvas rendering. */
 export async function decodePdf(
   message: DocumentMessage,
 ): Promise<DocumentOutcome> {
   const warn = console.warn;
   let warned = false;
-  console.warn = (..._arguments: unknown[]) => {
-    warned = true;
+  console.warn = (...args: unknown[]) => {
+    if (!benignFontHint(args)) warned = true;
   };
   let task: import('pdfjs-dist').PDFDocumentLoadingTask | undefined;
   let operatorGuard: ReturnType<typeof guardPdfOperators> | undefined;
@@ -86,8 +127,6 @@ export async function decodePdf(
         });
         operatorGuard.check();
         if (warned) throw new DocumentFault('invalid_content');
-        if (operations.fnArray.some((operation) => imageOps.has(operation)))
-          return { status: 'unsupported', reason: 'scanned' };
         const text = await page.getTextContent({
           disableNormalization: true,
           includeMarkedContent: false,
@@ -98,7 +137,7 @@ export async function decodePdf(
         const before = segments.length;
         function add(end: number) {
           const excerpt = raw.trim();
-          if (excerpt) {
+          if (excerpt && !platformWatermark(excerpt)) {
             total += excerpt.length;
             if (
               total > message.budget.maxOutputChars ||
@@ -120,13 +159,22 @@ export async function decodePdf(
         }
         text.items.forEach((item, index) => {
           if (!('str' in item)) throw new DocumentFault('invalid_content');
+          if (!horizontal(item)) {
+            // Do not reindex retained items or cite a span containing omitted text.
+            add(index);
+            start = index + 1;
+            return;
+          }
           raw += item.str;
           if (raw.length > message.limits.maxFragmentChars)
             throw new DocumentFault('resource_limit');
           if (item.hasEOL) add(index + 1);
         });
         add(text.items.length);
-        if (segments.length === before && operations.fnArray.length > 0)
+        if (
+          segments.length === before &&
+          operations.fnArray.some((operation) => imageOps.has(operation))
+        )
           return { status: 'unsupported', reason: 'scanned' };
       } finally {
         page.cleanup();

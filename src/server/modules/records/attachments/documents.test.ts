@@ -146,6 +146,72 @@ describe('real DOCX and PDF parsing', () => {
       ),
     ).toBeNull();
   });
+  it.each(['campus', 'hr', 'professional'])(
+    'decodes the BOW-896 synthetic %s PDF with a logo without treating the page as scanned',
+    async (template) => {
+      const value = await input(`logo-demo-${template}.pdf`);
+      value.limits = { ...limits, maxFragments: 300 };
+      const result = await parseAttachment(value);
+      expect(result.status).toBe('parsed');
+      if (result.status !== 'parsed') throw new Error('expected parsed');
+      expect(
+        result.fragments.some((fragment) => fragment.excerpt.includes('演示')),
+      ).toBe(true);
+      expect(
+        result.fragments.every(
+          (fragment) =>
+            fragment.location.page !== undefined &&
+            /^pdf:items:\d+-\d+$/.test(fragment.location.paragraph),
+        ),
+      ).toBe(true);
+      expect(result.parserVersion).toContain('pdfjs-dist@6.4.299');
+      if (template === 'hr') {
+        expect(
+          result.fragments.some((fragment) => fragment.location.page === 3),
+        ).toBe(true);
+      }
+    },
+  );
+  it('filters rotated text and platform watermarks while keeping original item ranges and body mentions', async () => {
+    const result = await parsed('filtered-text.pdf');
+    expect(result.fragments.map((fragment) => fragment.excerpt)).toEqual([
+      '演示正文一。',
+      '北森平台对接说明。',
+      '演示正文二。',
+    ]);
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = getDocument({
+      data: new Uint8Array(
+        await readFile(
+          new URL(
+            '../../../../../tests/fixtures/attachments/filtered-text.pdf',
+            import.meta.url,
+          ),
+        ),
+      ),
+      useSystemFonts: false,
+    });
+    try {
+      const document = await task.promise;
+      const page = await document.getPage(1);
+      const text = await page.getTextContent({ disableNormalization: true });
+      for (const fragment of result.fragments) {
+        const match = /^pdf:items:(\d+)-(\d+)$/.exec(
+          fragment.location.paragraph,
+        );
+        expect(match).not.toBeNull();
+        const original = text.items
+          .slice(Number(match![1]), Number(match![2]))
+          .map((item) => ('str' in item ? item.str : ''))
+          .join('')
+          .trim();
+        expect(fragment.location.page).toBe(1);
+        expect(original).toBe(fragment.excerpt);
+      }
+    } finally {
+      await task.destroy();
+    }
+  });
   it('does not compress physical page numbers when an actual blank page is skipped', async () => {
     expect(
       (await parsed('blank-middle.pdf')).fragments.map((f) => f.location.page),

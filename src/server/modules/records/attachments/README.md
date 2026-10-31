@@ -12,7 +12,7 @@
 - `resolveAttachmentQuote(parsed, fragmentId, quote, start)` 只接受该片段指定 offset 的精确非空引用；不会用整文替代每条引用。返回既有 `SourceReference`，不生成身份、归属、评分或确认时间。
 - DOCX/PDF 默认使用批准的实际 adapter；显式 `decoders:{}` 仍可表示该运行器未接入。自定义 `AttachmentDecoder` 只解码 bytes，输出严格 decoded/unsupported/failed 协议；没有 URL、人员、模型或确认信息。
 - DOCX 通过 Mammoth 语义 AST 提取正文段落，保留空段与显式分页符所在段的序号。`docx:body:pN:u16:start-end` 相对于该段的原始语义文字；手动分页不等于稳定排版页，**不输出物理 page**。保留正文 tab、换行、超链接显示文字，拒绝正文表格、图像、脚注引用、未知内容及忽略告警。关闭外部文件与嵌入样式，生成 HTML 不输出、不渲染。解析正文成功不等于整个原件已完成分类，父不能仅据此设置837/873的 complete。
-- PDF 从本地 bytes 逐物理页提取，`pdf:items:start-end` 引用该页实际 TextItem 索引范围，按库的 hasEOL 分片，只拼库返回文字。真实空白页可跳过，后续物理页码不压缩；扫描/图像/混合扫描页整体 unsupported，不把部分文字作为全份成功。已标记结构树中的 Table 明确拒绝；无标签、无边框文字表格无法保证可靠识别，**不声称通用 PDF 表格检测**。XLS/PPT/视频等其他文件格式一律 unsupported。
+- PDF 从本地 bytes 逐物理页提取，`pdf:items:start-end` 引用该页实际 TextItem 索引范围，按库的 hasEOL 分片，只拼库返回文字。真实空白或只有矢量装饰的页可跳过，后续物理页码不压缩；有可用文字层的页允许 Logo、图标或装饰图，只有无可用正文且有图像绘制的页判扫描，混合扫描仍整体 unsupported，不把部分文字作为全份成功。已标记结构树中的 Table 明确拒绝；无标签、无边框文字表格无法保证可靠识别，**不声称通用 PDF 表格检测**。XLS/PPT/视频等其他文件格式一律 unsupported。
 - 空白、损坏、完整性漂移、流错误与资源超限分别失败；库异常正文/objectKey 不进入提示或日志。worker 的 stdout/stderr 私下排空，仅严格结果协议回传。读取流须响应传入 `signal`，运行器应另给有界读取 deadline。
 
 ## 隔离与资源边界
@@ -23,7 +23,15 @@
 - DOCX只做窄ZIP资源预检：中央/本地名字、方法、边界一致，拒绝重复或规范化路径冲突；用Node内置zlib maxOutputLength核实际解压总量、声明大小与CRC。仅允许标准stored/deflate；不支持ZIP64、加密、分卷或异常容器。不读取XML正文，不取代Mammoth。
 - PDF关闭Wasm、系统字体、XFA、网络取字体和渲染，CMap/标准字体仅取已锁包内本地资源。6.4.299已无isEvalSupported API且无eval调用，未通过类型强转保留失效开关。document/page脚本动作与附件识别后拒绝，脚本从不执行；解析不是恶意文件扫描工具。
 - 固定PDF.js 6.4.299存在公开getOperatorList先resolve空/部分ops、后reject内部流的顺序问题。唯一私有seam在首次读取前包装 `_transport.messageHandler.sendWithStream`，只对GetOperatorList单reader逐块透传；先记sticky读取失败，再交原pump。await公开API后先check失败，再判空白。未知版本/形状失败关闭；其他action/this/参数保留，未修改node_modules。升级须先跑真实超像素、缺尺寸图像与正常空白页反例；上游修复后才考虑移除seam。
-- 显式stopAtErrors与warning级别；专用worker将PDF.js warning记录为失败标记而不打印原文，避免遗漏图像被当空白。结果、abort、deadline、error和无结果exit均终止线程并清理监听器。
+- 显式stopAtErrors与warning级别；仅忽略固定 6.4.299 的已知 TrueType hint 字节码提示（如 TT: undefined function），不忽略真正字体/文字/图像解码错误。未知警告继续失败，专用 worker 不打印或回传警告原文，避免遗漏图像被当空白。结果、abort、deadline、error和无结果exit均终止线程并清理监听器。
+
+## PDF 过滤与回归材料（10/31）
+
+解析版本提升为 `pdfjs-dist@6.4.299:items-v2`，新解析仍追加事实，不改写旧片段。非水平基线和纵向文本不作为正文；斜体的字形剪切不会误当旋转。平台水印仅匹配独立整行的 `北森`、`Beisen`、`iTalent`、`北森iTalent`、`www.beisen.com`、`www.italent.cn`（空白和大小写归一）；正文中提到平台的句子保留。遇到被过滤的旋转项时先结束当前片段，再用原始 TextItem 索引开始下一段，不压缩索引，也不把跳过的文字夹在同一个引用范围里。
+
+`tests/fixtures/attachments/filtered-text.pdf` 由同目录 `generate.py` 从零生成，含旋转装饰、水平平台水印和应保留的正文提及。`logo-demo-campus.pdf`、`logo-demo-hr.pdf`、`logo-demo-professional.pdf` 是 BOW-896 固定提交 `9533f64306ed68a6c2d2966474ef6d89033a5e31` 的 `tests/fixtures/bow-896/interview/{campus,hr,professional}.pdf` 字节副本，仅用于本卡独立回归；不修改该卡目录，也不导入其未提交内容。来源 [PR #251](https://github.com/bowenQT/QTalent/pull/251)。这些是从零重建的化名兼容样例，只证明带 Logo 的样例能提取文字及物理页，不证明官方模板 1:1 或真实材料全量兼容，不从文字标签推断单选分数。
+
+三份 Logo 样例的重建由 BOW-896 生成器负责，本卡 `generate.py` 只重建自己的基础/过滤夹具；不要求 CI 安装额外 Python 依赖。合成诊断边界测试只替换 PDF.js 返回值/警告，实际三格式与混合扫描、坏图像、页数/字符预算及独立 worker 另由真实库回归验证。
 
 ## 873 冻结 port v1
 
