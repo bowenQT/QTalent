@@ -48,6 +48,28 @@ export function createRecordCollectionService(deps: CollectionDependencies) {
     createHash('sha256')
       .update(JSON.stringify(normalized(target)))
       .digest('hex');
+  async function savedBindingWritable(
+    accountId: string,
+    collection: UploadCollection,
+    binding: CollectionBinding,
+    tx: UploadTransaction,
+  ): Promise<boolean> {
+    if (binding.state === 'draft') return true;
+    if (
+      !binding.eventIds.length ||
+      new Set(binding.eventIds).size !== binding.eventIds.length
+    )
+      return false;
+    for (const eventId of binding.eventIds) {
+      if (
+        !eventId.trim() ||
+        (await deps.collectionForEvent(eventId, tx)) !== collection.id ||
+        !(await deps.canWriteTarget(accountId, { kind: 'event', eventId }, tx))
+      )
+        return false;
+    }
+    return true;
+  }
   return {
     release(
       accountId: string | null,
@@ -89,6 +111,11 @@ export function createRecordCollectionService(deps: CollectionDependencies) {
               throw new UploadError('not_found', 'upload_not_found');
             if (intent.request.recordCollectionId !== recordCollectionId)
               throw new UploadError('conflict', 'record_collection_changed');
+            const binding = await deps.loadBinding(recordCollectionId, tx);
+            if (
+              !(await savedBindingWritable(accountId, collection, binding, tx))
+            )
+              throw new UploadError('not_found', 'upload_not_found');
             const digest = createHash('sha256')
               .update(JSON.stringify(command))
               .digest('hex');
@@ -105,7 +132,6 @@ export function createRecordCollectionService(deps: CollectionDependencies) {
                 releasedAt: intent.releasedAt,
               };
             }
-            const binding = await deps.loadBinding(recordCollectionId, tx);
             if (binding.state !== 'draft')
               throw new UploadError('conflict', 'collection_saved');
             if (intent.revision !== command.expectedRevision)
@@ -225,7 +251,16 @@ export function createRecordCollectionService(deps: CollectionDependencies) {
               return null;
           } else if (fingerprint(input.target) !== collection.targetFingerprint)
             return null;
-          if (binding.state === 'saved' && binding.eventIds.length === 0)
+          // Saved identity comes from the ledger, never the caller's weaker
+          // people alias. Every linked event must still map here and be writable.
+          if (
+            !(await savedBindingWritable(
+              accountId,
+              collection,
+              binding,
+              transaction,
+            ))
+          )
             return null;
           if (
             !(await deps.canWriteTarget(accountId, input.target, transaction))

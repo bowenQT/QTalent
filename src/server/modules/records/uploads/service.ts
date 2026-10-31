@@ -20,6 +20,12 @@ const TOKEN_TTL = 5 * 60 * 1000;
 const INTENT_TTL = 24 * 60 * 60 * 1000;
 const fingerprint = (input: unknown) =>
   createHash('sha256').update(JSON.stringify(input)).digest('hex');
+function requestFingerprint(input: unknown): string {
+  const request = uploadRequestSchema.parse(input);
+  request.declaredMediaType = request.declaredMediaType.toLowerCase();
+  if (request.target.kind === 'people') request.target.personIds.sort();
+  return fingerprint(request);
+}
 export async function safeUpload<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
@@ -105,7 +111,7 @@ export function createUploadService(options: UploadOptions) {
               { request, quotaScope: target.quotaScope },
               tx,
             );
-            const digest = fingerprint(request);
+            const digest = requestFingerprint(request);
             let intent = await tx.findOperation(accountId, request.operationId);
             if (
               intent &&
@@ -196,11 +202,32 @@ export function createUploadService(options: UploadOptions) {
           throw new UploadError('validation_error', 'invalid_input');
         const command = parsed.data;
         const digest = fingerprint(command);
-        const locks = [`upload:${command.uploadId}`];
+        const initial = await options.store.transaction([], (tx) =>
+          tx.findIntent(command.uploadId),
+        );
+        if (
+          !initial ||
+          initial.accountId !== accountId ||
+          initial.id !== command.uploadId
+        )
+          throw new UploadError('not_found', 'upload_not_found');
+        const lockedScope = initial.quotaScope;
+        // Match 846 save/undo and membership release: scope is trusted storage,
+        // never a client-selected quota key. Re-resolve authority AFTER waiting.
+        const locks = [`quota:${lockedScope}`, `upload:${command.uploadId}`];
         async function current(tx: UploadTransaction) {
           const intent = await tx.findIntent(command.uploadId);
-          if (!intent || intent.accountId !== accountId)
+          if (
+            !intent ||
+            intent.accountId !== accountId ||
+            intent.id !== command.uploadId
+          )
             throw new UploadError('not_found', 'upload_not_found');
+          if (
+            intent.quotaScope !== lockedScope ||
+            requestFingerprint(intent.request) !== intent.fingerprint
+          )
+            throw new UploadError('conflict', 'upload_changed');
           const scope = await authorize(accountId!, intent, tx);
           if (intent.releasedAt !== null)
             throw new UploadError('conflict', 'upload_removed');
@@ -229,6 +256,12 @@ export function createUploadService(options: UploadOptions) {
         return options.store.transaction(locks, async (tx) => {
           const latest = await current(tx);
           if (latest.completed) return latest.completed;
+          if (
+            latest.objectKey !== intent.objectKey ||
+            latest.fingerprint !== intent.fingerprint ||
+            latest.revision !== intent.revision
+          )
+            throw new UploadError('conflict', 'upload_changed');
           const ids = {
             originalId: randomUUID(),
             originalVersionId: randomUUID(),

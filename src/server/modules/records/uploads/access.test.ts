@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createOriginalAuthorizer,
+  createNodeOriginalAuthorizer,
   type OriginalAccessSnapshot,
 } from './access';
 function snapshot(role: 'mentor' | 'hr' | 'manager'): OriginalAccessSnapshot {
@@ -136,4 +137,109 @@ describe('whole original uses existing talent source authorization', () => {
       await createOriginalAuthorizer(async () => data)('account', reference),
     ).toBe(false);
   });
+});
+
+it('does not silently authorize node-scoped sources through the legacy talent reader', async () => {
+  const data = snapshot('mentor');
+  Object.assign(data.context, {
+    evaluationNodes: [],
+    evaluationNodeSubjects: [],
+    evaluationRelations: [],
+  });
+  expect(
+    await createOriginalAuthorizer(async () => data)('account', {
+      fragmentId: 'fragment',
+      originalVersionId: 'version',
+    }),
+  ).toBe(false);
+});
+
+it('requires complete current node facts and authorizes every fragment with the injected source capability', async () => {
+  const data = {
+    ...snapshot('mentor'),
+    originalId: 'original',
+    context: {
+      ...snapshot('mentor').context,
+      now: '2026-10-25T00:00:00.000Z',
+      evaluationNodes: [],
+      evaluationNodeSubjects: [],
+      evaluationRelations: [],
+    },
+  };
+  const load = vi.fn(async () => data);
+  const read = vi.fn(
+    async (_snapshot: typeof data, source: { fragmentId: string }) =>
+      source.fragmentId !== 'hidden',
+  );
+  const authorize = createNodeOriginalAuthorizer({
+    authorizationNow: () => '2026-10-25T00:00:00.000Z',
+    load,
+    canReadFragment: read,
+  });
+  const ref = { fragmentId: 'fragment', originalVersionId: 'version' };
+  expect(await authorize('account', ref)).toBe(true);
+  expect(load).toHaveBeenCalledWith(
+    'account',
+    'version',
+    '2026-10-25T00:00:00.000Z',
+    undefined,
+  );
+  data.sources.push({ ...data.sources[0], fragmentId: 'hidden' });
+  expect(await authorize('account', ref)).toBe(false);
+  expect(read).toHaveBeenLastCalledWith(data, data.sources[1]);
+  data.sources.pop();
+  data.context.now = '2026-10-24T00:00:00.000Z';
+  expect(await authorize('account', ref)).toBe(false);
+  data.context.now = '2026-10-25T00:00:00.000Z';
+  data.complete = false;
+  expect(await authorize('account', ref)).toBe(false);
+});
+it('rejects mismatched node-reader identity, duplicate/unlinked sources and unknown original identities', async () => {
+  const data = {
+    ...snapshot('manager'),
+    originalId: 'original',
+    context: {
+      ...snapshot('manager').context,
+      evaluationNodes: [],
+      evaluationNodeSubjects: [],
+      evaluationRelations: [],
+    },
+  };
+  const authorize = createNodeOriginalAuthorizer({
+    authorizationNow: () => '2026-10-25T00:00:00.000Z',
+    load: async () => data,
+    canReadFragment: async () => true,
+  });
+  expect(
+    await authorize('other', {
+      originalId: 'original',
+      originalVersionId: 'version',
+    }),
+  ).toBe(false);
+  expect(
+    await authorize('account', {
+      originalId: 'wrong',
+      originalVersionId: 'version',
+    }),
+  ).toBe(false);
+  expect(
+    await authorize('account', {
+      fragmentId: 'missing',
+      originalVersionId: 'version',
+    }),
+  ).toBe(false);
+  data.sources.push(data.sources[0]);
+  expect(
+    await authorize('account', {
+      originalId: 'original',
+      originalVersionId: 'version',
+    }),
+  ).toBe(false);
+  data.sources = [];
+  expect(
+    await authorize('account', {
+      originalId: 'original',
+      originalVersionId: 'version',
+    }),
+  ).toBe(false);
 });

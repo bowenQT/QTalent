@@ -59,6 +59,7 @@ afterAll(async () => {
 async function databaseFixture(draft = false) {
   let writable = true;
   let failDispatch = false;
+  let canonicalCollection: string | null = null;
   const dispatches: {
     originalId: string;
     originalVersionId: string;
@@ -101,15 +102,18 @@ async function databaseFixture(draft = false) {
         externalAttachmentCount: 0,
       };
     },
-    async collectionForEvent() {
-      return null;
+    async collectionForEvent(eventId) {
+      return eventId === 'synthetic-event' ? canonicalCollection : null;
     },
   });
   const collection = await collections.create('account', {
     operationId: randomUUID(),
     target: { kind: 'people', personIds: ['demo-person-1'] },
   });
+  canonicalCollection = collection.id;
   const f = fixture(collection.id);
+  // Fixtures share this real database; each new collection is a new operation.
+  f.request.operationId = randomUUID();
   const options = {
     ...f.options,
     store,

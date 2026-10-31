@@ -1,4 +1,14 @@
 import 'server-only';
+import {
+  createUploadTargetAuthorizer,
+  type UploadTargetAuthorization,
+  type UploadWriteContext,
+} from '../modules/records/uploads/target-authorization';
+import {
+  createNodeOriginalAuthorizer,
+  type NodeOriginalAuthorization,
+  type NodeOriginalSnapshot,
+} from '../modules/records/uploads/access';
 import type { Database } from '../db/client';
 import { jobAccount } from '../jobs/request';
 import { recordAudit } from '../platform/audit';
@@ -70,4 +80,39 @@ export function createUploadRuntime(input: {
         }),
     }),
   };
+}
+
+/** Register this factory for node-aware intake only after 899/846/source
+ * projection owners provide the real policies; no legacy policy is selected.
+ */
+export function createNodeAuthorizedUploadRuntime<
+  C extends UploadWriteContext,
+  S extends NodeOriginalSnapshot,
+>(
+  input: Omit<
+    Parameters<typeof createUploadRuntime>[0],
+    'collectionPolicy' | 'canReadOriginal'
+  > & {
+    collectionPolicy: Pick<
+      CollectionDependencies,
+      'loadBinding' | 'collectionForEvent'
+    >;
+    targetAuthorization: UploadTargetAuthorization<C>;
+    originalAuthorization: NodeOriginalAuthorization<S>;
+  },
+) {
+  const {
+    targetAuthorization,
+    originalAuthorization,
+    collectionPolicy,
+    ...base
+  } = input;
+  return createUploadRuntime({
+    ...base,
+    collectionPolicy: {
+      ...collectionPolicy,
+      canWriteTarget: createUploadTargetAuthorizer(targetAuthorization),
+    },
+    canReadOriginal: createNodeOriginalAuthorizer(originalAuthorization),
+  });
 }

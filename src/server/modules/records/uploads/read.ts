@@ -124,6 +124,21 @@ export function createOriginalReader(options: UploadOptions) {
                   : { end: ticket.requestedRange.endInclusive }),
               }
             : undefined);
+        const expectedStart = range?.start ?? 0;
+        const expectedEnd = Math.min(
+          range?.end ?? object.byteLength - 1,
+          object.byteLength - 1,
+        );
+        if (
+          !Number.isSafeInteger(expectedStart) ||
+          !Number.isSafeInteger(expectedEnd) ||
+          expectedStart < 0 ||
+          expectedStart >= object.byteLength ||
+          expectedEnd < expectedStart
+        )
+          throw new UploadError('validation_error', 'invalid_range');
+        const expectedLength = expectedEnd - expectedStart + 1;
+        const expectedContentRange = `bytes ${expectedStart}-${expectedEnd}/${object.byteLength}`;
         const stat = await options.storage.statObject({
           objectKey: object.objectKey,
         });
@@ -144,7 +159,31 @@ export function createOriginalReader(options: UploadOptions) {
             !(await options.policy.canReadOriginal(accountId, identity(ticket)))
           )
             throw missing();
+          const providerHeaders = new Headers(opened.headers);
+          const length = providerHeaders.get('content-length');
+          const contentRange = providerHeaders.get('content-range');
+          const bounds = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(contentRange ?? '');
+          const mime = providerHeaders
+            .get('content-type')
+            ?.split(';', 1)[0]
+            .trim()
+            .toLowerCase();
+          if (
+            opened.status !== (range ? 206 : 200) ||
+            !length ||
+            !/^\d+$/.test(length) ||
+            Number(length) !== expectedLength ||
+            mime !== object.mediaType.toLowerCase() ||
+            (range
+              ? !bounds ||
+                Number(bounds[1]) !== expectedStart ||
+                Number(bounds[2]) !== expectedEnd ||
+                Number(bounds[3]) !== object.byteLength
+              : contentRange !== null)
+          )
+            throw new UploadError('unavailable', 'original_integrity');
           const source = opened.body.getReader();
+          let received = 0;
           const body = new ReadableStream<Uint8Array>({
             async pull(controller) {
               try {
@@ -152,10 +191,17 @@ export function createOriginalReader(options: UploadOptions) {
                 const next = await source.read();
                 if (ticket.expiresAt <= now()) throw missing();
                 if (next.done) {
+                  if (received !== expectedLength)
+                    throw new UploadError('unavailable', 'original_integrity');
                   source.releaseLock();
                   opened.close();
                   controller.close();
-                } else controller.enqueue(next.value);
+                } else {
+                  received += next.value.byteLength;
+                  if (received > expectedLength)
+                    throw new UploadError('unavailable', 'original_integrity');
+                  controller.enqueue(next.value);
+                }
               } catch {
                 await source.cancel().catch(() => {});
                 opened.close();
@@ -176,7 +222,9 @@ export function createOriginalReader(options: UploadOptions) {
           return new Response(body, {
             status: opened.status,
             headers: {
-              ...opened.headers,
+              'content-length': String(expectedLength),
+              'content-type': object.mediaType,
+              ...(range ? { 'content-range': expectedContentRange } : {}),
               'cache-control': 'private, no-store',
               'x-content-type-options': 'nosniff',
               'content-disposition': `${intent.request.purpose === 'audio' ? 'inline' : 'attachment'}; filename*=UTF-8''${filename}`,

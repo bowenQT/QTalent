@@ -130,3 +130,52 @@ describe('bounded server content verification', () => {
     ).rejects.toMatchObject({ message: 'object_verification_unavailable' });
   });
 });
+
+it('requires the actual MIME to equal the declared MIME, not merely another alias for the same extension', async () => {
+  const f = fixture();
+  const bytes = audio('wav');
+  await f.put('synthetic/mime-alias', bytes, 'audio/x-wav');
+  await expect(
+    verifyUploadObject(f.options.storage, 'synthetic/mime-alias', {
+      ...f.request,
+      purpose: 'audio',
+      filename: 'demo.wav',
+      declaredBytes: bytes.length,
+      declaredMediaType: 'audio/wav',
+    }),
+  ).rejects.toMatchObject({ reason: 'object_mismatch' });
+});
+it('binds both metadata reads to the requested object key', async () => {
+  const f = fixture();
+  await f.put('synthetic/object');
+  const stat = await f.options.storage.statObject({
+    objectKey: 'synthetic/object',
+  });
+  vi.spyOn(f.options.storage, 'statObject')
+    .mockResolvedValueOnce(stat)
+    .mockResolvedValueOnce({ ...stat, key: 'other-object' });
+  await expect(
+    verifyUploadObject(f.options.storage, 'synthetic/object', f.request),
+  ).rejects.toMatchObject({ reason: 'object_mismatch' });
+});
+it.each([false, true])(
+  'closes the storage response after success or invalid content (invalid=%s)',
+  async (invalid) => {
+    const f = fixture();
+    await f.put('synthetic/close', invalid ? new Uint8Array(7) : undefined);
+    const open = f.options.storage.openObject;
+    const close = vi.fn();
+    vi.spyOn(f.options.storage, 'openObject').mockImplementation(
+      async (input) => ({ ...(await open(input)), close }),
+    );
+    const result = verifyUploadObject(
+      f.options.storage,
+      'synthetic/close',
+      f.request,
+    );
+    if (invalid)
+      await expect(result).rejects.toMatchObject({ reason: 'invalid_content' });
+    else await expect(result).resolves.toHaveProperty('byteLength', 7);
+    expect(close).toHaveBeenCalledOnce();
+  },
+);
