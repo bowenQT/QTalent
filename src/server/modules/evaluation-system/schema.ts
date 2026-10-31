@@ -75,8 +75,9 @@ export const anchors = pgTable(
 export const ruleVersionApplicability = pgTable(
   'evaluation_rule_version_applicability',
   {
+    periodId: text('period_id').primaryKey(),
     versionId: text('version_id')
-      .primaryKey()
+      .notNull()
       .references(() => ruleVersions.id),
     category: text('category').$type<EvaluationRuleCategory>().notNull(),
     effectiveFrom: timestamp('effective_from', {
@@ -101,9 +102,10 @@ export const ruleVersionApplicability = pgTable(
       'evaluation_rule_applicability_window',
       sql`
       isfinite(${t.effectiveFrom}) and
-      (${t.effectiveUntil} is null or (isfinite(${t.effectiveUntil}) and ${t.effectiveUntil} > ${t.effectiveFrom}))
+      (${t.effectiveUntil} is null or (isfinite(${t.effectiveUntil}) and ${t.effectiveUntil} >= ${t.effectiveFrom}))
     `,
     ),
+    index('evaluation_rule_applicability_version_idx').on(t.versionId),
     index('evaluation_rule_applicability_lookup_idx').on(
       t.category,
       t.effectiveFrom,

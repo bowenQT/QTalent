@@ -40,6 +40,7 @@ export async function readEffectiveRuleVersion(
     .where(
       and(
         eq(ruleVersionApplicability.category, request.category),
+        // Half-open predicates also exclude internal audit-only [t,t) periods.
         lte(ruleVersionApplicability.effectiveFrom, at),
         or(
           isNull(ruleVersionApplicability.effectiveUntil),

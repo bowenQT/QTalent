@@ -79,12 +79,15 @@ async function addVersion(
   await db()
     .insert(ruleVersions)
     .values({ id: versionId, provenance: 'published' });
-  await db().insert(ruleVersionApplicability).values({
-    versionId,
-    category,
-    effectiveFrom: from,
-    effectiveUntil: until,
-  });
+  await db()
+    .insert(ruleVersionApplicability)
+    .values({
+      periodId: `test:${versionId}`,
+      versionId,
+      category,
+      effectiveFrom: from,
+      effectiveUntil: until,
+    });
 }
 
 describe('真实 PostgreSQL 按类别及时间点取版', () => {
@@ -253,7 +256,11 @@ describe('旧版分类与证据起点的真实回填', () => {
       .from(ruleVersions)
       .orderBy(ruleVersions.id);
     expect(
-      (await backfillLegacyRuleVersionApplicability(db(), usages())).sort(),
+      (
+        await db().transaction((tx) =>
+          backfillLegacyRuleVersionApplicability(tx, usages()),
+        )
+      ).sort(),
     ).toEqual(['rubric-v1', 'xe-weekly-v1']);
     expect(
       await db().select().from(ruleVersions).orderBy(ruleVersions.id),
@@ -287,7 +294,9 @@ describe('旧版分类与证据起点的真实回填', () => {
   it('缺一个旧版的使用时间时整体不写，不拿当前导入时间代替', async () => {
     await oldVersions();
     await expect(
-      backfillLegacyRuleVersionApplicability(db(), usages().slice(0, 2)),
+      db().transaction((tx) =>
+        backfillLegacyRuleVersionApplicability(tx, usages().slice(0, 2)),
+      ),
     ).rejects.toThrow('xe-weekly-v1');
     expect(await db().select().from(ruleVersionApplicability)).toEqual([]);
   });
@@ -300,7 +309,11 @@ describe('旧版分类与证据起点的真实回填', () => {
       .update(ruleVersionApplicability)
       .set({ effectiveUntil: october })
       .where(eq(ruleVersionApplicability.versionId, 'rubric-v1'));
-    expect(await backfillLegacyRuleVersionApplicability(db(), [])).toEqual([]);
+    expect(
+      await db().transaction((tx) =>
+        backfillLegacyRuleVersionApplicability(tx, []),
+      ),
+    ).toEqual([]);
     const row = await db()
       .select()
       .from(ruleVersionApplicability)
@@ -319,14 +332,16 @@ describe('applicability 的数据库约束', () => {
   it('规则生效元数据必须引用实际存在的规则版本', async () => {
     await expect(
       db().insert(ruleVersionApplicability).values({
+        periodId: 'test:missing-select',
         versionId: 'xe-select-v1',
         category: 'xe_selection',
         effectiveFrom: january,
       }),
     ).rejects.toMatchObject({ cause: { code: '23503' } });
   });
-  it('同一个版本只能有一份类别与生效区间', async () => {
+  it('同一个periodId只允许一份区段，versionId不再作主键', async () => {
     const value = {
+      periodId: 'test:rubric',
       versionId: 'rubric-v1',
       category: 'dimension_anchors' as const,
       effectiveFrom: january,
@@ -339,6 +354,7 @@ describe('applicability 的数据库约束', () => {
   it('不能把维度锚点标成周评或选拔，也不能写不存在的类别', async () => {
     await expect(
       db().insert(ruleVersionApplicability).values({
+        periodId: 'test:rubric',
         versionId: 'rubric-v1',
         category: 'xe_weekly',
         effectiveFrom: january,
@@ -351,15 +367,16 @@ describe('applicability 的数据库约束', () => {
     });
     await expect(
       db().execute(
-        sql`insert into ${ruleVersionApplicability} (version_id, category, effective_from) values ('rubric-v1', 'published', '2026-01-01T00:00:00Z')`,
+        sql`insert into ${ruleVersionApplicability} (period_id, version_id, category, effective_from) values ('test:raw', 'rubric-v1', 'published', '2026-01-01T00:00:00Z')`,
       ),
     ).rejects.toMatchObject({ cause: { code: '23514' } });
   });
-  it.each([new Date('2026-01-01T00:00:00Z'), new Date('2025-12-31T00:00:00Z')])(
-    '结束时间 %s 必须晚于起点',
+  it.each([new Date('2025-12-31T00:00:00Z')])(
+    '结束时间 %s 不得早于起点',
     async (until) => {
       await expect(
         db().insert(ruleVersionApplicability).values({
+          periodId: 'test:rubric',
           versionId: 'rubric-v1',
           category: 'dimension_anchors',
           effectiveFrom: january,
@@ -373,10 +390,29 @@ describe('applicability 的数据库约束', () => {
       });
     },
   );
+  it('同毫秒空段允许留存，但公开读取不能返回它', async () => {
+    const period = {
+      periodId: 'test:empty',
+      versionId: 'rubric-v1',
+      category: 'dimension_anchors' as const,
+      effectiveFrom: january,
+      effectiveUntil: january,
+    };
+    await db().insert(ruleVersionApplicability).values(period);
+    expect(await db().select().from(ruleVersionApplicability)).toEqual([
+      period,
+    ]);
+    expect(
+      await readEffectiveRuleVersion(db(), {
+        category: 'dimension_anchors',
+        at: january.toISOString(),
+      }),
+    ).toHaveProperty('status', 'not_found');
+  });
   it('拒绝 Infinity，避免序列化成伪造的 ISO 时间', async () => {
     await expect(
       db().execute(
-        sql`insert into ${ruleVersionApplicability} (version_id, category, effective_from) values ('rubric-v1', 'dimension_anchors', 'infinity')`,
+        sql`insert into ${ruleVersionApplicability} (period_id, version_id, category, effective_from) values ('test:raw', 'rubric-v1', 'dimension_anchors', 'infinity')`,
       ),
     ).rejects.toMatchObject({
       cause: {

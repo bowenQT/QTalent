@@ -16,12 +16,14 @@ describe('已知旧版 applicability 计划', () => {
     expect(plan.unresolved).toEqual([]);
     expect(plan.rows).toEqual([
       {
+        periodId: 'legacy:rubric-v1',
         versionId: 'rubric-v1',
         category: 'dimension_anchors',
         effectiveFrom: new Date('2026-07-01T00:00:00Z'),
         effectiveUntil: null,
       },
       {
+        periodId: 'legacy:xe-weekly-v1',
         versionId: 'xe-weekly-v1',
         category: 'xe_weekly',
         effectiveFrom: new Date('2026-08-02T00:00:00Z'),

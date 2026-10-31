@@ -214,6 +214,7 @@ it('backfills separate rubric and weekly applicability from source dates and pre
         .sort();
       const effectiveFrom = dates[0] + 'T00:00:00.000Z';
       expect(applicability.find((row) => row.versionId === versionId)).toEqual({
+        periodId: `legacy:${versionId}`,
         versionId,
         category,
         effectiveFrom: new Date(effectiveFrom),

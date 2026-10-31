@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { EvaluationRuleCategory } from '../../../contracts/selection-standard';
-import type { DbExecutor } from '../../db/client';
+import type { Transaction } from '../../db/client';
+import { lockRuleCategory } from './applicability';
 import { ruleVersionApplicability, ruleVersions } from './schema';
 
 const legacyCategories = new Map<string, EvaluationRuleCategory>([
@@ -49,6 +50,7 @@ export function planLegacyRuleVersionApplicability(
       continue;
     }
     plan.rows.push({
+      periodId: `legacy:${versionId}`,
       versionId,
       category,
       effectiveFrom: new Date(Math.min(...times)),
@@ -62,9 +64,10 @@ export function planLegacyRuleVersionApplicability(
 // Only missing metadata for the two known baseline versions is filled. Existing
 // applicability (including an end date from a later publication) is preserved.
 export async function backfillLegacyRuleVersionApplicability(
-  db: DbExecutor,
+  db: Transaction,
   usages: readonly LegacyRuleUsage[],
 ): Promise<string[]> {
+  await lockRuleCategory(db, ['dimension_anchors', 'xe_weekly']);
   const missing = await db
     .select({ id: ruleVersions.id })
     .from(ruleVersions)
@@ -91,7 +94,6 @@ export async function backfillLegacyRuleVersionApplicability(
   const inserted = await db
     .insert(ruleVersionApplicability)
     .values(plan.rows)
-    .onConflictDoNothing({ target: ruleVersionApplicability.versionId })
     .returning({ versionId: ruleVersionApplicability.versionId });
   return inserted.map((row) => row.versionId);
 }
