@@ -13,6 +13,8 @@
 
 本地取消没有调用供应商取消 API。迟到的同 attempt task receipt 可保留用于核对，但不会恢复处理；旧 attempt 不允许写入。进程在 reservation 后崩溃、且无法确认 task ID 时需要人工/供应商查证，不能直接清 checkpoint 重提。生产适配器必须在新的 attempt 中保留此防重复事实。
 
+859 → 860 的完整输入是已持久转写版本的全部 `fragments`：每段含 fragment/source、reviewItemId、providerSentenceId 和可空的 `providerSpeakerId`，并同时携带独立 transcript/original 版本。`providerSpeakerId:null` 仍保留在清单、待核对与恢复验证中，不会被过滤；未识别项在旧 `SpeakerItem` DTO 的必填 speakerId 中用本片段 ID 作为待核对 key，这不表示识别了说话人，也不能据此跨片段合并或绑定到人员。只有实际人工绑定/无关 ledger 能解除歧义。`loadBindings` 少任何片段或重复片段都会失败，不会据残缺清单宣称全部完成。原件整体授权仍需 837/873 的完整分类投影，转写片段完整不等于整个原件已获播放许可。
+
 ## 必需的生产接线
 
 - `RecordingPorts.transaction`：Read Committed 的原生短事务，和 873 / 846 共用 quota 锁、当前成员与节点写权限，锁后读取 BOW-860 绑定修订及恢复 ledger；`saveRun` 同事务投影正式 media job 状态。缺少上下文即拒绝，不提供 allow-all / draft / 0 默认值。

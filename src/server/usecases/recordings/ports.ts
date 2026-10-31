@@ -21,6 +21,9 @@ export type RecordingTransaction = {
   saveRun(run: RecordingRun): Promise<void>;
   /** Immutable transcript + all fragment/source rows, atomically with the run. */
   insertTranscript(transcript: RecordingTranscript): Promise<void>;
+  /** Complete immutable inventory, including providerSpeakerId:null fragments; never filter them.
+   * Only a real manual binding/irrelevant ledger resolves unknown identity. A UI review key is not a person ID.
+   */
   loadBindings(transcript: RecordingTranscript): Promise<RecordingBindings>;
   replacePendingReview(items: SpeakerItem[]): Promise<void>;
   /** Both queue methods use this same native DB transaction and the single producer. */

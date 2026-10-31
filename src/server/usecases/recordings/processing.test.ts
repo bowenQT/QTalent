@@ -567,10 +567,15 @@ describe('archived offline recording workflow', () => {
   it('queues ambiguous parts only and resumes from a committed binding revision without another ASR task', async () => {
     const h = harness();
     h.pending();
+    h.transcript.segments[0].speakerId = null;
     await h.process(h.work);
     expect(h.state.run).toMatchObject({ phase: 'needs_review', claim: null });
     expect(h.state.review).toHaveLength(1);
     expect(h.state.shaping).toEqual([]);
+    expect(h.state.transcripts[0].fragments[0].providerSpeakerId).toBeNull();
+    expect(h.state.review[0].speakerId).toBe(
+      h.state.transcripts[0].fragments[0].source.fragmentId,
+    );
     expect(await h.process(h.work)).toBe('ignored');
     h.loadBindings.mockImplementation(async (t) => ({
       revision: 2,
