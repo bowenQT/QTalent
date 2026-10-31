@@ -77,6 +77,7 @@ git worktree add --detach /tmp/bow-871-iteration 2fe52fa46a0003762b5090b0d5af976
 ln -s "$PWD/node_modules" /tmp/bow-871-materials/node_modules
 ln -s "$PWD/node_modules" /tmp/bow-871-iteration/node_modules
 node --import tsx tests/e2e/bow-871/frozen-contracts.verify.ts --materials-root /tmp/bow-871-materials --iteration-root /tmp/bow-871-iteration
+rm /tmp/bow-871-materials/node_modules /tmp/bow-871-iteration/node_modules
 git worktree remove /tmp/bow-871-materials
 git worktree remove /tmp/bow-871-iteration
 ```
