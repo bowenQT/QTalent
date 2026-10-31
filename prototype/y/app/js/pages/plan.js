@@ -162,6 +162,7 @@
     });
     if (v !== 'ok') return;
     const created = st.confirmOrg(p);
+    if (created == null) { render($('#main')); NT.toast('方案或盘点状态已变化，无法重复确认，请刷新核对'); return; }
     render($('#main'));
     const seal = $('#seal'); seal?.classList.add('is-stamping');
     $('#doc')?.classList.add('is-settling');

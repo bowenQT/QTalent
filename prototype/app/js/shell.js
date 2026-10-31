@@ -46,7 +46,12 @@
       ['盘点 · 增长产品部 2026 H2', 'review.html?id=b-h2', ['ceo', 'hrbp', 'lead']],
       ['批次 · Landing 第三期', 'landing.html', ['ceo', 'hrbp', 'lead', 'mentor']],
       ['人员 · 林知远', 'person.html?id=p-lin', ['ceo', 'hrbp', 'mentor', 'self']],
-    ].filter((r) => r[2].includes(role) && role !== 'ceo');
+    ].filter((r) => {
+      if (!r[2].includes(role) || role === 'ceo') return false;
+      const id = String(r[1]).match(/[?&]id=([^&]+)/)?.[1];
+      if (String(r[1]).startsWith('project.html') && id) return st.canSeeProject(st.project(id), role);
+      return true;
+    });
 
     document.body.classList.add('nt-desk');
     const root = document.getElementById('app');

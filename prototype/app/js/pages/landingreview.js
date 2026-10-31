@@ -96,7 +96,7 @@
       const ok = e.target.closest('[data-ok]');
       if (ok) {
         const [evId, i] = ok.dataset.ok.split(':');
-        const row = ok.closest('.n-review__dim').querySelector(`.nt-pick[data-i="${i}"]`);
+        const row = ok.closest('.n-review__dim').querySelector(`.nt-pick[data-ev="${evId}"][data-i="${i}"]`);
         const v = +(row.dataset.v || row.dataset.ai);
         st.confirmScore(evId, +i, v, '');
         const dimEl = ok.closest('.n-review__dim');

@@ -54,8 +54,10 @@
   }
 
   function pick(id, v, btn) {
-    const item = st.get().inbox.find((x) => x.id === id);
     const cardEl = btn.closest('.n-verify');
+    if (!cardEl || cardEl.dataset.picking) return;
+    cardEl.dataset.picking = '1';
+    const item = st.get().inbox.find((x) => x.id === id);
     $$('.n-choice', cardEl).forEach((x) => x.classList.toggle('is-picked', x === btn));
     const draft = $('[data-draft]', cardEl);
     const dock = $(`[data-dock="${v}"]`);
