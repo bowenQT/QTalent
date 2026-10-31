@@ -555,7 +555,8 @@ describe('BOW-854 authorized matching', () => {
     const run = f.store.state.runs.get(result.runId)!;
     expect(run.inputFormatVersion).toBe('staffing-match-input-v1');
     expect(run.jevPromptVersion).toBe('requirement-match-v1');
-    expect(JSON.stringify(f.decide.mock.calls)).toContain(
+    expect(JSON.stringify(f.decide.mock.calls)).toContain('original_fact');
+    expect(JSON.stringify(f.decide.mock.calls)).not.toContain(
       'management_observation',
     );
   });

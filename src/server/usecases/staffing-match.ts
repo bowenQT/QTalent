@@ -22,7 +22,10 @@ import {
   type EventConfirmationFact,
 } from '../modules/staffing/matching/types';
 import { referenceKey } from '../modules/staffing/matching/prompt';
-import { assembleMatchingEvidence } from '../modules/staffing/matching/evidence';
+import {
+  assembleMatchingEvidence,
+  isMatchingNature,
+} from '../modules/staffing/matching/evidence';
 import {
   createPostgresMatchStore,
   loadMatchRun,
@@ -96,13 +99,33 @@ export function createStaffingMatchUsecase<C>(
       throw new MatchingError('forbidden');
     // This is the existing authorization entry point, including all co-subjects
     // and field/source restrictions supplied by the 837 projection adapter.
+    const referenceId = (source: {
+      fragmentId: string;
+      originalVersionId: string;
+    }) => JSON.stringify([source.fragmentId, source.originalVersionId]);
+    // A readable mixed fragment can still be ineligible for matching. Retain
+    // complete source metadata for authorization; omit the whole contributing
+    // field instead of relabeling the source or stripping its restrictions.
+    const observationSources = new Set(
+      loaded.snapshot.sources
+        .filter(
+          (source) =>
+            source.kind === 'management-observation' ||
+            source.requiredKinds?.includes('management-observation'),
+        )
+        .map(referenceId),
+    );
     const selectedRecords = loaded.snapshot.records.map((record) => ({
       ...record,
       fields: record.fields.filter((field) =>
         record.kind === 'person'
           ? ['name', 'orgName'].includes(field.name) && field.kind === 'person'
-          : ['situation', 'behavior', 'impact'].includes(field.name) &&
-            ['evaluation', 'management-observation'].includes(field.kind),
+          : record.kind === 'evaluation' &&
+            ['situation', 'behavior', 'impact'].includes(field.name) &&
+            field.kind === 'evaluation' &&
+            field.sources.every(
+              (source) => !observationSources.has(referenceId(source)),
+            ),
       ),
     }));
     const { items } = await buildAuthorizedModelInput(async () => ({
@@ -137,6 +160,7 @@ export function createStaffingMatchUsecase<C>(
       for (const fact of loaded.confirmations) {
         if (
           !fact.active ||
+          !isMatchingNature(fact.nature) ||
           fact.state !== 'confirmed' ||
           fact.personId !== person.personId
         )
@@ -152,13 +176,13 @@ export function createStaffingMatchUsecase<C>(
           (record) =>
             record.id === fact.recordId &&
             record.personId === fact.personId &&
-            ['evaluation', 'management-observation'].includes(record.kind),
+            record.kind === 'evaluation',
         );
         if (
           !event ||
           typeof event.fields.behavior !== 'string' ||
           !event.fields.behavior.trim() ||
-          event.fieldKinds.behavior === 'ai-inference'
+          event.fieldKinds.behavior !== 'evaluation'
         )
           continue;
         for (const visible of event.sources) {

@@ -1,5 +1,34 @@
 # BOW-854 候选匹配
 
+## 当前提前交付：管理观察排除
+
+基于原 PR head `99d8baa713e61193e202c9f962a94b5374b7b1ee`，普通合入 main `5726fd5d0cd6457d762327829adc002b1dda41b3`。本轮只修匹配资格与相邻测试，不改共享注册、公共出口、合同或迁移。
+
+- 权限允许读取管理观察，不代表它可以参与找人匹配。旧事件的 `EventConfirmationFact.nature=management_observation` 和独立观察的 `management-observation` 投影都排除；有人工确认也不豁免。
+- 用例仅接收 evaluation record 的 evaluation SBI 字段。来源自身或完整 `requiredKinds` 含管理观察时，整个引用字段退出匹配；保留原来源的共有人和限制元数据，仍经过当前 `buildAuthorizedModelInput` 授权，不重标来源。
+- `createMatchingService` 可以绕过默认 loader 被直接组合，因此在 scope 端口再次过滤性质。读取、人工来源选择和执行旧 run 也排除其已保存的观察，不外发、不显示依赖观察的历史判断。
+- 没有合格证据的单元进入 `awaiting_manual`，AI/人工结论保持 null；不变成“不支持”或“资料不足”。有效的已确认事实仍可匹配；混合输入只发送有效事实。
+- 固定样例的正常确认事实改为 `original_fact`；同样正文仅改变观察性质的反例必须零模型调用。旧测试中“管理观察进入模型”的断言不再作为产品规则。
+
+本轮验证：五个单测文件 61 项通过，新增十项行为反例先真实 Red（其中纯观察触发4次调用），再 Green。三个改动生产文件的专项行覆盖 298/319（93.41%）、分支239/267（89.51%），85%阈值保持；其中用例文件未执行的真实数据库 loader/runtime 仍留待集成。不是本卡全部11个生产文件或全仓的覆盖率。
+
+验证使用隔离临时 worktree 的精确依赖原 blob：
+
+| 依赖                          | 固定提交                                   | 文件                                           |
+| ----------------------------- | ------------------------------------------ | ---------------------------------------------- |
+| 原PR已接受的 P0 Source 元数据 | `88ebd4be9ff2de1ac0a0ce9454209afaa8e577ff` | `src/contracts/sources.ts`                     |
+| 当前852需求schema             | `9cc28469ef4eaae4e6d369edb620daeb373c51b8` | `src/server/modules/staffing/demand/schema.ts` |
+
+任务分支没有复制这两个文件。原分支 `pnpm typecheck` 仍因 main 缺 Source 的 originalTitle/recordedByName 及 demand/schema 失败，不能拿组合通过替代它。原生 PG、846权威确认/来源adapter、899当前节点授权和迁移/共享接线尚未完成，不能将这些端口测试当成真实应用链。
+
+```sh
+pnpm exec vitest run src/server/usecases/staffing-match.test.ts src/server/modules/staffing/matching/eligibility.test.ts src/server/modules/staffing/matching/evidence.test.ts src/server/modules/staffing/matching/storage.test.ts src/server/jobs/staffing-match.test.ts --maxWorkers=2
+```
+
+完整卡仍未完成：现有 MatchDependencies 只有 Jev，尚无 Gemini 复核端口；当前逐格串行循环尚未交付10人×4要求的并发策略。不支持结果的复核生命周期、组合质量和总耗时门槛以及真实业务联验要按最新卡补齐，不沿用下方历史“四态全部直接发布”作为最终规则。850的单例真实调用和843的文字/图片验收不能替代这些验收。保持 Draft，未 Ready/关闭。
+
+## 原实现接线资料（历史检查数字不作为本轮结果）
+
 依据：[原卡](https://linear.app/bowenzhong/issue/BOW-854)、
 [SDD v0.2 / 独立交叉审](https://linear.app/bowenzhong/document/bow-854-候选匹配-sdd-tdd-v02-ef53cd2dae26)。
 本模块提供匹配核心、PostgreSQL store 与 jobs 工厂；应用入口和共享注册尚待父协调接线。

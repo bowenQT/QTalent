@@ -149,3 +149,23 @@ it('does not choose between contradictory identities supplied by a trusted data 
   ).toMatchObject({ status: 'conflict' });
   expect(f.decide).not.toHaveBeenCalled();
 });
+
+it('旧事件的管理观察确认不会被装配为匹配证据，也不调用模型', async () => {
+  const f = fixture();
+  f.material.confirmations.forEach((fact) => {
+    fact.nature = 'management_observation';
+  });
+  const assembled = assembleMatchingEvidence(f.material);
+  expect(
+    assembled.snapshot.records.every((record) => record.kind === 'person'),
+  ).toBe(true);
+  const { runId } = z.object({ runId: z.string() }).parse(
+    await f.service.start('account-hr', {
+      operationId: 'observations',
+      demandId: 'demand-a',
+      expectedRevision: 2,
+    }),
+  );
+  await f.service.execute(runId, 1);
+  expect(f.decide).not.toHaveBeenCalled();
+});

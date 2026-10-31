@@ -27,6 +27,7 @@ import {
   type Match,
   type MatchCell,
 } from './types';
+import { isMatchingNature } from './evidence';
 import {
   MATCH_INPUT_VERSION,
   demandInputVersion,
@@ -68,10 +69,14 @@ function allowedEvidence(
     (candidate) => candidate.person.id === run.person.id,
   );
   return current
-    ? run.evidence.filter((unit) =>
-        current.evidence.some(
-          (value) => evidenceKey(unit) === evidenceKey(value),
-        ),
+    ? run.evidence.filter(
+        (unit) =>
+          isMatchingNature(unit.nature) &&
+          current.evidence.some(
+            (value) =>
+              isMatchingNature(value.nature) &&
+              evidenceKey(unit) === evidenceKey(value),
+          ),
       )
     : [];
 }
@@ -182,12 +187,24 @@ function processingJob(
     now,
   );
 }
+// This exported service can be composed without the default usecase/loader.
+// Apply matching eligibility at that independent port as well as during reads
+// of old persisted runs; general read authorization alone is not eligibility.
+function matchingScope(scope: MatchScope): MatchScope {
+  return {
+    ...scope,
+    candidates: scope.candidates.map((candidate) => ({
+      ...candidate,
+      evidence: candidate.evidence.filter((unit) =>
+        isMatchingNature(unit.nature),
+      ),
+    })),
+  };
+}
 export function createMatchingService<C>(deps: MatchDependencies<C>) {
   async function scopeFor(accountId: string, run: MatchRun) {
-    const scope = await deps.scope(
-      accountId,
-      run.demand.id,
-      run.demand.revision,
+    const scope = matchingScope(
+      await deps.scope(accountId, run.demand.id, run.demand.revision),
     );
     if (run.inputVersion !== demandInputVersion(scope.demand))
       throw new MatchingError('stale');
@@ -204,10 +221,12 @@ export function createMatchingService<C>(deps: MatchDependencies<C>) {
         return await deps.store.transaction(
           JSON.stringify(['operation', accountId, input.operationId]),
           async (tx) => {
-            const scope = await deps.scope(
-              accountId,
-              input.demandId,
-              input.expectedRevision,
+            const scope = matchingScope(
+              await deps.scope(
+                accountId,
+                input.demandId,
+                input.expectedRevision,
+              ),
             );
             const fingerprint = JSON.stringify(['start', input]);
             const previous = await tx.operation(accountId, input.operationId);

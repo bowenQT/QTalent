@@ -27,6 +27,14 @@ export interface MatchingEvidenceMaterial {
   sources: TalentSource[];
   sourceDetails: Source[];
 }
+/** Matching eligibility is narrower than permission to read a subjective note. */
+export function isMatchingNature(nature: EventConfirmationFact['nature']) {
+  return (
+    nature === 'original_fact' ||
+    nature === 'self_report' ||
+    nature === 'human_conclusion'
+  );
+}
 /** Matching-specific records only. Complete source projection comes from 837. */
 export function assembleMatchingEvidence(material: MatchingEvidenceMaterial): {
   snapshot: {
@@ -89,13 +97,11 @@ export function assembleMatchingEvidence(material: MatchingEvidenceMaterial): {
     );
     if (facts.length === 0) continue;
     if (facts.length !== 1) throw new MatchingError('conflict');
+    if (!isMatchingNature(facts[0]!.nature)) continue;
     const project = material.projects.find((row) => row.id === event.projectId);
     if (event.projectId !== null && !project)
       throw new MatchingError('conflict');
-    const kind =
-      facts[0]!.nature === 'management_observation'
-        ? ('management-observation' as const)
-        : ('evaluation' as const);
+    const kind = 'evaluation' as const;
     const sources = material.eventSources
       .filter((row) => row.eventId === event.id)
       .map((row) => ({

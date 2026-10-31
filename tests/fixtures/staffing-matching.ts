@@ -214,7 +214,7 @@ export function matchingFixture() {
         actorId: 'hr',
         confirmedAt: '2026-09-02T10:00:00.000Z',
       },
-      nature: 'management_observation',
+      nature: 'original_fact',
     });
   }
   const snapshot = { context, records, sources: rawSources };
