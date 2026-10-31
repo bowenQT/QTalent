@@ -1,6 +1,6 @@
 /* 人才评价规则（v1.6 3.35）：六类规则的总览、详情、版本历史与对比。
-   值得关注、维度与锚点可以修订：HR 起草 → 写理由与依据 → 预览影响 → 提交，管理者看对比与预览后确认发布（朱印）或退回。
-   象限落位、前段评价标准与对应表、目标角色与发展通道在原型里只读；标签库沿用标签库页面。
+   值得关注、维度与锚点、入营选拔标准可以修订：HR 起草 → 写理由与依据 → 预览影响 → 提交，管理者看对比与预览后确认发布（朱印）或退回。
+   入营选拔标准确认后对下一期选拔生效，上一期的选拔记录保持原版本。象限落位、对应表、目标角色与发展通道在原型里只读；标签库沿用标签库页面。
    这一页可以出现规则版本号与规则编号（界面文案规范的例外）。 */
 (function () {
   'use strict';
@@ -8,6 +8,9 @@
   const { html, icon, mount, $, $$ } = NT;
   const role = st.role();
   const kind = NT.param('r'), line = NT.param('line');
+  // 前段评价标准按 line 区分；其他规则类别不带 line
+  const L = kind === 'front' ? line || undefined : undefined;
+  const FRONT_EDITABLE = ['xe-select'];
   const KINDS = Object.fromEntries(st.RULE_KINDS.map(([k, n, w]) => [k, { n, w }]));
   const EDITABLE = ['watch', 'rubric'];
   const name = (pid) => st.person(pid)?.name || '';
@@ -68,7 +71,8 @@
       ${o.signal ? html`<div class="n-rcard__signal">${o.signal[0]}<span>${o.signal[1]}</span></div>` : ''}
     </a>`;
   }
-  const openNote = (r) => (r.state === 'draft' ? `${name(r.by)}起草` : r.state === 'pending' ? `${name(r.by)}提交，等${name(MGR)}确认` : `${name(r.confirmedBy)}已确认 · 从下一个盘点批次开始`);
+  const nextText = (r) => (r.line ? `${r.period || '下一期'}入营选拔开始时生效` : '从下一个盘点批次开始');
+  const openNote = (r) => (r.state === 'draft' ? `${name(r.by)}起草${r.returned ? ' · 管理者退回' : ''}` : r.state === 'pending' ? `${name(r.by)}提交，等${name(MGR)}确认` : `${name(r.confirmedBy)}已确认 · ${nextText(r)}`);
   function rubricSignal() {
     const open = st.ruleSugs({ state: 'open' });
     if (!open.length) return null;
@@ -94,7 +98,7 @@
     const open = st.ruleVers('front').find((r) => ['draft', 'pending', 'scheduled'].includes(r.state));
     const sig = judgeSignal(open);
     return html`<a class="n-rcard" href="rules.html?r=front">
-      <div class="n-rcard__head"><span class="n-rcard__name">${KINDS.front.n}</span>${open ? '' : html`<span class="n-rcard__ro">${icon('lock')}只读</span>`}</div>
+      <div class="n-rcard__head"><span class="n-rcard__name">${KINDS.front.n}</span></div>
       <p class="n-rcard__what">${KINDS.front.w}；判断对照以它为准。</p>
       <div class="n-rcard__ver">${lives.map((r) => html`<b>${r.v}</b>`)}</div>
       ${open ? html`<div class="nt-row">${rstate(open, open.v)}<span class="nt-muted">${openNote(open)}</span></div>` : ''}
@@ -176,7 +180,17 @@
     if (kind === 'watch') return watchContent(r, o);
     if (kind === 'rubric') return rubricContent(r, o);
     if (kind === 'place') return placeContent(r);
+    if (kind === 'front') return frontContent(r, o);
     return '';
+  }
+  // 入营选拔标准：一段标准要点，草稿里原地改
+  function frontContent(r, o = {}) {
+    const base = st.ruleVer(r.base), ed = o.edit && r.state === 'draft';
+    return html`<article class="n-card"><h3 class="n-section-title">标准要点<span class="nt-muted" style="margin-left:auto;font-weight:400">${r.line ? lineName(r.line) : ''}</span></h3>
+      ${ed ? html`<label class="n-field"><span class="n-field__label">改哪一段就直接改；预览会按改后的文字计算</span><textarea class="n-textarea" id="front-note" rows="4">${r.note}</textarea></label>
+        ${base && r.note !== base.note ? html`<p class="nt-caption">和 ${base.v} 相比：${diffText(base.note, r.note)}</p>` : html`<p class="nt-caption">还和 ${r.base} 一样。</p>`}`
+        : html`<p style="margin:0;font-size:var(--t-sm);line-height:1.7">${r.note}</p>`}
+    </article>`;
   }
   // 值得关注：可调的参数 + 七条规则
   const PDEF = {
@@ -285,7 +299,7 @@
         <div class="n-checkbar">
           <div class="n-checkbar__sec">
             <label class="n-checkbar__label" for="why">修订理由<span class="is-ok">${ch.why ? html`${icon('check')}已写` : '必填'}</span></label>
-            <textarea class="n-textarea" id="why" rows="3" placeholder="${kind === 'watch' ? '比如：季度项目的第二件事常落在 90 天外，N1 漏掉了入职半年内的人' : '比如：工程族的专业度按职级预期打分，口径太宽'}" ${NT.raw(ed ? '' : 'disabled')}>${d.why}</textarea>
+            <textarea class="n-textarea" id="why" rows="3" placeholder="${kind === 'watch' ? '比如：季度项目的第二件事常落在 90 天外，N1 漏掉了入职半年内的人' : kind === 'front' ? '比如：优先录取一档只看作品成品，组队和个人分不开' : '比如：工程族的专业度按职级预期打分，口径太宽'}" ${NT.raw(ed ? '' : 'disabled')}>${d.why}</textarea>
           </div>
           <div class="n-checkbar__sec">
             <span class="n-checkbar__label">依据</span>
@@ -294,14 +308,14 @@
           </div>
           <div class="n-checkbar__sec">
             <span class="n-checkbar__label" id="compat-l">兼容声明</span>
-            ${kind === 'watch' ? html`<p class="n-checkbar__text">阈值类修订：生效后按新阈值计算，生效前冻结的快照保持原样。</p>` : html`
+            ${kind === 'front' ? html`<p class="n-checkbar__text">选拔标准只影响下一期怎么评；第六期的选拔记录和判断对照保持 ${d.base}。</p>` : kind === 'watch' ? html`<p class="n-checkbar__text">阈值类修订：生效后按新阈值计算，生效前冻结的快照保持原样。</p>` : html`
               <div class="n-seg" role="group" aria-labelledby="compat-l" id="compat"><button type="button" data-v="ok" aria-pressed="${d.compat === 'ok' && !forced}" ${NT.raw(forced || !ed ? 'disabled' : '')}>兼容：措辞澄清、补示例</button><button type="button" data-v="break" aria-pressed="${d.compat === 'break' || forced}" ${NT.raw(!ed ? 'disabled' : '')}>不兼容：等级含义变了</button></div>
               ${forced ? html`<div class="n-lock">${icon('lock')}<span>岗位族锚点首次启用，按不兼容处理：取数窗口内这一族的专业度分都要按新锚点复核。</span></div>` : ''}`}
           </div>
           <div class="n-checkbar__sec">
             <span class="n-checkbar__label" id="eff-l">生效点</span>
-            <div class="n-seg" role="group" aria-labelledby="eff-l" id="eff"><button type="button" data-v="now" aria-pressed="${d.effect === 'now'}" ${NT.raw(lock || !ed ? 'disabled' : '')}>立即对新的评价生效</button><button type="button" data-v="next" aria-pressed="${d.effect === 'next'}" ${NT.raw(!ed ? 'disabled' : '')}>从下一个盘点批次开始</button></div>
-            ${lock ? html`<div class="n-lock">${icon('lock')}<span>${st.inventoryLock().name}进行中，这次盘点用到${KINDS[kind].n}；新版本从下一个盘点批次开始，之前 ${d.base} 继续生效。</span></div>` : kind === 'watch' ? html`<p class="n-checkbar__text">值得关注和盘点取数分开，盘点进行中也可以立即生效。</p>` : ''}
+            ${kind === 'front' ? html`<p class="n-checkbar__text"><b>对下一期选拔生效</b>：${d.period || '下一期'}${st.NEXT_PERIOD ? `的${st.NEXT_PERIOD.nodes[0][1]}（${NT.md(st.NEXT_PERIOD.nodes[0][0])}）` : ''}开始用新版。</p>` : html`<div class="n-seg" role="group" aria-labelledby="eff-l" id="eff"><button type="button" data-v="now" aria-pressed="${d.effect === 'now'}" ${NT.raw(lock || !ed ? 'disabled' : '')}>立即对新的评价生效</button><button type="button" data-v="next" aria-pressed="${d.effect === 'next'}" ${NT.raw(!ed ? 'disabled' : '')}>从下一个盘点批次开始</button></div>`}
+            ${kind === 'front' ? '' : lock ? html`<div class="n-lock">${icon('lock')}<span>${st.inventoryLock().name}进行中，这次盘点用到${KINDS[kind].n}；新版本从下一个盘点批次开始，之前 ${d.base} 继续生效。</span></div>` : kind === 'watch' ? html`<p class="n-checkbar__text">值得关注和盘点取数分开，盘点进行中也可以立即生效。</p>` : ''}
           </div>
           <div class="n-checkbar__sec">
             <span class="n-checkbar__label">影响预览${ch.preview ? html`<span class="is-ok">${icon('check')}已按当前草稿计算</span>` : ''}</span>
@@ -314,9 +328,10 @@
               <p class="n-checkbar__text">提交给${name(MGR)}确认发布；确认前你可以撤回到草稿。</p>
               <button class="n-link" type="button" id="drop" style="justify-self:start">删除草稿</button>
             </div>` : html`<div class="n-checkbar__foot">
-              <div class="nt-row">${rstate(d)}<span class="nt-muted">${d.state === 'pending' ? `已提交给${name(MGR)} · ${NT.md(d.submittedAt)}` : `${name(d.confirmedBy)} ${NT.md(d.confirmedAt)} 确认 · 从下一个盘点批次开始`}</span></div>
+              <div class="nt-row">${rstate(d)}<span class="nt-muted">${d.state === 'pending' ? `已提交给${name(MGR)} · ${NT.md(d.submittedAt)}` : `${name(d.confirmedBy)} ${NT.md(d.confirmedAt)} 确认 · ${nextText(d)}`}</span></div>
               <button class="n-btn n-btn--sm n-btn--ghost" type="button" id="withdraw" style="justify-self:start">撤回到草稿</button>
               ${d.state === 'scheduled' ? html`<p class="n-checkbar__text">撤回后 ${d.base} 继续生效，改完要重新提交确认。</p>` : ''}
+              ${kind === 'front' && d.state === 'scheduled' && st.NEXT_PERIOD ? html`<div class="n-checkbar__sec" style="border-top:1px solid var(--line);padding-top:var(--s-3)"><button class="n-btn n-btn--sm" type="button" id="start-sel" style="justify-self:start">${icon('play')}开始 ${st.NEXT_PERIOD.name}${st.NEXT_PERIOD.nodes[0][1]}</button><p class="n-checkbar__text">${UI.demo()} 演示 ${NT.md(st.NEXT_PERIOD.nodes[0][0])} 选拔开始：${d.v} 生效，${d.base} 变为已替代。</p></div>` : ''}
             </div>`}
         </div>
       </aside>
@@ -365,10 +380,17 @@
   function impactLine(p) {
     if (p.kind === 'watch') return html`值得关注 <b>${p.from} → ${p.to} 人</b>：进入 ${p.enter.length} 人，离开 ${p.leave.length} 人。按团队：${teamsLine(p)}。`;
     if (p.kind === 'map') return html`下一次判断对照里受影响的对照单元 <b>${p.cells} 个</b>。`;
+    if (p.kind === 'front') return html`${p.next ? html`从 <b>${p.next.name}</b> 的${p.next.node}（${NT.md(p.next.at)}）开始用新版` : '从下一期选拔开始用新版'}；第六期 <b>${p.keep} 条</b>选拔记录保持旧版。`;
     return html`取数窗口内用到这些锚点的事件 <b>${p.events} 件</b>，涉及 ${p.people} 人、${p.raters.length} 位评分人；${p.tasks ? html`将生成 <b>${p.tasks} 条复核任务</b>` : '旧分继续参与取数'}。`;
   }
   function impactFull(p, who) {
     if (p.kind === 'map') return html`<p style="margin:0;font-size:var(--t-sm)">${impactLine(p)}</p>`;
+    if (p.kind === 'front') {
+      return html`<div class="n-scope" style="margin-top:0"><div>适用范围<b>${p.next ? `${p.next.name} · ${p.next.node}` : '下一期选拔'}</b></div><div>保持旧版的选拔记录<b>${p.keep} 条</b></div><div>汇总依据<b>${p.basis.length + p.notes} 条</b></div></div>
+        <p style="margin:0;font-size:var(--t-sm);line-height:1.7">${p.next ? `${NT.md(p.next.at)} 开始的 ${p.next.name}${p.next.node}按新版评审。` : ''}第六期的 ${p.keep} 条选拔记录、${p.keepBatch.join('、') || '已有的判断对照'}继续按旧版，结果保持当时的样子。</p>
+        ${p.basis.length ? html`<ul class="n-impact__basis">${p.basis.map((b) => html`<li>${icon('split', 12)}${b.batch} · ${b.dim}：${b.n}</li>`)}</ul>` : ''}
+        <p class="nt-caption">影响预览只看适用范围、保持旧版的条数和汇总依据；选拔标准改的是下一期怎么评，已有的人和分数保持原样。</p>`;
+    }
     if (p.kind === 'rubric') {
       const ver = st.ruleVer(st.ruleOpen('rubric')?.base || '') || st.ruleLive('rubric');
       return html`<div class="n-scope" style="margin-top:0"><div>用到这些锚点的事件<b>${p.events} 件</b></div><div>涉及<b>${p.people} 人</b></div><div>评分人<b>${p.raters.length} 位</b></div><div>复核任务<b>${p.tasks} 条</b></div></div>
@@ -394,18 +416,18 @@
         <div class="n-version"><span class="n-version__tag is-draft">待确认 ${d.v}</span><span class="nt-muted">在 ${d.base} 上修订 · ${name(d.by)}起草 · ${NT.md(d.submittedAt || d.at)} 提交</span></div>
         <article class="n-card"><h3 class="n-section-title">改了什么<span class="nt-muted" style="margin-left:auto;font-weight:400">${ch.length} 处</span></h3>${changeTable(ch)}</article>
         ${d.preview ? html`<article class="n-card" id="impact"><h3 class="n-section-title">影响预览<span class="nt-muted" style="margin-left:auto;font-weight:400">${NT.md(d.preview.at)} 按这份草稿计算</span></h3>${impactFull(d.preview, 'ceo')}</article>` : ''}
-        ${kind === 'front' ? '' : contentCard(d)}
+        ${contentCard(d)}
       </div>
       <aside class="n-revise__check" aria-label="确认发布">
         <div class="n-checkbar">
           <div class="n-checkbar__sec"><span class="n-checkbar__label">修订理由</span><p style="margin:0;font-size:var(--t-sm);line-height:1.65">${d.why}</p></div>
           ${(d.basis || []).length ? html`<div class="n-checkbar__sec"><span class="n-checkbar__label">依据</span><div class="nt-row">${d.basis.map((b, i) => basisChip(b, i, false))}</div></div>` : ''}
-          <div class="n-checkbar__sec"><span class="n-checkbar__label">兼容声明</span><p class="n-checkbar__text">${d.compat === 'break' ? html`<b>不兼容</b>：生效时为受影响的旧分生成复核任务，原分保留并显示 ${d.base}。` : kind === 'watch' ? '阈值类修订：生效后按新阈值计算，生效前冻结的快照保持原样。' : html`<b>兼容</b>：旧分继续参与取数。`}</p></div>
-          <div class="n-checkbar__sec"><span class="n-checkbar__label">生效点</span><p class="n-checkbar__text">${d.effect === 'now' ? html`<b>立即对新的评价生效</b>，${d.base} 变为已替代。` : html`<b>从下一个盘点批次开始</b>，之前 ${d.base} 继续生效。`}</p></div>
+          <div class="n-checkbar__sec"><span class="n-checkbar__label">兼容声明</span><p class="n-checkbar__text">${kind === 'front' ? `选拔标准只影响下一期怎么评；第六期的选拔记录和判断对照保持 ${d.base}。` : d.compat === 'break' ? html`<b>不兼容</b>：生效时为受影响的旧分生成复核任务，原分保留并显示 ${d.base}。` : kind === 'watch' ? '阈值类修订：生效后按新阈值计算，生效前冻结的快照保持原样。' : html`<b>兼容</b>：旧分继续参与取数。`}</p></div>
+          <div class="n-checkbar__sec"><span class="n-checkbar__label">生效点</span><p class="n-checkbar__text">${kind === 'front' ? html`<b>对下一期选拔生效</b>：${nextText(d)}，在那之前 ${d.base} 继续生效。` : d.effect === 'now' ? html`<b>立即对新的评价生效</b>，${d.base} 变为已替代。` : html`<b>从下一个盘点批次开始</b>，之前 ${d.base} 继续生效。`}</p></div>
           <div class="n-checkbar__foot">
             ${st.lockBlocks(d) ? html`<div class="n-lock">${icon('lock')}<span>${st.inventoryLock().name}进行中，这份草稿选的是立即生效；退回请${name(d.by)}把生效点改为下一个盘点批次。</span></div>` : ''}
             <button class="n-btn n-btn--seal" type="button" id="confirm" ${NT.raw(st.lockBlocks(d) ? 'disabled' : '')}>${icon('stamp')}确认发布 ${d.v}</button>
-            ${kind === 'front' ? html`<span class="nt-muted">前段标准这一期只读，不能退回修改；有疑问先和${name(d.by)}沟通再确认</span>` : html`<button class="n-btn n-btn--ghost" type="button" id="return">退回修改</button>`}
+            <button class="n-btn n-btn--ghost" type="button" id="return">退回修改</button>
           </div>
         </div>
       </aside>
@@ -433,7 +455,7 @@
           <td><b>${r.v}</b>${r.demo ? html` ${UI.demo()}` : ''}${r.from ? html`<small>由 ${r.from} 拆出</small>` : ''}</td>
           <td>${rstate(r)}</td>
           <td>${name(r.by)} ${NT.md(r.at)}${r.confirmedBy ? html`<small>${name(r.confirmedBy)}确认${r.confirmedAt ? ` · ${NT.md(r.confirmedAt)}` : ''}</small>` : ''}</td>
-          <td>${r.effAt ? `${NT.md(r.effAt)} 起` : r.effect === 'next' ? '下一个盘点批次' : '确认后立即'}</td>
+          <td>${r.effAt ? html`${NT.md(r.effAt)} 起${r.period ? html`<small>${r.period}</small>` : ''}` : r.effect === 'next' ? (r.line ? `${r.period || '下一期'}选拔开始时` : '下一个盘点批次') : '确认后立即'}</td>
           <td>${r.why || '—'}${(r.basis || []).length ? html`<small>依据：${r.basis.map(basisText).join('；')}</small>` : ''}</td>
         </tr>`)}
       </tbody></table></div></section>`;
@@ -450,27 +472,38 @@
       </div></section>`;
   }
 
-  // ---------- 前段评价标准与对应表（只读；待确认的 xe-select-v3 是预置草稿） ----------
+  // ---------- 前段评价标准与对应表：入营选拔标准可以修订，对应表只读 ----------
   function renderFront(main) {
     // 每条标准都要有生效中的版本；链接里的 line 不存在时给出路，不渲染半截页面
     const ls = (line ? [line] : st.FRONT_LINES.map(([l]) => l)).filter((l) => st.FRONT_LINES.some(([x]) => x === l) && st.ruleLive('front', l));
     if (!ls.length) return mount(main, UI.state({ ip: 'confirm', title: '链接失效', text: '这条前段评价标准不存在，或链接有误。回到前段评价标准查看现有的几条。', actions: html`<a class="n-btn n-btn--sm" href="rules.html?r=front">查看前段评价标准</a>` }));
-    const pending = st.ruleVers('front').find((r) => r.state === 'pending' && (!line || r.line === line));
+    const open = line ? st.ruleOpen('front', line) : null;
+    const editing = role === 'hrbp' && open && FRONT_EDITABLE.includes(line);
+    const reviewing = role === 'ceo' && open?.state === 'pending';
+    const judgeB = (open || st.ruleLive('front', line))?.basis?.find((x) => x.type === 'judge');
+    const back = role === 'hrbp' && judgeB ? html`<a class="n-btn n-btn--ghost" href="judge.html?id=${judgeB.batch}#attrib">${icon('back')}回到判断对照</a>` : role === 'ceo' && line ? html`<a class="n-btn n-btn--ghost" href="index.html">${icon('back')}回到工作台</a>` : '';
     mount(main, html`
       <header class="nt-head"><div><h1>${line ? lineName(line) : KINDS.front.n}</h1><p>${KINDS.front.w}；判断对照以它为准。</p></div>
-        <div class="nt-head__acts">${sealFor(st.ruleVers('front', line))}${pending ? html`<span class="n-rstate" data-s="pending">${role === 'ceo' ? `${name(pending.by)}起草 · 待你确认` : `待${name(MGR)}确认`}</span>` : html`<span class="n-rcard__ro">${icon('lock')}只读</span>`}</div></header>
-      ${pending && role === 'ceo' ? reviewView(pending) : ''}
-      <div class="nt-grid">${ls.map((l) => {
-        const live = st.ruleLive('front', l), open = st.ruleOpen('front', l);
-        return html`<article class="n-card">
-          <div class="nt-row" style="margin-bottom:var(--s-2)"><h3 class="n-section-title" style="margin:0">${lineName(l)}</h3><span class="n-rule">${icon('doc')}${live.v}</span>${open ? rstate(open, open.v) : ''}${!line ? html`<a class="n-link" href="rules.html?r=front&line=${l}" style="margin-left:auto">版本历史</a>` : ''}</div>
-          <p style="margin:0;font-size:var(--t-sm)">${live.note}</p>
-          ${open && role === 'hrbp' ? html`<p class="nt-muted" style="margin:var(--s-2) 0 0">${open.v}：${open.why} · ${openNote(open)}</p><div style="margin-top:var(--s-2)">${changeTable(st.ruleChanges(open))}</div>` : ''}
-        </article>`;
-      })}</div>
+        <div class="nt-head__acts">${back}${sealFor(st.ruleVers('front', line))}
+          ${open && !editing && !reviewing ? rstate(open, open.v) : ''}
+          ${line && !FRONT_EDITABLE.includes(line) ? html`<span class="n-rcard__ro">${icon('lock')}只读</span>` : ''}
+          ${role === 'hrbp' && line && !open && FRONT_EDITABLE.includes(line) ? html`<button class="n-btn n-btn--ink" type="button" id="start">${icon('pen')}起草修订</button>` : ''}</div></header>
+      ${editing ? reviseView(open) : reviewing ? reviewView(open) : html`<div class="nt-grid">${ls.map(frontLineCard)}</div>`}
       ${line ? historySec(st.ruleVers('front', line)) : ''}
       ${line ? compareSec(st.ruleVers('front', line)) : ''}`);
-    wire(main, pending?.line);
+    wire(main);
+  }
+  function frontLineCard(l) {
+    const live = st.ruleLive('front', l), open = st.ruleOpen('front', l), old = st.ruleVers('front', l).filter((r) => r.state === 'old').pop();
+    const g = st.NEXT_PERIOD;
+    return html`<article class="n-card">
+      <div class="nt-row" style="margin-bottom:var(--s-2)"><h3 class="n-section-title" style="margin:0">${lineName(l)}</h3><span class="n-rule">${icon('doc')}生效中 ${live.v}</span>${open ? rstate(open, open.v) : ''}${!line ? html`<a class="n-link" href="rules.html?r=front&line=${l}" style="margin-left:auto">${FRONT_EDITABLE.includes(l) ? '修订与版本历史' : '版本历史'}</a>` : ''}</div>
+      <p style="margin:0;font-size:var(--t-sm);line-height:1.7">${live.note}</p>
+      <p class="nt-muted" style="margin:var(--s-2) 0 0">${live.period ? `${live.period}按这一版选拔` : `${NT.md(live.effAt)} 起生效`}${old ? ` · ${old.v} 已替代，${old.period || '上一期'}的选拔记录保持 ${old.v}` : ''}</p>
+      ${open ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon(open.state === 'scheduled' ? 'clock' : 'pen')}<div><b>${open.v} ${STATE[open.state]}</b> · ${openNote(open)}${open.why ? html`<div class="nt-muted">${open.why}</div>` : ''}
+        ${open.state === 'scheduled' && role === 'hrbp' && g ? html`<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" id="start-sel">${icon('play')}开始 ${g.name}${g.nodes[0][1]}</button><span class="nt-muted">${UI.demo()} 按 ${NT.md(g.nodes[0][0])} 选拔开始演示新版生效</span></div>` : ''}
+        ${open.state !== 'scheduled' && line !== l ? html`<a class="n-link" href="rules.html?r=front&line=${l}">${role === 'ceo' && open.state === 'pending' ? '去确认' : '打开草稿'}</a>` : ''}</div></div>` : ''}
+    </article>`;
   }
 
   // ---------- 目标角色与发展通道（只读，沿用 v1.3 模板版本） ----------
@@ -489,10 +522,22 @@
   }
 
   // ---------- 交互 ----------
-  const RETURN_PH = { watch: '比如：先确认 120 天会把哪些更早的事算进来', rubric: '比如：锚点 3 的两种情形先拆开写清楚', front: '比如：每一档的写法要求再补一个具体例子' };
-  function wire(main, frontLine) {
+  const RETURN_PH = { watch: '比如：先确认 120 天会把哪些更早的事算进来', rubric: '比如：锚点 3 的两种情形先拆开写清楚', front: '比如：刚过线一档也写一句要看到什么' };
+  function wire(main) {
     const rerender = () => render($('#main'));
-    $('#start')?.addEventListener('click', () => { st.startDraft(kind); rerender(); NT.toast(`已起草 ${st.ruleOpen(kind).v}，改完后预览影响再提交`); });
+    $('#start')?.addEventListener('click', () => { st.startDraft(kind, [], L); rerender(); NT.toast(`已起草 ${st.ruleOpen(kind, L).v}，改完后预览影响再提交`); });
+    // 入营选拔标准：改标准要点，失焦后写进草稿，预览作废
+    $('#front-note')?.addEventListener('change', (e) => { st.setDraft(kind, { note: e.target.value.trim() }, L); rerender(); $('#front-note')?.focus(); });
+    // 演示：下一期选拔开始，已确认的新版生效
+    $('#start-sel')?.addEventListener('click', async () => {
+      const g = st.NEXT_PERIOD, d = st.ruleOpen('front', L || 'xe-select');
+      const v = await NT.dialog({ title: `开始 ${g.name}${g.nodes[0][1]}？`, body: html`<p>${d.v} 从这一期开始生效，${d.base} 变为已替代；第六期的选拔记录和判断对照保持 ${d.base}。</p>`,
+        actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '开始选拔', value: 'ok', cls: 'n-btn--ink' }] });
+      if (v !== 'ok') return;
+      const undo = st.startSelection(); rerender();
+      if (!undo) { NT.toast('规则状态已变化，刷新后重试'); return; }
+      NT.toast(`${d.v} 已生效，${g.name}按新版选拔`, { undo: () => { if (!undo()) NT.toast('之后又有新的修订，生效保持'); rerender(); }, undoneText: `已撤销，${d.v} 回到已排期` });
+    });
     // 参数：输入时只标错，失焦或回车后写进草稿
     $$('#params .n-param input', main).forEach((inp) => {
       const k = inp.closest('[data-k]').dataset.k;
@@ -518,18 +563,18 @@
     }));
     // 理由：随写随存，不影响预览
     const why = $('#why');
-    if (why && !why.disabled) why.addEventListener('input', () => { st.setDraft(kind, { why: why.value }); const ok = $('label[for="why"] .is-ok'); if (ok) mount(ok, why.value.trim() ? html`${icon('check')}已写` : '必填'); });
+    if (why && !why.disabled) why.addEventListener('input', () => { st.setDraft(kind, { why: why.value }, L); const ok = $('label[for="why"] .is-ok'); if (ok) mount(ok, why.value.trim() ? html`${icon('check')}已写` : '必填'); });
     $$('#compat [data-v]', main).forEach((b) => b.addEventListener('click', () => { st.setDraft(kind, { compat: b.dataset.v }); rerender(); }));
     $$('#eff [data-v]', main).forEach((b) => b.addEventListener('click', () => { st.setDraft(kind, { effect: b.dataset.v }); rerender(); $(`#eff [data-v="${b.dataset.v}"]`)?.focus(); }));
     $$('[data-rm]', main).forEach((b) => b.addEventListener('click', () => {
-      const sug = st.ruleOpen(kind)?.basis?.[+b.dataset.rm]?.type === 'sug';
-      const undo = st.removeBasis(kind, +b.dataset.rm); if (!undo) return;
+      const sug = st.ruleOpen(kind, L)?.basis?.[+b.dataset.rm]?.type === 'sug';
+      const undo = st.removeBasis(kind, +b.dataset.rm, L); if (!undo) return;
       rerender();
       NT.toast(sug ? '已移除这条依据，这条建议回到待处理' : '已移除这条依据', { undo: () => { if (!undo()) NT.toast('草稿已经变了，移除的依据保持移除'); rerender(); } });
     }));
     const add = $('#basis-add');
     if (add) {
-      const d = st.ruleOpen(kind), has = (t) => (d.basis || []).some((b) => b.type === t);
+      const d = st.ruleOpen(kind, L), has = (t) => (d.basis || []).some((b) => b.type === t);
       const gap = kind === 'watch' ? st.watchGap() : [];
       const items = [];
       if (gap.length && !has('gap')) items.push({ label: `你的核对：第一件事早于时间窗的 ${gap.length} 人`, sub: gap.map((p) => p.name).join('、'), icon: 'users', run: () => { st.setDraft(kind, { basis: [...(d.basis || []), { type: 'gap', people: gap.map((p) => p.id) }] }); rerender(); } });
@@ -537,37 +582,37 @@
       items.push({ label: '写一条说明', icon: 'doc', run: async () => {
         const v = await NT.dialog({ title: '写一条依据说明', body: html`<textarea class="n-textarea" rows="3" id="note" placeholder="比如：两次校准会上都提到新人的第一件事落在时间窗外"></textarea>`,
           actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '加入依据', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#note', dl).value.trim(), read: (dl) => $('#note', dl).value.trim() }] });
-        if (v?.value === 'ok') { st.setDraft(kind, { basis: [...(d.basis || []), { type: 'note', text: v.data }] }); rerender(); }
+        if (v?.value === 'ok') { st.setDraft(kind, { basis: [...(d.basis || []), { type: 'note', text: v.data }] }, L); rerender(); }
       } });
       NT.menu(add, items);
     }
     $('#preview')?.addEventListener('click', async () => {
       const b = $('#preview'); b.disabled = true; mount(b, html`${icon('retry')}计算中…`);
       await NT.wait(NT.reduced ? 0 : 500);
-      const p = st.previewDraft(kind); rerender();
-      NT.toast(kind === 'watch' ? `预览完成：值得关注 ${p.from} → ${p.to} 人` : `预览完成：${p.tasks ? `将生成 ${p.tasks} 条复核任务` : '旧分继续参与取数'}`);
+      const p = st.previewDraft(kind, L); rerender();
+      NT.toast(kind === 'watch' ? `预览完成：值得关注 ${p.from} → ${p.to} 人` : kind === 'front' ? `预览完成：${p.next ? `${p.next.name}开始用新版，` : ''}第六期 ${p.keep} 条保持旧版` : `预览完成：${p.tasks ? `将生成 ${p.tasks} 条复核任务` : '旧分继续参与取数'}`);
       $('#impact')?.scrollIntoView({ behavior: NT.reduced ? 'auto' : 'smooth', block: 'start' });
     });
     $('#submit')?.addEventListener('click', () => {
-      const d = st.ruleOpen(kind), c = st.draftChecks(d), err = $('#sub-err');
+      const d = st.ruleOpen(kind, L), c = st.draftChecks(d), err = $('#sub-err');
       const miss = !c.lock ? '把生效点改为「从下一个盘点批次开始」' : !c.changed ? '先改至少一处' : !c.why ? '写修订理由' : !c.range ? '把标错的参数改回允许范围' : !c.preview ? '按当前草稿预览一次影响' : '';
       if (miss) { err.hidden = false; err.textContent = `提交前还要：${miss}。`; if (!c.why) $('#why')?.focus(); else $('#preview')?.focus(); return; }
-      st.submitDraft(kind); rerender();
-      NT.toast(`已提交 ${d.v}，待${name(MGR)}确认`, { undo: () => { st.withdrawDraft(kind); rerender(); } });
+      st.submitDraft(kind, L); rerender();
+      NT.toast(`已提交 ${d.v}，待${name(MGR)}确认`, { undo: () => { st.withdrawDraft(kind, L); rerender(); }, undoneText: `已撤回，${d.v} 回到草稿` });
     });
     $('#withdraw')?.addEventListener('click', async () => {
-      const d = st.ruleOpen(kind);
+      const d = st.ruleOpen(kind, L);
       if (d.state === 'scheduled') {
         const v = await NT.dialog({ title: `撤回已排期的 ${d.v}？`, body: html`<p>撤回后回到草稿，${d.base} 继续生效；改完要重新提交${name(MGR)}确认。</p>`, actions: [{ label: '保留排期', value: 'cancel', cls: 'n-btn--ghost' }, { label: '撤回到草稿', value: 'ok', cls: 'n-btn--ink' }] });
         if (v !== 'ok') return;
       }
-      st.withdrawDraft(kind); rerender(); NT.toast(`${d.v} 已回到草稿`);
+      st.withdrawDraft(kind, L); rerender(); NT.toast(`${d.v} 已回到草稿`);
     });
     $('#drop')?.addEventListener('click', async () => {
-      const d = st.ruleOpen(kind);
+      const d = st.ruleOpen(kind, L);
       const v = await NT.dialog({ title: `删除草稿 ${d.v}？`, body: html`<p>草稿里的改动、理由和预览一起删除；${d.base} 保持生效。</p>`, actions: [{ label: '保留草稿', value: 'cancel', cls: 'n-btn--ghost' }, { label: '删除草稿', value: 'ok', cls: 'n-btn--ink' }] });
       if (v !== 'ok') return;
-      const restore = st.deleteDraft(kind); rerender();
+      const restore = st.deleteDraft(kind, L); rerender();
       NT.toast(`已删除草稿 ${d.v}`, { undo: () => { if (!restore()) NT.toast('已经有一份新草稿，删除的草稿保持删除'); rerender(); } });
     });
     $$('[data-adopt]', main).forEach((b) => b.addEventListener('click', () => {
@@ -589,26 +634,26 @@
     }));
     // 管理者确认发布：朱印压印，5 秒内可以撤销
     $('#confirm')?.addEventListener('click', async () => {
-      const k = frontLine ? 'front' : kind, d = st.ruleOpen(k, frontLine);
+      const k = kind, d = st.ruleOpen(k, L);
       const v = await NT.dialog({
         title: `确认发布 ${d.v}？`,
-        body: html`<p>${d.effect === 'now' ? `确认后新的评价按 ${d.v} 计算，${d.base} 变为已替代。` : `确认后进入已排期，从下一个盘点批次开始生效，之前 ${d.base} 继续生效。`}已确认的分数、冻结的快照和档案版本保留原来的版本。</p>`,
+        body: html`<p>${d.effect === 'now' ? `确认后新的评价按 ${d.v} 计算，${d.base} 变为已替代。` : `确认后进入已排期，${nextText(d)}，在那之前 ${d.base} 继续生效。`}${k === 'front' ? `第六期的选拔记录和判断对照保持 ${d.base}。` : '已确认的分数、冻结的快照和档案版本保留原来的版本。'}</p>`,
         facts: [html`理由：${d.why}`, d.preview ? impactLine(d.preview) : ''].filter(Boolean),
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认发布 ${d.v}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
       });
       if (v !== 'ok') return;
-      const undo = st.confirmDraft(k, frontLine); rerender();
+      const undo = st.confirmDraft(k, L); rerender();
       if (!undo) { NT.toast('规则状态已变化，无法确认发布，请重新核对'); return; }
       const seal = $('#seal'); seal?.classList.add('is-stamping');
-      NT.toast(d.effect === 'now' ? `已发布 ${d.v}，${k === 'watch' ? '首页「值得关注」按新版本计算' : '新的评价按新版本计算'}` : `已确认 ${d.v}，从下一个盘点批次开始生效`, { undo: () => { if (!undo()) NT.toast('规则已发生后续变更，旧发布不能撤销'); rerender(); } });
+      NT.toast(d.effect === 'now' ? `已发布 ${d.v}，${k === 'watch' ? '首页「值得关注」按新版本计算' : '新的评价按新版本计算'}` : `已确认 ${d.v}，${nextText(d)}`, { undo: () => { if (!undo()) NT.toast('规则已发生后续变更，旧发布不能撤销'); rerender(); }, undoneText: `已撤销，${d.v} 回到待确认` });
     });
     $('#return')?.addEventListener('click', async () => {
-      const k = frontLine ? 'front' : kind, d = st.ruleOpen(k, frontLine);
+      const k = kind, d = st.ruleOpen(k, L);
       const v = await NT.dialog({ title: `退回 ${d.v}？`, body: html`<p>草稿回到${name(d.by)}那里，你写的理由会出现在${name(d.by)}的待办里。</p><textarea class="n-textarea" rows="2" id="rt" placeholder="${RETURN_PH[k] || ''}"></textarea>`,
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '退回修改', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#rt', dl).value.trim(), read: (dl) => $('#rt', dl).value.trim() }] });
       if (v?.value !== 'ok') return;
-      st.returnDraft(k, v.data, frontLine); rerender();
-      NT.toast(`已退回给${name(d.by)}修改，理由在${name(d.by)}的待办里`, { undo: () => { d.state = 'pending'; delete d.returned; st.save(); rerender(); } });
+      st.returnDraft(k, v.data, L); rerender();
+      NT.toast(`已退回给${name(d.by)}修改，理由在${name(d.by)}的待办里`, { undo: () => { if (d.state === 'draft' && d.returned) { d.state = 'pending'; delete d.returned; st.save(); } rerender(); }, undoneText: `已撤销退回，${d.v} 回到待确认` });
     });
     $('#rv-toggle')?.addEventListener('click', () => { reviewing = !reviewing; rerender(); $('#rv-toggle')?.focus(); });
     $$('[data-rv]', main).forEach((b) => b.addEventListener('click', () => {

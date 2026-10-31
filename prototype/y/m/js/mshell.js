@@ -5,7 +5,7 @@
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, icon, mount, $ } = NT;
   const M = (NT.m = {});
-  const PAGES = ['index', 'record', 'quick', 'mentor', 'people', 'person', 'inbox', 'me'];
+  const PAGES = ['index', 'record', 'quick', 'mentor', 'people', 'person', 'inbox', 'me', 'judge'];
   // 手机端给导师用，不写入本地的视角设置，回到桌面版时仍是原来的视角。
   // 系统管理员不能改写成导师，否则侧栏的手机入口和 ?as=admin 会看到学员与分数。
   const incomingRole = st.role();
@@ -179,7 +179,7 @@
 
   // ---------- 手机页面常用片段 ----------
   // 待办在手机上的落点：复盘去导师评价，方案去确认方案，其余沿用；判断对照、找人这类没有手机页的转到桌面版
-  const M_PAGES = ['index', 'people', 'person', 'quick', 'record', 'plan', 'inbox', 'mentor', 'me'];
+  const M_PAGES = ['index', 'people', 'person', 'quick', 'record', 'plan', 'inbox', 'mentor', 'me', 'judge'];
   const mHref = (h) => (M_PAGES.includes(h.split(/[?#]/)[0].replace('.html', '')) ? h : `../app/${h}`);
   M.todoHref = (t) => (t.kind === 'review' ? `mentor.html?id=${t.person}` : t.kind === 'plan' ? `../app/plan.html?id=${t.plan}` : mHref(t.href));
 
