@@ -13,3 +13,13 @@ export {
 } from './schema';
 export type { SourceLocation } from './schema';
 export { readEvidenceForTalent } from './read';
+export { parseOfficeBytes } from './office/parse';
+export { OfficeParseError } from './office/types';
+export type {
+  ParsedOffice,
+  OfficeFragment,
+  OfficeLocation,
+  OfficeCellContent,
+  OfficeScalar,
+  OfficeParseFailure,
+} from './office/types';
