@@ -1825,8 +1825,7 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 
 /* ── 采集：投递批次、回执与逐条确认（决赛增补） ────────────────────────────
    批次状态用文字和图形同时表达：处理中是流光细条，待核对是分叉，待确认是方框勾，已完成是实心勾；失败只在文件行上用红字说明原因和下一步 */
-.n-rstate { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--r-pill); font-size: var(--t-xs); font-weight: 600; white-space: nowrap; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.n-rstate::before { content: ""; width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; }
+/* 沿用规则修订的 .n-rstate 底样式，只补批次的四种状态 */
 .n-rstate[data-s="processing"] { color: var(--light); }
 .n-rstate[data-s="processing"]::before { background: var(--foil-edge); background-size: 300% 100%; box-shadow: none; animation: foil-drift 3s linear infinite; }
 .n-rstate[data-s="verify"], .n-rstate[data-s="confirm"] { color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink-2); }
