@@ -312,7 +312,8 @@ def audio():
     target = ROOT / "audio"
     target.mkdir(exist_ok=True)
     phrases = ["这是化名演示录音。谷嘉树先复现失败片段，给每段保留请求键，把失败项放到重试队列。",
-               "重复提交后，输出只有一份。另一次缓存回收任务增加了清理开关和回滚说明。这是两件事，不能合并。"]
+               "重复提交后，输出只有一份。",
+               "另一次缓存回收任务增加了清理开关和回滚说明。这是两件事，不能合并。"]
     script = "\n".join(phrases) + "\n"
     (target / "script.txt").write_text(script, encoding="utf8")
     pcm, segments = bytearray(), []
@@ -325,10 +326,12 @@ def audio():
             subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(aiff), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-map_metadata", "-1", str(wav)], check=True)
             with wave.open(str(wav)) as source:
                 data = source.readframes(source.getnframes())
+            if not data or not any(data):
+                raise RuntimeError("Local speech service emitted no speech; do not publish a silent fixture")
             start = len(pcm) // 32
             pcm.extend(data)
-            segments.append({"startMs": start, "endMs": len(pcm) // 32, "text": phrase, "eventId": "demo-event-retry" if i == 0 else None})
-            if i == 0:
+            segments.append({"startMs": start, "endMs": len(pcm) // 32, "text": phrase, "eventId": "demo-event-retry" if i < 2 else "demo-event-cache"})
+            if i < len(phrases) - 1:
                 pcm.extend(bytes(16000))  # 500 ms silence separates the two scripted segments.
         with wave.open(str(target / "mentor-note.wav"), "wb") as out:
             out.setnchannels(1)
@@ -344,6 +347,9 @@ def audio():
 
 def hashes():
     files = []
+    for name in ["directory.json", "candidates.json"]:
+        path = ROOT / name
+        files.append({"file": name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "bytes": path.stat().st_size})
     for folder in ["assets", "interview", "screenshots", "defense", "audio"]:
         for path in sorted((ROOT / folder).glob("*")):
             if path.is_file():

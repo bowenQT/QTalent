@@ -135,7 +135,13 @@ def check_other_assets():
         check((audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (1, 2, 16000), "PCM audio format")
         duration = audio.getnframes() * 1000 / audio.getframerate()
         check(abs(duration - read_json("audio/expected.json")["durationMs"]) < 1, "audio timing")
-        check(any(audio.readframes(audio.getnframes())), "non-silent speech bytes")
+        pcm = audio.readframes(audio.getnframes())
+        check(any(pcm), "non-silent speech bytes")
+        check(duration > 10000, "spoken sample duration")
+        previous_end = 0
+        for segment in read_json("audio/expected.json")["segments"]:
+            check(previous_end <= segment["startMs"] < segment["endMs"] <= duration, "nonempty ordered audio citations")
+            previous_end = segment["endMs"]
     with zipfile.ZipFile(ROOT / "defense/project-defense.pptx") as pptx:
         slides = [name for name in pptx.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", name)]
         check(len(slides) == 2, "two editable PPT slides")

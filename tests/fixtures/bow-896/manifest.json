@@ -2224,6 +2224,16 @@
   },
   "assets": [
     {
+      "file": "directory.json",
+      "sha256": "68d324a03329a284165219454328821be881e71b95b1eca44aed5f2b09c0a339",
+      "bytes": 1325
+    },
+    {
+      "file": "candidates.json",
+      "sha256": "03d5d8c6246a828d2a407a242a80ec3dd28293a43c225c57c2752e236782614e",
+      "bytes": 1249
+    },
+    {
       "file": "assets/qiniu-logo.jpg",
       "sha256": "42f6f110bfb6040a8ce1a87a6f23a33a365129c148ff456f63af5e4789dda85e",
       "bytes": 4580
@@ -2272,6 +2282,71 @@
       "file": "interview/unknown-template.pdf",
       "sha256": "ee93a85ada7ca04b5c114b7a4ab3799565605a37d1623fbeb8c98b5fab30c483",
       "bytes": 82863
+    },
+    {
+      "file": "screenshots/expected.json",
+      "sha256": "62e72814cbc0d9e7772eb404cc0bec8b762d9cd80ebee68ac1179b7ad4bf83b6",
+      "bytes": 1343
+    },
+    {
+      "file": "screenshots/mentor-filtered.png",
+      "sha256": "befc556b7a0aa8a29d9a0c22302669ab9a3207c58255362c3ad17a6714da5aba",
+      "bytes": 95601
+    },
+    {
+      "file": "screenshots/mixed-permissions.png",
+      "sha256": "42828cbc9ffca155cbaae3790c7bf72133832f3a418ea24e91b997dfda85cc9d",
+      "bytes": 120860
+    },
+    {
+      "file": "defense/expected.json",
+      "sha256": "424b48f201a9f3ee071bcb018c3c77fad851318c23925083f8d67ae518eb7d2d",
+      "bytes": 1292
+    },
+    {
+      "file": "defense/formal-review.pdf",
+      "sha256": "30de9b6dc356f0ff269d18b5c867e67e3e07f15c532929cdadc65b379b7dd9ac",
+      "bytes": 80953
+    },
+    {
+      "file": "defense/meeting-transcript.json",
+      "sha256": "79a54c0981ccd404c39c30c6da4b7225d32c3cb1c948f0d59f8d959babe50fea",
+      "bytes": 1102
+    },
+    {
+      "file": "defense/meeting-transcript.txt",
+      "sha256": "1f4531fe436d56e9d6a9567ad5857980eef82590721fed052d15b81ee26e732f",
+      "bytes": 530
+    },
+    {
+      "file": "defense/project-defense.pdf",
+      "sha256": "2c8e9320f52de2d212dfe532a5e8fbb2758461da77eb6a1c08fdb001c8a72959",
+      "bytes": 72207
+    },
+    {
+      "file": "defense/project-defense.pptx",
+      "sha256": "e0f97a9cc8fb03046d8bd759a93539d0818592955d36a322a2b2b1fefe419108",
+      "bytes": 30224
+    },
+    {
+      "file": "defense/slides.json",
+      "sha256": "83db3bcf6dd91b1470fc5050da034ce890f67d498636450136a9719b054af16e",
+      "bytes": 587
+    },
+    {
+      "file": "audio/expected.json",
+      "sha256": "550a75af172ecc29c0ba9d8223af4fe224712f6268d173683d75372779d14396",
+      "bytes": 949
+    },
+    {
+      "file": "audio/mentor-note.wav",
+      "sha256": "1ff2d18a94a8f241c419aa3063a204db74d937a46652ea241f0b54dfdb4d5dd7",
+      "bytes": 649586
+    },
+    {
+      "file": "audio/script.txt",
+      "sha256": "f1a8a72c06d68f6dc3cefa27e0526348707d663c766a4c9e57b70387687811a9",
+      "bytes": 261
     }
   ]
 }
