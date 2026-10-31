@@ -190,3 +190,39 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 `src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
 
 本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
+
+## 工作台（BOW-841）
+
+本节只记录 BOW-841 的区块、开发样张与截图对比登记；`/work` 一行与「`/` 仅重定向…」那句不在本次改动。
+
+**当前交付（部分）**：原型 Y 中不变的四个区块按「每个区块一个组件、只在一处登记」放在 `src/features/workbench/`：问候与日期行（`sections/head`）、管理者找人框（`sections/find`）、HR 与导师一句话输入和斜杠命令（`sections/composer`）、导师「我带的学员」（`sections/students`）。唯一登记点是 `Workbench.tsx` 的 `layouts`；后续卡新增 `sections/<区块>/` 并在 `layouts` 对应槽位加一项。区块收到的是 `view.ts` 的视图模型，契约变化只改 `toWorkbenchView`。
+
+**还没有 `/work` 路由**：真实读取（BOW-838，PR #171）与契约修订（BOW-836 跟进，PR #202）都未合入 main。main 上的契约没有业务日期 `asOf`、学员头像 `hue` / `photo`、课题 `topic` 与记录动态 `activity`，`toWorkbenchView` 把它们传为未知（不显示日期行、学员第二行，不写「本周待记」）；合入后改这一处映射并新增 `src/app/(desk)/work/`。在此之前，截图对比与浏览器用例使用开发样张 `/dev/workbench?role=manager|hr|mentor`：固定的演示视图（化名与值取自原型 Y 种子、2026-09-04），套在同一外壳组件里，生产构建返回 404（`tests/e2e/dev-routes.spec.ts`）。样张不是 `/work` 的兜底数据。
+
+**截图对比**：`tests/visual/workbench.spec.ts`，三视角 × 桌面 1366×900 / 窄屏 375×812，同次渲染、按元素比较（`compareElements`），先比文本（问候、占位、示例句、学员姓名与顺序），再比 DOM 顺序、无横向溢出、位置（相对 `#main` 的首块顶端、相邻区块间距、`x` 与宽度），最后比像素。两侧时间固定在同一时刻，问候时段一致。登记见 `tests/visual/workbench-masks.ts`：
+
+| 原型选择器 | 视角 | 处置 | 原因 | 取消条件 |
+| --- | --- | --- | --- | --- |
+| `#jsig` | 管理者 | 不渲染；标题只比 `.nt-head > div:first-child` | 判断提醒 `judgmentReminders` 为 `not_connected` | 判断对照链路接入 |
+| `.nt-ceo`（`#watch`、`#progs`、`#follows`） | 管理者 | 不渲染 | 值得关注、我的关注未接入 | 对应链路接入 |
+| `.n-find__tpls` 及标签「或从角色模板开始」 | 管理者 | 不渲染；弹出面板只比 `.n-find__asks` | 角色模板属找人契约（BOW-851） | 找人契约接入 |
+| `#changes` | HR | 不渲染 | 有变化的人未接入 | 盘点冻结链路 |
+| `.nt-cols`（`#todo`、判断对照、进行中的任务、`#upload`） | HR | 不渲染 | 待办、判断对照、材料任务未接入 | BOW-861 / 待办 / 判断对照链路 |
+| `#todo`、`#recos`、`details#fold` | 导师 | 不渲染；右列留空列 | 待办、推荐、材料与任务未接入 | 对应链路、BOW-861 |
+| `.nt-head p`（HR、导师） | HR、导师 | 只比 `h1` | 日期后的人才项目状态句没有契约字段（D6） | 契约补状态句或人才项目接入 |
+| `.n-asks .n-ask:nth-child(2)` | HR | 只比第一句 | 「发起结营盘点」，盘点留在原型演示 | 盘点链路 |
+| `#composer-mic` | 三视角 | 元素内遮罩 | 语音输入是脚本演示；实时录音由 BOW-869 做 | BOW-869 |
+| `a[href="#upload"]` | HR、导师 | 元素内遮罩 | 上传区未接入，锚点无目标 | BOW-861 |
+| `.n-students__acts` | 导师 | 元素内遮罩；「记一件事」按钮单独比 | 推荐未接入 | 推荐链路 |
+| `#students`（整卡） | 导师 | 只在桌面宽度比；窄屏逐行比姓名与第二行 | 原型多一个「推荐」按钮，窄屏行宽不同导致第二行换行不同 | 推荐链路 |
+
+**行为差异**（不做像素遮罩）：
+
+1. 输入原文不进 URL：发送时写入 `sessionStorage['niu-talent:draft:record' | 'niu-talent:draft:staffing'] = { accountId, text, savedAt }`，URL 只带 `draft=work`；写入失败不跳转，保留输入并提示「转交失败，请再点一次发送」。接收页（BOW-847、BOW-853）进入时读取并删除，账号不符或超过 10 分钟即丢弃。约定写在 `src/features/workbench/send.ts`。
+2. 斜杠命令只有「记一件事」和（`entries` 含 `find_people` 时）「为项目找人」；「发起盘点」「打开会议人才纪要」不渲染。
+3. HR、导师示例句含演示人名，只在非生产环境渲染。
+4. 学员姓名先链接到档案页 `/person?id=`，速览在 `PersonPeek` 合入后接上。
+5. 问候时段按浏览器本地小时；服务端首屏是「你好，{姓名}」，水合后换成时段问候。
+6. 输入框补 `aria-controls`、`aria-activedescendant` 关联命令面板，外观不变；textarea 不支持 `aria-expanded`，面板显隐由 `hidden` 表达。
+
+**等依赖的区块**：节点结论、四类待核对、导出、HR 重新分派等 BOW-898、BOW-925 的原型评审合入后再做；上传材料与进行中的任务归 BOW-861（改 `layouts` 的 HR、导师侧栏与 Composer 的 `uploadAnchor` 一行）。

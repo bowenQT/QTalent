@@ -15,6 +15,8 @@ const devRoutes = [
   '/dev/design-system/general',
   '/dev/design-system/media',
   '/dev/design-system/talent',
+  // A valid role, so only the production gate can answer 404.
+  '/dev/workbench?role=mentor',
 ];
 
 async function freePort() {
