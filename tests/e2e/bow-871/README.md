@@ -6,7 +6,7 @@
 
 - 本轮 main：`dc53fbe54179281b5bee37877aba7795eea3a4d1`。
 - 采集与出处冻结：897 `0b20a913621121848219e0966ba4bf4844d1bdb3`；入口见该提交的 `src/contracts/{sources,materials,material-review,record}.ts`。
-- 标准迭代冻结：917 R1（替代旧2fe；上游仍有已证P1，非最终可合版本） `da3012e1037564c89fabebaceb66bb5a1fc1aa03`；入口见该提交的 [standard-iteration.md](https://github.com/bowenQT/QTalent/blob/da3012e1037564c89fabebaceb66bb5a1fc1aa03/src/contracts/standard-iteration.md)。
+- 标准迭代冻结：917 R2（替代da3012e；本工具只验证契约） `832209d177944b5ce18577794acb88314a6460da`；入口见该提交的 [standard-iteration.md](https://github.com/bowenQT/QTalent/blob/832209d177944b5ce18577794acb88314a6460da/src/contracts/standard-iteration.md)。
 
 验收依据：[BOW-871](https://linear.app/bowenzhong/issue/BOW-871) 的 10/31 第三轮与执行入口，以及[架构提案 6.2](../../../docs/proposals/2026-10-25-y-architecture-phases.md#62-必须守住的八条合同)。合入须满足 #63 全部 blocked-by 已进 main；关闭须全部回归在 main 通过。
 
@@ -56,9 +56,19 @@ main 当前的 `TalentSubject` 没有 `nodeId`；这里的角色/关系到期检
 
 这里没有为未实现的链路编造 URL、动作名或字段。接线时先读对应卡最新公共入口，引用当时受检 SHA；已有行为与冻结约束冲突时按根因回报对应卡，不在 871 改业务或把错误行为写成期望。
 
-## 本次917输入同步与明确未通过项
+## 当前917 R2输入与实际结果
 
-仅更新本目录的冻结验证工具与矩阵；897仍为原0b20a913，原型/契约分歧仍待裁决，不据此另选状态或动作。917使用da3012e，不把旧2fe的43项结果沿用为新合同验证。
+本轮仅把显式工具的917冻结常量更新为 `832209d177944b5ce18577794acb88314a6460da`；897仍为 `0b20a913621121848219e0966ba4bf4844d1bdb3`。断言、合成fixture、工具逻辑与业务均未改，没有新增SHA配置接口。
+
+在两个真实冻结HEAD、`src/contracts`无修改的独立worktree上，使用Node24.21.0 / pnpm11.25.0原样执行显式工具：**83项检查，83通过、0失败，退出0**，输出 `result: pass` / `level: frozen_schema_only`。修后的本人混HR全局、本人混隐藏计数、HR分评价人混他人统计三例均按原断言拒绝，没有把错误accepted行为改为期望。
+
+工具文件SHA-256为 `607e4b8f057c319dbd1b4cd30026a8242c8e39e0ebefebb04a075370be37689f`；相对9543b85的工具只替换了这一SHA常量。旧80/83失败结果保留在下一节，不能作为当前输入结果，也不把本轮83项与历史29条离线回归混算。
+
+这些结果不证明数据库事务、当前服务端授权、原件读取、发布持久化/重启或浏览器流程。显式工具中的旧P1链接保留为缺陷追踪来源，不表示本次仍失败。PR仍Draft + blocked，#63全部blocked-by与runtime矩阵未齐，不关闭871、不请求ready-to-merge。实际提交后的同输入执行证据见PR当前head记录。
+
+## 历史：917 R1输入同步（9543b85 / da3012e）
+
+以下为9543b85提交的历史记录：当时仅更新本目录的冻结验证工具与矩阵；897为原0b20a913，原型/契约分歧不由本工具选边；917使用da3012e，没有沿用旧2fe的43项结果。
 
 | 已确认的917 R1输入 | 本工具的有效对照                                                                                                      | 仍需后续runtime验收                             |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
@@ -67,11 +77,11 @@ main 当前的 `TalentSubject` 没有 `nodeId`；这里的角色/关系到期检
 | 配对撤销           | 新版回待确认；原previousVersion系统恢复生效；当前xe_selection读取和新期次默认恢复；已有绑定/历史不变；旧/过期操作拒绝 | 918/922同一数据库事务、失败回滚、重新读取与重启 |
 | 姓名稳定顺序       | 正/反姓名顺序；同名稳定ID；重复身份拒绝；不按样本量排序                                                               | 919真实查询、授权投影和页面顺序                 |
 
-**已证P1保持未通过**：[917精确输入缺口](https://github.com/bowenQT/QTalent/pull/258#issuecomment-6547181016)，对应自动意见discussion_r4432708827。正确5个可披露case ID不变时，本人分布混入HR全局计数、混入隐藏案例计数，以及HR分评价人分布混入他人统计，都必须拒绝。工具对这三例一律断言拒绝，不能把当前accepted行为冻结成期望。正对照先验证正确的本人/隐藏投影/HR样例，另验证错误case ID确实被拒绝。
+**当时已证P1未通过**：[917精确输入缺口](https://github.com/bowenQT/QTalent/pull/258#issuecomment-6547181016)，对应自动意见discussion_r4432708827。正确5个可披露case ID不变时，本人分布混入HR全局计数、混入隐藏案例计数，以及HR分评价人分布混入他人统计，都必须拒绝。工具对这三例一律断言拒绝，当时没有把accepted行为冻结成期望。正对照先验证正确的本人/隐藏投影/HR样例，另验证错误case ID确实被拒绝。
 
-显式工具汇总所有schema检查，任何不符输出`result: fail`、失败标签及expectedAccepted/actualAccepted，并退出1；不会用skip/todo、吞掉P1、或schema-only的其他通过项把结果改成全绿。待917最后一轮修复并由父更新冻结输入后重新验证。P1未修、全部blocked-by未合与runtime未接线期间，PR保持Draft + blocked，不关闭871、不请求ready-to-merge。
+显式工具汇总所有schema检查，任何不符输出`result: fail`、失败标签及expectedAccepted/actualAccepted，并退出1；不会用skip/todo、吞掉P1、或schema-only的其他通过项把结果改成全绿。当时等待917最后一轮修复及冻结输入更新；本轮修后结果见上面的当前段。完整blocked-by与runtime接线门禁始终保留。
 
-本轮在上述两个未修改冻结worktree上的实际输出：83项schema检查，80项通过、3项失败；失败恰为上面三例分布混入，均expectedAccepted:false / actualAccepted:true，进程退出1。29条既有main公共边界离线回归另行通过，不与这83项混算、不代表P1已修复。完整runtime验收仍按八条合同/十二类矩阵待接线。
+9543b85在当时两个未修改冻结worktree上的实际输出：83项schema检查，80项通过、3项失败；失败恰为上面三例分布混入，均expectedAccepted:false / actualAccepted:true，进程退出1。29条既有main公共边界离线回归另行通过，不与这83项混算、不代表P1已修复。完整runtime验收仍按八条合同/十二类矩阵待接线。
 
 ## 执行与收集边界
 
@@ -90,7 +100,7 @@ pnpm exec tsc --noEmit
 
 ```sh
 git worktree add --detach /tmp/bow-871-materials 0b20a913621121848219e0966ba4bf4844d1bdb3
-git worktree add --detach /tmp/bow-871-iteration da3012e1037564c89fabebaceb66bb5a1fc1aa03
+git worktree add --detach /tmp/bow-871-iteration 832209d177944b5ce18577794acb88314a6460da
 ln -s "$PWD/node_modules" /tmp/bow-871-materials/node_modules
 ln -s "$PWD/node_modules" /tmp/bow-871-iteration/node_modules
 node --import tsx tests/e2e/bow-871/frozen-contracts.verify.ts --materials-root /tmp/bow-871-materials --iteration-root /tmp/bow-871-iteration

@@ -9,7 +9,7 @@ import { parseArgs } from 'node:util';
 
 const frozen = {
   materials: '0b20a913621121848219e0966ba4bf4844d1bdb3',
-  iteration: 'da3012e1037564c89fabebaceb66bb5a1fc1aa03',
+  iteration: '832209d177944b5ce18577794acb88314a6460da',
 };
 type ObjectValue = Record<string, unknown>;
 function object(value: unknown): ObjectValue {
