@@ -1523,15 +1523,16 @@
   };
   // 规则版本在导出和打印里写成「评价规则 v1」，不露内部编号
   const ruleName = (v) => (v ? `评价规则 ${v.replace(/^.*-(v\d+)$/, '$1')}` : '');
+  // 取数和档案同一套：按新版本复核过的分用复核后的值、评分人和版本；待按新版本复核的分、AI 建议分和待校准的分都不导出，只计条数
   store.exportRows = (pids, from) => {
     const rows = []; let skipped = 0;
     pids.filter((pid) => store.canExport(pid)).forEach((pid) => {
-      store.visibleEvents(pid).events.filter((e) => e.kind === 'obs' && (!from || (e.date && e.date >= from))).forEach((e) => {
-        (e.scores || []).filter((s) => s.p === pid).forEach((s) => {
-          if (!COUNTED.includes(s.st)) { skipped += 1; return; }
-          const src = e.srcs?.[0];
-          rows.push({ pid, ev: e.id, date: e.date || '', title: e.title, dim: store.dim(s.d)?.name || s.d, v: s.v, note: s.note || '', by: s.by, rubric: ruleName(store.eventRubric(e)?.v), src: src ? `${src.label} · ${src.loc}` : '' });
-        });
+      const cur = store.scoresOf(pid, { visible: true, from });
+      skipped += store.scoresOf(pid, { visible: true, from, all: true, anyVer: true }).length - cur.length;
+      cur.forEach((s) => {
+        const e = s.ev, src = e.srcs?.[0], ver = store.ruleVer(s.ver);
+        rows.push({ pid, ev: e.id, date: e.date, title: e.title, dim: store.dim(s.d)?.name || s.d, v: s.v,
+          anchor: ver ? store.anchors(s.d, pid, ver).list[s.v - 1] || '' : '', note: s.note || '', by: s.by, rubric: ruleName(s.ver), src: src ? `${src.label} · ${src.loc}` : '' });
       });
     });
     return { rows, skipped, people: new Set(rows.map((r) => r.pid)).size };

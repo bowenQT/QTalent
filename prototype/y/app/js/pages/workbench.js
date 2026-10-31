@@ -378,7 +378,7 @@
   const exportHost = () => (st.canExport() ? html`<div id="export-st" aria-live="polite"></div>` : '');
   const nowText = () => { const d = new Date(); return `${NT.TODAY} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   const exLabel = (sc, from) => `${sc.label} · ${EX_TIME.find(([k]) => k === from)[1]}`;
-  const EX_BASIS = '截至导出时已确认的关键事件与维度分；不含 AI 建议分和待校准的分；不是盘点冻结结果';
+  const EX_BASIS = '截至导出时已确认的关键事件与维度分，按新版本复核过的取复核结果；不含 AI 建议分、待校准和待复核的分；不是盘点冻结结果';
   function wireExport() {
     $('#btn-export')?.addEventListener('click', openExport);
     drawExport();
@@ -388,7 +388,7 @@
     const sum = (d) => {
       const sc = scopes.find((x) => x.id === $('#ex-scope', d).value), from = $('#ex-time', d).value, r = st.exportRows(sc.people, from);
       mount($('#ex-sum', d), r.rows.length
-        ? html`<b>${r.people} 人 · ${r.rows.length} 条已确认的维度分</b>${r.skipped ? html`<span>另有 ${r.skipped} 条 AI 建议分或待校准的分，不导出</span>` : ''}`
+        ? html`<b>${r.people} 人 · ${r.rows.length} 条已确认的维度分</b>${r.skipped ? html`<span>另有 ${r.skipped} 条未确认或待复核的分，不导出</span>` : ''}`
         : html`<b>这个范围里还没有已确认的内容</b><span>${sc.people.length ? '换一个范围或时间再试' : '这个范围里没有人'}</span>`);
       mount($('#ex-head', d), html`<dt>导出时间</dt><dd>生成时写入，精确到分钟</dd><dt>导出人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>${EX_BASIS}</dd><dt>范围</dt><dd>${exLabel(sc, from)}</dd>`);
       return r.rows.length;
@@ -402,7 +402,7 @@
         </div>
         <p class="n-export__sum" id="ex-sum"></p>
         <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl id="ex-head"></dl></div>
-        <p class="nt-caption">每行是一条已确认的维度分，附行为锚点引用、评分人、规则版本和来源位置。只含你查看范围内的人；象限位置和盘点结论以盘点冻结快照为准，不在这里导出。导出会记入审计日志。</p>
+        <p class="nt-caption">每行是一条已确认的维度分，附行为锚点、原文引用、评分人、规则版本和来源位置。只含你查看范围内的人；象限位置和盘点结论以盘点冻结快照为准，不在这里导出。导出会记入审计日志。</p>
       </div>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '生成表格', value: 'go', cls: 'n-btn--ink', icon: 'download', validate: (d) => (sum(d) ? true : '这个范围里还没有已确认的内容，换一个范围再生成'), read: (d) => ({ scope: $('#ex-scope', d).value, from: $('#ex-time', d).value }) }],
       onOpen: (d) => { sum(d); d.addEventListener('change', () => sum(d)); },
@@ -434,8 +434,8 @@
   function buildCsv(rows, at, label) {
     const q = (v) => `"${String(v ?? '').replaceAll('"', '""')}"`;
     const head = [['导出时间', at], ['导出人', st.me().name], ['口径', EX_BASIS], ['范围', label], ['说明', '演示数据，人员均为化名']];
-    const cols = ['人员', '组织', '事件日期', '关键事件', '维度', '分数', '行为锚点与引用', '评分人', '评价规则版本', '来源位置'];
-    const body = rows.map((x) => { const p = st.person(x.pid); return [p.name, st.orgShort(p.org), x.date, x.title, x.dim, x.v, x.note, st.person(x.by)?.name || x.by, x.rubric, x.src]; });
+    const cols = ['人员', '组织', '事件日期', '关键事件', '维度', '分数', '行为锚点', '原文引用', '评分人', '评价规则版本', '来源位置'];
+    const body = rows.map((x) => { const p = st.person(x.pid); return [p.name, st.orgShort(p.org), x.date, x.title, x.dim, x.v, x.anchor, x.note, st.person(x.by)?.name || x.by, x.rubric, x.src]; });
     return [...head, [], cols, ...body].map((r) => r.map(q).join(',')).join('\r\n');
   }
   function drawExport() {

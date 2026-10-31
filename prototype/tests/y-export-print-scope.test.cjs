@@ -92,3 +92,24 @@ test('审计记下操作人、动作和对象', () => {
   assert.equal(first.by, st.me().id);
   assert.deepEqual(Object.keys(first).sort(), ['act', 'at', 'by', 'obj']);
 });
+
+test('每行带对应版本的行为锚点；待复核的分不导出，复核后取复核结果', () => {
+  const st = load('hrbp');
+  const pid = 'p-x01';
+  const prof = st.exportRows([pid]).rows.find((r) => r.ev === 'e-x01-3' && r.dim === '专业度');
+  assert.equal(prof.anchor, '超出本届学员预期');
+
+  // 演示一次不兼容修订后的复核暂停：心性维度的旧分暂停取数，复核确认后按复核结果导出
+  const S = st.get();
+  S.reviewHolds = [{ ver: 'rubric-v2', from: '2000-01-01', fams: [], potHit: true, at: '2026-09-04' }];
+  const held = st.exportRows([pid]);
+  assert.ok(held.rows.every((r) => r.dim === '专业度'), '心性维度的旧分待复核，不导出');
+  const ev = st.event('e-x01-3'), s = ev.scores.find((x) => x.p === pid && x.d === 'mot');
+  s.revs = [{ v: 5, ver: 'rubric-v2', by: 'p-suwan', at: '2026-09-04' }];
+  const r = st.exportRows([pid]).rows.find((x) => x.ev === 'e-x01-3' && x.dim === '内生动力');
+  assert.equal(r.v, 5);
+  assert.equal(r.by, 'p-suwan');
+  assert.equal(r.rubric, '评价规则 v2');
+  assert.equal(r.anchor, st.anchors('mot', pid, st.ruleVer('rubric-v2')).list[4]);
+  assert.equal(held.skipped > 0, true);
+});
