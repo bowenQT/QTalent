@@ -35,7 +35,7 @@
 | `app/actions.html`                | `/program-actions`                | program-actions / program-actions   | program-actions / programs                   | 后续 / 404     |
 | `app/projects.html`               | `/projects`                       | projects / projects                 | projects / staffing                          | 已实现参考切片 |
 | `app/project.html`                | `/project?id=…`                   | project / project                   | project / staffing                           | 后续 / 404     |
-| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 契约已定义，查询与 UI 待接入 / 404 |
+| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 路由已按角色拦截；活文档组件在开发样张 `/dev/staffing`，真实读取待 BOW-852、854 |
 | `app/rules.html`                  | `/rules`                          | rules / rules                       | rules / evaluation-system                    | 后续 / 404     |
 | `app/judge.html`                  | `/judge?rater=me`                 | judge / judge                       | judge / evaluation-system                    | 后续 / 404     |
 | `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
@@ -190,3 +190,31 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 `src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
 
 本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
+
+## 找人（BOW-853）
+
+`src/features/staffing/` 是找人活文档：一句话 → 起草需求卡（跟随 `staffing_demand` 任务）→ 编辑（切换必须 / 加分、补一句要求）→ 确认 → 候选人逐条四态与出处、处理进度、待人工判断时选四态并署名。区块只读 `view.ts` 的视图模型；契约修订只改映射。页面动作经 `ports.ts` 的 `StaffingPorts` 从路由传入，客户端不引用 server。
+
+- `/staffing`：服务端先按账号角色拦截，导师看到「这一页属于其他视角」，系统管理员看到业务视角提示；管理者、HR 现在看到「找人还没接通」，不显示样张数据。需求读取（BOW-852）与匹配读取（BOW-854）合入后，把 `StaffingPorts` 接到 Server Action 与 `/api/jobs/[jobId]`，页面改为渲染 `Staffing`。
+- 开发样张 `/dev/staffing?role=manager|hr&scene=ts|agent|new`：原型 Y 种子数据经找人契约渲染，来源都标为原型基线；动作是内存假实现。生产构建返回 404。
+- 排序只用契约的 `orderStaffingCandidates`（必须项支持了几条），同数保持读取顺序；必须项至少两条资料不足且没有一条支持的人放进「条件待确认」。不出总分、胜任率或百分比。
+- 匹配入口：契约没有「取确认后的匹配任务」的读取，`StaffingPorts.openMatching` 是对 BOW-854 的接口假设，返回任务标识或 `null`（未接通时显示「候选人核对还没接通」）。
+- 新项目入口（`?new=1`）：契约的起草需要 `projectId`，一句话建项目不在找人契约里；页面在入口绑定项目，起草完成后由 `onDemandReady` 交回页面跳转。
+- 工作台交接：读取并删除 `sessionStorage['niu-talent:draft:staffing']`（约定见 BOW-841 `send.ts`），账号不符或超过 10 分钟丢弃。
+
+**同次渲染截图对比**（`tests/visual/staffing.spec.ts`，遮罩与说明在 `tests/visual/staffing-masks.ts`）：管理者 `pr-agent`、HR `pr-ts` 项目页与管理者入口，桌面 1366×900 与窄屏 375×812。先比文字（标题、状态、要求、候选人姓名、逐条状态与证据句），再比位置与间距，最后逐元素比像素。
+
+| 原型元素                                                                             | 工程处理                           | 原因                                                    |
+| ------------------------------------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------- |
+| 右栏方案槽位、版本、确认、手动补入（`#plan`）                                        | 不渲染，保留空栏位                 | 方案契约 `not_connected`（D11：决赛找人止于四态和出处） |
+| 候选卡「放入」按钮、拖放（`.n-candidate` 的 grab 光标）                              | 不渲染                             | 同上                                                    |
+| 候选卡「演示」徽标、届别、在几个项目、相关维度分、发展方向、意愿与释放（`.n-cmeta`） | 不渲染；只比姓名与逐条要求         | 契约候选人只有 `id / name / orgName`                    |
+| 头像按人着色                                                                         | 统一中性色                         | 契约无色相；遮罩                                        |
+| 需求卡「来自」行的提出人和日期、角色行                                               | 只显示原话；不渲染角色             | 契约无提出人、日期、角色                                |
+| 要求改写成宽松说法（`.nt-req`）                                                      | 不渲染                             | 契约无备选说法；遮罩                                    |
+| 「检索 N 人」                                                                        | 只显示进入候选的人数               | 契约无检索范围人数；遮罩 `#cand-meta`                   |
+| 没有引用角标的「支持 / 不支持」                                                      | 每条明确结论都有引用角标           | 契约要求明确结论必须有来源；遮罩 `.n-cite`              |
+| 入口的目标角色模板（`.n-tpls`）                                                      | 不渲染                             | 模板没有契约                                            |
+| 起草轨迹五步（含检索与核对）                                                         | 两步：理解需求、拆出要求起草需求卡 | 确认后才匹配，起草任务只产出需求卡                      |
+
+**原型没有设计、按设计系统组合的部分**（待 BOW-925 前端覆盖检查确认）：需求卡确认行（墨色按钮「确认需求，开始核对」+ 说明；确认后一行「某某 MM-DD 确认」）；候选卡里的处理进度（设计系统「处理进度」徽标与说明，含「失败」不算四态）；人工判断表单（四态文字选择、可引用来源勾选、「理由（必填，会署名留档）」、墨色「署名确认」，沿用判断对照的归因样式）；署名结论显示为「人工结论」标记 + 判断人与日期。
