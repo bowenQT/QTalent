@@ -1,4 +1,4 @@
-/** Read-only versioned rule definitions. Publication and historical recomputation are out of scope. */
+/** Versioned rules, effective reads, and transactional applicability. */
 export {
   dimensions,
   ruleVersions,
@@ -16,3 +16,12 @@ export type {
   LegacyRuleUsage,
   LegacyApplicabilityPlan,
 } from './legacy-applicability';
+export {
+  lockRuleCategory,
+  switchSelectionApplicability,
+  RuleApplicabilityConflictError,
+} from './applicability';
+export type {
+  SelectionApplicabilitySwitch,
+  RuleApplicabilityPeriod,
+} from './applicability';
