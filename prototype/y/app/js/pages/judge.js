@@ -367,7 +367,7 @@
         const reason = $(`#why-${h.id}`).value.trim();
         if (!drafting.cats.length) { NT.toast('至少选一个归因类别'); return; }
         if (!reason) { $(`#why-${h.id}`).focus(); NT.toast('写一句理由再确认'); return; }
-        if (!st.confirmAttrib(id, h, { cats: drafting.cats, reason, text: drafting.text })) { drafting = null; render(main); NT.toast('依据已经变化，这条假设不能按原文确认'); return; }
+        if (!st.confirmAttrib(id, h, { cats: drafting.cats, reason, text: drafting.text })) { drafting = null; render(main); NT.toast('归因已确认、权限或依据发生变化，不能重复提交'); return; }
         drafting = null; render(main);
         $(`[data-hyp="${h.id}"] .n-block`)?.classList.add('is-settling');
         NT.toast('归因已确认并署名。结论只作用于人才评价规则，不改变被评价人的档案');

@@ -44,7 +44,10 @@
             <ul class="n-members">${all.map((m) => html`<li class="${m.to ? 'is-left' : ''}"><div class="n-person">${UI.avatar(m.person, 'sm')}<span class="n-person__name">${basic ? st.person(m.person).name : UI.plink(m.person)}</span></div><span class="n-members__role">${m.role}${m.mode ? ` · ${m.mode}` : ''}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}${edit && !m.to && !basic ? html` <button class="n-link" type="button" data-end="${m.person}">退出</button>` : ''}</span></li>`)}</ul>
           </article>
           ${!basic ? html`<article class="n-card"><h3 class="n-section-title">关联事件<span class="n-count is-quiet">${evs.length}</span></h3>
-            ${evs.length ? html`<ul class="nt-list">${evs.map((e) => html`<li><div class="nt-row" style="justify-content:space-between"><a class="nt-plink" href="person.html?id=${e.people[0]}#ev-${e.id}"><b>${e.title}</b></a><span class="nt-muted">${e.date ? NT.md(e.date) : '时间未知'}</span></div><div class="nt-muted">${e.people.map((x) => st.person(x).name).join('、')} · ${st.person(e.recorder).name}记录${e.scores.some((s) => s.st === 'ai') ? ' · 有 AI 建议分待确认' : ''}</div></li>`)}</ul>` : html`<div class="nt-empty">还没有挂在这个项目上的事件。</div>`}
+            ${evs.length ? html`<ul class="nt-list">${evs.map((e) => {
+              const pid = e.people.find((x) => { const s = st.scope(x); return s && s !== 'self'; }) || e.people[0];
+              return html`<li><div class="nt-row" style="justify-content:space-between"><a class="nt-plink" href="person.html?id=${pid}#ev-${e.id}"><b>${e.title}</b></a><span class="nt-muted">${e.date ? NT.md(e.date) : '时间未知'}</span></div><div class="nt-muted">${e.people.map((x) => st.person(x).name).join('、')} · ${st.person(e.recorder).name}记录${e.scores.some((s) => s.st === 'ai') ? ' · 有 AI 建议分待确认' : ''}</div></li>`;
+            })}</ul>` : html`<div class="nt-empty">还没有挂在这个项目上的事件。</div>`}
           </article>` : ''}
         </div>
         <aside class="nt-grid">

@@ -114,7 +114,7 @@ export async function personFromData(
       )
     )
       continue;
-    const source = await sourceFromData(data, confirmation);
+    const source = await sourceFromData(data, confirmation, sources);
     if (source.status !== 'success') continue;
     if (source.source.sourceCategory !== confirmation.sourceCategory) continue;
     if (

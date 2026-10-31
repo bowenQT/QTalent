@@ -39,7 +39,8 @@
     return p.kind === 'staffing' ? `来自项目用人方案 v${p.version}` : `来自${p.title || '组织调整方案'} v${p.version}`;
   }
   // 判断对照生成的改进作用于人才评价规则，只给能看判断对照汇总的视角；对人的行动按归属范围过滤
-  const visible = (a) => (st.judgeBatch(a.from) ? st.canJudge() : !a.person || st.scope(a.person));
+  // 具体人员的管理行动必须有完整管理范围；仅有跨项目可见权限不能读取任用判断。
+  const visible = (a) => (st.judgeBatch(a.from) ? st.canJudge() : !a.person || st.can('mgmt', a.person));
   const sorted = (l) => l.slice().sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state));
 
   function actionRow(a) {
@@ -158,7 +159,15 @@
     }
 
     a.state = s; a.stateAt = NT.TODAY; a.stateTs = Date.now(); if (s === 'done' && !a.did) a.did = NT.TODAY; // stateAt：关注动态里的行动状态变化（v1.5 3.26.2）
+    // 不持久化的操作标记：新一次状态修改会让旧 Toast 的撤销失效。
+    const undoKey = Symbol.for('qtalent.action-state-undo'), revision = {};
+    a[undoKey] = revision;
     st.save(); render($('#main'));
-    NT.toast(`已改为「${LABEL[s]}」`, { undo: () => { Object.assign(a, prev); if (!hadWhy) delete a.why; st.save(); render($('#main')); } });
+    NT.toast(`已改为「${LABEL[s]}」`, { undo: () => {
+      if (a[undoKey] !== revision) return;
+      delete a[undoKey];
+      Object.assign(a, prev); if (!hadWhy) delete a.why;
+      st.save(); render($('#main'));
+    } });
   }
 })();

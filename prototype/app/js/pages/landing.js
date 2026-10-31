@@ -11,13 +11,14 @@
     render(main) {
       const b = st.batch('b-land3');
       const role = st.role(), me = st.me().id;
-      const mine = role === 'mentor' ? b.newcomers.filter((n) => n[2].includes(me)) : b.newcomers;
+      const mine = role === 'mentor' ? b.newcomers.filter((n) => n[2].includes(me)) : role === 'lead' ? b.newcomers.filter(([pid]) => st.scope(pid) === 'full') : b.newcomers;
       const others = b.newcomers.length - mine.length;
       const reviews = b.newcomers.map(([pid]) => st.review(pid, 'W2'));
       const done = reviews.filter((r) => r.state === 'confirmed').length;
       const mentors = [...new Set(b.newcomers.flatMap((n) => n[2]))];
       const quad = st.can('quad');
-      const placed = b.newcomers.filter(([pid]) => !st.refPos(pid).na).length;
+      const placedBase = role === 'lead' ? mine : b.newcomers;
+      const placed = placedBase.filter(([pid]) => !st.refPos(pid).na).length;
       mount(main, html`
         <article class="n-card">
           <div class="n-batch__head">
@@ -38,7 +39,7 @@
             const badge = r.state === 'confirmed' ? html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>` : r.conflicts ? html`<span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : r.ai ? html`<span class="n-badge">待导师确认 ${r.ai} 项</span>` : !r.total ? UI.na() : html`<span class="n-badge">待整份确认</span>`;
             return html`<li><a class="nt-plink" href="landing-review.html?id=${pid}" style="display:contents">${UI.avatar(pid, 'sm')}<div>${st.person(pid).name}<small>${st.project(topic).name} · ${ms.map((m) => st.person(m).name).join('、')}</small></div>${badge}</a></li>`;
           })}</ul>
-          ${others ? html`<p class="nt-caption">另外 ${others} 名学员由其他导师负责。</p>` : ''}
+          ${others && role !== 'hrbp' && role !== 'ceo' ? html`<p class="nt-caption">${role === 'mentor' ? `另外 ${others} 名学员由其他导师负责。` : `另外 ${others} 名学员不在你负责的范围内。`}</p>` : ''}
         </article>
 
         <div class="nt-cols" style="margin-top:var(--s-4)">
@@ -56,7 +57,7 @@
               <div class="nt-row" style="margin-top:var(--s-3)">${st.canOpenMinutes('w2') ? html`<a class="n-btn n-btn--sm" href="record.html?m=w2">${icon('wave')}W2 导师团复盘纪要</a>` : ''}${role === 'mentor' ? html`<a class="n-btn n-btn--sm n-btn--ghost" href="../m/record.html">${icon('phone')}用手机录 W3 复盘</a>` : ''}</div>
             </article>
             ${quad ? html`<article class="n-card"><h3 class="n-section-title">结营</h3>
-              <p style="margin:0;font-size:var(--t-sm);line-height:1.7;color:var(--ink-2)">W4 结营时做第一次象限校准，形成每个人的第一份档案。现在 ${b.newcomers.length} 人中 ${placed} 人满足落位门槛，其余在「资料不足」区，说明还缺哪类证据。</p>
+              <p style="margin:0;font-size:var(--t-sm);line-height:1.7;color:var(--ink-2)">W4 结营时做第一次象限校准，形成每个人的第一份档案。现在 ${placedBase.length} 人中 ${placed} 人满足落位门槛，其余在「资料不足」区，说明还缺哪类证据。</p>
               <div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm ${placed ? 'n-btn--ink' : ''}" href="calibrate.html?id=b-land3">${icon('grid')}预演结营校准</a><span class="nt-muted">演示用：可以提前走一遍</span></div>
             </article>` : html`<div class="n-lock">${icon('lock')}导师负责评价和确认分数。结营校准和象限由 HRBP 和负责人完成。</div>`}
           </div>

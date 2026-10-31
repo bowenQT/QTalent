@@ -45,46 +45,68 @@ export function sourceKey(reference: {
 }): string {
   return JSON.stringify([reference.fragmentId, reference.originalVersionId]);
 }
+function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const id = key(row);
+    const group = groups.get(id);
+    if (group) group.push(row);
+    else groups.set(id, [row]);
+  }
+  return groups;
+}
+/** Relations are indexed once per call: the full demo snapshot has ~1k
+ * fragments, and per-fragment scans of every relation cost seconds per read.
+ */
 export function talentSources(data: PersonData): TalentSource[] {
+  const linksBySource = groupBy(data.eventSources, sourceKey);
+  const eventOrder = new Map(
+    data.events.map((event, index) => [event.id, index]),
+  );
+  const participantsByEvent = groupBy(data.participants, (p) => p.eventId);
+  const historyBySource = groupBy(data.historical, sourceKey);
+  const historicalParticipantsByEvaluation = groupBy(
+    data.historicalParticipants,
+    (participant) => participant.evaluationId,
+  );
+  const observedSources = new Set(
+    data.statements
+      .filter((row) => row.kind === 'management_observation')
+      .map(sourceKey),
+  );
   return data.fragments.map((fragment) => {
     const reference = {
       fragmentId: fragment.id,
       originalVersionId: fragment.originalVersionId,
     };
-    const links = data.eventSources.filter(
-      (link) => sourceKey(link) === sourceKey(reference),
-    );
-    const linkedEvents = data.events.filter((event) =>
-      links.some((link) => link.eventId === event.id),
-    );
+    const key = sourceKey(reference);
+    const links = linksBySource.get(key) ?? [];
+    const linkedEvents = [
+      ...new Set(links.flatMap((link) => eventOrder.get(link.eventId) ?? [])),
+    ]
+      .sort((a, b) => a - b)
+      .map((index) => data.events[index]!);
     const subjects = linkedEvents.flatMap((event) => {
       const subject = eventSubject(data, event);
       return [
         subject,
-        ...data.participants
-          .filter((p) => p.eventId === event.id)
-          .map((p) => ({ ...subject, personId: p.personId })),
+        ...(participantsByEvent.get(event.id) ?? []).map((p) => ({
+          ...subject,
+          personId: p.personId,
+        })),
       ];
     });
-    const history = data.historical.filter(
-      (row) => sourceKey(row) === sourceKey(reference),
-    );
+    const history = historyBySource.get(key) ?? [];
     for (const row of history) {
       if (row.personId)
         subjects.push({ personId: row.personId, cohortId: null });
-      for (const participant of data.historicalParticipants)
-        if (participant.evaluationId === row.id)
-          subjects.push({ personId: participant.personId, cohortId: null });
+      for (const participant of historicalParticipantsByEvaluation.get(
+        row.id,
+      ) ?? [])
+        subjects.push({ personId: participant.personId, cohortId: null });
     }
     const requiredKinds: TalentKind[] = [];
-    if (
-      data.statements.some(
-        (row) =>
-          sourceKey(row) === sourceKey(reference) &&
-          row.kind === 'management_observation',
-      )
-    )
-      requiredKinds.push('management-observation');
+    if (observedSources.has(key)) requiredKinds.push('management-observation');
     // Only the four classified baseline categories in BOW-834 are ordinary
     // evaluations. Free-text kinds are not a sensitivity classification.
     const ordinaryHistory = [
@@ -94,15 +116,12 @@ export function talentSources(data: PersonData): TalentSource[] {
       '奖项答辩',
     ];
     if (
-      links.some((link) => !linkedEvents.some((e) => e.id === link.eventId)) ||
+      links.some((link) => !eventOrder.has(link.eventId)) ||
       history.some(
         (row) =>
           row.sourceCategory !== 'prototype_baseline' ||
           !ordinaryHistory.includes(row.kind) ||
-          (!row.personId &&
-            !data.historicalParticipants.some(
-              (participant) => participant.evaluationId === row.id,
-            )),
+          (!row.personId && !historicalParticipantsByEvaluation.has(row.id)),
       )
     )
       subjects.length = 0;
