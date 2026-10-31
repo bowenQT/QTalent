@@ -25,12 +25,13 @@ export async function reassignEvaluationWorkAction(
     return { status: 'validation_error', fieldErrors, input };
   }
   const session = await requireSession();
+  const clock = createClock(getEnv().APP_ENV);
   try {
     const result = await reassignEvaluationWork(
       getDatabase(),
       session.user.id,
       parsed.data,
-      createClock(getEnv().APP_ENV).now().toISOString(),
+      () => clock.now().toISOString(),
     );
     revalidatePath('/work');
     return { status: 'success', ...result };

@@ -3,9 +3,12 @@ import { isCurrent } from '../../authz';
 import {
   canEvaluateNode,
   canManageNodeAssignments,
-  eligibleNodeEvaluatorRelations,
   type EvaluationAuthzContext,
 } from '../../authz/evaluation-node';
+import {
+  eligibleEvaluationWorkRelations,
+  type ReassignmentAuthzContext,
+} from '../../authz/reassignment-handlers';
 import type {
   EvaluationReassignmentReceipt,
   EvaluationWorkItem,
@@ -57,7 +60,9 @@ export function canWorkOnEvaluationItem(
     (item.state === 'pending' || item.state === 'processing') &&
     context.account.personId === item.assignedEvaluatorId &&
     assignedEvaluationRelationIsCurrent(context, item) &&
-    canEvaluateNode(context, item.evaluationNodeId, item.personId)
+    canEvaluateNode(context, item.evaluationNodeId, item.personId) &&
+    (item.kind !== 'unknown_interviewer' ||
+      canManageNodeAssignments(context, item.evaluationNodeId, item.personId))
   );
 }
 /**
@@ -66,7 +71,7 @@ export function canWorkOnEvaluationItem(
  * for a new operation, so a completed/reassigned item can replay its receipt.
  */
 export function planEvaluationReassignment(
-  context: EvaluationAuthzContext,
+  context: ReassignmentAuthzContext,
   item: EvaluationWorkItem | null,
   input: ReassignEvaluationWorkInput,
   operation: {
@@ -98,11 +103,9 @@ export function planEvaluationReassignment(
       'conflict',
       '事项版本或分派状态已变化，请刷新后重试',
     );
-  const target = eligibleNodeEvaluatorRelations(
-    context,
-    item.evaluationNodeId,
-    item.personId,
-  ).find((relation) => relation.id === input.targetRelationId);
+  const target = eligibleEvaluationWorkRelations(context, item).find(
+    (relation) => relation.id === input.targetRelationId,
+  );
   if (!target)
     throw new EvaluationReassignmentError(
       'conflict',

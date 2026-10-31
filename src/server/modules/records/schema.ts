@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { people } from '../directory';
 import { projects } from '../staffing';
-import { evaluationNodes } from '../programs';
+import { evaluationNodes, evaluationNodeSubjects } from '../programs';
 import { ruleVersions } from '../evaluation-system';
 export type SourceLocation =
   | { kind: 'document'; page?: number; paragraph: string }
@@ -108,6 +108,13 @@ export const events = pgTable(
   },
   (t) => [
     unique('records_event_rule_version').on(t.id, t.ruleVersionId),
+    foreignKey({
+      columns: [t.evaluationNodeId, t.personId],
+      foreignColumns: [
+        evaluationNodeSubjects.evaluationNodeId,
+        evaluationNodeSubjects.personId,
+      ],
+    }),
     check(
       'records_sbi',
       sql`length(trim(${t.situation})) > 0 and (${t.demo} or length(trim(${t.behavior})) > 0)`,

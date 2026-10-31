@@ -18,13 +18,17 @@ export async function reassignEvaluationWork(
   db: Database,
   accountId: string,
   input: ReassignEvaluationWorkInput,
-  now: string,
+  now: () => string,
 ) {
   for (let attempt = 0; ; attempt++) {
     try {
       return await db.transaction(
         async (tx) => {
           // Actor/key lock also serializes the same key with a different work item.
+          // Read Committed plus these locks serializes ownership/replay while
+          // keeping permission reads current AFTER waiting. A snapshot taken
+          // before the wait can otherwise resurrect a committed revocation.
+          // Resolve the business instant after locks, including on every retry.
           await tx.execute(
             sql`select pg_advisory_xact_lock(hashtextextended(${JSON.stringify([accountId, input.operationId])},0))`,
           );
@@ -32,7 +36,7 @@ export async function reassignEvaluationWork(
             tx,
             input.workItemId,
           );
-          const { context } = await loadEvaluationContext(tx, accountId, now);
+          const { context } = await loadEvaluationContext(tx, accountId, now());
           const operation = await readEvaluationReassignmentOperation(
             tx,
             accountId,
@@ -59,7 +63,7 @@ export async function reassignEvaluationWork(
           });
           return result;
         },
-        { isolationLevel: 'serializable' },
+        { isolationLevel: 'read committed' },
       );
     } catch (error) {
       if (error instanceof ForbiddenError)

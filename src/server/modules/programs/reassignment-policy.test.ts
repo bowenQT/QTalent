@@ -189,3 +189,23 @@ describe('D13 ownership transfer and idempotent reassignment', () => {
     ).toBe(false);
   });
 });
+
+it('requires the assigned interviewer-review handler to retain current HR scope through completion', () => {
+  const ctx = evaluationContextFixture();
+  ctx.account = {
+    id: 'demo-new-account',
+    personId: 'demo-new-evaluator',
+    isSystemAdmin: false,
+  };
+  const item = {
+    ...evaluationWorkFixture(),
+    assignedRelationId: 'demo-new-relation',
+    assignedEvaluatorId: 'demo-new-evaluator',
+    kind: 'unknown_interviewer' as const,
+  };
+  expect(canWorkOnEvaluationItem(ctx, item)).toBe(false);
+  ctx.grants = [{ ...ctx.grants[0], accountId: ctx.account.id }];
+  expect(canWorkOnEvaluationItem(ctx, item)).toBe(true);
+  ctx.grants[0].revokedAt = ctx.now;
+  expect(canWorkOnEvaluationItem(ctx, item)).toBe(false);
+});

@@ -1,5 +1,7 @@
 import type { DbExecutor } from '../db/client';
-import type { EvaluationAuthzContext } from '../authz/evaluation-node';
+import { activeGrants } from '../authz';
+import type { ReassignmentAuthzContext } from '../authz/reassignment-handlers';
+import { readReassignmentHrCandidates } from './reassignment-handler-context';
 import { readEvaluationAuthorizationFacts } from '../modules/programs';
 import { loadProjectContext } from './project-context';
 
@@ -11,6 +13,14 @@ export async function loadEvaluationContext(
 ) {
   const base = await loadProjectContext(db, accountId, now);
   const facts = await readEvaluationAuthorizationFacts(db);
-  const context: EvaluationAuthzContext = { ...base.context, ...facts };
+  const context: ReassignmentAuthzContext = {
+    ...base.context,
+    ...facts,
+    hrCandidateGrants: activeGrants(base.context).some(
+      (grant) => grant.role === 'hr',
+    )
+      ? await readReassignmentHrCandidates(db)
+      : [],
+  };
   return { ...base, facts, context };
 }

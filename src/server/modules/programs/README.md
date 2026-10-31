@@ -1,6 +1,6 @@
 # 评价节点、关系与重新分派（BOW-899）
 
-基于 BOW-897 冻结提交 `0b20a913621121848219e0966ba4bf4844d1bdb3`。这是本卡实现的消费说明；当前共享出口、档案读取适配与最终迁移仍待 X1 整合，不能把核心单测通过当作整条读取链路完成。
+基于 BOW-897 冻结提交 `0b20a913621121848219e0966ba4bf4844d1bdb3`。这是本卡实现的消费说明；programs 公共出口已由 X1 接入，档案读取适配与最终迁移仍待协调，不能把核心验证通过当作整条读取链路完成。
 
 ## 节点与权限
 
@@ -20,12 +20,12 @@ X1 必须把三个数组都接入共享上下文：`evaluationNodes`、`evaluati
 
 ## 待完成事项与 D13
 
-`evaluationWorkItems` 是待确认、待核对事项的分派归属。resourceId 指源模块的确认任务或待核对条目 ID，不是整个人或整个事件；同一来源任务重放保持稳定事项 ID。关系到期后，pending/processing 事项进入范围内 HR 的重新分派列表。候选仅为同节点、同主体的当前有效关系，关联目录已有人员。
+`evaluationWorkItems` 是待确认、待核对事项的分派归属。resourceId 指源模块的确认任务或待核对条目 ID，不是整个人或整个事件；同一来源任务重放保持稳定事项 ID。关系到期后，pending/processing 事项进入范围内 HR 的重新分派列表。候选仅为同节点、同主体的当前有效关系，关联目录已有人员；未知面试官还须同时满足接手人的当前 HR 范围，不能只凭关系标签。
 
 - `insertEvaluationWorkItem(tx, input, now)`：源用例先做创建授权，再在自己的事务中登记；业务键重复时返回当前记录，不重置改派结果、状态或 revision。
 - `canWorkOnEvaluationItem(context, item)`：源动作和 worker 写入前核对当前账号、绑定关系、节点及状态，不能仅凭页面中的人员 ID。
-- `completeEvaluationWorkItem(tx, context, workItemId, expectedRevision)`：源业务保存与事项完成在同一事务提交；旧 worker / 原评价人的失效版本不能提交。
-- `reassignEvaluationWork`：服务端解析当前账号；操作键锁和事项行锁后重载授权，校验旧 revision、过期归属和接手关系。改派、操作回执和审计同事务提交。
+- `completeEvaluationWorkItem(tx, workItemId, expectedRevision, loadCurrentContext)`：源业务保存与事项完成在同一事务提交；回调在取得事项行锁后重载权限与业务时钟，源事务使用 Read Committed 加事项锁/版本栅栏，旧 worker / 原评价人的失效版本不能提交。
+- `reassignEvaluationWork`：服务端解析当前账号；Read Committed 事务中取得操作键锁和事项行锁后重载当前已提交授权，校验旧 revision、过期归属和接手关系。改派、操作回执和审计同事务提交。
 - 同账号、同 operationId、同语义内容重放原回执；完成或再次改派不阻止旧成功请求重放，但每次重放仍检查当前 HR 权限。同键异载荷、旧版本和失效候选明确返回 conflict。
 
 BOW-846、860、905、906 的源动作/任务需要按各自范围接入登记、归属检查与完成端口；此文件不宣称这些下游已经接入。
@@ -40,4 +40,4 @@ BOW-846、860、905、906 的源动作/任务需要按各自范围接入登记�
 
 ## 验证边界
 
-纯节点策略、来源过滤、改派策略和映射计划分别有行为测试。持久化并发、事务回滚、共享入口、完整档案/工作台回归及最终迁移必须另外实跑；本卡的 PR 记录实际受检 SHA、命令和结果。没有 TEST_DATABASE_URL 时不得跳过真实 PostgreSQL 测试或使用空集冒充通过。
+纯节点策略、来源过滤、改派策略、映射计划与服务端入口分别有行为测试；真实 PostgreSQL 测试覆盖改派并发、幂等回执、审计回滚、等待锁期间的权限撤销和旧处理人的完成拒绝。测试从当前 Drizzle 定义生成临时隔离库结构，不代替最终迁移验证。完整档案/工作台回归及最终迁移仍须在接线后实跑；本卡的 PR 记录实际受检 SHA、命令和结果。没有 TEST_DATABASE_URL 时不得跳过真实 PostgreSQL 测试或使用空集冒充通过。

@@ -138,16 +138,22 @@ export async function insertEvaluationWorkItem(
   if (!existing) throw new Error('Evaluation work identity disappeared');
   return existing;
 }
-/** Source payload and this completion must commit in the SAME transaction. */
+/**
+ * Source payload and completion commit in the SAME transaction. The callback
+ * reloads current scope/time only after the work lock; never pass a page/cache.
+ * Source transactions use Read Committed plus this row/version fence, so a
+ * snapshot from before the wait cannot resurrect a committed revocation.
+ */
 export async function completeEvaluationWorkItem(
   tx: Transaction,
-  context: EvaluationAuthzContext,
   workItemId: string,
   expectedRevision: number,
+  loadCurrentContext: (tx: Transaction) => Promise<EvaluationAuthzContext>,
 ) {
   const item = await readEvaluationWorkItemForUpdate(tx, workItemId);
   if (!item)
     throw new EvaluationReassignmentError('not_found', '事项不存在或不可见');
+  const context = await loadCurrentContext(tx);
   if (!canWorkOnEvaluationItem(context, item))
     throw new EvaluationReassignmentError(
       'forbidden',

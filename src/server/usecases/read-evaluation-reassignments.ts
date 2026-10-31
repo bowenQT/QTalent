@@ -1,9 +1,7 @@
 import { activeGrants } from '../authz';
-import {
-  canManageNodeAssignments,
-  eligibleNodeEvaluatorRelations,
-} from '../authz/evaluation-node';
+import { canManageNodeAssignments } from '../authz/evaluation-node';
 import type { Database } from '../db/client';
+import { eligibleEvaluationWorkRelations } from '../authz/reassignment-handlers';
 import {
   assignedEvaluationRelationIsCurrent,
   readEvaluationWorkItems,
@@ -63,11 +61,7 @@ export async function readEvaluationReassignments(
               id: item.assignedEvaluatorId,
               displayName: people.get(item.assignedEvaluatorId)?.name ?? null,
             },
-            candidates: eligibleNodeEvaluatorRelations(
-              context,
-              item.evaluationNodeId,
-              item.personId,
-            )
+            candidates: eligibleEvaluationWorkRelations(context, item)
               .map((relation) => ({
                 relationId: relation.id,
                 evaluatorId: relation.evaluatorId,
