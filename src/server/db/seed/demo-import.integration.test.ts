@@ -20,6 +20,8 @@ import {
   dimensions,
   ruleVersions,
   anchors,
+  ruleVersionApplicability,
+  readEffectiveRuleVersion,
 } from '../../modules/evaluation-system';
 import {
   importSnapshots,
@@ -65,7 +67,9 @@ async function isolated(run: (db: Database) => Promise<void>) {
   const connection = createDatabase(url.toString());
   try {
     await migrate(connection.db, {
-      migrationsFolder: 'src/server/db/migrations',
+      // CI always uses the committed directory; the override is only for X1's isolated pre-migration validation.
+      migrationsFolder:
+        process.env.BOW_922_TEST_MIGRATIONS_DIR ?? 'src/server/db/migrations',
     });
     await run(connection.db);
   } finally {
@@ -102,6 +106,7 @@ async function fingerprints(db: Database) {
     memberLogs,
     dimensions,
     ruleVersions,
+    ruleVersionApplicability,
     anchors,
     importSnapshots,
     originals,
@@ -190,6 +195,70 @@ it('imports all approved baseline rows and reruns with identical data, IDs and r
   });
 }, 30_000);
 
+it('backfills separate rubric and weekly applicability from source dates and preserves the intervals on rerun', async () => {
+  await isolated(async (db) => {
+    const mapped = seed();
+    await importDemo(db, mapped, password);
+    const applicability = await db.select().from(ruleVersionApplicability);
+    expect(applicability).toHaveLength(2);
+    for (const [versionId, category] of [
+      ['rubric-v1', 'dimension_anchors'],
+      ['xe-weekly-v1', 'xe_weekly'],
+    ] as const) {
+      const dates = [
+        ...mapped.evidence.events,
+        ...mapped.evidence.historicalEvaluations,
+      ]
+        .filter((record) => record.ruleVersionId === versionId)
+        .map((record) => record.occurredOn)
+        .sort();
+      const effectiveFrom = dates[0] + 'T00:00:00.000Z';
+      expect(applicability.find((row) => row.versionId === versionId)).toEqual({
+        versionId,
+        category,
+        effectiveFrom: new Date(effectiveFrom),
+        effectiveUntil: null,
+      });
+      expect(
+        await readEffectiveRuleVersion(db, { category, at: effectiveFrom }),
+      ).toMatchObject({
+        status: 'success',
+        version: {
+          versionId,
+          category,
+          provenance: 'demo_import_snapshot',
+          effectiveFrom,
+        },
+      });
+    }
+    expect(
+      await readEffectiveRuleVersion(db, {
+        category: 'xe_selection',
+        at: '2026-10-31T00:00:00.000Z',
+      }),
+    ).toMatchObject({ status: 'not_found' });
+    expect(await db.select().from(ruleVersions)).toEqual(
+      expect.arrayContaining(mapped.evidence.ruleVersions),
+    );
+    await db
+      .update(ruleVersionApplicability)
+      .set({
+        effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+        effectiveUntil: new Date('2026-10-01T00:00:00Z'),
+      })
+      .where(eq(ruleVersionApplicability.versionId, 'xe-weekly-v1'));
+    const before = await fingerprints(db);
+    await importDemo(db, seed(), password);
+    expect(await fingerprints(db)).toEqual(before);
+    expect(
+      await readEffectiveRuleVersion(db, {
+        category: 'xe_weekly',
+        at: '2026-10-01T00:00:00.000Z',
+      }),
+    ).toMatchObject({ status: 'not_found' });
+  });
+}, 30_000);
+
 it('rolls back the complete base and evidence batch if a late confirmation insert fails', async () => {
   await isolated(async (db) => {
     await db.execute(
@@ -213,6 +282,7 @@ it('rolls back the complete base and evidence batch if a late confirmation inser
       aiSuggestions,
       importSnapshots,
       ruleVersions,
+      ruleVersionApplicability,
       user,
     ])
       expect(await count(db, table)).toBe(0);

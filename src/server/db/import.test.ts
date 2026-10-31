@@ -5,13 +5,21 @@ import { mapPrototypeSeed, readPrototypeSeed } from './seed';
 import { people, organizations } from '../modules/directory';
 import { projects } from '../modules/staffing';
 import { originals } from '../modules/records';
+import { anchors, ruleVersions } from '../modules/evaluation-system';
 const mocks = vi.hoisted(() => ({
   hash: vi.fn(),
   env: vi.fn(),
   connection: vi.fn(),
+  backfill: vi.fn(),
 }));
 vi.mock('better-auth/crypto', () => ({ hashPassword: mocks.hash }));
 vi.mock('../env', () => ({ getEnv: mocks.env }));
+vi.mock('../modules/evaluation-system', async () => ({
+  ...(await vi.importActual<typeof import('../modules/evaluation-system')>(
+    '../modules/evaluation-system',
+  )),
+  backfillLegacyRuleVersionApplicability: mocks.backfill,
+}));
 vi.mock('./client', () => ({ createDatabase: mocks.connection }));
 const records: { table: unknown; row: Record<string, unknown> }[] = [];
 const tx = {
@@ -35,6 +43,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.hash.mockResolvedValue('opaque-hash');
   mocks.env.mockReturnValue({ APP_ENV: 'test' });
+  mocks.backfill.mockReset().mockResolvedValue([]);
 });
 it('direct demo import refuses production before hashing or opening a transaction', async () => {
   mocks.env.mockReturnValue({ APP_ENV: 'production' });
@@ -148,6 +157,56 @@ it('imports validated prototype facts deterministically in one transaction witho
   expect(JSON.stringify(records.map((r) => r.row))).not.toContain(
     'Test-password-123',
   );
+});
+it('backfills applicability within the seed transaction after the verified versions and before evidence', async () => {
+  const seed = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
+  mocks.backfill.mockImplementationOnce(async (executor) => {
+    expect(executor).toBe(tx);
+    expect(
+      records.filter((r) => r.table === ruleVersions).map((r) => r.row),
+    ).toEqual(seed.evidence.ruleVersions);
+    expect(
+      records.some((r) => r.table === anchors || r.table === originals),
+    ).toBe(false);
+    return ['rubric-v1', 'xe-weekly-v1'];
+  });
+  await importDemo(db, seed, 'Test-password-123');
+  expect(mocks.backfill).toHaveBeenCalledOnce();
+  const usages = mocks.backfill.mock.calls[0][1] as {
+    ruleVersionId: string;
+    usedAt: Date;
+  }[];
+  expect(usages.filter((r) => r.ruleVersionId === 'rubric-v1')).toHaveLength(
+    277,
+  );
+  expect(usages.filter((r) => r.ruleVersionId === 'xe-weekly-v1')).toHaveLength(
+    242,
+  );
+  expect(usages).toHaveLength(519);
+  expect(
+    usages.every(
+      (r) =>
+        r.usedAt instanceof Date &&
+        r.usedAt.toISOString().endsWith('T00:00:00.000Z'),
+    ),
+  ).toBe(true);
+  expect(transaction).toHaveBeenCalledOnce();
+});
+it('rejects the import when applicability cannot be backfilled instead of writing later evidence', async () => {
+  mocks.backfill.mockRejectedValueOnce(
+    new Error('validated usage dates required'),
+  );
+  await expect(
+    importDemo(
+      db,
+      mapPrototypeSeed(readPrototypeSeed(process.cwd())),
+      'Test-password-123',
+    ),
+  ).rejects.toThrow('validated usage dates required');
+  expect(transaction).toHaveBeenCalledOnce();
+  expect(
+    records.some((r) => r.table === anchors || r.table === originals),
+  ).toBe(false);
 });
 it('preserves historical prototype project type labels independently of create input enum', async () => {
   const seed = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
