@@ -45,7 +45,7 @@
       <div class="n-cite__quote" style="margin-bottom:var(--s-3);font-size:var(--t-sm)">${q}<button class="n-player__play nt-play" type="button" style="width:22px;height:22px;display:inline-grid;vertical-align:middle;margin-left:6px" aria-label="播放这一段">${icon('play', 9)}</button></div>
       ${i.note ? html`<p class="nt-muted" style="margin:0 0 var(--s-2)">${i.note}</p>` : ''}
       <div class="n-choices">
-        ${i.options.map(([id, why]) => html`<button class="n-choice" type="button" data-v="${id}">${isProj ? html`<span class="n-avatar n-avatar--sm" style="--hue:220;border-radius:6px">${icon('folder', 12)}</span>${st.project(id).name}` : html`${UI.avatar(id, 'sm')}${st.person(id).name}`}<small>${why}</small></button>`)}
+        ${i.options.filter(([oid]) => st.inboxChoiceOk(oid)).map(([id, why]) => html`<button class="n-choice" type="button" data-v="${id}">${isProj ? html`<span class="n-avatar n-avatar--sm" style="--hue:220;border-radius:6px">${icon('folder', 12)}</span>${st.project(id).name}` : html`${UI.avatar(id, 'sm')}${st.person(id).name}`}<small>${why}</small></button>`)}
         <button class="n-choice" type="button" data-v="skip"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>都不是，稍后处理<small></small></button>
       </div>
       ${i.draft ? html`<div class="n-minievent" style="margin-top:var(--s-3)" data-draft><div>${i.draft.title}<small>会生成一条事件 · ${i.draft.scores.map(([d, v]) => `${st.dim(d).name} ${v}`).join('、')}（AI 建议，待导师确认）</small></div><span class="n-badge n-badge--ai">${icon('spark')}待归属</span></div>` : ''}
@@ -53,8 +53,10 @@
   }
 
   function pick(id, v, btn) {
-    const item = st.get().inbox.find((x) => x.id === id);
     const cardEl = btn.closest('.n-verify');
+    if (cardEl.dataset.busy || !st.inboxChoiceOk(v)) return;
+    cardEl.dataset.busy = '1';
+    const item = st.get().inbox.find((x) => x.id === id);
     $$('.n-choice', cardEl).forEach((x) => x.classList.toggle('is-picked', x === btn));
     const draft = $('[data-draft]', cardEl);
     const dock = $(`[data-dock="${v}"]`);

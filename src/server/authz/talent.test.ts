@@ -196,6 +196,20 @@ describe('talent action × current grant × subject × purpose', () => {
       canReadTalent(ctx, { ...subject, kind: 'evaluation' }, 'person-profile'),
     ).toBe(false);
   });
+  it('does not treat an unknown cohort role as a mentor', () => {
+    const ctx = context('mentor');
+    ctx.grants[0]!.role = 'employee' as BusinessRole;
+    expect(
+      canReadTalent(
+        ctx,
+        { ...subject, kind: 'confirmed-score' },
+        'person-profile',
+      ),
+    ).toBe(false);
+    expect(
+      canReadTalent(ctx, { ...subject, kind: 'evaluation' }, 'person-profile'),
+    ).toBe(false);
+  });
   it('never combines an HR action with a mentor person scope', () => {
     const ctx = context();
     ctx.grants.push({
@@ -645,4 +659,29 @@ it('preserves AI versus human field kinds after projection and into model input 
   expect(model.items[0]?.fieldKinds).toEqual(projected?.fieldKinds);
   expect(JSON.stringify(model)).not.toContain('management-observation');
   expect(JSON.stringify(model)).not.toContain('quadrant');
+});
+
+it('preserves snapshot field provenance without forwarding raw metadata', async () => {
+  const location = {
+    kind: 'snapshot_field',
+    fieldPath: 'events[test].srcs[0]',
+    originalLocation: 'Original location label',
+    secret: 'must-not-leak',
+  };
+  const snapshotSource = source({
+    location: location as unknown as TalentSource['location'],
+  });
+  const result = await readTalentSource(
+    async () => ({
+      context: context('manager'),
+      records: [],
+      sources: [snapshotSource],
+    }),
+    snapshotSource,
+  );
+  expect(result?.location).toEqual({
+    kind: 'snapshot_field',
+    fieldPath: location.fieldPath,
+    originalLocation: location.originalLocation,
+  });
 });

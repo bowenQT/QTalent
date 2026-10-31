@@ -150,7 +150,8 @@
 
   function verCompare(e, ref, f) {
     const d = (k) => { const a = e.dims?.[k]?.m, b = ref.dims?.[k]?.m; if (a == null && b == null) return '—'; return `${a == null ? '无' : a.toFixed(1)} → ${b == null ? '无' : b.toFixed(1)}`; };
-    return html`<div>正式位置<b>${e.q ? st.QN[e.q] : '资料不足'} → ${f ? st.QN[f.q] : '—'}</b></div><div>参考位置<b>${e.ref ? st.QN[e.ref] : '资料不足'} → ${ref.na ? '资料不足' : st.QN[ref.q]}</b></div>
+    const left = e.uncal ? (e.na || !e.ref ? '资料不足' : `${st.QN[e.ref]}（未校准）`) : (e.q ? st.QN[e.q] : '资料不足');
+    return html`<div>正式位置<b>${left} → ${f ? st.QN[f.q] : '—'}</b></div><div>参考位置<b>${e.ref ? st.QN[e.ref] : '资料不足'} → ${ref.na ? '资料不足' : st.QN[ref.q]}</b></div>
       <div>已确认事件分<b>${e.n} → ${ref.n} 条</b></div>${['prof', 'mot', 'wis', 'grit'].map((k) => html`<div>${st.dim(k).name}均值<b>${d(k)}</b></div>`)}`;
   }
 

@@ -43,7 +43,7 @@
       <div class="n-cite__quote m-quote">${q}<button class="n-player__play nt-play" type="button" aria-label="播放这一段">${icon('play', 9)}</button></div>
       ${i.note ? html`<p class="nt-muted" style="margin:0 0 var(--s-2)">${i.note}</p>` : ''}
       <div class="n-choices m-choices">
-        ${i.options.map(([id, why]) => html`<button class="n-choice" type="button" data-v="${id}">${isProj ? html`<span class="n-avatar n-avatar--sm" style="--hue:220;border-radius:6px">${icon('folder', 12)}</span>${st.project(id).name}` : html`${UI.avatar(id, 'sm')}${st.person(id).name}`}<small>${why}</small></button>`)}
+        ${i.options.filter(([oid]) => st.inboxChoiceOk(oid)).map(([id, why]) => html`<button class="n-choice" type="button" data-v="${id}">${isProj ? html`<span class="n-avatar n-avatar--sm" style="--hue:220;border-radius:6px">${icon('folder', 12)}</span>${st.project(id).name}` : html`${UI.avatar(id, 'sm')}${st.person(id).name}`}<small>${why}</small></button>`)}
         <button class="n-choice" type="button" data-v="skip"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>都不是，稍后处理<small></small></button>
       </div>
       ${i.draft ? html`<div class="n-minievent" style="margin-top:var(--s-3)"><div>${i.draft.title}<small>选定后生成一条事件 · ${i.draft.scores.map(([d, v]) => `${st.dim(d).name} ${v}`).join('、')}（AI 建议，待导师确认）</small></div><span class="n-badge n-badge--ai">${icon('spark')}待归属</span></div>` : ''}
@@ -51,7 +51,10 @@
   }
 
   function pick(cardEl, btn) {
+    if (cardEl.dataset.busy) return;
     const id = cardEl.dataset.item, v = btn.dataset.v;
+    if (!st.inboxChoiceOk(v)) return;
+    cardEl.dataset.busy = '1';
     const item = st.get().inbox.find((x) => x.id === id);
     NT.$$('.n-choice', cardEl).forEach((x) => x.classList.toggle('is-picked', x === btn));
     st.resolveInbox(id, v);

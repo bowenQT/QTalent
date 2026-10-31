@@ -2,7 +2,11 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { getEnv } from '../env';
 export function createDatabase(url: string) {
-  const pool = new Pool({ connectionString: url, max: 10 });
+  const pool = new Pool({
+    connectionString: url,
+    max: 10,
+    connectionTimeoutMillis: 10_000,
+  });
   return { db: drizzle(pool), pool };
 }
 export type Database = ReturnType<typeof createDatabase>['db'];
