@@ -4,7 +4,18 @@ import {
   type AuthzContext,
   type Grant,
 } from './index';
+import {
+  canReadNodeTalent,
+  type EvaluationAuthzContext,
+} from './evaluation-node';
 
+export type TalentAuthorizationContext = AuthzContext &
+  Partial<
+    Pick<
+      EvaluationAuthzContext,
+      'evaluationNodes' | 'evaluationNodeSubjects' | 'evaluationRelations'
+    >
+  >;
 export type TalentKind =
   | 'person'
   | 'evaluation'
@@ -25,6 +36,8 @@ export interface TalentSubject {
   personId: string;
   /** The period in which THIS content arose, not the person's current period. */
   cohortId: string | null;
+  /** Server-resolved node of THIS content; absence never means every node. */
+  evaluationNodeId?: string | null;
 }
 export interface TalentResource extends TalentSubject {
   kind: TalentKind;
@@ -79,7 +92,7 @@ export interface VisibleTalentRecord {
  * Resolve records/provenance from authoritative storage, not request-supplied roles.
  */
 export type LoadTalentSnapshot = () => Promise<{
-  context: AuthzContext;
+  context: TalentAuthorizationContext;
   records: TalentRecord[];
   sources: TalentSource[];
 }>;
@@ -105,7 +118,7 @@ const directKinds: readonly TalentKind[] = [
   'performance',
 ];
 function grantAllows(
-  ctx: AuthzContext,
+  ctx: TalentAuthorizationContext,
   grant: Grant,
   resource: TalentResource,
 ): boolean {
@@ -135,22 +148,75 @@ function grantAllows(
  * This does NOT grant project-create access and never consumes client-visible IDs.
  */
 export function canReadTalent(
-  ctx: AuthzContext,
+  ctx: TalentAuthorizationContext,
   resource: TalentResource,
   purpose: string,
 ): boolean {
-  return (
-    purposes.includes(purpose) &&
-    directKinds.includes(resource.kind) &&
-    !(purpose === 'model-input' && resource.kind === 'performance') &&
-    ctx.people.some(
+  if (
+    !purposes.includes(purpose) ||
+    !directKinds.includes(resource.kind) ||
+    (purpose === 'model-input' && resource.kind === 'performance') ||
+    !ctx.people.some(
       (person) => person.id === resource.personId && !person.noReview,
-    ) &&
-    activeGrants(ctx).some((grant) => grantAllows(ctx, grant, resource))
+    )
+  )
+    return false;
+  const hasNodeFacts =
+    ctx.evaluationNodes !== undefined ||
+    ctx.evaluationNodeSubjects !== undefined ||
+    ctx.evaluationRelations !== undefined;
+  if (hasNodeFacts) {
+    if (!completeNodeContext(ctx)) return false;
+    if (resource.evaluationNodeId != null) {
+      return canReadNodeTalent(
+        ctx,
+        {
+          evaluationNodeId: resource.evaluationNodeId,
+          personId: resource.personId,
+          kind: resource.kind,
+        },
+        purpose,
+      );
+    }
+    // Existing manager/HR scope remains valid for unmapped legacy facts.
+    // Evaluators may see a directory identity through a current node, but
+    // never node-less evidence, even with an old mentor assignment.
+    if (
+      activeGrants(ctx).some(
+        (grant) => grant.role !== 'mentor' && grantAllows(ctx, grant, resource),
+      )
+    )
+      return true;
+    return (
+      resource.kind === 'person' &&
+      ctx.evaluationNodes.some((node) =>
+        canReadNodeTalent(
+          ctx,
+          {
+            evaluationNodeId: node.id,
+            personId: resource.personId,
+            kind: 'person',
+          },
+          purpose,
+        ),
+      )
+    );
+  }
+  // P0 remains in use until X1 installs all node facts in the shared loader.
+  // BOW-899 cannot be complete until every reader supplies that fresh context.
+  return activeGrants(ctx).some((grant) => grantAllows(ctx, grant, resource));
+}
+function completeNodeContext(
+  ctx: TalentAuthorizationContext,
+): ctx is EvaluationAuthzContext {
+  return (
+    ctx.evaluationNodes !== undefined &&
+    ctx.evaluationNodeSubjects !== undefined &&
+    ctx.evaluationRelations !== undefined
   );
 }
 function readableSource(
-  ctx: AuthzContext,
+  ctx: TalentAuthorizationContext,
   source: TalentSource,
   purpose: TalentPurpose,
 ): boolean {
@@ -215,7 +281,7 @@ function visibleSource(source: TalentSource): VisibleTalentSource {
  * derived field, not just the citation. No denied-field names/counts are returned.
  */
 export function projectTalentRecord(
-  ctx: AuthzContext,
+  ctx: TalentAuthorizationContext,
   record: TalentRecord,
   sources: TalentSource[],
   purpose: TalentPurpose,
