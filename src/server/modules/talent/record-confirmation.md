@@ -7,7 +7,7 @@
 - 输入沿844的recordSaveInput/recordUndoInput，可信草稿使用897 RecordBatchDraftSet。按稳定draftId定位；两件事即使同一人也保留不同ID，不按人员自动合并。检查当前revision、全部人员、服务器已选项目及未决去重，不产生另一套前端契约。
 - 直接用899 canConfirmOwnNodeScore判当前人/节点/有效关系。管理者有有效评价关系可确认本人评分；全公司读取或manager字符串不额外授予写权。系统管理员、跨节点、到期和noReview拒绝。实际来源逐一验证完整引用/定位/版本与全部共同主体，调用899 canReadNodeTalent核kind及requiredKinds。没有legacy权限回退。
 - readRules只接草稿保存的dimensionVersionId/anchorVersionId，不查询当前发布版。引用保留原件与片段身份，原AI建议与人的新值均核对冻结锚点，逐字引用必须存在于权威版本片段；锚点须来自冻结版本且唯一；发布v2后确认v1草稿仍用v1。来源事实和项目选择必须由权威loader给出，不接受客户端自报完整或允许。
-- confirm/edit是对尚未确认的建议形成本人首次人工确认；edit保留人写的SBI/分数/理由。已存在本人同事件/维度有效确认时，新operation仍冲突；本片没有另加修订已确认分的入口，不覆盖人工历史。unknown始终为null，不当作零分。
+- confirm/edit是对尚未确认的建议形成本人首次人工确认；edit保留人写的SBI/分数/理由。已存在本人同事件/维度确认历史时，即使旧确认inactive，新operation也不能重置revision=1；本片没有另加修订已确认分的入口，不覆盖人工历史。unknown始终为null，不当作零分。
 - 分差直接沿844 reviewActiveItemSchema：绝对差至少2。改AI建议且没写理由产生ai_gap；另一评价人的有效同事件/维度确认差至少2产生rater_gap，理由不豁免；未知与已撤回确认不参与。计划只追加新确认/复核，不把AI建议原稿改成人工事实。
 - 按actor/action/operation语义重放保留原回执与原草稿来源，仍核当前权限。不同载荷、旧revision、同一业务确认冲突。people/decisions顺序不改变语义指纹。
 - 五秒撤销按真实服务端墙钟的半开窗：4999ms允许，5000ms拒绝。只能本人；他人在本次新建事件上后续确认、HR已处理相关复核、原确认已失效等均整批冲突。第二评价人撤销只撤本人确认和本次复核，不撤原事件；原话保留精确空白，不通过旧RecordInput的trim转换重建；引用及原件历史保留。旧契约在未来公开边界的trim问题仍需X1统一处理，本片没有修改契约。

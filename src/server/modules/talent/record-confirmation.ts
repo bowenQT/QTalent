@@ -435,7 +435,14 @@ export function planRecordConfirmation(input: {
         'unavailable',
         'confirmation_identity_invalid',
       );
-    if (peers.some((row) => row.evaluatorId === context.account.personId))
+    if (
+      state.confirmations.some(
+        (row) =>
+          row.eventId === eventId &&
+          row.dimensionId === decision.dimensionId &&
+          row.evaluatorId === context.account.personId,
+      )
+    )
       throw new ConfirmationError('conflict', 'confirmation_already_exists');
     const value =
       decision.action === 'unknown'

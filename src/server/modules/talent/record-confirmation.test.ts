@@ -618,3 +618,8 @@ it('preserves exact original text when planning undo, including surrounding whit
     originalInput: { text: '  演示原话\n' },
   });
 });
+it('does not reuse revision one when the same evaluator has inactive confirmation history', () => {
+  const f = fixture();
+  f.existingPeer(3, f.context.account.personId).active = false;
+  expect(() => f.run()).toThrow('confirmation_already_exists');
+});
