@@ -275,6 +275,7 @@
       <li><a href="#c-tags">标签库</a></li>
       <li><a href="#c-rec">录音</a></li>
       <li><a href="#c-verify">核对与校准</a></li>
+      <li><a href="#c-intake">统一投递与回执</a></li>
       <li class="grp">人员</li>
       <li><a href="#c-timeline">档案版本与时间线</a></li>
       <li><a href="#c-profile">个人能力谱</a></li>
@@ -1194,6 +1195,128 @@
         </ul>
         <p class="ds-caption">「可能需要重新校准」有两个出口：去象限校准里移动正式位置，或者写一句理由保持正式位置。保持后这一条离开队列，理由出现在右栏「保持正式位置」和这个人的档案里；参考位置再变或者重新冻结，会重新进队列。理由必填，可以撤销。</p>
       </article>
+    </section>
+
+    <!-- ═════════ 统一投递、回执与逐条确认（决赛增补） ═════════ -->
+    <section class="ds-sec" id="c-intake">
+      <h2>统一投递与回执</h2>
+      <p class="lead">网页、企业微信、Claude Code（MCP）和手机交的材料走同一条流程。每次投递都有一份回执：读到了什么、几处待核对、几件事等确认。确认只在 Web 上一条一条做，没有「全部确认」。</p>
+      <h3 class="ds-sub">批次状态与回执摘要</h3>
+      <div class="ds-row" style="gap:var(--s-2);margin-bottom:var(--s-3)">
+        <span class="n-rstate" data-s="processing">处理中</span>
+        <span class="n-rstate" data-s="verify">待核对</span>
+        <span class="n-rstate" data-s="confirm">待确认</span>
+        <span class="n-rstate" data-s="done">已完成</span>
+      </div>
+      <ul class="n-rsum" aria-label="回执摘要示例">
+        <li><b>3</b>个文件<small>1 个处理中</small><small class="is-err">1 个失败</small></li>
+        <li><b>5</b>人</li>
+        <li><b>5</b>件事</li>
+        <li><b>2</b>处待核对</li>
+        <li><b>3</b>件待确认<small>已确认 2</small></li>
+      </ul>
+      <p class="ds-caption">状态同时用文字和图形表达：处理中是流光圆点，待核对、待确认是墨线描边，已完成是绿底实心。失败只写在文件行上，说明原因和下一步（例如「HEIC 读不出，转成 JPG 重传」）。</p>
+
+      <h3 class="ds-sub">回执里的一件事</h3>
+      <div class="ds-grid c2">
+        <article class="n-card n-rcpt" data-state="ai">
+          <div class="n-rcpt__head"><span class="n-avatar n-avatar--sm" style="--hue:200">方</span><b>方景深</b><span class="n-badge">演示</span><span class="n-badge"><svg><use href="#i-layers"/></svg>合成自 2 份材料</span></div>
+          <h4 class="n-rcpt__title">评委追问排期延误时，当场说明原因并给出补救计划</h4>
+          <p class="n-cite__quote n-rcpt__quote">这块是我排期的时候低估了联调，后面两周我每天先把渲染的回归跑一遍<small>结营路演录像.mp4 · 21:05–22:10</small></p>
+          <div class="n-rcpt__scores">
+            <div class="n-rcpt__score"><span class="n-score__dim">坚毅力</span><span class="n-score n-score--inline" data-state="ai"><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i><i class="n-score__dot"></i></span></span><b>3</b><span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>AI 建议</span><small>锚点 3 · 给出补救计划</small></div>
+          </div>
+          <div class="n-rcpt__foot"><button class="n-btn n-btn--sm n-btn--ink" type="button"><svg><use href="#i-check"/></svg>确认这件事</button><button class="n-btn n-btn--sm n-btn--ghost" type="button"><svg><use href="#i-pen"/></svg>改分</button></div>
+        </article>
+        <article class="n-card n-rcpt" data-state="confirmed">
+          <div class="n-rcpt__head"><span class="n-avatar n-avatar--sm" style="--hue:30">沈</span><b>沈亦初</b><span class="n-badge">演示</span></div>
+          <h4 class="n-rcpt__title">路演讲清分镜生成的三级缓存方案，并给出压测数据</h4>
+          <p class="n-cite__quote n-rcpt__quote">我们试了三种方案，最后选了分层缓存，压测下来生成耗时从 9 秒降到 3 秒<small>结营路演录像.mp4 · 12:40–13:55</small></p>
+          <div class="n-rcpt__scores">
+            <div class="n-rcpt__score"><span class="n-score__dim">专业度</span><span class="n-score n-score--inline" data-state="confirmed"><span class="n-score__dots"><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot is-on"></i><i class="n-score__dot"></i></span></span><b>4</b><small>AI 原为 3</small><small>锚点 4 · 引用压测数据</small></div>
+          </div>
+          <div class="n-rcpt__foot"><span class="n-block__sig">叶青</span><span style="color:var(--ink-3)">09-04 确认，已进入档案</span><button class="n-link" type="button" style="margin-left:auto">改回待确认</button></div>
+        </article>
+      </div>
+      <p class="ds-caption">AI 建议分是光：浅色点和「AI 建议」标记；评价人确认后落墨署名，改过的分保留「AI 原为」。改分时每一维选 1–5，改了分必须写一句理由。说话人或人名还没核对的事用斜纹底，先去待核对。评价人只看到自己有评价关系的事，其余写「另有 N 件事属于其他评价人，已隐藏」。</p>
+
+      <h3 class="ds-sub">入口里的回执</h3>
+      <div class="ds-grid c2">
+        <article class="n-card n-imcard"><h3 class="n-section-title">企业微信里的回执 <span class="n-badge">演示</span></h3>
+          <div class="n-imcard__bubble"><span class="n-avatar n-avatar--sm" style="--hue:210">犇</span><div><b>小犇</b><p>读完了「分镜工厂 · 二组 结营路演」：3 个文件，涉及 5 人，整理出 5 件事。2 处等你核对，3 件事的建议分等你确认。</p><a class="n-btn n-btn--sm" href="#c-intake"><svg><use href="#i-up-r"/></svg>到 Web 确认</a></div></div>
+        </article>
+        <article class="n-card n-imcard"><h3 class="n-section-title">Claude Code 里的回执 <span class="n-badge">演示</span></h3>
+          <pre class="n-term">⏺ 调用 niu · record_moment
+  涉及的人  严书白
+  出处      PR #482 合入记录
+⏺ 已交给 Niu-Talent，整理出 1 件事
+  建议分等你确认 → 在 Web 上确认</pre>
+        </article>
+      </div>
+      <p class="ds-caption">企业微信只收材料、发回执、回答查询，卡片上只放「到 Web 确认」，手机和电脑都能打开。Claude Code 只有三件工具：record_moment、person_brief、draft_requirement，没有确认类工具。回执里不显示消息正文和密钥。</p>
+
+      <h3 class="ds-sub">待核对：图片范围与面试官</h3>
+      <div class="ds-grid c2">
+        <article class="n-card n-verify">
+          <span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>待核对 · 路演群截图.png</span>
+          <p class="n-verify__q" style="margin-top: var(--s-2)">截图里哪些消息要整理？</p>
+          <figure class="n-shot">
+            <div class="n-shot__row is-in"><span class="n-shot__who">叶青</span>二组今天路演讲得很清楚，压测数据也对得上</div>
+            <div class="n-shot__row is-out"><span class="n-shot__who">群成员</span>范围外，已遮挡</div>
+            <figcaption>蓝框是要整理的部分，斜纹是范围外的部分，只留在原件里</figcaption>
+          </figure>
+          <div class="n-choices"><button class="n-choice is-picked" type="button">只整理蓝框里的消息</button><button class="n-choice" type="button">只作附件保存</button></div>
+        </article>
+        <article class="n-card n-verify">
+          <span class="n-src n-src--ai"><svg><use href="#i-spark"/></svg>待核对 · 北森面评.pdf 第 3 页</span>
+          <p class="n-verify__q" style="margin-top: var(--s-2)">面试官「Kevin」是人员目录里的谁？</p>
+          <label class="n-field"><span class="n-field__label">在人员目录里搜</span><input class="n-input" type="search" value="许" aria-label="搜人员目录"></label>
+          <div class="n-choices" style="margin-top:var(--s-2)"><button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:120">许</span>许致远<small>业务成功部</small></button><button class="n-choice" type="button"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>稍后处理<small></small></button></div>
+        </article>
+      </div>
+      <p class="ds-caption">待核对分六类：说话人、人名、未知人员、课题、图片范围、面试官。面试官只能关联到人员目录里已有的人；名单外的人只留在原件里，不进档案。评价人只看自己交的材料里的待核对，HR 看全部。</p>
+
+      <h3 class="ds-sub">面评导入的一行</h3>
+      <article class="n-card n-ivrow" data-state="unread">
+        <div class="n-ivrow__head"><span class="n-ivrow__page">第 3–4 页</span><b class="n-ivrow__name">周初晴</b><span style="color:var(--ink-3)">北森 · 已入职</span><span class="n-badge n-badge--unknown">有分待补录</span></div>
+        <div class="n-ivrow__match"><span class="n-avatar n-avatar--sm" style="--hue:300">周</span><span>人员目录：<b>周初晴</b> <span class="n-badge">演示</span><small>分镜工厂 · 工程师 · 07-01 入职</small></span></div>
+        <div class="n-ivrow__meta">校招技术面 · 原量表 A–D · 06-12 面试 · 面试官「Kevin」待核对</div>
+        <div class="n-scale n-ivscale"><span class="n-scale__tag">原量表 · 不是维度分</span><span>编码 A</span><span class="is-miss">系统设计 待补录</span><span class="is-na">管理能力 不适用<small>非管理岗</small></span><span>面试结论 通过</span></div>
+        <div class="n-ivunread">
+          <figure class="n-pdfcrop" aria-label="第 4 页「系统设计」一栏的页面图"><figcaption>第 4 页 · 系统设计</figcaption><div class="n-pdfcrop__opts"><span class="is-on"><i></i>A</span><span class="is-on"><i></i>B</span><span><i></i>C</span><span><i></i>D</span></div></figure>
+          <label class="n-field"><span class="n-field__label">「系统设计」没读出来：勾了两个选项。对照页面图补录</span><select class="n-input"><option>选一个</option><option>A</option><option>B</option></select></label>
+        </div>
+        <div class="n-ivrow__acts"><button class="n-btn n-btn--sm" type="button">关联面试官</button></div>
+      </article>
+      <div class="n-ivbar" style="position:static"><span style="color:var(--ink-3)">已确认 2 行；导入后写进这些人的档案，作为面试段的历史评价</span><button class="n-btn n-btn--ink" type="button"><svg><use href="#i-upload"/></svg>导入已确认的 2 行</button></div>
+      <p class="ds-caption">北森面评只有 PDF，按版式读分，HR 逐行确认「这是谁」。只导入已入职的人，淘汰、未入职、导入过的行收进「跳过的行」。原量表原样保存，标「不是维度分」；非管理岗的「管理能力」写不适用；没读出的分对照页面图补录，补完、面试官核对完这一行才能导入。导入后 5 秒内可以撤销。</p>
+
+      <h3 class="ds-sub">页内提示</h3>
+      <p class="n-note"><svg><use href="#i-info"/></svg><span>这份文件 08-20 导入过一次，那次已导入的 1 行这次跳过，其余行照常确认。</span></p>
+      <div class="n-note is-warn" role="note"><svg><use href="#i-info"/></svg><div><b>1 件已有变化，以原评价人的结果为准</b><ul><li>姜行之 · W8 对人复盘：谷牧野 08-31 23:40 的修改刚同步进来，这件已经完成</li></ul></div></div>
+      <p class="ds-caption">提示用细框浅底配图标；需要留意时换成琥珀细框。</p>
+
+      <h3 class="ds-sub">重新分派与节点结论</h3>
+      <div class="ds-grid c2">
+        <article class="n-card">
+          <div class="n-ra__head"><span class="n-avatar n-avatar--sm" style="--hue:60">谷</span><div><b>谷牧野</b> · 导师 · XEngineer 第六期<small>评价关系 07-01–08-31，已到期 · 08-31 起离开导师团</small></div></div>
+          <ul class="n-ra">
+            <li><label><input type="checkbox" checked><span class="n-avatar n-avatar--sm" style="--hue:256">任</span><span><b>任清和</b> <span class="n-badge">演示</span><small>W8 对人复盘 · 4 个维度待评价</small></span><span class="due">截止 09-04</span></label></li>
+            <li><label><input type="checkbox" checked><span class="n-avatar n-avatar--sm" style="--hue:15">姜</span><span><b>姜行之</b> <span class="n-badge">演示</span><small>W8 对人复盘 · 1 个维度待评价</small></span><span class="due">截止 09-04</span></label></li>
+          </ul>
+          <div class="n-choices" role="radiogroup" aria-label="接手人" style="margin-top:var(--s-3)"><button class="n-choice is-picked" type="button" role="radio" aria-checked="true">叶青<small>导师 · 关系到 09-30</small></button><button class="n-choice" type="button" role="radio" aria-checked="false" disabled aria-disabled="true">谷牧野<small>关系已到期</small></button></div>
+        </article>
+        <article class="n-nc">
+          <div class="n-nc__head"><span class="ds-row" style="gap:var(--s-2)"><span class="n-avatar n-avatar--sm" style="--hue:20">方</span><b>方知夏</b> <span class="n-badge">演示</span></span><span class="n-badge n-badge--yes"><svg><use href="#i-check"/></svg>已确认</span></div>
+          <ul class="n-nc__judges">
+            <li><span class="n-nc__dot" data-done="true" aria-hidden="true"></span>许致远<small>答辩评委 · 已确认本人评分</small><span class="n-nc__ev">专业度 4 · 智慧力 3</span></li>
+            <li><span class="n-nc__dot" data-done="true" aria-hidden="true"></span>贺云舒<small>答辩评委 · 已确认本人评分</small><span class="n-nc__ev">专业度 4 · 内生动力 4</span></li>
+          </ul>
+          <div class="n-block" data-state="ink"><p class="n-nc__type"><span class="n-src n-src--human"><svg><use href="#i-pen"/></svg>人工结论</span><b>建议转正</b></p><p class="n-nc__why">两位评委都已确认本人评分；排障和值班两件事都有可见结果，组里沿用了交接文档。</p>
+            <div class="n-block__by"><span class="n-block__sig">苏晚</span>09-04 确认 · 第 1 版</div></div>
+        </article>
+      </div>
+      <p class="ds-caption">评价人只看本节点；关系到期后待完成的事交 HR 选接手人，接手人获得这几位在本节点的评价关系，到这批事里最晚的截止日。提交时已有变化的事以原评价人的结果为准，单独说明。节点结论由 HR 确认，评委只确认本人评分；评委都确认以后才能确认结论，结论按版本保留；人事动作在结论确认以后另走流程。</p>
     </section>
 
     <!-- ═════════ 档案：版本与时间线 ═════════ -->

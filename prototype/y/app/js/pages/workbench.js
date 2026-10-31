@@ -110,7 +110,7 @@
   const peekBtn = (pid) => (pid ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-peek="p:${pid}">${icon('user')}看速览</button>` : '');
   const todoActs = (t) => (t.kind === 'clue' ? html`<div class="n-todo__acts">${clueSrc(t.clue)}${peekBtn(st.get().watchClues.find((c) => c.id === t.clue)?.person)}<button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，进入值得关注</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
   const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li class="${t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
-  const GROUPS = [['verify', '待核对', ['verify']], ['clue', '待核实的关注线索', ['clue']], ['plan', '待确认', ['plan', 'ruleback']], ['rulesug', '规则修订建议', ['rulesug']], ['rulereview', '按新版本复核', ['rulereview']], ['calib', '待复核的评分', ['calib']], ['follow', '待回访', ['track', 'talk']]];
+  const GROUPS = [['verify', '待核对', ['verify']], ['confirm', '待你确认的建议分', ['confirm']], ['conclusion', '节点结论', ['conclusion']], ['reassign', '待重新分派', ['reassign']], ['clue', '待核实的关注线索', ['clue']], ['plan', '待确认', ['plan', 'ruleback']], ['rulesug', '规则修订建议', ['rulesug']], ['rulereview', '按新版本复核', ['rulereview']], ['calib', '待复核的评分', ['calib']], ['cover', '待补记录', ['cover']], ['follow', '待回访', ['track', 'talk']]];
   let openGroup = null, showHandled = false;
   // 已处理的线索：核实的和不采纳的都留痕，不采纳的写出理由，可以改回待核实
   function handledBlock() {
@@ -258,9 +258,18 @@
     uploading: ['upload', '上传中'], queued: ['clock', '已提交，排队中'], transcribing: ['wave', '转写中'], shaping: ['spark', '整理中'],
     partial: ['split', '部分待核对'], done: ['check', '已完成'], failed: ['x', '整理失败'],
   };
+  // 材料批次：一次投递一行，点开是回执；面评 PDF 打开导入预览
+  const DROP_ICON = { processing: 'spark', verify: 'split', confirm: 'check2', done: 'check' };
+  function dropRow(d) {
+    const [k, label] = st.dropState(d), s = st.dropSummary(d);
+    const parts = d.kind === 'interview' ? [d.files[0].meta] : [`${s.files} 个文件`, s.processing && `${s.processing} 个处理中`, s.failed && `${s.failed} 个失败`, s.people && `${s.people} 人`, `${s.events} 件事`, s.verifyOpen && `${s.verifyOpen} 处待核对`, s.toConfirm && `${s.toConfirm} 件待确认`].filter(Boolean);
+    const act = d.kind === 'interview' ? '打开导入预览' : s.mineToConfirm ? `去确认 ${s.mineToConfirm} 件` : '看回执';
+    return html`<div class="n-task" data-state="${k === 'processing' ? 'shaping' : k === 'done' ? 'done' : 'partial'}" data-drop="${d.id}"><span class="n-task__icon">${icon(DROP_ICON[k])}</span><div><div class="n-task__name">${d.title}<span class="n-badge">${st.ENTRY[d.entry]}</span></div><div class="n-task__state"><b>${label}</b> · ${parts.join(' · ')}</div>${k === 'processing' ? html`<div class="n-progress is-indeterminate"><i></i></div>` : ''}</div><div class="n-task__acts"><a class="n-btn n-btn--sm ${s.mineToConfirm || d.kind === 'interview' ? '' : 'n-btn--ghost'}" href="${st.dropHref(d)}${s.mineToConfirm ? '#confirm' : ''}">${act}</a></div></div>`;
+  }
   function renderTasks() {
     const all = st.get().tasks, tasks = st.visibleTasks();
-    mount($('#tasks'), tasks.map((t) => {
+    st.tickDrops();
+    mount($('#tasks'), [...st.drops().map(dropRow), ...tasks.map((t) => {
       const [ic, label] = STATE[t.state];
       const act = {
         uploading: html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel="${t.id}">取消</button>`,
@@ -271,7 +280,7 @@
       }[t.state] || '';
       const bar = t.state === 'uploading' ? html`<div class="n-progress"><i style="width:${t.progress}%"></i></div>` : ['transcribing', 'shaping'].includes(t.state) ? html`<div class="n-progress is-indeterminate"><i></i></div>` : '';
       return html`<div class="n-task" data-state="${t.state}" data-id="${t.id}"><span class="n-task__icon">${icon(ic)}</span><div><div class="n-task__name">${t.name}${t.preset ? html` <span class="n-badge n-badge--demo">演示</span>` : ''}</div><div class="n-task__state"><b>${label}</b> · ${t.note}</div>${bar}</div><div class="n-task__acts">${act}</div></div>`;
-    }));
+    })]);
     $('#tasks').onclick = (e) => {
       const r = e.target.closest('[data-retry]'), c = e.target.closest('[data-cancel]');
       if (r) retry(r.dataset.retry);
@@ -305,32 +314,29 @@
     NT.toast(done.state === 'partial' ? `「${done.name}」整理完成，1 处人名待核对` : `「${done.name}」整理完成`);
   }
 
+  // 统一投递：一次拖入多个文件成一批，文件各自上传、解析，有的失败、有的要核对；处理完在回执里看读到了什么
   function wireUpload() {
     const files = $('#files');
-    const add = async (name, ext, steps, final) => {
-      const li = document.createElement('li'); li.className = 'n-file';
-      li.innerHTML = `<span class="n-file__ext">${ext}</span><div style="min-width:0"><div class="n-file__name">${NT.esc(name)}</div><div class="n-file__state">上传中</div><div class="n-progress"><i style="width:0%"></i></div></div><span></span>`;
-      files.prepend(li);
-      const bar = $('.n-progress i', li), state = $('.n-file__state', li);
-      for (let p = 0; p <= 100; p += 20) { bar.style.width = `${p}%`; await NT.wait(160); }
-      $('.n-progress', li).classList.add('is-indeterminate');
-      for (const s of steps) { state.textContent = s; await NT.wait(900); }
-      $('.n-progress', li).remove();
-      state.innerHTML = final[0]; li.lastElementChild.outerHTML = final[1];
+    let timer = 0;
+    const draw = (d) => {
+      const s = st.dropSummary(d), [k, label] = st.dropState(d);
+      mount(files, html`<li class="n-dropbatch" data-state="${k}"><div class="n-dropbatch__head"><b>${d.title}</b><span class="n-rstate" data-s="${k}">${label}</span></div>
+        ${d.files.map((f) => { const [ic, fl] = st.FILE_STATE[f.state]; return html`<div class="n-file"><span class="n-file__ext">${UI.attachKind(f.name).ext}</span><div style="min-width:0"><div class="n-file__name">${f.name}</div><div class="n-file__state"><span class="${f.state === 'failed' ? 'err' : f.state === 'done' ? 'ok' : ''}">${icon(ic, 12)} ${fl}</span> · ${f.meta}</div>${['queued', 'parsing', 'transcribing', 'uploading'].includes(f.state) ? html`<div class="n-progress is-indeterminate"><i></i></div>` : ''}</div><span></span></div>`; })}
+        <div class="n-dropbatch__foot"><span class="nt-muted">${s.processing ? `${s.processing} 个处理中，可以离开，结果会回到「进行中的任务」` : [s.failed && `${s.failed} 个失败`, s.verifyOpen && `${s.verifyOpen} 处待核对`, `${s.events} 件事`].filter(Boolean).join(' · ')}</span><a class="n-btn n-btn--sm" href="receipt.html?id=${d.id}">看回执</a></div></li>`);
     };
-    $('#drop').addEventListener('click', () => add('W8 对人复盘纪要.docx', 'DOCX', ['解析中 · 读取 9 段', '整理中 · 提取人员和事件'],
-      ['<span class="ok">已解析</span> · 9 段，定位到段落 · 提取 2 条事件待确认 · 已关联「XEngineer 第六期」', '<a class="n-btn n-btn--sm" href="record.html?q=W8%20对人复盘：孟逸尘主动把任务池同步给了全组">确认事件</a>']));
+    const follow = (d) => {
+      draw(d); renderTasks();
+      clearInterval(timer);
+      timer = setInterval(() => { if (!document.body.contains(files)) { clearInterval(timer); return; } if (st.tickDrops()) { draw(st.drop(d.id)); renderTasks(); } if (!st.drop(d.id).files.some((f) => f.steps?.some((x) => !x.done))) clearInterval(timer); }, 500);
+    };
+    $('#drop').addEventListener('click', () => follow(st.addDemoDrop()));
     ['dragover', 'dragenter'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.add('is-over'); }));
     ['dragleave', 'drop'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.remove('is-over'); }));
     // 一次可以拖入多个；格式与「记录关键事件」的附件同一口径（v1.5 3.34）
     $('#drop').addEventListener('drop', (e) => {
       const list = [...e.dataTransfer.files];
       if (list.length > UI.ATT_MAX) NT.toast(`已加入前 ${UI.ATT_MAX} 个文件，其余 ${list.length - UI.ATT_MAX} 个请再选一次`);
-      list.slice(0, UI.ATT_MAX).forEach((f) => {
-        const k = UI.attachKind(f.name), err = UI.attachCheck(f);
-        if (err) add(f.name, k.ext, [], [`<span class="err">${NT.esc(err)}</span>`, '<span></span>']);
-        else add(f.name, k.ext, [k.unit === '时' ? '转写中' : '解析中 · 识别文字', '整理中 · 提取人员和事件'], [`<span class="ok">已解析</span> · ${k.label} <span class="n-badge n-badge--demo">演示</span>`, '<span></span>']);
-      });
+      follow(st.addFilesDrop(list.slice(0, UI.ATT_MAX).map((f) => ({ name: f.name, err: UI.attachCheck(f), kind: UI.attachKind(f.name) }))));
     });
   }
 

@@ -7,15 +7,16 @@
 
   NT.mshell({
     tab: 'todo', title: '待办',
-    view: () => `待办 · 待核对剩 ${st.get().inbox.filter((i) => !i.done && !i.later).length} 处`,
+    view: () => `待办 · 待核对剩 ${st.visibleInbox().filter((i) => !i.done && !i.later).length} 处`,
     render,
   });
 
   function render(main) {
     const todos = st.todos();
-    const verify = st.get().inbox.filter((i) => !i.done && !i.later);
-    const later = st.get().inbox.filter((i) => !i.done && i.later);
-    const done = st.get().inbox.filter((i) => i.done);
+    const all = st.visibleInbox();
+    const verify = all.filter((i) => !i.done && !i.later);
+    const later = all.filter((i) => !i.done && i.later);
+    const done = all.filter((i) => i.done);
     const others = todos.filter((t) => t.kind !== 'verify');
     mount(main, html`
       ${html`<h3 class="m-h" style="margin-top:0">待核对${verify.length ? html`<span class="n-count">${verify.length}</span>` : ''}</h3>
@@ -31,7 +32,7 @@
       ${others.length ? html`<h3 class="m-h">其他待办</h3><ul class="m-list">${others.map(M.todoRow)}</ul>`
         : !verify.length && !later.length ? html`<div class="m-card" style="margin-top:var(--s-3)">${UI.state({ ip: 'rest', size: 40, title: '待办都处理完了', text: '新的待确认会出现在这里。' })}</div>` : ''}
 
-      ${done.length ? html`<h3 class="m-h">已核对</h3><ul class="m-list">${done.map((i) => html`<li><div class="m-row">${icon('check')}<span>${i.q.replace(/？$/, '')}<small>→ ${st.person(i.choice)?.name || st.project(i.choice)?.name}</small></span><button class="n-link" type="button" data-undo="${i.id}">撤销</button></div></li>`)}</ul>` : ''}`);
+      ${done.length ? html`<h3 class="m-h">已核对</h3><ul class="m-list">${done.map((i) => html`<li><div class="m-row">${icon('check')}<span>${i.q.replace(/？$/, '')}<small>→ ${i.choice === 'none' ? '名单外的人，只留在原件里' : st.person(i.choice)?.name || st.project(i.choice)?.name}</small></span><button class="n-link" type="button" data-undo="${i.id}">撤销</button></div></li>`)}</ul>` : ''}`);
     main.onclick = (e) => {
       const c = e.target.closest('.n-choice');
       if (c) pick(c.closest('[data-item]'), c);
@@ -42,7 +43,7 @@
 
   function card(i, isLater) {
     const isProj = i.kind === 'project';
-    const q = i.quote.replace(/(小孟|分镜那个组)/, '「$1」');
+    const q = i.kind === 'speaker' ? `说话人 2 · ${i.at}　${i.quote}` : i.quote.replace(new RegExp(`(${i.name || '小孟|分镜那个组'})`), '「$1」');
     return html`<article class="m-card n-verify" data-item="${i.id}" id="${i.id}">
       <span class="n-src n-src--ai">${icon('spark')}${i.src} ${i.at} · ${st.person(i.by).name}</span>
       <p class="n-verify__q" style="margin-top:var(--s-2)">${i.q}</p>
@@ -50,6 +51,7 @@
       ${i.note ? html`<p class="nt-muted" style="margin:0 0 var(--s-2)">${i.note}</p>` : ''}
       <div class="n-choices m-choices">
         ${i.options.map(([id, why]) => html`<button class="n-choice" type="button" data-v="${id}">${isProj ? html`<span class="n-avatar n-avatar--sm" style="--hue:220;border-radius:6px">${icon('folder', 12)}</span>${st.project(id).name}` : html`${UI.avatar(id, 'sm')}${st.person(id).name}`}<small>${why}</small></button>`)}
+        ${i.kind === 'unknown' ? html`<button class="n-choice" type="button" data-v="none"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">${icon('dash', 12)}</span>名单外的人<small>只留在原件里，不进档案</small></button>` : ''}
         ${isLater ? '' : html`<button class="n-choice" type="button" data-v="skip"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>都不是，稍后处理<small></small></button>`}
       </div>
       ${i.draft ? html`<div class="n-minievent" style="margin-top:var(--s-3)"><div>${i.draft.title}<small>选定后生成一条事件 · ${i.draft.scores.map(([d, v]) => `${st.dim(d).name} ${v}`).join('、')}（AI 建议，待导师确认）</small></div><span class="n-badge n-badge--ai">${icon('spark')}待归属</span></div>` : ''}
@@ -65,7 +67,7 @@
     NT.$$('.n-choice', cardEl).forEach((x) => x.classList.toggle('is-picked', x === btn));
     st.resolveInbox(id, v);
     const name = v === 'skip' ? '' : (st.person(v)?.name || st.project(v)?.name);
-    NT.toast(v === 'skip' ? '已放到稍后处理，待办里仍会保留' : `已归到${name}${item.draft ? '，事件进了待确认' : ''}`, {
+    NT.toast(v === 'skip' ? '已放到稍后处理，待办里仍会保留' : v === 'none' ? '已记下：名单外的人，只留在原件里' : `已归到${name}${item.draft || item.ev ? '，事件进了待确认' : ''}`, {
       // 撤销回到点选之前：原来在稍后处理里的，仍回到稍后处理
       undo: () => { st.unresolveInbox(id); if (wasLater) st.resolveInbox(id, 'skip'); render($('#main')); },
       undoneText: wasLater ? '已撤销，回到稍后处理' : '已撤销，回到待核对',

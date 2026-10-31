@@ -386,7 +386,7 @@
   // ---------- 待办（按视角） ----------
   store.todos = () => {
     const role = store.role(), me = ROLES[role].person, list = [];
-    const visibleInbox = S.inbox.filter((i) => !i.done && (role === 'hrbp' || i.by === me || (role === 'mentor')));
+    const visibleInbox = S.inbox.filter((i) => !i.done && (role === 'hrbp' || i.by === me)); // 评价人只看自己交的材料里的待核对
     if (role !== 'self' && role !== 'lead') visibleInbox.slice().sort((a, b) => (a.later ? 1 : 0) - (b.later ? 1 : 0)).forEach((i) => list.push({ kind: 'verify', badge: '待核对', cls: 'n-badge--ai', icon: 'spark', title: i.q.replace(/？$/, ''), sub: `${i.src} · ${i.at}${i.later ? ' · 已选稍后处理' : ''}`, due: i.later ? '稍后' : '今天', href: `inbox.html#${i.id}` }));
     if (store.can('calibrate')) store.queue().forEach((q) => list.push({ kind: 'calib', badge: q.kindLabel, cls: q.kind === 'conflict' ? 'n-badge--conflict' : '', icon: q.kind === 'conflict' ? 'split' : '', title: q.title, sub: q.sub, due: q.pair, href: `queue.html#${q.id}` }));
     S.tracks.filter((t) => t.state === 'on' && (t.owner === me || t.helper === me) && store.scope(t.person)).forEach((t) => list.push({ kind: 'track', badge: '跟踪到期', title: `重点跟踪 · ${store.person(t.person).name}`, sub: t.q, due: NT.md(t.next), href: `person.html?id=${t.person}#track` }));

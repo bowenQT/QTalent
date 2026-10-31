@@ -75,6 +75,7 @@
       const n = e.target.closest('[data-node]'); if (n) { key = n.dataset.node; editing = null; render(main); if (matchMedia('(max-width: 900px)').matches) $('#retro').scrollIntoView({ block: 'start' }); return; }
       const b = e.target.closest('[data-retro]'); if (b) retroAction(b.dataset.retro);
       if (e.target.closest('[data-add-act]')) addAction();
+      const nc = e.target.closest('[data-nc]'); if (nc) conclusionAction(nc.dataset.nc, nc.dataset.c);
     };
     if (hashAct && document.getElementById(hashAct)) document.getElementById(hashAct).scrollIntoView({ block: 'center' });
   }
@@ -86,11 +87,59 @@
       <h3 class="n-pnode-h">结果</h3>
       ${facts.length ? html`<dl class="n-pfacts">${facts.map((f) => html`<div><dt>${f.k}</dt><dd>${f.v}${f.href ? html` <a class="n-link" href="${f.href}">查看</a>` : ''}</dd></div>`)}</dl>`
         : html`<p class="nt-muted" style="margin:0">这一期的结果明细待导入。</p>`}
+      ${conclusionBlock(k)}
       <h3 class="n-pnode-h">复盘</h3>
       ${retroBlock(g, node, k, s)}
       <h3 class="n-pnode-h">改进事项${acts.length ? html`<span class="n-count is-quiet">${acts.length}</span>` : ''}</h3>
       ${acts.length ? acts.map(actionRow) : html`<p class="nt-muted" style="margin:0">改进事项会出现在这里。</p>`}
       ${st.canWriteRetro() && s !== 'future' ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-add-act style="margin-top:var(--s-2)">${icon('plus')}加一条改进事项</button>` : ''}`;
+  }
+
+  // ---------- 节点结论（答辩节点）：评委确认本人评分，HR 依据评分和材料确认结论并署名；按版本保存 ----------
+  let ncEdit = null;
+  function conclusionBlock(k) {
+    const list = st.conclusions(k);
+    if (!list.length) return '';
+    return html`<h3 class="n-pnode-h">节点结论<span class="n-count is-quiet">${list.filter((c) => c.versions.length).length} / ${list.length}</span></h3>
+      <div class="nt-grid" style="gap:var(--s-3)">${list.map(conclusionCard)}</div>`;
+  }
+  function conclusionCard(c) {
+    const js = st.judgeStatus(c), wait = js.filter((j) => !j.done), cur = c.versions[0], can = st.canConfirmConclusion();
+    const judges = html`<ul class="n-nc__judges">${js.map((j) => html`<li><span class="n-nc__dot" data-done="${j.done}" aria-hidden="true"></span>${st.person(j.rater).name}<small>${j.label} · ${j.done ? '已确认本人评分' : '待本人确认评分'}</small>${j.evs.map((e) => html`<span class="n-nc__ev">${e.scores.map((x) => `${st.dim(x.d).name} ${x.v}`).join(' · ')}${UI.evCite(e.id, 1)}</span>`)}</li>`)}</ul>`;
+    const basis = html`<div class="n-nc__basis"><span class="nt-muted">依据</span>${UI.cites(c.srcs)}<span class="nt-muted">${c.srcs.map((x) => x.label).join('、')}</span></div>`;
+    let body;
+    if (can && ncEdit === c.id) {
+      body = html`<div class="n-nc__edit"><label class="n-field"><span class="n-field__label">结论</span><select class="n-input" id="nc-type">${st.CONCLUSION_TYPES.map((t) => NT.raw(`<option${(cur?.type || c.ai?.type) === t ? ' selected' : ''}>${t}</option>`))}</select></label>
+        <label class="n-field"><span class="n-field__label">依据（必填）</span><textarea class="n-textarea" id="nc-why" rows="2" placeholder="比如：两位评委都确认了本人评分，值班两周独立处理工单">${cur?.why || c.ai?.why || ''}</textarea></label>
+        <div class="nt-row"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-nc="save" data-c="${c.id}">确认结论</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-nc="cancel">取消</button></div></div>`;
+    } else if (cur) {
+      body = html`<div class="n-block" data-state="ink"><p class="n-nc__type">${UI.src('human')}<b>${cur.type}</b></p><p class="n-nc__why">${cur.why}</p>
+        <div class="n-block__by"><span class="n-block__sig">${st.person(cur.by).name}</span>${NT.md(cur.at)} 确认 · 第 ${cur.v} 版${c.versions.length > 1 ? ` · 改过 ${c.versions.length - 1} 次，旧版保留` : ''}${can ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-nc="edit" data-c="${c.id}" style="margin-left:auto">${icon('pen')}修改结论</button>` : ''}</div></div>`;
+    } else if (!can) body = html`<p class="nt-muted" style="margin:0">待 HR 确认结论。</p>`;
+    else if (wait.length) body = html`<p class="nt-muted" style="margin:0">等${wait.map((j) => st.person(j.rater).name).join('、')}确认本人评分以后，再确认结论。</p>`;
+    else if (c.ai) {
+      body = html`<div class="n-block" data-state="light"><p class="n-nc__type"><span class="n-src n-src--ai">${icon('spark')}AI 草拟 · 仅供参考</span><b>${c.ai.type}</b></p><p class="n-nc__why">${c.ai.why}</p>
+        <div class="n-block__by"><span class="n-review__evact"><button class="n-btn n-btn--sm" type="button" data-nc="adopt" data-c="${c.id}">${icon('check')}采用</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-nc="edit" data-c="${c.id}">${icon('pen')}改写</button></span></div></div>`;
+    } else body = html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-nc="edit" data-c="${c.id}">${icon('pen')}写结论</button>`;
+    return html`<article class="n-nc" id="${c.id}"><div class="n-nc__head">${UI.person(c.person, { size: 'sm' })}${cur ? html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>` : html`<span class="n-badge">待确认</span>`}</div>${judges}${basis}${body}</article>`;
+  }
+  async function conclusionAction(kind, cid) {
+    const main = $('#main');
+    if (kind === 'cancel') { ncEdit = null; render(main); return; }
+    if (kind === 'edit') { ncEdit = cid; render(main); $('#nc-why')?.focus(); return; }
+    const c = st.conclusion(cid), name = st.person(c.person).name;
+    let type, why;
+    if (kind === 'adopt') ({ type, why } = c.ai);
+    else {
+      type = $('#nc-type').value; why = $('#nc-why').value.trim();
+      if (!why) { const t = $('#nc-why'); t.closest('.n-field').classList.add('is-error'); t.focus(); return; }
+    }
+    const v = await NT.dialog({ title: `确认${name}的结论？`, body: html`<p><b>${type}</b>。确认后署名，进入档案；转正手续在人事流程里办。</p>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '确认结论', value: 'ok', cls: 'n-btn--ink' }] });
+    if (v !== 'ok') return;
+    const undo = st.confirmConclusion(cid, type, why, kind === 'adopt' ? 'ai' : 'edit');
+    ncEdit = null; render(main);
+    NT.toast(`已确认${name}的结论：${type}`, { undo: () => { undo(); render($('#main')); } });
   }
 
   const lists = (r) => html`<div><h5>做得好</h5>${r.good.length ? html`<ul>${r.good.map((t) => html`<li>${t}</li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">待补充</p>`}</div>

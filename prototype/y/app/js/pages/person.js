@@ -192,6 +192,8 @@
     const items = [];
     events.forEach((e) => items.push({ date: e.date, e }));
     changes.filter((c) => c.t === 'trend' || c.t === 'quad').forEach((c) => items.push({ date: c.when, c }));
+    // 节点结论（答辩）：HR 确认的人工结论，单独一条，不当作关键事件；管理者和 HR 能看
+    if (st.can('mgmt', pid)) st.conclusionsOf(pid).forEach((c) => items.push({ date: c.node === 'pg-def:n0' ? '2026-09-02' : c.versions[0].at, nc: c }));
     const known = items.filter((i) => i.date).sort((a, b) => b.date.localeCompare(a.date));
     const unknown = items.filter((i) => !i.date);
     let month = '';
@@ -208,6 +210,13 @@
   }
   function item(it, after) {
     const style = after ? raw(' style="opacity:.4" title="这条记在所选档案版本冻结之后"') : '';
+    if (it.nc) {
+      const c = it.nc, v = c.versions[0], g = NT.SEED.PROGRAMS.find((x) => x.id === c.node.split(':')[0]);
+      return html`<li class="n-tl__item" id="${c.id}"${style}><span class="n-tl__date">${NT.md(it.date)}</span><span class="n-tl__dot is-hist"></span><div class="n-tl__body">
+        <div class="n-tl__title">节点结论 · ${v.type}</div>
+        <div class="n-tl__meta">${UI.src('human')}${g?.name || ''} · ${st.person(v.by).name} ${NT.md(v.at)} 确认 · 第 ${v.v} 版 · <a class="n-link" href="actions.html?node=${c.node}#${c.id}">查看依据</a></div>
+        <div class="n-tl__note">${v.why}</div></div></li>`;
+    }
     if (it.c) {
       const c = it.c;
       return html`<li class="n-tl__item"${style}><span class="n-tl__date">${NT.md(c.when)}</span><span class="n-tl__dot is-change"></span><div class="n-tl__body"><div class="n-tl__title">${c.what}</div><div class="n-tl__meta">${c.from != null ? html`<span class="n-delta"><s>${c.from.toFixed(1)}</s>${icon(c.up ? 'up-r' : 'down-r')}${c.to.toFixed(1)}</span>近 3 个月 ${c.n} 条 · 对比之前 9 个月` : c.sub} <span class="n-rule">${icon('flag')}${c.rule}</span></div></div></li>`;
@@ -225,7 +234,7 @@
     return html`<li class="n-tl__item ${isUnknown ? 'is-unknown' : ''}" id="ev-${e.id}"${style}><span class="n-tl__date">${isUnknown ? '未知' : e.kind === 'hist' && e.restricted ? 'H1' : NT.md(e.date)}</span><span class="n-tl__dot ${dot}"></span><div class="n-tl__body">
       <div class="n-tl__title">${e.kind === 'obs' ? html`<button class="nt-tl-open" type="button" aria-expanded="false">${e.title}</button>` : e.title}${pending ? html` <span class="n-badge n-badge--ai">${icon('spark')}${pending} 项待确认</span>` : ''}${conflict ? html` <span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : ''}</div>
       <div class="n-tl__meta">${meta}${isUnknown && st.can('record', pid) ? html` · <button class="n-btn n-btn--sm n-btn--ghost" type="button" data-date="${e.id}" style="min-height:22px;padding:0 6px">补上时间</button>` : ''}</div>
-      ${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${v}</span>`)}</div>${e.kind === 'hist' && !e.restricted ? html`<div class="n-tl__note">${e.group ? '这是小组的评分。' : '保留原量表，AI 打分时可以引用其中的文字评价。'}</div>` : ''}` : ''}
+      ${e.scale ? html`<div class="n-scale">${e.histType === '面试' ? html`<span class="n-scale__tag">原量表 · 不是维度分</span>` : ''}${e.scale.map(([k, v]) => html`<span class="${v === '不适用' ? 'is-na' : ''}">${k} ${v}</span>`)}</div>${e.kind === 'hist' && !e.restricted ? html`<div class="n-tl__note">${e.group ? '这是小组的评分。' : e.histType === '面试' ? '北森面评原样保存，是档案里最早的一段判断；AI 打分时可以引用其中的文字评价。' : '保留原量表，AI 打分时可以引用其中的文字评价。'}</div>` : ''}` : ''}
       ${e.kind === 'obs' ? html`<div class="nt-tl-card" hidden>${UI.eventCard(e, { for: pid })}</div>` : ''}
     </div></li>`;
   }
