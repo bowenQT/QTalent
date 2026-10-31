@@ -8,11 +8,11 @@
 
 - 仓库内准备可以先做；首次部署等 BOW-897、BOW-899 合入 main。
 - X1 维护最终迁移、共享配置和 worker 注册。当前 main 的 worker 只注册示例任务；BOW-842 接入业务任务后，才能完成队列消费的部署验收。
-- 每次只部署所有者指定并确认的、已经合入 main 的完整 SHA。开通资源和实际执行部署须先得到所有者对具体方案的确认。
+- 所有者已授权 X2 在已确认演示环境部署已合入 main 的完整 SHA，无需逐次另问；不开新资源，不扩大安全/权限或持久凭据配置。环境精确身份与既有入口仍须先在 #25 核实。
 - 首次部署可只含已合入功能；本卡关闭还要求三幕在部署环境走通、每次部署有完整记录。
 - 本轮材料不代表已经开通资源、部署、配置凭据或完成真实环境验收。
 
-已确认但尚未实现的自动化仍为：`bootstrap.sh`、`deploy.sh`（含 backup/migrate/seed/回滚）、`verify.sh`、`latency.sh` 和三版本/七天备份保留策略。不要把下文顺序说明当作这些脚本已经存在，也不要直接拼装命令对真实环境执行。
+已提供 host-local 的 prepare/deploy/backup/migrate/seed/应用回滚/status 与受管保留策略。装机 bootstrap、完整 Access/原件自动验收、供应商延迟脚本及数据库恢复演练仍未交付；不会安装或改动未确认环境。
 
 ## 目标环境与进程
 
@@ -64,7 +64,7 @@ Supabase [当前连接说明](https://supabase.com/docs/guides/database/connecti
 
 ## 仓库部署前检查
 
-先在准备环境显式更新 origin/main，再在独立、干净的候选 checkout 检出所有者指定的完整 SHA。下面的检查不拉代码、不读环境文件、不联网、不迁移、不启动服务，也不授权部署：
+先在准备环境显式更新 origin/main，再在独立、干净的候选 checkout 检出已合入且符合本次部署前置的完整 SHA。下面的检查不拉代码、不读环境文件、不联网、不迁移、不启动服务，也不授权部署：
 
 ```sh
 node deploy/preflight.mjs <40位完整SHA>
@@ -79,6 +79,8 @@ node --test --test-concurrency=2 deploy/preflight.test.mjs
 ```
 
 本机运行完整 `pnpm check`、`test:integration`、`test:e2e`、`test:visual` 前，先按派发文档原子取得 `resource-heavy-1` 或 `resource-heavy-2`，结束按自己的 token 释放。Vitest 单测使用 `--maxWorkers=2`，开发服务用完停止。
+
+发布准备使用 `pnpm install --frozen-lockfile --prod=false --ignore-scripts`，显式保留构建所需的 devDependencies；`tsx` 也属于这一完整安装，不能仅安装生产依赖后运行下面的检查。构建后创建 `.next/cache` 并确认属主为 qtalent，以满足 systemd 的 `ReadWritePaths`；本轮未安装或修改真实单元。
 
 在部署机已由所有者注入进程环境后，可用正式 schema 作只读变量形状核对。只输出字段名，不输出变量值；该步骤不会建立数据库连接或调用供应商：
 
@@ -100,9 +102,60 @@ JS
 
 变量形状通过仍不能证明数据库模式、证书、Access 策略或供应商已经可用。
 
+## 可执行部署与恢复入口
+
+`deploy/deploy.sh` 在已经确认的 Linux 演示机本地运行，使用既有 `qtalent` 用户、两份 systemd 单元、Git repository、工具链和环境文件。它不创建用户、不安装/启用单元、不配置隧道或安全策略，也不 SSH 到某个猜测的目标。实际执行由具备既有部署权限的操作者完成；脚本没有自动 sudo 或权限扩展。
+
+将 `target.example.json` 的**非敏感目标元数据**在部署机受控路径中填写：精确 hostname、环境确认记录、根目录/既有仓库、环境文件目录、备份目录、Node/pnpm/pg_dump 路径、Web/worker 的数据库主机/端口/库名，以及 897/899 **合入 main 后的提交 SHA**。样例故意为 `confirmed:false` 且带占位符，不能直接执行。清单不含密码或连接串；`confirmationRef` 是由操作者核验过的 #25 环境记录引用，脚本只核其格式与机器/目录/环境事实，不冒充在线核实所有者身份的授权系统。
+
+所有变更入口都必须显式给出 `--target` 和匹配的 `--target-id`。脚本核对当前机器身份、真实目录、demo/production Node 运行模式、Access 开启、origin、两种数据库连接身份与 TLS 模式；环境文件只在子进程中 source，不读取后打印或复制。未知目标、production 运行域、未合 main 的 SHA、缺 897/899 前置均失败。
+
+以下为操作顺序示意，`TARGET_FILE`、`TARGET_ID`、`SHA`、`PREVIOUS_SHA`、`BACKUP_FILE` 和 `SEED_BACKUP_FILE` 由 #25 已确认记录填写。不是当前机器的部署命令，本轮没有实际执行：
+
+```sh
+# 只准备指定 SHA：锁定安装、构建、写发布元数据，不切服务或迁移
+deploy/deploy.sh prepare --target "$TARGET_FILE" --target-id "$TARGET_ID" --sha "$SHA"
+
+# 显式备份，输出备份路径/摘要及操作记录标识；使用 worker 会话连接
+deploy/deploy.sh backup --target "$TARGET_FILE" --target-id "$TARGET_ID"
+
+# 只在计划需要时运行，每次都要单独新备份；一次备份不能重复授权另一数据库写入
+deploy/deploy.sh migrate --target "$TARGET_FILE" --target-id "$TARGET_ID" --sha "$SHA" --backup "$BACKUP_FILE"
+# seed 前再运行一次 backup，并将新输出路径记为 SEED_BACKUP_FILE
+deploy/deploy.sh backup --target "$TARGET_FILE" --target-id "$TARGET_ID"
+deploy/deploy.sh seed --target "$TARGET_FILE" --target-id "$TARGET_ID" --sha "$SHA" --backup "$SEED_BACKUP_FILE"
+
+# 显式确认当前版本及数据库与应用回退兼容性，首次部署 expected-current 为 none
+deploy/deploy.sh "$SHA" --target "$TARGET_FILE" --target-id "$TARGET_ID" --expected-current "$PREVIOUS_SHA" --rollback-compatible
+
+# 应用回切：复用已构建的受管版本，不迁移、seed、删表或自动恢复数据库
+deploy/deploy.sh rollback --target "$TARGET_FILE" --target-id "$TARGET_ID" --sha "$PREVIOUS_SHA" --expected-current "$SHA" --rollback-compatible
+
+deploy/deploy.sh status --target "$TARGET_FILE" --target-id "$TARGET_ID"
+```
+
+`--rollback-compatible` 表示操作者已依据 X1 的迁移与恢复证据核对代码/数据库兼容性，它不是脚本自动推导出的保证。没有这项前提不切版本；单纯代码回退不等于数据库恢复。
+
+### 实际执行与记录语义
+
+- 发布从既有 repository 显式 fetch main，验证目标与两个前置均是目标 SHA 的祖先。Git archive 导出到独立暂存目录，以 qtalent 用户锁定安装/构建。完整构建后才变为 `releases/<sha>`，存在不相容同名目录时拒绝覆盖。
+- 读取 worker 数据库的 Drizzle 迁移日志（只读事务），按已安装 Drizzle 的 SQL SHA-256/时间戳合同，与发布内 journal 的完整前缀核对。迁移未应用、记录缺失或探测失败时不激活；不自动跑迁移。
+- 切换 `current` 后重启两份既有单元，以最多30次、间隔1秒检查启动就绪（单次网络探测另有10秒上限）。自动存活检查要求 /login 无令牌返回401、worker端口可连，且两个 MainPID 的实际 /proc cwd 都对应所选发布 SHA。401/端口只能证明这层健康，完整 Access、原件授权和三幕验收仍按下表另做。
+- 激活或健康失败时，恢复起始链接并重启两份服务，重新读取两个运行版本和健康状态；首次部署失败则撤掉 current、停两份服务并确认 PID 为0。恢复失败明确记为 `failed_rollback_failed`。显式应用回滚本身失败也会尝试恢复操作前的版本。
+- 部署机 `.deployment-lock` 将准备、备份、数据库写入、部署/回滚串行化。崩溃后的锁不按时间自动回收；先核记录、锁内进程信息和实际服务，确认原操作已停止后再处理。这里的主机操作锁不同于本机 Git 领卡锁。
+- 每个操作以独立 JSON 写入 `<root>/deployment-records/`；阶段和终态原子更新，记录目标/来源SHA、实际Web与worker版本、迁移哈希/时间、备份摘要、回滚结果和稳定错误码，不写环境值、命令输出或原始异常。CLI返回记录标识。记录目录不是新的任务看板，真实结果仍回填 #25。
+- 备份的连接信息只进入 libpq 环境，不放命令参数；备份子进程使用私有 umask。备份摘要绑定目标数据库身份，迁移/seed 前核验且标记一次性消耗；数据库命令失败写 `outcome_unknown`，不盲目重试、自动回切数据库或声称已恢复。
+- 清理只识别本工具的受管目录/备份元数据；保留最近3份已激活发布、7天备份，跳过外部目录、符号链接和不相容元数据。部署后的发布清理失败会返回维护警告，保留健康服务和失败记录，不伪称清理成功。
+
+离线验证使用真实临时 Git、归档和文件系统；只控制 Linux 服务/构建/数据库 I/O。不会把这些结果当作真实 systemd、Supabase、TLS、Access 或三幕验收：
+
+```sh
+node --test --test-concurrency=2 --experimental-test-coverage '--test-coverage-include=deploy/*.mjs' '--test-coverage-exclude=deploy/*.test.mjs' --test-coverage-lines=85 --test-coverage-branches=85 deploy/*.test.mjs
+```
+
 ## 实际部署顺序与恢复边界
 
-实际执行前在 #25 写明拟部署完整 SHA、前置卡合入、当前 head 的审查/CI、目标机器/域名/数据库类别、计划迁移、备份、回滚路径和待所有者确认的操作。得到本次范围的确认后执行，不因“准备材料已合入”自动部署。
+实际执行前在 #25 写明拟部署完整 SHA、前置卡合入、当前 head 的审查/CI、已确认目标机器/域名/数据库类别、计划迁移、备份和回滚证据。符合现有演示环境部署授权即可串行执行，不重复向离线所有者索要逐次许可；环境身份或前置缺失时在 #248 记录并继续独立准备。
 
 1. 所有者在控制台开通/确认主机、Supabase 项目、Access 应用和命名隧道；授权 SSH 与只读 deploy key。
 2. 装机并核对只监听 loopback、双进程环境、工具链路径。先建立 backups 与 releases 的恢复路径，完成备份恢复演练。
@@ -133,7 +186,7 @@ JS
 
 ```text
 部署记录
-目标与所有者确认链接：
+精确目标与既有环境确认记录：
 部署 SHA / 上一 SHA：
 897、899 合入证据；业务 worker / 三幕前置：
 受检 head 的交叉审查、CI：

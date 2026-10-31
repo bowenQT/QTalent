@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "id": "replace-confirmed-demo-id",
+  "confirmed": false,
+  "confirmationRef": "https://github.com/bowenQT/QTalent/issues/25#issuecomment-REPLACE",
+  "environment": "demo",
+  "hostname": "REPLACE_CONFIRMED_HOSTNAME",
+  "root": "/opt/qtalent",
+  "repository": "/opt/qtalent/repository",
+  "envDirectory": "/etc/qtalent",
+  "backupDirectory": "/var/backups/qtalent",
+  "webOrigin": "https://REPLACE_CONFIRMED_DOMAIN",
+  "nodePath": "/usr/bin/node",
+  "pnpmPath": "/usr/bin/pnpm",
+  "pgDumpPath": "/usr/bin/pg_dump",
+  "database": {
+    "web": {
+      "host": "REPLACE_CONFIRMED_POOL_HOST",
+      "port": 6543,
+      "name": "postgres"
+    },
+    "worker": {
+      "host": "REPLACE_CONFIRMED_SESSION_HOST",
+      "port": 5432,
+      "name": "postgres"
+    }
+  },
+  "prerequisites": {
+    "bow897": "REPLACE_MERGED_SHA",
+    "bow899": "REPLACE_MERGED_SHA"
+  }
+}
