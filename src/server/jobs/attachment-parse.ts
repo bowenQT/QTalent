@@ -33,6 +33,13 @@ export function createAttachmentParsePolicy<C>(
       }
       return true;
     },
+    async canReplay(context, requesterAccountId, job, action) {
+      return (
+        job.kind === 'media' &&
+        action !== 'resume' &&
+        (await ports.can(context, requesterAccountId, job, action))
+      );
+    },
     async project(context, requesterAccountId, job) {
       if (job.status === 'queued' || job.status === 'cancelled')
         return {

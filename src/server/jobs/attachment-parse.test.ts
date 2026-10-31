@@ -1,7 +1,12 @@
 import type { PgBoss } from 'pg-boss';
 import { describe, expect, it, vi } from 'vitest';
 import { mediaJobSnapshotSchema } from '../../contracts/media';
-import { newJob } from './state';
+import { advanceJob, newJob } from './state';
+import {
+  createJobService,
+  type JobStore,
+  type StoredOperation,
+} from './service';
 import {
   createAttachmentParsePolicy,
   registerAttachmentParseJob,
@@ -182,4 +187,102 @@ describe('attachment media policy and isolated worker registration', () => {
     ).rejects.toThrow();
     expect(run).toHaveBeenCalledTimes(1);
   });
+});
+
+it('replays accepted attachment retries after the result is cleared and completed without losing current control checks', async () => {
+  const { job, ports, policy } = fixture();
+  const now = job.updatedAt;
+  let current = advanceJob(
+    advanceJob(
+      job,
+      { status: 'running', attempt: 1, expectedRevision: 1 },
+      now,
+    ),
+    {
+      status: 'failed',
+      attempt: 1,
+      expectedRevision: 2,
+      errorCode: 'processing_failed',
+      result: {
+        stage: 'failed',
+        mediaId: 'media',
+        source: null,
+        fragmentIds: [],
+        failureReason: 'dependency_unavailable',
+      },
+    },
+    now,
+  );
+  const operations = new Map<string, StoredOperation>();
+  const store: JobStore<object> = {
+    locked: async (_jobId, run) =>
+      run({
+        context: {},
+        get record() {
+          return current;
+        },
+        save: async (next) => {
+          current = next;
+        },
+        operation: async (accountId, operationId) =>
+          operations.get(accountId + ':' + operationId) ?? null,
+        saveOperation: async (accountId, operationId, operation) => {
+          operations.set(accountId + ':' + operationId, operation);
+        },
+      }),
+  };
+  const service = createJobService(store, [policy], () => now);
+  const command = {
+    jobId: job.jobId,
+    action: 'retry' as const,
+    expectedRevision: 3,
+    operationId: 'retry-once',
+  };
+  const accepted = await service.command('viewer', command);
+  expect(accepted).toMatchObject({
+    status: 'success',
+    snapshot: { status: 'queued', attempt: 2 },
+  });
+  expect(current.result).toBeNull();
+  expect(await service.command('viewer', command)).toEqual(accepted);
+  current = advanceJob(
+    current,
+    { status: 'running', attempt: 2, expectedRevision: 4 },
+    now,
+  );
+  current = advanceJob(
+    current,
+    {
+      status: 'completed',
+      attempt: 2,
+      expectedRevision: 5,
+      result: {
+        stage: 'parsed',
+        mediaId: 'media',
+        source: null,
+        fragmentIds: ['visible'],
+      },
+    },
+    now,
+  );
+  const settled = current;
+  expect(await service.command('viewer', command)).toEqual(accepted);
+  expect(
+    await service.command('viewer', { ...command, expectedRevision: 4 }),
+  ).toEqual({ status: 'conflict' });
+  expect(
+    await service.command('viewer', {
+      ...command,
+      operationId: 'new',
+      expectedRevision: current.revision,
+    }),
+  ).toEqual({ status: 'forbidden' });
+  vi.mocked(ports.can).mockImplementation(
+    async (_context, _accountId, _job, action) => action === 'read',
+  );
+  expect(await service.command('viewer', command)).toEqual({
+    status: 'forbidden',
+  });
+  expect(current).toBe(settled);
+  expect(ports.enqueue).toHaveBeenCalledTimes(1);
 });

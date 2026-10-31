@@ -86,7 +86,8 @@ export interface AttachmentParsePorts<C> {
   enqueueArrange(context: C, request: ArrangeAttachmentRequest): Promise<void>;
 }
 export interface AttachmentPolicyPorts<C> {
-  /** Verify attachment purpose/binding and CURRENT requester/action permissions. */
+  /** Verify purpose/binding and CURRENT requester/action permissions only.
+   * New-command retry stage eligibility belongs to the job policy. */
   can(
     context: C,
     requesterAccountId: string,
