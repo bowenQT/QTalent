@@ -120,15 +120,6 @@ export async function runAttachmentParse<C>(
       !['running', 'partial'].includes(current.status)
     )
       return { status: 'ignored' };
-    const loaded = await ports.loadAuthorizedAttachment(tx.context, current);
-    if (loaded === null) return { status: 'forbidden' };
-    const binding = attachmentBindingSchema.safeParse(loaded);
-    if (
-      !binding.success ||
-      !matchingBinding(current, binding.data) ||
-      JSON.stringify(binding.data) !== JSON.stringify(claim.binding)
-    )
-      return { status: 'ignored' };
     if (current.cancelRequestedAt !== null) {
       await tx.save(
         advanceJob(
@@ -144,6 +135,36 @@ export async function runAttachmentParse<C>(
       return { status: 'cancelled' };
     }
     if (current.revision !== claim.revision) return { status: 'ignored' };
+    // Only this claim may finalize failure. A previously accepted cancel is
+    // acknowledged above without committing or disclosing parsed material.
+    const loaded = await ports.loadAuthorizedAttachment(tx.context, current);
+    const binding = attachmentBindingSchema.safeParse(loaded);
+    if (
+      !binding.success ||
+      !matchingBinding(current, binding.data) ||
+      JSON.stringify(binding.data) !== JSON.stringify(claim.binding)
+    ) {
+      await tx.save(
+        advanceJob(
+          current,
+          {
+            attempt: input.attempt,
+            expectedRevision: claim.revision,
+            status: 'failed',
+            errorCode: 'input_changed',
+            result: attachmentJobResultSchema.parse({
+              stage: 'failed',
+              mediaId: current.resourceId,
+              source: null,
+              fragmentIds: [],
+              failureReason: 'processing_failed',
+            }),
+          },
+          options.now(),
+        ),
+      );
+      return { status: loaded === null ? 'forbidden' : 'ignored' };
+    }
     const result = attachmentJobResultSchema.parse(
       parsed.status === 'parsed'
         ? {

@@ -2,7 +2,13 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { applyJobCommand, newJob, type JobRecord } from '../jobs/state';
-import type { JobStore } from '../jobs/service';
+import { createJobService, type JobStore } from '../jobs/service';
+import type { PgBoss } from 'pg-boss';
+import {
+  createAttachmentParsePolicy,
+  registerAttachmentParseJob,
+} from '../jobs/attachment-parse';
+import { createValidatedAttachmentInput } from '../modules/records/attachments/upload-input';
 import type {
   AttachmentBinding,
   AttachmentParsePorts,
@@ -93,7 +99,7 @@ function fixture() {
       context.enqueues.push(request);
     }),
   };
-  return { binding, state, store, ports };
+  return { binding, content, state, store, ports };
 }
 describe('attachment parse transaction pipeline', () => {
   it('persists real fragments and sends only trusted refs to845 in the same transaction', async () => {
@@ -163,6 +169,11 @@ describe('attachment parse transaction pipeline', () => {
     expect(
       await runAttachmentParse(f.store, f.ports, payload, options),
     ).toEqual({ status: 'forbidden' });
+    expect(f.state.record).toMatchObject({
+      status: 'failed',
+      errorCode: 'input_changed',
+      result: { stage: 'failed', source: null, fragmentIds: [] },
+    });
     expect(f.state.context.bundles.size).toBe(0);
     expect(f.ports.enqueueArrange).not.toHaveBeenCalled();
   });
@@ -177,8 +188,135 @@ describe('attachment parse transaction pipeline', () => {
     expect(
       await runAttachmentParse(f.store, f.ports, payload, options),
     ).toEqual({ status: 'ignored' });
+    expect(f.state.record).toMatchObject({
+      status: 'failed',
+      errorCode: 'input_changed',
+      result: { stage: 'failed', source: null, fragmentIds: [] },
+    });
     expect(f.state.context.bundles.size).toBe(0);
   });
+  it('terminates the registered worker after real validated-input permission revocation', async () => {
+    const f = fixture();
+    let mayProcess = true;
+    const upload = {
+      uploadId: f.binding.version.mediaId,
+      originalId: 'synthetic-original',
+      originalVersionId: f.binding.version.originalVersionId,
+      jobId: f.binding.completedJobId,
+      purpose: 'attachment',
+      filename: f.binding.version.filename,
+      accountId: f.binding.accountId,
+      quotaScope: f.binding.quotaScope,
+      target: f.binding.target,
+      object: {
+        objectKey: 'synthetic/attachment.txt',
+        byteLength: f.content.length,
+        mediaType: f.binding.version.mediaType,
+        sha256: f.binding.version.sha256,
+        etag: 'synthetic-etag',
+      },
+    };
+    const canProcess = vi.fn(async () => mayProcess);
+    const input = createValidatedAttachmentInput<Context>({
+      readValidatedUpload: async () => structuredClone(upload),
+      canProcess,
+      openObject: async () =>
+        (async function* () {
+          yield f.content;
+          mayProcess = false;
+        })(),
+    });
+    const ports = { ...f.ports, ...input };
+    let dispatch:
+      ((jobs: Array<{ data: unknown }>) => Promise<void>) | undefined;
+    const boss = {
+      createQueue: vi.fn(async () => {}),
+      work: vi.fn(async (_queue: string, handler: typeof dispatch) => {
+        dispatch = handler;
+      }),
+    };
+    await registerAttachmentParseJob(boss as unknown as PgBoss, (data) =>
+      runAttachmentParse(f.store, ports, data, options),
+    );
+    await dispatch!([{ data: payload }]);
+    expect(canProcess).toHaveBeenCalledTimes(2);
+    const policy = createAttachmentParsePolicy<Context>({
+      can: async (_context, requester, _job, action) =>
+        requester === 'viewer' && action === 'read',
+      inputVersion: async () => f.binding.version.originalVersionId,
+      visibleSources: async () => [],
+      enqueue: async () => {},
+    });
+    const jobs = createJobService(f.store, [policy], now);
+    expect(await jobs.read('viewer', payload.jobId)).toMatchObject({
+      status: 'success',
+      snapshot: {
+        status: 'failed',
+        result: { stage: 'failed', source: null, fragmentIds: [] },
+        error: { code: 'input_changed' },
+        canRetry: false,
+      },
+    });
+    expect(await jobs.read('outsider', payload.jobId)).toEqual({
+      status: 'forbidden',
+    });
+    expect(f.ports.saveParse).not.toHaveBeenCalled();
+    expect(f.ports.enqueueArrange).not.toHaveBeenCalled();
+  });
+  it.each(['revoked', 'binding-changed'] as const)(
+    'acknowledges an accepted cancel even when the input is %s',
+    async (change) => {
+      const f = fixture();
+      vi.mocked(f.ports.open).mockImplementation(async () => {
+        f.state.record = applyJobCommand(
+          f.state.record,
+          { action: 'cancel', expectedRevision: f.state.record.revision },
+          now(),
+        );
+        return (async function* () {
+          yield f.content;
+        })();
+      });
+      vi.mocked(f.ports.loadAuthorizedAttachment)
+        .mockResolvedValueOnce(f.binding)
+        .mockResolvedValueOnce(
+          change === 'revoked' ? null : { ...f.binding, quotaScope: 'changed' },
+        );
+      expect(
+        await runAttachmentParse(f.store, f.ports, payload, options),
+      ).toEqual({ status: 'cancelled' });
+      expect(f.state.record.status).toBe('cancelled');
+      expect(f.ports.saveParse).not.toHaveBeenCalled();
+      expect(f.ports.enqueueArrange).not.toHaveBeenCalled();
+    },
+  );
+  it.each(['revoked', 'binding-changed'] as const)(
+    'does not fail a newer claim after observing %s',
+    async (change) => {
+      const f = fixture();
+      vi.mocked(f.ports.open).mockImplementation(async () => {
+        f.state.record.revision++;
+        return (async function* () {
+          yield f.content;
+        })();
+      });
+      vi.mocked(f.ports.loadAuthorizedAttachment)
+        .mockResolvedValueOnce(f.binding)
+        .mockResolvedValueOnce(
+          change === 'revoked' ? null : { ...f.binding, quotaScope: 'changed' },
+        );
+      expect(
+        await runAttachmentParse(f.store, f.ports, payload, options),
+      ).toEqual({ status: 'ignored' });
+      expect(f.state.record).toMatchObject({
+        status: 'running',
+        revision: 3,
+        errorCode: null,
+      });
+      expect(f.ports.saveParse).not.toHaveBeenCalled();
+      expect(f.ports.enqueueArrange).not.toHaveBeenCalled();
+    },
+  );
   it('acknowledges cancellation during parsing with zero business writes', async () => {
     const f = fixture();
     vi.mocked(f.ports.open).mockImplementation(async () => {

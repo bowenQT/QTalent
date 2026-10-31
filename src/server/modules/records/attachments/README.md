@@ -62,6 +62,8 @@ const input = createValidatedAttachmentInput<Transaction>({
 1. claim 事务检查当前写权限、完整上传绑定、attempt 和可运行阶段，推进 revision。running/partial-parsing 的重新投递可接管旧 worker；其他阶段、失败、待人工与终态不重跑。
 2. 只读解析在事务外，不锁着事务调用供应商或模型。读取失败保存安全失败快照；没有隐式无限业务重试。
 3. 完成事务重新授权、核绑定、attempt/revision/cancel fence。`ports.saveParse(tx, binding, bundle)`、`ports.enqueueArrange(tx, request)`、`tx.save(job)` 必须使用同一个事务 context。saveParse 对同 ID 比较完整不可变 bundle，只有 `created` 首次结果排整理，`existing` 不重复入队；冲突和任一写入异常全部回滚。原件和旧任务历史不删除。
+   已成功 claim 的当前 attempt/revision 在完成前失去写权限或发现权威绑定变化时，只保存 `failed / input_changed` 任务终态（阶段 failed、source null、fragmentIds 空），不保存解析片段或排整理；返回值仍保留 forbidden/ignored。初始 claim 前的拒绝仍不读字节、不修改任务。旧 revision/attempt 不得写入这一失败；已接受的取消优先确认 cancelled。公开读取和 retry 继续由当前 requester/action 权限与 inputVersion 栅栏判断。
+
 4. 取消只确认 cancelled，不落片段或排整理。公共投影按 job.status 重建 `stage:'cancelled',source:null,fragmentIds:[]`，不透传 #94 保留的旧内部 result。
 5. `enqueueArrange` 只传 `mediaId,parseVersionId,originalVersionId,accountId,target,sources:SourceReference[]`。每段有独立真实引用，没有 excerpt、推断 personId 或确认信息。父将该端口接845的可信来源加载/整理任务；845/837负责分类、当前权限过滤、选人、规则与待确认草稿，本卡不另建整理业务。
 
