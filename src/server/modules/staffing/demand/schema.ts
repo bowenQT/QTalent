@@ -9,7 +9,11 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { StaffingDemand } from '../../../../contracts/staffing';
-import type { MaasMetadata } from '../../../integrations/maas';
+import type {
+  MAAS_MODEL,
+  MODELINK_MODEL,
+  MaasMetadata,
+} from '../../../integrations/maas';
 import { projects } from '../schema';
 
 export const demandRoots = pgTable(
@@ -44,7 +48,9 @@ export const demandVersions = pgTable(
     revision: integer('revision').notNull(),
     demand: jsonb('demand').$type<StaffingDemand>().notNull(),
     promptVersion: text('prompt_version').notNull(),
-    modelMetadata: jsonb('model_metadata').$type<MaasMetadata>().notNull(),
+    modelMetadata: jsonb('model_metadata')
+      .$type<MaasMetadata<typeof MAAS_MODEL | typeof MODELINK_MODEL>>()
+      .notNull(),
     actorAccountId: text('actor_account_id').notNull(),
     createdAt: text('created_at').notNull(),
   },
