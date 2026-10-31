@@ -7,7 +7,7 @@ import {
   MODELINK_ENDPOINT,
   MODELINK_MODEL,
   type ModelinkStructuredInput,
-} from './modelink';
+} from './index';
 import { MaasRequestNotSentError } from './client';
 
 const schema = z

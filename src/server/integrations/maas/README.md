@@ -4,7 +4,7 @@
 
 ## 使用
 
-由服务端组合入口将环境变量中的密钥显式传入 `createMaasClient({ apiKey })`；本模块不自行读取环境、没有 import/构造副作用、不修改共享环境清单。基础 `env.ts` 尚无 MaaS 变量接线，该接线由共享配置责任人负责，未接线时维持 fake，不要求构建拥有密钥。不要从浏览器输入接受配置或 transport。
+由服务端组合入口将环境变量中的密钥显式传入 `createMaasClient({ apiKey })`；原七牛构造器不自行读取环境、没有 import/构造副作用；可选 Modelink 变量已由 X1 接到共享环境入口，实际使用时仍由适配器校验，不要求构建拥有密钥。不要从浏览器输入接受配置或 transport。
 
 调用 `generateStructured({ messages, promptVersion, schema, signal? })`：
 
@@ -41,7 +41,7 @@
 - 除已校验的响应体 ID，还接受白名单字符且不超过 128 字符的 `http_x_reqid` 网关头，以保留失败请求的关联信息；原始响应、推理、图片、密钥不进入 metadata。
 - 环境构造为显式 `createModelinkMaasClientFromEnv(environment?)`，只识别服务端 `MODELINK_API_KEY`（必填）、`MODELINK_BASE_URL`（可省略，固定为 `https://api.modelink.ai/v1`）、`MODELINK_MODEL`（可省略，固定为上述模型 ID）。不加载 `.env`，不借用七牛变量，不读取/持久化凭据文件，不在 import、构造、构建或自动测试中调用真实服务。
 
-公共出口 `index.ts` 和共享 `env.ts` 的接线交 X1，本卡不写共享文件。业务方在接线前继续使用现有 fake，不能通过深层引用绕过公共入口。
+X1 已在公共 `index.ts` 导出 Modelink 客户端、显式环境工厂、fake、固定模型/endpoint 和输入类型；共享 `env.ts` 保留三个可选变量。业务方通过公共入口组合，仍须先授权再向适配器提供证据。内部通用 transport 与手动 probe 不对外导出。
 
 ### 显式手动验收
 
@@ -58,9 +58,9 @@ JS
 
 把脱敏报告、受检 SHA 和执行环境贴回 #35；文字和图片各一次都有 `attempts>0`、结构及预期值通过，才是本卡真实调用通过的证据。超时/未知结果不自动重跑，显式重试须认识到可能重复计费。
 
-已核对项目 README 的「在当前终端设置环境变量」说明与既有 Jev 运行说明：命令行脚本只读进程环境，未指定本机 Modelink 凭据文件加载入口。`deploy/*.service` 的 `/etc/qtalent/runtime.env` 是部署机 systemd 示例，不是本机秘密文件的搜索线索。没有读取该文件、扫描其他凭据位置或推断全机未配置。需要向执行探针的进程安全注入服务 `api.modelink.ai` 的 `MODELINK_API_KEY`；可选的固定 base URL / model 可省略。请通过已有的受控环境注入，不把密钥发送到聊天或 PR。
+所有者已统一指定本机加载入口 `~/.config/niu-talent/vendors.env`（见根 README）：仅在已授权的真实验证进程中先 `set -a; . ~/.config/niu-talent/vendors.env; set +a`。不读出、打印或复制文件内容，不搜索其他位置；部署机使用自己的环境。Modelink 只取 `MODELINK_*`，不借用七牛渠道的 base URL/model。
 
-**本轮待验收：** q843 的进程环境未注入 `MODELINK_API_KEY` / `QINIU_MAAS_API_KEY`，未请求付费接口。BOW-895 的 Modelink 子项仍独立验证连通性，不由本卡代领；#220（BOW-897）未合入前本 PR 也不能合入。详见 [#35 的阻塞记录](https://github.com/bowenQT/QTalent/issues/35#issuecomment-6546025453)。
+**Modelink 真实验收已有记录：** q843 在固定提交 `589827ddf87642e877a8b03c0148eb4cc000b472` 上用合成文字和纯色 PNG 各调用一次，均 HTTP 200、固定模型与业务结构/预期值通过，未重试、未写业务数据；[脱敏验收证据](https://github.com/bowenQT/QTalent/issues/35#issuecomment-6546420065)。X1 本次只改公共出口/环境与说明，供应商核心和 probe 文件未变，没有重复付费验证。BOW-895 的 Modelink 连通子项独立承接；#220（BOW-897）合入与当前 head 交叉审查仍是本 PR 的门槛。
 
 ## 原七牛实现验证记录与待验收（10/25）
 

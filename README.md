@@ -256,6 +256,16 @@ python3 -m http.server 4173 --bind 127.0.0.1 --directory prototype
 
 以上步骤不需要任何外部凭据，目前已合入的页面也不调用外部服务。七牛 MaaS、Jev、Kodo、通义听悟的适配器只在服务端显式创建，自动测试使用测试替身；接入真实服务时，所需环境变量见各适配器的 README（`src/server/integrations/*/README.md`），部署相关变量见 [deploy/README.md](deploy/README.md)。
 
+本机供应商凭证统一由已授权进程加载 `~/.config/niu-talent/vendors.env`：
+
+```sh
+set -a
+. ~/.config/niu-talent/vendors.env
+set +a
+```
+
+只加载这个入口，不读出、打印或复制文件内容。Modelink 使用 `MODELINK_API_KEY`；Jev 沿用 `QINIU_MAAS_API_KEY`，两名由同一受控入口提供。`MODELINK_BASE_URL` 和 `MODELINK_MODEL` 可省略，固定默认值由适配器校验，不借用七牛渠道的 base URL/model。共享环境入口保留这些可选字段，缺配置或配置无效仅在实际使用该集成时返回配置失败，其他流程可正常启动。部署机继续使用自己的既有环境，不复制本机凭证文件。企业微信测试机器人只在持有 `resource-wecom-test` 时加载 `wecom-test.env`。
+
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm check` | 一次跑完格式、lint 与引入边界、类型、覆盖率（行与分支各 ≥ 85%）、构建 |
