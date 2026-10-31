@@ -41,6 +41,20 @@ node --import tsx tests/e2e/bow-871/interview-component.verify.ts --component-ro
 
 后续922 `53ad0f3`、918 `eb47234`、846 `bec28d0`、859 `f67329f`、860 `3a59c21`仍是分别固定的待接链路，本片不拼入它们。922真实读取需要PG；918/846规划、859/860端口组合不能代替发布撤销、重启、绑定ledger/恢复授权、原件和唯一producer的真实证据。下表的runtime/E2E门槛全部保留。本片结果以PR当前head实际执行为准，贡献者仍不得自审，交Claude独立审查。
 
+## 显式 Office 组件回归
+
+`office-component.verify.ts` 固定读取901 `dbe30d13f1ad6ae0aaaef0bf920b258805417e5d` 的真实 `parseOfficeIsolated` 与既有 `tests/fixtures/office` 字节。该901树没有包含897冻结提交，因此另用897 `0b20a913621121848219e0966ba4bf4844d1bdb3` 的独立只读树加载真实 `materialSourceLocationSchema`，不复制schema。工具和两输入的实际HEAD/tree/clean、脚本及夹具摘要均随结果输出。
+
+```sh
+node --import tsx tests/e2e/bow-871/office-component.verify.ts --component-root "$BOW871_OFFICE_ROOT" --materials-root "$BOW871_MATERIALS_ROOT" --maxWorkers=2
+```
+
+完整命令先取得heavy槽，工具与两个固定输入树须已提交且干净，并按各自根锁安装依赖。工具顺序执行，最多一个解析线程，maxWorkers只允许1或2；核调用者字节未变、实际输出摘要与格式、MessagePort回基线和活动调用归零。原83工具与interview组件脚本字节均校验不变；本片不重跑或合算其历史结果。
+
+三份实际化名OOXML各构成一项 `node_worker_component`：PPTX按真实页序和备注关系保留四段正文/备注；两份XLSX保留公式缓存与常量、缺缓存/空文本/0/false、原表/单元格、共享公式与原始数值字串，团队合并值不扩散。预期只用于断言实际结果，没有运行生成器、反填缓存/授权或重算公式；实际输出仍为unresolved。每条实际locator交给冻结897原schema，并检查多余归属字段被严格拒绝；没有构造已持久化fragmentId或授权原件引用。
+
+901作者已有取消/超时、恶意ZIP与预算负控证据仍归属其PR，不能算成本工具执行项目。本工具不被默认Vitest/Playwright收集，未证明应用授权/生产读取、DB事务、Next部署worker装载或浏览器E2E。本片后保留面评与Office两组组件证据，下一步应接下表仍缺的关键运行链，不继续堆同类解析指标。
+
 ## 八条合同的后续回归矩阵
 
 下表全部仍需在集成/浏览器层接线。已有离线检查只作前置保护，不把同一份证据记成完整链路通过。
