@@ -26,7 +26,7 @@ export default defineConfig({
         'src/**/*.d.ts',
         'src/server/db/migrations/**',
       ],
-      reporter: ['text', 'json-summary', 'html'],
+      reporter: ['text', 'json-summary', 'html', 'lcov'],
       thresholds: { lines: 85, branches: 85 },
     },
   },

@@ -196,6 +196,20 @@ describe('talent action × current grant × subject × purpose', () => {
       canReadTalent(ctx, { ...subject, kind: 'evaluation' }, 'person-profile'),
     ).toBe(false);
   });
+  it('does not treat an unknown cohort role as a mentor', () => {
+    const ctx = context('mentor');
+    ctx.grants[0]!.role = 'employee' as BusinessRole;
+    expect(
+      canReadTalent(
+        ctx,
+        { ...subject, kind: 'confirmed-score' },
+        'person-profile',
+      ),
+    ).toBe(false);
+    expect(
+      canReadTalent(ctx, { ...subject, kind: 'evaluation' }, 'person-profile'),
+    ).toBe(false);
+  });
   it('never combines an HR action with a mentor person scope', () => {
     const ctx = context();
     ctx.grants.push({
