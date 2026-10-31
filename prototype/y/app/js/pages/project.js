@@ -125,7 +125,7 @@
   function remove() {
     const S = st.get(), p = st.project(id);
     const snap = { p: NT.clone(p), members: S.members.filter((m) => m.project === id).map(NT.clone), i: S.projects.indexOf(p) };
-    st.removeProject(id);
+    if (!st.removeProject(id)) { NT.toast('项目已经有关联资料，不能删除，请改为归档'); render($('#main')); return; }
     mount($('#main'), UI.state({ ip: 'done', title: `已删除「${snap.p.name}」`, text: '5 秒内可以撤销。之后回到项目列表。' }));
     UI.mountIPs($('#main'));
     let undone = false;
