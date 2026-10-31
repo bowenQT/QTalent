@@ -1,0 +1,42 @@
+{
+  "fixtureVersion": "bow-923-v1",
+  "demo": true,
+  "notice": "两份表均为化名重建的演示原表，不是历史原件；既有 prototype_snapshot 未修改。",
+  "contractSha": "2fe52fa46a0003762b5090b0d5af97654f7f5b2c",
+  "rosterCommit": "451ecec0106344cac2e4225a363b5fd3cae92584",
+  "evidenceStatus": "expected_only_actual_query_not_run",
+  "originals": {
+    "front": {
+      "file": "作品评审表.xlsx",
+      "originalVersionId": "bow-923-xe6-selection-original-v1",
+      "sheet": "作品评审（演示）",
+      "lastColumn": "P",
+      "excerptColumn": "P",
+      "dateColumn": "M",
+      "sha256": "cb32e39ae6e84ef7c5d6efbf1e183150cf8df9f1844f92dc1c592efc88e7e280",
+      "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "firstDataRow": 2,
+      "lastDataRow": 94,
+      "personRows": 93,
+      "identityColumns": ["A", "B"],
+      "dateEncoding": "Excel numeric date, displayed in UTC",
+      "presentEvaluations": 87
+    },
+    "back": {
+      "file": "结营评审表.xlsx",
+      "originalVersionId": "bow-923-xe6-graduation-original-v1",
+      "sheet": "结营评审（演示）",
+      "lastColumn": "J",
+      "excerptColumn": "J",
+      "dateColumn": "G",
+      "sha256": "8f7039cf3f56a4c0157a1bfe5a39dec7102b5572643630e93fd4591c9b90bdfa",
+      "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "firstDataRow": 2,
+      "lastDataRow": 94,
+      "personRows": 93,
+      "identityColumns": ["A", "B"],
+      "dateEncoding": "Excel numeric date, displayed in UTC",
+      "presentEvaluations": 86
+    }
+  }
+}
