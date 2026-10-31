@@ -1399,11 +1399,13 @@
     S.events.forEach((e) => { if (e.kind === 'obs' && e.date) e.scores.forEach((s) => { if (COUNTED.includes(s.st) && store.heldBy(e, s) === h) list.push(s); }); });
     return { ...h, n: list.length, people: new Set(list.map((s) => s.p)).size, raters: new Set(list.map((s) => s.by).filter(Boolean)).size };
   }).filter((h) => h.n);
+  // 前段标准的预览汇总了依据，说明和依据任一改动，预览都要重算
+  const frontKey = (d) => JSON.stringify([d.note, d.basis || []]);
   // 前段评价标准：只看下一期的适用范围、保留旧版的条数和汇总依据；不列名单，也不涉及个人的分数
   function frontImpact(d) {
     const g = store.NEXT_PERIOD, rows = Object.values(J.xe).flatMap((x) => x.rows.filter((r) => r.front));
     const judge = (d.basis || []).filter((b) => b.type === 'judge');
-    return { kind: 'front', at: NT.TODAY, key: JSON.stringify(d.note), next: g ? { name: g.name, node: g.nodes[0][1], at: g.nodes[0][0] } : null,
+    return { kind: 'front', at: NT.TODAY, key: frontKey(d), next: g ? { name: g.name, node: g.nodes[0][1], at: g.nodes[0][0] } : null,
       keep: rows.length, keepBatch: J.batches.filter((b) => b.std === d.base).map((b) => b.name), basis: judge.map((b) => ({ dim: b.dim, n: b.n, batch: store.judgeBatch(b.batch)?.name })), notes: (d.basis || []).length - judge.length };
   }
   store.previewDraft = (kind, line) => {
@@ -1420,7 +1422,7 @@
   store.lockBlocks = (d, kind = store.ruleKind(d.v)) => d.effect === 'now' && store.lockedKinds.includes(kind) && !!store.inventoryLock();
   store.draftChecks = (d) => {
     const ch = store.ruleChanges(d);
-    const key = d.params ? JSON.stringify(d.params) : d.line ? JSON.stringify(d.note) : JSON.stringify(d.content);
+    const key = d.params ? JSON.stringify(d.params) : d.line ? frontKey(d) : JSON.stringify(d.content);
     return {
       lock: !store.lockBlocks(d),
       changed: ch.length > 0,

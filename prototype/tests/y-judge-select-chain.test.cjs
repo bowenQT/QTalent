@@ -105,3 +105,25 @@ test('入营选拔标准：退回、确认后排期到第七期，选拔开始�
   assert.equal(st.ruleLive('front', 'xe-select').v, 'xe-select-v1');
   assert.equal(st.ruleOpen('front', 'xe-select').state, 'scheduled');
 });
+
+test('入营选拔标准：预览后增删依据，预览作废，要重新预览才能提交', () => {
+  const { as } = load();
+  const st = as('hrbp');
+  const d = st.startDraft('front', [{ type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: '演示', cat: '评价标准' }], 'xe-select');
+  st.setDraft('front', { note: `${d.note}；组队作品写清本人做了哪部分`, why: '优先录取只看作品成品' }, 'xe-select');
+  assert.equal(st.previewDraft('front', 'xe-select').basis.length, 1);
+
+  const undo = st.removeBasis('front', 0, 'xe-select');
+  assert.equal(st.draftChecks(st.ruleOpen('front', 'xe-select')).preview, false);
+  assert.equal(st.submitDraft('front', 'xe-select'), null);
+  assert.equal(st.previewDraft('front', 'xe-select').basis.length, 0);
+  assert.ok(st.draftChecks(st.ruleOpen('front', 'xe-select')).preview);
+
+  undo();
+  assert.equal(st.draftChecks(st.ruleOpen('front', 'xe-select')).preview, false, '撤销移除也改变了依据');
+  st.setDraft('front', { basis: [...st.ruleOpen('front', 'xe-select').basis, { type: 'note', text: '补一条说明' }] }, 'xe-select');
+  const p = st.previewDraft('front', 'xe-select');
+  assert.equal(p.basis.length, 1);
+  assert.equal(p.notes, 1);
+  assert.ok(st.submitDraft('front', 'xe-select'));
+});
