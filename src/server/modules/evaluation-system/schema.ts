@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import type { EvaluationRuleCategory } from '../../../contracts/selection-standard';
 import {
   pgTable,
   text,
@@ -6,6 +7,8 @@ import {
   boolean,
   unique,
   check,
+  timestamp,
+  index,
 } from 'drizzle-orm/pg-core';
 export const dimensions = pgTable(
   'evaluation_dimensions',
@@ -63,6 +66,47 @@ export const anchors = pgTable(
       t.dimensionId,
       t.ruleVersionId,
       t.value,
+    ),
+  ],
+);
+
+// Source provenance remains on ruleVersions. Applicability is explicit and does
+// not change the legacy insertion shape or infer a category from provenance.
+export const ruleVersionApplicability = pgTable(
+  'evaluation_rule_version_applicability',
+  {
+    versionId: text('version_id')
+      .primaryKey()
+      .references(() => ruleVersions.id),
+    category: text('category').$type<EvaluationRuleCategory>().notNull(),
+    effectiveFrom: timestamp('effective_from', {
+      withTimezone: true,
+    }).notNull(),
+    effectiveUntil: timestamp('effective_until', { withTimezone: true }),
+  },
+  (t) => [
+    check(
+      'evaluation_rule_applicability_category',
+      sql`${t.category} in ('dimension_anchors', 'xe_selection', 'xe_weekly')`,
+    ),
+    check(
+      'evaluation_rule_applicability_version_category',
+      sql`
+      (${t.category} = 'dimension_anchors' and ${t.versionId} ~ '^rubric-v[1-9][0-9]*$') or
+      (${t.category} = 'xe_selection' and ${t.versionId} ~ '^xe-select-v[1-9][0-9]*$') or
+      (${t.category} = 'xe_weekly' and ${t.versionId} ~ '^xe-weekly-v[1-9][0-9]*$')
+    `,
+    ),
+    check(
+      'evaluation_rule_applicability_window',
+      sql`
+      isfinite(${t.effectiveFrom}) and
+      (${t.effectiveUntil} is null or (isfinite(${t.effectiveUntil}) and ${t.effectiveUntil} > ${t.effectiveFrom}))
+    `,
+    ),
+    index('evaluation_rule_applicability_lookup_idx').on(
+      t.category,
+      t.effectiveFrom,
     ),
   ],
 );
