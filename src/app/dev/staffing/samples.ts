@@ -41,7 +41,7 @@ function source(id: string, location: string, excerpt: string): Source {
     excerpt,
     sourceType: 'prototype_snapshot',
     sourceCategory: 'prototype_baseline',
-    displayNotice: '演示：取自原型 Y 的演示数据，不是人事原始材料。',
+    displayNotice: '演示：取自原型 Y 的演示数据。',
     demo: true,
   };
   sampleSources.set(value.fragmentId, value);
@@ -423,7 +423,7 @@ export function newMatching(
               progress: 'completed',
               aiJudgment: {
                 conclusion: 'insufficient',
-                rationale: '还没有核对到相关事件',
+                rationale: '相关事件待核对',
                 sources: [],
               },
             }

@@ -275,7 +275,7 @@ describe('entry and drafting', () => {
     for (const message of [
       '请再具体一点',
       '演示：无权限',
-      '没有保存，请检查网络后再试一次',
+      '保存失败，请检查网络后再试一次',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: '开始' }));
       expect((await screen.findByRole('alert')).textContent).toBe(message);
@@ -397,7 +397,7 @@ describe('demand card', () => {
       [...document.querySelectorAll('#reqs li')].map((li) => li.textContent),
     ).toEqual(['必须独立交付模块', '必须有语音经验', '必须10 月能到岗']);
 
-    fireEvent.click(screen.getByRole('button', { name: '确认需求，开始核对' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认需求' }));
     await screen.findByText('演示审核人 09-04 确认 · 按这版要求核对候选人');
     expect(p.confirmDemand).toHaveBeenCalledWith({
       operationId: expect.any(String),
@@ -434,7 +434,7 @@ describe('demand card', () => {
     fireEvent.click(screen.getByRole('button', { name: '加上' }));
     await waitFor(() =>
       expect(screen.getByRole('alert').textContent).toBe(
-        '没有保存，请检查网络后再试一次',
+        '保存失败，请检查网络后再试一次',
       ),
     );
   });
@@ -560,7 +560,7 @@ describe('candidates', () => {
     fireEvent.click(within(form).getByRole('button', { name: '署名确认' }));
     await waitFor(() =>
       expect(within(form).getByRole('alert').textContent).toBe(
-        '没有保存，请检查网络后再试一次',
+        '保存失败，请检查网络后再试一次',
       ),
     );
     expect(within(form).getByRole('textbox')).toHaveProperty(
@@ -618,15 +618,15 @@ describe('candidates', () => {
     expect(
       within(form).getByRole('button', { name: '资料不足' }),
     ).toHaveProperty('disabled', false);
-    expect(within(form).getByText(/没有可以引用的来源/)).toBeTruthy();
+    expect(within(form).getByText(/来源待补充/)).toBeTruthy();
   });
 
   it('says when matching is not connected, still running, failed or not visible', async () => {
     const cases: [Partial<StaffingPorts>, string][] = [
-      [{ openMatching: vi.fn(async () => null) }, '候选人核对还没接通'],
+      [{ openMatching: vi.fn(async () => null) }, '候选人核对待接通'],
       [
         { openMatching: vi.fn(async () => Promise.reject(new Error('x'))) },
-        '候选人核对还没接通',
+        '候选人核对待接通',
       ],
       [
         {
@@ -638,7 +638,7 @@ describe('candidates', () => {
             ),
           ),
         },
-        '候选人核对没有完成',
+        '候选人核对中断',
       ],
       [
         {
@@ -646,7 +646,7 @@ describe('candidates', () => {
             Promise.reject(new JobReadError(403)),
           ),
         },
-        '你没有执行此操作的权限',
+        '这次核对在你的查看范围之外',
       ],
       [
         {
@@ -658,7 +658,7 @@ describe('candidates', () => {
             ),
           ),
         },
-        '正在核对候选人',
+        '候选人核对中',
       ],
     ];
     for (const [overrides, text] of cases) {
@@ -735,8 +735,214 @@ describe('candidates', () => {
         screen.getByRole('button', { name: '有语音经验：加分，切换为必须项' }),
       );
     });
-    await screen.findByRole('button', { name: '确认需求，开始核对' });
+    await screen.findByRole('button', { name: '确认需求' });
     expect(screen.queryByRole('link', { name: '演示甲' })).toBeNull();
+  });
+});
+
+describe('first-round review fixes', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  }
+  const pageAt = (demand: StaffingDemand): StaffingPage => {
+    const page = pageOf(demand);
+    return {
+      ...page,
+      candidates: page.candidates.map((item) => ({
+        ...item,
+        demandRevision: demand.revision,
+      })),
+    };
+  };
+
+  it('ends the drafting trail when the job can no longer be read, keeping the sentence', async () => {
+    for (const status of [401, 403, 404]) {
+      render(
+        <Staffing
+          project={project}
+          demand={null}
+          accountId="me"
+          ports={ports({
+            readDemandJob: vi.fn(async () =>
+              Promise.reject(new JobReadError(status)),
+            ),
+          })}
+        />,
+      );
+      fireEvent.change(field(), { target: { value: `找人 ${status}` } });
+      fireEvent.click(screen.getByRole('button', { name: '开始' }));
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        '起草结果读取失败，请重新登录后回到输入框再发一次。',
+      );
+      expect(
+        document.querySelector('.n-trail__step[data-state="failed"]'),
+      ).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: '回到输入框' }));
+      expect(field()).toHaveProperty('value', `找人 ${status}`);
+      cleanup();
+    }
+  });
+
+  it('says it is retrying while reading the drafting job fails for a moment', async () => {
+    render(
+      <Staffing
+        project={project}
+        demand={null}
+        accountId="me"
+        ports={ports({
+          readDemandJob: vi.fn(async () =>
+            Promise.reject(new JobReadError(500)),
+          ),
+        })}
+      />,
+    );
+    fireEvent.change(field(), { target: { value: '找人' } });
+    fireEvent.click(screen.getByRole('button', { name: '开始' }));
+    await screen.findByText(/起草进度读取中断，正在重试/);
+    expect(screen.getByRole('button', { name: '回到输入框' })).toBeTruthy();
+  });
+
+  it('opens a fresh judgment form for each waiting requirement of one person', async () => {
+    const page = pageOf(confirmed);
+    page.candidates = [
+      candidate('甲', [
+        { ...page.candidates[0].requirements[1], requirementId: 'required-1' },
+        page.candidates[0].requirements[1],
+      ]),
+      candidate('乙', [supported, { ...supported, requirementId: 'bonus-1' }]),
+    ];
+    const p = ports({
+      readMatchingJob: vi.fn(async () =>
+        job('staffing_match', 'awaiting_manual', page),
+      ),
+    });
+    render(
+      <Staffing
+        project={project}
+        demand={confirmed}
+        matchingJobId="staffing_match-job"
+        accountId="me"
+        ports={p}
+      />,
+    );
+    await screen.findByRole('link', { name: '演示甲' });
+    const a = card('演示甲');
+    fireEvent.click(within(a).getAllByRole('button', { name: '人工判断' })[0]);
+    let form = screen.getByRole('group', { name: /这条要求要你来判断/ });
+    fireEvent.click(within(form).getByRole('button', { name: '资料不足' }));
+    fireEvent.change(within(form).getByRole('textbox'), {
+      target: { value: '演示：第一条的理由' },
+    });
+    fireEvent.click(within(a).getByRole('button', { name: '人工判断' }));
+    form = screen.getByRole('group', { name: /这条要求要你来判断/ });
+    expect(form.textContent).toContain('有语音经验');
+    expect(within(form).getByRole('textbox')).toHaveProperty('value', '');
+    expect(
+      within(form)
+        .getAllByRole('button')
+        .some((button) => button.getAttribute('aria-pressed') === 'true'),
+    ).toBe(false);
+    expect(p.judge).not.toHaveBeenCalled();
+  });
+
+  it('drops a judgment answer that arrives after the demand changed', async () => {
+    const answer = deferred<Awaited<ReturnType<StaffingPorts['judge']>>>();
+    let latest: StaffingDemand = confirmed;
+    const p = ports({
+      judge: vi.fn(() => answer.promise),
+      confirmDemand: vi.fn(async (input) => {
+        latest = {
+          ...confirmed,
+          revision: input.expectedRevision + 1,
+        };
+        return { status: 'success' as const, demand: latest, replayed: false };
+      }),
+      openMatching: vi.fn(async ({ revision }) => `match-${revision}`),
+      readMatchingJob: vi.fn(async (jobId) =>
+        job('staffing_match', 'awaiting_manual', pageAt(latest), jobId),
+      ),
+    });
+    render(
+      <Staffing
+        project={project}
+        demand={confirmed}
+        accountId="me"
+        ports={p}
+      />,
+    );
+    await screen.findByRole('link', { name: '演示甲' });
+    fireEvent.click(screen.getByRole('button', { name: '人工判断' }));
+    const form = screen.getByRole('group', { name: /这条要求要你来判断/ });
+    fireEvent.click(within(form).getByRole('button', { name: '资料不足' }));
+    fireEvent.change(within(form).getByRole('textbox'), {
+      target: { value: '演示：旧版本的理由' },
+    });
+    fireEvent.click(within(form).getByRole('button', { name: '署名确认' }));
+    await waitFor(() => expect(p.judge).toHaveBeenCalled());
+
+    fireEvent.click(
+      screen.getByRole('button', { name: '有语音经验：加分，切换为必须项' }),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: '确认需求' }));
+    await screen.findByText('演示审核人 09-04 确认 · 按这版要求核对候选人');
+    await screen.findByRole('link', { name: '演示甲' });
+    expect(latest.revision).toBe(4);
+
+    await act(async () => {
+      answer.resolve({
+        status: 'success',
+        demandId: confirmed.id,
+        personId: '甲',
+        revision: confirmed.revision,
+        match: {
+          requirementId: 'bonus-1',
+          progress: 'completed',
+          aiJudgment: null,
+          humanJudgment: {
+            conclusion: 'insufficient',
+            rationale: '演示：旧版本的理由',
+            sources: [],
+            judgedBy: { id: 'demo-hr', name: '演示审核人' },
+            judgedAt: '2026-09-04T03:00:00Z',
+          },
+        },
+        replayed: false,
+      });
+    });
+    expect(screen.queryByText('演示：旧版本的理由')).toBeNull();
+    expect(within(card('演示甲')).getByText('待人工判断')).toBeTruthy();
+  });
+
+  it('keeps what is typed while an added requirement is being saved', async () => {
+    const saved = deferred<Awaited<ReturnType<StaffingPorts['editDemand']>>>();
+    render(
+      <Staffing
+        project={project}
+        demand={draft}
+        accountId="me"
+        ports={ports({ editDemand: vi.fn(() => saved.promise) })}
+      />,
+    );
+    const add = screen.getByRole('textbox', { name: '补一句要求' });
+    fireEvent.change(add, { target: { value: '能带新人' } });
+    fireEvent.click(screen.getByRole('button', { name: '加上' }));
+    fireEvent.change(add, { target: { value: '能带新人和值班' } });
+    await act(async () => {
+      saved.resolve({
+        status: 'success',
+        demand: {
+          ...draft,
+          revision: 2,
+          requirements: withRequirement(draft.requirements, '能带新人'),
+        },
+        replayed: false,
+      });
+    });
+    expect(add).toHaveProperty('value', '能带新人和值班');
   });
 });
 
@@ -749,7 +955,7 @@ describe('helpers', () => {
       '演示：不存在',
     );
     expect(failureText({ status: 'validation_error', fieldErrors: {} })).toBe(
-      '没有保存，请检查后再试一次',
+      '保存失败，请检查后再试一次',
     );
   });
 

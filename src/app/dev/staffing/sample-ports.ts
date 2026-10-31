@@ -52,6 +52,7 @@ export function samplePorts(
 ): StaffingPorts {
   let current: StaffingDemand | null =
     scene === 'new' ? null : samplePages[scene].demand;
+  let sentence: string | null = null;
   const reads = new Map<string, number>();
   const count = (jobId: string) => {
     const next = (reads.get(jobId) ?? 0) + 1;
@@ -66,6 +67,7 @@ export function samplePorts(
   return {
     async createDemand(input) {
       await wait(delay);
+      sentence = input.inputText;
       return {
         status: 'success',
         snapshot: snapshot<'staffing_demand', StaffingDemand>(
@@ -81,13 +83,19 @@ export function samplePorts(
     async readDemandJob(jobId) {
       await wait(delay);
       const done = count(jobId) >= 2;
-      if (done) current = newDraft;
+      // Requirements are the prepared voice-hardware draft; the quoted sentence is the
+      // one sent.
+      const drafted = {
+        ...newDraft,
+        inputText: sentence ?? newDraft.inputText,
+      };
+      if (done) current = drafted;
       const result: StaffingDemandJobSnapshot = snapshot(
         'staffing_demand',
         jobId,
         done ? 3 : 2,
         done ? 'completed' : 'running',
-        done ? newDraft : null,
+        done ? drafted : null,
       );
       return result;
     },
@@ -172,7 +180,7 @@ export function samplePorts(
       const source = sampleSources.get(input.fragmentId);
       return source && source.originalVersionId === input.originalVersionId
         ? { status: 'success', source }
-        : { status: 'not_found', message: '来源不存在或已删除' };
+        : { status: 'not_found', message: '来源已删除或链接有误' };
     },
   };
 }

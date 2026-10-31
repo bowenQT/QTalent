@@ -152,6 +152,16 @@ describe('arrangeCandidates', () => {
         concluded('b', 'insufficient'),
         concluded('c', 'supported'),
       ]),
+      person('waits-for-hand', [
+        concluded('a', 'insufficient'),
+        concluded('b', 'insufficient'),
+        { ...waiting, requirementId: 'c', progress: 'awaiting_manual' },
+      ]),
+      person('failed-only', [
+        concluded('a', 'insufficient'),
+        concluded('b', 'insufficient'),
+        { ...waiting, requirementId: 'c', progress: 'failed' },
+      ]),
       person('in-progress', [
         { ...waiting, requirementId: 'a', progress: 'judging' },
         { ...waiting, requirementId: 'b', progress: 'queued' },
@@ -160,14 +170,17 @@ describe('arrangeCandidates', () => {
     expect(listed.map((view) => view.person.id)).toEqual([
       'has-support',
       'one-gap',
+      'waits-for-hand',
       'in-progress',
     ]);
-    expect(pending).toEqual([
-      {
-        person: { id: 'short', name: '演示short', orgName: '演示部门' },
-        missing: ['要求 A', '要求 B'],
-      },
+    expect(pending.map((item) => item.person.id)).toEqual([
+      'short',
+      'failed-only',
     ]);
+    expect(pending[0]).toEqual({
+      person: { id: 'short', name: '演示short', orgName: '演示部门' },
+      missing: ['要求 A', '要求 B'],
+    });
   });
 });
 

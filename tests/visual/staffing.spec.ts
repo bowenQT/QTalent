@@ -180,7 +180,11 @@ for (const scene of scenes as readonly StaffingScene[])
           mask?: readonly string[];
         }[] = [
           { part: 'head', selector: '.nt-head' },
-          { part: 'demand-title', selector: '#needcard > .nt-row:first-child' },
+          // The title alone: the shorter AI badge wraps differently at phone width.
+          {
+            part: 'demand-title',
+            selector: '#needcard > .nt-row:first-child > h3',
+          },
           {
             part: 'requirements',
             selector: '#reqs',
@@ -249,7 +253,7 @@ for (const [viewportName, viewport] of viewports)
         'composer → examples',
       );
       for (const [part, selector] of [
-        ['head', '.nt-head'],
+        ['title', '.nt-head h1'],
         ['composer', '.n-composer'],
         ['asks', '.n-asks'],
       ] as const)

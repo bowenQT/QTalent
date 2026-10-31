@@ -5,6 +5,7 @@ import type { StaffingDemand } from '@/contracts/staffing';
 import type { ProjectHead } from '../../view';
 import {
   addPlaceholder,
+  confirmButton,
   confirmCaption,
   confirmedLine,
   demandBadge,
@@ -46,7 +47,9 @@ export function DemandCard({
       setDraft('');
       return;
     }
-    if (await onAdd(text)) setDraft('');
+    // Clear only what was saved; anything typed while saving stays in the field.
+    if (await onAdd(text))
+      setDraft((current) => (current.trim() === text ? '' : current));
   }
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
@@ -136,7 +139,7 @@ export function DemandCard({
             onClick={onConfirm}
           >
             <Icon name="check" />
-            确认需求，开始核对
+            {confirmButton}
           </button>
           <span className="nt-muted">{confirmCaption}</span>
         </div>

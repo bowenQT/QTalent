@@ -1,12 +1,25 @@
 'use client';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type { StaffingCandidate, StaffingDemand } from '@/contracts/staffing';
 import type { StaffingPorts } from './ports';
 import { projectStatusTone, type ProjectHead } from './view';
 import { projectHref } from './format';
 import { hasDraft, sessionStorageOrNull, takeDraft } from './draft';
 import { useJob } from './use-job';
-import { conflictText, demandFailed } from './copy';
+import {
+  conflictText,
+  draftFailed,
+  draftLost,
+  draftRetrying,
+  offline,
+  saveFailed,
+} from './copy';
 import { Entry } from './sections/entry/Entry';
 import { Generating, generationPhase } from './sections/generating/Generating';
 import { DemandCard } from './sections/demand/DemandCard';
@@ -26,15 +39,13 @@ type Failure =
 export function failureText(result: Failure): string {
   if (result.status === 'conflict') return conflictText;
   if (result.status === 'validation_error')
-    return (
-      Object.values(result.fieldErrors).flat()[0] ??
-      '没有保存，请检查后再试一次'
-    );
+    return Object.values(result.fieldErrors).flat()[0] ?? saveFailed;
   return result.message;
 }
-const offline = '没有保存，请检查网络后再试一次';
 
 const operationId = () => crypto.randomUUID();
+const judgedKey = (revision: number, personId: string, requirementId: string) =>
+  `${revision}\u0000${personId}\u0000${requirementId}`;
 
 /** A requirement added on the card is required; it goes before the bonus items. */
 export function withRequirement(
@@ -141,6 +152,13 @@ export function Staffing(props: StaffingProps) {
       : null,
   );
   const confirmed = demand?.status === 'confirmed' ? demand : null;
+  // The demand revision on screen, for answers that arrive after it changed.
+  const shown = useRef<{ id: string; revision: number } | null>(null);
+  useEffect(() => {
+    shown.current = confirmed
+      ? { id: confirmed.id, revision: confirmed.revision }
+      : null;
+  });
   const current =
     confirmed && matching?.revision === confirmed.revision ? matching : null;
   const matchJob = useJob(current?.jobId ?? null, ports.readMatchingJob);
@@ -187,8 +205,13 @@ export function Staffing(props: StaffingProps) {
         ...candidate,
         requirements: candidate.requirements.map(
           (match) =>
-            judged.get(`${candidate.person.id}\u0000${match.requirementId}`) ??
-            match,
+            judged.get(
+              judgedKey(
+                page.demand.revision,
+                candidate.person.id,
+                match.requirementId,
+              ),
+            ) ?? match,
         ),
       })) ?? null,
     [page, judged],
@@ -254,40 +277,86 @@ export function Staffing(props: StaffingProps) {
     draft: ManualJudgmentDraft,
   ) {
     if (!confirmed) return;
-    setJudging({ personId, requirementId, busy: true, error: null });
+    const target = {
+      demandId: confirmed.id,
+      revision: confirmed.revision,
+      personId,
+      requirementId,
+    };
+    // An answer counts only for the demand revision and requirement it was asked for.
+    const stillShown = () =>
+      shown.current?.id === target.demandId &&
+      shown.current.revision === target.revision;
+    const same = (other: JudgingTarget) =>
+      other?.revision === target.revision &&
+      other.personId === personId &&
+      other.requirementId === requirementId;
+    setJudging({ ...target, busy: true, error: null });
     let error: string;
     try {
       const result = await ports.judge({
         operationId: operationId(),
-        demandId: confirmed.id,
-        expectedRevision: confirmed.revision,
+        demandId: target.demandId,
+        expectedRevision: target.revision,
         personId,
         requirementId,
         ...draft,
       });
+      if (!stillShown()) return;
       if (result.status === 'success') {
+        if (
+          result.demandId !== target.demandId ||
+          result.revision !== target.revision ||
+          result.personId !== personId ||
+          result.match.requirementId !== requirementId
+        )
+          return;
         setJudged((map) =>
-          new Map(map).set(`${personId}\u0000${requirementId}`, result.match),
+          new Map(map).set(
+            judgedKey(target.revision, personId, requirementId),
+            result.match,
+          ),
         );
-        setJudging(null);
+        setJudging((open) => (same(open) ? null : open));
         return;
       }
       error = failureText(result);
     } catch {
+      if (!stillShown()) return;
       error = offline;
     }
-    setJudging({ personId, requirementId, busy: false, error });
+    setJudging((open) =>
+      same(open) ? { ...target, busy: false, error } : open,
+    );
   }
 
   if (!demand || !props.project) {
     if (sent) {
-      const failed = generationPhase(demandSnapshot) === 'failed';
+      // Reading the job can end for good (signed out, permission changed, job gone):
+      // the subscription stops, so the trail must stop too.
+      const lost =
+        demandJob?.connection === 'forbidden' ||
+        demandJob?.connection === 'not_found';
+      const failed = lost || generationPhase(demandSnapshot) === 'failed';
+      const note = lost
+        ? draftLost
+        : failed
+          ? draftFailed
+          : demandJob?.connection === 'error'
+            ? draftRetrying
+            : null;
       return (
         <>
-          <Generating text={sent.text} snapshot={demandSnapshot} />
-          {failed || demandJob?.connection === 'error' ? (
+          <Generating
+            text={sent.text}
+            snapshot={demandSnapshot}
+            stopped={lost}
+          />
+          {note ? (
             <div className="nt-row" style={{ marginTop: 'var(--s-3)' }}>
-              <span className="nt-muted">{demandFailed.text}</span>
+              <span className="nt-muted" role={failed ? 'alert' : undefined}>
+                {note}
+              </span>
               <button
                 type="button"
                 className="n-btn n-btn--sm"
@@ -357,6 +426,8 @@ export function Staffing(props: StaffingProps) {
               judging={judging}
               onOpenJudgment={(personId, requirementId) =>
                 setJudging({
+                  demandId: confirmed.id,
+                  revision: confirmed.revision,
                   personId,
                   requirementId,
                   busy: false,

@@ -31,9 +31,7 @@ test('a mentor is stopped at /staffing; managers and HR get the page', async ({
   await context.clearCookies();
   await login(context, 'hrbp', referenceApp.baseURL);
   await page.goto('/staffing?project=pr-ts');
-  await expect(
-    page.getByRole('heading', { name: '找人还没接通' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: '找人待接通' })).toBeVisible();
   await expect(page).toHaveTitle('找人 · Niu-Talent');
 });
 
@@ -66,7 +64,7 @@ test('one sentence becomes a demand card, which is edited and confirmed before m
   await page.keyboard.press('Enter');
   await expect(page.locator('#reqs li').last()).toHaveText('必须能带新人');
 
-  await page.getByRole('button', { name: '确认需求，开始核对' }).click();
+  await page.getByRole('button', { name: '确认需求' }).click();
   await expect(
     page.getByText('程远 09-04 确认 · 按这版要求核对候选人'),
   ).toBeVisible();
@@ -79,7 +77,7 @@ test('each requirement shows a state or its progress, and every source opens', a
   await page.goto('/dev/staffing?role=manager&scene=new');
   await page.getByRole('textbox', { name: '描述项目和要找的人' }).fill('找人');
   await page.getByRole('button', { name: '开始' }).click();
-  await page.getByRole('button', { name: '确认需求，开始核对' }).click();
+  await page.getByRole('button', { name: '确认需求' }).click();
   // Settled matching: one requirement waits for a person, one failed.
   await expect(page.getByText('待人工判断')).toBeVisible();
 
@@ -87,7 +85,7 @@ test('each requirement shows a state or its progress, and every source opens', a
   await expect(first.locator('li[data-s="yes"]')).toHaveCount(3);
   const failed = card(page, '方景深').locator('li[data-progress="failed"]');
   await expect(failed).toContainText('失败');
-  await expect(failed).toContainText('这一条没有判断出来');
+  await expect(failed).toContainText('判断失败，结论留空');
   await expect(failed).not.toHaveAttribute('data-s');
   await expect(page.locator('#cands')).not.toContainText(/总分|胜任率|%/);
 
@@ -106,7 +104,7 @@ test('a waiting requirement is judged by hand with a signature', async ({
   await page.goto('/dev/staffing?role=hr&scene=new');
   await page.getByRole('textbox', { name: '描述项目和要找的人' }).fill('找人');
   await page.getByRole('button', { name: '开始' }).click();
-  await page.getByRole('button', { name: '确认需求，开始核对' }).click();
+  await page.getByRole('button', { name: '确认需求' }).click();
 
   const person = card(page, '孟映雪');
   await person.getByRole('button', { name: '人工判断' }).click();

@@ -165,6 +165,8 @@ export function CandidateCard({
             );
             return row ? (
               <ManualJudgment
+                // A fresh form per requirement: nothing typed for one carries to another.
+                key={row.requirement.id}
                 requirement={row.requirement}
                 personName={person.name}
                 sources={sources}

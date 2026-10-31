@@ -44,7 +44,8 @@ export const withinMasks = {
 /*
  * Compared by part instead of as a whole, because a registered difference changes the
  * element's size:
- * - Demand card: title row, requirement list, add row and caption. The prototype's
+ * - Demand card: title, requirement list, add row and caption. The AI badge drops
+ *  「点要求可以改写」(no rewriting on this page), which changes its wrapping. The prototype's
  *  「来自」line names the author and date and its role row lists roles (no contract
  *   fields); the engineering card adds the confirm step (BOW-853 10/31: match only after
  *   confirmation; design pending BOW-925).
@@ -52,7 +53,8 @@ export const withinMasks = {
  *   project count, dimension line, direction line, intent and release (`.n-cmeta`) and
  *   plan buttons have no contract fields; avatars are not colored per person.
  * - Entry: the target role templates (`.n-tpls`) have no contract, so the composer is
- *   compared on its own and its offset is not.
+ *   compared on its own and its offset is not; the heading compares the title only,
+ *   because the lead line drops「或者从目标角色模板开始」.
  * Not rendered at all: the plan column (`#plan`, plan contract `not_connected`); its
  * grid column stays, empty.
  */

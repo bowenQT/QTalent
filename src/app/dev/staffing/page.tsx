@@ -6,6 +6,8 @@ import { sampleShell, type SampleRole, type SampleScene } from './samples';
 const roles: readonly SampleRole[] = ['manager', 'hr'];
 const scenes: readonly SampleScene[] = ['ts', 'agent', 'new'];
 
+export const metadata = { title: '找人 · Niu-Talent' };
+
 /** Development-only sample of the find-people page; production serves 404. */
 export default async function StaffingSample({
   searchParams,

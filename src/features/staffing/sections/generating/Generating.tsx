@@ -37,7 +37,7 @@ export function generationSteps(
     { id: 'understand', label: '理解需求', state: understand },
     {
       id: 'split',
-      label: '拆出要求，起草需求卡',
+      label: '起草需求卡',
       state: split,
       ...(phase === 'failed' && failure ? { detail: failure } : {}),
     },
@@ -47,11 +47,14 @@ export function generationSteps(
 export function Generating({
   text,
   snapshot,
+  stopped = false,
 }: {
   text: string;
   snapshot: StaffingDemandJobSnapshot | null;
+  /** Reading the job ended for good; the page says why next to the trail. */
+  stopped?: boolean;
 }) {
-  const phase = generationPhase(snapshot);
+  const phase = stopped ? 'failed' : generationPhase(snapshot);
   const steps = generationSteps(phase, snapshot?.error?.message ?? null);
   return (
     <>

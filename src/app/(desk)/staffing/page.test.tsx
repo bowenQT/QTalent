@@ -55,7 +55,7 @@ describe('staffing route', () => {
     for (const roles of [['manager'], ['mentor', 'hr']]) {
       getShellPage.mockResolvedValue(shell(roles));
       render(await StaffingPage());
-      expect(screen.getByText('找人还没接通')).toBeTruthy();
+      expect(screen.getByText('找人待接通')).toBeTruthy();
       expect(screen.queryByText(/候选人 /)).toBeNull();
       expect(await generateMetadata()).toEqual({ title: '找人 · Niu-Talent' });
       cleanup();

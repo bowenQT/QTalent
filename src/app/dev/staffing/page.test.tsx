@@ -83,7 +83,7 @@ describe('sample ports', () => {
     const jobId = created.snapshot.jobId;
     expect((await ports.readDemandJob(jobId, signal)).status).toBe('running');
     const drafted = await ports.readDemandJob(jobId, signal);
-    expect(drafted.result).toEqual(newDraft);
+    expect(drafted.result).toEqual({ ...newDraft, inputText: '找人' });
 
     const stale = await ports.editDemand({
       operationId: 'e0',

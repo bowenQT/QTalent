@@ -58,7 +58,7 @@ export default async function StaffingPage() {
     <>
       <ShellTitle title="找人" />
       <State
-        title="找人还没接通"
+        title="找人待接通"
         text="需求卡和候选人核对接通后，会在这里按项目出现。现在可以先在项目与课题里查看项目。"
       >
         <div className="nt-row" style={{ justifyContent: 'center' }}>

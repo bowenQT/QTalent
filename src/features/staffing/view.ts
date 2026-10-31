@@ -114,8 +114,9 @@ export function toCandidateView(
 /**
  * Candidates in contract order (how many required items are supported, nothing else),
  * split as the prototype does: people with at least two required items short of evidence
- * and none supported wait under「条件待确认」. Insufficient evidence is never read as
- * a negative: it only moves the person to the waiting list.
+ * and none supported wait under「条件待确认」, once none of their requirements is
+ * still open. Insufficient evidence is never read as a negative: it only moves the
+ * person to the waiting list.
  */
 export function arrangeCandidates(
   demand: StaffingDemand,
@@ -131,7 +132,12 @@ export function arrangeCandidates(
     const concluded = (state: MatchStateValue) =>
       required.filter((row) => row.kind === 'concluded' && row.state === state);
     const unknown = concluded('unknown');
-    if (unknown.length >= 2 && concluded('yes').length === 0)
+    // Someone with a requirement still being judged, or waiting for a person to judge
+    // it, keeps the full card: the waiting list has no place to finish that work.
+    const open = view.rows.some(
+      (row) => row.kind === 'progress' && row.state !== 'failed',
+    );
+    if (!open && unknown.length >= 2 && concluded('yes').length === 0)
       pending.push({
         person: view.person,
         missing: unknown.map((row) => row.requirement.text),

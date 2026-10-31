@@ -5,7 +5,8 @@ import type { JobState } from '../../use-job';
 import type { LoadSource } from '@/features/sources/SourceCite';
 import { arrangeCandidates } from '../../view';
 import {
-  forbiddenText,
+  matchingLoading,
+  outOfScope,
   matchingFailed,
   matchingUnavailable,
   noCandidates,
@@ -21,6 +22,8 @@ export type MatchingState =
   | { kind: 'job'; job: JobState<StaffingJobSnapshot> | null };
 
 export type JudgingTarget = {
+  demandId: string;
+  revision: number;
   personId: string;
   requirementId: string;
   busy: boolean;
@@ -95,7 +98,7 @@ export function Candidates({
     if (job?.connection === 'forbidden' || job?.connection === 'not_found')
       return (
         <Section>
-          <State kind="denied" title={forbiddenText} />
+          <State kind="denied" title={outOfScope} />
         </Section>
       );
     const settled =
@@ -109,7 +112,7 @@ export function Candidates({
       );
     return (
       <Section>
-        <State kind="loading" title="正在核对候选人" />
+        <State kind="loading" title={matchingLoading} />
       </Section>
     );
   }
