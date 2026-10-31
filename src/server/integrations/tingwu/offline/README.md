@@ -4,7 +4,7 @@
 
 ## 提交与恢复
 
-- `submitOffline` 接收 Kodo `TranscriptionSource` 能力及 873/859 已探测的服务端媒体元数据。只接受 MP3/M4A/WAV/AAC、单个最多 2×1024³ 字节；`maxDurationMs` 必须由调用方显式配置，且不超过供应商的六小时上限。本卡不把声明格式当作真实内容探测。
+- `submitOffline` 接收 Kodo `TranscriptionSource` 能力及 873/859 已探测的服务端媒体元数据。只接受 MP3/M4A/WAV/AAC 音频与含音轨的 MP4 视频、单个最多 2×1024³ 字节；`maxDurationMs` 必须由调用方显式配置，且不超过供应商的六小时上限。本卡不把声明格式当作真实内容探测。视频提交原始 MP4 的私有 Kodo 来源 URL，由听悟只转写音轨；不提前把本地提取的 WAV 当作视频输入，不启用画面/PPT、摘要或其他算法。873/859 必须探测容器、音轨和时长；本客户端只复核已验证元数据。依据为官方[离线音视频说明](https://help.aliyun.com/zh/tingwu/offline-transcribe-of-audio-and-video-files)。
 - 真正提交时来源剩余有效期至少三小时，`submitSafetyMs` 可增加安全余量。队列只存原件引用；859 在出队提交前签发来源，过期且尚未发送时可重新签发。
 - 使用 `PUT /openapi/tingwu/v2/tasks?type=offline`，只开启说话人分离。`operationId` 作为 `TaskKey` 关联调用，不宣称供应商保证幂等。
 - 每次提交只发一次请求。超时、传输错误、发送后的取消或无法解析的响应均为 `submission_unknown`，不自动重提。若取消前已收到合法 TaskId，错误携带 `providerTaskId` 供调用方持久化并核查原任务。未知结果不能因为旧来源过期就重新创建任务。
