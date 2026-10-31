@@ -2115,11 +2115,12 @@
         <article class="n-card n-conn__item"><header class="n-conn__head"><b>MCP</b><span class="n-conn__state" data-state="on">有调用</span></header><p class="n-conn__use">在 Agent 工具里查人、找人、查任务状态</p><p class="n-conn__meta">最近一次调用 09-04 13:40 · 近 24 小时 4 次，其中 1 次拒绝或失败</p></article>
       </div>
       <h3 class="ds-sub">调用记录、绑定失败与任务失败</h3>
-      <p>调用记录只记时间、入口、账号、动作和结果，不记查询内容和返回内容。结果沿用处理进度的中性徽标：成功、拒绝（超出查看范围，没有返回内容）、失败（写原因）。绑定失败写发送人账号的后四位、对不上的原因和接下来；这里不能手动改绑，以北森人员目录为准。任务失败一项一张卡，写原因和接下来能做什么；只有重试能解决的才给「重试」，重试后可以撤销。</p>
+      <p>调用记录只记时间、入口、账号、动作和结果，不记查询内容和返回内容。结果沿用处理进度的中性徽标：成功、拒绝（超出查看范围，没有返回内容）、失败（写原因）。绑定失败写发送人账号的后四位、对不上的原因和接下来；这里不能手动改绑，以北森人员目录为准。任务失败一项一张卡，写原因和接下来能做什么；只有重试能解决的才给「重试」；重试后卡片留在原位，改成「已重新排队」，可以撤销。</p>
       <div class="ds-row" style="margin-bottom:var(--s-4)"><span class="n-badge n-badge--proc"><svg><use href="#i-check"/></svg>成功</span><span class="n-badge n-badge--proc" data-state="review"><svg><use href="#i-lock"/></svg>拒绝</span><span class="n-badge n-badge--proc" data-state="failed"><svg><use href="#i-x"/></svg>失败</span></div>
       <ul class="n-tfail" style="max-width:760px">
         <li class="n-card"><div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="failed"><svg><use href="#i-x"/></svg>失败</span><b>转写会议录音 · 42 分钟</b><small style="color:var(--ink-3)">企业微信 · 苏晚发起 · 09-04 09:58</small></div><dl class="n-tfail__dl"><dt>原因</dt><dd>转写服务超时，已自动重试 2 次</dd><dt>接下来</dt><dd>可以再重试一次；仍失败请部署负责人查看转写服务</dd></dl><div><span class="n-btn n-btn--sm"><svg><use href="#i-retry"/></svg>重试</span></div></li>
         <li class="n-card"><div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="failed"><svg><use href="#i-x"/></svg>失败</span><b>整理企业微信材料 · 1 个 PDF</b><small style="color:var(--ink-3)">企业微信 · 叶青发起 · 09-04 12:31</small></div><dl class="n-tfail__dl"><dt>原因</dt><dd>文件是扫描件，识别不出文字</dd><dt>接下来</dt><dd>请发送人改发可复制文字的版本；这一步不能重试解决</dd></dl></li>
+        <li class="n-card" data-state="queued"><div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="queued"><svg><use href="#i-clock"/></svg>已重新排队</span><b>整理事件与建议分 · 3 段纪要</b><small style="color:var(--ink-3)">AgentAPI · 苏晚发起 · 09-03 20:14</small></div><dl class="n-tfail__dl"><dt>上次原因</dt><dd>模型返回的格式不对，已自动重试 3 次</dd><dt>接下来</dt><dd>排队处理中，结果会更新在这张卡上；处理完会回到发起人的工作台</dd></dl></li>
       </ul>
       <div class="n-lock" style="margin-top:var(--s-3);max-width:760px"><svg><use href="#i-lock"/></svg><span>接入配置（机器人回调地址、MCP 与 AgentAPI 的令牌）在部署时完成，这里只看状态。页面不显示消息正文、文件内容、查询内容和密钥。</span></div>
 
@@ -2138,19 +2139,21 @@
         <div style="display:grid;gap:var(--s-3);align-content:start">
           <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">
             <h3>导出已确认内容</h3>
-            <div class="n-export"><p class="n-export__sum"><b>这个范围里还没有已确认的内容</b><span>换一个范围或时间再试</span></p></div>
-            <p class="n-dialog__hint">这个范围里还没有已确认的内容，换一个范围再生成</p>
+            <div class="n-export"><p class="n-export__sum"><b>这个范围里还没有已确认的内容</b><span>另有 3 条未确认或待复核的分，不导出</span></p></div>
+            <p class="n-dialog__hint">换一个范围或时间再生成</p>
             <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-download"/></svg>生成表格</span></div>
           </div>
-          <p class="ds-caption">生成后结果写在标题下方，处理中、已生成、失败三种：</p>
+          <p class="ds-caption">生成后结果写在标题下方。生成前按当前视角再校验一次，所以有处理中、已生成、失败、拒绝、范围里没有已确认内容五种：</p>
           <div class="n-notice is-plain n-exst" data-state="busy"><svg><use href="#i-clock"/></svg><div>正在生成「我负责的人 · 近 12 个月」的表格，只取已确认的内容…</div></div>
-          <div class="n-notice is-plain n-exst" data-state="done"><svg><use href="#i-check"/></svg><div><b>表格已生成：</b>我负责的人 · 近 12 个月，93 人、556 条已确认的维度分。表头写明了导出时间 09-04 14:20 和口径，不是盘点冻结结果；已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ink"><svg><use href="#i-download"/></svg>下载表格</span><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
+          <div class="n-notice is-plain n-exst" data-state="done"><svg><use href="#i-check"/></svg><div><b>表格已生成：</b>我负责的人 · 近 12 个月，93 人、556 条已确认的维度分。表头写明了导出时间 09-04 15:00 和口径，不是盘点冻结结果；已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ink"><svg><use href="#i-download"/></svg>下载表格</span><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
           <div class="n-notice is-deny n-exst" data-state="fail"><svg><use href="#i-x"/></svg><div><b>表格没有生成。</b>导出服务没有响应，没有生成文件；这次失败已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm"><svg><use href="#i-retry"/></svg>重试</span><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
+          <div class="n-notice is-deny n-exst" data-state="deny"><svg><use href="#i-lock"/></svg><div><b>表格没有生成。</b>生成前按你现在的视角重新校验，批量导出只对管理者和 HR 开放；这次尝试已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
+          <div class="n-notice is-plain n-exst" data-state="empty"><svg><use href="#i-info"/></svg><div><b>表格没有生成。</b>生成时「我负责的人 · 近 3 个月」里还没有已确认的内容，换一个范围或时间再导出。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
         </div>
       </div>
 
       <h3 class="ds-sub">档案页 · 打印档案</h3>
-      <p>入口在档案标题右侧，只给管理者和这个人的归属 HR；导师和员工没有入口。点开先说会打印什么、不打印什么；确认后按当前视角再校验一次并重新取数，越权就拒绝、不生成内容，并记入审计日志。打印稿只含已确认的内容：已确认的维度分（附引用、评分人、规则版本和来源）、已采纳的档案摘要、能力象限的正式位置；不含 AI 建议分、待校准的分、未采纳的 AI 摘要和系统给的参考位置。直接用浏览器打印只会印出一句提示。</p>
+      <p>入口在档案标题右侧，只给管理者和这个人的归属 HR；导师和员工没有入口。点开先说会打印什么、不打印什么；确认后按当前视角再校验一次并重新取数，越权就拒绝、不生成内容，并记入审计日志。打印稿只含已确认的内容：已确认的维度分（附引用、评分人、规则版本和来源）、已采纳的档案摘要、能力象限的正式位置；不含 AI 建议分、待校准的分、未采纳的 AI 摘要和系统给的参考位置。直接用浏览器打印只会印出一句提示：有打印入口的视角指向「打印档案」，没有入口的视角写明档案打印对谁开放。</p>
       <div class="ds-grid c2">
         <div style="display:grid;gap:var(--s-3);align-content:start">
           <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">

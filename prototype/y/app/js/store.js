@@ -1537,10 +1537,21 @@
     });
     return { rows, skipped, people: new Set(rows.map((r) => r.pid)).size };
   };
+  // 生成时按当前视角再判一次：已没有导出资格的拒绝并记审计；范围里没有已确认内容的不生成。两种都不出文件、不记导出成功
+  store.exportCheck = (pids, from) => {
+    if (!store.canExport()) return { state: 'deny' };
+    const r = store.exportRows(pids, from);
+    return { state: r.rows.length ? 'ok' : 'empty', ...r };
+  };
+  // 演示时钟：日期是 NT.TODAY，时刻从 15:00 起、每记一条审计往后一分钟，不读本机时钟。
+  // 导出表头、打印稿和审计用同一个时刻
+  store.clockNow = () => {
+    const m = 15 * 60 + (S.audit || []).length;
+    return `${NT.TODAY} ${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  };
   // 审计只记谁在什么时间对什么做了什么，不记导出或打印的内容本身
   store.audit = (act, obj) => {
-    const d = new Date(), at = `${NT.md(NT.TODAY)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    (S.audit ||= []).unshift({ at, by: store.me().id, act, obj });
+    (S.audit ||= []).unshift({ at: NT.md(store.clockNow()), by: store.me().id, act, obj });
     store.save();
   };
   store.audits = () => S.audit || [];

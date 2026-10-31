@@ -78,7 +78,7 @@
   function render(main) {
     mount(main, html`
       <header class="nt-head nt-head--tabs"><div><h1>系统管理 <span class="n-badge n-badge--demo">演示</span></h1><p>管账号与权限、北森同步、集成配置、接入状态和审计日志。系统管理员只看配置和技术记录，看不到档案、评价和原件。</p></div></header>
-      <div class="n-tabs" role="tablist" id="atabs">${TABS.map(([k, l]) => html`<button role="tab" type="button" data-tab="${k}" aria-selected="${k === tab}" aria-controls="ap-${k}" tabindex="${k === tab ? 0 : -1}">${l}</button>`)}</div>
+      <div class="n-tabs n-tabs--scroll" role="tablist" id="atabs">${TABS.map(([k, l]) => html`<button role="tab" type="button" data-tab="${k}" aria-selected="${k === tab}" aria-controls="ap-${k}" tabindex="${k === tab ? 0 : -1}">${l}</button>`)}</div>
       <div class="n-tabpanel" role="tabpanel" id="ap-acct" ${NT.raw(tab === 'acct' ? '' : 'hidden')}>${accounts()}</div>
       <div class="n-tabpanel" role="tabpanel" id="ap-hr" ${NT.raw(tab === 'hr' ? '' : 'hidden')}>${beisen()}</div>
       <div class="n-tabpanel" role="tabpanel" id="ap-intg" ${NT.raw(tab === 'intg' ? '' : 'hidden')}>${integrations()}</div>
@@ -169,7 +169,8 @@
         <p class="n-conn__use">${use}</p>
         <p class="n-conn__meta">${l.length ? `最近一次调用 ${l[0][0]} · 近 24 小时 ${l.length} 次${bad ? `，其中 ${bad} 次拒绝或失败` : ''}` : '部署后有账号调用时，这里显示最近的时间和结果'}</p></article>`;
     };
-    const tasks = TASK_FAILS.filter((t) => !requeued.has(t.id));
+    // 重新排队的任务留在原位，改成「已重新排队」，处理完才离开这里；计数只算还没处理的失败
+    const tasks = TASK_FAILS, open = tasks.filter((t) => !requeued.has(t.id));
     return html`
       <section class="nt-sec">
         <div class="n-conn">
@@ -198,12 +199,17 @@
         <p class="nt-caption">绑定以北森人员目录里的企业微信账号为准，这里不能手动改绑。对不上的消息不入库，并回复发送人「还没有绑定」。</p>
       </section>
       <section class="nt-sec">
-        <h2 class="nt-h2">任务失败 <small>${tasks.length ? `${tasks.length} 个待处理` : '没有待处理的'}</small></h2>
-        ${tasks.length ? html`<ul class="n-tfail">${tasks.map((t) => html`<li class="n-card">
+        <h2 class="nt-h2">任务失败 <small>${open.length ? `${open.length} 个待处理` : '没有待处理的'}${open.length < tasks.length ? ` · ${tasks.length - open.length} 个已重新排队` : ''}</small></h2>
+        ${tasks.length ? html`<ul class="n-tfail">${tasks.map((t) => (requeued.has(t.id)
+          ? html`<li class="n-card" data-state="queued">
+            <div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="queued">${icon('clock')}已重新排队</span><b>${t.what}</b><small class="nt-muted">${t.from} · ${st.person(t.by).name}发起 · ${t.at}</small></div>
+            <dl class="n-tfail__dl"><dt>上次原因</dt><dd>${t.why}</dd><dt>接下来</dt><dd>排队处理中，结果会更新在这张卡上；处理完会回到发起人的工作台</dd></dl>
+          </li>`
+          : html`<li class="n-card">
             <div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="failed">${icon('x')}失败</span><b>${t.what}</b><small class="nt-muted">${t.from} · ${st.person(t.by).name}发起 · ${t.at}</small></div>
             <dl class="n-tfail__dl"><dt>原因</dt><dd>${t.why}</dd><dt>接下来</dt><dd>${t.next}</dd></dl>
             ${t.retry ? html`<div><button class="n-btn n-btn--sm" type="button" data-requeue="${t.id}">${icon('retry')}重试</button></div>` : ''}
-          </li>`)}</ul>` : html`<div class="nt-empty">没有失败的任务。重新排队的任务处理完会回到发起人的工作台。</div>`}
+          </li>`))}</ul>` : html`<div class="nt-empty">没有失败的任务。重新排队的任务处理完会回到发起人的工作台。</div>`}
       </section>`;
   }
 

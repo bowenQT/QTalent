@@ -835,6 +835,11 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-tabs [role="tab"][aria-selected="true"] { color: var(--ink); font-weight: 600; }
 .n-tabs [role="tab"][aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px; background: var(--ink); }
 .n-tabs [role="tab"] .n-count { margin-left: 4px; }
+/* 页签较多、窄屏放不下时横向滑动，标签不折行；底线改用内阴影，避免滚动容器裁掉选中下划线 */
+.n-tabs--scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; border-bottom: 0; box-shadow: inset 0 -1px 0 var(--line); }
+.n-tabs--scroll::-webkit-scrollbar { display: none; }
+.n-tabs--scroll > [role="tab"] { flex: none; white-space: nowrap; }
+.n-tabs--scroll [role="tab"][aria-selected="true"]::after { bottom: 0; }
 /* 页面之间的页签（如评价体系的「规则」「判断对照」）：用链接，当前页 aria-current */
 .n-tabs > a { position: relative; padding: var(--s-2) 0 var(--s-3); font-size: var(--t-sm); color: var(--ink-3); text-decoration: none; transition: color var(--d-instant); }
 .n-tabs > a:hover { color: var(--ink); }

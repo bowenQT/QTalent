@@ -139,9 +139,14 @@
 
   // 档案打印（BOW-911）：打印前按当前权限再校验一次，越权就拒绝并留审计；打印内容只含已确认的部分，
   // 不含 AI 建议分、待校准的分、未采纳的 AI 摘要和参考位置。直接用浏览器打印只会印出一句提示。演示：?print=deny 看拒绝
-  const PRINT_IDLE = '<p class="n-print__idle">档案请用页面上的「打印档案」打印：打印内容只含已确认的部分，并记入审计日志。</p>';
-  const sheet = (() => { const d = document.createElement('div'); d.className = 'n-print'; d.id = 'print-sheet'; d.innerHTML = PRINT_IDLE; document.body.append(d); return d; })();
-  addEventListener('afterprint', () => { sheet.innerHTML = PRINT_IDLE; });
+  // 浏览器打印印出的提示按当时的视角写：页面上有「打印档案」的指向它，没有的说明档案打印对谁开放
+  const printIdle = () => `<p class="n-print__idle">${st.canExport(pid)
+    ? '档案请用页面上的「打印档案」打印：打印内容只含已确认的部分，并记入审计日志。'
+    : '档案打印只对管理者和这个人的归属 HR 开放，打印内容只含已确认的部分，并记入审计日志。'}</p>`;
+  let printing = false;
+  const sheet = (() => { const d = document.createElement('div'); d.className = 'n-print'; d.id = 'print-sheet'; d.innerHTML = printIdle(); document.body.append(d); return d; })();
+  addEventListener('beforeprint', () => { if (!printing) sheet.innerHTML = printIdle(); });
+  addEventListener('afterprint', () => { printing = false; sheet.innerHTML = printIdle(); });
   const printDenied = () => !st.canExport(pid) || NT.param('print') === 'deny';
   async function refusePrint(p) {
     st.audit('拒绝打印', `${p.name}的档案`);
@@ -169,7 +174,7 @@
     if (ok !== 'go') return;
     if (printDenied()) { await refusePrint(p); return; }
     const now = printData();
-    const d = new Date(), at = `${NT.TODAY} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const at = st.clockNow();
     const land = st.landingOf(pid);
     sheet.innerHTML = String(html`
       <header class="n-print__head"><h1>${p.name} <small>演示</small></h1><p>${st.orgPath(p.org)} · ${p.title} · ${p.level} · ${st.tenure(p)}${land ? ` · ${land.batch.name}` : ''}</p></header>
@@ -183,6 +188,7 @@
       </section>
       <footer class="n-print__foot">仅限内部使用 · 本次打印已记入审计日志 · 演示数据，人员均为化名</footer>`);
     st.audit('打印档案', `${p.name}的档案 · ${now.rows.length} 条已确认的维度分`);
+    printing = true;
     window.print();
     NT.toast('已打开打印。只含已确认的内容，已记入审计日志');
   }

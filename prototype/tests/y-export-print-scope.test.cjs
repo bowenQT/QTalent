@@ -9,11 +9,12 @@ const { test } = require('node:test');
 
 const FILES = ['../y/app/js/core.js', '../y/app/js/data-xe6.js', '../y/app/js/data.js', '../y/app/js/store.js'];
 
-function load(role) {
+function load(role, ctx = {}) {
   const search = `?as=${role}`;
-  const context = {
+  const mem = new Map();
+  const context = Object.assign(ctx, {
     matchMedia: () => ({ matches: true }),
-    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    localStorage: { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) },
     location: { search, href: `http://localhost/${search}` },
     document: {
       readyState: 'loading',
@@ -28,7 +29,7 @@ function load(role) {
     clearTimeout,
     console,
     URLSearchParams,
-  };
+  });
   context.window = context;
   vm.createContext(context);
   for (const file of FILES) vm.runInContext(fs.readFileSync(path.join(__dirname, file), 'utf8'), context, { filename: file });
@@ -112,4 +113,46 @@ test('每行带对应版本的行为锚点；待复核的分不导出，复核�
   assert.equal(r.rubric, '评价规则 v2');
   assert.equal(r.anchor, st.anchors('mot', pid, st.ruleVer('rubric-v2')).list[4]);
   assert.equal(held.skipped > 0, true);
+});
+
+test('生成时按当前视角再判：角色换成导师就拒绝，范围里没有已确认内容就不生成', () => {
+  const ctx = {};
+  const st = load('hrbp', ctx);
+  const all = st.exportScopes().find((s) => s.id === 'all');
+  assert.equal(st.exportCheck(all.people).state, 'ok');
+
+  // 另一个标签页把共享角色切成导师：页面不带 as 参数，生成时读到的是导师
+  ctx.location.search = '';
+  ctx.location.href = 'http://localhost/';
+  st.setRole('mentor');
+  const deny = st.exportCheck(all.people);
+  assert.equal(deny.state, 'deny');
+  assert.equal(deny.rows, undefined, '拒绝时不取数');
+
+  st.setRole('hrbp');
+  const outside = st.people().filter((p) => !st.scope(p.id)).map((p) => p.id);
+  assert.equal(st.exportCheck(outside).state, 'empty', '范围外的人取不到内容');
+  assert.equal(st.exportCheck(all.people, '2099-01-01').state, 'empty', '时间范围里没有事件');
+});
+
+test('导出生成回调：拒绝和空结果都不生成文件、不记导出成功', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../y/app/js/pages/workbench.js'), 'utf8');
+  const body = src.slice(src.indexOf('function runExport('), src.indexOf('function buildCsv('));
+  const deny = body.indexOf("r.state === 'deny'"), empty = body.indexOf("r.state === 'empty'");
+  const blob = body.indexOf('buildCsv(r.rows'), ok = body.indexOf("st.audit('导出已确认内容'");
+  assert.ok(body.includes('st.exportCheck('), '生成时走 exportCheck 再判一次');
+  assert.ok(deny > 0 && empty > deny && blob > empty && ok > blob, '先判拒绝、再判空结果，之后才生成文件、记成功');
+  const branch = body.slice(deny, blob);
+  assert.ok(!branch.includes('createObjectURL') && !branch.includes("'导出已确认内容'"));
+  assert.match(branch, /st\.audit\('拒绝导出'/);
+});
+
+test('审计、导出和打印的时刻用演示时钟：日期是演示日，每记一条往后一分钟', () => {
+  const st = load('hrbp');
+  assert.equal(st.clockNow(), '2026-09-04 15:00');
+  st.audit('导出已确认内容', '我负责的人');
+  assert.equal(st.audits()[0].at, '09-04 15:00');
+  assert.equal(st.clockNow(), '2026-09-04 15:01');
+  st.audit('拒绝打印', '某人的档案');
+  assert.equal(st.audits()[0].at, '09-04 15:01');
 });
