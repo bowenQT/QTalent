@@ -62,6 +62,8 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Validate BOW-923 workbooks
+        run: python3 tests/fixtures/bow-923/validate-workbooks.py tests/fixtures/bow-923
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm reference:prepare
       - run: pnpm check
