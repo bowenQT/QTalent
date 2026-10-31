@@ -3,10 +3,23 @@ import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { PgBoss, fromDrizzle } from 'pg-boss';
 import { eq, sql } from 'drizzle-orm';
-import { beforeAll, afterAll, afterEach, expect, it } from 'vitest';
+import { beforeAll, afterAll, afterEach, expect, it, vi } from 'vitest';
 import { createDatabase } from '../../../db/client';
+import {
+  organizations,
+  people,
+  accountBindings,
+  grants,
+} from '../../directory';
+import { createStaffingDemandRuntime } from '../../../usecases/staffing-demand-runtime';
 import { projects } from '../schema';
-import { createFakeMaas, metadataFor } from '../../../integrations/maas';
+import {
+  createFakeModelinkMaas,
+  createModelinkMaasClient,
+  metadataFor,
+  MODELINK_ENDPOINT,
+  MODELINK_MODEL,
+} from '../../../integrations/maas';
 import { createJobService } from '../../../jobs/service';
 import { createJobStore } from '../../../jobs/repository';
 import {
@@ -42,11 +55,23 @@ beforeAll(async () => {
   url.pathname = '/' + database;
   connection = createDatabase(url.toString());
   await migrate(connection.db, {
-    migrationsFolder: 'src/server/db/migrations',
+    // Explicit CI-only schema composition; the default formal migration gate stays unchanged.
+    migrationsFolder:
+      process.env.BOW_852_TEST_MIGRATIONS_DIR ?? 'src/server/db/migrations',
   });
   boss = new PgBoss({ connectionString: url.toString() });
   await boss.start();
   await boss.createQueue(queue);
+  await boss.createQueue('staffing-demand');
+  await connection.db
+    .insert(organizations)
+    .values({ id: 'demo', name: '演示组织', shortName: '演示' });
+  await connection.db.insert(people).values({
+    id: 'actor',
+    name: '演示管理者',
+    organizationId: 'demo',
+    demo: true,
+  });
   await connection.db.insert(projects).values({
     id: 'project',
     name: '演示项目',
@@ -121,7 +146,7 @@ const input = () => ({
   inputText: '演示：需要工程负责人',
 });
 const fake = () =>
-  createFakeMaas({
+  createFakeModelinkMaas({
     requirements: [{ text: '工程交付', priority: 'required' }],
   });
 it('creates one durable job, generates a draft then preserves edit/confirm revisions', async () => {
@@ -208,7 +233,10 @@ it('failure is not a demand; an explicit retry uses the shared job service once'
           ok: false,
           kind: 'network',
           retryable: true,
-          metadata: metadataFor({ promptVersion: DEMAND_PROMPT_VERSION }),
+          metadata: metadataFor(
+            { promptVersion: DEMAND_PROMPT_VERSION },
+            MODELINK_MODEL,
+          ),
         };
       },
     },
@@ -503,7 +531,10 @@ it.each(['completed', 'outcome_unknown'] as const)(
             ok: false,
             kind: 'network',
             retryable: true,
-            metadata: metadataFor({ promptVersion: DEMAND_PROMPT_VERSION }),
+            metadata: metadataFor(
+              { promptVersion: DEMAND_PROMPT_VERSION },
+              MODELINK_MODEL,
+            ),
           };
         },
       },
@@ -589,3 +620,226 @@ it.each(['completed', 'outcome_unknown'] as const)(
     }
   },
 );
+
+function modelinkProtocol(send: typeof fetch) {
+  return createModelinkMaasClient(
+    { apiKey: 'synthetic-test-key' },
+    { fetch: send },
+  );
+}
+function modelinkResponse() {
+  return Response.json(
+    {
+      model: MODELINK_MODEL,
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            role: 'assistant',
+            content: JSON.stringify({
+              requirements: [{ text: '演示：工程交付', priority: 'required' }],
+            }),
+          },
+        },
+      ],
+      usage: { prompt_tokens: 13, completion_tokens: 8, total_tokens: 21 },
+    },
+    { headers: { http_x_reqid: 'demo-demand-pg' } },
+  );
+}
+async function currentManager(send: typeof fetch) {
+  const accountId = `demo-manager-${randomUUID()}`;
+  await connection.db
+    .insert(accountBindings)
+    .values({ accountId, personId: 'actor', isSystemAdmin: false });
+  await connection.db.insert(grants).values({
+    id: accountId,
+    accountId,
+    role: 'manager',
+    scope: 'company',
+    validFrom: '2026-01-01',
+  });
+  const runtime = createStaffingDemandRuntime({
+    db: connection.db,
+    boss,
+    maas: modelinkProtocol(send),
+    now: () => now,
+    // A stale legacy date must not bypass current authorization in the real runtime.
+    businessDate: () => '2026-01-01',
+  });
+  const jobs = createJobService(
+    createJobStore(connection.db),
+    [runtime.policy],
+    () => now,
+  );
+  const revoke = () =>
+    connection.db
+      .update(grants)
+      .set({ revokedAt: now.slice(0, 10) })
+      .where(eq(grants.accountId, accountId));
+  const restore = () =>
+    connection.db
+      .update(grants)
+      .set({ revokedAt: null })
+      .where(eq(grants.accountId, accountId));
+  return { accountId, runtime, jobs, revoke, restore };
+}
+
+it('persists the actual Gemini protocol receipt once through the real current-authorization runtime', async () => {
+  const send = vi.fn<typeof fetch>(async () => modelinkResponse());
+  const { accountId, runtime } = await currentManager(send);
+  const request = input();
+  const created = await runtime.service.create(accountId, request);
+  const payload = { jobId: created.snapshot.jobId, attempt: 1 };
+  await runtime.run(payload);
+  await runtime.run(payload);
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(send.mock.calls[0][0]).toBe(MODELINK_ENDPOINT);
+  expect(JSON.parse(String(send.mock.calls[0][1]?.body))).toMatchObject({
+    model: MODELINK_MODEL,
+    response_format: { type: 'json_object' },
+    stream: false,
+    messages: [
+      { role: 'system' },
+      { role: 'user', content: request.inputText },
+    ],
+  });
+  const [version] = await connection.db
+    .select()
+    .from(demandVersions)
+    .where(eq(demandVersions.demandId, payload.jobId));
+  expect(version.demand).toMatchObject({ revision: 1, status: 'draft' });
+  expect(version.modelMetadata).toMatchObject({
+    model: MODELINK_MODEL,
+    promptVersion: DEMAND_PROMPT_VERSION,
+    attempts: 1,
+    requestId: 'demo-demand-pg',
+    usage: { promptTokens: 13, completionTokens: 8, totalTokens: 21 },
+  });
+  expect(version.modelMetadata.elapsedMs).toBeGreaterThanOrEqual(0);
+  await runtime.service.change(
+    accountId,
+    {
+      operationId: randomUUID(),
+      demandId: payload.jobId,
+      expectedRevision: 1,
+    },
+    { action: 'confirm' },
+  );
+  const versions = await connection.db
+    .select()
+    .from(demandVersions)
+    .where(eq(demandVersions.demandId, payload.jobId));
+  expect(versions).toHaveLength(2);
+  expect(
+    versions.every(
+      (row) =>
+        JSON.stringify(row.modelMetadata) ===
+        JSON.stringify(version.modelMetadata),
+    ),
+  ).toBe(true);
+  expect(send).toHaveBeenCalledTimes(1);
+});
+
+it('reloads real grants before dispatch and after generation; revocation permits no demand version', async () => {
+  const send = vi.fn<typeof fetch>(async () => modelinkResponse());
+  const { accountId, runtime, jobs, revoke, restore } =
+    await currentManager(send);
+  const first = await runtime.service.create(accountId, input());
+  await revoke();
+  await runtime.run({ jobId: first.snapshot.jobId, attempt: 1 });
+  expect(send).not.toHaveBeenCalled();
+  await restore();
+  expect(await jobs.read(accountId, first.snapshot.jobId)).toMatchObject({
+    snapshot: { status: 'failed', result: null },
+  });
+  const second = await runtime.service.create(accountId, input());
+  send.mockImplementationOnce(async () => {
+    await revoke();
+    return modelinkResponse();
+  });
+  await runtime.run({ jobId: second.snapshot.jobId, attempt: 1 });
+  await restore();
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(
+    await runtime.service.read(accountId, first.snapshot.jobId),
+  ).toBeNull();
+  expect(
+    await runtime.service.read(accountId, second.snapshot.jobId),
+  ).toBeNull();
+  expect(await jobs.read(accountId, second.snapshot.jobId)).toMatchObject({
+    snapshot: { status: 'failed', result: null },
+  });
+});
+
+it('does not resend an unknown Modelink dispatch on delivery or an explicit retry', async () => {
+  const send = vi.fn<typeof fetch>(async () => {
+    throw new TypeError('synthetic connection lost after dispatch');
+  });
+  const { accountId, runtime, jobs } = await currentManager(send);
+  const created = await runtime.service.create(accountId, input());
+  const payload = { jobId: created.snapshot.jobId, attempt: 1 };
+  await runtime.run(payload);
+  await runtime.run(payload);
+  expect(send).toHaveBeenCalledTimes(1);
+  const result = await jobs.read(accountId, payload.jobId);
+  expect(result).toMatchObject({
+    snapshot: { status: 'failed', canRetry: false, result: null },
+  });
+  if (result.status !== 'success')
+    throw new Error('Expected failed job snapshot');
+  expect(
+    await jobs.command(accountId, {
+      jobId: payload.jobId,
+      operationId: randomUUID(),
+      expectedRevision: result.snapshot.revision,
+      action: 'retry',
+    }),
+  ).toEqual({ status: 'forbidden' });
+  const [root] = await connection.db
+    .select()
+    .from(demandRoots)
+    .where(eq(demandRoots.id, payload.jobId));
+  expect(root).toMatchObject({
+    currentRevision: 0,
+    retryable: false,
+    failureKind: 'outcome_unknown',
+  });
+  expect(await runtime.service.read(accountId, payload.jobId)).toBeNull();
+  expect(send).toHaveBeenCalledTimes(1);
+});
+
+it('honors cancellation before dispatch and fences a late protocol success without a duplicate version', async () => {
+  const send = vi.fn<typeof fetch>(async () => modelinkResponse());
+  const { accountId, runtime, jobs } = await currentManager(send);
+  const first = await runtime.service.create(accountId, input());
+  const cancel = async (jobId: string) => {
+    const result = await jobs.read(accountId, jobId);
+    if (result.status !== 'success')
+      throw new Error('Expected cancellable snapshot');
+    await jobs.command(accountId, {
+      jobId,
+      operationId: randomUUID(),
+      expectedRevision: result.snapshot.revision,
+      action: 'cancel',
+    });
+  };
+  await cancel(first.snapshot.jobId);
+  await runtime.run({ jobId: first.snapshot.jobId, attempt: 1 });
+  expect(send).not.toHaveBeenCalled();
+  const second = await runtime.service.create(accountId, input());
+  send.mockImplementationOnce(async () => {
+    await cancel(second.snapshot.jobId);
+    return modelinkResponse();
+  });
+  const payload = { jobId: second.snapshot.jobId, attempt: 1 };
+  await runtime.run(payload);
+  await runtime.run(payload);
+  expect(send).toHaveBeenCalledTimes(1);
+  for (const jobId of [first.snapshot.jobId, second.snapshot.jobId]) {
+    expect(await jobs.read(accountId, jobId)).toMatchObject({
+      snapshot: { status: 'cancelled', result: null },
+    });
+    expect(await runtime.service.read(accountId, jobId)).toBeNull();
+  }
+});

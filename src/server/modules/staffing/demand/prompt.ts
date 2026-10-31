@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { StructuredMaasClient } from '../../../integrations/maas';
+import type { ModelinkMaasClient } from '../../../integrations/maas';
 
 export const DEMAND_PROMPT_VERSION = 'staffing-demand-v1';
 export const generatedRequirementsSchema = z.strictObject({
@@ -14,7 +14,7 @@ export const generatedRequirementsSchema = z.strictObject({
     .max(50),
 });
 export function generateDemandRequirements(
-  client: StructuredMaasClient,
+  client: ModelinkMaasClient,
   sentence: string,
   signal?: AbortSignal,
 ) {

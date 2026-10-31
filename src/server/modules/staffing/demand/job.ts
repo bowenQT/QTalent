@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { AuthzContext } from '../../../authz';
-import { metadataFor } from '../../../integrations/maas';
-import type { StructuredMaasClient } from '../../../integrations/maas';
+import {
+  metadataFor,
+  MODELINK_MODEL,
+  type ModelinkMaasClient,
+} from '../../../integrations/maas';
 import { createJobStore } from '../../../jobs/repository';
 import { advanceJob, type JobRecord } from '../../../jobs/state';
 import type { JobPolicy } from '../../../jobs/service';
@@ -82,7 +85,7 @@ export function demandJobPolicy(
 /** Only a queued attempt may call the provider. Redelivery of running is deliberately not resent. */
 export async function runDemandGeneration(
   deps: DemandDependencies,
-  client: StructuredMaasClient,
+  client: ModelinkMaasClient,
   payload: { jobId: string; attempt: number },
 ) {
   const store = createJobStore(deps.db);
@@ -157,7 +160,10 @@ export async function runDemandGeneration(
     ok: false as const,
     kind: 'outcome_unknown' as const,
     retryable: false,
-    metadata: metadataFor({ promptVersion: claimed.root.promptVersion }),
+    metadata: metadataFor(
+      { promptVersion: claimed.root.promptVersion },
+      MODELINK_MODEL,
+    ),
   }));
   await store.locked(payload.jobId, async (tx) => {
     const current = tx.record;
