@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { MODELINK_ENDPOINT, MODELINK_MODEL } from '../server/integrations/maas';
 const f = vi.hoisted(() => ({
   serverEvents: new Map<string, (...args: unknown[]) => unknown>(),
   socketEvents: new Map<string, (...args: unknown[]) => unknown>(),
@@ -11,19 +12,21 @@ const f = vi.hoisted(() => ({
   demandRuntime: vi.fn(),
   access: vi.fn(),
   session: vi.fn(),
+  env: {
+    APP_ENV: 'test',
+    MODELINK_API_KEY: undefined as string | undefined,
+    MODELINK_BASE_URL: undefined as string | undefined,
+    MODELINK_MODEL: undefined as string | undefined,
+    QINIU_MAAS_API_KEY: 'synthetic-legacy-key',
+    DATABASE_URL: 'test',
+    BETTER_AUTH_URL: 'https://test.local',
+    WORKER_PORT: 3001,
+  },
   failListen: false,
   clientClose: vi.fn(),
   closeSockets: vi.fn(),
 }));
-vi.mock('../server/env', () => ({
-  getEnv: () => ({
-    APP_ENV: 'test',
-    QINIU_MAAS_API_KEY: undefined,
-    DATABASE_URL: 'test',
-    BETTER_AUTH_URL: 'https://test.local',
-    WORKER_PORT: 3001,
-  }),
-}));
+vi.mock('../server/env', () => ({ getEnv: () => f.env }));
 vi.mock('../server/auth', () => ({ getSession: f.session }));
 vi.mock('../server/access', () => ({ verifyAccessRequest: f.access }));
 vi.mock('../server/jobs/example', () => ({ registerExampleJob: f.register }));
@@ -82,6 +85,9 @@ beforeEach(() => {
   f.serverEvents.clear();
   f.socketEvents.clear();
   f.failListen = false;
+  f.env.MODELINK_API_KEY = undefined;
+  f.env.MODELINK_BASE_URL = undefined;
+  f.env.MODELINK_MODEL = undefined;
   f.start.mockResolvedValue(undefined);
   f.stop.mockResolvedValue(undefined);
   f.register.mockResolvedValue(undefined);
@@ -94,8 +100,12 @@ beforeEach(() => {
     session: { expiresAt: new Date(Date.now() + 60000) },
   });
 });
+afterEach(() => vi.unstubAllEnvs());
 describe('worker lifecycle with transport boundaries replaced', () => {
-  it('reuses the worker boss and registers demand with optional MaaS key without fetch', async () => {
+  it('uses the explicit trusted Modelink settings without ambient or legacy fallback', async () => {
+    vi.stubEnv('MODELINK_API_KEY', 'synthetic-ambient-key');
+    vi.stubEnv('MODELINK_BASE_URL', 'https://api.modelink.ai/v1');
+    vi.stubEnv('MODELINK_MODEL', MODELINK_MODEL);
     const send = vi
       .spyOn(globalThis, 'fetch')
       .mockRejectedValue(new Error('No live network'));
@@ -104,7 +114,7 @@ describe('worker lifecycle with transport boundaries replaced', () => {
       expect(f.registerDemand).toHaveBeenCalledOnce();
       const input = f.demandRuntime.mock.calls[0][0];
       expect(input.boss).toBe(worker.boss);
-      expect(input.businessDate()).toBe('2026-09-04');
+      expect(input).not.toHaveProperty('businessDate');
       expect(input).not.toHaveProperty('now');
       expect(f.register).toHaveBeenCalledOnce();
       expect(f.registerProgress).toHaveBeenCalledOnce();
@@ -117,6 +127,7 @@ describe('worker lifecycle with transport boundaries replaced', () => {
         ok: false,
         kind: 'configuration',
         retryable: false,
+        metadata: { model: MODELINK_MODEL },
       });
       expect(send).not.toHaveBeenCalled();
       await worker.stop();
@@ -124,6 +135,89 @@ describe('worker lifecycle with transport boundaries replaced', () => {
       send.mockRestore();
     }
   });
+  it('passes trusted Modelink configuration into the actual Gemini protocol client', async () => {
+    f.env.MODELINK_API_KEY = 'synthetic-trusted-modelink-key';
+    f.env.MODELINK_BASE_URL = 'https://api.modelink.ai/v1';
+    f.env.MODELINK_MODEL = MODELINK_MODEL;
+    vi.stubEnv('MODELINK_API_KEY', 'synthetic-ambient-key');
+    vi.stubEnv('MODELINK_BASE_URL', 'https://attacker.invalid/v1');
+    vi.stubEnv('MODELINK_MODEL', 'deepseek/deepseek-v4.1-flash');
+    const send = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'synthetic-worker-request',
+          model: MODELINK_MODEL,
+          choices: [
+            {
+              message: { role: 'assistant', content: '{"value":"synthetic"}' },
+              finish_reason: 'stop',
+            },
+          ],
+        }),
+      ),
+    );
+    const worker = await startWorker();
+    try {
+      expect(send).not.toHaveBeenCalled();
+      const input = f.demandRuntime.mock.calls[0][0];
+      const result = await input.maas.generateStructured({
+        messages: [{ role: 'user', content: 'Return JSON for synthetic test' }],
+        promptVersion: 'test',
+        schema: z.object({ value: z.string() }),
+      });
+      expect(result).toMatchObject({
+        ok: true,
+        value: { value: 'synthetic' },
+        metadata: { model: MODELINK_MODEL },
+      });
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send.mock.calls[0][0]).toBe(MODELINK_ENDPOINT);
+      expect(send.mock.calls[0][1]).toMatchObject({
+        method: 'POST',
+        redirect: 'error',
+        headers: { Authorization: 'Bearer synthetic-trusted-modelink-key' },
+      });
+      expect(JSON.parse(String(send.mock.calls[0][1]?.body)).model).toBe(
+        MODELINK_MODEL,
+      );
+    } finally {
+      await worker.stop();
+      send.mockRestore();
+    }
+  });
+  it.each([
+    { MODELINK_BASE_URL: 'https://attacker.invalid/v1' },
+    { MODELINK_MODEL: 'deepseek/deepseek-v4.1-flash' },
+  ])(
+    'rejects invalid Modelink configuration %j without a legacy request',
+    async (wrong) => {
+      f.env.MODELINK_API_KEY = 'synthetic-modelink-key';
+      Object.assign(f.env, wrong);
+      const send = vi
+        .spyOn(globalThis, 'fetch')
+        .mockRejectedValue(new Error('No live network'));
+      const worker = await startWorker();
+      try {
+        const result =
+          await f.demandRuntime.mock.calls[0][0].maas.generateStructured({
+            messages: [
+              { role: 'user', content: 'Return JSON for synthetic test' },
+            ],
+            promptVersion: 'test',
+            schema: z.object({ value: z.string() }),
+          });
+        expect(result).toMatchObject({
+          ok: false,
+          kind: 'configuration',
+          metadata: { model: MODELINK_MODEL },
+        });
+        expect(send).not.toHaveBeenCalled();
+      } finally {
+        await worker.stop();
+        send.mockRestore();
+      }
+    },
+  );
   it('stops the shared boss when demand registration fails', async () => {
     f.registerDemand.mockRejectedValueOnce(new Error('demand register failed'));
     await expect(startWorker()).rejects.toThrow('demand register failed');

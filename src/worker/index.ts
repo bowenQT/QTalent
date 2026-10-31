@@ -8,8 +8,7 @@ import { verifyAccessRequest } from '../server/access';
 import { registerExampleJob } from '../server/jobs/example';
 import { registerProgressExample } from '../server/jobs/progress-worker';
 import { getDatabase } from '../server/db/client';
-import { createClock } from '../lib/clock';
-import { createMaasClient } from '../server/integrations/maas';
+import { createModelinkMaasClientFromEnv } from '../server/integrations/maas';
 import { createStaffingDemandRuntime } from '../server/usecases/staffing-demand-runtime';
 import { authenticateHandshake, heartbeatReply } from './handshake';
 export async function startWorker() {
@@ -25,8 +24,11 @@ export async function startWorker() {
     await createStaffingDemandRuntime({
       db: getDatabase(),
       boss,
-      maas: createMaasClient({ apiKey: env.QINIU_MAAS_API_KEY }),
-      businessDate: createClock(env.APP_ENV).today,
+      maas: createModelinkMaasClientFromEnv({
+        MODELINK_API_KEY: env.MODELINK_API_KEY,
+        MODELINK_BASE_URL: env.MODELINK_BASE_URL,
+        MODELINK_MODEL: env.MODELINK_MODEL,
+      }),
     }).register();
   } catch (error) {
     await boss.stop();
