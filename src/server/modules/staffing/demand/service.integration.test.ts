@@ -3,13 +3,18 @@ import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { PgBoss, fromDrizzle } from 'pg-boss';
 import { eq, sql } from 'drizzle-orm';
-import { beforeAll, afterAll, expect, it } from 'vitest';
+import { beforeAll, afterAll, afterEach, expect, it } from 'vitest';
 import { createDatabase } from '../../../db/client';
 import { projects } from '../schema';
 import { createFakeMaas, metadataFor } from '../../../integrations/maas';
 import { createJobService } from '../../../jobs/service';
 import { createJobStore } from '../../../jobs/repository';
-import { createDemandService, type DemandDependencies } from './service';
+import {
+  createDemandService,
+  DemandAccessError,
+  type DemandDependencies,
+} from './service';
+import { DemandConflictError } from './version';
 import { demandJobPolicy, runDemandGeneration } from './job';
 import { demandRoots, demandVersions } from './schema';
 import { DEMAND_PROMPT_VERSION } from './prompt';
@@ -106,6 +111,9 @@ afterAll(async () => {
     await admin.query(`DROP DATABASE IF EXISTS "${database}"`);
     await admin.end();
   }
+});
+afterEach(() => {
+  allowed = true;
 });
 const input = () => ({
   operationId: randomUUID(),
@@ -394,3 +402,190 @@ it('serializes distinct confirmation requests at the business revision boundary'
       .where(eq(demandVersions.demandId, demandId)),
   ).toHaveLength(2);
 });
+
+it('conflicts on reused request keys across payloads and actions without writing new versions', async () => {
+  const service = createDemandService(deps);
+  const request = input();
+  const created = await service.create('account', request);
+  const demandId = created.snapshot.jobId;
+  await runDemandGeneration(deps, fake(), { jobId: demandId, attempt: 1 });
+  const original = await service.read('account', demandId);
+  await expect(
+    service.create('account', { ...request, inputText: '演示：另一个需求' }),
+  ).rejects.toBeInstanceOf(DemandConflictError);
+  await expect(
+    service.change(
+      'account',
+      { operationId: request.operationId, demandId, expectedRevision: 1 },
+      { action: 'confirm' },
+    ),
+  ).rejects.toBeInstanceOf(DemandConflictError);
+  const edit = { operationId: randomUUID(), demandId, expectedRevision: 1 };
+  const change = {
+    action: 'edit' as const,
+    requirements: [
+      { id: 'r', text: '演示：交付经验', priority: 'required' as const },
+    ],
+  };
+  const edited = await service.change('account', edit, change);
+  expect(await service.change('account', edit, change)).toEqual({
+    ...edited,
+    replayed: true,
+  });
+  await expect(
+    service.change('account', edit, {
+      ...change,
+      requirements: [{ ...change.requirements[0], text: '演示：技术沟通' }],
+    }),
+  ).rejects.toBeInstanceOf(DemandConflictError);
+  await expect(
+    service.change('account', edit, { action: 'confirm' }),
+  ).rejects.toBeInstanceOf(DemandConflictError);
+  await expect(
+    service.change('account', { ...edit, expectedRevision: 2 }, change),
+  ).rejects.toBeInstanceOf(DemandConflictError);
+  await expect(
+    service.create('account', { ...request, operationId: edit.operationId }),
+  ).rejects.toBeInstanceOf(DemandConflictError);
+  expect(await service.create('account', request)).toEqual({
+    ...created,
+    replayed: true,
+  });
+  expect(await service.read('account', demandId, 1)).toEqual(original);
+  expect(await service.read('account', demandId)).toEqual(edited.demand);
+  expect(
+    await connection.db
+      .select()
+      .from(demandVersions)
+      .where(eq(demandVersions.demandId, demandId)),
+  ).toHaveLength(2);
+  expect(
+    (await boss.findJobs<{ jobId: string }>(queue)).filter(
+      (job) => job.data.jobId === demandId,
+    ),
+  ).toHaveLength(1);
+  allowed = false;
+  await expect(service.change('account', edit, change)).rejects.toBeInstanceOf(
+    DemandAccessError,
+  );
+  await expect(service.create('account', request)).rejects.toBeInstanceOf(
+    DemandAccessError,
+  );
+});
+
+it('scopes request keys to the current account', async () => {
+  const service = createDemandService(deps);
+  const request = input();
+  const [first, second] = await Promise.all([
+    service.create('account', request),
+    service.create('other-account', request),
+  ]);
+  expect(first.snapshot.jobId).not.toBe(second.snapshot.jobId);
+  expect(first.replayed).toBe(false);
+  expect(second.replayed).toBe(false);
+  expect(await service.create('other-account', request)).toEqual({
+    ...second,
+    replayed: true,
+  });
+});
+
+it.each(['completed', 'outcome_unknown'] as const)(
+  'replays an accepted retry after %s without enqueue, and still rechecks current permissions',
+  async (outcome) => {
+    const service = createDemandService(deps);
+    const created = await service.create('account', input());
+    const jobId = created.snapshot.jobId;
+    await runDemandGeneration(
+      deps,
+      {
+        async generateStructured() {
+          return {
+            ok: false,
+            kind: 'network',
+            retryable: true,
+            metadata: metadataFor({ promptVersion: DEMAND_PROMPT_VERSION }),
+          };
+        },
+      },
+      { jobId, attempt: 1 },
+    );
+    const jobs = createJobService(
+      createJobStore(connection.db),
+      [demandJobPolicy(deps)],
+      () => now,
+    );
+    const failed = await jobs.read('account', jobId);
+    if (failed.status !== 'success')
+      throw new Error('Expected failed snapshot');
+    const command = {
+      jobId,
+      operationId: randomUUID(),
+      expectedRevision: failed.snapshot.revision,
+      action: 'retry' as const,
+    };
+    const accepted = await jobs.command('account', command);
+    expect(accepted).toMatchObject({
+      status: 'success',
+      snapshot: { status: 'queued', attempt: 2 },
+    });
+    await runDemandGeneration(
+      deps,
+      outcome === 'completed'
+        ? fake()
+        : {
+            async generateStructured() {
+              throw new Error('synthetic response lost after retry');
+            },
+          },
+      { jobId, attempt: 2 },
+    );
+    const settled = await jobs.read('account', jobId);
+    expect(settled).toMatchObject({
+      status: 'success',
+      snapshot: {
+        status: outcome === 'completed' ? 'completed' : 'failed',
+        attempt: 2,
+        canRetry: false,
+      },
+    });
+    expect(await jobs.command('account', command)).toEqual(accepted);
+    expect(await jobs.read('account', jobId)).toEqual(settled);
+    expect(
+      await jobs.command('account', { ...command, action: 'cancel' }),
+    ).toEqual({ status: 'conflict' });
+    expect(
+      await jobs.command('account', {
+        ...command,
+        expectedRevision: command.expectedRevision + 1,
+      }),
+    ).toEqual({ status: 'conflict' });
+    if (settled.status !== 'success')
+      throw new Error('Expected settled snapshot');
+    expect(
+      await jobs.command('account', {
+        ...command,
+        operationId: randomUUID(),
+        expectedRevision: settled.snapshot.revision,
+      }),
+    ).toEqual({ status: 'forbidden' });
+    allowed = false;
+    expect(await jobs.command('account', command)).toEqual({
+      status: 'forbidden',
+    });
+    allowed = true;
+    expect(await jobs.command('account', command)).toEqual(accepted);
+    expect(
+      (await boss.findJobs<{ jobId: string }>(queue)).filter(
+        (job) => job.data.jobId === jobId,
+      ),
+    ).toHaveLength(2);
+    if (outcome === 'completed') {
+      expect(await service.read('account', jobId)).toMatchObject({
+        revision: 1,
+        status: 'draft',
+      });
+    } else {
+      expect(await service.read('account', jobId)).toBeNull();
+    }
+  },
+);
