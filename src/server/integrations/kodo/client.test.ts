@@ -113,3 +113,29 @@ describe('private Kodo adapter', () => {
     ).toThrow();
   });
 });
+
+it('issues the frozen 2 GiB media limit in exact bytes without allocating an object', () => {
+  const network = vi.fn();
+  const client = createKodoClient(config, { now: () => 1000, fetch: network });
+  for (const byteLimit of [1_073_741_825, 2_000_000_000, 2_147_483_648]) {
+    const grant = client.issueUploadGrant({
+      objectKey: 'synthetic/limit',
+      byteLimit,
+      contentType: 'application/octet-stream',
+      expiresAt: 61000,
+    });
+    const policy = JSON.parse(
+      Buffer.from(grant.token.split(':')[2], 'base64url').toString(),
+    );
+    expect(policy.fsizeLimit).toBe(byteLimit);
+  }
+  expect(() =>
+    client.issueUploadGrant({
+      objectKey: 'synthetic/limit',
+      byteLimit: 2_147_483_649,
+      contentType: 'application/octet-stream',
+      expiresAt: 61000,
+    }),
+  ).toThrow(KodoError);
+  expect(network).not.toHaveBeenCalled();
+});

@@ -1,5 +1,6 @@
 import { multipart } from './multipart';
 import { z } from 'zod';
+import { MAX_UPLOAD_BYTES } from '../../../contracts/media';
 import {
   base64,
   sign,
@@ -37,11 +38,7 @@ const statSchema = z.object({
 });
 const grantSchema = z.object({
   objectKey: keySchema,
-  byteLimit: z
-    .number()
-    .int()
-    .positive()
-    .max(1024 * 1024 * 1024),
+  byteLimit: z.number().int().positive().max(MAX_UPLOAD_BYTES),
   contentType: mimeSchema,
   expiresAt: z.number().int().positive(),
 });
