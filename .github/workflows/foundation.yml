@@ -63,7 +63,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Validate BOW-923 workbooks
-        run: python3 tests/fixtures/bow-923/validate-workbooks.py tests/fixtures/bow-923
+        run: PYTHONDONTWRITEBYTECODE=1 python3 tests/fixtures/bow-923/validate-workbooks.py tests/fixtures/bow-923
       - name: Test BOW-923 workbook validation
         run: >-
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover
