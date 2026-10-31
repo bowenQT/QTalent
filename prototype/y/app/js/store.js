@@ -1403,8 +1403,22 @@
   };
   store.returnDraft = (kind, why, line) => {
     const d = store.ruleOpen(kind, line); if (!d || !isCeo() || d.state !== 'pending') return null;
-    Object.assign(d, { state: 'draft', returned: { why, by: store.me().id, at: NT.TODAY } });
-    store.save(); return d;
+    const before = { state: d.state, returned: d.returned };
+    const returned = { why, by: store.me().id, at: NT.TODAY };
+    Object.assign(d, { state: 'draft', returned });
+    // 撤销必须对应同一次退回；HR 后续编辑、重交或第二次退回后不能复活旧待审版本。
+    const after = JSON.stringify(d);
+    store.save();
+    let undone = false;
+    return () => {
+      if (undone || !isCeo() || store.ruleOpen(kind, line) !== d
+        || d.state !== 'draft' || d.returned !== returned || JSON.stringify(d) !== after) return false;
+      d.state = before.state;
+      if (before.returned === undefined) delete d.returned;
+      else d.returned = before.returned;
+      undone = true;
+      store.save(); return true;
+    };
   };
   // 确认发布：立即生效的替代旧版本；从下一个盘点批次开始的进入已排期，旧版本继续生效（AC-77）
   store.confirmDraft = (kind, line) => {
