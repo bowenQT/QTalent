@@ -303,6 +303,30 @@ export const comparisonBatchSchema = z.strictObject({
   selectionStandardVersionId: selectionVersionIdSchema,
   mappingVersionId: comparisonMappingVersionIdSchema,
 });
+const evaluatorNames = new Intl.Collator('zh-CN');
+export const comparisonRatersSchema = z
+  .array(
+    z.strictObject({
+      evaluator: comparisonActorSchema,
+      sample: comparisonRaterSampleSchema,
+    }),
+  )
+  .refine(
+    (raters) =>
+      new Set(raters.map(({ evaluator }) => evaluator.id)).size ===
+      raters.length,
+    '每位评价人只显示一行',
+  )
+  .refine(
+    (raters) =>
+      raters.every(({ evaluator }, index) => {
+        if (index === 0) return true;
+        const previous = raters[index - 1].evaluator;
+        const byName = evaluatorNames.compare(previous.name, evaluator.name);
+        return byName < 0 || (byName === 0 && previous.id < evaluator.id);
+      }),
+    '评价人按姓名稳定排列，同名按标识排列，不按样本量或偏差排行',
+  );
 export const comparisonHrPageSchema = z
   .strictObject({
     audience: z.literal('hr'),
@@ -311,12 +335,7 @@ export const comparisonHrPageSchema = z
     mapping: comparisonMappingSchema,
     counts: comparisonCountsSchema,
     cases: z.array(comparisonCaseSchema),
-    raters: z.array(
-      z.strictObject({
-        evaluator: comparisonActorSchema,
-        sample: comparisonRaterSampleSchema,
-      }),
-    ),
+    raters: comparisonRatersSchema,
   })
   .superRefine((page, ctx) => {
     const validator = createComparisonCaseSchema(page.mapping);

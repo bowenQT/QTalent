@@ -173,7 +173,7 @@ export const confirmStandardAttributionResultSchema =
 export const generateStandardHypothesesResultSchema =
   standardIterationActionResultSchema(
     generateStandardHypothesesInputSchema,
-    z.array(standardAttributionHypothesisSchema).min(1),
+    z.array(standardAttributionHypothesisSchema),
   );
 export type StandardAttributionHypothesis = z.infer<
   typeof standardAttributionHypothesisSchema

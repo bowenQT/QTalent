@@ -467,3 +467,30 @@ describe('评价人按当前节点授权返回的契约', () => {
     ).toBe(false);
   });
 });
+
+describe('R1：评价人列表稳定按姓名显示', () => {
+  it('不接受按样本量或偏差反转评价人列表', () => {
+    const page = comparisonHrFixture();
+    expect(comparisonHrPageSchema.safeParse(page).success).toBe(true);
+    page.raters.reverse();
+    expect(comparisonHrPageSchema.safeParse(page).success).toBe(false);
+  });
+  it('同名评价人用稳定 id 打破并列，重复身份不生成两行', () => {
+    const page = comparisonHrFixture();
+    for (const rater of page.raters)
+      rater.evaluator.name = '同名评价人（演示）';
+    expect(comparisonHrPageSchema.safeParse(page).success).toBe(true);
+    expect(
+      comparisonHrPageSchema.safeParse({
+        ...page,
+        raters: [...page.raters].reverse(),
+      }).success,
+    ).toBe(false);
+    expect(
+      comparisonHrPageSchema.safeParse({
+        ...page,
+        raters: [page.raters[0], page.raters[0]],
+      }).success,
+    ).toBe(false);
+  });
+});

@@ -241,7 +241,7 @@ describe('标准迭代的 AI 假设与 HR 归因契约', () => {
     ).toBe(true);
   });
 
-  it('模型失败如实返回失败，不带成功结果或空假设冒充成功', () => {
+  it('模型失败与成功但无可成立假设分别如实返回', () => {
     expect(
       generateStandardHypothesesResultSchema.safeParse({
         status: 'model_failed',
@@ -261,7 +261,7 @@ describe('标准迭代的 AI 假设与 HR 归因契约', () => {
         replayed: false,
         result: [],
       }).success,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       generateStandardHypothesesResultSchema.safeParse({
         status: 'success',

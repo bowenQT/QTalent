@@ -218,6 +218,7 @@ export const selectionRevisionSchema = z
     z.strictObject({
       ...privateFields,
       state: z.literal('draft'),
+      humanVersion: selectionHumanVersionSchema.nullable(),
       lastReturn: returnRecordSchema.nullable(),
     }),
     z.strictObject({
@@ -276,11 +277,19 @@ export const selectionRevisionSchema = z
 // No HR private attribution, AI case citations, names of evaluated people or
 // evaluator distributions can be serialized into the manager confirmation view.
 export const selectionManagerRevisionSchema = z
-  .strictObject({
-    ...revisionFields,
-    state: z.enum(['draft', 'pending_confirmation', 'active', 'superseded']),
-    basis: z.array(comparisonManagerBasisSchema).min(1),
-  })
+  .discriminatedUnion('state', [
+    z.strictObject({
+      ...revisionFields,
+      state: z.literal('draft'),
+      humanVersion: selectionHumanVersionSchema.nullable(),
+      basis: z.array(comparisonManagerBasisSchema).min(1),
+    }),
+    z.strictObject({
+      ...revisionFields,
+      state: z.enum(['pending_confirmation', 'active', 'superseded']),
+      basis: z.array(comparisonManagerBasisSchema).min(1),
+    }),
+  ])
   .refine(
     (draft) =>
       draft.baseVersionId !== draft.versionId &&
@@ -474,6 +483,13 @@ export const selectionLifecycleTransitionSchema = z.discriminatedUnion(
       role: z.literal('system'),
     }),
     z.strictObject({
+      action: z.literal('restore_after_undo'),
+      from: z.literal('superseded'),
+      to: z.literal('active'),
+      role: z.literal('system'),
+      publicationId: text,
+    }),
+    z.strictObject({
       action: z.literal('undo_publish'),
       from: z.literal('active'),
       to: z.literal('pending_confirmation'),
@@ -481,30 +497,133 @@ export const selectionLifecycleTransitionSchema = z.discriminatedUnion(
     }),
   ],
 );
+// Server-only, all-or-nothing postconditions of the undo transaction. These
+// snapshots are loaded by the server, never supplied as authority by a client.
+// Restoring the old lifecycle without restoring category reads is insufficient.
+export const selectionPublicationUndoTransactionSchema = z
+  .strictObject({
+    boundary: selectionPublicationUndoBoundarySchema,
+    withdrawnVersion: z.strictObject({
+      versionId: selectionVersionIdSchema,
+      transition: selectionLifecycleTransitionSchema.refine(
+        (transition) => transition.action === 'undo_publish',
+      ),
+    }),
+    restoredVersion: z.strictObject({
+      versionId: selectionVersionIdSchema,
+      transition: selectionLifecycleTransitionSchema.refine(
+        (transition) => transition.action === 'restore_after_undo',
+      ),
+    }),
+    effectiveVersionAfterUndo: effectiveRuleVersionSchema,
+    bindingsBefore: z.array(selectionCohortBindingSchema),
+    receipt: selectionPublicationUndoReceiptSchema,
+    historicalResultsPolicy: z.literal('preserve_original_version'),
+    recomputeHistoricalResults: z.literal(false),
+  })
+  .superRefine((transaction, ctx) => {
+    const { boundary, withdrawnVersion, restoredVersion, receipt } =
+      transaction;
+    const published = boundary.receipt;
+    const restored = transaction.effectiveVersionAfterUndo;
+    if (
+      withdrawnVersion.versionId !== published.versionId ||
+      restoredVersion.versionId !== published.previousVersionId ||
+      restoredVersion.transition.action !== 'restore_after_undo' ||
+      restoredVersion.transition.publicationId !== published.publicationId ||
+      receipt.publicationId !== published.publicationId ||
+      receipt.withdrawnVersionId !== published.versionId ||
+      receipt.restoredVersionId !== published.previousVersionId
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          '撤销同时恢复该次发布的上一版，新版回到待确认，不能恢复任意其他版本',
+      });
+    }
+    if (
+      restored.category !== 'xe_selection' ||
+      restored.versionId !== published.previousVersionId ||
+      Date.parse(restored.effectiveFrom) > Date.parse(boundary.requestedAt) ||
+      (restored.effectiveUntil !== null &&
+        Date.parse(restored.effectiveUntil) <= Date.parse(boundary.requestedAt))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['effectiveVersionAfterUndo'],
+        message:
+          '撤销提交后按类别和当前时间读取须恢复上一有效版，不能只恢复默认指针',
+      });
+    }
+    const bindings = new Map(
+      transaction.bindingsBefore.map((binding) => [binding.cohort.id, binding]),
+    );
+    if (
+      bindings.size !== transaction.bindingsBefore.length ||
+      new Set(receipt.preservedBindings.map((binding) => binding.cohort.id))
+        .size !== receipt.preservedBindings.length ||
+      bindings.size !== receipt.preservedBindings.length ||
+      receipt.preservedBindings.some((after) => {
+        const before = bindings.get(after.cohort.id);
+        return (
+          !before ||
+          before.cohort.name !== after.cohort.name ||
+          before.standardVersionId !== after.standardVersionId ||
+          before.boundAt !== after.boundAt
+        );
+      })
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['receipt', 'preservedBindings'],
+        message: '撤销不增加、删除或改写已绑定期次，不重算历史结果',
+      });
+    }
+  });
+
 export const createSelectionRevisionResultSchema =
   standardIterationActionResultSchema(
     createSelectionRevisionInputSchema,
-    selectionRevisionSchema,
+    selectionRevisionSchema.refine(
+      (revision) =>
+        revision.state === 'draft' && revision.humanVersion === null,
+      '创建仅产生尚未由 HR 编辑的草稿',
+    ),
   );
 export const saveSelectionRevisionResultSchema =
   standardIterationActionResultSchema(
     saveSelectionRevisionInputSchema,
-    selectionRevisionSchema,
+    selectionRevisionSchema.refine(
+      (revision) =>
+        revision.state === 'draft' && revision.humanVersion !== null,
+      'HR 保存后才形成真实人工版本',
+    ),
   );
 export const submitSelectionRevisionResultSchema =
   standardIterationActionResultSchema(
     submitSelectionRevisionInputSchema,
-    selectionRevisionSchema,
+    selectionRevisionSchema.refine(
+      (revision) => revision.state === 'pending_confirmation',
+      '提交成功必须保留人工版本并进入待确认',
+    ),
   );
 export const withdrawSelectionRevisionResultSchema =
   standardIterationActionResultSchema(
     withdrawSelectionRevisionInputSchema,
-    selectionRevisionSchema,
+    selectionRevisionSchema.refine(
+      (revision) =>
+        revision.state === 'draft' && revision.humanVersion !== null,
+      '撤回到草稿并保留提交前的人工版本',
+    ),
   );
 export const returnSelectionRevisionResultSchema =
   standardIterationActionResultSchema(
     returnSelectionRevisionInputSchema,
-    selectionManagerRevisionSchema,
+    selectionManagerRevisionSchema.refine(
+      (revision) =>
+        revision.state === 'draft' && revision.humanVersion !== null,
+      '退回到草稿并保留提交前的人工版本',
+    ),
   );
 export const publishSelectionRevisionResultSchema =
   standardIterationActionResultSchema(
@@ -550,4 +669,8 @@ export type PublishSelectionRevisionInput = z.infer<
 >;
 export type UndoSelectionPublicationInput = z.infer<
   typeof undoSelectionPublicationInputSchema
+>;
+
+export type SelectionPublicationUndoTransaction = z.infer<
+  typeof selectionPublicationUndoTransactionSchema
 >;
