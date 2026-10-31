@@ -50,7 +50,16 @@
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '发起', value: 'ok', cls: 'n-btn--ink', read: (d) => ({ org: d.querySelector('#bo').value, cutoff: d.querySelector('#bc').value }) }],
     });
     if (r?.value !== 'ok') return;
-    if (r.data.org === 'gp') { location.href = 'review.html?id=b-h2'; return; }
+    if (r.data.org === 'gp') {
+      const existing = st.batch('b-h2');
+      if (existing?.status === 'draft' && r.data.cutoff && r.data.cutoff !== existing.cutoff) {
+        existing.log = [[NT.TODAY, st.me().id, `证据截止时间从 ${NT.md(existing.cutoff)} 改为 ${NT.md(r.data.cutoff)}`], ...(existing.log || [])];
+        existing.cutoff = r.data.cutoff;
+        st.save();
+      }
+      location.href = 'review.html?id=b-h2';
+      return;
+    }
     const b = st.startInventory({ id: NT.uid('b'), kind: 'inventory', name: `${st.orgShort(r.data.org)} · 2026 H2 盘点`, org: r.data.org, status: 'draft', starter: st.me().id, startedAt: NT.TODAY, cutoff: r.data.cutoff, log: [[NT.TODAY, st.me().id, '发起盘点，固定范围']] });
     location.href = `review.html?id=${b.id}`;
   }

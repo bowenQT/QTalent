@@ -14,6 +14,19 @@
   const clamp = (v) => Math.min(0.95, Math.max(0.05, v));
   let team = NT.param('team');
   let people = [], asking = null, selected = null;
+  let introGen = 0;
+  // 尚未冻结的落位。切换团队或重绘时还在；「重新给出参考位置」清掉当前团队。
+  const drafts = {};
+  const draftKey = (pid) => `${team}:${pid}`;
+  function draftOf(pid) { return drafts[draftKey(pid)]; }
+  function remember(x) { drafts[draftKey(x.pid)] = { pos: x.pos.slice(), reason: x.reason || '' }; }
+  function forgetTeam() { const p = `${team}:`; Object.keys(drafts).forEach((k) => { if (k.startsWith(p)) delete drafts[k]; }); }
+  // forceRef：重新给出参考位置。否则优先本页草稿，再是不能确认的人自己的建议。
+  function placement(x, opt) {
+    if (!opt.forceRef && opt.draft) return { pos: opt.draft.pos.slice(), reason: opt.draft.reason || '' };
+    if (opt.mine && opt.sug) return { pos: opt.sug.pos.slice(), reason: opt.sug.reason || '' };
+    return { pos: x.ref.slice(), reason: '' };
+  }
 
   NT.shell({
     nav: isLanding ? 'landing' : 'review', title: `${LABEL} · 象限校准`, crumbs: isLanding ? [['XEngineer 第六期', 'landing.html']] : [['盘点', 'reviews.html'], [b?.name || '', `review.html?id=${id}`]],
@@ -54,7 +67,8 @@
       if (r.na) { na.push({ pid, miss: r.miss }); return; }
       const prev = st.formal(pid);
       const ref = e ? [e.x, e.y] : [r.x, r.y];
-      placed.push({ pid, p: st.person(pid), ref, pos: ref.slice(), refQ: r.q, reason: e?.reason || '', bonus: r.bonus, r, sug: sugs[pid], prevQ: prev && prev.snap.batch !== id ? prev.q : null, prevLabel: prev?.snap.label });
+      const next = e ? { pos: ref.slice(), reason: e?.reason || '' } : placement({ ref }, { draft: draftOf(pid), sug: sugs[pid] });
+      placed.push({ pid, p: st.person(pid), ref, pos: next.pos, refQ: r.q, reason: next.reason, bonus: r.bonus, r, sug: sugs[pid], prevQ: prev && prev.snap.batch !== id ? prev.q : null, prevLabel: prev?.snap.label });
     });
     people = placed;
     const conflicts = ids.filter((pid) => st.get().events.some((ev) => ev.date && ev.date <= cutoff() && ev.scores.some((s) => s.p === pid && s.st === 'conflict')));
@@ -109,7 +123,7 @@
     NT.ip($('#quad-ip'), isFrozen ? 'done' : 'rest', 48);
     $('#teams')?.addEventListener('click', (e) => { const t = e.target.closest('[data-t]'); if (!t || t.dataset.t === team) return; team = t.dataset.t; history.replaceState(null, '', NT.link('calibrate.html', { id, team })); render(main); });
     $('#quad-reason')?.addEventListener('input', (e) => { if (!asking) return; asking.reason = e.target.value; keep(asking); NT.ipState($('#quad-ip'), e.target.value.trim() ? 'listening' : 'confirm'); });
-    $('#quad-reset')?.addEventListener('click', () => intro());
+    $('#quad-reset')?.addEventListener('click', () => intro(true));
     $('#quad-confirm')?.addEventListener('click', confirmTeam);
     window.onresize = drawTrails;
     select(people.find((x) => x.pid === NT.param('person')) || people.find((x) => x.prevQ && x.prevQ !== x.refQ) || people[0]);
@@ -169,8 +183,11 @@
     $('#quad-say-text').textContent = `${x.p.name}从「${QN[x.refQ]}」调到「${QN[qOf(x.pos)]}」，和参考位置不同，写一句理由。`;
     const r = $('#quad-reason'); r.hidden = false; r.value = x.reason; r.focus({ preventScroll: true });
   }
-  // 不能确认的人每次调整都存成建议，离开页面也不丢
-  function keep(x) { if (!st.can('quadConfirm')) st.suggestCalib(id, team, x.pid, { pos: x.pos.slice(), reason: x.reason }); }
+  // 本页先记住落位。不能确认的人另外存成建议，HR 打开同一团队时可以采纳；建议不覆盖 HR 自己放下的位置。
+  function keep(x) {
+    remember(x);
+    if (!st.can('quadConfirm')) st.suggestCalib(id, team, x.pid, { pos: x.pos.slice(), reason: x.reason });
+  }
   function settle(x) {
     keep(x);
     if (qOf(x.pos) !== x.refQ) { ask(x); return; }
@@ -188,17 +205,26 @@
       : `参考位置已给出。拖动头像到你判断的位置，同意参考位置的人保持原位。${shift.length ? `${shift.map((x) => `${x.p.name}的参考位置离开了上次的正式位置（${QN[x.prevQ]}）`).join('；')}，待你判断。` : ''}`;
   }
 
-  async function intro() {
+  async function intro(forceRef) {
+    const generation = ++introGen;
+    if (forceRef) forgetTeam();
+    const batch = people;
     const plane = $('#quad');
     delete plane.dataset.frozen;
     $('#quad-say').classList.remove('is-ink'); $('#quad-reason').hidden = true; asking = null;
     const mine = (x) => !st.can('quadConfirm') && x.sug?.by === st.me().id;
-    people.forEach((x) => { x.pos = mine(x) ? x.sug.pos.slice() : x.ref.slice(); x.reason = mine(x) ? x.sug.reason : ''; x.light.classList.remove('is-gone'); x.dot.classList.remove('is-confirmed'); x.light.style.opacity = 0; x.dot.style.opacity = 0; place(x); });
+    batch.forEach((x) => {
+      const next = placement(x, { forceRef: !!forceRef, draft: draftOf(x.pid), mine: mine(x), sug: x.sug });
+      x.pos = next.pos; x.reason = next.reason;
+      x.light.classList.remove('is-gone'); x.dot.classList.remove('is-confirmed'); x.light.style.opacity = 0; x.dot.style.opacity = 0; place(x);
+    });
+    if (selected && batch.includes(selected)) select(selected);
     NT.ipState($('#quad-ip'), 'searching');
     await NT.wait(900);
+    if (generation !== introGen) return;
     const pr = plane.getBoundingClientRect(), ir = $('#quad-ip').getBoundingClientRect();
     const ix = ir.left + ir.width / 2 - pr.left, iy = ir.top + ir.height / 3 - pr.top;
-    people.forEach((x, i) => {
+    batch.forEach((x, i) => {
       const fx = x.ref[0] * pr.width, fy = x.ref[1] * pr.height, dx = ix - fx, dy = iy - fy;
       x.light.style.opacity = '';
       x.light.animate([{ transform: `translate(${dx}px, ${dy}px) scale(.25)`, opacity: 0 }, { transform: `translate(${dx * 0.45}px, ${dy * 0.45 - 70}px) scale(.9)`, opacity: 1, offset: 0.55 }, { transform: 'none', opacity: 1 }],
@@ -207,7 +233,8 @@
       x.dot.animate([{ opacity: 0, transform: 'scale(1.6)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
         { duration: NT.reduced ? 1 : 520, delay: NT.reduced ? 0 : i * 140 + 640, easing: 'cubic-bezier(.7,0,.15,1)', fill: 'backwards' });
     });
-    await NT.wait(people.length * 140 + 1200);
+    await NT.wait(batch.length * 140 + 1200);
+    if (generation !== introGen) return;
     NT.ipState($('#quad-ip'), 'rest');
     sayIdle();
   }
@@ -253,6 +280,7 @@
     members().filter((pid) => !people.some((x) => x.pid === pid)).forEach((pid) => { const r = st.refPos(pid, cutoff()); sn.entries[pid] = { q: null, na: true, miss: r.miss, dims: r.dims, n: r.n, org: st.person(pid).org }; });
     sn.teams = [...new Set([...(sn.teams || []), team])];
     sn.at = NT.TODAY; sn.by = st.me().id;
+    forgetTeam();
     st.save();
     // 冻结动效：光点消散、拖痕褪去、压印
     const plane = $('#quad'); plane.dataset.frozen = 'true';

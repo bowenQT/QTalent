@@ -8,7 +8,7 @@
   const id = NT.param('id') || 'b-h2';
   const b = st.batch(id);
   const isLanding = b?.kind === 'landing';
-  const LABEL = isLanding ? 'Landing 结营' : '2026 H2';
+  const LABEL = isLanding ? 'Landing 结营' : (b?.name?.match(/\d{4} H\d/)?.[0] || '2026 H2');
   const QN = st.QN;
   const qOf = ([x, y]) => (y < 0.5 ? 'h' : 'l') + (x < 0.5 ? 'l' : 'h');
   const clamp = (v) => Math.min(0.95, Math.max(0.05, v));
@@ -25,8 +25,9 @@
     render,
   });
 
+  const cutoff = () => b.cutoff || NT.TODAY;
   const snap = () => st.get().snaps.find((s) => s.batch === id);
-  const frozen = () => !!snap()?.teams?.includes(team);
+  const frozen = () => b.status === 'confirmed' || !!snap()?.teams?.includes(team);
   function scopeTeams() {
     if (isLanding) return ['newcomers'];
     return [...new Set(st.people().filter((p) => !p.noReview && st.inOrg(p.org, b.org) && st.scope(p.id) === 'full').map((p) => p.org))];
@@ -47,7 +48,7 @@
       // 冻结后整份读快照：位置、维度均值、证据条数都是冻结那一刻的，不随新事件变化
       const e = isFrozen ? sn.entries[pid] : null;
       if (isFrozen && !e) { na.push({ pid, miss: '快照冻结后加入' }); return; }
-      const r = e ? { ...e, q: e.ref } : st.refPos(pid);
+      const r = e ? { ...e, q: e.ref } : st.refPos(pid, cutoff());
       if (r.na) { na.push({ pid, miss: r.miss }); return; }
       const prev = st.formal(pid);
       const ref = e ? [e.x, e.y] : [r.x, r.y];
@@ -234,20 +235,21 @@
   }
 
   async function confirmTeam() {
+    if (b.status === 'confirmed' || frozen()) return;
     const next = pending()[0];
     if (next) { ask(next); NT.toast('还有和参考不同的位置没写理由'); return; }
     const v = await NT.dialog({
       title: `确认并冻结${isLanding ? '结营校准' : `「${st.orgShort(team)}」的校准`}？`,
       body: html`<p>冻结为快照：当时的位置、维度分、证据和规则版本都保存下来，成为每个人${isLanding ? '的第一份' : '这一期的'}档案版本。</p>`,
-      facts: [html`${people.length} 人落位 · ${people.filter((x) => x.reason).length} 人和参考不同`, html`规则版本 ${b?.rubric || st.ruleLive('rubric').v}、${st.ruleLive('place').v} · 证据截止 ${NT.md(NT.TODAY)}`],
+      facts: [html`${people.length} 人落位 · ${people.filter((x) => x.reason).length} 人和参考不同`, html`规则版本 ${b?.rubric || st.ruleLive('rubric').v}、${st.ruleLive('place').v} · 证据截止 ${NT.md(cutoff())}`],
       actions: [{ label: '再看看', value: 'cancel', cls: 'n-btn--ghost' }, { label: '确认并冻结', value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
     if (v !== 'ok') return;
     const S = st.get();
     let sn = snap();
-    if (!sn) { sn = { id: `s-${id}`, batch: id, label: LABEL, org: b.org, cutoff: NT.TODAY, at: NT.TODAY, by: st.me().id, entries: {}, teams: [] }; S.snaps.push(sn); }
+    if (!sn) { sn = { id: `s-${id}`, batch: id, label: LABEL, org: b.org, cutoff: cutoff(), at: NT.TODAY, by: st.me().id, entries: {}, teams: [] }; S.snaps.push(sn); }
     people.forEach((x) => { sn.entries[x.pid] = { q: qOf(x.pos), x: x.pos[0], y: x.pos[1], ref: x.refQ, na: false, miss: '', reason: x.reason.trim(), dims: x.r.dims, n: x.r.n, py: x.r.py, bonus: !!x.bonus, org: x.p.org }; });
-    members().filter((pid) => !people.some((x) => x.pid === pid)).forEach((pid) => { const r = st.refPos(pid); sn.entries[pid] = { q: null, na: true, miss: r.miss, dims: r.dims, n: r.n, org: st.person(pid).org }; });
+    members().filter((pid) => !people.some((x) => x.pid === pid)).forEach((pid) => { const r = st.refPos(pid, cutoff()); sn.entries[pid] = { q: null, na: true, miss: r.miss, dims: r.dims, n: r.n, org: st.person(pid).org }; });
     sn.teams = [...new Set([...(sn.teams || []), team])];
     sn.at = NT.TODAY; sn.by = st.me().id;
     st.save();
