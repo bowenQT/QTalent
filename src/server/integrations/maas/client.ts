@@ -8,37 +8,45 @@ import {
   type MaasMetadata,
   type MaasResult,
   type StructuredMaasClient,
+  type StructuredMaasInput,
 } from './structured';
 
-const liveConfigSchema = z
-  .object({
-    // Inject from the server environment at composition time. Never read process.env here.
-    apiKey: z.string().regex(/^[^\s]+$/),
-    endpoint: z.literal(MAAS_ENDPOINT).default(MAAS_ENDPOINT),
-    model: z.literal(MAAS_MODEL).default(MAAS_MODEL),
-    attemptTimeoutMs: z.number().int().positive().max(30000).default(30000),
-    totalTimeoutMs: z.number().int().positive().max(45000).default(45000),
-    maxAttempts: z.number().int().min(1).max(2).default(2),
-    maxResponseBytes: z.number().int().positive().max(1048576).default(1048576),
-    maxTokens: z.number().int().positive().max(16384).default(4096),
-  })
-  .strict();
-const responseSchema = z.object({
-  id: z.unknown().optional(),
-  model: z.literal(MAAS_MODEL),
-  choices: z
-    .array(
-      z.object({
-        finish_reason: z.literal('stop'),
-        message: z.object({
-          role: z.literal('assistant'),
-          content: z.string().trim().min(1),
+const liveConfigSchema = (protocol: { endpoint: string; model: string }) =>
+  z
+    .object({
+      // Inject from the server environment at composition time. Never read process.env here.
+      apiKey: z.string().regex(/^[^\s]+$/),
+      endpoint: z.literal(protocol.endpoint).default(protocol.endpoint),
+      model: z.literal(protocol.model).default(protocol.model),
+      attemptTimeoutMs: z.number().int().positive().max(30000).default(30000),
+      totalTimeoutMs: z.number().int().positive().max(45000).default(45000),
+      maxAttempts: z.number().int().min(1).max(2).default(2),
+      maxResponseBytes: z
+        .number()
+        .int()
+        .positive()
+        .max(1048576)
+        .default(1048576),
+      maxTokens: z.number().int().positive().max(16384).default(4096),
+    })
+    .strict();
+const responseSchema = (model: string) =>
+  z.object({
+    id: z.unknown().optional(),
+    model: z.literal(model),
+    choices: z
+      .array(
+        z.object({
+          finish_reason: z.literal('stop'),
+          message: z.object({
+            role: z.literal('assistant'),
+            content: z.string().trim().min(1),
+          }),
         }),
-      }),
-    )
-    .length(1),
-  usage: z.unknown().optional(),
-});
+      )
+      .length(1),
+    usage: z.unknown().optional(),
+  });
 const usageSchema = z.object({
   prompt_tokens: z.number().int().nonnegative(),
   completion_tokens: z.number().int().nonnegative(),
@@ -102,10 +110,14 @@ async function readResponse(
 }
 
 function providerMetadata(
-  body: z.infer<typeof responseSchema>,
-  metadata: MaasMetadata,
+  body: z.infer<ReturnType<typeof responseSchema>>,
+  metadata: MaasMetadata<string>,
 ): void {
-  if (typeof body.id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(body.id))
+  if (
+    !metadata.requestId &&
+    typeof body.id === 'string' &&
+    /^[A-Za-z0-9_-]{1,128}$/.test(body.id)
+  )
     metadata.requestId = body.id;
   const usage = usageSchema.safeParse(body.usage);
   if (usage.success)
@@ -121,26 +133,46 @@ export function createMaasClient(
   configuration: unknown,
   transport: { fetch?: typeof fetch } = {},
 ): StructuredMaasClient {
-  const checked = liveConfigSchema.safeParse(configuration);
+  return createStructuredChatClient(
+    configuration,
+    { endpoint: MAAS_ENDPOINT, model: MAAS_MODEL, validInput },
+    transport,
+  );
+}
+
+/** Shared bounded transport for the two explicitly selected MaaS providers. */
+export function createStructuredChatClient<TModel extends string, TMessage>(
+  configuration: unknown,
+  protocol: {
+    endpoint: string;
+    model: TModel;
+    validInput: (
+      input: StructuredMaasInput<Record<string, unknown>, TMessage>,
+    ) => boolean;
+  },
+  transport: { fetch?: typeof fetch } = {},
+): StructuredMaasClient<TModel, TMessage> {
+  const checked = liveConfigSchema(protocol).safeParse(configuration);
+  const envelopeSchema = responseSchema(protocol.model);
   const send = transport.fetch ?? fetch;
   return {
     async generateStructured(input) {
       const started = Date.now();
-      const metadata = metadataFor(input);
+      const metadata = metadataFor(input, protocol.model);
       const failure = (
-        kind: Extract<MaasResult<never>, { ok: false }>['kind'],
+        kind: Extract<MaasResult<never, TModel>, { ok: false }>['kind'],
         extra: Partial<
           Pick<
-            Extract<MaasResult<never>, { ok: false }>,
+            Extract<MaasResult<never, TModel>, { ok: false }>,
             'reason' | 'status' | 'retryable'
           >
         > = {},
-      ): MaasResult<never> => {
+      ): MaasResult<never, TModel> => {
         metadata.elapsedMs = Date.now() - started;
         return { ok: false, kind, retryable: false, metadata, ...extra };
       };
       if (!checked.success) return failure('configuration');
-      if (!validInput(input)) return failure('invalid_request');
+      if (!protocol.validInput(input)) return failure('invalid_request');
       if (input.signal?.aborted) return failure('cancelled');
       const config = checked.data;
       const body = JSON.stringify({
@@ -192,6 +224,9 @@ export function createMaasClient(
             controller.signal,
           );
           receivedResponse = true;
+          const requestId = response.headers.get('http_x_reqid');
+          if (requestId && /^[A-Za-z0-9_-]{1,128}$/.test(requestId))
+            metadata.requestId = requestId;
           if (controller.signal.aborted)
             return failure('outcome_unknown', { reason: interruption });
           if (!response.ok) {
@@ -201,7 +236,7 @@ export function createMaasClient(
             if (status === 403) return failure('permission', { status });
             if (status === 400 || status === 404 || status === 422)
               return failure('invalid_request', { status });
-            // No published Qiniu guarantee that 429/5xx means not processed/billed.
+            // No published provider guarantee that 429/5xx means not processed/billed.
             return failure('outcome_unknown', {
               status,
               reason: status === 429 ? 'rate_limited' : 'unavailable',
@@ -214,7 +249,7 @@ export function createMaasClient(
           );
           if (controller.signal.aborted)
             return failure('outcome_unknown', { reason: interruption });
-          const parsed = responseSchema.safeParse(raw);
+          const parsed = envelopeSchema.safeParse(raw);
           if (!parsed.success) return failure('invalid_response');
           providerMetadata(parsed.data, metadata);
           let value: unknown;
