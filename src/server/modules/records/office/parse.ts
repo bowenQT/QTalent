@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { Unzip, UnzipInflate } from 'fflate';
+import { officeLimits } from './limits';
+export { officeLimits } from './limits';
 import {
   OfficeParser,
   type OfficeContentNode,
@@ -14,16 +17,47 @@ import {
   type OfficeFragment,
   type ParsedOffice,
 } from './types';
-export const officeLimits = {
-  maxInputBytes: 8 * 1024 * 1024,
-  maxUncompressedBytes: 32 * 1024 * 1024,
-  maxZipEntries: 1024,
-  maxTableCells: 20_000,
-  maxXmlElements: 200_000,
-  maxRepeatedContent: 2_000_000,
-  maxRawContentLength: 96 * 1024 * 1024,
-  maxTextChars: 2_000_000,
-} as const;
+/** Count real output from every ZIP part before central-directory-based metadata extraction. */
+function checkExpansion(bytes: Uint8Array): void {
+  let total = 0;
+  let pending = 0;
+  let entries = 0;
+  let failure: unknown;
+  const archive = new Unzip((file) => {
+    if (failure) return;
+    if (++entries > officeLimits.maxZipEntries) {
+      failure = new OfficeParseError('limit_exceeded', 'package_entries');
+      return;
+    }
+    pending++;
+    file.ondata = (error, chunk, final) => {
+      if (failure) return;
+      if (error) {
+        failure = error;
+        return;
+      }
+      total += chunk?.byteLength ?? 0;
+      if (total > officeLimits.maxUncompressedBytes) {
+        failure = new OfficeParseError(
+          'limit_exceeded',
+          'package_expansion_actual',
+        );
+        return;
+      }
+      if (final) pending--;
+    };
+    file.start();
+  });
+  archive.register(UnzipInflate);
+  // Small compressed chunks bound transient inflation; this is not an RSS ceiling.
+  for (let offset = 0; offset < bytes.length && !failure; offset += 1024) {
+    const end = Math.min(bytes.length, offset + 1024);
+    archive.push(bytes.subarray(offset, end), end === bytes.length);
+  }
+  if (failure) throw failure;
+  if (!entries || pending)
+    throw new OfficeParseError('invalid_document', 'incomplete_zip_stream');
+}
 function text(node: OfficeContentNode): string {
   if (['image', 'chart', 'drawing', 'comment'].includes(node.type)) return '';
   if (node.children?.length)
@@ -93,6 +127,7 @@ export async function parseOfficeBytes(input: {
     throw new OfficeParseError('unsupported_format', 'not_an_ooxml_zip');
   const warnings: OfficeIssue[] = [];
   try {
+    checkExpansion(input.bytes);
     const metadata = packageMetadata(input.bytes, officeLimits);
     const pages = input.format === 'pptx' ? presentationPages(metadata) : 0;
     const ast = await OfficeParser.parseOffice(input.bytes, {
