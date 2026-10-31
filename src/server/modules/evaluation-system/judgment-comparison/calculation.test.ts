@@ -53,6 +53,17 @@ describe('原量表对照计算', () => {
     });
     expect(() =>
       calculateComparison(
+        {
+          ...missing,
+          nonComparable: Object.assign({}, missing.nonComparable, {
+            state: 'not_comparable',
+          }),
+        },
+        mapping,
+      ),
+    ).toThrow(ComparisonInputError);
+    expect(() =>
+      calculateComparison(
         Object.assign(facts(1), { outcome: { state: 'consistent' } }),
         mapping,
       ),

@@ -19,6 +19,8 @@ export function calculateComparison(
 ): ComparisonCase {
   if (Object.hasOwn(facts, 'outcome'))
     throw new ComparisonInputError('输入不能携带预先计算的对照结论');
+  if (facts.nonComparable && Object.hasOwn(facts.nonComparable, 'state'))
+    throw new ComparisonInputError('人工不可比事实不能是预计算outcome');
   const map = comparisonMappingSchema.parse(mapping);
   const { front, back } = facts;
   let outcome: ComparisonCase['outcome'];
@@ -33,8 +35,6 @@ export function calculateComparison(
           : 'back',
     };
   } else if (facts.nonComparable) {
-    if (Object.hasOwn(facts.nonComparable, 'state'))
-      throw new ComparisonInputError('人工不可比事实不能是预计算outcome');
     // Never derive a human marker/name/time from an expected result or a model.
     outcome = comparisonOutcomeSchema.parse({
       ...facts.nonComparable,
