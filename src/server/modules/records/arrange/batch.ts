@@ -196,6 +196,22 @@ export function prepareBatch(
     )
       return { status: 'not_found' };
     if (
+      !source.subjects.every(
+        (subject) =>
+          subject.evaluationNodeId != null &&
+          [source.kind, ...source.requiredKinds].every((kind) =>
+            canReadTalent(s.context, { ...subject, kind }, 'model-input'),
+          ),
+      ) ||
+      source.attributedPersonIds.some(
+        (personId) =>
+          !source.subjects.some((subject) => subject.personId === personId),
+      )
+    )
+      return { status: 'not_found' };
+    if (!source.attributedPersonIds.length)
+      return { status: 'needs_review', reason: 'identity_unresolved' };
+    if (
       source.scope !== 'resolved' ||
       (source.acquisition.kind === 'offline_transcript' &&
         source.acquisition.binding !== 'resolved')
@@ -232,20 +248,6 @@ export function prepareBatch(
       a.kind !== 'offline_transcript'
     )
       return { status: 'not_ready', reason: 'invalid_input' };
-    if (
-      !source.subjects.every(
-        (subject) =>
-          subject.evaluationNodeId != null &&
-          [source.kind, ...source.requiredKinds].every((kind) =>
-            canReadTalent(s.context, { ...subject, kind }, 'model-input'),
-          ),
-      ) ||
-      source.attributedPersonIds.some(
-        (personId) =>
-          !source.subjects.some((subject) => subject.personId === personId),
-      )
-    )
-      return { status: 'not_found' };
     sources.push({
       ...source,
       reference: materialSourceReferenceSchema.parse(source.reference),

@@ -221,6 +221,23 @@ describe('batch preparation uses actual899 source and node policy', () => {
     };
     expect(prepareBatch(s, rules).status).toBe('ready');
   });
+  it('requires behavior attribution and filters hidden ownership before exposing review or material status', () => {
+    const { snapshot: s, rules } = fixture();
+    const source = s.availableSources[0];
+    source.attributedPersonIds = [];
+    expect(prepareBatch(s, rules)).toEqual({
+      status: 'needs_review',
+      reason: 'identity_unresolved',
+    });
+    source.subjects.push({
+      personId: 'demo-hidden',
+      cohortId: null,
+      evaluationNodeId: 'demo-node',
+    });
+    source.scope = 'unresolved';
+    source.category = 'historical_evaluation';
+    expect(prepareBatch(s, rules)).toEqual({ status: 'not_found' });
+  });
   it.each(['historical', 'code', 'image', 'video'] as const)(
     'keeps %s material out of this scoring phase',
     (kind) => {

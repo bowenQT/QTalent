@@ -300,6 +300,44 @@ function harness() {
   };
 }
 describe('record batch orchestration with native transaction requirements and843 fake', () => {
+  it.each(['text', 'offline_transcript', 'parsed_attachment'] as const)(
+    'runs the fixed %s sample through the same prompt and quote validation',
+    async (kind) => {
+      const h = harness();
+      const source = h.state.snapshot!.availableSources[0];
+      if (kind === 'offline_transcript') {
+        source.reference.location = {
+          kind: 'recording',
+          startMs: 100,
+          endMs: 2400,
+        };
+        source.acquisition = {
+          kind,
+          recordingId: 'demo-recording',
+          transcriptVersionId: 'demo-transcript-v1',
+          bindingRevision: 3,
+          binding: 'resolved',
+        };
+      }
+      if (kind === 'parsed_attachment')
+        source.acquisition = { kind, parseVersionId: 'demo-parse-v1' };
+      h.modelValue.events[0].evidence[0].reference = structuredClone(
+        source.reference,
+      );
+      const score = h.modelValue.events[0].scores[0];
+      if (score.state !== 'suggested') throw new Error('fixture');
+      score.citations = structuredClone(h.modelValue.events[0].evidence);
+      expect((await h.run(h.request)).status).toBe('drafts');
+      expect(h.state.saved[0].drafts[0].sourceReferences).toEqual([
+        source.reference,
+      ]);
+      expect(h.state.saved[0].drafts[0].scores[0]).toMatchObject({
+        state: 'suggested',
+        citations: [{ quote: '补齐回滚步骤', reference: source.reference }],
+      });
+      expect(h.messages).toHaveLength(1);
+    },
+  );
   it('generates one model proposal, persists server IDs/double versions and replays without another call', async () => {
     const h = harness();
     const first = await h.run(h.request);
@@ -369,6 +407,7 @@ describe('record batch orchestration with native transaction requirements and843
     'expired',
     'performance',
     'no-write',
+    'empty-attribution',
   ] as const)('calls the model zero times for %s', async (fault) => {
     const h = harness();
     const s = h.state.snapshot!;
@@ -387,6 +426,7 @@ describe('record batch orchestration with native transaction requirements and843
       s.context.evaluationRelations[0].validTo = s.context.now;
     if (fault === 'performance') source.requiredKinds.push('performance');
     if (fault === 'no-write') s.writeAllowed = false;
+    if (fault === 'empty-attribution') source.attributedPersonIds = [];
     expect((await h.run(h.request)).status).not.toBe('drafts');
     expect(h.messages).toEqual([]);
     expect(h.state.saved).toEqual([]);
