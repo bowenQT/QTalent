@@ -58,6 +58,8 @@ JS
 
 把脱敏报告、受检 SHA 和执行环境贴回 #35；文字和图片各一次都有 `attempts>0`、结构及预期值通过，才是本卡真实调用通过的证据。超时/未知结果不自动重跑，显式重试须认识到可能重复计费。
 
+已核对项目 README 的「在当前终端设置环境变量」说明与既有 Jev 运行说明：命令行脚本只读进程环境，未指定本机 Modelink 凭据文件加载入口。`deploy/*.service` 的 `/etc/qtalent/runtime.env` 是部署机 systemd 示例，不是本机秘密文件的搜索线索。没有读取该文件、扫描其他凭据位置或推断全机未配置。需要向执行探针的进程安全注入服务 `api.modelink.ai` 的 `MODELINK_API_KEY`；可选的固定 base URL / model 可省略。请通过已有的受控环境注入，不把密钥发送到聊天或 PR。
+
 **本轮待验收：** q843 的进程环境未注入 `MODELINK_API_KEY` / `QINIU_MAAS_API_KEY`，未请求付费接口。BOW-895 的 Modelink 子项仍独立验证连通性，不由本卡代领；#220（BOW-897）未合入前本 PR 也不能合入。详见 [#35 的阻塞记录](https://github.com/bowenQT/QTalent/issues/35#issuecomment-6546025453)。
 
 ## 原七牛实现验证记录与待验收（10/25）

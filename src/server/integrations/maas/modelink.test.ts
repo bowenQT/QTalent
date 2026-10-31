@@ -285,6 +285,16 @@ describe('Modelink structured text and image boundary', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('counts original whitespace bytes toward the text limit before sending', async () => {
+    const { client, fetcher } = setup();
+    const result = await client.generateStructured({
+      ...input,
+      messages: [{ role: 'user', content: ' '.repeat(262144) + 'JSON' }],
+    });
+    expect(result).toMatchObject({ ok: false, kind: 'invalid_request' });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it.each([
     envelope(''),
     envelope('```json\n{"status":"supported"}\n```'),

@@ -85,7 +85,8 @@ function validModelinkInput(
     return false;
   const texts: string[] = [];
   let imageCount = 0;
-  for (const message of checked.data.messages) {
+  // Count the exact bytes that will be sent, including whitespace removed by Zod trim.
+  for (const message of input.messages) {
     if (typeof message.content === 'string') texts.push(message.content);
     else
       for (const part of message.content) {
