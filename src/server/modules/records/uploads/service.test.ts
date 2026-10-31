@@ -1,3 +1,4 @@
+import { materialUploadRequestSchema } from '../../../../contracts/media';
 import { describe, expect, it, vi } from 'vitest';
 import { createUploadService } from './service';
 import { fixture } from '../../../../../tests/fixtures/upload-fake';
@@ -272,4 +273,65 @@ describe('authorized immutable upload lifecycle', () => {
     ).rejects.toMatchObject({ status: 'forbidden' });
     expect(f.snapshot().objects).toHaveLength(0);
   });
+});
+
+it('does not archive a different intent declaration returned after external verification', async () => {
+  const f = fixture();
+  const service = createUploadService(f.options);
+  const grant = await service.request('account', f.request);
+  await f.put(grant.objectKey);
+  const tx = await f.options.store.transaction([], async (value) => value);
+  const find = tx.findIntent;
+  let changed = false;
+  vi.spyOn(tx, 'findIntent').mockImplementation(async (id) => {
+    const value = await find(id);
+    return changed && value
+      ? {
+          ...value,
+          request: {
+            ...value.request,
+            filename: 'changed.txt',
+            declaredBytes: 99,
+          },
+        }
+      : value;
+  });
+  const open = f.options.storage.openObject;
+  vi.spyOn(f.options.storage, 'openObject').mockImplementation(
+    async (input) => {
+      const value = await open(input);
+      changed = true;
+      return value;
+    },
+  );
+  await expect(
+    service.complete('account', {
+      uploadId: grant.uploadId,
+      receiptRef: 'notice',
+      operationId: 'complete',
+      expectedRevision: 1,
+    }),
+  ).rejects.toMatchObject({ status: 'conflict' });
+  expect(f.snapshot().objects).toHaveLength(0);
+  expect(f.snapshot().jobs).toHaveLength(0);
+});
+
+it('keeps a schema-valid material/unassigned intake separate from the legacy seven-format credential path', async () => {
+  const f = fixture();
+  const input = {
+    ...f.request,
+    purpose: 'video',
+    filename: 'demo.mp4',
+    declaredMediaType: 'video/mp4',
+    target: { kind: 'unassigned', evaluationNodeId: 'demo-node' },
+  };
+  expect(materialUploadRequestSchema.safeParse(input).success).toBe(true);
+  const policy = vi.spyOn(f.options.policy, 'resolveWriteTarget');
+  const grant = vi.spyOn(f.options.storage, 'issueUploadGrant');
+  await expect(
+    createUploadService(f.options).request('account', input),
+  ).rejects.toMatchObject({ status: 'validation_error' });
+  expect(policy).not.toHaveBeenCalled();
+  expect(grant).not.toHaveBeenCalled();
+  expect(f.snapshot().intents).toHaveLength(0);
 });

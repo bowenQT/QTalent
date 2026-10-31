@@ -212,3 +212,65 @@ it('denies release by another account or after the save ledger has bound the col
   });
   expect(f.snapshot().intents[0].releasedAt).toBeNull();
 });
+
+it('requires current write permission and canonical mapping for EVERY saved event even through the original people target', async () => {
+  const f = fixture();
+  let binding: CollectionBinding = {
+    state: 'draft',
+    externalAttachmentCount: 0,
+  };
+  const allowed = new Set(['event-1']);
+  let collectionId = '';
+  let secondCanonical = '';
+  const service = createRecordCollectionService({
+    store: f.options.store,
+    now: f.options.now,
+    async canWriteTarget(_accountId, target) {
+      return target.kind === 'people' || allowed.has(target.eventId);
+    },
+    async loadBinding() {
+      return binding;
+    },
+    async collectionForEvent(eventId) {
+      return eventId === 'event-2' ? secondCanonical : collectionId;
+    },
+  });
+  collectionId = (
+    await service.create('account', {
+      operationId: 'create',
+      target: f.request.target,
+    })
+  ).id;
+  secondCanonical = collectionId;
+  binding = {
+    state: 'saved',
+    eventIds: ['event-1', 'event-2'],
+    externalAttachmentCount: 0,
+  };
+  for (const target of [
+    f.request.target,
+    { kind: 'event' as const, eventId: 'event-1' },
+  ]) {
+    expect(
+      await service.resolveWriteTarget('account', {
+        recordCollectionId: collectionId,
+        target,
+      }),
+    ).toBeNull();
+  }
+  allowed.add('event-2');
+  secondCanonical = 'different-collection';
+  expect(
+    await service.resolveWriteTarget('account', {
+      recordCollectionId: collectionId,
+      target: f.request.target,
+    }),
+  ).toBeNull();
+  secondCanonical = collectionId;
+  expect(
+    await service.resolveWriteTarget('account', {
+      recordCollectionId: collectionId,
+      target: f.request.target,
+    }),
+  ).toMatchObject({ recordCollectionId: collectionId });
+});

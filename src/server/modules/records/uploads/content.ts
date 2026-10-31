@@ -140,6 +140,8 @@ export async function verifyUploadObject(
       !format ||
       stat.key !== key ||
       stat.byteLength !== request.declaredBytes ||
+      stat.mediaType.toLowerCase() !==
+        request.declaredMediaType.toLowerCase() ||
       !(format.mediaTypes as readonly string[]).includes(
         stat.mediaType.toLowerCase(),
       )
@@ -186,6 +188,7 @@ export async function verifyUploadObject(
       throw error;
     } finally {
       reader.releaseLock();
+      opened.close();
     }
     if (length !== request.declaredBytes)
       throw new UploadError('validation_error', 'object_mismatch');
@@ -193,6 +196,7 @@ export async function verifyUploadObject(
       throw new UploadError('validation_error', 'invalid_content');
     const after = await storage.statObject({ objectKey: key });
     if (
+      after.key !== key ||
       after.etag !== stat.etag ||
       after.byteLength !== stat.byteLength ||
       after.mediaType !== stat.mediaType

@@ -1,7 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createDatabase } from '../db/client';
 import { fixture } from '../../../tests/fixtures/upload-fake';
-import { createUploadRuntime } from './upload-runtime';
+import {
+  createUploadRuntime,
+  createNodeAuthorizedUploadRuntime,
+} from './upload-runtime';
 import { jobAccount } from '../jobs/request';
 import { recordAudit } from '../platform/audit';
 vi.mock('../jobs/request', () => ({ jobAccount: vi.fn() }));
@@ -94,4 +97,69 @@ it('uses the shared audit writer with an opaque ticket digest and fails closed o
   );
   expect(denied.status).toBe(503);
   expect(await denied.text()).not.toContain('must not escape');
+});
+
+it('constructs the explicit node-aware runtime lazily and never loads scope or storage for anonymous HTTP requests', async () => {
+  const connection = createDatabase(
+    'postgresql://synthetic:unused@127.0.0.1:1/unused_test',
+  );
+  connections.push(connection);
+  const transaction = vi.spyOn(connection.db, 'transaction');
+  const f = fixture();
+  const loadWrite = vi.fn(async () => null);
+  const loadRead = vi.fn(async () => null);
+  const dispatch = vi.fn(async () => ({ jobId: 'unused' }));
+  const runtime = createNodeAuthorizedUploadRuntime({
+    db: connection.db,
+    storage: f.options.storage,
+    dispatch,
+    trustedOrigin: 'https://app.invalid',
+    securityNow: f.options.now,
+    collectionPolicy: {
+      async loadBinding() {
+        return { state: 'draft', externalAttachmentCount: 0 };
+      },
+      async collectionForEvent() {
+        return null;
+      },
+    },
+    targetAuthorization: {
+      authorizationNow: () => '2026-10-31T16:00:00.000Z',
+      loadWriteSnapshot: loadWrite,
+      canWriteNode: async () => false,
+    },
+    originalAuthorization: {
+      authorizationNow: () => '2026-10-31T16:00:00.000Z',
+      load: loadRead,
+      canReadFragment: async () => false,
+    },
+  });
+  vi.mocked(jobAccount).mockResolvedValue(null);
+  expect(
+    (
+      await runtime.http.requestUpload(
+        new Request('https://app.invalid/uploads', {
+          method: 'POST',
+          headers: {
+            origin: 'https://app.invalid',
+            'content-type': 'application/json',
+          },
+          body: '{}',
+        }),
+      )
+    ).status,
+  ).toBe(401);
+  expect(
+    (
+      await runtime.http.readOriginal(
+        new Request(
+          'https://app.invalid/uploads/original?ticket=' + 'a'.repeat(43),
+        ),
+      )
+    ).status,
+  ).toBe(401);
+  expect(transaction).not.toHaveBeenCalled();
+  expect(loadWrite).not.toHaveBeenCalled();
+  expect(loadRead).not.toHaveBeenCalled();
+  expect(dispatch).not.toHaveBeenCalled();
 });

@@ -151,3 +151,79 @@ describe('short lived authenticated original proxy', () => {
     expect(close).toHaveBeenCalledOnce();
   });
 });
+
+it.each(['mime', 'length', 'range_total', 'status'])(
+  'rejects GET metadata %s that disagrees with the archived object',
+  async (kind) => {
+    const f = await ready();
+    const grant = await f.reader.grant('account', f.reference);
+    const original = f.options.storage.openObject;
+    const close = vi.fn();
+    vi.spyOn(f.options.storage, 'openObject').mockImplementation(
+      async (input) => {
+        const opened = await original(input);
+        if (kind === 'mime') opened.headers['content-type'] = 'text/html';
+        if (kind === 'length') opened.headers['content-length'] = '3';
+        if (kind === 'range_total')
+          opened.headers['content-range'] = 'bytes 0-2/9';
+        return {
+          ...opened,
+          status: kind === 'status' ? (206 as const) : opened.status,
+          close,
+        };
+      },
+    );
+    await expect(
+      f.reader.open(
+        'account',
+        ticket(grant.url),
+        kind === 'range_total' ? 'bytes=0-2' : undefined,
+      ),
+    ).rejects.toMatchObject({
+      status: 'unavailable',
+      reason: 'original_integrity',
+    });
+    expect(close).toHaveBeenCalledOnce();
+  },
+);
+it.each([3, 8])(
+  'errors the response stream when its actual %s bytes differ from the archived seven bytes',
+  async (size) => {
+    const f = await ready();
+    const grant = await f.reader.grant('account', f.reference);
+    const open = f.options.storage.openObject;
+    const close = vi.fn();
+    vi.spyOn(f.options.storage, 'openObject').mockImplementation(
+      async (input) => ({
+        ...(await open(input)),
+        close,
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array(size));
+            controller.close();
+          },
+        }),
+      }),
+    );
+    const response = await f.reader.open('account', ticket(grant.url));
+    await expect(response.arrayBuffer()).rejects.toThrow();
+    expect(close).toHaveBeenCalledOnce();
+  },
+);
+it('returns only application-controlled headers rather than storage cookies or redirect hints', async () => {
+  const f = await ready();
+  const grant = await f.reader.grant('account', f.reference);
+  const open = f.options.storage.openObject;
+  vi.spyOn(f.options.storage, 'openObject').mockImplementation(
+    async (input) => {
+      const result = await open(input);
+      result.headers['set-cookie'] = 'unrelated-storage-cookie=1';
+      result.headers.location = 'https://unrelated.invalid';
+      return result;
+    },
+  );
+  const response = await f.reader.open('account', ticket(grant.url));
+  expect(response.headers.has('set-cookie')).toBe(false);
+  expect(response.headers.has('location')).toBe(false);
+  expect(await response.text()).toBe('演示x');
+});
