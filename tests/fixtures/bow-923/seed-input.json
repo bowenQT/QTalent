@@ -1,7 +1,7 @@
 {
   "fixtureVersion": "bow-923-v1",
   "demo": true,
-  "contractSha": "2fe52fa46a0003762b5090b0d5af97654f7f5b2c",
+  "contractSha": "da3012e1037564c89fabebaceb66bb5a1fc1aa03",
   "notice": "待独立演示导入器消费的输入，不是数据库已导入的证据；不含对照计算结果。",
   "batch": {
     "id": "bow-923-xe6-selection-graduation-v1",

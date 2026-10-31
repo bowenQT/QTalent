@@ -78,6 +78,7 @@ const page = {
   raters: expected.raters,
 };
 comparison.comparisonHrPageSchema.parse(page);
+comparison.comparisonRatersSchema.parse(expected.raters);
 // Meaningful negative controls against the actual frozen contract, not a copy.
 const mutate = (value, change) => {
   const copy = structuredClone(value);
@@ -117,12 +118,34 @@ assert.equal(
   }).success,
   false,
 );
+assert.equal(
+  comparison.comparisonRatersSchema.safeParse([...expected.raters].reverse())
+    .success,
+  false,
+);
+assert.equal(
+  comparison.comparisonRatersSchema.safeParse([
+    expected.raters[0],
+    expected.raters[0],
+  ]).success,
+  false,
+);
+const sameName = ['demo-rater-a', 'demo-rater-b'].map((id) => ({
+  ...expected.raters[0],
+  evaluator: { id, name: '同名评价人（演示）' },
+}));
+comparison.comparisonRatersSchema.parse(sameName);
+assert.equal(
+  comparison.comparisonRatersSchema.safeParse([...sameName].reverse()).success,
+  false,
+);
 console.log(
   JSON.stringify({
     contractSha,
     cases: cases.length,
     independentRowReferences: rows.length * 2,
-    negativeControls: rejects.length + 1,
+    negativeControls: rejects.length + 4,
+    raterNameOrderAndSameNameId: 'verified',
     status: 'expected_fixture_schema_valid',
     actualQuery: 'not_run',
   }),

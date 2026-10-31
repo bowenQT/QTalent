@@ -1,6 +1,6 @@
 {
   "evidenceStatus": "expected_only_actual_query_not_run",
-  "contractSha": "2fe52fa46a0003762b5090b0d5af97654f7f5b2c",
+  "contractSha": "da3012e1037564c89fabebaceb66bb5a1fc1aa03",
   "audience": "hr",
   "policy": {
     "conclusionScope": "evaluation_system_only",
@@ -69,60 +69,6 @@
     "sameTeamPeople": 2
   },
   "raters": [
-    {
-      "evaluator": {
-        "id": "p-yeqing",
-        "name": "叶青（演示）"
-      },
-      "sample": {
-        "state": "sufficient_sample",
-        "threshold": 5,
-        "comparableCaseCount": 5,
-        "caseIds": [
-          "bow-923-case-001",
-          "bow-923-case-002",
-          "bow-923-case-003",
-          "bow-923-case-004",
-          "bow-923-case-005"
-        ],
-        "distribution": {
-          "clear": {
-            "consistent": 1,
-            "frontHigher": 2,
-            "frontLower": 1
-          },
-          "middleDistribution": {
-            "notRecommended": 1,
-            "observe": 0,
-            "recommended": 0
-          },
-          "excluded": {
-            "missingFront": 0,
-            "missingBack": 1,
-            "missingBoth": 0,
-            "notComparable": 1
-          }
-        }
-      }
-    },
-    {
-      "evaluator": {
-        "id": "s-01",
-        "name": "任辞远（演示）"
-      },
-      "sample": {
-        "state": "insufficient_sample",
-        "label": "样本不足",
-        "threshold": 5,
-        "comparableCaseCount": 4,
-        "caseIds": [
-          "bow-923-case-008",
-          "bow-923-case-009",
-          "bow-923-case-010",
-          "bow-923-case-011"
-        ]
-      }
-    },
     {
       "evaluator": {
         "id": "s-04",
@@ -219,6 +165,60 @@
             "missingBack": 3,
             "missingBoth": 0,
             "notComparable": 2
+          }
+        }
+      }
+    },
+    {
+      "evaluator": {
+        "id": "s-01",
+        "name": "任辞远（演示）"
+      },
+      "sample": {
+        "state": "insufficient_sample",
+        "label": "样本不足",
+        "threshold": 5,
+        "comparableCaseCount": 4,
+        "caseIds": [
+          "bow-923-case-008",
+          "bow-923-case-009",
+          "bow-923-case-010",
+          "bow-923-case-011"
+        ]
+      }
+    },
+    {
+      "evaluator": {
+        "id": "p-yeqing",
+        "name": "叶青（演示）"
+      },
+      "sample": {
+        "state": "sufficient_sample",
+        "threshold": 5,
+        "comparableCaseCount": 5,
+        "caseIds": [
+          "bow-923-case-001",
+          "bow-923-case-002",
+          "bow-923-case-003",
+          "bow-923-case-004",
+          "bow-923-case-005"
+        ],
+        "distribution": {
+          "clear": {
+            "consistent": 1,
+            "frontHigher": 2,
+            "frontLower": 1
+          },
+          "middleDistribution": {
+            "notRecommended": 1,
+            "observe": 0,
+            "recommended": 0
+          },
+          "excluded": {
+            "missingFront": 0,
+            "missingBack": 1,
+            "missingBoth": 0,
+            "notComparable": 1
           }
         }
       }

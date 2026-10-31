@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
-export const CONTRACT_SHA = '2fe52fa46a0003762b5090b0d5af97654f7f5b2c';
+export const CONTRACT_SHA = 'da3012e1037564c89fabebaceb66bb5a1fc1aa03';
 export const FRONT_DATE = '2026-03-02T01:00:00.000Z';
 export const BACK_DATE = '2026-06-12T06:00:00.000Z';
 export const FRONT_SCALE = 'demo-xe-select-three-bands-v1';
@@ -465,39 +465,6 @@ export async function buildScene() {
     },
     raters: [
       {
-        evaluator: actor('p-yeqing'),
-        sample: {
-          state: 'sufficient_sample',
-          threshold: 5,
-          comparableCaseCount: 5,
-          caseIds: cases.slice(0, 5).map(({ id }) => id),
-          distribution: {
-            clear: { consistent: 1, frontHigher: 2, frontLower: 1 },
-            middleDistribution: {
-              notRecommended: 1,
-              observe: 0,
-              recommended: 0,
-            },
-            excluded: {
-              missingFront: 0,
-              missingBack: 1,
-              missingBoth: 0,
-              notComparable: 1,
-            },
-          },
-        },
-      },
-      {
-        evaluator: actor('s-01'),
-        sample: {
-          state: 'insufficient_sample',
-          label: '样本不足',
-          threshold: 5,
-          comparableCaseCount: 4,
-          caseIds: cases.slice(7, 11).map(({ id }) => id),
-        },
-      },
-      {
         evaluator: actor('s-04'),
         sample: {
           state: 'sufficient_sample',
@@ -516,6 +483,39 @@ export async function buildScene() {
               missingBack: 3,
               missingBoth: 0,
               notComparable: 2,
+            },
+          },
+        },
+      },
+      {
+        evaluator: actor('s-01'),
+        sample: {
+          state: 'insufficient_sample',
+          label: '样本不足',
+          threshold: 5,
+          comparableCaseCount: 4,
+          caseIds: cases.slice(7, 11).map(({ id }) => id),
+        },
+      },
+      {
+        evaluator: actor('p-yeqing'),
+        sample: {
+          state: 'sufficient_sample',
+          threshold: 5,
+          comparableCaseCount: 5,
+          caseIds: cases.slice(0, 5).map(({ id }) => id),
+          distribution: {
+            clear: { consistent: 1, frontHigher: 2, frontLower: 1 },
+            middleDistribution: {
+              notRecommended: 1,
+              observe: 0,
+              recommended: 0,
+            },
+            excluded: {
+              missingFront: 0,
+              missingBack: 1,
+              missingBoth: 0,
+              notComparable: 1,
             },
           },
         },

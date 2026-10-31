@@ -2,7 +2,7 @@
   "fixtureVersion": "bow-923-v1",
   "demo": true,
   "notice": "两份表均为化名重建的演示原表，不是历史原件；既有 prototype_snapshot 未修改。",
-  "contractSha": "2fe52fa46a0003762b5090b0d5af97654f7f5b2c",
+  "contractSha": "da3012e1037564c89fabebaceb66bb5a1fc1aa03",
   "rosterCommit": "451ecec0106344cac2e4225a363b5fd3cae92584",
   "evidenceStatus": "expected_only_actual_query_not_run",
   "originals": {
