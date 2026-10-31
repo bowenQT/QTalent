@@ -138,18 +138,20 @@
       if (g) { openGroup = g.dataset.grp; redraw(); return; }
       if (e.target.closest('#todo-handled')) { showHandled = !showHandled; redraw(); return; }
       const un = e.target.closest('[data-cun]');
-      if (un) { st.unverifyClue(un.dataset.cun); redraw(); NT.toast('已改回待核实，已从「值得关注的人」移出'); return; }
+      if (un) { if (!st.unverifyClue(un.dataset.cun)) { NT.toast('线索状态已变化或当前无权撤回'); redraw(); return; } redraw(); NT.toast('已改回待核实，已从「值得关注的人」移出'); return; }
       const b = e.target.closest('[data-cok],[data-cno]'); if (!b) return;
       if (b.dataset.cok) {
-        const c = st.verifyClue(b.dataset.cok, true); redraw();
-        NT.toast(`已核实，${st.person(c.person).name}会出现在「值得关注的人」`, { undo: () => { st.unverifyClue(c.id); redraw(); } });
+        const c = st.verifyClue(b.dataset.cok, true); if (!c) { NT.toast('线索已被处理或当前无权核实'); redraw(); return; }
+        const token = c.handledToken; redraw();
+        NT.toast(`已核实，${st.person(c.person).name}会出现在「值得关注的人」`, { undo: () => { if (!st.unverifyClue(c.id, token)) NT.toast('线索处理结果已更新，旧撤销不可用'); redraw(); } });
       }
       if (b.dataset.cno) {
         const r = await NT.dialog({ title: '不采纳这条线索', body: html`<label class="n-field"><span class="n-field__label">理由（必填）</span><textarea class="n-textarea" rows="2" id="cn-why" placeholder="比如：周报里说的是同一件事，只能算一条证据"></textarea></label><p class="nt-caption">这条线索只留在你的处理记录里。</p>`,
           actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '不采纳', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#cn-why').value.trim(), read: (d) => d.querySelector('#cn-why').value.trim() }] });
         if (r?.value !== 'ok') return;
-        const c = st.verifyClue(b.dataset.cno, false, r.data); redraw();
-        NT.toast('已不采纳，理由已记录', { undo: () => { st.unverifyClue(c.id); redraw(); } });
+        const c = st.verifyClue(b.dataset.cno, false, r.data); if (!c) { NT.toast('线索已被处理或当前无权操作'); redraw(); return; }
+        const token = c.handledToken; redraw();
+        NT.toast('已不采纳，理由已记录', { undo: () => { if (!st.unverifyClue(c.id, token)) NT.toast('线索处理结果已更新，旧撤销不可用'); redraw(); } });
       }
     };
   }
