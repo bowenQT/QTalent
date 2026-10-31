@@ -127,3 +127,25 @@ test('入营选拔标准：预览后增删依据，预览作废，要重新预�
   assert.equal(p.notes, 1);
   assert.ok(st.submitDraft('front', 'xe-select'));
 });
+
+test('从判断对照带依据起草：已有草稿就追加并去重，预览作废；已提交时返回 blocked', () => {
+  const { as } = load();
+  const st = as('hrbp');
+  const basis = { type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: '演示', cat: '评价标准' };
+  const d = st.startDraft('front', [], 'xe-select');
+  st.setDraft('front', { note: `${d.note}；写清本人做了哪部分`, why: '理由' }, 'xe-select');
+  st.previewDraft('front', 'xe-select');
+
+  const r = st.draftWithBasis('front', [basis], 'xe-select');
+  assert.equal(r.draft, st.ruleOpen('front', 'xe-select'));
+  assert.equal(r.added, 1);
+  assert.equal(r.draft.basis.length, 1);
+  assert.equal(st.draftChecks(r.draft).preview, false, '追加依据后要重新预览');
+  assert.equal(st.draftWithBasis('front', [basis], 'xe-select').added, 0, '同一条依据不重复追加');
+
+  st.previewDraft('front', 'xe-select');
+  assert.ok(st.submitDraft('front', 'xe-select'));
+  const blocked = st.draftWithBasis('front', [{ ...basis, hyp: 'h-xe6-3' }], 'xe-select');
+  assert.equal(blocked.blocked.state, 'pending');
+  assert.equal(st.ruleOpen('front', 'xe-select').basis.length, 1, '已提交的修订不被改动');
+});

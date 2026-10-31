@@ -1268,6 +1268,17 @@
     S.rules[kind].push(d); store.save();
     return d;
   };
+  // 从别处带着依据起草：已有可编辑的草稿就去重追加依据（预览随之作废）；已提交或已排期的返回 blocked，要先撤回
+  const sameBasis = (x, y) => x.type === y.type && (x.type === 'sug' ? x.sug === y.sug : x.type === 'judge' ? x.batch === y.batch && x.hyp === y.hyp : JSON.stringify(x) === JSON.stringify(y));
+  store.draftWithBasis = (kind, basis, line) => {
+    if (!isHrbp()) return null;
+    const open = store.ruleOpen(kind, line);
+    if (open && open.state !== 'draft') return { blocked: open };
+    if (!open) return { draft: store.startDraft(kind, basis, line) };
+    const add = basis.filter((b) => !(open.basis || []).some((x) => sameBasis(x, b)));
+    if (add.length) { open.basis = [...(open.basis || []), ...NT.clone(add)]; open.preview = null; store.save(); }
+    return { draft: open, added: add.length };
+  };
   const draftOf = (kind, line) => { const d = store.ruleOpen(kind, line); return d && d.state === 'draft' && isHrbp() ? d : null; };
   // 改动后预览作废：确认人看到的必须是按当前草稿算出来的那一份（3.35.4）
   const touch = (d) => { d.preview = null; store.save(); };

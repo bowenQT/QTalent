@@ -379,13 +379,16 @@
       if (ac) {
         const h = st.judgeHyps(id).find((x) => x.id === ac.dataset.act), kind = ac.dataset.kind, dim = hypDim(h);
         const t = st.judgeTally(units.filter((u) => u.dimName === dim));
+        // 入营选拔标准已有一份修订在待确认或已排期：先撤回才能补依据，这时不生成动作
+        const openFront = kind === '修订评价标准' && frontLink(chain) && st.ruleOpen('front', FRONT_LINE[chain.id]);
+        if (openFront && openFront.state !== 'draft') { NT.toast(`入营选拔标准已有一份修订${openFront.state === 'pending' ? '待确认' : '已排期'}，先在规则页撤回，再补这条依据`); return; }
         const a = st.addJudgeAction(id, h.id, { title: actTitle(kind, chain, dim), kind,
           then: [`目标：下一批判断对照里「${dim}」前段偏差的人数减少`, `依据：${b.name}，${dim} ${t.high + t.low} 人有偏差（${CAT[st.judgeAttrib(h.id).cats[0]]}）`, '观察：下一批判断对照按标准版本分组对比，样本够了再看改进效果'] });
         render(main);
         if (!a) { NT.toast('依据已经变化，这条结论要先复核，暂不能生成动作'); return; }
         if (kind === '修订评价标准' && frontLink(chain)) {
           const c = st.judgeClear(units.filter((u) => u.dimName === dim), chain);
-          st.startDraft('front', [{ type: 'judge', batch: id, hyp: h.id, dim, n: `前段评为最高或最低一档的 ${c.clear.length} 人中 ${c.diff.length} 人与结营结论不一致`, cat: CAT[st.judgeAttrib(h.id).cats[0]] }], FRONT_LINE[chain.id]);
+          st.draftWithBasis('front', [{ type: 'judge', batch: id, hyp: h.id, dim, n: `前段评为最高或最低一档的 ${c.clear.length} 人中 ${c.diff.length} 人与结营结论不一致`, cat: CAT[st.judgeAttrib(h.id).cats[0]] }], FRONT_LINE[chain.id]);
           location.href = frontLink(chain); return;
         }
         NT.toast(`已生成「${a.title}」，在「人才项目」关键节点复盘的对应节点下跟进`);
