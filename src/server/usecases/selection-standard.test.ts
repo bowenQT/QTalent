@@ -1,3 +1,10 @@
+import {
+  createSelectionPostgresStore,
+  SelectionPersistenceUnavailableError,
+  type SelectionPostgresTransaction,
+  type SelectionPostgresServices,
+} from '../modules/evaluation-system/selection/postgres';
+import type { Database, Transaction } from '../db/client';
 import { expect, it, vi } from 'vitest';
 import {
   executeSelectionRevision,
@@ -542,4 +549,123 @@ it('rejects a cached authority timestamp even when the account matches', async (
     'forbidden',
   );
   expect(h.ports.creationFacts).not.toHaveBeenCalled();
+});
+
+// Native adapter context/error boundary only. This I/O harness does not execute
+// SQL or establish real PostgreSQL lock, rollback, durability or restart evidence.
+function nativeReadBoundary() {
+  const select = vi.fn(() => {
+    throw new Error('SQL must not run in this boundary test');
+  });
+  const native = { select } as unknown as Transaction;
+  const database = {
+    transaction: async <R>(work: (tx: Transaction) => Promise<R>) =>
+      work(native),
+  } as unknown as Database;
+  const services: SelectionPostgresServices = {
+    loadAuthority: vi.fn(async (_tx, id, at) => {
+      const value = structuredClone(auth(id));
+      value.context.now = at;
+      return value;
+    }),
+    creationFacts: vi.fn(async () => {
+      throw new Error('not installed in this unit harness');
+    }),
+    readImpact: vi.fn(async () => {
+      throw new Error('not installed in this unit harness');
+    }),
+    readCohort: vi.fn(async () => {
+      throw new Error('not installed in this unit harness');
+    }),
+  };
+  const store = createSelectionPostgresStore(database, services);
+  return { store, services, select, native, database };
+}
+it('native adapter has no production defaults for missing current-identity/fact readers', () => {
+  const f = nativeReadBoundary();
+  expect(() =>
+    createSelectionPostgresStore(f.database, {} as SelectionPostgresServices),
+  ).toThrow(SelectionPersistenceUnavailableError);
+  expect(f.select).not.toHaveBeenCalled();
+});
+it('native adapter refuses forged, copied and other-store contexts before SQL', async () => {
+  const f = nativeReadBoundary();
+  const other = nativeReadBoundary();
+  await f.store.ports.read(async (tx) => {
+    for (const forged of [{ db: f.native }, { ...tx }])
+      await expect(
+        f.store.ports.readRevision(
+          forged as SelectionPostgresTransaction,
+          'demo',
+        ),
+      ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+    await expect(
+      other.store.ports.readRevision(tx, 'demo'),
+    ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+  });
+  expect(f.select).not.toHaveBeenCalled();
+  expect(other.select).not.toHaveBeenCalled();
+});
+it('native adapter expires contexts at callback end and refuses readonly writes', async () => {
+  const f = nativeReadBoundary();
+  let captured: SelectionPostgresTransaction | undefined;
+  await f.store.ports.read(async (tx) => {
+    captured = tx;
+    await expect(f.store.ports.readRevision(tx, 'demo')).rejects.toBeInstanceOf(
+      SelectionPersistenceUnavailableError,
+    );
+    await expect(f.store.ports.allocateId(tx, 'draft')).rejects.toBeInstanceOf(
+      SelectionPersistenceUnavailableError,
+    );
+  });
+  await expect(
+    f.store.ports.readRevision(captured!, 'demo'),
+  ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+  expect(f.select).not.toHaveBeenCalled();
+});
+it('native adapter verifies current account, person, admin exclusion and business time', async () => {
+  for (const invalid of ['account', 'person', 'admin', 'time'] as const) {
+    const f = nativeReadBoundary();
+    vi.mocked(f.services.loadAuthority).mockImplementation(async () => {
+      const value = structuredClone(auth(hrAccount));
+      if (invalid === 'account') value.context.account.id = 'other';
+      if (invalid === 'person') value.actor.id = 'other';
+      if (invalid === 'admin') value.context.account.isSystemAdmin = true;
+      if (invalid === 'time') value.context.now = '2026-10-31T09:00:00.000Z';
+      return value;
+    });
+    await expect(
+      f.store.ports.read((tx) =>
+        f.store.ports.loadAuthority(tx, hrAccount, now),
+      ),
+    ).rejects.toMatchObject({ status: 'forbidden' });
+    expect(f.select).not.toHaveBeenCalled();
+  }
+});
+it('native current authority is immutable and rejects a different account in the same transaction', async () => {
+  const f = nativeReadBoundary();
+  await f.store.ports.read(async (tx) => {
+    const current = await f.store.ports.loadAuthority(tx, hrAccount, now);
+    expect(Object.isFrozen(current.context.grants)).toBe(true);
+    expect(() => {
+      current.context.account.personId = 'other';
+    }).toThrow();
+    await expect(
+      f.store.ports.loadAuthority(tx, managerAccount, now),
+    ).rejects.toMatchObject({ status: 'forbidden' });
+  });
+});
+it('native storage errors retain only stable SQLSTATE, never query values or private causes', async () => {
+  const f = nativeReadBoundary();
+  vi.mocked(f.services.loadAuthority).mockRejectedValue(
+    Object.assign(new Error('private query and raw parameters'), {
+      cause: { code: '42P01', detail: 'private' },
+    }),
+  );
+  const error = await f.store.ports
+    .read((tx) => f.store.ports.loadAuthority(tx, hrAccount, now))
+    .catch((value: unknown) => value);
+  expect(error).toBeInstanceOf(SelectionPersistenceUnavailableError);
+  expect(error).toMatchObject({ databaseCode: '42P01' });
+  expect(String(error) + JSON.stringify(error)).not.toContain('private');
 });
