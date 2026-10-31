@@ -50,6 +50,12 @@ export function demandJobPolicy(
         action !== 'retry' || (root.retryable && root.currentRevision === 0)
       );
     },
+    async canReplay(tx, accountId, job, action) {
+      const root = await loadDemandRoot(tx, job.resourceId);
+      if (!root || action === 'resume') return false;
+      const context = await currentContext(deps, tx, accountId);
+      return context !== null && canWriteDemand(context, root);
+    },
     async project(_tx, _accountId, job) {
       return {
         result:
