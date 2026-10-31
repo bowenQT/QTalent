@@ -7,11 +7,13 @@ import {
   BACK_DATE,
   CONTRACT_SHA,
   FRONT_DATE,
+  FIXTURE_VERSION,
   backHeaders,
   buildScene,
   frontHeaders,
   originals,
 } from './scene.mjs';
+import { createSeedInput } from './seed-input.mjs';
 
 const [outputDir, qaDir] = process.argv.slice(2);
 assert(
@@ -28,7 +30,7 @@ const writeJson = (name, value) =>
   );
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const manifest = {
-  fixtureVersion: 'bow-923-v1',
+  fixtureVersion: FIXTURE_VERSION,
   demo: true,
   notice:
     '两份表均为化名重建的演示原表，不是历史原件；既有 prototype_snapshot 未修改。',
@@ -179,26 +181,16 @@ await writeJson('selection-standard.json', data.standard);
 await writeJson('roster.json', data.roster);
 await writeJson('mapping.json', data.mapping);
 await writeJson('source-rows.json', data.sourceRows);
-await writeJson('seed-input.json', {
-  fixtureVersion: 'bow-923-v1',
-  demo: true,
-  contractSha: CONTRACT_SHA,
-  notice:
-    '待独立演示导入器消费的输入，不是数据库已导入的证据；不含对照计算结果。',
-  batch: data.expected.batch,
-  selectionReviews: data.frontRows.map((row) => ({
-    personId: row[0],
-    originalGrades: data.standard.reviewPoints.map((point, index) => ({
-      reviewPointId: point.id,
-      grade: row[index + 6],
-    })),
-  })),
-  cases: data.cases.map((unit) =>
-    Object.fromEntries(
-      Object.entries(unit).filter(([key]) => key !== 'outcome'),
-    ),
+await writeJson('manual-comparability-marks.json', data.manualComparability);
+manifest.inputFacts = {
+  file: 'manual-comparability-marks.json',
+  nature: 'demo_human_mark',
+  records: data.manualComparability.marks.length,
+  sha256: sha256(
+    await fs.readFile(path.join(outputDir, 'manual-comparability-marks.json')),
   ),
-});
+};
+await writeJson('seed-input.json', createSeedInput(data));
 await writeJson(
   'expected-cases.json',
   data.cases.map(({ id, person, outcome }) => ({

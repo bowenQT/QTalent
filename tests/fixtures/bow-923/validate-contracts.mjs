@@ -46,11 +46,28 @@ assert(
   inputs.cases.every((unit) => !('outcome' in unit)),
   'seed input must not contain computed comparison results',
 );
+assert.equal(inputs.fixtureVersion, 'bow-923-v2');
+assert.equal(inputs.manualComparabilityMarks.length, 4);
+const marksById = new Map(
+  inputs.manualComparabilityMarks.map((mark) => [mark.caseId, mark]),
+);
+assert.equal(marksById.size, 4);
 const expectedById = new Map(outcomes.map((entry) => [entry.caseId, entry]));
 assert.equal(expectedById.size, inputs.cases.length);
 const cases = inputs.cases.map((unit) => {
   const entry = expectedById.get(unit.id);
   assert.equal(entry.personId, unit.person.id);
+  const mark = marksById.get(unit.id);
+  assert.equal(entry.expectedOutcome.state === 'not_comparable', Boolean(mark));
+  if (mark) {
+    assert.equal(mark.personId, unit.person.id);
+    assert.deepEqual(entry.expectedOutcome, {
+      state: 'not_comparable',
+      reason: mark.reason,
+      markedBy: mark.markedBy,
+      markedAt: mark.markedAt,
+    });
+  }
   return { ...unit, outcome: entry.expectedOutcome };
 });
 assert.equal(
@@ -130,6 +147,25 @@ assert.equal(
   ]).success,
   false,
 );
+const pageRejects = [
+  mutate(page, (copy) => {
+    copy.raters[0].sample.distribution = structuredClone(copy.counts);
+  }),
+  mutate(page, (copy) => {
+    copy.raters[0].sample.distribution.excluded.notComparable = 1;
+  }),
+  mutate(page, (copy) => {
+    copy.raters[0].sample.distribution.clear.consistent -= 1;
+    copy.raters[0].sample.distribution.clear.frontHigher += 1;
+  }),
+];
+for (const invalid of pageRejects) {
+  assert.equal(
+    comparison.comparisonHrPageSchema.safeParse(invalid).success,
+    false,
+    'actual frozen schema must reject samples with other/excluded/swapped outcomes',
+  );
+}
 const sameName = ['demo-rater-a', 'demo-rater-b'].map((id) => ({
   ...expected.raters[0],
   evaluator: { id, name: '同名评价人（演示）' },
@@ -143,8 +179,10 @@ console.log(
   JSON.stringify({
     contractSha,
     cases: cases.length,
+    seedInputVersion: inputs.fixtureVersion,
+    manualComparabilityFacts: marksById.size,
     independentRowReferences: rows.length * 2,
-    negativeControls: rejects.length + 4,
+    negativeControls: rejects.length + 4 + pageRejects.length,
     raterNameOrderAndSameNameId: 'verified',
     status: 'expected_fixture_schema_valid',
     actualQuery: 'not_run',

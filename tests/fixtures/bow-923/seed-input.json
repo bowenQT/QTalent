@@ -1,8 +1,8 @@
 {
-  "fixtureVersion": "bow-923-v1",
+  "fixtureVersion": "bow-923-v2",
   "demo": true,
-  "contractSha": "da3012e1037564c89fabebaceb66bb5a1fc1aa03",
-  "notice": "待独立演示导入器消费的输入，不是数据库已导入的证据；不含对照计算结果。",
+  "contractSha": "832209d177944b5ce18577794acb88314a6460da",
+  "notice": "待独立演示导入器消费的输入，不是数据库已导入的证据；人工标记为独立合成事实，不含对照计算结果。",
   "batch": {
     "id": "bow-923-xe6-selection-graduation-v1",
     "name": "第六期选拔与结营对照（演示）",
@@ -1594,6 +1594,68 @@
           "grade": "高分档"
         }
       ]
+    }
+  ],
+  "manualComparabilityMarks": [
+    {
+      "id": "bow-923-hr-mark-007",
+      "nature": "demo_human_mark",
+      "caseId": "bow-923-case-007",
+      "batchId": "bow-923-xe6-selection-graduation-v1",
+      "personId": "p-x07",
+      "frontNodeId": "bow-923-xe6-selection",
+      "backNodeId": "bow-923-xe6-graduation",
+      "reason": "两段判断的任务范围不同，由 HR 标注不可比（演示）",
+      "markedBy": {
+        "id": "p-suwan",
+        "name": "苏晚（演示）"
+      },
+      "markedAt": "2026-06-15T01:00:00.000Z"
+    },
+    {
+      "id": "bow-923-hr-mark-013",
+      "nature": "demo_human_mark",
+      "caseId": "bow-923-case-013",
+      "batchId": "bow-923-xe6-selection-graduation-v1",
+      "personId": "p-x13",
+      "frontNodeId": "bow-923-xe6-selection",
+      "backNodeId": "bow-923-xe6-graduation",
+      "reason": "两段判断的任务范围不同，由 HR 标注不可比（演示）",
+      "markedBy": {
+        "id": "p-suwan",
+        "name": "苏晚（演示）"
+      },
+      "markedAt": "2026-06-15T01:00:00.000Z"
+    },
+    {
+      "id": "bow-923-hr-mark-092",
+      "nature": "demo_human_mark",
+      "caseId": "bow-923-case-092",
+      "batchId": "bow-923-xe6-selection-graduation-v1",
+      "personId": "p-x92",
+      "frontNodeId": "bow-923-xe6-selection",
+      "backNodeId": "bow-923-xe6-graduation",
+      "reason": "两段判断的任务范围不同，由 HR 标注不可比（演示）",
+      "markedBy": {
+        "id": "p-suwan",
+        "name": "苏晚（演示）"
+      },
+      "markedAt": "2026-06-15T01:00:00.000Z"
+    },
+    {
+      "id": "bow-923-hr-mark-093",
+      "nature": "demo_human_mark",
+      "caseId": "bow-923-case-093",
+      "batchId": "bow-923-xe6-selection-graduation-v1",
+      "personId": "p-x93",
+      "frontNodeId": "bow-923-xe6-selection",
+      "backNodeId": "bow-923-xe6-graduation",
+      "reason": "两段判断的任务范围不同，由 HR 标注不可比（演示）",
+      "markedBy": {
+        "id": "p-suwan",
+        "name": "苏晚（演示）"
+      },
+      "markedAt": "2026-06-15T01:00:00.000Z"
     }
   ],
   "cases": [

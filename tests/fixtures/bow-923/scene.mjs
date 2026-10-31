@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
-export const CONTRACT_SHA = 'da3012e1037564c89fabebaceb66bb5a1fc1aa03';
+export const FIXTURE_VERSION = 'bow-923-v2';
+export const CONTRACT_SHA = '832209d177944b5ce18577794acb88314a6460da';
 export const FRONT_DATE = '2026-03-02T01:00:00.000Z';
 export const BACK_DATE = '2026-06-12T06:00:00.000Z';
 export const FRONT_SCALE = 'demo-xe-select-three-bands-v1';
@@ -250,6 +251,12 @@ export async function buildScene() {
     return person;
   };
   const hr = actor('p-suwan');
+  const manualComparability = JSON.parse(
+    await fs.readFile(
+      new URL('./manual-comparability-marks.json', import.meta.url),
+      'utf8',
+    ),
+  );
   const mapping = {
     versionId: 'map-xe-select-v1',
     frontScaleId: FRONT_SCALE,
@@ -480,9 +487,9 @@ export async function buildScene() {
             },
             excluded: {
               missingFront: 0,
-              missingBack: 3,
+              missingBack: 0,
               missingBoth: 0,
-              notComparable: 2,
+              notComparable: 0,
             },
           },
         },
@@ -513,9 +520,9 @@ export async function buildScene() {
             },
             excluded: {
               missingFront: 0,
-              missingBack: 1,
+              missingBack: 0,
               missingBoth: 0,
-              notComparable: 1,
+              notComparable: 0,
             },
           },
         },
@@ -566,6 +573,7 @@ export async function buildScene() {
   };
   return {
     roster,
+    manualComparability,
     standard,
     mapping,
     cases,

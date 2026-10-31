@@ -12,6 +12,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from manual_marks import FIXTURE_VERSION, MARK_FILE, validate_manual_marks
+
 NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 FRONT_HEADERS = [
     "人员ID", "学员（演示）", "期次（演示）", "作品ID", "作品形式", "同队标记",
@@ -100,7 +102,12 @@ def summarize_declared_outcomes(cases):
 
 def validate(root):
     manifest, roster = read_json(root, "manifest.json"), read_json(root, "roster.json")
-    inputs, outcomes, locators = read_json(root, "seed-input.json"), read_json(root, "expected-cases.json"), read_json(root, "source-rows.json")
+    inputs = read_json(root, "seed-input.json")
+    source = read_json(root, MARK_FILE)
+    marks = validate_manual_marks(inputs, source, roster)
+    require(manifest["fixtureVersion"] == FIXTURE_VERSION, "manifest input version mismatch")
+    require(manifest["inputFacts"] == {"file": MARK_FILE, "nature": "demo_human_mark", "records": 4, "sha256": hashlib.sha256((root / MARK_FILE).read_bytes()).hexdigest()}, "manual fact source manifest mismatch")
+    outcomes, locators = read_json(root, "expected-cases.json"), read_json(root, "source-rows.json")
     require(all("outcome" not in unit for unit in inputs["cases"]), "seed input contains a computed result")
     expected_by_id = {entry["caseId"]: entry for entry in outcomes}
     require(len(expected_by_id) == len(inputs["cases"]) == 93, "duplicate/missing expected case")
@@ -108,7 +115,12 @@ def validate(root):
     for unit in inputs["cases"]:
         entry = expected_by_id[unit["id"]]
         require(entry["personId"] == unit["person"]["id"], "expectation attached to wrong person")
-        cases.append({**unit, "outcome": entry["expectedOutcome"]})
+        outcome = entry["expectedOutcome"]
+        mark = marks.get(unit["id"])
+        require((outcome["state"] == "not_comparable") == (mark is not None), "expected manual exclusion lacks input fact or targets wrong case")
+        if mark is not None:
+            require(outcome == {"state": "not_comparable", **{key: mark[key] for key in ("reason", "markedBy", "markedAt")}}, "expected manual metadata differs from independent input")
+        cases.append({**unit, "outcome": outcome})
     expected = read_json(root, "expected-results.json")
     require(manifest["evidenceStatus"] == expected["evidenceStatus"] == "expected_only_actual_query_not_run", "must not claim actual query")
     require(len(cases) == len(locators) == len(roster["students"]) == 93, "expected all 93 admitted demo students")
@@ -195,7 +207,8 @@ def validate(root):
         require((len(ids) >= 5) == (sample["state"] == "sufficient_sample"), "wrong threshold state")
         require(len(ids) >= 5 or (sample["label"] == "样本不足" and "distribution" not in sample), "insufficient sample leaks distribution")
         if len(ids) >= 5:
-            own = [case for case in cases if case["front"]["state"] == "present" and case["front"]["judgment"]["evaluator"]["id"] == evaluator["id"]]
+            own = [case for case in cases if case["id"] in sample["caseIds"]]
+            require(sample["distribution"]["excluded"] == {"missingFront": 0, "missingBack": 0, "missingBoth": 0, "notComparable": 0}, "sample distribution must exclude all non-comparable cases")
             require(summarize_declared_outcomes(own) == sample["distribution"], "rater expected distribution differs from own declared labels")
     with (root / "expected-cases.csv").open(newline="") as file:
         csv_rows = list(csv.DictReader(file))
@@ -215,7 +228,7 @@ def validate(root):
     scenario = read_json(root, "cohort-scenarios.json")
     require(scenario["liveScenario"]["beforeCreation"] == {"cohortExists": False, "boundVersionId": None}, "seventh cohort pre-bound before publication")
     require(scenario["fixedBackground"][0]["boundSelectionVersionId"] == "xe-select-v1", "sixth cohort history changed")
-    return {"status": "fixture_bytes_and_expectations_verified", "actualQuery": "not_run", "originalReadAPI": "not_run", "databaseIdempotency": "not_run", "originals": reports}
+    return {"manualMarks": {"records": len(marks), "inputVersion": FIXTURE_VERSION, "nature": "demo_human_mark"}, "status": "fixture_bytes_and_expectations_verified", "actualQuery": "not_run", "originalReadAPI": "not_run", "databaseIdempotency": "not_run", "originals": reports}
 
 
 if __name__ == "__main__":

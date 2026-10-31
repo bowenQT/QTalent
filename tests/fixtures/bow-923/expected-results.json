@@ -1,6 +1,6 @@
 {
   "evidenceStatus": "expected_only_actual_query_not_run",
-  "contractSha": "da3012e1037564c89fabebaceb66bb5a1fc1aa03",
+  "contractSha": "832209d177944b5ce18577794acb88314a6460da",
   "audience": "hr",
   "policy": {
     "conclusionScope": "evaluation_system_only",
@@ -162,9 +162,9 @@
           },
           "excluded": {
             "missingFront": 0,
-            "missingBack": 3,
+            "missingBack": 0,
             "missingBoth": 0,
-            "notComparable": 2
+            "notComparable": 0
           }
         }
       }
@@ -216,9 +216,9 @@
           },
           "excluded": {
             "missingFront": 0,
-            "missingBack": 1,
+            "missingBack": 0,
             "missingBoth": 0,
-            "notComparable": 1
+            "notComparable": 0
           }
         }
       }
