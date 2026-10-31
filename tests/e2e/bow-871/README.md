@@ -6,7 +6,7 @@
 
 - 本轮 main：`dc53fbe54179281b5bee37877aba7795eea3a4d1`。
 - 采集与出处冻结：897 `0b20a913621121848219e0966ba4bf4844d1bdb3`；入口见该提交的 `src/contracts/{sources,materials,material-review,record}.ts`。
-- 标准迭代冻结：917 `2fe52fa46a0003762b5090b0d5af97654f7f5b2c`；入口见该提交的 [standard-iteration.md](https://github.com/bowenQT/QTalent/blob/2fe52fa46a0003762b5090b0d5af97654f7f5b2c/src/contracts/standard-iteration.md)。
+- 标准迭代冻结：917 R1（替代旧2fe；上游仍有已证P1，非最终可合版本） `da3012e1037564c89fabebaceb66bb5a1fc1aa03`；入口见该提交的 [standard-iteration.md](https://github.com/bowenQT/QTalent/blob/da3012e1037564c89fabebaceb66bb5a1fc1aa03/src/contracts/standard-iteration.md)。
 
 验收依据：[BOW-871](https://linear.app/bowenzhong/issue/BOW-871) 的 10/31 第三轮与执行入口，以及[架构提案 6.2](../../../docs/proposals/2026-10-25-y-architecture-phases.md#62-必须守住的八条合同)。合入须满足 #63 全部 blocked-by 已进 main；关闭须全部回归在 main 通过。
 
@@ -16,7 +16,7 @@
 | ---------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `authorization-regression.test.ts` | `readTalentCollection`、`readTalentRecord`、`readTalentSource`、`buildAuthorizedModelInput` | 四角色读取与过滤后计数；越权 ID 与不存在 ID 同样不可见；片段/原件版本配对；混合主体的引用及推断字段整体隐藏；每次重新加载权限；授权/关系左闭右开到期；绩效材料不进入模型输入                            |
 | `profile-regression.test.ts`       | `personFromData`、`sourceFromData`                                                          | 可见分数的锚点/规则/评价人与可打开引用；导师响应没有象限字段；系统管理员不可读；AI 推断与人工摘要/时间线分区；失效出处不出分；演示快照不冒充真实原件；当前档案 DTO 不含总分/排名/百分比/confidence 字段 |
-| `frozen-contracts.verify.ts`       | **各冻结 SHA 的真实 schema**，在独立 worktree 中读取                                        | 出处定位负例、面评历史类别、未分配批次、两表来源独立、同一行号跨表合法、管理者严格响应、按类别取版输入、期次不换版、五秒撤销边界等**契约校验**                                                          |
+| `frozen-contracts.verify.ts`       | **各冻结 SHA 的真实 schema**，在独立 worktree 中读取                                        | 出处定位负例、面评历史类别、未分配批次、两表来源独立、同一行号跨表合法、管理者严格响应、按类别取版输入、期次不换版、未编辑草稿/空假设、配对撤销合同、姓名稳定顺序及分布拒绝负例等**契约校验**           |
 
 前两组是无数据库、无网络的离线公共入口组合验证，不是 HTTP / 持久化 / 浏览器端到端验收。`fixtures.ts` 只提供合成存储快照，不实现授权、投影或模型流程；有效断言调用上表的真实业务入口。模型输入检查不调用模型，不证明真实供应商或实际外发链路已通过。
 
@@ -39,22 +39,39 @@ main 当前的 `TalentSubject` 没有 `nodeId`；这里的角色/关系到期检
 
 ## 决赛新增与第三轮场景
 
-| ID  | 场景 / 必须留下的验收证据                                                                                           | 待接线与冻结入口                                                                                                                                                                   |
-| --- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| N01 | D13 同节点允许、跨节点拒绝、关系恰到期失权；仅曾参与前段不产生新授权                                                | 899、919；917 `createAuthorizedRaterComparisonSchema(access)`。`access` 只由服务端当前身份/时间/关系构造                                                                           |
-| N02 | HR 从页面完整重新分派；新评价人可处理、旧人失权；重复提交不重复写/发任务；旧页面不覆盖                              | 899 与重新分派前端；897 `materialReviewCommandSchema`、`materialReviewResolutionReceiptSchema`。后端调用不能冒充页面通过                                                           |
-| N03 | 两段原表分别打开到本人所在行；两张表可以同行号，但不能共用 originalVersionId/fragmentId；团队成员不能共用他人来源行 | 919、923、873；917 `comparisonTableRowSchema`、`comparisonCaseSchema`。不能用原型快照代替真实重建表                                                                                |
-| N04 | 第六期保持 v1，第七期演示使用 v2；发布撤销恢复新建期次默认版；已绑定期次不变；重启后仍成立                          | 918、922、923；917 `selectionCohortBindingChangeSchema`、`selectionPublicationUndoBoundarySchema`、`selectionPublicationUndoReceiptSchema`。旧发布/修订号及恰到 undoUntil 必须拒绝 |
-| N05 | 判断对照原件直链、同节点/跨节点/过期；隐藏任一段时档位、引用、outcome 和推导分布一起隐藏；模型前再次过滤            | 899、919、921；917 `createAuthorizedRaterComparisonSchema`、`createAuthorizedAttributionModelInputSchema`、`createGroundedStandardHypothesisSchema`                                |
-| N06 | 北森面评、入营选拔、重建结营表的范围外读取被拒；未知人员/面试官进待核对并可恢复；原量表不进入正式分数、象限或找人   | 906、873、919、923；897 `materialSourceSchema`。不能把新类型强转成旧 TalentKind 来假证通过                                                                                         |
-| N07 | 企业微信重复回调；回执转发、切换账号、到期与旧版本深链；撤权后旧会话失效                                            | 903、909 与页面；真实 transport 回调、服务端权限与持久化                                                                                                                           |
-| N08 | MCP / AgentAPI 没有确认能力；伪造方法、角色与资源 ID 均不能获得确认入口                                             | 903、910、915；真实工具/动作列表及直接请求                                                                                                                                         |
-| N09 | 混合权限图片不外发；范围未知时模型零调用；允许子区域也必须由服务端先分类/过滤                                       | 905；896 夹具可按 SHA 只读使用，不能用图片上的权限文字当授权                                                                                                                       |
-| N10 | 管理观察不进匹配；节点结论独立记录且确认人正确；导出只含当前范围内已确认内容                                        | 854、902、904、912；实际匹配输入、节点结论读取、导出文件                                                                                                                           |
-| N11 | 845、852、854、921 固定合成样例各回归一次；输出结构、引用、允许内容一致，失败如实报告                               | 各卡已冻结样例和对应实现；不拿 mock 自己返回预设结果当模型回归                                                                                                                     |
-| N12 | 样本不到门槛只显示样本不足；CEO 响应无按评价人的数字/准确率；AI 归因不冒充 HR 确认；判断对照不改档案                | 919、921；917 严格角色响应、归因确认与档案版本/状态前后对照                                                                                                                        |
+| ID  | 场景 / 必须留下的验收证据                                                                                                                                                         | 待接线与冻结入口                                                                                                                                                                                                                                                                             |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N01 | D13 同节点允许、跨节点拒绝、关系恰到期失权；仅曾参与前段不产生新授权                                                                                                              | 899、919；917 `createAuthorizedRaterComparisonSchema(access)`。`access` 只由服务端当前身份/时间/关系构造                                                                                                                                                                                     |
+| N02 | HR 从页面完整重新分派；新评价人可处理、旧人失权；重复提交不重复写/发任务；旧页面不覆盖                                                                                            | 899 与重新分派前端；897 `materialReviewCommandSchema`、`materialReviewResolutionReceiptSchema`。后端调用不能冒充页面通过                                                                                                                                                                     |
+| N03 | 两段原表分别打开到本人所在行；两张表可以同行号，但不能共用 originalVersionId/fragmentId；团队成员不能共用他人来源行                                                               | 919、923、873；917 `comparisonTableRowSchema`、`comparisonCaseSchema`。不能用原型快照代替真实重建表                                                                                                                                                                                          |
+| N04 | 第六期保持 v1，第七期演示使用 v2；发布撤销在同事务恢复上一版生命周期、当前类别读取与新建期次默认；已绑定期次/历史不变；重启后仍成立                                               | 918、922、923；917 `selectionCohortBindingChangeSchema`、`selectionPublicationUndoBoundarySchema`、`selectionPublicationUndoReceiptSchema`、`selectionPublicationUndoTransactionSchema`、`restore_after_undo`。schema通过不等于数据库原子性/重启通过；旧发布/修订号及恰到 undoUntil 必须拒绝 |
+| N05 | 判断对照原件直链、同节点/跨节点/过期；隐藏任一段时档位、引用、outcome 和推导分布一起隐藏；本人/HR分评价人统计仅由可披露案例构成；模型前再次过滤                                   | 899、919、921；917 `createAuthorizedRaterComparisonSchema`、`createAuthorizedAttributionModelInputSchema`、`createGroundedStandardHypothesisSchema`                                                                                                                                          |
+| N06 | 北森面评、入营选拔、重建结营表的范围外读取被拒；未知人员/面试官进待核对并可恢复；原量表不进入正式分数、象限或找人                                                                 | 906、873、919、923；897 `materialSourceSchema`。不能把新类型强转成旧 TalentKind 来假证通过                                                                                                                                                                                                   |
+| N07 | 企业微信重复回调；回执转发、切换账号、到期与旧版本深链；撤权后旧会话失效                                                                                                          | 903、909 与页面；真实 transport 回调、服务端权限与持久化                                                                                                                                                                                                                                     |
+| N08 | MCP / AgentAPI 没有确认能力；伪造方法、角色与资源 ID 均不能获得确认入口                                                                                                           | 903、910、915；真实工具/动作列表及直接请求                                                                                                                                                                                                                                                   |
+| N09 | 混合权限图片不外发；范围未知时模型零调用；允许子区域也必须由服务端先分类/过滤                                                                                                     | 905；896 夹具可按 SHA 只读使用，不能用图片上的权限文字当授权                                                                                                                                                                                                                                 |
+| N10 | 管理观察不进匹配；节点结论独立记录且确认人正确；导出只含当前范围内已确认内容                                                                                                      | 854、902、904、912；实际匹配输入、节点结论读取、导出文件                                                                                                                                                                                                                                     |
+| N11 | 845、852、854、921 固定合成样例各回归一次；输出结构、引用、允许内容一致，失败如实报告                                                                                             | 各卡已冻结样例和对应实现；不拿 mock 自己返回预设结果当模型回归                                                                                                                                                                                                                               |
+| N12 | 样本不到门槛只显示样本不足；CEO 响应无按评价人的数字/准确率；AI未编辑草稿humanVersion:null，HR保存才产生人工版本；空假设成功与模型失败分开；评价人按姓名/稳定ID；判断对照不改档案 | 919、921；917 严格角色响应、归因确认与档案版本/状态前后对照                                                                                                                                                                                                                                  |
 
 这里没有为未实现的链路编造 URL、动作名或字段。接线时先读对应卡最新公共入口，引用当时受检 SHA；已有行为与冻结约束冲突时按根因回报对应卡，不在 871 改业务或把错误行为写成期望。
+
+## 本次917输入同步与明确未通过项
+
+仅更新本目录的冻结验证工具与矩阵；897仍为原0b20a913，原型/契约分歧仍待裁决，不据此另选状态或动作。917使用da3012e，不把旧2fe的43项结果沿用为新合同验证。
+
+| 已确认的917 R1输入 | 本工具的有效对照                                                                                                      | 仍需后续runtime验收                             |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 未编辑AI草稿       | HR/manager可读humanVersion:null；创建不能冒充HR版本；HR保存才有人工版本；提交须待确认且保留人工版本                   | 918/920真实人工操作、服务端签名/时间与持久化    |
+| 空假设成功         | success []合法；model_failed不能带成功result；实际假设仍须引用                                                        | 921真实供应商/归因、无假设时不起草修订          |
+| 配对撤销           | 新版回待确认；原previousVersion系统恢复生效；当前xe_selection读取和新期次默认恢复；已有绑定/历史不变；旧/过期操作拒绝 | 918/922同一数据库事务、失败回滚、重新读取与重启 |
+| 姓名稳定顺序       | 正/反姓名顺序；同名稳定ID；重复身份拒绝；不按样本量排序                                                               | 919真实查询、授权投影和页面顺序                 |
+
+**已证P1保持未通过**：[917精确输入缺口](https://github.com/bowenQT/QTalent/pull/258#issuecomment-6547181016)，对应自动意见discussion_r4432708827。正确5个可披露case ID不变时，本人分布混入HR全局计数、混入隐藏案例计数，以及HR分评价人分布混入他人统计，都必须拒绝。工具对这三例一律断言拒绝，不能把当前accepted行为冻结成期望。正对照先验证正确的本人/隐藏投影/HR样例，另验证错误case ID确实被拒绝。
+
+显式工具汇总所有schema检查，任何不符输出`result: fail`、失败标签及expectedAccepted/actualAccepted，并退出1；不会用skip/todo、吞掉P1、或schema-only的其他通过项把结果改成全绿。待917最后一轮修复并由父更新冻结输入后重新验证。P1未修、全部blocked-by未合与runtime未接线期间，PR保持Draft + blocked，不关闭871、不请求ready-to-merge。
+
+本轮在上述两个未修改冻结worktree上的实际输出：83项schema检查，80项通过、3项失败；失败恰为上面三例分布混入，均expectedAccepted:false / actualAccepted:true，进程退出1。29条既有main公共边界离线回归另行通过，不与这83项混算、不代表P1已修复。完整runtime验收仍按八条合同/十二类矩阵待接线。
 
 ## 执行与收集边界
 
@@ -73,7 +90,7 @@ pnpm exec tsc --noEmit
 
 ```sh
 git worktree add --detach /tmp/bow-871-materials 0b20a913621121848219e0966ba4bf4844d1bdb3
-git worktree add --detach /tmp/bow-871-iteration 2fe52fa46a0003762b5090b0d5af97654f7f5b2c
+git worktree add --detach /tmp/bow-871-iteration da3012e1037564c89fabebaceb66bb5a1fc1aa03
 ln -s "$PWD/node_modules" /tmp/bow-871-materials/node_modules
 ln -s "$PWD/node_modules" /tmp/bow-871-iteration/node_modules
 node --import tsx tests/e2e/bow-871/frozen-contracts.verify.ts --materials-root /tmp/bow-871-materials --iteration-root /tmp/bow-871-iteration
