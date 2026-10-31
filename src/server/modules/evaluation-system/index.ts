@@ -34,3 +34,12 @@ export type {
   SelectionImpactFacts,
   SelectionRevisionRecord,
 } from './selection-standard';
+export {
+  createSelectionPostgresStore,
+  initializeSelectionBaseline,
+  SelectionPersistenceUnavailableError,
+} from './selection/postgres';
+export type {
+  SelectionPostgresServices,
+  SelectionPostgresTransaction,
+} from './selection/postgres';
