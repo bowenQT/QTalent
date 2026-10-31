@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readPdfLayout } from './pdf-layout';
 import { INTERVIEW_TEMPLATES, type InterviewTemplate } from './templates';
 import type {
@@ -10,10 +11,18 @@ import type {
   PdfRegion,
   PdfText,
   ReadField,
+  InterviewPageText,
   Selection,
 } from './types';
 
-type Line = { page: number; text: string; box: PdfBox; spans: PdfText[] };
+type Line = {
+  page: number;
+  text: string;
+  box: PdfBox;
+  spans: PdfText[];
+  start: number;
+  end: number;
+};
 type Anchor = { name: string; line: Line; index: number };
 const compact = (text: string) => text.replace(/\s/g, '');
 const centerY = (box: PdfBox) => (box[1] + box[3]) / 2;
@@ -38,7 +47,14 @@ function linesFor(page: PdfLayoutPage): Line[] {
           Math.abs(centerY(candidate.box) - centerY(span.box)) <= 2,
       );
     if (!line) {
-      line = { page: page.page, text: '', box: span.box, spans: [] };
+      line = {
+        page: page.page,
+        text: '',
+        box: span.box,
+        spans: [],
+        start: 0,
+        end: 0,
+      };
       lines.push(line);
     }
     line.spans.push(span);
@@ -46,10 +62,20 @@ function linesFor(page: PdfLayoutPage): Line[] {
     line.text = line.spans.map((item) => item.text).join(' ');
     line.box = union(line.spans.map((item) => item.box));
   }
+  let offset = 0;
+  for (const line of lines) {
+    line.start = offset;
+    line.end = offset + line.text.length;
+    offset = line.end + 1;
+  }
   return lines;
 }
 function region(line: Line): PdfRegion {
-  return { page: line.page, box: line.box };
+  return {
+    page: line.page,
+    box: line.box,
+    textRange: { start: line.start, end: line.end },
+  };
 }
 function starts(line: Line, label: string): boolean {
   return compact(line.text)
@@ -117,6 +143,24 @@ function field(
     if (!multiline) break;
   }
   return values.length ? { value: values.join('\n'), sources } : null;
+}
+function candidateName(lines: Line[], stopLabels: string[]): ReadField {
+  const candidates = lines.filter((line) =>
+    /^候\s*选\s*人\s*[:：]/.test(line.text),
+  );
+  if (!candidates.length) return null;
+  const values = candidates
+    .map((line) => field([line], ['候选人'], stopLabels))
+    .filter((value): value is NonNullable<ReadField> => value !== null);
+  if (
+    values.length !== candidates.length ||
+    new Set(values.map((value) => value.value)).size !== 1
+  )
+    return null;
+  return {
+    value: values[0].value,
+    sources: values.flatMap((value) => value.sources),
+  };
 }
 function templateTitle(line: Line): string | null {
   if (starts(line, '评价表名称')) return stripLabel(line.text, '评价表名称');
@@ -198,6 +242,7 @@ function readSelection(
   const source = {
     page: anchor.line.page,
     box: union([anchor.line.box, ...groups.map((group) => group.box)]),
+    textRange: { start: anchor.line.start, end: anchor.line.end },
   };
   const fail = (
     reason: Extract<Selection, { status: 'unrecognized' }>['reason'],
@@ -214,6 +259,11 @@ function readSelection(
       (group) => Math.abs(centerY(group.box) - centerY(line.box)) <= 10,
     ),
   );
+  const citedLines = [anchor.line, ...optionLines];
+  source.textRange = {
+    start: Math.min(...citedLines.map((line) => line.start)),
+    end: Math.max(...citedLines.map((line) => line.end)),
+  };
   const optionText = optionLines
     .map((line) =>
       starts(line, anchor.name)
@@ -234,7 +284,11 @@ function readSelection(
   return {
     status: 'recognized',
     value: options[groups.indexOf(selected[0])],
-    source: { page: anchor.line.page, box: selected[0].box },
+    source: {
+      page: anchor.line.page,
+      box: selected[0].box,
+      textRange: source.textRange,
+    },
   };
 }
 
@@ -301,6 +355,10 @@ function parseSection(
     templateFingerprint: 'bow-896-synthetic-v1',
     demo: true,
     templateSource: region(title),
+    identity: {
+      candidateName: candidateName(lines, stopLabels),
+      positionNumber: null, // No verified PDF label/fixture exists; never substitute another identifier.
+    },
     metadata: {
       interviewTime: field(lines, ['面试时间'], stopLabels),
       interviewType: field(lines, ['面试类型'], stopLabels),
@@ -332,8 +390,23 @@ export function parseInterviewReviewLayout(
   pages: PdfLayoutPage[],
   options: InterviewReviewOptions,
 ): InterviewReviewResult {
-  const lines = pages.flatMap((page) => {
-    const pageLines = linesFor(page).filter(
+  const pageLinesByPage = pages.map((page) => ({
+    page,
+    lines: linesFor(page),
+  }));
+  const pageTexts: InterviewPageText[] = pageLinesByPage.map(
+    ({ page, lines }) => {
+      const text = lines.map((line) => line.text).join('\n');
+      return {
+        page: page.page,
+        text,
+        extractionVersion: 'interview-review-lines-v1',
+        sha256: createHash('sha256').update(text).digest('hex'),
+      };
+    },
+  );
+  const lines = pageLinesByPage.flatMap(({ page, lines: allLines }) => {
+    const pageLines = allLines.filter(
       (line) => line.box[1] >= 85 && line.box[3] < page.height - 45,
     );
     const overview = pageLines.some((line) =>
@@ -428,7 +501,11 @@ export function parseInterviewReviewLayout(
         review.suggestedLevel,
       ].some((selection) => selection.status === 'unrecognized'),
   );
-  return { status: manual ? 'needs_manual_input' : 'parsed', reviews };
+  return {
+    status: manual ? 'needs_manual_input' : 'parsed',
+    reviews,
+    pageTexts,
+  };
 }
 
 export async function parseInterviewReviewPdf(

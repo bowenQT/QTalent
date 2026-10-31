@@ -2,8 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { OPS } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { readCircles, readPdfLayout } from './pdf-layout';
 
+// One CID maps to the actual two-code-unit character through the ToUnicode CMap.
 const hex = (text: string) =>
-  [...text].map((c) => c.charCodeAt(0).toString(16).padStart(4, '0')).join('');
+  [...text]
+    .map((c) =>
+      c === '😀' ? 'fffe' : c.charCodeAt(0).toString(16).padStart(4, '0'),
+    )
+    .join('');
 function text(value: string, x: number, y: number) {
   return `BT /F1 10 Tf 1 0 0 1 ${x} ${842 - y} Tm <${hex(value)}> Tj ET`;
 }
@@ -18,7 +23,10 @@ ${x - radius} ${y - k} ${x - k} ${y - radius} ${x} ${y - radius} c
 ${x + k} ${y - radius} ${x + radius} ${y - k} ${x + radius} ${y} c
 h ${selected ? 'f' : 'S'}`;
 }
-function pdf(streams: string[]): Uint8Array {
+function pdf(
+  streams: string[],
+  image?: { width: number; height: number; colorSpace?: string },
+): Uint8Array {
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     `<< /Type /Pages /Count ${streams.length} /Kids [${streams.map((_, i) => `${8 + i * 2} 0 R`).join(' ')}] >>`,
@@ -27,16 +35,20 @@ function pdf(streams: string[]): Uint8Array {
     '<< /Type /FontDescriptor /FontName /DemoSans /Flags 4 /FontBBox [0 -200 1000 1000] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 800 /StemV 80 >>',
   ];
   const cmap =
-    '/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def /CMapName /Demo-UCS def /CMapType 2 def 1 begincodespacerange <0000> <FFFF> endcodespacerange 1 beginbfrange <0000> <FFFF> <0000> endbfrange endcmap CMapName currentdict /CMap defineresource pop end end';
+    '/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def /CMapName /Demo-UCS def /CMapType 2 def 1 begincodespacerange <0000> <FFFF> endcodespacerange 1 beginbfrange <0000> <FFFF> <0000> endbfrange 1 beginbfchar <FFFE> <D83DDE00> endbfchar endcmap CMapName currentdict /CMap defineresource pop end end';
   objects.push(`<< /Length ${cmap.length} >>\nstream\n${cmap}\nendstream`);
   streams.forEach((stream, i) => {
     objects.push(
       `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
     );
     objects.push(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${7 + i * 2} 0 R >>`,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> ${image ? `/XObject << /Im1 ${7 + streams.length * 2} 0 R >>` : ''} >> /Contents ${7 + i * 2} 0 R >>`,
     );
   });
+  if (image)
+    objects.push(
+      `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace ${image.colorSpace ?? '/DeviceRGB'} /BitsPerComponent 8 /Length 3 >>\nstream\nabc\nendstream`,
+    );
   let output = '%PDF-1.7\n';
   const offsets = [0];
   objects.forEach((object, i) => {
@@ -141,6 +153,8 @@ function syntheticReview(
     crossPage?: boolean;
     management?: boolean;
     marker?: boolean;
+    candidate?: string | null;
+    unicodeHeader?: boolean;
   } = {},
 ): Uint8Array {
   const rows = dimensionNames.map((label, index) =>
@@ -160,9 +174,14 @@ function syntheticReview(
     ),
   );
   const detail = [
-    change.marker === false ? '' : text('化名演示', 400, 50),
+    change.marker === false
+      ? ''
+      : text(change.unicodeHeader ? '化名演示😀' : '化名演示', 400, 50),
     text(name, 40, 110),
     text('明细评价', 40, 135),
+    change.candidate === null
+      ? ''
+      : text('候选人：' + (change.candidate ?? '谷嘉树（演示）'), 40, 150),
     text('面试官：陈川（演示）', 40, 165),
     text('面试时间：2026-10-01 10:00（演示）', 40, 190),
     text('面试类型：专业面试', 40, 215),
@@ -218,7 +237,7 @@ describe('deterministic interview review parsing', () => {
       const parsed = review(result);
       expect(parsed.demo).toBe(true);
       expect(parsed.templateFingerprint).toBe('bow-896-synthetic-v1');
-      expect(parsed.dimensions.map((row) => row.selection)).toEqual([
+      expect(parsed.dimensions.map((row) => row.selection)).toMatchObject([
         {
           status: 'recognized',
           value: '2',
@@ -261,7 +280,7 @@ describe('deterministic interview review parsing', () => {
       demoOptions,
     );
     expect(result.status).toBe('parsed');
-    expect(review(result).suggestedLevel).toEqual({
+    expect(review(result).suggestedLevel).toMatchObject({
       status: 'recognized',
       value: 'N3',
       source: { page: 2, box: [322, 215, 332, 225] },
@@ -653,5 +672,143 @@ describe('vector visibility and graphics state', () => {
     expect(result.reviews[1].metadata.interviewType?.value).toBe(
       '第二次面试（演示）',
     );
+  });
+});
+
+describe('BOW-900 real PDF resource/error boundaries', () => {
+  it('rejects more than 200 pages instead of returning a partial layout', async () => {
+    await expect(
+      readPdfLayout(
+        pdf(Array.from({ length: 201 }, () => text('演示页', 40, 100))),
+      ),
+    ).rejects.toMatchObject({
+      name: 'InterviewReviewPdfError',
+      reason: 'resource_limit',
+    });
+  });
+  it('rejects an oversized image even when PDF.js would suppress its operator error', async () => {
+    await expect(
+      readPdfLayout(
+        pdf([text('演示正文', 40, 100) + ' q 10 0 0 10 0 0 cm /Im1 Do Q'], {
+          width: 2001,
+          height: 1000,
+        }),
+      ),
+    ).rejects.toMatchObject({
+      name: 'InterviewReviewPdfError',
+      reason: 'resource_limit',
+    });
+  });
+  it('rejects an actual failed shading operator stream instead of returning partial circles', async () => {
+    await expect(
+      readPdfLayout(pdf([text('演示正文', 40, 100) + ' /Missing sh'])),
+    ).rejects.toMatchObject({
+      name: 'InterviewReviewPdfError',
+      reason: 'invalid_content',
+    });
+  });
+});
+
+describe('actual page text provenance and optional raw candidate metadata', () => {
+  it('extracts the literal candidate label without identity mapping or invented position identifiers', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(),
+      demoOptions,
+    );
+    expect(result.status).toBe('parsed');
+    expect(review(result).identity).toMatchObject({
+      candidateName: { value: '谷嘉树（演示）' },
+      positionNumber: null,
+    });
+    expect(JSON.stringify(review(result).identity)).not.toMatch(
+      /personId|candidateId/,
+    );
+  });
+  it('keeps absent/ambiguous candidate data optional instead of borrowing another field', async () => {
+    const missing = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], { candidate: null }),
+      demoOptions,
+    );
+    expect(missing.status).toBe('parsed');
+    expect(review(missing).identity.candidateName).toBeNull();
+    const pages = await layout();
+    pages[0].text.push({
+      text: '候选人：另一个演示名',
+      box: [40, 172, 250, 182],
+    });
+    expect(
+      review(parseInterviewReviewLayout(pages, demoOptions)).identity
+        .candidateName,
+    ).toBeNull();
+  });
+  it('anchors fields/choices to unfiltered, versioned real page text with UTF-16 offsets', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[1], { crossPage: true, unicodeHeader: true }),
+      demoOptions,
+    );
+    const row = review(result);
+    if (result.status === 'rejected') throw new Error('Unexpected rejection');
+    expect(result.pageTexts[0].text).toContain('化名演示😀');
+    expect(result.pageTexts[0].extractionVersion).toBe(
+      'interview-review-lines-v1',
+    );
+    const regions = [
+      row.templateSource,
+      ...Object.values(row.metadata).flatMap((field) => field?.sources ?? []),
+      ...(row.identity.candidateName?.sources ?? []),
+      ...row.dimensions.flatMap((d) =>
+        d.selection.status === 'not_applicable' ? [] : [d.selection.source],
+      ),
+      ...['interviewRating', 'suggestedLevel'].flatMap((key) => {
+        const value = row[key as 'interviewRating' | 'suggestedLevel'];
+        return value.status === 'not_applicable' ? [] : [value.source];
+      }),
+    ];
+    for (const region of regions) {
+      const page = result.pageTexts.find((page) => page.page === region.page)!;
+      const { start, end } = region.textRange;
+      expect(
+        Number.isInteger(start) &&
+          start >= 0 &&
+          end > start &&
+          end <= page.text.length,
+      ).toBe(true);
+      expect(page.text.slice(start, end).trim()).not.toBe('');
+      const location = {
+        kind: 'pdf',
+        page: region.page,
+        textRange: region.textRange,
+      };
+      expect(Object.keys(location)).toEqual(['kind', 'page', 'textRange']);
+    }
+    const title = row.templateSource;
+    const page = result.pageTexts[0];
+    expect(page.text.slice(title.textRange.start, title.textRange.end)).toBe(
+      templates[1],
+    );
+    expect(title.textRange.start).toBe(page.text.indexOf(templates[1]));
+    expect(title.textRange.start).toBeGreaterThan(
+      [...page.text.slice(0, title.textRange.start)].length,
+    );
+    if (row.suggestedLevel.status === 'recognized')
+      expect(
+        result.pageTexts[1].text.slice(
+          row.suggestedLevel.source.textRange.start,
+          row.suggestedLevel.source.textRange.end,
+        ),
+      ).toContain('建议职级');
+    const other = await parseInterviewReviewPdf(
+      syntheticReview(templates[1], { crossPage: true, unicodeHeader: true }),
+      demoOptions,
+    );
+    if (other.status === 'rejected') throw new Error('Unexpected rejection');
+    expect(other.pageTexts).toEqual(result.pageTexts);
+  });
+  it('keeps the 200-page boundary readable', async () => {
+    expect(
+      await readPdfLayout(
+        pdf(Array.from({ length: 200 }, () => text('演示页', 40, 100))),
+      ),
+    ).toHaveLength(200);
   });
 });

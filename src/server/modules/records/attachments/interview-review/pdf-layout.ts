@@ -5,6 +5,7 @@ import {
   getDocument,
   OPS,
   Util,
+  version,
 } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PdfBox, PdfCircle, PdfLayoutPage } from './types';
 
@@ -247,11 +248,79 @@ export function readCircles(
   return result;
 }
 
+export const interviewPdfLimits = {
+  maxPages: 200,
+  maxImagePixels: 2_000_000,
+} as const;
+class PdfLayoutFault extends Error {
+  constructor(readonly reason: 'invalid_content' | 'resource_limit') {
+    super(reason);
+  }
+}
 export class InterviewReviewPdfError extends Error {
+  readonly reason: 'invalid_content' | 'resource_limit';
   constructor(cause: unknown) {
     super('无法读取面评 PDF，请提供未加密且可读取的原始导出文件。', { cause });
     this.name = 'InterviewReviewPdfError';
+    this.reason =
+      cause instanceof PdfLayoutFault ? cause.reason : 'invalid_content';
   }
+}
+function object(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object')
+    throw new PdfLayoutFault('invalid_content');
+  return value as Record<string, unknown>;
+}
+/** Pinned PDF.js local-document seam: public operator promises can resolve partial data on stream rejection. */
+function observeOperators(document: unknown) {
+  if (version !== '6.4.299') throw new PdfLayoutFault('invalid_content');
+  const handler = object(object(object(document)._transport).messageHandler);
+  const original = handler.sendWithStream;
+  if (typeof original !== 'function')
+    throw new PdfLayoutFault('invalid_content');
+  let failed: PdfLayoutFault | undefined;
+  function remember(error: unknown) {
+    failed ??= new PdfLayoutFault(
+      error instanceof Error &&
+        /Image exceeded maximum allowed size/.test(error.message)
+        ? 'resource_limit'
+        : 'invalid_content',
+    );
+  }
+  handler.sendWithStream = function (this: unknown, ...args: unknown[]) {
+    if (args[0] !== 'GetOperatorList')
+      return Reflect.apply(original, this, args);
+    try {
+      const stream: unknown = Reflect.apply(original, this, args);
+      if (!(stream instanceof ReadableStream))
+        throw new PdfLayoutFault('invalid_content');
+      const reader = stream.getReader();
+      return new ReadableStream({
+        async pull(controller) {
+          try {
+            const chunk = await reader.read();
+            if (chunk.done) controller.close();
+            else controller.enqueue(chunk.value);
+          } catch (error) {
+            remember(error);
+            controller.error(error);
+          }
+        },
+        cancel: (reason) => reader.cancel(reason),
+      });
+    } catch (error) {
+      remember(error);
+      throw error;
+    }
+  };
+  return {
+    check() {
+      if (failed) throw failed;
+    },
+    restore() {
+      handler.sendWithStream = original;
+    },
+  };
 }
 
 export async function readPdfLayout(
@@ -260,53 +329,80 @@ export async function readPdfLayout(
   const root = dirname(
     fileURLToPath(import.meta.resolve('pdfjs-dist/package.json')),
   );
-  const task = getDocument({
-    data: new Uint8Array(bytes),
-    cMapUrl: join(root, 'cmaps/'),
-    standardFontDataUrl: join(root, 'standard_fonts/'),
-    useWorkerFetch: false,
-    useWasm: false,
-    disableFontFace: true,
-    stopAtErrors: true,
-    verbosity: 0,
-  });
+  let task: ReturnType<typeof getDocument> | undefined;
+  let guard: ReturnType<typeof observeOperators> | undefined;
   try {
+    task = getDocument({
+      data: new Uint8Array(bytes),
+      cMapUrl: join(root, 'cmaps/'),
+      standardFontDataUrl: join(root, 'standard_fonts/'),
+      useWorkerFetch: false,
+      useWasm: false,
+      disableFontFace: true,
+      stopAtErrors: true,
+      verbosity: 0,
+      maxImageSize: interviewPdfLimits.maxImagePixels,
+    });
     const pdf = await task.promise;
+    if (
+      !Number.isInteger(pdf.numPages) ||
+      pdf.numPages < 1 ||
+      pdf.numPages > interviewPdfLimits.maxPages
+    )
+      throw new PdfLayoutFault('resource_limit');
+    guard = observeOperators(pdf);
     const pages: PdfLayoutPage[] = [];
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
       const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 1, rotation: 0 });
-      const transform = matrix(viewport.transform)!;
-      const text = await page.getTextContent();
-      const operators = await page.getOperatorList({
-        annotationMode: AnnotationMode.DISABLE,
-      });
-      pages.push({
-        page: pageNumber,
-        width: viewport.width,
-        height: viewport.height,
-        text: text.items.flatMap((item) => {
-          if (!('str' in item) || !item.str.trim()) return [];
-          const m = matrix(item.transform)!;
-          const baseline = multiply(transform, m);
-          const scale = Math.hypot(m[0], m[1]);
-          const ascent = text.styles[item.fontName]?.ascent ?? 0.8;
-          const glyphBox: PdfBox = [
-            0,
-            -(1 - ascent),
-            item.width / scale,
-            ascent,
-          ];
-          return [{ text: item.str, box: bounds(glyphBox, baseline) }];
-        }),
-        circles: readCircles(operators, transform),
-      });
-      page.cleanup();
+      try {
+        const viewport = page.getViewport({ scale: 1, rotation: 0 });
+        const transform = matrix(viewport.transform);
+        if (!transform) throw new PdfLayoutFault('invalid_content');
+        const operators = await page.getOperatorList({
+          annotationMode: AnnotationMode.DISABLE,
+        });
+        guard.check();
+        if (
+          operators.fnArray.length !== operators.argsArray.length ||
+          object(operators).lastChunk !== true
+        )
+          throw new PdfLayoutFault('invalid_content');
+        const text = await page.getTextContent({ disableNormalization: true });
+        guard.check();
+        pages.push({
+          page: pageNumber,
+          width: viewport.width,
+          height: viewport.height,
+          text: text.items.flatMap((item) => {
+            if (!('str' in item) || !item.str.trim()) return [];
+            const m = matrix(item.transform);
+            if (!m) throw new PdfLayoutFault('invalid_content');
+            const baseline = multiply(transform, m);
+            const scale = Math.hypot(m[0], m[1]);
+            if (scale === 0) throw new PdfLayoutFault('invalid_content');
+            const ascent = text.styles[item.fontName]?.ascent ?? 0.8;
+            const glyphBox: PdfBox = [
+              0,
+              -(1 - ascent),
+              item.width / scale,
+              ascent,
+            ];
+            return [{ text: item.str, box: bounds(glyphBox, baseline) }];
+          }),
+          circles: readCircles(operators, transform),
+        });
+      } finally {
+        page.cleanup();
+      }
     }
     return pages;
   } catch (cause) {
     throw new InterviewReviewPdfError(cause);
   } finally {
-    await task.destroy();
+    try {
+      await task?.destroy();
+    } finally {
+      guard?.restore();
+    }
   }
 }
