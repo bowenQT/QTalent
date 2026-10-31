@@ -3,6 +3,9 @@ import { z } from 'zod';
 export const sourceCategorySchema = z.enum(['original', 'prototype_baseline']);
 
 // Shared with records storage. A quote alone is never a resolvable citation.
+// Four location kinds exist: document, spreadsheet, recording and snapshot_field.
+// The authorization layer's TalentSourceLocation must map all four; a baseline
+// (snapshot_field) source that it cannot rebuild would fail every demo read.
 export const sourceLocationSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('snapshot_field'),
@@ -34,10 +37,26 @@ export const sourceReadInputSchema = z.strictObject({
 export const sourceReferenceSchema = sourceReadInputSchema.extend({
   location: sourceLocationSchema,
 });
+// The only place a citation becomes a read request: just the two identifiers.
+// The server resolves the position from them and never trusts the client.
+export function toSourceReadInput(reference: SourceReference): SourceReadInput {
+  return {
+    fragmentId: reference.fragmentId,
+    originalVersionId: reference.originalVersionId,
+  };
+}
+// What the popover shows besides the excerpt. `recordedByName` is null when the
+// recorder is unknown: a fragment has no recorder of its own and the event's
+// recorder must not stand in for it.
+const sourceDetail = {
+  excerpt: z.string().min(1).regex(/\S/, '不能为空白'),
+  originalTitle: z.string().min(1).regex(/\S/, '不能为空白'),
+  recordedByName: z.string().min(1).regex(/\S/, '不能为空白').nullable(),
+};
 // Baseline provenance is an explicit demo-only response, not an original HR file.
 const originalSourceSchema = sourceReferenceSchema
   .extend({
-    excerpt: z.string().min(1).regex(/\S/, '不能为空白'),
+    ...sourceDetail,
     sourceType: z.enum(['document', 'spreadsheet', 'recording']),
     sourceCategory: z.literal('original'),
     demo: z.boolean(),
@@ -45,7 +64,7 @@ const originalSourceSchema = sourceReferenceSchema
   .refine((x) => x.sourceType === x.location.kind, '来源类型须与位置一致');
 const baselineSourceSchema = sourceReferenceSchema
   .extend({
-    excerpt: z.string().min(1).regex(/\S/, '不能为空白'),
+    ...sourceDetail,
     sourceType: z.literal('prototype_snapshot'),
     sourceCategory: z.literal('prototype_baseline'),
     displayNotice: z.string().min(1).regex(/\S/, '不能为空白'),

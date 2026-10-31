@@ -89,6 +89,8 @@ function demoCase(
           source: {
             fragmentId: `demo-${side}-row-${index}`,
             originalVersionId: `demo-${side}-table-v1`,
+            originalTitle: front ? '作品评审表（演示）' : '结营评审表（演示）',
+            recordedByName: null,
             location: {
               kind: 'spreadsheet',
               sheet: front ? '作品评审表' : '结营评审表',
