@@ -270,6 +270,7 @@ describe('timeline', () => {
     const open = screen.getByRole('button', { name: '合成管理观察' });
     expect(open.getAttribute('aria-expanded')).toBe('true');
     expect(document.activeElement).toBe(open);
+    expect(window.location.hash).toBe('#ev-test-event-009');
   });
 
   it('ignores links and hashes that point nowhere', async () => {

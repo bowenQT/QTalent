@@ -181,13 +181,15 @@ export function Timeline({
   const [target, setTarget] = useState<{ id: string; focus: boolean } | null>(
     null,
   );
+  /** 展开地址片段指向的事件；返回是否找到了这条可展开的事件。 */
   const reveal = useCallback((hash: string, focus: boolean) => {
-    if (!hash.startsWith(PREFIX)) return;
+    if (!hash.startsWith(PREFIX)) return false;
     const id = decodeURIComponent(hash.slice(PREFIX.length));
     if (!document.getElementById(`ev-${id}`)?.querySelector('.nt-tl-open'))
-      return;
+      return false;
     setOpen((current) => new Set(current).add(id));
     setTarget({ id, focus });
+    return true;
   }, []);
   useEffect(() => {
     if (!target) return;
@@ -205,7 +207,12 @@ export function Timeline({
       const link = (event.target as Element | null)?.closest?.(
         `a[href^="${PREFIX}"]`,
       );
-      if (link) reveal(link.getAttribute('href') ?? '', true);
+      const hash = link?.getAttribute('href') ?? '';
+      if (!link || !reveal(hash, true)) return;
+      // 自己更新地址：浏览器默认的锚点跳转会把焦点从展开按钮上移走。
+      event.preventDefault();
+      if (window.location.hash !== hash)
+        window.history.pushState(null, '', hash);
     };
     const onHash = () => reveal(window.location.hash, false);
     document.addEventListener('click', onClick);

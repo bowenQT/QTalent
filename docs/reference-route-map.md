@@ -22,7 +22,7 @@
 | --------------------------------- | --------------------------------- | ----------------------------------- | -------------------------------------------- | -------------- |
 | `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
-| `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
+| `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 档案主体已实现（BOW-840，见下文），待 837 / 834 数据对齐 |
 | `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
@@ -190,3 +190,36 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 `src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
 
 本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
+
+## BOW-840 人员档案
+
+路由 `/person?id=…`（`src/app/(desk)/person/`），组件在 `src/features/person/`，引用角标绑定层在 `src/features/sources/`。契约取 #202（BOW-836 修订）。来源读取暂用路由内的只读 Server Action `read-source.ts`，BOW-837 提供 `server/actions/sources.ts` 后替换。
+
+### 不渲染与截图处理
+
+选择器与处理方式在 `tests/visual/person-regions.ts`，取消时同步删除。
+
+| 区块 | 选择器 | 处理 | 原因 | 取消条件 |
+| -- | -- | -- | -- | -- |
+| 头部动作 | `.nt-head__acts` | omit | 记一件事、关注、推荐、重点跟踪、上传材料的路由与契约未上线 | 对应路由与契约上线 |
+| 为什么值得关注 | `#why` | omit | 值得关注留在原型演示 | 值得关注进入工程 |
+| 判断变化与档案版本条 | `#judgechg` | omit | `versionsAndChanges: not_connected` | 盘点冻结接入 |
+| 发展方向、重点跟踪、活跃度与安排、值得聊一聊 | `#dirwrap`、`[data-trackwrap]`、`article:has(#pachanges)`、`#sigwrap` | omit | 无契约字段 | 对应契约上线 |
+| 本人纠错 | `article:has([data-corr])` | omit | 纠错链路不在 P0 | 纠错链路上线 |
+| 摘要的采纳 / 改写 / 删去、补上时间 | `#sum-acts`、`[data-date]` | omit | 写入不在范围 | 写入链路上线 |
+| 正式位置行、重新校准提示与保持记录 | `.nt-dl > dt/dd:first-of-type`、`.nt-dl ~ .n-notice`、`.nt-dl ~ .nt-caption:has(.ink-hand)` | omit | `calibrationHistory: not_connected` | 盘点冻结接入 |
+| 时间线变化条目 | `li:has(.n-tl__dot.is-change)` | omit | 同判断变化 | 盘点冻结接入 |
+| 事件卡标签行 | `.n-tags` | omit | P0 无标签模型 | 标签模型接入 |
+| 导师时间线隐藏提示 | `#timeline > .n-lock` | omit | 不返回隐藏计数 | 长期差异 |
+| 摘要区 | `#summary` | replace；工程侧没有摘要时 omit | 内容由后端决定 | 摘要内容与原型对齐 |
+| 小象限 | `.n-miniquad` | mask | 校准轨迹未接入，参考点画在象限中心 | 校准接入且点位规则对齐 |
+
+### 与原型的已知差异
+
+- 前端：事件卡项目徽标写「项目：」（契约不区分课题与项目）；项目名称不做链接；单一来源的关键事件不写来源名称（时间线条目没有来源标题）；自述与历史资料在位置后加原文角标；某个分的出处与事件出处不同时，分数行另画角标；受限历史资料日期写 `MM-DD`（原型写半年度）；能力谱展开超过 6 条时的提示沿用组件文案。
+- 数据（BOW-837 / 834，实看 `p-x07` 发现）：`jobTitle` 为占位「职位未接入」、`level` 为空、`teamPath` 只有单级；导师名单、项目顺序、维度顺序与原型不同；「结营评审」未标为 `performance`；小组级历史评价未投影；导师视角读不到团队记录的关键事件。数据相等闸会因此失败，截图比较在这些修正后才有意义。
+
+### 待接入
+
+面试原量表（`OriginalScale` 已做、未接入）、节点结论、历史评价等 BOW-898 评审合入后按原型做；管理观察单列等 BOW-904；真实读取的剩余部分等 BOW-837。
+
