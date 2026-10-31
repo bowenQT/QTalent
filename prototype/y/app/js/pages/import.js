@@ -61,7 +61,7 @@
       : v === '?' ? html`<span class="${r.filled ? '' : 'is-miss'}">${k} ${r.filled || '待补录'}</span>` : html`<span>${k} ${v}</span>`))}<span>面试结论 ${r.verdict}</span></div>`;
     const unread = r.unread ? html`<div class="n-ivunread">
         <figure class="n-pdfcrop" aria-label="${r.pages}「${r.unread.item}」一栏的页面图"><figcaption>${r.pages} · ${r.unread.item}</figcaption><div class="n-pdfcrop__opts">${['A', 'B', 'C', 'D'].map((o) => html`<span class="${o === 'A' || o === 'B' ? 'is-on' : ''}"><i></i>${o}</span>`)}</div></figure>
-        <label class="n-field"><span class="n-field__label">「${r.unread.item}」没读出来：${r.unread.why}。对照页面图补录</span><select class="n-input" data-fill="${r.id}"><option value="">选一个</option>${['A', 'B', 'C', 'D'].map((o) => NT.raw(`<option${r.filled === o ? ' selected' : ''}>${o}</option>`))}</select></label></div>` : '';
+        ${r.imported ? html`<p class="nt-caption">「${r.unread.item}」已补录为 ${r.filled}，随这一行导入档案；要更正，先撤销这次导入。</p>` : html`<label class="n-field"><span class="n-field__label">「${r.unread.item}」没读出来：${r.unread.why}。对照页面图补录</span><select class="n-input" data-fill="${r.id}"><option value="">选一个</option>${['A', 'B', 'C', 'D'].map((o) => NT.raw(`<option${r.filled === o ? ' selected' : ''}>${o}</option>`))}</select></label>`}</div>` : '';
     let acts = '';
     if (s === 'confirm') acts = html`<button class="n-btn n-btn--sm n-btn--ink" type="button" data-iv="ok" data-row="${r.id}">${icon('check')}是${p.name}</button>`;
     else if (s === 'confirmed') acts = html`<span class="n-badge n-badge--yes">${icon('check')}已确认是${p.name}</span><button class="n-link" type="button" data-iv="undo" data-row="${r.id}">改回</button>`;

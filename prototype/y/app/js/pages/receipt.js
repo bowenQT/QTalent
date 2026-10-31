@@ -77,7 +77,7 @@
     const busy = ['uploading', 'queued', 'parsing', 'transcribing'].includes(f.state);
     return html`<li class="n-file" data-state="${f.state}"><span class="n-file__ext">${f.kind === 'code' ? 'PR' : k.ext}</span><div style="min-width:0"><div class="n-file__name">${f.name}</div>
       <div class="n-file__state"><span class="${f.state === 'failed' ? 'err' : f.state === 'done' ? 'ok' : ''}">${icon(ic, 12)} ${label}</span> · ${f.meta}</div>${busy ? html`<div class="n-progress is-indeterminate"><i></i></div>` : ''}</div>
-      ${f.state === 'failed' && d.by === st.me().id ? html`<button class="n-btn n-btn--sm" type="button" data-retry="${f.name}">${icon('upload')}转成 JPG 重传</button>` : html`<span></span>`}</li>`;
+      ${f.state === 'failed' && d.by === st.me().id && st.canConvert(f) ? html`<button class="n-btn n-btn--sm" type="button" data-retry="${f.name}">${icon('upload')}转成 JPG 重传</button>` : html`<span></span>`}</li>`;
   }
 
   // 提交人在入口里看到的回执：企业微信单聊回一张卡，Claude Code 里回一段文字；确认都回到这一页

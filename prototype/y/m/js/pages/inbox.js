@@ -11,6 +11,8 @@
     render,
   });
 
+  const DONE_TEXT = { none: '名单外的人，只留在原件里', rows: '已选定要整理的行', attach: '整张只作附件' };
+
   function render(main) {
     const todos = st.todos();
     const all = st.visibleInbox();
@@ -32,7 +34,7 @@
       ${others.length ? html`<h3 class="m-h">其他待办</h3><ul class="m-list">${others.map(M.todoRow)}</ul>`
         : !verify.length && !later.length ? html`<div class="m-card" style="margin-top:var(--s-3)">${UI.state({ ip: 'rest', size: 40, title: '待办都处理完了', text: '新的待确认会出现在这里。' })}</div>` : ''}
 
-      ${done.length ? html`<h3 class="m-h">已核对</h3><ul class="m-list">${done.map((i) => html`<li><div class="m-row">${icon('check')}<span>${i.q.replace(/？$/, '')}<small>→ ${i.choice === 'none' ? '名单外的人，只留在原件里' : st.person(i.choice)?.name || st.project(i.choice)?.name}</small></span><button class="n-link" type="button" data-undo="${i.id}">撤销</button></div></li>`)}</ul>` : ''}`);
+      ${done.length ? html`<h3 class="m-h">已核对</h3><ul class="m-list">${done.map((i) => html`<li><div class="m-row">${icon('check')}<span>${i.q.replace(/？$/, '')}<small>→ ${DONE_TEXT[i.choice] || st.person(i.choice)?.name || st.project(i.choice)?.name}</small></span><button class="n-link" type="button" data-undo="${i.id}">撤销</button></div></li>`)}</ul>` : ''}`);
     main.onclick = (e) => {
       const c = e.target.closest('.n-choice');
       if (c) pick(c.closest('[data-item]'), c);
@@ -41,7 +43,18 @@
     };
   }
 
+  // 图片范围要对着整张图框选行，手机上只说明并给电脑端入口，不在这里处理
+  function regionCard(i) {
+    return html`<article class="m-card n-verify" data-item="${i.id}" id="${i.id}">
+      <span class="n-src n-src--ai">${icon('spark')}${i.src} ${i.at} · ${st.person(i.by).name}</span>
+      <p class="n-verify__q" style="margin-top:var(--s-2)">${i.q}</p>
+      <p class="nt-muted" style="margin:0 0 var(--s-2)">要对着整张图选行，请在电脑上打开待核对处理。</p>
+      <a class="n-btn n-btn--sm" href="../app/inbox.html#${i.id}">${icon('grid')}在电脑上处理</a>
+    </article>`;
+  }
+
   function card(i, isLater) {
+    if (i.kind === 'region') return regionCard(i);
     const isProj = i.kind === 'project';
     const q = i.kind === 'speaker' ? `说话人 2 · ${i.at}　${i.quote}` : i.quote.replace(new RegExp(`(${i.name || '小孟|分镜那个组'})`), '「$1」');
     return html`<article class="m-card n-verify" data-item="${i.id}" id="${i.id}">

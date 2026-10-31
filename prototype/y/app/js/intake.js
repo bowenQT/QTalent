@@ -113,8 +113,10 @@
     st.save();
     return d;
   };
+  // 只有 HEIC 能在演示里转成 JPG 重传；格式不支持、超过大小的文件保持失败，要换一个符合要求的新文件
+  st.canConvert = (f) => /\.heic$/i.test(f.name);
   st.retryFile = (dropId, name) => {
-    const f = st.drop(dropId)?.files.find((x) => x.name === name); if (!f) return;
+    const f = st.drop(dropId)?.files.find((x) => x.name === name); if (!f || f.state !== 'failed' || !st.canConvert(f)) return;
     Object.assign(f, { name: f.name.replace(/\.heic$/i, '.jpg'), state: 'parsing', meta: '解析中 · 识别文字和区域', steps: [{ at: Date.now() + 2200, set: { state: 'done', meta: '1 张图 · 定位到区域' } }] });
     st.save();
   };
@@ -123,11 +125,14 @@
   st.INBOX_KINDS = [['speaker', '说话人'], ['person', '人名'], ['unknown', '未知人员'], ['project', '课题'], ['region', '图片范围'], ['interviewer', '面试官']];
   st.visibleInbox = () => st.get().inbox.filter((i) => role() === 'hrbp' || i.by === me());
   const baseResolve = st.resolveInbox, baseUnresolve = st.unresolveInbox;
+  const ivRow = (it) => st.importOf(it.iv[0])?.rows.find((r) => r.id === it.iv[1]);
   st.resolveInbox = (id, choice) => {
     const it = st.get().inbox.find((x) => x.id === id);
     if (!it || it.done) return;
     // 「名单里没有这个人」「整张只作附件」也是处理完成：这一处不入档
     if (choice === 'none' || choice === 'attach' || choice === 'rows') {
+      // 候选人不在人员目录里：面评那一行跳过，不导入
+      if (it.iv && choice === 'none') { const r = ivRow(it); if (r) r.unknown = false; }
       it.done = true; it.later = false; it.choice = choice; st.save(); return;
     }
     baseResolve(id, choice);
@@ -138,6 +143,8 @@
       e.people = [choice]; e.scores.forEach((s) => { s.p = choice; });
       st.addEvent(e);
     }
+    // 候选人核对到人后，面评那一行回到「待确认这是谁」
+    if (it.iv) { const r = ivRow(it); if (r) { r.match = choice; r.unknown = false; } }
     // 面试官关联到目录里的人后，面评那一行可以导入
     if (it.kind === 'interviewer') I().imports.forEach((imp) => imp.rows.forEach((r) => { if (r.verify === id) r.interviewer = choice; }));
     st.save();
@@ -146,6 +153,7 @@
     const it = st.get().inbox.find((x) => x.id === id); if (!it) return;
     if (it.ev && I().held[it.ev]) st.get().events = st.get().events.filter((e) => e.id !== it.ev);
     if (it.kind === 'interviewer') I().imports.forEach((imp) => imp.rows.forEach((r) => { if (r.verify === id) r.interviewer = null; }));
+    if (it.iv) { const r = ivRow(it); if (r && !r.imported) { r.match = null; r.unknown = true; r.ok = false; } }
     baseUnresolve(id);
   };
   // 面试官只能关联到人员目录里已有的人：目录里是工作人员（导师、助教、评委、HR、管理者）
@@ -165,12 +173,13 @@
     return r.ok ? 'confirmed' : 'confirm';
   };
   st.ivConfirm = (impId, rid, ok) => { const r = st.importOf(impId).rows.find((x) => x.id === rid); r.ok = ok; st.save(); };
-  st.ivFill = (impId, rid, v) => { const r = st.importOf(impId).rows.find((x) => x.id === rid); r.filled = v || null; if (!v) r.ok = false; st.save(); };
+  // 已导入的行只读：补录值已写进档案，改这里不会同步过去
+  st.ivFill = (impId, rid, v) => { const r = st.importOf(impId).rows.find((x) => x.id === rid); if (!r || r.imported) return; r.filled = v || null; if (!v) r.ok = false; st.save(); };
   // 认不出的人放进待核对：每行一条，重复点不重复生成
   st.ivSend = (impId, rid) => {
     const imp = st.importOf(impId), r = imp.rows.find((x) => x.id === rid);
     const iid = `i-iv-${rid}`;
-    if (!st.get().inbox.some((x) => x.id === iid)) st.get().inbox.push({ id: iid, kind: 'person', src: imp.file, at: r.pages, by: me(), q: `面评${r.pages}的「${r.name}」是谁？`, quote: `候选人：${r.name} · 北森状态：${r.hr}`, options: [], note: '人员目录里查到 0 个同名的人；北森同步后再核对一次。' });
+    if (!st.get().inbox.some((x) => x.id === iid)) st.get().inbox.push({ id: iid, kind: 'person', iv: [impId, rid], src: imp.file, at: r.pages, by: me(), q: `面评${r.pages}的「${r.name}」是谁？`, quote: `候选人：${r.name} · 北森状态：${r.hr}`, options: [], note: '人员目录里查到 0 个同名的人；北森同步后再核对一次。' });
     r.sent = true; st.save();
   };
   // 导入已确认的行：写成面试段的历史评价，保留原量表；未入职、未确认的行不写
@@ -250,6 +259,11 @@
     return { done, conflicts, undo: () => { done.forEach((x) => { delete x.to; delete x.by; delete x.at; }); if (rel) S.relations = S.relations.filter((r) => r !== rel); st.save(); } };
   };
 
+  // 接手的事：接手人在有效期内对这几位学员有评价关系，可以打开档案、记录；待办里列出要做的事
+  const baseScope = st.scope;
+  st.scope = (pid, r = role()) => baseScope(pid, r) || (r === 'mentor' && I().relations.some((x) => x.from_reassign && x.rater === NT.SEED.ROLES.mentor.person && x.people.includes(pid) && st.relActive(x)) ? 'mentor' : null);
+  st.takenOver = () => I().reassign.filter((x) => x.to === me());
+
   // ---------- 节点覆盖提醒 ----------
   st.coverage = () => SEED.COVERAGE.filter((c) => !I().coverDone.includes(c.id) && (c.rater === me() || role() === 'hrbp'))
     .map((c) => ({ ...c, missing: c.people.filter((p) => !st.get().events.some((e) => e.recorder === c.rater && e.people.includes(p) && e.date >= c.due)) }))
@@ -276,6 +290,7 @@
         list.push({ kind: 'conclusion', badge: '节点结论', cls: 'n-badge--seal', title: `转正答辩 · ${st.person(c.person).name}的结论待你确认`, sub: wait.length ? `等${wait.map((j) => st.person(j.rater).name).join('、')}确认本人评分` : '评委都已确认本人评分', due: '本人确认', href: `actions.html?node=${c.node}#${c.id}` });
       });
     }
+    st.takenOver().forEach((x) => list.push({ kind: 'takeover', badge: '接手', title: `${st.person(x.person).name} · ${x.what}`, sub: `${x.by === me() ? '你自己接手' : `${st.person(x.by).name}分派给你`} · 原评价人的关系已到期`, due: NT.md(x.due), href: `person.html?id=${x.person}` }));
     st.coverage().forEach((c) => list.push({ kind: 'cover', badge: '待补记录', title: `${c.node} · ${c.missing.length} 位学员待补记录`, sub: `${c.missing.map((p) => st.person(p).name).join('、')} · 节点 ${NT.md(c.due)} 已到${c.rater === me() ? '' : ` · 评价人 ${st.person(c.rater).name}`}`, due: NT.md(c.due), href: c.rater === me() ? `person.html?id=${c.missing[0]}` : 'landing.html' }));
     return list;
   };
