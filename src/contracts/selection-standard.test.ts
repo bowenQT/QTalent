@@ -22,6 +22,7 @@ import {
   selectionPublicationReceiptSchema,
   selectionPublicationUndoBoundarySchema,
   selectionPublicationUndoReceiptSchema,
+  selectionPublicationUndoTransactionSchema,
   selectionReviewPointChangesSchema,
   selectionRevisionSchema,
   selectionStandardContentSchema,
@@ -44,6 +45,8 @@ import {
   selectionManagerRevisionFixture,
   selectionPublicationFixture,
   selectionRevisionFixture,
+  selectionUneditedDraftFixture,
+  selectionPublicationUndoTransactionFixture,
 } from './standard-iteration.fixtures';
 
 const command = {
@@ -254,6 +257,7 @@ describe('入营选拔标准修订与影响预览契约', () => {
 
   it('已确认归因、AI 初稿与 HR 修改分别保存，预览绑定内容修订', () => {
     const draft = selectionRevisionSchema.parse(selectionRevisionFixture());
+    if (draft.state !== 'pending_confirmation') throw new Error('fixture');
     expect(draft.basis.origin).toBe('human_conclusion');
     expect(draft.aiDraft?.origin).toBe('ai_draft');
     expect(draft.humanVersion.origin).toBe('hr_edited');
@@ -600,18 +604,22 @@ describe('入营选拔标准修订与影响预览契约', () => {
       replayed: false,
       result: selectionRevisionFixture(),
     };
-    for (const schema of [
-      createSelectionRevisionResultSchema,
-      saveSelectionRevisionResultSchema,
-      submitSelectionRevisionResultSchema,
-      withdrawSelectionRevisionResultSchema,
-    ]) {
-      expect(schema.safeParse(success).success).toBe(true);
+    const saved = {
+      ...selectionUneditedDraftFixture(),
+      humanVersion: selectionRevisionFixture().humanVersion,
+    };
+    for (const [schema, result] of [
+      [createSelectionRevisionResultSchema, selectionUneditedDraftFixture()],
+      [saveSelectionRevisionResultSchema, saved],
+      [submitSelectionRevisionResultSchema, success.result],
+      [withdrawSelectionRevisionResultSchema, saved],
+    ] as const) {
+      expect(schema.safeParse({ ...success, result }).success).toBe(true);
     }
     expect(
       returnSelectionRevisionResultSchema.safeParse({
         ...success,
-        result: selectionManagerRevisionFixture(),
+        result: { ...selectionManagerRevisionFixture(), state: 'draft' },
       }).success,
     ).toBe(true);
     expect(returnSelectionRevisionResultSchema.safeParse(success).success).toBe(
@@ -714,5 +722,319 @@ describe('发布五秒撤销与旧操作冲突契约', () => {
         restoredDefaultForNewCohorts: 'xe-select-v2',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('R1：AI 初稿与人工提交的状态边界', () => {
+  it('新建 AI 草稿可以真实保持尚未编辑，不伪造 HR 修改', () => {
+    const draft = selectionUneditedDraftFixture();
+    expect(selectionRevisionSchema.safeParse(draft).success).toBe(true);
+    const result = createSelectionRevisionResultSchema.parse({
+      status: 'success',
+      replayed: false,
+      result: draft,
+    });
+    expect(
+      result.status === 'success' && result.result.humanVersion,
+    ).toBeNull();
+    expect(draft.aiDraft?.origin).toBe('ai_draft');
+  });
+  it('创建动作不能直接产出待确认，也不能凭空产出已署名 HR 初稿', () => {
+    const pending = selectionRevisionFixture();
+    expect(
+      createSelectionRevisionResultSchema.safeParse({
+        status: 'success',
+        replayed: false,
+        result: pending,
+      }).success,
+    ).toBe(false);
+    expect(
+      createSelectionRevisionResultSchema.safeParse({
+        status: 'success',
+        replayed: false,
+        result: {
+          ...selectionUneditedDraftFixture(),
+          humanVersion: pending.humanVersion,
+        },
+      }).success,
+    ).toBe(false);
+  });
+  it('提交成功必须是具有实际人工版本的待确认状态', () => {
+    const pending = selectionRevisionFixture();
+    expect(
+      submitSelectionRevisionResultSchema.safeParse({
+        status: 'success',
+        replayed: false,
+        result: pending,
+      }).success,
+    ).toBe(true);
+    expect(
+      submitSelectionRevisionResultSchema.safeParse({
+        status: 'success',
+        replayed: false,
+        result: {
+          ...selectionUneditedDraftFixture(),
+          humanVersion: pending.humanVersion,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      selectionRevisionSchema.safeParse({ ...pending, humanVersion: null })
+        .success,
+    ).toBe(false);
+  });
+  it('保存、撤回和退回不能把尚未编辑的 AI 草稿当成人工版本', () => {
+    const unedited = selectionUneditedDraftFixture();
+    const saved = {
+      ...unedited,
+      humanVersion: selectionRevisionFixture().humanVersion,
+    };
+    for (const schema of [
+      saveSelectionRevisionResultSchema,
+      withdrawSelectionRevisionResultSchema,
+    ]) {
+      expect(
+        schema.safeParse({ status: 'success', replayed: false, result: saved })
+          .success,
+      ).toBe(true);
+      for (const result of [unedited, selectionRevisionFixture()]) {
+        expect(
+          schema.safeParse({ status: 'success', replayed: false, result })
+            .success,
+        ).toBe(false);
+      }
+    }
+    const manager = selectionManagerRevisionFixture();
+    for (const result of [
+      manager,
+      { ...manager, state: 'draft', humanVersion: null },
+    ]) {
+      expect(
+        returnSelectionRevisionResultSchema.safeParse({
+          status: 'success',
+          replayed: false,
+          result,
+        }).success,
+      ).toBe(false);
+    }
+  });
+  it('管理者读取尚未编辑的草稿也不能凭空获得一份 HR 修改', () => {
+    const managerDraft = {
+      ...selectionManagerRevisionFixture(),
+      state: 'draft',
+      humanVersion: null,
+    };
+    expect(selectionManagerRevisionSchema.safeParse(managerDraft).success).toBe(
+      true,
+    );
+    expect(
+      selectionManagerRevisionSchema.safeParse({
+        ...managerDraft,
+        state: 'pending_confirmation',
+      }).success,
+    ).toBe(false);
+  });
+  it('撤销包含上一版恢复边；不能把这条边当独立重新发布', () => {
+    expect(
+      selectionLifecycleTransitionSchema.safeParse({
+        action: 'restore_after_undo',
+        from: 'superseded',
+        to: 'active',
+        role: 'system',
+        publicationId: 'demo-publication',
+      }).success,
+    ).toBe(true);
+    expect(
+      selectionLifecycleTransitionSchema.safeParse({
+        action: 'publish',
+        from: 'superseded',
+        to: 'active',
+        role: 'manager',
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('R1：撤销发布的原子恢复合同', () => {
+  it('同一事务恢复上一版状态、当前读取和默认版本，新版回待确认，保留原期次', () => {
+    const transaction = selectionPublicationUndoTransactionFixture();
+    const result = selectionPublicationUndoTransactionSchema.parse(transaction);
+    expect(result.restoredVersion.transition.to).toBe('active');
+    expect(result.withdrawnVersion.transition.to).toBe('pending_confirmation');
+    expect(result.effectiveVersionAfterUndo.versionId).toBe('xe-select-v1');
+    expect(result.receipt.restoredDefaultForNewCohorts).toBe('xe-select-v1');
+    expect(result.receipt.preservedBindings).toEqual(result.bindingsBefore);
+  });
+
+  it('不能只恢复默认指针；必须同时恢复正确上一版和新版生命周期', () => {
+    const transaction = selectionPublicationUndoTransactionFixture();
+    for (const patch of [
+      {
+        withdrawnVersion: {
+          ...transaction.withdrawnVersion,
+          versionId: 'xe-select-v3',
+        },
+      },
+      {
+        withdrawnVersion: {
+          ...transaction.withdrawnVersion,
+          transition: {
+            action: 'publish',
+            from: 'pending_confirmation',
+            to: 'active',
+            role: 'manager',
+          },
+        },
+      },
+      {
+        restoredVersion: {
+          ...transaction.restoredVersion,
+          versionId: 'xe-select-v3',
+        },
+      },
+      {
+        restoredVersion: {
+          ...transaction.restoredVersion,
+          transition: {
+            action: 'supersede',
+            from: 'active',
+            to: 'superseded',
+            role: 'system',
+          },
+        },
+      },
+      {
+        restoredVersion: {
+          ...transaction.restoredVersion,
+          transition: {
+            ...transaction.restoredVersion.transition,
+            publicationId: 'demo-other-publication',
+          },
+        },
+      },
+      {
+        effectiveVersionAfterUndo: {
+          ...transaction.effectiveVersionAfterUndo,
+          versionId: 'xe-select-v2',
+        },
+      },
+      {
+        receipt: {
+          ...transaction.receipt,
+          publicationId: 'demo-other-publication',
+        },
+      },
+      {
+        receipt: { ...transaction.receipt, withdrawnVersionId: 'xe-select-v3' },
+      },
+      {
+        receipt: {
+          ...transaction.receipt,
+          restoredVersionId: 'xe-select-v3',
+          restoredDefaultForNewCohorts: 'xe-select-v3',
+        },
+      },
+    ]) {
+      expect(
+        selectionPublicationUndoTransactionSchema.safeParse({
+          ...transaction,
+          ...patch,
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('上一版必须在撤销时对该类别有效，不能留下空档或读到其他类别', () => {
+    const transaction = selectionPublicationUndoTransactionFixture();
+    for (const effective of [
+      {
+        ...transaction.effectiveVersionAfterUndo,
+        category: 'dimension_anchors',
+        versionId: 'rubric-v1',
+      },
+      {
+        ...transaction.effectiveVersionAfterUndo,
+        effectiveFrom: '2026-10-31T10:00:05Z',
+      },
+      {
+        ...transaction.effectiveVersionAfterUndo,
+        effectiveUntil: transaction.boundary.requestedAt,
+      },
+    ]) {
+      expect(
+        selectionPublicationUndoTransactionSchema.safeParse({
+          ...transaction,
+          effectiveVersionAfterUndo: effective,
+        }).success,
+      ).toBe(false);
+    }
+    expect(
+      selectionPublicationUndoTransactionSchema.safeParse({
+        ...transaction,
+        effectiveVersionAfterUndo: {
+          ...transaction.effectiveVersionAfterUndo,
+          effectiveUntil: '2026-11-01T00:00:00Z',
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('不能借撤销增删、重绑期次或重算历史结果', () => {
+    const transaction = selectionPublicationUndoTransactionFixture();
+    const binding = transaction.bindingsBefore[0];
+    for (const preservedBindings of [
+      [],
+      [binding, binding],
+      [{ ...binding, standardVersionId: 'xe-select-v2' }],
+      [{ ...binding, boundAt: '2026-07-02T00:00:00Z' }],
+      [{ ...binding, cohort: iterationDemoNextCohort }],
+      [
+        {
+          ...binding,
+          cohort: { ...binding.cohort, name: '另一个期次（演示）' },
+        },
+      ],
+    ]) {
+      expect(
+        selectionPublicationUndoTransactionSchema.safeParse({
+          ...transaction,
+          receipt: { ...transaction.receipt, preservedBindings },
+        }).success,
+      ).toBe(false);
+    }
+    expect(
+      selectionPublicationUndoTransactionSchema.safeParse({
+        ...transaction,
+        bindingsBefore: [binding, binding],
+      }).success,
+    ).toBe(false);
+    expect(
+      selectionPublicationUndoTransactionSchema.safeParse({
+        ...transaction,
+        recomputeHistoricalResults: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      selectionPublicationUndoTransactionSchema.safeParse({
+        ...transaction,
+        historicalResultsPolicy: 'recalculate',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('已到五秒边界或出现较新操作时，整份恢复计划无效', () => {
+    const transaction = selectionPublicationUndoTransactionFixture();
+    for (const patch of [
+      { requestedAt: '2026-10-31T10:00:05Z' },
+      { currentRevision: 3 },
+      { currentPublicationId: 'demo-newer-publication' },
+    ]) {
+      expect(
+        selectionPublicationUndoTransactionSchema.safeParse({
+          ...transaction,
+          boundary: { ...transaction.boundary, ...patch },
+        }).success,
+      ).toBe(false);
+    }
   });
 });

@@ -13,6 +13,7 @@ import type {
 import type {
   SelectionImpactPreview,
   SelectionPublicationReceipt,
+  SelectionPublicationUndoTransaction,
   SelectionRevision,
   SelectionManagerRevision,
 } from './selection-standard';
@@ -393,7 +394,10 @@ export function selectionImpactPreviewFixture(): SelectionImpactPreview {
     nextComparisonGrouping: 'selection_standard_version',
   };
 }
-export function selectionRevisionFixture(): SelectionRevision {
+export function selectionRevisionFixture(): Extract<
+  SelectionRevision,
+  { state: 'pending_confirmation' }
+> {
   const changes = [
     {
       kind: 'add' as const,
@@ -470,5 +474,80 @@ export function selectionPublicationFixture(): SelectionPublicationReceipt {
     revision: 2,
     previewId: 'demo-preview-r1',
     nextCohort: iterationDemoNextCohort,
+  };
+}
+
+export function selectionUneditedDraftFixture(): Extract<
+  SelectionRevision,
+  { state: 'draft' }
+> {
+  const pending = selectionRevisionFixture();
+  return {
+    id: pending.id,
+    category: pending.category,
+    versionId: pending.versionId,
+    baseVersionId: pending.baseVersionId,
+    revision: pending.revision,
+    contentRevision: pending.contentRevision,
+    reason: pending.reason,
+    effect: pending.effect,
+    basis: pending.basis,
+    aiDraft: pending.aiDraft,
+    humanVersion: null,
+    impactPreview: pending.impactPreview,
+    state: 'draft',
+    lastReturn: null,
+  };
+}
+
+export function selectionPublicationUndoTransactionFixture(): SelectionPublicationUndoTransaction {
+  return {
+    boundary: {
+      receipt: selectionPublicationFixture(),
+      command: {
+        operationId: 'demo-undo',
+        publicationId: 'demo-publication',
+        expectedRevision: 2,
+      },
+      requestedAt: '2026-10-31T10:00:04.999Z',
+      currentPublicationId: 'demo-publication',
+      currentRevision: 2,
+    },
+    withdrawnVersion: {
+      versionId: 'xe-select-v2',
+      transition: {
+        action: 'undo_publish',
+        from: 'active',
+        to: 'pending_confirmation',
+        role: 'manager',
+      },
+    },
+    restoredVersion: {
+      versionId: 'xe-select-v1',
+      transition: {
+        action: 'restore_after_undo',
+        from: 'superseded',
+        to: 'active',
+        role: 'system',
+        publicationId: 'demo-publication',
+      },
+    },
+    effectiveVersionAfterUndo: {
+      category: 'xe_selection',
+      versionId: 'xe-select-v1',
+      provenance: 'published',
+      effectiveFrom: '2026-07-01T00:00:00Z',
+      effectiveUntil: null,
+    },
+    bindingsBefore: selectionImpactPreviewFixture().preservedBindings,
+    receipt: {
+      publicationId: 'demo-publication',
+      restoredVersionId: 'xe-select-v1',
+      withdrawnVersionId: 'xe-select-v2',
+      restoredDefaultForNewCohorts: 'xe-select-v1',
+      preservedBindings: selectionImpactPreviewFixture().preservedBindings,
+    },
+    historicalResultsPolicy: 'preserve_original_version',
+    recomputeHistoricalResults: false,
   };
 }
