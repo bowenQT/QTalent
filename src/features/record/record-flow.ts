@@ -30,7 +30,7 @@ export type Phase =
 
 export type Banner =
   | { kind: 'who' }
-  | { kind: 'offline'; scope: 'start' | 'save' }
+  | { kind: 'offline'; scope: 'start' | 'select' | 'save' }
   | { kind: 'conflict'; message: string }
   | { kind: 'forbidden'; message: string }
   | { kind: 'refused'; message: string }
@@ -163,6 +163,7 @@ export function interpretSnapshot(job: RecordJob):
   | {
       kind: 'selection';
       selection: SelectionState;
+      originalInput: RecordInput;
     } {
   if (job.status === 'failed' || job.status === 'cancelled')
     return { kind: 'failed', failure: failureKindOf(job) };
@@ -178,6 +179,7 @@ export function interpretSnapshot(job: RecordJob):
           people: result.people,
           project: result.project,
         },
+        originalInput: result.originalInput,
       };
     }
     return { kind: 'draft', draft: result };
@@ -196,7 +198,8 @@ export type Action =
   | { type: 'select_begin' }
   | { type: 'banner'; banner: Banner | null }
   | { type: 'connection'; connection: Connection }
-  | { type: 'draft_loaded'; draft: RecordDraft }
+  /** basis：发起读取时的修改；之后又改过就不再用读取结果覆盖。 */
+  | { type: 'draft_loaded'; draft: RecordDraft; basis?: EditState | null }
   | { type: 'edit_sbi'; field: keyof EditState['sbi']; value: string }
   | { type: 'edit_score'; key: ScoreKey; value: number }
   | { type: 'edit_reason'; key: ScoreKey; reason: string }
@@ -223,6 +226,10 @@ function applyJob(state: RecordState, job: RecordJob): RecordState {
   if (view.kind === 'selection')
     return {
       ...next,
+      // 刷新后从任务恢复时页面里没有原话，取任务记下的原始输入
+      text: view.originalInput.text,
+      personId: view.originalInput.personId,
+      attachmentIds: view.originalInput.attachmentIds,
       phase: 'selecting',
       failure: null,
       selection: view.selection,
@@ -256,7 +263,10 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
       return {
         ...state,
         phase: state.selection ? 'selecting' : 'write',
-        banner: { kind: 'offline', scope: 'start' },
+        banner: {
+          kind: 'offline',
+          scope: state.selection ? 'select' : 'start',
+        },
       };
     case 'submit_refused':
       return {
@@ -275,6 +285,12 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
       if (!listening.has(state.phase)) return state;
       if (state.jobId !== null && state.jobId !== action.job.jobId)
         return state;
+      // 迟到的旧快照（如重试成功后才返回的上一轮读取）不覆盖更新的状态
+      if (
+        state.job?.jobId === action.job.jobId &&
+        action.job.revision < state.job.revision
+      )
+        return state;
       return applyJob(state, action.job);
     case 'banner':
       return { ...state, banner: action.banner };
@@ -283,9 +299,11 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
     case 'connection':
       return { ...state, connection: action.connection };
     case 'draft_loaded':
+      if (action.basis !== undefined && action.basis !== state.edit)
+        return state;
       return withDraft(state, action.draft);
     case 'edit_sbi':
-      if (!state.edit) return state;
+      if (!state.edit || state.phase !== 'review') return state;
       return {
         ...state,
         edit: {
@@ -297,7 +315,8 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
       };
     case 'edit_score': {
       const current = state.edit?.scores[action.key];
-      if (!state.edit || !current || state.phase === 'saved') return state;
+      // 只有待确认时能改：保存中改的值不会被提交，保存后显示的必须是提交的值
+      if (!state.edit || !current || state.phase !== 'review') return state;
       return {
         ...state,
         edit: {
@@ -311,7 +330,7 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
     }
     case 'edit_reason': {
       const current = state.edit?.scores[action.key];
-      if (!state.edit || !current) return state;
+      if (!state.edit || !current || state.phase !== 'review') return state;
       return {
         ...state,
         edit: {
@@ -362,13 +381,13 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
         banner: { kind: 'forbidden', message: action.message },
       };
     case 'back_to_write':
-      return resetToWrite(state, {
+      return resetToWrite({
         text: state.text,
         personId: state.personId,
         attachmentIds: state.attachmentIds,
       });
     case 'undone':
-      return resetToWrite(state, {
+      return resetToWrite({
         text: action.originalInput.text,
         personId: action.originalInput.personId,
         attachmentIds: action.originalInput.attachmentIds,
@@ -383,15 +402,11 @@ function clearInputBanner(state: RecordState): Banner | null {
 }
 
 function resetToWrite(
-  state: RecordState,
   input: Pick<RecordState, 'text' | 'personId' | 'attachmentIds'>,
 ): RecordState {
-  return {
-    ...blank,
-    ...input,
-    // 同一份内容再次提交时复用 operation_id，内容变了换新（见 sameInputKey）
-    startOp: state.startOp,
-  };
+  // 已有任务之后回到输入（取消、撤销、任务不可用）：原 operation_id 已用于那次整理，
+  // 再提交必须换新，否则服务端会重放旧任务。断网未送达时不经过这里，仍复用。
+  return { ...blank, ...input };
 }
 
 /** 输入内容的签名：一样则复用同一个 operation_id（服务端按它重放，不会产生两个任务）。 */

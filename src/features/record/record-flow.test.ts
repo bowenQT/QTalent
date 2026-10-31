@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RecordDraft } from '@/contracts/record';
+import type { RecordJob } from './types';
 import {
   initialState,
   inputKey,
@@ -466,5 +467,130 @@ describe('inputKey 与 isDirty', () => {
     expect(isDirty(review)).toBe(false);
     expect(isDirty(run(review, { type: 'save_begin', op }))).toBe(true);
     expect(isDirty(initialState({ jobId: 'job-1' }))).toBe(false);
+  });
+});
+
+describe('边界：不丢输入、不覆盖新状态、不重放旧整理', () => {
+  const key = scoreKey('p1', 'prof');
+
+  it('保存中和已保存时改分、改理由、改文字都被忽略，已保存显示的是提交的值', () => {
+    const saving = run(
+      initialState({ draft }),
+      { type: 'edit_score', key, value: 4 },
+      { type: 'save_begin', op },
+    );
+    const during = run(
+      saving,
+      { type: 'edit_score', key, value: 1 },
+      { type: 'edit_reason', key, reason: '保存中写的' },
+      { type: 'edit_sbi', field: 'title', value: '保存中改的' },
+    );
+    expect(during.edit).toBe(saving.edit);
+    const saved = run(during, {
+      type: 'save_saved',
+      receipt,
+      replayed: false,
+    });
+    expect(saved.edit?.scores[key]?.value).toBe(4);
+    expect(run(saved, { type: 'edit_score', key, value: 2 })).toBe(saved);
+  });
+
+  it('迟到的「载入最新版本」：读取期间又改过就不覆盖，没改过照常替换', () => {
+    const review = initialState({ draft });
+    const basis = review.edit;
+    const edited = run(review, {
+      type: 'edit_sbi',
+      field: 'title',
+      value: '读取期间新写的',
+    });
+    const latest = {
+      ...draft,
+      revision: 2,
+      sbi: { ...draft.sbi, title: '最新' },
+    };
+    expect(run(edited, { type: 'draft_loaded', draft: latest, basis })).toBe(
+      edited,
+    );
+    expect(
+      run(review, { type: 'draft_loaded', draft: latest, basis }).edit?.sbi
+        .title,
+    ).toBe('最新');
+  });
+
+  it('重试成功后，上一轮读取迟到的失败快照不覆盖新状态', () => {
+    const failed = run(initialState({ jobId: 'job-1', text: TEXT }), {
+      type: 'job',
+      job: job({
+        status: 'failed',
+        revision: 4,
+        error: { code: 'processing_failed', message: 'x' },
+      }),
+    });
+    const retried = run(failed, {
+      type: 'job',
+      job: job({ status: 'running', revision: 5 }),
+    });
+    expect(retried).toMatchObject({ phase: 'organizing', failure: null });
+    const stale = run(retried, {
+      type: 'job',
+      job: job({
+        status: 'failed',
+        revision: 4,
+        error: { code: 'processing_failed', message: 'x' },
+      }),
+    });
+    expect(stale).toBe(retried);
+  });
+
+  it('刷新后从任务恢复到待选择：原话、人员、附件取自任务记下的原始输入', () => {
+    const restored = run(initialState({ jobId: 'job-1' }), {
+      type: 'job',
+      job: job({
+        ...selectionJob,
+        result: {
+          ...(selectionJob.result as object),
+          originalInput: {
+            ...draft.originalInput,
+            text: '刷新前写的原话',
+            attachmentIds: ['att-9'],
+          },
+        } as RecordJob['result'],
+      }),
+    });
+    expect(restored).toMatchObject({
+      phase: 'selecting',
+      text: '刷新前写的原话',
+      attachmentIds: ['att-9'],
+    });
+    // 选人时断网再回到输入，原话仍在
+    const back = run(
+      restored,
+      { type: 'select_begin' },
+      { type: 'submit_offline' },
+    );
+    expect(back.banner).toEqual({ kind: 'offline', scope: 'select' });
+    expect(run(back, { type: 'back_to_write' }).text).toBe('刷新前写的原话');
+  });
+
+  it('取消或撤销后回到输入，不再沿用那次整理的 operation_id；断网未送达时仍复用', () => {
+    const offline = run(
+      initialState({ text: TEXT }),
+      { type: 'submit_begin', op },
+      { type: 'submit_offline' },
+    );
+    expect(offline.startOp).toBe(op);
+    const review = run(
+      offline,
+      { type: 'submit_begin', op },
+      { type: 'job_begin', jobId: 'job-1', job: doneJob },
+    );
+    expect(run(review, { type: 'back_to_write' }).startOp).toBeNull();
+    const undone = run(
+      review,
+      { type: 'save_begin', op: { key: 's', id: 'save-op' } },
+      { type: 'save_saved', receipt, replayed: false },
+      { type: 'undone', originalInput: draft.originalInput },
+    );
+    expect(undone.startOp).toBeNull();
   });
 });

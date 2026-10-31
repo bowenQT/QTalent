@@ -13,7 +13,7 @@ import { useReducedMotion } from 'motion/react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Icon } from '@/components/ui/Icon';
 import { State } from '@/components/ui/State';
-import { useToast } from '@/components/ui/Toast';
+import { UNDO_MS, useToast } from '@/components/ui/Toast';
 import { AnchorPanel, type AnchorLoad } from './AnchorPanel';
 import {
   buildSaveInput,
@@ -102,8 +102,15 @@ function defaultNewId() {
   return crypto.randomUUID();
 }
 
-/** 记一件事：写原话 → 整理 → 确认或改分 → 保存，5 秒内可撤销。 */
+/**
+ * 记一件事：写原话 → 整理 → 确认或改分 → 保存，5 秒内可撤销。
+ * 按账号重新挂载：换账号后上一个账号的原话、任务和计时都不会带到新账号下（含输入暂存）。
+ */
 export function RecordPage(props: RecordPageProps) {
+  return <RecordFlow key={props.accountId} {...props} />;
+}
+
+function RecordFlow(props: RecordPageProps) {
   const {
     accountId,
     people,
@@ -130,6 +137,11 @@ export function RecordPage(props: RecordPageProps) {
   const articleRef = useRef<HTMLElement>(null);
   const selectionOp = useRef<OperationId | null>(null);
   const retryOp = useRef<OperationId | null>(null);
+  const lastChoice = useRef<{
+    personIds: string[];
+    projectId: string | null;
+  } | null>(null);
+  const loadSeq = useRef(0);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [copyOut, setCopyOut] = useState<string | null>(null);
@@ -372,6 +384,7 @@ export function RecordPage(props: RecordPageProps) {
       newId,
     );
     selectionOp.current = op;
+    lastChoice.current = choice;
     dispatch({ type: 'select_begin' });
     try {
       const result = await actions.selectPeople({
@@ -516,12 +529,25 @@ export function RecordPage(props: RecordPageProps) {
       toast.show(message);
       return;
     }
+    // 撤销窗口以回执的 undoUntil 为准（服务端只接受 undoUntil 之前的撤销）；
+    // 提示自身最长 5 秒，剩余不足时提前收起，已过则不给撤销入口
+    const undoUntil = Date.parse(receipt.undoUntil);
+    const remaining = undoUntil - Date.now();
+    if (!(remaining > 0)) {
+      toast.show(message);
+      return;
+    }
     const undoOperation = newId();
     const close = toast.show(message, {
       undoneText: copy.saved.undone,
       failedText: copy.saved.undoFailed,
       retryLabel: copy.saved.undoRetry,
       onUndo: async () => {
+        if (Date.now() >= undoUntil) {
+          close();
+          toast.show(copy.saved.undoLate);
+          return;
+        }
         // 网络失败时让它抛出，Toast 会显示失败并给重试（同一 operation_id）
         const result = await actions.undo({
           operation_id: undoOperation,
@@ -543,6 +569,7 @@ export function RecordPage(props: RecordPageProps) {
         );
       },
     });
+    if (remaining < UNDO_MS) setTimeout(close, remaining);
   }
 
   function requestBack() {
@@ -553,13 +580,17 @@ export function RecordPage(props: RecordPageProps) {
   async function loadLatest() {
     if (!draft) return;
     setConfirm(null);
+    // 只认最后一次读取；读取期间又改过内容时不覆盖（reducer 按 basis 判断）
+    const seq = ++loadSeq.current;
+    const basis = edit;
     // 读取失败时留在当前草稿上，修改都还在，冲突提示和它的出口也保留
     const refused = (message: string) =>
       dispatch({ type: 'banner', banner: { kind: 'conflict', message } });
     try {
       const result = await actions.openDraft({ draftId: draft.draftId });
+      if (seq !== loadSeq.current) return;
       if (result.status === 'success')
-        dispatch({ type: 'draft_loaded', draft: result.result });
+        dispatch({ type: 'draft_loaded', draft: result.result, basis });
       else
         refused(
           result.status === 'validation_error'
@@ -567,7 +598,7 @@ export function RecordPage(props: RecordPageProps) {
             : result.message,
         );
     } catch {
-      refused(copy.banner.loadFailed);
+      if (seq === loadSeq.current) refused(copy.banner.loadFailed);
     }
   }
 
@@ -732,9 +763,16 @@ export function RecordPage(props: RecordPageProps) {
               <div id="ev-body">
                 <BannerNotice
                   banner={state.banner}
-                  onRetry={() =>
-                    phase === 'review' ? void save() : void start()
-                  }
+                  onRetry={() => {
+                    if (phase === 'review') void save();
+                    else if (
+                      state.banner?.kind === 'offline' &&
+                      state.banner.scope === 'select' &&
+                      lastChoice.current
+                    )
+                      void chooseSelection(lastChoice.current);
+                    else void start();
+                  }}
                   onLoadLatest={() => setConfirm('load')}
                   onCopyOut={openCopyOut}
                   onBack={requestBack}
@@ -798,7 +836,9 @@ export function RecordPage(props: RecordPageProps) {
                       people={people}
                       dimensions={dimensions}
                       saved={phase === 'saved'}
-                      pickDisabled={anchorLoad.status === 'error'}
+                      pickDisabled={
+                        anchorLoad.status === 'error' || phase === 'saving'
+                      }
                       problems={state.problems}
                       loadSource={actions.loadSource}
                       onPick={(key, value) =>

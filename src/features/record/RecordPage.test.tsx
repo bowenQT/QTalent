@@ -42,6 +42,14 @@ const anchors: AnchorMap = {
     },
   },
 };
+/** 撤销窗口按回执 undoUntil 计算：默认回执以当前时间为保存时间。 */
+function liveReceipt(at = Date.now()) {
+  return {
+    ...receipt,
+    savedAt: new Date(at).toISOString(),
+    undoUntil: new Date(at + 5000).toISOString(),
+  };
+}
 const ok = <T,>(result: T, replayed = false) =>
   Promise.resolve({ status: 'success' as const, replayed, result });
 
@@ -55,7 +63,7 @@ function setup(over: Overrides = {}) {
     start: vi.fn(() => ok(job())),
     selectPeople: vi.fn(() => ok(job({ jobId: 'job-2' }))),
     openDraft: vi.fn(() => ok(draft)),
-    save: vi.fn(() => ok(receipt)),
+    save: vi.fn(() => ok(liveReceipt())),
     undo: vi.fn(() =>
       ok({
         saveId: 'save-1',
@@ -584,7 +592,7 @@ describe('确认、改分与保存', () => {
     const { actions } = await toReview({
       actions: {
         save: vi.fn(() =>
-          ok({ ...receipt, reviewItemIds: ['r1', 'r2'] }),
+          ok({ ...liveReceipt(), reviewItemIds: ['r1', 'r2'] }),
         ) as never,
       },
     });
@@ -639,7 +647,7 @@ describe('确认、改分与保存', () => {
       .fn()
       .mockRejectedValueOnce(new Error('offline'))
       .mockRejectedValueOnce(new Error('offline'))
-      .mockImplementation(() => ok(receipt));
+      .mockImplementation(() => ok(liveReceipt()));
     await toReview({ actions: { save: save as never } });
     await click(copy.actions.save);
     expect(await screen.findByText(copy.offline.save)).toBeTruthy();
@@ -931,7 +939,7 @@ describe('5 秒撤销', () => {
   });
 
   it('重放的保存回执（首次响应丢失）不提供撤销', async () => {
-    setup({ actions: { save: vi.fn(() => ok(receipt, true)) as never } });
+    setup({ actions: { save: vi.fn(() => ok(liveReceipt(), true)) as never } });
     await typeAndSubmit();
     await field(copy.sbi.title);
     await click(copy.actions.save);
@@ -1213,5 +1221,186 @@ describe('锚点面板与引用', () => {
     expect(
       screen.getByText(copy.header.project('project', '演示项目')),
     ).toBeTruthy();
+  });
+});
+
+describe('边界：失败、断网、冲突保留输入，撤销按回执', () => {
+  async function toReview(over: Overrides = {}) {
+    const ctx = setup(over);
+    await typeAndSubmit();
+    await field(copy.sbi.title);
+    return ctx;
+  }
+  const dot = (level: number) =>
+    screen.getAllByRole('radio', { name: copy.score.pointLabel(level) })[0]!;
+
+  it('保存中点分数不改值；保存后显示的是提交的值', async () => {
+    let resolveSave: (value: unknown) => void = () => undefined;
+    const save = vi.fn(() => new Promise((r) => (resolveSave = r)));
+    await toReview({ actions: { save: save as never } });
+    await waitFor(() =>
+      expect(dot(4).getAttribute('aria-disabled')).toBeNull(),
+    );
+    await userEvent.click(dot(4));
+    await click(copy.actions.save);
+    expect(dot(1).getAttribute('aria-disabled')).toBe('true');
+    await userEvent.click(dot(1));
+    await act(async () =>
+      resolveSave({
+        status: 'success',
+        replayed: false,
+        result: liveReceipt(),
+      }),
+    );
+    await screen.findByText(/刚刚保存到演示甲的档案/);
+    const submitted = (save.mock.calls[0] as unknown[])[0] as {
+      decisions: { value?: number }[];
+    };
+    expect(submitted.decisions[0]).toMatchObject({ value: 4 });
+    expect(dot(4).getAttribute('aria-checked')).toBe('true');
+    expect(dot(1).getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('换账号：上一个账号的原话不显示，也不写进新账号的暂存', async () => {
+    const { view, props } = setup();
+    await userEvent.type(screen.getByRole('textbox'), '甲账号写的');
+    view.rerender(
+      <ToastProvider>
+        <RecordPage {...props} accountId="acc-2" />
+      </ToastProvider>,
+    );
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const stash = window.sessionStorage.getItem(INPUT_STASH_KEY);
+    expect(stash === null || !stash.includes('"acc-2"')).toBe(true);
+  });
+
+  it('载入最新版本的响应迟到：读取期间写下的修改不被覆盖', async () => {
+    let resolveOpen: (value: unknown) => void = () => undefined;
+    const openDraft = vi.fn(() => new Promise((r) => (resolveOpen = r)));
+    const save = vi.fn().mockResolvedValue({
+      status: 'conflict',
+      message: '别处刚保存过',
+      input: {},
+    });
+    await toReview({
+      actions: { save: save as never, openDraft: openDraft as never },
+    });
+    await click(copy.actions.save);
+    await userEvent.click(
+      await screen.findByRole('button', { name: copy.actions.loadLatest }),
+    );
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: copy.actions.load,
+      }),
+    );
+    const behavior = screen.getByRole('textbox', { name: copy.sbi.behavior });
+    behavior.textContent = '读取期间新写的';
+    fireEvent.input(behavior);
+    await act(async () =>
+      resolveOpen({
+        status: 'success',
+        replayed: false,
+        result: { ...draft, revision: 2, sbi: { ...draft.sbi, title: '最新' } },
+      }),
+    );
+    expect(behavior.textContent).toBe('读取期间新写的');
+    expect(
+      screen.getByRole('textbox', { name: copy.sbi.title }).textContent,
+    ).not.toBe('最新');
+    // 冲突提示和它的出口还在，可以再载入
+    expect(
+      screen.getByRole('button', { name: copy.actions.loadLatest }),
+    ).toBeTruthy();
+  });
+
+  it('选人时断网：提示里的重试再次提交选择（同一 operation_id），不重新整理', async () => {
+    const selectPeople = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockImplementation(() => ok(job({ jobId: 'job-2' })));
+    const { actions, readJob } = setup({
+      actions: { selectPeople: selectPeople as never },
+    });
+    readJob.mockImplementation(async () =>
+      job({
+        status: 'awaiting_manual',
+        result: {
+          state: 'selection_required',
+          draftId: 'draft-1',
+          inputVersion: 'v7',
+          originalInput: draft.originalInput,
+          people: [
+            {
+              state: 'needs_selection',
+              candidates: [
+                { id: 'p1', label: '演示甲' },
+                { id: 'p2', label: '演示乙' },
+              ],
+              reason: '这个名字对应两位同事',
+            },
+          ],
+          project: { state: 'none' },
+        },
+      }),
+    );
+    await typeAndSubmit();
+    await userEvent.click(await screen.findByLabelText('演示乙'));
+    await click(copy.selection.submit);
+    await screen.findByText(copy.offline.start);
+    await click(copy.banner.sendRetry);
+    await waitFor(() => expect(selectPeople).toHaveBeenCalledTimes(2));
+    expect(actions.start).toHaveBeenCalledTimes(1);
+    expect(selectPeople.mock.calls[1]?.[0]).toEqual(
+      selectPeople.mock.calls[0]?.[0],
+    );
+  });
+
+  it('改原话后再整理同一段原话：换新的 operation_id，不重放旧整理', async () => {
+    const { actions } = await toReview();
+    await click(copy.actions.back);
+    await click(copy.input.submit);
+    await waitFor(() => expect(actions.start).toHaveBeenCalledTimes(2));
+    expect(actions.start.mock.calls[1]?.[0].operation_id).not.toBe(
+      actions.start.mock.calls[0]?.[0].operation_id,
+    );
+  });
+
+  it('回执的撤销时间已过：只提示已保存，不给撤销', async () => {
+    await toReview({
+      actions: {
+        save: vi.fn(() => ok(liveReceipt(Date.now() - 6000))) as never,
+      },
+    });
+    await click(copy.actions.save);
+    await screen.findByText(copy.saved.toast('演示甲', 0));
+    expect(screen.queryByRole('button', { name: '撤销' })).toBeNull();
+  });
+
+  it('剩余撤销时间不足 5 秒：到 undoUntil 就收起撤销入口', async () => {
+    await toReview({
+      actions: {
+        save: vi.fn(() => ok(liveReceipt(Date.now() - 4700))) as never,
+      },
+    });
+    await click(copy.actions.save);
+    await screen.findByRole('button', { name: '撤销' });
+    await waitFor(
+      () => expect(screen.queryByRole('button', { name: '撤销' })).toBeNull(),
+      { timeout: 1500 },
+    );
+  });
+
+  it('点撤销时已过 undoUntil：不发请求，说明已保存', async () => {
+    const { actions } = await toReview();
+    await click(copy.actions.save);
+    await screen.findByRole('button', { name: '撤销' });
+    const later = Date.now() + 6000;
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(later);
+    await click('撤销');
+    spy.mockRestore();
+    expect(await screen.findByText(copy.saved.undoLate)).toBeTruthy();
+    expect(actions.undo).not.toHaveBeenCalled();
   });
 });
