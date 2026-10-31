@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { people } from '../directory';
 import { projects } from '../staffing';
+import { evaluationNodes } from '../programs';
 import { ruleVersions } from '../evaluation-system';
 export type SourceLocation =
   | { kind: 'document'; page?: number; paragraph: string }
@@ -83,6 +84,11 @@ export const events = pgTable(
   'records_events',
   {
     id: text('id').primaryKey(),
+    // Existing ambiguous rows remain quarantined for evaluators until mapped.
+    // Every new batch draft/save uses its explicit frozen evaluation node.
+    evaluationNodeId: text('evaluation_node_id').references(
+      () => evaluationNodes.id,
+    ),
     personId: text('person_id')
       .notNull()
       .references(() => people.id),
