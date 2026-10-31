@@ -1,6 +1,14 @@
 /** Unrotated page coordinates in PDF points, with the origin at the top left. */
 export type PdfBox = readonly [number, number, number, number];
-export type PdfRegion = { page: number; box: PdfBox };
+export type PdfTextRange = { start: number; end: number };
+/** Box is internal graphics provenance; serialize only page/textRange to 897 location. */
+export type PdfRegion = { page: number; box: PdfBox; textRange: PdfTextRange };
+export type InterviewPageText = {
+  page: number;
+  text: string;
+  extractionVersion: 'interview-review-lines-v1';
+  sha256: string;
+};
 export type PdfText = { text: string; box: PdfBox };
 export type PdfCircle = {
   box: PdfBox;
@@ -36,6 +44,7 @@ export type ParsedInterviewReview = {
   templateFingerprint: 'bow-896-synthetic-v1';
   demo: true;
   templateSource: PdfRegion;
+  identity: { candidateName: ReadField; positionNumber: null };
   metadata: {
     interviewTime: ReadField;
     interviewType: ReadField;
@@ -52,6 +61,7 @@ export type InterviewReviewResult =
   | {
       status: 'parsed' | 'needs_manual_input';
       reviews: ParsedInterviewReview[];
+      pageTexts: InterviewPageText[];
     }
   | {
       status: 'rejected';
