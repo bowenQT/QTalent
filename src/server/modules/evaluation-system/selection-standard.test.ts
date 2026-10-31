@@ -171,6 +171,17 @@ function undo(at = '2026-10-31T10:00:04.999Z') {
   };
 }
 describe('server-owned current authorization and scoped preview', () => {
+  it('revokes access to the entire saved preview before an HR action if its next-cohort scope is withdrawn', () => {
+    const record = saved();
+    const ctx = authority();
+    ctx.context.grants[1].revokedAt = time;
+    expect(() =>
+      planSubmitSelectionRevision(ctx, record, {
+        ...command(record),
+        expectedPreviewId: record.revision.impactPreview.id,
+      }),
+    ).toThrow('权限');
+  });
   it.each([
     'revoked',
     'expired',
@@ -485,6 +496,39 @@ describe('draft, saved human version and immutable preview', () => {
   });
 });
 describe('publication plans and the five-second paired undo', () => {
+  it('compares the saved preview by values when storage returns object keys in a different order', () => {
+    const record = pending();
+    const facts = impact();
+    facts.nextCohort = { name: facts.nextCohort.name, id: facts.nextCohort.id };
+    const row = facts.existingResults[0];
+    facts.existingResults[0] = {
+      count: row.count,
+      standardVersionId: row.standardVersionId,
+      cohortId: row.cohortId,
+    };
+    const binding = facts.preservedBindings[0];
+    facts.preservedBindings[0] = {
+      boundAt: binding.boundAt,
+      standardVersionId: binding.standardVersionId,
+      cohort: { name: binding.cohort.name, id: binding.cohort.id },
+    };
+    expect(() =>
+      planPublishSelectionRevision(
+        authority('manager'),
+        record,
+        {
+          ...command(record),
+          expectedPreviewId: record.revision.impactPreview.id,
+        },
+        {
+          current: initial,
+          currentPublicationId: null,
+          publicationId: 'demo-pub',
+          impact: facts,
+        },
+      ),
+    ).not.toThrow();
+  });
   it('publishes the exact saved human version and selection-only category switch', () => {
     const result = published();
     expect(result.record.revision.state).toBe('active');

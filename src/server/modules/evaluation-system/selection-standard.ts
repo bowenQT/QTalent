@@ -128,6 +128,18 @@ function guard(
   state: SelectionRevision['state'],
 ) {
   authorizeSelectionAction(authority, role, record.scopeCohortId);
+  if (role === 'hr') {
+    for (const cohort of [
+      record.revision.impactPreview.nextCohort.id,
+      ...record.revision.impactPreview.existingResults.map(
+        (row) => row.cohortId,
+      ),
+      ...record.revision.impactPreview.preservedBindings.map(
+        (row) => row.cohort.id,
+      ),
+    ])
+      authorizeSelectionAction(authority, role, cohort);
+  }
   selectionRevisionSchema.parse(record.revision);
   if (
     record.revision.id !== input.draftId ||
@@ -147,15 +159,25 @@ function normalizeImpact(facts: SelectionImpactFacts): SelectionImpactFacts {
   )
     conflict('影响快照含重复的结果分组或期次绑定');
   return {
-    nextCohort: structuredClone(facts.nextCohort),
-    existingResults: structuredClone(facts.existingResults).sort((a, b) =>
-      JSON.stringify([a.cohortId, a.standardVersionId]).localeCompare(
-        JSON.stringify([b.cohortId, b.standardVersionId]),
+    nextCohort: { id: facts.nextCohort.id, name: facts.nextCohort.name },
+    existingResults: facts.existingResults
+      .map((row) => ({
+        cohortId: row.cohortId,
+        standardVersionId: row.standardVersionId,
+        count: row.count,
+      }))
+      .sort((a, b) =>
+        JSON.stringify([a.cohortId, a.standardVersionId]).localeCompare(
+          JSON.stringify([b.cohortId, b.standardVersionId]),
+        ),
       ),
-    ),
-    preservedBindings: structuredClone(facts.preservedBindings).sort((a, b) =>
-      a.cohort.id.localeCompare(b.cohort.id),
-    ),
+    preservedBindings: facts.preservedBindings
+      .map((binding) => ({
+        cohort: { id: binding.cohort.id, name: binding.cohort.name },
+        standardVersionId: binding.standardVersionId,
+        boundAt: new Date(binding.boundAt).toISOString(),
+      }))
+      .sort((a, b) => a.cohort.id.localeCompare(b.cohort.id)),
   };
 }
 export function prepareSelectionImpactPreview(
@@ -188,13 +210,13 @@ export function applySelectionReviewPointChanges(
   changes: SelectionReviewPointChange[],
 ): Content {
   const parsed = selectionStandardContentSchema.parse(base);
-  selectionReviewPointChangesSchema.parse(changes);
+  const parsedChanges = selectionReviewPointChangesSchema.parse(changes);
   const points = new Map(
     parsed.reviewPoints.map((point) => [point.id, structuredClone(point)]),
   );
   // Changes are validated by the frozen save command before this function.
   const seen = new Set<string>();
-  for (const change of changes) {
+  for (const change of parsedChanges) {
     const key = change.kind === 'add' ? change.after.id : change.before.id;
     if (seen.has(key)) conflict('同一要点不能重复修改');
     seen.add(key);
@@ -209,6 +231,7 @@ export function applySelectionReviewPointChanges(
       else points.set(key, structuredClone(change.after));
     }
   }
+  if (points.size === 0) conflict('修订至少保留一个评审要点');
   return selectionStandardContentSchema.parse({
     reviewPoints: [...points.values()],
   });
@@ -501,6 +524,7 @@ export function planUndoSelectionPublication(
 ) {
   const input = undoSelectionPublicationInputSchema.parse(raw);
   authorizeSelectionAction(authority, 'manager');
+  requireCurrent(facts.current, authority);
   if (
     record.revision.state !== 'active' ||
     record.submission === null ||
