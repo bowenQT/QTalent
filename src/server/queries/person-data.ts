@@ -4,6 +4,8 @@ import { loadProjectContext } from '../usecases/project-context';
 import { readEvidenceForTalent } from '../modules/records';
 import { readTalentEvaluationRules } from '../modules/evaluation-system';
 import { readActiveConfirmations } from '../modules/talent';
+import { employments } from '../modules/directory';
+import { cohorts } from '../modules/programs';
 import type { TalentSource, TalentSubject, TalentKind } from '../authz/talent';
 
 /** Complete provenance is loaded before person filtering, including shared
@@ -22,6 +24,9 @@ export async function loadPersonData(
         ...(await readEvidenceForTalent(tx)),
         ...(await readTalentEvaluationRules(tx)),
         confirmations: await readActiveConfirmations(tx),
+        // Batch names and hire dates for the identity header.
+        cohorts: await tx.select().from(cohorts),
+        employments: await tx.select().from(employments),
       };
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
