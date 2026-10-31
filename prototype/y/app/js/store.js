@@ -305,9 +305,15 @@
     if (!store.can('calibrate') || !f || r.na || r.q === f.q || !why) return null;
     S.recalKeeps = S.recalKeeps || {};
     const prev = S.recalKeeps[pid];
-    S.recalKeeps[pid] = { snap: snapKey(f), q: f.q, refQ: r.q, why, by: store.me().id, at: NT.TODAY, ts: Date.now() };
+    const current = { snap: snapKey(f), q: f.q, refQ: r.q, why, by: store.me().id, at: NT.TODAY, ts: Date.now() };
+    S.recalKeeps[pid] = current;
     store.save();
-    return () => { if (prev) S.recalKeeps[pid] = prev; else delete S.recalKeeps[pid]; store.save(); };
+    return () => {
+      // 只能撤销自己写入且仍生效的决定，不能覆盖之后的 HR 决定。
+      if (!store.can('calibrate') || S.recalKeeps[pid] !== current) return false;
+      if (prev) S.recalKeeps[pid] = prev; else delete S.recalKeeps[pid];
+      store.save(); return true;
+    };
   };
   store.freeze = (snap) => { S.snaps.push(snap); store.save(); };
   // 部门负责人在校准时的拖动和理由：存成建议，HR /管理者打开同一团队时可以看到并采纳
