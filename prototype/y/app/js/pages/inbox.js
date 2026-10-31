@@ -112,7 +112,7 @@
       <div class="n-choices">
         ${i.options.map(([id, why]) => (isProj ? html`<button class="n-choice" type="button" data-v="${id}"><span class="n-avatar n-avatar--sm" style="--hue:220;border-radius:6px">${icon('folder', 12)}</span>${st.project(id).name}<small>${why}</small></button>` : personChoice(id, why)))}
         ${i.kind === 'unknown' || (i.kind === 'person' && !i.options.length) ? html`<label class="n-field" style="margin:var(--s-1) 0"><span class="n-field__label">在名单里找</span><input class="n-input" data-find="${i.id}" value="${q[i.id] || ''}" placeholder="输入姓名" autocomplete="off"></label><div class="n-choices" data-found="${i.id}">${found(i)}</div>` : ''}
-        ${i.kind === 'unknown' ? html`<button class="n-choice" type="button" data-v="none"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">${icon('dash', 12)}</span>名单外的人<small>只留在原件里，不进档案</small></button>` : ''}
+        ${i.kind === 'unknown' ? html`<button class="n-choice" type="button" data-v="none"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">${icon('dash', 12)}</span>名单外的人<small>只保留在原件里</small></button>` : ''}
         ${skipChoice()}
       </div>
       ${heldDraft(i)}

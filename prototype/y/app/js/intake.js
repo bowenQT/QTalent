@@ -46,8 +46,22 @@
   st.confirmerOk = (e, who = me()) => e.recorder === who && (st.relFor(who, e.people[0]) || (st.person(who)?.role === 'hrbp' && st.scope(e.people[0], 'hrbp') === 'full'));
   st.dropItems = (d) => {
     const items = st.get().events.filter((e) => e.drop === d.id && !(e.readyAt > Date.now())).map((e) => ({ ev: e, state: evState(e) }));
-    (d.held || []).forEach((id) => { if (!items.some((x) => x.ev.id === id)) items.push({ ev: I().held[id], state: 'held', verify: d.verify.find((v) => st.get().inbox.find((i) => i.id === v)?.ev === id) }); });
-    return items.map((x) => ({ ...x, mine: x.state === 'held' ? x.ev.recorder === me() : st.confirmerOk(x.ev) }));
+    // 待核对选了「名单外的人」：这件事只保留在原件里，回执上标为已跳过；在待核对里撤销后回到待核对
+    (d.held || []).forEach((id) => {
+      if (items.some((x) => x.ev.id === id)) return;
+      const verify = d.verify.find((v) => st.get().inbox.find((i) => i.id === v)?.ev === id), it = verify && st.get().inbox.find((i) => i.id === verify);
+      items.push({ ev: I().held[id], state: it?.done && it.choice === 'none' ? 'skipped' : 'held', verify });
+    });
+    return items.map((x) => ({ ...x, mine: ['held', 'skipped'].includes(x.state) ? x.ev.recorder === me() : st.confirmerOk(x.ev) }));
+  };
+  // 回执上确认一件事：只确认还待确认的维度，已经人工确认或校准过的分保持原样；vals 是改过的分（维度序号 → 分数）。
+  // 返回撤销函数，只还原这一次改动的维度，原有的人工判断和历史都保留
+  st.receiptConfirm = (evId, vals = new Map(), why = '') => {
+    const e = st.event(evId); if (!e) return null;
+    const idx = e.scores.map((s, i) => (['confirmed', 'calibrated'].includes(s.st) ? -1 : i)).filter((i) => i >= 0);
+    const snaps = idx.map((i) => [i, NT.clone(e.scores[i])]);
+    idx.forEach((i) => st.confirmScore(e.id, i, vals.has(i) ? vals.get(i) : (e.scores[i].ai ?? e.scores[i].v), why));
+    return () => { snaps.forEach(([i, s]) => { e.scores[i] = NT.clone(s); }); st.save(); };
   };
   st.dropSummary = (d) => {
     const items = st.dropItems(d), inbox = st.get().inbox;
@@ -57,7 +71,8 @@
       processing: d.files.filter((f) => ['uploading', 'queued', 'parsing', 'transcribing'].includes(f.state)).length,
       failed: d.files.filter((f) => f.state === 'failed').length,
       people: d.mentions.length,
-      events: items.length,
+      events: items.filter((x) => x.state !== 'skipped').length,
+      skipped: items.filter((x) => x.state === 'skipped').length,
       verifyOpen: verify.filter((i) => !i.done).length,
       verify,
       toConfirm: items.filter((x) => x.state === 'ai').length,
@@ -90,7 +105,7 @@
       files: [
         { name: 'W8 对人复盘纪要.docx', kind: 'doc', state: 'parsing', meta: '解析中 · 读取 9 段', steps: [{ at: now + 2400, set: { state: 'done', meta: '9 段 · 定位到段落' } }] },
         { name: '路演群截图.png', kind: 'image', state: 'queued', meta: '排队中', steps: [{ at: now + 1500, set: { state: 'parsing', meta: '识别文字和区域' } }, { at: now + 4200, set: { state: 'done', meta: '1 张图 · 定位到区域' } }] },
-        { name: '路演现场.heic', kind: 'image', state: 'queued', meta: '排队中', steps: [{ at: now + 1800, set: { state: 'failed', meta: '读不了 .heic 格式，转成 JPG 或 PNG 再传' } }] },
+        { name: '路演现场.heic', kind: 'image', state: 'queued', meta: '排队中', steps: [{ at: now + 1800, set: { state: 'failed', meta: '.heic 格式待转换：转成 JPG 或 PNG 再传' } }] },
       ],
       mentions: ['p-x07', 'p-x06'], evs: [], held: [], verify: [iid] };
     I().drops.unshift(d);
@@ -144,7 +159,7 @@
       st.addEvent(e);
     }
     // 候选人核对到人后，面评那一行回到「待确认这是谁」
-    if (it.iv) { const r = ivRow(it); if (r) { r.match = choice; r.unknown = false; } }
+    if (it.iv) { const r = ivRow(it); if (r) { r.match = choice; r.unknown = false; r.joined = st.person(choice)?.joined; } }
     // 面试官关联到目录里的人后，面评那一行可以导入
     if (it.kind === 'interviewer') I().imports.forEach((imp) => imp.rows.forEach((r) => { if (r.verify === id) r.interviewer = choice; }));
     st.save();
@@ -153,7 +168,7 @@
     const it = st.get().inbox.find((x) => x.id === id); if (!it) return;
     if (it.ev && I().held[it.ev]) st.get().events = st.get().events.filter((e) => e.id !== it.ev);
     if (it.kind === 'interviewer') I().imports.forEach((imp) => imp.rows.forEach((r) => { if (r.verify === id) r.interviewer = null; }));
-    if (it.iv) { const r = ivRow(it); if (r && !r.imported) { r.match = null; r.unknown = true; r.ok = false; } }
+    if (it.iv) { const r = ivRow(it); if (r && !r.imported) { r.match = null; r.unknown = true; r.ok = false; delete r.joined; } }
     baseUnresolve(id);
   };
   // 面试官只能关联到人员目录里已有的人：目录里是工作人员（导师、助教、评委、HR、管理者）

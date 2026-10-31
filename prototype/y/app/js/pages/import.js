@@ -37,7 +37,7 @@
         <li><b>${skipped.length}</b>行跳过</li>
       </ul>
       <div class="nt-grid" id="iv-rows">${live.map(({ r, s }) => rowCard(imp, r, s))}</div>
-      ${skipped.length ? html`<details class="n-card nt-fold" style="margin-top:var(--s-4)"><summary><h3 class="n-section-title">跳过的 ${skipped.length} 行</h3><span class="nt-muted">淘汰、未入职的候选人不进 Niu-Talent</span>${icon('chev')}</summary>
+      ${skipped.length ? html`<details class="n-card nt-fold" style="margin-top:var(--s-4)"><summary><h3 class="n-section-title">跳过的 ${skipped.length} 行</h3><span class="nt-muted">淘汰和未入职的候选人跳过，只导入已入职的人</span>${icon('chev')}</summary>
         <ul class="nt-list" style="margin-top:var(--s-3)">${skipped.map(({ r, s }) => html`<li class="nt-row" style="justify-content:space-between;gap:var(--s-3)"><span><b style="font-weight:600">${r.name}</b> · ${r.pages} · ${st.ivTemplate(r.tpl).name}</span><span class="nt-muted">${s === 'dup' ? `${NT.md(imp.prior.at)} 已导入过` : `北森状态：${r.hr}`}</span></li>`)}</ul></details>` : ''}
       <div class="n-ivbar">
         <span class="nt-muted">${ready ? `已确认 ${ready} 行；导入后写进这些人的档案，作为面试段的历史评价` : '逐行确认「这是谁」以后，就能导入'}</span>
@@ -55,20 +55,20 @@
     const [label, cls] = STATE[s];
     const who = p ? html`<div class="n-ivrow__match">${UI.avatar(p.id, 'sm')}<span>人员目录：<b>${p.name}</b>${UI.demo()}<small>${st.orgShort(p.org)} · ${p.title} · ${NT.md(r.joined)} 入职</small></span></div>`
       : html`<div class="n-ivrow__match"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span><span>人员目录里查到 0 人<small>北森状态是${r.hr}；同步后再核对一次</small></span></div>`;
-    const interviewer = r.interviewer ? html`面试官 ${st.person(r.interviewer).name}` : html`面试官「${r.interviewerName}」待核对 <a class="n-link" href="inbox.html#${r.verify}">去核对</a>`;
+    const interviewer = r.interviewer ? html`面试官 ${st.person(r.interviewer).name}` : (r.verify ? html`面试官「${r.interviewerName}」待核对 <a class="n-link" href="inbox.html#${r.verify}">去核对</a>` : html`面试官待补：面评里没有写`);
     const scale = html`<div class="n-scale n-ivscale"><span class="n-scale__tag">原量表 · 不是维度分</span>${r.scores.map(([k, v]) => (v == null
       ? html`<span class="is-na">${k} 不适用<small>非管理岗</small></span>`
       : v === '?' ? html`<span class="${r.filled ? '' : 'is-miss'}">${k} ${r.filled || '待补录'}</span>` : html`<span>${k} ${v}</span>`))}<span>面试结论 ${r.verdict}</span></div>`;
     const unread = r.unread ? html`<div class="n-ivunread">
         <figure class="n-pdfcrop" aria-label="${r.pages}「${r.unread.item}」一栏的页面图"><figcaption>${r.pages} · ${r.unread.item}</figcaption><div class="n-pdfcrop__opts">${['A', 'B', 'C', 'D'].map((o) => html`<span class="${o === 'A' || o === 'B' ? 'is-on' : ''}"><i></i>${o}</span>`)}</div></figure>
-        ${r.imported ? html`<p class="nt-caption">「${r.unread.item}」已补录为 ${r.filled}，随这一行导入档案；要更正，先撤销这次导入。</p>` : html`<label class="n-field"><span class="n-field__label">「${r.unread.item}」没读出来：${r.unread.why}。对照页面图补录</span><select class="n-input" data-fill="${r.id}"><option value="">选一个</option>${['A', 'B', 'C', 'D'].map((o) => NT.raw(`<option${r.filled === o ? ' selected' : ''}>${o}</option>`))}</select></label>`}</div>` : '';
+        ${r.imported ? html`<p class="nt-caption">「${r.unread.item}」已补录为 ${r.filled}，随这一行导入档案；要更正，先撤销这次导入。</p>` : html`<label class="n-field"><span class="n-field__label">「${r.unread.item}」待补录：${r.unread.why}，对照页面图选一个</span><select class="n-input" data-fill="${r.id}"><option value="">选一个</option>${['A', 'B', 'C', 'D'].map((o) => NT.raw(`<option${r.filled === o ? ' selected' : ''}>${o}</option>`))}</select></label>`}</div>` : '';
     let acts = '';
     if (s === 'confirm') acts = html`<button class="n-btn n-btn--sm n-btn--ink" type="button" data-iv="ok" data-row="${r.id}">${icon('check')}是${p.name}</button>`;
     else if (s === 'confirmed') acts = html`<span class="n-badge n-badge--yes">${icon('check')}已确认是${p.name}</span><button class="n-link" type="button" data-iv="undo" data-row="${r.id}">改回</button>`;
     else if (s === 'unknown') acts = html`<button class="n-btn n-btn--sm" type="button" data-iv="send" data-row="${r.id}">${icon('spark')}放进待核对</button>`;
     else if (s === 'sent') acts = html`<a class="n-btn n-btn--sm n-btn--ghost" href="inbox.html#i-iv-${r.id}">查看待核对</a>`;
     else if (s === 'imported') acts = html`<a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${r.match}">查看档案</a>`;
-    else if (s === 'verify') acts = html`<a class="n-btn n-btn--sm" href="inbox.html#${r.verify}">关联面试官</a>`;
+    else if (s === 'verify' && r.verify) acts = html`<a class="n-btn n-btn--sm" href="inbox.html#${r.verify}">关联面试官</a>`;
     return html`<article class="n-card n-ivrow" data-state="${s}" id="iv-${r.id}">
       <div class="n-ivrow__head"><span class="n-ivrow__page">${r.pages}</span><b class="n-ivrow__name">${r.name}</b><span class="nt-muted">北森 · ${r.hr}</span><span class="n-badge ${cls}">${label}</span></div>
       ${who}

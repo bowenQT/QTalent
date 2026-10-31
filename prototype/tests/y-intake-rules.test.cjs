@@ -146,7 +146,7 @@ test('重新分派给导师后，导师在有效期内能看这几位学员，�
   assert.equal(st.todos().filter((t) => t.kind === 'takeover').length, 0);
 });
 
-test('面评候选人核对到人后，那一行回到待确认；选名单外跳过；撤销恢复认不出', () => {
+test('面评候选人核对到人后，那一行可以确认并导入；选名单外跳过；撤销恢复认不出', () => {
   const st = load('hrbp');
   const imp = st.importOf('imp-1');
   const r7 = imp.rows.find((r) => r.id === 'r7');
@@ -154,7 +154,17 @@ test('面评候选人核对到人后，那一行回到待确认；选名单外�
   assert.equal(st.ivRowState(r7), 'sent');
   st.resolveInbox('i-iv-r7', 'p-x12');
   assert.equal(r7.match, 'p-x12');
-  assert.ok(['confirm', 'verify', 'unread'].includes(st.ivRowState(r7)));
+  // 走到终点：确认这是谁，导入后档案里有这一段面评，撤销导入回到已确认
+  assert.equal(st.ivRowState(r7), 'confirm');
+  st.ivConfirm('imp-1', 'r7', true);
+  const res = st.ivImport('imp-1');
+  const e = st.event('e-iv-imp-1-r7');
+  assert.deepEqual([...e.people], ['p-x12']);
+  assert.equal(e.recorder, 'p-yeqing');
+  assert.equal(st.ivRowState(r7), 'imported');
+  res.undo();
+  assert.equal(st.event('e-iv-imp-1-r7'), undefined);
+  st.ivConfirm('imp-1', 'r7', false);
   st.unresolveInbox('i-iv-r7');
   assert.equal(r7.match, null);
   assert.equal(st.ivRowState(r7), 'sent');
@@ -166,7 +176,7 @@ test('面评候选人核对到人后，那一行回到待确认；选名单外�
 
 test('只有 HEIC 能转成 JPG 重传；格式不支持的文件保持失败', () => {
   const st = load('hrbp');
-  const d = st.addFilesDrop([{ name: 'archive.zip', kind: {}, err: '读不了 .zip 格式，解压后逐个投递' }, { name: '现场.heic', kind: { type: 'image' }, err: '读不了 .heic 格式，转成 JPG 或 PNG 再传' }]);
+  const d = st.addFilesDrop([{ name: 'archive.zip', kind: {}, err: '读不了 .zip 格式，解压后逐个投递' }, { name: '现场.heic', kind: { type: 'image' }, err: '.heic 格式待转换：转成 JPG 或 PNG 再传' }]);
   st.retryFile(d.id, 'archive.zip');
   const zip = st.drop(d.id).files.find((f) => f.name === 'archive.zip');
   assert.equal(zip.state, 'failed');
@@ -189,4 +199,44 @@ test('已导入的面评行不能再改补录值', () => {
   st.ivFill('imp-1', 'r2', 'C');
   assert.equal(r2.filled, 'B');
   assert.equal(Object.fromEntries(st.event('e-iv-imp-1-r2').scale)['系统设计'], 'B');
+});
+
+test('HR 自己接手的事出现在工作台「接手的事」分组里', () => {
+  const st = load('hrbp');
+  const items = st.reassignItems().filter((x) => !x.race);
+  st.reassign(items.map((x) => x.id), st.me().id);
+  const take = st.todos().filter((t) => t.kind === 'takeover');
+  assert.equal(take.length, items.length);
+  assert.ok(take.every((t) => t.sub.startsWith('你自己接手')));
+  const wb = fs.readFileSync(path.join(__dirname, '../y/app/js/pages/workbench.js'), 'utf8');
+  const groups = wb.match(/const GROUPS = (\[.*\]);/)[1];
+  assert.match(groups, /\['takeover', '接手的事', \['takeover'\]\]/);
+});
+
+test('回执上确认一件事，已经人工确认的维度保持原样；撤销只还原这一次确认的维度', () => {
+  const st = load('hrbp');
+  const e = st.event('e-d1');
+  assert.ok(e.scores.length > 1 && e.scores.every((s) => s.st === 'ai'));
+  st.confirmScore('e-d1', 0, 2, '评审表写明是两人一起做的');
+  const before = JSON.parse(JSON.stringify(e.scores[0]));
+  const undo = st.receiptConfirm('e-d1');
+  assert.deepEqual(JSON.parse(JSON.stringify(e.scores[0])), before, '人工改过的分没有被 AI 建议分覆盖');
+  assert.ok(e.scores.slice(1).every((s) => s.st === 'confirmed' && s.v === s.ai));
+  undo();
+  assert.deepEqual(JSON.parse(JSON.stringify(e.scores[0])), before, '撤销后原有的人工判断和历史还在');
+  assert.ok(e.scores.slice(1).every((s) => s.st === 'ai' && !s.hist));
+});
+
+test('待核对选「名单外的人」后，回执上这件事标为已跳过，不计入要确认的事；撤销后回到待核对', () => {
+  const st = load('mentor');
+  const d = st.drop('d-ms2');
+  const item = () => st.dropItems(d).find((x) => x.ev.id === 'e-d5');
+  assert.equal(item().state, 'held');
+  const before = st.dropSummary(d).events;
+  st.resolveInbox('i-xz', 'none');
+  assert.equal(item().state, 'skipped');
+  assert.equal(st.dropSummary(d).events, before - 1);
+  assert.equal(st.dropSummary(d).skipped, 1);
+  st.unresolveInbox('i-xz');
+  assert.equal(item().state, 'held');
 });

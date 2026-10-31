@@ -22,7 +22,7 @@
     const s = st.dropSummary(d), items = st.dropItems(d);
     const mine = items.filter((x) => x.mine), others = items.length - mine.length;
     const open = s.verify.filter((i) => !i.done && i.by === st.me().id);
-    const left = mine.filter((x) => x.state !== 'confirmed').length;
+    const left = mine.filter((x) => !['confirmed', 'skipped'].includes(x.state)).length;
     mount(main, html`
       <section class="m-card">
         <p class="nt-muted" style="margin:0 0 4px">${st.ENTRY[d.entry]} · ${d.at.slice(5)}</p>

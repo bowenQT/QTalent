@@ -70,7 +70,7 @@
       files: [
         { name: '结营评审意见表.docx', kind: 'doc', state: 'done', meta: '9 段 · 定位到段落' },
         { name: '评审群截图.png', kind: 'image', state: 'done', meta: '1 张图 · 定位到区域' },
-        { name: '现场照片.heic', kind: 'image', state: 'failed', meta: '读不了 .heic 格式，转成 JPG 或 PNG 再传' },
+        { name: '现场照片.heic', kind: 'image', state: 'failed', meta: '.heic 格式待转换：转成 JPG 或 PNG 再传' },
         { name: '评审讨论录音.m4a', kind: 'audio', state: 'transcribing', meta: '42:08 · 转写中' },
       ],
       mentions: ['p-x62', 'p-x65'], evs: ['e-d7', 'e-d8'], held: [], verify: ['i-aze', 'i-region'] },
@@ -148,7 +148,7 @@
         scores: [['求职动机', '良'], ['沟通表达', '优'], ['团队协作', '良'], ['价值观契合', '良'], ['管理能力', null]], verdict: '通过', note: '想做后端，问到技术选型时能说出取舍', redacted: 1 },
       { id: 'r6', pages: '第 8 页', name: '谷嘉树', hr: '已录用', match: 'p-x08', joined: '2026-07-06', tpl: 'campus', at: '2026-05-09', interviewer: 'p-yeqing', dup: true,
         scores: [['专业基础', '3'], ['项目经历', '3'], ['学习能力', '4'], ['沟通表达', '3'], ['管理能力', null]], verdict: '通过' },
-      { id: 'r7', pages: '第 9 页', name: '林嘉禾', hr: '已录用', match: null, tpl: 'campus', at: '2026-05-22', unknown: true,
+      { id: 'r7', pages: '第 9 页', name: '林嘉禾', hr: '已录用', match: null, tpl: 'campus', at: '2026-05-22', interviewer: 'p-yeqing', unknown: true,
         scores: [['专业基础', '4'], ['项目经历', '3'], ['学习能力', '4'], ['沟通表达', '4'], ['管理能力', null]], verdict: '通过' },
     ],
   }];
