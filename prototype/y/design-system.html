@@ -235,6 +235,8 @@
     <symbol id="i-up-r" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 18 6M9 6h9v9"/></symbol>
     <symbol id="i-down-r" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 9v9H9"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M4 15v4.5h16V15"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M7 14h10v6H7z"/></symbol>
     <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M4 15v4.5h16V15"/></symbol>
     <symbol id="i-archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 5h17v4h-17zM5 9v10.5h14V9M10 13h4"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></symbol>
@@ -292,6 +294,8 @@
       <li><a href="#c-judge">判断对照</a></li>
       <li class="grp">人才评价规则</li>
       <li><a href="#c-eval">规则与修订</a></li>
+      <li class="grp">系统与导出</li>
+      <li><a href="#c-access">接入状态、导出与打印</a></li>
       <li class="grp">反馈</li>
       <li><a href="#c-feedback">反馈与状态</a></li>
       <li class="grp">形象</li>
@@ -2098,6 +2102,81 @@
     </section>
 
     <!-- ═════════ 组件：反馈与状态 ═════════ -->
+    <section class="ds-sec" id="c-access">
+      <h2>接入状态、导出与打印</h2>
+      <p class="lead">系统管理员在「系统管理 · 接入状态」看三个入口通不通、谁绑不上、哪些任务失败和接下来能做什么；管理者和 HR 在工作台导出权限内已确认的内容，在档案页打印单人档案。三处都不显示消息正文和密钥，导出与打印都写明「不是盘点冻结结果」并记入审计日志。</p>
+
+      <h3 class="ds-sub">接入状态：三个入口</h3>
+      <p>企业微信机器人分已连接、已断开、从未连接三种，写最近一次收到消息的时间；从未连接写「还没有收到过消息」，不写 0。MCP 和 AgentAPI 写最近一次调用和近 24 小时的次数。状态点配文字，用形状区分：实心墨点、红色菱形点、空心灰圈；不用绿色，绿色留给证据判断的「支持」。配置在部署时完成，这里没有配置项。</p>
+      <div class="n-conn">
+        <article class="n-card n-conn__item"><header class="n-conn__head"><b>企业微信机器人</b><span class="n-conn__state" data-state="on">已连接</span></header><p class="n-conn__use">收材料，并给发送人回执</p><p class="n-conn__meta">最近收到消息 09-04 14:02 · 最近一次回执 09-04 14:03</p></article>
+        <article class="n-card n-conn__item"><header class="n-conn__head"><b>企业微信机器人</b><span class="n-conn__state" data-state="down">已断开</span></header><p class="n-conn__use">收材料，并给发送人回执</p><p class="n-conn__meta">09-04 10:20 起收不到回调 · 断开前最后收到消息 09-04 10:18</p><p class="n-conn__next"><svg><use href="#i-info"/></svg><span>断开期间发来的消息可能没有收到。回调地址和密钥在部署配置里，请部署负责人检查。</span></p></article>
+        <article class="n-card n-conn__item"><header class="n-conn__head"><b>企业微信机器人</b><span class="n-conn__state" data-state="never">从未连接</span></header><p class="n-conn__use">收材料，并给发送人回执</p><p class="n-conn__meta">还没有收到过消息</p><p class="n-conn__next"><svg><use href="#i-info"/></svg><span>部署时完成机器人配置后，收到第一条消息就会显示「已连接」。</span></p></article>
+        <article class="n-card n-conn__item"><header class="n-conn__head"><b>MCP</b><span class="n-conn__state" data-state="on">有调用</span></header><p class="n-conn__use">在 Agent 工具里查人、找人、查任务状态</p><p class="n-conn__meta">最近一次调用 09-04 13:40 · 近 24 小时 4 次，其中 1 次拒绝或失败</p></article>
+      </div>
+      <h3 class="ds-sub">调用记录、绑定失败与任务失败</h3>
+      <p>调用记录只记时间、入口、账号、动作和结果，不记查询内容和返回内容。结果沿用处理进度的中性徽标：成功、拒绝（超出查看范围，没有返回内容）、失败（写原因）。绑定失败写发送人账号的后四位、对不上的原因和接下来；这里不能手动改绑，以北森人员目录为准。任务失败一项一张卡，写原因和接下来能做什么；只有重试能解决的才给「重试」，重试后可以撤销。</p>
+      <div class="ds-row" style="margin-bottom:var(--s-4)"><span class="n-badge n-badge--proc"><svg><use href="#i-check"/></svg>成功</span><span class="n-badge n-badge--proc" data-state="review"><svg><use href="#i-lock"/></svg>拒绝</span><span class="n-badge n-badge--proc" data-state="failed"><svg><use href="#i-x"/></svg>失败</span></div>
+      <ul class="n-tfail" style="max-width:760px">
+        <li class="n-card"><div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="failed"><svg><use href="#i-x"/></svg>失败</span><b>转写会议录音 · 42 分钟</b><small style="color:var(--ink-3)">企业微信 · 苏晚发起 · 09-04 09:58</small></div><dl class="n-tfail__dl"><dt>原因</dt><dd>转写服务超时，已自动重试 2 次</dd><dt>接下来</dt><dd>可以再重试一次；仍失败请部署负责人查看转写服务</dd></dl><div><span class="n-btn n-btn--sm"><svg><use href="#i-retry"/></svg>重试</span></div></li>
+        <li class="n-card"><div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="failed"><svg><use href="#i-x"/></svg>失败</span><b>整理企业微信材料 · 1 个 PDF</b><small style="color:var(--ink-3)">企业微信 · 叶青发起 · 09-04 12:31</small></div><dl class="n-tfail__dl"><dt>原因</dt><dd>文件是扫描件，识别不出文字</dd><dt>接下来</dt><dd>请发送人改发可复制文字的版本；这一步不能重试解决</dd></dl></li>
+      </ul>
+      <div class="n-lock" style="margin-top:var(--s-3);max-width:760px"><svg><use href="#i-lock"/></svg><span>接入配置（机器人回调地址、MCP 与 AgentAPI 的令牌）在部署时完成，这里只看状态。页面不显示消息正文、文件内容、查询内容和密钥。</span></div>
+
+      <h3 class="ds-sub">工作台 · 导出已确认内容</h3>
+      <p>入口在管理者和 HR 工作台的标题右侧；导师没有这个入口。选范围和事件时间后，弹窗实时写出会导出多少人、多少条已确认的维度分，以及有多少条 AI 建议分或待校准的分不导出；范围里没有已确认内容时不生成，并说明原因。表格每行是一条已确认的维度分，附行为锚点引用、评分人、规则版本和来源位置；象限位置和盘点结论以盘点冻结快照为准，不导出。生成前按当前视角再取一次，范围外的人不会进表。</p>
+      <div class="ds-grid c2">
+        <div class="n-dialog n-dialog--static" aria-hidden="true">
+          <h3>导出已确认内容</h3>
+          <div class="n-export">
+            <div class="n-export__pick"><label class="n-field"><span class="n-field__label">范围</span><span class="n-select">我负责的人（93 人）</span></label><label class="n-field"><span class="n-field__label">事件时间</span><span class="n-select">近 12 个月</span></label></div>
+            <p class="n-export__sum"><b>93 人 · 556 条已确认的维度分</b><span>另有 4 条 AI 建议分或待校准的分，不导出</span></p>
+            <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl><dt>导出时间</dt><dd>生成时写入，精确到分钟</dd><dt>导出人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至导出时已确认的关键事件与维度分；不含 AI 建议分和待校准的分；不是盘点冻结结果</dd><dt>范围</dt><dd>我负责的人 · 近 12 个月</dd></dl></div>
+          </div>
+          <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-download"/></svg>生成表格</span></div>
+        </div>
+        <div style="display:grid;gap:var(--s-3);align-content:start">
+          <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">
+            <h3>导出已确认内容</h3>
+            <div class="n-export"><p class="n-export__sum"><b>这个范围里还没有已确认的内容</b><span>换一个范围或时间再试</span></p></div>
+            <p class="n-dialog__hint">这个范围里还没有已确认的内容，换一个范围再生成</p>
+            <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-download"/></svg>生成表格</span></div>
+          </div>
+          <p class="ds-caption">生成后结果写在标题下方，处理中、已生成、失败三种：</p>
+          <div class="n-notice is-plain n-exst" data-state="busy"><svg><use href="#i-clock"/></svg><div>正在生成「我负责的人 · 近 12 个月」的表格，只取已确认的内容…</div></div>
+          <div class="n-notice is-plain n-exst" data-state="done"><svg><use href="#i-check"/></svg><div><b>表格已生成：</b>我负责的人 · 近 12 个月，93 人、556 条已确认的维度分。表头写明了导出时间 09-04 14:20 和口径，不是盘点冻结结果；已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ink"><svg><use href="#i-download"/></svg>下载表格</span><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
+          <div class="n-notice is-deny n-exst" data-state="fail"><svg><use href="#i-x"/></svg><div><b>表格没有生成。</b>导出服务没有响应，没有生成文件；这次失败已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm"><svg><use href="#i-retry"/></svg>重试</span><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
+        </div>
+      </div>
+
+      <h3 class="ds-sub">档案页 · 打印档案</h3>
+      <p>入口在档案标题右侧，只给管理者和这个人的归属 HR；导师和员工没有入口。点开先说会打印什么、不打印什么；确认后按当前权限再校验一次，越权就拒绝、不生成内容，并记入审计日志。打印稿只含已确认的内容：已确认的维度分（附引用、评分人、规则版本和来源）、已采纳的档案摘要、能力象限的正式位置；不含 AI 建议分、待校准的分、未采纳的 AI 摘要和系统给的参考位置。直接用浏览器打印只会印出一句提示。</p>
+      <div class="ds-grid c2">
+        <div style="display:grid;gap:var(--s-3);align-content:start">
+          <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">
+            <h3>打印苏少卿的档案</h3>
+            <p>打印的是截至现在已确认的内容，不是盘点冻结结果。打印会记入审计日志。</p>
+            <ul class="n-dialog__facts"><li><b>会打印</b>：基本信息、3 件关键事件里 11 条已确认的维度分（附引用、评分人、规则版本和来源位置）、能力象限的正式位置</li><li><b>不打印</b>：未采纳的 AI 摘要、系统给的参考位置</li></ul>
+            <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-print"/></svg>打印</span></div>
+          </div>
+          <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">
+            <h3>不能打印这份档案</h3>
+            <p>打印前按你现在的权限重新校验，这个人已不在你的导出范围内，没有生成打印内容。档案打印只对管理者和这个人的归属 HR 开放；这次尝试已记入审计日志。</p>
+            <div class="n-dialog__bar"><span class="n-btn n-btn--ink">知道了</span></div>
+          </div>
+        </div>
+        <div class="n-print is-preview" aria-label="打印稿样张">
+          <header class="n-print__head"><h1>苏少卿 <small>演示</small></h1><p>XEngineer 第六期 / 线索雷达 · 产品方向 · 2027 届 · 入营 2 个月</p></header>
+          <dl class="n-print__meta"><dt>打印时间</dt><dd>2026-09-04 14:20</dd><dt>打印人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至打印时已确认的内容；不含 AI 建议分、待校准的分、未采纳的 AI 摘要和参考位置；不是盘点冻结结果</dd></dl>
+          <section><h2>能力象限 · 正式位置</h2><p>还没有正式校准</p></section>
+          <section><h2>关键事件与已确认的维度分 <small>3 件 · 11 条</small></h2>
+            <ol class="n-print__evs"><li><p class="n-print__ev"><b>08-28 · 把自动触达做到增量同步和断点续传</b> · 线索雷达 · 任辞远记录</p><ul><li>专业度 4 · 任辞远评 · 评价规则 v1<br><span>引用「在团队中负责串通模块、引导组员沟通」</span></li><li>内生动力 4 · 任辞远评 · 评价规则 v1<br><span>引用「做事踏实」</span></li></ul><p class="n-print__src">来源：XEngineer 第六期观察表 · W7–W8 · 突出表现 · 第 6 行</p></li></ol>
+          </section>
+          <footer class="n-print__foot">仅限内部使用 · 本次打印已记入审计日志 · 演示数据，人员均为化名</footer>
+        </div>
+      </div>
+    </section>
+
     <section class="ds-sec" id="c-feedback">
       <h2>反馈与状态</h2>
       <p class="lead">按钮写清动作；直接保存的操作给 5 秒撤销；加载、空、失败、无权限分开说，不把未知写成 0。</p>

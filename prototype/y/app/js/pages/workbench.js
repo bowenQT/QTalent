@@ -59,7 +59,7 @@
         <div class="n-asks" style="margin:var(--s-2) 0 var(--s-6)">${(SUGGEST[role] || []).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>`;
       // 实时录音入口：HR 和导师（桌面录音页 recording.html）
       const recStart = html`<div class="nt-recstart"><a class="n-btn n-btn--sm n-btn--ink" href="recording.html">${icon('mic')}开始录音</a><span class="nt-muted">多人会议或观察速记</span></div>`;
-      const head = html`<header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · ${role === 'mentor' ? 'XEngineer 第六期已结营 · W8 对人复盘今天截止' : `XEngineer 第六期结营盘点进行中 · 证据截至 ${NT.md(NT.TODAY)}`}</p></div></header>`;
+      const head = html`<header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · ${role === 'mentor' ? 'XEngineer 第六期已结营 · W8 对人复盘今天截止' : `XEngineer 第六期结营盘点进行中 · 证据截至 ${NT.md(NT.TODAY)}`}</p></div>${exportBtn()}</header>${exportHost()}`;
       // 导师：进行中的任务和上传材料收进「材料与任务」，默认折叠
       const fold = html`<details class="n-card nt-fold" id="fold" ${raw(location.hash === '#upload' ? 'open' : '')}><summary><h3 class="n-section-title">材料与任务</h3><span class="nt-muted">${st.visibleTasks().filter((t) => t.state !== 'done').length} 个在处理</span>${icon('chev')}</summary>
           <div id="tasks"></div>
@@ -95,6 +95,7 @@
       wireTodos();
       renderTasks();
       wireUpload();
+      wireExport();
       if (st.can('changes')) {
         renderChanges();
         UI.wireChanges($('#chg-list'));
@@ -338,7 +339,7 @@
   // ---------- 管理者首页：找人、值得关注的人、值得关注的项目、我的关注；判断提醒一行告知 ----------
   function renderCeo(main, me) {
     mount(main, html`
-      <header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · 全部人才项目</p></div><div class="nt-notes" id="jsig" role="note" aria-label="提醒"></div></header>
+      <header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · 全部人才项目</p></div><div class="nt-notes" id="jsig" role="note" aria-label="提醒"></div>${exportBtn()}</header>${exportHost()}
       <section class="n-find is-pop" aria-label="找人">
         <div class="n-composer is-hero" id="composer">
           <span class="nt-ip" data-ip="rest" data-size="36" id="composer-ip"></span>
@@ -362,12 +363,98 @@
         <div class="nt-grid"><article class="n-card n-progs" id="progs" aria-labelledby="progs-h"></article><article class="n-card n-follows" id="follows" aria-labelledby="follows-h"></article></div>
       </div>`);
     wireComposer('ceo');
+    wireExport();
     $('#composer-field').addEventListener('keydown', (e) => { if (e.key === 'Escape') e.target.blur(); });
     drawCeo();
     wireWatch();
     wireFollows();
     UI.peek.changed = drawCeo;
   }
+  // 批量导出已确认内容（BOW-912 口径）：只导当前视角范围内、已确认的事件分；表头写明导出时间、导出人、口径和范围；
+  // 导出成功或失败都记审计。演示：?export=fail 看生成失败
+  const EX_TIME = [['', '全部时间'], ['2025-09-04', '近 12 个月'], ['2026-06-04', '近 3 个月']];
+  let exJob = null;
+  const exportBtn = () => (st.canExport() ? html`<div class="nt-head__acts"><button class="n-btn n-btn--sm" type="button" id="btn-export">${icon('download')}导出已确认内容</button></div>` : '');
+  const exportHost = () => (st.canExport() ? html`<div id="export-st" aria-live="polite"></div>` : '');
+  const nowText = () => { const d = new Date(); return `${NT.TODAY} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  const exLabel = (sc, from) => `${sc.label} · ${EX_TIME.find(([k]) => k === from)[1]}`;
+  const EX_BASIS = '截至导出时已确认的关键事件与维度分；不含 AI 建议分和待校准的分；不是盘点冻结结果';
+  function wireExport() {
+    $('#btn-export')?.addEventListener('click', openExport);
+    drawExport();
+  }
+  async function openExport() {
+    const scopes = st.exportScopes();
+    const sum = (d) => {
+      const sc = scopes.find((x) => x.id === $('#ex-scope', d).value), from = $('#ex-time', d).value, r = st.exportRows(sc.people, from);
+      mount($('#ex-sum', d), r.rows.length
+        ? html`<b>${r.people} 人 · ${r.rows.length} 条已确认的维度分</b>${r.skipped ? html`<span>另有 ${r.skipped} 条 AI 建议分或待校准的分，不导出</span>` : ''}`
+        : html`<b>这个范围里还没有已确认的内容</b><span>${sc.people.length ? '换一个范围或时间再试' : '这个范围里没有人'}</span>`);
+      mount($('#ex-head', d), html`<dt>导出时间</dt><dd>生成时写入，精确到分钟</dd><dt>导出人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>${EX_BASIS}</dd><dt>范围</dt><dd>${exLabel(sc, from)}</dd>`);
+      return r.rows.length;
+    };
+    const r = await NT.dialog({
+      title: '导出已确认内容',
+      body: html`<div class="n-export">
+        <div class="n-export__pick">
+          <label class="n-field"><span class="n-field__label">范围</span><select class="n-select" id="ex-scope">${scopes.map((x) => html`<option value="${x.id}">${x.label}（${x.people.length} 人）</option>`)}</select></label>
+          <label class="n-field"><span class="n-field__label">事件时间</span><select class="n-select" id="ex-time">${EX_TIME.map(([k, l]) => html`<option value="${k}" ${raw(k === '2025-09-04' ? 'selected' : '')}>${l}</option>`)}</select></label>
+        </div>
+        <p class="n-export__sum" id="ex-sum"></p>
+        <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl id="ex-head"></dl></div>
+        <p class="nt-caption">每行是一条已确认的维度分，附行为锚点引用、评分人、规则版本和来源位置。只含你查看范围内的人；象限位置和盘点结论以盘点冻结快照为准，不在这里导出。导出会记入审计日志。</p>
+      </div>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '生成表格', value: 'go', cls: 'n-btn--ink', icon: 'download', validate: (d) => (sum(d) ? true : '这个范围里还没有已确认的内容，换一个范围再生成'), read: (d) => ({ scope: $('#ex-scope', d).value, from: $('#ex-time', d).value }) }],
+      onOpen: (d) => { sum(d); d.addEventListener('change', () => sum(d)); },
+    });
+    if (r?.value !== 'go') return;
+    runExport(scopes.find((x) => x.id === r.data.scope), r.data.from);
+  }
+  function runExport(sc, from) {
+    if (exJob?.url) URL.revokeObjectURL(exJob.url);
+    exJob = { state: 'busy', sc, from, tries: (exJob?.sc === sc ? exJob.tries : 0) + 1 };
+    drawExport();
+    const job = exJob;
+    setTimeout(() => {
+      if (exJob !== job) return;
+      // 生成前按当前视角再取一次：期间权限变了，范围外的人不会进表
+      const r = st.exportRows(sc.people, from), at = nowText(), label = exLabel(sc, from);
+      if (NT.param('export') === 'fail' && job.tries === 1) {
+        st.audit('导出失败', `已确认内容 · ${label}`);
+        Object.assign(job, { state: 'fail' });
+      } else {
+        const csv = buildCsv(r.rows, at, label);
+        const url = URL.createObjectURL(new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' }));
+        st.audit('导出已确认内容', `${label} · ${r.people} 人 · ${r.rows.length} 条维度分`);
+        Object.assign(job, { state: 'done', at, url, n: r.rows.length, people: r.people, name: `已确认内容-${sc.label}-${NT.TODAY.replaceAll('-', '')}.csv` });
+      }
+      drawExport();
+    }, NT.reduced ? 200 : 1400);
+  }
+  function buildCsv(rows, at, label) {
+    const q = (v) => `"${String(v ?? '').replaceAll('"', '""')}"`;
+    const head = [['导出时间', at], ['导出人', st.me().name], ['口径', EX_BASIS], ['范围', label], ['说明', '演示数据，人员均为化名']];
+    const cols = ['人员', '组织', '事件日期', '关键事件', '维度', '分数', '行为锚点与引用', '评分人', '评价规则版本', '来源位置'];
+    const body = rows.map((x) => { const p = st.person(x.pid); return [p.name, st.orgShort(p.org), x.date, x.title, x.dim, x.v, x.note, st.person(x.by)?.name || x.by, x.rubric, x.src]; });
+    return [...head, [], cols, ...body].map((r) => r.map(q).join(',')).join('\r\n');
+  }
+  function drawExport() {
+    const host = $('#export-st'); if (!host) return;
+    const j = exJob;
+    if (!j) { host.hidden = true; mount(host, ''); return; }
+    host.hidden = false;
+    const label = exLabel(j.sc, j.from);
+    mount(host, j.state === 'busy'
+      ? html`<div class="n-notice is-plain n-exst" data-state="busy">${icon('clock')}<div>正在生成「${label}」的表格，只取已确认的内容…</div></div>`
+      : j.state === 'fail'
+        ? html`<div class="n-notice is-deny n-exst" data-state="fail">${icon('x')}<div><b>表格没有生成。</b>导出服务没有响应，没有生成文件；这次失败已记入审计日志。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" data-exretry>${icon('retry')}重试</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-exclose>关闭</button></div></div></div>`
+        : html`<div class="n-notice is-plain n-exst" data-state="done">${icon('check')}<div><b>表格已生成：</b>${label}，${j.people} 人、${j.n} 条已确认的维度分。表头写明了导出时间 ${j.at.slice(5)} 和口径，不是盘点冻结结果；已记入审计日志。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm n-btn--ink" href="${j.url}" download="${j.name}">${icon('download')}下载表格</a><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-exclose>关闭</button></div></div></div>`);
+    host.onclick = (e) => {
+      if (e.target.closest('[data-exretry]')) runExport(j.sc, j.from);
+      if (e.target.closest('[data-exclose]')) { if (j.url) URL.revokeObjectURL(j.url); exJob = null; drawExport(); }
+    };
+  }
+
   function drawCeo() { drawWatch(); drawJudge(); drawPrograms(); drawFollows(); }
 
   // 值得关注的人：按规则入选，不显示分数。「全部」里「需要介入」收成列表顶部的一行，

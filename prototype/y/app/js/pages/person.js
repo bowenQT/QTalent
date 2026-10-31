@@ -60,6 +60,7 @@
           ${st.canRecommend(pid) ? html`<button class="n-btn n-btn--sm" type="button" id="btn-reco">${icon('target')}推荐方向</button>` : ''}
           ${canQuad && role !== 'ceo' && !tracks.some((t) => t.state === 'on') ? html`<button class="n-btn n-btn--sm" type="button" id="btn-track">${icon('target')}重点跟踪</button>` : ''}
           ${st.can('record', pid) && role !== 'ceo' ? html`<a class="n-btn n-btn--sm n-btn--ghost" href="index.html#upload">${icon('upload')}上传材料</a>` : ''}
+          ${st.canExport(pid) ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" id="btn-print">${icon('print')}打印档案</button>` : ''}
         </div>
       </header>
 
@@ -119,6 +120,7 @@
     if ($('[data-trackwrap]')) UI.wireTracks($('[data-trackwrap]'), () => render(main));
     $('#pver')?.addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; ver = b.dataset.v; render(main); });
     $('#btn-track')?.addEventListener('click', () => startTrack());
+    $('#btn-print')?.addEventListener('click', () => printProfile());
     wireTimeline(main);
     wireSummary(main);
     UI.mountIPs(main);
@@ -133,6 +135,49 @@
       <div class="n-peek__why"><span class="n-watch__cat">${cat}</span>${w.why}${w.srcs ? UI.cites(w.srcs) : (w.evs || []).slice(0, 3).map((id, i) => UI.evCite(id, i + 1))}</div>
       <p class="n-peek__src">${src} · ${NT.md(w.when)}${w.also.length ? ` · 另有 ${w.also.length} 条依据：${w.also.map((a) => a.why).join('；')}` : ''}</p>
       <p class="n-peek__rule" title="${w.rule} · ${st.WATCH_VER}">入选依据：${rule.text}</p></article>`;
+  }
+
+  // 档案打印（BOW-911）：打印前按当前权限再校验一次，越权就拒绝并留审计；打印内容只含已确认的部分，
+  // 不含 AI 建议分、待校准的分、未采纳的 AI 摘要和参考位置。直接用浏览器打印只会印出一句提示。演示：?print=deny 看拒绝
+  const PRINT_IDLE = '<p class="n-print__idle">档案请用页面上的「打印档案」打印：打印内容只含已确认的部分，并记入审计日志。</p>';
+  const sheet = (() => { const d = document.createElement('div'); d.className = 'n-print'; d.id = 'print-sheet'; d.innerHTML = PRINT_IDLE; document.body.append(d); return d; })();
+  addEventListener('afterprint', () => { sheet.innerHTML = PRINT_IDLE; });
+  async function printProfile() {
+    const p = st.person(pid);
+    if (!st.canExport(pid) || NT.param('print') === 'deny') {
+      st.audit('拒绝打印', `${p.name}的档案`);
+      await NT.dialog({ title: '不能打印这份档案', body: '打印前按你现在的权限重新校验，这个人已不在你的导出范围内，没有生成打印内容。档案打印只对管理者和这个人的归属 HR 开放；这次尝试已记入审计日志。' });
+      return;
+    }
+    const { rows, skipped } = st.exportRows([pid]);
+    const evs = [...new Set(rows.map((r) => r.ev))].map((id) => ({ e: st.event(id), rows: rows.filter((r) => r.ev === id) })).sort((a, b) => (b.e.date || '').localeCompare(a.e.date || ''));
+    const saved = st.summaryFor(pid), f = st.can('quad', pid) ? st.formal(pid) : null, { hidden } = st.visibleEvents(pid);
+    const ok = await NT.dialog({
+      title: `打印${p.name}的档案`,
+      body: '打印的是截至现在已确认的内容，不是盘点冻结结果。打印会记入审计日志。',
+      facts: [
+        html`<b>会打印</b>：基本信息、${evs.length} 件关键事件里 ${rows.length} 条已确认的维度分（附引用、评分人、规则版本和来源位置）${saved ? '、已采纳的档案摘要' : ''}${st.can('quad', pid) ? '、能力象限的正式位置' : ''}`,
+        html`<b>不打印</b>：${skipped ? `${skipped} 条 AI 建议分或待校准的分、` : ''}未采纳的 AI 摘要、系统给的参考位置${hidden ? `，以及你权限外的 ${hidden} 条资料` : ''}`,
+      ],
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '打印', value: 'go', cls: 'n-btn--ink', icon: 'print' }],
+    });
+    if (ok !== 'go') return;
+    const d = new Date(), at = `${NT.TODAY} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const land = st.landingOf(pid);
+    sheet.innerHTML = String(html`
+      <header class="n-print__head"><h1>${p.name} <small>演示</small></h1><p>${st.orgPath(p.org)} · ${p.title} · ${p.level} · ${st.tenure(p)}${land ? ` · ${land.batch.name}` : ''}</p></header>
+      <dl class="n-print__meta"><dt>打印时间</dt><dd>${at}</dd><dt>打印人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>截至打印时已确认的内容；不含 AI 建议分、待校准的分、未采纳的 AI 摘要和参考位置；不是盘点冻结结果</dd></dl>
+      ${saved ? html`<section><h2>档案摘要</h2><p>${saved.text}</p><p class="n-print__by">${st.person(saved.by).name} ${NT.md(saved.at)} 采纳</p></section>` : ''}
+      ${st.can('quad', pid) ? html`<section><h2>能力象限 · 正式位置</h2><p>${f ? `${st.QN[f.q]} · ${f.snap.label}校准 · ${NT.md(f.snap.at)} 冻结 · ${st.person(f.snap.by).name}确认` : '还没有正式校准'}</p></section>` : ''}
+      <section><h2>关键事件与已确认的维度分 <small>${evs.length} 件 · ${rows.length} 条</small></h2>
+        ${evs.length ? html`<ol class="n-print__evs">${evs.map(({ e, rows: rs }) => html`<li><p class="n-print__ev"><b>${NT.md(e.date)} · ${e.title}</b>${e.project ? ` · ${st.project(e.project)?.name || ''}` : ''} · ${st.person(e.recorder)?.name || ''}记录</p>
+          <ul>${rs.map((r) => html`<li>${r.dim} ${r.v} · ${st.person(r.by)?.name || r.by}评 · ${r.rubric}${r.note ? html`<br><span>${r.note}</span>` : ''}</li>`)}</ul>
+          ${rs[0].src ? html`<p class="n-print__src">来源：${rs[0].src}</p>` : ''}</li>`)}</ol>` : html`<p>还没有已确认的维度分。</p>`}
+      </section>
+      <footer class="n-print__foot">仅限内部使用 · 本次打印已记入审计日志 · 演示数据，人员均为化名</footer>`);
+    st.audit('打印档案', `${p.name}的档案 · ${rows.length} 条已确认的维度分`);
+    window.print();
+    NT.toast('已打开打印。只含已确认的内容，已记入审计日志');
   }
 
   async function startTrack() {

@@ -1507,6 +1507,43 @@
     s.state = 'open'; delete s.handledBy; delete s.handledAt; delete s.why; delete s.draft; store.save();
   };
 
+  // ---------- 导出与审计（BOW-911 档案打印、BOW-912 批量导出） ----------
+  // 口径：截至导出时已确认的内容。事件分只取已确认、已校准的，AI 建议分和待校准的分不进；
+  // 人员先按当前视角的查看范围过滤，事件再按档案的可见规则过滤；象限和盘点结论以盘点冻结快照为准，不进导出
+  store.canExport = (pid, role = store.role()) => ['ceo', 'hrbp'].includes(role) && (!pid || store.scope(pid, role) === 'full');
+  store.exportScopes = () => {
+    const role = store.role(), mine = store.visiblePeople().filter((p) => store.canExport(p.id, role)), ids = new Set(mine.map((p) => p.id));
+    const out = [{ id: 'all', label: role === 'ceo' ? '全公司范围内的人' : '我负责的人', people: mine.map((p) => p.id) }];
+    S.batches.filter((b) => b.kind === 'landing').forEach((b) => {
+      const ps = b.newcomers.map(([pid]) => pid).filter((pid) => ids.has(pid));
+      if (ps.length) out.push({ id: b.id, label: b.name, people: ps });
+    });
+    if (store.canFollow()) out.push({ id: 'follow', label: '我的关注', people: store.followList().map((f) => f.person).filter((pid) => ids.has(pid)) });
+    return out;
+  };
+  // 规则版本在导出和打印里写成「评价规则 v1」，不露内部编号
+  const ruleName = (v) => (v ? `评价规则 ${v.replace(/^.*-(v\d+)$/, '$1')}` : '');
+  store.exportRows = (pids, from) => {
+    const rows = []; let skipped = 0;
+    pids.filter((pid) => store.canExport(pid)).forEach((pid) => {
+      store.visibleEvents(pid).events.filter((e) => e.kind === 'obs' && (!from || (e.date && e.date >= from))).forEach((e) => {
+        (e.scores || []).filter((s) => s.p === pid).forEach((s) => {
+          if (!COUNTED.includes(s.st)) { skipped += 1; return; }
+          const src = e.srcs?.[0];
+          rows.push({ pid, ev: e.id, date: e.date || '', title: e.title, dim: store.dim(s.d)?.name || s.d, v: s.v, note: s.note || '', by: s.by, rubric: ruleName(store.eventRubric(e)?.v), src: src ? `${src.label} · ${src.loc}` : '' });
+        });
+      });
+    });
+    return { rows, skipped, people: new Set(rows.map((r) => r.pid)).size };
+  };
+  // 审计只记谁在什么时间对什么做了什么，不记导出或打印的内容本身
+  store.audit = (act, obj) => {
+    const d = new Date(), at = `${NT.md(NT.TODAY)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    (S.audit ||= []).unshift({ at, by: store.me().id, act, obj });
+    store.save();
+  };
+  store.audits = () => S.audit || [];
+
   // ---------- 全局搜索 ----------
   store.search = (q) => {
     const people = store.visiblePeople().filter((p) => !q || p.name.includes(q) || store.orgShort(p.org).includes(q) || p.title.includes(q));
