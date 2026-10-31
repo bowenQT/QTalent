@@ -269,6 +269,42 @@ export const comparisonCountsSchema = z.strictObject({
     notComparable: count,
   }),
 });
+// Validate the declared sample, not a batch-wide aggregate. Outcomes have
+// already passed the frozen mapping; excluded/withheld cases add no evidence.
+function matchesSampleDistribution(
+  distribution: z.infer<typeof comparisonCountsSchema>,
+  outcomes: readonly (
+    z.infer<typeof comparisonOutcomeSchema> | { state: 'withheld' }
+  )[],
+) {
+  const clear = { consistent: 0, frontHigher: 0, frontLower: 0 };
+  const middle = { notRecommended: 0, observe: 0, recommended: 0 };
+  for (const outcome of outcomes) {
+    if (outcome.state === 'consistent') clear.consistent++;
+    else if (outcome.state === 'front_higher') clear.frontHigher++;
+    else if (outcome.state === 'front_lower') clear.frontLower++;
+    else if (outcome.state === 'middle_distribution') {
+      const bucket = {
+        不建议: 'notRecommended',
+        继续观察: 'observe',
+        建议留用: 'recommended',
+      } as const;
+      middle[bucket[outcome.backGrade]]++;
+    }
+  }
+  return (
+    distribution.clear.consistent === clear.consistent &&
+    distribution.clear.frontHigher === clear.frontHigher &&
+    distribution.clear.frontLower === clear.frontLower &&
+    distribution.middleDistribution.notRecommended === middle.notRecommended &&
+    distribution.middleDistribution.observe === middle.observe &&
+    distribution.middleDistribution.recommended === middle.recommended &&
+    distribution.excluded.missingFront === 0 &&
+    distribution.excluded.missingBack === 0 &&
+    distribution.excluded.missingBoth === 0 &&
+    distribution.excluded.notComparable === 0
+  );
+}
 const ids = z
   .array(text)
   .refine(
@@ -366,14 +402,13 @@ export const comparisonHrPageSchema = z
       }
     });
     for (const { evaluator, sample } of page.raters) {
-      const expected = page.cases
-        .filter(
-          (unit) =>
-            unit.front.state === 'present' &&
-            unit.front.judgment.evaluator.id === evaluator.id &&
-            !['missing', 'not_comparable'].includes(unit.outcome.state),
-        )
-        .map((unit) => unit.id);
+      const comparable = page.cases.filter(
+        (unit) =>
+          unit.front.state === 'present' &&
+          unit.front.judgment.evaluator.id === evaluator.id &&
+          !['missing', 'not_comparable'].includes(unit.outcome.state),
+      );
+      const expected = comparable.map((unit) => unit.id);
       if (
         sample.caseIds.length !== expected.length ||
         sample.caseIds.some((id) => !expected.includes(id))
@@ -382,6 +417,20 @@ export const comparisonHrPageSchema = z
           code: 'custom',
           path: ['raters'],
           message: '评价人样本只含本人可对照案例',
+        });
+      }
+      if (
+        sample.state === 'sufficient_sample' &&
+        !matchesSampleDistribution(
+          sample.distribution,
+          comparable.map((unit) => unit.outcome),
+        )
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['raters'],
+          message:
+            '评价人分布须逐项对应本人的可对照案例，不能混入其他人或排除案例',
         });
       }
     }
@@ -521,6 +570,17 @@ export function createAuthorizedRaterComparisonSchema(
       )
     ) {
       reject('本人样本只统计当前可披露的可对照案例，不能由隐藏段推导分布');
+    }
+    if (
+      page.sample.state === 'sufficient_sample' &&
+      !matchesSampleDistribution(
+        page.sample.distribution,
+        comparable.map((unit) => unit.outcome),
+      )
+    ) {
+      reject(
+        '本人分布须逐项对应当前可披露的可对照案例，不能混入他人、隐藏或排除案例',
+      );
     }
   });
 }

@@ -11,6 +11,8 @@ import {
   comparisonTableRowSchema,
   createAuthorizedRaterComparisonSchema,
   createComparisonCaseSchema,
+  type ComparisonRaterPage,
+  type ComparisonRaterAccess,
 } from './judgment-comparison';
 import {
   comparisonCasesFixture,
@@ -491,6 +493,256 @@ describe('R1：评价人列表稳定按姓名显示', () => {
         ...page,
         raters: [page.raters[0], page.raters[0]],
       }).success,
+    ).toBe(false);
+  });
+});
+
+// Explicit expected observations: one in each clear direction, two middle
+// judgments (not-recommended and recommended), no excluded/hidden samples.
+function disclosedRaterFixture(): {
+  page: ComparisonRaterPage;
+  access: ComparisonRaterAccess;
+} {
+  const hr = comparisonHrFixture();
+  const cases = hr.cases.slice(0, 5);
+  const viewerId = 'demo-evaluator-five';
+  return {
+    page: {
+      audience: 'rater',
+      viewerId,
+      policy: hr.policy,
+      cases,
+      sample: {
+        state: 'sufficient_sample',
+        threshold: 5,
+        comparableCaseCount: 5,
+        caseIds: [
+          'demo-comparison-1',
+          'demo-comparison-2',
+          'demo-comparison-3',
+          'demo-comparison-4',
+          'demo-comparison-5',
+        ],
+        distribution: {
+          clear: { consistent: 1, frontHigher: 1, frontLower: 1 },
+          middleDistribution: { notRecommended: 1, observe: 0, recommended: 1 },
+          excluded: {
+            missingFront: 0,
+            missingBack: 0,
+            missingBoth: 0,
+            notComparable: 0,
+          },
+        },
+      },
+    },
+    access: {
+      viewerId,
+      now: '2026-10-31T10:00:00Z',
+      ownCaseIds: cases.map((unit) => unit.id),
+      mapping: hr.mapping,
+      grants: cases.flatMap((unit) =>
+        [unit.frontNodeId, unit.backNodeId].map((nodeId) => ({
+          personId: unit.person.id,
+          nodeId,
+          validFrom: '2026-07-01T00:00:00Z',
+          validUntil: null,
+        })),
+      ),
+    },
+  };
+}
+function sufficientSample(sample: ComparisonRaterPage['sample']) {
+  if (sample.state !== 'sufficient_sample') throw new Error('fixture');
+  return sample;
+}
+type SampleDistribution = ReturnType<typeof sufficientSample>['distribution'];
+const changedCounters: [string, (distribution: SampleDistribution) => void][] =
+  [
+    ['clear.consistent', (distribution) => distribution.clear.consistent++],
+    ['clear.frontHigher', (distribution) => distribution.clear.frontHigher++],
+    ['clear.frontLower', (distribution) => distribution.clear.frontLower++],
+    [
+      'middle.notRecommended',
+      (distribution) => distribution.middleDistribution.notRecommended++,
+    ],
+    [
+      'middle.observe',
+      (distribution) => distribution.middleDistribution.observe++,
+    ],
+    [
+      'middle.recommended',
+      (distribution) => distribution.middleDistribution.recommended++,
+    ],
+    [
+      'excluded.missingFront',
+      (distribution) => distribution.excluded.missingFront++,
+    ],
+    [
+      'excluded.missingBack',
+      (distribution) => distribution.excluded.missingBack++,
+    ],
+    [
+      'excluded.missingBoth',
+      (distribution) => distribution.excluded.missingBoth++,
+    ],
+    [
+      'excluded.notComparable',
+      (distribution) => distribution.excluded.notComparable++,
+    ],
+  ];
+
+describe('R2：评价人分布须与当前可披露的本人可对照案例逐项一致', () => {
+  it('明确的五例同时包含双向偏差、一致与中间档，正确分布可返回', () => {
+    const { page, access } = disclosedRaterFixture();
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
+    ).toBe(true);
+    expect(
+      comparisonHrPageSchema.safeParse(comparisonHrFixture()).success,
+    ).toBe(true);
+    // Presentation order does not change the counted outcomes.
+    page.cases.reverse();
+    page.sample.caseIds.reverse();
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
+    ).toBe(true);
+  });
+
+  it('HR按评价人的分布不能换成整批或其他人的统计，caseIds正确也拒绝', () => {
+    const hr = comparisonHrFixture();
+    sufficientSample(hr.raters[0].sample).distribution = hr.counts;
+    expect(comparisonHrPageSchema.safeParse(hr).success).toBe(false);
+  });
+
+  it('本人页不能把他人的统计混进分布，caseIds正确也拒绝', () => {
+    const { page, access } = disclosedRaterFixture();
+    sufficientSample(page.sample).distribution = comparisonHrFixture().counts;
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
+    ).toBe(false);
+  });
+
+  it('当前关系不足的隐藏案例不改变五例分布，也不能夹带其统计', () => {
+    const { page, access } = disclosedRaterFixture();
+    const hidden = {
+      ...page.cases[0],
+      id: 'demo-hidden-case',
+      person: { id: 'demo-hidden-person', name: '隐藏案例（演示）' },
+      front: { state: 'withheld' as const },
+      back: { state: 'withheld' as const },
+      outcome: { state: 'withheld' as const },
+    };
+    page.cases.push(hidden);
+    access.ownCaseIds = [...access.ownCaseIds, hidden.id];
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
+    ).toBe(true);
+    sufficientSample(page.sample).distribution.clear.frontHigher++;
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
+    ).toBe(false);
+  });
+
+  it('本人可见的缺段、不可比案例保留为案例，但不计入可比样本分布', () => {
+    const { page, access } = disclosedRaterFixture();
+    const extra = comparisonCasesFixture().filter((unit) =>
+      ['demo-comparison-6', 'demo-comparison-9'].includes(unit.id),
+    );
+    page.cases.push(...extra);
+    access.ownCaseIds = [...access.ownCaseIds, ...extra.map((unit) => unit.id)];
+    access.grants = [
+      ...access.grants,
+      ...extra.flatMap((unit) =>
+        [unit.frontNodeId, unit.backNodeId].map((nodeId) => ({
+          personId: unit.person.id,
+          nodeId,
+          validFrom: '2026-07-01T00:00:00Z',
+          validUntil: null,
+        })),
+      ),
+    ];
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
+    ).toBe(true);
+    const bad = structuredClone(page);
+    sufficientSample(bad.sample).distribution.excluded.missingBack = 1;
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(bad).success,
+    ).toBe(false);
+    sufficientSample(page.sample).distribution.excluded.notComparable = 1;
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
+    ).toBe(false);
+  });
+
+  it('本人页和HR页逐项核对十个计数，而不是只核样本数', () => {
+    for (const [name, mutate] of changedCounters) {
+      const { page, access } = disclosedRaterFixture();
+      mutate(sufficientSample(page.sample).distribution);
+      expect(
+        createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
+        `rater ${name}`,
+      ).toBe(false);
+      const hr = comparisonHrFixture();
+      mutate(sufficientSample(hr.raters[0].sample).distribution);
+      expect(comparisonHrPageSchema.safeParse(hr).success, `hr ${name}`).toBe(
+        false,
+      );
+    }
+  });
+
+  it('总数不变但偏差方向对调也拒绝，不能以总量相等替代逐项一致', () => {
+    const { page, access } = disclosedRaterFixture();
+    const hr = comparisonHrFixture();
+    for (const sample of [page.sample, hr.raters[0].sample]) {
+      const distribution = sufficientSample(sample).distribution;
+      distribution.clear.consistent = 2;
+      distribution.clear.frontHigher = 0;
+    }
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
+    ).toBe(false);
+    expect(comparisonHrPageSchema.safeParse(hr).success).toBe(false);
+  });
+
+  it('中间档改为继续观察时仅更新对应后段分布，不添加一致或不一致', () => {
+    const { page, access } = disclosedRaterFixture();
+    const hr = comparisonHrFixture();
+    for (const unit of [page.cases[4], hr.cases[4]]) {
+      if (unit.back.state !== 'present') throw new Error('fixture');
+      unit.back.judgment.grade = '继续观察';
+      unit.back.judgment.row.source.excerpt =
+        '演示：中间档案例的结营判断为继续观察。';
+      unit.outcome = { state: 'middle_distribution', backGrade: '继续观察' };
+    }
+    for (const sample of [page.sample, hr.raters[0].sample]) {
+      sufficientSample(sample).distribution = {
+        clear: { consistent: 1, frontHigher: 1, frontLower: 1 },
+        middleDistribution: { notRecommended: 1, observe: 1, recommended: 0 },
+        excluded: {
+          missingFront: 0,
+          missingBack: 0,
+          missingBoth: 0,
+          notComparable: 0,
+        },
+      };
+    }
+    hr.counts.middleDistribution = {
+      notRecommended: 1,
+      observe: 2,
+      recommended: 0,
+    };
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
+    ).toBe(true);
+    expect(comparisonHrPageSchema.safeParse(hr).success).toBe(true);
+    sufficientSample(page.sample).distribution.middleDistribution = {
+      notRecommended: 1,
+      observe: 0,
+      recommended: 1,
+    };
+    expect(
+      createAuthorizedRaterComparisonSchema(access).safeParse(page).success,
     ).toBe(false);
   });
 });
