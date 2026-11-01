@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   canConfirmOwnNodeScore,
+  canReadNodeTalent,
   type EvaluationAuthzContext,
 } from '../../authz/evaluation-node';
 import type { MaterialSourceReference } from '../../../contracts/sources';
@@ -414,3 +415,117 @@ it('HR所据评分确认版本过期时不能悄悄以新评分签署', () => {
     }),
   ).toThrow(/评分确认版本/);
 });
+
+it.each(['judge', 'mentor', 'assistant'] as const)(
+  'A期HR兼B期%s虽可读评价依据，仍不能读取B期人工结论',
+  (kind) => {
+    const f = fixture();
+    const target = { evaluationNodeId: 'defense-b', personId: 'demo-b' };
+    f.context.evaluationRelations.push({
+      ...f.context.evaluationRelations[0]!,
+      ...target,
+      id: 'reader-relation',
+      evaluatorId: f.context.account.personId,
+      kind,
+    });
+    expect(
+      canReadNodeTalent(
+        f.context,
+        { ...target, kind: 'evaluation' },
+        'workbench',
+      ),
+    ).toBe(true);
+    expect(
+      canReadNodeTalent(
+        f.context,
+        { ...target, kind: 'evaluation' },
+        'source-read',
+      ),
+    ).toBe(true);
+    expect(() =>
+      requireNodeConclusionSources(
+        f.context,
+        target,
+        [f.reference],
+        [{ ...f.sources[0]!, subjects: [target] }],
+      ),
+    ).not.toThrow();
+    expect(canReadNodeConclusion(f.context, target)).toBe(false);
+  },
+);
+it.each(['judge', 'mentor', 'assistant'] as const)(
+  '纯%s关系不附带人工结论读取权',
+  (kind) => {
+    const f = fixture();
+    f.context.grants = [];
+    f.context.evaluationRelations = [
+      {
+        ...f.context.evaluationRelations[0]!,
+        evaluatorId: f.context.account.personId,
+        kind,
+      },
+    ];
+    expect(
+      canReadNodeTalent(
+        f.context,
+        { ...f.identity, kind: 'evaluation' },
+        'source-read',
+      ),
+    ).toBe(true);
+    expect(canReadNodeConclusion(f.context, f.identity)).toBe(false);
+  },
+);
+it('目标范围HR沿899节点规则可读，包括该期节点上的已登记待确认入营主体', () => {
+  const f = fixture();
+  expect(canReadNodeConclusion(f.context, f.identity)).toBe(true);
+  f.context.enrollments[0]!.confirmed = false;
+  expect(
+    canReadNodeTalent(
+      f.context,
+      { ...f.identity, kind: 'evaluation' },
+      'workbench',
+    ),
+  ).toBe(true);
+  expect(canReadNodeConclusion(f.context, f.identity)).toBe(true);
+});
+it.each([
+  'active',
+  'revoked',
+  'expired',
+  'wrong_account',
+  'malformed_scope',
+] as const)(
+  '管理者%s按真实公司授权独立判断，不依赖HR期次或评价关系',
+  (mode) => {
+    const f = fixture();
+    const target = { evaluationNodeId: 'defense-b', personId: 'demo-b' };
+    const manager: EvaluationAuthzContext['grants'][number] = {
+      ...f.context.grants[0]!,
+      role: 'manager',
+      scope: 'company',
+      cohortId: null,
+    };
+    if (mode === 'revoked') manager.revokedAt = f.context.now;
+    if (mode === 'expired') manager.validTo = f.context.now;
+    if (mode === 'wrong_account') manager.accountId = 'unrelated-account';
+    if (mode === 'malformed_scope') {
+      manager.scope = 'cohort';
+      manager.cohortId = 'cohort-a';
+    }
+    f.context.grants.push(manager);
+    f.context.enrollments = [];
+    f.context.evaluationRelations.push({
+      ...f.context.evaluationRelations[0]!,
+      ...target,
+      evaluatorId: f.context.account.personId,
+    });
+    expect(
+      canReadNodeTalent(
+        f.context,
+        { ...target, kind: 'evaluation' },
+        'source-read',
+      ),
+    ).toBe(true);
+    expect(canReadNodeConclusion(f.context, target)).toBe(mode === 'active');
+  },
+);

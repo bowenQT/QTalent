@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest';
-import type { EvaluationAuthzContext } from '../authz/evaluation-node';
+import {
+  canReadNodeTalent,
+  type EvaluationAuthzContext,
+} from '../authz/evaluation-node';
+import { requireNodeConclusionSources } from '../modules/programs/node-conclusion';
 import type { MaterialSourceReference } from '../../contracts/sources';
 import type {
   NodeConclusionOperation,
@@ -485,4 +489,132 @@ it('所据评分确认版本变化时不写入新结论', async () => {
     ).status,
   ).toBe('conflict');
   expect(f.state.versions).toEqual([]);
+});
+
+async function historyFixture() {
+  const setup = fixture();
+  expect(
+    (await setup.service.confirm('account-hr', setup.command)).status,
+  ).toBe('success');
+  expect(
+    (
+      await setup.service.confirm('account-hr', {
+        ...setup.command,
+        operationId: 'history-second',
+        expectedVersion: 1,
+        conclusion: '演示：第二版签名结论',
+      })
+    ).status,
+  ).toBe('success');
+  return setup;
+}
+function addReaderRelation(
+  context: EvaluationAuthzContext,
+  identity: (typeof context.evaluationNodeSubjects)[number],
+  kind: (typeof context.evaluationRelations)[number]['kind'],
+) {
+  context.evaluationRelations.push({
+    id: 'reader-relation',
+    ...identity,
+    evaluatorId: context.account.personId,
+    kind,
+    validFrom: '2026-01-01',
+    validTo: null,
+    revokedAt: null,
+  });
+}
+it.each(['judge', 'mentor', 'assistant'] as const)(
+  '跨期HR兼%s不能通过可读依据泄漏当前或精确历史结论/署名',
+  async (kind) => {
+    const { f, service } = await historyFixture();
+    const before = structuredClone(f.state);
+    f.context.grants[0]!.cohortId = 'outside-cohort';
+    addReaderRelation(f.context, f.identity, kind);
+    expect(
+      canReadNodeTalent(
+        f.context,
+        { ...f.identity, kind: 'evaluation' },
+        'source-read',
+      ),
+    ).toBe(true);
+    expect(() =>
+      requireNodeConclusionSources(
+        f.context,
+        f.identity,
+        [f.reference],
+        f.sources,
+      ),
+    ).not.toThrow();
+    for (const input of [f.identity, { ...f.identity, version: 1 }]) {
+      const result = await service.read('account-hr', input);
+      expect(result).toEqual({
+        status: 'forbidden',
+        message: expect.any(String),
+      });
+    }
+    expect(f.state).toEqual(before);
+  },
+);
+it.each(['hr', 'manager'] as const)(
+  '合法%s仍可精确读取第一版及最新第二版，不修改历史署名',
+  async (role) => {
+    const { f, service } = await historyFixture();
+    const first = structuredClone(f.state.versions[0]!);
+    if (role === 'manager') {
+      f.context.grants = [
+        {
+          ...f.context.grants[0]!,
+          role: 'manager',
+          scope: 'company',
+          cohortId: null,
+        },
+      ];
+      f.context.enrollments = [];
+    }
+    expect(
+      await service.read('account-hr', { ...f.identity, version: 1 }),
+    ).toMatchObject({ status: 'success', conclusion: first });
+    expect(await service.read('account-hr', f.identity)).toMatchObject({
+      status: 'success',
+      conclusion: { version: 2 },
+    });
+    expect(
+      (await service.read('account-hr', { ...f.identity, version: 99 })).status,
+    ).toBe('not_found');
+    expect(f.state.versions[0]).toEqual(first);
+  },
+);
+it.each(['revoked', 'expired'] as const)(
+  '目标HR授权%s时，另一HR期次和当前评价关系不能维持历史读取',
+  async (mode) => {
+    const { f, service } = await historyFixture();
+    const grant = f.context.grants[0]!;
+    f.context.grants.push({ ...grant, cohortId: 'outside-cohort' });
+    if (mode === 'revoked') grant.revokedAt = f.context.now;
+    else grant.validTo = f.context.now;
+    addReaderRelation(f.context, f.identity, 'judge');
+    expect(
+      canReadNodeTalent(
+        f.context,
+        { ...f.identity, kind: 'evaluation' },
+        'source-read',
+      ),
+    ).toBe(true);
+    expect(
+      (await service.read('account-hr', { ...f.identity, version: 1 })).status,
+    ).toBe('forbidden');
+  },
+);
+it('等待来源期间目标HR撤权，剩余跨期HR和可读关系不应继续返回旧版署名', async () => {
+  const { f, service } = await historyFixture();
+  f.context.grants.push({
+    ...f.context.grants[0]!,
+    cohortId: 'outside-cohort',
+  });
+  addReaderRelation(f.context, f.identity, 'assistant');
+  f.revokeDuringSources = true;
+  expect(
+    (await service.read('account-hr', { ...f.identity, version: 1 })).status,
+  ).toBe('forbidden');
+  expect(f.state.versions).toHaveLength(2);
 });

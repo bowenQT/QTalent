@@ -153,10 +153,17 @@ export function canReadNodeConclusion(
 ): boolean {
   return (
     defenseNode(context, identity) &&
-    activeGrants(context).some(
-      (grant) => grant.role === 'hr' || grant.role === 'manager',
-    ) &&
-    canReadNodeTalent(context, { ...identity, kind: 'evaluation' }, 'workbench')
+    (canManageNodeAssignments(
+      context,
+      identity.evaluationNodeId,
+      identity.personId,
+    ) ||
+      (activeGrants(context).some((grant) => grant.role === 'manager') &&
+        canReadNodeTalent(
+          context,
+          { ...identity, kind: 'evaluation' },
+          'workbench',
+        )))
   );
 }
 export function requireNodeConclusionSources(
