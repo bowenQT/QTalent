@@ -61,11 +61,13 @@ worker使用上述`readValidatedUpload`，不直接读写uploads内部表，不�
 
 固定899 `96fa3aa` 的实际 `canEvaluateNode` / `readTalentSource` 与本轮节点组合已在离线化名事实下验证：本节点允许、跨节点/到期拒绝、整份原件含任一隐藏片段拒绝。该组合不等于生产835/846写策略和837投影已接通，也不验证实际数据库授权读取。
 
-2GiB产品边界不变。上述29e09ff验证时856尚未合入，未进行真实Kodo/听悟/模型调用或部署。之后856的 `68943e6` 已合入main，唯一客户端已改S3预签名并完成有效GET/Range、匿名400/NotSupportAnonymous及自然过期400/ExpiredToken验收（#48/6554197593）；本卡只复用脱敏实证，不新建供应商对象，也不以这些网络证据冒充完整应用代理/播放接线通过。
+2GiB产品边界不变。上述29e09ff验证时856尚未合入，未进行真实Kodo/听悟/模型调用或部署。之后856的 `68943e6` 已合入main，唯一客户端已改S3预签名并完成有效GET/Range、匿名400/NotSupportAnonymous及自然过期400/ExpiredToken验收（#48/6554197593）；本卡只复用脱敏实证，不新建供应商对象，也不以这些网络证据冒充完整应用代理/播放接线通过。实际client联测用离线transport返回合成XML/字节，拒绝与正确分类不等于生产路由、派发或ASR已接通。
 
 ### S3私有读取错误接入
 
-`readOriginalStorage` 只在原件读取的 stat/open 边界消费唯一856客户端的 `KodoError.code`，不按HTTP400猜认证、不在873解析XML或签名，也不新增SDK或重签/重试。已合68943e6仍只按HTTP status分类400，实际S3 Code的安全分类已向856/X1登记精确请求；只有组合唯一客户端的真实非2xx路径后，才可称S3错误接入闭合。
+原29e09ff普通合main81e4fd时的共享契约冲突由X1在453ff27收敛，contracts与main逐字一致，uploads保留本卡291b3a1独占修复；作者再普通合固定460，没有rebase/强推或选择共享契约版本。
+
+`readOriginalStorage` 只在原件读取的 stat/open 边界消费唯一856客户端的 `KodoError.code`，不按HTTP400猜认证、不在873解析XML或签名，也不新增SDK或重签/重试。已合68943e6的旧HTTP-only分类已用实际client重现两种400被误判。本轮普通组合856后续PR286固定 `460e009e72a8087d098e99eedd7c9587b38acaa0`：仅S3 GET的完整明确ExpiredToken→expired、NotSupportAnonymous→unauthorized；其他400（包括InvalidArgument、未知/缺Code、畸形/超限）仍invalid_input，其他状态与原生API不变。Code解析、8KiB上限与取消都由唯一856实现，873不复制。PR286的实际main状态须由合入门禁另核，当前固定组合验证不能代替依赖合入。
 
 - provider unauthorized/expired 是服务器存储认证或签名依赖失败，503 unavailable；它不是用户会话，不能把它当用户输入错、提示重新登录或放宽整份原件权限。
 - 唯一客户端明确 invalid_input/invalid_range 的坏参数保留400；not_found为404。超时、上游不可用、限流、完整性或未知错误为503，丢弃上游message/cause，不返回XML、对象key或签名URL。
