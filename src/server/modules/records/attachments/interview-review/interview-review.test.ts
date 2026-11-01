@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { OPS } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { materialSourceLocationSchema } from '../../../../../contracts/sources';
 import { readCircles, readPdfLayout } from './pdf-layout';
 
 // One CID maps to the actual two-code-unit character through the ToUnicode CMap.
@@ -774,11 +775,15 @@ describe('actual page text provenance and optional raw candidate metadata', () =
           end <= page.text.length,
       ).toBe(true);
       expect(page.text.slice(start, end).trim()).not.toBe('');
-      const location = {
+      const location = materialSourceLocationSchema.parse({
         kind: 'pdf',
         page: region.page,
         textRange: region.textRange,
-      };
+      });
+      expect(
+        materialSourceLocationSchema.safeParse({ ...location, box: region.box })
+          .success,
+      ).toBe(false);
       expect(Object.keys(location)).toEqual(['kind', 'page', 'textRange']);
     }
     const title = row.templateSource;
