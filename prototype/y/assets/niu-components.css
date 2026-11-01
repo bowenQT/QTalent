@@ -480,6 +480,8 @@ button.n-score__dot:hover { transform: scale(1.18); }
 .n-toast__ring .track { stroke: rgb(255 255 255 / .2); }
 .n-toast__ring .run { stroke: #fff; stroke-linecap: round; stroke-dasharray: 50.27; stroke-dashoffset: 0; transform: rotate(-90deg); transform-origin: center; }
 .n-toast.is-counting .run { animation: ring-out 5s linear forwards; }
+.n-toast[data-state="fail"] { padding-left: var(--s-3); padding-right: var(--s-4); }
+.n-toast[data-state="fail"] > svg { flex: none; color: var(--op-fail-on-ink); }
 @keyframes ring-out { to { stroke-dashoffset: 50.27; } }
 
 /* ── 录音 ─────────────────────────────────── */
@@ -1247,6 +1249,8 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-jstate[data-s="nc"] { color: var(--ink-2); background: repeating-linear-gradient(45deg, var(--sheet-sunk) 0 4px, #e6e3da 4px 5px); }
 .n-jstate[data-s="nc"]::before { content: "≠"; }
 .n-jstate[data-s="na"] { color: var(--unknown); background: repeating-linear-gradient(-45deg, var(--unknown-soft) 0 4px, #e3e5e0 4px 5px); }
+.n-jstate[data-s="mid"] { box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--ink-2); }
+.n-jstate[data-s="mid"]::before { content: "–"; }
 .n-jstate[data-s="na"]::before { content: "?"; }
 
 /* 按维度的分布：中间是「一致」，左边前段偏低、右边前段偏高，越远差得越多。每个点是一个人，不是比例 */
@@ -1285,6 +1289,12 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-jcase__mark .n-input { flex: 1; min-width: 12em; height: 32px; }
 .n-jcase__why { font-family: var(--font-ink); font-size: var(--t-sm); color: var(--ink); }
 .n-jcase.is-focus { box-shadow: 0 0 0 2px var(--light), var(--e-1); }
+/* 入营选拔：三项评审的原量表、组队作品；评价人视角里没有评价关系的那一段用锁和斜纹底，写明原因 */
+.n-jcase__items { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.n-jcase__team { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: var(--r-chip); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 11px; color: var(--ink-2); }
+.n-jcase__deny { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; align-items: start; margin-top: var(--s-2); padding: var(--s-2); border-radius: 6px; background: repeating-linear-gradient(-45deg, var(--sheet) 0 6px, var(--sheet-sunk) 6px 7px); color: var(--ink-2); }
+.n-jcase__deny b { display: block; color: var(--ink); }
+.n-jcase__deny svg { margin-top: 3px; color: var(--ink-3); }
 
 /* 评价人：按姓名排列；可对照案例不到门槛只说「样本不足」 */
 .n-rater { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px var(--s-3); align-items: center; padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); color: inherit; text-decoration: none; }
@@ -1642,6 +1652,9 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-impact__list { list-style: none; margin: 0; padding: 0; }
 .n-impact__list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-2); align-items: center; padding: var(--s-2) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); }
 .n-impact__list li:first-child { border-top: 0; }
+.n-impact__basis { list-style: none; margin: var(--s-2) 0 0; padding: 0; display: grid; gap: 4px; font-size: var(--t-sm); }
+.n-impact__basis li { display: flex; align-items: baseline; gap: 6px; }
+.n-impact__basis svg { color: var(--ink-3); flex: none; }
 .n-impact__list small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
 .n-impact__empty { margin: 0; padding: var(--s-2) 0; font-size: var(--t-xs); color: var(--ink-3); }
 .n-impact__teams { margin: var(--s-4) 0 0; padding-top: var(--s-3); border-top: 1px dashed var(--line-strong); font-size: var(--t-xs); line-height: 1.7; color: var(--ink-2); }

@@ -107,6 +107,7 @@
   }
 
   // ---------- 撤销 Toast ----------
+  // undo() 如实返回结果：false = 没有撤销，显示 failText；字符串 = 显示这段文字；true 或不返回 = 显示 undoneText
   let toastHost = null;
   NT.toast = (msg, opts = {}) => {
     if (!toastHost) {
@@ -127,9 +128,12 @@
       b.innerHTML = '<svg class="n-toast__ring" viewBox="0 0 20 20"><circle class="track" cx="10" cy="10" r="8"/><circle class="run" cx="10" cy="10" r="8"/></svg>撤销';
       b.onclick = () => {
         clearTimeout(timer);
-        opts.undo();
-        t.innerHTML = `<span>${NT.esc(opts.undoneText || '已撤销')}</span>`;
-        timer = setTimeout(close, 1600);
+        const r = opts.undo();
+        const failed = r === false;
+        const text = failed ? opts.failText || '撤销失败，已保留当前内容' : typeof r === 'string' ? r : opts.undoneText || '已撤销';
+        if (failed) t.dataset.state = 'fail';
+        t.innerHTML = `${failed ? NT.icon('info', 16) : ''}<span>${NT.esc(text)}</span>`;
+        timer = setTimeout(close, failed || typeof r === 'string' ? 4000 : 1600);
       };
       t.append(b);
       requestAnimationFrame(() => t.classList.add('is-counting'));
