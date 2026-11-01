@@ -182,6 +182,7 @@ function harness() {
     rules,
     operation: {
       ...request,
+      revision: 1,
       inputVersion: snapshot.inputVersion,
       phase: 'queued',
       cancelRequested: false,
@@ -232,7 +233,13 @@ function harness() {
               : structuredClone(draft.rules);
           },
           async saveOperation(value) {
-            draft.operation = structuredClone(value);
+            if (value.revision !== draft.operation!.revision)
+              throw new Error('job_revision_changed');
+            draft.operation = {
+              ...structuredClone(value),
+              revision: value.revision + 1,
+            };
+            return draft.operation.revision;
           },
           async reserveIdentities(plan) {
             pendingKeys = plan.events.map((e) => e.eventKey);
@@ -755,4 +762,24 @@ describe('845 explicit project ownership', () => {
     expect((await h.run(h.request)).status).toBe('drafts');
     expect(h.state.saved[0].drafts[0].projectId).toBe('demo-project');
   });
+});
+
+it('discards a result when the persisted job revision changes without changing attempt or trace', async () => {
+  const h = harness();
+  h.controls.beforeModel = () => {
+    Object.assign(h.state.operation!, { revision: 99 });
+  };
+  expect(await h.run(h.request)).toEqual({ status: 'ignored' });
+  expect(h.state.saved).toEqual([]);
+  expect(h.state.operation).toMatchObject({ phase: 'running', revision: 99 });
+});
+
+it('honors a current cancellation even when it advances the persisted revision', async () => {
+  const h = harness();
+  h.controls.beforeModel = () => {
+    h.state.operation!.revision++;
+    h.state.operation!.cancelRequested = true;
+  };
+  expect(await h.run(h.request)).toEqual({ status: 'cancelled' });
+  expect(h.state.saved).toEqual([]);
 });

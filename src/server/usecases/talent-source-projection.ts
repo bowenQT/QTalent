@@ -4,7 +4,13 @@ import type {
   TalentKind,
   TalentAuthorizationContext,
 } from '../authz/talent';
-import type { readEvidenceForTalent } from '../modules/records';
+import type {
+  readEvidenceForTalent,
+  StoredArrangeInput,
+} from '../modules/records';
+import { confirmationSources } from './record-confirmation-sources';
+import { sourceKey } from './source-key';
+export { sourceKey } from './source-key';
 
 /** Complete raw provenance, including withdrawn events and every shared subject.
  * This graph is not a permission grant or an immutable-version/locator check.
@@ -13,6 +19,9 @@ import type { readEvidenceForTalent } from '../modules/records';
 export type TalentSourceProjectionData = Awaited<
   ReturnType<typeof readEvidenceForTalent>
 > & {
+  // Query snapshots always supply the complete intake table. Raw confirmation
+  // graphs are also used internally before their already-locked intake union.
+  intakeInputs?: StoredArrangeInput[];
   context: TalentAuthorizationContext;
   staffing: { projects: { id: string; cohortId: string | null }[] };
 };
@@ -70,12 +79,6 @@ export function historicalSubject(
       )?.cohortId ?? null,
   };
 }
-export function sourceKey(reference: {
-  fragmentId: string;
-  originalVersionId: string;
-}): string {
-  return JSON.stringify([reference.fragmentId, reference.originalVersionId]);
-}
 function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   const groups = new Map<string, T[]>();
   for (const row of rows) {
@@ -107,7 +110,7 @@ export function talentSources(
       .filter((row) => row.kind === 'management_observation')
       .map(sourceKey),
   );
-  return data.fragments.map((fragment) => {
+  const sources: TalentSource[] = data.fragments.map((fragment) => {
     const reference = {
       fragmentId: fragment.id,
       originalVersionId: fragment.originalVersionId,
@@ -162,4 +165,15 @@ export function talentSources(
       location: fragment.location,
     };
   });
+  return data.intakeInputs === undefined
+    ? sources
+    : confirmationSources({
+        sources,
+        versions: data.versions,
+        originals: data.originals,
+        inputs: data.intakeInputs,
+        linkedSourceKeys: new Set(
+          [...data.eventSources, ...data.historical].map(sourceKey),
+        ),
+      });
 }

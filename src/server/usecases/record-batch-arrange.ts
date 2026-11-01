@@ -46,6 +46,7 @@ export type BatchArrangeTrace = {
   anchorVersionId: string;
 };
 export type BatchArrangeCommit = BatchArrangeTrace & {
+  expectedJobRevision: number;
   events: { eventKey: string; draftId: string; witnesses: BatchQuote[] }[];
 };
 export type BatchArrangeOutcome =
@@ -58,6 +59,8 @@ export type BatchArrangeOutcome =
       retryable: boolean;
     };
 export type BatchArrangeOperation = {
+  /** Revision of the single persisted job row, not an in-memory claim counter. */
+  revision: number;
   accountId: string;
   batchId: string;
   operationId: string;
@@ -81,7 +84,8 @@ export type BatchArrangeTransaction = {
   readRules(
     input: z.infer<typeof effectiveRuleVersionReadInputSchema>,
   ): Promise<BatchRuleBundle | null>;
-  saveOperation(value: BatchArrangeOperation): Promise<void>;
+  /** CAS against value.revision and return the actual committed job revision. */
+  saveOperation(value: BatchArrangeOperation): Promise<number>;
   /** Native server ledger assigns first IDs and returns prior IDs/drafts on revision.
    * Same operation/input must reuse reservations. Model keys are not durable IDs.
    */
@@ -144,13 +148,19 @@ export function createRecordBatchArrange(
         tx,
       ): Promise<
         | { outcome: BatchArrangeOutcome }
-        | { prepared: PreparedBatch; trace: BatchArrangeTrace }
+        | {
+            prepared: PreparedBatch;
+            trace: BatchArrangeTrace;
+            revision: number;
+          }
       > => {
         const op = tx.operation;
         if (
           !op ||
           !sameOperation(op) ||
           op.attempt !== request.attempt ||
+          !Number.isInteger(op.revision) ||
+          op.revision < 1 ||
           !Number.isInteger(request.attempt) ||
           request.attempt < 1 ||
           request.attempt > 2
@@ -199,13 +209,15 @@ export function createRecordBatchArrange(
           dimensionVersionId: prepared.value.rules.dimensionVersionId,
           anchorVersionId: prepared.value.rules.anchorVersionId,
         };
-        await tx.saveOperation({
+        const revision = await tx.saveOperation({
           ...op,
           phase: 'running',
           trace,
           failure: null,
         });
-        return { prepared: prepared.value, trace };
+        if (!Number.isInteger(revision) || revision <= op.revision)
+          throw new Error('native_claim_revision_required');
+        return { prepared: prepared.value, trace, revision };
       },
     );
     if ('outcome' in claimed) return claimed.outcome;
@@ -244,6 +256,9 @@ export function createRecordBatchArrange(
         await tx.saveOperation({ ...op, phase: 'cancelled' });
         return { status: 'cancelled' };
       }
+      // A current cancellation is handled above even when it advanced the row.
+      // Every other intervening write invalidates this particular model return.
+      if (op.revision !== claimed.revision) return { status: 'ignored' };
       const fresh = await load(tx);
       let failure: Extract<BatchArrangeOutcome, { status: 'failed' }> | null =
         null;
@@ -299,6 +314,7 @@ export function createRecordBatchArrange(
       const value = materializeBatch(fresh.value, plan, identities);
       const metadata: BatchArrangeCommit = {
         ...claimed.trace,
+        expectedJobRevision: claimed.revision,
         events: plan.events.map((event) => ({
           eventKey: event.eventKey,
           draftId: identities.drafts.find(
