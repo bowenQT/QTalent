@@ -20,6 +20,8 @@
   const GAP = ['', '一档', '两档', '三档', '四档'];
   const stateText = (u) => (u.gap ? `${STATE[u.state]} · ${u.state === 'high' ? '高' : '低'}${GAP[u.gap]}` : STATE[u.state]);
   const jstate = (u) => html`<span class="n-jstate" data-s="${u.state}">${stateText(u)}</span>`;
+  // 前段落在中间档：计入评价人的样本门槛，但不算偏高、偏低或一致
+  const isMid = (u, chain) => chain.scale === 'grade' && !u.denied && st.judgeComparable(u) && !st.judgeClear([u], chain).clear.length;
   const name = (pid) => st.person(pid)?.name || '';
   // 判断对照的链对应人才评价规则里的前段评价标准；没有对应条目的链不跳转
   const FRONT_LINE = { xe: 'xe-select' };
@@ -85,8 +87,9 @@
     const pool = chain.id === 'xe' ? st.people().filter((p) => p.xe && st.judgeScope({ person: p.id })).length : 0;
     const total = Math.max(pool, groups.length);
     if (!total) return '';
-    const miss = total - cmp - nc;
-    return `共 ${total} 人，${cmp} 人进入对照${miss > 0 ? `；另有 ${miss} 人缺少${chain.front}或${chain.back}的判断` : ''}${nc ? `；${nc} 人标为不可比` : ''}`;
+    // 缺一段的人在对照单元里记为资料不足；两段都没有判断的人没有对照单元，单独写出，和下方「资料不足」的人数对得上
+    const miss = groups.length - cmp - nc, none = total - groups.length;
+    return `共 ${total} 人，${cmp} 人进入对照${miss > 0 ? `；另有 ${miss} 人缺少${chain.front}或${chain.back}的判断` : ''}${none > 0 ? `；${none} 人两段都没有判断` : ''}${nc ? `；${nc} 人标为不可比` : ''}`;
   }
 
   // ---------- 列表 ----------
@@ -192,7 +195,7 @@
         ${u.front.items ? html`<div class="n-jcase__items">${u.front.items}</div>` : ''}
         ${u.front.v == null ? html`<div>${u.front.miss || '前段评价未体现这个维度'}</div>` : html`<p class="n-jcase__note">${u.front.note}</p>`}
         ${fEv ? UI.cite({ ...fEv.srcs[0], quote: fEv.quote }, 1) : u.front.src ? UI.cite(u.front.src, 1) : ''}</div>
-      <div class="n-jcase__mid">${u.denied ? html`<span class="n-jstate" data-s="na">无权限</span>` : jstate(u)}<span>按 ${map.id}</span>${chain.scale === 'grade' && !u.denied && st.judgeComparable(u) && !st.judgeClear([u], chain).clear.length ? html`<span>中间档，不计入不一致</span>` : ''}</div>
+      <div class="n-jcase__mid">${u.denied ? html`<span class="n-jstate" data-s="na">无权限</span>` : isMid(u, chain) ? html`<span class="n-jstate" data-s="mid">中间档</span>` : jstate(u)}<span>按 ${map.id}</span>${isMid(u, chain) ? html`<span>只看结营结论，不计偏高偏低</span>` : ''}</div>
       <div class="n-jcase__side"><div class="n-jcase__stage"><span>${chain.back}</span><span>${u.denied ? '' : chain.scale === 'grade' ? `评审 ${name(u.back.by[0])}` : '按对应表取档'}</span></div>
         ${u.denied ? html`<div class="n-jcase__deny">${icon('lock', 12)}<span><b>无权限</b>${u.denied}</span></div>` : html`
         <div class="n-jcase__val"><b>${bv}</b>${chain.scale === 'grade' && !u.back.na ? html`<span>${name(u.back.by[0])}</span>` : ''}</div>
@@ -233,7 +236,7 @@
     return html`<article class="n-card"><h3 class="n-section-title">按评价人<small class="nt-muted" style="font-weight:400;margin-left:auto">按姓名排列</small></h3>
       <div>${raters.map((r) => { const x = st.raterStats(units, r); const t = x.tally; return html`<a class="n-rater" href="${NT.link('judge.html', { rater: r, ...(bid ? { from: bid } : {}) })}">${UI.avatar(r, 'sm')}<b>${name(r)}</b>${x.enough ? html`<span class="nt-muted">${x.cases.length} 个案例</span>` : html`<span class="n-rater__few">样本不足</span>`}
         <small>${x.enough ? [t.high && `前段偏高 ${t.high}`, t.low && `前段偏低 ${t.low}`, t.same && `一致 ${t.same}`].filter(Boolean).join(' · ') : `只有 ${x.cases.length} 个可对照案例（门槛 ${st.RATER_MIN} 个），只列案例`}</small></a>`; })}</div>
-      <p class="nt-caption">可对照案例只算前段给了最高或最低一档的判断，中间档不计。仅 HR 和评价人本人可见，评价人只看自己的部分。</p></article>`;
+      <p class="nt-caption">可对照案例都计入门槛；偏高、偏低、一致只算前段给了最高或最低一档的判断，中间档只看结营结论的分布。仅 HR 和评价人本人可见，评价人只看自己的部分。</p></article>`;
   }
 
   function actionsCard(b) {
@@ -248,10 +251,11 @@
   }
 
   // ---------- 归因：AI 提出带证据的假设（光），HR 选类别、写理由、确认后落墨 ----------
+  // 只有归因含「评价标准」的结论可以起草修订；评价方式、评价人、后段偏差生成对应的改进动作
   const ACT = {
-    std: '修订评价标准', method: '修订评价标准', rater: '评价人培训', later: '后段评价校准',
+    std: '修订评价标准', method: '补充评价方式', rater: '评价人培训', later: '后段评价校准',
   };
-  const EXTRA = { method: '补充评价方式', rater: '调整评价人组合' };
+  const EXTRA = { rater: '调整评价人组合' };
   function actTitle(kind, chain, dim) {
     const xe = chain.id === 'xe';
     return {
@@ -379,9 +383,9 @@
       if (ac) {
         const h = st.judgeHyps(id).find((x) => x.id === ac.dataset.act), kind = ac.dataset.kind, dim = hypDim(h);
         const t = st.judgeTally(units.filter((u) => u.dimName === dim));
-        // 入营选拔标准已有一份修订在待确认或已排期：先撤回才能补依据，这时不生成动作
+        // 入营选拔标准已有一份修订在待确认：先撤回才能补依据，这时不生成动作
         const openFront = kind === '修订评价标准' && frontLink(chain) && st.ruleOpen('front', FRONT_LINE[chain.id]);
-        if (openFront && openFront.state !== 'draft') { NT.toast(`入营选拔标准已有一份修订${openFront.state === 'pending' ? '待确认' : '已排期'}，先在规则页撤回，再补这条依据`); return; }
+        if (openFront && openFront.state !== 'draft') { NT.toast('入营选拔标准已有一份修订待确认，先在规则页撤回，再补这条依据'); return; }
         const a = st.addJudgeAction(id, h.id, { title: actTitle(kind, chain, dim), kind,
           then: [`目标：下一批判断对照里「${dim}」前段偏差的人数减少`, `依据：${b.name}，${dim} ${t.high + t.low} 人有偏差（${CAT[st.judgeAttrib(h.id).cats[0]]}）`, '观察：下一批判断对照按标准版本分组对比，样本够了再看改进效果'] });
         render(main);
@@ -415,23 +419,22 @@
       <div class="nt-split">
         <div class="nt-grid">
           <article class="n-card"><h3 class="n-section-title">${enough ? `${cases.length} 个可对照案例` : '样本不足'}</h3>
-            ${enough ? html`<p style="margin:0">${[t.high && `前段偏高 ${t.high} 个`, t.low && `前段偏低 ${t.low} 个`, t.same && `一致 ${t.same} 个`].filter(Boolean).join('，')}。${byDimLine(cases)}</p>`
-              : html`<p style="margin:0">样本不足：可对照案例 ${cases.length} 个，门槛 ${st.RATER_MIN} 个。下面列出案例。</p>`}
-            <p class="nt-caption">${gradeLine(self ? '你' : name(raterId), vals, batches)}可对照案例只算前段给了最高或最低一档的判断。${restLine(all, cases, denied)}</p>
+            ${enough ? html`<p style="margin:0">前段给了最高或最低一档的 ${x.clear.length} 个里，${[t.high && `前段偏高 ${t.high} 个`, t.low && `前段偏低 ${t.low} 个`, t.same && `一致 ${t.same} 个`].filter(Boolean).join('，') || '没有'}。${x.mid.length ? `中间档 ${x.mid.length} 个，只看结营结论：${Object.entries(x.midBack).map(([g, n]) => `${g} ${n}`).join(' · ')}。` : ''}${byDimLine(x.clear)}</p>`
+              : html`<p style="margin:0">样本不足：可对照案例 ${cases.length} 个（含中间档），门槛 ${st.RATER_MIN} 个。下面列出案例。</p>`}
+            <p class="nt-caption">${gradeLine(self ? '你' : name(raterId), vals, batches)}可对照案例（含中间档）都计入门槛，偏高、偏低、一致只算最高或最低一档。${restLine(all, denied, self ? st.myJudgeHidden() : 0)}</p>
           </article>
           ${batches.map((b) => { const chain = st.judgeChain(b.chain), map = st.judgeMap(b.map); const us = sortCases(all.filter((u) => u.batch === b.id)); return html`<section><h2 class="nt-h2">${b.name}<small>${b.std} · ${b.range}</small></h2>${us.map((u) => caseCard(u, chain, map, { raterOnly: self }))}</section>`; })}
         </div>
         <aside class="nt-grid">
-          ${self ? html`<a class="n-btn n-btn--ghost" href="index.html">${icon('back')}回到工作台</a><div class="n-lock">${icon('lock')}这里只显示你在评价关系有效期里做过的判断；后段没有评价关系或关系已到期的，那一段显示无权限。</div>` : html`<a class="n-btn n-btn--ghost" href="${NT.param('from') ? `judge.html?id=${NT.param('from')}` : 'judge.html'}">${icon('back')}回到判断对照</a>`}
+          ${self ? html`<a class="n-btn n-btn--ghost" href="index.html">${icon('back')}回到工作台</a><div class="n-lock">${icon('lock')}这里按你现在有效的评价关系显示：前段的关系已失效的判断不列出；后段没有评价关系或关系已失效的，那一段显示无权限。</div>` : html`<a class="n-btn n-btn--ghost" href="${NT.param('from') ? `judge.html?id=${NT.param('from')}` : 'judge.html'}">${icon('back')}回到判断对照</a>`}
           <div class="n-lock">${icon('info')}这些对照只用来修正人才评价规则：结论不改变被评价人的分数、象限和档案，也不进入评价人本人的档案。</div>
         </aside>
       </div>`);
     main.onclick = (e) => { markClick(e, main); };
   }
-  const restLine = (all, cases, denied) => {
-    const mid = all.filter((u) => !u.denied && st.judgeComparable(u) && !cases.includes(u)).length;
+  const restLine = (all, denied, hidden) => {
     const rest = all.filter((u) => !u.denied && !st.judgeComparable(u)).length;
-    const parts = [mid && `${mid} 个在中间档，不计入`, rest && `${rest} 个是不可比或资料不足`, denied && `${denied} 个后段无权限`].filter(Boolean);
+    const parts = [rest && `${rest} 个是不可比或资料不足`, denied && `${denied} 个后段无权限`, hidden && `${hidden} 个前段的评价关系已失效，不列出`].filter(Boolean);
     return parts.length ? `另有 ${parts.join('；')}。` : '';
   };
   // 等级从高到低：S / A / B，或 5 到 1 分

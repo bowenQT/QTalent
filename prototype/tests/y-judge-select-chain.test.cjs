@@ -1,7 +1,8 @@
 'use strict';
 
 // 用版本 Y 的真实数据和 store 验证判断对照链「入营选拔 ↔ 结营评审」：两段各回到自己那张表的行、
-// 评价人按节点关系与有效期过滤、评价人只算极端档、入营选拔标准修订对下一期生效且第六期保持旧版。
+// 评价人按今天有效的同节点关系授权（左闭右开）、中间档计入门槛但不计入偏差分布、
+// 入营选拔标准只能从 HR 已确认含「评价标准」的归因起草，确认发布即对之后新建的期次生效，已绑定的第六期保持旧版。
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -26,7 +27,7 @@ function load() {
   const st = ctx.NT.store;
   st.reset();
   const as = (r) => { ctx.location.search = `?as=${r}`; return st; };
-  return { st, as };
+  return { st, as, NT: ctx.NT };
 }
 
 test('两段出处各自回到自己那张表的行', () => {
@@ -50,38 +51,72 @@ test('组队作品标同队，预置的不可比不算依据变化', () => {
   st.judgeHyps('jr-xe6').forEach((h) => assert.equal(st.hypCheck(h).ok, true, h.id));
 });
 
-test('评价人视角：前段要有覆盖那次判断的关系，后段跨节点或关系到期显示无权限', () => {
-  const { as } = load();
+test('评价人视角：按今天有效的同节点关系授权，有效期左闭右开', () => {
+  const { as, NT } = load();
   const st = as('mentor');
   const mine = st.myJudgeUnits();
   assert.ok(mine.length > 0 && mine.every((u) => u.front.by === 'p-yeqing'));
   const by = (p) => mine.find((u) => u.person === p);
-  assert.match(by('p-x16').denied, /没有评价关系/);
-  assert.match(by('p-x58').denied, /08-15 到期/);
+  assert.equal(by('p-x16'), undefined, '前段的代评关系 07-01 起失效，整条不列出');
+  assert.equal(st.myJudgeHidden(), 2);
+  assert.match(by('p-x58').denied, /08-16 起失效/);
   assert.equal(by('p-x07').denied, undefined);
   assert.ok(!mine.some((u) => u.person === 'p-x30'), '别的评委的判断不出现');
+  // 关系的 to 当天已经失效
+  const rel = NT.SEED.JUDGE.rels.find((r) => r.node === 'xe6-end' && r.label === '导师');
+  const keep = rel.to;
+  rel.to = NT.TODAY;
+  assert.match(st.myJudgeUnits().find((u) => u.person === 'p-x07').denied, /起失效/);
+  rel.to = keep;
 });
 
-test('评价人只算前段最高或最低一档的案例，不到门槛样本不足', () => {
+test('中间档计入评价人的样本门槛，但不计入偏差分布；不到门槛样本不足', () => {
   const { st } = load();
   const us = st.judgeUnits('jr-xe6');
   const chain = st.judgeChain('xe');
   const xu = st.raterStats(us, 's-28');
   assert.ok(xu.enough);
-  assert.ok(xu.cases.every((u) => st.judgeClear([u], chain).clear.length === 1));
+  assert.ok(xu.mid.length > 0 && xu.mid.every((u) => u.front.v === '通过'));
+  assert.equal(xu.cases.length, xu.clear.length + xu.mid.length, '门槛按全部可对照案例算');
+  const t = xu.tally;
+  assert.equal(t.same + t.high + t.low, xu.clear.length, '偏差分布只看最高或最低一档');
+  assert.ok(xu.clear.every((u) => st.judgeClear([u], chain).clear.length === 1));
+  assert.equal(Object.values(xu.midBack).reduce((a, b) => a + b, 0), xu.mid.length);
   assert.equal(st.raterStats(us, 's-12').enough, false);
+  // 只有 1 个最高或最低档、其余都是中间档的评价人，凑够 5 个也达到门槛
+  const fake = us.filter((u) => u.front.by === 's-28' && st.judgeComparable(u));
+  const pick = [...fake.filter((u) => u.front.v === '通过').slice(0, 4), fake.find((u) => u.front.v !== '通过')];
+  assert.equal(st.raterStats(pick, 's-28').enough, true);
 });
 
-test('入营选拔标准：退回、确认后排期到第七期，选拔开始时生效，第六期保持旧版，可以撤销', () => {
+test('只有 HR 已确认、归因含「评价标准」的结论才能起草入营选拔标准', () => {
+  const { as } = load();
+  const st = as('hrbp');
+  const b = (hyp) => [{ type: 'judge', batch: 'jr-xe6', hyp, dim: '综合判断', n: '演示', cat: '评价标准' }];
+  assert.equal(st.startDraft('front', [], 'xe-select'), null, '不带归因不能直接起草');
+  assert.equal(st.startDraft('front', b('h-xe6-2'), 'xe-select'), null, '没确认的假设不能起草');
+  assert.equal(st.startDraft('front', b('h-xe6-3'), 'xe-select'), null);
+  const h2 = st.judgeHyps('jr-xe6').find((h) => h.id === 'h-xe6-2');
+  assert.ok(st.confirmAttrib('jr-xe6', h2, { cats: ['method'], reason: '只归因到评价方式' }));
+  assert.equal(st.canDraftFrom(b('h-xe6-2')[0]), false, '只归因到评价方式的不能起草');
+  assert.equal(st.draftWithBasis('front', b('h-xe6-2'), 'xe-select'), null);
+  assert.ok(st.startDraft('front', b('h-xe6-1'), 'xe-select'));
+  assert.equal(as('ceo').startDraft('front', b('h-xe6-1'), 'xe-select'), null);
+});
+
+test('入营选拔标准：确认发布即生效，第六期保持绑定的旧版，第七期建立时用新版；撤销回到待确认', () => {
   const { as } = load();
   let st = as('hrbp');
   const d = st.startDraft('front', [{ type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: '演示', cat: '评价标准' }], 'xe-select');
   assert.equal(d.v, 'xe-select-v2');
-  assert.equal(d.effect, 'next');
+  assert.equal(d.effect, 'now');
+  assert.equal(d.period, undefined, '不按名称记下一期');
   st.setDraft('front', { note: `${d.note}；组队作品写清本人做了哪部分`, why: '优先录取只看作品成品' }, 'xe-select');
   const p = st.previewDraft('front', 'xe-select');
   assert.equal(p.kind, 'front');
-  assert.ok(p.keep > 0 && p.next.name.includes('第七期'));
+  assert.equal(p.next.id, 'pg-xe7', '下一期用稳定的期次 ID');
+  assert.equal(JSON.stringify(p.bound.map((g) => [g.id, g.std])), JSON.stringify([['pg-xe6', 'xe-select-v1']]));
+  assert.ok(p.keep > 0);
   assert.ok(!JSON.stringify(p).includes('p-x'), '预览里没有名单');
   assert.ok(st.submitDraft('front', 'xe-select'));
 
@@ -91,19 +126,35 @@ test('入营选拔标准：退回、确认后排期到第七期，选拔开始�
   assert.equal(st.ruleOpen('front', 'xe-select').returned.why, '刚过线也写一句');
   assert.ok(st.submitDraft('front', 'xe-select'));
   st = as('ceo');
-  const undoConfirm = st.confirmDraft('front', 'xe-select');
-  assert.equal(st.ruleOpen('front', 'xe-select').state, 'scheduled');
-  assert.equal(st.ruleLive('front', 'xe-select').v, 'xe-select-v1');
-  assert.equal(typeof undoConfirm, 'function');
-
-  st = as('hrbp');
-  const undo = st.startSelection();
-  assert.equal(st.ruleLive('front', 'xe-select').v, 'xe-select-v2');
+  const undo = st.confirmDraft('front', 'xe-select');
+  assert.equal(st.ruleLive('front', 'xe-select').v, 'xe-select-v2', '确认发布即生效，没有已排期');
   assert.equal(st.ruleVer('xe-select-v1').state, 'old');
-  assert.equal(st.judgeBatch('jr-xe6').std, 'xe-select-v1', '第六期的判断对照保持旧版');
+  assert.equal(st.ruleOpen('front', 'xe-select'), null);
+  assert.equal(st.judgeBatch('jr-xe6').std, 'xe-select-v1', '第六期按期次读取绑定的旧版');
+  assert.match(st.nodeFacts('pg-xe7', { id: 'n0' })[0].v, /现在是 xe-select-v2/);
+  assert.equal(typeof st.startSelection, 'undefined');
+
   assert.equal(undo(), true);
   assert.equal(st.ruleLive('front', 'xe-select').v, 'xe-select-v1');
-  assert.equal(st.ruleOpen('front', 'xe-select').state, 'scheduled');
+  assert.equal(st.ruleOpen('front', 'xe-select').state, 'pending');
+  assert.equal(undo(), false, '同一个撤销只生效一次');
+});
+
+test('撤销如实返回成败：起草人已经改过的退回、已不在待确认的提交都返回 false', () => {
+  const { as } = load();
+  let st = as('hrbp');
+  const d = st.startDraft('front', [{ type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: '演示', cat: '评价标准' }], 'xe-select');
+  st.setDraft('front', { note: `${d.note}；写清本人做了哪部分`, why: '理由' }, 'xe-select');
+  st.previewDraft('front', 'xe-select');
+  st.submitDraft('front', 'xe-select');
+  st = as('ceo');
+  const undo = st.confirmDraft('front', 'xe-select');
+  st = as('hrbp');
+  // 发布之后又起草了下一版：旧的发布撤销不了
+  const d3 = st.startDraft('front', [{ type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: '演示', cat: '评价标准' }], 'xe-select');
+  assert.equal(d3.v, 'xe-select-v3');
+  assert.equal(st.withdrawDraft('front', 'xe-select'), null, '草稿不能撤回');
+  assert.equal(as('ceo') && undo(), false);
 });
 
 test('入营选拔标准：预览后增删依据，预览作废，要重新预览才能提交', () => {
@@ -132,8 +183,8 @@ test('从判断对照带依据起草：已有草稿就追加并去重，预览�
   const { as } = load();
   const st = as('hrbp');
   const basis = { type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: '演示', cat: '评价标准' };
-  const d = st.startDraft('front', [], 'xe-select');
-  st.setDraft('front', { note: `${d.note}；写清本人做了哪部分`, why: '理由' }, 'xe-select');
+  const d = st.startDraft('front', [basis], 'xe-select');
+  st.setDraft('front', { note: `${d.note}；写清本人做了哪部分`, why: '理由', basis: [] }, 'xe-select');
   st.previewDraft('front', 'xe-select');
 
   const r = st.draftWithBasis('front', [basis], 'xe-select');
@@ -145,7 +196,7 @@ test('从判断对照带依据起草：已有草稿就追加并去重，预览�
 
   st.previewDraft('front', 'xe-select');
   assert.ok(st.submitDraft('front', 'xe-select'));
-  const blocked = st.draftWithBasis('front', [{ ...basis, hyp: 'h-xe6-3' }], 'xe-select');
+  const blocked = st.draftWithBasis('front', [basis], 'xe-select');
   assert.equal(blocked.blocked.state, 'pending');
   assert.equal(st.ruleOpen('front', 'xe-select').basis.length, 1, '已提交的修订不被改动');
 });

@@ -165,7 +165,7 @@
   const OFFER = X.students.filter((st) => st.final && st.final.includes('正式 offer'));
   const LAND4 = X.students.filter((st) => st.accept === '接受' && st.dest && st.dest !== '待定部门');
   const PROGRAMS = [
-    { id: 'pg-xe6', kind: 'XEngineer', name: 'XEngineer 第六期', from: '2026-07-06', to: '2026-08-31', batch: 'b-xe6', href: 'landing.html',
+    { id: 'pg-xe6', kind: 'XEngineer', name: 'XEngineer 第六期', from: '2026-07-06', to: '2026-08-31', batch: 'b-xe6', href: 'landing.html', std: 'xe-select-v1',
       people: X.students.map((st) => st.id), nodes: [['2026-08-29', 'MS4 终期路演'], ['2026-08-31', '结营评审']], pending: 'plan' },
     { id: 'pg-land4', kind: 'Landing', name: 'Landing 第四期', from: '2026-09-14', to: '2026-10-09', href: 'plan.html?id=b-xe6-end',
       people: LAND4.map((st) => st.id), nodes: [['2026-09-03', `入营名单确定 · ${LAND4.length} 人`]], todo: `${X.students.filter((st) => st.dest === '待定部门').length} 人部门待定` },
@@ -173,8 +173,8 @@
       people: OFFER.filter((st) => st.grad === '2027').map((st) => st.id), nodes: [['2026-09-02', `提前批 offer 锁定 · ${OFFER.filter((st) => st.grad === '2027').length} 人`]] },
     { id: 'pg-hack', kind: '黑客松', name: '夏季黑客松（演示）', from: '2026-08-20', to: '2026-08-21', href: 'project.html?id=pr-hack', people: HACK, nodes: [['2026-08-25', '评审结束']] },
     { id: 'pg-land3', kind: 'Landing', name: 'Landing 第三期', from: '2026-06-08', to: '2026-07-03', people: [], nodes: [['2026-07-03', '结营']] },
-    // 下一期：修订后的入营选拔标准从这一期开始用
-    { id: 'pg-xe7', kind: 'XEngineer', name: 'XEngineer 第七期（演示）', from: '2026-10-12', to: '2026-12-04', people: [], nodes: [['2026-09-20', '入营选拔']], next: true },
+    // 下一期：还在筹备，没有建立；建立期次时绑定当时默认的入营选拔标准版本（std），之后不改版
+    { id: 'pg-xe7', kind: 'XEngineer', name: 'XEngineer 第七期（演示）', from: '2026-10-12', to: '2026-12-04', people: [], nodes: [['2026-09-20', '入营选拔']], next: true, planned: true },
     { id: 'pg-xe5', kind: 'XEngineer', name: 'XEngineer 第五期', from: '2026-04-06', to: '2026-05-29', people: [], nodes: [['2026-05-29', '结营评审']] },
   ];
 
@@ -380,25 +380,28 @@
   const ROWS = X.students.map((s) => s.id).filter((p) => SR.has(p) || ER.get(p).grade).map((p) => ({ person: p, front: SR.get(p) || null, back: ER.get(p) }));
   const caseId = (p) => `jr-xe6:${p}:overall`;
   const top = SEL_ROWS.filter((r) => r.grade === '优先录取'), topDown = top.filter((r) => ER.get(r.person).grade === '不建议' && !r.team);
-  const raterRows = (by) => SEL_ROWS.filter((r) => r.by === by && r.grade !== '通过' && ER.get(r.person).grade);
-  const xuRows = raterRows('s-28'), xuHigh = xuRows.filter((r) => SEL.indexOf(r.grade) > BG.indexOf(ER.get(r.person).grade));
+  // 评价人样本：中间档也是可对照案例、计入门槛（预先标为不可比的 p-x42 不算）；偏高、偏低、一致只看前段给了最高或最低一档的案例
+  const raterRows = (by) => SEL_ROWS.filter((r) => r.by === by && ER.get(r.person).grade && r.person !== 'p-x42');
+  const xuRows = raterRows('s-28'), xuClear = xuRows.filter((r) => r.grade !== '通过'), xuHigh = xuClear.filter((r) => SEL.indexOf(r.grade) > BG.indexOf(ER.get(r.person).grade));
   const team7 = TEAM7.map((p) => ER.get(p).grade);
   const JUDGE = {
     chains: [{ id: 'xe', name: 'XEngineer', front: '入营选拔', back: '结营评审', scale: 'grade', grades: SEL, backGrades: BG, dims: [{ id: 'overall', name: '综合判断' }],
       items: ['作品完整度与创新性', '开发过程与质量', '演示与表达'], nodes: { front: 'xe6-select', back: 'xe6-end' } }],
     maps: [{ id: 'map-xe-select-v1', chain: 'xe', by: 'p-suwan', at: '2026-06-20', rows: [['overall', '综合判断', '刚过线 ↔ 不建议；通过 ↔ 继续观察；优先录取 ↔ 建议留用']] }],
     stds: [{ id: 'xe-select-v1', chain: 'xe', at: '2026-06-15', note: '72 小时作品评审三项：作品完整度与创新性、开发过程与质量、演示与表达，各评 A / B / C；路演交流后给选拔档位：优先录取 / 通过 / 刚过线' }],
-    batches: [{ id: 'jr-xe6', chain: 'xe', name: 'XEngineer 第六期判断对照', std: 'xe-select-v1', map: 'map-xe-select-v1', status: 'open', at: '2026-09-02', by: 'p-suwan', range: '入营选拔 06-30 · 结营评审 08-31' }],
+    batches: [{ id: 'jr-xe6', chain: 'xe', name: 'XEngineer 第六期判断对照', program: 'pg-xe6', map: 'map-xe-select-v1', status: 'open', at: '2026-09-02', by: 'p-suwan', range: '入营选拔 06-30 · 结营评审 08-31' }],
     xe: { 'jr-xe6': { rows: ROWS, src: {
       front: { label: '作品评审表.xlsx（演示）', sheet: '第六期入营选拔', cols: { overall: 'G', items: ['D', 'E', 'F'], note: 'H' } },
       back: { label: '结营评审表.xlsx（演示）', sheet: '第六期结营评审', cols: { overall: 'E', note: 'F' } },
     } } },
     hire: {},
-    // 评价关系：评价人只看本节点；一段判断的日期落在关系有效期里，评价人才能看到这一段
+    // 评价关系：评价人只看本节点，按演示「今天」当前有效的关系授权，有效期左闭右开 [from, to)。
+    // 叶青第六期入营选拔的评委关系跟到结营复盘，现在仍有效；第二轮代评的两人只在选拔当周，已经失效
     rels: [
-      { rater: 'p-yeqing', node: 'xe6-select', label: '入营选拔评委', people: YQ_SEL, from: '2026-06-27', to: '2026-06-30' },
-      { rater: 'p-yeqing', node: 'xe6-end', label: '导师', people: ofTeams('t-talk-a', 't-scene-b'), from: '2026-07-06', to: '2026-09-30' },
-      { rater: 'p-yeqing', node: 'xe6-end', label: '值班助手 · 一组代评', people: ['p-x58'], from: '2026-07-06', to: '2026-08-15', ended: '08-15 起交回邱行之' },
+      { rater: 'p-yeqing', node: 'xe6-select', label: '入营选拔评委 · 跟到结营复盘', people: YQ_SEL.filter((p) => !['p-x16', 'p-x17'].includes(p)), from: '2026-06-27', to: '2026-10-01' },
+      { rater: 'p-yeqing', node: 'xe6-select', label: '入营选拔第二轮代评', people: ['p-x16', 'p-x17'], from: '2026-06-28', to: '2026-07-01', ended: '已交回贺云舒' },
+      { rater: 'p-yeqing', node: 'xe6-end', label: '导师', people: ofTeams('t-talk-a', 't-scene-b'), from: '2026-07-06', to: '2026-10-01' },
+      { rater: 'p-yeqing', node: 'xe6-end', label: '值班助手 · 一组代评', people: ['p-x58'], from: '2026-07-06', to: '2026-08-16', ended: '已交回邱行之' },
     ],
     // HR 预先标为不可比的案例
     marks: { 'jr-xe6:p-x42:overall': { reason: '入营后从全套组转到前端方向，选拔作品和营内课题考的是不同方向', by: 'p-suwan', at: '2026-09-02' } },
@@ -408,7 +411,7 @@
           text: `入营选拔评为「优先录取」的 ${top.length} 人里，${topDown.length + team7.filter((g) => g === '不建议').length} 人结营不建议。除去七号队，这 ${topDown.length} 人的「开发过程与质量」都按作品成品评了 A，评审表里没有写本人做了哪部分；xe-select-v1 只要求三项各评 A / B / C，没有写每一档要看到什么。`,
           cases: topDown.map((r) => caseId(r.person)) },
         { id: 'h-xe6-2', basis: [{ batch: 'jr-xe6', rater: 's-28' }], cats: ['rater'], rater: 's-28',
-          text: `许致远评审的 ${xuRows.length} 个可对照案例里，${xuHigh.length} 个前段偏高，方向一致；评语多写作品完成度，较少写路演交流中追问的结果。样本达到 5 个案例的门槛。`,
+          text: `许致远评审的 ${xuRows.length} 个可对照案例里，${xuClear.length} 个给了优先录取或刚过线，其中 ${xuHigh.length} 个前段偏高，方向一致；评语多写作品完成度，较少写路演交流中追问的结果。样本达到 5 个案例的门槛。`,
           cases: xuHigh.slice(0, 5).map((r) => caseId(r.person)) },
         { id: 'h-xe6-3', cats: ['env'],
           text: `七号队是组队作品，三位成员的作品评审都是 A A A、选拔档位都是优先录取。入营后分到不同课题，结营时 ${team7.filter((g) => g === '不建议').length} 人不建议、${team7.filter((g) => g === '继续观察').length} 人继续观察：作品分数反映的是团队，个人在营内的表现要另看。`,
@@ -443,9 +446,9 @@
       { v: 'watch-v1', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-07-01', effect: 'now', effAt: '2026-07-01', demo: true,
         why: '第一版：七条入选规则，提名来自导师、助教和 HR', params: WATCH_PARAMS, t2: '导师、助教或 HR 的提名与推荐，经 HR 核实' },
     ],
-    // 前段评价标准：第六期按 xe-select-v1 选拔；修订后的版本对下一期选拔生效，第六期的记录保持原版本
+    // 前段评价标准：确认发布即成为之后新建期次的默认版本；期次建立时绑定版本（PROGRAMS 的 std），第六期绑定 xe-select-v1
     front: [
-      { v: 'xe-select-v1', line: 'xe-select', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-06-15', effect: 'next', effAt: '2026-06-27', period: 'XEngineer 第六期', why: '第一版：72 小时作品评审三项，路演交流后给选拔档位', note: JUDGE.stds[0].note },
+      { v: 'xe-select-v1', line: 'xe-select', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-06-15', effect: 'now', effAt: '2026-06-15', why: '第一版：72 小时作品评审三项，路演交流后给选拔档位', note: JUDGE.stds[0].note },
       { v: 'map-xe-select-v1', line: 'map-xe-select', state: 'live', by: 'p-suwan', confirmedBy: 'p-cheng', at: '2026-06-20', effect: 'now', effAt: '2026-06-20', why: '选拔档位与结营结论三档对应', note: JUDGE.maps[0].rows[0][2] },
     ],
   };
@@ -455,7 +458,7 @@
   ];
 
   NT.SEED = {
-    version: 'y6', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
+    version: 'y7', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES: [], FOLLOWS,
     FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS,
   };
