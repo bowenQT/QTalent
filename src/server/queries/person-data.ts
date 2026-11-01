@@ -1,7 +1,7 @@
 import 'server-only';
 import type { Database } from '../db/client';
 import { loadEvaluationContext } from '../usecases/evaluation-context';
-import { readEvidenceForTalent } from '../modules/records';
+import { readEvidenceForTalent, arrangeInputs } from '../modules/records';
 import { readTalentEvaluationRules } from '../modules/evaluation-system';
 import { readActiveConfirmations } from '../modules/talent';
 import { employments } from '../modules/directory';
@@ -27,6 +27,9 @@ export async function loadPersonData(
         ...(await readEvidenceForTalent(tx)),
         ...(await readTalentEvaluationRules(tx)),
         confirmations: await readActiveConfirmations(tx),
+        // Same repeatable-read snapshot, before any person/source filtering.
+        // Superseded inputs and other creators remain provenance restrictions.
+        intakeInputs: await tx.select().from(arrangeInputs),
         // Batch names and hire dates for the identity header.
         cohorts: await tx.select().from(cohorts),
         employments: await tx.select().from(employments),
