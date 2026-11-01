@@ -110,6 +110,7 @@ export const materialSourcesFixture: MaterialSource[] = [
 ];
 export const materialBatchInputFixture: MaterialBatchInput = {
   operationId: 'demo-submit-1',
+  projectId: null,
   evaluationNodeId: 'demo-node',
   personIds: [],
   text: '',
@@ -124,6 +125,7 @@ export const recordBatchDraftFixture: RecordBatchDraft = {
   draftId: 'demo-event-draft-a',
   revision: 1,
   origin: 'ai_suggestion',
+  projectId: null,
   personIds: ['demo-person'],
   sourceReferences: [materialReferencesFixture.document],
   dimensionVersionId: 'demo-dimensions-v1',
@@ -226,6 +228,25 @@ export const materialReviewItemsFixture: MaterialReviewItem[] = [
     source: materialReferencesFixture.pdf,
     importRowId: 'demo-import-row',
     observedName: '演示面试官乙',
+    candidates: [],
+  },
+  {
+    ...reviewBase,
+    kind: 'unknown_project',
+    itemId: 'demo-project-review',
+    originalVersionId: 'demo-document-v1',
+    source: materialReferencesFixture.document,
+    observedName: '演示课题',
+    candidates: [{ projectId: 'demo-project', displayName: '演示课题甲' }],
+  },
+  {
+    ...reviewBase,
+    kind: 'unknown_interview_candidate',
+    itemId: 'demo-candidate-review',
+    originalVersionId: 'demo-pdf-v1',
+    source: materialReferencesFixture.pdf,
+    importRowId: 'demo-import-row',
+    observedName: null,
     candidates: [],
   },
 ];
