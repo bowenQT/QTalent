@@ -12,13 +12,13 @@ Niu-Talent：七牛云内部的人才识别、追踪与盘点工作台，用于�
 
 1. 需求定稿 —— 已完成
 2. 设计系统 → 高保真可交互原型 → UI/UX 定稿 —— 已完成。定稿基线：`main` 提交 `2e51b50` 的原型 Y（`prototype/y/` 桌面与手机）和 Y 设计系统页；之后经评审合入的原型修复按设计同步更新工程参照，当前参照提交以 `prototype-reference.json` 为准
-3. 工程基建（在仓库根目录建立工程与检查配置）—— **进行中**，由 Codex 建立
-4. 正式开发 —— 工程基础合入后，按任务卡并行开发
+3. 工程基建（在仓库根目录建立工程与检查配置）—— 已完成：工程基础（BOW-830，#67）已合入 `main`
+4. 正式开发 —— **进行中**：按 Linear 任务卡并行开发。前端、原型同步与界面还原卡归 Claude Code；后端、集成、迁移卡归 Codex，由 Dot 编排派卡与收尾。分工、合并与审查流程见 [协作规范](CONTRIBUTING.md#并行开发合并与审查)
 
 当前阶段的约束：
 
-- 正式工程在仓库根目录，按正式工程标准交付（类型、检查、测试与 85% 覆盖率、文档）；本次比赛的范围先交付，赛后在同一工程上继续。目录边界见[架构提案](docs/proposals/2026-10-25-y-architecture-phases.md) 4.7，具体命令与检查以工程基础合入后的 README 和 [工程规范](docs/engineering.md) 为准。
-- 已确认技术栈：Next.js + TypeScript + Tailwind + shadcn/ui + Motion；Node.js 24 LTS，pnpm 单 package；PostgreSQL + Drizzle，pg-boss，Better Auth，七牛 Kodo。依赖版本在工程初始化时核对并锁定。
+- 正式工程在仓库根目录，按正式工程标准交付（类型、检查、测试与 85% 覆盖率、文档）；本次比赛的范围先交付，赛后在同一工程上继续。目录边界见[架构提案](docs/proposals/2026-10-25-y-architecture-phases.md) 4.7，具体命令与检查以 README 和 [工程规范](docs/engineering.md) 为准。
+- 已确认技术栈：Next.js + TypeScript + Tailwind + shadcn/ui + Motion；Node.js 24 LTS，pnpm 单 package；PostgreSQL + Drizzle，pg-boss，Better Auth，七牛 Kodo。依赖版本已在工程基础中锁定；新增或升级依赖按共享文件流程处理。
 - 工程界面 1:1 还原定稿原型，组件库的默认外观不作为设计标准；设计变化先改原型并评审，再同步进工程。
 - 原型 `prototype/` 保留为定稿基线和评审材料，仍是浏览器可以直接打开的独立 HTML，不引入构建工具、包管理和后端；工程不修改 `prototype/`。原型中的 AI 行为仍用脚本化流式 mock。原型分桌面 `prototype/app/` 与手机 `prototype/m/`，共用 `prototype/app/js/`，入口是 `prototype/index.html` 评审导览；版本 Y 在 `prototype/y/`。
 - 评审站例外：`review-site/` 用 Cloudflare Worker + D1 把 `prototype/` 发布给 `@qiniu.com` 评审并提供划线评论（见 [review-site/README.md](review-site/README.md)），只服务评审，与正式工程的部署分开。
@@ -39,6 +39,8 @@ Niu-Talent：七牛云内部的人才识别、追踪与盘点工作台，用于�
 | `docs/sources/` | 原始材料：HR 访谈、CEO 会议转写、人才发展大图、组织表。**含真实人名，不进 git**（见下文「数据与隐私」） |
 
 权威顺序：用户当轮指令 > 需求定稿 v1.6 > 需求定稿 v1.5 > 需求定稿 v1.4 > 需求定稿 v1.3 > 需求定稿 v1.2 > PRD v1.0 > 原始材料。版本 Y（`prototype/y/`）范围内，需求定稿 · 版本 Y 排在需求定稿 v1.6 之前。
+
+仓库所有者在协调索引 [#248](https://github.com/bowenQT/QTalent/issues/248) 里发布的裁决（例如 11/1 的 [裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6551983878) 及之后的补充），在写进需求定稿之前，优先于任务卡正文和旧文档；写进需求定稿后以需求定稿为准。
 
 ## 产品不变量
 

@@ -18,8 +18,7 @@ export function deriveReferencePosition(
   today: string,
 ): ReferencePosition {
   const end = new Date(today + 'T00:00:00Z');
-  const start = new Date(end);
-  start.setUTCFullYear(start.getUTCFullYear() - 1);
+  const start = new Date(end.getTime() - 365 * 86_400_000);
   const recent = scores.filter((score) => {
     const time = new Date(score.occurredOn + 'T00:00:00Z');
     return time >= start && time <= end;
@@ -51,14 +50,21 @@ export function deriveReferencePosition(
       ),
     ),
   );
-  // Extra potential items (not core): their mean of at least 4 only sets a flag.
+  // Each extra potential dimension is averaged separately: either mean >= 4 sets a flag.
   // It never moves the quadrant and never adds a coordinate.
   const extras = recent.filter((score) => score.axis === 'pot' && !score.core);
   return {
     status: 'ready',
     data: {
       kind: 'reference',
-      bonus: extras.length > 0 && mean(extras.map((score) => score.value)) >= 4,
+      bonus: [...new Set(extras.map((score) => score.dimensionId))].some(
+        (id) =>
+          mean(
+            extras
+              .filter((score) => score.dimensionId === id)
+              .map((score) => score.value),
+          ) >= 4,
+      ),
       quadrant:
         prof >= 3.5
           ? pot >= 3.5
