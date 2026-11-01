@@ -265,6 +265,40 @@ describe('Reassign page', () => {
     expect(screen.getAllByText('已交给演示新导师 1 件')).toHaveLength(2);
   });
 
+  it('keeps an earlier unanswered request when another batch goes through', async () => {
+    action
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(success('w-2'))
+      .mockResolvedValueOnce(success('w-1'));
+    setup(items.slice(0, 2));
+    // A alone gets no answer.
+    uncheck('演示乙');
+    fireEvent.click(choice('演示新导师'));
+    await confirm('交给演示新导师');
+    expect(screen.getByRole('alert').textContent).toContain(
+      '提交中断：1 件待重新提交。',
+    );
+    // Then B alone goes through.
+    uncheck('演示甲');
+    uncheck('演示乙');
+    fireEvent.click(choice('演示新导师'));
+    await confirm('交给演示新导师');
+    expect(action.mock.calls[1][0]).toMatchObject({ workItemId: 'w-2' });
+    expect(screen.getByText('已交给演示新导师 1 件')).toBeTruthy();
+    // A is still waiting, and its retry replays the first request exactly.
+    const failed = screen.getByRole('alert');
+    expect(failed.textContent).toContain('提交中断：1 件待重新提交。');
+    await act(async () =>
+      fireEvent.click(within(failed).getByRole('button', { name: '重试' })),
+    );
+    expect(action.mock.calls[2][0]).toEqual(action.mock.calls[0][0]);
+    expect(action.mock.calls[2][0]).toMatchObject({
+      operationId: 'op-1',
+      workItemId: 'w-1',
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('says the list is done when nothing waits, with a way back', () => {
     setup([]);
     expect(screen.getByText('需要重新分派的事都处理完了')).toBeTruthy();

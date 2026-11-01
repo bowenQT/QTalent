@@ -5,24 +5,6 @@ import { Icon } from '@/components/ui/Icon';
 import type { ExportRange, ExportScope, ExportView } from '../../view';
 import { exportCopy, exportRanges, rangeLabel } from './export-copy';
 import { useExportPort, type ExportOutcome } from './export-port';
-import '../../workbench.css';
-
-/** The shared icon sprite has no download glyph yet; same path as the prototype's. */
-function DownloadIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M4 15v4.5h16V15" />
-    </svg>
-  );
-}
 
 type Run = { scope: ExportScope; range: ExportRange };
 type Job =
@@ -146,7 +128,7 @@ function Status({
             href={job.href}
             download={job.fileName}
           >
-            <DownloadIcon />
+            <Icon name="download" />
             下载表格
           </a>
           {close}
@@ -219,7 +201,7 @@ export function Export({
               id="btn-export"
               onClick={() => setOpen(true)}
             >
-              <DownloadIcon />
+              <Icon name="download" />
               导出已确认内容
             </button>
           </div>
@@ -253,6 +235,7 @@ export function Export({
               id: 'go',
               label: '生成表格',
               variant: 'ink',
+              icon: 'download',
               validate: () =>
                 scope.previews[range].rows ? true : exportCopy.pickAnother,
               onSelect: () => {

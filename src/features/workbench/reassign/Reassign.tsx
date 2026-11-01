@@ -17,7 +17,6 @@ import {
   type ReassignItem,
   type ReassignResult,
 } from './reassign-model';
-import '../workbench.css';
 
 // The read carries no avatar facts for these people; the stylesheet's default hue.
 const neutralHue = 220;
@@ -98,7 +97,12 @@ export function Reassign({ items }: { items: ReassignItem[] }) {
         unansweredNow.push(sent);
         continue;
       }
-      attempts.current.delete(sent.attempt.workItemId);
+      // A later pick of the same item may hold a newer attempt; only this one is settled.
+      if (
+        attempts.current.get(sent.attempt.workItemId)?.operationId ===
+        sent.attempt.operationId
+      )
+        attempts.current.delete(sent.attempt.workItemId);
       if (result.status === 'success') {
         done++;
         continue;
@@ -112,7 +116,13 @@ export function Reassign({ items }: { items: ReassignItem[] }) {
     setBusy(false);
     setConfirming(false);
     setChanged(changedNow);
-    setUnanswered(unansweredNow);
+    // Requests from earlier batches that this one did not carry are still unanswered:
+    // they keep their place and their operation id until they get an answer.
+    const carried = new Set(batch.map((sent) => sent.attempt.operationId));
+    setUnanswered((current) => [
+      ...current.filter((sent) => !carried.has(sent.attempt.operationId)),
+      ...unansweredNow,
+    ]);
     const name = batch[0].name;
     if (done)
       toast.show(
