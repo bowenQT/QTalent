@@ -423,26 +423,23 @@ describe('回到输入', () => {
     });
   });
 
-  it('撤销成功后照原型回到待确认：草稿和修改都在，保存的 operation_id 作废', () => {
+  it('撤销成功后照原型回到待确认：草稿、修改和本页的原话都在，保存的 operation_id 作废', () => {
     const saved = run(
-      initialState({ draft }),
+      initialState({
+        draft: {
+          ...draft,
+          originalInput: { ...draft.originalInput, attachmentIds: ['att-2'] },
+        },
+      }),
       { type: 'save_begin', op },
       { type: 'save_saved', receipt, replayed: false },
     );
-    const undone = run(saved, {
-      type: 'undone',
-      originalInput: {
-        operation_id: 'x',
-        text: '撤销前的原话',
-        attachmentIds: ['att-2'],
-        personId: 'p2',
-        projectId: null,
-      },
-    });
+    // 846 的撤销回执不带原输入：原话、人员和附件用本页保存时的内容
+    const undone = run(saved, { type: 'undone' });
     expect(undone).toMatchObject({
       phase: 'review',
-      text: '撤销前的原话',
-      personId: 'p2',
+      text: TEXT,
+      personId: 'p1',
       attachmentIds: ['att-2'],
       receipt: null,
       saveOp: null,
@@ -452,11 +449,8 @@ describe('回到输入', () => {
   });
 
   it('没有草稿时撤销回到输入', () => {
-    const undone = run(initialState({ text: '原话' }), {
-      type: 'undone',
-      originalInput: { ...draft.originalInput, text: '撤销前的原话' },
-    });
-    expect(undone).toMatchObject({ phase: 'write', text: '撤销前的原话' });
+    const undone = run(initialState({ text: '原话' }), { type: 'undone' });
+    expect(undone).toMatchObject({ phase: 'write', text: '原话' });
   });
 });
 
@@ -600,7 +594,7 @@ describe('边界：不丢输入、不覆盖新状态、不重放旧整理', () =
       review,
       { type: 'save_begin', op: { key: 's', id: 'save-op' } },
       { type: 'save_saved', receipt, replayed: false },
-      { type: 'undone', originalInput: draft.originalInput },
+      { type: 'undone' },
     );
     expect(undone.startOp).toBeNull();
   });

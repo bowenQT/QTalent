@@ -555,10 +555,7 @@ function RecordFlow(props: RecordPageProps) {
           saveId: receipt.saveId,
         });
         if (result.status === 'success') {
-          dispatch({
-            type: 'undone',
-            originalInput: result.result.originalInput,
-          });
+          dispatch({ type: 'undone' });
           return;
         }
         // 业务终局失败不是「可重试」：收起原提示，另发一条说明

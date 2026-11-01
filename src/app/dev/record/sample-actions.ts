@@ -277,7 +277,9 @@ export function sampleServer({
           withdrawnEvents: [],
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
-          originalInput: saved.input,
+          // 照 846（#289）：撤销回执不带原输入，页面用自己保存时的原话回到待确认
+          inputRestoration: 'unavailable',
+          originalInput: null,
         },
       };
     },

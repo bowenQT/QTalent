@@ -70,7 +70,8 @@ function setup(over: Overrides = {}) {
         withdrawnEvents: [{ personId: 'p1', eventId: 'ev-1' }],
         withdrawnConfirmationIds: [],
         withdrawnReviewItemIds: [],
-        originalInput: { ...draft.originalInput },
+        inputRestoration: 'unavailable',
+        originalInput: null,
       }),
     ),
     retryJob: vi.fn(),
@@ -928,7 +929,8 @@ describe('5 秒撤销', () => {
           withdrawnEvents: [],
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
-          originalInput: draft.originalInput,
+          inputRestoration: 'unavailable',
+          originalInput: null,
         }),
       );
     await saved({ actions: { undo: undo as never } });

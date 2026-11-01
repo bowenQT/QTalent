@@ -148,7 +148,7 @@ describe('sample server', () => {
     });
   });
 
-  it('undoes within the window and hands the original input back', async () => {
+  it('undoes within the window without handing the input back (846)', async () => {
     const s = server();
     const { draft } = await arranged(s);
     const saved = await s.actions.save(
@@ -162,7 +162,7 @@ describe('sample server', () => {
     });
     expect(undone).toMatchObject({
       status: 'success',
-      result: { originalInput: { text: SENTENCE } },
+      result: { inputRestoration: 'unavailable', originalInput: null },
     });
   });
 
