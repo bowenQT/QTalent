@@ -12,6 +12,10 @@ import {
 } from './entry-tools';
 import { staffingFixture, staffingDemandJobFixture } from './staffing.fixtures';
 import { buildEntryDeepLink } from './entry-links';
+import {
+  materialBatchReceiptSchema,
+  type MaterialBatchReceipt,
+} from './materials';
 
 describe('entry tool trust contracts', () => {
   it('fixes MCP to three tools and AgentAPI to the nine three-act capabilities', () => {
@@ -112,7 +116,7 @@ describe('entry tool trust contracts', () => {
     ).toBe(false);
   });
   it('binds all successful payload identities and versions to authorized input', () => {
-    const receipt = {
+    const receipt: MaterialBatchReceipt = {
       batchId: 'demo-batch',
       revision: 1,
       evaluationNodeId: 'demo-node',
@@ -120,7 +124,30 @@ describe('entry tool trust contracts', () => {
       files: [],
       status: 'processing' as const,
       jobId: 'demo-job',
+      projectId: null,
+      hasHiddenContent: false,
+      textMaterial: null,
+      items: [],
+      resolvedItems: [],
+      draftSet: null,
+      confirmedDrafts: [],
+      counts: {
+        files: {
+          total: 0,
+          processing: 0,
+          parsed: 0,
+          needs_review: 0,
+          unsupported: 0,
+          failed: 0,
+          original_only: 0,
+          attachment_only: 0,
+        },
+        events: { total: 0, awaiting_confirmation: 0, confirmed: 0 },
+        reviewItems: 0,
+      },
+      error: null,
     };
+    expect(materialBatchReceiptSchema.safeParse(receipt).success).toBe(true);
     expect(
       entryPayloadMatchesInput(
         'record_moment',

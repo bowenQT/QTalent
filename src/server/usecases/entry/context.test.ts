@@ -17,6 +17,7 @@ async function fixture() {
   const binding: CredentialBinding = {
     credentialId: 'demo-row',
     accountId: 'demo-hr-account',
+    personId: 'demo-hr',
     revision: 1,
     expiresAt: '2026-11-02T00:00:00.000Z',
     revokedAt: null,
@@ -112,6 +113,13 @@ describe('framework-free current entry context', () => {
       });
     },
   );
+  it('rejects a person rebound between identity verification and context loading', async () => {
+    const f = await fixture();
+    f.facts.account.personId = 'demo-rebound-person';
+    await expect(f.reader({}, f.identity)).rejects.toMatchObject({
+      kind: 'forbidden',
+    });
+  });
   it('rejects a revoked credential before loading private data', async () => {
     const f = await fixture();
     f.binding.revokedAt = instant;
