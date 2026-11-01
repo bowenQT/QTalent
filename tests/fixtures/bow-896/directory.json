@@ -1,0 +1,62 @@
+{
+  "demo": true,
+  "sourceCommit": "451ecec",
+  "sourcePath": "prototype/y/app/js/data{,-xe6}.js",
+  "scope": "identity-only subset; no source evaluations or biographies copied",
+  "people": [
+    {
+      "id": "p-suwan",
+      "name": "苏晚",
+      "displayName": "苏晚（演示）",
+      "demo": true
+    },
+    {
+      "id": "p-yeqing",
+      "name": "叶青",
+      "displayName": "叶青（演示）",
+      "demo": true
+    },
+    {
+      "id": "s-01",
+      "name": "任辞远",
+      "displayName": "任辞远（演示）",
+      "demo": true
+    },
+    {
+      "id": "p-x01",
+      "name": "苏少卿",
+      "displayName": "苏少卿（演示）",
+      "demo": true
+    },
+    {
+      "id": "p-x02",
+      "name": "余景行",
+      "displayName": "余景行（演示）",
+      "demo": true
+    },
+    {
+      "id": "p-x03",
+      "name": "谢怀瑾",
+      "displayName": "谢怀瑾（演示）",
+      "demo": true
+    },
+    {
+      "id": "p-x04",
+      "name": "陆晚晴",
+      "displayName": "陆晚晴（演示）",
+      "demo": true
+    },
+    {
+      "id": "p-x08",
+      "name": "谷嘉树",
+      "displayName": "谷嘉树（演示）",
+      "demo": true
+    },
+    {
+      "id": "p-x15",
+      "name": "周初晴",
+      "displayName": "周初晴（演示）",
+      "demo": true
+    }
+  ]
+}
