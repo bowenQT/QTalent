@@ -37,6 +37,7 @@ describe('845 bridge uses only the real job status and immutable result metadata
     const op = batchOperationFromJob(current, input, metadata(), null);
     expect(op).toMatchObject({
       phase: 'queued',
+      revision: current.revision,
       accountId: 'demo-account',
       batchId: 'demo-batch',
       operationId: 'demo-operation',
