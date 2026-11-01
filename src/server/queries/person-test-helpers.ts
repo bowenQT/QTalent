@@ -99,6 +99,16 @@ export function fixture(
       { id: 'grit', name: '坚毅力', axis: 'pot', core: true },
     ],
     confirmations: [],
+    cohorts: [{ id: 'cohort', name: 'Synthetic cohort' }],
+    employments: [
+      {
+        id: 'employment-one',
+        personId: 'one',
+        organizationId: 'org',
+        validFrom: '2025-01-01',
+        validTo: null,
+      },
+    ],
   };
   for (let i = 0; i < 2; i++) {
     const eventId = 'event-' + i;
