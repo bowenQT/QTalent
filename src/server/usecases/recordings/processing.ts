@@ -1,4 +1,5 @@
 import { offlineTranscriptInputSchema } from '../../../contracts/media';
+import { z } from 'zod';
 import { OfflineError } from '../../integrations/tingwu/offline';
 import {
   contextFailure,
@@ -19,10 +20,34 @@ import type { RecordingPorts, RecordingTransaction } from './ports';
 /** Independent orchestration only. Production ports/worker registration are intentionally required. */
 export function createRecordingProcessor(
   ports: RecordingPorts,
-  options: { maxPolls: number },
+  options: { maxPolls: number; claimLeaseMs: number },
 ) {
   if (!Number.isSafeInteger(options.maxPolls) || options.maxPolls < 1)
     throw new Error('invalid_poll_limit');
+  if (!Number.isSafeInteger(options.claimLeaseMs) || options.claimLeaseMs < 1)
+    throw new Error('invalid_claim_lease');
+  if (typeof ports.now !== 'function') throw new Error('invalid_claim_clock');
+  function executionTime() {
+    const value = ports.now();
+    if (!z.iso.datetime().safeParse(value).success)
+      throw new Error('invalid_claim_clock');
+    const now = Date.parse(value);
+    if (!Number.isSafeInteger(now)) throw new Error('invalid_claim_clock');
+    return now;
+  }
+  function expiresAt(now: number) {
+    const next = now + options.claimLeaseMs;
+    // Stored timestamps use the same four-digit UTC year format as now().
+    if (!Number.isSafeInteger(next) || next > 253402300799999)
+      throw new Error('invalid_claim_clock');
+    return new Date(next).toISOString();
+  }
+  function leaseExpiry(run: RecordingRun): number | null {
+    if (run.claimExpiresAt === null) return null;
+    if (!run.claim || !z.iso.datetime().safeParse(run.claimExpiresAt).success)
+      throw new Error('invalid_claim_lease');
+    return Date.parse(run.claimExpiresAt);
+  }
   return async function process(
     work: RecordingWork,
   ): Promise<'ignored' | 'handled'> {
@@ -38,10 +63,10 @@ export function createRecordingProcessor(
         return null;
       // A committed cancellation may fence an in-flight request. It does not cancel the cloud task.
       if (tx.context?.cancelRequested) {
-        await tx.saveRun({ ...run, phase: 'cancelled', claim: null });
+        await tx.saveRun({ ...run, phase: 'cancelled', claimExpiresAt: null });
         return null;
       }
-      if (run.claim || run.phase === 'failed') return null;
+      if (run.phase === 'failed') return null;
       if (work.action === 'resume') {
         const g = tx.context?.resumeGrant;
         if (
@@ -65,12 +90,25 @@ export function createRecordingProcessor(
         return null;
       const failure = contextFailure(run, tx.context);
       if (failure) {
-        await tx.saveRun({ ...run, phase: 'failed', failure, claim: null });
+        await tx.saveRun({
+          ...run,
+          phase: 'failed',
+          failure,
+          claimExpiresAt: null,
+        });
         return null;
       }
+      // Reuse the existing job/attempt and claim fence. At the exact deadline
+      // the old lease is inactive; a duplicate before it cannot take ownership.
+      const now = executionTime();
+      const expiry = leaseExpiry(run);
+      if (expiry !== null && now < expiry) return null;
+      if (!claim.trim() || claim === run.claim)
+        throw new Error('invalid_claim');
       const next = {
         ...run,
         claim,
+        claimExpiresAt: expiresAt(now),
         recordCollectionId: tx.context!.recordCollectionId,
         bindingRevision: tx.context!.bindingRevision,
       };
@@ -85,22 +123,49 @@ export function createRecordingProcessor(
     ): Promise<T | null> {
       return ports.transaction(work.recordingId, async (tx) => {
         const run = tx.run;
-        if (!run || !matchesWork(run, work) || run.claim !== claim) return null;
+        if (
+          !run ||
+          !matchesWork(run, work) ||
+          run.claim !== claim ||
+          run.claimExpiresAt === null
+        )
+          return null;
         if (tx.context?.cancelRequested) {
-          await tx.saveRun({ ...run, phase: 'cancelled', claim: null });
+          await tx.saveRun({
+            ...run,
+            phase: 'cancelled',
+            claimExpiresAt: null,
+          });
           return null;
         }
         const failure = contextFailure(run, tx.context);
         if (failure) {
-          await tx.saveRun({ ...run, phase: 'failed', failure, claim: null });
+          await tx.saveRun({
+            ...run,
+            phase: 'failed',
+            failure,
+            claimExpiresAt: null,
+          });
           return null;
         }
-        return action(tx, run);
+        const now = executionTime();
+        const expiry = leaseExpiry(run);
+        if (expiry === null || now >= expiry) return null;
+        // Renew only an unexpired owner. A returning old worker cannot renew
+        // itself after expiry or after a new owner has taken over.
+        const renewed = { ...run, claimExpiresAt: expiresAt(now) };
+        await tx.saveRun(renewed);
+        return action(tx, renewed);
       });
     }
     async function fail(failure: RecordingFailure) {
       await checkpoint(async (tx, run) => {
-        await tx.saveRun({ ...run, failure, phase: 'failed', claim: null });
+        await tx.saveRun({
+          ...run,
+          failure,
+          phase: 'failed',
+          claimExpiresAt: null,
+        });
         return true;
       });
     }
@@ -112,6 +177,7 @@ export function createRecordingProcessor(
         if (
           !run ||
           !matchesWork(run, work) ||
+          run.claim !== claim ||
           run.submission !== 'reserved' ||
           (run.providerTaskId !== null && run.providerTaskId !== providerTaskId)
         )
@@ -130,7 +196,11 @@ export function createRecordingProcessor(
         );
         await tx.replacePendingReview(pending);
         if (pending.length) {
-          await tx.saveRun({ ...run, phase: 'needs_review', claim: null });
+          await tx.saveRun({
+            ...run,
+            phase: 'needs_review',
+            claimExpiresAt: null,
+          });
         } else {
           const input = offlineTranscriptInputSchema.parse({
             kind: 'offline_transcript',
@@ -151,7 +221,7 @@ export function createRecordingProcessor(
             ...run,
             phase: 'shaping',
             shapingJobId: jobId,
-            claim: null,
+            claimExpiresAt: null,
           });
         }
         return true;
@@ -164,13 +234,13 @@ export function createRecordingProcessor(
             ...run,
             phase: 'failed',
             failure: 'poll_limit',
-            claim: null,
+            claimExpiresAt: null,
           });
         } else {
           const next = {
             ...run,
             phase: 'transcribing' as const,
-            claim: null,
+            claimExpiresAt: null,
             pollSequence: run.pollSequence + 1,
           };
           await tx.enqueuePoll({

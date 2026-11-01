@@ -21,6 +21,8 @@ import { createRecordingProcessor } from './processing';
 
 /** Deliberately in-memory: proves orchestration/port requirements, not PG isolation or live ASR. */
 function harness() {
+  let time = Date.parse('2026-11-01T00:00:00.000Z');
+  const claimLeaseMs = 1000;
   const run = initialRecordingRun({
     recordingId: 'demo-recording',
     jobId: 'demo-job',
@@ -143,6 +145,7 @@ function harness() {
     async () => structuredClone(transcript),
   );
   const ports: RecordingPorts = {
+    now: () => new Date(time).toISOString(),
     async transaction<T>(
       _id: string,
       fn: (tx: RecordingTransaction) => Promise<T>,
@@ -196,7 +199,8 @@ function harness() {
     attempt: 1,
     pollSequence: 0,
   };
-  const process = createRecordingProcessor(ports, { maxPolls: 2 });
+  const options = { maxPolls: 2, claimLeaseMs };
+  const process = createRecordingProcessor(ports, options);
   function resume(revision = 2) {
     const t = state.run!.transcript!;
     const grant = {
@@ -242,9 +246,353 @@ function harness() {
     queryOffline,
     getTranscript,
     prepareSource,
+    advance: (ms: number) => {
+      time += ms;
+    },
+    claimLeaseMs,
   };
 }
 describe('archived offline recording workflow', () => {
+  it('recovers an expired real claim before reservation and fences the previous owner', async () => {
+    const h = harness();
+    let release!: () => void;
+    let started!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    vi.mocked(h.ports.readValidatedUpload).mockImplementationOnce(async () => {
+      started();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return h.upload;
+    });
+    const previous = h.process(h.work);
+    await entered;
+    const oldClaim = h.state.run!.claim;
+    expect(oldClaim).not.toBeNull();
+    expect(h.state.run!.submission).toBe('not_started');
+    try {
+      h.advance(h.claimLeaseMs - 1);
+      expect(await h.process(h.work)).toBe('ignored');
+      expect(h.state.run!.claim).toBe(oldClaim);
+      h.advance(1);
+      expect(await h.process(h.work)).toBe('handled');
+      expect(h.state.run!.phase).toBe('shaping');
+      expect(h.state.run!.claim).not.toBe(oldClaim);
+    } finally {
+      release();
+      await previous;
+    }
+    expect(h.submitOffline).toHaveBeenCalledTimes(1);
+    expect(h.state.transcripts).toHaveLength(1);
+    expect(h.state.shaping).toHaveLength(1);
+  });
+
+  it.each(['receipt', 'unknown-error'] as const)(
+    'recovers a real expired reservation without resending or accepting a stale %s',
+    async (late) => {
+      const h = harness();
+      let release!: () => void;
+      let started!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      h.submitOffline.mockImplementationOnce(async (input) => {
+        started();
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        if (late === 'unknown-error')
+          throw new OfflineError('submission_unknown', false, 'demo-late-task');
+        return {
+          operationId: input.operationId,
+          providerTaskId: 'demo-late-task',
+          requestId: undefined,
+        };
+      });
+      const previous = h.process(h.work);
+      await entered;
+      expect(h.state.run!.claim).not.toBeNull();
+      expect(h.state.run!.submission).toBe('reserved');
+      let recovered: RecordingRun | null = null;
+      try {
+        h.advance(h.claimLeaseMs);
+        expect(await h.process(h.work)).toBe('handled');
+        expect(h.state.run).toMatchObject({
+          phase: 'failed',
+          failure: 'submission_unknown',
+          providerTaskId: null,
+        });
+        recovered = structuredClone(h.state.run);
+      } finally {
+        release();
+        await previous;
+      }
+      expect(h.state.run).toEqual(recovered);
+      expect(h.submitOffline).toHaveBeenCalledTimes(1);
+      expect(h.queryOffline).not.toHaveBeenCalled();
+      expect(h.state.transcripts).toEqual([]);
+      expect(h.state.shaping).toEqual([]);
+    },
+  );
+
+  it('recovers a known task after lease expiry and rejects a stale provider failure', async () => {
+    const h = harness();
+    let release!: () => void;
+    let started!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    h.queryOffline.mockImplementationOnce(async (providerTaskId) => {
+      started();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return { providerTaskId, requestId: undefined, status: 'failed' };
+    });
+    const previous = h.process(h.work);
+    await entered;
+    expect(h.state.run).toMatchObject({
+      phase: 'transcribing',
+      providerTaskId: 'demo-task',
+    });
+    expect(h.state.run!.claim).not.toBeNull();
+    let recovered: RecordingRun | null = null;
+    try {
+      h.advance(h.claimLeaseMs);
+      expect(await h.process(h.work)).toBe('handled');
+      expect(h.state.run!.phase).toBe('shaping');
+      recovered = structuredClone(h.state.run);
+    } finally {
+      release();
+      await previous;
+    }
+    expect(h.state.run).toEqual(recovered);
+    expect(h.submitOffline).toHaveBeenCalledTimes(1);
+    expect(h.queryOffline).toHaveBeenCalledTimes(2);
+    expect(h.state.transcripts).toHaveLength(1);
+    expect(h.state.shaping).toHaveLength(1);
+  });
+
+  it.each(['cancel', 'revoke'] as const)(
+    'honors a current %s before considering an active claim',
+    async (change) => {
+      const h = harness();
+      let release!: () => void;
+      let started!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      vi.mocked(h.ports.readValidatedUpload).mockImplementationOnce(
+        async () => {
+          started();
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          return h.upload;
+        },
+      );
+      const previous = h.process(h.work);
+      await entered;
+      try {
+        if (change === 'cancel') h.state.context!.cancelRequested = true;
+        else h.state.context!.canProcess = false;
+        await h.process(h.work);
+        expect(h.state.run).toMatchObject(
+          change === 'cancel'
+            ? { phase: 'cancelled' }
+            : { phase: 'failed', failure: 'forbidden' },
+        );
+      } finally {
+        release();
+        await previous;
+      }
+      expect(h.submitOffline).not.toHaveBeenCalled();
+      expect(h.state.transcripts).toEqual([]);
+    },
+  );
+
+  it('allows only one of simultaneous expired-claim redeliveries to submit', async () => {
+    const h = harness();
+    let release!: () => void;
+    let started!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    vi.mocked(h.ports.readValidatedUpload).mockImplementationOnce(async () => {
+      started();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return h.upload;
+    });
+    const previous = h.process(h.work);
+    await entered;
+    try {
+      h.advance(h.claimLeaseMs);
+      const results = await Promise.all([h.process(h.work), h.process(h.work)]);
+      expect(results.sort()).toEqual(['handled', 'ignored']);
+    } finally {
+      release();
+      await previous;
+    }
+    expect(h.submitOffline).toHaveBeenCalledTimes(1);
+    expect(h.state.transcripts).toHaveLength(1);
+    expect(h.state.shaping).toHaveLength(1);
+  });
+
+  it('does not let an expired owner reserve a submission even without a takeover', async () => {
+    const h = harness();
+    const source = await h.prepareSource();
+    h.prepareSource.mockClear();
+    h.prepareSource.mockImplementationOnce(async () => {
+      h.advance(h.claimLeaseMs);
+      return source;
+    });
+    await h.process(h.work);
+    expect(h.state.run!.submission).toBe('not_started');
+    expect(h.state.run!.claim).not.toBeNull();
+    expect(h.submitOffline).not.toHaveBeenCalled();
+    await h.process(h.work);
+    expect(h.state.run!.phase).toBe('shaping');
+    expect(h.submitOffline).toHaveBeenCalledTimes(1);
+  });
+
+  it('renews only a live owner at checkpoints across consecutive bounded IO calls', async () => {
+    const h = harness();
+    vi.mocked(h.ports.inspectAudio).mockImplementationOnce(async () => {
+      h.advance(900);
+      return h.media;
+    });
+    const source = await h.prepareSource();
+    h.prepareSource.mockClear();
+    h.prepareSource.mockImplementationOnce(async () => {
+      h.advance(200);
+      return source;
+    });
+    await h.process(h.work);
+    expect(h.state.run!.phase).toBe('shaping');
+    expect(h.state.run!.claimExpiresAt).toBeNull();
+    expect(h.submitOffline).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a late same-owner task receipt after expiry so recovery only queries it', async () => {
+    const h = harness();
+    h.submitOffline.mockImplementationOnce(async (input) => {
+      h.advance(h.claimLeaseMs);
+      return {
+        operationId: input.operationId,
+        providerTaskId: 'demo-task',
+        requestId: undefined,
+      };
+    });
+    await h.process(h.work);
+    expect(h.state.run).toMatchObject({
+      phase: 'transcribing',
+      providerTaskId: 'demo-task',
+      submission: 'reserved',
+    });
+    expect(h.queryOffline).not.toHaveBeenCalled();
+    await h.process(h.work);
+    expect(h.state.run!.phase).toBe('shaping');
+    expect(h.submitOffline).toHaveBeenCalledTimes(1);
+    expect(h.queryOffline).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers a committed transcript without re-querying or inserting another version', async () => {
+    const h = harness();
+    let release!: () => void;
+    let started!: () => void;
+    let pause = true;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const transaction = h.ports.transaction;
+    h.ports.transaction = async (id, callback) => {
+      // Suspend between committed transactions, not while holding a DB lock.
+      if (pause && h.state.run?.transcript) {
+        pause = false;
+        started();
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+      return transaction(id, callback);
+    };
+    const previous = h.process(h.work);
+    await entered;
+    const transcriptId = h.state.run!.transcript!.id;
+    try {
+      h.advance(h.claimLeaseMs);
+      expect(await h.process(h.work)).toBe('handled');
+      expect(h.state.run!.phase).toBe('shaping');
+      expect(h.state.run!.transcript!.id).toBe(transcriptId);
+    } finally {
+      release();
+      await previous;
+    }
+    expect(h.submitOffline).toHaveBeenCalledTimes(1);
+    expect(h.queryOffline).toHaveBeenCalledTimes(1);
+    expect(h.getTranscript).toHaveBeenCalledTimes(1);
+    expect(h.state.transcripts).toHaveLength(1);
+    expect(h.state.shaping).toHaveLength(1);
+  });
+
+  it.each([0, -1, 1.5, NaN, Infinity])(
+    'rejects an invalid lease duration %s without a default',
+    async (claimLeaseMs) => {
+      const h = harness();
+      expect(() =>
+        createRecordingProcessor(h.ports, { maxPolls: 2, claimLeaseMs }),
+      ).toThrow('invalid_claim_lease');
+    },
+  );
+
+  it.each(['', 'not-a-time', '2026', '2026-11-01T00:00:00+08:00'])(
+    'refuses an invalid execution clock %j before claiming or submitting',
+    async (now) => {
+      const h = harness();
+      h.ports.now = () => now;
+      await expect(h.process(h.work)).rejects.toThrow('invalid_claim_clock');
+      expect(h.state.run!.claim).toBeNull();
+      expect(h.ports.readValidatedUpload).not.toHaveBeenCalled();
+      expect(h.submitOffline).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['invalid', 'missing', 'orphan'] as const)(
+    'does not infer expiry from %s stored lease metadata',
+    async (kind) => {
+      const h = harness();
+      h.state.run!.claim = 'demo-crashed-owner';
+      h.state.run!.claimExpiresAt = 'invalid';
+      if (kind === 'missing')
+        delete (h.state.run as Partial<RecordingRun>).claimExpiresAt;
+      if (kind === 'orphan') {
+        h.state.run!.claim = null;
+        h.state.run!.claimExpiresAt = h.ports.now();
+      }
+      await expect(h.process(h.work)).rejects.toThrow('invalid_claim_lease');
+      expect(h.submitOffline).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects a reused claim identity and an unrepresentable lease deadline', async () => {
+    const reused = harness();
+    reused.state.run!.claim = 'demo-reused-owner';
+    reused.ports.allocateId = () => 'demo-reused-owner';
+    await expect(reused.process(reused.work)).rejects.toThrow('invalid_claim');
+    expect(reused.submitOffline).not.toHaveBeenCalled();
+    const overflow = harness();
+    const process = createRecordingProcessor(overflow.ports, {
+      maxPolls: 2,
+      claimLeaseMs: Number.MAX_SAFE_INTEGER,
+    });
+    await expect(process(overflow.work)).rejects.toThrow('invalid_claim_clock');
+    expect(overflow.submitOffline).not.toHaveBeenCalled();
+  });
+
   it('produces immutable timed fragments and only the canonical offline input for 845', async () => {
     const h = harness();
     expect(await h.process(h.work)).toBe('handled');
@@ -252,7 +600,7 @@ describe('archived offline recording workflow', () => {
       phase: 'shaping',
       providerTaskId: 'demo-task',
       shapingJobId: 'demo-shaping-job',
-      claim: null,
+      claimExpiresAt: null,
     });
     expect(h.submitOffline.mock.calls[0][0]).toMatchObject({
       sourceRef: 'demo-version',
@@ -404,6 +752,7 @@ describe('archived offline recording workflow', () => {
         attempt: 2,
         jobId: 'demo-job-2',
         claim: null,
+        claimExpiresAt: null,
         phase: 'queued',
         submission: 'not_started',
         bindingRevision: null,
@@ -451,7 +800,7 @@ describe('archived offline recording workflow', () => {
     expect(h.state.run).toMatchObject({
       phase: 'transcribing',
       pollSequence: 1,
-      claim: null,
+      claimExpiresAt: null,
     });
     expect(await h.process(h.work)).toBe('ignored');
     await h.process(h.state.polls[0]);
@@ -477,7 +826,7 @@ describe('archived offline recording workflow', () => {
     expect(h.state.polls).toHaveLength(2);
     expect(h.submitOffline).toHaveBeenCalledTimes(1);
   });
-  it('does not resubmit after an unknown submit result or a crash reservation', async () => {
+  it('does not resubmit after an unknown submit result', async () => {
     const h = harness();
     h.submitOffline.mockRejectedValueOnce(
       new OfflineError('submission_unknown'),
@@ -486,11 +835,6 @@ describe('archived offline recording workflow', () => {
     await h.process(h.work);
     expect(h.state.run?.failure).toBe('submission_unknown');
     expect(h.submitOffline).toHaveBeenCalledTimes(1);
-    const crashed = harness();
-    crashed.state.run!.submission = 'reserved';
-    await crashed.process(crashed.work);
-    expect(crashed.state.run?.failure).toBe('submission_unknown');
-    expect(crashed.submitOffline).not.toHaveBeenCalled();
   });
   it('keeps a known receipt from an uncertain submission and queries it instead of resubmitting', async () => {
     const h = harness();
@@ -569,7 +913,10 @@ describe('archived offline recording workflow', () => {
     h.pending();
     h.transcript.segments[0].speakerId = null;
     await h.process(h.work);
-    expect(h.state.run).toMatchObject({ phase: 'needs_review', claim: null });
+    expect(h.state.run).toMatchObject({
+      phase: 'needs_review',
+      claimExpiresAt: null,
+    });
     expect(h.state.review).toHaveLength(1);
     expect(h.state.shaping).toEqual([]);
     expect(h.state.transcripts[0].fragments[0].providerSpeakerId).toBeNull();
@@ -660,8 +1007,11 @@ describe('archived offline recording workflow', () => {
     }
     const h = harness();
     for (const maxPolls of [0, -1, 1.5, NaN])
-      expect(() => createRecordingProcessor(h.ports, { maxPolls })).toThrow(
-        'invalid_poll_limit',
-      );
+      expect(() =>
+        createRecordingProcessor(h.ports, {
+          maxPolls,
+          claimLeaseMs: h.claimLeaseMs,
+        }),
+      ).toThrow('invalid_poll_limit');
   });
 });

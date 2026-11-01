@@ -56,6 +56,7 @@ export function initialRecordingRun(input: {
     pollSequence: 0,
     phase: 'queued',
     claim: null,
+    claimExpiresAt: null,
     recordCollectionId: null,
     bindingRevision: null,
     submission: 'not_started',

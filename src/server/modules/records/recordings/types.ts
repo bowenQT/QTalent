@@ -94,7 +94,10 @@ export type RecordingRun = {
     | 'shaping'
     | 'failed'
     | 'cancelled';
+  /** Last execution's fencing identity; retained after release for task receipt checks. */
   claim: string | null;
+  /** Non-null only while this owner has a lease. UTC execution time, not demo/business time. */
+  claimExpiresAt: string | null;
   recordCollectionId: string | null;
   bindingRevision: number | null;
   submission: 'not_started' | 'reserved';
