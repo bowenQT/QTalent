@@ -125,7 +125,17 @@ async function writeEvidence(
   await insertChecked(tx, originals, records.originals);
   await insertChecked(tx, originalVersions, records.originalVersions);
   await insertChecked(tx, fragments, records.fragments);
-  const insertedEvents = await insertChecked(tx, events, records.events);
+  const insertedEvents = await insertChecked(
+    tx,
+    events,
+    records.events,
+    ['id'],
+    preserveNodeBindings && records.events.length
+      ? Object.keys(records.events[0]).filter(
+          (key) => key !== 'evaluationNodeId',
+        )
+      : undefined,
+  );
   await insertChecked(tx, eventParticipants, records.eventParticipants, [
     'eventId',
     'personId',
@@ -307,6 +317,34 @@ async function assertFormalReferences(
       .where(inArray(people.id, personIds));
     if (found.length !== personIds.length || found.some((p) => p.demo))
       throw new Error('Formal import requires existing non-demo identities');
+  }
+  // This trusted server importer validates the explicit node/subject identity.
+  // The calling use case still authorizes the actor before invoking it.
+  const nodeIds = [
+    ...new Set(
+      records.events.flatMap((row) =>
+        row.evaluationNodeId === null ? [] : [row.evaluationNodeId],
+      ),
+    ),
+  ];
+  if (nodeIds.length) {
+    const subjects = await tx
+      .select()
+      .from(evaluationNodeSubjects)
+      .where(inArray(evaluationNodeSubjects.evaluationNodeId, nodeIds));
+    const known = new Set(
+      subjects.map((row) => canonical([row.evaluationNodeId, row.personId])),
+    );
+    if (
+      records.events.some(
+        (row) =>
+          row.evaluationNodeId !== null &&
+          !known.has(canonical([row.evaluationNodeId, row.personId])),
+      )
+    )
+      throw new Error(
+        'Formal import requires existing evaluation node subjects',
+      );
   }
   const versions = [
     ...new Set([

@@ -28,6 +28,7 @@ export {
   EvaluationReassignmentError,
   evaluationReassignmentFingerprint,
   assignedEvaluationRelationIsCurrent,
+  assignedEvaluationHandlerIsCurrent,
   canWorkOnEvaluationItem,
   planEvaluationReassignment,
 } from './reassignment-policy';

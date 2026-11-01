@@ -317,3 +317,61 @@ it('requires a trusted native task anchor rather than a material receipt or UI p
         .success,
     ).toBe(false);
 });
+
+it.each(['unknown_interviewer', 'unknown_interview_candidate'] as const)(
+  'transfers %s after the assigned handler loses HR scope even while the exact node relation stays current',
+  (kind) => {
+    const base = evaluationContextFixture();
+    base.evaluationRelations[0].validTo = null;
+    const oldGrant: (typeof base.grants)[number] = {
+      ...base.grants[0],
+      accountId: 'demo-old-account',
+      revokedAt: base.now,
+    };
+    const context = {
+      ...base,
+      hrCandidateGrants: [
+        {
+          personId: 'demo-old-evaluator',
+          accountId: 'demo-old-account',
+          isSystemAdmin: false,
+          grant: oldGrant,
+        },
+        {
+          personId: 'demo-new-evaluator',
+          accountId: 'demo-new-account',
+          isSystemAdmin: false,
+          grant: { ...base.grants[0], accountId: 'demo-new-account' },
+        },
+      ],
+    };
+    const item = {
+      ...evaluationWorkFixture(),
+      kind,
+      state: 'processing' as const,
+    };
+    expect(assignedEvaluationRelationIsCurrent(context, item)).toBe(true);
+    expect(
+      canWorkOnEvaluationItem(
+        {
+          ...context,
+          account: {
+            id: 'demo-old-account',
+            personId: 'demo-old-evaluator',
+            isSystemAdmin: false,
+          },
+          grants: [oldGrant],
+        },
+        item,
+      ),
+    ).toBe(false);
+    expect(
+      planEvaluationReassignment(context, item, input, null).receipt
+        .assignedEvaluatorId,
+    ).toBe('demo-new-evaluator');
+    oldGrant.revokedAt = null;
+    expect(() =>
+      planEvaluationReassignment(context, item, input, null),
+    ).toThrow('状态已变化');
+  },
+);

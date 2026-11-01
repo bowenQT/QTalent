@@ -87,6 +87,7 @@ export const evidenceRecordsSchema = z.strictObject({
         id,
         personId: id,
         recorderId: id,
+        evaluationNodeId: id.regex(/\S/u).nullable().default(null),
         projectId: nullableId,
         occurredOn: z.iso.date(),
         title: text,

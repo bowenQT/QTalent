@@ -16,6 +16,7 @@ const ordinary = () => ({
   events: [
     {
       id: 'e',
+      evaluationNodeId: 'node',
       personId: 'p',
       recorderId: 'r',
       occurredOn: '2026-07-24',
@@ -49,6 +50,7 @@ it('parses the ordinary complete chain with formal defaults and an actual confir
   expect(parsed.events[0]).toMatchObject({
     demo: false,
     behavior: 'Synthetic behavior',
+    evaluationNodeId: 'node',
   });
   expect(parsed.confirmations[0]).toMatchObject({
     sourceCategory: 'original',
@@ -302,3 +304,21 @@ it('does not confuse different composite references when IDs contain colons', ()
   };
   expect(() => parseFormalEvidence(noLinkedScore)).toThrow(/complete/);
 });
+
+it.each(['', '  '])(
+  'rejects a blank explicit formal node (%s)',
+  (evaluationNodeId) => {
+    const input = ordinary();
+    Object.assign(input.events[0], { evaluationNodeId });
+    expect(() => parseFormalEvidence(input)).toThrow();
+  },
+);
+
+it.each([null, undefined])(
+  'keeps a legacy formal event node unknown when the server import has no node (%s)',
+  (evaluationNodeId) => {
+    const input = ordinary();
+    Object.assign(input.events[0], { evaluationNodeId });
+    expect(parseFormalEvidence(input).events[0].evaluationNodeId).toBeNull();
+  },
+);

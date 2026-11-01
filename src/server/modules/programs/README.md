@@ -20,7 +20,7 @@
 
 ## 待完成事项与 D13
 
-`evaluationWorkItems` 是待确认、待核对事项的分派归属。resourceId 指源模块的确认任务或待核对条目 ID，不是整个人或整个事件；同一来源任务重放保持稳定事项 ID。关系到期后，pending/processing 事项进入范围内 HR 的重新分派列表。候选仅为同节点、同主体的当前有效关系，关联目录已有人员；事项类型为 `confirmation` 及六类待核对：`speaker / unknown_person / image_scope / unknown_interviewer / unknown_project / unknown_interview_candidate`。两类面评核对（未知面试官、待认面评候选人）还须同时满足接手人的当前 HR 范围，候选读取、改派和完成各自检查；历史面评署名、关系标签都不授予当前权限。
+`evaluationWorkItems` 是待确认、待核对事项的分派归属。resourceId 指源模块的确认任务或待核对条目 ID，不是整个人或整个事件；同一来源任务重放保持稳定事项 ID。关系到期后，pending/processing 事项进入范围内 HR 的重新分派列表。未知面试官、未知面评候选人还要求处理人具有当前范围内 HR 资格；即使其节点关系仍有效，失去该资格后也进入同一分派列表。队列与提交共同使用 assignedEvaluationHandlerIsCurrent/既有候选策略，原处理人仍合格时拒绝转交，操作锁后重载事实避免撤权/恢复竞态。候选仅为同节点、同主体的当前有效关系，关联目录已有人员；事项类型为 `confirmation` 及六类待核对：`speaker / unknown_person / image_scope / unknown_interviewer / unknown_project / unknown_interview_candidate`。两类面评核对（未知面试官、待认面评候选人）还须同时满足接手人的当前 HR 范围，候选读取、改派和完成各自检查；历史面评署名、关系标签都不授予当前权限。
 
 - `insertEvaluationWorkItem(tx, input, now)`：源用例先做创建授权、解析可信的节点/主体/原归属关系，再在自己的事务中登记；本域严格校验非空稳定来源 ID 与登记字段，数据库再约束节点、主体及归属关系的一致性；业务键重复时返回当前记录，不重置改派结果、状态或 revision。
 - `canWorkOnEvaluationItem(context, item)`：源动作和 worker 写入前核对当前账号、绑定关系、节点及状态，不能仅凭页面中的人员 ID。
@@ -38,7 +38,7 @@ BOW-846、860、905、906 的源动作/任务需要按各自范围接入登记�
 
 ## 旧数据迁移计划
 
-`planLegacyEvaluationNodes` 只生成可审阅数据计划，不执行数据库写入。节点 ID 为 `cohort:<旧期次ID>`，关系 ID 为 `assignment:<旧分配ID>`，保留原有效期与撤权，不重算评分和快照。
+`planLegacyEvaluationNodes` 只生成可审阅数据计划，不执行数据库写入。节点 ID 为 `cohort:<旧期次ID>`，关系 ID 为 `assignment:<旧分配ID>`，保留原有效期与撤权，不重算评分和快照。0004切换后，评价授权以 evaluation_relations 为准；收回带教须撤销对应新关系（也可同时撤销旧 assignments），仅改旧表不会撤销新节点权限。旧表保留历史/种子来源，不作为运行时双向自动同步入口。
 
 明确 project cohort 的事件只绑定到该期次；无项目事件按发生日的既有成员/分配事实，仅在候选期次唯一时生成绑定计划。缺失项目、项目无期次、未知主体或多候选都显式列入 unresolved。不得用当前人员期次替代历史出处，或把未知当成低潜力。
 

@@ -947,3 +947,112 @@ it.each(['', '   '])(
     expect(await db().select().from(evaluationWorkItems)).toHaveLength(1);
   },
 );
+
+it.each(['unknown_interviewer', 'unknown_interview_candidate'] as const)(
+  'recovers %s work after lost HR qualification with the original node relation still valid',
+  async (kind) => {
+    await db()
+      .update(evaluationRelations)
+      .set({ validTo: null })
+      .where(eq(evaluationRelations.id, 'demo-old-relation'));
+    await db()
+      .update(evaluationWorkItems)
+      .set({ kind, state: 'processing' })
+      .where(eq(evaluationWorkItems.id, original.id));
+    await db()
+      .insert(grants)
+      .values([
+        {
+          id: 'demo-old-hr',
+          accountId: 'demo-old-account',
+          role: 'hr',
+          scope: 'cohort',
+          cohortId: 'demo-cohort',
+          validFrom: '2026-01-01',
+        },
+        {
+          id: 'demo-new-hr',
+          accountId: 'demo-new-account',
+          role: 'hr',
+          scope: 'cohort',
+          cohortId: 'demo-cohort',
+          validFrom: '2026-01-01',
+        },
+      ]);
+    const before = await loadEvaluationContext(db(), 'demo-old-account', now());
+    expect(canWorkOnEvaluationItem(before.context, await currentWork())).toBe(
+      true,
+    );
+    expect(
+      (await readEvaluationReassignments(db(), 'demo-hr-account', now())).items,
+    ).toEqual([]);
+    await db()
+      .update(grants)
+      .set({ revokedAt: '2026-10-31' })
+      .where(eq(grants.id, 'demo-old-hr'));
+    const lost = await loadEvaluationContext(db(), 'demo-old-account', now());
+    expect(canWorkOnEvaluationItem(lost.context, await currentWork())).toBe(
+      false,
+    );
+    const queue = await readEvaluationReassignments(
+      db(),
+      'demo-hr-account',
+      now(),
+    );
+    expect(queue.items).toHaveLength(1);
+    expect(queue.items[0].candidates.map((row) => row.relationId)).toEqual([
+      'demo-new-relation',
+    ]);
+    // A queued view must not transfer it after the old HR qualification recovers.
+    await db()
+      .update(grants)
+      .set({ revokedAt: null })
+      .where(eq(grants.id, 'demo-old-hr'));
+    expect(
+      (await readEvaluationReassignments(db(), 'demo-hr-account', now())).items,
+    ).toEqual([]);
+    await expect(
+      reassignEvaluationWork(db(), 'demo-hr-account', input, now),
+    ).rejects.toThrow('状态已变化');
+    await db()
+      .update(grants)
+      .set({ revokedAt: '2026-10-31' })
+      .where(eq(grants.id, 'demo-old-hr'));
+    const changed = await reassignEvaluationWork(
+      db(),
+      'demo-hr-account',
+      input,
+      now,
+    );
+    expect(changed).toHaveProperty(
+      'receipt.assignedEvaluatorId',
+      'demo-new-evaluator',
+    );
+    const next = await loadEvaluationContext(db(), 'demo-new-account', now());
+    expect(canWorkOnEvaluationItem(next.context, await currentWork())).toBe(
+      true,
+    );
+    await db().transaction((tx) =>
+      completeEvaluationWorkItem(
+        tx,
+        original.id,
+        2,
+        async (locked) =>
+          (await loadEvaluationContext(locked, 'demo-new-account', now()))
+            .context,
+      ),
+    );
+    expect(
+      await reassignEvaluationWork(db(), 'demo-hr-account', input, now),
+    ).toEqual({ replayed: true, receipt: changed.receipt });
+    expect(await db().select().from(auditEvents)).toHaveLength(1);
+    expect(
+      (
+        await db()
+          .select()
+          .from(evaluationRelations)
+          .where(eq(evaluationRelations.id, 'demo-old-relation'))
+      )[0].validTo,
+    ).toBeNull();
+  },
+);

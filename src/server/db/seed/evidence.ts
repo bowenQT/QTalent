@@ -327,6 +327,7 @@ export function mapEvidenceSeed(input: unknown): EvidenceSeed {
     if (!event.bg || event.act === undefined || event.res === undefined)
       throw new EvidenceMappingError(event.id, 'SBI');
     records.events.push({
+      evaluationNodeId: null,
       id: event.id,
       personId: event.people[0],
       recorderId: event.recorder,
