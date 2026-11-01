@@ -10,6 +10,7 @@ import {
   within,
 } from '@testing-library/react';
 import type {
+  HumanStaffingJudgmentInput,
   StaffingCandidate,
   StaffingDemand,
   StaffingDemandJobSnapshot,
@@ -175,7 +176,7 @@ function ports(overrides: Partial<StaffingPorts> = {}): StaffingPorts {
     readMatchingJob: vi.fn(async (): Promise<StaffingJobSnapshot> =>
       job('staffing_match', 'awaiting_manual', pageOf(confirmed)),
     ),
-    judge: vi.fn(async (input) => ({
+    judge: vi.fn(async (_runId: string, input: HumanStaffingJudgmentInput) => ({
       status: 'success' as const,
       demandId: input.demandId,
       personId: input.personId,
@@ -708,7 +709,7 @@ describe('candidates', () => {
     expect(confirmButton).toHaveProperty('disabled', false);
     fireEvent.click(confirmButton);
     await screen.findByText('演示审核人 · 09-04');
-    expect(p.judge).toHaveBeenCalledWith({
+    expect(p.judge).toHaveBeenCalledWith('staffing_match-job', {
       operationId: expect.any(String),
       demandId: confirmed.id,
       expectedRevision: confirmed.revision,
@@ -755,7 +756,8 @@ describe('candidates', () => {
     expect((await within(form).findByRole('alert')).textContent).toBe(
       '需求已变化，请保留输入并刷新',
     );
-    expect(judge.mock.calls[0][0]).toMatchObject({
+    expect(judge.mock.calls[0][0]).toBe('staffing_match-job');
+    expect(judge.mock.calls[0][1]).toMatchObject({
       conclusion: 'insufficient',
       sources: [],
     });
@@ -828,7 +830,23 @@ describe('candidates', () => {
       [{ openMatching: vi.fn(async () => null) }, '候选人核对待接通'],
       [
         { openMatching: vi.fn(async () => Promise.reject(new Error('x'))) },
-        '候选人核对待接通',
+        '候选人核对中断',
+      ],
+      [
+        {
+          openMatching: vi.fn(async () =>
+            Promise.reject(new JobReadError(403)),
+          ),
+        },
+        '这次核对在你的查看范围之外',
+      ],
+      [
+        {
+          openMatching: vi.fn(async () =>
+            Promise.reject(new JobReadError(409)),
+          ),
+        },
+        '候选人核对中断',
       ],
       [
         {
