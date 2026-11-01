@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
+import { MAX_UPLOAD_BYTES } from '../../../contracts/media';
 import {
   base64,
   keySchema,
@@ -13,24 +14,21 @@ import {
   type UploadGrant,
 } from './protocol';
 const PART_SIZE = 4 * 1024 * 1024;
+const MAX_PARTS = Math.ceil(MAX_UPLOAD_BYTES / PART_SIZE);
 const partSchema = z.object({
-  partNumber: z.number().int().min(1).max(256),
+  partNumber: z.number().int().min(1).max(MAX_PARTS),
   etag: z.string().min(1),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
-const checkpointSchema = z.object({
+export const multipartCheckpointSchema = z.object({
   bucket: z.string(),
   objectKey: keySchema,
   uploadId: z.string().min(1),
   expiresAt: z.number().int(),
-  byteLength: z
-    .number()
-    .int()
-    .positive()
-    .max(1024 * 1024 * 1024),
+  byteLength: z.number().int().positive().max(MAX_UPLOAD_BYTES),
   sha256: z.string(),
   contentType: mimeSchema,
-  parts: z.array(partSchema).max(256),
+  parts: z.array(partSchema).max(MAX_PARTS),
 });
 export type MultipartInput = {
   objectKey: string;
@@ -62,7 +60,7 @@ type Ports = {
   ) => Promise<ObjectReceipt>;
 };
 export function multipart(ports: Ports) {
-  function seal(value: z.infer<typeof checkpointSchema>) {
+  function seal(value: z.infer<typeof multipartCheckpointSchema>) {
     const payload = base64(JSON.stringify(value));
     return `${payload}.${sign(ports.secret, `kodo-resume-v1:${payload}`)}`;
   }
@@ -78,7 +76,7 @@ export function multipart(ports: Ports) {
     )
       throw new KodoError('invalid_resume');
     try {
-      return checkpointSchema.parse(
+      return multipartCheckpointSchema.parse(
         JSON.parse(Buffer.from(payload, 'base64').toString()),
       );
     } catch {
@@ -94,7 +92,7 @@ export function multipart(ports: Ports) {
         objectKey: keySchema,
         bytes: z
           .instanceof(Uint8Array)
-          .refine((b) => b.length > 0 && b.length <= 1024 * 1024 * 1024),
+          .refine((b) => b.length > 0 && b.length <= MAX_UPLOAD_BYTES),
         contentType: mimeSchema,
       }),
       input,
@@ -174,13 +172,17 @@ export function multipart(ports: Ports) {
         uploadId: z.string(),
         expireAt: z.number().int(),
         partNumberMarker: z.literal(0),
-        parts: z.array(
-          z.object({
-            partNumber: z.number().int().positive(),
-            etag: z.string().min(1),
-            size: z.number().int().positive(),
-          }),
-        ),
+        // Kodo serializes an empty result as null before the first part.
+        parts: z
+          .array(
+            z.object({
+              partNumber: z.number().int().positive(),
+              etag: z.string().min(1),
+              size: z.number().int().positive(),
+            }),
+          )
+          .nullable()
+          .transform((parts) => parts ?? []),
       })
       .safeParse(await ports.json(response));
     if (

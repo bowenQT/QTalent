@@ -6,10 +6,6 @@ import {
 } from './sources';
 
 const text = z.string().trim().min(1);
-// Original wording and quotes retain their exact bytes for provenance/offsets.
-const verbatimText = z.string().refine((value) => value.trim().length > 0, {
-  message: '不能为空白',
-});
 const revision = z.number().int().positive();
 export const recordValueSchema = z.number().int().min(1).max(5);
 export const recordAnchorSchema = z.strictObject({
@@ -21,14 +17,14 @@ export const recordCitationSchema = z.discriminatedUnion('kind', [
   z
     .strictObject({
       kind: z.literal('input'),
-      quote: verbatimText,
+      quote: text,
       start: z.number().int().nonnegative(),
       end: z.number().int().positive(),
     })
     .refine((x) => x.end > x.start),
   z.strictObject({
     kind: z.literal('source'),
-    quote: verbatimText,
+    quote: text,
     reference: sourceReferenceSchema,
   }),
 ]);
@@ -67,7 +63,7 @@ export const recordSbiSchema = z.strictObject({
 });
 export const recordInputSchema = z.strictObject({
   operation_id: text,
-  text: verbatimText,
+  text,
   attachmentIds: z.array(text),
   personId: text.nullable(),
   projectId: text.nullable(),
@@ -273,6 +269,8 @@ export const recordBatchDraftSchema = z
     revision,
     origin: z.literal('ai_suggestion'),
     personIds: batchIds.min(1),
+    // Explicit per-event topic lookup; null is resolved no-topic, never a grant.
+    projectId: text.nullable(),
     sourceReferences: z
       .array(materialSourceReferenceSchema)
       .min(1)
