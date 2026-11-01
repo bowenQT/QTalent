@@ -29,7 +29,11 @@ import { accountBindings, grants, people } from '../modules/directory';
 import { projects } from '../modules/staffing';
 import { jobSnapshots } from '../jobs/schema';
 import { recordArrangeQueue } from '../jobs/record-arrange';
-import { createModelinkMaasClient, MODELINK_MODEL } from '../integrations/maas';
+import { MODELINK_MODEL } from '../integrations/maas';
+import {
+  createRecordArrangeModelClient,
+  createRecordArrangeWorker,
+} from './record-arrange-worker';
 import {
   modelBatchSchema,
   BATCH_PROMPT_VERSION,
@@ -779,14 +783,13 @@ it('composes the actual Modelink factory and JSON protocol with native persisten
   const h = await setup();
   let sends = 0;
   let jsonBytes = 0;
-  const client = createModelinkMaasClient(
+  const app = createRecordArrangeWorker(
     {
-      apiKey: 'synthetic-offline-845-key',
-      maxAttempts: 1,
-      attemptTimeoutMs: 30000,
-      totalTimeoutMs: 45000,
-      maxTokens: 8192,
-      maxResponseBytes: 1048576,
+      db: connection.db,
+      boss,
+      environment: { MODELINK_API_KEY: 'synthetic-offline-845-key' },
+      businessNow: () => businessAt,
+      now: () => new Date(wallAt),
     },
     {
       fetch: async (_url, init) => {
@@ -824,18 +827,13 @@ it('composes the actual Modelink factory and JSON protocol with native persisten
       },
     },
   );
-  const app = createRecordArrangeApplication({
-    db: connection.db,
-    boss,
-    client,
-    businessNow: () => businessAt,
-    now: () => new Date(wallAt),
-  });
   const created = await submitted({ ...h, app });
   expect(await app.runner.run(created.jobId, 1)).toBe('awaiting_manual');
   expect(sends).toBe(1);
   expect(jsonBytes).toBeGreaterThan(Buffer.byteLength(h.text));
   expect(jsonBytes).toBeLessThan(262144);
+  // Size only: never print text, request headers or the JSON body.
+  console.info('BOW-845 synthetic native request JSON bytes:', jsonBytes);
   expect(
     await connection.db
       .select()
@@ -846,8 +844,8 @@ it('composes the actual Modelink factory and JSON protocol with native persisten
 it('a real transport outcome_unknown is terminal and cannot be replayed as a no-send retry', async () => {
   const h = await setup();
   let sends = 0;
-  const client = createModelinkMaasClient(
-    { apiKey: 'synthetic-offline-845-key', maxAttempts: 1 },
+  const client = createRecordArrangeModelClient(
+    { MODELINK_API_KEY: 'synthetic-offline-845-key' },
     {
       fetch: async () => {
         sends++;
@@ -885,8 +883,42 @@ it('registers the actual pg-boss consumer and reaches native awaiting_manual wit
   // tests. The last case then proves one fresh actual delivery, not a mock send.
   await boss.deleteQueuedJobs(recordArrangeQueue);
   const h = await setup();
-  const created = await submitted(h);
-  await h.app.register();
+  const worker = createRecordArrangeWorker(
+    {
+      db: connection.db,
+      boss,
+      environment: { MODELINK_API_KEY: 'synthetic-offline-845-key' },
+      businessNow: () => businessAt,
+      now: () => new Date(wallAt),
+    },
+    {
+      fetch: async (_url, init) => {
+        const wire = JSON.parse(String(init?.body));
+        const response = await h.client.generateStructured({
+          messages: wire.messages,
+          schema: modelBatchSchema,
+          promptVersion: BATCH_PROMPT_VERSION,
+        });
+        if (!response.ok) throw new Error('synthetic local model failed');
+        return new Response(
+          JSON.stringify({
+            model: MODELINK_MODEL,
+            choices: [
+              {
+                finish_reason: 'stop',
+                message: {
+                  role: 'assistant',
+                  content: JSON.stringify(response.value),
+                },
+              },
+            ],
+          }),
+        );
+      },
+    },
+  );
+  const created = await submitted({ ...h, app: worker });
+  await worker.register();
   const deadline = Date.now() + 15000;
   while (
     Date.now() < deadline &&

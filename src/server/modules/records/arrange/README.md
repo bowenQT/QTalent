@@ -73,48 +73,44 @@
 
 本片只用846初次insert API。原生版本CAS尚未提供时，不把再次insert当修改；批次修订仍不可用。源码中修订算法的离线测试不等于生产修订已接。
 
-共享worker的最小组合如下，仍由X1注册，作者不改共享入口：
+共享worker的唯一生产组合入口为本卡 `createRecordArrangeWorker`（`usecases/record-arrange-worker.ts`）。它复用实际Modelink客户端，固定 maxAttempts=1、单次30秒/总45秒、8192输出token和1MiB响应预算；只使用传入的三个Modelink字段，既不读凭证文件，也不创建另一套boss/数据库池。缺失凭证或不支持的endpoint/model在请求发送前失败。X1共享入口最小注册如下：
 
 ```ts
-const client = createModelinkMaasClient({
-  apiKey: trustedEnvironment.MODELINK_API_KEY,
-  maxAttempts: 1,
-  attemptTimeoutMs: 30000,
-  totalTimeoutMs: 45000,
-  maxTokens: 8192,
-  maxResponseBytes: 1048576,
-});
-const app = createRecordArrangeApplication({
-  db,
-  boss,
-  client,
+await createRecordArrangeWorker({
+  db: getDatabase(),
+  boss, // startWorker已有的同一个实例
+  environment: {
+    MODELINK_API_KEY: env.MODELINK_API_KEY,
+    MODELINK_BASE_URL: env.MODELINK_BASE_URL,
+    MODELINK_MODEL: env.MODELINK_MODEL,
+  },
   businessNow: () => clock.now().toISOString(),
   now: () => new Date(),
-});
-await app.register();
-// app.policy注册到842；请求侧仍复用852唯一lazy producer。
+}).register();
 ```
 
-这里是接线说明，不表示共享注册、生产密钥加载或worker部署已验证。测试使用实际factory配合本地合成HTTP替身；该方式只证明客户端/业务组合，不算真实供应商调用。
+当前共享 `src/worker/index.ts` 尚未注册以上调用，由X1独占写入。现有842控制服务在本卡requests里直接使用实际native policy；请求侧复用852唯一lazy producer。共享worker沿原有stop路径收尾，无需新增启动服务。实际factory与本地合成HTTP组合测试仅证明客户端/业务/PG组合，不算真实供应商调用。
 
 ## 本轮验证与剩余范围
 
-工作树定向离线 `pnpm exec vitest run … --maxWorkers=2`：12文件263项通过，范围含batch/source/引用/修订算法、旧整理回归、最终897空白规范、真实节点写权与原生job状态映射。8条旧空白预期先实际Red，再保留案例并按最终合同修正；无源码恢复旧contract。私有lint/格式及架构边界通过。当前独立树类型仍有9项固定846未接/连带诊断（实际source projection与公开writer/账本出口缺失）；没有称全类型通过，组合接回后仍需重新完整检查。精确提交和后续新组合结果以PR证据为准，当前不能把WIP测试归给远端旧head。
+原生作者检查点b000的12文件263项离线通过；8条旧空白预期先实际Red，再保留案例并按最终合同修正。X1组合 **d44b4f01e07eab01550e0d7bff8c82c7586c6842** 普通合入b000、846固定cb98cd2和main71f8d9，已由X1实跑typecheck零错误及原生requests **26/26 PG通过**（#248/6560272701），解除旧9项缺846依赖的类型诊断。该证据属于此固定组合，不覆盖846活动R2或全仓门禁。
 
-`record-arrange-requests.integration.test.ts` 新增原生入口、真实pg-boss事务/消费、实际846写入、当前撤权/改绑/跨节点graph、取消、输入与source篡改、并发幂等和真实唯一键回滚测试。测试只使用官方/由X1生成的受控临时迁移，缺表硬失败，不skip、不手写DDL或fake数据库。测试库只从指定test-db.env向子进程白名单注入TEST_DATABASE_URL；不用vendors.env，不打印连接信息。当前仍等待X1给出不冲突的846固定组合和临时迁移，**尚未执行这些PG测试**。
+本轮B1只格式化native.ts；新增私有worker工厂的7项定向离线测试通过，证明固定协议/预算、构造不发送、缺配置拒绝、发送前失败不自动重试、30秒超时outcome_unknown和响应体上限。受影响的原生PG测试改为实际消费这个工厂，并仅记录合成请求JSON字节数，精确提交和最新实跑结果见PR记录；此前d44测试不能直接称为新增接线通过。
 
-| 本PR代码依赖                     | 当前实际边界                                                                                              |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| 最终897、899、922、842、843、852 | 已消费实际合同/公共API；最新main普通同步与全仓检查仍须实际验证                                            |
-| 846固定cb98cd2                   | 真实store、草稿/保存表与当前source projection；待X1共享出口组合与846最终main，不能以旧1f733d4组件输入代替 |
-| X1四事实schema/出口50fe3bff      | 已普通接回；最终迁移顺序846→845→873，临时迁移仅隔离验证                                                   |
+`record-arrange-requests.integration.test.ts` 覆盖真实pg-boss事务/消费、实际846初次写入、当前撤权/改绑/跨节点graph、取消、输入与source篡改、并发幂等和真实唯一键回滚。测试仅用正式迁移加X1由schema原生生成的受控临时目录，缺表硬失败，不skip、不手写DDL或fake数据库。测试库只从test-db.env向子进程白名单注入TEST_DATABASE_URL；不用vendors.env，不打印连接信息。临时目录通过QTALENT_845_TEST_MIGRATIONS显式传入，不改变正式CI迁移或冒称最终0009。
+
+| 本PR代码依赖                     | 当前实际边界                                                                                             |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 最终897、899、922、842、843、852 | 已消费实际合同/公共API；最新main普通同步与全仓检查仍须实际验证                                           |
+| 846固定cb98cd2                   | 真实store、草稿/保存表与当前source projection；已接X1组合d44；仍待846最终R2/main，不能以固定cb98结果替代 |
+| X1四事实schema/出口50fe3bff      | 已普通接回；最终迁移顺序846→845→873，临时迁移仅隔离验证                                                  |
 
 | 卡片剩余范围依赖                               | 明确未完成                                                                                                                                                                           |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 846人工保存与新文本来源selector                | cb98只从正式event/history构建来源主体；确认前新文本没有event。须由846/X1读取并验证真实845 intake sourceContexts，不能插假event或只用draft.personIds反推完整主体。详见#248/6559264101 |
 | 846批次修订CAS                                 | 需校验预期批次/草稿revision、稳定身份与人工保存栅栏，同事务替换；insert-only不支持                                                                                                   |
 | 905核对/撤销与873/859/866实际取得              | 未决来源保持待核对/不可用；不伪造resolved、材料成员、说话人、时长或来源事实                                                                                                          |
-| X1共享worker/registry与迁移                    | 作者提供实际工厂，但共享生产注册、最终迁移/整合main尚未验                                                                                                                            |
+| X1共享worker/registry与迁移                    | 作者提供固定预算实际worker工厂；共享生产注册、最终迁移/整合main尚未验                                                                                                                |
 | 生产身份、人工确认、浏览器与实际供应商业务联验 | 原生PG组合、Node组件、纯回归、供应商请求分别记录，不冒生产E2E                                                                                                                        |
 
 两次真实模型尝试记录与排他标记保持。当前窗口零真实请求。下一次最小成功验收建议：先在已通过原生PG/固定实际factory组合上，仅用一份已经明确授权的化名文本，冻结业务日期与真实rubric、计算单次JSON字节，maxAttempts=1和上述30秒/45秒/8192token/1MiB配置；事先明确只检验请求→返回→本卡逐字引用/归属/双版本→隔离AI草稿，不执行人工确认或生产写入。实际请求规模和准入条件在PG稳定后另交父，不自动重发前次outcome_unknown。

@@ -70,14 +70,12 @@ export async function nativeDatabase() {
   }
 }
 export async function seedNativeRules(db: Database) {
-  await db
-    .insert(dimensions)
-    .values({
-      id: 'native-prof',
-      name: '演示专业度',
-      axis: 'prof',
-      core: true,
-    });
+  await db.insert(dimensions).values({
+    id: 'native-prof',
+    name: '演示专业度',
+    axis: 'prof',
+    core: true,
+  });
   await db.insert(ruleVersions).values([
     { id: 'rubric-v1', provenance: 'published' },
     { id: 'rubric-v2', provenance: 'published' },
@@ -159,25 +157,21 @@ export async function seedNativeCase(db: Database) {
     { accountId: outsiderAccount, personId: other, isSystemAdmin: false },
   ]);
   await db.insert(cohorts).values({ id: cohort, name: '演示期次' });
-  await db
-    .insert(enrollments)
-    .values({
-      id: prefix + '-enrollment',
-      personId: target,
-      cohortId: cohort,
-      confirmed: true,
-      validFrom: '2026-01-01',
-    });
-  await db
-    .insert(grants)
-    .values({
-      id: prefix + '-mentor',
-      accountId: account,
-      role: 'mentor',
-      scope: 'cohort',
-      cohortId: cohort,
-      validFrom: '2026-01-01',
-    });
+  await db.insert(enrollments).values({
+    id: prefix + '-enrollment',
+    personId: target,
+    cohortId: cohort,
+    confirmed: true,
+    validFrom: '2026-01-01',
+  });
+  await db.insert(grants).values({
+    id: prefix + '-mentor',
+    accountId: account,
+    role: 'mentor',
+    scope: 'cohort',
+    cohortId: cohort,
+    validFrom: '2026-01-01',
+  });
   await db.insert(evaluationNodes).values([
     {
       id: node,
@@ -192,16 +186,14 @@ export async function seedNativeCase(db: Database) {
     { evaluationNodeId: otherNode, personId: other },
   ]);
   const relation = prefix + '-relation';
-  await db
-    .insert(evaluationRelations)
-    .values({
-      id: relation,
-      evaluationNodeId: node,
-      personId: target,
-      evaluatorId: evaluator,
-      kind: 'evaluator',
-      validFrom: '2026-01-01T00:00:00Z',
-    });
+  await db.insert(evaluationRelations).values({
+    id: relation,
+    evaluationNodeId: node,
+    personId: target,
+    evaluatorId: evaluator,
+    kind: 'evaluator',
+    validFrom: '2026-01-01T00:00:00Z',
+  });
   const text =
     '  ' +
     targetName +
