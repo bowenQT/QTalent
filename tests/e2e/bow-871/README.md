@@ -2,7 +2,19 @@
 
 本目录提供冻结契约检查及实际组件回归；完整八条合同、越权矩阵和决赛运行链仍按下表验收。缺陷回到业务卡，不在这里修改业务实现、共享配置或公共夹具。
 
-## 本轮固定输入
+## 原生运行链续作（#261 合入后）
+
+新增 `native-pipeline.integration.test.ts`，从 main `fe34b6faffcfb2832a1be266a155f0d7d19d69cc` 起跑。复用仓库正式迁移、既有化名目录/规则种子、真实文本 producer 与 pg-boss 注册消费者，再调用实际保存/撤销事务。没有预置成功草稿、人工 event 或确认来替代主流程。仅 Modelink HTTP 响应为显式离线合成替身，实际请求/响应校验、引用与锚点校验仍执行。
+
+第一轮纯 main 实测6项4过2败：持久队列跨新消费者/新数据库池重建、真实重复投递不重复模型、执行前换绑/撤权/恰到期通过；完整首份草稿保存报 `complete_sources_required`，属于 #316 固定 `e152e8543ed62d115fd9a13ae1d5bcd8f96aed0b` 的未合生产前置。另一负例只伪造评分引用时可合法降为unknown，现改为伪造事件证据；不把合法降级当任务必败。后续新增用例与固定组合的实际结果在新 PR 逐头记录，不沿用首轮计数。
+
+运行方式：`pnpm exec vitest run --config vitest.integration.config.ts tests/e2e/bow-871/native-pipeline.integration.test.ts --maxWorkers=2`。只 source `~/.config/niu-talent/test-db.env`，隔离 loopback `_test` 数据库，每次重测先取共享heavy槽并立即释放；worker与额外数据库池在finally/afterEach关闭。没有供应商外发、浏览器、生产写入或凭据日志。
+
+共享 runner 请求 #248/6563147400：默认 unit 的 exclude 必须扩为 `**/*.integration.test.ts`，integration 保持 exclude:[]。由X1唯一修改；本卡不改测试配置。代码前置尚未齐备，不凭定向组合通过转Ready。
+
+当前只覆盖文本链的真实持久化/当前目录身份与节点权限、队列生命周期和人工确认事务，不覆盖 HTTP Cookie/登录、第三幕发布、媒体/canonical生产访问、WeCom/MCP、浏览器HR改派或供应商真实结果；没有skip/todo来代表未完成场景。#317首份撤销再存/新回执版本尚未main，暂不计入本片覆盖。八合同/新增链路矩阵仍是整卡剩余责任，不关闭BOW-871。
+
+## 已合 #261 的固定输入与历史组件基线
 
 - 工具沿原PR261追加，普通同步main `1bfae6e88d9ed344595aac8f4941b7e5ceb05438`，未解决或覆盖共享冲突。
 - 897最终冻结：`e4462114690191fb9cbcd403f6fb0090bd3cfddb`，已合入main42056e0；真实schema和合成夹具由该独立只读树加载。
