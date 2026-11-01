@@ -74,6 +74,7 @@ const input = createValidatedAttachmentInput<Transaction>({
 `createAttachmentParsePolicy(policyPorts)` 使用 `kind:'media'`，消费 PR112 的严格结果 schema。父应将其方法与859按可信 purpose 分派，最终只注册一份 media policy，不能并列注册两个同 kind。
 
 - `policyPorts.can(tx, requesterAccountId, job, action)` 每次按当前请求者和具体 read/retry/resume/cancel 授权，核 attachment purpose/绑定；不能把上传者身份当查看者。未知或未分类范围拒绝。parse 不支持 resume；unsupported/无效内容等不显示可重试。
+- 依所有者 #248/6558974554 裁决，failed 解析任务不接受新的 cancel：公共 jobs service 经此 policy 返回 `canCancel:false`，取消命令被拒且不写 cancelRequestedAt / 操作回执或入队；可恢复失败仍可按当前权限与 inputVersion 栅栏 retry。unsupported 等不可恢复失败不因此开放 retry。queued/running 的取消与已取消终态、既有已接受操作的重放语义不变。此处不修复或猜测历史异常数据，真实应用未接链路仍按下节说明。
 - `visibleSources(tx, requesterAccountId, job)` 复用837/873已分类来源读取，仅返回当前可见的真实引用；必须是任务持久 fragmentIds 与 originalVersionId 的子集。公开 source 取可见列表首项，计数在过滤后计算，隐藏/未分类片段不泄露。
 - `inputVersion` 重载当前输入；`enqueue` 在传入 tx 上用852唯一 producer 原子排 retry/cancel，不能另开连接或创建 singleton。
 - 873 dispatch 在其归档事务内先建立 `newJob({kind:'media',resourceId:uploadId,inputVersion:originalVersionId,...})`，再通过同事务 pg-boss send 到 `attachment-parse`。该绑定应唯一；解析 worker 按873完成事实再次验证 completed.jobId。

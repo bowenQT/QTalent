@@ -20,6 +20,7 @@ export function createAttachmentParsePolicy<C>(
         !(await ports.can(context, requesterAccountId, job, action))
       )
         return false;
+      if (action === 'cancel' && job.status === 'failed') return false;
       if (action === 'resume') return false;
       if (action === 'retry') {
         const result = attachmentJobResultSchema.safeParse(job.result);

@@ -286,3 +286,157 @@ it('replays accepted attachment retries after the result is cleared and complete
   expect(current).toBe(settled);
   expect(ports.enqueue).toHaveBeenCalledTimes(1);
 });
+
+describe('owner ruling: failed attachment jobs can retry but cannot cancel', () => {
+  function publicService(
+    status: 'failed' | 'queued' | 'running' | 'cancelled',
+  ) {
+    const f = fixture();
+    let current: typeof f.job = { ...f.job, status };
+    current.result = {
+      stage: status === 'failed' ? 'failed' : 'parsing',
+      mediaId: 'media',
+      source: null,
+      fragmentIds: [],
+      ...(status === 'failed' ? { failureReason: 'processing_failed' } : {}),
+    };
+    const save = vi.fn(async (next: typeof current) => {
+      current = next;
+    });
+    const saveOperation = vi.fn(async () => {});
+    const store: JobStore<object> = {
+      locked: async (_id, run) =>
+        run({
+          context: {},
+          get record() {
+            return current;
+          },
+          save,
+          operation: async () => null,
+          saveOperation,
+        }),
+    };
+    return {
+      ...f,
+      service: createJobService(store, [f.policy], () => f.job.updatedAt),
+      current: () => current,
+      save,
+      saveOperation,
+    };
+  }
+  it('public capability hides cancel; rejected cancel leaves no pending flag or operation, and retry remains usable', async () => {
+    const f = publicService('failed');
+    expect.soft(await f.service.read('viewer', 'job')).toMatchObject({
+      status: 'success',
+      snapshot: {
+        status: 'failed',
+        canCancel: false,
+        canRetry: true,
+        cancelRequestedAt: null,
+      },
+    });
+    const before = structuredClone(f.current());
+    expect
+      .soft(
+        await f.service.command('viewer', {
+          jobId: 'job',
+          action: 'cancel',
+          expectedRevision: 1,
+          operationId: 'cancel-failed',
+        }),
+      )
+      .toEqual({ status: 'forbidden' });
+    expect.soft(f.current()).toEqual(before);
+    expect.soft(f.save).not.toHaveBeenCalled();
+    expect.soft(f.saveOperation).not.toHaveBeenCalled();
+    expect.soft(f.ports.enqueue).not.toHaveBeenCalled();
+    expect
+      .soft(
+        await f.service.command('viewer', {
+          jobId: 'job',
+          action: 'retry',
+          expectedRevision: 1,
+          operationId: 'retry-failed',
+        }),
+      )
+      .toMatchObject({
+        status: 'success',
+        snapshot: { status: 'queued', attempt: 2, cancelRequestedAt: null },
+      });
+    expect.soft(f.ports.enqueue).toHaveBeenCalledTimes(1);
+    expect
+      .soft(f.ports.enqueue)
+      .toHaveBeenLastCalledWith(
+        {},
+        expect.objectContaining({ status: 'queued', attempt: 2 }),
+        'retry',
+      );
+  });
+  it('also rejects cancel for unsupported failures without enabling an invalid retry', async () => {
+    const f = publicService('failed');
+    f.current().result = {
+      stage: 'unsupported',
+      mediaId: 'media',
+      source: null,
+      fragmentIds: [],
+      failureReason: 'format',
+    };
+    expect(await f.service.read('viewer', 'job')).toMatchObject({
+      status: 'success',
+      snapshot: { canCancel: false, canRetry: false },
+    });
+    expect(
+      await f.service.command('viewer', {
+        jobId: 'job',
+        action: 'cancel',
+        expectedRevision: 1,
+        operationId: 'cancel-unsupported',
+      }),
+    ).toEqual({ status: 'forbidden' });
+    expect(f.save).not.toHaveBeenCalled();
+  });
+  it.each(['queued', 'running'] as const)(
+    'preserves %s cancellation and current control permission checks',
+    async (status) => {
+      const f = publicService(status);
+      expect(await f.service.read('viewer', 'job')).toMatchObject({
+        status: 'success',
+        snapshot: { canCancel: true },
+      });
+      vi.mocked(f.ports.can).mockImplementation(
+        async (_tx, _account, _job, action) => action === 'read',
+      );
+      expect(
+        await f.service.command('viewer', {
+          jobId: 'job',
+          action: 'cancel',
+          expectedRevision: 1,
+          operationId: 'denied',
+        }),
+      ).toEqual({ status: 'forbidden' });
+      vi.mocked(f.ports.can).mockResolvedValue(true);
+      expect(
+        await f.service.command('viewer', {
+          jobId: 'job',
+          action: 'cancel',
+          expectedRevision: 1,
+          operationId: 'accepted',
+        }),
+      ).toMatchObject({
+        status: 'success',
+        snapshot: {
+          status,
+          canCancel: false,
+          cancelRequestedAt: f.job.updatedAt,
+        },
+      });
+    },
+  );
+  it('keeps an already cancelled task terminal and without retry capability', async () => {
+    const f = publicService('cancelled');
+    expect(await f.service.read('viewer', 'job')).toMatchObject({
+      status: 'success',
+      snapshot: { status: 'cancelled', canCancel: false, canRetry: false },
+    });
+  });
+});
