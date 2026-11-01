@@ -97,6 +97,6 @@ manifest、候选清单、期望值仅作断言，不补输入事实/岗位/授�
 
 ## 执行与收集边界
 
-Node24与各树锁定依赖；定向普通单测使用`pnpm exec vitest run tests/e2e/bow-871 --maxWorkers=2`，格式/lint/类型按工程规范执行。Vitest收集`.test.ts`，Playwright收集`.spec.ts`；本目录尚无实际浏览器入口，不建立空spec或skip。默认单测不会安全排除本目录的.integration.test.ts，新增真实PG回归收集须先交X1明确配置窗口。
+Node24与各树锁定依赖；定向普通单测使用`pnpm exec vitest run tests/e2e/bow-871 --maxWorkers=2`，格式/lint/类型按工程规范执行。Vitest收集`.test.ts`，Playwright收集`.spec.ts`；本目录尚无实际浏览器入口，不建立空spec或skip。X1 的 runner 修订现已排除默认单测中的所有 `.integration.test.ts`；真实 PG 用例由 integration 配置及完整 check 收集。
 
-本轮不加载凭证、不连PG/模型/供应商、不读原始员工资料。完整check/integration/e2e/visual使用主仓heavy双槽；没有生产身份、原件访问、唯一确认事务、发布撤销与重启、跨入口/HR重分派页面证据时，继续保留待验收。作者/贡献者不自审，沿原Claude请求更新精确head，保持Draft+blocked与既有审查轮次。
+已合 #261 的历史工具不连接 PG 或供应商；本轮原生回归仅加载 `test-db.env`，运行隔离 PG 和真实队列，模型 HTTP 使用显式合成替身。完整 check/integration/e2e/visual 使用主仓 heavy 槽 1→2→3，第三槽要求内存空闲至少 20%，结束即释放。未覆盖的生产身份入口、原件访问、第三幕发布撤销、跨入口和 HR 改派页面继续待验收，不读原始员工资料。作者/贡献者不自审，沿原 Claude 请求更新精确 head；本 PR 的实际代码依赖与当前检查齐备后转 Ready，整卡剩余验收单列。
