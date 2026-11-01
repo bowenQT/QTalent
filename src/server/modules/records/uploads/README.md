@@ -9,7 +9,7 @@
 - `createUploadService({store,storage,policy,...})`：`request`、`complete` 消费媒体合同。客户端不能指定账号/key，不能以人员集合或 client count 代替记录身份。凭证精确到对象、大小/MIME和五分钟；intent完成窗口最多24小时且不超过集合期限，续签不扩大范围或无限延长 intent。已完成事实的授权重放不因上传窗口到期而被改写。
 - 完成只把 receipt 当通知，独立stat存在/长度/MIME，消费实际字节并流式计算SHA256、有界头尾格式鉴别，再stat确认对象未漂移；供应商etag不是SHA256。外部读取在事务外，提交前在与846相同的 quota 锁下重查权限、期限、不可变声明与revision；原件、版本、对象映射、完成账本和dispatch同事务。这里不生成片段、解析版本或人工确认时间。
 - `collections.release(accountId,{uploadId,operationId,expectedRevision})`：仅未保存集合的创建者在当前写权限下移除成员；同配额锁、revision及幂等账本释放slot，不删除原件/来源历史，不声称撤回外部上传或取消处理器。已保存集合拒绝直接移除；改原话/撤销后的阶段必须由846 ledger如实提供。移除后的旧complete被拒。
-- `readValidatedUpload(store,{uploadId,originalVersionId})`：只返回匹配已提交完成的验证事实；`ValidatedUpload`为原件/版本/job身份、purpose/filename/target/account/quotaScope及`object:{objectKey,byteLength,mediaType,sha256,etag}`。它不是永久任务授权；worker仍核对jobId/purpose、当前授权与业务成员状态。没有fragment/parseVersion输出，原件移除出当前集合也不会被删除。
+- `readValidatedUpload(store,{uploadId,originalVersionId})`：只返回匹配已提交完成的验证事实；`ValidatedUpload`为原件/版本/job身份、显式recordCollectionId、purpose/filename/target/account/quotaScope及`object:{objectKey,byteLength,mediaType,sha256,etag}`。它不是永久任务授权；worker仍核对jobId/purpose、当前授权与业务成员状态。没有fragment/parseVersion输出，原件移除出当前集合也不会被删除。
 
 格式探测不是解码器：TXT全流严格UTF8；PDF头尾、DOCX中央目录必需部件、WAV/MP3/M4A/AAC容器签名。有界窗口为128KiB，超大ID3/中央目录无法确认时拒绝，不能据此声称所有合法容器均可解析。扫描件/损坏文档的解析结果由866提供，禁止以空正文冒充成功。
 
@@ -34,22 +34,22 @@
 5. `canReadOriginal`：旧来源用`createOriginalAuthorizer`，899节点图必须用`createNodeOriginalAuthorizer`消费固定899当前来源策略，旧入口发现节点事实即拒绝，不能回退到旧分配权限；两者均要求837完整版本来源投影及处理器完整分类，未知内容不准播放。
 6. Kodo实例、trustedOrigin及`dispatch`由父/唯一配置方注入；实际upload/source actions、短链路由与来源播放字段由父串行登记。本目录不改共享index、worker注册或env，不另造852的lazy producer。
 
-### 866/859冻结分派port v1
+### 866/859分派port（追加显式集合身份）
 
-`UploadDispatch(tx,{purpose,uploadId,originalId,originalVersionId,accountId,quotaScope,target})->Promise<{jobId}>`。audio交859，attachment交866；必须以传入同一原生事务持久任务/入队，提交后才下载/处理。复用852的`getAppJobProducer(queue)`和`fromDrizzle(tx,sql)`，queue/payload由各处理器提供服务器常量，不能来自客户端。不复制供应商签名或另建producer。
+`UploadDispatch(tx,{purpose,uploadId,recordCollectionId,originalId,originalVersionId,accountId,quotaScope,target})->Promise<{jobId}>`。audio交859，attachment交866；必须以传入同一原生事务持久任务/入队，提交后才下载/处理。复用852的`getAppJobProducer(queue)`和`fromDrizzle(tx,sql)`，queue/payload由各处理器提供服务器常量，不能来自客户端。不复制供应商签名或另建producer。
 
 worker使用上述`readValidatedUpload`，不直接读写uploads内部表，不重建原件/会话。objectKey只给server worker，不能进入前端DTO、公开job结果或日志；该getter复用现有上传表，无解析侧额外schema要求。
 
 ## Schema与串行迁移
 
-本卡独占`uploads/schema.ts`四表：
+四表定义已在本卡原PR中；共享schema修改和最终迁移由X1串行整合：
 
 - `records_upload_collections`：服务器身份、creator/创建operation唯一、不可变target/摘要、版本和上传期限；不存SBI或事件草稿，不建立单事件唯一关系。
 - `records_upload_intents`：集合FK、账户/operation唯一、payload摘要、精确key、声明、期限/revision、完成和移除幂等账本；quotaScope与请求集合ID有一致性CHECK。计数排除released及过期未完成，已完成未移除仍计数。
 - `records_upload_objects`：原件版本PK/FK、upload/key唯一、bigint字节数、MIME、本地SHA256和供应商etag。原件/版本沿用既有records表，不改846 schema。
 - `records_upload_read_tickets`：随机能力摘要、账号、原件/版本、可空fragment、请求range和期限。非空fragment受复合FK约束，不用假引用填空。
 
-**不含新迁移，不手写DDL或push schema。** 父在852→846之后从届时main原生生成873迁移并完整验证；不得改已合0000–0002或抢编号。过期/移除不删除已完成来源与历史；代码回退不等于数据回退，不自动DROP生产表。
+**不含新迁移，不手写DDL或push schema。** 最终迁移按所有者最新顺序846→845→873，由X1从届时main原生生成并完整验证；不得回写历史迁移或抢编号。过期/移除不删除已完成来源与历史；代码回退不等于数据回退，不自动DROP生产表。
 
 ## 29e09ff 历史接续与验证边界
 
@@ -57,7 +57,7 @@ worker使用上述`readValidatedUpload`，不直接读写uploads内部表，不�
 
 本轮重点回归：已保存集合的 people/event 别名均核全体绑定事件；完成与846共享quota锁；验证前后不可变声明一致；对象MIME/版本二次校验；代理GET元数据、精确流长度与关闭；节点完整事实和当前时间输入；旧授权不降级。PostgreSQL上传事务显式使用 Read Committed，防止连接默认 Repeatable Read 时等到锁仍读取旧快照。
 
-真实PG的锁、等待后撤权、同事务回滚测试与单元测试分开记录。四表的最终迁移尚未发布，原始 `store.integration.test.ts` 保留缺表即失败的门禁；临时验证只能使用 `/tmp` 内原生生成的迁移和内容相同、仅迁移路径不同的测试副本，不能称为默认CI通过。准确受检SHA、命令、计数与覆盖率见PR本轮交接。
+真实PG的锁、等待后撤权、同事务回滚测试与单元测试分开记录。四表的最终迁移尚未发布，原始 `store.integration.test.ts` 保留缺表即失败的门禁；本轮只使用已发布迁移；不生成临时SQL/迁移，不push-schema，也不通过测试副本绕过缺表门禁。准确受检SHA、命令、计数与覆盖率见PR本轮交接。
 
 固定899 `96fa3aa` 的实际 `canEvaluateNode` / `readTalentSource` 与本轮节点组合已在离线化名事实下验证：本节点允许、跨节点/到期拒绝、整份原件含任一隐藏片段拒绝。该组合不等于生产835/846写策略和837投影已接通，也不验证实际数据库授权读取。
 
@@ -74,17 +74,22 @@ worker使用上述`readValidatedUpload`，不直接读写uploads内部表，不�
 - 应用匿名仍401，越权/归属不符/应用ticket自然过期仍404，并在访问存储前拒绝；读后权限/期限复核、完整版本全片段授权与精确流检查保持。流开始后出错只能终止流，不能伪装读取成功。
 - 内部安全reason只描述存储认证、过期或不可用；HTTP响应继续使用既有白名单文案。读取成功并审计后才返回流，失败不审计原始能力或泄漏上游诊断。
 
-### 859当前字段事实与最小后续窗口
+### 显式集合身份与完整成员读取（q852接续）
 
-当前 `UploadDispatch` 与 `readValidatedUpload` 的字段保持原有 v1：分派有purpose、upload/original/version、account、quotaScope、旧target；getter另有filename和已验证object的key/length/MIME/SHA256/etag。**没有可信durationMs、显式recordCollectionId或人员绑定修订。** 原生表保证quotaScope与集合ID一致，但消费者不应从任意quota字符串猜身份；上传intent或集合的revision也不是说话人/人员绑定revision。
+`UploadIntent.recordCollectionId`现在直接承载已有`records_upload_intents.record_collection_id` FK。request在可信解析后写入；request重放、complete两次锁后重核及release都检查该FK、request中的集合ID、quotaScope及已有completion的集合ID一致。缺失/矛盾时拒绝，不能从quota字符串、people集合或eventId补出身份。grant/complete/release的quota锁均使用明确的集合ID。`UploadDispatch`及`ValidatedUpload`同步提供该字段；没有新增schema或迁移。
 
-getter是已归档版本的历史事实，不是当前处理许可。它自己开启读取事务，不能代替846/860同事务的成员/绑定核验。下一窗口应由873/846共同提供：持同一quota锁的当前集合身份、成员及权威绑定修订读取，随后以859任务事务校验当前许可和版本；可信时长由859实际读取已验证字节/媒体解析得到，再核对版本摘要与绑定，不写0或估算值。
+`readUploadCollectionMembers(nativeTransaction,recordCollectionId)`是真实PostgreSQL查询：要求调用方事务为Read Committed，取得同一个`quota:<collectionId>`事务锁后读取实际集合行，再按显式FK左连接该集合的全部intent/object。返回`{recordCollectionId,collection,members:[{intent,object}]}`；按upload ID稳定排序，没有分页/前十项、账号、完成、过期或移除过滤。已完成、未完成、过期和已移除的成员全部保留。完成记录缺object、对象/版本/字节数/集合错配时失败关闭，不跳过坏成员。找不到集合返回null；仅已证实存在且没有intent的集合返回空members；查询失败会抛错，不变为空集合。
 
-当前audio分派仍只覆盖旧858录音格式，MP4不经此入口。857客户端支持MP4不代表应用已支持video上传；897材料lane的video分派需另行明确，不伪装成audio。859可显式注入缺失端口做假实现测试，生产唯一producer、worker注册、私有读取/播放/听悟任务仍待责任方接线和真实验证。该后续窗口不是本轮873扩围。
+846/859必须在**自己的同一原生事务**中调用此入口，并继续持锁直至当前写许可、全部成员、保存ledger/绑定和处理状态校验及写入完成。Repeatable Read/Serializable拒绝，不能以锁前旧快照冒充当前事实。`createPostgresUploadStore(...).readCollectionMembers(id)`另提供独立Read Committed事实读取，适合只读查询；它在返回时已结束事务，不能用于跨事务的保存/处理决策。`lockUploadCollection`仍仅加锁，不依赖四表，既有lock-only验证不变。
 
-本轮下一步按真实责任接线（没有填默认值）：
+这些是服务器内部事实，含私有objectKey，不进入UI/公开结果或日志；不授予写、解析、外发或原件读取权限。collection/intent revision不是人员/说话人绑定revision；已归档历史getter也不因当前移除或上传过期而删除事实。原始来源、绑定和权限仍须分别核对。
 
-1. 873/846在现有 `lockUploadCollection`、`loadBinding`、`collectionForEvent` 所属真实事务内核对集合与完整成员；getter/dispatch如需显式recordCollectionId应由该窗口明确提供，不能从任意quotaScope猜身份。
-2. 846/860提供权威人员/说话人绑定修订与处理时当前许可；上传intent/集合revision不能冒充绑定revision，归档时的account/target也不能当当前权限。
-3. 859从已验证原件字节实际媒体解析durationMs，并绑定originalVersionId/摘要；缺时长仍是缺口，不填0、估算值或把ASR最后一句时间当完整媒体时长。本轮不重跑模型、ASR或供应商对象。
-4. 852唯一producer由应用组合方注入现有UploadDispatch，在传入原生tx内持久859/866任务；X1负责公共出口、队列/worker注册与路由。现有假dispatch仅是测试，不能当生产任务已接。
+本阶段的独立交付边界：
+
+1. 已提供明确身份、真实成员SQL和同事务锁入口；公共records出口由X1消费固定提交后新增，不在本目录自行改index。
+2. 846尚须提供真实保存ledger、事件反向绑定和当前处理写许可；860须提供权威人员/说话人绑定修订与材料级阻塞范围。没有默认draft、0、空数组或假绑定。
+3. 859从已验证原件的真实字节解析durationMs，绑定originalVersionId及摘要，并消费同事务成员/当前许可；本卡不填0、估算时长或拿ASR末句当完整媒体长度。
+4. 应用组合方在传入原生tx内使用唯一producer持久859/866任务。X1接公共出口、worker/queue注册及实际路由；测试callback只证明事务边界，不能当生产dispatch。旧858 audio入口仍不覆盖MP4；897材料lane的视频接入没有在本阶段擅定。
+5. 新增离线测试运行真实Drizzle SQL生成和行映射，只替换pg I/O；它不是物理PG证明。`store.integration.test.ts`新增完整历史成员与原生事务锁/隔离级别回归，仍须在846→845→873的最终四表迁移发布后运行。缺表即失败的门禁保留，无临时DDL绕过。
+
+本阶段保持Draft+blocked，原通过只覆盖旧head；按新稳定head请求Claude增量审查，既有审查后修改1/2历史保留。没有追加供应商调用、部署或生产接线完成的声明。
