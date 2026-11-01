@@ -159,9 +159,9 @@ it('upgrades the actual pre-852 canonical seeded schema without changing any rul
       false,
     );
     await migrate(connection.db, { migrationsFolder: folder });
-    expect(
-      await fingerprintMigrationFacts(connection, Object.keys(before), false),
-    ).toEqual(before);
+    expect(await fingerprintMigrationFacts(connection, before, false)).toEqual(
+      before,
+    );
     await emptyDemands(connection);
     const after = await fingerprintMigrationFacts(connection, undefined, false);
     await migrate(connection.db, { migrationsFolder: folder });

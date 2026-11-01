@@ -106,27 +106,62 @@ export async function seedVerifiedLegacyBaseline(connection: Connection) {
     await insert(table, rows);
   return seed;
 }
+interface MigrationFactFingerprint {
+  count: number;
+  digest: string;
+  columns: string[];
+}
+type MigrationFactFingerprints = Record<string, MigrationFactFingerprint>;
+
+/** Pass a prior fingerprint to compare its physical columns across an upgrade.
+ * Ordinary snapshots still include every current column, apart from the explicit node option. */
 export async function fingerprintMigrationFacts(
   connection: Connection,
-  names?: string[],
+  names?: string[] | MigrationFactFingerprints,
   omitNode = true,
-) {
-  const tables =
-    names ??
-    (
-      await connection.pool.query<{ tablename: string }>(
-        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename",
-      )
-    ).rows.map((row) => row.tablename);
-  const result: Record<string, unknown> = {};
+): Promise<MigrationFactFingerprints> {
+  const previous = names && !Array.isArray(names) ? names : undefined;
+  const tables = Array.isArray(names)
+    ? names
+    : previous
+      ? Object.keys(previous)
+      : (
+          await connection.pool.query<{ tablename: string }>(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename",
+          )
+        ).rows.map((row) => row.tablename);
+  const result: MigrationFactFingerprints = {};
   for (const name of tables) {
-    const row = omitNode
-      ? "(to_jsonb(t) - 'evaluation_node_id')"
-      : 'to_jsonb(t)';
-    const snapshot = await connection.pool.query(
-      `SELECT count(*)::int AS count, md5(coalesce(string_agg(${row}::text, '' ORDER BY ${row}::text), '')) AS digest FROM "${name}" AS t`,
-    );
-    result[name] = snapshot.rows[0];
+    const physical = (
+      await connection.pool.query<{ column_name: string }>(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position",
+        [name],
+      )
+    ).rows.map((row) => row.column_name);
+    const columns =
+      previous?.[name].columns ??
+      physical.filter((column) => !omitNode || column !== 'evaluation_node_id');
+    if (
+      !physical.length ||
+      columns.some((column) => !physical.includes(column))
+    )
+      throw new Error('Migration removed a captured fact column: ' + name);
+    const omitted = physical.filter((column) => !columns.includes(column));
+    const row = '(to_jsonb(t) - $1::text[])';
+    const table = '"' + name.replaceAll('"', '""') + '"';
+    const query =
+      'SELECT count(*)::int AS count, md5(coalesce(string_agg(' +
+      row +
+      "::text, '' ORDER BY " +
+      row +
+      "::text), '')) AS digest FROM " +
+      table +
+      ' AS t';
+    const snapshot = await connection.pool.query<{
+      count: number;
+      digest: string;
+    }>(query, [omitted]);
+    result[name] = { ...snapshot.rows[0], columns: [...columns] };
   }
   return result;
 }
