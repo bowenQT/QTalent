@@ -11,10 +11,11 @@ import { createJobService } from './service';
 import { exampleJobPolicy } from './progress-example';
 export function jobService() {
   const db = getDatabase();
+  const clock = createClock(getEnv().APP_ENV);
   const demand = createStaffingDemandRuntime({
     db,
     boss: () => getAppJobProducer(staffingDemandQueue),
-    businessDate: createClock(getEnv().APP_ENV).today,
+    now: () => clock.now().toISOString(),
   });
   return createJobService(
     createJobStore(db),

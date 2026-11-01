@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 import { PgBoss } from 'pg-boss';
 import { WebSocketServer } from 'ws';
 import { getEnv } from '../server/env';
+import { createClock } from '../lib/clock';
 import { getSession } from '../server/auth';
 import { verifyAccessRequest } from '../server/access';
 import { registerExampleJob } from '../server/jobs/example';
@@ -13,6 +14,7 @@ import { createStaffingDemandRuntime } from '../server/usecases/staffing-demand-
 import { authenticateHandshake, heartbeatReply } from './handshake';
 export async function startWorker() {
   const env = getEnv();
+  const clock = createClock(env.APP_ENV);
   const boss = new PgBoss({ connectionString: env.DATABASE_URL });
   boss.on('error', (error) =>
     console.error('Worker database error', error.name),
@@ -24,6 +26,7 @@ export async function startWorker() {
     await createStaffingDemandRuntime({
       db: getDatabase(),
       boss,
+      now: () => clock.now().toISOString(),
       maas: createModelinkMaasClientFromEnv({
         MODELINK_API_KEY: env.MODELINK_API_KEY,
         MODELINK_BASE_URL: env.MODELINK_BASE_URL,

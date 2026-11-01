@@ -85,6 +85,7 @@ beforeEach(() => {
   f.serverEvents.clear();
   f.socketEvents.clear();
   f.failListen = false;
+  f.env.APP_ENV = 'test';
   f.env.MODELINK_API_KEY = undefined;
   f.env.MODELINK_BASE_URL = undefined;
   f.env.MODELINK_MODEL = undefined;
@@ -100,8 +101,35 @@ beforeEach(() => {
     session: { expiresAt: new Date(Date.now() + 60000) },
   });
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
+});
 describe('worker lifecycle with transport boundaries replaced', () => {
+  it.each(['demo', 'test', 'production', 'local'])(
+    'passes a dynamic full %s demand instant into the registered worker',
+    async (environment) => {
+      f.env.APP_ENV = environment;
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-25T12:00:00.000Z'));
+      const worker = await startWorker();
+      try {
+        const input = f.demandRuntime.mock.calls[0][0];
+        const fixed = environment === 'demo' || environment === 'test';
+        expect(input).not.toHaveProperty('businessDate');
+        expect(input.now()).toBe(
+          fixed ? '2026-09-04T00:00:00.000Z' : '2026-10-25T12:00:00.000Z',
+        );
+        vi.setSystemTime(new Date('2026-10-25T12:00:00.001Z'));
+        expect(input.now()).toBe(
+          fixed ? '2026-09-04T00:00:00.000Z' : '2026-10-25T12:00:00.001Z',
+        );
+      } finally {
+        await worker.stop();
+      }
+    },
+  );
+
   it('uses the explicit trusted Modelink settings without ambient or legacy fallback', async () => {
     vi.stubEnv('MODELINK_API_KEY', 'synthetic-ambient-key');
     vi.stubEnv('MODELINK_BASE_URL', 'https://api.modelink.ai/v1');
@@ -115,7 +143,7 @@ describe('worker lifecycle with transport boundaries replaced', () => {
       const input = f.demandRuntime.mock.calls[0][0];
       expect(input.boss).toBe(worker.boss);
       expect(input).not.toHaveProperty('businessDate');
-      expect(input).not.toHaveProperty('now');
+      expect(input.now()).toBe('2026-09-04T00:00:00.000Z');
       expect(f.register).toHaveBeenCalledOnce();
       expect(f.registerProgress).toHaveBeenCalledOnce();
       const result = await input.maas.generateStructured({

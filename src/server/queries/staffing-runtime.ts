@@ -9,9 +9,10 @@ import {
 } from '../usecases/staffing-demand-runtime';
 
 export async function staffingDemandRuntime() {
+  const clock = createClock(getEnv().APP_ENV);
   return createStaffingDemandRuntime({
     db: getDatabase(),
-    businessDate: createClock(getEnv().APP_ENV).today,
+    now: () => clock.now().toISOString(),
     boss: () => getAppJobProducer(staffingDemandQueue),
   });
 }
