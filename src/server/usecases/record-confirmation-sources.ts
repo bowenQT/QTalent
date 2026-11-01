@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
 import type { TalentKind, TalentSource } from '../authz/talent';
 import { arrangeInputs, type StoredArrangeInput } from '../modules/records';
-import { sourceKey } from './talent-source-projection';
+import { sourceKey } from './source-key';
 
 /** JSON source references have no FK to a fragment. Take this before the batch
  * and fragment locks: a row scan alone cannot exclude a newly shared intake.
