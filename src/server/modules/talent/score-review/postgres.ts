@@ -3,9 +3,6 @@ import { z } from 'zod';
 import { reviewCalibrationSchema } from '../../../../contracts/review-queue';
 import type { Transaction } from '../../../db/client';
 import { recordAudit } from '../../../platform/audit';
-import { accountBindings } from '../../directory';
-import { anchors } from '../../evaluation-system';
-import { events } from '../../records';
 import {
   aiSuggestions,
   confirmations,
@@ -94,7 +91,9 @@ function decode(row: StoredCalibration): Calibration {
   }
 }
 
-async function storage<T>(work: () => Promise<T>): Promise<T> {
+export async function withScoreReviewStorage<T>(
+  work: () => Promise<T>,
+): Promise<T> {
   try {
     return await work();
   } catch (error) {
@@ -124,7 +123,7 @@ async function storage<T>(work: () => Promise<T>): Promise<T> {
  */
 export function createPostgresScoreReviewStore() {
   async function calibration(tx: Transaction, itemId: string) {
-    return storage(async () => {
+    return withScoreReviewStorage(async () => {
       const [row] = await tx
         .select()
         .from(scoreReviewCalibrations)
@@ -137,7 +136,7 @@ export function createPostgresScoreReviewStore() {
     accountId: string,
     operationId: string,
   ): Promise<ReviewOperation | null> {
-    return storage(async () => {
+    return withScoreReviewStorage(async () => {
       const [row] = await tx
         .select({
           operation: scoreReviewOperations,
@@ -209,7 +208,7 @@ export function createPostgresScoreReviewStore() {
           return conflict();
         }
       })();
-      return storage(() =>
+      return withScoreReviewStorage(() =>
         tx.transaction(async (savepoint) => {
           const [review] = await savepoint
             .select()
@@ -233,31 +232,6 @@ export function createPostgresScoreReviewStore() {
                 : 'ai_changed_without_reason')
           )
             conflict();
-
-          const [event] = await savepoint
-            .select()
-            .from(events)
-            .where(eq(events.id, review.eventId))
-            .for('share');
-          if (
-            !event ||
-            event.withdrawnAt !== null ||
-            event.personId !== write.target.personId ||
-            event.evaluationNodeId !== write.target.evaluationNodeId ||
-            event.ruleVersionId !== write.target.ruleVersion
-          )
-            conflict();
-          const [actor] = await savepoint
-            .select()
-            .from(accountBindings)
-            .where(eq(accountBindings.accountId, write.accountId))
-            .for('share');
-          if (
-            !actor ||
-            actor.personId !== write.actorPersonId ||
-            actor.isSystemAdmin
-          )
-            throw new ScoreReviewForbiddenError();
 
           const ids = [
             bindings.confirmationId,
@@ -285,9 +259,9 @@ export function createPostgresScoreReviewStore() {
               !row.active ||
               row.sourceCategory !== 'original' ||
               row.status !== 'scored' ||
-              row.eventId !== event.id ||
+              row.eventId !== write.target.eventId ||
               row.dimensionId !== review.dimensionId ||
-              row.ruleVersionId !== event.ruleVersionId ||
+              row.ruleVersionId !== write.target.ruleVersion ||
               row.evaluatorId !== score.raterId ||
               row.value !== score.value ||
               row.anchorId !== score.anchor.id ||
@@ -320,9 +294,9 @@ export function createPostgresScoreReviewStore() {
               !ai ||
               ai.status !== 'scored' ||
               ai.sourceCategory !== 'original' ||
-              ai.eventId !== event.id ||
+              ai.eventId !== write.target.eventId ||
               ai.dimensionId !== review.dimensionId ||
-              ai.ruleVersionId !== event.ruleVersionId ||
+              ai.ruleVersionId !== write.target.ruleVersion ||
               ai.value !== original.ai.value ||
               ai.anchorId !== original.ai.anchor.id ||
               !original.ai.citations.some(
@@ -335,43 +309,15 @@ export function createPostgresScoreReviewStore() {
               conflict();
           } else if (bindings.suggestionId !== null) conflict();
 
-          const scores = [
-            ...humanScores,
-            ...(original.kind === 'ai_gap' ? [original.ai] : []),
-            write.result.score,
-          ];
-          const anchorRows = await savepoint
-            .select()
-            .from(anchors)
-            .where(
-              inArray(
-                anchors.id,
-                scores.map((score) => score.anchor.id),
-              ),
-            )
-            .orderBy(anchors.id)
-            .for('share');
-          for (const score of scores) {
-            const anchor = anchorRows.find((row) => row.id === score.anchor.id);
-            if (
-              !anchor ||
-              anchor.dimensionId !== review.dimensionId ||
-              anchor.ruleVersionId !== event.ruleVersionId ||
-              anchor.value !== score.value ||
-              anchor.text !== score.anchor.text
-            )
-              conflict();
-          }
-
           await savepoint.insert(scoreReviewCalibrations).values({
             itemId: review.id,
             originalRevision: review.revision,
             revision: write.result.revision,
-            eventId: event.id,
-            personId: event.personId,
+            eventId: write.target.eventId,
+            personId: write.target.personId,
             evaluationNodeId: write.target.evaluationNodeId,
             dimensionId: review.dimensionId,
-            ruleVersionId: event.ruleVersionId,
+            ruleVersionId: write.target.ruleVersion,
             actorAccountId: write.accountId,
             actorPersonId: write.actorPersonId,
             confirmedAt: new Date(write.result.score.confirmedAt),

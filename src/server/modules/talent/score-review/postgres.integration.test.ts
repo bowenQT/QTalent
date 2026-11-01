@@ -7,6 +7,7 @@ import { createDatabase, type Transaction } from '../../../db/client';
 import { recordEvidenceScoreSchema } from '../../../../contracts/record';
 import { grants, accountBindings, people } from '../../directory';
 import { anchors } from '../../evaluation-system';
+import { enrollments } from '../../programs';
 import { aiSuggestions } from '../schema';
 import { recordSaves, eventParticipants } from '../../records';
 import {
@@ -17,11 +18,12 @@ import {
 } from '../schema';
 import { auditEvents } from '../../../platform/audit/schema';
 import * as audit from '../../../platform/audit';
-import { saveRecordDraft } from '../../../usecases/record-save';
+import { saveRecordDraft, undoRecordSave } from '../../../usecases/record-save';
 import { readLockedRecordLedger } from '../../../usecases/record-ledger';
 import {
   readScoreReviewAuthority,
   resolveNativeScoreReview,
+  readNativeCalibrationBindings,
   canReviewScoreTarget,
 } from '../../../usecases/score-review';
 import {
@@ -87,9 +89,9 @@ afterAll(async () => {
   }
 });
 
-/** Actual 846 save rows and actual ledger; the test constructs a write plan to
- * verify private persistence. It is NOT the unfinished production review reader,
- * current full-source authority lock protocol, or effective-score projection. */
+/** Actual 846 save rows and actual ledger. Some tests exercise the private
+ * persistence plan; native-command tests also exercise the actual reader and
+ * current authorization. Effective-score projection remains outside this suite. */
 async function fixture(kind: ReviewItem['kind'] = 'rater_gap') {
   const f = await seedRecordCase(db());
   await db()
@@ -98,7 +100,17 @@ async function fixture(kind: ReviewItem['kind'] = 'rater_gap') {
       id: f.id + '-hr-grant',
       accountId: f.account.manager,
       role: 'hr',
-      scope: 'company',
+      scope: 'cohort',
+      cohortId: f.id + '-cohort',
+      validFrom: '2026-01-01',
+    });
+  await db()
+    .insert(enrollments)
+    .values({
+      id: f.id + '-enrollment',
+      personId: f.person.one,
+      cohortId: f.id + '-cohort',
+      confirmed: true,
       validFrom: '2026-01-01',
     });
   const first = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
@@ -313,6 +325,7 @@ async function apply(f: Fixture, tx?: Transaction) {
       ))
     )
       throw new Error('Test current scope denied');
+    await readNativeCalibrationBindings(transaction, f.write, f.f.clock);
     await store.lockOperation(
       transaction,
       f.write.accountId,
@@ -675,3 +688,207 @@ it('does not return a corrupted historical digest as a valid receipt', async () 
     ),
   ).rejects.toBeInstanceOf(ScoreReviewStoreConflict);
 });
+
+async function waitForNativeLock() {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const result = await connection!.pool.query<{ waiting: boolean }>(
+      "select exists(select 1 from pg_stat_activity where datname=current_database() and wait_event_type='Lock') as waiting",
+    );
+    if (result.rows[0].waiting) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('Expected actual native PostgreSQL lock wait');
+}
+it.each(['revocation', 'expiry', 'rebind'] as const)(
+  'native historical replay rechecks %s after an actual authority lock wait',
+  async (mode) => {
+    const f = await fixture();
+    expect(
+      (
+        await resolveNativeScoreReview(
+          db(),
+          f.write.accountId,
+          command(f),
+          f.f.clock,
+        )
+      ).status,
+    ).toBe('success');
+    const before = await counts(f);
+    let now = businessNow;
+    const expires = new Date(Date.parse(now) + 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    if (mode === 'expiry')
+      await db()
+        .update(grants)
+        .set({ validTo: expires })
+        .where(eq(grants.id, f.f.id + '-hr-grant'));
+    const blocker = await connection!.pool.connect();
+    let pending: ReturnType<typeof resolveNativeScoreReview> | undefined;
+    try {
+      await blocker.query('begin');
+      // Follow the authority writer's table order to test a wait, not a deadlock.
+      if (mode === 'rebind')
+        await blocker.query(
+          'lock table directory_account_bindings in row exclusive mode',
+        );
+      // A real authority writer, not a mocked permission result.
+      await blocker.query(
+        'update directory_grants set valid_from=valid_from where id=$1',
+        [f.f.id + '-hr-grant'],
+      );
+      pending = resolveNativeScoreReview(db(), f.write.accountId, command(f), {
+        ...f.f.clock,
+        businessNow: () => now,
+      });
+      await waitForNativeLock();
+      if (mode === 'revocation')
+        await blocker.query('delete from directory_grants where id=$1', [
+          f.f.id + '-hr-grant',
+        ]);
+      if (mode === 'rebind')
+        await blocker.query(
+          'update directory_account_bindings set person_id=$1 where account_id=$2',
+          [f.f.person.outsider, f.write.accountId],
+        );
+      if (mode === 'expiry') now = expires;
+      await blocker.query('commit');
+      expect((await pending).status).toBe('forbidden');
+    } finally {
+      await blocker.query('rollback');
+      blocker.release();
+      await pending;
+    }
+    expect(await counts(f)).toEqual(before);
+  },
+);
+it('native command reloads the actual confirmation after waiting for its writer', async () => {
+  const f = await fixture();
+  const before = await counts(f);
+  const blocker = await connection!.pool.connect();
+  let pending: ReturnType<typeof resolveNativeScoreReview> | undefined;
+  try {
+    await blocker.query('begin');
+    await blocker.query(
+      'update talent_confirmations set active=false where id=$1',
+      [f.bindings.confirmationId],
+    );
+    pending = resolveNativeScoreReview(
+      db(),
+      f.write.accountId,
+      command(f),
+      f.f.clock,
+    );
+    await waitForNativeLock();
+    await blocker.query('commit');
+    expect((await pending).status).toBe('not_found');
+  } finally {
+    await blocker.query('rollback');
+    blocker.release();
+    await pending;
+  }
+  expect(await counts(f)).toEqual(before);
+});
+it('two actual native transactions persist once and return one replay', async () => {
+  const f = await fixture();
+  const results = await Promise.all([
+    resolveNativeScoreReview(db(), f.write.accountId, command(f), f.f.clock),
+    resolveNativeScoreReview(db(), f.write.accountId, command(f), f.f.clock),
+  ]);
+  expect(results.every((result) => result.status === 'success')).toBe(true);
+  expect(
+    results.filter((result) => result.status === 'success' && result.replayed),
+  ).toHaveLength(1);
+  const rows = await counts(f);
+  expect(rows.calibration).toHaveLength(1);
+  expect(rows.operations).toHaveLength(1);
+  expect(rows.audits).toHaveLength(1);
+});
+
+it('native keep_score uses the actual human value and requires a new human reason', async () => {
+  const f = await fixture('ai_gap');
+  const input = {
+    action: 'keep_score',
+    kind: 'ai_gap',
+    itemId: f.write.target.itemId,
+    expected_revision: 1,
+    operation_id: f.write.operationId,
+    reason: '演示HR核对证据后保留原人工分',
+  };
+  const invalid = await resolveNativeScoreReview(
+    db(),
+    f.write.accountId,
+    { ...input, reason: ' ' },
+    f.f.clock,
+  );
+  expect(invalid.status).toBe('validation_error');
+  expect((await counts(f)).calibration).toHaveLength(0);
+  const result = await resolveNativeScoreReview(
+    db(),
+    f.write.accountId,
+    input,
+    f.f.clock,
+  );
+  expect(result.status).toBe('success');
+  if (result.status !== 'success' || result.result.original.kind !== 'ai_gap')
+    throw new Error('Expected native AI gap result');
+  expect(result.result.score.value).toBe(result.result.original.human.value);
+  expect(result.result.score.reason).toBe(input.reason);
+  expect(result.result.original.human.reason).toBe('');
+  expect(result.result.score.raterId).toBe(f.f.person.manager);
+});
+it('actual 846 undo cannot erase a later persisted HR calibration', async () => {
+  const f = await fixture();
+  expect(
+    (
+      await resolveNativeScoreReview(
+        db(),
+        f.write.accountId,
+        command(f),
+        f.f.clock,
+      )
+    ).status,
+  ).toBe('success');
+  const before = await counts(f);
+  await expect(
+    undoRecordSave(
+      db(),
+      f.f.account.two,
+      {
+        operation_id: f.f.id + '-undo-after-hr',
+        saveId: before.review.saveId!,
+      },
+      f.f.clock,
+    ),
+  ).rejects.toMatchObject({
+    status: 'conflict',
+    reason: 'later_confirmation_or_review',
+  });
+  expect(await counts(f)).toEqual(before);
+});
+it.each(['40P01', '40001', 'dependency'] as const)(
+  'native transaction maps %s failures without exposing query or evidence',
+  async (code) => {
+    const f = await fixture();
+    const before = await counts(f);
+    const failure = new Error('synthetic-private-query-score', {
+      cause: { code },
+    });
+    vi.spyOn(db(), 'transaction').mockRejectedValueOnce(failure);
+    const result = resolveNativeScoreReview(
+      db(),
+      f.write.accountId,
+      command(f),
+      f.f.clock,
+    );
+    if (code === 'dependency') {
+      await expect(result).rejects.toThrow('评分复核存储不可用');
+      await expect(result).rejects.not.toHaveProperty('cause');
+    } else {
+      await expect(result).resolves.toMatchObject({ status: 'conflict' });
+      expect(JSON.stringify(await result)).not.toContain('synthetic-private');
+    }
+    expect(await counts(f)).toEqual(before);
+  },
+);

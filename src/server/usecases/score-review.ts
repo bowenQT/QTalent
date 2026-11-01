@@ -19,7 +19,10 @@ import {
 } from '../modules/programs';
 import { projects, members } from '../modules/staffing';
 import { anchors } from '../modules/evaluation-system';
-import { createPostgresScoreReviewStore } from '../modules/talent/score-review/postgres';
+import {
+  createPostgresScoreReviewStore,
+  withScoreReviewStorage,
+} from '../modules/talent/score-review/postgres';
 import {
   digest,
   resolveScoreReview,
@@ -36,6 +39,7 @@ import {
   type ReviewAuthority,
   type ReviewTarget,
   type ScoreReviewWritePort,
+  type CalibrationWrite,
   ScoreReviewStoreConflict,
 } from '../modules/talent/score-review/ports';
 import { loadEvaluationContext } from './evaluation-context';
@@ -410,100 +414,93 @@ export async function resolveNativeScoreReview(
   const parsed = reviewQueueActionSchema.safeParse(input);
   const store = createPostgresScoreReviewStore();
   const transaction = <T>(work: (port: ScoreReviewWritePort) => Promise<T>) =>
-    db.transaction(
-      async (tx) => {
-        // Metadata locates the fence. It grants no access and is re-read below.
-        await readScoreReviewAuthority(tx, accountId, clock.businessNow());
-        const first = parsed.success
-          ? await nativeTarget(tx, parsed.data.itemId)
-          : null;
-        if (first) {
-          await readLockedRecordLedger(
-            tx,
-            {
-              evaluationNodeId: first.evaluationNodeId,
-              personId: first.personId,
+    withScoreReviewStorage(() =>
+      db.transaction(
+        async (tx) => {
+          // Metadata locates the fence. It grants no access and is re-read below.
+          await readScoreReviewAuthority(tx, accountId, clock.businessNow());
+          const first = parsed.success
+            ? await nativeTarget(tx, parsed.data.itemId)
+            : null;
+          if (first) {
+            await readLockedRecordLedger(
+              tx,
+              {
+                evaluationNodeId: first.evaluationNodeId,
+                personId: first.personId,
+              },
+              { accountId, now: clock.businessNow },
+            );
+            await lockReviewAuthority(tx);
+          }
+          const port: ScoreReviewWritePort = {
+            currentAuthority: (id) =>
+              readScoreReviewAuthority(tx, id, clock.businessNow()),
+            listOpenTargets: async () => {
+              const rows = await listAuthorizedScoreReviewIdentities(
+                tx,
+                accountId,
+                clock.businessNow(),
+              );
+              const targets = await Promise.all(
+                rows.map((row) => nativeTarget(tx, row.itemId)),
+              );
+              return targets.filter(
+                (target): target is ReviewTarget => target !== null,
+              );
             },
-            { accountId, now: clock.businessNow },
-          );
-          await lockReviewAuthority(tx);
-        }
-        const port: ScoreReviewWritePort = {
-          currentAuthority: (id) =>
-            readScoreReviewAuthority(tx, id, clock.businessNow()),
-          listOpenTargets: async () => {
-            const rows = await listAuthorizedScoreReviewIdentities(
-              tx,
-              accountId,
-              clock.businessNow(),
-            );
-            const targets = await Promise.all(
-              rows.map((row) => nativeTarget(tx, row.itemId)),
-            );
-            return targets.filter(
-              (target): target is ReviewTarget => target !== null,
-            );
-          },
-          target: (id) => nativeTarget(tx, id),
-          canReview: (authority, target) =>
-            canReviewScoreTarget(tx, authority, target, clock.businessNow()),
-          authorizedItem: async (authority, target) =>
-            (await readNativeReview(tx, authority, target, clock))?.item ??
-            null,
-          lockOperation: (id, operationId) =>
-            store.lockOperation(tx, id, operationId),
-          // The shared fence already fixes all event/review rows. This must not
-          // introduce the obsolete score-event advisory lock or a different order.
-          lockEvent: async (eventId) => {
-            if (!first || first.eventId !== eventId)
-              throw new ScoreReviewStoreConflict();
-          },
-          operation: (id, operationId) => store.operation(tx, id, operationId),
-          calibration: (id) => store.calibration(tx, id),
-          anchor: async (target, value) => {
-            const [row] = await tx
-              .select()
-              .from(anchors)
-              .where(
-                and(
-                  eq(anchors.dimensionId, target.dimensionId),
-                  eq(anchors.ruleVersionId, target.ruleVersion),
-                  eq(anchors.value, value),
-                ),
-              )
-              .for('share');
-            return row
-              ? {
-                  id: row.id,
-                  text: row.text,
-                  ruleVersion: row.ruleVersionId,
-                  dimensionId: row.dimensionId,
-                  value: row.value,
-                }
-              : null;
-          },
-          applyCalibration: async (write) => {
-            const authority = await readScoreReviewAuthority(
-              tx,
-              accountId,
-              clock.businessNow(),
-            );
-            if (authority.personId !== write.actorPersonId)
-              throw new ScoreReviewForbiddenError();
-            const facts = await readNativeReview(
-              tx,
-              authority,
-              write.target,
-              clock,
-            );
-            if (!facts || digest(facts.item) !== write.originalFingerprint)
-              throw new ScoreReviewStoreConflict();
-            await store.applyCalibration(tx, write, facts.bindings);
-          },
-        };
-        return work(port);
-      },
-      { isolationLevel: 'read committed' },
+            target: (id) => nativeTarget(tx, id),
+            canReview: (authority, target) =>
+              canReviewScoreTarget(tx, authority, target, clock.businessNow()),
+            authorizedItem: async (authority, target) =>
+              (await readNativeReview(tx, authority, target, clock))?.item ??
+              null,
+            lockOperation: (id, operationId) =>
+              store.lockOperation(tx, id, operationId),
+            // The shared fence already fixes all event/review rows. This must not
+            // introduce the obsolete score-event advisory lock or a different order.
+            lockEvent: async (eventId) => {
+              if (!first || first.eventId !== eventId)
+                throw new ScoreReviewStoreConflict();
+            },
+            operation: (id, operationId) =>
+              store.operation(tx, id, operationId),
+            calibration: (id) => store.calibration(tx, id),
+            anchor: async (target, value) => {
+              const [row] = await tx
+                .select()
+                .from(anchors)
+                .where(
+                  and(
+                    eq(anchors.dimensionId, target.dimensionId),
+                    eq(anchors.ruleVersionId, target.ruleVersion),
+                    eq(anchors.value, value),
+                  ),
+                )
+                .for('share');
+              return row
+                ? {
+                    id: row.id,
+                    text: row.text,
+                    ruleVersion: row.ruleVersionId,
+                    dimensionId: row.dimensionId,
+                    value: row.value,
+                  }
+                : null;
+            },
+            applyCalibration: async (write) => {
+              const bindings = await readNativeCalibrationBindings(
+                tx,
+                write,
+                clock,
+              );
+              await store.applyCalibration(tx, write, bindings);
+            },
+          };
+          return work(port);
+        },
+        { isolationLevel: 'read committed' },
+      ),
     );
   return resolveScoreReview(
     { read: transaction, transaction },
@@ -511,4 +508,39 @@ export async function resolveNativeScoreReview(
     input,
     () => new Date(clock.wallNow()),
   );
+}
+
+/** Internal write preflight. Caller holds the shared ledger fence; this function
+ * then fixes current authority relations and reloads facts after every wait. */
+export async function readNativeCalibrationBindings(
+  tx: Transaction,
+  write: CalibrationWrite,
+  clock: ScoreReviewNativeClock,
+) {
+  await lockReviewAuthority(tx);
+  const authority = await readScoreReviewAuthority(
+    tx,
+    write.accountId,
+    clock.businessNow(),
+  );
+  if (authority.personId !== write.actorPersonId)
+    throw new ScoreReviewForbiddenError();
+  const facts = await readNativeReview(tx, authority, write.target, clock);
+  if (!facts || digest(facts.item) !== write.originalFingerprint)
+    throw new ScoreReviewStoreConflict();
+  const [anchor] = await tx
+    .select()
+    .from(anchors)
+    .where(
+      and(
+        eq(anchors.id, write.result.score.anchor.id),
+        eq(anchors.dimensionId, write.target.dimensionId),
+        eq(anchors.ruleVersionId, write.target.ruleVersion),
+        eq(anchors.value, write.result.score.value),
+      ),
+    )
+    .for('share');
+  if (!anchor || anchor.text !== write.result.score.anchor.text)
+    throw new ScoreReviewStoreConflict();
+  return facts.bindings;
 }
