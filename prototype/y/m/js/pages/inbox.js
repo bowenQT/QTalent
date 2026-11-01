@@ -64,7 +64,7 @@
       ${i.note ? html`<p class="nt-muted" style="margin:0 0 var(--s-2)">${i.note}</p>` : ''}
       <div class="n-choices m-choices">
         ${i.options.map(([id, why]) => html`<button class="n-choice" type="button" data-v="${id}">${isProj ? html`<span class="n-avatar n-avatar--sm" style="--hue:220;border-radius:6px">${icon('folder', 12)}</span>${st.project(id).name}` : html`${UI.avatar(id, 'sm')}${st.person(id).name}`}<small>${why}</small></button>`)}
-        ${i.kind === 'unknown' ? html`<button class="n-choice" type="button" data-v="none"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">${icon('dash', 12)}</span>名单外的人<small>只保留在原件里</small></button>` : ''}
+        ${i.kind === 'unknown' || i.iv ? html`<button class="n-choice" type="button" data-v="none"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">${icon('dash', 12)}</span>名单外的人<small>${i.iv ? '这一行收进跳过的行' : '只保留在原件里'}</small></button>` : ''}
         ${isLater ? '' : html`<button class="n-choice" type="button" data-v="skip"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>都不是，稍后处理<small></small></button>`}
       </div>
       ${i.draft || (i.ev && st.get().intake?.held?.[i.ev]) ? html`<div class="n-minievent" style="margin-top:var(--s-3)"><div>确认是谁以后，才整理这件事、给建议分<small>现在只保留原件里的这一处</small></div><span class="n-badge">${icon('user')}待认人</span></div>` : ''}

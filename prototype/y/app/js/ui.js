@@ -775,7 +775,7 @@
     let foot;
     if (x.state === 'skipped') foot = html`<div class="n-rcpt__foot"><span class="nt-muted">已标为名单外的人：这件事只保留在原件里</span>${it && x.mine ? html`<a class="n-link" href="inbox.html#${it.id}" style="margin-left:auto">在待核对里改回</a>` : ''}</div>`;
     else if (x.state === 'held') foot = html`<div class="n-rcpt__foot"><span class="nt-muted">先确认${it ? it.q.match(/「.+?」/)?.[0] || '这一处' : '这一处'}是谁，之后才整理这件事、给建议分</span>${it && x.mine ? html`<a class="n-btn n-btn--sm" href="inbox.html#${it.id}">去核对</a>` : ''}</div>`;
-    else if (confirmed) foot = html`<div class="n-rcpt__foot"><span class="n-block__sig">${by?.name || ''}</span><span class="nt-muted">${NT.md(e.scores[0].hist?.[0]?.at || NT.TODAY)} 确认，已进入档案</span>${x.mine ? html`<button class="n-link" type="button" data-rc-undo="${e.id}" style="margin-left:auto">改回待确认</button>` : ''}</div>`;
+    else if (confirmed) foot = html`<div class="n-rcpt__foot"><span class="n-block__sig">${by?.name || ''}</span><span class="nt-muted">${NT.md(e.scores[0].hist?.[0]?.at || NT.TODAY)} 确认，已进入档案</span>${x.mine && st.receiptRevertible(e).length ? html`<button class="n-link" type="button" data-rc-undo="${e.id}" style="margin-left:auto">改回待确认</button>` : ''}</div>`;
     else if (x.mine) foot = html`<div class="n-rcpt__foot"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-rc-ok="${e.id}">${icon('check')}确认这件事</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-rc-edit="${e.id}">${icon('pen')}改分</button><span class="nt-muted">确认后计入档案</span></div>`;
     else foot = html`<div class="n-rcpt__foot"><span class="nt-muted">等${st.person(e.recorder)?.name || '评价人'}确认</span></div>`;
     // 身份还没确定（待认人、名单外）：只给原件里的这一处，不显示 AI 草拟的标题和建议分
@@ -814,7 +814,10 @@
       if (changed && !why) { const t = card.querySelector('[data-rc-why]'); t.closest('.n-field').classList.add('is-error'); t.focus(); t.placeholder = '改了分，写一句理由'; return; }
       done(e, st.receiptConfirm(e.id, vals, changed ? why : ''), changed ? '（已改分）' : '');
     }
-    if (undo) { const e = st.event(undo.dataset.rcUndo); e.scores.forEach((s, i) => st.unconfirmScore(e.id, i)); rerender(); NT.toast('已改回待确认'); }
+    if (undo) {
+      const e = st.event(undo.dataset.rcUndo), n = st.receiptRevert(e.id); rerender();
+      NT.toast(n < e.scores.length ? `已把你确认的 ${n} 个维度改回待确认，已校准的维度保持原样` : '已改回待确认');
+    }
   });
 
   // 重置演示数据：只清本浏览器里的演示状态，评审评论在服务器上不受影响

@@ -55,6 +55,13 @@
     });
     return items.map((x) => ({ ...x, mine: ['held', 'skipped'].includes(x.state) ? x.ev.recorder === me() : st.confirmerOk(x.ev) }));
   };
+  // 改回待确认：只动本人确认的维度；HR 校准过或其他人确认的维度保留分数和历史。返回改回的维度数
+  st.receiptRevertible = (e) => e.scores.map((s, i) => [s, i]).filter(([s]) => s.st === 'confirmed' && s.by === me()).map(([, i]) => i);
+  st.receiptRevert = (evId) => {
+    const e = st.event(evId), idx = e ? st.receiptRevertible(e) : [];
+    idx.forEach((i) => st.unconfirmScore(evId, i));
+    return idx.length;
+  };
   // 回执上确认一件事：只确认还待确认的维度，已经人工确认或校准过的分保持原样；vals 是改过的分（维度序号 → 分数）。
   // 返回撤销函数，只还原这一次改动的维度，原有的人工判断和历史都保留
   st.receiptConfirm = (evId, vals = new Map(), why = '') => {

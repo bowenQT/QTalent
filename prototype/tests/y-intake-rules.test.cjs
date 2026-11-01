@@ -333,3 +333,60 @@ test('答辩评委在回执里确认本人评分，待办随之消失；两位�
   hr.confirmConclusion('nc-glc', '建议转正', '两位评委都已确认本人评分', 'edit');
   assert.equal(hr.conclusion('nc-glc').versions[0].type, '建议转正');
 });
+
+test('回到工作台：之前投递、还没处理完的批次接着按时推进，处理完就停', () => {
+  const mem = new Map();
+  load('hrbp', mem).addDemoDrop();
+  // 刷新或离开后回来：同一份演示数据重新加载，再跑一遍工作台的投递区初始化
+  const st = load('hrbp', mem, false);
+  const d = st.drops().find((x) => x.title.startsWith('本次投递'));
+  assert.ok(d.files.some((f) => f.steps?.some((s) => !s.done)), '批次还有没走完的步骤');
+  const wb = fs.readFileSync(path.join(__dirname, '../y/app/js/pages/workbench.js'), 'utf8');
+  const src = wb.match(/  function wireUpload\(\) \{[\s\S]*?\n  \}\n/)[0];
+  const timers = [];
+  let rendered = 0;
+  const el = { addEventListener() {}, classList: { add() {}, remove() {} } };
+  const ctx = {
+    st, UI: { ATT_MAX: 5 }, NT: { toast() {} }, html: () => '', mount() {}, icon: () => '',
+    $: () => el, document: { body: { contains: () => true } },
+    renderTasks: () => { rendered += 1; },
+    setInterval: (fn) => { timers.push(fn); return timers.length; }, clearInterval: (id) => { timers[id - 1] = null; },
+  };
+  vm.createContext(ctx);
+  vm.runInContext(`${src}; wireUpload();`, ctx);
+  assert.equal(timers.filter(Boolean).length, 1, '初始化时恢复了轮询');
+  // 约定时间都过去了：轮询推进到处理完，刷新任务列表，然后停下
+  d.files.forEach((f) => (f.steps || []).forEach((s) => { s.at = 0; }));
+  timers[0]();
+  assert.ok(rendered > 0);
+  assert.ok(d.files.every((f) => !f.steps || f.steps.every((s) => s.done)));
+  assert.equal(timers.filter(Boolean).length, 0, '都处理完以后停止轮询');
+});
+
+test('回执上改回待确认只动本人确认的维度：HR 校准过的维度保留分数和历史', () => {
+  const mem = new Map();
+  const mentor = load('mentor', mem);
+  mentor.receiptConfirm('e-d1');
+  const hr = load('hrbp', mem, false);
+  hr.calibrate('e-d1', 0, 2, '评审表写明是两人一起做的');
+  const m = load('mentor', mem, false);
+  assert.equal(m.receiptRevertible(m.event('e-d1')).join(','), '1', '只有导师本人确认的那一维能改回');
+  assert.equal(m.receiptRevert('e-d1'), 1);
+  const e = m.event('e-d1');
+  assert.equal(e.scores[0].st, 'calibrated');
+  assert.equal(e.scores[0].v, 2);
+  assert.ok(e.scores[0].hist.some((h) => h.kind === 'calib'), 'HR 的校准记录还在');
+  assert.equal(e.scores[1].st, 'ai');
+});
+
+test('面评待认人的那一行在待核对里可以选「名单外的人」，这一行收进跳过的行', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../y/app/js/pages/inbox.js'), 'utf8');
+  assert.match(src, /i\.kind === 'unknown' \|\| i\.iv \? html`<button class="n-choice" type="button" data-v="none">/);
+  // 待核对页的条目和规则层用的是同一条：选「名单外的人」后这一行跳过
+  const hr = load('hrbp');
+  hr.ivSend('imp-1', 'r7');
+  const it = hr.get().inbox.find((i) => i.id === 'i-iv-r7');
+  assert.ok(it.iv && it.kind === 'person' && !it.options.length, '面评待认人条目没有候选，只能搜索或选名单外');
+  hr.resolveInbox(it.id, 'none');
+  assert.equal(hr.ivRowState(hr.importOf('imp-1').rows.find((r) => r.id === 'r7')), 'skip');
+});
