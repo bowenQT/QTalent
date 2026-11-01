@@ -23,38 +23,75 @@ import {
   staffingDemandJobFixture,
 } from '../../../contracts/staffing.fixtures';
 import { buildEntryDeepLink } from '../../../contracts/entry-links';
+import type {
+  MaterialBatchInput,
+  MaterialBatchReceipt,
+} from '../../../contracts/materials';
+import type { QuickView } from '../../../contracts/people';
 const now = '2026-11-01T01:00:00.000Z';
 const args = {
   operationId: 'demo-operation',
   evaluationNodeId: 'demo-node',
   personIds: ['demo-person'],
+  projectId: null,
   text: '演示：合成材料',
   files: [],
-};
+} satisfies MaterialBatchInput;
 const receipt = {
   batchId: 'demo-batch',
   revision: 1,
   evaluationNodeId: 'demo-node',
   personIds: ['demo-person'],
+  projectId: null,
+  hasHiddenContent: false,
   files: [],
   status: 'processing' as const,
   jobId: 'demo-job',
-};
+  textMaterial: {
+    materialId: 'demo-text-material',
+    originalVersionId: 'demo-text-original',
+  },
+  items: [],
+  resolvedItems: [],
+  draftSet: null,
+  confirmedDrafts: [],
+  counts: {
+    files: {
+      total: 0,
+      processing: 0,
+      parsed: 0,
+      needs_review: 0,
+      unsupported: 0,
+      failed: 0,
+      original_only: 0,
+      attachment_only: 0,
+    },
+    events: { total: 0, awaiting_confirmation: 0, confirmed: 0 },
+    reviewItems: 0,
+  },
+  error: null,
+} satisfies MaterialBatchReceipt;
 const brief = {
   role: 'hr' as const,
   person: {
     id: 'demo-person',
     demo: true,
     name: '演示小禾',
+    hue: 120,
+    photo: null,
     teamId: 'demo-team',
     teamName: '演示组',
+    teamPath: '演示组织 / 演示组',
     jobTitle: '演示岗位',
+    level: null,
+    batch: null,
+    tenureLabel: null,
   },
-  summary: { status: 'empty' as const },
-  capabilityProfile: { status: 'empty' as const },
-  projects: { status: 'empty' as const },
+  projectLoad: { current: 0, ever: 0 },
+  recentFacts: { status: 'empty' as const },
+  capabilityLines: { status: 'empty' as const },
   referencePosition: { status: 'unknown' as const, reason: '演示：无快照' },
-};
+} satisfies QuickView;
 type Tx = { writes: string[]; audits: EntryAudit[] };
 async function fixture(channel: EntryChannel = 'web') {
   const binding: CredentialBinding = {
