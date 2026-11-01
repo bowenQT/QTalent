@@ -37,3 +37,8 @@ export const studentsCaption =
   '每件事按情境、行为、影响记下来；分数在事件里给，对照行为锚点。';
 export const studentsEmpty = '分配给你的学员会出现在这里。';
 export const handoffFailed = '转交失败，请再点一次发送';
+
+export const todosDone = {
+  title: '待办都处理完了',
+  text: '新的待核对、校准和到期的跟踪会出现在这里。',
+} as const;

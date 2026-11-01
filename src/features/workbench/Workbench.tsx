@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react';
 import type { WorkbenchRole, WorkbenchView } from './view';
-import { Greeting } from './sections/head/Greeting';
+import { Greeting, GreetingText } from './sections/head/Greeting';
+import { Export } from './sections/export/Export';
 import { FindBox } from './sections/find/FindBox';
 import { Composer } from './sections/composer/Composer';
 import { Students } from './sections/students/Students';
+import { Todos } from './sections/todos/Todos';
+import { showsTodos } from './sections/todos/todo-groups';
 
 /**
  * The only place sections are registered. A later card adds its own
@@ -17,10 +20,19 @@ type Section = {
   render: (view: WorkbenchView) => ReactNode;
 };
 
+// The export entry sits inside the heading (prototype `.nt-head__acts`), so the
+// heading is one section that the export section wraps when it is connected.
 const greeting: Section = {
   id: 'greeting',
   shows: () => true,
-  render: (view) => <Greeting view={view} />,
+  render: (view) =>
+    view.exportable.status === 'ready' ? (
+      <Export view={view} data={view.exportable.data}>
+        <GreetingText view={view} />
+      </Export>
+    ) : (
+      <Greeting view={view} />
+    ),
 };
 const find: Section = {
   id: 'find',
@@ -32,6 +44,11 @@ const composer: Section = {
   shows: (view) => view.entries.record,
   // BOW-861 passes uploadAnchor="#upload" here once its upload section is in place.
   render: (view) => <Composer view={view} />,
+};
+const todos: Section = {
+  id: 'todos',
+  shows: (view) => showsTodos(view.todos),
+  render: (view) => <Todos view={view} />,
 };
 const students: Section = {
   id: 'students',
@@ -46,7 +63,7 @@ type Block =
   | { id: string; className: 'nt-ceo' | 'nt-cols'; main: Slot; side: Slot };
 
 // Order and containers follow prototype/y/app/js/pages/workbench.js per role.
-// Empty slots are where sections not connected yet will go (todos, uploads, …).
+// Empty slots are where sections not connected yet will go (uploads, …).
 const layouts: Record<WorkbenchRole, Block[]> = {
   manager: [
     greeting,
@@ -64,7 +81,7 @@ const layouts: Record<WorkbenchRole, Block[]> = {
     {
       id: 'columns',
       className: 'nt-cols',
-      main: { grid: false, sections: [] },
+      main: { grid: false, sections: [todos] },
       side: { grid: true, sections: [] },
     },
   ],

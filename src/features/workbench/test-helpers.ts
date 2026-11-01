@@ -11,6 +11,7 @@ export function testView(
     entries: { record: true, findPeople: true },
     accountId: 'test-account',
     namedExamples: true,
+    exportable: { status: 'not_connected' },
     ...overrides,
   };
 }

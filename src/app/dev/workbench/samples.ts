@@ -1,11 +1,17 @@
 import type { ShellData } from '@/contracts/shell';
-import type { WorkbenchRole, WorkbenchView } from '@/features/workbench/view';
+import type {
+  ExportView,
+  TodosView,
+  VerifyKind,
+  WorkbenchRole,
+  WorkbenchView,
+} from '@/features/workbench/view';
 
 /**
- * Sample views for comparing the workbench sections with prototype Y while the real read
- * (BOW-838) and the revised contract (#202) are not on main. Demo pseudonyms and values
- * from the prototype Y seed (?as=ceo|hrbp|mentor at 2026-09-04); not real people and not
- * a fallback for the real page.
+ * Sample views for comparing workbench sections with prototype Y, in particular those
+ * whose reads are not on main yet (material checks, node conclusions, export): /work
+ * leaves those out. Demo pseudonyms and values from the prototype Y seed
+ * (?as=ceo|hrbp|mentor at 2026-09-04); not real people and not a fallback for /work.
  */
 const asOf = '2026-09-04';
 const mentorTrainees: [string, string, string, string | null][] = [
@@ -21,6 +27,113 @@ const mentorTrainees: [string, string, string, string | null][] = [
   ['p-x15', '周初晴', '分镜工厂 · 二组', null],
 ];
 
+// prototype/y/app/js/data.js and data-intake.js INBOX, the four kinds HR checks.
+const verify: [string, VerifyKind, string, string, string][] = [
+  [
+    'i-meng',
+    'unknown_person',
+    '录音里的「小孟」指的是谁',
+    'W8 导师团复盘',
+    '06:15',
+  ],
+  ['i-spk', 'speaker', '录像里的「说话人 2」是谁', '结营路演录像.mp4', '16:30'],
+  [
+    'i-xz',
+    'unknown_person',
+    '评审表第 14 行的「小周」指谁',
+    '结营评审表.xlsx',
+    '第 14 行',
+  ],
+  [
+    'i-aze',
+    'unknown_person',
+    '意见表第 8 段的「阿泽」指谁',
+    '结营评审意见表.docx',
+    '第 8 段',
+  ],
+  [
+    'i-region',
+    'image_scope',
+    '评审群截图里要整理哪几行',
+    '评审群截图.png',
+    '第 1 张图',
+  ],
+  [
+    'i-int',
+    'unknown_interviewer',
+    '面评第 3 页的面试官「Kevin」是谁',
+    '北森面评导出 · 2026-07.pdf',
+    '第 3 页',
+  ],
+];
+const hrTodos: TodosView = {
+  verify: {
+    status: 'ready',
+    data: verify.map(([id, kind, question, source, location]) => ({
+      id,
+      kind,
+      question,
+      source,
+      location,
+      deferred: false,
+      href: `/inbox#${id}`,
+    })),
+  },
+  conclusion: {
+    status: 'ready',
+    data: [
+      ['nc-fzx', '方知夏'],
+      ['nc-glc', '顾临川'],
+    ].map(([id, personName]) => ({
+      id,
+      nodeName: '转正答辩',
+      personName,
+      waitingJudges: ['叶青'],
+      href: `/program-actions?node=pg-def:n0#${id}`,
+    })),
+  },
+  reassign: { status: 'ready', data: { items: 4, evaluators: ['谷牧野'] } },
+};
+
+// Export scopes and previews for the dialog sample.
+const preview = (people: number, rows: number, skipped = 0) => ({
+  people,
+  rows,
+  skipped,
+});
+const exportScopes: ExportView['scopes'] = [
+  {
+    id: 'all',
+    label: '我查看范围内的全部人员',
+    people: 129,
+    previews: {
+      all: preview(16, 40, 3),
+      last12Months: preview(16, 40, 3),
+      last3Months: preview(12, 27, 3),
+    },
+  },
+  {
+    id: 'pg-xe6',
+    label: 'XEngineer 第六期',
+    people: 93,
+    previews: {
+      all: preview(14, 34, 3),
+      last12Months: preview(14, 34, 3),
+      last3Months: preview(12, 27, 3),
+    },
+  },
+  {
+    id: 'empty',
+    label: '夏季黑客松',
+    people: 0,
+    previews: {
+      all: preview(0, 0),
+      last12Months: preview(0, 0),
+      last3Months: preview(0, 0),
+    },
+  },
+];
+
 export const sampleViews: Record<WorkbenchRole, WorkbenchView> = {
   manager: {
     role: 'manager',
@@ -29,6 +142,7 @@ export const sampleViews: Record<WorkbenchRole, WorkbenchView> = {
     entries: { record: true, findPeople: true },
     accountId: 'sample-ceo',
     namedExamples: true,
+    exportable: { status: 'ready', data: { scopes: exportScopes } },
   },
   hr: {
     role: 'hr',
@@ -37,6 +151,8 @@ export const sampleViews: Record<WorkbenchRole, WorkbenchView> = {
     entries: { record: true, findPeople: true },
     accountId: 'sample-hrbp',
     namedExamples: true,
+    todos: hrTodos,
+    exportable: { status: 'ready', data: { scopes: exportScopes } },
   },
   mentor: {
     role: 'mentor',
@@ -45,6 +161,7 @@ export const sampleViews: Record<WorkbenchRole, WorkbenchView> = {
     entries: { record: true, findPeople: false },
     accountId: 'sample-mentor',
     namedExamples: true,
+    exportable: { status: 'not_connected' },
     trainees: {
       status: 'ready',
       data: mentorTrainees.map(([id, name, topic, photo]) => ({

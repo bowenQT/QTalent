@@ -108,16 +108,23 @@ describe('Workbench registry', () => {
     const managerPage = render(<Workbench view={manager} />);
     expect(screen.getByRole('region', { name: '找人' })).toBeTruthy();
     managerPage.unmount();
-    // The merged fixture gives HR neither record nor find_people: greeting only.
+    // HR records and finds people; every to-do group is not connected: no card.
     const hrPage = render(<Workbench view={hr} />);
     expect(hrPage.container.querySelectorAll('header, textarea')).toHaveLength(
-      1,
+      2,
     );
+    expectNoPlaceholders(hrPage.container);
     hrPage.unmount();
     const mentorPage = render(<Workbench view={mentor} />);
-    const row = screen.getByRole('listitem');
-    expect(within(row).getByRole('link', { name: '演示测试甲' })).toBeTruthy();
-    expect(row.querySelector('small')).toBeNull();
+    const rows = screen.getAllByRole('listitem');
+    expect(
+      within(rows[0]).getByRole('link', { name: '演示测试甲' }),
+    ).toBeTruthy();
+    expect(rows.map((row) => row.querySelector('small')?.textContent)).toEqual([
+      '演示课题 · 本周记了 2 件 · 最近 09-03',
+      '本周待记',
+      '演示课题',
+    ]);
     expectNoPlaceholders(mentorPage.container);
   });
 

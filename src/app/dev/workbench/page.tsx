@@ -3,6 +3,7 @@ import { Shell } from '@/features/shell/Shell';
 import { Workbench } from '@/features/workbench/Workbench';
 import type { WorkbenchRole } from '@/features/workbench/view';
 import { sampleShell, sampleViews } from './samples';
+import { SampleExport } from './SampleExport';
 
 const roles: readonly WorkbenchRole[] = ['manager', 'hr', 'mentor'];
 
@@ -10,15 +11,23 @@ const roles: readonly WorkbenchRole[] = ['manager', 'hr', 'mentor'];
 export default async function WorkbenchSample({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string }>;
+  searchParams: Promise<{ role?: string; export?: string }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
-  const { role } = await searchParams;
+  const { role, export: exportRun } = await searchParams;
   const current = roles.find((item) => item === role);
   if (!current) notFound();
+  const view = sampleViews[current];
   return (
     <Shell data={sampleShell(current)}>
-      <Workbench view={sampleViews[current]} />
+      <SampleExport
+        failFirst={exportRun === 'fail'}
+        scopes={
+          view.exportable.status === 'ready' ? view.exportable.data.scopes : []
+        }
+      >
+        <Workbench view={view} />
+      </SampleExport>
     </Shell>
   );
 }
