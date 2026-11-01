@@ -83,7 +83,7 @@ export function createEntryContextLoader<C>(
         !context?.account ||
         context.account.id !== actor.accountId ||
         context.account.isSystemAdmin !== false ||
-        !context.account.personId?.trim()
+        context.account.personId !== actor.personId
       )
         throw new EntryUsecaseError('forbidden');
       const arrays = [

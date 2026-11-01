@@ -13,6 +13,7 @@ function fixture() {
   let binding: CredentialBinding | null = {
     credentialId: 'synthetic-credential-row',
     accountId: 'demo-account',
+    personId: 'demo-person',
     revision: 1,
     expiresAt: '2026-11-01T02:00:00.000Z',
     revokedAt: null,
@@ -52,6 +53,7 @@ describe('trusted entry identities', () => {
       expect(await f.service.current(identity)).toEqual({
         channel,
         accountId: 'demo-account',
+        personId: 'demo-person',
         credentialId: 'synthetic-credential-row',
       });
       await f.service.current(identity);
@@ -77,7 +79,7 @@ describe('trusted entry identities', () => {
     });
     expect(f.current).not.toHaveBeenCalled();
   });
-  it.each(['accountId', 'credentialId', 'revision'] as const)(
+  it.each(['accountId', 'personId', 'credentialId', 'revision'] as const)(
     'invalidates old identities when %s changes',
     async (field) => {
       const f = fixture();
@@ -135,6 +137,8 @@ describe('trusted entry identities', () => {
   it('requires complete, current, bounded server credential metadata', async () => {
     for (const value of [
       {},
+      { ...fixture().get(), personId: undefined },
+      { ...fixture().get(), personId: '' },
       { ...fixture().get(), revision: 0 },
       { ...fixture().get(), expiresAt: instant },
       { ...fixture().get(), revokedAt: instant },
@@ -205,5 +209,62 @@ describe('trusted entry identities', () => {
     await expect(f.service.current(cap)).rejects.toMatchObject({
       kind: 'unavailable',
     });
+  });
+});
+
+describe('retired entry capabilities stay retired', () => {
+  it.each(channels)(
+    'does not revive a %s identity after observed revocation and restored metadata',
+    async (channel) => {
+      const f = fixture();
+      const original = structuredClone(f.get());
+      const cap = await f.service.authenticate(channel, 'synthetic-proof');
+      f.set({ ...original, revokedAt: instant });
+      await expect(f.service.current(cap)).rejects.toMatchObject({
+        kind: 'unauthenticated',
+      });
+      f.set(original);
+      await expect(f.service.current(cap)).rejects.toMatchObject({
+        kind: 'unauthenticated',
+      });
+      expect(f.current).toHaveBeenCalledTimes(1);
+      const fresh = await f.service.authenticate(channel, 'synthetic-proof');
+      expect(await f.service.current(fresh)).toHaveProperty(
+        'accountId',
+        original.accountId,
+      );
+    },
+  );
+  it('does not let an in-flight positive lookup revive a concurrently retired identity', async () => {
+    const f = fixture();
+    const original = structuredClone(f.get());
+    const cap = await f.service.authenticate('mcp', 'synthetic-proof');
+    let release!: (value: CredentialBinding) => void;
+    f.current.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    const pending = f.service.current(cap);
+    f.set(null);
+    await expect(f.service.current(cap)).rejects.toMatchObject({
+      kind: 'unauthenticated',
+    });
+    release(original);
+    await expect(pending).rejects.toMatchObject({ kind: 'unauthenticated' });
+  });
+  it('requires a new authentication after a dependency failure instead of reusing an uncertain capability', async () => {
+    const f = fixture();
+    const cap = await f.service.authenticate('agentapi', 'synthetic-proof');
+    f.current.mockRejectedValueOnce(new Error('private dependency detail'));
+    await expect(f.service.current(cap)).rejects.toMatchObject({
+      kind: 'unavailable',
+      message: 'unavailable',
+    });
+    await expect(f.service.current(cap)).rejects.toMatchObject({
+      kind: 'unauthenticated',
+    });
+    expect(f.current).toHaveBeenCalledTimes(1);
   });
 });
