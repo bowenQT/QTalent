@@ -529,3 +529,48 @@ test('课题核对可以选「明确无课题」', () => {
   const src = fs.readFileSync(path.join(__dirname, '../y/app/js/pages/inbox.js'), 'utf8');
   assert.match(src, /明确无课题|st\.noneText/);
 });
+
+test('对人复盘确认后才核对出来的事：已确认的复盘不变，这件事单独留在回执里待确认，确认后照常进档案', () => {
+  const mem = new Map();
+  const hr = load('hrbp', mem);
+  // 连接器的路径：HR 先确认 p-x13 的现有评分和 W8 复盘，再把录音里的「说话人 2」核对成 p-x13
+  hr.review('p-x13', 'W8').events.forEach((e) => { if (e.scores.some((x) => x.st === 'ai')) hr.receiptConfirm(e.id); });
+  assert.ok(hr.confirmReview('p-x13', 'W8'), '复盘可以确认');
+  const before = hr.review('p-x13', 'W8');
+  const it = hr.get().inbox.find((i) => i.id === 'i-spk');
+  hr.resolveInbox('i-spk', 'p-x13');
+  const e = hr.event(it.ev);
+  assert.ok(e && e.people[0] === 'p-x13', '核对后这件事归到 p-x13');
+  const after = hr.review('p-x13', 'W8');
+  assert.equal(after.state, 'confirmed', '已确认的复盘状态不变');
+  assert.equal(after.ai, 0, '已确认的复盘里没有混进待确认的分');
+  assert.equal(after.events.length, before.events.length, '复盘里的事不变');
+  assert.ok(!after.events.includes(e));
+  assert.equal(hr.lateNote(e), 'W8 对人复盘已确认，这件事单独待确认');
+  assert.equal(hr.inboxLateNote(it), 'W8 对人复盘已确认，这件事单独待确认', '「已核对」里写清为什么单独列出');
+  // 这件事留在原批次的回执里，由记录人在回执里确认
+  const m = load('mentor', mem, false);
+  const x = m.dropItems(m.drop('d-ms2')).find((y) => y.ev.id === it.ev);
+  assert.ok(x && x.state === 'ai' && x.mine, '回执里单独一件待确认的事');
+  assert.ok(m.receiptConfirm(it.ev));
+  assert.ok(m.event(it.ev).scores.every((s) => s.st === 'confirmed'), '确认后计入档案');
+  assert.equal(m.lateNote(m.event(it.ev)), 'W8 对人复盘已确认，这件事单独记入档案');
+  const r = m.review('p-x13', 'W8');
+  assert.equal(r.state, 'confirmed');
+  assert.equal(r.ai, 0);
+  assert.ok(m.scoresOf('p-x13').some((s) => s.ev.id === it.ev), '确认后照常进档案取数');
+});
+
+test('对人复盘还没确认时，核对出来的事照常并入复盘', () => {
+  const st = load('hrbp');
+  const before = st.review('p-x13', 'W8');
+  const it = st.get().inbox.find((i) => i.id === 'i-spk');
+  st.resolveInbox('i-spk', 'p-x13');
+  const e = st.event(it.ev);
+  assert.equal(e.late, undefined);
+  assert.equal(st.lateNote(e), null);
+  const after = st.review('p-x13', 'W8');
+  assert.ok(after.events.includes(e), '并入复盘');
+  assert.equal(after.state, before.state);
+  assert.ok(after.ai >= before.ai);
+});

@@ -790,6 +790,7 @@
       <div class="n-rcpt__head">${who}${merged}</div>
       <h4 class="n-rcpt__title">${e.title}${UI.cites(e.srcs)}</h4>
       ${src.quote ? html`<p class="n-cite__quote n-rcpt__quote">${src.quote}<small>${src.label} · ${src.loc}</small></p>` : ''}
+      ${st.lateNote?.(e) ? html`<p class="nt-muted n-rcpt__late">${icon('info', 14)}<span>${st.lateNote(e)}</span></p>` : ''}
       ${scores}
       ${foot}
     </article>`;

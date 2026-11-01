@@ -459,7 +459,8 @@
     const from = b.from, to = w[4];
     const key = `${pid}-${week}`;
     // 复盘里直接补的事件按当天记日期，但归属这次复盘
-    const evs = S.events.filter((e) => e.kind === 'obs' && e.people.includes(pid) && (e.review === key || (e.date && e.date >= from && e.date <= to)));
+    // 复盘确认后才核对出来的事（e.late 记着当时已确认的复盘）不并入那份复盘，单独待确认
+    const evs = S.events.filter((e) => e.kind === 'obs' && e.people.includes(pid) && !e.late?.includes(key) && (e.review === key || (e.date && e.date >= from && e.date <= to)));
     const saved = S.reviews[key] || {};
     const rows = SEED.DIMS.map((d) => {
       const items = [];
