@@ -9,6 +9,12 @@
 
 结构不是授权实现。写入方仍必须在统一锁序下验证：材料与上传真实配对、同批当前成员、节点与完整共同主体/类别、当前 actor 绑定、实际操作影响集合、来源及草稿版本、确认或导入截止条件。所有历史 released 成员应完整读出，不能套本次 files 的10项上限截断。
 
-当前验证只覆盖四关系的数据库身份、约束及事务。原始输入媒体变体已单独定义，但输入表、内部保存 writer、来源读取、producer 和 worker 的媒体分支尚待同窗口接入；没有生产可用承诺，没有公共空导出。未知来源不进入模型。人工补采集流程尚待所有者选择，不把结构注释变成全材料强制确认。
+`readMediaReviewStateInTransaction(tx, materialId)` 是内部原生事实端口，不是授权或客户端 DTO。调用方使用 Read Committed，从尚未持有 job/material 锁的事务进入，保留事务直到自己的检查/写入完成。锁序为上传集合 quota → job → input → material → 原件版本/对象 → 按 ID 排序的事项 → 操作；同集合动作必须沿用该顺序，不能先锁 job 再补 quota。返回完整历史成员、当前事项、不可变操作、精确 draft/revision 依赖、原件及实际审计。等待后重读；released/superseded/cancelled/unvalidated 都保留事实，不能当可处理。
 
-正式迁移遵守873→269游标。本目录 PG 测试默认使用正式迁移；本机受控组合可显式传 `QTALENT_MEDIA_TEST_MIGRATIONS` 指向 Drizzle 原生生成的临时目录，SQL/meta 不进仓库。临时结构通过不等于默认正式CI通过。
+`currentImageDecision(state)` 只认当前 image_scope 事项指针、revision、精确 command/receipt/changes 和实际 material.review 审计。旧回执、撤销后 pending、不同裁剪区域或其他材料的操作不能恢复处理。此投影本身不授予权限。
+
+`createInitialImageDisclosureReader(db)`（usecases/media-initial-image.ts）可供905的 `loadCurrent` 消费。它只接首次图片提取、同批媒体输入、无项目的本人创建输入：原件完整 scope 必须已由可信捕获写入且有对应 material.capture 审计，账号当前绑定须匹配 job 原签名，所有原件共同主体/限制类别都重新通过既有节点写权与原文/模型策略。`members` 是完整人员集合；物理上传成员与 revision 另按873的真实集合锁核。未知范围、跨节点、非本人输入、已存在 canonical fragment、终态 job 均失败关闭，不把该窄入口扩成通用读取。调用方必须保留905裁剪前后/模型前后重读，不跨网络持事务。首次 source 仍为 null，不能伪造片段。
+
+输入表已接严格内部媒体变体；旧文本消费者显式收窄并保持原严格文本合同。846内部保存 writer、完整 canonical 媒体来源、845 createFromSources producer 和 worker 的媒体分支仍待接入。此交付不宣称图片→模型→926→845整链完成，不宣称生产路由可用。人工补采集流程尚待所有者选择，不把结构注释变成全材料强制确认。
+
+正式迁移遵守873→269游标。所有测试默认使用正式迁移；本机媒体及文本/保存组合回归可显式传 `QTALENT_MEDIA_TEST_MIGRATIONS` 指向 Drizzle 原生生成的临时目录，SQL/meta 不进仓库。临时结构通过不等于默认正式CI通过。
