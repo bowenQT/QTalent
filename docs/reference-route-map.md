@@ -23,9 +23,9 @@
 | `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
-| `app/record.html`                 | `/record`                         | record / record                     | record / records                             | 后续 / 404     |
+| `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
-| `app/queue.html`                  | `/queue`                          | queue / queue                       | queue / evaluation-system                    | 后续 / 404     |
+| `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
 | `app/review.html`                 | `/review?id=…`                    | review / review                     | review / talent                              | 后续 / 404     |
 | `app/calibrate.html`              | `/calibrate`                      | calibrate / calibrate               | calibrate / talent                           | 后续 / 404     |
@@ -35,7 +35,7 @@
 | `app/actions.html`                | `/program-actions`                | program-actions / program-actions   | program-actions / programs                   | 后续 / 404     |
 | `app/projects.html`               | `/projects`                       | projects / projects                 | projects / staffing                          | 已实现参考切片 |
 | `app/project.html`                | `/project?id=…`                   | project / project                   | project / staffing                           | 后续 / 404     |
-| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing                 | staffing / staffing                          | 后续 / 404     |
+| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 契约已定义，查询与 UI 待接入 / 404 |
 | `app/rules.html`                  | `/rules`                          | rules / rules                       | rules / evaluation-system                    | 后续 / 404     |
 | `app/judge.html`                  | `/judge?rater=me`                 | judge / judge                       | judge / evaluation-system                    | 后续 / 404     |
 | `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
@@ -50,6 +50,36 @@
 | `m/me.html`                       | `/m/me`                           | mobile-account / mobile-account     | mobile-account / directory                   | 后续 / 404     |
 | `design-system.html`              | `/dev/design-system`              | 已移植基础组件                      | —                                            | 已实现开发样张 |
 | `404.html`                        | 全局 404                          | State                               | —                                            | 已实现         |
+
+## BOW-851 找人契约
+
+`src/contracts/staffing.ts` 定义需求卡起草、编辑与确认、候选人逐条四态判断及来源、署名人工判断，以及复用 jobs 的 `staffing_match` 进度消息。方案槽位、方案确认和冻结保持 `not_connected`。
+
+本切片只交付契约与合成测试；`/staffing?new=1` 与 `?project=…` 的查询、动作和页面由 BOW-852、BOW-853、BOW-854 接入，当前继续返回 404。契约不将加分项换成候选排名，不向前端输出 confidence。
+
+## BOW-858：上传、录音与附件契约
+
+依据 [SDD v1.1](https://linear.app/bowenzhong/document/5c7ff2471a3f)。`src/contracts/media.ts` 只定义输入/输出与合成用例，不代表下列路由、动作或前端已接通；现有未实现路由仍返回 404。
+
+| 页面 / 入口 | 读取与动作门面 | 契约与状态 | 实现责任 |
+| --- | --- | --- | --- |
+| 工作台上传材料、记事附件 | requestUpload、completeUpload、readOriginal | uploadRequest / uploadGrant / uploadCompleted；共用稳定 recordCollectionId，当前记录累计 10 个、单个 2×1024³ 字节；实际内容与当前权限服务端校验 | 873 / 861 / 870 |
+| 工作台长任务 | readMedia、后台 job retry/resume/cancel | mediaRead / mediaJobSnapshot，复用 jobs.ts；needs_review→awaiting_manual，已产出待确认草稿→completed，不表示人工已确认 | 842 / 859 / 861 |
+| 待核对·说话人 | bind / defer / mark_irrelevant / unbind | speakerItem / speakerCommand / bindingResult；人名与项目未接入 | 860 / 862 |
+| 桌面实时录音 | 浏览器↔常驻进程 WebSocket | recordingClientMessage / recordingServerMessage；ack 仅表示独立完整音频段已验证归档，preview 永远不是正式事件来源 | 868 / 869 |
+| 文字附件解析 | parse / readMedia | attachmentParseResult；parsing→running/partial、parsed→completed、unsupported→failed；扫描件不冒充空成功；未 parsed 不可保存事件 | 866 / 870 |
+
+- 仅支持 MP3/M4A/WAV/AAC、TXT/DOCX/文字型 PDF。文件名/MIME 一致性仅是声明检查，服务端仍须检查实际内容、累计数量和授权。上传凭证只含受约束 token、服务器指定 key；客户端不能选 bucket/key。原件读取经授权应用代理，不返回私有供应商读签名。
+- recordCollectionId 是当前记录（新建草稿或既有记录）的稳定附件集合不透明身份，请求必须携带，凭证与完成响应回显同一身份；跨文件、重试和编辑保持不变，与 target 人员或事件分开。它只是客户端提供的查找身份，不授予权限。873 resolver 每次同时接收 recordCollectionId + target，验证集合归属、记录写授权与目标范围后解析到可信 quotaScope，以事务中的权威计数判断额度；不能相信客户端 existingAttachmentCount 或让客户端指定 quotaScope。前端取得集合身份、873 resolver 接线和持久业务由对应任务实现，本卡没有新增草稿路由。
+- 归档完成时 source 可以为 null，表示解析或转写尚未产生真实片段；后续有 source 时复用公共 fragmentId / originalVersionId 并验证版本一致。禁止为满足完成响应编造占位 fragment。
+- readOriginal 严格接受两种查找身份：引用路径 `{fragmentId, originalVersionId, range?}`，或原件路径 `{originalId, originalVersionId, range?}`；混合或不完整身份被拒绝。873 必须独立校验当前认证、记录/上传归属、版本属于该原件及整份内容授权，未知或不完整分类继续 fail closed，不能凭版本 ID 或上传人身份默认放行。schema 只验证输入形状，不宣称已查数据库或所有 source:null 文件当前可读；扫描件本期仍为 unsupported，不能据此保存事件。
+- 产品上限保持单文件 2×1024³ 字节。856 适配器当前 1 GiB 是实现能力缺口；大于当前能力且不超过产品上限的服务端申请应明确返回 unavailable，不能冒充格式 unsupported，也不能偷偷降低产品上限或只调高能力参数就声称已支持。真实 2 GiB 链路由 856/873 后续完成验收；BOW-858 合并门禁按本章当前批准的核对、CI 与远审执行，不另增真实联调条件。
+- 快照内 result 严格白名单；浏览器上传字节进度不混入后台持久状态。媒体阶段 queued→queued、transcribing/parsing/shaping→running、needs_review→awaiting_manual、completed/parsed→completed、failed/unsupported→failed、cancelled→cancelled。partial 仅用于仍在 transcribing/parsing/shaping 且已有可安全展示的部分结果，不用于纯等待说话人绑定；unsupported 通过媒体阶段保留“暂不支持”语义，不当作已解析或空文本成功。
+- 取消命令沿用 operationId/expectedRevision，关闭页面或取消订阅不是取消任务；cancelRequestedAt 是持久栅栏，只有安全停止才 cancelled。失败重试新 attempt，旧结果不能覆盖当前。业务事务由 842/859/860 实现，本契约验证不等于这些行为已验收。
+- 离线稿有 transcriptVersionId，实时预览没有可用于事件提取的来源身份。音频来源统一 fragmentId + originalVersionId + recording 时间段；文档使用真实段号，PDF 可带真实页码，不为 TXT/DOCX 虚构页码。
+- 完整原件归档、离线转写及确定片段保存不等说话人绑定；事件整理只在全部说话人已绑定或明确无关后恢复。defer 不满足恢复门槛。撤销使依赖旧绑定修订的未确认草稿失效、保留历史，已确认结果须另行修订，不自动删除或重算；与确认的竞态由后端同事务校验。
+- 浏览器协议与供应商协议分离，采用 PCM16 little-endian / 单声道 / 16kHz。chunk JSON 头后接一帧二进制，868 核实际字节数、SHA-256、窗口/帧上限和授权；这些运行参数仍由 868 spec 冻结。sequence 从 1 开始、连续归档水位从 0 开始；同段同摘要去重，不同摘要冲突。ack 的 sequence 表示本次确认的段，archivedThrough 表示当前连续归档水位；重发旧段时累计水位可高于该 sequence。finish 必须等所有已发段归档及容器完整性校验后才发 archived 并触发一次离线链路。
+- 原 SDD 的前端负责人评审要求保留为历史。用户于 2026-10-25 17:31 UTC 明确批准改用独立原型/消费核对、CI 与远审后由协调方统一合入，当前不再等待原前端负责人，也不冒称前端签字。固定核心 1afd40e 的独立原型/消费核对已完成并通过，无本期结构阻断；CI 与远审仍以发布组合为准。本表不宣称真实上传或真实听悟验收通过。
 
 ## 已移植组件与样式
 
@@ -85,6 +115,19 @@
 | `.nt-recent`          | 最近访问数据未接入                                         | 最近访问契约与查询接入                 |
 
 遮罩采用两侧实际区域的并集，并在两侧相同坐标覆盖，避免因工程省略节点导致只遮一侧。其他业务内容、项目卡片、筛选器、弹窗字段均不遮罩。
+
+### 页面卡共用的比较接口（`tests/visual/compare.ts`）
+
+页面卡需要在上述基线之外登记差异时，只用下面几个接口，不改 `reference-config.ts`；不传新参数时行为与此前相同。
+
+| 接口                                                           | 用途                                                                                                                                                                                                                               |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `normalizeRegions(原型页, 工程页, { omit, replace })`          | 比较前整理 DOM。`omit` 只作用于原型侧（工程不渲染、版面会错位的区块）；`replace` 把两侧同一选择器的第 i 个匹配替换成等大的空占位盒，匹配数不同直接报错，容器宽度不同会软失败                                                       |
+| `matchingMasks(原型页, 工程页, 额外选择器)`                    | 整页或首屏比较的页面级遮罩，与 `referenceConfig.masks` 合并，两侧实际区域取并集。页面自己的遮罩由页面传入，不放进全局配置                                                                                                          |
+| `compareElements(原型, 工程, testInfo, 名称, { mask, snap })`  | 元素比较。`mask` 是写在原型侧的元素内选择器，两侧各自换算成相对元素左上角的矩形，取并集后在相同相对位置覆盖（宽度对齐之后测量，由 `maskWithin` 完成）；`snap` 先用 `snapLayout` 把两侧元素的布局纵坐标取整，避免文字基线整行差 1px |
+| `expectSameBox(原型元素, 工程元素, 名称, { keys, tolerance })` | 几何先于像素：软断言文档坐标下的矩形一致，默认四项、容差 1px                                                                                                                                                                       |
+
+调用顺序固定：`normalizeRegions` → `stabilize` → `matchingMasks` → `compare` / `compareElements`；`expectSameBox` 必须在 `compareElements` 之前，因为后者会把工程元素宽度改成原型宽度。
 
 ## 实际验证与环境边界
 
@@ -141,3 +184,9 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 前端开发夹具：`tests/fixtures/p0-contracts.ts`，只含 `test-*` 标识和明确合成描述，涵盖三角色、ready/empty/insufficient_evidence/unknown/not_connected、来源拒绝。不得作为生产 fallback。测试：`src/contracts/p0-contracts.test.ts`；不改变工程共享配置与覆盖率排除。
 
 BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认分一样参加能力谱和参考位置；原型 AI 建议及资料不足不计入。这个合同不决定授权或正式导入许可，正式入口拒绝 prototype_baseline 由 BOW-834 保证。前端负责人需评审新增快照位置、来源类别与提示的展示；当前尚无该验收证据。
+
+## BOW-844 记事与评分复核契约
+
+`src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
+
+本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
