@@ -98,3 +98,20 @@ test('未知 ID、待核实状态撤回均不保存',()=>{
   assert.equal(f.store.unverifyClue('c-demo'),false);
   assert.equal(f.saves,0);
 });
+test('工作台把线索撤销结果如实交给 Toast：旧撤销失败时只显示肯定式的失败文案', () => {
+  const page = fs.readFileSync(path.join(__dirname, '../y/app/js/pages/workbench.js'), 'utf8');
+  const undos = [...page.matchAll(/undo: (\(\) => \{ const ok = st\.unverifyClue\(c\.id, token\);[^}]*\}), failText: CLUE_UNDO_FAIL/g)].map((m) => m[1]);
+  assert.equal(undos.length, 2, '核实和不采纳两个 Toast 都把撤销结果交回');
+  for (const src of undos) {
+    let drawn = 0;
+    const wrap = (ok) => vm.runInNewContext(src, { st: { unverifyClue: () => ok }, c: { id: 'c-demo' }, token: 'vh-1', redraw: () => { drawn++; } });
+    assert.equal(wrap(false)(), false, '旧撤销被拒时返回 false，Toast 显示失败');
+    assert.equal(wrap(true)(), true);
+    assert.equal(drawn, 2);
+    assert.doesNotMatch(src, /NT\.toast/, '失败时不另弹 Toast');
+  }
+  const fail = page.match(/const CLUE_UNDO_FAIL = '([^']+)'/)[1];
+  assert.match(fail, /^撤销失败：.*已保留/);
+  const msgs = page.match(/const clueFail = [^\n]+/)[0];
+  for (const t of [fail, ...msgs.match(/'[^']+'/g)]) assert.doesNotMatch(t, /不能|无权|不可用|没有/, `${t} 用肯定式`);
+});
