@@ -82,7 +82,10 @@ export function JudgeRater({
             </h3>
             <p style={{ margin: 0 }}>{sampleSummary(sample, cases)}</p>
             <p className="nt-caption">
-              {gradeLine(self ? '你' : raterName, cases, mapping)}
+              {/* Below the threshold no per-rater numbers, only the cases. */}
+              {sample.state === 'sufficient_sample'
+                ? gradeLine(self ? '你' : raterName, cases, mapping)
+                : null}
               可对照案例（含中间档）都计入门槛，偏高、偏低、一致只算最高或最低一档。
               {restLine(cases)}
             </p>

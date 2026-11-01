@@ -54,6 +54,8 @@ export function HrRevision({
   const [working, setWorking] = useState(() => applyChanges(base, saved));
   const [reason, setReason] = useState(initial.reason);
   const [busy, setBusy] = useState(false);
+  // A point open in the editor holds input that `working` does not have yet.
+  const [pointOpen, setPointOpen] = useState(false);
   const [error, setError] = useState('');
   const operation = useOperation();
   const changes = changesBetween(base, working);
@@ -62,11 +64,13 @@ export function HrRevision({
   const draft = revision.state === 'draft';
 
   async function save() {
-    const missing = !changes.length
-      ? '先改至少一处'
-      : !reason.trim()
-        ? '写修订理由'
-        : '';
+    const missing = pointOpen
+      ? '保存或取消正在编辑的要点'
+      : !changes.length
+        ? '先改至少一处'
+        : !reason.trim()
+          ? '写修订理由'
+          : '';
     if (missing) {
       setError(`保存前还要：${missing}。`);
       return;
@@ -94,11 +98,13 @@ export function HrRevision({
   }
 
   async function submit() {
-    const missing = !reason.trim()
-      ? '写修订理由'
-      : revision.humanVersion === null || dirty
-        ? '保存当前修改，按当前草稿预览一次影响'
-        : '';
+    const missing = pointOpen
+      ? '保存或取消正在编辑的要点'
+      : !reason.trim()
+        ? '写修订理由'
+        : revision.humanVersion === null || dirty
+          ? '保存当前修改，按当前草稿预览一次影响'
+          : '';
     if (missing) {
       setError(`提交前还要：${missing}。`);
       return;
@@ -225,6 +231,10 @@ export function HrRevision({
             onChange={(points) => {
               setError('');
               setWorking(points);
+            }}
+            onEditing={(open) => {
+              setError('');
+              setPointOpen(open);
             }}
             newId={() => `point-${newOperationId()}`}
           />

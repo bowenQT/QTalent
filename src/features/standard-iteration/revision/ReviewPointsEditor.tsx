@@ -21,15 +21,22 @@ export function ReviewPointsEditor({
   working,
   editable,
   onChange,
+  onEditing,
   newId,
 }: {
   base: readonly ReviewPoint[];
   working: readonly ReviewPoint[];
   editable: boolean;
   onChange: (points: ReviewPoint[]) => void;
+  /** Whether a point is open with input not yet in `working`. */
+  onEditing?: (open: boolean) => void;
   newId: () => string;
 }) {
   const [editing, setEditing] = useState<Editing | null>(null);
+  function edit(next: Editing | null) {
+    setEditing(next);
+    onEditing?.(next !== null);
+  }
   const baseOf = new Map(base.map((point) => [point.id, point]));
   const nowOf = new Map(working.map((point) => [point.id, point]));
   const rows: { id: string; before?: ReviewPoint; after?: ReviewPoint }[] = [
@@ -55,7 +62,7 @@ export function ReviewPointsEditor({
         ? [...working, point]
         : working.map((item) => (item.id === point.id ? point : item)),
     );
-    setEditing(null);
+    edit(null);
   }
   function restore(id: string) {
     const before = baseOf.get(id);
@@ -104,7 +111,7 @@ export function ReviewPointsEditor({
                       placeholder="比如：个人贡献核验"
                       value={editing.title}
                       onChange={(event) =>
-                        setEditing({ ...editing, title: event.target.value })
+                        edit({ ...editing, title: event.target.value })
                       }
                     />
                     <textarea
@@ -114,7 +121,7 @@ export function ReviewPointsEditor({
                       placeholder="比如：组队作品里每位成员说明本人做了哪部分"
                       value={editing.description}
                       onChange={(event) =>
-                        setEditing({
+                        edit({
                           ...editing,
                           description: event.target.value,
                         })
@@ -122,7 +129,7 @@ export function ReviewPointsEditor({
                       onKeyDown={(event) => {
                         if (event.key === 'Escape') {
                           event.preventDefault();
-                          setEditing(null);
+                          edit(null);
                         }
                       }}
                     />
@@ -140,7 +147,7 @@ export function ReviewPointsEditor({
                       <Button
                         className="n-btn--sm n-btn--ghost"
                         type="button"
-                        onClick={() => setEditing(null)}
+                        onClick={() => edit(null)}
                       >
                         取消
                       </Button>
@@ -171,7 +178,7 @@ export function ReviewPointsEditor({
                           className="n-btn--sm n-btn--ghost"
                           type="button"
                           aria-label={`改要点 ${index}`}
-                          onClick={() => setEditing({ ...after, isNew: false })}
+                          onClick={() => edit({ ...after, isNew: false })}
                         >
                           <Icon name="pen" />
                         </Button>
@@ -210,7 +217,7 @@ export function ReviewPointsEditor({
           type="button"
           style={{ justifySelf: 'start', marginTop: 'var(--s-2)' }}
           onClick={() =>
-            setEditing({ id: newId(), title: '', description: '', isNew: true })
+            edit({ id: newId(), title: '', description: '', isNew: true })
           }
         >
           <Icon name="plus" />
