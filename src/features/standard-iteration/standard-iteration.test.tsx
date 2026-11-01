@@ -27,6 +27,7 @@ import {
 } from '@/app/dev/standard-iteration/samples';
 import { managerView } from '@/app/dev/standard-iteration/sample-store';
 import { Attribution } from './attribution/Attribution';
+import { CaseCard } from './judge/CaseCard';
 import { JudgeBatch } from './judge/JudgeBatch';
 import { JudgeManager } from './judge/JudgeManager';
 import { JudgeRater } from './judge/JudgeRater';
@@ -285,6 +286,62 @@ describe('Attribution failures', () => {
     await waitFor(() => expect(ports.confirm).toHaveBeenCalledTimes(2));
     const [first, second] = ports.confirm.mock.calls.map(([input]) => input);
     expect(second).toEqual(first);
+  });
+
+  it('starts a new AI 整理 request after an explicit model failure', async () => {
+    const user = userEvent.setup();
+    ports.generate.mockReset();
+    ports.generate
+      .mockResolvedValueOnce({ status: 'model_failed', message: '' })
+      .mockResolvedValueOnce({ status: 'success', result: sampleHypotheses });
+    wrap(
+      <Attribution
+        batchId={sampleBatch.id}
+        baseVersionId="xe-select-v1"
+        cases={sampleHrPage.cases}
+        initialHypotheses={{ status: 'idle' }}
+        initialAttributions={[]}
+        ports={ports}
+        onCase={vi.fn()}
+        onDrafted={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '整理 AI 假设' }));
+    await user.click(await screen.findByRole('button', { name: '重新整理' }));
+    expect(
+      await screen.findAllByRole('button', { name: '采纳并归因' }),
+    ).not.toHaveLength(0);
+    const [first, second] = ports.generate.mock.calls.map(([input]) => input);
+    // The server replays a finished failure for the same id; a retry is a new request.
+    expect(second.operationId).not.toBe(first.operationId);
+    expect(second.batchId).toBe(first.batchId);
+  });
+
+  it('keeps the cited cases on a confirmed attribution', async () => {
+    const user = userEvent.setup();
+    const onCase = vi.fn();
+    wrap(
+      <Attribution
+        batchId={sampleBatch.id}
+        baseVersionId="xe-select-v1"
+        cases={sampleHrPage.cases}
+        initialHypotheses={{ status: 'ready', items: sampleHypotheses }}
+        initialAttributions={[sampleAttribution]}
+        ports={ports}
+        onCase={onCase}
+        onDrafted={vi.fn()}
+      />,
+    );
+    const done = document.querySelector(
+      `[data-attribution="${sampleAttribution.id}"]`,
+    ) as HTMLElement;
+    const caseIds = [
+      ...new Set(sampleAttribution.citations.map((c) => c.caseId)),
+    ];
+    const chips = within(done).getAllByRole('button', { name: / · / });
+    expect(chips).toHaveLength(caseIds.length);
+    await user.click(chips[0]);
+    expect(onCase).toHaveBeenCalledWith(caseIds[0]);
   });
 
   it('says the batch has no hypothesis yet when AI returns none', async () => {
@@ -893,6 +950,27 @@ describe('judge summaries', () => {
     expect(
       screen.getByRole('heading', { name: /^XEngineer 第六期xe-select/ }),
     ).toBeTruthy();
+  });
+});
+
+describe('CaseCard', () => {
+  it('shows the later stage standard version only when that stage is visible', () => {
+    const unit = sampleHrPage.cases.find(
+      (item) => item.back.state === 'present',
+    )!;
+    const view = render(<CaseCard unit={unit} mappingVersionId="map-v1" />);
+    const back = unit.back.state === 'present' ? unit.back.judgment : null;
+    expect(view.container.textContent).toContain(
+      `${back!.standardVersionId} · 评审 ${back!.evaluator.name}`,
+    );
+    cleanup();
+    const hidden = sampleRaterPage('ye').cases.find(
+      (item) => item.back.state === 'withheld',
+    )!;
+    const rater = render(
+      <CaseCard unit={hidden} mappingVersionId="map-v1" raterOnly />,
+    );
+    expect(rater.container.textContent).not.toContain('xe-graduation-v1');
   });
 });
 
