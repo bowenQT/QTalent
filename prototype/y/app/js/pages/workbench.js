@@ -131,6 +131,9 @@
       ${groups.map((g) => html`<div class="n-todogrp"><button class="n-todogrp__head" type="button" data-grp="${g.k}" aria-expanded="${g.k === open}">${g.l}<span class="n-count is-quiet">${g.list.length}</span>${g.k === open ? '' : html`<small>${g.list[0].title}${g.list.length > 1 ? ' 等' : ''}</small>`}${icon('chev')}</button>${g.k === open ? todoList(g.list) : ''}</div>`)}
       ${handledBlock()}`;
   }
+  // 线索处理失败时说清发生了什么：只由负责这个人的 HR 处理；或这条线索已有新结论
+  const CLUE_UNDO_FAIL = '撤销失败：这条线索已有新结论，已保留当前结果';
+  const clueFail = (id) => { const c = st.get().watchClues.find((x) => x.id === id); return !c || st.role() !== 'hrbp' || st.scope(c.person) !== 'full' ? '线索由负责这个人的 HR 处理' : '这条线索已有新结论，已刷新'; };
   function wireTodos() {
     const host = $('#todo'); if (!host) return;
     const redraw = () => mount(host, todoBlock(st.role(), st.todos()));
@@ -139,18 +142,20 @@
       if (g) { openGroup = g.dataset.grp; redraw(); return; }
       if (e.target.closest('#todo-handled')) { showHandled = !showHandled; redraw(); return; }
       const un = e.target.closest('[data-cun]');
-      if (un) { st.unverifyClue(un.dataset.cun); redraw(); NT.toast('已改回待核实，已从「值得关注的人」移出'); return; }
+      if (un) { if (!st.unverifyClue(un.dataset.cun)) { NT.toast(clueFail(un.dataset.cun)); redraw(); return; } redraw(); NT.toast('已改回待核实，已从「值得关注的人」移出'); return; }
       const b = e.target.closest('[data-cok],[data-cno]'); if (!b) return;
       if (b.dataset.cok) {
-        const c = st.verifyClue(b.dataset.cok, true); redraw();
-        NT.toast(`已核实，${st.person(c.person).name}会出现在「值得关注的人」`, { undo: () => { st.unverifyClue(c.id); redraw(); } });
+        const c = st.verifyClue(b.dataset.cok, true); if (!c) { NT.toast(clueFail(b.dataset.cok)); redraw(); return; }
+        const token = c.handledToken; redraw();
+        NT.toast(`已核实，${st.person(c.person).name}会出现在「值得关注的人」`, { undo: () => { const ok = st.unverifyClue(c.id, token); redraw(); return ok; }, failText: CLUE_UNDO_FAIL });
       }
       if (b.dataset.cno) {
         const r = await NT.dialog({ title: '不采纳这条线索', body: html`<label class="n-field"><span class="n-field__label">理由（必填）</span><textarea class="n-textarea" rows="2" id="cn-why" placeholder="比如：周报里说的是同一件事，只能算一条证据"></textarea></label><p class="nt-caption">这条线索只留在你的处理记录里。</p>`,
           actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '不采纳', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#cn-why').value.trim(), read: (d) => d.querySelector('#cn-why').value.trim() }] });
         if (r?.value !== 'ok') return;
-        const c = st.verifyClue(b.dataset.cno, false, r.data); redraw();
-        NT.toast('已不采纳，理由已记录', { undo: () => { st.unverifyClue(c.id); redraw(); } });
+        const c = st.verifyClue(b.dataset.cno, false, r.data); if (!c) { NT.toast(clueFail(b.dataset.cno)); redraw(); return; }
+        const token = c.handledToken; redraw();
+        NT.toast('已不采纳，理由已记录', { undo: () => { const ok = st.unverifyClue(c.id, token); redraw(); return ok; }, failText: CLUE_UNDO_FAIL });
       }
     };
   }
