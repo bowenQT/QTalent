@@ -180,7 +180,7 @@ export function PersonPrint({
       >
         {printBody}
         {step.kind === 'confirm' && step.error ? (
-          <p role="alert" className="nt-field-error">
+          <p role="alert" className={`nt-field-error ${styles.dialogError}`}>
             {step.error}
           </p>
         ) : null}

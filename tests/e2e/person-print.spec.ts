@@ -138,9 +138,24 @@ test('by keyboard: the dialog opens, keeps a lost print and returns focus on can
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: '打印' }).focus();
   await page.keyboard.press('Enter');
-  await expect(dialog.getByRole('alert')).toHaveText(
-    '打印稿生成失败，可以再点一次「打印」。',
-  );
+  const lost = dialog.getByRole('alert');
+  await expect(lost).toHaveText('打印稿生成失败，可以再点一次「打印」。');
+  // Reads as a failure (the design's --no), not as the dialog's body text.
+  const colors = await lost.evaluate((line) => {
+    const body = line.parentElement!;
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--no)';
+    body.append(probe);
+    const no = getComputedStyle(probe).color;
+    probe.remove();
+    return {
+      line: getComputedStyle(line).color,
+      body: getComputedStyle(body).color,
+      no,
+    };
+  });
+  expect(colors.line).toBe(colors.no);
+  expect(colors.line).not.toBe(colors.body);
   await dialog.getByRole('button', { name: '取消' }).focus();
   await page.keyboard.press('Enter');
   await expect(dialog).toBeHidden();

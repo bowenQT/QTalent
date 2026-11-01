@@ -94,3 +94,14 @@
     display: block;
   }
 }
+
+/*
+ * Not part of the print: the lost-print line inside the confirm dialog. `.n-dialog p`
+ * outranks `.nt-field-error`, so it would read as body text; this takes the values of
+ * the prototype's `.n-dialog__hint`. Stays when `.n-print` moves to the global styles.
+ */
+:global(.n-dialog) .dialogError {
+  margin-top: var(--s-3);
+  line-height: 1.6;
+  color: var(--no);
+}
