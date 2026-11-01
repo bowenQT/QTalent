@@ -19,7 +19,7 @@ const motivation = (page: Page) =>
   page.locator('.n-score').filter({ hasText: '内生动力' });
 
 for (const role of ['hr', 'mentor'] as const)
-  test(`${role}: write, arrange, change a score, save and undo within five seconds`, async ({
+  test(`${role}: write, arrange, change a score, save, undo within five seconds and save again`, async ({
     page,
     referenceApp,
   }) => {
@@ -58,10 +58,17 @@ for (const role of ['hr', 'mentor'] as const)
 
     await page.getByRole('button', { name: '撤销' }).click();
     await expect(page.getByText('已撤销这条记录')).toBeVisible();
+    // As in the prototype, undo goes back to confirming with every change still there.
+    await expect(page.locator('#ev-save')).toBeVisible();
+    await expect(page.getByText('刚刚保存到孟逸尘的档案')).toHaveCount(0);
     await expect(
-      page.getByRole('textbox', { name: '说说这次发生了什么' }),
-    ).toHaveValue(SENTENCE);
-    await expect(page).not.toHaveURL(/job=/);
+      motivation(page).getByRole('radio', { name: '2 分' }),
+    ).toHaveAttribute('aria-checked', 'true');
+    await expect(
+      motivation(page).getByRole('textbox', { name: '内生动力改分理由' }),
+    ).toHaveValue('只同步了一次');
+    await page.locator('#ev-save').click();
+    await expect(page.getByText('刚刚保存到孟逸尘的档案')).toBeVisible();
   });
 
 test('the undo offer ends with the five-second window', async ({

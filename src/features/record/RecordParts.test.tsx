@@ -405,23 +405,17 @@ describe('InputQuotes / SourceMarks', () => {
     },
   ] as const;
 
-  it('原话引用照原型行内写出，点引文跳回原话', async () => {
-    const onJumpInput = vi.fn();
+  it('原话引用照原型行内写出，是普通文字', () => {
     const view = render(
       <span>
         锚点 3
-        <InputQuotes citations={[...citations]} onJumpInput={onJumpInput} />
+        <InputQuotes citations={[...citations]} />
       </span>,
     );
     expect(view.container.textContent).toBe(
       `锚点 3${copy.cite.inline}「独立完成」`,
     );
-    await userEvent.click(screen.getByRole('link', { name: '「独立完成」' }));
-    expect(onJumpInput).toHaveBeenCalledWith({
-      start: 5,
-      end: 9,
-      quote: '独立完成',
-    });
+    expect(screen.queryByRole('link')).toBeNull();
   });
 
   it('来源引用用角标，从 1 编号，展开时才读取原文', async () => {
@@ -440,7 +434,7 @@ describe('InputQuotes / SourceMarks', () => {
       },
     });
     render(<SourceMarks citations={[...citations]} loadSource={loadSource} />);
-    expect(screen.queryByRole('link', { name: '「独立完成」' })).toBeNull();
+    expect(screen.queryByText(/独立完成/)).toBeNull();
     expect(loadSource).not.toHaveBeenCalled();
     await userEvent.hover(screen.getByRole('button', { name: /^引用 1/ }));
     expect(await screen.findByText('来源里的一句话')).toBeTruthy();

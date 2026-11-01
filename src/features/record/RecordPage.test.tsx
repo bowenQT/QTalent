@@ -890,7 +890,7 @@ describe('5 秒撤销', () => {
     return ctx;
   }
 
-  it('撤销成功：回到输入并恢复原话，提示已撤销', async () => {
+  it('撤销成功：照原型回到待确认，整理结果还在，再保存换新的 operation_id', async () => {
     const { actions } = await saved();
     await click('撤销');
     expect(await screen.findByText(copy.saved.undone)).toBeTruthy();
@@ -898,9 +898,13 @@ describe('5 秒撤销', () => {
       operation_id: 'id-3',
       saveId: 'save-1',
     });
-    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
-      TEXT,
-    );
+    expect((await field(copy.sbi.title)).textContent).toBe(draft.sbi.title);
+    expect(document.querySelector('.n-event__sign')).toBeNull();
+    await click(copy.actions.save);
+    await waitFor(() => expect(actions.save).toHaveBeenCalledTimes(2));
+    const [first, second] = (actions.save as ReturnType<typeof vi.fn>).mock
+      .calls;
+    expect(second?.[0].operation_id).not.toBe(first?.[0].operation_id);
   });
 
   it('网络失败：提示撤销遇到问题并可重试，重试复用同一个 operation_id', async () => {
@@ -1183,7 +1187,7 @@ describe('锚点面板与引用', () => {
     expect(screen.getByText(copy.hint.noScores)).toBeTruthy();
   });
 
-  it('引用跳转：展开「原话」并高亮被引用的那一段', async () => {
+  it('原话引用照原型是说明里的普通文字，原话里不加标记', async () => {
     const { view } = setup();
     await typeAndSubmit();
     await field(copy.sbi.title);
@@ -1191,12 +1195,8 @@ describe('锚点面板与引用', () => {
       'details',
     ) as HTMLDetailsElement;
     expect(details.open).toBe(false);
-    expect(details.querySelector('mark')?.textContent).toBe('独立完成');
-    await userEvent.click(screen.getByRole('link', { name: '「独立完成」' }));
-    expect(details.open).toBe(true);
-    expect(details.querySelector('mark')?.getAttribute('data-active')).toBe(
-      '1',
-    );
+    expect(details.querySelector('mark')).toBeNull();
+    expect(screen.queryByRole('link', { name: '「独立完成」' })).toBeNull();
   });
 
   it('页面说明和「怎么算一条关键事件」保持原型文案', () => {

@@ -15,7 +15,7 @@ export const copy = {
     placeholderExample:
       '比如：孟逸尘今天主动把任务池同步给了全组，下午组员就接上了，分工比之前清楚多了。',
     placeholderPlain: '写下这次发生了什么：谁做了什么，带来了什么结果。',
-    hint: '写原话就行，一整段也可以',
+    hint: '写原话就行，一整段也可以；语音和附件待接通',
     micPending: '语音输入待接通',
     attachPending: '添加附件待接通',
     submit: '整理成关键事件',
@@ -74,7 +74,6 @@ export const copy = {
     behaviorNeeded: '补充行为后再保存',
     fieldProblem: '这一项需要调整后再保存',
     rawSummary: '原话',
-    rawJump: '在原话里查看',
   },
   score: {
     pointLabel: (n: number) => `${n} 分`,

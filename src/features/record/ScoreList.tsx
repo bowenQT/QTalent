@@ -4,7 +4,6 @@ import type { LoadSource } from '@/features/sources/SourceCite';
 import { resolvedPersonIds, type EditState } from './build-save-input';
 import { copy } from './copy';
 import type { SaveProblems } from './errors';
-import type { QuoteRange } from './RawInput';
 import { ScoreRow } from './ScoreRow';
 import {
   scoreKey,
@@ -33,7 +32,6 @@ export function ScoreList({
   onPick,
   onReason,
   onPreview,
-  onJumpInput,
 }: {
   draft: RecordDraft;
   edit: EditState;
@@ -47,7 +45,6 @@ export function ScoreList({
   onPick: (key: ScoreKey, value: number) => void;
   onReason: (key: ScoreKey, reason: string) => void;
   onPreview: (focus: AnchorFocus | null) => void;
-  onJumpInput: (range: QuoteRange) => void;
 }) {
   const personIds = resolvedPersonIds(draft);
   const grouped = personIds.length > 1;
@@ -81,7 +78,6 @@ export function ScoreList({
                 hit,
               })
             }
-            onJumpInput={onJumpInput}
           />
         );
       });

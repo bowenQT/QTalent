@@ -50,6 +50,8 @@ describe('SelectionPanel', () => {
     setup();
     expect(screen.getByText('原话里的名字对应两位同事')).toBeTruthy();
     const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    // 一位候选人一行：都在设计系统的选择列表里
+    expect(boxes.every((box) => box.closest('.n-choices'))).toBe(true);
     expect(boxes).toHaveLength(2);
     expect(boxes.every((b) => !b.checked)).toBe(true);
     expect(

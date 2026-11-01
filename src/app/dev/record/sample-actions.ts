@@ -123,7 +123,7 @@ export function sampleServer({
             candidates: people
               .slice(0, 3)
               .map((p) => ({ id: p.id, label: `${p.name} · ${p.orgShort}` })),
-            reason: '原话里没有写名字',
+            reason: '原话里的人名待确认',
           },
         ],
         project: { state: 'none' },
@@ -224,7 +224,7 @@ export function sampleServer({
         drafts.set(draft.draftId, { ...draft, revision: draft.revision + 1 });
         return {
           status: 'conflict',
-          message: '这条记录刚被更新，你的修改已保留',
+          message: '另一处刚保存了新版本',
           input,
         };
       }

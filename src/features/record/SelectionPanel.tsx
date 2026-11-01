@@ -83,22 +83,25 @@ export function SelectionPanel({
       {peopleNeeded || candidates.length > 0 ? (
         <fieldset style={{ border: 0, padding: 0, margin: '0 0 var(--s-3)' }}>
           <legend className="nt-muted">{copy.selection.peopleLabel}</legend>
-          {candidates.map((candidate) => (
-            <Check
-              key={candidate.id}
-              checked={picked.includes(candidate.id)}
-              disabled={busy}
-              onChange={(event) =>
-                setPicked((ids) =>
-                  event.target.checked
-                    ? [...ids, candidate.id]
-                    : ids.filter((id) => id !== candidate.id),
-                )
-              }
-            >
-              {candidate.label}
-            </Check>
-          ))}
+          {/* 一位候选人一行，复选框和名字的对应关系清楚（设计系统的选择列表间距）。 */}
+          <div className="n-choices">
+            {candidates.map((candidate) => (
+              <Check
+                key={candidate.id}
+                checked={picked.includes(candidate.id)}
+                disabled={busy}
+                onChange={(event) =>
+                  setPicked((ids) =>
+                    event.target.checked
+                      ? [...ids, candidate.id]
+                      : ids.filter((id) => id !== candidate.id),
+                  )
+                }
+              >
+                {candidate.label}
+              </Check>
+            ))}
+          </div>
         </fieldset>
       ) : null}
       {projectOptions.length > 0 ? (

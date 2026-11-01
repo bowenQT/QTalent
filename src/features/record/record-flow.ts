@@ -387,11 +387,27 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
         attachmentIds: state.attachmentIds,
       });
     case 'undone':
-      return resetToWrite({
+      // 照原型撤销后回到待确认：整理结果和改过的文字、分数都还在，可以改完再保存。
+      // 保存用过的 operation_id 作废，再保存必须换新，否则服务端会重放撤销掉的那次。
+      if (!state.draft || !state.edit)
+        return resetToWrite({
+          text: action.originalInput.text,
+          personId: action.originalInput.personId,
+          attachmentIds: action.originalInput.attachmentIds,
+        });
+      return {
+        ...state,
+        phase: 'review',
         text: action.originalInput.text,
         personId: action.originalInput.personId,
         attachmentIds: action.originalInput.attachmentIds,
-      });
+        startOp: null,
+        saveOp: null,
+        receipt: null,
+        replayed: false,
+        banner: null,
+        problems: null,
+      };
   }
 }
 

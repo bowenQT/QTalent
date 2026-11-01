@@ -34,7 +34,6 @@ function setup(over: Partial<ScoreRowProps> = {}) {
     onPick: vi.fn(),
     onReason: vi.fn(),
     onPreview: vi.fn(),
-    onJumpInput: vi.fn(),
     ...over,
   };
   const view = render(<ScoreRow {...props} />);
@@ -54,10 +53,9 @@ describe('建议分', () => {
     expect(dots.every((d) => d.getAttribute('aria-checked') === 'false')).toBe(
       true,
     );
-    expect(
-      screen.getByRole('link', { name: '「独立完成」' }).closest('span')
-        ?.parentElement?.textContent,
-    ).toBe(`${copy.score.anchorNote(3)}${copy.cite.inline}「独立完成」`);
+    expect(view.container.querySelector('.n-score__note')?.textContent).toBe(
+      `${copy.score.anchorNote(3)}${copy.cite.inline}「独立完成」`,
+    );
     expect(screen.getByRole('radiogroup', { name: '专业度分数' })).toBeTruthy();
   });
 
@@ -84,7 +82,6 @@ describe('建议分', () => {
         onPick={vi.fn()}
         onReason={vi.fn()}
         onPreview={vi.fn()}
-        onJumpInput={vi.fn()}
       />,
     );
     expect(screen.getByText('+1')).toBeTruthy();
@@ -150,18 +147,6 @@ describe('建议分', () => {
       .getAllByRole('radio')
       .filter((d) => d.getAttribute('tabindex') === '0');
     expect(tabbable.map((d) => d.getAttribute('aria-label'))).toEqual(['2 分']);
-  });
-
-  it('跳转到原话的引用会回报引用范围', async () => {
-    const { props } = setup();
-    const quote = screen.getByRole('link', { name: '「独立完成」' });
-    expect(quote.getAttribute('title')).toBe(copy.sbi.rawJump);
-    await userEvent.click(quote);
-    expect(props.onJumpInput).toHaveBeenCalledWith({
-      start: 5,
-      end: 9,
-      quote: '独立完成',
-    });
   });
 });
 

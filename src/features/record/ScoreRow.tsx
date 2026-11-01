@@ -5,7 +5,6 @@ import { Icon } from '@/components/ui/Icon';
 import type { LoadSource } from '@/features/sources/SourceCite';
 import { InputQuotes, SourceMarks } from './CitationMarks';
 import { copy } from './copy';
-import type { QuoteRange } from './RawInput';
 import type { RecordScore } from './types';
 
 const LEVELS = [1, 2, 3, 4, 5] as const;
@@ -27,7 +26,6 @@ export type ScoreRowProps = {
   onReason: (reason: string) => void;
   /** 悬停或聚焦某一分时右栏显示对应锚点；离开时传 null。 */
   onPreview: (value: number | null) => void;
-  onJumpInput: (range: QuoteRange) => void;
 };
 
 /**
@@ -118,10 +116,7 @@ export function ScoreRow(props: ScoreRowProps) {
           // 确认前照原型写锚点和原话引用；确认后只写「已确认」，引文仍在「原话」里。
           <span>
             {copy.score.anchorNote(score.value)}
-            <InputQuotes
-              citations={score.citations}
-              onJumpInput={props.onJumpInput}
-            />
+            <InputQuotes citations={score.citations} />
           </span>
         )}
         <SourceMarks

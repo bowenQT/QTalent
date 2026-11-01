@@ -19,7 +19,6 @@ function setup(
     onPick: vi.fn(),
     onReason: vi.fn(),
     onPreview: vi.fn(),
-    onJumpInput: vi.fn(),
   };
   const view = render(
     <ScoreList

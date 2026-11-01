@@ -34,7 +34,7 @@ import {
 } from './errors';
 import { OrganizeHeader } from './OrganizeHeader';
 import { OrganizeProgress } from './OrganizeProgress';
-import { RawInput, type QuoteRange } from './RawInput';
+import { RawInput } from './RawInput';
 import { BannerNotice, FailurePanel } from './RecordNotices';
 import { RecordInput } from './RecordInput';
 import {
@@ -155,8 +155,6 @@ function RecordFlow(props: RecordPageProps) {
     behavior?: boolean;
   }>({});
   const [settling, setSettling] = useState(false);
-  const [rawOpen, setRawOpen] = useState(false);
-  const [activeRange, setActiveRange] = useState<QuoteRange | null>(null);
   const [focus, setFocus] = useState<AnchorFocus | null>(null);
   const [anchorTry, setAnchorTry] = useState(0);
   const [autoStart, setAutoStart] = useState(false);
@@ -624,19 +622,6 @@ function RecordFlow(props: RecordPageProps) {
   const personIds = draft ? resolvedPersonIds(draft) : [];
   const projectId = draft ? resolvedProjectId(draft) : null;
   const project = projects.find((p) => p.id === projectId) ?? null;
-  const ranges = useMemo<QuoteRange[]>(
-    () =>
-      (draft?.scores ?? []).flatMap((score) =>
-        score.state === 'suggested'
-          ? score.citations.flatMap((c) =>
-              c.kind === 'input'
-                ? [{ start: c.start, end: c.end, quote: c.quote }]
-                : [],
-            )
-          : [],
-      ),
-    [draft],
-  );
   const firstSuggested = draft?.scores.find((s) => s.state === 'suggested');
   const anchorFocus: AnchorFocus | null =
     focus ??
@@ -825,13 +810,7 @@ function RecordFlow(props: RecordPageProps) {
                         dispatch({ type: 'edit_sbi', field, value });
                       }}
                     />
-                    <RawInput
-                      text={draft.originalInput.text}
-                      ranges={ranges}
-                      active={activeRange}
-                      open={rawOpen}
-                      onToggle={setRawOpen}
-                    />
+                    <RawInput text={draft.originalInput.text} />
                     <div id="ev-att-slot">{props.attachmentSlot}</div>
                     <ScoreList
                       draft={draft}
@@ -851,10 +830,6 @@ function RecordFlow(props: RecordPageProps) {
                         dispatch({ type: 'edit_reason', key, reason })
                       }
                       onPreview={setFocus}
-                      onJumpInput={(range) => {
-                        setRawOpen(true);
-                        setActiveRange(range);
-                      }}
                     />
                     {phase === 'saved' && state.receipt ? (
                       <SavedSign
