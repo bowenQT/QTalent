@@ -32,6 +32,8 @@ export function facts(
   const source = (side: string) => ({
     fragmentId: `${side}-${index}`,
     originalVersionId: `${side}-original`,
+    originalTitle: `${side}原表（演示）`,
+    recordedByName: null,
     location: {
       kind: 'spreadsheet' as const,
       sheet: `${side}（演示）`,
