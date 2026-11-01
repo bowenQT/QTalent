@@ -6,7 +6,7 @@ import { compare, matchingMasks, normalizeRegions, stabilize } from './compare';
 /**
  * BOW-839 人才列表。原型的「重点跟踪」「值得聊一聊」页签和页头操作不在本卡范围，
  * 只从原型一侧去掉；行右侧的位置徽标（原型有正式位置与导师周评，契约只有参考位置）
- * 两侧都去掉，图例说明两侧遮罩。差异登记在 docs/reference-route-map.md。
+ * 两侧都去掉，图例说明换成两侧等大的占位。差异登记在 docs/reference-route-map.md。
  */
 for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
   for (const [viewportName, viewport] of [
@@ -59,6 +59,8 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
             // so the rows wrap the same way at phone width.
             '.n-person-row > :nth-child(2)',
           ],
+          // The legend's wording differs by contract (reference, not formal, position).
+          replace: ['#pp-list > .nt-caption'],
         });
         // Team parent path, job title and level have no columns yet (BOW-834 S1 /
         // S2): the text differs, so it is hidden on both sides; its line box stays.
@@ -77,7 +79,6 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
         await stabilize(prototype);
         await stabilize(page);
         await matchingMasks(prototype, page, [
-          '.nt-caption',
           // At phone width the shell's side bar scrolls to the current entry, whose
           // name differs per role; the shell is compared on the project list.
           ...(viewportName === 'mobile-width' ? ['.nt-side'] : []),
