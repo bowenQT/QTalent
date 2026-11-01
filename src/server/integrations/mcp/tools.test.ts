@@ -1,3 +1,5 @@
+import type { MaterialBatchReceipt } from '../../../contracts/materials';
+import type { QuickView } from '../../../contracts/people';
 import { describe, expect, it, vi } from 'vitest';
 import { MCP_ENTRY_TOOLS } from '../../../contracts/entry-tools';
 import { staffingDemandJobFixture } from '../../../contracts/staffing.fixtures';
@@ -21,6 +23,7 @@ const recordArgs = {
   operationId: 'demo-operation',
   evaluationNodeId: 'demo-node',
   personIds: ['demo-person'],
+  projectId: null,
   text: '演示：合成工作记录',
   files: [],
 };
@@ -29,31 +32,63 @@ const receipt = {
   revision: 1,
   evaluationNodeId: 'demo-node',
   personIds: ['demo-person'],
+  projectId: null,
+  hasHiddenContent: false,
   files: [],
   status: 'processing' as const,
   jobId: 'demo-job',
-};
+  textMaterial: {
+    materialId: 'demo-text-material',
+    originalVersionId: 'demo-text-original',
+  },
+  items: [],
+  resolvedItems: [],
+  draftSet: null,
+  confirmedDrafts: [],
+  counts: {
+    files: {
+      total: 0,
+      processing: 0,
+      parsed: 0,
+      needs_review: 0,
+      unsupported: 0,
+      failed: 0,
+      original_only: 0,
+      attachment_only: 0,
+    },
+    events: { total: 0, awaiting_confirmation: 0, confirmed: 0 },
+    reviewItems: 0,
+  },
+  error: null,
+} satisfies MaterialBatchReceipt;
 const brief = {
   role: 'hr' as const,
   person: {
     id: 'demo-person',
     demo: true,
     name: '演示小禾',
+    hue: 120,
+    photo: null,
     teamId: 'demo-team',
     teamName: '演示组',
+    teamPath: '演示组织 / 演示组',
     jobTitle: '演示岗位',
+    level: null,
+    batch: null,
+    tenureLabel: null,
   },
-  summary: { status: 'empty' as const },
-  capabilityProfile: { status: 'empty' as const },
-  projects: { status: 'empty' as const },
+  projectLoad: { current: 0, ever: 0 },
+  recentFacts: { status: 'empty' as const },
+  capabilityLines: { status: 'empty' as const },
   referencePosition: { status: 'unknown' as const, reason: '演示：无快照' },
-};
+} satisfies QuickView;
 type Tx = { effects: string[]; audit: EntryAudit[] };
 
 async function fixture() {
   const binding: CredentialBinding = {
     credentialId: 'demo-mcp-binding',
     accountId: 'demo-hr-account',
+    personId: 'demo-hr',
     revision: 1,
     expiresAt: '2026-11-02T00:00:00.000Z',
     revokedAt: null,
@@ -182,6 +217,7 @@ describe('MCP tools composed from the fixed 903 usecase', () => {
         'operationId',
         'evaluationNodeId',
         'personIds',
+        'projectId',
         'text',
         'files',
       ],
@@ -294,13 +330,14 @@ describe('MCP tools composed from the fixed 903 usecase', () => {
       const f = await fixture();
       f.payload({
         ...brief,
-        summary: {
+        recentFacts: {
           status: 'ready',
           data: [
             {
-              id: 'demo-private-statement',
-              text: '演示：不可外发的合成内容',
-              nature: 'human_conclusion',
+              eventId: 'demo-private-event',
+              title: '演示：不可外发的合成内容',
+              occurredOn: '2026-10-31',
+              recorderName: '演示记录人',
               sources: [
                 {
                   fragmentId: 'demo-private-fragment',
@@ -338,6 +375,35 @@ describe('MCP tools composed from the fixed 903 usecase', () => {
       (await f.tools.call(f.identity, 'record_moment', recordArgs))
         .structuredContent,
     ).toEqual({ status: 'unauthenticated' });
+    expect(f.committed()).toEqual({ effects: [], audit: [] });
+  });
+
+  it('rolls back a person rebind during execution and never revives the old capability', async () => {
+    const f = await fixture();
+    f.execute.mockImplementationOnce(async (tx: Tx) => {
+      tx.effects.push('demo-pending-effect');
+      f.binding.personId = 'demo-other-person';
+      return receipt;
+    });
+    expect(
+      (await f.tools.call(f.identity, 'record_moment', recordArgs))
+        .structuredContent,
+    ).toEqual({ status: 'unauthenticated' });
+    expect(f.committed()).toEqual({ effects: [], audit: [] });
+    f.binding.personId = 'demo-hr';
+    await expect(f.tools.list(f.identity)).rejects.toMatchObject({
+      kind: 'unauthenticated',
+    });
+  });
+
+  it('rejects a current directory person that differs from the trusted credential', async () => {
+    const f = await fixture();
+    f.facts.account.personId = 'demo-other-person';
+    expect(
+      (await f.tools.call(f.identity, 'record_moment', recordArgs))
+        .structuredContent,
+    ).toEqual({ status: 'forbidden' });
+    expect(f.execute).not.toHaveBeenCalled();
     expect(f.committed()).toEqual({ effects: [], audit: [] });
   });
 

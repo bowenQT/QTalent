@@ -1,3 +1,5 @@
+import type { MaterialBatchReceipt } from '../../../contracts/materials';
+import type { QuickView } from '../../../contracts/people';
 import { createServer, request as httpRequest, type Server } from 'node:http';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +16,7 @@ const args = {
   operationId: 'demo-operation',
   evaluationNodeId: 'demo-node',
   personIds: ['demo-person'],
+  projectId: null,
   text: '演示：合成记录',
   files: [],
 };
@@ -22,25 +25,56 @@ const receipt = {
   revision: 1,
   evaluationNodeId: 'demo-node',
   personIds: ['demo-person'],
+  projectId: null,
+  hasHiddenContent: false,
   files: [],
   status: 'processing' as const,
   jobId: 'demo-job',
-};
+  textMaterial: {
+    materialId: 'demo-text-material',
+    originalVersionId: 'demo-text-original',
+  },
+  items: [],
+  resolvedItems: [],
+  draftSet: null,
+  confirmedDrafts: [],
+  counts: {
+    files: {
+      total: 0,
+      processing: 0,
+      parsed: 0,
+      needs_review: 0,
+      unsupported: 0,
+      failed: 0,
+      original_only: 0,
+      attachment_only: 0,
+    },
+    events: { total: 0, awaiting_confirmation: 0, confirmed: 0 },
+    reviewItems: 0,
+  },
+  error: null,
+} satisfies MaterialBatchReceipt;
 const brief = {
-  role: 'hr',
+  role: 'hr' as const,
   person: {
     id: 'demo-person',
     demo: true,
     name: '演示小禾',
+    hue: 120,
+    photo: null,
     teamId: 'demo-team',
     teamName: '演示组',
+    teamPath: '演示组织 / 演示组',
     jobTitle: '演示岗位',
+    level: null,
+    batch: null,
+    tenureLabel: null,
   },
-  summary: { status: 'empty' },
-  capabilityProfile: { status: 'empty' },
-  projects: { status: 'empty' },
-  referencePosition: { status: 'unknown', reason: '演示：无快照' },
-};
+  projectLoad: { current: 0, ever: 0 },
+  recentFacts: { status: 'empty' as const },
+  capabilityLines: { status: 'empty' as const },
+  referencePosition: { status: 'unknown' as const, reason: '演示：无快照' },
+} satisfies QuickView;
 const rpc = (method: string, params?: unknown, id: string | number = 1) => ({
   jsonrpc: '2.0',
   id,
@@ -62,6 +96,7 @@ async function fixture() {
   const binding = {
     credentialId: 'demo-mcp-http-row',
     accountId: 'demo-hr-account',
+    personId: 'demo-hr',
     revision: 1,
     expiresAt: '2026-11-02T00:00:00.000Z',
     revokedAt: null as string | null,
