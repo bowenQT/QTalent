@@ -8,6 +8,7 @@ import {
 import { base64, objectEtag, sign } from './protocol';
 const config = {
   endpoint: 'https://objects.example.test',
+  s3Region: 'cn-east-1',
   uploadEndpoint: 'https://up.example.test',
   managementEndpoint: 'https://rs.example.test',
   accessKey: 'synthetic-ak',
@@ -338,7 +339,9 @@ describe('private proxy stream', () => {
     expect(
       new Uint8Array(await new Response(opened.body).arrayBuffer()),
     ).toEqual(new Uint8Array([2, 3]));
-    expect(String(fetch.mock.calls[0][0])).toContain('space%20%3F%23?e=');
+    expect(String(fetch.mock.calls[0][0])).toContain(
+      'space%20%3F%23?X-Amz-Algorithm=',
+    );
     expect(fetch.mock.calls[0][1]).toMatchObject({
       redirect: 'error',
       headers: { Range: 'bytes=1-' },
@@ -447,6 +450,8 @@ describe('grant validation and server source', () => {
     });
     expect(inspect(source)).toBe('[Kodo transcription source redacted]');
     expect(Object.values(source).join()).not.toContain('token');
+    expect(Object.values(source).join()).not.toContain('X-Amz-');
+    expect(Object.values(source).join()).not.toContain(config.accessKey);
     expect(() =>
       takeTranscriptionSourceUrl({ ...source } as typeof source, {
         now: () => 1000,
@@ -466,7 +471,7 @@ describe('grant validation and server source', () => {
       }),
     ).toThrow();
     expect(takeTranscriptionSourceUrl(source, { now: () => 1000 })).toMatch(
-      /^https:\/\/objects.example.test\/x\?e=11101&token=synthetic-ak:/,
+      /^https:\/\/objects.example.test\/x\?X-Amz-Algorithm=AWS4-HMAC-SHA256&/,
     );
   });
 });
