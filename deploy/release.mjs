@@ -211,7 +211,15 @@ export async function nativeRun(executable, args, options = {}) {
       clearTimeout(force);
       if (code !== 0 || timedOut)
         reject(
-          new DeploymentError(timedOut ? 'command_timeout' : 'command_failed'),
+          new DeploymentError(
+            timedOut
+              ? 'command_timeout'
+              : options.databaseConfigurationErrors && code === 64
+                ? 'database_query_parameter_not_allowed'
+                : options.databaseConfigurationErrors && code === 65
+                  ? 'database_query_parameter_duplicate'
+                  : 'command_failed',
+          ),
         );
       else resolveRun(output.trim());
     });
@@ -297,6 +305,9 @@ export class ReleaseManager {
     const expected = JSON.stringify({
       origin: t.webOrigin,
       database: { ...t.database[role], projectRef: t.database.projectRef },
+      ...(operation !== 'identity' && this.databaseIdentities
+        ? { databaseIdentity: this.databaseIdentities[role] }
+        : {}),
       envFiles: [
         join(t.envDirectory, 'common.env'),
         join(t.envDirectory, role + '.env'),
@@ -313,9 +324,11 @@ export class ReleaseManager {
     return this.run('runuser', ['-u', 'qtalent', '--', ...command], {
       cwd,
       ...options,
+      databaseConfigurationErrors: true,
     });
   }
   async validateEnvironment() {
+    this.databaseIdentities = undefined;
     let serviceUid;
     try {
       serviceUid = await this.run('/usr/bin/id', ['-u', 'qtalent'], {
@@ -331,8 +344,31 @@ export class ReleaseManager {
         join(this.target.envDirectory, role + '.env'),
         Number(serviceUid),
       );
-    await this.app('web', 'validate', this.target.nodePath);
-    await this.app('worker', 'validate', this.target.nodePath);
+    const identities = {};
+    for (const role of ['web', 'worker']) {
+      const raw = await this.app(
+        role,
+        'identity',
+        this.target.nodePath,
+        [],
+        this.target.repository,
+        { capture: true },
+      );
+      try {
+        identities[role] = JSON.parse(raw);
+        strict(identities[role], [
+          'host',
+          'port',
+          'name',
+          'username',
+          'sslmode',
+          'sslrootcert',
+        ]);
+      } catch {
+        fail('invalid_database_identity');
+      }
+    }
+    this.databaseIdentities = identities;
   }
   async candidate(sha) {
     if (!SHA.test(sha ?? '')) fail('invalid_revision');
@@ -681,25 +717,13 @@ export class ReleaseManager {
     }
   }
   databaseFingerprint() {
+    if (!this.databaseIdentities) fail('database_identity_unavailable');
     return createHash('sha256')
       .update(
         JSON.stringify({
-          version: 2,
+          version: 3,
           projectRef: this.target.database.projectRef,
-          ...Object.fromEntries(
-            ['web', 'worker'].map((role) => {
-              const db = this.target.database[role];
-              return [
-                role,
-                {
-                  host: db.host,
-                  port: db.port,
-                  name: db.name,
-                  username: db.username,
-                },
-              ];
-            }),
-          ),
+          ...this.databaseIdentities,
         }),
       )
       .digest('hex');

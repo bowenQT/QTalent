@@ -1,8 +1,15 @@
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { loadEnvironmentFiles } from './environment-file.mjs';
+import {
+  parseDatabaseConnection,
+  databaseIdentity,
+  databaseEnvironment,
+  DatabaseConnectionError,
+  databaseErrorExit,
+} from './database-connection.mjs';
 
-export function applicationEnvironment(input, expected) {
+function applicationConfiguration(input, expected) {
   if (
     input.APP_ENV !== 'demo' ||
     input.NODE_ENV !== 'production' ||
@@ -11,43 +18,31 @@ export function applicationEnvironment(input, expected) {
     String(input.WORKER_PORT ?? '3001') !== '3001'
   )
     throw new Error('environment_mismatch');
-  let url;
-  try {
-    url = new URL(input.DATABASE_URL);
-  } catch {
-    throw new Error('database_mismatch');
-  }
+  const config = parseDatabaseConnection(input.DATABASE_URL);
   if (
-    !['postgres:', 'postgresql:'].includes(url.protocol) ||
-    url.hostname !== expected.database.host ||
+    config.host !== expected.database.host ||
     !/^[a-z0-9]{20}$/.test(expected.database.projectRef ?? '') ||
-    decodeURIComponent(url.username) !== expected.database.username ||
+    config.user !== expected.database.username ||
     !expected.database.username.endsWith('.' + expected.database.projectRef) ||
-    Number(url.port || '5432') !== expected.database.port ||
-    decodeURIComponent(url.pathname.slice(1)) !== expected.database.name ||
-    !['require', 'verify-ca', 'verify-full'].includes(
-      url.searchParams.get('sslmode'),
+    config.port !== expected.database.port ||
+    config.database !== expected.database.name
+  )
+    throw new Error('database_mismatch');
+  const identity = databaseIdentity(config);
+  if (
+    expected.databaseIdentity &&
+    Object.entries(identity).some(
+      ([key, value]) => expected.databaseIdentity[key] !== value,
     )
   )
     throw new Error('database_mismatch');
-  return { ...input };
+  return { env: { ...input, ...databaseEnvironment(config) }, config };
 }
-
+export function applicationEnvironment(input, expected) {
+  return applicationConfiguration(input, expected).env;
+}
 export function dumpEnvironment(input, expected) {
-  const env = applicationEnvironment(input, expected);
-  const url = new URL(env.DATABASE_URL);
-  return {
-    ...env,
-    PGHOST: url.hostname,
-    PGPORT: url.port || '5432',
-    PGDATABASE: decodeURIComponent(url.pathname.slice(1)),
-    PGUSER: decodeURIComponent(url.username),
-    PGPASSWORD: decodeURIComponent(url.password),
-    PGSSLMODE: url.searchParams.get('sslmode'),
-    ...(url.searchParams.get('sslrootcert')
-      ? { PGSSLROOTCERT: url.searchParams.get('sslrootcert') }
-      : {}),
-  };
+  return applicationEnvironment(input, expected);
 }
 
 export function runApplication(args, input = process.env, execute = spawnSync) {
@@ -57,21 +52,26 @@ export function runApplication(args, input = process.env, execute = spawnSync) {
     const loaded = expected.envFiles
       ? loadEnvironmentFiles(expected.envFiles, input)
       : input;
-    const env =
-      operation === 'dump'
-        ? dumpEnvironment(loaded, expected)
-        : applicationEnvironment(loaded, expected);
-    if (!['command', 'dump', 'validate'].includes(operation))
+    const { env, config } = applicationConfiguration(loaded, expected);
+    if (!['command', 'dump', 'validate', 'identity'].includes(operation))
       throw new Error('invalid_operation');
     if (operation === 'validate') return 0;
+    if (operation === 'identity') {
+      console.log(JSON.stringify(databaseIdentity(config)));
+      return 0;
+    }
     if (!executable?.startsWith('/')) throw new Error('invalid_executable');
     const result = execute(executable, commandArgs, {
       env,
       stdio: 'inherit',
     });
     return result.status === 0 ? 0 : 1;
-  } catch {
-    // No raw exception, environment value, URL or provider output is returned.
+  } catch (error) {
+    // Only fixed codes cross the boundary; no raw exception or URL is returned.
+    if (error instanceof DatabaseConnectionError) {
+      console.error(JSON.stringify({ error: error.code }));
+      return databaseErrorExit(error);
+    }
     return 1;
   }
 }

@@ -208,3 +208,97 @@ test('shared Supabase pool rejects another project username on both role ports',
     );
   }
 });
+
+// Owner 6555906310: regress the real locked driver's query precedence, offline.
+import { createRequire } from 'node:module';
+const pgRequire = createRequire(createRequire(import.meta.url).resolve('pg'));
+const parsePgConnection = pgRequire('pg-connection-string').parse;
+for (const [key, value, expectedField] of [
+  ['host', 'other.example.test', 'host'],
+  ['user', 'postgres.bbbbbbbbbbbbbbbbbbbb', 'user'],
+  ['port', '6543', 'port'],
+]) {
+  test('rejects query ' + key + ' before any database child can run', () => {
+    const raw = environment.DATABASE_URL + '&' + key + '=' + value;
+    assert.equal(String(parsePgConnection(raw)[expectedField]), value);
+    let childCalls = 0;
+    const result = runApplication(
+      [JSON.stringify(expected), 'command', '/bin/unused', 'db:migrate'],
+      { ...environment, DATABASE_URL: raw },
+      () => {
+        childCalls++;
+        return { status: 0 };
+      },
+    );
+    assert.equal(childCalls, 0);
+    assert.notEqual(result, 0);
+    assert.throws(
+      () =>
+        applicationEnvironment({ ...environment, DATABASE_URL: raw }, expected),
+      /database_query_parameter_not_allowed/,
+    );
+  });
+}
+for (const query of [
+  'sslmode=require&sslmode=verify-full',
+  'sslmode=verify-full&%73slmode=require',
+  'sslmode=verify-full&sslrootcert=one&sslrootcert=two',
+]) {
+  test(
+    'rejects duplicate query keys before backup or migration: ' +
+      query.split('=')[0],
+    () => {
+      const raw = environment.DATABASE_URL.split('?')[0] + '?' + query;
+      for (const operation of ['command', 'dump', 'validate']) {
+        let childCalls = 0;
+        assert.notEqual(
+          runApplication(
+            [JSON.stringify(expected), operation, '/bin/unused'],
+            { ...environment, DATABASE_URL: raw },
+            () => {
+              childCalls++;
+              return { status: 0 };
+            },
+          ),
+          0,
+        );
+        assert.equal(childCalls, 0);
+      }
+      assert.throws(
+        () => dumpEnvironment({ ...environment, DATABASE_URL: raw }, expected),
+        /database_query_parameter_duplicate/,
+      );
+    },
+  );
+}
+test('rejects every other query key, including an SSL bypass, without leaking its URL', () => {
+  const raw = environment.DATABASE_URL + '&ssl=0';
+  let calls = 0;
+  assert.notEqual(
+    runApplication(
+      [JSON.stringify(expected), 'command', '/bin/unused'],
+      { ...environment, DATABASE_URL: raw },
+      () => {
+        calls++;
+        return { status: 0 };
+      },
+    ),
+    0,
+  );
+  assert.equal(calls, 0);
+  const cli = spawnSync(
+    process.execPath,
+    [
+      fileURLToPath(new URL('./app-command.mjs', import.meta.url)),
+      JSON.stringify(expected),
+      'validate',
+    ],
+    {
+      env: { ...process.env, ...environment, DATABASE_URL: raw },
+      encoding: 'utf8',
+    },
+  );
+  assert.notEqual(cli.status, 0);
+  assert.equal((cli.stdout + cli.stderr).includes('synthetic'), false);
+  assert.match(cli.stderr, /database_query_parameter_not_allowed/);
+});

@@ -25,6 +25,10 @@ import {
   validateTarget,
   main,
 } from './release.mjs';
+import {
+  parseDatabaseConnection,
+  databaseIdentity,
+} from './database-connection.mjs';
 const roots = [];
 afterEach(() => {
   for (const root of roots.splice(0))
@@ -215,6 +219,21 @@ function fixture() {
         executable = roleCommand[4],
         flags = roleCommand.slice(5);
       if (operation === 'validate') return '';
+      if (operation === 'identity') {
+        const expected = JSON.parse(roleCommand[2]);
+        const db = expected.database;
+        const raw =
+          'postgres://' +
+          db.username +
+          ':synthetic@' +
+          db.host +
+          ':' +
+          db.port +
+          '/' +
+          db.name +
+          '?sslmode=verify-full';
+        return JSON.stringify(databaseIdentity(parseDatabaseConnection(raw)));
+      }
       if (executable === target.nodePath && flags[0] === '--import')
         return nativeRun(
           process.execPath,
@@ -1150,13 +1169,18 @@ test('backup fingerprint binds both pool usernames and explicit project identity
   manager.target.database.projectRef = 'aaaaaaaaaaaaaaaaaaaa';
   manager.target.database.web.username =
     manager.target.database.worker.username = 'postgres.aaaaaaaaaaaaaaaaaaaa';
+  await manager.validateEnvironment();
   const first = manager.databaseFingerprint();
   for (const role of ['web', 'worker']) {
     manager.target.database[role].username = 'reader.aaaaaaaaaaaaaaaaaaaa';
+    await manager.validateEnvironment();
     assert.notEqual(manager.databaseFingerprint(), first);
     manager.target.database[role].username = 'postgres.aaaaaaaaaaaaaaaaaaaa';
   }
   manager.target.database.projectRef = 'bbbbbbbbbbbbbbbbbbbb';
+  for (const role of ['web', 'worker'])
+    manager.target.database[role].username = 'postgres.bbbbbbbbbbbbbbbbbbbb';
+  await manager.validateEnvironment();
   assert.notEqual(manager.databaseFingerprint(), first);
 });
 
@@ -1292,4 +1316,90 @@ test('incomplete legacy release metadata cannot be reused for seed', async () =>
   writeFileSync(join(path, 'release.json'), JSON.stringify(metadata));
   await assert.rejects(manager.prepareRelease(f.first), /invalid_release/);
   assert.equal(f.latest().databaseChanged, false);
+});
+
+test('actual helper rejects query overrides before release backup/migration with bounded errors', async () => {
+  const f = fixture();
+  f.target.nodePath = process.execPath;
+  writeFileSync(
+    join(f.target.envDirectory, 'common.env'),
+    'APP_ENV=demo\nNODE_ENV=production\nACCESS_ENFORCED=true\nBETTER_AUTH_URL=' +
+      f.target.webOrigin +
+      '\n',
+    { mode: 0o600 },
+  );
+  for (const [query, code] of [
+    ['host=other.example.test', 'database_query_parameter_not_allowed'],
+    ['sslmode=require', 'database_query_parameter_duplicate'],
+  ]) {
+    for (const role of ['web', 'worker']) {
+      for (const candidate of ['web', 'worker']) {
+        const db = f.target.database[candidate];
+        writeFileSync(
+          join(f.target.envDirectory, candidate + '.env'),
+          'DATABASE_URL="postgres://' +
+            db.username +
+            ':synthetic-private-marker@' +
+            db.host +
+            ':' +
+            db.port +
+            '/' +
+            db.name +
+            '?sslmode=verify-full' +
+            (candidate === role ? '&' + query : '') +
+            '"\n',
+          { mode: 0o600 },
+        );
+      }
+      let databaseCommands = 0;
+      const manager = f.manager({
+        run: async (file, args, options) => {
+          if (file === '/usr/bin/id') return String(process.getuid());
+          assert.equal(file, 'runuser');
+          const command = args.slice(args.indexOf('--') + 1);
+          if (command[3] !== 'identity') {
+            databaseCommands++;
+            throw new Error('database commands forbidden by offline test');
+          }
+          return nativeRun(command[0], command.slice(1), options);
+        },
+      });
+      await assert.rejects(manager.backup(), { code });
+      await assert.rejects(manager.database('migrate', f.first, undefined), {
+        code,
+      });
+      assert.equal(databaseCommands, 0);
+      assert.equal(f.latest().phases.at(-1), 'validate');
+      assert.equal(
+        JSON.stringify(f.records()).includes('synthetic-private-marker'),
+        false,
+      );
+    }
+  }
+});
+
+test('database fingerprint binds validated TLS identities and cannot be made from unvalidated target metadata', async () => {
+  const f = fixture(),
+    manager = f.manager();
+  assert.throws(
+    () => manager.databaseFingerprint(),
+    /database_identity_unavailable/,
+  );
+  await manager.validateEnvironment();
+  const before = manager.databaseFingerprint();
+  manager.databaseIdentities.worker.sslmode = 'verify-ca';
+  assert.notEqual(manager.databaseFingerprint(), before);
+});
+
+test('safe application error exit mapping does not reinterpret arbitrary command failures', async () => {
+  await assert.rejects(
+    nativeRun(process.execPath, ['-e', 'process.exit(64)']),
+    { code: 'command_failed' },
+  );
+  await assert.rejects(
+    nativeRun(process.execPath, ['-e', 'process.exit(65)'], {
+      databaseConfigurationErrors: true,
+    }),
+    { code: 'database_query_parameter_duplicate' },
+  );
 });

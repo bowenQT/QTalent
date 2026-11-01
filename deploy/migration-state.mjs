@@ -1,10 +1,15 @@
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import {
+  parseDatabaseConnection,
+  DatabaseConnectionError,
+} from './database-connection.mjs';
 
 export async function readMigrationState(Client, connectionString) {
+  const config = parseDatabaseConnection(connectionString);
   const client = new Client({
-    connectionString,
+    connectionString: config.connectionString,
     connectionTimeoutMillis: 10000,
     statement_timeout: 10000,
   });
@@ -62,8 +67,15 @@ if (
         await readMigrationState(Client, process.env.DATABASE_URL),
       ),
     );
-  } catch {
-    console.error(JSON.stringify({ error: 'migration_probe_failed' }));
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        error:
+          error instanceof DatabaseConnectionError
+            ? error.code
+            : 'migration_probe_failed',
+      }),
+    );
     process.exitCode = 1;
   }
 }

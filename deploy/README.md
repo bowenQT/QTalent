@@ -52,6 +52,14 @@ systemd 从部署机加载 `/etc/qtalent/common.env` 加 `web.env` 或 `worker.e
 
 两个进程仍各自只读取 `DATABASE_URL`，不新增第二个数据库变量名。部署记录只写脱敏主机类别、端口和连接模式，不能输出完整连接串。
 
+### 连接串参数与一致身份
+
+按所有者 [11/1 窄修裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6555906310)，查询参数只允许精确小写 `sslmode`、`sslrootcert`，每个最多一次。其他键（包括 `host`、`user`、`port`、`ssl`）在创建 Client 或启动任何备份/迁移子命令前以 `database_query_parameter_not_allowed` 拒绝；重复键（含 URL 编码后同名）以 `database_query_parameter_duplicate` 拒绝。错误仅固定代码，不含参数值、密码或连接串；内部 helper 的64/65退出码由发布入口映射为同名安全错误。
+
+`database-connection.mjs` 是唯一连接串解析入口：产生不可变配置，固定有效host/user/port/database与TLS参数，补明确默认5432，并生成只含允许参数的规范URL。身份校验、libpq环境、应用/迁移的DATABASE_URL及只读迁移探测都由这份配置派生，不再各自从原始URL提取字段。业务应用与pg仍按既有接口消费规范URL；不会把未经验证的原串交给驱动。字面环境文件/0600/属主检查保持，密码只进子进程环境，不进argv或JSON身份结果。
+
+每次操作在qtalent子进程验证两角色后仅返回非秘密配置身份，备份指纹v3绑定projectRef及这两份实际host/port/name/username/sslmode/sslrootcert。后续子命令重读受保护环境时须匹配同一身份快照；两阶段之间TLS配置变更也会拒绝执行。旧v2指纹和不完整备份不再授权写入，不重标或复用旧指纹；须重新显式备份。此修复不授权候选工具现场发布，演示环境仍走既有人工流程。
+
 Supabase [当前连接说明](https://supabase.com/docs/guides/database/connecting-to-postgres)区分会话池 5432 与事务池 6543；事务池不支持 prepared statements，直连端点还需核对部署机的 IPv6 可达性。保持已确认的进程分工；部署前核对 Drizzle/Better Auth/node-postgres 实际没有使用命名 prepared statement。TLS 按 spec 开启并验证证书；这两项均需要真实环境证据，配置字符串存在不等于验收通过。
 
 ### 供应商与入口接线
@@ -162,7 +170,7 @@ deploy/deploy.sh status --target "$TARGET_FILE" --target-id "$TARGET_ID"
 - 激活或健康失败时，恢复起始链接并重启两份服务，重新读取两个运行版本和健康状态；首次部署失败则撤掉 current、停两份服务并确认 PID 为0。恢复失败明确记为 `failed_rollback_failed`。显式应用回滚本身失败也会尝试恢复操作前的版本。
 - 部署机 `.deployment-lock` 将准备、备份、数据库写入、部署/回滚串行化。崩溃后的锁不按时间自动回收；先核记录、锁内进程信息和实际服务，确认原操作已停止后再处理。这里的主机操作锁不同于本机 Git 领卡锁。
 - 每个操作以独立 JSON 写入 `<root>/deployment-records/`；阶段和终态原子更新，记录目标/来源SHA、实际Web与worker版本、迁移哈希/时间、备份摘要、回滚结果和稳定错误码，不写环境值、命令输出或原始异常。CLI返回记录标识。记录目录不是新的任务看板，真实结果仍回填 #25。
-- 备份的连接信息只进入 libpq 环境，不放命令参数；备份子进程使用私有 umask。备份指纹v2固定包含projectRef及Web/worker各自host/port/name/username，URL解码后的用户名必须逐角色与清单完全一致且属于同一projectRef；共享pool的host/port/name相同不能替代项目身份。旧指纹或其他项目的备份不能授权写入，须重新显式备份，不自动重标记旧备份。迁移/seed前核验且标记一次性消耗；数据库命令失败写 `outcome_unknown`，不盲目重试、自动回切数据库或声称已恢复。
+- 备份的连接信息只进入 libpq 环境，不放命令参数；备份子进程使用私有 umask。备份指纹v3从验证后的共同配置身份派生，固定包含projectRef及Web/worker各自host/port/name/username/sslmode/sslrootcert，解码后的用户名必须逐角色与清单完全一致且属于同一projectRef；共享pool的host/port/name相同不能替代项目身份。旧指纹或其他项目的备份不能授权写入，须重新显式备份，不自动重标记旧备份。迁移/seed前核验且标记一次性消耗；数据库命令失败写 `outcome_unknown`，不盲目重试、自动回切数据库或声称已恢复。
 - 清理只识别本工具的受管目录/备份元数据；保留最近3份已激活发布、7天备份，跳过外部目录、符号链接和不相容元数据。部署后的发布清理失败会返回维护警告，保留健康服务和失败记录，不伪称清理成功。
 
 离线验证使用真实临时 Git、归档和文件系统；只控制 Linux 服务/构建/数据库 I/O。不会把这些结果当作真实 systemd、Supabase、TLS、Access 或三幕验收：
