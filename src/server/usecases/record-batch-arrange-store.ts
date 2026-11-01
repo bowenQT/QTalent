@@ -489,9 +489,25 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
             };
           },
           async persistDraftSet(value, trace) {
+            const { events, expectedJobRevision, ...producerTrace } = trace;
             if (
               set ||
-              trace.fingerprint !== metadata!.trace?.fingerprint ||
+              expectedJobRevision !== job!.revision ||
+              job!.attempt !== request.attempt ||
+              !['running', 'partial'].includes(job!.status) ||
+              job!.cancelRequestedAt !== null ||
+              !isDeepStrictEqual(producerTrace, metadata!.trace) ||
+              events.length !== value.drafts.length ||
+              new Set(events.map((event) => event.eventKey)).size !==
+                events.length ||
+              new Set(events.map((event) => event.draftId)).size !==
+                events.length ||
+              events.some(
+                (event) =>
+                  !value.drafts.some(
+                    (draft) => draft.draftId === event.draftId,
+                  ),
+              ) ||
               trace.inputVersion !== input.inputVersion ||
               trace.boundAt !== requireNativeInput(input).boundAt ||
               trace.occurredOn !== input.occurredOn
@@ -533,7 +549,9 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
               next.accountId !== input.creatorAccountId ||
               next.batchId !== input.batchId ||
               next.operationId !== metadata!.operationId ||
-              next.attempt !== job!.attempt
+              next.attempt !== job!.attempt ||
+              next.revision !== job!.revision ||
+              next.inputVersion !== job!.inputVersion
             )
               throw new NativeArrangeUnavailable('native_operation_changed');
             metadata = batchMetadataSchema.parse({
@@ -544,6 +562,7 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
             });
             job = updateBatchJob(job!, next.phase, metadata, now());
             await locked.save(job);
+            return job.revision;
           },
         };
         return callback(tx);

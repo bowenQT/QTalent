@@ -20,6 +20,7 @@ import {
 } from '../modules/records';
 import { evaluationRelations } from '../modules/programs';
 import { recordArrangeQueue } from '../jobs/record-arrange';
+import { jobSnapshots } from '../jobs/schema';
 import type { RecordSaveInput } from '../../contracts/record';
 import type { BatchArrangeTransaction } from './record-batch-arrange';
 let connection: Awaited<ReturnType<typeof nativeDatabase>>;
@@ -363,4 +364,78 @@ it('reserves existing event identities from the real persisted manifest', async 
     )[0]!.draft,
   ).toEqual(h.draft);
   expect(h.model.calls()).toBe(1);
+});
+
+it('fences an old model return with the actual persisted job revision', async () => {
+  const h = await seedNativeCase(connection.db);
+  let jobId = '';
+  let changedRevision = 0;
+  const model = syntheticBatchClient({
+    before: async () => {
+      const [updated] = await connection.db
+        .update(jobSnapshots)
+        .set({ revision: sql`${jobSnapshots.revision}+1` })
+        .where(eq(jobSnapshots.jobId, jobId))
+        .returning();
+      changedRevision = updated!.revision;
+    },
+  });
+  const app = createRecordArrangeApplication({
+    db: connection.db,
+    boss,
+    client: model.client,
+    businessNow: () => businessAt,
+    now: () => new Date(wallAt),
+  });
+  const result = await app.requests.create(h.account, h.input);
+  if (result.status !== 'success') throw new Error('Synthetic intake failed');
+  const [intake] = await connection.db
+    .select()
+    .from(arrangeInputs)
+    .where(eq(arrangeInputs.batchId, result.result.batchId));
+  jobId = intake!.jobId;
+  expect(await app.runner.run(jobId, 1)).toBe('ignored');
+  expect(
+    await connection.db
+      .select()
+      .from(recordDrafts)
+      .where(eq(recordDrafts.batchId, result.result.batchId)),
+  ).toHaveLength(0);
+  const [job] = await connection.db
+    .select()
+    .from(jobSnapshots)
+    .where(eq(jobSnapshots.jobId, jobId));
+  expect(job).toMatchObject({
+    status: 'running',
+    attempt: 1,
+    revision: changedRevision,
+  });
+  expect(model.calls()).toBe(1);
+});
+
+it('native operation save rejects a stale persisted revision without overwriting the job', async () => {
+  const h = await arranged();
+  const request = {
+    accountId: h.account,
+    batchId: h.draft.batchId,
+    operationId: h.intake.originalInput.operation_id,
+    attempt: 1,
+  };
+  const [before] = await connection.db
+    .select()
+    .from(jobSnapshots)
+    .where(eq(jobSnapshots.jobId, h.intake.jobId));
+  await expect(
+    h.app.requests.native.ports.locked(request, async (tx) => {
+      await tx.saveOperation({
+        ...tx.operation!,
+        revision: tx.operation!.revision - 1,
+      });
+    }),
+  ).rejects.toThrow('native_operation_changed');
+  const [after] = await connection.db
+    .select()
+    .from(jobSnapshots)
+    .where(eq(jobSnapshots.jobId, h.intake.jobId));
+  expect(after).toEqual(before);
 });
