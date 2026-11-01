@@ -15,6 +15,8 @@ import {
   projectSpeakerBindings,
   requireSpeakerAccess,
   requireBoundCandidates,
+  requireBindingCandidateFence,
+  boundCandidateGaps,
   speakerBindingCommandSchema,
   speakerBindingFingerprint,
   speakerCandidates,
@@ -214,6 +216,7 @@ export function createSpeakerBindingUsecase<C>(
     command: SpeakerBindingCommand,
     before: SpeakerBindingSnapshot,
     plan: SpeakerBindingPlan,
+    allowedInvalid: ReturnType<typeof boundCandidateGaps>,
   ) {
     const { snapshot: after, authority } = await load(
       tx,
@@ -223,7 +226,16 @@ export function createSpeakerBindingUsecase<C>(
       true,
     );
     assertBindCandidate(after, authority, command);
-    requireBoundCandidates(after.bindings, speakerCandidates(after, authority));
+    requireBindingCandidateFence(
+      after.bindings,
+      speakerCandidates(after, authority),
+      allowedInvalid,
+    );
+    if (plan.resume)
+      requireBoundCandidates(
+        after.bindings,
+        speakerCandidates(after, authority),
+      );
     if (
       !isDeepStrictEqual(version(after), version(before)) ||
       !isDeepStrictEqual(after.transcript, before.transcript) ||
@@ -291,6 +303,10 @@ export function createSpeakerBindingUsecase<C>(
             true,
           );
           assertBindCandidate(snapshot, authority, command);
+          const allowedInvalid = boundCandidateGaps(
+            snapshot.bindings,
+            speakerCandidates(snapshot, authority),
+          );
           const fingerprint = speakerBindingFingerprint(command);
           const existing = await deps.readOperation(
             tx,
@@ -298,10 +314,11 @@ export function createSpeakerBindingUsecase<C>(
             command.operationId,
           );
           if (existing) {
-            requireBoundCandidates(
-              snapshot.bindings,
-              speakerCandidates(snapshot, authority),
-            );
+            if (existing.result.resume !== null)
+              requireBoundCandidates(
+                snapshot.bindings,
+                speakerCandidates(snapshot, authority),
+              );
             if (
               existing.fingerprint !== fingerprint ||
               !isDeepStrictEqual(existing.version, version(snapshot)) ||
@@ -320,10 +337,16 @@ export function createSpeakerBindingUsecase<C>(
               true,
             );
             assertBindCandidate(current.snapshot, current.authority, command);
-            requireBoundCandidates(
+            requireBindingCandidateFence(
               current.snapshot.bindings,
               speakerCandidates(current.snapshot, current.authority),
+              allowedInvalid,
             );
+            if (existing.result.resume !== null)
+              requireBoundCandidates(
+                current.snapshot.bindings,
+                speakerCandidates(current.snapshot, current.authority),
+              );
             if (
               !isDeepStrictEqual(version(snapshot), version(current.snapshot))
             )
@@ -372,7 +395,7 @@ export function createSpeakerBindingUsecase<C>(
             version: version(snapshot),
             result: receipt,
           });
-          await verify(tx, accountId, command, snapshot, plan);
+          await verify(tx, accountId, command, snapshot, plan, allowedInvalid);
           return materialReviewCommandResultSchema.parse({
             status: 'success',
             replayed: false,

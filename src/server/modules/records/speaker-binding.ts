@@ -48,10 +48,11 @@ export interface SpeakerBindingSnapshot {
   bindings: RecordingBindings;
   context: RecordingContext;
   itemRevisions: Record<string, number>;
-  /** Complete, currently disclosable remaining items owned by other review kinds. */
+  /** All other currently disclosable remaining items in this batch, including
+   * speaker items from other recordings; exclude only this transcript. */
   otherReviewItemIds: string[] | null;
   /** Server-resolved blockers of THIS material/affected target, a subset of the
-   * remaining other-kind items. null is unknown; never infer [] from item IDs. */
+   * other remaining items in the batch. null is unknown; never infer [] from item IDs. */
   otherBlockingReviewItemIds: string[] | null;
   derived: {
     bindingRevision: number;
@@ -280,22 +281,51 @@ export function speakerCandidates(
     .filter((p, i, all) => all.findIndex((v) => v.id === p.id) === i)
     .map((p) => ({ personId: p.id, displayName: p.displayName }));
 }
-/** Check the entire resulting ledger, including decisions from older operations. */
-export function requireBoundCandidates(
+/** Invalidity is keyed by fragment AND person, not just by the person. An
+ * already-stale person cannot silently acquire another fragment during repair.
+ */
+export function boundCandidateGaps(
   bindings: RecordingBindings,
   candidates: { personId: string }[],
-) {
+): { fragmentId: string; personId: string }[] {
+  const visible = new Set(candidates.map((p) => p.personId));
+  return bindings.resolutions.flatMap((r) =>
+    r.state === 'bound' && !visible.has(r.personId)
+      ? [{ fragmentId: r.fragmentId, personId: r.personId }]
+      : [],
+  );
+}
+/** Repair may retain existing stale pairs, never introduce new ones. Capture
+ * allowed pairs BEFORE awaits; validate fresh candidates again after writes.
+ * true means every bound person is currently valid, which resume requires.
+ */
+export function requireBindingCandidateFence(
+  bindings: RecordingBindings,
+  candidates: { personId: string }[],
+  allowed: ReturnType<typeof boundCandidateGaps>,
+): boolean {
+  const gaps = boundCandidateGaps(bindings, candidates);
   if (
-    bindings.resolutions.some(
-      (v) =>
-        v.state === 'bound' &&
-        !candidates.some((p) => p.personId === v.personId),
+    gaps.some(
+      (gap) =>
+        !allowed.some(
+          (old) =>
+            old.fragmentId === gap.fragmentId && old.personId === gap.personId,
+        ),
     )
   )
     throw new SpeakerBindingError(
       'forbidden',
       '原绑定人员已不在当前可见候选范围',
     );
+  return gaps.length === 0;
+}
+/** Reads and actual resume still require an entirely valid ledger. */
+export function requireBoundCandidates(
+  bindings: RecordingBindings,
+  candidates: { personId: string }[],
+) {
+  requireBindingCandidateFence(bindings, candidates, []);
 }
 export function projectSpeakerBindings(
   s: SpeakerBindingSnapshot,
@@ -472,7 +502,11 @@ export function planSpeakerBinding(input: {
       changedIds.has(r.fragmentId) ? desired(r.fragmentId) : structuredClone(r),
     ),
   };
-  requireBoundCandidates(bindings, candidates);
+  const allBindingsValid = requireBindingCandidateFence(
+    bindings,
+    candidates,
+    boundCandidateGaps(s.bindings, candidates),
+  );
   const itemRevisions = { ...s.itemRevisions };
   if (changed)
     for (const f of group) {
@@ -516,6 +550,7 @@ export function planSpeakerBinding(input: {
   let resume: SpeakerBindingPlan['resume'] = null;
   if (
     bindingChanged &&
+    allBindingsValid &&
     (resolution.action === 'bind' || resolution.action === 'mark_irrelevant') &&
     blockingReviewItemIds.length === 0 &&
     s.context.canProcess === true &&

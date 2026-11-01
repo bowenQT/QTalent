@@ -6,6 +6,8 @@ import {
   projectSpeakerBindings,
   speakerBindingCommandSchema,
   speakerBindingFingerprint,
+  boundCandidateGaps,
+  requireBindingCandidateFence,
   type SpeakerBindingSnapshot,
   type SpeakerBindingAuthority,
 } from './speaker-binding';
@@ -456,9 +458,14 @@ it('已有另一语段绑定已越出当前候选时，不得因最后一个合�
     state: 'bound',
     personId: 'outside',
   };
-  expect(() =>
-    planSpeakerBinding({ ...f, command: { ...f.command, itemId: 'item-1' } }),
-  ).toThrow(/候选范围/);
+  const plan = planSpeakerBinding({
+    ...f,
+    command: { ...f.command, itemId: 'item-1' },
+  });
+  expect(plan.resume).toBeNull();
+  expect(plan.bindings.resolutions[0]).toEqual(
+    f.snapshot.bindings.resolutions[0],
+  );
 });
 
 it('最终897回执带真实材料、接受的动作和本材料未解决阻塞项', () => {
@@ -522,3 +529,153 @@ it('完整来源的requiredKind也必须有当前读取许可，不能只核主k
     expect.objectContaining({ code: 'forbidden' }),
   );
 });
+
+function addReplacement(f: ReturnType<typeof fixture>) {
+  const who = { personId: 'demo-b', evaluationNodeId: 'node-a' };
+  f.snapshot.members.push(who);
+  f.snapshot.sourceSubjects.push(who);
+  f.authority.directory.push({ id: 'demo-b', displayName: '演示·夏禾' });
+  f.authority.context.people.push({ id: 'demo-b', noReview: false });
+  f.authority.context.enrollments.push({
+    ...f.authority.context.enrollments[0]!,
+    personId: 'demo-b',
+  });
+  f.authority.context.evaluationNodeSubjects.push(who);
+}
+function invalidMultiGroup(path: 'directory' | 'membership') {
+  const f = fixture();
+  addReplacement(f);
+  next(f, planSpeakerBinding(f));
+  next(
+    f,
+    planSpeakerBinding({
+      ...f,
+      command: { ...f.command, itemId: 'item-1', operationId: 'initial-1' },
+    }),
+  );
+  expect(f.snapshot.bindings.resolutions.map((v) => v.state)).toEqual([
+    'bound',
+    'bound',
+  ]);
+  if (path === 'directory')
+    f.authority.directory = f.authority.directory.filter(
+      (p) => p.id !== 'demo-a',
+    );
+  else {
+    f.snapshot.members = f.snapshot.members.filter(
+      (p) => p.personId !== 'demo-a',
+    );
+    f.snapshot.membershipRevision++;
+    f.authority.processing.membershipRevision = f.snapshot.membershipRevision;
+  }
+  return f;
+}
+it.each(['directory', 'membership'] as const)(
+  '%s中的同人多组失效可逐组撤销、标无关或改绑，而不是锁死整份材料',
+  (path) => {
+    for (const action of ['unbind', 'mark_irrelevant', 'bind'] as const) {
+      const f = invalidMultiGroup(path);
+      const resolution =
+        action === 'bind' ? { action, personId: 'demo-b' } : { action };
+      expect(() =>
+        projectSpeakerBindings(f.snapshot, f.authority, f.accountId),
+      ).toThrow(/候选范围/);
+      const first = planSpeakerBinding({
+        ...f,
+        command: { ...f.command, expectedRevision: 2, resolution },
+      });
+      expect(first.resume).toBeNull();
+      expect(JSON.stringify(first.receipt)).not.toContain('demo-a');
+      next(f, first);
+      const last = planSpeakerBinding({
+        ...f,
+        command: {
+          ...f.command,
+          itemId: 'item-1',
+          expectedRevision: 2,
+          operationId: 'repair-1',
+          resolution,
+        },
+      });
+      next(f, last);
+      expect(
+        f.snapshot.bindings.resolutions.every(
+          (v) => v.state !== 'bound' || v.personId === 'demo-b',
+        ),
+      ).toBe(true);
+      expect(last.resume !== null).toBe(action !== 'unbind');
+      if (action === 'unbind') {
+        next(
+          f,
+          planSpeakerBinding({
+            ...f,
+            command: {
+              ...f.command,
+              expectedRevision: 3,
+              operationId: 'resolve-0',
+              resolution: { action: 'bind', personId: 'demo-b' },
+            },
+          }),
+        );
+        const final = planSpeakerBinding({
+          ...f,
+          command: {
+            ...f.command,
+            itemId: 'item-1',
+            expectedRevision: 3,
+            operationId: 'resolve-1',
+            resolution: { action: 'bind', personId: 'demo-b' },
+          },
+        });
+        expect(final.resume).not.toBeNull();
+      }
+    }
+  },
+);
+
+it('失效集合按语段与人员成对核对，不能把同一个失效人员挪到另一语段', () => {
+  const f = invalidMultiGroup('directory');
+  const before = {
+    revision: 3,
+    resolutions: [f.snapshot.bindings.resolutions[0]!],
+  };
+  const allowed = boundCandidateGaps(before, [{ personId: 'demo-b' }]);
+  expect(() =>
+    requireBindingCandidateFence(
+      {
+        revision: 4,
+        resolutions: [
+          { fragmentId: 'fragment-1', state: 'bound', personId: 'demo-a' },
+        ],
+      },
+      [{ personId: 'demo-b' }],
+      allowed,
+    ),
+  ).toThrow(/候选范围/);
+});
+it.each(['write', 'source', 'confirmed'] as const)(
+  '已有失效绑定也不能绕过当前%s保护',
+  (mode) => {
+    const f = invalidMultiGroup('directory');
+    if (mode === 'write') f.authority.processing.allowed = false;
+    if (mode === 'source') f.snapshot.sourceScopeComplete = false;
+    if (mode === 'confirmed')
+      f.snapshot.derived!.confirmedResultIds = ['confirmed-event'];
+    expect(() =>
+      planSpeakerBinding({
+        ...f,
+        command: {
+          ...f.command,
+          expectedRevision: 2,
+          resolution: { action: 'unbind' },
+        },
+      }),
+    ).toThrow(
+      mode === 'confirmed'
+        ? /已确认/
+        : mode === 'write'
+          ? /写许可/
+          : /可处理范围/,
+    );
+  },
+);

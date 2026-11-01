@@ -463,11 +463,8 @@ it('审计后保存端口期间失权仍回滚；署名时间用墙钟，权限�
 it('整批已有绑定失去当前候选资格时，新增绑定与原操作重放均关闭', async () => {
   const { f, service, command } = fixture();
   await service.apply('account-hr', command);
-  f.state.snapshot.bindings.resolutions[0] = {
-    fragmentId: 'fragment-0',
-    state: 'bound',
-    personId: 'outside',
-  };
+  // Remove the actual current directory candidate, retaining immutable history.
+  f.authority.directory = [];
   expect(
     (
       await service.apply('account-hr', {
@@ -601,3 +598,209 @@ it.each(['material', 'resolution'] as const)(
     expect(f.state.decisions).toHaveLength(1);
   },
 );
+
+async function invalidMultiGroup(path: 'directory' | 'membership') {
+  const f = fixture();
+  const who = { personId: 'demo-b', evaluationNodeId: 'node-a' };
+  f.f.state.snapshot.members.push(who);
+  f.f.state.snapshot.sourceSubjects.push(who);
+  f.f.authority.directory.push({ id: 'demo-b', displayName: '演示·夏禾' });
+  f.f.authority.context.people.push({ id: 'demo-b', noReview: false });
+  f.f.authority.context.enrollments.push({
+    ...f.f.authority.context.enrollments[0]!,
+    personId: 'demo-b',
+  });
+  f.f.authority.context.evaluationNodeSubjects.push(who);
+  expect((await f.service.apply('account-hr', f.command)).status).toBe(
+    'success',
+  );
+  expect(
+    (
+      await f.service.apply('account-hr', {
+        ...f.command,
+        itemId: 'item-1',
+        operationId: 'initial-1',
+      })
+    ).status,
+  ).toBe('success');
+  if (path === 'directory')
+    f.f.authority.directory = f.f.authority.directory.filter(
+      (p) => p.id !== 'demo-a',
+    );
+  else {
+    f.f.state.snapshot.members = f.f.state.snapshot.members.filter(
+      (p) => p.personId !== 'demo-a',
+    );
+    f.f.state.snapshot.membershipRevision++;
+    f.f.authority.processing.membershipRevision =
+      f.f.state.snapshot.membershipRevision;
+  }
+  return f;
+}
+it.each(['directory', 'membership'] as const)(
+  '%s失效后多组可逐个修复及幂等重放；没有完整有效绑定不恢复',
+  async (path) => {
+    for (const action of ['unbind', 'mark_irrelevant', 'bind'] as const) {
+      const { f, service, command } = await invalidMultiGroup(path);
+      const resolution =
+        action === 'bind' ? { action, personId: 'demo-b' } : { action };
+      const repair = {
+        ...command,
+        operationId: 'repair-0',
+        expectedRevision: 2,
+        resolution,
+      };
+      const oldDecisions = structuredClone(f.state.decisions);
+      const first = await service.apply('account-hr', repair);
+      expect(first).toMatchObject({
+        status: 'success',
+        replayed: false,
+        result: { resume: null },
+      });
+      expect(JSON.stringify(first)).not.toContain('demo-a');
+      expect(f.state.snapshot.context.resumeGrant).toBeNull();
+      expect(f.state.resumed).toHaveLength(1); // Only the earlier, now invalidated processing revision.
+      expect(f.state.decisions.slice(0, oldDecisions.length)).toEqual(
+        oldDecisions,
+      );
+      expect(await service.apply('account-hr', repair)).toMatchObject({
+        status: 'success',
+        replayed: true,
+        result: first.status === 'success' ? first.result : null,
+      });
+      expect(f.state.decisions).toHaveLength(oldDecisions.length + 1);
+      expect(f.state.audits).toBe(3);
+      expect(
+        await service.read('account-hr', {
+          batchId: 'batch-a',
+          itemId: 'item-1',
+        }),
+      ).toMatchObject({ status: 'forbidden' });
+      expect((await service.apply('account-hr', command)).status).toBe(
+        'forbidden',
+      );
+      const last = await service.apply('account-hr', {
+        ...repair,
+        itemId: 'item-1',
+        operationId: 'repair-1',
+      });
+      expect(last.status).toBe('success');
+      expect(
+        f.state.snapshot.bindings.resolutions.every(
+          (v) => v.state !== 'bound' || v.personId === 'demo-b',
+        ),
+      ).toBe(true);
+      expect(f.state.resumed).toHaveLength(action === 'unbind' ? 1 : 2);
+    }
+  },
+);
+
+it('修复提交后原有效的另一组人员失效，不能被最初失效集合的宽松规则放过', async () => {
+  const { f, deps, service, command } = await invalidMultiGroup('directory');
+  expect(
+    (
+      await service.apply('account-hr', {
+        ...command,
+        expectedRevision: 2,
+        operationId: 'repair-0',
+        resolution: { action: 'bind', personId: 'demo-b' },
+      })
+    ).status,
+  ).toBe('success');
+  // Exercise the partial-write verify path, independently of strict resume validation.
+  f.state.snapshot.context.canProcess = false;
+  const before = structuredClone(f.state);
+  const save = deps.saveOperation;
+  deps.saveOperation = async (...args) => {
+    await save(...args);
+    f.authority.directory = f.authority.directory.filter(
+      (p) => p.id !== 'demo-b',
+    );
+  };
+  const result = await createSpeakerBindingUsecase(deps).apply('account-hr', {
+    ...command,
+    itemId: 'item-1',
+    expectedRevision: 2,
+    operationId: 'repair-1',
+    resolution: { action: 'mark_irrelevant' },
+  });
+  expect(result.status).toBe('forbidden');
+  expect(f.state).toEqual(before);
+});
+it('无恢复的修复重放在第二次权限加载后仍拒绝新产生的失效绑定，不追加副作用', async () => {
+  const { f, deps, service, command } = await invalidMultiGroup('directory');
+  const repair = {
+    ...command,
+    expectedRevision: 2,
+    operationId: 'repair-0',
+    resolution: { action: 'unbind' as const },
+  };
+  expect((await service.apply('account-hr', repair)).status).toBe('success');
+  f.authority.directory.push({ id: 'demo-a', displayName: '演示·林序' });
+  const before = structuredClone(f.state);
+  let calls = 0;
+  const load = deps.loadAuthority;
+  deps.loadAuthority = async (...args) => {
+    if (++calls === 2)
+      f.authority.directory = f.authority.directory.filter(
+        (p) => p.id !== 'demo-a',
+      );
+    return load(...args);
+  };
+  const result = await createSpeakerBindingUsecase(deps).apply(
+    'account-hr',
+    repair,
+  );
+  expect(result.status).toBe('forbidden');
+  expect(calls).toBe(2);
+  expect(f.state).toEqual(before);
+  expect(JSON.stringify(result)).not.toContain('demo-a');
+});
+it('修复也须在最后一次权限加载保有当前处理写许可', async () => {
+  const { f, deps, command } = await invalidMultiGroup('directory');
+  const before = structuredClone(f.state);
+  const save = deps.saveOperation;
+  deps.saveOperation = async (...args) => {
+    await save(...args);
+    f.authority.processing.allowed = false;
+  };
+  const result = await createSpeakerBindingUsecase(deps).apply('account-hr', {
+    ...command,
+    expectedRevision: 2,
+    operationId: 'repair-0',
+    resolution: { action: 'unbind' },
+  });
+  expect(result.status).toBe('forbidden');
+  expect(f.state).toEqual(before);
+});
+
+it('带恢复的历史回执在其他已绑定人员失效后也不能重放为可整理', async () => {
+  const { f, service, command } = await invalidMultiGroup('directory');
+  expect(
+    (
+      await service.apply('account-hr', {
+        ...command,
+        expectedRevision: 2,
+        operationId: 'repair-0',
+        resolution: { action: 'bind', personId: 'demo-b' },
+      })
+    ).status,
+  ).toBe('success');
+  const last = {
+    ...command,
+    itemId: 'item-1',
+    expectedRevision: 2,
+    operationId: 'repair-1',
+    resolution: { action: 'mark_irrelevant' as const },
+  };
+  expect(await service.apply('account-hr', last)).toMatchObject({
+    status: 'success',
+    result: { resume: { stage: 'organizing', jobId: 'job-a' } },
+  });
+  f.authority.directory = f.authority.directory.filter(
+    (p) => p.id !== 'demo-b',
+  );
+  const before = structuredClone(f.state);
+  expect((await service.apply('account-hr', last)).status).toBe('forbidden');
+  expect(f.state).toEqual(before);
+});
