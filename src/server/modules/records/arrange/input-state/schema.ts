@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   pgTable,
   text,
+  date,
   jsonb,
   timestamp,
   primaryKey,
@@ -10,6 +11,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { accountBindings } from '../../../directory';
+import { evaluationNodes } from '../../../programs';
 import { jobSnapshots } from '../../../../jobs/schema';
 import type { RecordInput } from '../../../../../contracts/record';
 import type { TalentKind, TalentSubject } from '../../../../authz/talent';
@@ -34,6 +36,15 @@ export const arrangeInputs = pgTable(
       .notNull()
       .references(() => jobSnapshots.jobId),
     inputVersion: text('input_version').notNull(),
+    // Trusted business facts for new batch inputs. Legacy rows remain unavailable:
+    // neither audit createdAt nor a selected input's id can supply these values.
+    // The batch is saved before 846 inserts its ledger, so this is not a batch FK.
+    batchId: text('batch_id'),
+    evaluationNodeId: text('evaluation_node_id').references(
+      () => evaluationNodes.id,
+    ),
+    boundAt: timestamp('bound_at', { withTimezone: true }),
+    occurredOn: date('occurred_on'),
     origin: text('origin', {
       enum: ['text', 'recording', 'attachment'],
     }).notNull(),

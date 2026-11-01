@@ -317,6 +317,11 @@ export function createRecordArrangeRequests(
           creatorAccountId: accountId,
           jobId,
           inputVersion,
+          // This legacy entry has no trusted batch/node/business-date producer.
+          batchId: null,
+          evaluationNodeId: null,
+          boundAt: null,
+          occurredOn: null,
           origin,
           originalInput: input,
           sourceContexts,
