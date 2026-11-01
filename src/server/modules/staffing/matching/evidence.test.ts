@@ -172,3 +172,46 @@ it('旧事件的管理观察确认不会被装配为匹配证据，也不调用�
   await f.service.execute(runId, 1);
   expect(f.decide).not.toHaveBeenCalled();
 });
+
+it('同一人员有多个节点时保留事件真实节点，不取第一个可关联节点', () => {
+  const f = fixture(),
+    event = f.material.events[0]!;
+  const target = 'explicit-event-node';
+  f.material.context.evaluationNodes.push({
+    id: target,
+    kind: 'defense',
+    cohortId: 'cohort-a',
+  });
+  f.material.context.evaluationNodeSubjects.push({
+    evaluationNodeId: target,
+    personId: event.personId,
+  });
+  event.evaluationNodeId = target;
+  for (const source of f.material.sources)
+    for (const subject of source.subjects)
+      if (subject.personId === event.personId)
+        subject.evaluationNodeId = target;
+  const actual = assembleMatchingEvidence(f.material).snapshot.records.find(
+    (record) => record.id === event.id,
+  );
+  expect(actual?.subject).toEqual({
+    personId: event.personId,
+    evaluationNodeId: target,
+    cohortId: 'cohort-a',
+  });
+});
+it('事件的实际节点不在完整事实中时不改挂该人的其他节点', () => {
+  const f = fixture(),
+    event = f.material.events[0]!;
+  event.evaluationNodeId = 'unknown-event-node';
+  expect(
+    f.material.context.evaluationNodeSubjects.some(
+      (s) => s.personId === event.personId,
+    ),
+  ).toBe(true);
+  expect(
+    assembleMatchingEvidence(f.material).snapshot.records.some(
+      (record) => record.id === event.id,
+    ),
+  ).toBe(false);
+});

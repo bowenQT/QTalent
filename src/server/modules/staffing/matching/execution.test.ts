@@ -1,3 +1,5 @@
+import type { JevInput } from '../../../integrations/jev';
+import type { MatchStore } from './types';
 import type { UnsupportedReview } from './review';
 import { expect, it, vi } from 'vitest';
 import { z } from 'zod';
@@ -44,16 +46,20 @@ function fixture(people = 1, requirements = 1) {
   };
   let revoked = false,
     nextId = 0;
-  const decide = vi.fn(async () => ({
+  const decide = vi.fn<
+    (input: JevInput) => Promise<{ conclusion: 'supported' | 'not_supported' }>
+  >(async () => ({
     conclusion: 'supported' as 'supported' | 'not_supported',
   }));
-  const review = vi.fn<() => Promise<UnsupportedReview>>(async () => ({
-    status: 'confirmed',
-    conclusion: 'not_supported',
-    model: 'google/gemini-3.8-flash' as const,
-    promptVersion: 'staffing-not-supported-review-v1',
-    error: null,
-  }));
+  const review = vi.fn<(input: JevInput) => Promise<UnsupportedReview>>(
+    async () => ({
+      status: 'confirmed',
+      conclusion: 'not_supported',
+      model: 'google/gemini-3.8-flash' as const,
+      promptVersion: 'staffing-not-supported-review-v1',
+      error: null,
+    }),
+  );
   const dependencies = {
     store,
     scope: async () => {
@@ -353,4 +359,225 @@ it('独立读取入口不把不一致的confirmed复核元数据当许可', asyn
       ],
     },
   });
+});
+
+const acceptedReview: UnsupportedReview = {
+  status: 'confirmed',
+  conclusion: 'not_supported',
+  model: 'google/gemini-3.8-flash',
+  promptVersion: 'staffing-not-supported-review-v1',
+  error: null,
+};
+function humanCommand(f: ReturnType<typeof fixture>) {
+  const source = f.scope.candidates[0]!.evidence[0]!.source;
+  return {
+    operationId: 'manual-a',
+    demandId: f.scope.demand.id,
+    expectedRevision: f.scope.demand.revision,
+    personId: 'demo-0',
+    requirementId: 'r-0',
+    conclusion: 'not_supported',
+    rationale: '演示·人工核对后的决定',
+    sources: [
+      {
+        fragmentId: source.fragmentId,
+        originalVersionId: source.originalVersionId,
+        location: source.location,
+      },
+    ],
+  };
+}
+it.each(['jev', 'gemini'] as const)(
+  '迟到%s结果不能写入已换claim的单元',
+  async (provider) => {
+    const f = fixture(),
+      jev = deferred<{ conclusion: 'supported' | 'not_supported' }>(),
+      gemini = deferred<UnsupportedReview>();
+    if (provider === 'jev') f.decide.mockImplementation(() => jev.promise);
+    else {
+      f.decide.mockResolvedValue({ conclusion: 'not_supported' });
+      f.review.mockImplementation(() => gemini.promise);
+    }
+    const id = await start(f),
+      work = f.service.execute(id, 1);
+    try {
+      await vi.waitFor(() =>
+        expect(provider === 'jev' ? f.decide : f.review).toHaveBeenCalledTimes(
+          1,
+        ),
+      );
+      await f.store.transaction(id, async (tx) => {
+        const current = (await tx.load(id))!;
+        current.run.candidates[0]!.cells[0]!.claim = 'replacement-owner';
+        await tx.save(current.run, current.job);
+      });
+    } finally {
+      jev.resolve({ conclusion: 'supported' });
+      gemini.resolve(acceptedReview);
+      await work;
+    }
+    const cell = f.store.state.runs.get(id)!.candidates[0]!.cells[0]!;
+    expect(cell.claim).toBe('replacement-owner');
+    expect(cell.match.aiJudgment).toBeNull();
+    expect(cell.match.progress).toBe('judging');
+  },
+);
+it.each(['claim', 'attempt'] as const)(
+  'Jev之后%s已变化时不能额外计费调用Gemini',
+  async (fence) => {
+    const f = fixture(),
+      gate = deferred<{ conclusion: 'not_supported' }>();
+    f.decide.mockImplementation(() => gate.promise);
+    const id = await start(f),
+      work = f.service.execute(id, 1);
+    try {
+      await vi.waitFor(() => expect(f.decide).toHaveBeenCalledTimes(1));
+      await f.store.transaction(id, async (tx) => {
+        const current = (await tx.load(id))!;
+        if (fence === 'claim')
+          current.run.candidates[0]!.cells[0]!.claim = 'new-owner';
+        else current.job.attempt++;
+        await tx.save(current.run, current.job);
+      });
+    } finally {
+      gate.resolve({ conclusion: 'not_supported' });
+      await work;
+    }
+    expect(f.review).not.toHaveBeenCalled();
+    expect(
+      f.store.state.runs.get(id)!.candidates[0]!.cells[0]!.match.aiJudgment,
+    ).toBeNull();
+  },
+);
+it.each(['jev', 'gemini'] as const)(
+  '人工用真实judge入口完成后，迟到%s不覆盖人工结论',
+  async (provider) => {
+    const f = fixture(),
+      jev = deferred<{ conclusion: 'supported' }>(),
+      gemini = deferred<UnsupportedReview>();
+    if (provider === 'jev') f.decide.mockImplementation(() => jev.promise);
+    else {
+      f.decide.mockResolvedValue({ conclusion: 'not_supported' });
+      f.review.mockImplementation(() => gemini.promise);
+    }
+    const id = await start(f),
+      work = f.service.execute(id, 1);
+    try {
+      await vi.waitFor(() =>
+        expect(provider === 'jev' ? f.decide : f.review).toHaveBeenCalledTimes(
+          1,
+        ),
+      );
+      expect(
+        await f.service.judge('account-hr', id, humanCommand(f)),
+      ).toMatchObject({ status: 'success' });
+    } finally {
+      jev.resolve({ conclusion: 'supported' });
+      gemini.resolve(acceptedReview);
+      await work;
+    }
+    expect(
+      f.store.state.runs.get(id)!.candidates[0]!.cells[0]!.match,
+    ).toMatchObject({
+      progress: 'completed',
+      aiJudgment: null,
+      humanJudgment: {
+        conclusion: 'not_supported',
+        judgedBy: { id: 'hr', name: '演示·HR' },
+        rationale: '演示·人工核对后的决定',
+      },
+    });
+  },
+);
+it('Jev不支持返回前人工已完成时，Gemini调用次数仍为0', async () => {
+  const f = fixture(),
+    gate = deferred<{ conclusion: 'not_supported' }>();
+  f.decide.mockImplementation(() => gate.promise);
+  const id = await start(f),
+    work = f.service.execute(id, 1);
+  try {
+    await vi.waitFor(() => expect(f.decide).toHaveBeenCalledTimes(1));
+    expect(
+      await f.service.judge('account-hr', id, humanCommand(f)),
+    ).toMatchObject({ status: 'success' });
+  } finally {
+    gate.resolve({ conclusion: 'not_supported' });
+    await work;
+  }
+  expect(f.review).not.toHaveBeenCalled();
+  expect(
+    f.store.state.runs.get(id)!.candidates[0]!.cells[0]!.match.humanJudgment
+      ?.conclusion,
+  ).toBe('not_supported');
+});
+it('一个lane原生写失败后仍等待其他已发请求退出再抛错', async () => {
+  const f = fixture(2),
+    gate = deferred<{ conclusion: 'supported' }>();
+  let writeFailed = false;
+  f.decide.mockImplementation(async (input) =>
+    JSON.parse(input.requirement).personId === 'demo-0'
+      ? { conclusion: 'supported' }
+      : gate.promise,
+  );
+  const store: MatchStore<null> = {
+    transaction: (key, run) =>
+      f.store.transaction(key, (tx) =>
+        run({
+          ...tx,
+          save: async (run, job) => {
+            if (run.candidates[0]!.cells[0]!.match.aiJudgment !== null) {
+              writeFailed = true;
+              throw new Error('synthetic write failed');
+            }
+            await tx.save(run, job);
+          },
+        }),
+      ),
+  };
+  const service = createMatchingService({ ...f.dependencies, store });
+  const id = z.object({ runId: z.string() }).parse(
+    await service.start('account-hr', {
+      operationId: 'start',
+      demandId: 'demand-a',
+      expectedRevision: 2,
+    }),
+  ).runId;
+  let settled = false;
+  const work = service.execute(id, 1);
+  void work.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  try {
+    await vi.waitFor(() => {
+      expect(f.decide).toHaveBeenCalledTimes(2);
+      expect(writeFailed).toBe(true);
+    });
+    expect(settled).toBe(false);
+  } finally {
+    gate.resolve({ conclusion: 'supported' });
+    await expect(work).rejects.toThrow('synthetic write failed');
+  }
+  expect(settled).toBe(true);
+});
+it('Gemini收到与Jev逐项相同的全部已授权证据，不截成第一条', async () => {
+  const f = fixture();
+  const first = f.scope.candidates[0]!.evidence[0]!;
+  f.scope.candidates[0]!.evidence.push({
+    ...structuredClone(first),
+    eventId: 'other-event',
+    behavior: '演示·另一条已确认材料',
+    source: { ...structuredClone(first.source), fragmentId: 'second-fragment' },
+  });
+  f.decide.mockResolvedValue({ conclusion: 'not_supported' });
+  const id = await start(f);
+  await f.service.execute(id, 1);
+  expect(f.decide).toHaveBeenCalledTimes(1);
+  expect(f.review).toHaveBeenCalledTimes(1);
+  expect(f.review.mock.calls[0]![0]).toEqual(f.decide.mock.calls[0]![0]);
+  expect(f.review.mock.calls[0]![0].evidence).toHaveLength(2);
 });

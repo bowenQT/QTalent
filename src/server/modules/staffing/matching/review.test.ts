@@ -117,3 +117,23 @@ it('真实结构化回执模型或prompt版本不匹配则关闭', async () => {
     error: 'invalid_response',
   });
 });
+
+it('供应商返回另一个模型时明确分类为非法响应，不接受其元数据', async () => {
+  const client = createFakeModelinkMaas({ conclusion: 'not_supported' });
+  vi.spyOn(client, 'generateStructured').mockResolvedValue({
+    ok: true,
+    value: { conclusion: 'not_supported' },
+    metadata: {
+      ...metadataFor(
+        { promptVersion: MATCH_REVIEW_PROMPT_VERSION },
+        MODELINK_MODEL,
+      ),
+      model: 'different-provider-model' as typeof MODELINK_MODEL,
+    },
+  });
+  expect(await createUnsupportedReview(client).review(input)).toMatchObject({
+    status: 'failed',
+    conclusion: null,
+    error: 'invalid_response',
+  });
+});
