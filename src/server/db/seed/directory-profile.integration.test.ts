@@ -14,10 +14,17 @@ import {
   grants,
 } from '../../modules/directory';
 import { cohorts, enrollments } from '../../modules/programs';
-import { importDirectoryProfileSeed } from './directory-profile';
+import {
+  importDirectoryProfileSeed,
+  importDirectoryProfileDemo,
+  readDirectoryProfileSeed,
+  DIRECTORY_PROFILE_DEMO_SOURCE,
+} from './directory-profile';
+import { importDemo } from '../import';
+import { readPrototypeSeed, mapPrototypeSeed } from './index';
 import { projectDirectoryProfile } from '../../modules/directory/profile';
 import { loadPersonData } from '../../queries/person-data';
-import { profileGate } from '../../queries/person-projection';
+import { profileGate, personFromData } from '../../queries/person-projection';
 
 let admin: Pool | undefined;
 let connection: ReturnType<typeof createDatabase> | undefined;
@@ -261,6 +268,12 @@ it('new facts remain behind current HR scope and revocation instead of widening 
     projectDirectoryProfile(allowed!.row, data.directory.organizations).level,
   ).toBe(input().people[0].jobLevel);
   expect(profileGate(data, 'outside')).toBeNull();
+  expect((await personFromData(data, 'p'))?.person).toMatchObject({
+    jobTitle: input().people[0].jobTitle,
+    level: input().people[0].jobLevel,
+    teamPath: '合成组织 / 合成团队',
+    demo: true,
+  });
   await db()
     .update(grants)
     .set({ revokedAt: '2026-10-31' })
@@ -286,3 +299,35 @@ it('production cannot enable the demo writer with a forged source or demo flag',
     vi.stubEnv('ACCESS_ENFORCED', 'false');
   }
 });
+
+it('imports all 93 fixed synthetic profiles against the real approved demo identities and replays unchanged', async () => {
+  const mapped = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
+  await importDemo(db(), mapped, 'Synthetic-password-for-tests-only');
+  const before = await db().select().from(people);
+  const facts = readDirectoryProfileSeed(
+    process.cwd(),
+    DIRECTORY_PROFILE_DEMO_SOURCE,
+  );
+  expect(await importDirectoryProfileDemo(db(), process.cwd())).toEqual({
+    peopleUpdated: 93,
+    organizationsUpdated: 0,
+  });
+  for (const row of await db().select().from(people)) {
+    const original = before.find((person) => person.id === row.id)!;
+    const fact = facts.people.find((person) => person.id === row.id);
+    expect(row).toEqual(
+      fact
+        ? { ...original, jobTitle: fact.jobTitle, jobLevel: fact.jobLevel }
+        : original,
+    );
+  }
+  expect(await importDirectoryProfileDemo(db(), process.cwd())).toEqual({
+    peopleUpdated: 0,
+    organizationsUpdated: 0,
+  });
+  expect(
+    (await db().select().from(organizations)).every(
+      (row) => !row.hierarchyKnown && row.parentId === null,
+    ),
+  ).toBe(true);
+}, 30_000);
