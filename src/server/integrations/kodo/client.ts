@@ -1,5 +1,6 @@
 import { multipart } from './multipart';
 import { presignS3Get } from './s3-signing';
+import { readS3Error } from './s3-error';
 import { z } from 'zod';
 import { MAX_UPLOAD_BYTES } from '../../../contracts/media';
 import {
@@ -61,6 +62,7 @@ export function createKodoClient(
     url: string,
     init: RequestInit,
     retry = false,
+    errorProtocol: 'native' | 's3' = 'native',
   ): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
       const timeout = AbortSignal.timeout(timeoutMs);
@@ -74,6 +76,7 @@ export function createKodoClient(
           redirect: 'error',
         });
         if (!response.ok) {
+          if (errorProtocol === 's3') throw await readS3Error(response, signal);
           await response.body?.cancel();
           throw statusError(response.status);
         }
@@ -193,13 +196,20 @@ export function createKodoClient(
       now: issuedAt,
       expiresAt: issuedAt + 300000,
     });
-    const response = await request(signed.url, {
-      headers: {
-        'Accept-Encoding': 'identity',
-        ...(range ? { Range: `bytes=${range.start}-${range.end ?? ''}` } : {}),
+    const response = await request(
+      signed.url,
+      {
+        headers: {
+          'Accept-Encoding': 'identity',
+          ...(range
+            ? { Range: `bytes=${range.start}-${range.end ?? ''}` }
+            : {}),
+        },
+        signal,
       },
-      signal,
-    });
+      false,
+      's3',
+    );
     const length = response.headers.get('content-length');
     const contentType = response.headers.get('content-type');
     const contentRange = response.headers.get('content-range');
