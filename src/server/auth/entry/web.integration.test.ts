@@ -17,9 +17,12 @@ import {
   people,
   organizations,
   accountBindings,
+  grants,
 } from '../../modules/directory';
 import { createWebEntryAuthenticator } from './web';
 import { createEntryIdentityService } from './identity';
+import { authenticateWebEntryRequest } from '../../usecases/entry/web-request';
+import { activeGrants } from '../../authz';
 const mocks = vi.hoisted(() => ({ access: vi.fn(), session: vi.fn() }));
 // Control only existing authentication interfaces; all adapter SQL is real.
 // This is not a live user, cookie cryptography or JWKS acceptance test.
@@ -218,4 +221,48 @@ describe('Web current authentication sources in real PostgreSQL', () => {
       kind: 'unauthenticated',
     });
   });
+});
+
+it('composes independent requests with current database authority and revoked account bindings', async () => {
+  const f = await fixture();
+  const grantId = randomUUID();
+  await f.db.insert(grants).values({
+    id: grantId,
+    accountId: f.accountId,
+    role: 'hr',
+    scope: 'cohort',
+    cohortId: 'synthetic-entry-cohort',
+    validFrom: '2026-01-01',
+    validTo: null,
+    revokedAt: null,
+  });
+  const clocks = {
+    wallNow: () => new Date(now),
+    businessNow: () => new Date(now).toISOString(),
+  };
+  const first = await authenticateWebEntryRequest(f.db, f.headers, clocks);
+  const second = await authenticateWebEntryRequest(f.db, f.headers, clocks);
+  expect(first.identity).not.toBe(second.identity);
+  expect(
+    activeGrants(await first.loadContext(f.db, first.identity)),
+  ).toHaveLength(1);
+  await f.db
+    .update(grants)
+    .set({ revokedAt: '2026-11-01' })
+    .where(eq(grants.id, grantId));
+  expect(activeGrants(await first.loadContext(f.db, first.identity))).toEqual(
+    [],
+  );
+  expect(activeGrants(await second.loadContext(f.db, second.identity))).toEqual(
+    [],
+  );
+  await f.db
+    .delete(accountBindings)
+    .where(eq(accountBindings.accountId, f.accountId));
+  await expect(first.loadContext(f.db, first.identity)).rejects.toMatchObject({
+    kind: 'unauthenticated',
+  });
+  await expect(second.loadContext(f.db, second.identity)).rejects.toMatchObject(
+    { kind: 'unauthenticated' },
+  );
 });

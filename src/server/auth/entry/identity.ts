@@ -111,7 +111,8 @@ export function createEntryIdentityService(
           !current ||
           current.accountId !== state.binding.accountId ||
           current.credentialId !== state.binding.credentialId ||
-          current.revision !== state.binding.revision
+          current.revision !== state.binding.revision ||
+          issued.get(identity) !== state
         )
           throw new EntryIdentityError('unauthenticated');
         return {
@@ -120,6 +121,9 @@ export function createEntryIdentityService(
           credentialId: current.credentialId,
         };
       } catch (error) {
+        // Retire this capability even if the backing row is later restored.
+        // A concurrent refresh must observe the same live issuance before return.
+        issued.delete(identity);
         throw safeFailure(error);
       }
     },

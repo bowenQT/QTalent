@@ -243,7 +243,7 @@ describe('receipt deep links carry no authority', () => {
   it('reports a missing object, missing adapter and sanitized infrastructure failure honestly', async () => {
     const f = await fixture();
     f.read.mockResolvedValue(null);
-    expect(await f.open(f.identity, href)).toEqual({ status: 'not_found' });
+    expect(await f.open(f.identity, href)).toEqual({ status: 'forbidden' });
     expect(await f.withoutReader(f.identity, href)).toEqual({
       status: 'unavailable',
     });
@@ -273,4 +273,15 @@ describe('receipt deep links carry no authority', () => {
     expect(f.load).not.toHaveBeenCalled();
     expect(f.read).not.toHaveBeenCalled();
   });
+});
+
+it('does not disclose object existence through different missing and unauthorized statuses', async () => {
+  const existing = await fixture();
+  const missing = await fixture();
+  missing.read.mockResolvedValue(null);
+  expect(await existing.open(existing.otherIdentity, href)).toEqual(
+    await missing.open(missing.otherIdentity, href),
+  );
+  expect(existing.committed()).toEqual([]);
+  expect(missing.committed()).toEqual([]);
 });

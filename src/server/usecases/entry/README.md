@@ -62,3 +62,14 @@
 - 897、899 实际合入 main。当前固定899组合的全量 typecheck 仍报 `person-test-helpers.ts:107` 缺少 `evaluationNodeId`，该受控文件不在本卡范围。
 
 定向单测使用化名/合成材料和真实 899 节点策略；只模拟 I/O、身份发行端与事务端口。内存事务回滚测试只证明用例抛错/提交的边界顺序，不能替代 PG 原子性验收。没有加载供应商凭证、真实 token、外部连接、服务或 worker。
+
+## 903 原生续作（q900）
+
+原9e6d381的Web/核心审查通过保留；新的身份存储/领域生产接线尚在本卡续作，不以该旧结论覆盖新增代码。18处共享main冲突已abort交X1，未恢复旧合同。
+
+- `authenticateWebEntryRequest(db, headers, clocks)` 每次请求新建现有Web认证器及identity service，返回本请求身份和真实当前DB上下文loader；不接受客户端account/person/role，不是全局单例。领域消费者仍必须执行现有当前对象/来源权限，并在其真实事务内调用loader。此工厂不注册路由、handler或新凭据。
+- 四渠道已颁发的进程内identity只要观察到一次撤销/过期/换绑/不可用就退役。恢复后要新认证；并发中的旧positive读取必须仍对应同一有效issuance，不能把已退役引用复活。持久绑定版本和撤销历史仍需真实外部reader，本规则不冒充跨进程追踪。
+- 普通深链的不存在与越权统一forbidden，不借错误类型探测对象是否存在。授权通过后才判断版本或返回刷新链接。
+- 待根云端子任务处理：Web Access缺失/过期/无效凭据分类（web.ts、web.test.ts冻结）；已有非有限截止检查不删。
+- 真实外部源缺口已记#248/6561015457：MCP个人凭据digest及撤销修订、WeCom受认证连接的issuer/sender绑定、AgentAPI由已认证Web用户发起的会话归属。无配置不回退demo。未签发/部署token或创建真实映射。
+- 领域同事务边界与审计字段请求见#248/6561056178：现person loader、需求service自己开事务，不能在entry外层包一层就宣称写入可撤回。当前代码未复制其私有schema/来源授权。

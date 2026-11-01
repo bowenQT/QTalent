@@ -55,7 +55,8 @@ export function createEntryDeepLinkUsecase<C>(ports: {
       return await ports.transactions.transaction(async (tx) => {
         const current = await ports.loadContext(tx, identity);
         const raw = await reader.load(tx, target);
-        if (raw === null) throw new EntryUsecaseError('not_found');
+        // Match the denied-object outcome so a link cannot probe existence.
+        if (raw === null) throw new EntryUsecaseError('forbidden');
         const result = resourceSchema.safeParse(raw);
         if (!result.success) throw new EntryUsecaseError('unavailable');
         const resource = Object.freeze(result.data);

@@ -251,11 +251,16 @@ describe('framework-free entry tool boundary', () => {
       { status: 'unauthenticated' },
     );
     f.binding.revokedAt = null;
-    f.facts.account.isSystemAdmin = true;
     expect(await f.invoke(f.identity, { name: 'record_moment', args })).toEqual(
-      { status: 'forbidden' },
+      { status: 'unauthenticated' },
     );
+    const admin = await fixture();
+    admin.facts.account.isSystemAdmin = true;
+    expect(
+      await admin.invoke(admin.identity, { name: 'record_moment', args }),
+    ).toEqual({ status: 'forbidden' });
     expect(f.execute).not.toHaveBeenCalled();
+    expect(admin.execute).not.toHaveBeenCalled();
   });
   it.each(['mcp', 'wecom'] as const)(
     '%s cannot acquire AgentAPI-only reads',
