@@ -362,7 +362,11 @@ export function planRecordConfirmation(input: {
     throw new ConfirmationError('conflict', 'draft_withdrawn');
   if (request.expected_revision !== draft.revision)
     throw new ConfirmationError('conflict', 'draft_revision_changed');
-  if (state.draftSet.duplicateCandidates.length)
+  if (
+    state.draftSet.duplicateCandidates.some((candidate) =>
+      candidate.draftIds.includes(draft.draftId),
+    )
+  )
     throw new ConfirmationError('conflict', 'duplicate_decision_required');
   if (
     request.personIds.length !== draft.personIds.length ||

@@ -623,3 +623,18 @@ it('does not reuse revision one when the same evaluator has inactive confirmatio
   f.existingPeer(3, f.context.account.personId).active = false;
   expect(() => f.run()).toThrow('confirmation_already_exists');
 });
+
+it('allows this event to be confirmed while unrelated drafts await a duplicate decision', () => {
+  const f = fixture();
+  const pending = ['demo-unrelated-a', 'demo-unrelated-b'].map((draftId) => ({
+    ...structuredClone(f.draft),
+    draftId,
+  }));
+  f.state.draftSet.drafts.push(...pending);
+  f.state.draftSet.duplicateCandidates.push({
+    candidateId: 'demo-unrelated-candidate',
+    draftIds: pending.map((draft) => draft.draftId),
+    reason: '演示：仅另外两件事待判断是否重复',
+  });
+  expect(newSave(f.run()).draft.draftId).toBe(f.draft.draftId);
+});
