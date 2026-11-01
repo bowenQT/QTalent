@@ -25,7 +25,7 @@
 | `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
-| `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
+| `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | UI 已还原（BOW-847，样张 `/dev/record`）；页面读取与读写待 845 / 846 接入，路由显示「记一件事待接通」 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
 | `app/import.html`                 | `/import?id=…`                    | interview-import / （BOW-906 读取） | 面评导入预览 / records、directory            | 角色门禁已实现；预览读取待接通，样张 `/dev/import`；视觉参照待同步 |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
@@ -53,6 +53,24 @@
 | `m/me.html`                       | `/m/me`                           | mobile-account / mobile-account     | mobile-account / directory                   | 后续 / 404     |
 | `design-system.html`              | `/dev/design-system`              | 已移植基础组件                      | —                                            | 已实现开发样张 |
 | `404.html`                        | 全局 404                          | State                               | —                                            | 已实现         |
+
+## BOW-847 记一件事
+
+原型 `app/record.html` 还原到 `src/features/record/`。BOW-845（页面读取与整理，#185）和 BOW-846（保存与五秒撤销，#289）不在 `main`，所以：
+
+- `/record` 在服务端按角色拦截：系统管理员看「这一页属于业务视角」，管理者、HR、导师看「记一件事待接通」。页面不读取任何人员或记录。
+- 写原话 → 整理 → 待确认 → 保存 → 5 秒内撤销，在开发样张 `/dev/record?role=hr|mentor|manager` 上运行，生产环境 404。`?scene=fail|offline|conflict|selection` 走失败、断网、保存冲突、待选人的路径。样张替身按 844 / 897 契约回应，任务快照经 `recordJobSchema` 校验；演示人员取自原型 Y 种子（化名，标「演示」）。
+- 845、846 合入后，`/record` 只做绑定：页面读取的人、项目、维度、署名和默认锚点传进 `RecordPage`，动作依次绑整理、选人、保存、撤销、草稿读取与重试，`onJobChange` 更新 `?job=`。原话永远不进 URL。
+- 待接通：语音输入和添加附件。两个按钮留在原型的位置，标「语音输入待接通」「添加附件待接通」；旁边的提示句写「写原话就行，一整段也可以；语音和附件待接通」，不写可以附上文件或拖进来。附件由 BOW-870 经 `attachmentSlot` 接入。
+- 和原型的差异：
+  - 标签：844 / 897 的记事契约没有标签，所以整理轨迹是 3 步（没有「从标签库里打标签」），也没有标签行。契约补上标签后再接。
+  - 整理中：原型在浏览器里边整理边写出人员和文字，工程等后台任务完成才拿到草稿，整理中只显示轨迹和「整理中」。
+  - 待确认时焦点交给标题，原型不移焦点。
+  - 「谁」的下拉按 `main` 上的原型种子，比固定参照多两位演示人员。
+- 照原型的部分：分数说明里的原话引用是普通文字（「锚点 4 · 引用「……」」），「原话」里不加标记；保存后 5 秒内撤销，回到待确认，整理结果和改过的文字、分数都在，再保存换新的 operation_id。
+- 工程补的状态（原型没有）：没写名字时「先选一下是谁」，候选人用设计系统的选择列表，一人一行。
+- 新增样式暂放 `src/features/record/record.css`（小犇容器的行盒），全局样式同步后并入。
+- 视觉对照：`tests/visual/record.spec.ts` 对固定参照 `91b297a`（这一页在 `91b297a` 与 `81e4fd4` 之间只改了撤销提示的文字，四个状态逐元素一致），在 1366 和 375 两个宽度逐块比较写原话、待确认、已保存三个状态：先比文字，再比像素。含小犇或多段文字的块逐个子元素比较，并检查子元素在块内的位置。上面列出的差异不在比较范围内；撤销提示固定在视口上，不比。
 
 ## BOW-907 面评导入预览
 
