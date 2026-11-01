@@ -1,7 +1,8 @@
 /* Niu-Talent 原型：采集与评价节点的状态与规则（决赛增补），挂在 NT.store 上。
    - 评价关系：评价人只看本节点、有效期内的人；关系到期后没做完的事交 HR 重新分派。
    - 材料批次与回执：多文件一次投递，文件各自处理；回执列出涉及的人、整理出的事、待核对和待确认；确认只在 Web 上逐条做。
-   - 面评导入：HR 在预览里逐行确认「这是谁」；原量表原样保存，只导入已入职的人。
+   - 面评导入：HR 在预览里逐行确认「这是谁」；原量表原样保存，只导入已入职的人。导入后人员和面试官关联只读，
+     要更正先撤销导入（常驻入口，记审计）；批次状态每次从各行推出来，不单独存。
    - 节点结论：HR 依据评委已确认的本人评分和材料确认，评委只确认自己的评分；按版本保存，不生成关键事件。
    在 store.js 之后加载；状态存在演示数据的 intake 字段里，重置演示数据后按种子重来。 */
 (function () {
@@ -13,7 +14,7 @@
   const I = () => {
     const S = st.get();
     if (!S.intake) {
-      S.intake = NT.clone({ drops: SEED.DROPS, held: SEED.HELD, imports: SEED.IMPORTS, reassign: SEED.REASSIGN, conclusions: SEED.CONCLUSIONS, relations: SEED.RELATIONS, coverDone: [] });
+      S.intake = NT.clone({ drops: SEED.DROPS, held: SEED.HELD, imports: SEED.IMPORTS, reassign: SEED.REASSIGN, conclusions: SEED.CONCLUSIONS, relations: SEED.RELATIONS, coverDone: [], audit: [] });
     }
     return S.intake;
   };
@@ -82,10 +83,7 @@
   };
   // 批次一行的状态：先说还在处理的，再说待核对、待确认，都完成才写已完成
   st.dropState = (d) => {
-    if (d.kind === 'interview') {
-      const imp = st.importOf(d.import);
-      return imp?.state === 'done' ? ['done', '已导入'] : ['confirm', '待逐行确认'];
-    }
+    if (d.kind === 'interview') return st.ivBatchState(st.importOf(d.import));
     const s = st.dropSummary(d);
     if (s.processing) return ['processing', '处理中'];
     if (s.verifyOpen) return ['verify', '待核对'];
@@ -141,9 +139,11 @@
   st.visibleInbox = () => st.get().inbox.filter((i) => role() === 'hrbp' || i.by === me());
   const baseResolve = st.resolveInbox, baseUnresolve = st.unresolveInbox;
   const ivRow = (it) => st.importOf(it.iv[0])?.rows.find((r) => r.id === it.iv[1]);
+  // 关联到的面评行已经导入：人员和面试官关联只读，待核对里不能再改或撤销，要更正先撤销导入
+  st.inboxLocked = (it) => !!it && ((it.iv && !!ivRow(it)?.imported) || (it.kind === 'interviewer' && I().imports.some((imp) => imp.rows.some((r) => r.verify === it.id && r.imported))));
   st.resolveInbox = (id, choice) => {
     const it = st.get().inbox.find((x) => x.id === id);
-    if (!it || it.done) return;
+    if (!it || it.done || st.inboxLocked(it)) return;
     // 「名单里没有这个人」「整张只作附件」也是处理完成：这一处不入档
     if (choice === 'none' || choice === 'attach' || choice === 'rows') {
       // 候选人不在人员目录里：面评那一行跳过，不导入
@@ -164,12 +164,14 @@
     if (it.kind === 'interviewer') I().imports.forEach((imp) => imp.rows.forEach((r) => { if (r.verify === id) r.interviewer = choice; }));
     st.save();
   };
+  // 返回是否撤销成功：关联的面评行已经导入时不撤销
   st.unresolveInbox = (id) => {
-    const it = st.get().inbox.find((x) => x.id === id); if (!it) return;
+    const it = st.get().inbox.find((x) => x.id === id); if (!it || st.inboxLocked(it)) return false;
     if (it.ev && I().held[it.ev]) st.get().events = st.get().events.filter((e) => e.id !== it.ev);
-    if (it.kind === 'interviewer') I().imports.forEach((imp) => imp.rows.forEach((r) => { if (r.verify === id) r.interviewer = null; }));
-    if (it.iv) { const r = ivRow(it); if (r && !r.imported) { r.match = null; r.unknown = true; r.ok = false; delete r.joined; } }
+    if (it.kind === 'interviewer') I().imports.forEach((imp) => imp.rows.forEach((r) => { if (r.verify === id) { r.interviewer = null; r.ok = false; } }));
+    if (it.iv) { const r = ivRow(it); if (r) { r.match = null; r.unknown = true; r.ok = false; delete r.joined; } }
     baseUnresolve(id);
+    return true;
   };
   // 面试官只能关联到人员目录里已有的人：目录里是工作人员（导师、助教、评委、HR、管理者）
   st.directory = (q) => NT.SEED.PEOPLE.filter((p) => p.noReview && p.role !== 'admin' && (!q || p.name.includes(q)));
@@ -177,7 +179,7 @@
   // ---------- 面评导入 ----------
   st.importOf = (id) => I().imports.find((x) => x.id === id);
   st.ivTemplate = (k) => SEED.TEMPLATES[k];
-  // 一行的状态：skip 淘汰或未入职将跳过 · dup 已导入过 · unknown 认不出 · verify 面试官待核对 · unread 有分没读出 · confirm 待确认这是谁 · confirmed 已确认 · imported 已导入
+  // 一行的状态：skip 淘汰或未入职将跳过 · dup 已导入过 · unknown 待认人 · sent 已放进待核对 · verify 面试官待核对 · unread 有分没读出 · confirm 待确认这是谁 · confirmed 已确认 · imported 已导入
   st.ivRowState = (r) => {
     if (r.imported) return 'imported';
     if (!r.match && !r.unknown) return 'skip';
@@ -187,16 +189,25 @@
     if (r.unread && !r.filled) return 'unread';
     return r.ok ? 'confirmed' : 'confirm';
   };
-  st.ivConfirm = (impId, rid, ok) => { const r = st.importOf(impId).rows.find((x) => x.id === rid); r.ok = ok; st.save(); };
+  // 批次状态从各行推出来：每一行都已导入或跳过才是已导入；有行已导入、还有没处理完的行是部分导入
+  st.ivBatchState = (imp) => {
+    const ss = imp.rows.map(st.ivRowState), open = ss.filter((x) => !['imported', 'skip', 'dup'].includes(x)).length;
+    if (!open) return ['done', '已导入'];
+    return ss.includes('imported') ? ['partial', '部分导入'] : ['confirm', '待逐行确认'];
+  };
+  st.ivConfirm = (impId, rid, ok) => { const r = st.importOf(impId).rows.find((x) => x.id === rid); if (!r || r.imported) return; r.ok = ok; st.save(); };
   // 已导入的行只读：补录值已写进档案，改这里不会同步过去
   st.ivFill = (impId, rid, v) => { const r = st.importOf(impId).rows.find((x) => x.id === rid); if (!r || r.imported) return; r.filled = v || null; if (!v) r.ok = false; st.save(); };
-  // 认不出的人放进待核对：每行一条，重复点不重复生成
+  // 待认人的行放进待核对：每行一条，重复点不重复生成
   st.ivSend = (impId, rid) => {
     const imp = st.importOf(impId), r = imp.rows.find((x) => x.id === rid);
     const iid = `i-iv-${rid}`;
     if (!st.get().inbox.some((x) => x.id === iid)) st.get().inbox.push({ id: iid, kind: 'person', iv: [impId, rid], src: imp.file, at: r.pages, by: me(), q: `面评${r.pages}的「${r.name}」是谁？`, quote: `候选人：${r.name} · 北森状态：${r.hr}`, options: [], note: '人员目录里查到 0 个同名的人；北森同步后再核对一次。' });
     r.sent = true; st.save();
   };
+  // 导入和撤销导入都记审计：谁、什么时候、哪几行
+  const ivAudit = (imp, act, rows) => { (I().audit ||= []).unshift({ at: NT.TODAY, by: me(), act, obj: `${imp.file} · ${rows.map((r) => r.pages).join('、')}`, imp: imp.id, n: rows.length }); };
+  st.ivAudit = (impId) => (I().audit || []).filter((x) => x.imp === impId);
   // 导入已确认的行：写成面试段的历史评价，保留原量表；未入职、未确认的行不写
   st.ivImport = (impId) => {
     const imp = st.importOf(impId), rows = imp.rows.filter((r) => st.ivRowState(r) === 'confirmed');
@@ -204,15 +215,28 @@
       const t = SEED.TEMPLATES[r.tpl];
       const e = { id: `e-iv-${impId}-${r.id}`, kind: 'hist', histType: '面试', date: r.at, recorder: r.interviewer, people: [r.match], title: `${t.name}（北森）`, project: null,
         srcs: [{ type: 'doc', label: imp.file, loc: r.pages, by: r.interviewer, quote: r.note || `面试结论：${r.verdict}` }],
-        scale: [...r.scores.map(([k, v]) => [k, v == null ? '不适用' : v === '?' ? (r.filled || '待补录') : v]), ['面试结论', r.verdict]], tags: [], scores: [] };
+        scale: [...r.scores.map(([k, v]) => [k, v == null ? '非管理岗免评' : v === '?' ? (r.filled || '待补录') : v]), ['面试结论', r.verdict]], tags: [], scores: [] };
       st.get().events.unshift(e);
       r.imported = true;
       return e;
     });
-    imp.state = imp.rows.some((r) => ['confirm', 'unread', 'verify', 'unknown'].includes(st.ivRowState(r))) ? 'preview' : 'done';
     imp.importedAt = NT.TODAY;
+    if (rows.length) ivAudit(imp, '导入面评', rows);
     st.save();
-    return { n: added.length, undo: () => { st.get().events = st.get().events.filter((e) => !added.includes(e)); rows.forEach((r) => { delete r.imported; }); imp.state = 'preview'; st.save(); } };
+    // Toast 里的撤销只撤这一次导入的行；之后已经撤销过的，返回 false
+    return { n: added.length, undo: () => (rows.some((r) => r.imported) ? st.ivUndoImport(impId, rows.map((r) => r.id)) : false) };
+  };
+  // 撤销导入：从档案里移除这些行写进去的面试段历史评价，行回到「已确认」，关联可以再改。常驻在导入页，记审计
+  st.ivUndoImport = (impId, rids) => {
+    const imp = st.importOf(impId); if (!imp || role() !== 'hrbp') return false;
+    const rows = imp.rows.filter((r) => r.imported && (!rids || rids.includes(r.id)));
+    if (!rows.length) return false;
+    const ids = new Set(rows.map((r) => `e-iv-${impId}-${r.id}`));
+    st.get().events = st.get().events.filter((e) => !ids.has(e.id));
+    rows.forEach((r) => { delete r.imported; });
+    ivAudit(imp, '撤销导入', rows);
+    st.save();
+    return true;
   };
 
   // ---------- 节点结论 ----------
@@ -248,6 +272,15 @@
   // ---------- 重新分派 ----------
   st.reassignItems = () => (role() === 'hrbp' ? I().reassign.filter((x) => !x.to && !x.gone && st.scope(x.person) === 'full') : []);
   st.reassignDone = () => (role() === 'hrbp' ? I().reassign.filter((x) => x.to || x.gone) : []);
+  // 接手的事指向具体那件事，办没办完按那件事的实际状态算：对人复盘看复盘是否确认，建议分看那件事的分是否都已确认
+  st.reassignTask = (x) => {
+    if (x.kind === 'review') {
+      const r = st.review(x.person, x.week);
+      return { label: `${x.week} 对人复盘 · ${st.reviewProgress(r)}`, done: r.state === 'confirmed', href: `landing-review.html?id=${x.person}&w=${x.week}` };
+    }
+    const e = st.event(x.ev), open = e ? e.scores.filter((s) => s.st === 'ai').length : 0;
+    return { label: e ? (open ? `${open} 条 AI 建议分待确认 · ${e.title}` : `建议分已确认 · ${e.title}`) : '这件事已经不在了', done: !open, href: `landing-review.html?id=${x.person}&w=W8` };
+  };
   // 接手人：同期有效的评价人优先，其次是 HR 本人；被评价人本人和关系已到期的人选不了
   st.reassignCandidates = (items) => {
     const people = new Set(items.map((x) => x.person));
@@ -271,13 +304,18 @@
       S.relations.push(rel);
     }
     st.save();
-    return { done, conflicts, undo: () => { done.forEach((x) => { delete x.to; delete x.by; delete x.at; }); if (rel) S.relations = S.relations.filter((r) => r !== rel); st.save(); } };
+    // 撤销：接手人已经办完其中的事、或已经改派给别人时不撤销，返回 false
+    return { done, conflicts, undo: () => {
+      if (done.some((x) => x.to !== to || st.reassignTask(x).done)) return false;
+      done.forEach((x) => { delete x.to; delete x.by; delete x.at; }); if (rel) S.relations = S.relations.filter((r) => r !== rel); st.save();
+      return true;
+    } };
   };
 
   // 接手的事：接手人在有效期内对这几位学员有评价关系，可以打开档案、记录；待办里列出要做的事
   const baseScope = st.scope;
   st.scope = (pid, r = role()) => baseScope(pid, r) || (r === 'mentor' && I().relations.some((x) => x.from_reassign && x.rater === NT.SEED.ROLES.mentor.person && x.people.includes(pid) && st.relActive(x)) ? 'mentor' : null);
-  st.takenOver = () => I().reassign.filter((x) => x.to === me());
+  st.takenOver = () => I().reassign.filter((x) => x.to === me() && !st.reassignTask(x).done);
 
   // ---------- 节点覆盖提醒 ----------
   st.coverage = () => SEED.COVERAGE.filter((c) => !I().coverDone.includes(c.id) && (c.rater === me() || role() === 'hrbp'))
@@ -305,7 +343,7 @@
         list.push({ kind: 'conclusion', badge: '节点结论', cls: 'n-badge--seal', title: `转正答辩 · ${st.person(c.person).name}的结论待你确认`, sub: wait.length ? `等${wait.map((j) => st.person(j.rater).name).join('、')}确认本人评分` : '评委都已确认本人评分', due: '本人确认', href: `actions.html?node=${c.node}#${c.id}` });
       });
     }
-    st.takenOver().forEach((x) => list.push({ kind: 'takeover', badge: '接手', title: `${st.person(x.person).name} · ${x.what}`, sub: `${x.by === me() ? '你自己接手' : `${st.person(x.by).name}分派给你`} · 原评价人的关系已到期`, due: NT.md(x.due), href: `person.html?id=${x.person}` }));
+    st.takenOver().forEach((x) => { const t = st.reassignTask(x); list.push({ kind: 'takeover', badge: '接手', title: `${st.person(x.person).name} · ${t.label}`, sub: `${x.by === me() ? '你自己接手' : `${st.person(x.by).name}分派给你`} · 原评价人的关系已到期`, due: NT.md(x.due), href: t.href }); });
     st.coverage().forEach((c) => list.push({ kind: 'cover', badge: '待补记录', title: `${c.node} · ${c.missing.length} 位学员待补记录`, sub: `${c.missing.map((p) => st.person(p).name).join('、')} · 节点 ${NT.md(c.due)} 已到${c.rater === me() ? '' : ` · 评价人 ${st.person(c.rater).name}`}`, due: NT.md(c.due), href: c.rater === me() ? `person.html?id=${c.missing[0]}` : 'landing.html' }));
     return list;
   };

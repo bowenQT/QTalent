@@ -52,13 +52,13 @@ test('面评导入只写已确认的行，跳过的行和待核对的行留在�
   assert.equal(e.kind, 'hist');
   assert.equal(e.scores.length, 0, '原量表不换算成维度分');
   assert.ok(e.scale.length > 0);
-  assert.equal(imp.state, 'preview');
+  assert.equal(st.ivBatchState(imp)[0], 'partial', '还有没处理完的行，批次是部分导入');
   res.undo();
   assert.equal(st.event('e-iv-imp-1-r1'), undefined);
   assert.equal(state('r1'), 'confirmed');
 });
 
-test('非管理岗的管理能力写不适用；没读出的分补录前不能确认', () => {
+test('非管理岗的管理能力写非管理岗免评；没读出的分补录前不能确认', () => {
   const st = load('hrbp');
   const imp = st.importOf('imp-1');
   const r2 = imp.rows.find((r) => r.id === 'r2');
@@ -70,7 +70,7 @@ test('非管理岗的管理能力写不适用；没读出的分补录前不能�
   st.ivImport('imp-1');
   const scale = Object.fromEntries(st.event('e-iv-imp-1-r2').scale);
   assert.equal(scale['系统设计'], 'B');
-  assert.equal(scale['管理能力'], '不适用');
+  assert.equal(scale['管理能力'], '非管理岗免评');
 });
 
 test('评委没有都确认本人评分时，HR 不能确认节点结论；评委不能确认结论', () => {
@@ -139,14 +139,14 @@ test('重新分派给导师后，导师在有效期内能看这几位学员，�
   for (const x of res.done) assert.equal(st.scope(x.person), 'mentor', `${x.person} 应进入叶青的查看范围`);
   const take = st.todos().filter((t) => t.kind === 'takeover');
   assert.equal(take.length, res.done.length);
-  assert.ok(take.every((t) => t.href.startsWith('person.html?id=')));
+  assert.ok(take.every((t) => t.href.startsWith('landing-review.html?id=')), '接手的事指向具体那件事');
   as('hrbp'); res.undo();
   st = as('mentor');
   for (const x of res.done) assert.equal(st.scope(x.person), null);
   assert.equal(st.todos().filter((t) => t.kind === 'takeover').length, 0);
 });
 
-test('面评候选人核对到人后，那一行可以确认并导入；选名单外跳过；撤销恢复认不出', () => {
+test('面评候选人核对到人后，那一行可以确认并导入；选名单外跳过；撤销恢复待认人', () => {
   const st = load('hrbp');
   const imp = st.importOf('imp-1');
   const r7 = imp.rows.find((r) => r.id === 'r7');
@@ -239,4 +239,73 @@ test('待核对选「名单外的人」后，回执上这件事标为已跳过�
   assert.equal(st.dropSummary(d).skipped, 1);
   st.unresolveInbox('i-xz');
   assert.equal(item().state, 'held');
+});
+
+test('导入后人员和面试官关联只读：待核对里不能撤销或改；撤销导入（记审计）后才能改', () => {
+  const st = load('hrbp');
+  const imp = st.importOf('imp-1');
+  const r2 = imp.rows.find((r) => r.id === 'r2'), r7 = imp.rows.find((r) => r.id === 'r7');
+  st.resolveInbox(r2.verify, 's-28');
+  st.ivFill('imp-1', 'r2', 'B');
+  st.ivSend('imp-1', 'r7');
+  st.resolveInbox('i-iv-r7', 'p-x12');
+  st.ivConfirm('imp-1', 'r2', true);
+  st.ivConfirm('imp-1', 'r7', true);
+  const res = st.ivImport('imp-1');
+  assert.equal(res.n, 2);
+  const it7 = st.get().inbox.find((i) => i.id === 'i-iv-r7'), it2 = st.get().inbox.find((i) => i.id === r2.verify);
+  assert.equal(st.inboxLocked(it7), true);
+  assert.equal(st.inboxLocked(it2), true);
+  assert.equal(st.unresolveInbox('i-iv-r7'), false, '候选人关联只读');
+  assert.equal(st.unresolveInbox(r2.verify), false, '面试官关联只读');
+  assert.equal(r7.match, 'p-x12');
+  assert.equal(r2.interviewer, 's-28');
+  st.ivConfirm('imp-1', 'r7', false);
+  assert.equal(st.ivRowState(r7), 'imported', '已导入的行不能改回');
+  assert.equal(st.ivAudit('imp-1')[0].act, '导入面评');
+
+  assert.equal(st.ivUndoImport('imp-1'), true);
+  assert.equal(st.event('e-iv-imp-1-r7'), undefined);
+  assert.equal(st.event('e-iv-imp-1-r2'), undefined);
+  const log = st.ivAudit('imp-1');
+  assert.equal(log[0].act, '撤销导入');
+  assert.equal(log[0].by, 'p-suwan');
+  assert.equal(log[0].n, 2);
+  assert.equal(res.undo(), false, 'Toast 里的旧撤销如实返回失败');
+  assert.equal(st.unresolveInbox('i-iv-r7'), true, '撤销导入后可以改关联');
+  assert.equal(r7.match, null);
+});
+
+test('批次状态从各行推出来：有行已送待核对时是部分导入，每一行都已导入或跳过才是已导入', () => {
+  const st = load('hrbp');
+  const imp = st.importOf('imp-1'), drop = st.drops().find((d) => d.import === 'imp-1');
+  st.resolveInbox(imp.rows.find((r) => r.id === 'r2').verify, 's-28');
+  st.ivFill('imp-1', 'r2', 'B');
+  ['r1', 'r2', 'r5'].forEach((rid) => st.ivConfirm('imp-1', rid, true));
+  st.ivSend('imp-1', 'r7');
+  st.ivImport('imp-1');
+  assert.deepEqual([...st.ivBatchState(imp)], ['partial', '部分导入']);
+  if (drop) assert.equal(st.dropState(drop)[1], '部分导入');
+  st.resolveInbox('i-iv-r7', 'none');
+  assert.equal(st.ivBatchState(imp)[0], 'done');
+  st.ivUndoImport('imp-1');
+  assert.equal(st.ivBatchState(imp)[0], 'confirm');
+});
+
+test('接手的事按那件事的实际状态算办完：复盘确认后移出待办，建议分确认后也移出；撤销分派如实返回', () => {
+  const st = load('hrbp');
+  const items = st.reassignItems().filter((x) => !x.race);
+  const res = st.reassign(items.map((x) => x.id), st.me().id);
+  const ra1 = res.done.find((x) => x.id === 'ra-1'), ra3 = res.done.find((x) => x.id === 'ra-3');
+  assert.match(st.reassignTask(ra1).label, /^W8 对人复盘/);
+  assert.match(st.reassignTask(ra3).label, /1 条 AI 建议分待确认 · 日程冲突检测的规则设计/);
+  const n = st.todos().filter((t) => t.kind === 'takeover').length;
+  assert.ok(st.confirmReview('p-x83', 'W8'));
+  assert.equal(st.reassignTask(ra1).done, true);
+  assert.equal(st.todos().filter((t) => t.kind === 'takeover').length, n - 1);
+  assert.equal(res.undo(), false, '其中一件已经办完，分派不撤销');
+  st.confirmScore('e-ra3', 0, 3, '');
+  assert.equal(st.reassignTask(ra3).done, true);
+  assert.ok(!st.takenOver().includes(ra3));
+  assert.ok(st.reassignDone().includes(ra1), '办完的接手记录保留在处理记录里');
 });

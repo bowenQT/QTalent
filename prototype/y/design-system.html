@@ -1237,8 +1237,13 @@
           </div>
           <div class="n-rcpt__foot"><span class="n-block__sig">叶青</span><span style="color:var(--ink-3)">09-04 确认，已进入档案</span><button class="n-link" type="button" style="margin-left:auto">改回待确认</button></div>
         </article>
+        <article class="n-card n-rcpt" data-state="held">
+          <div class="n-rcpt__head"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span><b>「说话人 2」</b><span class="n-badge"><svg><use href="#i-user"/></svg>待认人</span></div>
+          <p class="n-cite__quote n-rcpt__quote">时间轴拖的时候按帧吸附，前后各留两帧的容差<small>结营路演录像.mp4 · 16:30–17:45</small></p>
+          <div class="n-rcpt__foot"><span style="color:var(--ink-3)">先确认「说话人 2」是谁，之后才整理这件事、给建议分</span><button class="n-btn n-btn--sm" type="button">去核对</button></div>
+        </article>
       </div>
-      <p class="ds-caption">AI 建议分是光：浅色点和「AI 建议」标记；评价人确认后落墨署名，改过的分保留「AI 原为」。改分时每一维选 1–5，改了分必须写一句理由。说话人或人名还没核对的事用斜纹底，先去待核对。评价人只看到自己有评价关系的事，其余写「另有 N 件事属于其他评价人，已隐藏」。</p>
+      <p class="ds-caption">AI 建议分是光：浅色点和「AI 建议」标记；评价人确认后落墨署名，改过的分保留「AI 原为」。改分时每一维选 1–5，改了分必须写一句理由。说话人或人名还没核对的事用斜纹底，只显示「待认人」和原件里的这一处，不显示 AI 草拟的标题和建议分；确认是谁以后才整理这件事、给建议分。评价人只看到自己有评价关系的事，其余写「另有 N 件事属于其他评价人，已隐藏」。</p>
 
       <h3 class="ds-sub">入口里的回执</h3>
       <div class="ds-grid c2">
@@ -1281,7 +1286,7 @@
         <div class="n-ivrow__head"><span class="n-ivrow__page">第 3–4 页</span><b class="n-ivrow__name">周初晴</b><span style="color:var(--ink-3)">北森 · 已入职</span><span class="n-badge n-badge--unknown">有分待补录</span></div>
         <div class="n-ivrow__match"><span class="n-avatar n-avatar--sm" style="--hue:300">周</span><span>人员目录：<b>周初晴</b> <span class="n-badge">演示</span><small>分镜工厂 · 工程师 · 07-01 入职</small></span></div>
         <div class="n-ivrow__meta">校招技术面 · 原量表 A–D · 06-12 面试 · 面试官「Kevin」待核对</div>
-        <div class="n-scale n-ivscale"><span class="n-scale__tag">原量表 · 不是维度分</span><span>编码 A</span><span class="is-miss">系统设计 待补录</span><span class="is-na">管理能力 不适用<small>非管理岗</small></span><span>面试结论 通过</span></div>
+        <div class="n-scale n-ivscale"><span class="n-scale__tag">原量表 · 单独保存</span><span>编码 A</span><span class="is-miss">系统设计 待补录</span><span class="is-na">管理能力 · 非管理岗免评</span><span>面试结论 通过</span></div>
         <div class="n-ivunread">
           <figure class="n-pdfcrop" aria-label="第 4 页「系统设计」一栏的页面图"><figcaption>第 4 页 · 系统设计</figcaption><div class="n-pdfcrop__opts"><span class="is-on"><i></i>A</span><span class="is-on"><i></i>B</span><span><i></i>C</span><span><i></i>D</span></div></figure>
           <label class="n-field"><span class="n-field__label">「系统设计」待补录：勾了两个选项，对照页面图选一个</span><select class="n-input"><option>选一个</option><option>A</option><option>B</option></select></label>
@@ -1289,7 +1294,9 @@
         <div class="n-ivrow__acts"><button class="n-btn n-btn--sm" type="button">关联面试官</button></div>
       </article>
       <div class="n-ivbar" style="position:static"><span style="color:var(--ink-3)">已确认 2 行；导入后写进这些人的档案，作为面试段的历史评价</span><button class="n-btn n-btn--ink" type="button"><svg><use href="#i-upload"/></svg>导入已确认的 2 行</button></div>
-      <p class="ds-caption">北森面评只有 PDF，按版式读分，HR 逐行确认「这是谁」。只导入已入职的人，淘汰、未入职、导入过的行收进「跳过的行」。原量表原样保存，标「不是维度分」；非管理岗的「管理能力」写不适用；没读出的分对照页面图补录，补完、面试官核对完这一行才能导入。导入后 5 秒内可以撤销。</p>
+      <div class="ds-row" style="gap:var(--s-2);margin:var(--s-3) 0"><span class="n-rstate" data-s="confirm">待逐行确认</span><span class="n-rstate" data-s="confirm">部分导入</span><span class="n-rstate" data-s="done">已导入</span><span class="n-badge n-badge--unknown">待认人</span></div>
+      <div class="n-note"><svg><use href="#i-check"/></svg><div><b>已导入 3 行</b>，还有 1 行没处理完，处理完再导入。导入后人员和面试官关联只读；要更正，先撤销导入，改好再导入。<div class="ds-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-retry"/></svg>撤销导入</button><span style="color:var(--ink-3)">撤销后这 3 行从档案里移除，回到「已确认」；撤销会记进导入记录</span></div></div></div>
+      <p class="ds-caption">北森面评只有 PDF，按版式读分，HR 逐行确认「这是谁」。只导入已入职的人，淘汰、未入职、导入过的行收进「跳过的行」。原量表原样保存，标「原量表 · 单独保存」；非管理岗的「管理能力」写「非管理岗免评」；没读出的分对照页面图补录，补完、面试官核对完这一行才能导入。批次状态从各行推出来：还有没处理完的行是「部分导入」，每一行都已导入或跳过才是「已导入」。导入后人员和面试官关联只读，页面上常驻「撤销导入」，导入和撤销都按人和时间记进导入记录。</p>
 
       <h3 class="ds-sub">页内提示</h3>
       <p class="n-note"><svg><use href="#i-info"/></svg><span>这份文件 08-20 导入过一次，那次已导入的 1 行这次跳过，其余行照常确认。</span></p>
@@ -1301,8 +1308,8 @@
         <article class="n-card">
           <div class="n-ra__head"><span class="n-avatar n-avatar--sm" style="--hue:60">谷</span><div><b>谷牧野</b> · 导师 · XEngineer 第六期<small>评价关系 07-01–08-31，已到期 · 08-31 起离开导师团</small></div></div>
           <ul class="n-ra">
-            <li><label><input type="checkbox" checked><span class="n-avatar n-avatar--sm" style="--hue:256">任</span><span><b>任清和</b> <span class="n-badge">演示</span><small>W8 对人复盘 · 4 个维度待评价</small></span><span class="due">截止 09-04</span></label></li>
-            <li><label><input type="checkbox" checked><span class="n-avatar n-avatar--sm" style="--hue:15">姜</span><span><b>姜行之</b> <span class="n-badge">演示</span><small>W8 对人复盘 · 1 个维度待评价</small></span><span class="due">截止 09-04</span></label></li>
+            <li><label><input type="checkbox" checked><span class="n-avatar n-avatar--sm" style="--hue:256">任</span><span><b>任清和</b> <span class="n-badge">演示</span><small>W8 对人复盘 · 逐项已确认，待整份确认</small></span><span class="due">截止 09-04</span></label></li>
+            <li><label><input type="checkbox" checked><span class="n-avatar n-avatar--sm" style="--hue:15">邱</span><span><b>邱晚晴</b> <span class="n-badge">演示</span><small>1 条 AI 建议分待确认 · 日程冲突检测的规则设计</small></span><span class="due">截止 09-04</span></label></li>
           </ul>
           <div class="n-choices" role="radiogroup" aria-label="接手人" style="margin-top:var(--s-3)"><button class="n-choice is-picked" type="button" role="radio" aria-checked="true">叶青<small>导师 · 关系到 09-30</small></button><button class="n-choice" type="button" role="radio" aria-checked="false" disabled aria-disabled="true">谷牧野<small>关系已到期</small></button></div>
         </article>
@@ -1316,7 +1323,7 @@
             <div class="n-block__by"><span class="n-block__sig">苏晚</span>09-04 确认 · 第 1 版</div></div>
         </article>
       </div>
-      <p class="ds-caption">评价人只看本节点；关系到期后待完成的事交 HR 选接手人，接手人获得这几位在本节点的评价关系，到这批事里最晚的截止日。提交时已有变化的事以原评价人的结果为准，单独说明。节点结论由 HR 确认，评委只确认本人评分；评委都确认以后才能确认结论，结论按版本保留；人事动作在结论确认以后另走流程。</p>
+      <p class="ds-caption">评价人只看本节点；关系到期后待完成的事交 HR 选接手人。每条接手的事指向具体那件事（某人的对人复盘、某件事的建议分），按那件事的实际状态判断办完：办完就从待办里移出，处理记录里写「已办完」。接手人获得这几位在本节点的评价关系，到这批事里最晚的截止日。提交时已有变化的事以原评价人的结果为准，单独说明。节点结论由 HR 确认，评委只确认本人评分；评委都确认以后才能确认结论，结论按版本保留；人事动作在结论确认以后另走流程。</p>
     </section>
 
     <!-- ═════════ 档案：版本与时间线 ═════════ -->

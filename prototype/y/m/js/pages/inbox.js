@@ -67,7 +67,7 @@
         ${i.kind === 'unknown' ? html`<button class="n-choice" type="button" data-v="none"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">${icon('dash', 12)}</span>名单外的人<small>只保留在原件里</small></button>` : ''}
         ${isLater ? '' : html`<button class="n-choice" type="button" data-v="skip"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>都不是，稍后处理<small></small></button>`}
       </div>
-      ${i.draft ? html`<div class="n-minievent" style="margin-top:var(--s-3)"><div>${i.draft.title}<small>选定后生成一条事件 · ${i.draft.scores.map(([d, v]) => `${st.dim(d).name} ${v}`).join('、')}（AI 建议，待导师确认）</small></div><span class="n-badge n-badge--ai">${icon('spark')}待归属</span></div>` : ''}
+      ${i.draft || (i.ev && st.get().intake?.held?.[i.ev]) ? html`<div class="n-minievent" style="margin-top:var(--s-3)"><div>确认是谁以后，才整理这件事、给建议分<small>现在只保留原件里的这一处</small></div><span class="n-badge">${icon('user')}待认人</span></div>` : ''}
     </article>`;
   }
 
@@ -82,7 +82,7 @@
     const name = v === 'skip' ? '' : (st.person(v)?.name || st.project(v)?.name);
     NT.toast(v === 'skip' ? '已放到稍后处理，待办里仍会保留' : v === 'none' ? '已记下：名单外的人，只留在原件里' : `已归到${name}${item.draft || item.ev ? '，事件进了待确认' : ''}`, {
       // 撤销回到点选之前：原来在稍后处理里的，仍回到稍后处理
-      undo: () => { st.unresolveInbox(id); if (wasLater) st.resolveInbox(id, 'skip'); render($('#main')); },
+      undo: () => { const ok = st.unresolveInbox(id) !== false; if (ok && wasLater) st.resolveInbox(id, 'skip'); render($('#main')); return ok; },
       undoneText: wasLater ? '已撤销，回到稍后处理' : '已撤销，回到待核对',
     });
     const h = cardEl.offsetHeight;

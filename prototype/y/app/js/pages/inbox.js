@@ -37,7 +37,7 @@
             <div class="nt-grid" style="gap:var(--s-2)" id="dock">${targets.map((id) => html`<div class="n-person-row" data-dock="${id}" style="padding:var(--s-2)">${UI.person(id, { size: 'sm', meta: `${st.eventsOf(id, { kind: 'obs' }).length} 条事件` })}<span class="n-count is-quiet" data-n="${id}">${st.eventsOf(id, { kind: 'obs' }).length}</span></div>`)}</div>
           </article>` : ''}
           ${later.length ? html`<article class="n-card"><h3 class="n-section-title">稍后处理<span class="n-count is-quiet">${later.length}</span></h3><ul class="nt-list" style="font-size:var(--t-sm)">${later.map((i) => html`<li class="nt-row" style="justify-content:space-between"><span><span class="n-kind">${KIND[i.kind]}</span> ${i.q.replace(/？$/, '')}</span><button class="n-link" type="button" data-undo="${i.id}">继续核对</button></li>`)}</ul></article>` : ''}
-          ${done.length ? html`<article class="n-card"><h3 class="n-section-title">已核对</h3><ul class="nt-list" style="font-size:var(--t-sm)">${done.map((i) => html`<li class="nt-row" style="justify-content:space-between"><span><span class="n-kind">${KIND[i.kind]}</span> ${i.q.replace(/？$/, '')} → <b>${result(i)}</b></span><button class="n-link" type="button" data-undo="${i.id}">撤销</button></li>`)}</ul></article>` : ''}
+          ${done.length ? html`<article class="n-card"><h3 class="n-section-title">已核对</h3><ul class="nt-list" style="font-size:var(--t-sm)">${done.map((i) => html`<li class="nt-row" style="justify-content:space-between"><span><span class="n-kind">${KIND[i.kind]}</span> ${i.q.replace(/？$/, '')} → <b>${result(i)}</b></span>${st.inboxLocked(i) ? html`<span class="nt-muted" title="要更正，先在面评导入页撤销导入">已随导入写进档案</span>` : html`<button class="n-link" type="button" data-undo="${i.id}">撤销</button>`}</li>`)}</ul></article>` : ''}
         </aside>
       </div>`);
     main.onclick = (e) => {
@@ -119,11 +119,10 @@
     </article>`;
   }
 
-  // 这一处对上人以后会生成或归属的事件
+  // 这一处对上人以后才整理成事件：身份没确定前不调用模型，不显示 AI 草拟和建议分
   function heldDraft(i) {
-    const d = i.draft ? { title: i.draft.title, scores: i.draft.scores } : i.ev ? st.get().intake?.held?.[i.ev] && { title: st.get().intake.held[i.ev].title, scores: st.get().intake.held[i.ev].scores.map((s) => [s.d, s.v]) } : null;
-    if (!d) return '';
-    return html`<div class="n-minievent" style="margin-top:var(--s-3)" data-draft><div>${d.title}<small>会生成一条事件 · ${d.scores.map(([dim, v]) => `${st.dim(dim).name} ${v}`).join('、')}（AI 建议，待评价人确认）</small></div><span class="n-badge n-badge--ai">${icon('spark')}待归属</span></div>`;
+    if (!i.draft && !(i.ev && st.get().intake?.held?.[i.ev])) return '';
+    return html`<div class="n-minievent" style="margin-top:var(--s-3)" data-draft><div>确认是谁以后，才整理这件事、给建议分<small>现在只保留原件里的这一处</small></div><span class="n-badge">${icon('user')}待认人</span></div>`;
   }
 
   function pick1(id, v, btn) {
@@ -144,7 +143,7 @@
         : v === 'attach' ? '这张图只作附件保存'
         : item.kind === 'interviewer' ? `已关联到${st.person(v).name}，面评那一行可以导入了`
         : `已归到${st.person(v)?.name || st.project(v)?.name}${item.draft || item.ev ? '，事件进了待确认' : ''}`;
-      NT.toast(msg, { undo: () => { st.unresolveInbox(id); render($('#main')); }, undoneText: '已撤销，回到待核对' });
+      NT.toast(msg, { undo: () => { const ok = st.unresolveInbox(id) !== false; render($('#main')); return ok; }, undoneText: '已撤销，回到待核对', failText: '没能撤销：这一行面评已经导入，要更正先在导入页撤销导入' });
       cardEl.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateX(12px)' }], { duration: NT.reduced ? 1 : 280 }).onfinish = () => render($('#main'));
     };
     if (draft && dock) NT.flyTo(draft, dock, finish);

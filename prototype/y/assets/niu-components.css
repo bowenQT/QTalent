@@ -1883,7 +1883,7 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-shot__who { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; font-size: var(--t-xs); }
 .n-shot figcaption { padding: 2px var(--s-1) 0; font-size: var(--t-xs); color: var(--ink-3); }
 
-/* 面评导入：一行一位候选人；原量表单独样式，标明「不是维度分」 */
+/* 面评导入：一行一位候选人；原量表单独样式，标明「单独保存」，和维度分分开 */
 .n-scale__tag { background: var(--sheet-sunk); box-shadow: none !important; color: var(--ink-2) !important; font-weight: 600; }
 .n-scale span.is-na { color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line); }
 .n-scale span.is-na small { margin-left: 4px; font-size: 11px; }

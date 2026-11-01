@@ -135,7 +135,7 @@
     hr: { name: '七牛面试评价表 · HR', scale: '优 / 良 / 中 / 差', items: ['求职动机', '沟通表达', '团队协作', '价值观契合', '管理能力'] },
   };
   const IMPORTS = [{
-    id: 'imp-1', drop: 'd-iv', file: '北森面评导出 · 2026-07.pdf（演示）', pages: 9, by: 'p-suwan', at: '2026-09-04 09:30', state: 'preview',
+    id: 'imp-1', drop: 'd-iv', file: '北森面评导出 · 2026-07.pdf（演示）', pages: 9, by: 'p-suwan', at: '2026-09-04 09:30',
     prior: { at: '2026-08-20', file: '北森面评导出 · 2026-07.pdf（演示）', rows: ['r6'] },
     rows: [
       { id: 'r1', pages: '第 1–2 页', name: '孟逸尘', hr: '已录用', match: 'p-x11', joined: '2026-07-06', tpl: 'campus', at: '2026-05-08', interviewer: 'p-yeqing',
@@ -154,13 +154,17 @@
   }];
 
   // ---------- 重新分派：关系到期后没做完的事 ----------
+  // 每条指向它要办的那件事：review 是这个人这一周的对人复盘，score 是一件事的 AI 建议分；办没办完按那件事的实际状态算
   const REASSIGN = [
-    { id: 'ra-1', rel: 'rel-gmy', kind: 'review', person: 'p-x83', what: 'W8 对人复盘 · 4 个维度待评价', due: '2026-09-04' },
-    { id: 'ra-2', rel: 'rel-gmy', kind: 'review', person: 'p-x82', what: 'W8 对人复盘 · 2 个维度待评价', due: '2026-09-04' },
-    { id: 'ra-3', rel: 'rel-gmy', kind: 'score', person: 'p-x85', what: '1 件事的 AI 建议分待确认 · 日程冲突检测的规则设计', due: '2026-09-06' },
+    { id: 'ra-1', rel: 'rel-gmy', kind: 'review', person: 'p-x83', week: 'W8', due: '2026-09-04' },
+    { id: 'ra-2', rel: 'rel-gmy', kind: 'review', person: 'p-x82', week: 'W8', due: '2026-09-04' },
+    { id: 'ra-3', rel: 'rel-gmy', kind: 'score', person: 'p-x85', ev: 'e-ra3', due: '2026-09-06' },
     // 打开列表之后，原评价人到期前的离线修改同步进来：这件已经完成，提交时提示冲突
-    { id: 'ra-4', rel: 'rel-gmy', kind: 'review', person: 'p-x84', what: 'W8 对人复盘 · 1 个维度待评价', due: '2026-09-04', race: '谷牧野 08-31 23:40 的修改刚同步进来，这件已经完成' },
+    { id: 'ra-4', rel: 'rel-gmy', kind: 'review', person: 'p-x84', week: 'W8', due: '2026-09-04', race: '谷牧野 08-31 23:40 的修改刚同步进来，这件已经完成' },
   ];
+  // ra-3 指向的那件事：原评价人记下、建议分还没确认就到期了
+  SEED.EVENTS.push(ev('e-ra3', 'p-x85', 's-12', '2026-08-28', 't-plan-a', '日程冲突检测的规则设计', '把日程冲突的判断拆成硬冲突和软冲突两类，写成规则表给后端',
+    [{ type: 'doc', label: 'W8 对人复盘纪要.docx（演示）', loc: '第 6 段', quote: '冲突检测她拆成了硬冲突和软冲突两类，规则表直接给了后端' }], [['prof', 3, '锚点 3 · 按分工完成']]));
 
   // ---------- 节点覆盖提醒：节点到了还没有记录的人，进对应评价人的待办 ----------
   const COVERAGE = [
