@@ -1,0 +1,141 @@
+/*
+ * Rules added to prototype/y/assets/niu-components.css by BOW-925 (#260, 5c053a6) for
+ * 接入状态, plus .n-tabs--scroll, copied verbatim (the tab rule is scoped to this page
+ * because the shared Tabs component takes no modifier). The shared stylesheet port
+ * belongs to X1 (#248 shared-file request); delete this file once components.css
+ * carries these rules.
+ */
+.n-conn {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s-3);
+}
+.n-conn__item {
+  display: grid;
+  align-content: start;
+  gap: var(--s-2);
+}
+.n-conn__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+}
+.n-conn__head b {
+  font-weight: 600;
+}
+.n-conn__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.n-conn__state::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-2);
+}
+.n-conn__state[data-state='down'] {
+  color: var(--no);
+}
+.n-conn__state[data-state='down']::before {
+  border-radius: 2px;
+  background: var(--no);
+  transform: rotate(45deg);
+}
+.n-conn__state[data-state='never']::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
+}
+.n-conn__use {
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+.n-conn__meta {
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--ink);
+  line-height: 1.6;
+}
+.n-conn__next {
+  display: flex;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-field);
+  background: var(--sheet-sunk);
+  font-size: var(--t-sm);
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.n-conn__next svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 3px;
+  color: var(--ink-3);
+}
+.n-tfail {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.n-tfail > li {
+  display: grid;
+  gap: var(--s-2);
+}
+.n-tfail__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+}
+.n-tfail__top b {
+  font-weight: 600;
+}
+.n-tfail__top small {
+  margin-left: auto;
+}
+.n-tfail__dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px var(--s-3);
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: 1.6;
+}
+/* Engineering only: a re-queued card takes focus, and .n-card's shadow reset hides the ring. */
+.n-tfail > li:focus-visible {
+  box-shadow: var(--focus);
+}
+.n-tfail__dl dt {
+  color: var(--ink-3);
+}
+.n-tfail__dl dd {
+  margin: 0;
+}
+.nt-admin > .n-tabs {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  border-bottom: 0;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.nt-admin > .n-tabs::-webkit-scrollbar {
+  display: none;
+}
+.nt-admin > .n-tabs > [role='tab'] {
+  flex: none;
+  white-space: nowrap;
+}
+.nt-admin > .n-tabs [role='tab'][aria-selected='true']::after {
+  bottom: 0;
+}
