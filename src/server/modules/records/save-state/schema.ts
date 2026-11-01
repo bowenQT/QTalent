@@ -109,6 +109,16 @@ export const recordSaves = pgTable('records_saves', {
   input: jsonb('input').$type<RecordSaveInput>().notNull(),
   originalInput: jsonb('original_input').$type<RecordInput>().notNull(),
   receipt: jsonb('receipt').$type<SaveReceipt>().notNull(),
+  confirmationWork: jsonb('confirmation_work')
+    .$type<
+      {
+        id: string;
+        assignedRelationId: string;
+        assignedEvaluatorId: string;
+        completedRevision: number;
+      }[]
+    >()
+    .notNull(),
   createdEventIds: jsonb('created_event_ids').$type<string[]>().notNull(),
   savedAt: timestamp('saved_at', { withTimezone: true }).notNull(),
   withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),

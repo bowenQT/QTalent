@@ -21,3 +21,17 @@ export {
   recordSaves,
   recordOperations,
 } from './save-state/schema';
+
+export {
+  storeTrustedRecordDraftBatch,
+  lockRecordCommand,
+  readRecordConfirmationState,
+  commitRecordSave,
+  commitRecordUndo,
+  RecordWriteError,
+} from './write';
+export type {
+  RecordCommand,
+  RecordSaveLock,
+  RecordConfirmationWorkFact,
+} from './write';
