@@ -39,8 +39,9 @@ const mentorView = (overrides: Partial<WorkbenchView> = {}) =>
     ...overrides,
   });
 const options = { accountId: 'a', namedExamples: false };
-// Blocks not connected yet: none of their titles may appear (BOW-861 / BOW-867 and
-// later cards update this list when they connect a block).
+// Blocks not connected yet: none of their titles may appear (BOW-867 and later
+// cards update this list when they connect a block). The materials section (BOW-861)
+// is drawn without a backend and says 待接入 instead; see its own tests.
 const notConnected = [
   '值得关注的人',
   '值得关注的项目',
@@ -49,9 +50,6 @@ const notConnected = [
   '判断对照',
   '待办',
   '我的推荐',
-  '材料与任务',
-  '上传材料',
-  '进行中的任务',
 ];
 function expectNoPlaceholders(container: HTMLElement) {
   const text = container.textContent ?? '';
@@ -76,18 +74,28 @@ describe('Workbench registry', () => {
     expectNoPlaceholders(container);
   });
 
-  it('HR: greeting, composer, slash menu and examples, in prototype order', () => {
+  it('HR: greeting, composer, slash menu, examples and materials, in prototype order', () => {
     const { container } = render(<Workbench view={testView()} />);
     expect([...container.children].map((node) => node.className)).toEqual([
       'nt-head',
       'n-composer',
       'n-slash',
       'n-asks',
+      'nt-cols',
     ]);
+    // No to-dos: the empty main column holds its place, materials are on the side.
+    const [main, side] = container.querySelector('.nt-cols')!.children;
+    expect(main.childElementCount).toBe(0);
+    expect(
+      [...side.querySelectorAll('h3')].map((title) => title.textContent),
+    ).toEqual(['进行中的任务', '上传材料']);
+    expect(
+      screen.getByRole('link', { name: '上传材料' }).getAttribute('href'),
+    ).toBe('#upload');
     expectNoPlaceholders(container);
   });
 
-  it('mentor: students in the left grid, an empty right grid holds its column', () => {
+  it('mentor: students in the left grid, materials folded in the right grid', () => {
     const { container } = render(<Workbench view={mentorView()} />);
     const columns = container.querySelector('.nt-ceo')!;
     expect([...columns.children].map((node) => node.className)).toEqual([
@@ -95,7 +103,8 @@ describe('Workbench registry', () => {
       'nt-grid',
     ]);
     expect(columns.children[0].querySelector('#students')).toBeTruthy();
-    expect(columns.children[1].childElementCount).toBe(0);
+    expect(columns.children[1].querySelector('details#fold')).toBeTruthy();
+    expect(columns.children[1].childElementCount).toBe(1);
     expect(columns.previousElementSibling?.className).toBe('n-asks');
     expect(container.textContent).not.toContain('推荐');
     expectNoPlaceholders(container);
@@ -108,7 +117,7 @@ describe('Workbench registry', () => {
     const managerPage = render(<Workbench view={manager} />);
     expect(screen.getByRole('region', { name: '找人' })).toBeTruthy();
     managerPage.unmount();
-    // HR records and finds people; every to-do group is not connected: no card.
+    // HR records and finds people; every to-do group is not connected: no to-do card.
     const hrPage = render(<Workbench view={hr} />);
     expect(hrPage.container.querySelectorAll('header, textarea')).toHaveLength(
       2,

@@ -145,7 +145,10 @@ describe('HR to-dos', () => {
       />,
     );
     expect(container.querySelector('#todo')).toBeNull();
-    expect(container.querySelector('.nt-cols')).toBeNull();
+    // The column stays for the materials cards, with nothing in the to-do slot.
+    expect(
+      container.querySelector('.nt-cols')!.firstElementChild!.childElementCount,
+    ).toBe(0);
     expect(container.textContent).not.toContain('待办');
   });
 
