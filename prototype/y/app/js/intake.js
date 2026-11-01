@@ -181,16 +181,11 @@
   };
   // 处理结果的一句话里，「名单外」按类型说：课题核对写「明确无课题」
   st.noneText = (it) => (it.kind === 'project' ? '明确无课题' : '名单外的人');
-  // 核对出来的事落在已确认的对人复盘时间范围里：已确认的复盘保持不变，这件事单独待确认，留在原批次的回执里
-  const lateReviews = (e) => e.people.flatMap((pid) => {
-    const b = st.landingOf(pid)?.batch || st.batch('b-xe6');
-    return b.weeks.filter((w) => st.get().reviews?.[`${pid}-${w[0]}`]?.state === 'confirmed' && e.date >= b.from && e.date <= w[4]).map((w) => `${pid}-${w[0]}`);
-  });
-  const markLate = (e) => { const keys = e && lateReviews(e); if (keys?.length) e.late = keys; };
-  // 回执和「已核对」里说明这件事为什么单独列出
+  // 回执和「已核对」里说明这件事为什么单独列出；是否单独列出由复盘那一处的终态检查决定（store.lateReviews）
   st.lateNote = (e) => {
-    if (!e?.late?.length) return null;
-    const wk = [...new Set(e.late.map((k) => k.split('-').pop()))].join('、');
+    const late = e ? st.lateReviews(e) : [];
+    if (!late.length) return null;
+    const wk = [...new Set(late.map((k) => k.split('-').pop()))].join('、');
     return e.scores.every((s) => ['confirmed', 'calibrated'].includes(s.st)) ? `${wk} 对人复盘已确认，这件事单独记入档案` : `${wk} 对人复盘已确认，这件事单独待确认`;
   };
   st.inboxLateNote = (it) => (it.done ? depEvents(it).map(st.lateNote).find(Boolean) || null : null);
@@ -208,7 +203,6 @@
           title: dr.title || text, bg: it.src, act: text, res: '', drop: d?.id, verifyOf: it.id,
           srcs: [{ type: 'image', label: it.src, loc: `${it.at} · 第 ${n + 1} 行`, quote: text }], tags: [],
           scores: [{ p: pid, d: dim, v, st: 'ai', ai: v, note: `锚点 ${v} · ${dr.note || '范围内的这一行'}` }] });
-        markLate(st.event(`e-${it.id}-${n + 1}`));
         if (d && !d.mentions.includes(pid)) { d.mentions.push(pid); added.push(pid); }
       });
       it.added = added;
@@ -222,12 +216,10 @@
     }
     baseResolve(id, choice);
     if (choice === 'skip') return;
-    markLate(st.event(`e-${id}`));
     // 说话人、人名对上之后，挂在批次里的那件事归到这个人，进入待确认
     if (it.ev && I().held[it.ev] && !st.event(it.ev)) {
       const e = NT.clone(I().held[it.ev]);
       e.people = [choice]; e.scores.forEach((s) => { s.p = choice; });
-      markLate(e);
       st.addEvent(e);
     }
     // 候选人核对到人后，面评那一行回到「待确认这是谁」
@@ -292,7 +284,7 @@
     const imp = st.importOf(impId), rows = imp.rows.filter((r) => st.ivRowState(r) === 'confirmed');
     const added = rows.map((r) => {
       const t = SEED.TEMPLATES[r.tpl];
-      const e = { id: `e-iv-${impId}-${r.id}`, kind: 'hist', histType: '面试', date: r.at, recorder: r.interviewer, people: [r.match], title: `${t.name}（北森）`, project: null,
+      const e = { id: `e-iv-${impId}-${r.id}`, kind: 'hist', histType: '招聘评估', cat: 'recruit', date: r.at, recorder: r.interviewer, people: [r.match], title: `${t.name}（北森）`, project: null,
         srcs: [{ type: 'doc', label: imp.file, loc: r.pages, by: r.interviewer, quote: r.note || `面试结论：${r.verdict}` }],
         scale: [...r.scores.map(([k, v]) => [k, v == null ? '非管理岗免评' : v === '?' ? (r.filled || '待补录') : v]), ['面试结论', r.verdict]], tags: [], scores: [] };
       st.get().events.unshift(e);

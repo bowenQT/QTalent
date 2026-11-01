@@ -567,7 +567,7 @@ test('对人复盘还没确认时，核对出来的事照常并入复盘', () =>
   const it = st.get().inbox.find((i) => i.id === 'i-spk');
   st.resolveInbox('i-spk', 'p-x13');
   const e = st.event(it.ev);
-  assert.equal(e.late, undefined);
+  assert.deepEqual([...st.lateReviews(e)], []);
   assert.equal(st.lateNote(e), null);
   const after = st.review('p-x13', 'W8');
   assert.ok(after.events.includes(e), '并入复盘');
