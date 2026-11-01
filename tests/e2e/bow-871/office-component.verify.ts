@@ -8,12 +8,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 const officeHead = 'dbe30d13f1ad6ae0aaaef0bf920b258805417e5d';
-const materialsHead = '0b20a913621121848219e0966ba4bf4844d1bdb3';
-const unchangedTools = {
+const materialsHead = 'e4462114690191fb9cbcd403f6fb0090bd3cfddb';
+// Current 901 still declares this producer contract. Compatibility checks do not rewrite it.
+const producerLocationHead = '0b20a913621121848219e0966ba4bf4844d1bdb3';
+const companionToolHashes = {
   'frozen-contracts.verify.ts':
-    '607e4b8f057c319dbd1b4cd30026a8242c8e39e0ebefebb04a075370be37689f',
+    '4cded1b4619475b0f18f5cadcc6a89137f467add7bb0270c1e888c6494a114df',
   'interview-component.verify.ts':
-    '66b15b8dedb7b02895f7775fdf59d235680b80cc086fc02b7f6697edacd95e78',
+    '80a960055de56a18222cd364c532ed0480f1046eb5a17fafad255ffab25b3260',
 };
 const fixtures = [
   {
@@ -271,11 +273,11 @@ async function main() {
   const tool = cleanRoot(toolRoot);
   const office = cleanRoot(officeRoot, officeHead);
   const materials = cleanRoot(materialsRoot, materialsHead);
-  for (const [file, expected] of Object.entries(unchangedTools)) {
+  for (const [file, expected] of Object.entries(companionToolHashes)) {
     assert.equal(
       hash(await readFile(join(toolRoot, 'tests/e2e/bow-871', file))),
       expected,
-      `Existing tool changed: ${file}`,
+      `Companion tool revision mismatch: ${file}`,
     );
   }
   const adapter = await load(
@@ -285,6 +287,7 @@ async function main() {
   const contract = await load(materialsRoot, 'src/contracts/sources.ts');
   const schema = object(contract.materialSourceLocationSchema);
   const baselinePorts = ports();
+  const producerLocationHeads = new Set<string>();
   const cases: {
     file: string;
     level: 'node_worker_component';
@@ -330,7 +333,8 @@ async function main() {
       const result = object(response);
       assert.equal(result.format, fixture.format);
       assert.equal(result.inputSha256, fixture.sha256);
-      assert.equal(result.locationContractSha, materialsHead);
+      assert.equal(result.locationContractSha, producerLocationHead);
+      producerLocationHeads.add(String(result.locationContractSha));
       assert.equal(result.attribution, 'unresolved');
       assert.deepEqual(Object.keys(result).sort(), [
         'attribution',
@@ -388,9 +392,14 @@ async function main() {
         tool: {
           ...tool,
           scriptSha256: hash(await readFile(fileURLToPath(import.meta.url))),
-          unchangedTools,
+          companionToolHashes,
         },
         inputs: { office, materials },
+        compatibility: {
+          producerDeclaredLocationHeads: [...producerLocationHeads],
+          validatedAgainst: materials.head,
+          scope: 'locator_shape_only',
+        },
         node: process.version,
         execution: {
           maxWorkers,
@@ -407,6 +416,7 @@ async function main() {
         fixtures,
         notVerified: [
           'author cancellation/timeout/budget/negative cases not rerun',
+          '901 production consumer adoption of final897 review/receipt contract',
           'production request/session authorization',
           'original object access and canonical fragment binding',
           'person attribution',

@@ -3,12 +3,14 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 const frozen = {
-  materials: '0b20a913621121848219e0966ba4bf4844d1bdb3',
+  materials: 'e4462114690191fb9cbcd403f6fb0090bd3cfddb',
   iteration: '832209d177944b5ce18577794acb88314a6460da',
 };
 type ObjectValue = Record<string, unknown>;
@@ -75,27 +77,33 @@ function replace(
   parent[path[path.length - 1]] = replacement;
   return copy;
 }
+function git(root: string, ...args: string[]): string {
+  return execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+}
 function verifyRoot(root: string, sha: string): string {
   const path = resolve(root);
   assert.equal(
-    execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: path,
-      encoding: 'utf8',
-    }).trim(),
+    git(path, 'rev-parse', 'HEAD'),
     sha,
+    'Input is not the fixed commit',
   );
-  execFileSync('git', ['diff', '--exit-code', 'HEAD', '--', 'src/contracts'], {
-    cwd: path,
-  });
   assert.equal(
-    execFileSync(
-      'git',
-      ['ls-files', '--others', '--exclude-standard', '--', 'src/contracts'],
-      { cwd: path, encoding: 'utf8' },
-    ).trim(),
+    git(path, 'status', '--porcelain=v1', '--untracked-files=all'),
     '',
+    'Verification source tree must be clean',
   );
   return path;
+}
+function snapshot(root: string) {
+  return {
+    head: git(root, 'rev-parse', 'HEAD'),
+    tree: git(root, 'rev-parse', 'HEAD^{tree}'),
+    clean: true,
+  };
 }
 async function load(root: string, name: string): Promise<ObjectValue> {
   const loaded: unknown = await import(
@@ -108,17 +116,35 @@ const { values } = parseArgs({
   options: {
     'materials-root': { type: 'string' },
     'iteration-root': { type: 'string' },
+    maxWorkers: { type: 'string', default: '2' },
   },
 });
 assert(
   values['materials-root'] && values['iteration-root'],
   'Pass both frozen worktree roots explicitly',
 );
+assert.equal(
+  process.versions.node.split('.')[0],
+  '24',
+  'Use the project Node24 runtime',
+);
+const maxWorkers = Number(values.maxWorkers);
+assert(
+  Number.isInteger(maxWorkers) && maxWorkers >= 1 && maxWorkers <= 2,
+  'maxWorkers must be 1 or 2',
+);
+const toolRoot = git(
+  dirname(fileURLToPath(import.meta.url)),
+  'rev-parse',
+  '--show-toplevel',
+);
+const tool = snapshot(verifyRoot(toolRoot, git(toolRoot, 'rev-parse', 'HEAD')));
 const materialsRoot = verifyRoot(values['materials-root'], frozen.materials);
 const iterationRoot = verifyRoot(values['iteration-root'], frozen.iteration);
 const sources = await load(materialsRoot, 'sources');
 const materials = await load(materialsRoot, 'materials');
 const materialFixtures = await load(materialsRoot, 'materials.fixtures');
+const review = await load(materialsRoot, 'material-review');
 const comparison = await load(iterationRoot, 'judgment-comparison');
 const selection = await load(iterationRoot, 'selection-standard');
 const attribution = await load(iterationRoot, 'standard-attribution');
@@ -189,6 +215,339 @@ check(
   'materialBatchInputSchema',
   replace(materialFixtures.materialBatchInputFixture, ['personIds'], []),
   true,
+);
+
+// Final 897 schema examples only. These are synthetic contract inputs, not
+// persisted audits, authority grants or evidence that a model/transaction ran.
+const reviewItems = materialFixtures.materialReviewItemsFixture;
+assert(Array.isArray(reviewItems));
+assert.deepEqual(
+  reviewItems.map((entry) => object(entry).kind),
+  [
+    'speaker',
+    'unknown_person',
+    'image_scope',
+    'unknown_interviewer',
+    'unknown_project',
+    'unknown_interview_candidate',
+  ],
+);
+const resolutions: Record<string, ObjectValue> = {
+  speaker: { action: 'bind', personId: 'demo-person' },
+  unknown_person: { action: 'keep_original_only' },
+  image_scope: { action: 'keep_attachment_only' },
+  unknown_interviewer: {
+    action: 'link_existing_interviewer',
+    personId: 'demo-interviewer',
+  },
+  unknown_project: { action: 'mark_no_project' },
+  unknown_interview_candidate: { action: 'keep_original_only' },
+};
+const resolvedExamples: ObjectValue[] = [];
+for (const entry of reviewItems) {
+  const item = object(entry);
+  assert(typeof item.kind === 'string' && typeof item.revision === 'number');
+  const resolution = resolutions[item.kind];
+  check(
+    review,
+    'materialReviewItemSchema',
+    item,
+    true,
+    `897/final ${item.kind} actual fixture`,
+  );
+  const command = {
+    operationId: 'demo-contract-resolution',
+    batchId: item.batchId,
+    itemId: item.itemId,
+    kind: item.kind,
+    expectedRevision: item.revision,
+    resolution,
+  };
+  check(
+    review,
+    'materialReviewCommandSchema',
+    command,
+    true,
+    `897/final ${item.kind} typed command`,
+  );
+  const resolved = {
+    itemId: item.itemId,
+    batchId: item.batchId,
+    evaluationNodeId: item.evaluationNodeId,
+    materialId: item.materialId,
+    originalVersionId: item.originalVersionId,
+    source: item.source,
+    kind: item.kind,
+    revision: item.revision + 1,
+    state: 'resolved',
+    resolution,
+    resolvedAt: '2026-11-01T03:00:00.000Z',
+    auditId: 'demo-contract-audit',
+    undo: { status: 'available' },
+    ...('importRowId' in item ? { importRowId: item.importRowId } : {}),
+    ...('observedName' in item ? { observedName: item.observedName } : {}),
+    ...(item.kind === 'speaker' ? { quote: item.quote } : {}),
+  };
+  resolvedExamples.push(resolved);
+  check(
+    review,
+    'materialReviewResolvedItemSchema',
+    resolved,
+    true,
+    `897/final ${item.kind} question and resolved result`,
+  );
+  const questionField =
+    item.kind === 'speaker'
+      ? 'quote'
+      : 'observedName' in item
+        ? 'observedName'
+        : null;
+  if (questionField) {
+    const missingQuestion = { ...resolved };
+    delete missingQuestion[questionField];
+    check(
+      review,
+      'materialReviewResolvedItemSchema',
+      missingQuestion,
+      false,
+      `897/final ${item.kind} cannot omit question context`,
+    );
+  }
+  const resolutionReceipt = {
+    batchId: item.batchId,
+    materialId: item.materialId,
+    itemId: item.itemId,
+    kind: item.kind,
+    revision: resolved.revision,
+    resolution,
+    remainingReviewItemIds: ['demo-unrelated-review'],
+    blockingReviewItemIds: [],
+    invalidatedDraftIds: [],
+    resume: null,
+  };
+  check(
+    review,
+    'materialReviewResolutionReceiptSchema',
+    resolutionReceipt,
+    true,
+    `897/final ${item.kind} explicit target and action`,
+  );
+  if (
+    ['keep_original_only', 'keep_attachment_only'].includes(
+      String(resolution.action),
+    )
+  )
+    check(
+      review,
+      'materialReviewResolutionReceiptSchema',
+      {
+        ...resolutionReceipt,
+        resume: {
+          stage:
+            item.kind === 'image_scope'
+              ? 'image_scope_check'
+              : item.kind === 'unknown_interview_candidate'
+                ? 'interview_import'
+                : 'organizing',
+          jobId: 'demo-forbidden-resume',
+        },
+      },
+      false,
+      `897/final ${item.kind} retention cannot enqueue model work`,
+    );
+  const undoCommand = {
+    operationId: 'demo-contract-undo',
+    batchId: item.batchId,
+    itemId: item.itemId,
+    kind: item.kind,
+    action: 'undo',
+    expectedRevision: resolved.revision,
+  };
+  check(
+    review,
+    'materialReviewUndoCommandSchema',
+    undoCommand,
+    true,
+    `897/final ${item.kind} undo command`,
+  );
+  check(
+    review,
+    'materialReviewUndoCommandSchema',
+    { ...undoCommand, actorId: 'demo-forged-actor' },
+    false,
+    `897/final ${item.kind} undo cannot claim authority`,
+  );
+  const undoReceipt = {
+    previousRevision: resolved.revision,
+    item: { ...item, revision: resolved.revision + 1, state: 'pending' },
+    invalidatedDraftIds: ['demo-unconfirmed-draft'],
+    auditId: 'demo-contract-undo-audit',
+    resume: null,
+  };
+  check(
+    review,
+    'materialReviewUndoReceiptSchema',
+    undoReceipt,
+    true,
+    `897/final ${item.kind} undo returns pending next revision`,
+  );
+  check(
+    review,
+    'materialReviewUndoReceiptSchema',
+    { ...undoReceipt, previousRevision: resolved.revision - 1 },
+    false,
+    `897/final ${item.kind} undo cannot skip revision`,
+  );
+}
+const projectResolved = resolvedExamples.find(
+  (item) => item.kind === 'unknown_project',
+);
+assert(projectResolved);
+const completedExample = {
+  batchId: projectResolved.batchId,
+  revision: 3,
+  evaluationNodeId: projectResolved.evaluationNodeId,
+  personIds: [],
+  projectId: null,
+  hasHiddenContent: false,
+  status: 'completed',
+  jobId: null,
+  textMaterial: null,
+  files: [
+    {
+      materialId: projectResolved.materialId,
+      originalVersionId: projectResolved.originalVersionId,
+      clientFileId: 'demo-contract-file',
+      filename: '演示材料',
+      status: 'parsed',
+      parseVersionId: 'demo-contract-parse',
+    },
+  ],
+  items: [],
+  resolvedItems: [projectResolved],
+  draftSet: null,
+  confirmedDrafts: [],
+  error: null,
+  counts: {
+    files: {
+      total: 1,
+      processing: 0,
+      parsed: 1,
+      needs_review: 0,
+      unsupported: 0,
+      failed: 0,
+      original_only: 0,
+      attachment_only: 0,
+    },
+    events: { total: 0, awaiting_confirmation: 0, confirmed: 0 },
+    reviewItems: 0,
+  },
+};
+check(
+  materials,
+  'materialBatchReceiptSchema',
+  completedExample,
+  true,
+  '897/final resolved projection is not an unresolved count',
+);
+check(
+  materials,
+  'materialBatchReceiptSchema',
+  { ...completedExample, hasHiddenContent: true },
+  true,
+  '897/final hidden-content boolean with visible counts',
+);
+for (const patch of [
+  { hiddenCount: 1 },
+  { hiddenPersonIds: ['demo-hidden-person'] },
+  { hasHiddenContent: 1 },
+])
+  check(
+    materials,
+    'materialBatchReceiptSchema',
+    { ...completedExample, ...patch },
+    false,
+    '897/final hidden identities and counts cannot be disclosed',
+  );
+for (const field of ['resolvedItems', 'hasHiddenContent']) {
+  const missing: ObjectValue = { ...completedExample };
+  delete missing[field];
+  check(
+    materials,
+    'materialBatchReceiptSchema',
+    missing,
+    false,
+    `897/final receipt requires ${field}`,
+  );
+}
+const pendingProject = reviewItems.find(
+  (item) => object(item).kind === 'unknown_project',
+);
+assert(pendingProject);
+const pendingExample = {
+  ...completedExample,
+  status: 'needs_review',
+  items: [pendingProject],
+  resolvedItems: [],
+  counts: { ...completedExample.counts, reviewItems: 1 },
+};
+check(
+  materials,
+  'materialBatchReceiptSchema',
+  pendingExample,
+  true,
+  '897/final valid pending-only snapshot control',
+);
+check(
+  materials,
+  'materialBatchReceiptSchema',
+  { ...pendingExample, resolvedItems: [projectResolved] },
+  false,
+  '897/final one item cannot be both pending and resolved',
+);
+const legacyInput = { ...object(materialFixtures.materialBatchInputFixture) };
+delete legacyInput.projectId;
+check(
+  materials,
+  'materialBatchInputSchema',
+  legacyInput,
+  false,
+  '897/final old input without projectId is rejected',
+);
+const speakerResolved = resolvedExamples[0];
+check(
+  review,
+  'materialReviewResolvedItemSchema',
+  {
+    ...speakerResolved,
+    undo: { status: 'blocked', reason: 'dependent_draft_confirmed' },
+  },
+  true,
+  '897/final confirmation cutoff is server display metadata',
+);
+check(
+  review,
+  'materialReviewResolvedItemSchema',
+  {
+    ...speakerResolved,
+    undo: { status: 'blocked', reason: 'interview_row_imported' },
+  },
+  false,
+  '897/final imported-row cutoff is interview-only',
+);
+const interviewResolved = resolvedExamples.find(
+  (item) => item.kind === 'unknown_interviewer',
+);
+assert(interviewResolved);
+check(
+  review,
+  'materialReviewResolvedItemSchema',
+  {
+    ...interviewResolved,
+    undo: { status: 'blocked', reason: 'interview_row_imported' },
+  },
+  true,
+  '897/final imported interview relation remains read-only metadata',
 );
 
 const cases: unknown = call(iterationFixtures, 'comparisonCasesFixture');
@@ -689,12 +1048,27 @@ check(
   '917/P1 per-rater HR distribution cannot include other raters',
 );
 
+verifyRoot(toolRoot, tool.head);
+verifyRoot(materialsRoot, frozen.materials);
+verifyRoot(iterationRoot, frozen.iteration);
+
 console.log(
   JSON.stringify(
     {
       result: failures.length === 0 ? 'pass' : 'fail',
       level: 'frozen_schema_only',
       frozen,
+      tool: {
+        ...tool,
+        scriptSha256: createHash('sha256')
+          .update(readFileSync(fileURLToPath(import.meta.url)))
+          .digest('hex'),
+      },
+      inputs: {
+        materials: snapshot(materialsRoot),
+        iteration: snapshot(iterationRoot),
+      },
+      execution: { maxWorkers, parserCalls: 0 },
       checks,
       passedChecks: checks - failures.length,
       failedChecks: failures.length,

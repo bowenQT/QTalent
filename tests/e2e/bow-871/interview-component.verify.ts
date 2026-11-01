@@ -8,8 +8,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 const inputHead = 'c1822464f466851a37594f7ff2cf734b86711646';
+const materialsHead = 'e4462114690191fb9cbcd403f6fb0090bd3cfddb';
 const schemaToolHash =
-  '607e4b8f057c319dbd1b4cd30026a8242c8e39e0ebefebb04a075370be37689f';
+  '4cded1b4619475b0f18f5cadcc6a89137f467add7bb0270c1e888c6494a114df';
 const dependencies = {
   nodeAuthorization: 'd5cf82fa264e022b8e4c928b008461e98c53293d',
   pdfParser: '624e05b26b97a6ed5684f0d11637ea387301f8a5',
@@ -72,10 +73,14 @@ async function main() {
   const { values } = parseArgs({
     options: {
       'component-root': { type: 'string' },
+      'materials-root': { type: 'string' },
       maxWorkers: { type: 'string', default: '2' },
     },
   });
-  assert(values['component-root'], 'Pass --component-root explicitly');
+  assert(
+    values['component-root'] && values['materials-root'],
+    'Pass component and final contract roots explicitly',
+  );
   const maxWorkers = Number(values.maxWorkers);
   assert(
     Number.isInteger(maxWorkers) && maxWorkers >= 1 && maxWorkers <= 2,
@@ -89,6 +94,8 @@ async function main() {
   const root = resolve(values['component-root']);
   const tool = cleanRoot(toolRoot);
   const input = cleanRoot(root, inputHead);
+  const materialsRoot = resolve(values['materials-root']);
+  const materialContract = cleanRoot(materialsRoot, materialsHead);
   for (const sha of Object.values(dependencies))
     git(root, 'merge-base', '--is-ancestor', sha, input.head);
   const existingTool = hash(
@@ -99,7 +106,7 @@ async function main() {
   assert.equal(
     existingTool,
     schemaToolHash,
-    'Existing 83-case schema tool must remain byte-identical',
+    'Frozen schema tool does not match this verifier revision',
   );
   const adapter = await load(
     root,
@@ -109,7 +116,7 @@ async function main() {
     root,
     'src/server/usecases/interview-import/plan.ts',
   );
-  const sources = await load(root, 'src/contracts/sources.ts');
+  const sources = await load(materialsRoot, 'src/contracts/sources.ts');
   const authorization = await load(root, 'src/server/authz/evaluation-node.ts');
   const fixtures = await load(
     root,
@@ -514,6 +521,7 @@ async function main() {
   assert.equal(activeCalls, 0);
   assert(ports() <= baselinePorts, 'Worker resources remain active');
   cleanRoot(root, input.head);
+  cleanRoot(materialsRoot, materialContract.head);
   cleanRoot(toolRoot, tool.head);
   const failed = cases.filter((value) => value.result === 'fail').length;
   console.log(
@@ -523,9 +531,15 @@ async function main() {
         tool: {
           ...tool,
           scriptSha256: hash(await readFile(fileURLToPath(import.meta.url))),
-          unchangedSchemaToolSha256: existingTool,
+          schemaToolSha256: existingTool,
         },
         input: { ...input, dependencies },
+        materialContract,
+        compatibility: {
+          producerMaterialsAncestor: dependencies.materials,
+          validatedAgainst: materialContract.head,
+          scope: 'locator_shape_only',
+        },
         node: process.version,
         execution: {
           maxWorkers,
@@ -552,6 +566,7 @@ async function main() {
         assets,
         sourceRegionsChecked,
         notVerified: [
+          '906 production consumer adoption of final897 review/receipt contract',
           'production request/session authorization',
           'original object access',
           'candidate matching/HR confirmation',
