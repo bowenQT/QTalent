@@ -59,7 +59,10 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
           ],
           // Team parent path, job title and level have no columns yet (BOW-834
           // S1 / S2): same-size placeholders on both sides.
-          replace: ['.n-tabpanel .nt-h2', '.n-tabpanel .n-person__meta'],
+          replace: [
+            '#pp-list .nt-h2, #plist .nt-h2',
+            '#pp-list .n-person__meta, #plist .n-person__meta',
+          ],
         });
         // Avatar photos lazy-load below the fold; a lazy image never decodes until it
         // is scrolled to, so the full-page capture loads them all first.
