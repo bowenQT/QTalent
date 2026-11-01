@@ -165,6 +165,8 @@ export function Staffing(props: StaffingProps) {
   const text = typed ?? handed ?? stored ?? '';
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  // Set by 「回到输入框」: the trail and its button go away, the field takes the focus.
+  const [returned, setReturned] = useState(false);
   // A resumed job keeps no sentence: the job snapshot does not carry it.
   const [sent, setSent] = useState<{ text: string; jobId: string } | null>(
     () => (props.resumeJobId ? { text: '', jobId: props.resumeJobId } : null),
@@ -423,6 +425,7 @@ export function Staffing(props: StaffingProps) {
                 onClick={() => {
                   setTyped(sentText);
                   setSent(null);
+                  setReturned(true);
                 }}
               >
                 回到输入框
@@ -440,6 +443,7 @@ export function Staffing(props: StaffingProps) {
         onSend={() => void send()}
         sending={sending}
         error={sendError}
+        focusOnMount={returned}
       />
     );
   }

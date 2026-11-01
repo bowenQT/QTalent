@@ -1,5 +1,5 @@
 'use client';
-import { useId, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, type KeyboardEvent } from 'react';
 import { Niu } from '@/components/brand/Niu';
 import { Icon } from '@/components/ui/Icon';
 import {
@@ -27,6 +27,7 @@ export function Entry({
   onSend,
   sending,
   error,
+  focusOnMount = false,
 }: {
   /** The project the demand is saved under; null on the new-project entry. */
   projectName: string | null;
@@ -35,8 +36,14 @@ export function Entry({
   onSend: () => void;
   sending: boolean;
   error: string | null;
+  /** Coming back from the drafting trail: the keyboard lands in the field. */
+  focusOnMount?: boolean;
 }) {
   const errorId = useId();
+  const field = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (focusOnMount) field.current?.focus();
+  }, [focusOnMount]);
   const canSend = text.trim().length > 0 && !sending;
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (
@@ -59,6 +66,7 @@ export function Entry({
       <div className="n-composer" style={{ maxWidth: 720 }}>
         <Niu size={36} state={sending ? 'searching' : 'rest'} />
         <textarea
+          ref={field}
           className="n-composer__field"
           id="sq"
           rows={2}

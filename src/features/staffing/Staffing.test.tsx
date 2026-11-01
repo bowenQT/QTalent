@@ -348,12 +348,13 @@ describe('entry and drafting', () => {
     );
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toBe(
-      '这次起草的需求属于另一个项目，没有在这里打开。回到输入框，为这个项目再发一次。',
+      '这次起草的需求属于另一个项目。回到输入框，为这个项目再发一次。',
     );
     expect(screen.queryByRole('button', { name: '确认需求' })).toBeNull();
     expect(onDemandReady).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: '回到输入框' }));
     expect(field()).toHaveProperty('value', '演示：这个项目要的人');
+    expect(document.activeElement).toBe(field());
     expect(p.editDemand).not.toHaveBeenCalled();
     expect(p.confirmDemand).not.toHaveBeenCalled();
     cleanup();
@@ -989,6 +990,7 @@ describe('first-round review fixes', () => {
       ).toBeTruthy();
       fireEvent.click(screen.getByRole('button', { name: '回到输入框' }));
       expect(field()).toHaveProperty('value', `找人 ${status}`);
+      expect(document.activeElement).toBe(field());
       cleanup();
     }
   });

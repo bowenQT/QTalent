@@ -167,7 +167,12 @@ export function DemandCard({
             ref={confirmedRef}
             tabIndex={-1}
             className="nt-muted"
-            style={{ margin: 'var(--s-3) 0 0' }}
+            // Room for the focus ring around the text, without moving the line.
+            style={{
+              margin: 'calc(var(--s-3) - 2px) -4px -2px',
+              padding: '2px 4px',
+              borderRadius: 'var(--r-field)',
+            }}
           >
             {confirmedLine(
               demand.confirmedBy.name,
