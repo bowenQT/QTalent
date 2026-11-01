@@ -198,7 +198,7 @@ node --test --test-concurrency=2 --experimental-test-coverage '--test-coverage-i
 | 三幕       | 按 BOW-871/872 在部署环境走通；未接真实链路的页面按实际状态说明                                                                       |
 | 供应商     | 新加坡到听悟/MaaS/Kodo 接入点的 TCP/TLS 各20次及中位数/P95；真实请求另记接口/模型、脱敏 request/task ID 与成功/失败，不以探活代替调用 |
 
-11/1 所有者要求录音 WebSocket 连续40分钟，须按实际结果保留成功、失败或未执行。当前主线 /stream 只有心跳并拒绝音频二进制，心跳连续40分钟也不能称录音通过；录音功能真合 main 后再验，不上线未合分支补能力。国内打开速度须用真实国内测点，不能用本机或新加坡测量冒充。供应商接入点从对应卡最终 spec/实现读取，不在部署脚本里猜测。
+按11/1所有者[最终B裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6554412930)及[#25验收口径](https://github.com/bowenQT/QTalent/issues/25#issuecomment-6554413314)，BOW-868继续赛后，本次BOW-833不再要求录音WebSocket连续40分钟。演示录音按P3链路：经856上传Kodo，再由859离线转写；不恢复实时字幕或正式录音UI。既有正常登录、自然会话WSS101/pong和其余Access/备份恢复证据保留，已制合成素材归档供后续复用，不以移除一项门禁关闭整卡。国内打开速度须用真实国内测点，不能用本机或新加坡测量冒充。供应商接入点从对应卡最终 spec/实现读取，不在部署脚本里猜测。
 
 ## 每次部署记录模板（写到 #25）
 
