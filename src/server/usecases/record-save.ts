@@ -443,6 +443,8 @@ async function execute(
         if (plan.action === 'save') {
           const confirmationWork: RecordConfirmationWorkFact[] = [];
           for (const item of workItems) {
+            // A confirmation assignment does not order other evaluators' scores.
+            if (item.assignedEvaluatorId !== actorPersonId) continue;
             if (item.state === 'cancelled')
               throw new ConfirmationError(
                 'conflict',

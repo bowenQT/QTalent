@@ -91,7 +91,8 @@ export interface ConfirmationState {
 }
 export type PlannedConfirmation = ConfirmationFact & {
   active: true;
-  revision: 1;
+  previousId: string | null;
+  previousRevision: number | null;
   dimensionVersionId: string;
   anchorVersionId: string;
   anchor: ConfirmationRules['anchors'][number] | null;
@@ -439,12 +440,29 @@ export function planRecordConfirmation(input: {
         'unavailable',
         'confirmation_identity_invalid',
       );
+    const ownHistory = state.confirmations.filter(
+      (row) =>
+        row.eventId === eventId &&
+        row.dimensionId === decision.dimensionId &&
+        row.evaluatorId === context.account.personId,
+    );
+    if (ownHistory.some((row) => row.active))
+      throw new ConfirmationError('conflict', 'confirmation_already_exists');
+    const previous = ownHistory.reduce<ConfirmationFact | null>(
+      (latest, row) =>
+        !latest || row.revision > latest.revision ? row : latest,
+      null,
+    );
+    // Only an accepted native undo permits another confirmation. Historical
+    // deactivation or an HR correction must not become a new scoring path.
     if (
-      state.confirmations.some(
-        (row) =>
-          row.eventId === eventId &&
-          row.dimensionId === decision.dimensionId &&
-          row.evaluatorId === context.account.personId,
+      previous &&
+      !state.saves.some(
+        (saved) =>
+          saved.withdrawnAt !== null &&
+          saved.draft.draftId === draft.draftId &&
+          saved.receipt.savedBy === accountId &&
+          saved.receipt.confirmationIds.includes(previous.id),
       )
     )
       throw new ConfirmationError('conflict', 'confirmation_already_exists');
@@ -482,10 +500,16 @@ export function planRecordConfirmation(input: {
       dimensionId: decision.dimensionId,
       evaluatorId: context.account.personId,
       active: true,
-      revision: 1,
+      revision: (previous?.revision ?? 0) + 1,
+      previousId: previous?.id ?? null,
+      previousRevision: previous?.revision ?? null,
       value,
       anchor: anchors[0] ?? null,
-      reason,
+      // This describes the version transition, not a supplied scoring rationale.
+      reason:
+        previous && !reason.trim()
+          ? '本人撤销后重新确认；本次未填写评分理由'
+          : reason,
       references: structuredClone(draft.sourceReferences),
       dimensionVersionId: draft.dimensionVersionId,
       anchorVersionId: draft.anchorVersionId,

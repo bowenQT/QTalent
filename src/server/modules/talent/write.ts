@@ -105,8 +105,8 @@ export async function writeRecordConfirmations(
       revision: row.revision,
       active: true,
       reason: row.reason,
-      previousId: null,
-      previousRevision: null,
+      previousId: row.previousId,
+      previousRevision: row.previousRevision,
       suggestionId: original.id,
     });
   }
