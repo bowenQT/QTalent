@@ -298,7 +298,16 @@ export function planRecordConfirmation(input: {
     return {
       action: command.action,
       replayed: true,
-      receipt: structuredClone(old.receipt),
+      // Retained success is not current whole-input read authority.
+      receipt: structuredClone(
+        old.action === 'undo'
+          ? {
+              ...old.receipt,
+              inputRestoration: 'unavailable',
+              originalInput: null,
+            }
+          : old.receipt,
+      ),
     };
   }
   const wallTime = Date.parse(input.wallNow);
@@ -331,7 +340,9 @@ export function planRecordConfirmation(input: {
       state.reviews.some(
         (row) =>
           !row.withdrawn &&
-          row.handled &&
+          // A later save owns its own review. Undo must not strand that
+          // review or silently rewrite another evaluator's later operation.
+          (row.handled || !saved.receipt.reviewItemIds.includes(row.id)) &&
           row.confirmationIds.some((id) =>
             saved.receipt.confirmationIds.includes(id),
           ),
@@ -352,7 +363,11 @@ export function planRecordConfirmation(input: {
         ),
         withdrawnConfirmationIds: saved.receipt.confirmationIds,
         withdrawnReviewItemIds: saved.receipt.reviewItemIds,
-        originalInput: saved.originalInput,
+        // Draft/source authority does not prove the entire submitted text or
+        // every attachment is currently readable. Retain the private input
+        // as evidence; missing complete-input facts means no restoration.
+        inputRestoration: 'unavailable',
+        originalInput: null,
       }),
     };
   }

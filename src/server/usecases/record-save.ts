@@ -64,6 +64,7 @@ import { loadEvaluationContext } from './evaluation-context';
 import { talentSources } from './talent-source-projection';
 import { ForbiddenError } from './project-context';
 import { recordAudit } from '../platform/audit';
+import { cancelWithdrawnRecordConfirmationWork } from './record-undo-work';
 
 export { ConfirmationError as RecordSaveError };
 
@@ -563,7 +564,7 @@ async function execute(
             actorPersonId,
             lastWall,
           );
-          await commitRecordUndo(
+          const committedUndo = await commitRecordUndo(
             tx,
             lock,
             plan,
@@ -571,6 +572,12 @@ async function execute(
             actorPersonId,
             fingerprint,
             lastWall,
+          );
+          await cancelWithdrawnRecordConfirmationWork(
+            tx,
+            committedUndo,
+            workItems,
+            clock,
           );
         }
         await recordAudit(tx, {
@@ -625,10 +632,14 @@ export async function undoRecordSave(
 ) {
   const plan = await execute(db, accountId, { action: 'undo', input }, clock);
   if (plan.action !== 'undo') throw new Error('Unexpected record action');
-  const result = recordUndoReceiptSchema.parse(plan.receipt);
-  // Contract validation trims input text; the retained original is evidence.
-  result.originalInput = structuredClone(
-    (plan.receipt as typeof result).originalInput,
-  );
+  // execute rechecks current actor, node and source authority even on replay.
+  // The current producer stores no complete-input subject/attachment coverage
+  // proof. Neither all generated drafts nor the batch creator establishes it.
+  // Project every response anew; never restore a historical available payload.
+  const result = recordUndoReceiptSchema.parse({
+    ...plan.receipt,
+    inputRestoration: 'unavailable',
+    originalInput: null,
+  });
   return { replayed: plan.replayed, result };
 }

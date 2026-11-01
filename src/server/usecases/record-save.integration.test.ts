@@ -641,7 +641,13 @@ it.each([4999, 5000, 5001])(
     );
     if (elapsed < 5000) {
       const result = await pending;
-      expect(result.result.originalInput.text).toBe(f.originalInput.text);
+      expect(result.result).toMatchObject({
+        inputRestoration: 'unavailable',
+        originalInput: null,
+      });
+      expect(
+        (await rowsForSave(saved.result.saveId)).saved.originalInput,
+      ).toEqual(f.originalInput);
       expect(result.result.withdrawnEvents).toEqual(saved.result.events);
       expect(
         (
@@ -1088,4 +1094,299 @@ it("does not substitute another current relation for the completed task's origin
     reason: 'confirmation_task_permission_changed',
   });
   expect(await snapshot()).toEqual(before);
+});
+
+it('R2 P1: successful undo action never discloses another subject batch input or attachments', async () => {
+  const f = await native({ secondDraft: true });
+  const hiddenText = '演示：仅另一主体可见的批次原话';
+  const hiddenAttachment = f.id + '-private-other-attachment';
+  const other = structuredClone(f.otherDraft);
+  other.personIds = [f.person.two];
+  other.scores = other.scores.map((score) => ({
+    ...score,
+    personId: f.person.two,
+  }));
+  await db()
+    .update(recordDrafts)
+    .set({ draft: other })
+    .where(eq(recordDrafts.draftId, other.draftId));
+  await db()
+    .update(recordDraftBatches)
+    .set({
+      originalInput: {
+        ...f.originalInput,
+        text: hiddenText,
+        attachmentIds: [hiddenAttachment],
+      },
+    })
+    .where(eq(recordDraftBatches.batchId, f.draft.batchId));
+  const first = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  vi.mocked(requireSession).mockResolvedValue({
+    user: { id: f.account.two },
+  } as Awaited<ReturnType<typeof requireSession>>);
+  const second = await saveRecordAction({
+    ...f.input,
+    operation_id: f.id + '-second-action',
+    expected_revision: first.result.revision,
+  });
+  if (second.status !== 'success')
+    throw new Error('Expected authorized second evaluator save');
+  const input = {
+    operation_id: f.id + '-second-undo',
+    saveId: second.result.saveId,
+  };
+  const undone = await undoRecordAction(input);
+  expect(undone).toMatchObject({
+    status: 'success',
+    result: { inputRestoration: 'unavailable', originalInput: null },
+  });
+  expect(JSON.stringify(undone)).not.toContain(hiddenText);
+  expect(JSON.stringify(undone)).not.toContain(hiddenAttachment);
+  const replayed = await undoRecordAction(input);
+  expect(replayed.status).toBe('success');
+  expect(JSON.stringify(replayed)).not.toContain(hiddenText);
+  expect(JSON.stringify(replayed)).not.toContain(hiddenAttachment);
+});
+it('R2 P2: later evaluator review dependency prevents a partial withdrawal', async () => {
+  const f = await native();
+  const first = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const second = await saveRecordDraft(
+    db(),
+    f.account.two,
+    {
+      ...edited(f, 1, '演示B判断'),
+      operation_id: f.id + '-B',
+      expected_revision: first.result.revision,
+    },
+    f.clock,
+  );
+  const third = await saveRecordDraft(
+    db(),
+    f.account.manager,
+    {
+      ...edited(f, 4, '演示C判断'),
+      operation_id: f.id + '-C',
+      expected_revision: second.result.revision,
+    },
+    f.clock,
+  );
+  const before = await db()
+    .select()
+    .from(scoreReviews)
+    .where(eq(scoreReviews.eventId, first.result.events[0].eventId));
+  expect(
+    before.some(
+      (row) =>
+        row.saveId === third.result.saveId &&
+        [row.confirmationId, row.counterpartConfirmationId].includes(
+          second.result.confirmationIds[0],
+        ),
+    ),
+  ).toBe(true);
+  await expect(
+    undoRecordSave(
+      db(),
+      f.account.two,
+      { operation_id: f.id + '-B-undo', saveId: second.result.saveId },
+      f.clock,
+    ),
+  ).rejects.toMatchObject({
+    status: 'conflict',
+    reason: 'later_confirmation_or_review',
+  });
+  expect((await rowsForSave(second.result.saveId)).human[0].active).toBe(true);
+  expect(
+    await db()
+      .select()
+      .from(scoreReviews)
+      .where(eq(scoreReviews.eventId, first.result.events[0].eventId)),
+  ).toEqual(before);
+  // Removing the actual later dependency releases only the earlier undo;
+  // the inactive reviews stay as history, and old undo replay cannot touch
+  // the evaluator's subsequent confirmation revision.
+  await undoRecordSave(
+    db(),
+    f.account.manager,
+    { operation_id: f.id + '-C-undo', saveId: third.result.saveId },
+    f.clock,
+  );
+  const secondUndo = {
+    operation_id: f.id + '-B-undo',
+    saveId: second.result.saveId,
+  };
+  await undoRecordSave(db(), f.account.two, secondUndo, f.clock);
+  const [currentDraft] = await db()
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, f.draft.draftId));
+  const reconfirmed = await saveRecordDraft(
+    db(),
+    f.account.two,
+    {
+      ...edited(f, 1, '演示B重新判断'),
+      operation_id: f.id + '-B-reconfirm',
+      expected_revision: currentDraft.revision,
+    },
+    f.clock,
+  );
+  const currentBeforeReplay = await snapshot();
+  const replay = await undoRecordSave(db(), f.account.two, secondUndo, f.clock);
+  expect(replay.replayed).toBe(true);
+  expect(await snapshot()).toEqual(currentBeforeReplay);
+  const [newConfirmation] = (await rowsForSave(reconfirmed.result.saveId))
+    .human;
+  expect(newConfirmation).toMatchObject({
+    active: true,
+    revision: 2,
+    previousId: second.result.confirmationIds[0],
+  });
+});
+it('R2 S1: withdrawing a draft resource cancels the other evaluator pending task atomically', async () => {
+  const f = await native();
+  const task = await db().transaction((tx) =>
+    insertEvaluationWorkItem(
+      tx,
+      {
+        id: f.id + '-other-pending',
+        evaluationNodeId: f.node,
+        personId: f.person.one,
+        assignedRelationId: f.relationOne,
+        assignedEvaluatorId: f.person['rater-one'],
+        kind: 'confirmation',
+        resourceId: f.draft.draftId,
+      },
+      businessNow,
+    ),
+  );
+  const saved = await saveRecordDraft(db(), f.account.two, f.input, f.clock);
+  const undone = await undoRecordSave(
+    db(),
+    f.account.two,
+    { operation_id: f.id + '-undo-resource', saveId: saved.result.saveId },
+    f.clock,
+  );
+  expect(undone.result.withdrawnEvents).toEqual(saved.result.events);
+  const [current] = await db()
+    .select()
+    .from(evaluationWorkItems)
+    .where(eq(evaluationWorkItems.id, task.id));
+  expect(current).toMatchObject({
+    state: 'cancelled',
+    revision: task.revision + 1,
+    assignedRelationId: task.assignedRelationId,
+    assignedEvaluatorId: task.assignedEvaluatorId,
+  });
+});
+
+it.each(['legacy', 'available'] as const)(
+  'R2 P1: reprojects stored %s full-input receipts and rechecks current authority',
+  async (format) => {
+    const f = await native();
+    const saved = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+    const input = {
+      operation_id: f.id + '-legacy-undo',
+      saveId: saved.result.saveId,
+    };
+    const accepted = await undoRecordSave(db(), f.account.one, input, f.clock);
+    const stored = {
+      saveId: accepted.result.saveId,
+      withdrawnEvents: accepted.result.withdrawnEvents,
+      withdrawnConfirmationIds: accepted.result.withdrawnConfirmationIds,
+      withdrawnReviewItemIds: accepted.result.withdrawnReviewItemIds,
+      originalInput: f.originalInput,
+      ...(format === 'available' ? { inputRestoration: 'available' } : {}),
+    };
+    await db()
+      .update(recordOperations)
+      .set({ receipt: sql`${JSON.stringify(stored)}::jsonb` })
+      .where(
+        and(
+          eq(recordOperations.actorAccountId, f.account.one),
+          eq(recordOperations.operationId, input.operation_id),
+        ),
+      );
+    f.setWall(6000);
+    const replay = await undoRecordSave(db(), f.account.one, input, f.clock);
+    expect(replay).toMatchObject({
+      replayed: true,
+      result: { inputRestoration: 'unavailable', originalInput: null },
+    });
+    const [operation] = await db()
+      .select()
+      .from(recordOperations)
+      .where(
+        and(
+          eq(recordOperations.actorAccountId, f.account.one),
+          eq(recordOperations.operationId, input.operation_id),
+        ),
+      );
+    expect(operation.receipt).toEqual(stored);
+    expect(
+      (await rowsForSave(saved.result.saveId)).saved.originalInput,
+    ).toEqual(f.originalInput);
+    await db()
+      .update(evaluationRelations)
+      .set({ revokedAt: businessNow })
+      .where(eq(evaluationRelations.id, f.relationOne));
+    await expect(
+      undoRecordSave(db(), f.account.one, input, f.clock),
+    ).rejects.toMatchObject({ status: 'forbidden' });
+  },
+);
+
+it('R2 S1: pending task cancellation audit failure rolls back the entire native undo', async () => {
+  const f = await native();
+  const task = await db().transaction((tx) =>
+    insertEvaluationWorkItem(
+      tx,
+      {
+        id: f.id + '-pending-rollback',
+        evaluationNodeId: f.node,
+        personId: f.person.one,
+        assignedRelationId: f.relationOne,
+        assignedEvaluatorId: f.person['rater-one'],
+        kind: 'confirmation',
+        resourceId: f.draft.draftId,
+      },
+      businessNow,
+    ),
+  );
+  const saved = await saveRecordDraft(db(), f.account.two, f.input, f.clock);
+  const before = await snapshot();
+  const priorSave = await rowsForSave(saved.result.saveId);
+  const readDraft = () =>
+    db()
+      .select()
+      .from(recordDrafts)
+      .where(eq(recordDrafts.draftId, f.draft.draftId));
+  const readEvents = () =>
+    db()
+      .select()
+      .from(events)
+      .where(eq(events.id, saved.result.events[0].eventId));
+  const priorDraft = await readDraft();
+  const priorEvents = await readEvents();
+  const originalAudit = audit.recordAudit;
+  vi.spyOn(audit, 'recordAudit').mockImplementation(async (...args) => {
+    await originalAudit(...args);
+    if (args[1].action === 'evaluation_work.record_withdrawn')
+      throw new Error('synthetic pending-task audit failure');
+  });
+  await expect(
+    undoRecordSave(
+      db(),
+      f.account.two,
+      { operation_id: f.id + '-rollback-undo', saveId: saved.result.saveId },
+      f.clock,
+    ),
+  ).rejects.toThrow('synthetic pending-task audit failure');
+  expect(await snapshot()).toEqual(before);
+  expect(await rowsForSave(saved.result.saveId)).toEqual(priorSave);
+  expect(await readDraft()).toEqual(priorDraft);
+  expect(await readEvents()).toEqual(priorEvents);
+  const [current] = await db()
+    .select()
+    .from(evaluationWorkItems)
+    .where(eq(evaluationWorkItems.id, task.id));
+  expect(current).toEqual(task);
 });

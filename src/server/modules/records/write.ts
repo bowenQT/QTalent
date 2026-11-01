@@ -24,6 +24,24 @@ import {
 
 type SaveReceipt = Extract<RecordSaveResult, { status: 'success' }>['result'];
 type UndoReceipt = Extract<RecordUndoResult, { status: 'success' }>['result'];
+// Stored pre-R2 receipts are historical payloads, not current read authority.
+const legacyUndoReceiptSchema = recordUndoReceiptSchema.options[0].omit({
+  inputRestoration: true,
+});
+function readStoredUndoReceipt(value: unknown): UndoReceipt {
+  const receipt =
+    typeof value === 'object' && value !== null && 'inputRestoration' in value
+      ? recordUndoReceiptSchema.parse(value)
+      : legacyUndoReceiptSchema.parse(value);
+  return {
+    saveId: receipt.saveId,
+    withdrawnEvents: receipt.withdrawnEvents,
+    withdrawnConfirmationIds: receipt.withdrawnConfirmationIds,
+    withdrawnReviewItemIds: receipt.withdrawnReviewItemIds,
+    inputRestoration: 'unavailable',
+    originalInput: null,
+  };
+}
 export type RecordCommand =
   | { action: 'save'; input: RecordSaveInput }
   | { action: 'undo'; input: RecordUndoInput };
@@ -46,6 +64,39 @@ export interface RecordSaveLock {
   batchId: string;
   draftId: string;
   retainedSave: typeof recordSaves.$inferSelect | null;
+}
+
+/** Issued only after this transaction has written the real undo ledger.
+ * The opaque token never leaves the server or works with another transaction. */
+declare const recordUndoCommitBrand: unique symbol;
+export interface RecordUndoCommit {
+  readonly [recordUndoCommitBrand]: true;
+}
+interface RecordUndoCommitScope {
+  accountId: string;
+  actorPersonId: string;
+  saveId: string;
+  operationId: string;
+  fingerprint: string;
+  batchId: string;
+  draftId: string;
+  evaluationNodeId: string;
+  draftRevision: number;
+  withdrawnAt: string;
+  withdrawnEvents: { personId: string; eventId: string }[];
+}
+const undoCommits = new WeakMap<
+  RecordUndoCommit,
+  { transaction: Transaction; scope: RecordUndoCommitScope }
+>();
+export function requireRecordUndoCommit(
+  tx: Transaction,
+  commit: RecordUndoCommit,
+): Readonly<RecordUndoCommitScope> {
+  const issued = undoCommits.get(commit);
+  if (!issued || issued.transaction !== tx)
+    throw new RecordWriteError('conflict', 'record_undo_commit_required');
+  return structuredClone(issued.scope);
 }
 
 /** Internal trusted-producer entry, never an action accepting client snapshots.
@@ -238,12 +289,7 @@ export async function readRecordConfirmationState(
           : {
               ...common,
               action: 'undo' as const,
-              receipt: {
-                ...recordUndoReceiptSchema.parse(row.receipt),
-                originalInput: structuredClone(
-                  (row.receipt as UndoReceipt).originalInput,
-                ),
-              },
+              receipt: readStoredUndoReceipt(row.receipt),
             };
       }),
   };
@@ -402,13 +448,33 @@ export async function commitRecordUndo(
         eq(recordSaves.saveId, plan.receipt.saveId),
         eq(recordSaves.actorAccountId, lock.accountId),
         eq(recordSaves.actorPersonId, actorPersonId),
+        eq(recordSaves.batchId, lock.batchId),
+        eq(recordSaves.draftId, lock.draftId),
         isNull(recordSaves.withdrawnAt),
       ),
     )
-    .returning({ id: recordSaves.saveId });
+    .returning();
   if (changed.length !== 1)
     throw new RecordWriteError('conflict', 'save_already_withdrawn');
+  const saved = changed[0];
   const ids = plan.receipt.withdrawnEvents.map((row) => row.eventId);
+  if (
+    input.saveId !== saved.saveId ||
+    plan.draft.batchId !== saved.batchId ||
+    plan.draft.draftId !== saved.draftId ||
+    plan.draft.evaluationNodeId !== saved.draftSnapshot.evaluationNodeId ||
+    ids.length !== saved.createdEventIds.length ||
+    new Set(ids).size !== ids.length ||
+    ids.some((id) => !saved.createdEventIds.includes(id)) ||
+    plan.receipt.withdrawnEvents.some(
+      (row) =>
+        !saved.receipt.events.some(
+          (event) =>
+            event.eventId === row.eventId && event.personId === row.personId,
+        ),
+    )
+  )
+    throw new RecordWriteError('conflict', 'withdrawn_resource_changed');
   if (ids.length) {
     const withdrawn = await tx
       .update(events)
@@ -435,4 +501,23 @@ export async function commitRecordUndo(
     receipt: plan.receipt,
     createdAt: new Date(wallNow),
   });
+
+  const commit = Object.freeze({}) as RecordUndoCommit;
+  undoCommits.set(commit, {
+    transaction: tx,
+    scope: {
+      accountId: lock.accountId,
+      actorPersonId,
+      saveId: saved.saveId,
+      operationId: input.operation_id,
+      fingerprint,
+      batchId: saved.batchId,
+      draftId: saved.draftId,
+      evaluationNodeId: saved.draftSnapshot.evaluationNodeId,
+      draftRevision: plan.expectedDraftRevision + 1,
+      withdrawnAt: wallNow,
+      withdrawnEvents: structuredClone(plan.receipt.withdrawnEvents),
+    },
+  });
+  return commit;
 }
