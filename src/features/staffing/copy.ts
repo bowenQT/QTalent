@@ -45,6 +45,8 @@ export const draftRetrying =
   '起草进度读取中断，正在重试。也可以回到输入框再发一次。';
 export const conflictText = '需求已变化，请保留输入并刷新';
 export const outOfScope = '这次核对在你的查看范围之外';
+export const demandOutOfScope =
+  '这份需求现在在你的查看范围之外，刷新后按当前权限查看';
 export const saveFailed = '保存失败，请检查后再试一次';
 export const offline = '保存失败，请检查网络后再试一次';
 export const matchingLoading = '候选人核对中';

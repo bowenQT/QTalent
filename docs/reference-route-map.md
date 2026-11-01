@@ -203,16 +203,20 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 
 ## 找人（BOW-853）
 
-`src/features/staffing/` 是找人活文档：一句话 → 起草需求卡（跟随 `staffing_demand` 任务）→ 编辑（切换必须 / 加分、补一句要求）→ 确认 → 候选人逐条四态与出处、处理进度、待人工判断时选四态并署名。区块只读 `view.ts` 的视图模型；契约修订只改映射。页面动作经 `ports.ts` 的 `StaffingPorts` 从路由传入，客户端不引用 server。
+`src/features/staffing/` 是找人活文档：一句话 → 起草需求卡（跟随 `staffing_demand` 任务）→ 编辑（切换必须 / 加分、补一句要求）→ 确认 → 候选人逐条四态与出处、处理进度、待人工判断时选四态并署名。区块只读 `view.ts` 的视图模型；契约修订只改映射。页面动作经 `ports.ts` 的 `StaffingPorts` 传入：真实路由用 `live-ports.ts`（BOW-852 的 Server Action 与 `/api/jobs/[jobId]`），开发样张用内存假实现。
 
-- `/staffing`：服务端先按账号角色拦截，导师看到「这一页属于其他视角」，系统管理员看到业务视角提示；管理者、HR 现在看到「找人待接通」，不显示样张数据。需求读取（BOW-852）与匹配读取（BOW-854）合入后，把 `StaffingPorts` 接到 Server Action 与 `/api/jobs/[jobId]`，页面改为渲染 `Staffing`。
+- `/staffing`：服务端先按账号角色拦截，导师看到「这一页属于其他视角」，系统管理员看到业务视角提示；管理者、HR 进入真实数据：
+  - `?project=<id>`：项目须在当前账号的项目读取范围内，否则显示「项目链接失效」。没有需求时是一句话入口，发出后调用 `createStaffingDemandAction`，跟随 `staffing_demand` 任务；地址改为 `?project=<id>&job=<jobId>`，刷新后继续跟随同一任务（不带原话，原话不进地址）。
+  - `?project=<id>&demand=<id>`：用 `readStaffingDemand` 读当前版本；读不到或不属于这个项目时显示「需求链接失效」（缺失与无权同一结果）。编辑、确认走 `editStaffingDemandAction` / `confirmStaffingDemandAction`，冲突提示刷新、保留输入；被拒时显示本页的肯定式文案，不透出服务端原文。
+  - 没有 `project`（含 `?new=1`）：显示「选一个项目再找人」，引到项目与课题。一句话建项目不在 BOW-852 范围内。
+  - 确认后的候选人核对：BOW-854 未合入，`openMatching` 返回 `null`，显示「候选人核对待接通」，不拿样张冒充。
 - 开发样张 `/dev/staffing?role=manager|hr&scene=ts|agent|new`：原型 Y 种子数据经找人契约渲染，来源都标为原型基线；动作是内存假实现。生产构建返回 404。
 - 排序只用契约的 `orderStaffingCandidates`（必须项支持了几条），同数保持读取顺序；必须项至少两条资料不足、没有一条支持、且没有还在处理或待人工判断的要求的人，放进「条件待确认」。不出总分、胜任率或百分比。
 - 匹配入口：契约没有「取确认后的匹配任务」的读取，`StaffingPorts.openMatching` 是对 BOW-854 的接口假设，返回任务标识或 `null`（这时显示「候选人核对待接通」）。
-- 新项目入口（`?new=1`）：契约的起草需要 `projectId`，一句话建项目不在找人契约里；页面在入口绑定项目，起草完成后由 `onDemandReady` 交回页面跳转。
+- 新项目入口（`?new=1`）：契约的起草需要 `projectId`，一句话建项目不在找人契约里；真实路由先引到项目，开发样张在起草完成后由 `onDemandReady` 绑定演示项目。
 - 工作台交接：读取并删除 `sessionStorage['niu-talent:draft:staffing']`（约定见 BOW-841 `send.ts`），账号不符或超过 10 分钟丢弃。
 
-**同次渲染截图对比**（`tests/visual/staffing.spec.ts`，遮罩与说明在 `tests/visual/staffing-masks.ts`）：管理者 `pr-agent`、HR `pr-ts` 项目页与管理者入口，桌面 1366×900 与窄屏 375×812。先比文字（标题、状态、要求、候选人姓名、逐条状态与证据句），再比位置与间距，最后逐元素比像素。
+**同次渲染截图对比**（`tests/visual/staffing.spec.ts`，遮罩与说明在 `tests/visual/staffing-masks.ts`）：管理者 `pr-agent`、HR `pr-ts` 项目页与管理者入口，桌面 1366×900 与窄屏 375×812。先比文字（标题、状态、要求、候选人姓名、逐条状态与证据句），再比位置与间距，最后逐元素比像素。页头和需求卡另在真实路由上比（同一份需求写入隔离测试库，管理者 `ceo`、HR `hrbp` 登录）；候选人部分在 BOW-854 合入前仍用开发样张比。
 
 | 原型元素                                                                             | 工程处理                           | 原因                                                    |
 | ------------------------------------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------- |

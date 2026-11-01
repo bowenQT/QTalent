@@ -39,6 +39,8 @@ function source(id: string, location: string, excerpt: string): Source {
       originalLocation: location,
     },
     excerpt,
+    originalTitle: '项目观察表（演示）',
+    recordedByName: null,
     sourceType: 'prototype_snapshot',
     sourceCategory: 'prototype_baseline',
     displayNotice: '演示：取自原型 Y 的演示数据。',

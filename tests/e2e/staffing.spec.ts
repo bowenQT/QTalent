@@ -1,18 +1,20 @@
 import type { Page } from '@playwright/test';
 import { test, expect, login } from './fixtures';
+import { seedDemand } from './staffing-seed';
 
 /**
- * BOW-853 find-people in a real browser. The flow runs on the development sample
- * /dev/staffing (prototype seed data through the staffing contract) until the demand
- * read (BOW-852) and matching read (BOW-854) are on main; who may open the page is
- * checked on the real /staffing route with real sign-ins.
+ * BOW-853 find-people in a real browser. The real /staffing route runs the demand card on
+ * BOW-852 (real sign-ins, Server Actions and the isolated test database); there is no
+ * worker or model here, so a drafted demand is written into the database directly.
+ * Matching (BOW-854) is not on main: the candidate flow still runs on the development
+ * sample /dev/staffing (prototype seed data through the staffing contract).
  */
 const card = (page: Page, name: string) =>
   page.locator('#cands > article').filter({
     has: page.getByRole('link', { name, exact: true }),
   });
 
-test('a mentor is stopped at /staffing; managers and HR get the page', async ({
+test('a mentor is stopped at /staffing; HR sends a sentence and its drafting job starts', async ({
   page,
   context,
   referenceApp,
@@ -26,13 +28,100 @@ test('a mentor is stopped at /staffing; managers and HR get the page', async ({
     page.getByText('找 owner 和项目找人只对管理者和 HR 开放。'),
   ).toBeVisible();
   await expect(page).toHaveTitle('这一页属于其他视角 · Niu-Talent');
-  await expect(page.locator('#needcard, #cands')).toHaveCount(0);
+  await expect(page.locator('#needcard, #cands, #sq')).toHaveCount(0);
 
   await context.clearCookies();
   await login(context, 'hrbp', referenceApp.baseURL);
+  await page.goto('/staffing');
+  await expect(
+    page.getByRole('heading', { name: '选一个项目再找人' }),
+  ).toBeVisible();
   await page.goto('/staffing?project=pr-ts');
-  await expect(page.getByRole('heading', { name: '找人待接通' })).toBeVisible();
   await expect(page).toHaveTitle('找人 · Niu-Talent');
+  await page
+    .getByRole('textbox', { name: '描述项目和要找的人' })
+    .fill('演示：TS 新人组要一个能带大家对齐节奏的牵头人');
+  await page.getByRole('button', { name: '开始' }).click();
+  // No worker here: the job stays queued, and the trail says so.
+  await expect(page.getByText('理解需求')).toBeVisible();
+  await expect(page).toHaveURL(/\/staffing\?project=pr-ts&job=[^&]+$/);
+  const { rows } = await referenceApp.pool.query(
+    "SELECT input_text, current_revision FROM staffing_demands WHERE project_id = 'pr-ts'",
+  );
+  expect(rows).toEqual([
+    {
+      input_text: '演示：TS 新人组要一个能带大家对齐节奏的牵头人',
+      current_revision: 0,
+    },
+  ]);
+  // A reload follows the same job; the sentence is not in the address.
+  await page.reload();
+  await expect(page.getByText('理解需求')).toBeVisible();
+  expect(decodeURIComponent(page.url())).not.toContain('牵头人');
+});
+
+test('on BOW-852 data, HR edits and confirms the demand; matching shows as not connected', async ({
+  page,
+  context,
+  referenceApp,
+}) => {
+  await seedDemand(referenceApp.pool, [
+    {
+      id: 'e2e-demand-ts',
+      projectId: 'pr-ts',
+      revision: 1,
+      inputText: '演示：TS 新人组要一个能带大家对齐节奏的牵头人',
+      requirements: [
+        { id: 'r1', text: '担任过组长或牵头人', priority: 'required' },
+        { id: 'r2', text: '懂测试和部署', priority: 'bonus' },
+      ],
+      status: 'draft',
+    },
+  ]);
+  await login(context, 'hrbp', referenceApp.baseURL);
+  await page.goto('/staffing?project=pr-ts&demand=e2e-demand-ts');
+  await expect(
+    page.getByRole('heading', { name: '为「业务成功部 TS 新人组」找人' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('来自：「演示：TS 新人组要一个能带大家对齐节奏的牵头人」'),
+  ).toBeVisible();
+
+  await page
+    .getByRole('button', { name: '懂测试和部署：加分，切换为必须项' })
+    .click();
+  await expect(
+    page.getByRole('button', { name: '懂测试和部署：必须，切换为加分项' }),
+  ).toBeVisible();
+  await page.getByRole('textbox', { name: '补一句要求' }).fill('10 月能到岗');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#reqs li').last()).toHaveText('必须10 月能到岗');
+  await page.getByRole('button', { name: '确认需求' }).click();
+  await expect(page.getByText(/确认 · 按这版要求核对候选人/)).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: '候选人核对待接通' }),
+  ).toBeVisible();
+  await expect(page.locator('#cands > article')).toHaveCount(0);
+  const { rows } = await referenceApp.pool.query(
+    "SELECT current_revision FROM staffing_demands WHERE id = 'e2e-demand-ts'",
+  );
+  expect(rows).toEqual([{ current_revision: 4 }]);
+
+  // The confirmed revision is what a reload, and a manager, read back.
+  await page.reload();
+  await expect(page.getByText(/确认 · 按这版要求核对候选人/)).toBeVisible();
+  await context.clearCookies();
+  await login(context, 'ceo', referenceApp.baseURL);
+  await page.goto('/staffing?project=pr-ts&demand=e2e-demand-ts');
+  await expect(page.locator('#reqs li')).toHaveText([
+    '必须担任过组长或牵头人',
+    '必须懂测试和部署',
+    '必须10 月能到岗',
+  ]);
+  await page.goto('/staffing?project=pr-agent&demand=e2e-demand-ts');
+  await expect(
+    page.getByRole('heading', { name: '需求链接失效' }),
+  ).toBeVisible();
 });
 
 test('one sentence becomes a demand card, which is edited and confirmed before matching', async ({

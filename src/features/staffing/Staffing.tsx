@@ -14,6 +14,7 @@ import { hasDraft, sessionStorageOrNull, takeDraft } from './draft';
 import { useJob } from './use-job';
 import {
   conflictText,
+  demandOutOfScope,
   draftFailed,
   draftLost,
   draftRetrying,
@@ -35,9 +36,13 @@ type Failure =
   | { status: 'validation_error'; fieldErrors: Record<string, string[]> }
   | { status: 'forbidden' | 'not_found' | 'conflict'; message: string };
 
-/** What the viewer is told when a write is refused; the input stays where it was. */
+/**
+ * What the viewer is told when a write is refused; the input stays where it was. A
+ * refusal on permission gets the page's own wording, not the server's.
+ */
 export function failureText(result: Failure): string {
   if (result.status === 'conflict') return conflictText;
+  if (result.status === 'forbidden') return demandOutOfScope;
   if (result.status === 'validation_error')
     return Object.values(result.fieldErrors).flat()[0] ?? saveFailed;
   return result.message;
@@ -107,8 +112,12 @@ export type StaffingProps = {
   accountId: string;
   /** The URL said a workbench sentence is waiting (`draft=work`). */
   fromWorkbench?: boolean;
+  /** A drafting job sent before this page load (the URL kept its id); followed again. */
+  resumeJobId?: string | null;
   ports: StaffingPorts;
-  /** New-project entry only: called once the drafted demand exists. */
+  /** Called once the sentence is accepted and its drafting job exists. */
+  onJobStarted?: (jobId: string) => void;
+  /** Called once the drafted demand exists. */
   onDemandReady?: (demand: StaffingDemand) => void;
 };
 
@@ -130,8 +139,9 @@ export function Staffing(props: StaffingProps) {
   const text = typed ?? handed ?? '';
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  // A resumed job keeps no sentence: the job snapshot does not carry it.
   const [sent, setSent] = useState<{ text: string; jobId: string } | null>(
-    null,
+    () => (props.resumeJobId ? { text: '', jobId: props.resumeJobId } : null),
   );
   const demandJob = useJob(sent?.jobId ?? null, ports.readDemandJob);
   const demandSnapshot = demandJob?.snapshot ?? null;
@@ -167,10 +177,10 @@ export function Staffing(props: StaffingProps) {
   >(new Map());
   const [judging, setJudging] = useState<JudgingTarget>(null);
 
-  const { onDemandReady } = props;
+  const { onDemandReady, onJobStarted } = props;
   useEffect(() => {
-    if (generated && !props.project) onDemandReady?.(generated);
-  }, [generated, props.project, onDemandReady]);
+    if (generated) onDemandReady?.(generated);
+  }, [generated, onDemandReady]);
 
   // A confirmed demand whose matching job the page did not know: ask for it once.
   const toOpen =
@@ -227,9 +237,10 @@ export function Staffing(props: StaffingProps) {
         operationId: operationId(),
         inputText,
       });
-      if (result.status === 'success')
+      if (result.status === 'success') {
         setSent({ text: inputText, jobId: result.snapshot.jobId });
-      else setSendError(failureText(result));
+        onJobStarted?.(result.snapshot.jobId);
+      } else setSendError(failureText(result));
     } catch {
       setSendError(offline);
     } finally {

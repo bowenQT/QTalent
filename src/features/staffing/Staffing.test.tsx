@@ -249,6 +249,60 @@ describe('entry and drafting', () => {
     expect(screen.getByText('起草需求卡 · 2 步')).toBeTruthy();
   });
 
+  it('reports the drafting job and the drafted demand for the address', async () => {
+    const onJobStarted = vi.fn();
+    const onDemandReady = vi.fn();
+    render(
+      <Staffing
+        project={project}
+        demand={null}
+        accountId="me"
+        ports={ports()}
+        onJobStarted={onJobStarted}
+        onDemandReady={onDemandReady}
+      />,
+    );
+    fireEvent.change(field(), { target: { value: '找一个负责人' } });
+    fireEvent.click(screen.getByRole('button', { name: '开始' }));
+    await screen.findByRole('heading', { name: '为「演示项目」找人' });
+    expect(onJobStarted).toHaveBeenCalledWith('staffing_demand-job');
+    expect(onDemandReady).toHaveBeenCalledWith(draft);
+  });
+
+  it('follows a drafting job sent before the page loaded, without its sentence', async () => {
+    const p = ports({
+      readDemandJob: vi.fn(async () =>
+        job<'staffing_demand', StaffingDemand>(
+          'staffing_demand',
+          'running',
+          null,
+          'earlier-job',
+        ),
+      ),
+    });
+    render(
+      <Staffing
+        project={project}
+        demand={null}
+        resumeJobId="earlier-job"
+        accountId="me"
+        ports={p}
+      />,
+    );
+    expect(
+      screen
+        .getByRole('heading', { name: '为一个项目找人' })
+        .parentElement?.querySelector('p'),
+    ).toBeNull();
+    await waitFor(() =>
+      expect(p.readDemandJob).toHaveBeenCalledWith(
+        'earlier-job',
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(p.createDemand).not.toHaveBeenCalled();
+  });
+
   it('keeps the sentence and says why when sending is refused', async () => {
     const createDemand = vi
       .fn()
@@ -274,7 +328,8 @@ describe('entry and drafting', () => {
     fireEvent.change(field(), { target: { value: '找人' } });
     for (const message of [
       '请再具体一点',
-      '演示：无权限',
+      // The page's own wording, not the server's.
+      '这份需求现在在你的查看范围之外，刷新后按当前权限查看',
       '保存失败，请检查网络后再试一次',
     ]) {
       fireEvent.click(screen.getByRole('button', { name: '开始' }));
@@ -950,6 +1005,9 @@ describe('helpers', () => {
   it('words refusals for the viewer', () => {
     expect(failureText({ status: 'conflict', message: 'x' })).toBe(
       '需求已变化，请保留输入并刷新',
+    );
+    expect(failureText({ status: 'forbidden', message: '服务端原文' })).toBe(
+      '这份需求现在在你的查看范围之外，刷新后按当前权限查看',
     );
     expect(failureText({ status: 'not_found', message: '演示：不存在' })).toBe(
       '演示：不存在',

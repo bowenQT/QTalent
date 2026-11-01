@@ -61,7 +61,7 @@ export function Generating({
       <header className="nt-head">
         <div>
           <h1>{generatingTitle}</h1>
-          <p>{text}</p>
+          {text ? <p>{text}</p> : null}
         </div>
       </header>
       <div

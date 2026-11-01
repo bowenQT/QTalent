@@ -1,5 +1,7 @@
 import type { BrowserContext, Locator, Page } from '@playwright/test';
-import { test, expect } from '../e2e/fixtures';
+import { test, expect, login } from '../e2e/fixtures';
+import { draftThenConfirmed, seedDemand } from '../e2e/staffing-seed';
+import { samplePages } from '../../src/app/dev/staffing/samples';
 import { compareElements, expectSameBox, stabilize } from './compare';
 import { referenceConfig } from './reference-config';
 import { startPrototypeServer } from './prototype-server';
@@ -12,9 +14,10 @@ import {
 
 /**
  * BOW-853 find-people page against prototype Y, same run, element by element.
- * The engineering side is the development sample /dev/staffing (prototype seed data
- * through the staffing contract): the demand read (BOW-852) and matching read (BOW-854)
- * are not on main yet. When /staffing reads real data, this spec moves to it.
+ * The header and demand card are compared on the real /staffing route, on the BOW-852
+ * demand read (the sample's demand written into the isolated test database). The
+ * candidates are compared on the development sample /dev/staffing: the matching read
+ * (BOW-854) is not on main yet, and the real route shows matching as not connected.
  */
 const viewports = [
   ['desktop', referenceConfig.desktop],
@@ -266,3 +269,89 @@ for (const [viewportName, viewport] of viewports)
         );
     });
   });
+
+/** The prototype scene's demand, on the real route, for the role the scene shows. */
+const realScenes = [
+  { scene: scenes[0], key: 'agent', role: 'ceo' },
+  { scene: scenes[1], key: 'ts', role: 'hrbp' },
+] as const;
+
+for (const { scene, key, role } of realScenes)
+  for (const [viewportName, viewport] of viewports)
+    test(`${scene.name} demand card on the real route at ${viewportName}`, async ({
+      browser,
+      context,
+      referenceApp,
+    }, testInfo) => {
+      const demand = samplePages[key].demand;
+      if (demand.status !== 'confirmed') throw new Error('confirmed sample');
+      await seedDemand(referenceApp.pool, draftThenConfirmed(demand));
+      await login(context, role, referenceApp.baseURL);
+      await withPrototype(browser, viewport, async (url, referenceContext) => {
+        const prototype = await open(
+          referenceContext,
+          url(scene.prototype),
+          viewport,
+        );
+        const page = await open(
+          context,
+          `/staffing?project=${demand.projectId}&demand=${demand.id}`,
+          viewport,
+        );
+        await expect(prototype.locator('#needcard')).toBeVisible();
+        await expect(page.locator('#needcard')).toBeVisible();
+        for (const selector of ['.nt-head h1', '.nt-head p', '#reqs li'])
+          expect
+            .soft(
+              await page.locator(selector).allTextContents(),
+              `real ${selector}`,
+            )
+            .toEqual(await prototype.locator(selector).allTextContents());
+        // Matching is not connected: the section says so, with no sample candidates.
+        await expect(
+          page.getByRole('heading', { name: '候选人核对待接通' }),
+        ).toBeVisible();
+        await expect(page.locator('#cands > article')).toHaveCount(0);
+        expect(await noOverflow(page), 'no horizontal overflow').toBe(true);
+
+        await stabilize(prototype);
+        await stabilize(page);
+        for (const selector of ['.nt-head', '#needcard'])
+          await expectSameBox(
+            prototype.locator(selector),
+            page.locator(selector),
+            `real ${scene.name} ${selector}`,
+            { keys: ['x', 'width'] },
+          );
+        await expectSameGap(
+          prototype,
+          page,
+          '.nt-head',
+          '#needcard',
+          'real head → demand card',
+        );
+        const name = (part: string) =>
+          `real-${scene.name}-${viewportName}-${part}`;
+        for (const pair of [
+          { part: 'head', selector: '.nt-head' },
+          {
+            part: 'demand-title',
+            selector: '#needcard > .nt-row:first-child > h3',
+          },
+          {
+            part: 'requirements',
+            selector: '#reqs',
+            mask: withinMasks.requirements,
+          },
+          { part: 'add-row', selector: '#needcard > .nt-row:has(#reqadd)' },
+          { part: 'demand-caption', selector: '#needcard > .nt-caption' },
+        ])
+          await compareElements(
+            prototype.locator(pair.selector),
+            page.locator(pair.selector),
+            testInfo,
+            name(pair.part),
+            { mask: pair.mask, snap: true },
+          );
+      });
+    });
