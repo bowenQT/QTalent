@@ -59,7 +59,7 @@
         <div class="n-asks" style="margin:var(--s-2) 0 var(--s-6)">${(SUGGEST[role] || []).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>`;
       // 实时录音入口：HR 和导师（桌面录音页 recording.html）
       const recStart = html`<div class="nt-recstart"><a class="n-btn n-btn--sm n-btn--ink" href="recording.html">${icon('mic')}开始录音</a><span class="nt-muted">多人会议或观察速记</span></div>`;
-      const head = html`<header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · ${role === 'mentor' ? 'XEngineer 第六期已结营 · W8 对人复盘今天截止' : `XEngineer 第六期结营盘点进行中 · 证据截至 ${NT.md(NT.TODAY)}`}</p></div></header>`;
+      const head = html`<header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · ${role === 'mentor' ? 'XEngineer 第六期已结营 · W8 对人复盘今天截止' : `XEngineer 第六期结营盘点进行中 · 证据截至 ${NT.md(NT.TODAY)}`}</p></div>${exportBtn()}</header>${exportHost()}`;
       // 导师：进行中的任务和上传材料收进「材料与任务」，默认折叠
       const fold = html`<details class="n-card nt-fold" id="fold" ${raw(location.hash === '#upload' ? 'open' : '')}><summary><h3 class="n-section-title">材料与任务</h3><span class="nt-muted">${st.visibleTasks().filter((t) => t.state !== 'done').length} 个在处理</span>${icon('chev')}</summary>
           <div id="tasks"></div>
@@ -95,6 +95,7 @@
       wireTodos();
       renderTasks();
       wireUpload();
+      wireExport();
       if (st.can('changes')) {
         renderChanges();
         UI.wireChanges($('#chg-list'));
@@ -110,7 +111,7 @@
   const peekBtn = (pid) => (pid ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-peek="p:${pid}">${icon('user')}看速览</button>` : '');
   const todoActs = (t) => (t.kind === 'clue' ? html`<div class="n-todo__acts">${clueSrc(t.clue)}${peekBtn(st.get().watchClues.find((c) => c.id === t.clue)?.person)}<button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，进入值得关注</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
   const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li class="${t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
-  const GROUPS = [['verify', '待核对', ['verify']], ['clue', '待核实的关注线索', ['clue']], ['plan', '待确认', ['plan', 'ruleback']], ['rulesug', '规则修订建议', ['rulesug']], ['rulereview', '按新版本复核', ['rulereview']], ['calib', '待复核的评分', ['calib']], ['follow', '待回访', ['track', 'talk']]];
+  const GROUPS = [['verify', '待核对', ['verify']], ['confirm', '待你确认的建议分', ['confirm']], ['conclusion', '节点结论', ['conclusion']], ['reassign', '待重新分派', ['reassign']], ['takeover', '接手的事', ['takeover']], ['clue', '待核实的关注线索', ['clue']], ['plan', '待确认', ['plan', 'ruleback']], ['rulesug', '规则修订建议', ['rulesug']], ['rulereview', '按新版本复核', ['rulereview']], ['calib', '待复核的评分', ['calib']], ['cover', '待补记录', ['cover']], ['follow', '待回访', ['track', 'talk']]];
   let openGroup = null, showHandled = false;
   // 已处理的线索：核实的和不采纳的都留痕，不采纳的写出理由，可以改回待核实
   function handledBlock() {
@@ -130,6 +131,9 @@
       ${groups.map((g) => html`<div class="n-todogrp"><button class="n-todogrp__head" type="button" data-grp="${g.k}" aria-expanded="${g.k === open}">${g.l}<span class="n-count is-quiet">${g.list.length}</span>${g.k === open ? '' : html`<small>${g.list[0].title}${g.list.length > 1 ? ' 等' : ''}</small>`}${icon('chev')}</button>${g.k === open ? todoList(g.list) : ''}</div>`)}
       ${handledBlock()}`;
   }
+  // 线索处理失败时说清发生了什么：只由负责这个人的 HR 处理；或这条线索已有新结论
+  const CLUE_UNDO_FAIL = '撤销失败：这条线索已有新结论，已保留当前结果';
+  const clueFail = (id) => { const c = st.get().watchClues.find((x) => x.id === id); return !c || st.role() !== 'hrbp' || st.scope(c.person) !== 'full' ? '线索由负责这个人的 HR 处理' : '这条线索已有新结论，已刷新'; };
   function wireTodos() {
     const host = $('#todo'); if (!host) return;
     const redraw = () => mount(host, todoBlock(st.role(), st.todos()));
@@ -138,18 +142,20 @@
       if (g) { openGroup = g.dataset.grp; redraw(); return; }
       if (e.target.closest('#todo-handled')) { showHandled = !showHandled; redraw(); return; }
       const un = e.target.closest('[data-cun]');
-      if (un) { st.unverifyClue(un.dataset.cun); redraw(); NT.toast('已改回待核实，已从「值得关注的人」移出'); return; }
+      if (un) { if (!st.unverifyClue(un.dataset.cun)) { NT.toast(clueFail(un.dataset.cun)); redraw(); return; } redraw(); NT.toast('已改回待核实，已从「值得关注的人」移出'); return; }
       const b = e.target.closest('[data-cok],[data-cno]'); if (!b) return;
       if (b.dataset.cok) {
-        const c = st.verifyClue(b.dataset.cok, true); redraw();
-        NT.toast(`已核实，${st.person(c.person).name}会出现在「值得关注的人」`, { undo: () => { st.unverifyClue(c.id); redraw(); } });
+        const c = st.verifyClue(b.dataset.cok, true); if (!c) { NT.toast(clueFail(b.dataset.cok)); redraw(); return; }
+        const token = c.handledToken; redraw();
+        NT.toast(`已核实，${st.person(c.person).name}会出现在「值得关注的人」`, { undo: () => { const ok = st.unverifyClue(c.id, token); redraw(); return ok; }, failText: CLUE_UNDO_FAIL });
       }
       if (b.dataset.cno) {
         const r = await NT.dialog({ title: '不采纳这条线索', body: html`<label class="n-field"><span class="n-field__label">理由（必填）</span><textarea class="n-textarea" rows="2" id="cn-why" placeholder="比如：周报里说的是同一件事，只能算一条证据"></textarea></label><p class="nt-caption">这条线索只留在你的处理记录里。</p>`,
           actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '不采纳', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#cn-why').value.trim(), read: (d) => d.querySelector('#cn-why').value.trim() }] });
         if (r?.value !== 'ok') return;
-        const c = st.verifyClue(b.dataset.cno, false, r.data); redraw();
-        NT.toast('已不采纳，理由已记录', { undo: () => { st.unverifyClue(c.id); redraw(); } });
+        const c = st.verifyClue(b.dataset.cno, false, r.data); if (!c) { NT.toast(clueFail(b.dataset.cno)); redraw(); return; }
+        const token = c.handledToken; redraw();
+        NT.toast('已不采纳，理由已记录', { undo: () => { const ok = st.unverifyClue(c.id, token); redraw(); return ok; }, failText: CLUE_UNDO_FAIL });
       }
     };
   }
@@ -258,9 +264,18 @@
     uploading: ['upload', '上传中'], queued: ['clock', '已提交，排队中'], transcribing: ['wave', '转写中'], shaping: ['spark', '整理中'],
     partial: ['split', '部分待核对'], done: ['check', '已完成'], failed: ['x', '整理失败'],
   };
+  // 材料批次：一次投递一行，点开是回执；面评 PDF 打开导入预览
+  const DROP_ICON = { processing: 'spark', verify: 'split', confirm: 'check2', done: 'check' };
+  function dropRow(d) {
+    const [k, label] = st.dropState(d), s = st.dropSummary(d);
+    const parts = d.kind === 'interview' ? [d.files[0].meta] : [`${s.files} 个文件`, s.processing && `${s.processing} 个处理中`, s.failed && `${s.failed} 个失败`, s.people && `${s.people} 人`, `${s.events} 件事`, s.verifyOpen && `${s.verifyOpen} 处待核对`, s.toConfirm && `${s.toConfirm} 件待确认`].filter(Boolean);
+    const act = d.kind === 'interview' ? '打开导入预览' : s.mineToConfirm ? `去确认 ${s.mineToConfirm} 件` : '看回执';
+    return html`<div class="n-task" data-state="${k === 'processing' ? 'shaping' : k === 'done' ? 'done' : 'partial'}" data-drop="${d.id}"><span class="n-task__icon">${icon(DROP_ICON[k])}</span><div><div class="n-task__name">${d.title}<span class="n-badge">${st.ENTRY[d.entry]}</span></div><div class="n-task__state"><b>${label}</b> · ${parts.join(' · ')}</div>${k === 'processing' ? html`<div class="n-progress is-indeterminate"><i></i></div>` : ''}</div><div class="n-task__acts"><a class="n-btn n-btn--sm ${s.mineToConfirm || d.kind === 'interview' ? '' : 'n-btn--ghost'}" href="${st.dropHref(d)}${s.mineToConfirm ? '#confirm' : ''}">${act}</a></div></div>`;
+  }
   function renderTasks() {
     const all = st.get().tasks, tasks = st.visibleTasks();
-    mount($('#tasks'), tasks.map((t) => {
+    st.tickDrops();
+    mount($('#tasks'), [...st.drops().map(dropRow), ...tasks.map((t) => {
       const [ic, label] = STATE[t.state];
       const act = {
         uploading: html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel="${t.id}">取消</button>`,
@@ -271,7 +286,7 @@
       }[t.state] || '';
       const bar = t.state === 'uploading' ? html`<div class="n-progress"><i style="width:${t.progress}%"></i></div>` : ['transcribing', 'shaping'].includes(t.state) ? html`<div class="n-progress is-indeterminate"><i></i></div>` : '';
       return html`<div class="n-task" data-state="${t.state}" data-id="${t.id}"><span class="n-task__icon">${icon(ic)}</span><div><div class="n-task__name">${t.name}${t.preset ? html` <span class="n-badge n-badge--demo">演示</span>` : ''}</div><div class="n-task__state"><b>${label}</b> · ${t.note}</div>${bar}</div><div class="n-task__acts">${act}</div></div>`;
-    }));
+    })]);
     $('#tasks').onclick = (e) => {
       const r = e.target.closest('[data-retry]'), c = e.target.closest('[data-cancel]');
       if (r) retry(r.dataset.retry);
@@ -305,32 +320,33 @@
     NT.toast(done.state === 'partial' ? `「${done.name}」整理完成，1 处人名待核对` : `「${done.name}」整理完成`);
   }
 
+  // 统一投递：一次拖入多个文件成一批，文件各自上传、解析，有的失败、有的要核对；处理完在回执里看读到了什么
   function wireUpload() {
     const files = $('#files');
-    const add = async (name, ext, steps, final) => {
-      const li = document.createElement('li'); li.className = 'n-file';
-      li.innerHTML = `<span class="n-file__ext">${ext}</span><div style="min-width:0"><div class="n-file__name">${NT.esc(name)}</div><div class="n-file__state">上传中</div><div class="n-progress"><i style="width:0%"></i></div></div><span></span>`;
-      files.prepend(li);
-      const bar = $('.n-progress i', li), state = $('.n-file__state', li);
-      for (let p = 0; p <= 100; p += 20) { bar.style.width = `${p}%`; await NT.wait(160); }
-      $('.n-progress', li).classList.add('is-indeterminate');
-      for (const s of steps) { state.textContent = s; await NT.wait(900); }
-      $('.n-progress', li).remove();
-      state.innerHTML = final[0]; li.lastElementChild.outerHTML = final[1];
+    let timer = 0;
+    const draw = (d) => {
+      const s = st.dropSummary(d), [k, label] = st.dropState(d);
+      mount(files, html`<li class="n-dropbatch" data-state="${k}"><div class="n-dropbatch__head"><b>${d.title}</b><span class="n-rstate" data-s="${k}">${label}</span></div>
+        ${d.files.map((f) => { const [ic, fl] = st.FILE_STATE[f.state]; return html`<div class="n-file"><span class="n-file__ext">${UI.attachKind(f.name).ext}</span><div style="min-width:0"><div class="n-file__name">${f.name}</div><div class="n-file__state"><span class="${f.state === 'failed' ? 'err' : f.state === 'done' ? 'ok' : ''}">${icon(ic, 12)} ${fl}</span> · ${f.meta}</div>${['queued', 'parsing', 'transcribing', 'uploading'].includes(f.state) ? html`<div class="n-progress is-indeterminate"><i></i></div>` : ''}</div><span></span></div>`; })}
+        <div class="n-dropbatch__foot"><span class="nt-muted">${s.processing ? `${s.processing} 个处理中，可以离开，结果会回到「进行中的任务」` : [s.failed && `${s.failed} 个失败`, s.verifyOpen && `${s.verifyOpen} 处待核对`, `${s.events} 件事`].filter(Boolean).join(' · ')}</span><a class="n-btn n-btn--sm" href="receipt.html?id=${d.id}">看回执</a></div></li>`);
     };
-    $('#drop').addEventListener('click', () => add('W8 对人复盘纪要.docx', 'DOCX', ['解析中 · 读取 9 段', '整理中 · 提取人员和事件'],
-      ['<span class="ok">已解析</span> · 9 段，定位到段落 · 提取 2 条事件待确认 · 已关联「XEngineer 第六期」', '<a class="n-btn n-btn--sm" href="record.html?q=W8%20对人复盘：孟逸尘主动把任务池同步给了全组">确认事件</a>']));
+    // 批次里还有没走完的步骤就按时推进；d 是本页刚投递、要在投递区画出来的批次
+    const busy = (b) => b.files.some((f) => f.steps?.some((x) => !x.done));
+    const watch = (d) => {
+      clearInterval(timer);
+      timer = setInterval(() => { if (!document.body.contains(files)) { clearInterval(timer); return; } if (st.tickDrops()) { if (d) draw(st.drop(d.id)); renderTasks(); } if (!st.drops().some(busy)) clearInterval(timer); }, 500);
+    };
+    const follow = (d) => { draw(d); renderTasks(); watch(d); };
+    // 刷新或离开后回到工作台：之前投递、还没处理完的批次接着推进
+    if (st.drops().some(busy)) watch(null);
+    $('#drop').addEventListener('click', () => follow(st.addDemoDrop()));
     ['dragover', 'dragenter'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.add('is-over'); }));
     ['dragleave', 'drop'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.remove('is-over'); }));
     // 一次可以拖入多个；格式与「记录关键事件」的附件同一口径（v1.5 3.34）
     $('#drop').addEventListener('drop', (e) => {
       const list = [...e.dataTransfer.files];
       if (list.length > UI.ATT_MAX) NT.toast(`已加入前 ${UI.ATT_MAX} 个文件，其余 ${list.length - UI.ATT_MAX} 个请再选一次`);
-      list.slice(0, UI.ATT_MAX).forEach((f) => {
-        const k = UI.attachKind(f.name), err = UI.attachCheck(f);
-        if (err) add(f.name, k.ext, [], [`<span class="err">${NT.esc(err)}</span>`, '<span></span>']);
-        else add(f.name, k.ext, [k.unit === '时' ? '转写中' : '解析中 · 识别文字', '整理中 · 提取人员和事件'], [`<span class="ok">已解析</span> · ${k.label} <span class="n-badge n-badge--demo">演示</span>`, '<span></span>']);
-      });
+      follow(st.addFilesDrop(list.slice(0, UI.ATT_MAX).map((f) => ({ name: f.name, err: UI.attachCheck(f), kind: UI.attachKind(f.name) }))));
     });
   }
 
@@ -338,7 +354,7 @@
   // ---------- 管理者首页：找人、值得关注的人、值得关注的项目、我的关注；判断提醒一行告知 ----------
   function renderCeo(main, me) {
     mount(main, html`
-      <header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · 全部人才项目</p></div><div class="nt-notes" id="jsig" role="note" aria-label="提醒"></div></header>
+      <header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · 全部人才项目</p></div><div class="nt-notes" id="jsig" role="note" aria-label="提醒"></div>${exportBtn()}</header>${exportHost()}
       <section class="n-find is-pop" aria-label="找人">
         <div class="n-composer is-hero" id="composer">
           <span class="nt-ip" data-ip="rest" data-size="36" id="composer-ip"></span>
@@ -362,12 +378,108 @@
         <div class="nt-grid"><article class="n-card n-progs" id="progs" aria-labelledby="progs-h"></article><article class="n-card n-follows" id="follows" aria-labelledby="follows-h"></article></div>
       </div>`);
     wireComposer('ceo');
+    wireExport();
     $('#composer-field').addEventListener('keydown', (e) => { if (e.key === 'Escape') e.target.blur(); });
     drawCeo();
     wireWatch();
     wireFollows();
     UI.peek.changed = drawCeo;
   }
+  // 批量导出已确认内容（BOW-912 口径）：只导当前视角范围内、已确认的事件分；表头写明导出时间、导出人、口径和范围；
+  // 导出成功或失败都记审计。演示：?export=fail 看生成失败
+  const EX_TIME = [['', '全部时间'], ['2025-09-04', '近 12 个月'], ['2026-06-04', '近 3 个月']];
+  let exJob = null;
+  const exportBtn = () => (st.canExport() ? html`<div class="nt-head__acts"><button class="n-btn n-btn--sm" type="button" id="btn-export">${icon('download')}导出已确认内容</button></div>` : '');
+  const exportHost = () => (st.canExport() ? html`<div id="export-st" aria-live="polite"></div>` : '');
+  const exLabel = (sc, from) => `${sc.label} · ${EX_TIME.find(([k]) => k === from)[1]}`;
+  const EX_BASIS = '截至导出时已确认的关键事件与维度分，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分和还在评分复核里的分留在系统里；盘点结论以冻结快照为准';
+  const exSkipped = (n) => html`<span>已跳过 ${n} 条待确认、待复核或还在评分复核里的分</span>`;
+  function wireExport() {
+    $('#btn-export')?.addEventListener('click', openExport);
+    drawExport();
+  }
+  async function openExport() {
+    const scopes = st.exportScopes();
+    const sum = (d) => {
+      const sc = scopes.find((x) => x.id === $('#ex-scope', d).value), from = $('#ex-time', d).value, r = st.exportRows(sc.people, from);
+      mount($('#ex-sum', d), r.rows.length
+        ? html`<b>${r.people} 人 · ${r.rows.length} 条已确认的维度分</b>${r.skipped ? exSkipped(r.skipped) : ''}`
+        : html`<b>这个范围里已确认的内容 0 条</b>${!sc.people.length ? html`<span>这个范围里 0 人</span>` : r.skipped ? exSkipped(r.skipped) : ''}`);
+      mount($('#ex-head', d), html`<dt>导出时间</dt><dd>生成时写入，精确到分钟</dd><dt>导出人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>${EX_BASIS}</dd><dt>范围</dt><dd>${exLabel(sc, from)}</dd>`);
+      return r.rows.length;
+    };
+    const r = await NT.dialog({
+      title: '导出已确认内容',
+      body: html`<div class="n-export">
+        <div class="n-export__pick">
+          <label class="n-field"><span class="n-field__label">范围</span><select class="n-select" id="ex-scope">${scopes.map((x) => html`<option value="${x.id}">${x.label}（${x.people.length} 人）</option>`)}</select></label>
+          <label class="n-field"><span class="n-field__label">事件时间</span><select class="n-select" id="ex-time">${EX_TIME.map(([k, l]) => html`<option value="${k}" ${raw(k === '2025-09-04' ? 'selected' : '')}>${l}</option>`)}</select></label>
+        </div>
+        <p class="n-export__sum" id="ex-sum"></p>
+        <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl id="ex-head"></dl></div>
+        <p class="nt-caption">每行是一条已确认的维度分，附行为锚点、原文引用、评分人、规则版本和来源位置。只含你查看范围内的人；象限位置和盘点结论以盘点冻结快照为准，到盘点里查看。导出会记入审计日志。</p>
+      </div>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '生成表格', value: 'go', cls: 'n-btn--ink', icon: 'download', validate: (d) => (sum(d) ? true : '换一个范围或时间再生成'), read: (d) => ({ scope: $('#ex-scope', d).value, from: $('#ex-time', d).value }) }],
+      onOpen: (d) => { sum(d); d.addEventListener('change', () => sum(d)); },
+    });
+    if (r?.value !== 'go') return;
+    runExport(scopes.find((x) => x.id === r.data.scope), r.data.from);
+  }
+  function runExport(sc, from) {
+    if (exJob?.url) URL.revokeObjectURL(exJob.url);
+    exJob = { state: 'busy', sc, from, tries: (exJob?.sc === sc ? exJob.tries : 0) + 1 };
+    drawExport();
+    const job = exJob;
+    setTimeout(() => {
+      if (exJob !== job) return;
+      // 生成前按当前视角再判一次：期间权限变了就拒绝，范围外的人不会进表，取不到已确认内容就不生成
+      const r = st.exportCheck(sc.people, from), at = st.clockNow(), label = exLabel(sc, from);
+      if (r.state === 'deny') {
+        st.audit('拒绝导出', `已确认内容 · ${label}`);
+        Object.assign(job, { state: 'deny' });
+      } else if (r.state === 'empty') {
+        Object.assign(job, { state: 'empty' });
+      } else if (NT.param('export') === 'fail' && job.tries === 1) {
+        st.audit('导出失败', `已确认内容 · ${label}`);
+        Object.assign(job, { state: 'fail' });
+      } else {
+        const csv = buildCsv(r.rows, at, label);
+        const url = URL.createObjectURL(new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' }));
+        st.audit('导出已确认内容', `${label} · ${r.people} 人 · ${r.rows.length} 条维度分`);
+        Object.assign(job, { state: 'done', at, url, n: r.rows.length, people: r.people, name: `已确认内容-${sc.label}-${NT.TODAY.replaceAll('-', '')}.csv` });
+      }
+      drawExport();
+    }, NT.reduced ? 200 : 1400);
+  }
+  function buildCsv(rows, at, label) {
+    const q = (v) => `"${String(v ?? '').replaceAll('"', '""')}"`;
+    const head = [['导出时间', at], ['导出人', st.me().name], ['口径', EX_BASIS], ['范围', label], ['说明', '演示数据，人员均为化名']];
+    const cols = ['人员', '组织', '事件日期', '关键事件', '维度', '分数', '行为锚点', '原文引用', '评分人', '评价规则版本', '来源位置'];
+    const body = rows.map((x) => { const p = st.person(x.pid); return [p.name, st.orgShort(p.org), x.date, x.title, x.dim, x.v, x.anchor, x.note, st.person(x.by)?.name || x.by, x.rubric, x.src && !x.srcExact ? `全部来源：${x.src}` : x.src]; });
+    return [...head, [], cols, ...body].map((r) => r.map(q).join(',')).join('\r\n');
+  }
+  function drawExport() {
+    const host = $('#export-st'); if (!host) return;
+    const j = exJob;
+    if (!j) { host.hidden = true; mount(host, ''); return; }
+    host.hidden = false;
+    const label = exLabel(j.sc, j.from);
+    const close = html`<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-exclose>关闭</button></div>`;
+    mount(host, j.state === 'busy'
+      ? html`<div class="n-notice is-plain n-exst" data-state="busy">${icon('clock')}<div>正在生成「${label}」的表格，只取已确认的内容…</div></div>`
+      : j.state === 'deny'
+        ? html`<div class="n-notice is-deny n-exst" data-state="deny">${icon('lock')}<div><b>导出停在权限校验这一步。</b>生成前按你现在的视角重新校验，批量导出只对管理者和 HR 开放；这次尝试已记入审计日志。${close}</div></div>`
+      : j.state === 'empty'
+        ? html`<div class="n-notice is-plain n-exst" data-state="empty">${icon('info')}<div><b>导出停在取数这一步。</b>生成时「${label}」里已确认的内容 0 条，换一个范围或时间再导出。${close}</div></div>`
+      : j.state === 'fail'
+        ? html`<div class="n-notice is-deny n-exst" data-state="fail">${icon('x')}<div><b>导出停在生成文件这一步。</b>导出服务超时，文件待重新生成；这次失败已记入审计日志。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" data-exretry>${icon('retry')}重试</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-exclose>关闭</button></div></div></div>`
+        : html`<div class="n-notice is-plain n-exst" data-state="done">${icon('check')}<div><b>表格已生成：</b>${label}，${j.people} 人、${j.n} 条已确认的维度分。表头写明了导出时间 ${j.at.slice(5)} 和口径，盘点结论以冻结快照为准；已记入审计日志。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm n-btn--ink" href="${j.url}" download="${j.name}">${icon('download')}下载表格</a><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-exclose>关闭</button></div></div></div>`);
+    host.onclick = (e) => {
+      if (e.target.closest('[data-exretry]')) runExport(j.sc, j.from);
+      if (e.target.closest('[data-exclose]')) { if (j.url) URL.revokeObjectURL(j.url); exJob = null; drawExport(); }
+    };
+  }
+
   function drawCeo() { drawWatch(); drawJudge(); drawPrograms(); drawFollows(); }
 
   // 值得关注的人：按规则入选，不显示分数。「全部」里「需要介入」收成列表顶部的一行，

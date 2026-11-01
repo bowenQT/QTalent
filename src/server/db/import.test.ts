@@ -23,6 +23,13 @@ vi.mock('../modules/evaluation-system', async () => ({
 vi.mock('./client', () => ({ createDatabase: mocks.connection }));
 const records: { table: unknown; row: Record<string, unknown> }[] = [];
 const tx = {
+  select: () => ({
+    from: (table: unknown) => ({
+      where: async () =>
+        records.filter((row) => row.table === table).map((row) => row.row),
+    }),
+  }),
+  execute: vi.fn(async () => ({ rows: [] })),
   insert: (table: unknown) => ({
     values: (input: Record<string, unknown> | Record<string, unknown>[]) => {
       const rows = Array.isArray(input) ? input : [input];
