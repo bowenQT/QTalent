@@ -343,6 +343,31 @@ const samples: Record<string, SourceSample> = {
     }),
     original: { status: 'not_connected' },
   },
+  'pdf-restricted': {
+    label: 'PDF 完整原件在查看范围之外',
+    source: material({
+      ...ids('pdf-restricted'),
+      location: { kind: 'pdf', page: 3, textRange: { start: 0, end: 10 } },
+      excerpt: '复盘会上补充了回滚预案',
+      sourceCategory: 'original',
+      demo: true,
+    }),
+    original: { status: 'restricted' },
+  },
+  'image-failed': {
+    label: '图片原图暂时打不开',
+    source: material({
+      ...ids('image-failed'),
+      location: {
+        kind: 'image',
+        region: { left: 0.2, top: 0.1, right: 0.7, bottom: 0.4 },
+      },
+      excerpt: '看板上标出了两项延期任务',
+      sourceCategory: 'original',
+      demo: true,
+    }),
+    original: { status: 'failed' },
+  },
 };
 
 /** 样张里的「六种定位」与其他状态，按页面上列出的顺序。 */

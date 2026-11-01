@@ -32,7 +32,7 @@ const params = (value: Record<string, string>) => ({
 });
 
 describe('source viewer samples', () => {
-  it('covers the six location kinds, code, the baseline and pending originals', () => {
+  it('covers the six location kinds, code, the baseline and originals that stay closed', () => {
     expect(sampleKeys).toEqual([
       'document',
       'pdf',
@@ -45,6 +45,8 @@ describe('source viewer samples', () => {
       'baseline',
       'pdf-pending',
       'image-pending',
+      'pdf-restricted',
+      'image-failed',
     ]);
     expect(sample('code').source.provenance).toEqual({
       kind: 'submitted_code_snapshot',

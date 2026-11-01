@@ -375,6 +375,35 @@ describe('SourceViewer before the original is connected', () => {
     );
     expect(screen.getByText('原件待接入')).toBeTruthy();
   });
+
+  it.each([
+    [
+      { status: 'restricted' } as const,
+      '完整原件在你的查看范围之外',
+      '这里只给你看引用的这一段，见「提取」',
+    ],
+    [{ status: 'failed' } as const, '原件暂时打不开', '刷新页面再试'],
+  ])('says why the original stays closed: %o', (original, title, text) => {
+    show(
+      source({ kind: 'pdf', page: 2, textRange: { start: 0, end: 3 } }),
+      original,
+    );
+    expect(screen.getByRole('status').textContent).toBe(`${title}${text}`);
+    expect(
+      screen.getByText('引用的原文', { selector: 'blockquote' }),
+    ).toBeTruthy();
+    cleanup();
+    show(
+      source({
+        kind: 'image',
+        region: { left: 0, top: 0, right: 1, bottom: 0.5 },
+      }),
+      original,
+    );
+    expect(screen.getByText(`${title}，${text}`)).toBeTruthy();
+    expect(screen.queryByText('原图待接入')).toBeNull();
+    expect(screen.queryByRole('img', { name: '图片原件' })).toBeNull();
+  });
 });
 
 describe('SourceViewer extract panel', () => {

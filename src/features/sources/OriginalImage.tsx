@@ -11,10 +11,13 @@ const percent = (value: number) => `${Math.round(value * 100)}%`;
 export function ImageOriginal({
   location,
   content,
+  emptyText = '原图待接入',
   locate,
 }: {
   location: At<'image'>;
   content: Content<'image'> | null;
+  /** 没有原图时框里写的话：待接入、范围之外或打不开。 */
+  emptyText?: string;
   locate: Locate;
 }) {
   const { left, top, right, bottom } = location.region;
@@ -34,7 +37,7 @@ export function ImageOriginal({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={image.url} alt="图片原件" />
         ) : (
-          <span className={styles.frameEmpty}>原图待接入</span>
+          <span className={styles.frameEmpty}>{emptyText}</span>
         )}
         <div
           {...locatedProps(locate, styles.region)}

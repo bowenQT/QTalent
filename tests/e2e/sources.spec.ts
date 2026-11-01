@@ -94,6 +94,16 @@ test('every location kind opens from its citation, lands on the cited place and 
   await page.getByRole('button', { name: '定位到原文' }).click();
   await expect(target).toBeFocused();
   await expect(target).toBeInViewport();
+
+  // 整份原件不在查看范围或打不开：只显示提取出的这一段，并写明原因。
+  for (const [key, title, excerpt] of [
+    ['pdf-restricted', '完整原件在你的查看范围之外', '复盘会上补充了回滚预案'],
+    ['image-failed', '原件暂时打不开', '看板上标出了两项延期任务'],
+  ] as const) {
+    await page.goto(sourceHref(ids(key), VIEW));
+    await expect(page.getByText(title)).toBeVisible();
+    await expect(page.locator('blockquote')).toHaveText(excerpt);
+  }
 });
 
 function ids(key: string) {
