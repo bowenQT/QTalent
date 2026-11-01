@@ -1,6 +1,6 @@
 # 材料出处持久化边界（BOW-926）
 
-本目录消费最终 BOW-897 契约（`e4462114690191fb9cbcd403f6fb0090bd3cfddb`），以现有 `records_fragments` 为唯一片段存储。当前提交先实现位置 codec 和 PDF 确定性投影；尚未实现数据库 writer/reader、权限装配或生产接线。
+本目录消费最终 BOW-897 契约（`e4462114690191fb9cbcd403f6fb0090bd3cfddb`），以现有 `records_fragments` 为唯一片段存储。当前提交实现位置 codec、PDF 确定性投影和私有 canonical writer/reader；当前权限装配及应用生产接线仍待完成。
 
 ## 已有纯规则
 
@@ -15,18 +15,27 @@
 
 `expectedBinding` 必须来自服务器独立核实的原件版本及实际 parse 事实；`serverProvenance` 来自服务器确定的材料上下文，不能从客户端 locator 或材料种类推断。调用者不得把同一请求复制为 expected。纯规则没有资格授予来源读取权，也不校验原件字节：原件摘要先由实际解析/私有上传边界验证。
 
+## 私有持久化
+
+`store.ts` 在调用者真实 Transaction 内发布 materialParses / fragments / materialPdfPages，校核现有任务的 attempt、revision、inputVersion 和取消状态，复用现有 job 行锁；按 parse 业务键串行重放，完整不可变事实相同才返回 existing。原件版本/摘要从实际表读取，基线与缺失来源拒绝。调用者仍须先核当前写入权限，并在既有 commitJobUpdate 同一事务中，仅 created 时入首次整理队列。store 不自行新开事务或复制任务状态。
+
+reader 核验全部 parse 片段、页面摘要及原件绑定，再返回私有事实；没有 parse 绑定的旧四类交给旧 reader，不猜来源类别。返回私有事实不授予网页或模型可见性，完整当前授权必须在对外输出之前完成。
+
+真实 PG 套件先在正式历史迁移下写四类旧片段，再应用 X1 的受控原生验证目录（显式 `QTALENT_926_TEST_MIGRATIONS`），测试完成后删除独立 `_test` 库；默认仍使用正式迁移，不以临时编号冒充发布顺序。
+
 ## 本片代码依赖与验收范围
 
 - 仅依赖现有 Node crypto、Zod 和最终来源契约；没有新增共享依赖或 SQL。
-- 单测使用明确合成的页文本与解析 bundle。它们验证范围与绑定规则，不是实际 PDF decode、数据库或授权验收。
+- 纯规则单测使用明确合成的页文本与解析 bundle；另有23项真实PG存取/围栏/事务及pg-boss验证，仍不证明当前权限与应用生产接线。
+- 真实PDF联验在固定866 `17ce4a52ecba0fe8e459d7bd1e4a0e02d673d803` + main71f8d9组合完成：8项实际PDF→生产worker→projection通过。独立组合测试提交 `71af19025e70613f1b8bbb99e13562e37118a30f`，等X1接入真实parser依赖后纳入本分支默认回归，不更改#189作者源码。
 - 本片可用 `pnpm exec vitest run src/server/modules/records/material-sources --maxWorkers=2` 验证。
 
 ## 整卡仍需完成
 
 - 消费 X1 [已冻结的共享结构](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6560249330)：不可变 materialParses、复合绑定的 fragments、materialPdfPages；最终迁移由 X1 在 846→845→873 之后生成。
-- 使用既有 job attempt/revision/cancel 事务完成真实 canonical 写入、幂等重放及首次整理入队；不以任务 JSON 或内存结果代替持久化。
-- 通过新连接读取五类位置，验证旧四类升级保真、版本/摘要/身份冲突、事务回滚及失败关闭。
+- 接入866 saveParse与845真实整理入队；私有存取已通过既有job事务+实际pg-boss组合验证，但未等于应用运行器接线完成。
+- 在X1最终正式迁移上复验现有五类新连接读回、旧四类升级保真、版本/摘要/身份冲突、事务回滚及失败关闭；当前仅受控临时验证迁移通过。
 - 复用既有当前权限策略，先汇总完整共有人和 requiredKinds，再过滤；接通真实受控读取与消费者，不复制另一套权限。
-- 866 实现固定 SHA 的真实合成 PDF 联验、901/905/906 实际输出适配、845 canonical loader、873 可信上传上下文仍需各责任方交付。当前没有应用入口调用此纯规则。
+- 866真实PDF已做固定组合联验；901/905/906实际输出适配、845 canonical loader、873可信上传上下文仍需各责任方交付。当前没有应用入口调用此纯规则。
 
 此目录不读原始员工资料、不调用模型、不开下载端点；同页 bbox 不转换成字符范围。BOW-926 在上述剩余验收完成前保持进行中。
