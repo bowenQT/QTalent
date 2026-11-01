@@ -39,7 +39,7 @@
 | `app/rules.html`                  | `/rules`                          | rules / rules                       | rules / evaluation-system                    | 后续 / 404     |
 | `app/judge.html`                  | `/judge?rater=me`                 | judge / judge                       | judge / evaluation-system                    | 后续 / 404     |
 | `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
-| `app/admin.html`                  | `/admin`                          | admin / admin                       | admin / directory、平台                      | 后续 / 404     |
+| `app/admin.html`                  | `/admin?tab=…`                    | admin / admin-connections.ts        | `queries/admin.ts` / directory、平台          | 接入状态页签已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-916）；其余页签待接通 |
 | `m/index.html`                    | `/m`                              | mobile-workbench / mobile-workbench | mobile-workbench / 多领域聚合                | 后续 / 404     |
 | `m/mentor.html`                   | `/m/mentor`                       | mobile-mentor / mobile-mentor       | mobile-mentor / programs                     | 后续 / 404     |
 | `m/quick.html`                    | `/m/quick`                        | mobile-quick / mobile-quick         | mobile-quick / records                       | 后续 / 404     |
@@ -200,3 +200,25 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 `src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
 
 本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
+
+## BOW-916 系统管理 · 接入状态
+
+`/admin` 只给系统管理员：`queries/admin.ts` 按目录里的 `isSystemAdmin` 放行，业务账号得到「这一页只给系统管理员」，授权失效走通用的「查看权限已更新」。管理员的落点闭环由此解开：业务视角页的「打开系统管理」和外壳品牌链接（已指向 `/admin`）都能打开这一页。
+
+`src/contracts/admin-connections.ts` 定义接入状态的读取形状：企业微信机器人（已连接 / 已断开 / 待首次连接）、MCP 与 AgentAPI 的近 24 小时调用摘要、最近调用（账号、动作、结果，不含查询内容）、绑定失败（服务端遮蔽到后四位的发送人账号与原因代码）、任务失败（复用 jobs 的 `jobId`、`revision` 与 retry 命令）。每块在读取接通前是 `not_connected`，页面写「待接通」，不写 0 或空列表；对象都是严格对象，正文、文件内容、原始账号和密钥加不进去。企业微信、MCP、AgentAPI 的读取由 BOW-909、BOW-910、BOW-915 接入，接入后在查询里替换对应块；任务重试在 jobs 命令接通后由页面传入。
+
+开发样张 `/dev/admin-connections`（`?wecom=on|down|never`、`?empty=1`、`?pending=1`、`?retry=conflict`、`?tab=`）用化名与原型数据经合同解析后渲染，生产返回 404。
+
+与原型 Y（`81e4fd4`）的差异：
+
+| 原型 | 工程 | 原因 / 后续 |
+| --- | --- | --- |
+| 默认打开「账号与权限」 | 默认打开「接入状态」，`?tab=` 保留 | 本卡只交付接入状态；其余四个页签显示「待接通」，由后续卡实现 |
+| 标题旁「演示」徽标 | 只在开发样张显示 | 真实页面读的是真实状态 |
+| 重新排队后 5 秒内可撤销 | 不提供撤销 | jobs 只有 retry / resume / cancel，取消不会把任务退回「失败」 |
+| 绑定失败「对上了两个人」 | 「对上了不止一个人」 | 服务端只给原因代码，不给人数 |
+| 面包屑「系统管理」 | 管理员面包屑仍显示「这一页属于业务视角」 | `ShellCrumbs` / `route-nav` 是共享文件，已在 #248 请求 |
+
+视觉参照：`91b297a` 的系统管理页只有四个页签、没有接入状态。页头可与 `91b297a` 对比；页签栏与接入状态面板登记为「参照待同步」，未做像素对比，不算视觉通过，参照前移（#292）后补跑。
+
+待共享文件处理（#248 登记）：管理员命中「系统管理」导航项时面包屑显示该项名称；BOW-925 新增的 `.n-conn*`、`.n-tfail*` 和 `.n-tabs--scroll` 移入 `components.css` 后删除 `src/features/admin/admin.css`；`tests/e2e/dev-routes.spec.ts` 清单加 `/dev/admin-connections`。
