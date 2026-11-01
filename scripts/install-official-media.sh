@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # X1-owned CI candidate; do not execute on production.
 set -euo pipefail
+trap 'printf "media supply check failed at line %s\n" "$LINENO" >&2' ERR
 . /etc/os-release
+printf 'Verifying media supply platform\n'
 [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]]
 [[ "$(dpkg --print-architecture)" == amd64 ]]
+printf 'Refreshing signed package metadata\n'
 sudo apt-get update -qq
 packages=(
   ffmpeg=7:6.1.1-3ubuntu5
@@ -19,6 +22,7 @@ packages=(
 # Fail closed on an unavailable fixed version; never substitute latest/PPA.
 for item in "${packages[@]}"; do
   name=${item%%=*}; version=${item#*=}
+  printf 'Checking fixed official package %s\n' "$name"
   apt-cache madison "$name" | awk -F'|' -v expected="$version" '
     {gsub(/^[ \t]+|[ \t]+$/, "", $2)}
     $2 == expected && $3 ~ /https?:\/\/([a-z0-9.-]+\.)?(archive|security)\.ubuntu\.com\/ubuntu/ {ok=1}
