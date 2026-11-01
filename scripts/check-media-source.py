@@ -100,6 +100,16 @@ if __name__ == "__main__":
     result = check(sys.stdin.read(), sys.argv[2])
     if result["mirror_wrapper_present"]:
         result.update(runner_wrapper_checks())
+        # Diagnose only the fixed public Ubuntu keyring metadata, not its bytes.
+        try:
+            keyring = Path(KEYRING).lstat()
+            result.update(keyring_exists=True,
+                          keyring_regular=stat.S_ISREG(keyring.st_mode),
+                          keyring_symlink=stat.S_ISLNK(keyring.st_mode),
+                          keyring_root_owned=keyring.st_uid == 0,
+                          keyring_group_or_world_writable=bool(keyring.st_mode & 0o022))
+        except OSError:
+            result["keyring_exists"] = False
     print(json.dumps({"package": sys.argv[1], "expected_version": sys.argv[2], **result}, sort_keys=True))
     if not result["version_present"]:
         sys.exit("Fixed Ubuntu package version unavailable; refusing substitution")
