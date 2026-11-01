@@ -1309,7 +1309,11 @@ it.each(['legacy', 'available'] as const)(
     const replay = await undoRecordSave(db(), f.account.one, input, f.clock);
     expect(replay).toMatchObject({
       replayed: true,
-      result: { inputRestoration: 'unavailable', originalInput: null },
+      result: {
+        inputRestoration: 'unavailable',
+        originalInput: null,
+        draftRestoration: { status: 'refresh_required' },
+      },
     });
     const [operation] = await db()
       .select()
@@ -1589,3 +1593,255 @@ it('resave continuation: another currently authorized evaluator can confirm the 
   );
   expect(peer.result.events).toEqual(next.result.events);
 });
+
+it.each(['revision', 'assignment', 'unrelated-cancellation'] as const)(
+  'resave safeguards: rejects changed or unproven cancelled work (%s)',
+  async (change) => {
+    const f = await native();
+    const task = await db().transaction((tx) =>
+      insertEvaluationWorkItem(
+        tx,
+        {
+          id: f.id + '-cancelled-fence',
+          evaluationNodeId: f.node,
+          personId: f.person.one,
+          assignedRelationId: f.relationOne,
+          assignedEvaluatorId: f.person['rater-one'],
+          kind: 'confirmation',
+          resourceId: f.draft.draftId,
+        },
+        businessNow,
+      ),
+    );
+    const saved = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+    const undone = await undoRecordSave(
+      db(),
+      f.account.one,
+      { operation_id: f.id + '-undo-fence', saveId: saved.result.saveId },
+      f.clock,
+    );
+    const version = undone.result.draftRestoration;
+    if (version.status !== 'available')
+      throw new Error('Expected exact native undo version');
+    if (change === 'unrelated-cancellation') {
+      const other = await db().transaction((tx) =>
+        insertEvaluationWorkItem(
+          tx,
+          {
+            id: f.id + '-hr-cancelled',
+            evaluationNodeId: f.node,
+            personId: f.person.one,
+            assignedRelationId: f.relationOne,
+            assignedEvaluatorId: f.person['rater-one'],
+            kind: 'confirmation',
+            resourceId: f.draft.draftId,
+          },
+          businessNow,
+        ),
+      );
+      await db()
+        .update(evaluationWorkItems)
+        .set({ state: 'cancelled', revision: other.revision + 1 })
+        .where(eq(evaluationWorkItems.id, other.id));
+    } else {
+      await db()
+        .update(evaluationWorkItems)
+        .set(
+          change === 'revision'
+            ? { revision: task.revision + 3 }
+            : {
+                revision: task.revision + 3,
+                assignedRelationId: f.relationTwo,
+                assignedEvaluatorId: f.person['rater-two'],
+              },
+        )
+        .where(eq(evaluationWorkItems.id, task.id));
+    }
+    const before = await snapshot();
+    await expect(
+      saveRecordDraft(
+        db(),
+        f.account.one,
+        {
+          ...f.input,
+          operation_id: f.id + '-rejected-resave',
+          expected_revision: version.draftRevision,
+        },
+        f.clock,
+      ),
+    ).rejects.toMatchObject({ status: 'conflict' });
+    expect(await snapshot()).toEqual(before);
+  },
+);
+
+it('resave safeguards: one of two concurrent fresh operations wins without reviving old history', async () => {
+  const f = await native();
+  const saved = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const undone = await undoRecordSave(
+    db(),
+    f.account.one,
+    { operation_id: f.id + '-undo-race', saveId: saved.result.saveId },
+    f.clock,
+  );
+  const version = undone.result.draftRestoration;
+  if (version.status !== 'available')
+    throw new Error('Expected exact native undo version');
+  const results = await Promise.allSettled(
+    [1, 2].map((n) =>
+      saveRecordDraft(
+        db(),
+        f.account.one,
+        {
+          ...f.input,
+          operation_id: f.id + '-resave-race-' + n,
+          expected_revision: version.draftRevision,
+        },
+        f.clock,
+      ),
+    ),
+  );
+  expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+  expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+  expect(results.find((r) => r.status === 'rejected')).toMatchObject({
+    reason: { status: 'conflict' },
+  });
+  const [draft] = await db()
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, f.input.draftId));
+  expect(draft.revision).toBe(version.draftRevision + 1);
+  const saves = await db()
+    .select()
+    .from(recordSaves)
+    .where(eq(recordSaves.draftId, f.input.draftId));
+  expect(saves.filter((r) => r.withdrawnAt === null)).toHaveLength(1);
+  expect(saves).toHaveLength(2);
+});
+
+it('resave safeguards: revocation and account rebinding reject retained undo authority', async () => {
+  const f = await native();
+  const saved = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const input = {
+    operation_id: f.id + '-undo-auth',
+    saveId: saved.result.saveId,
+  };
+  const undone = await undoRecordSave(db(), f.account.one, input, f.clock);
+  const version = undone.result.draftRestoration;
+  if (version.status !== 'available')
+    throw new Error('Expected exact native undo version');
+  await db()
+    .update(evaluationRelations)
+    .set({ revokedAt: businessNow })
+    .where(eq(evaluationRelations.id, f.relationOne));
+  const before = await snapshot();
+  await expect(
+    saveRecordDraft(
+      db(),
+      f.account.one,
+      {
+        ...f.input,
+        operation_id: f.id + '-resave-revoked',
+        expected_revision: version.draftRevision,
+      },
+      f.clock,
+    ),
+  ).rejects.toMatchObject({ status: 'forbidden' });
+  await db()
+    .update(accountBindings)
+    .set({ personId: f.person['rater-two'] })
+    .where(eq(accountBindings.accountId, f.account.one));
+  await expect(
+    undoRecordSave(db(), f.account.one, input, f.clock),
+  ).rejects.toMatchObject({ status: 'forbidden' });
+  expect(await snapshot()).toEqual(before);
+});
+
+it('resave safeguards: a final audit failure rolls back the new events, mappings and draft revision', async () => {
+  const f = await native();
+  const saved = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const undone = await undoRecordSave(
+    db(),
+    f.account.one,
+    { operation_id: f.id + '-undo-audit', saveId: saved.result.saveId },
+    f.clock,
+  );
+  const version = undone.result.draftRestoration;
+  if (version.status !== 'available')
+    throw new Error('Expected exact native undo version');
+  const before = await snapshot();
+  const mappings = await db()
+    .select()
+    .from(recordDraftEvents)
+    .where(eq(recordDraftEvents.draftId, f.input.draftId));
+  const originalAudit = audit.recordAudit;
+  vi.spyOn(audit, 'recordAudit').mockImplementationOnce(async (...args) => {
+    await originalAudit(...args);
+    throw new Error('synthetic resave audit failure');
+  });
+  await expect(
+    saveRecordDraft(
+      db(),
+      f.account.one,
+      {
+        ...f.input,
+        operation_id: f.id + '-resave-audit',
+        expected_revision: version.draftRevision,
+      },
+      f.clock,
+    ),
+  ).rejects.toThrow('synthetic resave audit failure');
+  expect(await snapshot()).toEqual(before);
+  expect(
+    await db()
+      .select()
+      .from(recordDraftEvents)
+      .where(eq(recordDraftEvents.draftId, f.input.draftId)),
+  ).toEqual(mappings);
+  const [draft] = await db()
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, f.input.draftId));
+  expect(draft.revision).toBe(version.draftRevision);
+});
+
+it.each([4999, 5000])(
+  'resave safeguards: a new save retains its own five-second wall-clock boundary at %s',
+  async (elapsed) => {
+    const f = await native();
+    const saved = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+    f.setWall(1000);
+    const undone = await undoRecordSave(
+      db(),
+      f.account.one,
+      { operation_id: f.id + '-undo-first-clock', saveId: saved.result.saveId },
+      f.clock,
+    );
+    const version = undone.result.draftRestoration;
+    if (version.status !== 'available')
+      throw new Error('Expected exact native undo version');
+    const next = await saveRecordDraft(
+      db(),
+      f.account.one,
+      {
+        ...f.input,
+        operation_id: f.id + '-resave-clock',
+        expected_revision: version.draftRevision,
+      },
+      f.clock,
+    );
+    f.setWall(1000 + elapsed);
+    const pending = undoRecordSave(
+      db(),
+      f.account.one,
+      { operation_id: f.id + '-undo-next-clock', saveId: next.result.saveId },
+      f.clock,
+    );
+    if (elapsed < 5000)
+      await expect(pending).resolves.toMatchObject({ replayed: false });
+    else
+      await expect(pending).rejects.toMatchObject({
+        status: 'conflict',
+        reason: 'undo_window_closed',
+      });
+  },
+);
