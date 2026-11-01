@@ -52,6 +52,8 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
           omit: [
             '#ptabs [role="tab"]:not(:first-child)',
             '.nt-head__acts',
+            // 「可能需要重新校准」 has no field in the list read (route map, BOW-839).
+            '#pp-list [data-k="recal"]',
             // The row's right column differs by contract (formal position and the
             // mentor's weekly review are not in the read); taken out on both sides
             // so the rows wrap the same way at phone width.
