@@ -19,6 +19,10 @@ function fixture() {
     batchRevision: 1,
     inputVersion: 'demo-input',
     boundAt: '2026-10-31T12:00:00.000Z',
+    occurredOn: '2026-10-30',
+    project: { state: 'none' },
+    reviewItems: [],
+    resolvedItems: [],
     writeAllowed: true,
     identities: 'resolved',
     personIds: ['demo-person'],
@@ -68,6 +72,7 @@ function fixture() {
     {
       reference: snapshot.requestedSources[0],
       text: '演示：补齐回滚步骤。',
+      reviewItemIds: [],
       complete: true,
       scope: 'resolved',
       category: 'original',
@@ -477,6 +482,63 @@ describe('batch output and server ledger validation', () => {
     raw.events[0].eventKey = 'renamed';
     expect(() => validateBatchModel(p, raw)).toThrow('invalid_response');
   });
+  it.each(['visible', 'missing', 'expired', 'outside-scope'] as const)(
+    'rechecks the preserved project against current authorization: %s',
+    (visibility) => {
+      const p = prepared();
+      const raw = model(p);
+      const plan = validateBatchModel(p, raw);
+      const r = ledger(p, plan);
+      const first = materializeBatch(p, plan, r);
+      first.drafts[0].projectId = 'demo-original-project';
+      r.drafts[0].previous = first.drafts[0];
+      p.snapshot.generation = {
+        kind: 'revise',
+        events: [
+          {
+            eventKey: 'proposal-a',
+            draftId: first.drafts[0].draftId,
+            witnesses: raw.events[0].evidence,
+          },
+        ],
+      };
+      p.snapshot.context.projects =
+        visibility === 'missing'
+          ? []
+          : [
+              {
+                id: 'demo-original-project',
+                cohortId:
+                  visibility === 'outside-scope'
+                    ? 'other-cohort'
+                    : 'demo-cohort',
+                isTopic: false,
+                creatorId: 'demo-other',
+                ownerId: null,
+              },
+            ];
+      p.snapshot.context.grants = [
+        {
+          accountId: 'demo-account',
+          role: 'hr',
+          scope: 'cohort',
+          cohortId: 'demo-cohort',
+          validFrom: '2026-10-01T00:00:00.000Z',
+          validTo: visibility === 'expired' ? p.snapshot.context.now : null,
+          revokedAt: null,
+        },
+      ];
+      // The current batch has no default project; revising must neither erase the
+      // event's existing assignment nor carry an assignment the actor cannot read.
+      if (visibility === 'visible') {
+        expect(materializeBatch(p, plan, r).drafts[0].projectId).toBe(
+          'demo-original-project',
+        );
+      } else {
+        expect(() => materializeBatch(p, plan, r)).toThrow('invalid_ledger');
+      }
+    },
+  );
   it.each([
     'revision',
     'missing-slot',

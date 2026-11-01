@@ -2,6 +2,13 @@ import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import type { RecordBatchDraft } from '../../../../contracts/record';
+import {
+  materialReviewItemSchema,
+  materialReviewResolvedItemSchema,
+  type MaterialReviewItem,
+  type MaterialReviewResolvedItem,
+} from '../../../../contracts/material-review';
+import { canReadProject } from '../../../authz';
 import { effectiveRuleVersionSchema } from '../../../../contracts/selection-standard';
 import {
   materialSourceReferenceSchema,
@@ -22,6 +29,11 @@ export const batchText = z
   .min(1)
   .refine((s) => s.trim().length > 0);
 export const batchId = batchText.max(200);
+const batchProjectSchema = z.discriminatedUnion('state', [
+  z.strictObject({ state: z.literal('none') }),
+  z.strictObject({ state: z.literal('resolved'), id: batchId }),
+  z.strictObject({ state: z.literal('unresolved') }),
+]);
 export const batchQuoteSchema = z.strictObject({
   reference: materialSourceReferenceSchema,
   quote: batchText,
@@ -30,6 +42,8 @@ export type BatchQuote = z.infer<typeof batchQuoteSchema>;
 export type BatchSource = {
   reference: MaterialSourceReference;
   text: string;
+  /** Native dependencies for THIS fragment; null means the producer cannot establish them. */
+  reviewItemIds: string[] | null;
   /** Actual complete classification, not UI selection or a visible-person list. */
   complete: boolean;
   scope: 'resolved' | 'unresolved';
@@ -72,6 +86,11 @@ export type BatchSnapshot = {
   inputVersion: string;
   /** Server input save time; later publication must not rebind this generation. */
   boundAt: string;
+  /** Original event/source business date, never replaced by confirmation time. */
+  occurredOn: string;
+  project: z.infer<typeof batchProjectSchema>;
+  reviewItems: MaterialReviewItem[];
+  resolvedItems: MaterialReviewResolvedItem[];
   writeAllowed: boolean;
   identities: 'resolved' | 'unresolved';
   personIds: string[];
@@ -95,16 +114,29 @@ export type PreparedBatch = {
   sources: BatchSource[];
   fingerprint: string;
 };
-export type BatchPreparation =
-  | { status: 'ready'; value: PreparedBatch }
+type BatchUnavailable =
   | { status: 'not_found' }
   | {
       status: 'needs_review';
-      reason: 'identity_unresolved' | 'scope_unresolved';
+      reason:
+        'identity_unresolved' | 'scope_unresolved' | MaterialReviewItem['kind'];
     }
   | {
       status: 'not_ready';
-      reason: 'unsupported_material' | 'rules_unavailable' | 'invalid_input';
+      reason:
+        | 'unsupported_material'
+        | 'rules_unavailable'
+        | 'invalid_input'
+        | 'retained_material'
+        | 'source_unavailable';
+    };
+export type BatchPreparation =
+  BatchUnavailable | { status: 'ready'; value: PreparedBatch };
+export type BatchSourcePreparation =
+  | BatchUnavailable
+  | {
+      status: 'ready';
+      value: { snapshot: BatchSnapshot; sources: BatchSource[] };
     };
 export function batchDigest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -133,10 +165,10 @@ function uniqueIds(ids: string[], nonempty = true) {
     new Set(ids).size === ids.length
   );
 }
-export function prepareBatch(
+/** Authorize every requested source before exposing review/material status or reading rules. */
+export function prepareBatchSources(
   snapshot: BatchSnapshot,
-  rules: BatchRuleBundle,
-): BatchPreparation {
+): BatchSourcePreparation {
   const s = structuredClone(snapshot);
   if (
     !batchId.safeParse(s.batchId).success ||
@@ -144,7 +176,11 @@ export function prepareBatch(
     !Number.isSafeInteger(s.batchRevision) ||
     s.batchRevision < 1 ||
     !z.iso.datetime().safeParse(s.boundAt).success ||
-    !uniqueIds(s.personIds, false)
+    !z.iso.date().safeParse(s.occurredOn).success ||
+    !batchProjectSchema.safeParse(s.project).success ||
+    !uniqueIds(s.personIds, false) ||
+    !Array.isArray(s.reviewItems) ||
+    !Array.isArray(s.resolvedItems)
   )
     return { status: 'not_ready', reason: 'invalid_input' };
   if (
@@ -162,8 +198,22 @@ export function prepareBatch(
     )
   )
     return { status: 'not_found' };
-  if (!s.personIds.length || s.identities !== 'resolved')
-    return { status: 'needs_review', reason: 'identity_unresolved' };
+  const reviews = [...s.reviewItems, ...s.resolvedItems];
+  if (
+    s.reviewItems.some(
+      (item) => !materialReviewItemSchema.safeParse(item).success,
+    ) ||
+    s.resolvedItems.some(
+      (item) => !materialReviewResolvedItemSchema.safeParse(item).success,
+    ) ||
+    reviews.some(
+      (item) =>
+        item.batchId !== s.batchId ||
+        item.evaluationNodeId !== s.evaluationNodeId,
+    ) ||
+    new Set(reviews.map((item) => item.itemId)).size !== reviews.length
+  )
+    return { status: 'not_ready', reason: 'invalid_input' };
   s.personIds.sort();
   if (
     s.generation.kind === 'revise' &&
@@ -209,45 +259,6 @@ export function prepareBatch(
       )
     )
       return { status: 'not_found' };
-    if (!source.attributedPersonIds.length)
-      return { status: 'needs_review', reason: 'identity_unresolved' };
-    if (
-      source.scope !== 'resolved' ||
-      (source.acquisition.kind === 'offline_transcript' &&
-        source.acquisition.binding !== 'resolved')
-    )
-      return { status: 'needs_review', reason: 'scope_unresolved' };
-    if (
-      source.category !== 'original' ||
-      ['image', 'code', 'video'].includes(reference.location.kind)
-    )
-      return { status: 'not_ready', reason: 'unsupported_material' };
-    const a = source.acquisition;
-    if (
-      (a.kind === 'text' && !batchId.safeParse(a.version).success) ||
-      (a.kind === 'parsed_attachment' &&
-        !batchId.safeParse(a.parseVersionId).success) ||
-      (a.kind === 'offline_transcript' &&
-        (!batchId.safeParse(a.recordingId).success ||
-          !batchId.safeParse(a.transcriptVersionId).success ||
-          !Number.isSafeInteger(a.bindingRevision) ||
-          a.bindingRevision < 1 ||
-          reference.location.kind !== 'recording'))
-    )
-      return { status: 'not_ready', reason: 'invalid_input' };
-    if (
-      (a.kind === 'text' && reference.location.kind !== 'document') ||
-      (a.kind === 'parsed_attachment' &&
-        !['document', 'pdf', 'presentation', 'spreadsheet'].includes(
-          reference.location.kind,
-        ))
-    )
-      return { status: 'not_ready', reason: 'invalid_input' };
-    if (
-      reference.location.kind === 'recording' &&
-      a.kind !== 'offline_transcript'
-    )
-      return { status: 'not_ready', reason: 'invalid_input' };
     sources.push({
       ...source,
       reference: materialSourceReferenceSchema.parse(source.reference),
@@ -261,6 +272,78 @@ export function prepareBatch(
       attributedPersonIds: [...source.attributedPersonIds].sort(),
       requiredKinds: [...source.requiredKinds].sort(),
     });
+  }
+  if (s.project.state === 'resolved') {
+    const projectId = s.project.id;
+    const project = s.context.projects.find((item) => item.id === projectId);
+    if (!project || !canReadProject(s.context, project))
+      return { status: 'not_found' };
+  }
+  if (!s.personIds.length || s.identities !== 'resolved')
+    return { status: 'needs_review', reason: 'identity_unresolved' };
+  if (s.project.state === 'unresolved')
+    return { status: 'needs_review', reason: 'unknown_project' };
+  for (const source of sources) {
+    if (!Array.isArray(source.reviewItemIds))
+      return { status: 'not_ready', reason: 'source_unavailable' };
+    if (
+      !uniqueIds(source.reviewItemIds, false) ||
+      source.reviewItemIds.some(
+        (id) =>
+          !reviews.some(
+            (item) =>
+              item.itemId === id &&
+              item.originalVersionId === source.reference.originalVersionId,
+          ),
+      )
+    )
+      return { status: 'not_ready', reason: 'invalid_input' };
+    const related = new Set(source.reviewItemIds);
+    if (
+      s.resolvedItems.some(
+        (item) =>
+          related.has(item.itemId) &&
+          ['keep_original_only', 'keep_attachment_only'].includes(
+            item.resolution.action,
+          ),
+      )
+    )
+      return { status: 'not_ready', reason: 'retained_material' };
+    const pending = s.reviewItems.find((item) => related.has(item.itemId));
+    if (pending) return { status: 'needs_review', reason: pending.kind };
+    if (!source.attributedPersonIds.length)
+      return { status: 'needs_review', reason: 'identity_unresolved' };
+    if (
+      source.scope !== 'resolved' ||
+      (source.acquisition.kind === 'offline_transcript' &&
+        source.acquisition.binding !== 'resolved')
+    )
+      return { status: 'needs_review', reason: 'scope_unresolved' };
+    if (
+      source.category !== 'original' ||
+      ['image', 'code', 'video'].includes(source.reference.location.kind)
+    )
+      return { status: 'not_ready', reason: 'unsupported_material' };
+    const acquisition = source.acquisition;
+    if (
+      (acquisition.kind === 'text' &&
+        (!batchId.safeParse(acquisition.version).success ||
+          source.reference.location.kind !== 'document')) ||
+      (acquisition.kind === 'parsed_attachment' &&
+        (!batchId.safeParse(acquisition.parseVersionId).success ||
+          !['document', 'pdf', 'presentation', 'spreadsheet'].includes(
+            source.reference.location.kind,
+          ))) ||
+      (acquisition.kind === 'offline_transcript' &&
+        (!batchId.safeParse(acquisition.recordingId).success ||
+          !batchId.safeParse(acquisition.transcriptVersionId).success ||
+          !Number.isSafeInteger(acquisition.bindingRevision) ||
+          acquisition.bindingRevision < 1 ||
+          source.reference.location.kind !== 'recording')) ||
+      (source.reference.location.kind === 'recording' &&
+        acquisition.kind !== 'offline_transcript')
+    )
+      return { status: 'not_ready', reason: 'invalid_input' };
   }
   if (
     sources.reduce(
@@ -301,6 +384,20 @@ export function prepareBatch(
     }
     events.sort((a, b) => a.eventKey.localeCompare(b.eventKey));
   }
+  sources.sort((a, b) =>
+    batchReferenceKey(a.reference).localeCompare(
+      batchReferenceKey(b.reference),
+    ),
+  );
+  return { status: 'ready', value: { snapshot: s, sources } };
+}
+export function prepareBatch(
+  snapshot: BatchSnapshot,
+  rules: BatchRuleBundle,
+): BatchPreparation {
+  const prepared = prepareBatchSources(snapshot);
+  if (prepared.status !== 'ready') return prepared;
+  const { snapshot: s, sources } = prepared.value;
   const v = effectiveRuleVersionSchema.safeParse(rules.effective);
   const at = Date.parse(s.boundAt);
   if (
@@ -327,11 +424,6 @@ export function prepareBatch(
     )
   )
     return { status: 'not_ready', reason: 'rules_unavailable' };
-  sources.sort((a, b) =>
-    batchReferenceKey(a.reference).localeCompare(
-      batchReferenceKey(b.reference),
-    ),
-  );
   const rulesCopy = structuredClone(rules);
   return {
     status: 'ready',
@@ -345,6 +437,15 @@ export function prepareBatch(
         node: s.evaluationNodeId,
         inputVersion: s.inputVersion,
         boundAt: s.boundAt,
+        occurredOn: s.occurredOn,
+        project: s.project,
+        reviews: [...s.reviewItems, ...s.resolvedItems]
+          .filter((item) =>
+            sources.some((source) =>
+              source.reviewItemIds?.includes(item.itemId),
+            ),
+          )
+          .sort((a, b) => a.itemId.localeCompare(b.itemId)),
         personIds: s.personIds,
         generation: s.generation,
         sources,

@@ -1,3 +1,7 @@
+import {
+  batchArrangeExamples,
+  batchExampleSource,
+} from '../modules/records/arrange/batch-fixtures';
 import { describe, expect, it } from 'vitest';
 import {
   createFakeModelinkMaas,
@@ -30,6 +34,10 @@ function fixture() {
     batchRevision: 1,
     inputVersion: 'demo-input',
     boundAt: '2026-10-31T12:00:00.000Z',
+    occurredOn: '2026-10-30',
+    project: { state: 'none' },
+    reviewItems: [],
+    resolvedItems: [],
     writeAllowed: true,
     identities: 'resolved',
     personIds: ['demo-person'],
@@ -79,6 +87,7 @@ function fixture() {
     {
       reference: snapshot.requestedSources[0],
       text: '演示：补齐回滚步骤。',
+      reviewItemIds: [],
       complete: true,
       scope: 'resolved',
       category: 'original',
@@ -192,6 +201,7 @@ function harness() {
     persistFailure?: boolean;
     corruptReceipt?: boolean;
     invalidReservation?: boolean;
+    rulesUnavailable?: boolean;
   } = {};
   const messages: string[] = [];
   const ruleReads: unknown[] = [];
@@ -217,7 +227,9 @@ function harness() {
           },
           async readRules(input) {
             ruleReads.push(input);
-            return structuredClone(draft.rules);
+            return controls.rulesUnavailable
+              ? null
+              : structuredClone(draft.rules);
           },
           async saveOperation(value) {
             draft.operation = structuredClone(value);
@@ -300,41 +312,40 @@ function harness() {
   };
 }
 describe('record batch orchestration with native transaction requirements and843 fake', () => {
-  it.each(['text', 'offline_transcript', 'parsed_attachment'] as const)(
-    'runs the fixed %s sample through the same prompt and quote validation',
-    async (kind) => {
-      const h = harness();
-      const source = h.state.snapshot!.availableSources[0];
-      if (kind === 'offline_transcript') {
-        source.reference.location = {
-          kind: 'recording',
-          startMs: 100,
-          endMs: 2400,
-        };
-        source.acquisition = {
-          kind,
-          recordingId: 'demo-recording',
-          transcriptVersionId: 'demo-transcript-v1',
-          bindingRevision: 3,
-          binding: 'resolved',
-        };
-      }
-      if (kind === 'parsed_attachment')
-        source.acquisition = { kind, parseVersionId: 'demo-parse-v1' };
-      h.modelValue.events[0].evidence[0].reference = structuredClone(
-        source.reference,
-      );
-      const score = h.modelValue.events[0].scores[0];
+  it.each(batchArrangeExamples)(
+    'runs the fixed $kind/$id sample through actual preparation and quote validation',
+    async (example) => {
+      const h = harness(),
+        snapshot = h.state.snapshot!;
+      const source = batchExampleSource(example);
+      snapshot.personIds = [example.personId];
+      snapshot.occurredOn = example.occurredOn;
+      snapshot.context.people = [{ id: example.personId, noReview: false }];
+      snapshot.context.evaluationNodeSubjects[0].personId = example.personId;
+      snapshot.context.evaluationRelations[0].personId = example.personId;
+      snapshot.availableSources = [source];
+      snapshot.requestedSources = [source.reference];
+      const event = h.modelValue.events[0];
+      event.personIds = [example.personId];
+      event.sbi.title = `演示：${example.id}`;
+      event.sbi.behavior = example.text;
+      event.evidence = [
+        { reference: structuredClone(source.reference), quote: example.text },
+      ];
+      const score = event.scores[0];
       if (score.state !== 'suggested') throw new Error('fixture');
-      score.citations = structuredClone(h.modelValue.events[0].evidence);
+      score.personId = example.personId;
+      score.citations = structuredClone(event.evidence);
       expect((await h.run(h.request)).status).toBe('drafts');
       expect(h.state.saved[0].drafts[0].sourceReferences).toEqual([
         source.reference,
       ]);
       expect(h.state.saved[0].drafts[0].scores[0]).toMatchObject({
         state: 'suggested',
-        citations: [{ quote: '补齐回滚步骤', reference: source.reference }],
+        personId: example.personId,
+        citations: [{ quote: example.text, reference: source.reference }],
       });
+      expect(h.state.traces[0].occurredOn).toBe(example.occurredOn);
       expect(h.messages).toHaveLength(1);
     },
   );
@@ -352,7 +363,9 @@ describe('record batch orchestration with native transaction requirements and843
     });
     expect(h.state.traces[0]).toMatchObject({
       modelVersion: MODELINK_MODEL,
-      promptVersion: 'record-batch-arrange.v1',
+      promptVersion: 'record-batch-arrange.v2',
+      boundAt: '2026-10-31T12:00:00.000Z',
+      occurredOn: '2026-10-30',
       inputVersion: 'demo-input',
     });
     expect(h.state.traces[0].events[0]).toMatchObject({
@@ -677,5 +690,69 @@ describe('record batch orchestration with native transaction requirements and843
       expect((await h.run(h.request)).status).not.toBe('drafts');
       expect(h.messages).toHaveLength(1);
     }
+  });
+});
+
+describe('845 private actual-reader and final897 orchestration fences', () => {
+  it('does not read rule metadata or invoke the model for unauthorized input', async () => {
+    const h = harness();
+    h.state.snapshot!.writeAllowed = false;
+    expect(await h.run(h.request)).toEqual({ status: 'not_found' });
+    expect(h.ruleReads).toEqual([]);
+    expect(h.messages).toEqual([]);
+  });
+  it('keeps a missing effective rule unavailable with zero model requests', async () => {
+    const h = harness();
+    h.controls.rulesUnavailable = true;
+    expect(await h.run(h.request)).toEqual({
+      status: 'not_ready',
+      reason: 'rules_unavailable',
+    });
+    expect(h.ruleReads).toEqual([
+      { category: 'dimension_anchors', at: '2026-10-31T12:00:00.000Z' },
+    ]);
+    expect(h.messages).toEqual([]);
+  });
+  it('rechecks the native source date after the model without writing a late draft', async () => {
+    const h = harness();
+    h.controls.beforeModel = () => {
+      h.state.snapshot!.occurredOn = '2026-10-29';
+    };
+    expect(await h.run(h.request)).toEqual({
+      status: 'failed',
+      kind: 'input_changed',
+      retryable: false,
+    });
+    expect(h.state.saved).toEqual([]);
+  });
+});
+
+describe('845 explicit project ownership', () => {
+  it('keeps the authorized selected project in the draft without inventing a null default', async () => {
+    const h = harness(),
+      snapshot = h.state.snapshot!;
+    snapshot.context.grants = [
+      {
+        accountId: snapshot.accountId,
+        role: 'manager',
+        scope: 'company',
+        cohortId: null,
+        validFrom: '2026-10-01',
+        validTo: null,
+        revokedAt: null,
+      },
+    ];
+    snapshot.context.projects = [
+      {
+        id: 'demo-project',
+        cohortId: 'demo-cohort',
+        isTopic: true,
+        creatorId: snapshot.context.account.personId,
+        ownerId: snapshot.context.account.personId,
+      },
+    ];
+    snapshot.project = { state: 'resolved', id: 'demo-project' };
+    expect((await h.run(h.request)).status).toBe('drafts');
+    expect(h.state.saved[0].drafts[0].projectId).toBe('demo-project');
   });
 });

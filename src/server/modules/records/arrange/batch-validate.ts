@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
+import { canReadProject } from '../../../authz';
 import {
   recordBatchDraftSchema,
   recordBatchDraftSetSchema,
@@ -244,12 +245,24 @@ export function materializeBatch(
           previous.draftId !== slot.draftId))
     )
       return invalid();
+    if (previous?.projectId) {
+      const project = prepared.snapshot.context.projects.find(
+        (entry) => entry.id === previous.projectId,
+      );
+      if (!project || !canReadProject(prepared.snapshot.context, project))
+        return invalid();
+    }
     const next: RecordBatchDraft = {
       batchId: prepared.snapshot.batchId,
       evaluationNodeId: prepared.snapshot.evaluationNodeId,
       draftId: slot.draftId,
       revision: 1,
       origin: 'ai_suggestion',
+      projectId: previous
+        ? previous.projectId
+        : prepared.snapshot.project.state === 'resolved'
+          ? prepared.snapshot.project.id
+          : null,
       personIds: [...event.personIds].sort(),
       sourceReferences: canonicalReferences(
         event.evidence.map((q) => q.reference),

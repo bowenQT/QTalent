@@ -9,6 +9,7 @@ import {
 } from '../integrations/maas';
 import {
   prepareBatch,
+  prepareBatchSources,
   batchId,
   type BatchIdentityLedger,
   type BatchPreparation,
@@ -36,6 +37,8 @@ export type BatchArrangeRequest = {
 };
 export type BatchArrangeTrace = {
   inputVersion: string;
+  boundAt: string;
+  occurredOn: string;
   fingerprint: string;
   promptVersion: typeof BATCH_PROMPT_VERSION;
   modelVersion: typeof MODELINK_MODEL;
@@ -77,7 +80,7 @@ export type BatchArrangeTransaction = {
   /** Adapter calls922 readEffectiveRuleVersion on this native tx, then loads its content. */
   readRules(
     input: z.infer<typeof effectiveRuleVersionReadInputSchema>,
-  ): Promise<BatchRuleBundle>;
+  ): Promise<BatchRuleBundle | null>;
   saveOperation(value: BatchArrangeOperation): Promise<void>;
   /** Native server ledger assigns first IDs and returns prior IDs/drafts on revision.
    * Same operation/input must reuse reservations. Model keys are not durable IDs.
@@ -125,13 +128,15 @@ export function createRecordBatchArrange(
         snapshot.inputVersion !== tx.operation?.inputVersion
       )
         return { status: 'not_found' } as const;
-      return prepareBatch(
-        snapshot,
-        await tx.readRules({
-          category: 'dimension_anchors',
-          at: snapshot.boundAt,
-        }),
-      );
+      const authorized = prepareBatchSources(snapshot);
+      if (authorized.status !== 'ready') return authorized;
+      const rules = await tx.readRules({
+        category: 'dimension_anchors',
+        at: snapshot.boundAt,
+      });
+      return rules === null
+        ? ({ status: 'not_ready', reason: 'rules_unavailable' } as const)
+        : prepareBatch(snapshot, rules);
     }
     const claimed = await ports.locked(
       request,
@@ -186,6 +191,8 @@ export function createRecordBatchArrange(
           };
         const trace: BatchArrangeTrace = {
           inputVersion: prepared.value.snapshot.inputVersion,
+          boundAt: prepared.value.snapshot.boundAt,
+          occurredOn: prepared.value.snapshot.occurredOn,
           fingerprint: prepared.value.fingerprint,
           promptVersion: BATCH_PROMPT_VERSION,
           modelVersion: MODELINK_MODEL,

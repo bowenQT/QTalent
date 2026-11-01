@@ -1,3 +1,8 @@
+import { materialReviewItemsFixture } from '../../../../contracts/materials.fixtures';
+import {
+  materialReviewResolvedItemSchema,
+  type MaterialReviewItem,
+} from '../../../../contracts/material-review';
 import { describe, expect, it } from 'vitest';
 import {
   prepareBatch,
@@ -12,6 +17,10 @@ function fixture() {
     batchRevision: 1,
     inputVersion: 'demo-input',
     boundAt: '2026-10-31T12:00:00.000Z',
+    occurredOn: '2026-10-30',
+    project: { state: 'none' },
+    reviewItems: [],
+    resolvedItems: [],
     writeAllowed: true,
     identities: 'resolved',
     personIds: ['demo-person'],
@@ -61,6 +70,7 @@ function fixture() {
     {
       reference: snapshot.requestedSources[0],
       text: '演示：补齐回滚步骤。',
+      reviewItemIds: [],
       complete: true,
       scope: 'resolved',
       category: 'original',
@@ -411,6 +421,130 @@ describe('batch preparation uses actual899 source and node policy', () => {
     if (fault === 'bad-revise-manifest')
       s.generation = { kind: 'revise', events: [] };
     expect(prepareBatch(s, rules)).toEqual({
+      status: 'not_ready',
+      reason: 'invalid_input',
+    });
+  });
+});
+
+function reviewFixture(kind: MaterialReviewItem['kind']) {
+  const result = fixture();
+  const item = structuredClone(
+    materialReviewItemsFixture.find((entry) => entry.kind === kind)!,
+  );
+  const source = result.snapshot.availableSources[0];
+  source.reference = item.source ?? {
+    ...source.reference,
+    originalVersionId: item.originalVersionId,
+  };
+  result.snapshot.requestedSources = [source.reference];
+  source.reviewItemIds = [item.itemId];
+  source.acquisition =
+    source.reference.location.kind === 'recording'
+      ? {
+          kind: 'offline_transcript',
+          recordingId: 'demo-recording',
+          transcriptVersionId: 'demo-transcript',
+          bindingRevision: 1,
+          binding: 'resolved',
+        }
+      : source.reference.location.kind === 'document'
+        ? { kind: 'text', version: 'demo-text' }
+        : { kind: 'parsed_attachment', parseVersionId: 'demo-parse' };
+  result.snapshot.reviewItems = [item];
+  return result;
+}
+describe('final897 selected-fragment review, project and source-date facts', () => {
+  it.each(materialReviewItemsFixture.map((item) => item.kind))(
+    'blocks the actual %s dependency before model preparation',
+    (kind) => {
+      const { snapshot, rules } = reviewFixture(kind);
+      expect(prepareBatch(snapshot, rules)).toEqual({
+        status: 'needs_review',
+        reason: kind,
+      });
+    },
+  );
+  it('does not block a known fragment merely because the batch has another pending target', () => {
+    const { snapshot, rules } = reviewFixture('unknown_person');
+    snapshot.availableSources[0].reviewItemIds = [];
+    expect(prepareBatch(snapshot, rules).status).toBe('ready');
+  });
+  it('requires an explicit native dependency result rather than assuming an empty list', () => {
+    const { snapshot, rules } = fixture();
+    snapshot.availableSources[0].reviewItemIds = null;
+    expect(prepareBatch(snapshot, rules)).toEqual({
+      status: 'not_ready',
+      reason: 'source_unavailable',
+    });
+    snapshot.availableSources[0].reviewItemIds = ['demo-not-loaded'];
+    expect(prepareBatch(snapshot, rules)).toEqual({
+      status: 'not_ready',
+      reason: 'invalid_input',
+    });
+  });
+  it('retained original content is excluded only for the declared affected fragment', () => {
+    const { snapshot, rules } = reviewFixture('unknown_person');
+    const item = snapshot.reviewItems[0];
+    if (item.kind !== 'unknown_person') throw new Error('fixture');
+    snapshot.resolvedItems = [
+      materialReviewResolvedItemSchema.parse({
+        itemId: item.itemId,
+        batchId: item.batchId,
+        evaluationNodeId: item.evaluationNodeId,
+        materialId: item.materialId,
+        originalVersionId: item.originalVersionId,
+        source: item.source,
+        kind: item.kind,
+        revision: 2,
+        state: 'resolved',
+        observedName: item.observedName,
+        resolution: { action: 'keep_original_only' },
+        resolvedAt: '2026-11-01T00:00:00Z',
+        auditId: 'demo-audit',
+        undo: { status: 'available' },
+      }),
+    ];
+    snapshot.reviewItems = [];
+    expect(prepareBatch(snapshot, rules)).toEqual({
+      status: 'not_ready',
+      reason: 'retained_material',
+    });
+    snapshot.availableSources[0].reviewItemIds = [];
+    expect(prepareBatch(snapshot, rules).status).toBe('ready');
+  });
+  it('checks later hidden sources before revealing an earlier visible source status', () => {
+    const { snapshot, rules } = fixture();
+    snapshot.availableSources[0].scope = 'unresolved';
+    const hidden = structuredClone(snapshot.availableSources[0]);
+    hidden.reference.fragmentId = 'demo-hidden-fragment';
+    hidden.subjects[0].personId = 'demo-hidden-person';
+    hidden.attributedPersonIds = ['demo-hidden-person'];
+    snapshot.availableSources.push(hidden);
+    snapshot.requestedSources.push(hidden.reference);
+    expect(prepareBatch(snapshot, rules)).toEqual({ status: 'not_found' });
+  });
+  it('does not invent a project or use an inaccessible project', () => {
+    const { snapshot, rules } = fixture();
+    snapshot.project = { state: 'unresolved' };
+    expect(prepareBatch(snapshot, rules)).toEqual({
+      status: 'needs_review',
+      reason: 'unknown_project',
+    });
+    snapshot.project = { state: 'resolved', id: 'demo-hidden-project' };
+    expect(prepareBatch(snapshot, rules)).toEqual({ status: 'not_found' });
+  });
+  it('keeps the source date distinct from rule binding time in the immutable fingerprint', () => {
+    const { snapshot, rules } = fixture();
+    const before = prepareBatch(snapshot, rules);
+    snapshot.occurredOn = '2026-10-29';
+    const after = prepareBatch(snapshot, rules);
+    if (before.status !== 'ready' || after.status !== 'ready')
+      throw new Error('fixture');
+    expect(after.value.snapshot.boundAt).toBe('2026-10-31T12:00:00.000Z');
+    expect(after.value.fingerprint).not.toBe(before.value.fingerprint);
+    snapshot.occurredOn = '2026-02-30';
+    expect(prepareBatch(snapshot, rules)).toEqual({
       status: 'not_ready',
       reason: 'invalid_input',
     });

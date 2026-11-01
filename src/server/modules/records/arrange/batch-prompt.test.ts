@@ -21,6 +21,10 @@ function fixture() {
     batchRevision: 1,
     inputVersion: 'demo-input',
     boundAt: '2026-10-31T12:00:00.000Z',
+    occurredOn: '2026-10-30',
+    project: { state: 'none' },
+    reviewItems: [],
+    resolvedItems: [],
     writeAllowed: true,
     identities: 'resolved',
     personIds: ['demo-person'],
@@ -70,6 +74,7 @@ function fixture() {
     {
       reference: snapshot.requestedSources[0],
       text: '演示：补齐回滚步骤。',
+      reviewItemIds: [],
       complete: true,
       scope: 'resolved',
       category: 'original',
