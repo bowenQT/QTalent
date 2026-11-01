@@ -1,6 +1,6 @@
 # BOW-919 canonical facts 持久化
 
-本目录的原生持久层保存人×判断、原量表和人工标记，不保存对照结论或统计答案。既有 calculation/projection 不变。输入 schema 与类型以 `canonical-input.ts` 为唯一实现；首批输入校验已经实现，原生存取和真实 PostgreSQL 验证仍在继续，不能把本说明当持久化通过。
+本目录的原生持久层保存人×判断、原量表和人工标记，不保存对照结论或统计答案。既有 calculation/projection 不变。输入 schema 与类型以 `canonical-input.ts` 为唯一实现；输入校验、原生五表存取及跨域同事务 usecase 已实现。公共出口与五表/918 受控结构待 X1，真实 PostgreSQL 验证尚未运行，不能把源码提交当持久化通过。
 
 ## 私有接口冻结
 
@@ -19,7 +19,7 @@ readCanonicalComparisonBatch(tx: Transaction, batchId: string):
   Promise<CanonicalComparisonSnapshot | null>;
 ```
 
-这些是 server-private 函数。923 在同一个真实事务中登记 records 原件/片段，再调用 write；函数不自建连接、不提交外层事务。异常必须传播至外层事务以完整回滚。导入按批次业务键加事务 advisory lock；相同事实重放为 unchanged，同 ID 异事实为 conflict，不静默吞冲突。reader 的 null 仅表示成功查询后该批次不存在，缺表、SQL 错误、缺段或不完整内容均为错误。
+生产调用路径为 `src/server/usecases/judgment-comparison-canonical.ts`；本域 `canonical-store.ts` 只做五表真实存取。跨域目录、节点和来源验证由 usecase 复用各域公开表出口，同一事务执行。路径调整已明确核准并登记于 [协调记录](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6560606327)。这些是 server-private 函数。923 在同一个真实事务中登记 records 原件/片段，再调用 write；函数不自建连接、不提交外层事务。异常必须传播至外层事务以完整回滚。导入按批次业务键加事务 advisory lock；相同事实重放为 unchanged，同 ID 异事实为 conflict，不静默吞冲突。reader 的 null 仅表示成功查询后该批次不存在，缺表、SQL 错误、缺段或不完整内容均为错误。
 
 `CanonicalComparisonSnapshot` 返回 `facts`、真实期次绑定的 `selectionStandardVersionId`、完整性 `factsDigest` 和首次导入 `importedAt`。不包含 outcome、分布、样本门槛结果或 confirmedAttributions；不能在 921 尚无真实归因读取时默认补空数组。
 
@@ -53,6 +53,8 @@ batch 在同事务先插以满足立即 FK，再插 cases/stages/marks；事务�
 
 ## 当前验证与剩余
 
-基线 main `71f8d9de99bb6e2abf36049571414aed9d3f7b4d`。输入单测覆盖独立来源、显式缺段、人×判断、重复 ID、三档对应、人工标记目标/时间、禁止答案/授权伪输入、摘要来源和无隐式改写。原生并发/回滚/外部来源漂移验证待 X1 结构，不宣称 PG 或完整三幕查询通过。
+基线 main `71f8d9de99bb6e2abf36049571414aed9d3f7b4d`。输入单测覆盖独立来源、显式缺段、人×判断、重复 ID、三档对应、人工标记目标/时间、禁止答案/授权伪输入、摘要来源和无隐式改写。原生并发/回滚/外部来源漂移反例位于 `src/server/usecases/judgment-comparison-canonical.integration.test.ts`，待 X1 结构后执行，不宣称 PG 或完整三幕查询通过。输入校验定向覆盖率行 100%、分支 96%（31 单测），只覆盖输入层，不能替代原生层覆盖率。
 
 测试库仅从 test-db.env 加载；完整重检查先领共享 heavy 槽，单测 maxWorkers=2。禁止读取真实材料，不需要供应商请求。最终真实 Web 查询、918/923/921/873/908 接线和节点裁决仍分别由原负责窗口承担。
+
+真实 PG 测试默认使用正式迁移目录；临时组合时可由操作方将 `QTALENT_COMPARISON_TEST_MIGRATIONS` 指向 X1 原生生成的受控迁移目录，不接受手写 DDL。测试建立唯一随机隔离 `_test` 库，并清理自身连接和库；合成合法节点仅验证存储，不冒充真实 923 节点映射。
