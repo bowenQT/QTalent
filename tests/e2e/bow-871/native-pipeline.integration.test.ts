@@ -90,6 +90,7 @@ async function setup(
     twoEvents?: boolean;
     beforeResponse?: () => Promise<void>;
     badCitation?: boolean;
+    newId?: () => string;
   } = {},
 ) {
   const facts = await seedNativeCase(connection.db);
@@ -171,6 +172,7 @@ async function setup(
         db,
         boss,
         environment: { MODELINK_API_KEY: 'synthetic-offline-bow871' },
+        ...(options.newId ? { newId: options.newId } : {}),
         businessNow: () => business,
         now: () => new Date(wall),
       },
@@ -600,29 +602,25 @@ it('草稿引用后新增范围外共享主体，完整真实来源图阻止确�
   const draft = result.drafts[0]!.draft;
   const sharedEvent = randomUUID();
   // Controlled durable shared source fact, not a replacement authorization callback.
-  await connection.db
-    .insert(events)
-    .values({
-      id: sharedEvent,
-      evaluationNodeId: h.otherNode,
-      personId: h.other,
-      recorderId: h.other,
-      projectId: null,
-      occurredOn: '2026-09-04',
-      title: '演示共享来源',
-      situation: '',
-      behavior: '演示范围外主体的同源记录',
-      impact: '',
-      ruleVersionId: 'rubric-v1',
-      demo: true,
-    });
-  await connection.db
-    .insert(eventSources)
-    .values({
-      eventId: sharedEvent,
-      fragmentId: draft.sourceReferences[0]!.fragmentId,
-      originalVersionId: draft.sourceReferences[0]!.originalVersionId,
-    });
+  await connection.db.insert(events).values({
+    id: sharedEvent,
+    evaluationNodeId: h.otherNode,
+    personId: h.other,
+    recorderId: h.other,
+    projectId: null,
+    occurredOn: '2026-09-04',
+    title: '演示共享来源',
+    situation: '',
+    behavior: '演示范围外主体的同源记录',
+    impact: '',
+    ruleVersionId: 'rubric-v1',
+    demo: true,
+  });
+  await connection.db.insert(eventSources).values({
+    eventId: sharedEvent,
+    fragmentId: draft.sourceReferences[0]!.fragmentId,
+    originalVersionId: draft.sourceReferences[0]!.originalVersionId,
+  });
   await expect(
     saveRecordDraft(connection.db, h.account, saveInput(draft), h.clock),
   ).rejects.toMatchObject({ status: 'forbidden' });
@@ -639,4 +637,112 @@ it('草稿引用后新增范围外共享主体，完整真实来源图阻止确�
       .where(eq(events.personId, h.target)),
   ).toHaveLength(0);
   expect(h.calls()).toBe(1);
+}, 25_000);
+
+it.each(['binding', 'revoked'] as const)(
+  '已确认后%s变化，历史保存重放与撤销都重核当前许可且不改历史',
+  async (change) => {
+    const h = await setup();
+    const result = await delivered(h);
+    const command = saveInput(result.drafts[0]!.draft);
+    const saved = await saveRecordDraft(
+      connection.db,
+      h.account,
+      command,
+      h.clock,
+    );
+    const before = await connection.db
+      .select()
+      .from(recordSaves)
+      .where(eq(recordSaves.saveId, saved.result.saveId));
+    const beforeConfirmations = await connection.db
+      .select()
+      .from(confirmations)
+      .where(eq(confirmations.eventId, saved.result.events[0]!.eventId));
+    if (change === 'binding')
+      await connection.db
+        .update(accountBindings)
+        .set({ personId: h.other })
+        .where(eq(accountBindings.accountId, h.account));
+    else
+      await connection.db
+        .update(evaluationRelations)
+        .set({ revokedAt: businessAt })
+        .where(eq(evaluationRelations.id, h.relation));
+    await expect(
+      saveRecordDraft(connection.db, h.account, command, h.clock),
+    ).rejects.toMatchObject({ status: 'forbidden' });
+    await expect(
+      undoRecordSave(
+        connection.db,
+        h.account,
+        { operation_id: randomUUID(), saveId: saved.result.saveId },
+        h.clock,
+      ),
+    ).rejects.toMatchObject({ status: 'forbidden' });
+    expect(
+      await connection.db
+        .select()
+        .from(recordSaves)
+        .where(eq(recordSaves.saveId, saved.result.saveId)),
+    ).toEqual(before);
+    expect(
+      await connection.db
+        .select()
+        .from(confirmations)
+        .where(eq(confirmations.eventId, saved.result.events[0]!.eventId)),
+    ).toEqual(beforeConfirmations);
+    const read = await h.app.requests.readBatch(h.account, {
+      batchId: result.batchId,
+    });
+    expect(read.status).not.toBe('success');
+    expect(JSON.stringify(read)).not.toContain(h.text.trim());
+    expect(h.calls()).toBe(1);
+  },
+  25_000,
+);
+
+it('真实worker末次写入发生唯一键冲突时整组草稿回滚，失败重投不盲重发模型', async () => {
+  let collision: string | null = null;
+  let replies = 0;
+  let retainedDraft = '';
+  const h = await setup({
+    newId: () => collision ?? randomUUID(),
+    beforeResponse: async () => {
+      if (++replies === 2) collision = retainedDraft;
+    },
+  });
+  const first = await delivered(h);
+  retainedDraft = first.drafts[0]!.draftId;
+  // A second real intake reaches the same actual consumer; only its final ID
+  // allocator is fault-controlled to trigger the database's real unique index.
+  h.input.operationId = randomUUID();
+  const second = await submit(h);
+  await eventually(
+    async () => (await job(second.jobId)).status === 'failed',
+    'actual persistence unique conflict',
+  );
+  expect(h.calls()).toBe(2);
+  expect(await drafts(second.batchId)).toHaveLength(0);
+  expect(await drafts(first.batchId)).toEqual(first.drafts);
+  expect((await job(first.jobId)).status).toBe('awaiting_manual');
+  collision = null;
+  const duplicate = await h.boss.send(
+    recordArrangeQueue,
+    { jobId: second.jobId, attempt: 1 },
+    { retryLimit: 0 },
+  );
+  expect(duplicate).toBeTruthy();
+  await eventually(
+    async () =>
+      (
+        await connection.db.execute(
+          sql`select state from pgboss.job where id=${duplicate}`,
+        )
+      ).rows[0]?.state === 'completed',
+    'failed job redelivery',
+  );
+  expect(h.calls()).toBe(2);
+  expect(await drafts(second.batchId)).toHaveLength(0);
+  expect(await drafts(first.batchId)).toEqual(first.drafts);
 }, 25_000);

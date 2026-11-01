@@ -8,9 +8,17 @@
 
 第一轮纯 main 实测6项4过2败：持久队列跨新消费者/新数据库池重建、真实重复投递不重复模型、执行前换绑/撤权/恰到期通过；完整首份草稿保存报 `complete_sources_required`，属于 #316 固定 `e152e8543ed62d115fd9a13ae1d5bcd8f96aed0b` 的未合生产前置。另一负例只伪造评分引用时可合法降为unknown，现改为伪造事件证据；不把合法降级当任务必败。后续新增用例与固定组合的实际结果在新 PR 逐头记录，不沿用首轮计数。
 
+当前固定#316组合实际 **15/15真实PG通过**，没有skip/todo：
+
+- 实际producer→pg-boss消费者→两份AI草稿→原生确认/幂等→4999ms撤销/旧撤销重放；未确认时正式event为零，撤销保留AI、原确认/事件历史和同批另一草稿。
+- 新consumer及新DB池读取原队列、真实重复投递保持一次模型和稳定draftId；这证明服务/连接重建，不声称OS重启或供应商恢复。
+- 执行前账号换绑、撤权、恰到期零模型；模型返回前真实撤权无落稿；保存前和已保存后当前身份变化拒绝旧操作/撤销，历史不变。
+- 真队列缺失造成producer全事务回滚并可重提；ID分配故障触发真实唯一键冲突，worker最终落稿回滚且失败重投不盲重发模型。
+- 范围外共享原件主体阻止确认；伪造事件证据无草稿；排队跨规则生效仍按保存时版本，5000ms撤销失败且原确认有效。
+
 运行方式：`pnpm exec vitest run --config vitest.integration.config.ts tests/e2e/bow-871/native-pipeline.integration.test.ts --maxWorkers=2`。只 source `~/.config/niu-talent/test-db.env`，隔离 loopback `_test` 数据库，每次重测先取共享heavy槽并立即释放；worker与额外数据库池在finally/afterEach关闭。没有供应商外发、浏览器、生产写入或凭据日志。
 
-共享 runner 请求 #248/6563147400：默认 unit 的 exclude 必须扩为 `**/*.integration.test.ts`，integration 保持 exclude:[]。由X1唯一修改；本卡不改测试配置。代码前置尚未齐备，不凭定向组合通过转Ready。
+共享 runner 已由X1固定 `94d27e152b7b61f6495276d64513f4bac77a003f`（#248/6563255411）：默认 unit 排除 `**/*.integration.test.ts`，integration 保持 exclude:[]，所以完整check仍收集真实PG。本卡普通消费，不自行改配置；#316仍是未合代码前置，不凭组合通过称main已支持或转Ready。
 
 当前只覆盖文本链的真实持久化/当前目录身份与节点权限、队列生命周期和人工确认事务，不覆盖 HTTP Cookie/登录、第三幕发布、媒体/canonical生产访问、WeCom/MCP、浏览器HR改派或供应商真实结果；没有skip/todo来代表未完成场景。#317首份撤销再存/新回执版本尚未main，暂不计入本片覆盖。八合同/新增链路矩阵仍是整卡剩余责任，不关闭BOW-871。
 
