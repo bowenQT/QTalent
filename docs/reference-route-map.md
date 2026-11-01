@@ -24,7 +24,7 @@
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
 | `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
-| `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
+| `app/inbox.html`                  | `/inbox`                          | inbox / material-review.ts          | inbox / records（860、905、906 读写待合入）   | 页面已建，读写待接通（BOW-862）；样例 `/dev/inbox` |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
 | `app/review.html`                 | `/review?id=…`                    | review / review                     | review / talent                              | 后续 / 404     |
@@ -200,3 +200,30 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 `src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
 
 本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
+
+## BOW-862 待核对
+
+`/inbox` 用 `features/inbox/Inbox` 渲染四类条目：说话人、未知人员、图片范围、未知面试官。卡片沿用原型「问一处、选一项」的核对卡（`.n-verify`、`.n-choices`、`.n-choice`）。动作与回执按 BOW-897 的 `material-review.ts`：选完即生效，撤销走合同的 `undo`。「已核对」里按 `undo.status` 显示撤销，或显示锁定原因（已随导入写进档案 / 建议分已确认）。未知面试官只能关联到人员目录里已有的人；目录里没有的，留在待核对，不入档。
+
+正式路由目前显示「待核对待接通」，因为跨批次读取与命令还没有合入（BOW-860 #279、BOW-905 #281、BOW-906 #277）。开发样例 `/dev/inbox?role=hr|mentor` 用内存端口（`src/app/dev/inbox/sample-ports.ts`）按合同跑通处理、稍后、撤销，生产环境返回 404。`InboxPorts.read` 是本页对跨批次读取的假设，接通时以后端实际读取为准。
+
+| 原型有、合同暂无 | 页面现状 | 接通条件 |
+| --- | --- | --- |
+| 跨批次的待核对列表、材料标题与提交人 | 正式路由显示待接通；样例按材料位置显示 | 860 / 905 / 906 的读取 |
+| 「会归到这些人」停靠区与事件计数、飞入动效 | 不渲染 | 人员事件计数读取 |
+| 引用段播放 | 不渲染播放按钮 | BOW-873 播放地址 |
+| 图片框选（`confirm_scope` 需要 personIds） | 选项可见、禁用，标「框选范围待接通」 | 框选与人员选择的读写 |
+| 按姓名查找 | 输入框可见、禁用，标「按姓名查找待接通」 | 目录检索读取 |
+| 「稍后处理」的撤销 | 只在本页把条目带回卡片列（继续核对），不发命令 | 合同提供 defer 的撤销 |
+| 待确认事件草稿（原型 `draft`） | 不渲染 | 回执带草稿信息 |
+| 面包屑「工作台 / 待核对」与导航高亮 | 未加，需要在 `route-nav.ts` 加别名（共享文件） | #248 共享文件请求 |
+
+`mark_irrelevant` / `unbind` 原型没有入口，不渲染；`unknown_project`、`unknown_interview_candidate` 归其他卡，本页过滤掉。
+
+视觉对比的范围受参照提交限制：`prototype-reference.json`（91b297a）里的 `inbox.html` 只有人名 / 课题两类，四类条目没有像素基线。`tests/visual/inbox.spec.ts` 只比较参照里有的部分：
+
+- HR、导师两种视角下，页面标题、两栏布局、卡片列和侧栏卡的计算样式与位置，对照 `inbox.html?as=hrbp|mentor`；
+- 四类卡片的卡框、来源标签、问题、选项网格与选项样式，对照设计系统页 `#c-verify` 的核对卡；
+- 「都不是，稍后处理」选项逐像素对比。
+
+条目内容、按类型筛选（量位置前在工程侧移出版面）、导语文案（参照为「…哪个项目，选完即生效，随时可以撤销」）、停靠区和播放按钮不在对比范围内。这些部分的状态是「参照待同步」，不算视觉通过。页面按 main 上 `81e4fd4`（#250）的原型实现；参照同步到 `81e4fd4` 的请求见 #248，同步后补跑四类条目的像素对比。
