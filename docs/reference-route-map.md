@@ -158,7 +158,7 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 
 | 消费页面 / 区块 | 合同字段 | 数据来源 / 当前表达 | 后续责任 |
 | --- | --- | --- | --- |
-| `/work` 问候、业务日与入口 | `workbench.greeting / asOf / entries` | directory 身份及服务端授权；`entries` 是动作授权唯一来源（管理者与 HR `record, find_people`、导师 `record`），导航由 shell 决定；合同就绪，查询尚未接入 | BOW-838/841 |
+| `/work` 问候、业务日与入口 | `workbench.greeting / asOf / entries` | directory 身份及服务端授权；`entries` 是动作授权唯一来源（管理者与 HR `record, find_people`、导师 `record`），导航由 shell 决定；查询由 `queries/workbench.ts` 提供页面包络与当前授权读取，UI 由 841 接入；`/work` 仍为 404 | BOW-838/841 |
 | 管理者判断提醒、值得关注的人/项目、我的关注 | `judgmentReminders / noteworthyPeople / noteworthyProjects / myWatch` | evaluation-system / talent / programs；固定 `not_connected` | P2/P4 对应链路 |
 | HR 有变化的人、判断对照 | `changedPeople / judgmentComparison` | talent / evaluation-system；固定 `not_connected` | P4/P7 对应链路 |
 | HR/导师待办与材料任务 | `todos / materialTasks` | records / jobs；固定 `not_connected`，无伪零角标 | P3 待办汇总与材料链路 |
