@@ -329,3 +329,12 @@ body.nt-mob #app { display: block; min-height: 0; }
 .m-screen .n-event__raw summary { display: flex; align-items: center; width: auto; min-width: 44px; min-height: 44px; }
 .m-screen .n-trail__head { min-height: 44px; }
 .m-screen .m-link { min-height: 56px; }
+
+/* 我的判断对照：一行一个案例，左边人和入营选拔档位，右边差异状态或无权限 */
+.m-jrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); font-size: var(--t-sm); }
+.m-jrow__who b { font-weight: 600; margin-right: 4px; }
+.m-jrow__who small, .m-jrow__to small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
+.m-jrow__to { display: grid; justify-items: end; gap: 2px; max-width: 52%; text-align: right; }
+.m-jrow__to small.is-nw { white-space: nowrap; }
+.m-jrow__why { grid-column: 2 / -1; margin-top: -6px; font-size: var(--t-xs); color: var(--ink-3); }
+.m-jrow__to .n-jstate { display: inline-flex; align-items: center; gap: 3px; }
