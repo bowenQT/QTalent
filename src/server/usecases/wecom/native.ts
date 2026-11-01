@@ -16,7 +16,10 @@ import {
   type WecomPostgresDependencies,
 } from './postgres';
 
-type Options = Omit<WecomClientOptions, 'authorize' | 'onMessage'> & {
+type Options = Omit<
+  WecomClientOptions,
+  'authorize' | 'onMessage' | 'resolvePersistedReceipt'
+> & {
   db: Database;
   requests: WecomPostgresDependencies['requests'];
   now(): Date;
@@ -31,11 +34,16 @@ export function createWecomNativeClient(
   options: Options,
   io?: Parameters<typeof createWecomClient>[1],
 ) {
+  const connection = Object.freeze({
+    scope: options.scope,
+    botId: options.botId,
+  });
+  let pendingPersisted: string | undefined;
   const proofs = new WeakMap<WecomMessage, AbortSignal>();
   let pendingSend:
     { message: WecomMessage; fact: WecomReceiptFact } | undefined;
   let tail: Promise<unknown> = Promise.resolve();
-  const pendingReceives = new Set<Promise<void>>();
+  const pendingReceives = new Set<Promise<unknown>>();
   const verified = (message: WecomMessage) => {
     const signal = proofs.get(message);
     return signal && !signal.aborted && client.state === 'ready'
@@ -67,6 +75,21 @@ export function createWecomNativeClient(
     requests: options.requests,
     now: options.now,
     verifiedSender: async (message) => verified(message),
+    notifications: {
+      connection: () => (client.state === 'ready' ? connection : null),
+      send: (key) => {
+        const next = tail.then(async () => {
+          pendingPersisted = key;
+          try {
+            await client.sendPersistedReceipt(key);
+          } finally {
+            pendingPersisted = undefined;
+          }
+        });
+        tail = next.catch(() => undefined);
+        return next;
+      },
+    },
     sender: {
       acknowledgeGroup: (message) =>
         serializedSend(message, { kind: 'group_ack' }, () =>
@@ -102,6 +125,16 @@ export function createWecomNativeClient(
   const client: ReturnType<typeof createWecomClient> = createWecomClient(
     {
       ...options,
+      resolvePersistedReceipt: async (key, actualConnection) => {
+        if (
+          key !== pendingPersisted ||
+          client.state !== 'ready' ||
+          actualConnection.scope !== connection.scope ||
+          actualConnection.botId !== connection.botId
+        )
+          return null;
+        return receiver.resolvePersistedReceipt(key);
+      },
       authorize: async (source, action) => {
         try {
           // This callback is reachable only through the installed client. Neither
@@ -160,6 +193,13 @@ export function createWecomNativeClient(
   );
   return {
     connect: client.connect,
+    notifyPending(after?: string) {
+      const task = receiver.notifyPending(after);
+      pendingReceives.add(task);
+      return task.finally(() => {
+        pendingReceives.delete(task);
+      });
+    },
     get state() {
       return client.state;
     },

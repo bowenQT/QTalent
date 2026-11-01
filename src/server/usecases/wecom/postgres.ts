@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, isNotNull, sql } from 'drizzle-orm';
 import { ZodError } from 'zod';
 import type { Database, Transaction } from '../../db/client';
 import { accountBindings } from '../../modules/directory';
@@ -50,6 +50,11 @@ export type WecomPostgresDependencies = {
   db: Database;
   requests: ReturnType<typeof createRecordBatchArrangeRequests>;
   now(): Date;
+  notifications?: {
+    /** The actual authenticated client state, not a supplied sender. */
+    connection(): Readonly<{ scope: string; botId: string }> | null;
+    send(receiptKey: string): Promise<void>;
+  };
   /** Installed by the server's verified, live WS closure, never by request JSON.
    * Must return null once that connection/proof is no longer valid. */
   verifiedSender(message: WecomMessage): Promise<VerifiedWecomSender | null>;
@@ -252,6 +257,81 @@ export function createWecomPostgresReceiver(deps: WecomPostgresDependencies) {
       return failure(error);
     }
   }
+  async function reserve(
+    tx: Transaction,
+    messageKey: string,
+    kind: ReceiptKind,
+    actor: Actor,
+    safe: WecomBatchReceipt | null,
+  ) {
+    const value =
+      kind === 'group_ack'
+        ? { kind: 'group_ack' as const }
+        : safe
+          ? { kind: 'private_receipt' as const, ...safe }
+          : null;
+    if (!value) return { status: 'not_applicable' as const };
+    const fact = describeWecomReceipt(messageKey, value);
+    const [previous] = await tx
+      .select()
+      .from(wecomReceiptAttempts)
+      .where(eq(wecomReceiptAttempts.key, fact.key))
+      .for('update');
+    const plan = planWecomReceiptAttempt(
+      previous
+        ? { fingerprint: previous.fingerprint, state: previous.state }
+        : null,
+      fact.fingerprint,
+    );
+    if (plan !== 'reserve') return { status: plan };
+    await tx.insert(wecomReceiptAttempts).values({
+      key: fact.key,
+      messageKey,
+      kind,
+      batchId: kind === 'private_receipt' ? safe!.batchId : null,
+      batchRevision: kind === 'private_receipt' ? safe!.revision : null,
+      batchStatus: kind === 'private_receipt' ? safe!.status : null,
+      fingerprint: fact.fingerprint,
+      state: 'reserved',
+      attemptedAt: deps.now(),
+    });
+    await recordEntryAudit(tx, {
+      actorId: actor.accountId,
+      channel: 'wecom',
+      action: 'wecom.receipt.reserve',
+      resourceId: safe?.batchId ?? null,
+      revision: safe?.revision ?? null,
+    });
+    return { status: 'reserved' as const, fact, safe };
+  }
+  async function acknowledgeReserved(key: string) {
+    const rows = await deps.db
+      .update(wecomReceiptAttempts)
+      .set({ state: 'acknowledged', acknowledgedAt: deps.now() })
+      .where(
+        and(
+          eq(wecomReceiptAttempts.key, key),
+          eq(wecomReceiptAttempts.state, 'reserved'),
+        ),
+      )
+      .returning({ key: wecomReceiptAttempts.key });
+    if (rows.length !== 1) throw new EntryUsecaseError('unavailable');
+  }
+  async function markUnknown(key: string) {
+    try {
+      await deps.db
+        .update(wecomReceiptAttempts)
+        .set({ state: 'outcome_unknown' })
+        .where(
+          and(
+            eq(wecomReceiptAttempts.key, key),
+            eq(wecomReceiptAttempts.state, 'reserved'),
+          ),
+        );
+    } catch {
+      /* Durable reserved itself prevents resend if this update fails. */
+    }
+  }
   async function deliver(
     message: WecomMessage,
     kind: ReceiptKind,
@@ -284,41 +364,15 @@ export function createWecomPostgresReceiver(deps: WecomPostgresDependencies) {
       }
       const reservation = await deps.db.transaction(async (tx) => {
         const data = await current(tx);
-        if (!data.fact) return { status: 'not_applicable' as const };
-        const fact = data.fact;
-        const [previous] = await tx
-          .select()
-          .from(wecomReceiptAttempts)
-          .where(eq(wecomReceiptAttempts.key, fact.key))
-          .for('update');
-        const plan = planWecomReceiptAttempt(
-          previous
-            ? { fingerprint: previous.fingerprint, state: previous.state }
-            : null,
-          fact.fingerprint,
-        );
-        if (plan !== 'reserve') return { status: plan };
-        await tx.insert(wecomReceiptAttempts).values({
-          key: fact.key,
-          messageKey: descriptor.key,
+        const result = await reserve(
+          tx,
+          descriptor.key,
           kind,
-          batchId: kind === 'private_receipt' ? data.safe!.batchId : null,
-          batchRevision:
-            kind === 'private_receipt' ? data.safe!.revision : null,
-          batchStatus: kind === 'private_receipt' ? data.safe!.status : null,
-          fingerprint: fact.fingerprint,
-          state: 'reserved',
-          attemptedAt: deps.now(),
-        });
-        await recordEntryAudit(tx, {
-          actorId: data.actor.accountId,
-          channel: 'wecom',
-          action: 'wecom.receipt.reserve',
-          resourceId: data.safe?.batchId ?? null,
-          revision: data.safe?.revision ?? null,
-        });
+          data.actor,
+          data.safe,
+        );
         await auth.identities.current(auth.identity);
-        return { status: 'reserved' as const, fact, safe: data.safe };
+        return result;
       });
       if (reservation.status !== 'reserved') return reservation;
       reservedKey = reservation.fact.key;
@@ -335,35 +389,13 @@ export function createWecomPostgresReceiver(deps: WecomPostgresDependencies) {
       });
       if (kind === 'group_ack') await deps.sender.acknowledgeGroup(message);
       else await deps.sender.sendPrivateReceipt(message, reservation.safe!);
-      const acknowledged = await deps.db
-        .update(wecomReceiptAttempts)
-        .set({ state: 'acknowledged', acknowledgedAt: deps.now() })
-        .where(
-          and(
-            eq(wecomReceiptAttempts.key, reservedKey),
-            eq(wecomReceiptAttempts.state, 'reserved'),
-          ),
-        )
-        .returning({ key: wecomReceiptAttempts.key });
-      if (acknowledged.length !== 1) throw new EntryUsecaseError('unavailable');
+      await acknowledgeReserved(reservedKey);
       return { status: 'acknowledged' };
     } catch (error) {
       if (!reservedKey) return failure(error);
       // DB failure after a real ACK also remains unknown; do not return success
       // or retry. If this write fails, durable reserved itself prevents resend.
-      try {
-        await deps.db
-          .update(wecomReceiptAttempts)
-          .set({ state: 'outcome_unknown' })
-          .where(
-            and(
-              eq(wecomReceiptAttempts.key, reservedKey),
-              eq(wecomReceiptAttempts.state, 'reserved'),
-            ),
-          );
-      } catch {
-        return { status: 'outcome_unknown' };
-      }
+      await markUnknown(reservedKey);
       return { status: 'outcome_unknown' };
     }
   }
@@ -399,5 +431,152 @@ export function createWecomPostgresReceiver(deps: WecomPostgresDependencies) {
       return false;
     }
   }
-  return { receive, deliver, canSend };
+  function liveConnection(row?: MessageRow) {
+    const connection = deps.notifications?.connection();
+    if (!connection) throw new EntryUsecaseError('unavailable');
+    if (
+      row &&
+      (connection.scope !== row.scope || connection.botId !== row.botId)
+    )
+      throw new EntryUsecaseError('not_found');
+    return connection;
+  }
+  async function storedIdentity(row: MessageRow) {
+    liveConnection(row);
+    const identities = createEntryIdentityService(
+      {
+        wecom: createWecomEntryAuthenticator(
+          deps.db,
+          async () => {
+            liveConnection(row);
+            return {
+              scope: row.scope,
+              botId: row.botId,
+              senderId: row.senderId,
+            };
+          },
+          deps.now,
+        ),
+      },
+      deps.now,
+    );
+    const identity = await identities.authenticate('wecom', row.key);
+    return { identities, identity };
+  }
+  /** The protocol resolver calls this only for the private in-flight reservation.
+   * No message reconstruction, callback request ID, or old transport proof. */
+  async function resolvePersistedReceipt(key: string) {
+    try {
+      if (!/^[a-f0-9]{64}$/.test(key)) return null;
+      liveConnection();
+      const [lookup] = await deps.db
+        .select({ messageKey: wecomReceiptAttempts.messageKey })
+        .from(wecomReceiptAttempts)
+        .where(eq(wecomReceiptAttempts.key, key));
+      if (!lookup) return null;
+      return await deps.db.transaction(async (tx) => {
+        const row = await lockMessage(tx, lookup.messageKey);
+        if (!row) return null;
+        const auth = await storedIdentity(row);
+        const actor = await lockedActor(tx, auth.identities, auth.identity);
+        const safe = safeReceipt(await actualReceipt(tx, row, actor));
+        if (!safe) return null;
+        const fact = describeWecomReceipt(row.key, {
+          kind: 'private_receipt',
+          ...safe,
+        });
+        const [attempt] = await tx
+          .select()
+          .from(wecomReceiptAttempts)
+          .where(eq(wecomReceiptAttempts.key, key))
+          .for('update');
+        if (
+          !attempt ||
+          attempt.state !== 'reserved' ||
+          attempt.kind !== 'private_receipt' ||
+          key !== fact.key ||
+          attempt.fingerprint !== fact.fingerprint
+        )
+          return null;
+        await auth.identities.current(auth.identity);
+        liveConnection(row);
+        return { senderId: row.senderId, receipt: safe };
+      });
+    } catch {
+      return null;
+    }
+  }
+  /** One bounded keyset page. Caller schedules the next page/cycle in the
+   * existing worker lifecycle; this never creates a job or invokes the model. */
+  async function notifyPending(
+    after?: string,
+  ): Promise<{ status: 'success'; nextCursor: string | null } | Failure> {
+    try {
+      if (after !== undefined && !/^[a-f0-9]{64}$/.test(after))
+        throw new EntryUsecaseError('validation_error');
+      const connection = liveConnection();
+      const rows = await deps.db
+        .select({ key: wecomMessages.key })
+        .from(wecomMessages)
+        .where(
+          and(
+            eq(wecomMessages.scope, connection.scope),
+            eq(wecomMessages.botId, connection.botId),
+            isNotNull(wecomMessages.jobId),
+            after === undefined ? undefined : gt(wecomMessages.key, after),
+          ),
+        )
+        .orderBy(asc(wecomMessages.key))
+        .limit(32);
+      for (const candidate of rows) {
+        let reservation;
+        try {
+          reservation = await deps.db.transaction(async (tx) => {
+            const row = await lockMessage(tx, candidate.key);
+            if (!row) return null;
+            const auth = await storedIdentity(row);
+            const actor = await lockedActor(tx, auth.identities, auth.identity);
+            const safe = safeReceipt(await actualReceipt(tx, row, actor));
+            const result = await reserve(
+              tx,
+              row.key,
+              'private_receipt',
+              actor,
+              safe,
+            );
+            await auth.identities.current(auth.identity);
+            liveConnection(row);
+            return result;
+          });
+        } catch (error) {
+          // Unreadable rows are skipped without disclosing identities/counts.
+          // Infrastructure failure aborts the page so the caller retries its cursor.
+          if (
+            ['not_found', 'forbidden', 'unauthenticated'].includes(
+              failure(error).status,
+            )
+          )
+            continue;
+          throw error;
+        }
+        if (reservation?.status !== 'reserved') continue;
+        try {
+          await deps.notifications!.send(reservation.fact.key);
+          await acknowledgeReserved(reservation.fact.key);
+        } catch {
+          await markUnknown(reservation.fact.key);
+          // Stop this page on uncertain transmission. Resuming cannot resend it.
+          throw new EntryUsecaseError('unavailable');
+        }
+      }
+      liveConnection();
+      return {
+        status: 'success',
+        nextCursor: rows.length === 32 ? rows[31]!.key : null,
+      };
+    } catch (error) {
+      return failure(error);
+    }
+  }
+  return { receive, deliver, canSend, notifyPending, resolvePersistedReceipt };
 }

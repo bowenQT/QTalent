@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { buildEntryDeepLink } from '../../../contracts/entry-links';
-import { WecomError, type WecomMessage } from './protocol';
+import { WecomError, wecomIdSchema, type WecomMessage } from './protocol';
 const receiptSchema = z.strictObject({
   batchId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/),
   revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
@@ -58,6 +58,17 @@ export function privateBatchReceipt(
   input: WecomBatchReceipt,
   origin: string,
 ) {
+  return persistedBatchReceipt(message.source.senderId, input, origin);
+}
+/** Wire formatting only; the client obtains this target from its server-owned
+ * resolver at send time, never from an HTTP sender or fabricated message. */
+export function persistedBatchReceipt(
+  senderId: string,
+  input: WecomBatchReceipt,
+  origin: string,
+) {
+  if (!wecomIdSchema.safeParse(senderId).success)
+    throw new WecomError('invalid_frame');
   const checked = receiptSchema.safeParse(input);
   if (!checked.success) throw new WecomError('invalid_frame');
   const receipt = checked.data;
@@ -82,7 +93,7 @@ export function privateBatchReceipt(
       expectedRevision: receipt.revision,
     }),
     body: {
-      chatid: message.source.senderId,
+      chatid: senderId,
       msgtype: 'markdown',
       markdown: { content: `${labels[receipt.status]}\n[打开批次](${href})` },
     },

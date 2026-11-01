@@ -13,6 +13,7 @@ import {
 import {
   groupAcknowledgement,
   privateBatchReceipt,
+  persistedBatchReceipt,
   validateWebOrigin,
   type WecomAction,
   type WecomBatchReceipt,
@@ -35,6 +36,12 @@ export type WecomClientOptions = z.input<typeof settingsSchema> & {
     signal: AbortSignal,
   ) => void | Promise<void>;
   onError?: (error: WecomError) => void;
+  /** Server-installed native reader, called inside the send queue. A key is
+   * only a lookup handle, not authorization. Missing/denied resolver sends nothing. */
+  resolvePersistedReceipt?: (
+    receiptKey: string,
+    connection: Readonly<{ scope: string; botId: string }>,
+  ) => Promise<{ senderId: string; receipt: WecomBatchReceipt } | null>;
 };
 export function createWecomClient(
   options: WecomClientOptions,
@@ -60,7 +67,12 @@ export function createWecomClient(
   if (config.webOrigin) validateWebOrigin(config.webOrigin);
   const authorize = options.authorize,
     onMessage = options.onMessage,
-    onError = options.onError;
+    onError = options.onError,
+    resolvePersistedReceipt = options.resolvePersistedReceipt;
+  const receiptConnection = Object.freeze({
+    scope: config.scope,
+    botId: config.botId,
+  });
   let state:
     'idle' | 'connecting' | 'authenticating' | 'ready' | 'closing' | 'closed' =
     'idle';
@@ -152,6 +164,7 @@ export function createWecomClient(
     id: string,
     authenticate = false,
     before?: () => Promise<void>,
+    bodyAtSend?: () => Promise<unknown>,
   ): Promise<void> {
     if (queuedSends >= wecomLimits.maxQueuedSends)
       return Promise.reject(new WecomError('queue_full'));
@@ -160,6 +173,7 @@ export function createWecomClient(
       if (authenticate ? state !== 'authenticating' : state !== 'ready')
         throw new WecomError('closed');
       await before?.();
+      const payload = bodyAtSend ? await bodyAtSend() : body;
       if (
         !socket ||
         socket.readyState !== WebSocket.OPEN ||
@@ -177,7 +191,7 @@ export function createWecomClient(
             JSON.stringify({
               cmd,
               headers: { req_id: id },
-              ...(body === undefined ? {} : { body }),
+              ...(payload === undefined ? {} : { body: payload }),
             }),
             (error) => {
               if (error) fail(new WecomError('unavailable'));
@@ -326,6 +340,37 @@ export function createWecomClient(
       const plan = groupAcknowledgement(message);
       await request(plan.cmd, plan.body, plan.requestId, false, () =>
         permitted(message, plan.action),
+      );
+    },
+    async sendPersistedReceipt(receiptKey: string) {
+      if (typeof receiptKey !== 'string' || !/^[a-f0-9]{64}$/.test(receiptKey))
+        throw new WecomError('invalid_frame');
+      if (state !== 'ready') throw new WecomError('closed');
+      if (!resolvePersistedReceipt || !config.webOrigin)
+        throw new WecomError('unavailable');
+      await request(
+        'aibot_send_msg',
+        undefined,
+        `aibot_send_msg_${randomUUID()}`,
+        false,
+        undefined,
+        async () => {
+          let target;
+          try {
+            target = await resolvePersistedReceipt(
+              receiptKey,
+              receiptConnection,
+            );
+          } catch {
+            throw new WecomError('unavailable');
+          }
+          if (!target) throw new WecomError('forbidden');
+          return persistedBatchReceipt(
+            target.senderId,
+            target.receipt,
+            config.webOrigin!,
+          ).body;
+        },
       );
     },
     async sendPrivateReceipt(

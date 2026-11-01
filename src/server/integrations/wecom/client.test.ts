@@ -508,3 +508,102 @@ describe('bounded queues, uncertain send and actual shutdown', () => {
     await expect(idle.connect()).rejects.toMatchObject({ kind: 'closed' });
   });
 });
+
+it('resolves a persisted receipt only at the ready send boundary without fabricating a message', async () => {
+  const contexts: unknown[] = [];
+  const key = 'a'.repeat(64);
+  const h = await local({
+    resolvePersistedReceipt: async (receivedKey, connection) => {
+      expect(receivedKey).toBe(key);
+      contexts.push(connection);
+      return { senderId: 'demo-user', receipt };
+    },
+    webOrigin: 'https://demo.example.test',
+  });
+  await expect(h.client.sendPersistedReceipt(key)).rejects.toMatchObject({
+    kind: 'closed',
+  });
+  expect(contexts).toHaveLength(0);
+  await h.client.connect();
+  await h.client.sendPersistedReceipt(key);
+  expect(contexts).toEqual([{ scope: 'demo-tenant', botId: 'demo-bot' }]);
+  expect(h.messages).toHaveLength(0);
+  const sent = h.frames.filter((f) => f.cmd === 'aibot_send_msg');
+  expect(sent).toHaveLength(1);
+  expect(sent[0]!.body).toEqual({
+    chatid: 'demo-user',
+    msgtype: 'markdown',
+    markdown: {
+      content:
+        '材料待确认\n[打开批次](https://demo.example.test/entry/open?kind=material_batch&id=batch-demo&expectedRevision=3)',
+    },
+  });
+});
+it('does not accept a bare persisted sender or an unconfigured resolver', async () => {
+  const h = await local({ webOrigin: 'https://demo.example.test' });
+  await h.client.connect();
+  await expect(
+    h.client.sendPersistedReceipt('demo-user'),
+  ).rejects.toMatchObject({ kind: 'invalid_frame' });
+  await expect(
+    h.client.sendPersistedReceipt('a'.repeat(64)),
+  ).rejects.toMatchObject({ kind: 'unavailable' });
+  expect(h.frames.filter((f) => f.cmd === 'aibot_send_msg')).toHaveLength(0);
+});
+it('rechecks a persisted target after queue delay and never sends a denied or closed target', async () => {
+  let allowed = true;
+  let release: (() => void) | undefined;
+  let calls = 0;
+  const h = await local(
+    {
+      webOrigin: 'https://demo.example.test',
+      resolvePersistedReceipt: async () => {
+        calls++;
+        return allowed ? { senderId: 'demo-user', receipt } : null;
+      },
+    },
+    (socket, frame) => {
+      if (frame.cmd === 'aibot_send_msg') release = () => ack(socket, frame);
+      else ack(socket, frame);
+    },
+  );
+  await h.client.connect();
+  const first = h.client.sendPersistedReceipt('a'.repeat(64));
+  await until(() => !!release);
+  const second = h.client.sendPersistedReceipt('b'.repeat(64));
+  const denied = expect(second).rejects.toMatchObject({ kind: 'forbidden' });
+  allowed = false;
+  release!();
+  await first;
+  await denied;
+  expect(calls).toBe(2);
+  expect(h.frames.filter((f) => f.cmd === 'aibot_send_msg')).toHaveLength(1);
+  await h.client.close();
+  await expect(
+    h.client.sendPersistedReceipt('a'.repeat(64)),
+  ).rejects.toMatchObject({ kind: 'closed' });
+  expect(calls).toBe(2);
+});
+it('does not send invalid persisted payloads or leak native reader diagnostics', async () => {
+  for (const resolver of [
+    async () => {
+      throw new Error('synthetic private database diagnostics');
+    },
+    async () => ({ senderId: 'invalid sender', receipt }),
+    async () => ({
+      senderId: 'demo-user',
+      receipt: { ...receipt, revision: 0 },
+    }),
+  ]) {
+    const h = await local({
+      webOrigin: 'https://demo.example.test',
+      resolvePersistedReceipt: resolver,
+    });
+    await h.client.connect();
+    await expect(
+      h.client.sendPersistedReceipt('a'.repeat(64)),
+    ).rejects.not.toThrow('synthetic private');
+    expect(h.frames.filter((f) => f.cmd === 'aibot_send_msg')).toHaveLength(0);
+    await h.client.close();
+  }
+});

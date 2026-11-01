@@ -52,7 +52,7 @@ async function fixture(chatType: 'single' | 'group' = 'single') {
   const facts = await seedNativeCase(c.db);
   const model = syntheticBatchClient();
   const source: VerifiedWecomSender = {
-    scope: 'demo-scope',
+    scope: `demo-${randomUUID()}`,
     botId: 'demo-bot',
     senderId: randomUUID(),
   };
@@ -623,6 +623,7 @@ it('revalidates current status for the real transport send gate', async () => {
 async function wireFixture(
   hasTarget = true,
   existing?: Awaited<ReturnType<typeof fixture>>,
+  connection?: { scope: string; botId: string },
 ) {
   const h = existing ?? (await fixture('group'));
   const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
@@ -658,6 +659,7 @@ async function wireFixture(
   const client = createWecomNativeClient(
     {
       ...h.source,
+      ...connection,
       secret: 'synthetic-local-only',
       webOrigin: 'https://demo.example.test',
       db: c.db,
@@ -950,3 +952,358 @@ it('rejects missing ledger and altered payload before reserving any receipt', as
   ).toHaveLength(0);
   expect(h.sent).toHaveLength(0);
 });
+
+it('discovers a completed persistent batch on a new real connection without any message redelivery', async () => {
+  const h = await fixture();
+  await h.receiver.receive(h.message, h.target);
+  await h.receiver.deliver(h.message, 'private_receipt');
+  const [stored] = await c.db
+    .select()
+    .from(wecomMessages)
+    .where(eq(wecomMessages.credentialId, h.credentialId));
+  const [job] = await c.db
+    .select()
+    .from(jobSnapshots)
+    .where(eq(jobSnapshots.jobId, stored!.jobId!));
+  expect(await h.app.runner.run(job!.jobId, job!.attempt)).toBe(
+    'awaiting_manual',
+  );
+  const resumed = await wireFixture(true, h);
+  try {
+    expect(await resumed.socketClient.notifyPending()).toEqual({
+      status: 'success',
+      nextCursor: null,
+    });
+    expect(
+      resumed.frames.filter((f) => f.cmd === 'aibot_send_msg'),
+    ).toHaveLength(1);
+    const sent = resumed.frames.find((f) => f.cmd === 'aibot_send_msg')!;
+    expect(sent.body!.chatid).toBe(h.source.senderId);
+    expect(JSON.stringify(sent.body)).toContain('材料待确认');
+    expect(Object.keys(sent.body!).sort()).toEqual([
+      'chatid',
+      'markdown',
+      'msgtype',
+    ]);
+    expect(resumed.frames.some((f) => f.cmd === 'aibot_respond_msg')).toBe(
+      false,
+    );
+    expect(h.calls()).toBe(1);
+    expect(await resumed.socketClient.notifyPending()).toEqual({
+      status: 'success',
+      nextCursor: null,
+    });
+    expect(
+      resumed.frames.filter((f) => f.cmd === 'aibot_send_msg'),
+    ).toHaveLength(1);
+  } finally {
+    await resumed.close();
+  }
+});
+
+it('two independent ready clients reserve one persistent send without any received message', async () => {
+  const h = await fixture();
+  await h.receiver.receive(h.message, h.target);
+  const a = await wireFixture(true, h),
+    b = await wireFixture(true, h);
+  try {
+    expect(
+      await Promise.all([
+        a.socketClient.notifyPending(),
+        b.socketClient.notifyPending(),
+      ]),
+    ).toEqual([
+      { status: 'success', nextCursor: null },
+      { status: 'success', nextCursor: null },
+    ]);
+    expect(
+      [...a.frames, ...b.frames].filter((f) => f.cmd === 'aibot_send_msg'),
+    ).toHaveLength(1);
+    const rows = await c.db
+      .select()
+      .from(wecomReceiptAttempts)
+      .where(
+        eq(
+          wecomReceiptAttempts.messageKey,
+          describeWecomDelivery(h.message).key,
+        ),
+      );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.state).toBe('acknowledged');
+    expect(h.calls()).toBe(0);
+  } finally {
+    await a.close();
+    await b.close();
+  }
+});
+it.each(['revoked', 'revision', 'rebind', 'expired', 'domain'] as const)(
+  'a restarted notification scanner refuses current %s facts',
+  async (kind) => {
+    const h = await fixture();
+    await h.receiver.receive(h.message, h.target);
+    if (kind === 'revoked')
+      await c.db
+        .update(wecomBindings)
+        .set({ revokedAt: new Date(wallAt) })
+        .where(eq(wecomBindings.id, h.credentialId));
+    if (kind === 'revision')
+      await c.db
+        .update(wecomBindings)
+        .set({ revision: 2 })
+        .where(eq(wecomBindings.id, h.credentialId));
+    if (kind === 'expired')
+      await c.db
+        .update(wecomBindings)
+        .set({ expiresAt: new Date(wallAt) })
+        .where(eq(wecomBindings.id, h.credentialId));
+    if (kind === 'domain')
+      await c.db
+        .update(evaluationRelations)
+        .set({ validTo: businessAt })
+        .where(eq(evaluationRelations.id, h.relation));
+    if (kind === 'rebind')
+      await c.db
+        .update(accountBindings)
+        .set({ personId: h.target.personIds[0]! })
+        .where(eq(accountBindings.accountId, h.account));
+    const resumed = await wireFixture(true, h);
+    try {
+      expect(await resumed.socketClient.notifyPending()).toEqual({
+        status: 'success',
+        nextCursor: null,
+      });
+      expect(
+        resumed.frames.filter((f) => f.cmd === 'aibot_send_msg'),
+      ).toHaveLength(0);
+      expect(
+        await c.db
+          .select()
+          .from(wecomReceiptAttempts)
+          .where(
+            eq(
+              wecomReceiptAttempts.messageKey,
+              describeWecomDelivery(h.message).key,
+            ),
+          ),
+      ).toHaveLength(0);
+    } finally {
+      await resumed.close();
+    }
+  },
+);
+it('scopes persistent discovery to the actual ready bot and tenant, and refuses closed connections', async () => {
+  const h = await fixture();
+  await h.receiver.receive(h.message, h.target);
+  for (const connection of [
+    { scope: h.source.scope, botId: 'different-bot' },
+    { scope: 'different-tenant', botId: h.source.botId },
+  ]) {
+    const resumed = await wireFixture(true, h, connection);
+    try {
+      expect(await resumed.socketClient.notifyPending()).toEqual({
+        status: 'success',
+        nextCursor: null,
+      });
+      expect(
+        resumed.frames.filter((f) => f.cmd === 'aibot_send_msg'),
+      ).toHaveLength(0);
+    } finally {
+      await resumed.close();
+    }
+    expect(await resumed.socketClient.notifyPending()).toEqual({
+      status: 'unavailable',
+    });
+  }
+});
+it('a persisted proactive ACK timeout is never resent by a new process-equivalent client', async () => {
+  const h = await fixture();
+  await h.receiver.receive(h.message, h.target);
+  const first = await wireFixture(true, h);
+  first.holdPrivateAck();
+  try {
+    expect(await first.socketClient.notifyPending()).toEqual({
+      status: 'unavailable',
+    });
+    expect(first.frames.filter((f) => f.cmd === 'aibot_send_msg')).toHaveLength(
+      1,
+    );
+  } finally {
+    await first.close();
+  }
+  const rows = await c.db
+    .select()
+    .from(wecomReceiptAttempts)
+    .where(
+      eq(wecomReceiptAttempts.messageKey, describeWecomDelivery(h.message).key),
+    );
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.state).toBe('outcome_unknown');
+  const resumed = await wireFixture(true, h);
+  try {
+    expect(await resumed.socketClient.notifyPending()).toEqual({
+      status: 'success',
+      nextCursor: null,
+    });
+    expect(
+      resumed.frames.filter((f) => f.cmd === 'aibot_send_msg'),
+    ).toHaveLength(0);
+    expect(h.calls()).toBe(0);
+  } finally {
+    await resumed.close();
+  }
+});
+it('a durable reserved proactive receipt from an interrupted process cannot be reclaimed', async () => {
+  const h = await fixture();
+  const accepted = await h.receiver.receive(h.message, h.target);
+  if (accepted.status !== 'accepted')
+    throw new Error('accepted fixture required');
+  const messageKey = describeWecomDelivery(h.message).key;
+  const fact = describeWecomReceipt(messageKey, {
+    kind: 'private_receipt',
+    batchId: accepted.batchId,
+    revision: 1,
+    status: 'processing',
+  });
+  await c.db.insert(wecomReceiptAttempts).values({
+    key: fact.key,
+    messageKey,
+    kind: 'private_receipt',
+    batchId: accepted.batchId,
+    batchRevision: 1,
+    batchStatus: 'processing',
+    fingerprint: fact.fingerprint,
+    state: 'reserved',
+    attemptedAt: new Date(wallAt),
+  });
+  const resumed = await wireFixture(true, h);
+  try {
+    expect(await resumed.socketClient.notifyPending()).toEqual({
+      status: 'success',
+      nextCursor: null,
+    });
+    expect(
+      resumed.frames.filter((f) => f.cmd === 'aibot_send_msg'),
+    ).toHaveLength(0);
+    expect(
+      (
+        await c.db
+          .select()
+          .from(wecomReceiptAttempts)
+          .where(eq(wecomReceiptAttempts.key, fact.key))
+      )[0]!.state,
+    ).toBe('reserved');
+  } finally {
+    await resumed.close();
+  }
+});
+
+it('rechecks real current permission after the native notification waits behind a group ACK', async () => {
+  const h = await wireFixture();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let groupReached = false;
+  h.afterGroup(async () => {
+    groupReached = true;
+    await gate;
+  });
+  let task: Promise<unknown> | undefined;
+  try {
+    h.send();
+    await expect.poll(() => groupReached).toBe(true);
+    task = h.socketClient.notifyPending();
+    await expect
+      .poll(async () => {
+        const rows = await c.db
+          .select()
+          .from(wecomReceiptAttempts)
+          .where(
+            eq(
+              wecomReceiptAttempts.messageKey,
+              describeWecomDelivery(h.message).key,
+            ),
+          );
+        return rows.some(
+          (r) => r.kind === 'private_receipt' && r.state === 'reserved',
+        );
+      })
+      .toBe(true);
+    await c.db
+      .update(evaluationRelations)
+      .set({ validTo: businessAt })
+      .where(eq(evaluationRelations.id, h.relation));
+    release();
+    expect(await task).toEqual({ status: 'unavailable' });
+    expect(h.frames.filter((f) => f.cmd === 'aibot_send_msg')).toHaveLength(0);
+    const rows = await c.db
+      .select()
+      .from(wecomReceiptAttempts)
+      .where(
+        eq(
+          wecomReceiptAttempts.messageKey,
+          describeWecomDelivery(h.message).key,
+        ),
+      );
+    expect(rows.find((r) => r.kind === 'private_receipt')!.state).toBe(
+      'outcome_unknown',
+    );
+  } finally {
+    release();
+    await task;
+    await h.close();
+  }
+});
+it('bounds real notification scanning to keyset pages without enqueueing another model job', async () => {
+  const h = await fixture();
+  for (let i = 0; i < 33; i++) {
+    const frame = parseWecomFrame(
+      JSON.stringify({
+        cmd: 'aibot_msg_callback',
+        headers: { req_id: randomUUID() },
+        body: {
+          msgid: `page-${i}`,
+          aibotid: h.source.botId,
+          from: { userid: h.source.senderId },
+          chattype: 'single',
+          msgtype: 'text',
+          text: { content: h.text },
+        },
+      }),
+      h.source,
+    );
+    if (frame.kind !== 'message')
+      throw new Error('synthetic callback required');
+    expect((await h.receiver.receive(frame.message, h.target)).status).toBe(
+      'accepted',
+    );
+  }
+  const resumed = await wireFixture(true, h);
+  try {
+    expect(await resumed.socketClient.notifyPending('bad-cursor')).toEqual({
+      status: 'validation_error',
+    });
+    const first = await resumed.socketClient.notifyPending();
+    expect(first.status).toBe('success');
+    if (first.status !== 'success') throw new Error('first page failed');
+    expect(first.nextCursor).toMatch(/^[a-f0-9]{64}$/);
+    expect(
+      resumed.frames.filter((f) => f.cmd === 'aibot_send_msg'),
+    ).toHaveLength(32);
+    expect(await resumed.socketClient.notifyPending(first.nextCursor!)).toEqual(
+      { status: 'success', nextCursor: null },
+    );
+    expect(
+      resumed.frames.filter((f) => f.cmd === 'aibot_send_msg'),
+    ).toHaveLength(33);
+    expect(h.calls()).toBe(0);
+    const jobs = await c.db
+      .select()
+      .from(wecomMessages)
+      .where(eq(wecomMessages.credentialId, h.credentialId));
+    expect(jobs).toHaveLength(33);
+    expect(new Set(jobs.map((r) => r.jobId)).size).toBe(33);
+  } finally {
+    await resumed.close();
+  }
+}, 30000);
