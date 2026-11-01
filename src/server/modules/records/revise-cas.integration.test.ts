@@ -10,7 +10,10 @@ import {
   recordDrafts,
   recordDraftEvents,
 } from './save-state/schema';
-import { reviseTrustedRecordDraftBatch } from './write';
+import {
+  reviseTrustedRecordDraftBatch,
+  storeTrustedRecordDraftBatch,
+} from './write';
 import { saveRecordDraft, undoRecordSave } from '../../usecases/record-save';
 import {
   seedRecordCase,
@@ -221,14 +224,12 @@ it.each([false, true])(
 );
 it('rejects an existing event mapping even without a save ledger', async () => {
   const { f, value } = await setup();
-  await connection.db
-    .insert(recordDraftEvents)
-    .values({
-      batchId: f.draft.batchId,
-      draftId: f.draft.draftId,
-      personId: f.person.one,
-      eventId: f.sourceEventId,
-    });
+  await connection.db.insert(recordDraftEvents).values({
+    batchId: f.draft.batchId,
+    draftId: f.draft.draftId,
+    personId: f.person.one,
+    eventId: f.sourceEventId,
+  });
   await expect(revise(value)).rejects.toMatchObject({
     reason: 'human_confirmation_exists',
   });
@@ -263,4 +264,38 @@ it('rolls back the caller transaction when a stale draft fails CAS', async () =>
         .where(eq(people.id, f.person.one))
     )[0].noReview,
   ).toBe(false);
+});
+
+it('rejects a missing batch without inserting replacement identities', async () => {
+  const { f, value } = await setup();
+  value.draftSet.batchId += '-missing';
+  for (const draft of value.draftSet.drafts)
+    draft.batchId = value.draftSet.batchId;
+  await expect(revise(value)).rejects.toMatchObject({
+    status: 'not_found',
+    reason: 'draft_batch_missing',
+  });
+  expect((await snapshot(f.draft.batchId)).batch.revision).toBe(1);
+  expect((await snapshot(value.draftSet.batchId)).batch).toBeUndefined();
+});
+it('refuses an initial producer without a real model identity before creating a ledger', async () => {
+  const { f, value } = await setup();
+  value.draftSet.batchId += '-new';
+  for (const draft of value.draftSet.drafts) {
+    draft.batchId = value.draftSet.batchId;
+    draft.draftId += '-new';
+  }
+  await expect(
+    connection.db.transaction((tx) =>
+      storeTrustedRecordDraftBatch(tx, {
+        draftSet: value.draftSet,
+        originalInput: f.originalInput,
+        occurredOn: '2026-09-01',
+        modelVersion: ' ',
+        createdByAccountId: f.account.one,
+        createdAt: new Date('2026-11-01T10:00:00Z'),
+      }),
+    ),
+  ).rejects.toMatchObject({ reason: 'trusted_producer_facts_required' });
+  expect((await snapshot(value.draftSet.batchId)).batch).toBeUndefined();
 });
