@@ -98,7 +98,11 @@
     const a = st.anchors(v.data.dim, pid); // 记下针对哪一套锚点、哪个版本，HR 处理时知道要改哪段文字
     const sg = st.addRuleSug({ ...v.data, person: pid, fam: v.data.dim === 'prof' ? a.fam || 'all' : null, ver: a.v });
     mySugs();
-    NT.toast(`已提交给${st.person(st.roles.hrbp.person).name}，处理结果会显示在锚点下面`, { undo: () => { st.removeRuleSug(sg.id); mySugs(); } });
+    NT.toast(`已提交给${st.person(st.roles.hrbp.person).name}，处理结果会显示在锚点下面`, {
+      // 撤回结果如实交给 Toast：HR 已处理这条建议、或提建议的权限已收回时，撤回失败并保留记录
+      undo: () => { const ok = st.removeRuleSug(sg.id); mySugs(); return ok; },
+      failText: '撤销失败：HR 已处理这条建议，已保留记录',
+    });
   }
   function mySugs() {
     const host = $('#my-sugs'); if (!host) return;

@@ -235,6 +235,8 @@
     <symbol id="i-up-r" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 18 6M9 6h9v9"/></symbol>
     <symbol id="i-down-r" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 9v9H9"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M4 15v4.5h16V15"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M7 14h10v6H7z"/></symbol>
     <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M4 15v4.5h16V15"/></symbol>
     <symbol id="i-archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 5h17v4h-17zM5 9v10.5h14V9M10 13h4"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></symbol>
@@ -292,6 +294,8 @@
       <li><a href="#c-judge">判断对照</a></li>
       <li class="grp">人才评价规则</li>
       <li><a href="#c-eval">规则与修订</a></li>
+      <li class="grp">系统与导出</li>
+      <li><a href="#c-access">接入状态、导出与打印</a></li>
       <li class="grp">反馈</li>
       <li><a href="#c-feedback">反馈与状态</a></li>
       <li class="grp">形象</li>
@@ -373,6 +377,12 @@
         <div class="sw-item"><div class="sw-chip" style="background:var(--q-ll)"></div><div><b>待观察</b><code>#F1F2F4</code></div></div>
       </div>
       <p class="ds-caption">象限四色只做区域底色，彼此明度接近，避免「红灯区」式的褒贬暗示。</p>
+
+      <h3 class="ds-sub">操作反馈</h3>
+      <div class="sw">
+        <div class="sw-item"><div class="sw-chip" style="background:var(--ink);display:grid;place-items:center;color:var(--op-fail-on-ink)"><svg width="22" height="22"><use href="#i-info"/></svg></div><div><b>操作没成功</b><code>#F2B8A0</code> 深色 Toast 上的图标</div></div>
+      </div>
+      <p class="ds-caption">操作反馈只说撤销、保存、重试这类操作本身有没有成功，和证据判断无关，不借用支持、不支持、资料不足、证据冲突的颜色；颜色之外总配图标和一句写清结果的文字。</p>
     </section>
 
     <!-- ═════════ 字体 ═════════ -->
@@ -1857,6 +1867,33 @@
         </article>
       </div>
 
+
+      <h3 class="ds-sub" id="judge-select">入营选拔 ↔ 结营评审：两张原表、组队作品与无权限</h3>
+      <p>入营选拔看 72 小时作品评审三项和路演交流后的选拔档位；两段各回到自己那张原表的行。组队作品每位成员一行，标同队。前段落在中间档「通过」时标「中间档」，计入评价人的样本门槛，只看结营结论；偏高、偏低、一致只算最高或最低一档。评价人按现在有效、同节点的评价关系看：后段的关系已失效或由其他评价人负责时，那一段锁住并写明原因；前段的关系已失效的判断只计数。</p>
+      <div class="ds-grid" style="align-items:start">
+        <article class="n-jcase">
+          <div class="n-jcase__head"><span class="n-avatar n-avatar--sm" style="--hue:150">沈</span><b>沈亦初</b><span class="n-badge n-badge--demo">演示</span><span style="color:var(--ink-3)">综合判断</span></div>
+          <div class="n-jcase__side"><div class="n-jcase__stage"><span>入营选拔</span><span>xe-select-v1</span></div>
+            <div class="n-jcase__val"><b>优先录取</b><span>叶青</span><span class="n-jcase__team"><svg width="12" height="12"><use href="#i-users"/></svg>组队作品 · 七号队</span></div>
+            <div class="n-jcase__items">作品完整度与创新性 A · 开发过程与质量 A · 演示与表达 A</div>
+            <p class="n-jcase__note">组队作品（七号队）：三人分工做完整套分镜生成，演示流畅</p>
+            <span style="color:var(--ink-3)">作品评审表.xlsx（演示）「第六期入营选拔」第 13 行 · D、E、F、G、H 列</span></div>
+          <div class="n-jcase__mid"><span class="n-jstate" data-s="high">前段偏高 · 高两档</span><span>按 map-xe-select-v1</span></div>
+          <div class="n-jcase__side"><div class="n-jcase__stage"><span>结营评审</span><span>评审 叶青</span></div><div class="n-jcase__val"><b>不建议</b><span>叶青</span></div>
+            <span style="color:var(--ink-3)">结营评审表.xlsx（演示）「第六期结营评审」第 14 行 · E、F 列</span></div>
+        </article>
+        <article class="n-jcase">
+          <div class="n-jcase__head"><span class="n-avatar n-avatar--sm" style="--hue:20">谢</span><b>谢砚秋</b><span class="n-badge n-badge--demo">演示</span><span style="color:var(--ink-3)">评价人视角</span></div>
+          <div class="n-jcase__side"><div class="n-jcase__stage"><span>入营选拔</span><span>xe-select-v1</span></div><div class="n-jcase__val"><b>刚过线</b><span>叶青</span></div>
+            <div class="n-jcase__items">作品完整度与创新性 B · 开发过程与质量 C · 演示与表达 B</div></div>
+          <div class="n-jcase__mid"><span class="n-jstate" data-s="na">无权限</span><span>按 map-xe-select-v1</span></div>
+          <div class="n-jcase__side"><div class="n-jcase__stage"><span>结营评审</span><span></span></div>
+            <div class="n-jcase__deny"><svg width="12" height="12"><use href="#i-lock"/></svg><span><b>无权限</b>结营评审这一段的评价关系 08-16 起失效 · 已交回邱行之</span></div></div>
+        </article>
+      </div>
+      <div class="ds-row" style="margin-top:var(--s-3)"><span class="n-jstate" data-s="mid">中间档</span><span style="font-size:var(--t-xs);color:var(--ink-3)">只看结营结论</span><span class="n-jstate" data-s="high">前段偏高 · 高一档</span><span class="n-jstate" data-s="same">一致</span><span class="n-jstate" data-s="na">无权限</span></div>
+      <p class="ds-caption">评价人的可对照案例（含中间档）都计入门槛，不到 5 个只显示「样本不足」并列出案例；偏高、偏低、一致只算前段给了最高或最低一档的判断，中间档只看结营结论的分布。后段无权限的案例不计入评价人本人的统计。</p>
+
       <h3 class="ds-sub">归因：从光到墨</h3>
       <p>AI 只提出带案例的假设，以浅色出现；HR 选择归因类别、写理由并确认后，变成墨色署名的结论，才能生成改进动作。未确认的假设不显示给 管理者，也不能生成动作。</p>
       <div class="ds-stage" id="jattrib">
@@ -1934,11 +1971,11 @@
           <div class="ds-row"><span class="n-rstate" data-s="draft" id="rc-watch-state">草稿 watch-v3</span><span style="font-size:var(--t-xs);color:var(--ink-3)">苏晚起草</span></div>
         </a>
         <a class="n-rcard" href="#c-judge">
-          <div class="n-rcard__head"><span class="n-rcard__name">前段评价标准与对应表</span><span class="n-rcard__ro"><svg><use href="#i-lock"/></svg>只读</span></div>
-          <p class="n-rcard__what">面试和入营选拔怎么评，前后阶段的等级怎么对应；判断对照以它为准。</p>
-          <div class="n-rcard__ver"><b>xe-select-v2</b><b>hire-v1</b><b>map-xe-v1</b></div>
-          <div class="ds-row"><span class="n-rstate" data-s="pending">待确认 xe-select-v3</span><span style="font-size:var(--t-xs);color:var(--ink-3)">苏晚提交，等程远确认</span></div>
-          <div class="n-rcard__signal"><svg><use href="#i-split"/></svg><span>XEngineer 第二期：内驱力 8 人中 2 人前段偏高，已归因为评价标准</span></div>
+          <div class="n-rcard__head"><span class="n-rcard__name">前段评价标准与对应表</span></div>
+          <p class="n-rcard__what">社招面试、入营选拔怎么评，和入职后的维度怎么对照；判断对照以它为准。</p>
+          <div class="n-rcard__ver"><b>xe-select-v1</b><b>map-xe-select-v1</b></div>
+          <div class="ds-row"><span class="n-rstate" data-s="pending">待确认 xe-select-v2</span><span style="font-size:var(--t-xs);color:var(--ink-3)">苏晚提交，等程远确认 · 确认发布即成为之后新建期次的默认版本</span></div>
+          <div class="n-rcard__signal"><svg><use href="#i-split"/></svg><span>XEngineer 第六期 综合判断：前段评为最高或最低一档的 50 人中 15 人与结营结论不一致，归因为评价标准</span></div>
         </a>
         <p class="n-rcards__grp">找人与整理 · 发布即生效</p>
         <a class="n-rcard" href="#c-template">
@@ -2063,6 +2100,18 @@
       </div>
       <p class="ds-caption">预览不出现分数、排名、个人分数变化，也不写「谁会变好 / 变差」。资料不足的人不因为规则变化被写成反向证据。</p>
 
+
+      <h3 class="ds-sub" id="eval-front">入营选拔标准：确认发布即对之后新建的期次生效</h3>
+      <p>只有 HR 已确认、归因含「评价标准」的判断对照结论能「起草修订」，草稿带上这条结论作为依据；规则页不能直接起草。管理者确认发布后新版立即生效，成为之后新建期次的默认版本，旧版变为已替代。期次建立时绑定当时的版本，之后不改版：第六期保持 xe-select-v1，判断对照按期次读取所用版本。管理者可以退回；提交、确认和退回都能在 5 秒内撤销，已经有后续处理的撤销不了，会如实提示。</p>
+      <div class="ds-row" style="margin-bottom:var(--s-3)"><span class="n-rstate" data-s="draft">草稿 xe-select-v2</span><span class="n-rstate" data-s="pending">待确认</span><span class="n-rstate" data-s="live">生效中</span><span class="n-rstate" data-s="old">已替代</span></div>
+      <div class="ds-stage">
+        <b style="font-size:var(--t-sm)">影响预览 · xe-select-v2 草稿 · 对比 xe-select-v1</b>
+        <div class="n-scope"><div>适用范围<b>之后新建的期次</b></div><div>保持原版本的期次<b>1 期</b></div><div>保持旧版的选拔记录<b>83 条</b></div><div>汇总依据<b>1 条</b></div></div>
+        <p style="margin:0;font-size:var(--t-sm);line-height:1.7">XEngineer 第七期（演示）还在筹备（入营选拔 09-20），建立时绑定当时的默认版本。XEngineer 第六期建立时绑定 xe-select-v1，83 条选拔记录和 XEngineer 第六期判断对照继续按原版本，结果保持当时的样子；下一次判断对照按选拔标准版本分组。</p>
+        <ul class="n-impact__basis"><li><svg width="12" height="12"><use href="#i-split"/></svg>XEngineer 第六期判断对照 · 综合判断：前段评为最高或最低一档的 50 人中 15 人与结营结论不一致</li></ul>
+      </div>
+      <p class="ds-caption">选拔标准的影响预览只写适用范围、保持原版本的期次与条数和汇总依据，管理者和 HR 看到的一样：不列名单，也不涉及个人的分数变化。</p>
+
       <h3 class="ds-sub" id="eval-anchor">锚点修订态</h3>
       <p>锚点面板进入编辑后逐条原地改，行内显示增删。文字修订不会自动改变已有分数；检查栏里的兼容声明决定要不要复核：兼容的修订旧分照常参与取数，不兼容的修订为取数窗口内受影响的事件生成复核任务，原分保留并显示原版本。</p>
       <div class="ds-grid c2" style="align-items:start">
@@ -2098,6 +2147,85 @@
     </section>
 
     <!-- ═════════ 组件：反馈与状态 ═════════ -->
+    <section class="ds-sec" id="c-access">
+      <h2>接入状态、导出与打印</h2>
+      <p class="lead">系统管理员在「系统管理 · 接入状态」看三个入口通不通、谁绑不上、哪些任务失败和接下来能做什么；管理者和 HR 在工作台导出权限内已确认的内容，在档案页打印单人档案。三处都不显示消息正文和密钥，导出与打印都写明「盘点结论以冻结快照为准」并记入审计日志。</p>
+
+      <h3 class="ds-sub">接入状态：三个入口</h3>
+      <p>企业微信机器人分已连接、已断开、待首次连接三种，写最近一次收到消息的时间；待首次连接写「等第一条消息」，不写 0。MCP 和 AgentAPI 写最近一次调用和近 24 小时的次数。状态点配文字，用形状区分：实心墨点、红色菱形点、空心灰圈；不用绿色，绿色留给证据判断的「支持」。配置在部署时完成，这里没有配置项。</p>
+      <div class="n-conn">
+        <article class="n-card n-conn__item"><header class="n-conn__head"><b>企业微信机器人</b><span class="n-conn__state" data-state="on">已连接</span></header><p class="n-conn__use">收材料，并给发送人回执</p><p class="n-conn__meta">最近收到消息 09-04 14:02 · 最近一次回执 09-04 14:03</p></article>
+        <article class="n-card n-conn__item"><header class="n-conn__head"><b>企业微信机器人</b><span class="n-conn__state" data-state="down">已断开</span></header><p class="n-conn__use">收材料，并给发送人回执</p><p class="n-conn__meta">09-04 10:20 起回调中断 · 断开前最后收到消息 09-04 10:18</p><p class="n-conn__next"><svg><use href="#i-info"/></svg><span>断开期间发来的消息可能已丢失。回调地址和密钥在部署配置里，请部署负责人检查。</span></p></article>
+        <article class="n-card n-conn__item"><header class="n-conn__head"><b>企业微信机器人</b><span class="n-conn__state" data-state="never">待首次连接</span></header><p class="n-conn__use">收材料，并给发送人回执</p><p class="n-conn__meta">等第一条消息</p><p class="n-conn__next"><svg><use href="#i-info"/></svg><span>部署时完成机器人配置后，收到第一条消息就会显示「已连接」。</span></p></article>
+        <article class="n-card n-conn__item"><header class="n-conn__head"><b>MCP</b><span class="n-conn__state" data-state="on">有调用</span></header><p class="n-conn__use">在 Agent 工具里查人、找人、查任务状态</p><p class="n-conn__meta">最近一次调用 09-04 13:40 · 近 24 小时 4 次，其中 1 次拒绝或失败</p></article>
+      </div>
+      <h3 class="ds-sub">调用记录、绑定失败与任务失败</h3>
+      <p>调用记录只记时间、入口、账号、动作和结果，不记查询内容和返回内容。结果沿用处理进度的中性徽标：成功、拒绝（超出查看范围，没有返回内容）、失败（写原因）。绑定失败写发送人账号的后四位、对不上的原因和接下来；这里不能手动改绑，以北森人员目录为准。任务失败一项一张卡，写原因和接下来能做什么；只有重试能解决的才给「重试」；重试后卡片留在原位，改成「已重新排队」，可以撤销。</p>
+      <div class="ds-row" style="margin-bottom:var(--s-4)"><span class="n-badge n-badge--proc"><svg><use href="#i-check"/></svg>成功</span><span class="n-badge n-badge--proc" data-state="review"><svg><use href="#i-lock"/></svg>拒绝</span><span class="n-badge n-badge--proc" data-state="failed"><svg><use href="#i-x"/></svg>失败</span></div>
+      <ul class="n-tfail" style="max-width:760px">
+        <li class="n-card"><div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="failed"><svg><use href="#i-x"/></svg>失败</span><b>转写会议录音 · 42 分钟</b><small style="color:var(--ink-3)">企业微信 · 苏晚发起 · 09-04 09:58</small></div><dl class="n-tfail__dl"><dt>原因</dt><dd>转写服务超时，已自动重试 2 次</dd><dt>接下来</dt><dd>可以再重试一次；仍失败请部署负责人查看转写服务</dd></dl><div><span class="n-btn n-btn--sm"><svg><use href="#i-retry"/></svg>重试</span></div></li>
+        <li class="n-card"><div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="failed"><svg><use href="#i-x"/></svg>失败</span><b>整理企业微信材料 · 1 个 PDF</b><small style="color:var(--ink-3)">企业微信 · 叶青发起 · 09-04 12:31</small></div><dl class="n-tfail__dl"><dt>原因</dt><dd>文件是扫描件，只有图片</dd><dt>接下来</dt><dd>请发送人改发可复制文字的版本，再交一次</dd></dl></li>
+        <li class="n-card" data-state="queued"><div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="queued"><svg><use href="#i-clock"/></svg>已重新排队</span><b>整理事件与建议分 · 3 段纪要</b><small style="color:var(--ink-3)">AgentAPI · 苏晚发起 · 09-03 20:14</small></div><dl class="n-tfail__dl"><dt>上次原因</dt><dd>模型返回的格式有误，已自动重试 3 次</dd><dt>接下来</dt><dd>排队处理中，结果会更新在这张卡上；处理完会回到发起人的工作台</dd></dl></li>
+      </ul>
+      <div class="n-lock" style="margin-top:var(--s-3);max-width:760px"><svg><use href="#i-lock"/></svg><span>接入配置（机器人回调地址、MCP 与 AgentAPI 的令牌）在部署时完成，这里只看状态和结果；消息正文、文件内容、查询内容和密钥都留在原处。</span></div>
+
+      <h3 class="ds-sub">工作台 · 导出已确认内容</h3>
+      <p>入口在管理者和 HR 工作台的标题右侧；导师没有这个入口。选范围和事件时间后，弹窗实时写出会导出多少人、多少条已确认的维度分，以及已跳过多少条分：未确认的、待按新版本复核的，和还在评分复核里的（待校准、改了 AI 的分差 2 分以上又没写理由）；范围里没有已确认内容时不生成，并说明原因。表格每行是一条已确认的维度分，附行为锚点、原文引用、评分人、规则版本和来源位置，按新版本复核过的分取复核后的值和评分人；一件事有几处来源时，来源位置写这条分的引用所在的那一处，对不上具体位置就写「全部来源：」并列出这件事的每一处；象限位置和盘点结论以盘点冻结快照为准，不导出。生成前按当前视角再取一次，范围外的人不会进表。</p>
+      <div class="ds-grid c2">
+        <div class="n-dialog n-dialog--static" aria-hidden="true">
+          <h3>导出已确认内容</h3>
+          <div class="n-export">
+            <div class="n-export__pick"><label class="n-field"><span class="n-field__label">范围</span><span class="n-select">我负责的人（93 人）</span></label><label class="n-field"><span class="n-field__label">事件时间</span><span class="n-select">近 12 个月</span></label></div>
+            <p class="n-export__sum"><b>93 人 · 555 条已确认的维度分</b><span>已跳过 4 条待确认、待复核或还在评分复核里的分</span></p>
+            <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl><dt>导出时间</dt><dd>生成时写入，精确到分钟</dd><dt>导出人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至导出时已确认的关键事件与维度分，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分和还在评分复核里的分留在系统里；盘点结论以冻结快照为准</dd><dt>范围</dt><dd>我负责的人 · 近 12 个月</dd></dl></div>
+          </div>
+          <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-download"/></svg>生成表格</span></div>
+        </div>
+        <div style="display:grid;gap:var(--s-3);align-content:start">
+          <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">
+            <h3>导出已确认内容</h3>
+            <div class="n-export"><p class="n-export__sum"><b>这个范围里已确认的内容 0 条</b><span>已跳过 4 条待确认、待复核或还在评分复核里的分</span></p></div>
+            <p class="n-dialog__hint">换一个范围或时间再生成</p>
+            <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-download"/></svg>生成表格</span></div>
+          </div>
+          <p class="ds-caption">生成后结果写在标题下方。生成前按当前视角再校验一次，所以有处理中、已生成、失败、拒绝、范围里没有已确认内容五种：</p>
+          <div class="n-notice is-plain n-exst" data-state="busy"><svg><use href="#i-clock"/></svg><div>正在生成「我负责的人 · 近 12 个月」的表格，只取已确认的内容…</div></div>
+          <div class="n-notice is-plain n-exst" data-state="done"><svg><use href="#i-check"/></svg><div><b>表格已生成：</b>我负责的人 · 近 12 个月，93 人、556 条已确认的维度分。表头写明了导出时间 09-04 15:00 和口径，盘点结论以冻结快照为准；已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ink"><svg><use href="#i-download"/></svg>下载表格</span><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
+          <div class="n-notice is-deny n-exst" data-state="fail"><svg><use href="#i-x"/></svg><div><b>导出停在生成文件这一步。</b>导出服务超时，文件待重新生成；这次失败已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm"><svg><use href="#i-retry"/></svg>重试</span><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
+          <div class="n-notice is-deny n-exst" data-state="deny"><svg><use href="#i-lock"/></svg><div><b>导出停在权限校验这一步。</b>生成前按你现在的视角重新校验，批量导出只对管理者和 HR 开放；这次尝试已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
+          <div class="n-notice is-plain n-exst" data-state="empty"><svg><use href="#i-info"/></svg><div><b>导出停在取数这一步。</b>生成时「我负责的人 · 近 3 个月」里已确认的内容 0 条，换一个范围或时间再导出。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
+        </div>
+      </div>
+
+      <h3 class="ds-sub">档案页 · 打印档案</h3>
+      <p>入口在档案标题右侧，只给管理者和这个人的归属 HR；导师和员工没有入口。点开先说会打印什么、哪些留在系统里；确认后按当前视角再校验一次并重新取数，越权就拒绝、不生成内容，并记入审计日志。打印稿只含已确认的内容：已确认的维度分（附引用、评分人、规则版本和来源）、已采纳的档案摘要（标题旁写「AI 生成 · 经人采纳」，署名写谁哪天采纳 AI 摘要，和人写的结论分开）、能力象限的正式位置；不含 AI 建议分、待按新版本复核和还在评分复核里的分、未采纳的 AI 摘要和系统给的参考位置，跳过的条数写在确认弹窗里。来源和导出同一套：一件事里各条分来源相同就在事件下写一次，不同就逐条写，对不上具体位置的写「全部来源」。直接用浏览器打印只会印出一句提示：有打印入口的视角指向「打印档案」，没有入口的视角写明档案打印对谁开放。</p>
+      <div class="ds-grid c2">
+        <div style="display:grid;gap:var(--s-3);align-content:start">
+          <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">
+            <h3>打印苏少卿的档案</h3>
+            <p>打印的是截至现在已确认的内容；盘点结论以冻结快照为准。打印会记入审计日志。</p>
+            <ul class="n-dialog__facts"><li><b>会打印</b>：基本信息、3 件关键事件里 11 条已确认的维度分（附引用、评分人、规则版本和来源位置）、能力象限的正式位置</li><li><b>留在系统里</b>：跳过的 1 条分（待确认、待复核或还在评分复核里）、待采纳的 AI 摘要、系统给的参考位置</li></ul>
+            <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-print"/></svg>打印</span></div>
+          </div>
+          <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">
+            <h3>这份档案已移出你的导出范围</h3>
+            <p>打印前按你现在的权限重新校验，这个人已移出你的导出范围，这次停在校验这一步。档案打印只对管理者和这个人的归属 HR 开放；这次尝试已记入审计日志。</p>
+            <div class="n-dialog__bar"><span class="n-btn n-btn--ink">知道了</span></div>
+          </div>
+        </div>
+        <div class="n-print is-preview" aria-label="打印稿样张">
+          <header class="n-print__head"><h1>苏少卿 <small>演示</small></h1><p>XEngineer 第六期 / 线索雷达 · 产品方向 · 2027 届 · 入营 2 个月</p></header>
+          <dl class="n-print__meta"><dt>打印时间</dt><dd>2026-09-04 14:20</dd><dt>打印人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分、还在评分复核里的分、待采纳的 AI 摘要和参考位置留在系统里；盘点结论以冻结快照为准</dd></dl>
+          <section><h2>档案摘要 <small>AI 生成 · 经人采纳</small></h2><p>近 12 个月有 3 条关键事件，其中近 3 个月 3 条；常出现的标签是「组长」「跨组协调」。</p><p class="n-print__by">苏晚 09-03 采纳 AI 摘要</p></section>
+          <section><h2>能力象限 · 正式位置</h2><p>待正式校准</p></section>
+          <section><h2>关键事件与已确认的维度分 <small>3 件 · 11 条</small></h2>
+            <ol class="n-print__evs"><li><p class="n-print__ev"><b>08-28 · 把自动触达做到增量同步和断点续传</b> · 线索雷达 · 任辞远记录</p><ul><li>专业度 4 · 任辞远评 · 评价规则 v1<br><span>锚点 4：超出本届学员预期</span><br><span>引用「在团队中负责串通模块、引导组员沟通」</span></li><li>内生动力 4 · 任辞远评 · 评价规则 v1<br><span>锚点 4：有难度或模糊的情境下主动表现，并有可见结果</span><br><span>引用「做事踏实」</span></li></ul><p class="n-print__src">来源：XEngineer 第六期观察表 · W7–W8 · 突出表现 · 第 6 行</p></li><li><p class="n-print__ev"><b>08-07 · 围绕线索从发现到 CRM 准入的全链路</b> · 线索雷达 · 苏鹤年记录</p><ul><li>专业度 4 · 苏鹤年评 · 评价规则 v1<br><span>锚点 4：超出本届学员预期</span><br><span>引用「节奏清晰（边界→骨架→V2 设计→工程→文档/测试）」</span><br><span class="n-print__src">来源：XEngineer 第六期观察表 · W4–W5 · 突出表现 · 第 6 行</span></li><li>智慧力 2 · 苏鹤年评 · 评价规则 v1<br><span>锚点 2：相关行为偶发，需要他人推动才发生</span><br><span>引用「搭建了运营工作台并完成路演汇报」</span><br><span class="n-print__src">全部来源：XEngineer 第六期观察表 · W4–W5 · 突出表现 · 第 6 行；XEngineer 第六期观察表 · W4–W5 · 待改进 · 第 6 行</span></li></ul></li></ol>
+          </section>
+          <footer class="n-print__foot">仅限内部使用 · 本次打印已记入审计日志 · 演示数据，人员均为化名</footer>
+        </div>
+      </div>
+    </section>
+
     <section class="ds-sec" id="c-feedback">
       <h2>反馈与状态</h2>
       <p class="lead">按钮写清动作；直接保存的操作给 5 秒撤销；加载、空、失败、无权限分开说，不把未知写成 0。</p>
@@ -2112,7 +2240,9 @@
       <div class="ds-row" style="margin-bottom: var(--s-5)">
         <button class="n-btn n-btn--sm" type="button" id="toast-run">保存一条记录</button>
         <span id="toast-slot"></span>
+        <div class="n-toast" data-state="fail"><svg width="16" height="16"><use href="#i-info"/></svg><span>撤销失败：这条已由苏晚处理，已保留当前内容</span></div>
       </div>
+      <p class="ds-caption" style="margin-bottom: var(--s-5)">点「撤销」后如实说结果：撤销成功写「已撤销」或这次操作自己的说明；撤销失败（例如这条已经有了后续处理）换成右边的样子，先写「撤销失败」，再写原因和「已保留当前内容」，停留 4 秒。</p>
       <div class="ds-grid states-grid" id="states">
         <div class="n-card n-state"><span data-ip="searching"></span><p class="n-state__title">正在检索</p><p class="n-state__text">在你有权限查看的 38 人中核对证据。</p></div>
         <div class="n-card n-state"><span data-ip="listening"></span><p class="n-state__title">关键事件会出现在这里</p><p class="n-state__text">说一句最近做的事，或者上传一段复盘录音。</p><button class="n-btn n-btn--sm n-btn--ink" type="button">记录第一条</button></div>

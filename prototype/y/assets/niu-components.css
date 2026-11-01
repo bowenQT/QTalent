@@ -480,6 +480,8 @@ button.n-score__dot:hover { transform: scale(1.18); }
 .n-toast__ring .track { stroke: rgb(255 255 255 / .2); }
 .n-toast__ring .run { stroke: #fff; stroke-linecap: round; stroke-dasharray: 50.27; stroke-dashoffset: 0; transform: rotate(-90deg); transform-origin: center; }
 .n-toast.is-counting .run { animation: ring-out 5s linear forwards; }
+.n-toast[data-state="fail"] { padding-left: var(--s-3); padding-right: var(--s-4); }
+.n-toast[data-state="fail"] > svg { flex: none; color: var(--op-fail-on-ink); }
 @keyframes ring-out { to { stroke-dashoffset: 50.27; } }
 
 /* ── 录音 ─────────────────────────────────── */
@@ -835,6 +837,11 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-tabs [role="tab"][aria-selected="true"] { color: var(--ink); font-weight: 600; }
 .n-tabs [role="tab"][aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px; background: var(--ink); }
 .n-tabs [role="tab"] .n-count { margin-left: 4px; }
+/* 页签较多、窄屏放不下时横向滑动，标签不折行；底线改用内阴影，避免滚动容器裁掉选中下划线 */
+.n-tabs--scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; border-bottom: 0; box-shadow: inset 0 -1px 0 var(--line); }
+.n-tabs--scroll::-webkit-scrollbar { display: none; }
+.n-tabs--scroll > [role="tab"] { flex: none; white-space: nowrap; }
+.n-tabs--scroll [role="tab"][aria-selected="true"]::after { bottom: 0; }
 /* 页面之间的页签（如评价体系的「规则」「判断对照」）：用链接，当前页 aria-current */
 .n-tabs > a { position: relative; padding: var(--s-2) 0 var(--s-3); font-size: var(--t-sm); color: var(--ink-3); text-decoration: none; transition: color var(--d-instant); }
 .n-tabs > a:hover { color: var(--ink); }
@@ -1242,6 +1249,8 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-jstate[data-s="nc"] { color: var(--ink-2); background: repeating-linear-gradient(45deg, var(--sheet-sunk) 0 4px, #e6e3da 4px 5px); }
 .n-jstate[data-s="nc"]::before { content: "≠"; }
 .n-jstate[data-s="na"] { color: var(--unknown); background: repeating-linear-gradient(-45deg, var(--unknown-soft) 0 4px, #e3e5e0 4px 5px); }
+.n-jstate[data-s="mid"] { box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--ink-2); }
+.n-jstate[data-s="mid"]::before { content: "–"; }
 .n-jstate[data-s="na"]::before { content: "?"; }
 
 /* 按维度的分布：中间是「一致」，左边前段偏低、右边前段偏高，越远差得越多。每个点是一个人，不是比例 */
@@ -1280,6 +1289,12 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-jcase__mark .n-input { flex: 1; min-width: 12em; height: 32px; }
 .n-jcase__why { font-family: var(--font-ink); font-size: var(--t-sm); color: var(--ink); }
 .n-jcase.is-focus { box-shadow: 0 0 0 2px var(--light), var(--e-1); }
+/* 入营选拔：三项评审的原量表、组队作品；评价人视角里没有评价关系的那一段用锁和斜纹底，写明原因 */
+.n-jcase__items { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.n-jcase__team { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: var(--r-chip); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 11px; color: var(--ink-2); }
+.n-jcase__deny { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; align-items: start; margin-top: var(--s-2); padding: var(--s-2); border-radius: 6px; background: repeating-linear-gradient(-45deg, var(--sheet) 0 6px, var(--sheet-sunk) 6px 7px); color: var(--ink-2); }
+.n-jcase__deny b { display: block; color: var(--ink); }
+.n-jcase__deny svg { margin-top: 3px; color: var(--ink-3); }
 
 /* 评价人：按姓名排列；可对照案例不到门槛只说「样本不足」 */
 .n-rater { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px var(--s-3); align-items: center; padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); color: inherit; text-decoration: none; }
@@ -1637,6 +1652,9 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-impact__list { list-style: none; margin: 0; padding: 0; }
 .n-impact__list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-2); align-items: center; padding: var(--s-2) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); }
 .n-impact__list li:first-child { border-top: 0; }
+.n-impact__basis { list-style: none; margin: var(--s-2) 0 0; padding: 0; display: grid; gap: 4px; font-size: var(--t-sm); }
+.n-impact__basis li { display: flex; align-items: baseline; gap: 6px; }
+.n-impact__basis svg { color: var(--ink-3); flex: none; }
 .n-impact__list small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
 .n-impact__empty { margin: 0; padding: var(--s-2) 0; font-size: var(--t-xs); color: var(--ink-3); }
 .n-impact__teams { margin: var(--s-4) 0 0; padding-top: var(--s-3); border-top: 1px dashed var(--line-strong); font-size: var(--t-xs); line-height: 1.7; color: var(--ink-2); }
@@ -1780,6 +1798,72 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-jdist__row.is-static { cursor: default; }
 .n-jdist__row.is-static:hover { background: none; }
 .n-jdot.is-anon { width: 14px; height: 14px; }
+
+/* ══════════════ 接入状态、导出与打印（BOW-916、912、911） ══════════════ */
+/* 接入状态：三个入口一张卡一个。状态点配文字，不只靠颜色：已连接实心墨点、已断开红色菱形点并加红字、待首次连接空心灰圈。
+   不用 --yes：绿色留给证据判断的「支持」；断开属于失败，和失败提示同用 --no */
+.n-conn { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s-3); }
+.n-conn__item { display: grid; align-content: start; gap: var(--s-2); }
+.n-conn__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
+.n-conn__head b { font-weight: 600; }
+.n-conn__state { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: var(--t-sm); color: var(--ink-2); white-space: nowrap; }
+.n-conn__state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-2); }
+.n-conn__state[data-state="down"] { color: var(--no); }
+.n-conn__state[data-state="down"]::before { border-radius: 2px; background: var(--no); transform: rotate(45deg); }
+.n-conn__state[data-state="never"]::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+.n-conn__use { margin: 0; font-size: var(--t-sm); color: var(--ink-2); }
+.n-conn__meta { margin: 0; font-size: var(--t-sm); color: var(--ink); line-height: 1.6; }
+.n-conn__next { display: flex; gap: var(--s-2); margin: 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-sm); line-height: 1.6; color: var(--ink-2); }
+.n-conn__next svg { flex: none; width: 15px; height: 15px; margin-top: 3px; color: var(--ink-3); }
+/* 任务失败：一项一张卡，写原因和接下来能做什么；能重试的才给重试 */
+.n-tfail { display: grid; gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
+.n-tfail > li { display: grid; gap: var(--s-2); }
+.n-tfail__top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
+.n-tfail__top b { font-weight: 600; }
+.n-tfail__top small { margin-left: auto; }
+.n-tfail__dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px var(--s-3); margin: 0; font-size: var(--t-sm); line-height: 1.6; }
+.n-tfail__dl dt { color: var(--ink-3); }
+.n-tfail__dl dd { margin: 0; }
+
+/* 批量导出：选范围和时间，下面实时写出会导出多少、表头会写什么 */
+.n-export { display: grid; gap: var(--s-3); min-width: min(520px, 100%); }
+.n-export__pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--s-3); }
+.n-export__sum { display: grid; gap: 2px; margin: 0; font-size: var(--t-sm); line-height: 1.6; }
+.n-export__sum b { font-weight: 600; }
+.n-export__sum span { color: var(--ink-2); }
+.n-export__head { padding: var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); box-shadow: inset 0 0 0 1px var(--line); }
+.n-export__cap { display: block; margin-bottom: var(--s-2); font-size: var(--t-xs); font-weight: 600; color: var(--ink-2); }
+.n-export__head dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px var(--s-3); margin: 0; font-size: var(--t-sm); line-height: 1.6; }
+.n-export__head dt { color: var(--ink-3); }
+.n-export__head dd { margin: 0; }
+#export-st:not([hidden]) { margin: calc(var(--s-2) * -1) 0 var(--s-5); }
+.n-exst[data-state="busy"] svg { animation: proc-pulse 1.2s var(--ease-in-out) infinite; }
+.n-exst[data-state="done"] svg { color: var(--ink-2); }
+
+/* 档案打印：屏幕上不显示；打印时只印这一张，直接用浏览器打印只会印出一句提示。
+   排版规则写在媒体查询外，设计系统页用 .is-preview 在屏幕上预览同一张 */
+.n-print { display: none; color: #000; font-size: 11pt; line-height: 1.55; }
+.n-print.is-preview { display: block; padding: 28px 32px; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 6px 24px rgb(0 0 0 / .06); }
+.n-print h1 { margin: 0; font-size: 18pt; }
+.n-print h1 small, .n-print h2 small { font-size: 9pt; font-weight: 400; color: #555; }
+.n-print__head p { margin: 2pt 0 0; color: #333; }
+.n-print__meta { display: grid; grid-template-columns: max-content 1fr; gap: 2pt 10pt; margin: 10pt 0; padding: 6pt 8pt; border: 0.75pt solid #999; font-size: 9.5pt; }
+.n-print__meta dt { color: #555; }
+.n-print__meta dd { margin: 0; }
+.n-print section { margin-top: 12pt; }
+.n-print h2 { margin: 0 0 4pt; padding-bottom: 2pt; border-bottom: 0.75pt solid #999; font-size: 12pt; }
+.n-print__evs { margin: 0; padding-left: 14pt; }
+.n-print__evs > li { margin-bottom: 7pt; break-inside: avoid; }
+.n-print__ev { margin: 0; }
+.n-print__evs ul { margin: 2pt 0; padding-left: 12pt; font-size: 10pt; }
+.n-print__evs ul span, .n-print__src, .n-print__by { color: #444; font-size: 9.5pt; }
+.n-print__src, .n-print__by { margin: 0; }
+.n-print__foot { margin-top: 14pt; padding-top: 4pt; border-top: 0.75pt solid #999; font-size: 9pt; color: #555; }
+.n-print__idle { margin: 0; font-size: 12pt; }
+@media print {
+  body:has(> .n-print) > :not(.n-print) { display: none !important; }
+  body:has(> .n-print) > .n-print { display: block; }
+}
 
 /* ══════════════ 桌面录音：控制条与实时预览 ══════════════ */
 /* 控制条四态：录制中（红点闪动）、已暂停（灰点、波形停住）、重连中（空心红点：本机仍在录）、补传中（灰点 + 进度）。状态都有文字，不只靠颜色 */
