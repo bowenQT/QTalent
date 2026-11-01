@@ -285,6 +285,36 @@ describe('versioned PDF page projection (explicit synthetic input)', () => {
     ).not.toBe(old.resultDigest);
   });
 
+  it('rejects missing or duplicated unreferenced empty pages independently of excerpt slicing', () => {
+    const input = fixture();
+    input.fragments = [input.fragments[0]];
+    input.pages[2].text = '';
+    const missing = structuredClone(input);
+    missing.pages.splice(1, 1);
+    invalid(() => projectPdfParse(missing, binding));
+    const duplicate = structuredClone(input);
+    duplicate.pages.push({ page: 2, text: '' });
+    invalid(() => projectPdfParse(duplicate, binding));
+  });
+
+  it('pins the persisted digest format to an immutable synthetic golden value', () => {
+    expect(projectPdfParse(fixture(), binding).resultDigest).toBe(
+      'e178e62085bfa03d7cf6bb701c6190c39cfe11a2de9274c4a918bf49549700a8',
+    );
+  });
+
+  it('does not claim to detect omitted trailing pages without an independent page count', () => {
+    const input = fixture();
+    input.fragments = [input.fragments[0]];
+    input.pages[2].text = '';
+    const full = projectPdfParse(input, binding);
+    input.pages.pop();
+    const shorter = projectPdfParse(input, binding);
+    expect(shorter.pages).toHaveLength(2);
+    expect(shorter.resultDigest).not.toBe(full.resultDigest);
+    invalid(() => verifyPdfParse({ ...full, pages: shorter.pages }, binding));
+  });
+
   it('does not expose parser or input-access errors', () => {
     invalid(() =>
       projectPdfParse(
@@ -362,6 +392,12 @@ describe('866 page-text adapter (frozen interface, synthetic producer bundle)', 
         demo: true,
       }),
     );
+  });
+
+  it('rejects an extra duplicate range while every fragment still has its valid mapping', () => {
+    const input = attachment();
+    input.pdfText.ranges.push(structuredClone(input.pdfText.ranges[0]));
+    invalid(() => projectAttachmentPdf(input, expected, original));
   });
 
   it.each([

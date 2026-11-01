@@ -155,6 +155,13 @@ export function verifyPdfParse(input: unknown, expectedBinding: unknown) {
 
 // BOW-866 producer interface frozen in #248/6560298661. This validates that
 // boundary without importing an unmerged parser or implementing PDF decoding.
+const pdfTextRanges = materialSourceLocationSchema.options.flatMap((schema) =>
+  schema.shape.kind.value === 'pdf' && 'textRange' in schema.shape
+    ? [schema.shape.textRange]
+    : [],
+);
+if (pdfTextRanges.length !== 1)
+  throw new Error('PDF location contract unavailable');
 const pdfTextSchema = z.strictObject({
   version: z.literal('pdf-page-text-v1'),
   pages: z.array(pageSchema).min(1),
@@ -163,7 +170,7 @@ const pdfTextSchema = z.strictObject({
       z.strictObject({
         fragmentId: nonblank,
         page: z.number().int().positive(),
-        textRange: materialSourceLocationSchema.options[3].shape.textRange,
+        textRange: pdfTextRanges[0],
       }),
     )
     .min(1),

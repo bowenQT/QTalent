@@ -6,10 +6,10 @@
 
 - `location-codec.ts`：复用已有严格契约校验旧四类与新增五类位置，固定键序列化，不默认填值、不改变旧四类含义。`snapshot_field` 仅是旧存储兼容，不成为材料成功结果。
 - `projectAttachmentPdf`：接受 [866 冻结的页面文本接口](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6560298661)，按片段身份一对一关联 `pdfText.ranges`，保留真实 `parseVersionId` / `fragmentId` / `originalVersionId`。不从旧 `pdf:items` 序号猜字符偏移。
-- `projectPdfParse`：核对独立加载的原件/内容摘要/parse/parser/投影版本绑定；保留空白物理页，拒绝缺页、重复页、重复片段身份、跨原件、越界或切开 UTF-16 代理对的范围；要求原文精确回切相等。无 trim、换行替换、搜索附近同文或 Unicode 修补。
+- `projectPdfParse`：核对独立加载的原件/内容摘要/parse/parser/投影版本绑定；保留空白物理页，拒绝中间缺页、重复页、重复片段身份、跨原件、越界或切开 UTF-16 代理对的范围；要求原文精确回切相等。无 trim、换行替换、搜索附近同文或 Unicode 修补。
 - `verifyPdfParse`：重算逐页 SHA-256 与整包摘要，检测页面、片段或结果摘要不一致。摘要用于完整性及幂等比较，不是签名或权限证明。
 
-页面提取算法唯一来源为 866 `pdf-page-text-v1`：同次受限 decode 的 TextItem 原序 `str`，`hasEOL` 后一个 LF；空页、旋转/被语义过滤项仍保留在页面文本。926 不再次解码或定义另一种页面顺序。旧 items-v2 的身份和内容不在本目录改写。
+页面提取算法唯一来源为 866 `pdf-page-text-v1`：同次受限 decode 的 TextItem 原序 `str`，`hasEOL` 后一个 LF；空页、旋转/被语义过滤项仍保留在页面文本。926 不再次解码或定义另一种页面顺序。旧 items-v2 的身份和内容不在本目录改写。纯投影输入尚无独立页数，因此不能识别首次发布前遗漏的末尾空页；完整生产页数由866实际decoder遍历保证。已保存整包摘要能识别读回时的末尾页截断，不据此声称首次输入完整性已由926独立证明。
 
 整包摘要使用 `SHA256(UTF8(JSON.stringify(['pdf-projection-bundle-v1', result])))`；result 为严格校验重建的 binding、按物理页升序的 pages（原 text 与 textDigest）、按 fragmentId 码元序排序的完整 fragments。页摘要是原 text 的 UTF-8 SHA-256。拒绝不完整 Unicode 代理项，避免 UTF-8 替换导致摘要丢失信息。输入页文本及 fragment 身份都不因排序重编号。
 
