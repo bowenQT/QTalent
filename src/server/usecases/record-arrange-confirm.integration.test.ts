@@ -11,16 +11,19 @@ import {
   wallAt,
 } from '../../../tests/fixtures/bow-845/native';
 import { createRecordArrangeApplication } from './record-arrange-application';
-import { saveRecordDraft } from './record-save';
+import { saveRecordDraft, undoRecordSave } from './record-save';
 import {
   arrangeInputs,
   recordDrafts,
   events,
   recordSaves,
+  recordDraftBatches,
+  reviseTrustedRecordDraftBatch,
 } from '../modules/records';
 import { evaluationRelations } from '../modules/programs';
 import { recordArrangeQueue } from '../jobs/record-arrange';
 import { jobSnapshots } from '../jobs/schema';
+import { createFakeModelinkMaas } from '../integrations/maas';
 import type { RecordSaveInput } from '../../contracts/record';
 import type { BatchArrangeTransaction } from './record-batch-arrange';
 let connection: Awaited<ReturnType<typeof nativeDatabase>>;
@@ -438,4 +441,181 @@ it('native operation save rejects a stale persisted revision without overwriting
     .from(jobSnapshots)
     .where(eq(jobSnapshots.jobId, h.intake.jobId));
   expect(after).toEqual(before);
+});
+
+// Only a server-internal queued revision fixture. No Web action in this change
+// creates this state or reopens an awaiting_manual/completed job.
+async function queueInternalRevision(h: Awaited<ReturnType<typeof arranged>>) {
+  await connection.db
+    .update(jobSnapshots)
+    .set({ status: 'queued', revision: sql`${jobSnapshots.revision}+1` })
+    .where(eq(jobSnapshots.jobId, h.intake.jobId));
+}
+function revisedModel(h: Awaited<ReturnType<typeof arranged>>) {
+  return createFakeModelinkMaas({
+    events: [
+      {
+        eventKey: 'proposal-0',
+        personIds: h.draft.personIds,
+        sbi: { ...h.draft.sbi, title: '修订说明（演示）' },
+        scores: h.draft.scores,
+        evidence: [
+          { reference: h.draft.sourceReferences[0]!, quote: '补齐回滚步骤' },
+        ],
+      },
+    ],
+    similarGroups: [],
+  });
+}
+it('persists an internal revision with stable draft identity through the real CAS writer', async () => {
+  const h = await arranged();
+  await queueInternalRevision(h);
+  const model = revisedModel(h);
+  h.model.client.generateStructured = (input) =>
+    model.generateStructured(input);
+  expect(await h.app.runner.run(h.intake.jobId, 1)).toBe('awaiting_manual');
+  const rows = await connection.db
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.batchId, h.draft.batchId));
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    draftId: h.draft.draftId,
+    revision: 2,
+    draft: {
+      ...h.draft,
+      revision: 2,
+      sbi: { ...h.draft.sbi, title: '修订说明（演示）' },
+    },
+  });
+  expect(
+    await connection.db
+      .select()
+      .from(events)
+      .where(eq(events.personId, h.target)),
+  ).toHaveLength(0);
+});
+it('cannot generate over a draft already saved by a person', async () => {
+  const h = await arranged();
+  const saved = await saveRecordDraft(
+    connection.db,
+    h.account,
+    h.input,
+    h.clock,
+  );
+  await queueInternalRevision(h);
+  const [before] = await connection.db
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, h.draft.draftId));
+  expect(await h.app.runner.run(h.intake.jobId, 1)).toBe('failed');
+  expect(h.model.calls()).toBe(1);
+  expect(
+    (
+      await connection.db
+        .select()
+        .from(recordDrafts)
+        .where(eq(recordDrafts.draftId, h.draft.draftId))
+    )[0],
+  ).toEqual(before);
+  expect(
+    (
+      await connection.db
+        .select()
+        .from(recordSaves)
+        .where(eq(recordSaves.saveId, saved.result.saveId))
+    )[0]!.withdrawnAt,
+  ).toBeNull();
+});
+it('preserves a human save that commits while an internal revision waits for its model', async () => {
+  const h = await arranged();
+  await queueInternalRevision(h);
+  const model = revisedModel(h);
+  let saveId = '';
+  h.model.client.generateStructured = async (input) => {
+    saveId = (await saveRecordDraft(connection.db, h.account, h.input, h.clock))
+      .result.saveId;
+    return model.generateStructured(input);
+  };
+  expect(await h.app.runner.run(h.intake.jobId, 1)).toBe('failed');
+  const [draft] = await connection.db
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, h.draft.draftId));
+  expect(draft!.draft).toEqual({ ...h.draft, revision: 2 });
+  expect(
+    (
+      await connection.db
+        .select()
+        .from(recordSaves)
+        .where(eq(recordSaves.saveId, saveId))
+    )[0]!.withdrawnAt,
+  ).toBeNull();
+});
+
+it('keeps a later committed draft revision when an older model result returns', async () => {
+  const h = await arranged();
+  await queueInternalRevision(h);
+  const model = revisedModel(h);
+  const concurrent = {
+    ...h.draft,
+    revision: 2,
+    sbi: { ...h.draft.sbi, title: '另一份已提交修订（演示）' },
+  };
+  h.model.client.generateStructured = async (input) => {
+    await connection.db.transaction((tx) =>
+      reviseTrustedRecordDraftBatch(tx, {
+        expectedBatchRevision: 2,
+        expectedDrafts: [{ draftId: h.draft.draftId, revision: 1 }],
+        draftSet: {
+          batchId: h.draft.batchId,
+          revision: 3,
+          drafts: [concurrent],
+          duplicateCandidates: [],
+        },
+      }),
+    );
+    return model.generateStructured(input);
+  };
+  expect(await h.app.runner.run(h.intake.jobId, 1)).toBe('failed');
+  expect(
+    (
+      await connection.db
+        .select()
+        .from(recordDrafts)
+        .where(eq(recordDrafts.draftId, h.draft.draftId))
+    )[0]!.draft,
+  ).toEqual(concurrent);
+  expect(
+    (
+      await connection.db
+        .select()
+        .from(recordDraftBatches)
+        .where(eq(recordDraftBatches.batchId, h.draft.batchId))
+    )[0]!.revision,
+  ).toBe(3);
+});
+it('retains withdrawn human history as a pre-dispatch generation barrier', async () => {
+  const h = await arranged();
+  const saved = await saveRecordDraft(
+    connection.db,
+    h.account,
+    h.input,
+    h.clock,
+  );
+  await undoRecordSave(
+    connection.db,
+    h.account,
+    { operation_id: randomUUID(), saveId: saved.result.saveId },
+    h.clock,
+  );
+  await queueInternalRevision(h);
+  expect(await h.app.runner.run(h.intake.jobId, 1)).toBe('failed');
+  expect(h.model.calls()).toBe(1);
+  const [history] = await connection.db
+    .select()
+    .from(recordSaves)
+    .where(eq(recordSaves.saveId, saved.result.saveId));
+  expect(history!.withdrawnAt).not.toBeNull();
+  expect(history!.draftSnapshot).toEqual(h.draft);
 });

@@ -20,9 +20,17 @@ intake 的 JSON 来源没有片段外键，锁已有行不能排除并发插入�
 
 846 人工保存会推进 draft revision；历史 AI 快照不会改写。845 回执须验证 save receipt 的 revision = 历史快照 revision + 1 且不大于当前 draft revision，并核对除 revision 外的 AI 内容完全相同。不能要求旧快照版本等于当前版本，也不能删除历史来消除差异。
 
+## 内部修订与持久任务栅栏
+
+本适配消费 X1 唯一 `reviseTrustedRecordDraftBatch`，传真实 batch revision 与完整 draftId/revision 集合；稳定事件键从持久 manifest 找回原 draftId，不重新分配。模型前后读取实际人工保存与事件映射，任何保存（含撤回历史）都禁止生成覆盖；CAS 再检查一遍并随同任务更新原子提交。模型等待期间若另一个修订先提交，旧返回不得覆盖它。
+
+operation 携带唯一 job 行的真实 revision。claim 写入按当前 revision 校验，返回实际提交后的 revision；协调器保存该值并在模型返回时对比当前行，再把 expectedJobRevision 交给原生持久层复核。attempt、输入版本、完整 trace、取消状态仍各自检查。取消请求推进版本时按当前取消分支终止，不把它当成功生成。没有内存计数、第二份任务表或新的用户状态。
+
+内部修订 PG 测试显式准备已排队的服务端状态来验证既有能力；这不是新增“重新生成”页面动作或已存在生产触发的证明。当前真实用户链路仍是首次整理、已有回执读取及人工确认。
+
 ## 仍需完整交付的依赖
 
-- X1：records/write.ts 的稳定 ID / expected batch 与 draft revision CAS、已人工保存栅栏、公共出口；不由本用例生成 SQL。
-- 845：正式迁移与唯一 worker 注册。临时结构只可用于明确标记的合成 PG 验证，不能代替默认 CI。
-- 内部修订：只消费已存在 generation=revise 合同，不新增用户入口。跨模型等待须核真实 job attempt/revision/cancel，最终通过同一事务保存。
+- X1 CAS与公共出口已按固定交接消费；本用例不生成 SQL。
+- 已普通组合845正式0009与唯一worker注册；后续验证使用仓库默认正式迁移，退役临时目录覆盖。845 PR须实际合入，不能把组合代码当作main前置已满足。
+- 内部修订只消费已存在 generation=revise 合同，不新增用户入口。
 - 完整当前 head 回归、正式 CI、跨工具审查与 X1 门禁全部完成后才能称此后继 PR Ready。

@@ -22,7 +22,9 @@ import {
   recordDraftBatches,
   recordDrafts,
   recordSaves,
+  recordDraftEvents,
   storeTrustedRecordDraftBatch,
+  reviseTrustedRecordDraftBatch,
   batchDigest,
 } from '../modules/records';
 import { readBatchArrangeRules } from '../modules/records/arrange/batch-rules';
@@ -392,17 +394,33 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
         const operation = batchOperationFromJob(job, input, metadata, set);
         const tx: BatchArrangeTransaction = {
           operation,
-          loadSnapshot: () =>
-            loadRecordBatchSnapshot(
+          loadSnapshot: async () => {
+            const revising =
+              set !== null && ['queued', 'running'].includes(operation.phase);
+            if (revising) {
+              const saved = await locked.context
+                .select({ id: recordSaves.saveId })
+                .from(recordSaves)
+                .where(eq(recordSaves.batchId, request.batchId))
+                .limit(1);
+              const mapped = await locked.context
+                .select({ id: recordDraftEvents.eventId })
+                .from(recordDraftEvents)
+                .where(eq(recordDraftEvents.batchId, request.batchId))
+                .limit(1);
+              if (saved.length || mapped.length) return null;
+            }
+            return loadRecordBatchSnapshot(
               locked.context,
               input,
               metadata!,
               deps.businessNow(),
               set?.revision ?? 1,
-              set && ['queued', 'running'].includes(operation.phase)
+              revising
                 ? { kind: 'revise', events: metadata!.manifest }
                 : { kind: 'initial' },
-            ),
+            );
+          },
           readRules: (value) =>
             value.category === 'dimension_anchors' &&
             value.at === requireNativeInput(input).boundAt
@@ -491,7 +509,6 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
           async persistDraftSet(value, trace) {
             const { events, expectedJobRevision, ...producerTrace } = trace;
             if (
-              set ||
               expectedJobRevision !== job!.revision ||
               job!.attempt !== request.attempt ||
               !['running', 'partial'].includes(job!.status) ||
@@ -512,17 +529,26 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
               trace.boundAt !== requireNativeInput(input).boundAt ||
               trace.occurredOn !== input.occurredOn
             )
-              throw new NativeArrangeUnavailable(
-                'native_initial_commit_changed',
-              );
-            await storeTrustedRecordDraftBatch(locked.context, {
-              draftSet: value,
-              originalInput: input.originalInput,
-              occurredOn: input.occurredOn!,
-              modelVersion: MODELINK_MODEL,
-              createdByAccountId: input.creatorAccountId,
-              createdAt: deps.now(),
-            });
+              throw new NativeArrangeUnavailable('native_commit_changed');
+            if (set) {
+              await reviseTrustedRecordDraftBatch(locked.context, {
+                expectedBatchRevision: set.revision,
+                expectedDrafts: set.drafts.map((draft) => ({
+                  draftId: draft.draftId,
+                  revision: draft.revision,
+                })),
+                draftSet: value,
+              });
+            } else {
+              await storeTrustedRecordDraftBatch(locked.context, {
+                draftSet: value,
+                originalInput: input.originalInput,
+                occurredOn: input.occurredOn!,
+                modelVersion: MODELINK_MODEL,
+                createdByAccountId: input.creatorAccountId,
+                createdAt: deps.now(),
+              });
+            }
             set = await readNativeDraftSet(
               locked.context,
               request.batchId,
