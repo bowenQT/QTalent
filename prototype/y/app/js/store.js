@@ -226,7 +226,8 @@
       if (o.from && e.date < o.from) return;
       if (o.to && e.date > o.to) return;
       e.scores.forEach((s) => {
-        if (s.p !== pid || s.v == null) return;
+        // 待校准的分（多位评价人分歧）没有定值，只在 all 时取到，用来计入导出的「已跳过」；「资料不足」不出分，不算
+        if (s.p !== pid || (s.v == null && !(o.all && s.st === 'conflict'))) return;
         // 不兼容修订生效后，旧版本下的分待按新版本复核：原分保留，复核前不参与当前版本的取数（v1.6 3.35.5）。
         // 判断对照按原版本对照证据，传 anyVer: true
         if (!o.anyVer && store.heldBy(e, s)) return;
@@ -305,9 +306,15 @@
     if (!store.can('calibrate') || !f || r.na || r.q === f.q || !why) return null;
     S.recalKeeps = S.recalKeeps || {};
     const prev = S.recalKeeps[pid];
-    S.recalKeeps[pid] = { snap: snapKey(f), q: f.q, refQ: r.q, why, by: store.me().id, at: NT.TODAY, ts: Date.now() };
+    const current = { snap: snapKey(f), q: f.q, refQ: r.q, why, by: store.me().id, at: NT.TODAY, ts: Date.now() };
+    S.recalKeeps[pid] = current;
     store.save();
-    return () => { if (prev) S.recalKeeps[pid] = prev; else delete S.recalKeeps[pid]; store.save(); };
+    return () => {
+      // 只能撤销自己写入且仍生效的决定，不能覆盖之后的 HR 决定。
+      if (!store.can('calibrate') || S.recalKeeps[pid] !== current) return false;
+      if (prev) S.recalKeeps[pid] = prev; else delete S.recalKeeps[pid];
+      store.save(); return true;
+    };
   };
   store.freeze = (snap) => { S.snaps.push(snap); store.save(); };
   // 部门负责人在校准时的拖动和理由：存成建议，HR /管理者打开同一团队时可以看到并采纳
@@ -428,13 +435,15 @@
   };
 
   // ---------- HR 校准队列 ----------
+  // 还在评分复核队列里的分：两位评价人分差大待校准，或改了 AI 的分差 2 分以上又没写理由、还没复核。队列和导出、打印用同一个判断
+  store.inScoreReview = (s) => s.st === 'conflict' || (s.st === 'confirmed' && !!s.bigGap && !lastRev(s));
   store.queue = () => {
     const q = [];
     S.events.forEach((e) => e.scores.forEach((s, i) => {
       if (!store.scope(s.p) || store.scope(s.p) === 'self') return;
       const name = store.person(s.p).name, dn = store.dim(s.d).name;
       if (s.st === 'conflict') q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'conflict', kindLabel: '待校准', title: `${dn}分差 ${Math.abs(s.raters[0].v - s.raters[1].v)} 分`, sub: `${name} · ${s.raters.map((r) => `${store.person(r.by).name} ${r.v}`).join(' / ')}`, pair: s.raters.map((r) => r.v).join(' / ') });
-      else if (s.bigGap && s.st === 'confirmed' && !lastRev(s)) q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'gap', kindLabel: '与 AI 分差大', title: `${name} · ${dn}`, sub: `${store.person(s.by).name}确认 ${s.v}，AI 建议 ${s.ai}，没写理由`, pair: `${s.v} / ${s.ai}` });
+      else if (store.inScoreReview(s)) q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'gap', kindLabel: '与 AI 分差大', title: `${name} · ${dn}`, sub: `${store.person(s.by).name}确认 ${s.v}，AI 建议 ${s.ai}，没写理由`, pair: `${s.v} / ${s.ai}` });
     }));
     store.visiblePeople().filter((p) => store.scope(p.id) === 'full' && store.needsRecal(p.id)).forEach((p) => {
       const f = store.formal(p.id), r = store.refPos(p.id);
@@ -1110,18 +1119,27 @@
   // 已处理的线索留在 HR 视图里：核实的、不采纳的连同理由（v1.4 3.20.3），管理者不经过这里
   store.watchHandled = () => (store.role() === 'hrbp' ? S.watchClues.filter((c) => ['verified', 'rejected'].includes(c.state) && store.scope(c.person) === 'full').sort((a, b) => (b.verifiedAt || '').localeCompare(a.verifiedAt || '')) : []);
   store.verifyClue = (id, ok, why) => {
-    const c = S.watchClues.find((x) => x.id === id); if (!c) return null;
+    const c = S.watchClues.find((x) => x.id === id);
+    // 核实线索是 HR 的有范围写操作；处理时重查状态，防止旧按钮重复覆盖。
+    if (!c || store.role() !== 'hrbp' || store.scope(c.person) !== 'full' || c.state !== 'pending' || (!ok && !why?.trim())) return null;
+    const handledToken = NT.uid('vh');
     if (ok) {
-      Object.assign(c, { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now() });
+      Object.assign(c, { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now(), handledToken });
       delete c.rejectWhy; // 已核实不能保留先前的「不采纳」理由
     } else {
-      Object.assign(c, { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
+      Object.assign(c, { state: 'rejected', rejectWhy: why.trim(), verifiedBy: store.me().id, verifiedAt: NT.TODAY, handledToken });
       delete c.verifiedTs; // 已不采纳不再保留先前核实时刻
     }
     store.save();
     return c;
   };
-  store.unverifyClue = (id) => { const c = S.watchClues.find((x) => x.id === id); c.state = 'pending'; delete c.verifiedBy; delete c.verifiedAt; delete c.verifiedTs; delete c.rejectWhy; store.save(); };
+  store.unverifyClue = (id, expectedToken) => {
+    const c = S.watchClues.find((x) => x.id === id);
+    if (!c || store.role() !== 'hrbp' || store.scope(c.person) !== 'full' || !['verified', 'rejected'].includes(c.state)
+      || (expectedToken != null && c.handledToken !== expectedToken)) return false;
+    c.state = 'pending'; delete c.verifiedBy; delete c.verifiedAt; delete c.verifiedTs; delete c.rejectWhy; delete c.handledToken;
+    store.save(); return true;
+  };
 
   // ---------- 推荐方向（v1.5 3.31）：带目标角色的提名，走值得关注的核实流程 ----------
   // 「适合做 FDE」「适合做产品架构师」：中英文之间留空格，中文之间不留
@@ -1499,13 +1517,14 @@
   // 退回：返回撤销函数。撤销只生效一次；退回之后起草人改过、重新提交或删掉了草稿，都保持现状并返回 false
   store.returnDraft = (kind, why, line) => {
     const d = store.ruleOpen(kind, line); if (!d || !isCeo() || d.state !== 'pending') return null;
-    const sent = NT.clone(d);
-    Object.assign(d, { state: 'draft', returned: { why, by: store.me().id, at: NT.TODAY } });
+    const sent = NT.clone(d), returned = { why, by: store.me().id, at: NT.TODAY };
+    Object.assign(d, { state: 'draft', returned });
     const after = JSON.stringify(d);
     store.save();
     let undone = false;
     return () => {
-      if (undone || !isCeo() || store.ruleOpen(kind, line) !== d || JSON.stringify(d) !== after) return false;
+      // 撤销必须对应同一次退回：退回记录还是这一次写入的那个对象，草稿内容也没变
+      if (undone || !isCeo() || store.ruleOpen(kind, line) !== d || d.returned !== returned || JSON.stringify(d) !== after) return false;
       delete d.returned; Object.assign(d, sent);
       undone = true; store.save(); return true;
     };
@@ -1590,7 +1609,13 @@
     const s = { id: NT.uid('rs'), rule: 'rubric', state: 'open', by: store.me().id, at: NT.TODAY, ...o };
     S.ruleSugs.unshift(s); store.save(); return s;
   };
-  store.removeRuleSug = (id) => { S.ruleSugs = S.ruleSugs.filter((s) => s.id !== id); store.save(); };
+  store.removeRuleSug = (id) => {
+    const i = S.ruleSugs.findIndex((s) => s.id === id);
+    const s = S.ruleSugs[i];
+    // 已被 HR 处理的建议及其草稿依据必须保留；只允许提交者撤回待处理建议。
+    if (!s || !store.canSuggestRule() || s.by !== store.me().id || s.state !== 'open') return false;
+    S.ruleSugs.splice(i, 1); store.save(); return true;
+  };
   store.ruleSugs = (o = {}) => S.ruleSugs.filter((s) => (!o.state || s.state === o.state) && (!o.by || s.by === o.by));
   // HR 处理：纳入草稿（作为依据挂到草稿上）或不采纳（写理由）
   store.handleRuleSug = (id, ok, why) => {
@@ -1610,6 +1635,66 @@
     if (s.draft) { const d = store.ruleVer(s.draft); if (d) d.basis = (d.basis || []).filter((b) => b.sug !== id); }
     s.state = 'open'; delete s.handledBy; delete s.handledAt; delete s.why; delete s.draft; store.save();
   };
+
+  // ---------- 导出与审计（BOW-911 档案打印、BOW-912 批量导出） ----------
+  // 口径：截至导出时已确认的内容。事件分只取已确认、已校准的，AI 建议分和待校准的分不进；
+  // 人员先按当前视角的查看范围过滤，事件再按档案的可见规则过滤；象限和盘点结论以盘点冻结快照为准，不进导出
+  store.canExport = (pid, role = store.role()) => ['ceo', 'hrbp'].includes(role) && (!pid || store.scope(pid, role) === 'full');
+  store.exportScopes = () => {
+    const role = store.role(), mine = store.visiblePeople().filter((p) => store.canExport(p.id, role)), ids = new Set(mine.map((p) => p.id));
+    const out = [{ id: 'all', label: role === 'ceo' ? '全公司范围内的人' : '我负责的人', people: mine.map((p) => p.id) }];
+    S.batches.filter((b) => b.kind === 'landing').forEach((b) => {
+      const ps = b.newcomers.map(([pid]) => pid).filter((pid) => ids.has(pid));
+      if (ps.length) out.push({ id: b.id, label: b.name, people: ps });
+    });
+    if (store.canFollow()) out.push({ id: 'follow', label: '我的关注', people: store.followList().map((f) => f.person).filter((pid) => ids.has(pid)) });
+    return out;
+  };
+  // 规则版本在导出和打印里写成「评价规则 v1」，不露内部编号
+  const ruleName = (v) => (v ? `评价规则 ${v.replace(/^.*-(v\d+)$/, '$1')}` : '');
+  // 一条分的来源位置：事件只有一处来源就是它；有几处时，看这条分的引用落在哪一处原文里。
+  // 引用对不上或同时落在几处，就是关联不足，列出这件事的全部来源，不只取第一处
+  const citeOf = (note) => (/引用「(.+)」/.exec(note || '')?.[1] || '').replace(/…$/, '');
+  store.scoreSrcs = (s, e) => {
+    const all = e.srcs || [];
+    if (all.length < 2) return { list: all, exact: true };
+    const q = citeOf(s.note), hit = q ? all.filter((x) => (x.quote || '').includes(q)) : [];
+    return hit.length === 1 ? { list: hit, exact: true } : { list: all, exact: false };
+  };
+  // 取数和档案同一套：按新版本复核过的分用复核后的值、评分人和版本；待按新版本复核的分、AI 建议分、待校准的分
+  // 和还在评分复核队列里的分都不导出，计入「已跳过」
+  store.exportRows = (pids, from) => {
+    const rows = []; let skipped = 0;
+    pids.filter((pid) => store.canExport(pid)).forEach((pid) => {
+      const cur = store.scoresOf(pid, { visible: true, from }).filter((s) => !store.inScoreReview(s));
+      skipped += store.scoresOf(pid, { visible: true, from, all: true, anyVer: true }).length - cur.length;
+      cur.forEach((s) => {
+        const e = s.ev, ver = store.ruleVer(s.ver), srcs = store.scoreSrcs(s, e);
+        rows.push({ pid, ev: e.id, date: e.date, title: e.title, dim: store.dim(s.d)?.name || s.d, v: s.v,
+          anchor: ver ? store.anchors(s.d, pid, ver).list[s.v - 1] || '' : '', note: s.note || '', by: s.by, rubric: ruleName(s.ver),
+          src: srcs.list.map((x) => `${x.label} · ${x.loc}`).join('；'), srcExact: srcs.exact });
+      });
+    });
+    return { rows, skipped, people: new Set(rows.map((r) => r.pid)).size };
+  };
+  // 生成时按当前视角再判一次：已没有导出资格的拒绝并记审计；范围里没有已确认内容的不生成。两种都不出文件、不记导出成功
+  store.exportCheck = (pids, from) => {
+    if (!store.canExport()) return { state: 'deny' };
+    const r = store.exportRows(pids, from);
+    return { state: r.rows.length ? 'ok' : 'empty', ...r };
+  };
+  // 演示时钟：日期是 NT.TODAY，时刻从 15:00 起、每记一条审计往后一分钟，不读本机时钟。
+  // 导出表头、打印稿和审计用同一个时刻
+  store.clockNow = () => {
+    const m = 15 * 60 + (S.audit || []).length;
+    return `${NT.TODAY} ${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  };
+  // 审计只记谁在什么时间对什么做了什么，不记导出或打印的内容本身
+  store.audit = (act, obj) => {
+    (S.audit ||= []).unshift({ at: NT.md(store.clockNow()), by: store.me().id, act, obj });
+    store.save();
+  };
+  store.audits = () => S.audit || [];
 
   // ---------- 全局搜索 ----------
   store.search = (q) => {

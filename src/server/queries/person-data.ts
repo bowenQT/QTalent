@@ -4,7 +4,10 @@ import { loadProjectContext } from '../usecases/project-context';
 import { readEvidenceForTalent } from '../modules/records';
 import { readTalentEvaluationRules } from '../modules/evaluation-system';
 import { readActiveConfirmations } from '../modules/talent';
+import { employments } from '../modules/directory';
+import { cohorts } from '../modules/programs';
 import type { TalentSource, TalentSubject, TalentKind } from '../authz/talent';
+import { historicalEvaluationRequiredKind } from './historical-evaluation-policy';
 
 /** Complete provenance is loaded before person filtering, including shared
  * fragments. This bounded P0 read does not use the prototype import archive.
@@ -22,6 +25,9 @@ export async function loadPersonData(
         ...(await readEvidenceForTalent(tx)),
         ...(await readTalentEvaluationRules(tx)),
         confirmations: await readActiveConfirmations(tx),
+        // Batch names and hire dates for the identity header.
+        cohorts: await tx.select().from(cohorts),
+        employments: await tx.select().from(employments),
       };
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
@@ -105,23 +111,18 @@ export function talentSources(data: PersonData): TalentSource[] {
       ) ?? [])
         subjects.push({ personId: participant.personId, cohortId: null });
     }
+    const historyKinds = history.map(historicalEvaluationRequiredKind);
     const requiredKinds: TalentKind[] = [];
     if (observedSources.has(key)) requiredKinds.push('management-observation');
-    // Only the four classified baseline categories in BOW-834 are ordinary
-    // evaluations. Free-text kinds are not a sensitivity classification.
-    const ordinaryHistory = [
-      '训练营周评',
-      '结营评审',
-      'MS 路演评审',
-      '奖项答辩',
-    ];
+    // Sensitivity adds an access requirement without rewriting historical facts.
+    if (historyKinds.includes('restricted-evaluation'))
+      requiredKinds.push('restricted-evaluation');
     if (
       links.some((link) => !eventOrder.has(link.eventId)) ||
+      historyKinds.includes(null) ||
       history.some(
         (row) =>
-          row.sourceCategory !== 'prototype_baseline' ||
-          !ordinaryHistory.includes(row.kind) ||
-          (!row.personId && !historicalParticipantsByEvaluation.has(row.id)),
+          !row.personId && !historicalParticipantsByEvaluation.has(row.id),
       )
     )
       subjects.length = 0;

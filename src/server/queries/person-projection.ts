@@ -1,20 +1,23 @@
 import 'server-only';
-import {
-  personSchema,
-  type Person,
-  type CapabilityScore,
-} from '../../contracts/person';
+import { personSchema, type Person } from '../../contracts/person';
 import { activeRoles, canReadProject, isCurrent } from '../authz';
 import {
   canReadTalent,
-  projectTalentRecord,
   type TalentKind,
+  type TalentSource,
   type TalentSubject,
 } from '../authz/talent';
 import { deriveReferencePosition } from '../modules/talent';
 import type { PositionScore } from '../modules/talent';
-import { type PersonData, eventSubject, talentSources } from './person-data';
-import { sourceFromData } from './sources';
+import { type PersonData, talentSources } from './person-data';
+import { byCodePoint, identityOf, landingOf } from './person-identity';
+import {
+  collectEvidence,
+  dimensionGroup,
+  orderedDimensions,
+  type EffectiveScore,
+  type Evidence,
+} from './person-evidence';
 
 export function personRole(data: PersonData) {
   const roles = activeRoles(data.context);
@@ -34,221 +37,169 @@ function personSubjects(data: PersonData, id: string): TalentSubject[] {
       .map((row) => ({ personId: id, cohortId: row.cohortId })),
   ];
 }
-const block = <T>(items: T[]) =>
-  items.length
-    ? { status: 'ready' as const, data: items }
-    : { status: 'empty' as const };
-
-export async function personFromData(
-  data: PersonData,
-  id: string,
-): Promise<Person | null> {
+/** The profile gate shared by the profile and the quick view: role, directory
+ * row and the right to read the person at all. Absent and out-of-scope people
+ * are indistinguishable (null).
+ */
+export function profileGate(data: PersonData, id: string) {
   const role = personRole(data);
-  const person = data.directory.people.find((row) => row.id === id);
+  const row = data.directory.people.find((item) => item.id === id);
   const subjects = personSubjects(data, id);
   const allowed = (kind: TalentKind) =>
     subjects.some((subject) =>
       canReadTalent(data.context, { ...subject, kind }, 'person-profile'),
     );
-  if (!role || !person || !allowed('person')) return null;
-  const organization = data.directory.organizations.find(
-    (row) => row.id === person.organizationId,
-  );
-  if (!organization) throw new Error('人员组织引用不存在');
-  const sources = talentSources(data);
-  const visibleStatement = data.statements.flatMap((statement) => {
-    const event = data.events.find((row) => row.id === statement.eventId);
-    if (!event || event.personId !== id) return [];
-    const kind: TalentKind =
-      statement.kind === 'management_observation'
-        ? 'management-observation'
-        : statement.kind === 'ai_inference'
-          ? 'ai-inference'
-          : 'evaluation';
-    const projected = projectTalentRecord(
-      data.context,
-      {
-        id: statement.id,
-        subject: eventSubject(data, event),
-        kind,
-        fields: [
-          {
-            name: 'text',
-            kind,
-            value: statement.text,
-            subjects: [],
-            sources: [statement],
-          },
-        ],
-      },
-      sources,
-      'person-profile',
-    );
-    if (!projected || typeof projected.fields.text !== 'string') return [];
-    return [
-      {
-        id: statement.id,
-        text: projected.fields.text,
-        nature: statement.kind,
-        occurredAt: event.occurredOn + 'T00:00:00.000Z',
-        sources: projected.sources.map((source) => ({
-          fragmentId: source.fragmentId,
-          originalVersionId: source.originalVersionId,
-          location: source.location,
-        })),
-      },
-    ];
-  });
-  const scores: CapabilityScore[] = [];
-  const positionScores: PositionScore[] = [];
-  for (const confirmation of data.confirmations) {
-    if (!confirmation.active || confirmation.status !== 'scored') continue;
-    const event = data.events.find((row) => row.id === confirmation.eventId);
-    if (!event || event.personId !== id) continue;
-    const subject = eventSubject(data, event);
-    if (
-      !canReadTalent(
-        data.context,
-        { ...subject, kind: 'confirmed-score' },
-        'person-profile',
-      )
-    )
-      continue;
-    const source = await sourceFromData(data, confirmation, sources);
-    if (source.status !== 'success') continue;
-    if (source.source.sourceCategory !== confirmation.sourceCategory) continue;
-    if (
-      confirmation.sourceCategory === 'prototype_baseline' &&
-      (!event.demo || !person.demo)
-    )
-      continue;
-    const dimension = data.dimensions.find(
-      (row) => row.id === confirmation.dimensionId,
-    );
-    const anchor = data.anchors.find(
-      (row) =>
-        row.id === confirmation.anchorId &&
-        row.dimensionId === confirmation.dimensionId &&
-        row.ruleVersionId === confirmation.ruleVersionId &&
-        row.value === confirmation.value,
-    );
-    const evaluator = data.directory.people.find(
-      (row) => row.id === confirmation.evaluatorId,
-    );
-    if (!dimension || !anchor || !evaluator || confirmation.value === null)
-      continue;
-    scores.push({
-      id: confirmation.id,
-      dimensionId: dimension.id,
-      dimensionLabel: dimension.name,
-      status: 'confirmed',
-      sourceCategory: confirmation.sourceCategory,
-      value: confirmation.value,
-      anchor: anchor.text,
-      scoredBy: evaluator.name,
-      ruleVersionId: confirmation.ruleVersionId,
-      sources: [
-        {
-          fragmentId: source.source.fragmentId,
-          originalVersionId: source.source.originalVersionId,
-          location: source.source.location,
-        },
-      ],
-    });
-    if (
-      canReadTalent(
-        data.context,
-        { ...subject, kind: 'quadrant' },
-        'person-profile',
-      )
-    )
-      positionScores.push({
-        eventId: event.id,
-        occurredOn: event.occurredOn,
-        dimensionId: dimension.id,
-        axis: dimension.axis,
-        core: dimension.core,
-        value: confirmation.value,
-        ruleVersionId: confirmation.ruleVersionId,
-      });
-  }
-  scores.sort(
-    (a, b) =>
-      a.dimensionId.localeCompare(b.dimensionId) || a.id.localeCompare(b.id),
-  );
-  const cited = visibleStatement.filter((row) =>
-    ['original_fact', 'self_report', 'human_conclusion'].includes(row.nature),
-  );
-  const statementOnly = (row: (typeof visibleStatement)[number]) => ({
-    id: row.id,
-    text: row.text,
-    nature: row.nature,
-    sources: row.sources,
-  });
-  const projects = data.staffing.projects
+  return role && row && allowed('person') ? { role, row, allowed } : null;
+}
+const block = <T>(items: T[]) =>
+  items.length
+    ? { status: 'ready' as const, data: items }
+    : { status: 'empty' as const };
+const dayMs = 86_400_000;
+const shiftDays = (day: string, delta: number) =>
+  new Date(Date.parse(day) + delta * dayMs).toISOString().slice(0, 10);
+
+/** Only projects the caller may read, one row per membership started by the
+ * business day. A project owner without a membership row has no role, mode or
+ * dates to show and is not listed.
+ */
+export function projectsOf(data: PersonData, id: string) {
+  return data.staffing.members
     .filter(
-      (project) =>
-        canReadProject(data.context, project) &&
-        (project.ownerId === id ||
-          data.staffing.members.some(
-            (member) =>
-              member.projectId === project.id &&
-              member.personId === id &&
-              member.validFrom <= data.context.now,
-          )),
+      (member) =>
+        member.personId === id && member.validFrom <= data.context.now,
     )
-    .map((project) => ({
-      id: project.id,
-      name: project.name,
-      participation: project.ownerId === id ? 'owner' : 'member',
+    .flatMap((member) => {
+      const project = data.staffing.projects.find(
+        (row) => row.id === member.projectId,
+      );
+      return project && canReadProject(data.context, project)
+        ? [
+            {
+              id: project.id,
+              name: project.name,
+              role: member.role,
+              mode: member.mode,
+              from: member.validFrom,
+              to: member.validTo,
+            },
+          ]
+        : [];
+    })
+    .sort(
+      (a, b) =>
+        byCodePoint(b.from, a.from) ||
+        byCodePoint(a.name, b.name) ||
+        byCodePoint(a.id, b.id),
+    );
+}
+export function referenceOf(
+  data: PersonData,
+  allowed: boolean,
+  effective: EffectiveScore[],
+) {
+  if (!allowed)
+    return { status: 'unknown' as const, reason: '当前权限不可读取参考位置' };
+  const scores: PositionScore[] = effective
+    .filter((row) => row.quadrant)
+    .map((row) => ({
+      eventId: row.event.id,
+      occurredOn: row.event.occurredOn,
+      dimensionId: row.dimension.id,
+      axis: row.dimension.axis,
+      core: row.dimension.core,
+      value: row.score.value,
+      ruleVersionId: row.score.ruleVersionId,
     }));
-  const shared = {
-    role,
-    person: {
-      id: person.id,
-      demo: person.demo,
-      name: person.name,
-      teamId: organization.id,
-      teamName: organization.shortName,
-      jobTitle: '职位未接入',
+  return deriveReferencePosition(scores, data.context.now);
+}
+function spectrum(data: PersonData, evidence: Evidence) {
+  const asOf = data.context.now;
+  const windowFrom = shiftDays(asOf, -365);
+  const dimensions = orderedDimensions(data);
+  const rank = new Map(dimensions.map((row, index) => [row.id, index]));
+  const scores = evidence.effective
+    .filter(
+      (row) =>
+        row.event.occurredOn >= windowFrom && row.event.occurredOn <= asOf,
+    )
+    .map((row) => ({
+      id: row.score.scoreId,
+      dimensionId: row.dimension.id,
+      dimensionLabel: row.dimension.name,
+      status: 'confirmed' as const,
+      sourceCategory: row.score.sourceCategory,
+      value: row.score.value,
+      anchor: row.score.anchor,
+      scoredByName: row.score.scoredByName,
+      ruleVersionId: row.score.ruleVersionId,
+      eventId: row.event.id,
+      eventTitle: row.event.title,
+      occurredOn: row.event.occurredOn,
+      sources: row.score.sources,
+    }))
+    .sort(
+      (a, b) =>
+        rank.get(a.dimensionId)! - rank.get(b.dimensionId)! ||
+        byCodePoint(a.id, b.id),
+    );
+  if (!scores.length)
+    return {
+      status: 'insufficient_evidence' as const,
+      reason: '近 12 个月暂无已确认的维度分',
+    };
+  const scored = new Set(scores.map((row) => row.dimensionId));
+  return {
+    status: 'ready' as const,
+    data: {
+      windowFrom,
+      dimensions: dimensions.map((row) => ({
+        id: row.id,
+        label: row.name,
+        group: dimensionGroup(row),
+        state: scored.has(row.id)
+          ? ('scored' as const)
+          : ('insufficient' as const),
+        ...(scored.has(row.id) ? {} : { missing: '近 12 个月没有已确认的分' }),
+      })),
+      scores,
     },
-    summary: block(cited.map(statementOnly)),
-    capabilityProfile: scores.length
-      ? block(scores)
-      : { status: 'insufficient_evidence', reason: '暂无可用的已确认维度分' },
-    timeline: block(
-      visibleStatement
-        .filter((row) => row.nature !== 'ai_inference')
-        .map((row) => ({
-          id: row.id,
-          occurredAt: row.occurredAt,
-          statement: statementOnly(row),
-        }))
-        .sort(
-          (a, b) =>
-            b.occurredAt.localeCompare(a.occurredAt) ||
-            a.id.localeCompare(b.id),
-        ),
-    ),
-    projects: block(projects),
-    aiInferences: block(
-      visibleStatement
-        .filter((row) => row.nature === 'ai_inference')
-        .map(statementOnly),
-    ),
+  };
+}
+export async function personFromData(
+  data: PersonData,
+  id: string,
+  sources: TalentSource[] = talentSources(data),
+): Promise<Person | null> {
+  const gate = profileGate(data, id);
+  if (!gate) return null;
+  const evidence = await collectEvidence(data, id, sources);
+  const shared = {
+    role: gate.role,
+    person: identityOf(data, gate.row),
+    asOf: data.context.now,
+    landing: landingOf(data, id),
+    // A readable human conclusion has no date yet (BOW-834 S7): unknown, not empty.
+    summary: evidence.conclusionCount
+      ? {
+          status: 'unknown' as const,
+          reason: '人工结论的署名日期尚未接入',
+        }
+      : { status: 'empty' as const },
+    capabilityProfile: spectrum(data, evidence),
+    timeline: block(evidence.entries),
+    projects: block(projectsOf(data, id)),
+    aiInferences: block(evidence.aiInferences),
   };
   return personSchema.parse(
-    role === 'mentor'
+    gate.role === 'mentor'
       ? shared
       : {
           ...shared,
-          referencePosition: allowed('quadrant')
-            ? deriveReferencePosition(positionScores, data.context.now)
-            : { status: 'unknown', reason: '当前权限不可读取参考位置' },
-          managementObservations: block(
-            visibleStatement
-              .filter((row) => row.nature === 'management_observation')
-              .map(statementOnly),
+          referencePosition: referenceOf(
+            data,
+            gate.allowed('quadrant'),
+            evidence.effective,
           ),
           calibrationHistory: { status: 'not_connected' },
           versionsAndChanges: { status: 'not_connected' },
