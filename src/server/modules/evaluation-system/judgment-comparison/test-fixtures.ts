@@ -38,6 +38,8 @@ export function facts(
       cell: `A${row}:B${row}`,
     },
     excerpt: `合成${side}评审事实（演示）`,
+    originalTitle: `${side}原表（演示）`,
+    recordedByName: null,
     sourceType: 'spreadsheet' as const,
     sourceCategory: 'original' as const,
     demo: true,

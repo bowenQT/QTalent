@@ -12,10 +12,10 @@ describe('BOW-871 baseline C1/C2/C6: profile and original projection together', 
       expect(person?.capabilityProfile.status).toBe('ready');
       if (person?.capabilityProfile.status !== 'ready')
         throw new Error('Expected a usable confirmation fixture');
-      const confirmation = person.capabilityProfile.data[0];
+      const confirmation = person.capabilityProfile.data.scores[0];
       expect(confirmation.anchor).toBe('Synthetic anchor');
       expect(confirmation.ruleVersionId).toBe('rubric-v1');
-      expect(confirmation.scoredBy).toBe('Synthetic actor');
+      expect(confirmation.scoredByName).toBe('Synthetic actor');
       const citation = confirmation.sources[0];
       const result = await sourceFromData(data, citation);
       expect(result.status).toBe('success');
@@ -114,7 +114,7 @@ describe('BOW-871 baseline C1/C2/C6: profile and original projection together', 
     const person = await personFromData(data, 'one');
     expect(person?.capabilityProfile).toEqual({
       status: 'insufficient_evidence',
-      reason: '暂无可用的已确认维度分',
+      reason: '近 12 个月暂无已确认的维度分',
     });
   });
 
