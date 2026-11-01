@@ -19,16 +19,28 @@ XLSX 读取只针对这两份经摘要核对的固定合成文件，使用现有
 
 命令是 `pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --apply`。它使用现有服务端 `getEnv()` 配置，不加载凭据文件、不自动加入 `db:seed`，production 环境拒绝。只输出批次、源提交、输入基数和完整性摘要，失败只输出稳定分类，不打印 SQL 原错、连接串或原文。运行此显式命令仍须先满足下列事实前置，并另按环境授权操作；本PR没有执行演示库导入。
 
-## 固定组合与仍待完成的验收
+## 固定组合与验证
 
-目前代码组合919 `7770b9730a676e58bd44ba4276698e5a133e7a07`（真实store/usecase及读回修复）、X1 `e1573eaaa3f3d28e785f3300a73f341241e2298d`（共享出口，含5f551e3原生结构/918入口）和 `edbce681363f46449f7e2e361366c93b7332c380`（仅导出现有insertChecked）。没有复制表、重造持久化算法或提交临时SQL；正式迁移仍由X1按游标提供。
+代码已接X1 `7dfbae71e672f6ef4cc6626e4668f98d2b395e6d`：包含919 `7770b9730a676e58bd44ba4276698e5a133e7a07`（原生store/usecase）、918 `92db986c73dd6042c53b7c1b47d546cf03bc438f`（真实初始化/绑定/标准读取）与现有insertChecked出口 `edbce681363f46449f7e2e361366c93b7332c380`。共享index冲突已由X1解决，本卡未改共享schema/出口/最终迁移。
 
-- 918 实际 `xe-select-v1` baseline 的 effectiveFrom 尚无批准事实。只能由918真实初始化入口建立，再绑定期次；923不以导入时间/首场日期猜生效点。
-- 前后实际节点 kind/期次映射仍待所有者裁决；923不猜 interview/defense、不把两段塞进唯一program_cohort节点，不设置空cohort绕过。已有节点/主体由919真实读回验证。
-- 上述事实未齐，**完整93人正向导入、成功重放、成功并发、后续网页联验尚未完成**。当前测试没有在真实923节点上填猜测类型，也没有伪建918 baseline/head/binding。不能凭总体覆盖率或919自己的合成PG代替这些验收。
+**52项通过：29离线 + 23真实PG，0skip。** 原生测试覆盖：
 
-首批实跑35项：23项离线输入/CLI门禁 + 12项真实PG反例。首轮Claude输入审查通过后的N1/N2另补6项真实XLSX表头/类型反例，旧实现6红，修复后纳入统一复验；N3按实际固定Git来源与manifest校验范围更正此文档。PG覆盖缺绑定后190条原件/版本/片段全部回滚、同批并发失败零残留、人员缺失/姓名错/非演示拒绝、期次缺失/错误拒绝、准确演示后缀兼容、原件/摘要/最后片段冲突保留既有事实、相同原件重放后下游拒绝仍不重复。没有创建授权。
+- 固定93案例、186出处与4条独立人工标记首导成功，独立新连接读回完整canonical事实；前后实际present分别87/86，只作为输入完整性验证。
+- 成功重放返回unchanged，事实摘要、原导入时刻、行数和当前grant不变。
+- 外部测试事务先持同一实际batch锁，查询真实pg_locks确认两个导入者均在等待，释放后只有一份inserted、另一份unchanged，最终只一批完整事实。
+- 缺绑定、错误绑定版本/内容、缺当前节点主体、原件/摘要/片段/映射冲突整体回滚；不从cohort推定节点主体，不覆盖已变更的原事实。
+- 真CLI子进程首导和重放成功；缺绑定/原件冲突只有一行稳定错误JSON，连接关闭且无半批残留。
+- 首轮输入审查N1/N2的6项实际XLSX反例旧实现6红→绿：完整表头和文字/空单元格类型。N3按实际manifest摘要与固定Git来源边界更正文档。
 
-验证命令：`pnpm exec vitest run --config vitest.integration.config.ts src/server/db/seed/standard-iteration-demo/input.test.ts src/server/db/seed/standard-iteration-demo/import.integration.test.ts --maxWorkers=2 --coverage --coverage.include='src/server/db/seed/standard-iteration-demo/{input,import,run}.ts'`。只在隔离_test库使用test-db.env及X1原生临时迁移目录（由 `QTALENT_COMPARISON_TEST_MIGRATIONS` 指定），运行前领取heavy槽，测试库/连接/本人槽运行后清理。
+正向测试经授权仅在独立_test库建立**明确测试用途的**合法节点与合成reviewed时间；baseline/head/绑定全部通过918的 `initializeReviewedSelectionBaseline` / `bindExistingSelectionCohort` 原生入口、真实当前账号/grant和事务创建，没有直接插入918状态表。测试值只在integration测试中，不是实际923节点/历史时间裁决，不进入生产导入器或CLI默认值。初始化与绑定是918各自的前置事务；923comparison批次内部仍是一笔原生事务，没有假称三者共同提交。
 
-当前三文件统一TypeScript覆盖行90.78%、分支91.94%；import.ts正向写入/成功返回与标准不匹配分支尚待上述事实，run.ts实际成功命令未验。V8不统计内嵌Python字符串：真实XLSX正例/畸形ZIP/更新摘要后的单元格篡改反例确实执行Python，但不能把TypeScript覆盖率称为Python覆盖率。
+验证命令：`pnpm exec vitest run --config vitest.integration.config.ts src/server/db/seed/standard-iteration-demo/input.test.ts src/server/db/seed/standard-iteration-demo/import.integration.test.ts --maxWorkers=2 --coverage --coverage.include='src/server/db/seed/standard-iteration-demo/{input,import,run}.ts'`。PG仅用test-db.env白名单、隔离_test库及X1受控原生升级迁移（通过 `QTALENT_COMPARISON_TEST_MIGRATIONS` 指定）。没有手写DDL或skip；测试库/所有连接/本人heavy槽在结束后清理。
+
+三执行文件统一TypeScript覆盖行92.79%、分支95.45%；import.ts行/分支100%。实际CLI子进程不纳入该进程的V8计量，run.ts仪表值仍37.5%行/60%分支，但成功、重放、两类失败脱敏与退出/关连接已真实执行并断言；不能把子进程结果伪加进覆盖率。内嵌Python字符串也不受V8计量，真实XLSX正例、畸形ZIP和更新摘要后篡改单元格反例实际执行Python。
+
+## 仍待正式依赖与实际场景验收
+
+- 正式918/919迁移仍由X1在既定游标交付；上述临时升级结构的PG成功不是默认CI绿。默认CI已核当前缺表失败，不靠改测试目录默认值或跳过PG放行。
+- 实际923 `xe-select-v1` baseline effectiveFrom 尚待批准事实；真实前后节点kind/cohort映射尚待裁决。它们只由真实918/899入口建立，本卡不拿测试时间、导入时间或首场日期当历史事实，不猜真实interview/defense，不空cohort绕过。
+- 生产CLI目前仅消费、核验已经建立的真实binding，不自动初始化或绑定，避免两笔前置事务之间的版本竞态。CLI运行仍需要对应环境授权；本PR没有实际演示库执行、部署或供应商调用。
+- 待前置PR/正式结构齐后跑默认正式检查，推进Ready/connector及X1门禁；真实三幕场景查询/来源打开另据批准事实验收，不以隔离测试当现场完成。
