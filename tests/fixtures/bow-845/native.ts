@@ -50,8 +50,7 @@ export async function nativeDatabase() {
   const connection = createDatabase(url.toString());
   try {
     await migrate(connection.db, {
-      migrationsFolder:
-        process.env.QTALENT_845_TEST_MIGRATIONS ?? 'src/server/db/migrations',
+      migrationsFolder: 'src/server/db/migrations',
     });
     return {
       ...connection,
