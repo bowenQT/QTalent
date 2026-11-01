@@ -77,3 +77,9 @@ export {
   readCanonicalComparisonRows,
   insertCanonicalComparisonRows,
 } from './judgment-comparison/canonical-store';
+export {
+  attributionHypotheses,
+  standardAttributions,
+  selectionDraftProposals,
+  attributionOperations,
+} from './standard-attribution/schema';
