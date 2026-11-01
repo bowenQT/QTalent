@@ -104,7 +104,7 @@ BOW-830 沿用已接受的 [工程基础规格](research/2026-10-25-y-architectu
 
 表结构由后端任务维护，Drizzle 配置扫描 `src/server/**/schema.ts`，每域一个 schema，避免共享汇总表文件。执行 `pnpm db:generate` 生成 SQL 与 metadata，禁止手工改生成 SQL。合并前先对齐最新 main，删除本分支尚未发布的冲突生成产物后重新生成；带迁移 PR 一次只合一个。迁移与 seed 是显式命令，Web/worker 启动、普通构建不隐式迁移生产数据库。
 
-测试使用独立本地 PostgreSQL，集成测试建唯一随机 `_test` 数据库并在结束时清理自己创建的库。没有 TEST_DATABASE_URL 就失败，不用 fake、空集或 skip 当通过。种子从固定原型源读取、校验摘要及关系后映射，演示数据不另外手工维护副本。
+测试使用独立本地 PostgreSQL，集成测试建唯一随机 `_test` 数据库并在结束时清理自己创建的库。没有 TEST_DATABASE_URL 就失败，不用 fake、空集或 skip 当通过。本机真实 PG 测试的 `TEST_DATABASE_URL` 放在 `~/.config/niu-talent/vendors.env`，指向本机专用测试容器，只放合成数据（[#248 评论](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6552010767)）；只在需要它的测试进程里用 `set -a; . ~/.config/niu-talent/vendors.env; set +a` 加载，不输出连接串的值。种子从固定原型源读取、校验摘要及关系后映射，演示数据不另外手工维护副本。
 
 ## 并行开发与共享文件责任
 
@@ -121,10 +121,10 @@ BOW-830 沿用已接受的 [工程基础规格](research/2026-10-25-y-architectu
 | GitHub Actions | BOW-830 工程协调 | 独立 CI 卡 |
 | prototype-reference.json、视觉摘要与遮罩 | BOW-830 工程协调/UI指定范围 | 同一设计同步 PR 更新 |
 
-本次内部拆分按互斥目录临时工作区完成，最终汇入唯一 BOW-830 分支；没有扩展其他业务页面或创建长期集成分支。
+本次内部拆分按互斥目录临时工作区完成，最终汇入唯一 BOW-830 分支；没有扩展其他业务页面或创建长期集成分支。工程基础合入后，表中共享文件由常驻职责 X1 统一写入，见 [协作规范](../CONTRIBUTING.md#分工)。
 
 ## 自动检查口径
 
 `pnpm test` 只运行无需 PostgreSQL 的单元测试。`pnpm test:integration` 在同一 Vitest 运行中加入真实 PostgreSQL 测试；`pnpm test:coverage` 使用相同全集进行统一覆盖率统计，行和分支门槛均为 85%。未导入的逻辑也纳入，不整体排除业务路径。浏览器与视觉独立报告，不混入覆盖率。
 
-`foundation` GitHub Actions 使用同一锁定安装和脚本：格式、lint/边界、类型、统一覆盖、构建、e2e、当次视觉比较，失败即失败。无生产凭据、无付费/供应商真实调用、无部署步骤。CI 定义存在不等于本次 CI 已通过；实际受检版本与未验证边界以 PR 证据为准。required checks 仓库设置仍须在稳定实跑后按 CONTRIBUTING 另行设置，本卡不改变权限设置。
+`foundation` GitHub Actions 使用同一锁定安装和脚本：格式、lint/边界、类型、统一覆盖、构建、e2e、当次视觉比较，失败即失败。无生产凭据、无付费/供应商真实调用、无部署步骤。只改 `prototype/`、`review-site/`、`docs/` 或根目录 Markdown 的提交不触发（原型材料只从固定参照读取，改参照照常触发）；`main` 的每个提交单独运行，不被后续合并取消。CI 定义存在不等于本次 CI 已通过；实际受检版本与未验证边界以 PR 证据为准。required checks 仓库设置仍须在稳定实跑后按 CONTRIBUTING 另行设置，本卡不改变权限设置。

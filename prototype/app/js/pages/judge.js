@@ -396,7 +396,7 @@
           <article class="n-card"><h3 class="n-section-title">${enough ? `${cases.length} 个可对照案例` : '样本不足'}</h3>
             ${enough ? html`<p style="margin:0">${[t.high && `前段偏高 ${t.high} 个`, t.low && `前段偏低 ${t.low} 个`, t.same && `一致 ${t.same} 个`].filter(Boolean).join('，')}。${byDimLine(cases)}</p>`
               : html`<p style="margin:0">样本不足：可对照案例 ${cases.length} 个，门槛 ${st.RATER_MIN} 个。下面列出案例。</p>`}
-            <p class="nt-caption">${self ? '你' : name(raterId)}给出的等级：${countLine(vals)}。等级过于集中时会提示「区分度低」，只作为归因参考，不作为评价人的分数。${all.length - cases.length ? ` 另有 ${all.length - cases.length} 个判断因不可比或资料不足不计入。` : ''}</p>
+            ${enough ? html`<p class="nt-caption">${self ? '你' : name(raterId)}给出的等级：${countLine(vals)}。等级过于集中时会提示「区分度低」，只作为归因参考，不作为评价人的分数。${all.length - cases.length ? ` 另有 ${all.length - cases.length} 个判断因不可比或资料不足不计入。` : ''}</p>` : ''}
           </article>
           ${batches.map((b) => { const chain = st.judgeChain(b.chain), map = st.judgeMap(b.map); const us = sortCases(all.filter((u) => u.batch === b.id)); return html`<section><h2 class="nt-h2">${b.name}<small>${b.std} · ${b.range}</small></h2>${us.map((u) => caseCard(u, chain, map, { raterOnly: self }))}</section>`; })}
         </div>

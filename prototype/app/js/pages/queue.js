@@ -4,6 +4,8 @@
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, icon, mount, $ } = NT;
   let openId = location.hash.slice(1) || null;
+  let userClosed = false;
+  const drafts = {};
 
   NT.shell({
     nav: 'queue', title: '评分复核',
@@ -15,10 +17,16 @@
     render,
   });
 
+  function remember() {
+    const cr = $('#cr');
+    if (!openId || !cr) return;
+    drafts[openId] = { why: cr.value, v: $('#cv')?.value };
+  }
+
   function render(main) {
     const q = st.queue();
     const done = st.get().events.flatMap((e) => e.scores.filter((s) => s.st === 'calibrated' && s.hist?.[0]?.kind === 'calib' && st.scope(s.p)).map((s) => ({ e, s })));
-    if (!openId && q[0]) openId = q[0].id;
+    if (!userClosed && !openId && q[0]) openId = q[0].id;
     mount(main, html`
       <header class="nt-head"><div><h1>评分复核</h1><p>两位评价人打分差 2 分以上、改了 AI 的分还没写理由、新事件让象限位置变了的，都在这里复核。复核后定下的分数带朱点，理由留在修订历史里。</p></div></header>
       <div class="nt-split nt-split--wide">
@@ -35,7 +43,16 @@
         </aside>
       </div>`);
     main.onclick = (e) => {
-      const o = e.target.closest('[data-open]'); if (o) { openId = openId === o.dataset.open ? null : o.dataset.open; render(main); return; }
+      const later = e.target.closest('.nt-qdetail [data-open]');
+      if (later) { remember(); userClosed = true; openId = null; render(main); return; }
+      const o = e.target.closest('[data-open]');
+      if (o) {
+        remember();
+        openId = openId === o.dataset.open ? null : o.dataset.open;
+        userClosed = !openId;
+        render(main);
+        return;
+      }
       const c = e.target.closest('[data-cal]'); if (c) cal(c.dataset.cal);
       const k = e.target.closest('[data-keep]'); if (k) keep(k.dataset.keep);
     };
@@ -48,12 +65,15 @@
     const sides = it.kind === 'conflict' ? s.raters.map((r) => ({ who: `${st.person(r.by).name} · ${r.by === 'p-songchuan' ? '助教' : '导师'}`, v: r.v, why: r.why, src: audio.find((a) => a.by === r.by) }))
       : [{ who: `${st.person(s.by).name} · 确认`, v: s.v, why: '理由待补' }, { who: 'AI 建议', v: s.ai, why: s.note || '按锚点给出', ai: true }];
     const suggest = it.kind === 'conflict' ? Math.round((s.raters[0].v + s.raters[1].v) / 2) : s.v;
+    const draft = drafts[it.id];
+    const selected = draft?.v ? +draft.v : suggest;
+    const why = draft ? draft.why : (it.kind === 'conflict' ? '方案表达到位，排查过程确实发散，各取一半。' : '');
     return html`<div class="nt-qdetail">
       <div class="nt-qdetail__src">${e.title} · ${NT.md(e.date)} · ${st.person(e.recorder).name}记录 ${UI.cites(e.srcs)}</div>
       <div class="n-calib__pair">${sides.map((x) => html`<div class="n-calib__side"><span style="color:${x.ai ? 'var(--light)' : 'var(--ink-3)'}">${x.who}</span><b ${NT.raw(x.ai ? 'style="color:var(--light)"' : '')}>${x.v}</b>「${x.why}」${x.src ? html`<div style="margin-top:4px">${UI.cite(x.src, 1)} <span class="nt-muted">${x.src.loc}</span></div>` : ''}</div>`)}</div>
       <div class="n-anchor"><b>${st.dim(s.d).name} · 锚点</b><ol>${st.anchors(s.d, s.p, st.eventRubric(e)).list.map((t, i) => html`<li class="${[...sides.map((x) => x.v)].includes(i + 1) ? 'is-hit' : ''}"><b>${i + 1}</b>${t}</li>`)}</ol></div>
-      <div class="nt-qdetail__form"><label class="nt-qdetail__label" for="cv">校准为 <select class="n-select" id="cv">${[1, 2, 3, 4, 5].map((v) => html`<option ${v === suggest ? 'selected' : ''}>${v}</option>`)}</select> 分，理由</label>
-      <textarea class="n-calib__reason" id="cr" placeholder="写一句理由，会留在修订历史里">${it.kind === 'conflict' ? '方案表达到位，排查过程确实发散，各取一半。' : ''}</textarea></div>
+      <div class="nt-qdetail__form"><label class="nt-qdetail__label" for="cv">校准为 <select class="n-select" id="cv">${[1, 2, 3, 4, 5].map((v) => html`<option ${v === selected ? 'selected' : ''}>${v}</option>`)}</select> 分，理由</label>
+      <textarea class="n-calib__reason" id="cr" placeholder="写一句理由，会留在修订历史里">${why}</textarea></div>
       <div class="nt-row"><button class="n-btn n-btn--ink" type="button" data-cal="${it.id}">校准</button>${it.kind === 'gap' ? html`<button class="n-btn n-btn--ghost" type="button" data-keep="${it.id}">保留 ${s.v} 分，补一句理由</button>` : ''}<button class="n-btn n-btn--ghost" type="button" data-open="${it.id}">稍后</button></div>
     </div>`;
   }
@@ -64,6 +84,8 @@
     if (!why) { $('#cr').focus(); $('#cr').placeholder = '校准需要写一句理由'; return; }
     const v = +$('#cv').value;
     st.calibrate(it.ev.id, it.i, v, why);
+    delete drafts[id];
+    userClosed = false;
     openId = null; render($('#main'));
     NT.toast(`已把${st.person(it.s.p).name}的${st.dim(it.s.d).name}校准为 ${v} 分，计入档案`);
   }
@@ -72,6 +94,8 @@
     const why = $('#cr').value.trim();
     if (!why) { $('#cr').focus(); $('#cr').placeholder = '写一句为什么保留'; return; }
     st.calibrate(it.ev.id, it.i, it.s.v, why);
+    delete drafts[id];
+    userClosed = false;
     openId = null; render($('#main'));
     NT.toast('已保留原分，理由写进修订历史');
   }

@@ -27,6 +27,7 @@ vi.mock('@/server/queries/projects', () => ({
 vi.mock('@/server/actions/projects', () => ({ createProjectAction: vi.fn() }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
+  usePathname: () => '/projects',
   redirect: (url: string) => {
     throw new Error(`redirect:${url}`);
   },

@@ -141,7 +141,7 @@
         ${recent.length ? html`<div class="n-shell__recent nt-recent">最近${recent.map(([t, h]) => html`<a href="${h}">${t}</a>`)}</div>` : ''}
         <div class="nt-side__foot">
           <a href="../../index.html">${icon('book')}评审导览</a>
-          <a href="../m/index.html">${icon('phone')}手机版</a>
+          ${role === 'admin' ? '' : html`<a href="../m/index.html">${icon('phone')}手机版</a>`}
         </div>
       </aside>
       <div class="nt-main">
@@ -165,7 +165,7 @@
     } })));
     NT.menu(NT.$('#nt-more'), [
       { label: '评审导览', icon: 'book', run: () => { location.href = '../../index.html'; } },
-      { label: '打开手机版', icon: 'phone', run: () => { location.href = '../m/index.html'; } },
+      ...(role === 'admin' ? [] : [{ label: '打开手机版', icon: 'phone', run: () => { location.href = '../m/index.html'; } }]),
       { sep: true },
       { label: '重置演示数据', icon: 'retry', danger: true, run: () => NT.resetDemo() },
     ]);

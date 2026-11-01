@@ -20,6 +20,7 @@ function setup(version) {
   const store = {
     me: () => ({ id: 'hrbp-demo' }),
     person: id => ({ id, name: '演示人员' }),
+    can: () => true, // 版本 Y 真实确认函数需验证 HR 权限
     save: () => saves++,
   };
   const SEED = { PEOPLE: [] };
@@ -42,7 +43,7 @@ for (const version of Object.keys(SOURCES)) {
   test(`版本 ${version}：同方案重复确认不再生成第二条相同行动`, () => {
     const f = setup(version), p = f.plan('org-a', 'batch-a', [f.move()]);
     assert.equal(f.store.confirmOrg(p), 1);
-    assert.equal(f.store.confirmOrg(p), 0);
+    assert.equal(f.store.confirmOrg(p), version === 'Y' ? null : 0);
     assert.equal(f.S.actions.length, 1);
   });
   test(`版本 ${version}：同方案中重复标题不误创建相同来源行动`, () => {
