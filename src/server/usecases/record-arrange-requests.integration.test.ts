@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { PgBoss, fromDrizzle } from 'pg-boss';
 import { eq, sql } from 'drizzle-orm';
-import { beforeAll, afterAll, expect, it } from 'vitest';
+import { beforeAll, afterAll, expect, it, vi } from 'vitest';
 import {
   nativeDatabase,
   seedNativeRules,
@@ -27,6 +27,7 @@ import {
 import { evaluationRelations } from '../modules/programs';
 import { accountBindings, grants, people } from '../modules/directory';
 import { projects } from '../modules/staffing';
+import { ruleVersionApplicability } from '../modules/evaluation-system';
 import { jobSnapshots } from '../jobs/schema';
 import { recordArrangeQueue } from '../jobs/record-arrange';
 import { MODELINK_MODEL } from '../integrations/maas';
@@ -878,6 +879,302 @@ it('a real transport outcome_unknown is terminal and cannot be replayed as a no-
   expect(await app.runner.run(created.jobId, 1)).toBe('ignored');
   expect(sends).toBe(1);
 });
+it('projects the native job through842 with current authorization and rejects unsupported controls', async () => {
+  const h = await setup();
+  const created = await submitted(h);
+  expect(await h.app.requests.read(h.account, created.jobId)).toMatchObject({
+    status: 'success',
+  });
+  expect(await h.app.requests.read(h.outsiderAccount, created.jobId)).toEqual({
+    status: 'forbidden',
+  });
+  const job = await state(created.jobId);
+  expect(
+    await h.app.requests.command(h.account, {
+      jobId: created.jobId,
+      action: 'resume',
+      operationId: randomUUID(),
+      expectedRevision: job.revision,
+    }),
+  ).toEqual({ status: 'forbidden' });
+  expect(await h.app.runner.run(created.jobId, 1)).toBe('awaiting_manual');
+  expect(await h.app.requests.read(h.account, created.jobId)).toMatchObject({
+    status: 'success',
+    snapshot: { status: 'awaiting_manual', canRetry: false, canCancel: false },
+  });
+  expect(h.calls()).toBe(1);
+});
+
+it('validates batch lookup and refuses blank text and unavailable media without dispatch', async () => {
+  const h = await setup();
+  expect(
+    await h.app.requests.readBatch(h.account, { batchId: '' }),
+  ).toMatchObject({ status: 'validation_error' });
+  expect(
+    await h.app.requests.readBatch(h.account, { batchId: randomUUID() }),
+  ).toMatchObject({ status: 'not_found' });
+  expect(
+    await h.app.requests.create(h.account, { ...h.input, text: '  ' }),
+  ).toMatchObject({ status: 'validation_error' });
+  expect(
+    await h.app.requests.createFromSources(h.account, {
+      origin: 'attachment',
+      originalInput: h.input,
+      sources: [],
+    }),
+  ).toMatchObject({ status: 'validation_error' });
+  expect(
+    await h.app.requests.page(h.outsiderAccount, {
+      personId: null,
+      projectId: null,
+    }),
+  ).toEqual({
+    status: 'forbidden',
+  });
+  expect(h.calls()).toBe(0);
+});
+
+it.each([
+  'owner',
+  'source-date',
+  'input-text',
+  'node',
+  'person',
+  'source-reference',
+  'manifest-count',
+  'manifest-id',
+  'metadata',
+] as const)(
+  'does not disclose a persisted batch after its actual %s facts diverge',
+  async (change) => {
+    const h = await setup();
+    const created = await submitted(h);
+    expect(await h.app.runner.run(created.jobId, 1)).toBe('awaiting_manual');
+    const [row] = await connection.db
+      .select()
+      .from(recordDrafts)
+      .where(eq(recordDrafts.batchId, created.receipt.batchId));
+    if (!row) throw new Error('native draft missing');
+    // Simulate a competing/broken trusted writer. These are real database rows,
+    // not new authority facts or a fake successful human confirmation.
+    if (change === 'owner') {
+      await connection.db
+        .update(recordDraftBatches)
+        .set({ createdByAccountId: h.outsiderAccount })
+        .where(eq(recordDraftBatches.batchId, created.receipt.batchId));
+    } else if (change === 'source-date') {
+      await connection.db
+        .update(recordDraftBatches)
+        .set({ occurredOn: '2026-09-05' })
+        .where(eq(recordDraftBatches.batchId, created.receipt.batchId));
+    } else if (change === 'input-text') {
+      await connection.db
+        .update(recordDraftBatches)
+        .set({
+          originalInput: {
+            ...created.input.originalInput,
+            text: '演示：其他来源',
+          },
+        })
+        .where(eq(recordDraftBatches.batchId, created.receipt.batchId));
+    } else if (
+      change === 'manifest-count' ||
+      change === 'manifest-id' ||
+      change === 'metadata'
+    ) {
+      const job = await state(created.jobId);
+      const metadata = job.result as { manifest: Array<{ draftId: string }> };
+      const value =
+        change === 'metadata'
+          ? {}
+          : {
+              ...metadata,
+              manifest:
+                change === 'manifest-count'
+                  ? []
+                  : metadata.manifest.map((entry) => ({
+                      ...entry,
+                      draftId: randomUUID(),
+                    })),
+            };
+      await connection.db
+        .update(jobSnapshots)
+        .set({ result: value })
+        .where(eq(jobSnapshots.jobId, created.jobId));
+    } else {
+      const draft = structuredClone(row.draft);
+      if (change === 'node') draft.evaluationNodeId = h.otherNode;
+      if (change === 'person') draft.personIds = [h.other];
+      if (change === 'source-reference')
+        draft.sourceReferences[0]!.fragmentId = randomUUID();
+      await connection.db
+        .update(recordDrafts)
+        .set({ draft })
+        .where(eq(recordDrafts.draftId, row.draftId));
+    }
+    expect(
+      await h.app.requests.readBatch(h.account, {
+        batchId: created.receipt.batchId,
+      }),
+    ).toMatchObject({ status: 'not_found' });
+    expect(await h.app.requests.read(h.account, created.jobId)).toEqual({
+      status: 'forbidden',
+    });
+    expect(await h.app.requests.create(h.account, h.input)).toMatchObject({
+      status: 'not_found',
+    });
+    expect(h.calls()).toBe(1);
+  },
+);
+
+it('rejects an invalid server business clock without substituting wall time or creating sources', async () => {
+  const h = await setup();
+  const requests = createRecordArrangeRequests({
+    db: connection.db,
+    businessNow: () => 'invalid',
+    now: () => new Date(wallAt),
+    enqueue: async () => {
+      throw new Error('must not enqueue');
+    },
+  });
+  await expect(requests.create(h.account, h.input)).rejects.toThrow(
+    'business_clock_required',
+  );
+  expect(
+    await connection.db
+      .select()
+      .from(arrangeInputs)
+      .where(eq(arrangeInputs.creatorAccountId, h.account)),
+  ).toHaveLength(0);
+});
+
+it('keeps the input unsubmitted when no dimension rule applies at its actual save time', async () => {
+  const h = await setup();
+  await connection.db
+    .update(ruleVersionApplicability)
+    .set({ effectiveUntil: new Date(businessAt) })
+    .where(eq(ruleVersionApplicability.periodId, '845-rubric-v1'));
+  try {
+    expect(await h.app.requests.create(h.account, h.input)).toMatchObject({
+      status: 'validation_error',
+      fieldErrors: { rules: expect.any(Array) },
+    });
+    expect(
+      await connection.db
+        .select()
+        .from(arrangeInputs)
+        .where(eq(arrangeInputs.creatorAccountId, h.account)),
+    ).toHaveLength(0);
+    expect(h.calls()).toBe(0);
+  } finally {
+    await connection.db
+      .update(ruleVersionApplicability)
+      .set({ effectiveUntil: new Date('2026-10-01T00:00:00Z') })
+      .where(eq(ruleVersionApplicability.periodId, '845-rubric-v1'));
+  }
+});
+
+it('ignores unknown and superseded queue deliveries without invoking the model', async () => {
+  const h = await setup();
+  expect(await h.app.runner.run(randomUUID(), 1)).toBe('ignored');
+  const created = await submitted(h);
+  const replacement = await h.app.requests.create(h.account, {
+    ...h.input,
+    operationId: randomUUID(),
+  });
+  if (replacement.status !== 'success') throw new Error('fixture');
+  const [next] = await connection.db
+    .select()
+    .from(arrangeInputs)
+    .where(eq(arrangeInputs.batchId, replacement.result.batchId));
+  await connection.db
+    .update(arrangeInputs)
+    .set({ supersededByInputId: next!.id })
+    .where(eq(arrangeInputs.id, created.input.id));
+  expect(await h.app.runner.run(created.jobId, 1)).toBe('ignored');
+  expect(
+    await h.app.requests.readBatch(h.account, {
+      batchId: created.receipt.batchId,
+    }),
+  ).toMatchObject({ status: 'not_found' });
+  expect(h.calls()).toBe(0);
+});
+
+it('rejects a producer attribution that disagrees with immutable intake people before modeling', async () => {
+  const h = await setup();
+  const created = await submitted(h);
+  await connection.db
+    .update(arrangeInputs)
+    .set({
+      sourceContexts: created.input.sourceContexts.map((source) => ({
+        ...source,
+        attributedPersonIds: [h.other],
+      })),
+    })
+    .where(eq(arrangeInputs.id, created.input.id));
+  expect(await h.app.runner.run(created.jobId, 1)).toBe('failed');
+  expect(h.calls()).toBe(0);
+  expect(
+    await h.app.requests.readBatch(h.account, {
+      batchId: created.receipt.batchId,
+    }),
+  ).toMatchObject({ status: 'not_found' });
+});
+
+it('refuses a structurally valid upload input before producing text sources or queue jobs', async () => {
+  const h = await setup();
+  expect(
+    await h.app.requests.create(h.account, {
+      ...h.input,
+      files: [{ clientFileId: 'demo-file', uploadId: 'demo-upload' }],
+    }),
+  ).toMatchObject({
+    status: 'validation_error',
+    fieldErrors: { files: expect.any(Array) },
+  });
+  expect(
+    await connection.db
+      .select()
+      .from(arrangeInputs)
+      .where(eq(arrangeInputs.creatorAccountId, h.account)),
+  ).toHaveLength(0);
+  expect(h.calls()).toBe(0);
+});
+
+it('does not treat a retained partial job as a fresh model attempt after worker restart', async () => {
+  const h = await setup();
+  const created = await submitted(h);
+  // A persisted interrupted platform state is not proof that nothing was sent.
+  await connection.db
+    .update(jobSnapshots)
+    .set({ status: 'partial' })
+    .where(eq(jobSnapshots.jobId, created.jobId));
+  expect(await h.app.runner.run(created.jobId, 1)).toBe('ignored');
+  expect((await state(created.jobId)).status).toBe('partial');
+  expect(h.calls()).toBe(0);
+});
+
+it('rolls back intake when pg-boss declines the enqueue without throwing', async () => {
+  const h = await setup();
+  // Only the external queue return boundary is controlled. The source/job/input
+  // writes and rollback below still execute against the real database.
+  const send = vi.spyOn(boss, 'send').mockResolvedValueOnce(null);
+  try {
+    await expect(h.app.requests.create(h.account, h.input)).rejects.toThrow(
+      'Record arrangement enqueue was not committed',
+    );
+    expect(
+      await connection.db
+        .select()
+        .from(arrangeInputs)
+        .where(eq(arrangeInputs.creatorAccountId, h.account)),
+    ).toHaveLength(0);
+    expect(h.calls()).toBe(0);
+  } finally {
+    send.mockRestore();
+  }
+});
+
 it('registers the actual pg-boss consumer and reaches native awaiting_manual without direct worker invocation', async () => {
   // Test-only queue cleanup removes messages already exercised by direct runner
   // tests. The last case then proves one fresh actual delivery, not a mock send.

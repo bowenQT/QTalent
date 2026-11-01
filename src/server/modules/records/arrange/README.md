@@ -97,6 +97,8 @@ await createRecordArrangeWorker({
 
 本轮B1只格式化native.ts；新增私有worker工厂的7项定向离线测试通过，证明固定协议/预算、构造不发送、缺配置拒绝、发送前失败不自动重试、30秒超时outcome_unknown和响应体上限。受影响的原生PG测试改为实际消费这个工厂，并仅记录合成请求JSON字节数，精确提交和最新实跑结果见PR记录；此前d44测试不能直接称为新增接线通过。
 
+接回后的新增验收：同一实际组合的15文件321项通过，其中原生requests 44项PG、实际922取版6项PG，其余为定向离线回归。六个新增原生实现文件（record-batch-arrange-{requests,store,state}、record-arrange-{application,context,worker}）统一instrumentation测量，行88.91%、分支85.20%、语句88.30%、函数83.84%；行/分支均达到85%基线。这是上述六文件的改动覆盖证据，不是全仓覆盖率。新增负例覆盖实际842投影、持久所有者/来源/节点/人员/manifest不一致、无有效规则、过期队列、上传拒绝、partial重启不重发和队列拒绝发送的真实事务回滚。只有最后一例控制外部boss.send返回null，数据库仍是真实PG；其他实际队列测试保留。合成文本实际wire JSON为13,471字节，未输出正文/头。原生成功止于AI草稿，仍不冒已通过人工确认。
+
 `record-arrange-requests.integration.test.ts` 覆盖真实pg-boss事务/消费、实际846初次写入、当前撤权/改绑/跨节点graph、取消、输入与source篡改、并发幂等和真实唯一键回滚。测试仅用正式迁移加X1由schema原生生成的受控临时目录，缺表硬失败，不skip、不手写DDL或fake数据库。测试库只从test-db.env向子进程白名单注入TEST_DATABASE_URL；不用vendors.env，不打印连接信息。临时目录通过QTALENT_845_TEST_MIGRATIONS显式传入，不改变正式CI迁移或冒称最终0009。
 
 | 本PR代码依赖                     | 当前实际边界                                                                                             |

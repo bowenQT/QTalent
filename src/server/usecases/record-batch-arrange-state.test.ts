@@ -62,6 +62,24 @@ describe('845 bridge uses only the real job status and immutable result metadata
     expect(next).toMatchObject({ status: 'cancelled', cancelRequestedAt: now });
     expect(updateBatchJob(next, 'cancelled', metadata(), now)).toEqual(next);
   });
+  it('rejects missing batch identity and mismatched input versions instead of deriving another operation', () => {
+    expect(() =>
+      batchOperationFromJob(
+        job(),
+        { ...input, batchId: null },
+        metadata(),
+        null,
+      ),
+    ).toThrow('native_batch_input_required');
+    expect(() =>
+      batchOperationFromJob(
+        job(),
+        { ...input, inputVersion: 'different' },
+        metadata(),
+        null,
+      ),
+    ).toThrow('native_batch_input_required');
+  });
   it('cannot overwrite a terminal native job with a new running claim', () => {
     const current = job();
     current.status = 'completed';
