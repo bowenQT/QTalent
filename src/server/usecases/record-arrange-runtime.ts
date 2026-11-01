@@ -14,8 +14,7 @@ export function recordArrangeRequestsForServer() {
   const clock = createClock(environment);
   return createRecordArrangeRequests({
     db: getDatabase(),
-    environment,
-    businessDate: () => clock.today(),
+    businessNow: () => clock.now().toISOString(),
     now: () => new Date(),
     enqueue: async (tx, job) => {
       const boss = await getAppJobProducer(recordArrangeQueue);

@@ -1,6 +1,6 @@
 # BOW-845：批次整理的当前交付与接线边界
 
-本分支沿原 PR185 追加，X1 普通同步 `99d5b066be64a4b45c92d5c6b5bf81b61c8fff99` 包含实际 main `27d7da28b887d3e0b8043a7ee3cdd915e67c2d56`。最终897契约为 `e4462114690191fb9cbcd403f6fb0090bd3cfddb`；922分类/时间点读取已在 main，不再使用旧候选接口。下半部保留10/25单草稿历史说明，其中旧 writer、全表取版与旧候选验证不能代表本次多事件接线。
+本分支沿原 PR185 追加，X1 普通同步 `99d5b066be64a4b45c92d5c6b5bf81b61c8fff99` 包含实际 main `27d7da28b887d3e0b8043a7ee3cdd915e67c2d56`。最终897契约为 `e4462114690191fb9cbcd403f6fb0090bd3cfddb`；922分类/时间点读取已在 main，不再使用旧候选接口。本轮普通接回X1共享50fe3bff；846公开writer以cb98cd2固定输入做明确组合验证，不能声称已经在main。旧单草稿生产入口已由下述批次入口替换，原有纯整理器仍有回归测试。
 
 ## 当前真实行为
 
@@ -11,7 +11,7 @@
 - `record-batch-arrange.v3` 通过843真实Modelink协议接收多个事件；v3离线验证通过；一次真实诊断返回outcome_unknown，未取得可验证输出，第一次真实失败请求使用v2。引用按真实版本、位置、逐字原文与行为归属校验，评分锚点须匹配冻结内容；无效评分降为unknown且去除数值、锚点与引用，不补造来源。模型看不到未选的资料、核对账本或持久草稿ID。
 - 一人两件事保留独立草稿；同事件多来源保留来源并集。重复和语义相似仅生成人工候选，保留事件，不自动合并或承诺全库去重。修订依据服务器持久eventKey/ID/witness映射保持身份；不能重命名、交换依据或猜配新增/消失事件。保留旧项目前再次使用当前 `canReadProject` 核权，不因批次默认无项目而清除原归属。
 - 模型外发前后重读当前来源、权限、输入、版本及取消栅栏。同操作重放仍重授权；不明发送结果不重发。必须由原生同事务实现operation/job锁、ID分配和写入；内存端口测试不证明跨进程幂等。
-- `batch-receipt.ts` 从显式服务器可披露事实派生文件/待确认计数及部分完成状态，再验最终897合同。没有以人数/评分数充当人工确认数量；不虚造hidden/resolved事实。此投影尚未接生产批次reader。
+- `batch-receipt.ts` 从显式服务器可披露事实派生文件/待确认计数及部分完成状态，再验最终897合同。没有以人数/评分数充当人工确认数量；不虚造hidden/resolved事实。原生文本批次reader现读取当前授权后的846草稿/实际保存回执，再计算部分完成计数；其真实PG测试尚待受控组合执行，不能引用纯投影单测代替。
 
 ## 固定样例与验证层级
 
@@ -31,7 +31,7 @@
 
 离线样例通过实际客户端分别验证：合法suggested/unknown；正文不是JSON；缺sbi.situation；缺/错scores[i].state；照抄输入anchor导致缺anchor.ruleVersion；unknown多出value；缺evidence[i].reference；额外根字段；错误供应商model包装；以及DTO合法但引用伪造。诊断只取本地JSON可解析性与Zod path/code，不记录issue.message、未知字段名、值、原文或头。JSON/业务schema失败在客户端都叫invalid_response，但离线结构诊断可区分；DTO合法后 `validateBatchModel` 拒绝属于business_validation，不伪称有Zod字段路径。该harness只在测试，不是已部署诊断器。
 
-离线验证：新增两项提示词缺口先Red；修复后六目标文件 **234/234**，六私有实现行 **96.31%**、分支 **97.53%**。全类型仍只有原先5项旧846依赖诊断，没有新增本片类型错误；限定lint/格式/diff通过。新增的本地HTTP替身运行不计真实请求，旧1/1标记未变。
+离线验证：新增两项提示词缺口先Red；修复后六目标文件 **234/234**，六私有实现行 **96.31%**、分支 **97.53%**。当时全类型仍只有原先5项旧846依赖诊断，没有新增该提示词片类型错误；限定lint/格式/diff通过。新增的本地HTTP替身运行不计真实请求，旧1/1标记未变。
 
 ## 第二次诊断边界与实际结果
 
@@ -59,102 +59,64 @@
 
 当前head CI的实际受检实现a2e2ba0运行41307493598失败于旧846消费的5项类型诊断；E2E/visual跳过。后续文档提交不改受检实现字节，不把上述组件通过写成全仓通过。
 
-## 原生接线仍需完成
+## 当前原生文本入口
 
-846真实入口是 `storeTrustedRecordDraftBatch(tx,{draftSet,originalInput,occurredOn,modelVersion,createdByAccountId,createdAt})`，初次insert；旧185的 `persistRecordDraft` 不是这个入口。固定846输入 `1f733d49c5ffe9cfa877563ffd251e973922b0ae` 可用于明确组合验证，不能称已在main。需要追加版本CAS时由846提供真实API，不复制旧writer。
+`record-arrange-requests.ts` 转交本卡 `record-batch-arrange-requests.ts`。已有 action 仍只取服务端 session，输入改为最终897 `MaterialBatchInput`：显式 operationId、evaluationNodeId、personIds、projectId、text、files。旧的无节点 RecordInput/选择planned draft入口明确返回 validation_error，不猜节点或把旧draftId当batchId。当前只支持非空、UTF-8不超过240000字节且files为空的本人新文本。上传/录音的可信来源入口仍明确不可用，不把这些来源伪装为文本。
 
-当前 `arrangeInputs` 没有明确batchId/evaluationNodeId/业务boundAt/occurredOn；select创建新input.id，旧planned draftId不能猜作稳定批次。`createdAt` 是审计墙钟，不能当demo业务取版时间。X1共享schema/出口/迁移窗口请求见 [协调索引6557880321](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6557880321)：新事实对历史行保持不可用，不猜填；复用唯一job状态/result保存trace、双版本和eventKey/ID/witness账本，与846草稿初次写入原子提交。模型前后都需原生loader重授权，不能用旧缓存的可读标志。
+创建时使用服务器业务时钟冻结 batchId、evaluationNodeId、boundAt、occurredOn 四项原生事实；createdAt仍是审计墙钟。原文完整字节保存在真实original/version/fragment与SHA256中；最终897公开RecordInput按trim规范化，引用DTO同样遵循最终规范。不会为了保留空白恢复旧合同：原文、UTF-16 witness和引用定位分别核对，旧空白断言仍保留并验证当前正确语义。
 
-还需当前批次六类review/resolved/hidden、来源完整归属、取得版本及实际writeAllowed的原生读取，以及852唯一producer/worker注册。共享schema、公共出口、注册、最终迁移只由X1修改。当前5个全类型诊断均来自未合846缺失模块及其继承类型；不得用旧846候选补洞或删调用冒通过。
+账户/当前人员绑定、899当前节点关系、每个选中人的写权、明确项目与原文所有已知隐私主体，在本地事务内验证。原件版本/片段、唯一jobSnapshots、arrangeInputs、请求幂等键、审计和实际pg-boss发送同事务提交。发送使用852既有producer与 `fromDrizzle(tx,sql)`，队列retryLimit为0。没有人员时保存真实unknown_person待核对项，不调用模型、不入846草稿；后续核对/undo依赖905真实处理入口，本片没有成功替身。
 
-最新所有者串行顺序为 **846 → 845 → 873**。873不阻断已支持文本/真实取版/846草稿writer的独立验收；真实上传/音频缺事实时只对相应材料保持不可用。整卡要求writer、持久化与job接线，以上独立交付不能擅自缩减完成条件，继续 `Refs #37` / `Part of BOW-845`，Draft且不关闭。
+`record-batch-arrange-state.ts` 只把真实job状态映射为本卡运行态，持久metadata不再存第二份phase或draftSet。唯一job result保存actor身份、操作号、prompt/model、双版本、输入指纹、源日期与eventKey→draftId→真实witness映射。草稿内容与人工保存回执从846原生账本读取，不在job里复制。
 
----
+`createRecordArrangeApplication` 组合实际842锁/控制服务、实际922 reader、本卡准备/校验和846 `storeTrustedRecordDraftBatch`。模型外发前先锁job/input/当前身份与来源依赖，转running后释放数据库事务；模型在事务外执行。返回时重新锁定和读取当前完整来源graph、原件/hash、人物节点/关系、规则、输入及取消栅栏。初次ID分配、实际846草稿insert、job manifest/result在同一原生事务完成；任何一步失败均回滚初次草稿，原话保留。重复投递或running重投不再次请求模型，outcome_unknown不允许显式重试。
 
-> 以下为历史单草稿设计与证据，不代表当前冻结合同或已经完成的接线。
+本片只用846初次insert API。原生版本CAS尚未提供时，不把再次insert当修改；批次修订仍不可用。源码中修订算法的离线测试不等于生产修订已接。
 
-# BOW-845：来源片段整理
-
-依据：[SDD/TDD](https://linear.app/bowenzhong/document/bow-845-共用来源片段整理-sddtdd-v02-8eed25ecd0e9)、[BOW-845](https://linear.app/bowenzhong/issue/BOW-845)、[PR185](https://github.com/bowenQT/QTalent/pull/185)。初版和选人持久化增补均经独立 spec 评审。固定化名样例见 `examples.ts`；不作为生产 fallback。
-
-## 输入、授权与模型
-
-`arrangeRecord(load, client)` 每次读取可信服务器快照，使用835的 `buildAuthorizedModelInput`，只发送本次授权的 `sources.excerpt`、选择和必要规则元数据。客户端不能提交角色、授权快照或自报来源主体。不发送 generic fields、整个档案或其余事件。
-
-`sources.subjects` 是完整隐私主体，`attributedPersonIds` 是独立已核实行为归属。共享可见不意味着给每个人复制建议分。录音/附件选人仅确定记录目标，不把选中人员批量绑定到片段或说话人。
-
-未选人时返回 `selection_required`，不调用模型、不编 SBI。录音/附件及已分类原话在此阶段也必须通过835；只有本人新输入、尚无主体的精确原话可暂留在选人步骤，仍不得进入模型。候选标签与理由每次读取按当前权限重建，原片段版本和输入版本变化后不回放旧候选。
-
-模型只产生 SBI 和逐人逐维建议。情境/影响可空，行为必需；引用必须匹配片段、版本、完整位置及精确原文子串。input 引用只允许授权原话的精确 UTF-16 偏移。锚点匹配当前规则版本、维度、ID、分值与文本。异常结构/身份/维度/重复评分失败；无效引用或锚点降 unknown，保留原因，不补数值或伪造来源。unknown 合同不含 citations，因此省略对应846 evidence行；缺失 rationale 保留真实空。
-
-## 实际请求与持久化
-
-`usecases/record-arrange-requests.ts` 实现首次输入、幂等创建/入队、查询和选择后新整理。`record-arrange-context.ts` 在传入事务内读取当前账户、目录、来源和规则，复用846的 `canConfirmOwnScore` 与837/846的 `sourcesForDraft`，不另写角色特判。用户最新以202/203为准，manager可记录/确认本人评分；当前固定846候选仍仅允许HR/导师，须等该owner统一适配SHA后复验，不能把旧组合当作新权限验收。规则只接受唯一 published 且有锚点的版本；非 production 可接受唯一 demo_import_snapshot。多候选不猜“最新”，直接拒绝不明确配置。
-
-`records/arrange/input-state/schema.ts` 只增加两表：
-
-- `records_arrange_inputs`：独立 planned draft ID、job ID、输入版本、原始输入/附件、可信来源主体与分类、独立归属、人员/项目选择及 supersededByInputId。选择前不写846草稿，不造 SBI 或 draft revision。
-- `records_arrange_operations`：账户＋create/select＋operation_id 的幂等账本及语义指纹。当前权限先于回放检查；同键不同语义冲突。
-
-首次原话同时生成原件版本/片段、job、input、operation及审计，pg-boss enqueue 使用 `fromDrizzle(tx, sql)` 在同一事务。入队失败整体回滚。相同操作键并发只创建一次。
-
-选择使用已合129的 `RecordSelectionInput`：`operation_id`、`draftId`、`expected_input_version`、非空唯一 `personIds`、可空 `projectId`。行锁保护旧输入版本；只消费真实 selection_required job。重授权后新建 inputVersion/job/draft ID，原子取消旧任务并标 superseded，再入队；不同操作键并发只有一方成功。旧操作同键回放返回旧取消回执且隐藏原结果；不触发模型。通用 jobs resume 一直为 false。项目候选可随选人确认；已选人而项目仍未确定时沿原合同保留 draft.project.needs_selection，保存时人工确认。
-
-Web 入口为 `actions/record-arrange.ts` 的 `startRecordArrangeAction` / `selectRecordArrangePeopleAction`，只取服务器 session；查询为 `readRecordArrangeJobForCurrentUser`。请求工厂复用852唯一的 lazy producer，不新建 singleton。
-
-G2 初始上下文由 `queries/record-arrange.ts:getRecordPage({personId?,projectId?})` 返回：`{status:'success',context:{accountId,people:[{id,label}],projects:[{id,label}],selectedPersonId,selectedProjectId}}`。只接受这两个可空ID；无权/不存在的预选统一 not_found，不清空后继续，整页无可写人员时 forbidden。没有原话、授权信息、档案或评分，URL q/text/未知字段一律拒绝；accountId仅供工作台暂存隔离，写入仍重读session与当前权限。G2不依赖规则加载，G6由846提供规则入口。
-
-866/873 可调用可信服务端入口，不能将下列 provenance 暴露为客户端写参：
+共享worker的最小组合如下，仍由X1注册，作者不改共享入口：
 
 ```ts
-await requests.createFromSources(accountId, {
-  origin: 'recording', // or attachment
-  originalInput, // RecordInput；保留真实原话、附件和 operation_id
-  sources: [
-    {
-      fragmentId,
-      originalVersionId,
-      subjects: [{ personId, cohortId }], // 完整隐私主体
-      attributedPersonIds: [], // 仅已核实行为归属；未知保持空
-      kind: 'evaluation',
-      requiredKinds: [],
-    },
-  ],
+const client = createModelinkMaasClient({
+  apiKey: trustedEnvironment.MODELINK_API_KEY,
+  maxAttempts: 1,
+  attemptTimeoutMs: 30000,
+  totalTimeoutMs: 45000,
+  maxTokens: 8192,
+  maxResponseBytes: 1048576,
 });
-```
-
-首次纯文本入口拒绝未解析的 attachmentIds。已解析附件走上面的可信来源入口，原 attachmentIds 保留。当前公共 RecordInput 仍要求非空 text；无原话的 source-only 输入不能填占位句绕过，需按可信来源上下文另定。父已授本卡唯一窄修改权：recordInput.text与recordCitation两种quote使用非空白refine、不做transform，保留前后空格/换行与UTF-16引用偏移；ID、标题、普通标签仍原schema。writer回执发生改写仍拒绝提交，不静默改偏移。
-
-## Worker、846及共享接线
-
-```ts
 const app = createRecordArrangeApplication({
   db,
   boss,
-  client: maasWithMaxAttemptsOne,
-  environment,
-  businessDate: () => clock.today(),
+  client,
+  businessNow: () => clock.now().toISOString(),
   now: () => new Date(),
 });
-await app.register(); // 交共享 worker 串行注册
-// app.policy 交842 registry；app.requests 已是实际数据库服务
-// APP_ENV=test 时显式注入 createRecordArrangeTestClient(environment)
+await app.register();
+// app.policy注册到842；请求侧仍复用852唯一lazy producer。
 ```
 
-`createRecordArrangeTestClient('test')` 提供固定离线整理：行为仅拼接已授权输入片段，分数全部 unknown，不猜锚点或来源；非 test 环境拒绝创建。测试无需真实 MaaS。
+这里是接线说明，不表示共享注册、生产密钥加载或worker部署已验证。测试使用实际factory配合本地合成HTTP替身；该方式只证明客户端/业务组合，不算真实供应商调用。
 
-runner 在842行锁下 queued→running，模型在事务外；最终同事务重查写权限、来源、输入/规则/归属指纹、attempt/revision及取消栅栏，再调用846实际 `persistRecordDraft(tx,row)` 并写 awaiting_manual。846只接 id/creatorAccountId/ruleVersionId/draft/sources/evidence，返回 revision=1；不在这里产生正式 event 或人工确认。prompt/model/input/rule元数据由同 draftId 的 job result持久保存，沿846的event→draft映射回溯；不改846 schema或拼接modelVersion。
+## 本轮验证与剩余范围
 
-公共 policy 按已合129的 `recordArrangeResultSchema` 投影原 draft 或无 SBI 的 selection_required；隐藏内部元数据、失败分类和主体。只有 adapter 明确报告未发送的 network/retryable 失败可显式 retry 一次；transport maxAttempts:1，queue retryLimit:0。running 重投不重发模型；崩溃或事务异常留下 running 时须先核对结果，不盲恢复。
+工作树定向离线 `pnpm exec vitest run … --maxWorkers=2`：12文件263项通过，范围含batch/source/引用/修订算法、旧整理回归、最终897空白规范、真实节点写权与原生job状态映射。8条旧空白预期先实际Red，再保留案例并按最终合同修正；无源码恢复旧contract。私有lint/格式及架构边界通过。当前独立树类型仍有9项固定846未接/连带诊断（实际source projection与公开writer/账本出口缺失）；没有称全类型通过，组合接回后仍需重新完整检查。精确提交和后续新组合结果以PR证据为准，当前不能把WIP测试归给远端旧head。
 
-父只负责共享 index/registry、worker、runtime/env和迁移串行；本卡提供实际工厂与独立 action/query。新迁移必须在852→846之后生成，不手写或修改已合迁移。遵守当前 AGENTS/manifest（集成main后的451ecec），record.js仍b5f267fe；撤销后保留原话附件重新整理新draft，不复活旧draft。
+`record-arrange-requests.integration.test.ts` 新增原生入口、真实pg-boss事务/消费、实际846写入、当前撤权/改绑/跨节点graph、取消、输入与source篡改、并发幂等和真实唯一键回滚测试。测试只使用官方/由X1生成的受控临时迁移，缺表硬失败，不skip、不手写DDL或fake数据库。测试库只从指定test-db.env向子进程白名单注入TEST_DATABASE_URL；不用vendors.env，不打印连接信息。当前仍等待X1给出不冲突的846固定组合和临时迁移，**尚未执行这些PG测试**。
 
-## 依赖、验证与剩余验收
+| 本PR代码依赖                     | 当前实际边界                                                                                              |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 最终897、899、922、842、843、852 | 已消费实际合同/公共API；最新main普通同步与全仓检查仍须实际验证                                            |
+| 846固定cb98cd2                   | 真实store、草稿/保存表与当前source projection；待X1共享出口组合与846最终main，不能以旧1f733d4组件输入代替 |
+| X1四事实schema/出口50fe3bff      | 已普通接回；最终迁移顺序846→845→873，临时迁移仅隔离验证                                                   |
 
-129选择合同已合 main ec691ab、131来源/规则读取已合8e6d520，本分支已append整合，旧606合同与旧read.ts overlay均已移除。实际846 API目前固定组合候选5a77e4c70f0eeab537863fe61a5d6a8ff4276de1；852 lazy producer固定候选e78e5b6788418025b40ddf78bbf5d5adc7eb7f85。候选原blob仅用于本地组合，不属于本PR的新增代码，不冒称已在main。
+| 卡片剩余范围依赖                               | 明确未完成                                                                                                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 846人工保存与新文本来源selector                | cb98只从正式event/history构建来源主体；确认前新文本没有event。须由846/X1读取并验证真实845 intake sourceContexts，不能插假event或只用draft.personIds反推完整主体。详见#248/6559264101 |
+| 846批次修订CAS                                 | 需校验预期批次/草稿revision、稳定身份与人工保存栅栏，同事务替换；insert-only不支持                                                                                                   |
+| 905核对/撤销与873/859/866实际取得              | 未决来源保持待核对/不可用；不伪造resolved、材料成员、说话人、时长或来源事实                                                                                                          |
+| X1共享worker/registry与迁移                    | 作者提供实际工厂，但共享生产注册、最终迁移/整合main尚未验                                                                                                                            |
+| 生产身份、人工确认、浏览器与实际供应商业务联验 | 原生PG组合、Node组件、纯回归、供应商请求分别记录，不冒生产E2E                                                                                                                        |
 
-核心整理、任务栅栏、选人公共投影、来源未决授权和输入绑定均有Red→Green证据。新增真实PG用例覆盖首次并发幂等、选择并发/版本冲突、同键回放、原任务取消、真实pg-boss整体回滚、录音归属保持和846实际writer。缺生成迁移时这些用例硬失败，不跳过或用DDL/fake补表；结果须在迁移协调后实跑。
+两次真实模型尝试记录与排他标记保持。当前窗口零真实请求。下一次最小成功验收建议：先在已通过原生PG/固定实际factory组合上，仅用一份已经明确授权的化名文本，冻结业务日期与真实rubric、计算单次JSON字节，maxAttempts=1和上述30秒/45秒/8192token/1MiB配置；事先明确只检验请求→返回→本卡逐字引用/归属/双版本→隔离AI草稿，不执行人工确认或生产写入。实际请求规模和准入条件在PG稳定后另交父，不自动重发前次outcome_unknown。
 
-历史0c4b044固定组合的pnpm check（100文件/912tests）、e2e10/10和visual32/32只证明当时受检范围；不作为本次新增入口的通过证据。当前结果以PR当前head更新为准。
-
-Pending：两表串行生成迁移、202权限适配后的846候选及852共享producer正式整合、当前完整PG/覆盖/构建、共享注册、source-only最小合同及一次化名真实模型验收。本次不调用真实模型/业务API，不配置凭据或部署。PR使用 Refs #37 / Part of BOW-845，不关闭卡；最终合并由父负责。
+继续Refs #37 / Part of BOW-845，Draft且不关闭整卡。最终合并只由获授权的Claude编排执行。

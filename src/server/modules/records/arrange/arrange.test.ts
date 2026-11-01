@@ -74,7 +74,7 @@ describe('authorized shared record arrangement', () => {
     );
   });
   it.each(['input', 'source'] as const)(
-    'keeps padded/newline %s citations exact, including UTF-16 input offsets',
+    'uses final897 canonical %s quotes and rejects stale padded input offsets',
     async (kind) => {
       const snapshot = exampleSnapshot();
       const text = '🙂前缀 \n林舟补写回滚步骤。\n ';
@@ -102,15 +102,45 @@ describe('authorized shared record arrangement', () => {
       const { result } = await run(snapshot, response);
       expect(result.status).toBe('arranged');
       if (result.status !== 'arranged') throw new Error('expected draft');
-      expect(result.value.draft.originalInput.text).toBe(text);
-      expect(result.value.draft.scores[0]).toMatchObject({
-        state: 'suggested',
-        citations: [citation],
-      });
-      expect(result.value.evidence[0]).toMatchObject({
-        fragmentId: 'fragment-text',
-        originalVersionId: 'original-v1',
-      });
+      expect(result.value.draft.originalInput.text).toBe(text.trim());
+      expect(snapshot.originalInput.text).toBe(text);
+      expect(snapshot.authorization.sources[0]!.excerpt).toBe(text);
+      if (kind === 'input') {
+        expect(result.value.draft.scores[0]).toMatchObject({
+          state: 'unknown',
+        });
+        expect(result.value.evidence).toEqual([]);
+        const canonical = quote.trim();
+        score.citations = [
+          {
+            kind: 'input',
+            quote: canonical,
+            start: text.indexOf(canonical),
+            end: text.indexOf(canonical) + canonical.length,
+          },
+        ];
+        const valid = await run(snapshot, response);
+        expect(valid.result.status).toBe('arranged');
+        if (valid.result.status !== 'arranged')
+          throw new Error('expected canonical draft');
+        expect(valid.result.value.draft.scores[0]).toMatchObject({
+          state: 'suggested',
+          citations: score.citations,
+        });
+        expect(valid.result.value.evidence[0]).toMatchObject({
+          fragmentId: 'fragment-text',
+          originalVersionId: 'original-v1',
+        });
+      } else {
+        expect(result.value.draft.scores[0]).toMatchObject({
+          state: 'suggested',
+          citations: [{ ...citation, quote: quote.trim() }],
+        });
+        expect(result.value.evidence[0]).toMatchObject({
+          fragmentId: 'fragment-text',
+          originalVersionId: 'original-v1',
+        });
+      }
     },
   );
   it.each(['missing', 'outside', 'mixed', 'performance'] as const)(

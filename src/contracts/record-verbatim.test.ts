@@ -18,16 +18,17 @@ const reference = {
   location: { kind: 'document' as const, paragraph: '1' },
 };
 
-describe('verbatim record input and citations', () => {
+describe('final897 canonical public text and stable provenance identity', () => {
   it.each([
     '  林舟补写回滚步骤。  ',
     '\n林舟补写回滚步骤。\r\n',
     ' \n林舟补写回滚步骤。\n ',
   ])(
-    'retains the exact original text while still normalizing IDs: %j',
+    'canonicalizes public input text and IDs while leaving the source argument unchanged: %j',
     (text) => {
       expect(recordInputSchema.parse(input(text))).toEqual({
         ...input(text),
+        text: text.trim(),
         operation_id: 'operation-demo',
         attachmentIds: ['attachment-demo'],
         personId: 'demo-lin',
@@ -35,14 +36,18 @@ describe('verbatim record input and citations', () => {
     },
   );
   it.each(['input', 'source'] as const)(
-    'retains whitespace in a %s quote without changing its offset or reference',
+    'canonicalizes a %s quote without inventing its offset or reference',
     (kind) => {
       const quote = ' \n林舟补写回滚步骤。\n ';
       const citation =
         kind === 'input'
           ? { kind, quote, start: 4, end: 4 + quote.length }
           : { kind, quote, reference };
-      expect(recordCitationSchema.parse(citation)).toEqual(citation);
+      expect(recordCitationSchema.parse(citation)).toEqual({
+        ...citation,
+        quote: quote.trim(),
+      });
+      expect(citation.quote).toBe(quote);
     },
   );
   it.each(['', ' ', '\n\r\t'])(
@@ -66,7 +71,7 @@ describe('verbatim record input and citations', () => {
       ).toBe(false);
     },
   );
-  it('preserves raw input through draft parsing while ordinary titles and labels keep their existing normalization', () => {
+  it('uses the frozen public text normalization while the original source value remains available', () => {
     const originalInput = input(' \n林舟补写回滚步骤。\n ');
     const parsed = recordDraftSchema.parse({
       draftId: ' draft-demo ',
@@ -89,7 +94,8 @@ describe('verbatim record input and citations', () => {
       project: { state: 'none' },
       scores: [],
     });
-    expect(parsed.originalInput.text).toBe(originalInput.text);
+    expect(parsed.originalInput.text).toBe(originalInput.text.trim());
+    expect(originalInput.text).toBe(' \n林舟补写回滚步骤。\n ');
     expect(parsed.draftId).toBe('draft-demo');
     expect(parsed.sbi.title).toBe('回滚记录');
     expect(parsed.people[0]).toMatchObject({

@@ -1,3 +1,4 @@
+import { materialBatchReadInputSchema } from '../../contracts/materials';
 import 'server-only';
 import { z } from 'zod';
 import { jobCommandSchema } from '../../contracts/jobs';
@@ -23,5 +24,16 @@ export async function readRecordArrangeJobForCurrentUser(input: unknown) {
   return recordArrangeRequestsForServer().read(
     session.user.id,
     checked.data.jobId,
+  );
+}
+
+/** Final897 batch read: actor comes only from the current server session. */
+export async function readRecordMaterialBatchForCurrentUser(input: unknown) {
+  const checked = materialBatchReadInputSchema.safeParse(input);
+  if (!checked.success) return { status: 'validation_error' as const };
+  const session = await requireSession();
+  return recordArrangeRequestsForServer().readBatch(
+    session.user.id,
+    checked.data,
   );
 }

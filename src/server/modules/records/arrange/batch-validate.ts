@@ -292,13 +292,17 @@ export function materializeBatch(
         score.citations.sort((a, b) =>
           JSON.stringify(a).localeCompare(JSON.stringify(b)),
         );
+    // The native846 writer adopts final897's public DTO normalization. Apply
+    // the identical schema here before revision comparison; immutable source
+    // fragments and the internal witness ledger retain their original bytes.
+    const checked = recordBatchDraftSchema.safeParse(next);
+    if (!checked.success) return invalid();
+    const canonical = checked.data;
     if (previous)
-      next.revision =
+      canonical.revision =
         previous.revision +
-        (isDeepStrictEqual(draftBody(previous), draftBody(next)) ? 0 : 1);
-    // Do not adopt DTO text transforms: references retain exact source bytes.
-    if (!recordBatchDraftSchema.safeParse(next).success) return invalid();
-    return next;
+        (isDeepStrictEqual(draftBody(previous), draftBody(canonical)) ? 0 : 1);
+    return canonical;
   });
   const result: RecordBatchDraftSet = {
     batchId: prepared.snapshot.batchId,
@@ -317,6 +321,7 @@ export function materializeBatch(
       };
     }),
   };
-  if (!recordBatchDraftSetSchema.safeParse(result).success) invalid();
-  return result;
+  const checked = recordBatchDraftSetSchema.safeParse(result);
+  if (!checked.success) return invalid();
+  return checked.data;
 }

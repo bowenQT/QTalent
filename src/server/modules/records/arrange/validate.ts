@@ -139,10 +139,13 @@ export function validateArrangement(
     project: snapshot.project,
     scores,
   };
-  // Check the public shape without replacing the immutable original input with
-  // contract text transforms. The persistence adapter retains its original bytes.
-  if (!recordDraftSchema.safeParse({ ...draft, revision: 1 }).success)
-    return failed;
+  // Final897 canonicalizes the public DTO. Source fragments and the trusted
+  // snapshot retain exact bytes; a trimmed input quote still has to pass its
+  // original UTF-16 range above before any score can be suggested.
+  const publicDraft = recordDraftSchema.safeParse({ ...draft, revision: 1 });
+  if (!publicDraft.success) return failed;
+  const { revision: _revision, ...canonicalDraft } = publicDraft.data;
+  void _revision;
   return {
     status: 'arranged',
     value: {
@@ -152,7 +155,7 @@ export function validateArrangement(
       promptVersion: RECORD_ARRANGE_PROMPT_VERSION,
       modelVersion: MAAS_MODEL,
       inputVersion: snapshot.inputVersion,
-      draft,
+      draft: canonicalDraft,
       sources: prepared.sources.map((source) => ({
         fragmentId: source.fragmentId,
         originalVersionId: source.originalVersionId,

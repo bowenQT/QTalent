@@ -175,6 +175,25 @@ function ledger(p: PreparedBatch, plan: ValidatedBatch): BatchIdentityLedger {
   };
 }
 describe('batch output and server ledger validation', () => {
+  it('matches the actual846 canonical DTO while retaining exact source and witness text', () => {
+    const p = prepared();
+    p.sources[0].text = ' \n演示：补齐回滚步骤。\n ';
+    const original = p.sources[0].text;
+    const raw = model(p);
+    raw.events[0].evidence[0].quote = original;
+    const score = raw.events[0].scores[0];
+    if (score.state !== 'suggested') throw new Error('fixture');
+    score.citations[0].quote = original;
+    const plan = validateBatchModel(p, raw);
+    const set = materializeBatch(p, plan, ledger(p, plan));
+    expect(set.drafts[0].scores[0]).toMatchObject({
+      state: 'suggested',
+      citations: [{ quote: original.trim() }],
+    });
+    expect(p.sources[0].text).toBe(original);
+    expect(plan.events[0].evidence[0].quote).toBe(original);
+  });
+
   it('preserves two events for one person and unions multiple corroborating sources in one event', () => {
     const p = prepared();
     p.sources[0].text += '另一次检查边界。';

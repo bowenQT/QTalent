@@ -7,9 +7,39 @@ import {
 } from './record-arrange-context';
 import { exampleSnapshot } from '../modules/records/arrange/examples';
 function actor(): ArrangeActor {
-  const context = exampleSnapshot().authorization.context;
+  const base = exampleSnapshot().authorization.context;
+  const evaluationNodes = [
+    {
+      id: 'demo-node',
+      name: '演示节点',
+      kind: 'program_cohort' as const,
+      cohortId: 'cohort-demo',
+    },
+  ];
+  const evaluationNodeSubjects = base.people.map((person) => ({
+    evaluationNodeId: 'demo-node',
+    personId: person.id,
+  }));
+  const evaluationRelations = base.people.map((person, index) => ({
+    id: 'demo-relation-' + index,
+    evaluationNodeId: 'demo-node',
+    personId: person.id,
+    evaluatorId: base.account.personId,
+    kind: 'evaluator' as const,
+    validFrom: '2026-01-01T00:00:00.000Z',
+    validTo: null,
+    revokedAt: null,
+    legacyAssignmentId: null,
+  }));
+  const facts = {
+    evaluationNodes,
+    evaluationNodeSubjects,
+    evaluationRelations,
+  };
+  const context = { ...base, ...facts, hrCandidateGrants: [] };
   return {
     context,
+    facts,
     directory: {
       account: context.account,
       grants: context.grants.map((g, i) => ({ ...g, id: 'grant-' + i })),
@@ -40,12 +70,16 @@ describe('actual arrange write policy assembly', () => {
       scope: 'company',
       cohortId: null,
     };
+    a.context.evaluationRelations = [];
     expect(canWriteArrange(a, ['demo-lin'], null)).toBe(false);
     expect(canWriteArrange(a, [], null)).toBe(false);
   });
-  it('uses current mentor assignments independently of other writable students', () => {
+  it('uses actual current node relations, never cohort mentoring as a replacement', () => {
     const a = actor();
     a.context.grants[0]!.role = 'mentor';
+    a.context.evaluationRelations = a.context.evaluationRelations.filter(
+      (relation) => relation.personId === 'demo-lin',
+    );
     a.context.assignments = [
       {
         personId: 'demo-rater',
@@ -59,6 +93,8 @@ describe('actual arrange write policy assembly', () => {
     ];
     expect(canWriteArrange(a, ['demo-lin'], null)).toBe(true);
     expect(canWriteArrange(a, ['demo-xu'], null)).toBe(false);
+    a.context.evaluationRelations = [];
+    expect(canWriteArrange(a, ['demo-lin'], null)).toBe(false);
   });
   it('denies an inaccessible project and a no-review person', () => {
     const a = actor();
@@ -69,7 +105,7 @@ describe('actual arrange write policy assembly', () => {
   it('keeps privacy subjects mentioned in text separate from the selected actor', () => {
     const a = actor();
     expect(
-      textSubjects(a, '林舟与许禾一起复盘', ['demo-lin']).map(
+      textSubjects(a, '林舟与许禾一起复盘', ['demo-lin'], 'demo-node').map(
         (s) => s.personId,
       ),
     ).toEqual(['demo-lin', 'demo-xu']);
@@ -79,7 +115,7 @@ describe('actual arrange write policy assembly', () => {
     a.context.people[1]!.noReview = true;
     expect(
       buildRecordPageContext(a, { personId: 'demo-lin', projectId: null }),
-    ).toEqual({
+    ).toMatchObject({
       accountId: 'demo-account',
       people: [
         { id: 'demo-lin', label: '林舟' },
@@ -96,8 +132,34 @@ describe('actual arrange write policy assembly', () => {
       buildRecordPageContext(a, { personId: null, projectId: 'hidden' }),
     ).toBeNull();
     a.context.grants = [];
+    a.context.evaluationRelations = [];
     expect(
       buildRecordPageContext(a, { personId: null, projectId: null }),
     ).toBeNull();
   });
+});
+
+it('does not guess a node or combine two nodes to authorize one intake', () => {
+  const a = actor();
+  expect(canWriteArrange(a, ['demo-lin'], null, 'missing-node')).toBe(false);
+  a.context.evaluationNodes.push({
+    id: 'other-node',
+    kind: 'defense',
+    cohortId: null,
+  });
+  a.context.evaluationNodeSubjects = a.context.evaluationNodeSubjects.filter(
+    (row) => row.personId !== 'demo-xu',
+  );
+  a.context.evaluationNodeSubjects.push({
+    evaluationNodeId: 'other-node',
+    personId: 'demo-xu',
+  });
+  a.context.evaluationRelations = a.context.evaluationRelations.map((row) =>
+    row.personId === 'demo-xu'
+      ? { ...row, evaluationNodeId: 'other-node' }
+      : row,
+  );
+  expect(canWriteArrange(a, ['demo-lin', 'demo-xu'], null)).toBe(false);
+  expect(canWriteArrange(a, ['demo-lin'], null, 'demo-node')).toBe(true);
+  expect(canWriteArrange(a, ['demo-xu'], null, 'other-node')).toBe(true);
 });
