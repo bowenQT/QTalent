@@ -8,7 +8,19 @@ export const evaluationWorkKindSchema = z.enum([
   'unknown_person',
   'image_scope',
   'unknown_interviewer',
+  'unknown_project',
+  'unknown_interview_candidate',
 ]);
+/** A trusted source task must already have a server-resolved node and subject. */
+export const evaluationWorkRegistrationSchema = z.strictObject({
+  id,
+  evaluationNodeId: id,
+  personId: id,
+  assignedRelationId: id,
+  assignedEvaluatorId: id,
+  kind: evaluationWorkKindSchema,
+  resourceId: id,
+});
 export const reassignEvaluationWorkInputSchema = z.strictObject({
   operationId: id,
   workItemId: id,
@@ -62,14 +74,9 @@ export type EvaluationReassignmentReceipt = z.infer<
 export type ReassignEvaluationWorkResult = z.infer<
   typeof reassignEvaluationWorkResultSchema
 >;
-export interface EvaluationWorkItem {
-  id: string;
-  evaluationNodeId: string;
-  personId: string;
-  assignedRelationId: string;
-  assignedEvaluatorId: string;
-  kind: z.infer<typeof evaluationWorkKindSchema>;
-  resourceId: string;
+export interface EvaluationWorkItem extends z.infer<
+  typeof evaluationWorkRegistrationSchema
+> {
   state: 'pending' | 'processing' | 'completed' | 'cancelled';
   revision: number;
   updatedAt: string;

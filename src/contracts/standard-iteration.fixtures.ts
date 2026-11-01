@@ -89,8 +89,6 @@ function demoCase(
           source: {
             fragmentId: `demo-${side}-row-${index}`,
             originalVersionId: `demo-${side}-table-v1`,
-            originalTitle: front ? '作品评审表（演示）' : '结营评审表（演示）',
-            recordedByName: null,
             location: {
               kind: 'spreadsheet',
               sheet: front ? '作品评审表' : '结营评审表',
@@ -98,6 +96,8 @@ function demoCase(
             },
             excerpt: `演示：${person.name}的${front ? '作品评审' : '结营评审'}，原量表为「${grade}」。`,
             sourceType: 'spreadsheet',
+            originalTitle: '演示：判断对照合成原表',
+            recordedByName: null,
             sourceCategory: 'original',
             demo: true,
           },

@@ -19,6 +19,7 @@ export type TalentAuthorizationContext = AuthzContext &
 export type TalentKind =
   | 'person'
   | 'evaluation'
+  | 'restricted-evaluation'
   | 'confirmed-score'
   | 'quadrant'
   | 'management-observation'
@@ -110,8 +111,12 @@ const mentorKinds: readonly TalentKind[] = [
   'evaluation',
   'confirmed-score',
 ];
+// Restricted evaluations remain available to authorized HR/management model
+// input. Legacy cohort mentoring does not grant their review-node access; the
+// trusted same-node relation adapter is delivered with BOW-899.
 const directKinds: readonly TalentKind[] = [
   ...mentorKinds,
+  'restricted-evaluation',
   'quadrant',
   'management-observation',
   'change',

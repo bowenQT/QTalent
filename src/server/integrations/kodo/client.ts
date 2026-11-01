@@ -1,5 +1,7 @@
 import { multipart } from './multipart';
+import { presignS3Get } from './s3-signing';
 import { z } from 'zod';
+import { MAX_UPLOAD_BYTES } from '../../../contracts/media';
 import {
   base64,
   sign,
@@ -37,11 +39,7 @@ const statSchema = z.object({
 });
 const grantSchema = z.object({
   objectKey: keySchema,
-  byteLimit: z
-    .number()
-    .int()
-    .positive()
-    .max(1024 * 1024 * 1024),
+  byteLimit: z.number().int().positive().max(MAX_UPLOAD_BYTES),
   contentType: mimeSchema,
   expiresAt: z.number().int().positive(),
 });
@@ -56,14 +54,8 @@ export function createKodoClient(
     z.number().int().min(1).max(120000),
     options.timeoutMs ?? 30000,
   );
-  const origin = config.endpoint.replace(/\/$/, '');
   const uploadOrigin = config.uploadEndpoint.replace(/\/$/, '');
   const managementOrigin = config.managementEndpoint.replace(/\/$/, '');
-  function signedUrl(objectKey: string, expiresAt: number) {
-    const key = parse(keySchema, objectKey);
-    const url = `${origin}/${key.split('/').map(encodeURIComponent).join('/')}?e=${Math.floor(expiresAt / 1000)}`;
-    return `${url}&token=${config.accessKey}:${sign(config.secretKey, url)}`;
-  }
   const responseFailures = new WeakMap<Response, () => KodoError | undefined>();
   async function request(
     url: string,
@@ -195,7 +187,13 @@ export function createKodoClient(
     const signal = input.signal
       ? AbortSignal.any([input.signal, controller.signal])
       : controller.signal;
-    const response = await request(signedUrl(key, now() + 300000), {
+    const issuedAt = now();
+    const signed = presignS3Get(config, {
+      objectKey: key,
+      now: issuedAt,
+      expiresAt: issuedAt + 300000,
+    });
+    const response = await request(signed.url, {
       headers: {
         'Accept-Encoding': 'identity',
         ...(range ? { Range: `bytes=${range.start}-${range.end ?? ''}` } : {}),
@@ -379,9 +377,15 @@ export function createKodoClient(
       input.requiredRemainingTtlMs > 86400000
     )
       throw new KodoError('invalid_input');
+    const issuedAt = now();
     const expiresAt =
-      Math.ceil((now() + input.requiredRemainingTtlMs) / 1000) * 1000;
-    return new TranscriptionSource(key, expiresAt, signedUrl(key, expiresAt));
+      Math.ceil((issuedAt + input.requiredRemainingTtlMs) / 1000) * 1000;
+    const signed = presignS3Get(config, {
+      objectKey: key,
+      now: issuedAt,
+      expiresAt,
+    });
+    return new TranscriptionSource(key, signed.expiresAt, signed.url);
   }
   const client = {
     ...multipart({

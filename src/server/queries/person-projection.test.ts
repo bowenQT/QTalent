@@ -380,6 +380,7 @@ describe('timeline entries', () => {
     data.historical.push({
       id: 'history',
       sourceRecordId: 'snapshot-history',
+      evaluationNodeId: null,
       personId: 'one',
       recorderId: 'actor',
       occurredOn: '2026-06-15',

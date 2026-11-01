@@ -268,6 +268,7 @@ describe('people, profile and shared sources', () => {
     data.historical.push({
       id: 'history',
       sourceRecordId: 'snapshot-history',
+      evaluationNodeId: null,
       personId: 'one',
       recorderId: 'actor',
       occurredOn: '2026-06-01',
