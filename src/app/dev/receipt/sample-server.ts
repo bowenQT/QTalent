@@ -246,13 +246,9 @@ export function createSampleServer(
           withdrawnEvents: entry.events,
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
-          originalInput: {
-            operation_id: entry.operationId,
-            text: entry.draft.sbi.behavior,
-            attachmentIds: [],
-            personId: entry.draft.personIds[0] ?? null,
-            projectId: entry.draft.projectId,
-          },
+          // 照 846（#289）：撤销回执不带原输入；回执页的事回到待确认，本来也不需要原话
+          inputRestoration: 'unavailable',
+          originalInput: null,
         },
       });
     },
