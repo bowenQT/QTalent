@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { createKodoClient } from './index';
 import { objectEtag, sha256 } from './protocol';
+import { multipartCheckpointSchema } from './multipart';
 const config = {
   endpoint: 'https://objects.example.test',
   uploadEndpoint: 'https://up.example.test',
@@ -13,7 +14,7 @@ const config = {
 const j = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status });
 const large = new Uint8Array(8 * 1024 * 1024 + 3).fill(7);
-function setup() {
+function setup(emptyPartsAsNull = false) {
   let time = 1000;
   let complete = false;
   let failPart = 2;
@@ -36,11 +37,14 @@ function setup() {
         uploadId: 'test-upload',
         expireAt: 604801,
         partNumberMarker: 0,
-        parts: Array.from(parts, ([partNumber, part]) => ({
-          partNumber,
-          size: part.bytes.length,
-          etag: part.etag,
-        })),
+        parts:
+          emptyPartsAsNull && parts.size === 0
+            ? null
+            : Array.from(parts, ([partNumber, part]) => ({
+                partNumber,
+                size: part.bytes.length,
+                etag: part.etag,
+              })),
       });
     if (init.method === 'PUT') {
       const number = Number(target.pathname.split('/').at(-1));
@@ -130,6 +134,47 @@ describe('authenticated resumable multipart v2', () => {
       }),
     ).toEqual(receipt);
   });
+  it('starts uploading when Kodo reports an empty list as parts: null', async () => {
+    const s = setup(true);
+    s.noFailure();
+    const checkpoint = await s.client.beginMultipart(input());
+    await expect(
+      s.client.resumeMultipart({
+        ...input(),
+        checkpoint,
+        onCheckpoint: vi.fn(),
+      }),
+    ).resolves.toMatchObject({
+      byteLength: large.length,
+      sha256: sha256(large),
+    });
+    expect(s.parts.size).toBe(3);
+  });
+  it.each([undefined, {}, 'invalid', [{ partNumber: 1 }]])(
+    'rejects malformed list parts %j instead of treating them as empty',
+    async (parts) => {
+      const s = setup();
+      const checkpoint = await s.client.beginMultipart(input());
+      s.fetch.mockResolvedValueOnce(j({}, 404)).mockResolvedValueOnce(
+        j({
+          uploadId: 'test-upload',
+          expireAt: 604801,
+          partNumberMarker: 0,
+          parts,
+        }),
+      );
+      await expect(
+        s.client.resumeMultipart({
+          ...input(),
+          checkpoint,
+          onCheckpoint: vi.fn(),
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_resume' });
+      expect(
+        s.fetch.mock.calls.some(([, init]) => init?.method === 'PUT'),
+      ).toBe(false);
+    },
+  );
   it('binds checkpoint to key, bytes, bucket and signature before I/O', async () => {
     const s = setup();
     const checkpoint = await s.client.beginMultipart(input());
@@ -271,4 +316,40 @@ describe('authenticated resumable multipart v2', () => {
       code: 'expired',
     });
   });
+});
+
+it('validates 2 GiB and 512-part checkpoint metadata without allocating a giant buffer', () => {
+  const checkpoint = {
+    bucket: 'test-bucket',
+    objectKey: 'synthetic/limit',
+    uploadId: 'synthetic-upload',
+    expiresAt: 10000,
+    byteLength: 2_147_483_648,
+    sha256: 'a'.repeat(64),
+    contentType: 'application/octet-stream',
+    parts: Array.from({ length: 512 }, (_, index) => ({
+      partNumber: index + 1,
+      etag: `part-${index + 1}`,
+      sha256: 'b'.repeat(64),
+    })),
+  };
+  expect(multipartCheckpointSchema.safeParse(checkpoint).success).toBe(true);
+  expect(
+    multipartCheckpointSchema.safeParse({
+      ...checkpoint,
+      byteLength: 2_147_483_649,
+    }).success,
+  ).toBe(false);
+  expect(
+    multipartCheckpointSchema.safeParse({
+      ...checkpoint,
+      parts: [...checkpoint.parts, { ...checkpoint.parts[0], partNumber: 513 }],
+    }).success,
+  ).toBe(false);
+  expect(
+    multipartCheckpointSchema.safeParse({
+      ...checkpoint,
+      parts: [{ ...checkpoint.parts[0], partNumber: 513 }],
+    }).success,
+  ).toBe(false);
 });

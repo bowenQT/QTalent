@@ -10,7 +10,9 @@ import {
   historicalEvaluations,
   historicalParticipants,
 } from './schema';
-/** Complete source relations are needed before authorization of shared quotes. */
+/** Complete raw relations, including withdrawn events, guard shared quotes.
+ * Display filtering must never remove a shared subject from source authorization.
+ */
 export async function readEvidenceForTalent(db: DbExecutor) {
   return {
     events: await db.select().from(events),

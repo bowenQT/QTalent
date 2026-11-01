@@ -113,6 +113,7 @@ describe('talent action × current grant × subject × purpose', () => {
   const kinds: TalentKind[] = [
     'person',
     'evaluation',
+    'restricted-evaluation',
     'confirmed-score',
     'quadrant',
     'management-observation',
@@ -461,6 +462,80 @@ describe('server-only projection, sources and model boundary', () => {
         originalVersionId: 'test-version-001',
       }),
     ).toBeNull();
+    expect(await buildAuthorizedModelInput(load)).toEqual({ items: [] });
+  });
+});
+
+describe('restricted evaluation reading versus personnel model exclusions', () => {
+  const candidate = () => source({ requiredKinds: ['restricted-evaluation'] });
+  const input = () =>
+    record({
+      fields: [
+        {
+          name: 'text',
+          kind: 'evaluation',
+          value: 'Synthetic graduation written feedback',
+          subjects: [],
+          sources: [candidate()],
+        },
+        {
+          name: 'personnelText',
+          kind: 'performance',
+          value: 'Synthetic Beisen personnel result',
+          subjects: [],
+          sources: [],
+        },
+      ],
+    });
+  it.each(['manager', 'hr', 'mentor', 'admin'] as const)(
+    '%s keeps only currently authorized graduation text in model input',
+    async (role) => {
+      const ctx = context(role === 'admin' ? 'manager' : role);
+      ctx.account.isSystemAdmin = role === 'admin';
+      const load = async () => ({
+        context: ctx,
+        records: [input()],
+        sources: [candidate()],
+      });
+      const model = await buildAuthorizedModelInput(load);
+      if (role === 'manager' || role === 'hr') {
+        expect(model.items[0]?.fields).toEqual({
+          text: 'Synthetic graduation written feedback',
+        });
+        expect(await readTalentSource(load, candidate())).not.toBeNull();
+      } else {
+        expect(model).toEqual({ items: [] });
+        expect(await readTalentSource(load, candidate())).toBeNull();
+      }
+      expect(JSON.stringify(model)).not.toContain('personnelText');
+      expect(JSON.stringify(model)).not.toContain('restricted-evaluation');
+    },
+  );
+  it('rechecks an HR grant and never falls back to cohort mentoring for restricted text', async () => {
+    const ctx = context('hr');
+    ctx.grants.push({ ...ctx.grants[0]!, role: 'mentor' });
+    const load = async () => ({
+      context: ctx,
+      records: [input()],
+      sources: [candidate()],
+    });
+    expect((await buildAuthorizedModelInput(load)).items[0]?.fields.text).toBe(
+      'Synthetic graduation written feedback',
+    );
+    ctx.grants[0]!.revokedAt = ctx.now;
+    expect(await buildAuthorizedModelInput(load)).toEqual({ items: [] });
+    expect(await readTalentSource(load, candidate())).toBeNull();
+  });
+  it('still excludes a mixed fragment containing Beisen personnel material', async () => {
+    const mixed = source({
+      requiredKinds: ['restricted-evaluation', 'performance'],
+    });
+    const load = async () => ({
+      context: context('manager'),
+      records: [input()],
+      sources: [mixed],
+    });
+    expect(await readTalentSource(load, mixed)).not.toBeNull();
     expect(await buildAuthorizedModelInput(load)).toEqual({ items: [] });
   });
 });

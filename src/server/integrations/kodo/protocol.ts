@@ -48,7 +48,14 @@ export const kodoConfigSchema = z.object({
   secretKey: z.string().min(1),
   bucket: z.string().regex(/^[a-zA-Z0-9_-]+$/),
 });
-export const liveConfigSchema = kodoConfigSchema.extend({
+export const s3ReadConfigSchema = kodoConfigSchema.extend({
+  /** Required only for origins whose S3 region cannot be read from a documented Qiniu endpoint. */
+  s3Region: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{0,62}$/)
+    .optional(),
+});
+export const liveConfigSchema = s3ReadConfigSchema.extend({
   uploadEndpoint: originSchema,
   managementEndpoint: originSchema,
 });
