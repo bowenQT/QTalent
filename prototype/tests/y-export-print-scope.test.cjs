@@ -180,6 +180,38 @@ test('还在评分复核队列里的分不导出、不打印，计入已跳过�
   assert.equal(withConflict.skipped, after.skipped + 1);
 });
 
+test('种子里的待校准分（两位评价人 4 / 2，没有定值）不进表、不进打印稿，计入已跳过', () => {
+  const st = load('hrbp');
+  const pid = 'p-x11', ev = st.event('e-x11-3');
+  const s = ev.scores.find((x) => x.st === 'conflict');
+  assert.ok(s && s.v == null && s.raters.length === 2, '种子：待校准的分没有定值，只有两位评价人的分');
+  assert.ok(st.queue().some((q) => q.ev.id === 'e-x11-3' && q.s === s), '在 HR 评分复核队列里');
+  const r = st.exportRows([pid]);
+  assert.ok(!r.rows.some((x) => x.ev === 'e-x11-3' && x.dim === st.dim(s.d).name), '待校准的分不进表');
+  const counted = st.scoresOf(pid, { visible: true, all: true, anyVer: true });
+  assert.ok(counted.some((x) => x.ev.id === 'e-x11-3' && x.d === s.d), '计数时取得到待校准的分');
+  const before = r.skipped;
+  st.calibrate('e-x11-3', ev.scores.indexOf(s), 3, '两位评价人的引用都支撑 3 分');
+  const after = st.exportRows([pid]);
+  assert.equal(after.skipped, before - 1, '校准前计在已跳过里');
+  assert.equal(after.rows.filter((x) => x.ev === 'e-x11-3' && x.dim === st.dim(s.d).name).length, 1, '校准后进表');
+  // 打印稿和导出用同一份数据：打印弹窗「留在系统里」一行写的就是这里的已跳过数
+  const src = fs.readFileSync(path.join(__dirname, '../y/app/js/pages/person.js'), 'utf8');
+  assert.match(src, /const \{ rows, skipped \} = st\.exportRows\(\[pid\]\)/);
+});
+
+test('HR 导出的已跳过同时包括待校准和与 AI 分差大两类', () => {
+  const st = load('hrbp');
+  const conflict = st.exportRows(['p-x11']), gap = st.exportRows(['p-x14']);
+  const both = st.exportRows(['p-x11', 'p-x14']);
+  assert.ok(conflict.skipped >= 1 && gap.skipped >= 1);
+  assert.equal(both.skipped, conflict.skipped + gap.skipped);
+  assert.ok(!both.rows.some((x) => x.ev === 'e-x14-3'), '与 AI 分差大的分不进表');
+  // 「资料不足」不出分，也就不算跳过的分
+  const counted = st.scoresOf('p-x15', { visible: true, all: true, anyVer: true });
+  assert.ok(!counted.some((x) => x.st === 'unknown'), '资料不足不计入已跳过');
+});
+
 test('多来源事件：来源位置取这条分的引用所在的那一处，对不上时列出全部来源', () => {
   const st = load('hrbp');
   const rows = st.exportRows(['p-x01']).rows.filter((r) => r.ev === 'e-x01-2');

@@ -47,37 +47,37 @@
   ];
 
   // 接入状态（BOW-916）：企业微信机器人、MCP、AgentAPI 三个入口。只记时间、账号、动作和结果，不记消息正文、文件内容、查询内容和密钥。
-  // 演示：?wecom=down 看「已断开」，?wecom=never 看「从未连接」
+  // 演示：?wecom=down 看「已断开」，?wecom=never 看「待首次连接」
   const WECOM = {
     on: { label: '已连接', at: '09-04 14:02', text: '最近收到消息 09-04 14:02 · 最近一次回执 09-04 14:03' },
-    down: { label: '已断开', at: '09-04 10:18', text: '09-04 10:20 起收不到回调 · 断开前最后收到消息 09-04 10:18', next: '断开期间发来的消息可能没有收到。回调地址和密钥在部署配置里，请部署负责人检查；恢复后这里会显示新的消息时间。' },
-    never: { label: '从未连接', at: null, text: '还没有收到过消息', next: '部署时完成机器人配置后，收到第一条消息就会显示「已连接」。' },
+    down: { label: '已断开', at: '09-04 10:18', text: '09-04 10:20 起回调中断 · 断开前最后收到消息 09-04 10:18', next: '断开期间发来的消息可能已丢失。回调地址和密钥在部署配置里，请部署负责人检查；恢复后这里会显示新的消息时间。' },
+    never: { label: '待首次连接', at: null, text: '等第一条消息', next: '部署时完成机器人配置后，收到第一条消息就会显示「已连接」。' },
   };
   const CALLS = [
     ['09-04 13:40', 'MCP', 'p-suwan', '查任务状态', 'ok', '320 ms'],
     ['09-04 13:12', 'MCP', 'p-cheng', '找人：提交项目要求', 'ok', '1.8 s'],
     ['09-04 11:15', 'AgentAPI', 'p-suwan', '记一件事：提交草稿', 'ok', '640 ms'],
-    ['09-04 10:47', 'MCP', 'p-yeqing', '查人员档案摘要', 'deny', '超出查看范围，已拒绝，没有返回内容'],
-    ['09-04 09:30', 'AgentAPI', 'p-suwan', '上传材料', 'fail', '文件超过 50 MB，没有入库'],
+    ['09-04 10:47', 'MCP', 'p-yeqing', '查人员档案摘要', 'deny', '超出查看范围，已拒绝'],
+    ['09-04 09:30', 'AgentAPI', 'p-suwan', '上传材料', 'fail', '文件超过 50 MB，停在上传这一步'],
     ['09-03 18:05', 'MCP', 'p-cheng', '查人员档案摘要', 'ok', '410 ms'],
   ];
   // 调用结果只说明处理到哪一步，沿用处理进度的中性徽标，不用支持 / 不支持的颜色
   const CALL_RES = { ok: ['成功', 'check', ''], deny: ['拒绝', 'lock', 'review'], fail: ['失败', 'x', 'failed'] };
   const BINDS = [
-    ['09-04 12:26', 'wx·****3f2a', '人员目录里找不到这个企业微信账号', '让对方在北森补上企业微信账号；补上后下一条消息会自动匹配，这次的材料需要重新发送'],
-    ['09-03 16:41', 'wx·****81c0', '对上了两个人，不能确定是谁', '已转给 HR 负责人确认；确认前这个账号发来的材料不入库'],
-    ['09-02 09:12', 'wx·****d47e', '账号对应的人员已离职，账号已停用', '不需要处理；已回复对方「账号已停用」'],
+    ['09-04 12:26', 'wx·****3f2a', '这个企业微信账号待补进人员目录', '让对方在北森补上企业微信账号；补上后下一条消息会自动匹配，这次的材料需要重新发送'],
+    ['09-03 16:41', 'wx·****81c0', '对上了两个人，待确认是谁', '已转给 HR 负责人确认；确认后这个账号发来的材料才入库'],
+    ['09-02 09:12', 'wx·****d47e', '账号对应的人员已离职，账号已停用', '已回复对方「账号已停用」'],
   ];
   const TASK_FAILS = [
-    { id: 'tf-1', at: '09-04 12:31', what: '整理企业微信材料 · 1 个 PDF', from: '企业微信', by: 'p-yeqing', why: '文件是扫描件，识别不出文字', next: '请发送人改发可复制文字的版本；这一步不能重试解决' },
+    { id: 'tf-1', at: '09-04 12:31', what: '整理企业微信材料 · 1 个 PDF', from: '企业微信', by: 'p-yeqing', why: '文件是扫描件，只有图片', next: '请发送人改发可复制文字的版本，再交一次' },
     { id: 'tf-2', at: '09-04 09:58', what: '转写会议录音 · 42 分钟', from: '企业微信', by: 'p-suwan', why: '转写服务超时，已自动重试 2 次', next: '可以再重试一次；仍失败请部署负责人查看转写服务', retry: true },
-    { id: 'tf-3', at: '09-03 20:14', what: '整理事件与建议分 · 3 段纪要', from: 'AgentAPI', by: 'p-suwan', why: '模型返回的格式不对，已自动重试 3 次', next: '可以重试；连续失败请部署负责人检查模型和提示词版本', retry: true },
+    { id: 'tf-3', at: '09-03 20:14', what: '整理事件与建议分 · 3 段纪要', from: 'AgentAPI', by: 'p-suwan', why: '模型返回的格式有误，已自动重试 3 次', next: '可以重试；连续失败请部署负责人检查模型和提示词版本', retry: true },
   ];
   const requeued = new Set();
 
   function render(main) {
     mount(main, html`
-      <header class="nt-head nt-head--tabs"><div><h1>系统管理 <span class="n-badge n-badge--demo">演示</span></h1><p>管账号与权限、北森同步、集成配置、接入状态和审计日志。系统管理员只看配置和技术记录，看不到档案、评价和原件。</p></div></header>
+      <header class="nt-head nt-head--tabs"><div><h1>系统管理 <span class="n-badge n-badge--demo">演示</span></h1><p>管账号与权限、北森同步、集成配置、接入状态和审计日志。系统管理员只看配置和技术记录。</p></div></header>
       <div class="n-tabs n-tabs--scroll" role="tablist" id="atabs">${TABS.map(([k, l]) => html`<button role="tab" type="button" data-tab="${k}" aria-selected="${k === tab}" aria-controls="ap-${k}" tabindex="${k === tab ? 0 : -1}">${l}</button>`)}</div>
       <div class="n-tabpanel" role="tabpanel" id="ap-acct" ${NT.raw(tab === 'acct' ? '' : 'hidden')}>${accounts()}</div>
       <div class="n-tabpanel" role="tabpanel" id="ap-hr" ${NT.raw(tab === 'hr' ? '' : 'hidden')}>${beisen()}</div>
@@ -154,7 +154,7 @@
           <thead><tr><th>服务</th><th>用途</th><th>状态</th></tr></thead>
           <tbody>${INTG.map(([n, use, s]) => html`<tr><td>${n}</td><td>${use}</td><td><span class="n-badge ${s === '待接入' ? 'n-badge--prep' : 'n-badge--demo'}">${s}</span></td></tr>`)}</tbody>
         </table></div>
-        <p class="nt-caption">密钥在服务端环境变量里配置，界面不显示。模型与提示词版本、用量接入后在这里查看；企业微信、MCP、AgentAPI 的连接情况和失败任务在「接入状态」。</p>
+        <p class="nt-caption">密钥只在服务端环境变量里配置。模型与提示词版本、用量接入后在这里查看；企业微信、MCP、AgentAPI 的连接情况和失败任务在「接入状态」。</p>
       </section>`;
   }
 
@@ -165,7 +165,7 @@
     const recent = (src) => CALLS.filter((c) => c[1] === src);
     const callCard = (src, use) => {
       const l = recent(src), bad = l.filter((c) => c[4] !== 'ok').length;
-      return html`<article class="n-card n-conn__item"><header class="n-conn__head"><b>${src}</b>${l.length ? html`<span class="n-conn__state" data-state="on">有调用</span>` : html`<span class="n-conn__state" data-state="never">还没有调用</span>`}</header>
+      return html`<article class="n-card n-conn__item"><header class="n-conn__head"><b>${src}</b>${l.length ? html`<span class="n-conn__state" data-state="on">有调用</span>` : html`<span class="n-conn__state" data-state="never">待首次调用</span>`}</header>
         <p class="n-conn__use">${use}</p>
         <p class="n-conn__meta">${l.length ? `最近一次调用 ${l[0][0]} · 近 24 小时 ${l.length} 次${bad ? `，其中 ${bad} 次拒绝或失败` : ''}` : '部署后有账号调用时，这里显示最近的时间和结果'}</p></article>`;
     };
@@ -181,25 +181,25 @@
           ${callCard('MCP', '在 Agent 工具里查人、找人、查任务状态')}
           ${callCard('AgentAPI', '其他系统提交材料和事件草稿')}
         </div>
-        <div class="n-lock" style="margin-top:var(--s-3)">${icon('lock')}<span>接入配置（机器人回调地址、MCP 与 AgentAPI 的令牌）在部署时完成，这里只看状态。页面不显示消息正文、文件内容、查询内容和密钥。</span></div>
+        <div class="n-lock" style="margin-top:var(--s-3)">${icon('lock')}<span>接入配置（机器人回调地址、MCP 与 AgentAPI 的令牌）在部署时完成，这里只看状态和结果；消息正文、文件内容、查询内容和密钥都留在原处。</span></div>
       </section>
       <section class="nt-sec">
         <h2 class="nt-h2">最近调用 <small>MCP 与 AgentAPI · 只记账号、动作和结果</small></h2>
         ${CALLS.length ? html`<div class="n-card nt-tablewrap" style="padding:var(--s-2) var(--s-4)"><table class="nt-table">
           <thead><tr><th>时间</th><th>入口</th><th>账号</th><th>动作</th><th>结果</th></tr></thead>
-          <tbody>${CALLS.map(([t, src, pid, act, res, note]) => html`<tr><td style="white-space:nowrap">${t}</td><td style="white-space:nowrap">${src}</td><td style="white-space:nowrap">${st.person(pid).name}</td><td>${act}</td><td><span class="n-badge n-badge--proc" ${NT.raw(CALL_RES[res][2] ? `data-state="${CALL_RES[res][2]}"` : '')}>${icon(CALL_RES[res][1])}${CALL_RES[res][0]}</span><small>${note}</small></td></tr>`)}</tbody>
-        </table></div>` : html`<div class="nt-empty">还没有调用记录。</div>`}
+          <tbody>${CALLS.map(([t, src, pid, act, res, note]) => html`<tr><td>${t}</td><td style="white-space:nowrap">${src}</td><td style="white-space:nowrap">${st.person(pid).name}</td><td>${act}</td><td><span class="n-badge n-badge--proc" ${NT.raw(CALL_RES[res][2] ? `data-state="${CALL_RES[res][2]}"` : '')}>${icon(CALL_RES[res][1])}${CALL_RES[res][0]}</span><small>${note}</small></td></tr>`)}</tbody>
+        </table></div>` : html`<div class="nt-empty">有账号调用后，记录会出现在这里。</div>`}
       </section>
       <section class="nt-sec">
-        <h2 class="nt-h2">绑定失败 <small>发送人对不上人员目录 · 近 7 天 ${BINDS.length} 条</small></h2>
+        <h2 class="nt-h2">绑定失败 <small>发送人待匹配人员目录 · 近 7 天 ${BINDS.length} 条</small></h2>
         ${BINDS.length ? html`<div class="n-card nt-tablewrap" style="padding:var(--s-2) var(--s-4)"><table class="nt-table">
           <thead><tr><th>时间</th><th>发送人账号</th><th>原因</th><th>接下来</th></tr></thead>
           <tbody>${BINDS.map(([t, acct, why, next]) => html`<tr><td style="white-space:nowrap">${t}</td><td style="white-space:nowrap" title="企业微信账号只显示后四位">${acct}</td><td>${why}</td><td>${next}</td></tr>`)}</tbody>
-        </table></div>` : html`<div class="nt-empty">近 7 天没有绑定失败。</div>`}
-        <p class="nt-caption">绑定以北森人员目录里的企业微信账号为准，这里不能手动改绑。对不上的消息不入库，并回复发送人「还没有绑定」。</p>
+        </table></div>` : html`<div class="nt-empty">近 7 天的绑定都已成功。</div>`}
+        <p class="nt-caption">绑定以北森人员目录里的企业微信账号为准，改绑在北森里做。匹配失败的消息留在企业微信，并回复发送人「账号待绑定」。</p>
       </section>
       <section class="nt-sec">
-        <h2 class="nt-h2">任务失败 <small>${open.length ? `${open.length} 个待处理` : '没有待处理的'}${open.length < tasks.length ? ` · ${tasks.length - open.length} 个已重新排队` : ''}</small></h2>
+        <h2 class="nt-h2">任务失败 <small>${open.length ? `${open.length} 个待处理` : '都已处理'}${open.length < tasks.length ? ` · ${tasks.length - open.length} 个已重新排队` : ''}</small></h2>
         ${tasks.length ? html`<ul class="n-tfail">${tasks.map((t) => (requeued.has(t.id)
           ? html`<li class="n-card" data-state="queued">
             <div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="queued">${icon('clock')}已重新排队</span><b>${t.what}</b><small class="nt-muted">${t.from} · ${st.person(t.by).name}发起 · ${t.at}</small></div>
@@ -209,7 +209,7 @@
             <div class="n-tfail__top"><span class="n-badge n-badge--proc" data-state="failed">${icon('x')}失败</span><b>${t.what}</b><small class="nt-muted">${t.from} · ${st.person(t.by).name}发起 · ${t.at}</small></div>
             <dl class="n-tfail__dl"><dt>原因</dt><dd>${t.why}</dd><dt>接下来</dt><dd>${t.next}</dd></dl>
             ${t.retry ? html`<div><button class="n-btn n-btn--sm" type="button" data-requeue="${t.id}">${icon('retry')}重试</button></div>` : ''}
-          </li>`))}</ul>` : html`<div class="nt-empty">没有失败的任务。重新排队的任务处理完会回到发起人的工作台。</div>`}
+          </li>`))}</ul>` : html`<div class="nt-empty">任务都已处理完。重新排队的任务处理完会回到发起人的工作台。</div>`}
       </section>`;
   }
 
@@ -221,7 +221,7 @@
           <thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th></tr></thead>
           <tbody>${[...st.audits().map((a) => [a.at, a.by, a.act, a.obj]), ...AUDIT].map(([t, pid, act, obj]) => html`<tr><td style="white-space:nowrap">${t}</td><td style="white-space:nowrap">${st.person(pid).name}</td><td>${act}</td><td>${obj}</td></tr>`)}</tbody>
         </table></div>
-        <p class="nt-caption">系统管理员和 HR 负责人可以查。日志只记谁在什么时间做了什么，不含档案、评价和导出的内容。</p>
+        <p class="nt-caption">系统管理员和 HR 负责人可以查。日志只记谁在什么时间做了什么；档案、评价和导出的内容留在各自的页面里。</p>
       </section>`;
   }
 })();

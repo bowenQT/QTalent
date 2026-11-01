@@ -226,7 +226,8 @@
       if (o.from && e.date < o.from) return;
       if (o.to && e.date > o.to) return;
       e.scores.forEach((s) => {
-        if (s.p !== pid || s.v == null) return;
+        // 待校准的分（多位评价人分歧）没有定值，只在 all 时取到，用来计入导出的「已跳过」；「资料不足」不出分，不算
+        if (s.p !== pid || (s.v == null && !(o.all && s.st === 'conflict'))) return;
         // 不兼容修订生效后，旧版本下的分待按新版本复核：原分保留，复核前不参与当前版本的取数（v1.6 3.35.5）。
         // 判断对照按原版本对照证据，传 anyVer: true
         if (!o.anyVer && store.heldBy(e, s)) return;

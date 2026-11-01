@@ -1800,7 +1800,7 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-jdot.is-anon { width: 14px; height: 14px; }
 
 /* ══════════════ 接入状态、导出与打印（BOW-916、912、911） ══════════════ */
-/* 接入状态：三个入口一张卡一个。状态点配文字，不只靠颜色：已连接实心墨点、已断开红色菱形点并加红字、从未连接空心灰圈。
+/* 接入状态：三个入口一张卡一个。状态点配文字，不只靠颜色：已连接实心墨点、已断开红色菱形点并加红字、待首次连接空心灰圈。
    不用 --yes：绿色留给证据判断的「支持」；断开属于失败，和失败提示同用 --no */
 .n-conn { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s-3); }
 .n-conn__item { display: grid; align-content: start; gap: var(--s-2); }
