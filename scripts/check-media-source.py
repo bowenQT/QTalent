@@ -56,13 +56,29 @@ def protected_file(path):
     return p
 
 
+def runner_wrapper_checks():
+    # Only fixed boolean checks are public diagnostics; never print file contents.
+    checks = {}
+    for label, path, validator in (
+        ("keyring", KEYRING, None),
+        ("mirrorlist", "/etc/apt/apt-mirrors.txt", mirrors_valid),
+        ("sources", "/etc/apt/sources.list.d/ubuntu.sources", signed_wrapper_valid),
+    ):
+        checks[label + "_protected"] = False
+        if validator:
+            checks[label + "_valid"] = False
+        try:
+            file = protected_file(path)
+            checks[label + "_protected"] = True
+            if validator:
+                checks[label + "_valid"] = bool(validator(file.read_text()))
+        except (OSError, UnicodeError, ValueError):
+            pass
+    return checks
+
+
 def runner_wrapper_valid():
-    try:
-        protected_file(KEYRING)
-        return mirrors_valid(protected_file("/etc/apt/apt-mirrors.txt").read_text()) and signed_wrapper_valid(
-            protected_file("/etc/apt/sources.list.d/ubuntu.sources").read_text())
-    except (OSError, UnicodeError, ValueError):
-        return False
+    return all(runner_wrapper_checks().values())
 
 
 def check(text, expected, wrapper_check=runner_wrapper_valid):
@@ -82,6 +98,8 @@ def check(text, expected, wrapper_check=runner_wrapper_valid):
 
 if __name__ == "__main__":
     result = check(sys.stdin.read(), sys.argv[2])
+    if result["mirror_wrapper_present"]:
+        result.update(runner_wrapper_checks())
     print(json.dumps({"package": sys.argv[1], "expected_version": sys.argv[2], **result}, sort_keys=True))
     if not result["version_present"]:
         sys.exit("Fixed Ubuntu package version unavailable; refusing substitution")
