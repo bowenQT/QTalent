@@ -439,17 +439,62 @@ export async function prepareStandardIterationDemo(files: FactFiles) {
       requireFact(value, 'missing cell');
       return value;
     };
-    requireFact(
-      cell('A', 1).value === '人员ID' && cell('B', 1).value === '学员（演示）',
-      'identity headers',
-    );
-    if (side === 'front')
-      selectionStandard.reviewPoints.forEach((point, index) =>
-        requireFact(
-          cell(['G', 'H', 'I'][index], 1).value === `${point.title}（原档位）`,
-          'review point header',
-        ),
+    const headers =
+      side === 'front'
+        ? [
+            '人员ID',
+            '学员（演示）',
+            '期次（演示）',
+            '作品ID',
+            '作品形式',
+            '同队标记',
+            ...selectionStandard.reviewPoints.map(
+              (p) => `${p.title}（原档位）`,
+            ),
+            '选拔原档位',
+            '评价人ID',
+            '评价人（演示）',
+            '评价时间（UTC）',
+            '选拔标准版本',
+            '记录状态',
+            '重建评语（演示）',
+          ]
+        : [
+            '人员ID',
+            '学员（演示）',
+            '期次（演示）',
+            '结营原档位',
+            '评价人ID',
+            '评价人（演示）',
+            '评价时间（UTC）',
+            '结营原量表ID',
+            '记录状态',
+            '重建评语（演示）',
+          ];
+    headers.forEach((header, index) => {
+      const actual = cell(String.fromCharCode(65 + index), 1);
+      requireFact(
+        actual.type === 'str' && actual.value === header,
+        'workbook header',
       );
+    });
+    // Non-date columns contain text, not numeric values styled to resemble it.
+    // OOXML may represent an empty text cell either explicitly or without t/v.
+    for (
+      let row = descriptor.firstDataRow;
+      row <= descriptor.lastDataRow;
+      row++
+    ) {
+      for (let index = 0; index < columnCount; index++) {
+        const column = String.fromCharCode(65 + index);
+        if (column === descriptor.dateColumn) continue;
+        const actual = cell(column, row);
+        requireFact(
+          actual.type === 'str' || (actual.type === '' && actual.value === ''),
+          'text cell type',
+        );
+      }
+    }
     const originalId = `bow-923-original-${side}`;
     originals.push({
       id: originalId,

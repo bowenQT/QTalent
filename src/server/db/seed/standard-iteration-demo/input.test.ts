@@ -56,8 +56,9 @@ function patchWorkbook(
   address: string,
   value: string,
   kind = 'str',
+  side: 'front' | 'back' = 'front',
 ) {
-  const name = '作品评审表.xlsx';
+  const name = side === 'front' ? '作品评审表.xlsx' : '结营评审表.xlsx';
   f[name] = execFileSync(
     'python3',
     [
@@ -85,7 +86,7 @@ sys.stdout.buffer.write(out.getvalue())
       env: { NODE_ENV: 'test', PATH: process.env.PATH },
     },
   );
-  rehash(f, 'front');
+  rehash(f, side);
 }
 describe('BOW-923 fixed input facts and real workbooks', () => {
   it('maps all input cases and both real rows, without computing outcomes or creating directory/grants', async () => {
@@ -182,6 +183,21 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
     async (address, value, kind, reason) => {
       const f = files();
       patchWorkbook(f, address, value, kind);
+      await expect(prepareStandardIterationDemo(f)).rejects.toThrow(reason);
+    },
+  );
+  it.each([
+    ['front', 'C1', '任意期次说明', 'str', 'workbook header'],
+    ['front', 'J1', '任意档位说明', 'str', 'workbook header'],
+    ['back', 'H1', '任意量表说明', 'str', 'workbook header'],
+    ['front', 'A2', 'p-x01', 'n', 'text cell type'],
+    ['back', 'A2', 'p-x01', 'n', 'text cell type'],
+    ['front', 'F15', '', 'n', 'text cell type'],
+  ] as const)(
+    'rejects drift in %s %s header/type even after updating its digest',
+    async (side, address, value, kind, reason) => {
+      const f = files();
+      patchWorkbook(f, address, value, kind, side);
       await expect(prepareStandardIterationDemo(f)).rejects.toThrow(reason);
     },
   );
