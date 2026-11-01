@@ -297,6 +297,55 @@ it('rejects a current pointer to an operation belonging to another material/item
   ).rejects.toThrow();
 });
 
+it('retains one exact group operation for multiple affected items of the same material', async () => {
+  const f = await material();
+  const question = { ...f.question, itemId: randomUUID() };
+  await c.db
+    .insert(mediaReviewItems)
+    .values({
+      id: question.itemId,
+      materialId: f.row.id,
+      kind: question.kind,
+      revision: 1,
+      state: 'pending',
+      question,
+      currentOperationId: null,
+    });
+  await c.db.transaction(async (tx) => {
+    const op = await operation(f, tx);
+    op.changes.push({
+      itemId: question.itemId,
+      previousRevision: 1,
+      revision: 2,
+    });
+    await tx.insert(mediaReviewOperations).values(op);
+    for (const change of op.changes) {
+      await tx
+        .update(mediaReviewItems)
+        .set({
+          revision: change.revision,
+          state: 'resolved',
+          currentOperationId: op.id,
+        })
+        .where(eq(mediaReviewItems.id, change.itemId));
+    }
+    expect(
+      await tx
+        .select()
+        .from(mediaReviewItems)
+        .where(eq(mediaReviewItems.currentOperationId, op.id)),
+    ).toHaveLength(2);
+    expect(
+      (
+        await tx
+          .select()
+          .from(mediaReviewOperations)
+          .where(eq(mediaReviewOperations.id, op.id))
+      )[0].changes,
+    ).toEqual(op.changes);
+  });
+});
+
 it('rejects a stale input version and missing audit references instead of defaulting them', async () => {
   const f = await material();
   await expect(

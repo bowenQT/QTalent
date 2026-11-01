@@ -112,10 +112,9 @@ export const mediaReviewItems = pgTable(
     ),
     // Initial items have no operation; insert the receipt then CAS this pointer.
     foreignKey({
-      columns: [t.currentOperationId, t.id, t.materialId],
+      columns: [t.currentOperationId, t.materialId],
       foreignColumns: [
         mediaReviewOperations.id,
-        mediaReviewOperations.itemId,
         mediaReviewOperations.materialId,
       ],
     }),
@@ -166,11 +165,7 @@ export const mediaReviewOperations = pgTable(
       t.actorAccountId,
       t.operationId,
     ),
-    unique('records_media_review_operation_item').on(
-      t.id,
-      t.itemId,
-      t.materialId,
-    ),
+    unique('records_media_review_operation_material').on(t.id, t.materialId),
     foreignKey({
       columns: [t.itemId, t.materialId],
       foreignColumns: [mediaReviewItems.id, mediaReviewItems.materialId],
