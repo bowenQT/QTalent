@@ -1,6 +1,6 @@
 # 材料出处持久化边界（BOW-926）
 
-本目录消费最终 BOW-897 契约（`e4462114690191fb9cbcd403f6fb0090bd3cfddb`），以现有 `records_fragments` 为唯一片段存储。当前提交实现位置 codec、PDF 确定性投影和私有 canonical writer/reader；当前权限装配及应用生产接线仍待完成。
+本目录消费最终 BOW-897 契约（`e4462114690191fb9cbcd403f6fb0090bd3cfddb`），以现有 `records_fragments` 为唯一片段存储。当前提交实现位置 codec、PDF 确定性投影、canonical writer、实际权限 reader 与 PDF 保存适配；公开路由、完整媒体生产接线及正式迁移仍待完成。
 
 ## 已有纯规则
 
@@ -46,6 +46,17 @@ reader 核验全部 parse 片段、页面摘要及原件绑定，再返回私有
 
 `usecases/read-material-source.ts` 是已认证服务端 accountId 的领域入口：在同一 repeatable-read 事务内调用 X1 `loadPersonDataInTransaction` 与完整 `talentSources`，读取成功才写 `source.read` 审计；审计失败整组回滚且不返回原文。调用者不传入权限图、actor、locator 或缓存能力；此函数没有接 Web 路由或生成原件下载票。每次新调用重新读取当前账号绑定、角色、节点关系和业务时钟。事务内保持一致快照，不声称对快照建立后的并发撤权实行线性化。
 
-共享出口由 X1 导出 `readAuthorizedMaterialSource`。当前已准备真实PG反例：五类位置、隐藏共有人/撤回事件、未知历史类别、无关联材料、撤权/到期/换绑、额外管理观察限制、身份拒绝、原件版本及摘要漂移、审计回滚、全量附件intake。受控926结构须基于当前正式迁移前缀重新生成后运行，不能用旧目录证明新组合通过。
+共享出口已由 X1 导出 `readAuthorizedMaterialSource`。以下真实PG反例已在保全正式0000–0010前缀的受控结构上通过：五类位置、隐藏共有人/撤回事件、未知历史类别、无关联材料、撤权/到期/换绑、额外管理观察限制、身份拒绝、原件版本及摘要漂移、审计回滚、全量附件intake。受控结构逐文件与当前前缀核对；正式926迁移仍需X1按游标交付，临时结构通过不代表默认迁移门禁通过。
 
 边界仍明确：X1现有 `confirmationSources` 只校验文本intake；附件intake没有可信原生绑定前继续失败关闭。873 `collection.target` 的 people/event 不能单独提供全部评价节点/期次/材料敏感类型，creator也不是来源全体主体。生产866 saveParse、873绑定及845入队尚未接通，本次 reader 不替代它们，更不把人工写入的PG测试夹具冒充真实附件任务运行。
+
+
+## 同事务 PDF 保存适配
+
+`saveAttachmentPdf(tx, binding, parsed, serverProvenance)` 是866 `saveParse` 的具体原生实现：在调用方完成事务中锁定当前media job，复核parsing阶段、输入版本与取消状态，调用873 `readValidatedUploadInTransaction` 持集合锁重读实际归档事实，逐项绑定账号/集合/目标/文件/字节数/摘要，再把固定页面文本decoder的真实输出投影并写入现canonical store。没有另开事务，也不改job或独立入队；失败统一安全错误，旧items-v2无页面文本不能进入此入口。
+
+此适配只接PDF页面文本版本，不新增TXT/DOCX存储语义。`serverProvenance` 必须来自服务器已确认分类；null/未知类别失败，不按文件名或上传者猜类别。它不是授权函数，调用方仍须在同一完成事务先完成当前写权限、全部主体/node/kinds重验。当前私人适配尚未被生产worker装配调用，未完成材料intake分类时不得启用。
+
+新增15项真实PG组合通过：873实际归档→866实际PDF worker→本适配→canonical片段/页/parse→真实pg-boss验证队列及job完成，同一完成事务全提交或全回滚；重投只保存/排队一次；解析期间撤权、绑定漂移、取消及attempt变化阻止写入，修改账号/目标/任务/版本/摘要/parser/范围/分类均失败。测试只在对象存储和未接的处理权限处使用明确替身；验证队列不是845材料producer。另在测试中明确建立正式事件关联后，调用实际授权reader回切原文/位置，再增加范围外共有人核拒绝。这证明实际存储与权限算法组合，不声称事件关联由生产媒体链自动创建。
+
+当前本卡9文件268项统一通过（含真实PG、真实PDF及离线规则），本目录行覆盖97.59%、分支92.22%；新增保存适配行100%、分支96.77%。这些是受控结构结果，正式结构/全工程结果单独在PR记录。新适配、当前授权reader可独立审查；完整媒体intake分类、845 loader/入队、公共运行器注册及公开原件下载属于明确后继，不能把它们标为已完成。

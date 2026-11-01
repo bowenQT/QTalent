@@ -255,6 +255,7 @@ it('a required management-observation restriction is retained', async () => {
       id: f.id + '-observation',
       eventId: f.sourceEventId,
       kind: 'management_observation',
+      authorId: f.person.manager,
       text: '演示观察',
       ...f.reference,
     });
