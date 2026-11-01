@@ -254,6 +254,7 @@ export function ReceiptItem({
       className="n-card n-rcpt"
       data-state={mode === 'confirmed' ? 'confirmed' : 'ai'}
       id={`rc-${draft.draftId}`}
+      tabIndex={-1}
       aria-busy={busy || undefined}
     >
       <div className="n-rcpt__head">

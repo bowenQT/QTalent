@@ -156,7 +156,7 @@ export function reviewQuestion(
   item: MaterialReviewItem | MaterialReviewResolvedItem,
 ): string {
   const file = materialLabel(receipt, item.originalVersionId);
-  const at = item.source ? ` ${formatLocation(item.source)} ` : '';
+  const at = item.source ? ` ${formatLocation(item.source)}` : '';
   switch (item.kind) {
     case 'speaker':
       return `${file}${at}的说话人是谁`;

@@ -38,7 +38,7 @@ export const copy = {
     needsReview: '待核对',
     originalOnly: '只保留原件',
     attachmentOnly: '只作附件',
-    unsupported: '暂不支持',
+    unsupported: '待换文件',
     failed: '失败',
   },
   review: {
@@ -96,8 +96,8 @@ export const copy = {
     undoFailed: '撤销失败：这件事的分已有新的处理，已保留当前结果',
   },
   problem: {
-    offline: '没有连上，改动还在，再试一次',
-    invalid: '这件事有内容没通过检查，改动还在',
+    offline: '网络中断，改动还在，再试一次',
+    invalid: '这件事有内容待修改，改动还在',
     reload: '载入最新版本',
   },
   channel: {

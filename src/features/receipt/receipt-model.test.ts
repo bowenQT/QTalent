@@ -123,7 +123,7 @@ describe('文件状态', () => {
     expect(
       f('unsupported', { reason: 'format', message: '转成 JPG 再传' }),
     ).toMatchObject({
-      label: '暂不支持',
+      label: '待换文件',
       tone: 'err',
       message: '转成 JPG 再传',
     });
@@ -142,12 +142,12 @@ describe('待核对', () => {
     expect(
       materialReviewItemsFixture.map((item) => reviewQuestion(receipt, item)),
     ).toEqual([
-      '录音.m4a 00:01–00:03 的说话人是谁',
+      '录音.m4a 00:01–00:03的说话人是谁',
       '评审表.xlsx提到的人是谁',
       '原件里要整理哪几行',
       '面试官「演示面试官乙」是谁',
       '「演示课题」是哪个课题',
-      '原件 第 2 页 的候选人是谁',
+      '原件 第 2 页的候选人是谁',
     ]);
     const named = {
       ...materialReviewItemsFixture[1]!,
@@ -155,11 +155,11 @@ describe('待核对', () => {
       source: refs.document,
     };
     expect(reviewQuestion(receipt, named as never)).toBe(
-      '评审表.xlsx 第 2 段 的「小周」指谁',
+      '评审表.xlsx 第 2 段的「小周」指谁',
     );
     const noName = { ...materialReviewItemsFixture[3]!, observedName: null };
     expect(reviewQuestion(receipt, noName as never)).toBe(
-      '原件 第 2 页 的面试官是谁',
+      '原件 第 2 页的面试官是谁',
     );
     const project = { ...materialReviewItemsFixture[4]!, observedName: null };
     expect(reviewQuestion(receipt, project as never)).toBe(

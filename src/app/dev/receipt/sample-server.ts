@@ -168,7 +168,7 @@ export function createSampleServer(
       if (!draft)
         return recordSaveResultSchema.parse({
           status: 'not_found',
-          message: '这件事已经不在待确认里了',
+          message: '这件事已经确认过了',
         });
       if (conflictPending || input.expected_revision !== revision) {
         if (conflictPending) {
@@ -223,7 +223,7 @@ export function createSampleServer(
       if (!entry)
         return recordUndoResultSchema.parse({
           status: 'not_found',
-          message: '没有找到这次保存',
+          message: '这次保存已撤回或已过期',
         });
       if (now() - entry.savedAt >= RECORD_UNDO_WINDOW_MS)
         return recordUndoResultSchema.parse({

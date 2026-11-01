@@ -121,6 +121,8 @@ describe('回执页', () => {
       'confirm',
     ]);
     await waitFor(() => expect(card('e-d1').dataset.state).toBe('confirmed'));
+    // 确认按钮消失后焦点交给这张卡
+    await waitFor(() => expect(document.activeElement).toBe(card('e-d1')));
     expect(card('e-d1').querySelector('.n-block__sig')?.textContent).toBe(
       '叶青',
     );
@@ -133,6 +135,7 @@ describe('回执页', () => {
     await user.click(screen.getByRole('button', { name: '撤销' }));
     await screen.findByText('已撤销，回到待确认');
     await waitFor(() => expect(card('e-d1').dataset.state).toBe('ai'));
+    await waitFor(() => expect(document.activeElement).toBe(card('e-d1')));
     expect(summary()).toContain('3件待确认');
   });
 
@@ -226,7 +229,7 @@ describe('回执页', () => {
     const item = card('e-d1');
     await user.click(within(item).getByRole('button', { name: '确认这件事' }));
     expect((await within(item).findByRole('alert')).textContent).toBe(
-      '没有连上，改动还在，再试一次',
+      '网络中断，改动还在，再试一次',
     );
     await user.click(within(item).getByRole('button', { name: '确认这件事' }));
     await screen.findByText('已确认沈亦初的这件事，已进入档案');
@@ -252,7 +255,7 @@ describe('回执页', () => {
     await user.click(within(item).getByRole('button', { name: '确认这件事' }));
     await waitFor(() =>
       expect(within(item).getByRole('alert').textContent).toBe(
-        '这件事有内容没通过检查，改动还在',
+        '这件事有内容待修改，改动还在',
       ),
     );
   });
@@ -304,7 +307,7 @@ describe('回执页', () => {
     const read = vi.spyOn(actions, 'read');
     expect(document.querySelector('.n-rstate')?.textContent).toBe('处理中');
     expect(summary()).toContain('5个文件1 个处理中');
-    expect(screen.getByText('暂不支持')).toBeTruthy();
+    expect(screen.getByText('待换文件')).toBeTruthy();
     expect(screen.getByText(/转成 JPG 或 PNG 再传/)).toBeTruthy();
     expect(
       screen.getByRole('progressbar', { name: '评审讨论录音.m4a 处理进度' }),

@@ -85,7 +85,7 @@ test('files still processing update the receipt when they are read', async ({
     `${referenceApp.baseURL}/dev/receipt?role=mentor&scene=processing`,
   );
   await expect(page.locator('.n-rstate')).toHaveText('处理中');
-  await expect(page.getByText('暂不支持')).toBeVisible();
+  await expect(page.getByText('待换文件')).toBeVisible();
   await expect(page.locator('.n-rstate')).toHaveText('待核对', {
     timeout: 15_000,
   });

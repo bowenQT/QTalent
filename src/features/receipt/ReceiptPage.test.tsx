@@ -243,7 +243,7 @@ describe('已核对与隐藏', () => {
     );
     const row = screen.getByText('已核对').closest('li')!;
     expect(row.textContent).toContain(
-      '演示意见表.docx 第 2 段 的「阿泽」指谁 → 名单外的人',
+      '演示意见表.docx 第 2 段的「阿泽」指谁 → 名单外的人',
     );
     const skipped = document.querySelector('.n-rcpt[data-state="skipped"]')!;
     expect(skipped.textContent).toContain(copy.confirm.skippedNote);

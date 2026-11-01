@@ -52,6 +52,13 @@ const shanghai = (iso: string, withTime: boolean) => {
   return withTime ? `${day} ${parts.hour}:${parts.minute}` : day;
 };
 
+/** 确认或撤销后按钮会消失，焦点交给这件事的卡片，键盘用户留在原处。 */
+function focusCard(draftId: string) {
+  requestAnimationFrame(() =>
+    document.getElementById(`rc-${draftId}`)?.focus({ preventScroll: true }),
+  );
+}
+
 function draftOrder(prev: string[], view: ReceiptView) {
   const ids = [
     ...(view.receipt.draftSet?.drafts ?? []).map((d) => d.draftId),
@@ -162,6 +169,7 @@ export function ReceiptPage({
           },
         }));
         await reload();
+        focusCard(draft.draftId);
         toast.show(
           copy.toast.confirmed(
             people(view, draft.personIds),
@@ -182,6 +190,7 @@ export function ReceiptPage({
                 return next;
               });
               await reload();
+              focusCard(draft.draftId);
             },
           },
         );
@@ -234,6 +243,7 @@ export function ReceiptPage({
         className="n-card n-rcpt"
         data-state="confirmed"
         id={`rc-${id}`}
+        tabIndex={-1}
       >
         <div className="n-rcpt__head">
           {entry.events.map(({ personId }) => {
