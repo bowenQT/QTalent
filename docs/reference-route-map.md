@@ -9,7 +9,9 @@
 | 原型没有登录页       | `/login`             | `auth/LoginForm`                                       | Better Auth 登录协议 | `/api/auth/sign-in/email`、`/api/auth/sign-out` | 认证                                 | 邮箱密码登录、错误保留输入、阻止重复点击   |
 | `app/js/shell.js`    | `(desk)/layout`      | `shell/Shell`、`AccountMenu`、`CommandMenu`            | `shell.ts`           | `queries/shell.ts`                              | directory、programs 授权             | 按服务端导航渲染，账号菜单退出后回登录     |
 | `app/projects.html`  | `/projects`          | `projects/Projects`、`ProjectCard`、`NewProjectDialog` | `projects.ts`        | `queries/projects.ts`、`actions/projects.ts`    | directory、programs、staffing、audit | 管理者 / HR / 导师列表、状态筛选、新建项目 |
+| 无独立原件页；设计系统 `#c-doc` 引用角标的「打开完整纪要」 | `/sources?fragment=…&version=…` | `sources/SourceViewer`、`SourceCite`、`source-href` | `sources.ts`（P0 读取；897 材料来源经 `fromMaterialSource`） | `queries/sources.ts` 的 `readSourceForCurrentUser` | records、talent 授权、audit | 只读；地址只带两个标识，位置由服务端解析；被拒与不存在同一个「原件链接失效」页；原件全文待 BOW-873 授权读取，显示「原件待接入」；原型没有对应页，视觉为参照待同步，交视觉审查 |
 | `design-system.html` | `/dev/design-system` | 基础组件样张                                           | —                    | 路由中的生产环境门禁                            | —                                    | 仅开发环境；生产返回 404                   |
+| 同上 | `/dev/design-system/sources`、`/dev/design-system/sources/view` | 原件查看器样张（六种定位、代码快照、基线、待接入） | `sources.ts` 校验后的合成样张 | 路由中的生产环境门禁 | — | 仅开发环境；生产返回 404 |
 | `404.html`           | 全局 `not-found.tsx` | `components/ui/State`                                  | —                    | Next.js 404                                     | —                                    | 通用返回入口                               |
 
 `/` 仅重定向 `/projects`（登录落点改到 `/work` 归 BOW-874）；导航「工作台」指向 `/work`，见下文「工作台（BOW-841）」。
@@ -26,6 +28,7 @@
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
 | `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
+| `app/import.html`                 | `/import?id=…`                    | interview-import / （BOW-906 读取） | 面评导入预览 / records、directory            | 角色门禁已实现；预览读取待接通，样张 `/dev/import`；视觉参照待同步 |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
 | `app/review.html`                 | `/review?id=…`                    | review / review                     | review / talent                              | 后续 / 404     |
@@ -51,6 +54,34 @@
 | `m/me.html`                       | `/m/me`                           | mobile-account / mobile-account     | mobile-account / directory                   | 后续 / 404     |
 | `design-system.html`              | `/dev/design-system`              | 已移植基础组件                      | —                                            | 已实现开发样张 |
 | `404.html`                        | 全局 404                          | State                               | —                                            | 已实现         |
+
+## BOW-907 面评导入预览
+
+原型 `app/import.html`（BOW-898，#250，`81e4fd4`）还原到 `src/features/interview-import/`。BOW-906（导入决策，#277）和 BOW-900（解析，#257）不在 `main`，所以：
+
+- `/import?id=…` 在服务端按角色拦截：系统管理员看「这一页属于业务视角」，HR 以外看「面评导入由 HR 处理」，HR 看「面评预览待接通」；缺 `id` 写「导入链接失效」。页面不读取任何面评数据。
+- 预览、逐行确认、补录和放进待核对在开发样张 `/dev/import` 上运行，生产环境 404。演示数据取自原型 Y 种子 `imp-1`（化名，标「演示」）。
+- 视图模型 `model.ts` 镜像 906 的决策词汇和 900 的 `Selection` 三态。906 每行只给第一个阻塞原因，预览要同时显示一行的全部待办（面试官待核对和待补录可以并存），所以读取需要返回逐行事实，行状态在前端推导。出口表按 #277 的实际出口（审查 [6558574643](https://github.com/bowenQT/QTalent/pull/277#issuecomment-6558574643)「待同步」）对齐，906 合入后把镜像换成它的契约，映射不变：
+
+| 906（#277） | 行状态 |
+| --- | --- |
+| `duplicate` | 已导入过（折叠在「跳过的 N 行」，带「这份文件 … 导入过一次」提示） |
+| `not_ready / parser_manual_input`（`unrecognized`） | 有分待补录，显示页面图并补录 |
+| `needs_review(unknown_interview_candidate)`，目录里有这个人 | 待确认是谁（HR 在预览里确认，即 906 的 `confirmedCandidateId`） |
+| `needs_review(unknown_interview_candidate)`，目录里查不到 | 待认人 → 已放进待核对 |
+| `not_ready / candidate_match_unconfirmed` | 待确认是谁 |
+| `skipped / not_hired`（HR 确认是谁之后） | 将跳过（折叠在「跳过的 N 行」） |
+| `needs_review(unknown_interviewer)` | 面试官待核对 |
+| `planned` | 已确认 |
+
+- 淘汰和未入职：906 现在先认人、后看招聘状态，HR 确认是谁之前不跳过。目录里通常查不到这些人，所以原型种子里的唐语桐（淘汰）、宋知意（已发 offer · 未入职）在预览里是「待认人」，行内写「确认是谁之前不入档」，和原型「跳过的 3 行」不同。HR 确认之前能否直接跳过还在等所有者裁决（[#248 评论 6558715526](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6558715526)）；如果改为提前跳过，只改 `rowState` 的顺序。
+- `skipped / original_only` 在待核对里决定，不回到预览；`candidate_directory_missing` 在 #277 已不可达，从映射里删去。
+- 「返回后保留」：每次确认、补录、放进待核对都经端口 `ports.ts` 提交，端口返回存好的那一行；离开再回来，读取到的行已带上这些结果。样张端口把它们存在本标签页的 sessionStorage。
+- 待接通：导入已确认的行、撤销导入和导入记录（906 没有持久化和档案投影）。导入条上的按钮保持禁用，旁边写「导入待接通」。
+- 链接：「去核对」「关联面试官」「查看待核对」按原型链到 `/inbox#…`，待核对页上线前返回 404。
+- 和原型的差异：面包屑缺「工作台」上级（`route-nav` 别名属共享文件，已在 #248 登记）；导入条多一个「导入待接通」徽标；淘汰和未入职的两行见上；补录保存失败时选项留在框里，标「还没保存」并给「重试保存」。
+- 新增样式暂放 `src/features/interview-import/interview-import.css`，逐字取自原型 `niu-components.css`（`81e4fd4`），全局样式同步后删除。
+- 视觉对照：**参照待同步**。固定参照 `91b297a` 早于 #250，没有 `app/import.html`；本页按 `main` 上 `81e4fd4` 的原型实现，`91b297a` 里没有可比的部分，所以不写成视觉通过。`tests/visual/interview-import.spec.ts` 在参照缺页时整体跳过；同步到 `81e4fd4` 的请求见 [#248 评论 6557468925](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6557468925)，参照更新后自动补跑。
 
 ## BOW-851 找人契约
 

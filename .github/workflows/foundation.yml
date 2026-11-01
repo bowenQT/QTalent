@@ -62,8 +62,23 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Validate BOW-923 workbooks
+        run: PYTHONDONTWRITEBYTECODE=1 python3 tests/fixtures/bow-923/validate-workbooks.py tests/fixtures/bow-923
+      - name: Test BOW-923 workbook validation
+        run: >-
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover
+          -s tests/fixtures/bow-923 -p 'test_*.py'
+      - name: Test BOW-923 input isolation
+        run: node --test --test-concurrency=2 tests/fixtures/bow-923/seed-input.test.mjs
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm reference:prepare
+      - name: Verify deployment scripts
+        run: >-
+          node --test --test-concurrency=2 --experimental-test-coverage
+          '--test-coverage-include=deploy/*.mjs'
+          '--test-coverage-exclude=deploy/*.test.mjs'
+          --test-coverage-lines=85 --test-coverage-branches=85
+          deploy/*.test.mjs
       - run: pnpm check
         id: quality
       # 覆盖率门槛由 pnpm check 把关；Codecov 只展示，上传失败不影响检查结论。

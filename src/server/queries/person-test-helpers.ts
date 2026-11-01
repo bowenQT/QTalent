@@ -128,6 +128,7 @@ export function fixture(
       impact: '',
       ruleVersionId: 'rubric-v1',
       demo: true,
+      withdrawnAt: null,
     });
     data.fragments.push({
       id: fragmentId,
