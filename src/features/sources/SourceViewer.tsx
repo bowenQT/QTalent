@@ -11,6 +11,7 @@ import { Icon, type IconName } from '@/components/ui/Icon';
 import { Src } from '@/components/ui/Src';
 import styles from './source-viewer.module.css';
 import { BackLink } from './BackLink';
+import { Notice } from './Notice';
 import { CodeOriginal } from './OriginalCode';
 import { ImageOriginal } from './OriginalImage';
 import { MediaOriginal } from './OriginalMedia';
@@ -62,13 +63,34 @@ function pendingText(location: ViewerSource['location']): string {
   }
 }
 
-function Pending({ location }: { location: ViewerSource['location'] }) {
-  return (
-    <div className={styles.pending} role="status">
-      <b>原件待接入</b>
-      <small>{pendingText(location)}</small>
-    </div>
-  );
+/** 原件这一侧打不开时说明原因；提取出的原文始终在右侧。 */
+export function unopenedText(
+  original: OriginalState,
+  location: ViewerSource['location'],
+): { title: string; text: string } {
+  // 图片这一侧一直叫「原图」，其余叫「原件」。
+  const noun = location.kind === 'image' ? '原图' : '原件';
+  switch (original.status) {
+    case 'restricted':
+      return {
+        title: `完整${noun}在你的查看范围之外`,
+        text: '只能查看引用的这一段，见「提取」',
+      };
+    case 'failed':
+      return { title: `${noun}暂时打不开`, text: '刷新页面再试' };
+    default:
+      return { title: '原件待接入', text: pendingText(location) };
+  }
+}
+
+function Pending({
+  location,
+  original,
+}: {
+  location: ViewerSource['location'];
+  original: OriginalState;
+}) {
+  return <Notice {...unopenedText(original, location)} />;
 }
 
 function provenanceTags(source: ViewerSource): ReactNode {
@@ -144,7 +166,7 @@ export function SourceViewer({ source, original }: SourceViewerProps) {
       body = content ? (
         <DocumentOriginal {...{ location, excerpt, content, locate }} />
       ) : (
-        <Pending location={location} />
+        <Pending location={location} original={original} />
       );
       break;
     }
@@ -153,7 +175,7 @@ export function SourceViewer({ source, original }: SourceViewerProps) {
       body = content ? (
         <PdfOriginal {...{ location, content, locate }} />
       ) : (
-        <Pending location={location} />
+        <Pending location={location} original={original} />
       );
       break;
     }
@@ -162,7 +184,7 @@ export function SourceViewer({ source, original }: SourceViewerProps) {
       body = content ? (
         <SheetOriginal {...{ location, content, locate }} />
       ) : (
-        <Pending location={location} />
+        <Pending location={location} original={original} />
       );
       break;
     }
@@ -171,7 +193,7 @@ export function SourceViewer({ source, original }: SourceViewerProps) {
       body = content ? (
         <SlidesOriginal {...{ location, excerpt, content, locate }} />
       ) : (
-        <Pending location={location} />
+        <Pending location={location} original={original} />
       );
       break;
     }
@@ -184,7 +206,7 @@ export function SourceViewer({ source, original }: SourceViewerProps) {
       body = content ? (
         <MediaOriginal {...{ location, content, locate }} />
       ) : (
-        <Pending location={location} />
+        <Pending location={location} original={original} />
       );
       break;
     }
@@ -193,6 +215,11 @@ export function SourceViewer({ source, original }: SourceViewerProps) {
         <ImageOriginal
           location={location}
           content={contentFor(original, 'image')}
+          notice={
+            original.status === 'restricted' || original.status === 'failed'
+              ? unopenedText(original, location)
+              : null
+          }
           locate={locate}
         />
       );
