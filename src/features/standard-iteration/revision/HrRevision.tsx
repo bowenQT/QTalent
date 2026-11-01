@@ -1,11 +1,17 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import type { SelectionRevision } from '@/contracts/selection-standard';
 import { monthDay } from '../copy';
-import { actionFailure, newOperationId, type HrRevisionPorts } from '../ports';
+import { useOperation } from '../operation';
+import {
+  actionFailure,
+  newOperationId,
+  settle,
+  type HrRevisionPorts,
+} from '../ports';
 import {
   ChangeTable,
   compatText,
@@ -49,18 +55,11 @@ export function HrRevision({
   const [reason, setReason] = useState(initial.reason);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const operation = useRef<{ kind: string; id: string } | null>(null);
+  const operation = useOperation();
   const changes = changesBetween(base, working);
   const dirty = reason !== revision.reason || !sameChanges(changes, saved);
   const previewReady = revision.humanVersion !== null && !dirty;
   const draft = revision.state === 'draft';
-
-  // A retry of the same unanswered command keeps its operation id.
-  const operationFor = (kind: string) => {
-    if (operation.current?.kind !== kind)
-      operation.current = { kind, id: newOperationId() };
-    return operation.current.id;
-  };
 
   async function save() {
     const missing = !changes.length
@@ -74,19 +73,21 @@ export function HrRevision({
     }
     setBusy(true);
     setError('');
-    const result = await ports.save({
-      operationId: operationFor('save'),
+    const input = {
       draftId: revision.id,
       expectedRevision: revision.revision,
       reason: reason.trim(),
       changes,
-    });
+    };
+    const result = await settle(() =>
+      ports.save({ operationId: operation.idFor('save', input), ...input }),
+    );
     setBusy(false);
     if (result.status !== 'success') {
       setError(actionFailure(result));
       return;
     }
-    operation.current = null;
+    operation.done();
     setRevision(result.result);
     setReason(result.result.reason);
     toast.show('已保存草稿，影响预览已按当前草稿计算');
@@ -104,48 +105,54 @@ export function HrRevision({
     }
     setBusy(true);
     setError('');
-    const result = await ports.submit({
-      operationId: operationFor('submit'),
+    const input = {
       draftId: revision.id,
       expectedRevision: revision.revision,
       expectedPreviewId: revision.impactPreview.id,
-    });
+    };
+    const result = await settle(() =>
+      ports.submit({ operationId: operation.idFor('submit', input), ...input }),
+    );
     setBusy(false);
     if (result.status !== 'success') {
       setError(actionFailure(result));
       return;
     }
-    operation.current = null;
+    operation.done();
     const pending = result.result;
     setRevision(pending);
+    // One undo intent: the toast's 重试 resends this exact command.
+    const undo = {
+      operationId: newOperationId(),
+      draftId: pending.id,
+      expectedRevision: pending.revision,
+    };
     toast.show(`已提交 ${pending.versionId}，待管理者确认`, {
       onUndo: async () => {
-        const back = await ports.withdraw({
-          operationId: newOperationId(),
-          draftId: pending.id,
-          expectedRevision: pending.revision,
-        });
+        const back = await ports.withdraw(undo);
         if (back.status !== 'success') throw new Error(back.status);
         setRevision(back.result);
       },
       undoneText: `已撤回，${pending.versionId} 回到草稿`,
-      failedText: `撤回失败：${pending.versionId} 已离开待确认，已保留当前状态`,
+      failedText: `撤回结果待核实：点「重试」按原请求再发一次，或刷新页面查看 ${pending.versionId} 的当前状态`,
     });
   }
 
   async function withdraw() {
     setBusy(true);
-    const result = await ports.withdraw({
-      operationId: operationFor('withdraw'),
-      draftId: revision.id,
-      expectedRevision: revision.revision,
-    });
+    const input = { draftId: revision.id, expectedRevision: revision.revision };
+    const result = await settle(() =>
+      ports.withdraw({
+        operationId: operation.idFor('withdraw', input),
+        ...input,
+      }),
+    );
     setBusy(false);
     if (result.status !== 'success') {
       toast.show(actionFailure(result));
       return;
     }
-    operation.current = null;
+    operation.done();
     setRevision(result.result);
     toast.show(`${result.result.versionId} 已回到草稿`);
   }

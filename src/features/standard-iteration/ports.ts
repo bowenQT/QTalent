@@ -87,9 +87,25 @@ export type ManagerRevisionPorts = {
   >;
 };
 
+/**
+ * A Server Action can also reject (network failure, lost response). The outcome is
+ * then unknown: neither a success nor a refusal, so the page keeps the input and the
+ * operation id and lets the person resend or reload.
+ */
+export const lost = { status: 'lost' } as const;
+export type Lost = typeof lost;
+export async function settle<T>(call: () => Promise<T>): Promise<T | Lost> {
+  try {
+    return await call();
+  } catch {
+    return lost;
+  }
+}
+
 /** A failed action, phrased for the person who pressed the button. */
 export function actionFailure(
   result:
+    | Lost
     | { status: 'validation_error' }
     | { status: 'conflict'; message: string }
     | {
@@ -98,6 +114,8 @@ export function actionFailure(
       },
 ): string {
   switch (result.status) {
+    case 'lost':
+      return '连接中断，结果待核实：刷新页面查看最新状态，或保持内容再点一次重发';
     case 'validation_error':
       return '内容待补全，按提示修改后再试';
     case 'conflict':

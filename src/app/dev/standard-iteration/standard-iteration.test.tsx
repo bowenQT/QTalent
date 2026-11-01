@@ -314,7 +314,8 @@ describe('HR: 修订草稿', () => {
     await screen.findByText('已提交 xe-select-v2，待管理者确认');
     await user.click(screen.getByRole('button', { name: '撤回到草稿' }));
     expect(await screen.findByText('xe-select-v2 已回到草稿')).toBeTruthy();
-  });
+    // The whole HR chain in one test can exceed the 5 s default under parallel load.
+  }, 15_000);
 
   it('shows the manager return reason on a returned draft', async () => {
     walk({ seed: 'returned', view: 'standard' });

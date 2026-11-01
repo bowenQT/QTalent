@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -17,7 +17,8 @@ import {
   type AttributionCategory,
 } from '../copy';
 import type { DisplayCase } from '../judge/comparison-view';
-import { actionFailure, newOperationId, type AttributionPorts } from '../ports';
+import { useOperation } from '../operation';
+import { actionFailure, settle, type AttributionPorts } from '../ports';
 
 export type HypothesesState =
   | { status: 'idle' }
@@ -153,6 +154,12 @@ function HypothesisBlock({
   onConfirm: () => void;
 }) {
   const formId = `attrib-${hypothesis.id}`;
+  // 采纳并归因 opens the form; the reason box takes focus, as in the prototype.
+  const why = useRef<HTMLTextAreaElement>(null);
+  const open = draft !== null;
+  useEffect(() => {
+    if (open) why.current?.focus();
+  }, [open]);
   return (
     <div className="n-attrib" data-hyp={hypothesis.id}>
       <div className="n-block" data-state="light">
@@ -215,6 +222,7 @@ function HypothesisBlock({
           <label className="n-field" style={{ marginTop: 'var(--s-3)' }}>
             <span className="n-field__label">理由（必填，会署名留档）</span>
             <textarea
+              ref={why}
               className="n-textarea"
               id={`why-${formId}`}
               rows={2}
@@ -301,15 +309,18 @@ export function Attribution({
     null,
   );
   const reason = useRef<HTMLTextAreaElement>(null);
-  const confirmOperation = useRef<string | null>(null);
-  const draftOperation = useRef<string | null>(null);
+  const operation = useOperation();
 
   async function generate() {
     setHypotheses({ status: 'loading' });
-    const result = await ports.generate({
-      operationId: newOperationId(),
-      batchId,
-    });
+    const input = { batchId };
+    const result = await settle(() =>
+      ports.generate({
+        operationId: operation.idFor('generate', input),
+        ...input,
+      }),
+    );
+    if (result.status === 'success') operation.done();
     setHypotheses(
       result.status === 'success'
         ? { status: 'ready', items: result.result }
@@ -330,21 +341,25 @@ export function Attribution({
       return;
     }
     setBusy(true);
-    confirmOperation.current ??= newOperationId();
-    const result = await ports.confirm({
-      operationId: confirmOperation.current,
+    const input = {
       batchId,
       hypothesisId: hypothesis.id,
       categories: draft.categories,
       rationale,
       caseIds: uniqueCaseIds(hypothesis.citations),
-    });
+    };
+    const result = await settle(() =>
+      ports.confirm({
+        operationId: operation.idFor('confirm', input),
+        ...input,
+      }),
+    );
     setBusy(false);
     if (result.status !== 'success') {
       toast.show(actionFailure(result));
       return;
     }
-    confirmOperation.current = null;
+    operation.done();
     setDraft(null);
     setAttributions((list) => [...list, result.result]);
     toast.show('归因已确认并署名，结论用于修订人才评价规则');
@@ -354,21 +369,26 @@ export function Attribution({
     if (!drafting) return;
     const text = reason.current?.value.trim() ?? '';
     setBusy(true);
-    draftOperation.current ??= newOperationId();
-    const result = await ports.createRevision({
-      operationId: draftOperation.current,
+    const input = {
       baseVersionId,
       attributionId: drafting.id,
       expectedAttributionRevision: drafting.revision,
       reason: text,
-    });
+    };
+    const result = await settle(() =>
+      ports.createRevision({
+        operationId: operation.idFor('createRevision', input),
+        ...input,
+      }),
+    );
     setBusy(false);
     if (result.status !== 'success') {
-      setDrafting(null);
+      // A lost answer keeps the dialog and the typed reason for a resend.
+      if (result.status !== 'lost') setDrafting(null);
       toast.show(actionFailure(result));
       return;
     }
-    draftOperation.current = null;
+    operation.done();
     setDrafting(null);
     onDrafted(result.result.id);
   }
@@ -392,10 +412,7 @@ export function Attribution({
             attribution={attribution}
             hypothesis={hypothesisOf(attribution.hypothesisId)}
             cases={cases}
-            onDraft={(item) => {
-              draftOperation.current = null;
-              setDrafting(item);
-            }}
+            onDraft={setDrafting}
           />
         ))}
         {pending.map((hypothesis) => (
@@ -407,7 +424,6 @@ export function Attribution({
             busy={busy}
             onCase={onCase}
             onAdopt={() => {
-              confirmOperation.current = null;
               setDraft({
                 hypothesisId: hypothesis.id,
                 categories: hypothesis.categories.slice(),

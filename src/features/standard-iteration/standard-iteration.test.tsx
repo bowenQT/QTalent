@@ -30,7 +30,7 @@ import { Attribution } from './attribution/Attribution';
 import { JudgeBatch } from './judge/JudgeBatch';
 import { JudgeManager } from './judge/JudgeManager';
 import { JudgeRater } from './judge/JudgeRater';
-import { actionFailure } from './ports';
+import { actionFailure, lost } from './ports';
 import { ManagerRevision } from './revision/ManagerRevision';
 import { HrRevision } from './revision/HrRevision';
 import { ReviewPointsEditor } from './revision/ReviewPointsEditor';
@@ -61,6 +61,9 @@ const wrap = (node: React.ReactNode) =>
     </ShellTitleProvider>,
   );
 const conflict = { status: 'conflict' as const, message: '状态已更新' };
+const lostText =
+  '连接中断，结果待核实：刷新页面查看最新状态，或保持内容再点一次重发';
+const network = new Error('network');
 const fail = <T,>(value: T) => vi.fn(async () => value as never);
 
 const draft: SelectionRevision = {
@@ -108,6 +111,7 @@ describe('actionFailure', () => {
     expect(actionFailure({ status: 'model_failed', message: '' })).toBe(
       'AI 整理失败，稍后再试',
     );
+    expect(actionFailure(lost)).toBe(lostText);
   });
 });
 
@@ -219,6 +223,68 @@ describe('Attribution failures', () => {
       categories: ['evaluation_standard'],
       rationale: '只看成品',
     });
+  });
+
+  it('leaves loading when AI 整理 is lost, and resends the same request', async () => {
+    const user = userEvent.setup();
+    ports.generate.mockReset();
+    ports.generate
+      .mockRejectedValueOnce(network)
+      .mockResolvedValueOnce({ status: 'success', result: sampleHypotheses });
+    wrap(
+      <Attribution
+        batchId={sampleBatch.id}
+        baseVersionId="xe-select-v1"
+        cases={sampleHrPage.cases}
+        initialHypotheses={{ status: 'idle' }}
+        initialAttributions={[]}
+        ports={ports}
+        onCase={vi.fn()}
+        onDrafted={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '整理 AI 假设' }));
+    expect(await screen.findByText(lostText)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '重新整理' }));
+    expect(
+      await screen.findAllByRole('button', { name: '采纳并归因' }),
+    ).not.toHaveLength(0);
+    const [first, second] = ports.generate.mock.calls.map(([input]) => input);
+    expect(second).toEqual(first);
+  });
+
+  it('resends the same confirmation after a lost answer, focusing the reason first', async () => {
+    const user = userEvent.setup();
+    ports.confirm.mockReset();
+    ports.confirm
+      .mockRejectedValueOnce(network)
+      .mockResolvedValueOnce(conflict);
+    wrap(
+      <Attribution
+        batchId={sampleBatch.id}
+        baseVersionId="xe-select-v1"
+        cases={sampleHrPage.cases}
+        initialHypotheses={{ status: 'ready', items: sampleHypotheses }}
+        initialAttributions={[]}
+        ports={ports}
+        onCase={vi.fn()}
+        onDrafted={vi.fn()}
+      />,
+    );
+    const block = document.querySelector(
+      '[data-hyp="hyp-xe6-1"]',
+    ) as HTMLElement;
+    await user.click(within(block).getByRole('button', { name: '采纳并归因' }));
+    expect(document.activeElement).toBe(within(block).getByRole('textbox'));
+    await user.keyboard('只看成品');
+    await user.click(within(block).getByRole('button', { name: '确认归因' }));
+    expect(await screen.findByText(lostText)).toBeTruthy();
+    const confirm = within(block).getByRole('button', { name: '确认归因' });
+    expect((confirm as HTMLButtonElement).disabled).toBe(false);
+    await user.click(confirm);
+    await waitFor(() => expect(ports.confirm).toHaveBeenCalledTimes(2));
+    const [first, second] = ports.confirm.mock.calls.map(([input]) => input);
+    expect(second).toEqual(first);
   });
 
   it('says the batch has no hypothesis yet when AI returns none', async () => {
@@ -358,10 +424,81 @@ describe('HrRevision failures', () => {
     await user.click(await screen.findByRole('button', { name: '撤销' }));
     expect(
       await screen.findByText(
-        '撤回失败：xe-select-v2 已离开待确认，已保留当前状态',
+        '撤回结果待核实：点「重试」按原请求再发一次，或刷新页面查看 xe-select-v2 的当前状态',
       ),
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: '撤回到草稿' })).toBeTruthy();
+  });
+});
+
+describe('HrRevision lost answers', () => {
+  const saved: SelectionRevision = {
+    ...draft,
+    humanVersion: pending.humanVersion,
+  };
+
+  it('frees the form after a lost save and resends the same command', async () => {
+    const user = userEvent.setup();
+    const save = vi.fn().mockRejectedValueOnce(network).mockResolvedValueOnce({
+      status: 'success',
+      replayed: true,
+      result: saved,
+    });
+    wrap(
+      <HrRevision
+        initial={{ ...draft, aiDraft: null }}
+        base={sampleStandard.reviewPoints}
+        ports={{ save, submit: vi.fn(), withdraw: vi.fn() }}
+        judgeHref="/judge"
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '删除要点 4' }));
+    await user.click(screen.getByRole('button', { name: '保存并预览影响' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(lostText);
+    const again = screen.getByRole('button', { name: '保存并预览影响' });
+    expect((again as HTMLButtonElement).disabled).toBe(false);
+    await user.click(again);
+    expect(
+      await screen.findByText('已保存草稿，影响预览已按当前草稿计算'),
+    ).toBeTruthy();
+    const [first, second] = save.mock.calls.map(([input]) => input);
+    expect(second).toEqual(first);
+  });
+
+  it('replays the same withdraw when the undo answer is lost', async () => {
+    const user = userEvent.setup();
+    const withdraw = vi
+      .fn()
+      .mockRejectedValueOnce(network)
+      .mockResolvedValueOnce({
+        status: 'success',
+        replayed: true,
+        result: saved,
+      });
+    wrap(
+      <HrRevision
+        initial={saved}
+        base={sampleStandard.reviewPoints}
+        ports={{
+          save: vi.fn(),
+          submit: vi.fn(async () => ({
+            status: 'success' as const,
+            replayed: false,
+            result: pending,
+          })),
+          withdraw,
+        }}
+        judgeHref="/judge"
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '提交管理者确认' }));
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    await user.click(await screen.findByRole('button', { name: '重试' }));
+    expect(
+      await screen.findByText('已撤回，xe-select-v2 回到草稿'),
+    ).toBeTruthy();
+    const [first, second] = withdraw.mock.calls.map(([input]) => input);
+    expect(second).toEqual(first);
   });
 });
 
@@ -448,7 +585,9 @@ describe('ManagerRevision failures', () => {
     );
     await user.click(await screen.findByRole('button', { name: '撤销' }));
     expect(
-      await screen.findByText('撤销失败：规则已有后续变更，已保留当前发布'),
+      await screen.findByText(
+        '撤销结果待核实：点「重试」按原请求再发一次，或刷新页面查看当前发布状态',
+      ),
     ).toBeTruthy();
     expect(onSeal).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/xe-select-v2 已发布/)).toBeTruthy();
@@ -493,6 +632,84 @@ describe('ManagerRevision failures', () => {
       await screen.findByText('状态已更新，刷新页面后按当前状态处理。'),
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: '刷新' })).toBeTruthy();
+  });
+
+  it('replays the same undo after a lost answer; a lost read-back asks for a reload', async () => {
+    const user = userEvent.setup();
+    const onSeal = vi.fn();
+    const undo = vi
+      .fn()
+      .mockRejectedValueOnce(network)
+      .mockResolvedValueOnce({
+        status: 'success',
+        replayed: true,
+        result: {
+          publicationId: 'pub-4',
+          restoredVersionId: 'xe-select-v1',
+          withdrawnVersionId: 'xe-select-v2',
+          restoredDefaultForNewCohorts: 'xe-select-v1',
+          preservedBindings: view.impactPreview.preservedBindings,
+        },
+      });
+    wrap(
+      <ManagerRevision
+        initial={view}
+        base={sampleStandard.reviewPoints}
+        ports={{
+          read: vi.fn().mockRejectedValue(network),
+          publish: vi.fn(async () => published),
+          undo,
+          return: vi.fn(),
+        }}
+        onSeal={onSeal}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: '确认发布 xe-select-v2' }),
+    );
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: '确认发布 xe-select-v2',
+      }),
+    );
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    await user.click(await screen.findByRole('button', { name: '重试' }));
+    expect(
+      await screen.findByText('状态已更新，刷新页面后按当前状态处理。'),
+    ).toBeTruthy();
+    expect(onSeal.mock.calls).toEqual([[true], [false]]);
+    const [first, second] = undo.mock.calls.map(([input]) => input);
+    expect(second).toEqual(first);
+  });
+
+  it('keeps the publish dialog after a lost answer and resends the same command', async () => {
+    const user = userEvent.setup();
+    const publish = vi
+      .fn()
+      .mockRejectedValueOnce(network)
+      .mockResolvedValueOnce(published);
+    wrap(
+      <ManagerRevision
+        initial={view}
+        base={sampleStandard.reviewPoints}
+        ports={{ read: vi.fn(), publish, undo: vi.fn(), return: vi.fn() }}
+        onSeal={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: '确认发布 xe-select-v2' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', {
+      name: '确认发布 xe-select-v2',
+    });
+    await user.click(confirm);
+    expect(await screen.findByText(lostText)).toBeTruthy();
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    await user.click(confirm);
+    expect(await screen.findByText(/xe-select-v2 已发布/)).toBeTruthy();
+    const [first, second] = publish.mock.calls.map(([input]) => input);
+    expect(second).toEqual(first);
   });
 
   it('shows a draft the manager cannot act on as read-only changes', () => {
@@ -670,6 +887,80 @@ describe('dialogs close without acting', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(ports.createRevision).not.toHaveBeenCalled();
+  });
+
+  it('keeps the revision dialog after a lost answer and resends the same command', async () => {
+    const user = userEvent.setup();
+    const onDrafted = vi.fn();
+    const createRevision = vi
+      .fn()
+      .mockRejectedValueOnce(network)
+      .mockResolvedValueOnce({
+        status: 'success',
+        replayed: true,
+        result: { ...draft, id: 'draft-9' },
+      });
+    wrap(
+      <Attribution
+        batchId={sampleBatch.id}
+        baseVersionId="xe-select-v1"
+        cases={sampleHrPage.cases}
+        initialHypotheses={{ status: 'idle' }}
+        initialAttributions={[sampleAttribution]}
+        ports={{ generate: vi.fn(), confirm: vi.fn(), createRevision }}
+        onCase={vi.fn()}
+        onDrafted={onDrafted}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '起草修订' }));
+    const dialog = await screen.findByRole('dialog');
+    const go = within(dialog).getByRole('button', { name: '起草修订' });
+    await user.click(go);
+    expect(await screen.findByText(lostText)).toBeTruthy();
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    await user.click(go);
+    await waitFor(() => expect(onDrafted).toHaveBeenCalledWith('draft-9'));
+    const [first, second] = createRevision.mock.calls.map(([input]) => input);
+    expect(second).toEqual(first);
+  });
+
+  it('keeps the return dialog and its reason after a lost answer', async () => {
+    const user = userEvent.setup();
+    const sendBack = vi
+      .fn()
+      .mockRejectedValueOnce(network)
+      .mockResolvedValueOnce({
+        status: 'success',
+        replayed: false,
+        result: managerView(draft),
+      });
+    wrap(
+      <ManagerRevision
+        initial={managerView(pending)}
+        base={sampleStandard.reviewPoints}
+        ports={{
+          read: vi.fn(),
+          publish: vi.fn(),
+          undo: vi.fn(),
+          return: sendBack,
+        }}
+        onSeal={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '退回修改' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('退回理由'), '再写清');
+    const go = within(dialog).getByRole('button', { name: '退回修改' });
+    await user.click(go);
+    expect(await screen.findByText(lostText)).toBeTruthy();
+    expect(
+      (within(dialog).getByLabelText('退回理由') as HTMLTextAreaElement).value,
+    ).toBe('再写清');
+    await user.click(go);
+    await waitFor(() => expect(sendBack).toHaveBeenCalledTimes(2));
+    expect((await screen.findAllByText(/已退回给/)).length).toBeGreaterThan(0);
+    const [first, second] = sendBack.mock.calls.map(([input]) => input);
+    expect(second).toEqual(first);
   });
 });
 

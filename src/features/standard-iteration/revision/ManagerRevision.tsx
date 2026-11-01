@@ -9,9 +9,11 @@ import type {
   SelectionPublicationReceipt,
 } from '@/contracts/selection-standard';
 import { monthDay } from '../copy';
+import { useOperation } from '../operation';
 import {
   actionFailure,
   newOperationId,
+  settle,
   type ManagerRevisionPorts,
 } from '../ports';
 import {
@@ -62,12 +64,7 @@ export function ManagerRevision({
   const [dialog, setDialog] = useState<'publish' | 'return' | null>(null);
   const [busy, setBusy] = useState(false);
   const returnReason = useRef<HTMLTextAreaElement>(null);
-  const operation = useRef<{ kind: string; id: string } | null>(null);
-  const operationFor = (kind: string) => {
-    if (operation.current?.kind !== kind)
-      operation.current = { kind, id: newOperationId() };
-    return operation.current.id;
-  };
+  const operation = useOperation();
   const revision = view.revision;
   const changes = revision.humanVersion?.changes ?? [];
   const editor = revision.humanVersion?.editedBy.name ?? 'HR';
@@ -77,33 +74,42 @@ export function ManagerRevision({
 
   async function publish() {
     setBusy(true);
-    const result = await ports.publish({
-      operationId: operationFor('publish'),
+    const input = {
       draftId: revision.id,
       expectedRevision: revision.revision,
       expectedPreviewId: revision.impactPreview.id,
-    });
+    };
+    const result = await settle(() =>
+      ports.publish({
+        operationId: operation.idFor('publish', input),
+        ...input,
+      }),
+    );
     setBusy(false);
-    setDialog(null);
+    // A lost answer keeps the dialog, and with it the typed reason, for a resend.
+    if (result.status !== 'lost') setDialog(null);
     if (result.status !== 'success') {
       toast.show(actionFailure(result));
       return;
     }
-    operation.current = null;
+    operation.done();
     const receipt = result.result;
     setView({ kind: 'published', revision, receipt });
     onSeal(true);
+    // One undo intent: the toast's 重试 resends this exact command.
+    const undo = {
+      operationId: newOperationId(),
+      publicationId: receipt.publicationId,
+      expectedRevision: receipt.revision,
+    };
     toast.show(`已发布 ${receipt.versionId}，之后新建的期次默认用新版`, {
       onUndo: async () => {
-        const undone = await ports.undo({
-          operationId: newOperationId(),
-          publicationId: receipt.publicationId,
-          expectedRevision: receipt.revision,
-        });
+        const undone = await ports.undo(undo);
         if (undone.status !== 'success') throw new Error(undone.status);
         onSeal(false);
-        // The undo moves the revision number on the server: read it back, never guess.
-        const fresh = await ports.read({ draftId: revision.id });
+        // The undo moves the revision number on the server: read it back, never
+        // guess. A read that fails leaves the state unknown, not the undo failed.
+        const fresh = await settle(() => ports.read({ draftId: revision.id }));
         setView(
           fresh.status === 'success' && fresh.view.audience === 'manager'
             ? { kind: 'review', revision: fresh.view.revision }
@@ -111,26 +117,29 @@ export function ManagerRevision({
         );
       },
       undoneText: `已撤销，${receipt.versionId} 回到待确认`,
-      failedText: '撤销失败：规则已有后续变更，已保留当前发布',
+      failedText:
+        '撤销结果待核实：点「重试」按原请求再发一次，或刷新页面查看当前发布状态',
     });
   }
 
   async function sendBack() {
     const reason = returnReason.current?.value.trim() ?? '';
     setBusy(true);
-    const result = await ports.return({
-      operationId: operationFor('return'),
+    const input = {
       draftId: revision.id,
       expectedRevision: revision.revision,
       reason,
-    });
+    };
+    const result = await settle(() =>
+      ports.return({ operationId: operation.idFor('return', input), ...input }),
+    );
     setBusy(false);
-    setDialog(null);
+    if (result.status !== 'lost') setDialog(null);
     if (result.status !== 'success') {
       toast.show(actionFailure(result));
       return;
     }
-    operation.current = null;
+    operation.done();
     setView({ kind: 'returned', revision: result.result, reason });
     toast.show(`已退回给${editor}修改，理由在${editor}的待办里`);
   }
