@@ -100,6 +100,7 @@ export function createEntryIdentityService(
       personId: string;
       channel: EntryChannel;
       credentialId: string;
+      credentialRevision: number;
     }> {
       try {
         const state =
@@ -128,6 +129,7 @@ export function createEntryIdentityService(
           accountId: current.accountId,
           personId: current.personId,
           credentialId: current.credentialId,
+          credentialRevision: current.revision,
         };
       } catch (error) {
         // Retire this capability even if the backing row is later restored.
