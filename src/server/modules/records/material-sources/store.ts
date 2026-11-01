@@ -243,14 +243,12 @@ export async function writeMaterialParse(
       attempt: fence.attempt,
     });
     if (facts.pages.length)
-      await tx
-        .insert(materialPdfPages)
-        .values(
-          facts.pages.map((page) => ({
-            ...page,
-            parseVersionId: facts.binding.parseVersionId,
-          })),
-        );
+      await tx.insert(materialPdfPages).values(
+        facts.pages.map((page) => ({
+          ...page,
+          parseVersionId: facts.binding.parseVersionId,
+        })),
+      );
     await tx.insert(fragments).values(
       facts.fragments.map((fragment) => ({
         id: fragment.fragmentId,

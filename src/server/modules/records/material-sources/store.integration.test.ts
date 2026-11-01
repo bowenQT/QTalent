@@ -69,21 +69,17 @@ beforeAll(async () => {
   await migrate(connection.db, {
     migrationsFolder: 'src/server/db/migrations',
   });
-  await connection.db
-    .insert(originals)
-    .values({
-      id: 'demo-legacy-original',
-      title: '演示旧来源',
-      kind: 'original',
-    });
-  await connection.db
-    .insert(originalVersions)
-    .values({
-      id: 'demo-legacy-version',
-      originalId: 'demo-legacy-original',
-      version: 1,
-      contentDigest: 'legacy-non-sha-digest',
-    });
+  await connection.db.insert(originals).values({
+    id: 'demo-legacy-original',
+    title: '演示旧来源',
+    kind: 'original',
+  });
+  await connection.db.insert(originalVersions).values({
+    id: 'demo-legacy-version',
+    originalId: 'demo-legacy-original',
+    version: 1,
+    contentDigest: 'legacy-non-sha-digest',
+  });
   for (const [i, location] of legacy.entries())
     await connection.pool.query(
       'INSERT INTO records_fragments (id, original_version_id, location, excerpt) VALUES ($1,$2,$3,$4)',
@@ -159,21 +155,17 @@ async function setup(location = locations[0]) {
           ]
         : [],
   };
-  await connection.db
-    .insert(originals)
-    .values({
-      id: `demo-original-${key}`,
-      title: '演示原件',
-      kind: 'original',
-    });
-  await connection.db
-    .insert(originalVersions)
-    .values({
-      id: versionId,
-      originalId: `demo-original-${key}`,
-      version: 1,
-      contentDigest,
-    });
+  await connection.db.insert(originals).values({
+    id: `demo-original-${key}`,
+    title: '演示原件',
+    kind: 'original',
+  });
+  await connection.db.insert(originalVersions).values({
+    id: versionId,
+    originalId: `demo-original-${key}`,
+    version: 1,
+    contentDigest,
+  });
   const job = {
     ...newJob(
       {
