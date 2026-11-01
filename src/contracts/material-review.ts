@@ -320,6 +320,8 @@ export const materialReviewResolvedItemSchema = z
     z.strictObject({
       ...resolved,
       kind: z.literal('speaker'),
+      // Current-view question context only; never an automatic model input.
+      quote: text.nullable(),
       source: materialSourceReferenceSchema,
       resolution: z.discriminatedUnion('action', [
         z.strictObject({ action: z.literal('bind'), personId: id }),
@@ -329,6 +331,7 @@ export const materialReviewResolvedItemSchema = z
     z.strictObject({
       ...resolved,
       kind: z.literal('unknown_person'),
+      observedName: text.nullable(),
       resolution: z.discriminatedUnion('action', [
         z.strictObject({
           action: z.literal('bind_people'),
@@ -352,6 +355,7 @@ export const materialReviewResolvedItemSchema = z
     z.strictObject({
       ...resolved,
       kind: z.literal('unknown_interviewer'),
+      observedName: text.nullable(),
       source: pdfSource,
       importRowId: id,
       resolution: z.strictObject({
@@ -362,6 +366,7 @@ export const materialReviewResolvedItemSchema = z
     z.strictObject({
       ...resolved,
       kind: z.literal('unknown_project'),
+      observedName: text.nullable(),
       resolution: z.discriminatedUnion('action', [
         z.strictObject({
           action: z.literal('link_existing_project'),
@@ -373,6 +378,7 @@ export const materialReviewResolvedItemSchema = z
     z.strictObject({
       ...resolved,
       kind: z.literal('unknown_interview_candidate'),
+      observedName: text.nullable(),
       source: pdfSource,
       importRowId: id,
       resolution: z.discriminatedUnion('action', [
@@ -432,9 +438,11 @@ export const materialReviewUndoReceiptSchema = z
   .refine((value) => value.item.revision === value.previousRevision + 1);
 /** Recheck current authority, material/row binding and actual dependent draft
  * confirmations/imported rows AFTER the source locks, including on replay.
- * A confirmed dependent draft or imported row conflicts; withdraw confirmation
- * or import first. Undo, audit, draft invalidation and pending revision commit
- * together. Never modify confirmed history or automatically enqueue the model.
+ * A confirmed dependent draft or imported row conflicts. Confirmation withdrawal
+ * is only within BOW-846's existing 5-second server wall-clock window; after it
+ * expires, confirmed content is read only and correction is post-competition.
+ * Imported rows require the separate audited import withdrawal first. Undo,
+ * audit, draft invalidation and pending revision commit together. Never modify confirmed history or automatically enqueue the model.
  * Same actor/key/semantic command replays the original receipt without a new
  * write/job; stale versions or another payload conflict and preserve input.
  */

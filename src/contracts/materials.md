@@ -1,6 +1,6 @@
 # 材料批次契约（BOW-897）
 
-本页与 `materials.ts`、`material-review.ts`、`record.ts` 同步维护。11/1 依据：[所有者裁决第 1 条](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6551983878)。旧指针 `0b20a913` 的 rvw1 审查与产品分歧历史保留。本次新口径续作的第 1 轮已由 rvw2 审过 `ac043b5`；依据[补充裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6552570221)补撤销和已解决投影，仍计第 1 轮修改，另按[提示裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6552620048)增加仅布尔的权限隐藏提示。
+本页与 `materials.ts`、`material-review.ts`、`record.ts` 同步维护。11/1 依据：[所有者裁决第 1 条](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6551983878)。旧指针 `0b20a913` 的 rvw1 审查与产品分歧历史保留。本次新口径续作的第 1 轮已由 rvw2 审过 `ac043b5`；依据[补充裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6552570221)补撤销和已解决投影，仍计第 1 轮修改，另按[提示裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6552620048)增加仅布尔的权限隐藏提示。之后依据[问题展示与五秒窗口裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6552938557)补已解决项的问题字段，并明确确认撤销的五秒边界；既有 R1 修改 1/2 和 rvw2 对 `9e94932` 的通过保留，本次补充范围单列，不全面重置。
 
 ## 回执是一份逐项快照
 
@@ -59,9 +59,9 @@ defer、unbind、keep_original_only、keep_attachment_only 均要求 `resume:nul
 
 六类解决结果均可使用 `materialReviewUndoCommandSchema`：`action: undo`、kind、batchId、itemId、expectedRevision、operationId。修订指向当前已解决项，不是批次修订；调用者不能附带处理者、权限、已确认/已导入标志或替换结果。服务端解析当前处理权限与真实事项、材料/原件、节点和面评行绑定。处理者与原解决动作相同，过期关系按 899 交 HR 分派；知道旧操作者或 itemId 不授予撤销权限。
 
-`materialReviewResolvedItemSchema` 返回当前解决结果的 kind、稳定 itemId、revision、材料/原件和来源定位、typed resolution、resolvedAt 与 auditId；两类面评核对保留同一个 importRowId。它不是可写历史表，不带候选列表、AI 草稿或建议分；defer/unbind 仍是未解决状态，不能冒充已解决项。当前快照的同一个 itemId 只能在 items 或 resolvedItems 中出现一次。名单外的结果保留 `keep_original_only`，没有人或事件也能显示「已标为名单外的人」。
+`materialReviewResolvedItemSchema` 返回当前解决结果的 kind、稳定 itemId、revision、材料/原件和来源定位、typed resolution、resolvedAt 与 auditId；两类面评核对保留同一个 importRowId。其中 unknown_person、unknown_project、unknown_interviewer、unknown_interview_candidate 必填可空的 observedName，说话人必填可空的 quote；其他类型不接收这些不适用的字段。非空时须有实际文字，null 表示没有可展示的问题文字（包括当前权限要求隐藏的情况），不能借 null 推导隐藏数量。读取时先按当前权限过滤问题与结果，再展示「问题 → 结果」；图片继续用来源与范围定位。问题文字与引文只用于只读展示，不因已经解决而自动成为模型输入，模型调用仍须重新检查完整主体与来源范围。它不是可写历史表，不带候选列表、AI 草稿或建议分；defer/unbind 仍是未解决状态，不能冒充已解决项。当前快照的同一个 itemId 只能在 items 或 resolvedItems 中出现一次。名单外的结果保留 `keep_original_only`，没有人或事件也能显示「已标为名单外的人」。
 
-`undo` 只读元数据为 available，或 blocked 加原因 `dependent_draft_confirmed / interview_row_imported`；后一原因只用于两类面评核对。页面据此引导先撤销确认或撤销导入，不由页面标志放行写入。撤销截止条件由服务端在源用例的事务/锁后查真实依赖：任一依赖此核对的草稿已确认，或所关联的面评行已导入，就返回保留原输入的 conflict。不同人员另一次确认同样阻断；不能只看原处理人、页面状态或批次是否完成。之后更正须走对应的撤销确认/导入流程，不放宽它们自己的权限和窗口，也不在本卡改写人工确认历史。
+`undo` 只读元数据为 available，或 blocked 加原因 `dependent_draft_confirmed / interview_row_imported`；后一原因只用于两类面评核对。页面只在相应源动作仍可撤销时引导，不由页面标志放行写入。撤销截止条件由服务端在源用例的事务/锁后查真实依赖：任一依赖此核对的草稿已确认，或所关联的面评行已导入，就返回保留原输入的 conflict。不同人员另一次确认同样阻断；不能只看原处理人、页面状态或批次是否完成。确认撤销只沿用 BOW-846 现有的 5 秒服务器墙钟窗口：从保存回执 savedAt 起算，0 <= elapsed < RECORD_UNDO_WINDOW_MS（5_000ms），恰好 5 秒即关闭；不能用演示业务日期或客户端时钟延长。窗口内仍须按 846 的当前权限、版本与后续确认/复核保护检查，通过原撤销确认后才能重新核对；窗口外已确认内容只读，保留原版本并记录更正的流程放到赛后，不提供长期「改回待确认」。关联面评行仍须走原有的审计撤销导入流程，不扩大它的权限。本卡不改 846 或 P0 撤销协议，不改写人工确认历史。
 
 成功的 `materialReviewUndoReceiptSchema` 必须有同事务的 auditId、previousRevision、同一核对项回到 pending 且 revision 恰加一、受影响的未确认草稿 invalidatedDraftIds，以及 `resume: null`。项从 resolvedItems 移回 items，材料、来源、事项 ID 保持稳定；相关主体/范围需重新核对。撤销不自动调用模型、不自动排队，不返回可沿用的 SBI 或建议分，也不撤销其他材料的核对。后续显式解决仍走模型前当前身份与范围过滤。
 
@@ -69,6 +69,6 @@ defer、unbind、keep_original_only、keep_attachment_only 均要求 `resume:nul
 
 ## 下游切换
 
-这是新冻结输入，不能与旧 `0b20a913` DTO 混用：批次输入/草稿须提供 projectId；回执改为并行快照与校验计数，并必填 resolvedItems 与 hasHiddenContent（无已解决项为 []，未隐藏为 false）；恢复回执须带材料、动作、目标阻断；待核对增为六类。899 的待办类型/具体事项引用、845/846/873/906 的实际读写与页面均须明确同步新 SHA 后复验。X1 重新冻结指针后再排最终迁移。
+这是新冻结输入，不能与旧 `0b20a913` DTO 混用：批次输入/草稿须提供 projectId；回执改为并行快照与校验计数，并必填 resolvedItems 与 hasHiddenContent（无已解决项为 []，未隐藏为 false）；已解决的四类名字问题须带 observedName，说话人须带 quote，无当前可展示文字时显式 null，不能省略字段；恢复回执须带材料、动作、目标阻断；待核对增为六类。899 的待办类型/具体事项引用、845/846/873/906 的实际读写与页面均须明确同步新 SHA 后复验。X1 重新冻结指针后再排最终迁移。
 
 P0 `source*`、七格式上传与单草稿协议不变。新增的是待核对 kind，不是评价节点 kind；919/923 的节点类型裁决不在本次范围。本次不写业务实现、共享出口、迁移、包或原型，不以 schema 通过冒充授权、持久化或真实供应商验证。

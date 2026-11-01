@@ -36,6 +36,8 @@ function resolvedItem(index: number) {
     auditId: 'demo-review-audit',
     undo: { status: 'available' },
     ...('importRowId' in item ? { importRowId: item.importRowId } : {}),
+    ...('observedName' in item ? { observedName: item.observedName } : {}),
+    ...(item.kind === 'speaker' ? { quote: item.quote } : {}),
   };
 }
 function receipt(index: number) {
@@ -320,5 +322,80 @@ describe('current read-only resolution and undo cutoff metadata', () => {
           source: null,
         }).success,
       ).toBe(false);
+  });
+});
+
+describe('owner supplement: authorized question before the resolved result', () => {
+  it.each([1, 3, 4, 5])(
+    'retains a nullable original observed name for resolved kind at %i',
+    (index) => {
+      const value = resolvedItem(index);
+      for (const observedName of [null, '演示：原来待核对的名字']) {
+        const projected = { ...value, observedName };
+        expect(materialReviewResolvedItemSchema.parse(projected)).toEqual(
+          projected,
+        );
+      }
+      for (const observedName of [undefined, '', '   ', 42, ['演示姓名']])
+        expect(
+          materialReviewResolvedItemSchema.safeParse({ ...value, observedName })
+            .success,
+        ).toBe(false);
+    },
+  );
+  it('returns the speaker question only as a nullable, nonempty read projection', () => {
+    const value = resolvedItem(0);
+    for (const quote of [null, '演示：这句话由谁说？']) {
+      const projected = { ...value, quote };
+      expect(materialReviewResolvedItemSchema.parse(projected)).toEqual(
+        projected,
+      );
+    }
+    for (const quote of [undefined, '', '   ', 42, { text: '演示引文' }])
+      expect(
+        materialReviewResolvedItemSchema.safeParse({ ...value, quote }).success,
+      ).toBe(false);
+    expect(
+      materialReviewResolvedItemSchema.safeParse({
+        ...value,
+        observedName: '演示姓名',
+      }).success,
+    ).toBe(false);
+    expect(
+      materialReviewResolvedItemSchema.safeParse({
+        ...resolvedItem(1),
+        quote: '演示引文',
+      }).success,
+    ).toBe(false);
+  });
+  it('does not turn read-only problem context into caller-supplied undo authority or model work', () => {
+    const item = materialReviewItemsFixture[0];
+    const command = {
+      operationId: 'demo-undo-question',
+      batchId: item.batchId,
+      itemId: item.itemId,
+      expectedRevision: 2,
+      kind: item.kind,
+      action: 'undo',
+    };
+    for (const patch of [
+      { quote: '演示：这句话由谁说？' },
+      { observedName: null },
+      { canCallModel: true },
+    ])
+      expect(
+        materialReviewUndoCommandSchema.safeParse({ ...command, ...patch })
+          .success,
+      ).toBe(false);
+    const projected = {
+      ...receipt(0),
+      hasHiddenContent: true,
+      resolvedItems: [{ ...resolvedItem(0), quote: null }],
+    };
+    expect(materialBatchReceiptSchema.parse(projected)).toEqual(projected);
+    expect(
+      materialBatchReceiptSchema.safeParse({ ...projected, hiddenCount: 1 })
+        .success,
+    ).toBe(false);
   });
 });
