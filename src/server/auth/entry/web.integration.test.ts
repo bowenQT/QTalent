@@ -225,7 +225,7 @@ describe('Web current authentication sources in real PostgreSQL', () => {
   });
 });
 
-it('composes independent requests with current database authority and revoked account bindings', async () => {
+it('composes independent requests with current database authority and reassigned account bindings', async () => {
   const f = await fixture();
   const grantId = randomUUID();
   await f.db.insert(grants).values({
@@ -258,8 +258,11 @@ it('composes independent requests with current database authority and revoked ac
   expect(activeGrants(await second.loadContext(f.db, second.identity))).toEqual(
     [],
   );
+  // Keep the historical grant row: the final schema forbids deleting its
+  // referenced binding. A reassignment must retire both issued requests.
   await f.db
-    .delete(accountBindings)
+    .update(accountBindings)
+    .set({ personId: f.otherPerson })
     .where(eq(accountBindings.accountId, f.accountId));
   await expect(first.loadContext(f.db, first.identity)).rejects.toMatchObject({
     kind: 'unauthenticated',
