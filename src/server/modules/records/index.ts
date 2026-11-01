@@ -90,3 +90,5 @@ export type { UploadDispatch, PostgresUploadStore } from './uploads/store';
 export { readValidatedUpload } from './uploads/handoff';
 export type { ValidatedUpload } from './uploads/handoff';
 export type { UploadCollectionMembers } from './uploads/types';
+
+export { readAuthorizedMaterialSource } from './material-sources/read';
