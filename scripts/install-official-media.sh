@@ -6,6 +6,16 @@ trap 'printf "media supply check failed at line %s\n" "$LINENO" >&2' ERR
 printf 'Verifying media supply platform\n'
 [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]]
 [[ "$(dpkg --print-architecture)" == amd64 ]]
+# GitHub runner-images makes /usr/share writable; restore only the packaged public keyring.
+keyring=/usr/share/keyrings/ubuntu-archive-keyring.gpg
+[[ -f "$keyring" && ! -L "$keyring" ]]
+[[ "$(stat -c %u "$keyring")" == 0 ]]
+[[ "$(dpkg-query -S "$keyring")" == "ubuntu-keyring: $keyring" ]]
+# Package-database integrity guard; apt signature validation remains mandatory.
+[[ -z "$(dpkg --verify --verify-format rpm ubuntu-keyring)" ]]
+sudo chmod 0644 "$keyring"
+[[ "$(stat -c '%u %a' "$keyring")" == '0 644' ]]
+printf 'packaged_public_keyring_mode_restored=true\n'
 printf 'Refreshing signed package metadata\n'
 sudo apt-get update -qq
 packages=(
