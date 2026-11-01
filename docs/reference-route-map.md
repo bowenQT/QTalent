@@ -283,6 +283,6 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 | 拖放区说明「PDF、Word、PPT、Excel……音频和视频」 | 本次七种格式 | BOW-858 本次格式清单 | 格式范围扩大 |
 | HEIC 转成 JPG 重传 | 换文件 | 本次格式清单不含图片 | — |
 
-**截图对比**：`tests/visual/workbench.spec.ts` 在 `/work` 上比 HR 两张卡的标题、拖放区（说明文字遮罩）和 `#upload` 的列位置，导师比折叠标题和 `#fold` 的列位置。批次回执、任务行在固定参照 `91b297a` 里还是单文件版本，统一投递来自 `81e4fd4`（#250），记为**参照待同步**；目前只在开发样张上与工作区原型人工并排对照，参照指针前移后补进自动对比。
+**截图对比**：`tests/visual/workbench.spec.ts` 在 `/work` 上比 HR 两张卡的标题、拖放区（说明文字遮罩）和 `#upload` 的列位置，导师比折叠标题和 `#fold` 的列位置。批次回执、任务行在固定参照 `91b297a` 里还是单文件版本，统一投递来自 `81e4fd4`（#250），记为**参照待同步**，不算视觉通过；参照指针前移后补进自动对比。
 
 **共享样式**：`.n-dropbatch*` 与 `.n-rstate[data-s=processing|verify|confirm|done]` 先逐字放在 `sections/materials/materials.css`，已在 #248 登记移植请求，移植后删除。
