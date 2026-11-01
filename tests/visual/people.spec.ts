@@ -57,13 +57,16 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
             // so the rows wrap the same way at phone width.
             '.n-person-row > :nth-child(2)',
           ],
-          // Team parent path, job title and level have no columns yet (BOW-834
-          // S1 / S2): same-size placeholders on both sides.
-          replace: [
-            '#pp-list .nt-h2, #plist .nt-h2',
-            '#pp-list .n-person__meta, #plist .n-person__meta',
-          ],
         });
+        // Team parent path, job title and level have no columns yet (BOW-834 S1 /
+        // S2): the text differs, so it is hidden on both sides; its line box stays.
+        for (const side of [prototype, page])
+          await side.evaluate(() => {
+            for (const node of document.querySelectorAll<HTMLElement>(
+              '#pp-list .nt-h2, #plist .nt-h2, #pp-list .n-person__meta, #plist .n-person__meta',
+            ))
+              node.style.setProperty('visibility', 'hidden');
+          });
         // Avatar photos lazy-load below the fold; a lazy image never decodes until it
         // is scrolled to, so the full-page capture loads them all first.
         await page.evaluate(() => {
@@ -71,7 +74,12 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
         });
         await stabilize(prototype);
         await stabilize(page);
-        await matchingMasks(prototype, page, ['.nt-caption']);
+        await matchingMasks(prototype, page, [
+          '.nt-caption',
+          // At phone width the shell's side bar scrolls to the current entry, whose
+          // name differs per role; the shell is compared on the project list.
+          ...(viewportName === 'mobile-width' ? ['.nt-side'] : []),
+        ]);
         await compare(
           await prototype.screenshot({
             animations: 'disabled',
