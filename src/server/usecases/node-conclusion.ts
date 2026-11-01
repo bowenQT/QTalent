@@ -167,6 +167,10 @@ export function createNodeConclusionUsecase<C>(
         : canReadNodeConclusion(loaded.context, identity);
     if (!permitted)
       throw new NodeConclusionError('forbidden', '结论不存在或不可见');
+    // An operation replay belongs to the human who signed that version. A
+    // newly bound HR may read history or create a new operation, not inherit it.
+    if (permission === 'confirm' && loaded.actor.id !== record.confirmedBy.id)
+      throw new NodeConclusionError('forbidden', '原确认操作的身份绑定已变化');
     requireNodeConclusionSources(
       loaded.context,
       identity,
