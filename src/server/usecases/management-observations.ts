@@ -59,9 +59,9 @@ async function snapshot<Tx>(
   if (
     result.context.account.id !== accountId ||
     !result.actorName.trim() ||
+    // noReview excludes evaluation SUBJECTS, not authenticated staff performing their duties.
     !result.context.people.some(
-      (person) =>
-        person.id === result.context.account.personId && !person.noReview,
+      (person) => person.id === result.context.account.personId,
     )
   )
     throw new ObservationError('forbidden');

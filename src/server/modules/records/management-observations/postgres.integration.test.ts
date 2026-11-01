@@ -20,7 +20,7 @@ import {
   createManagementObservationPostgresPorts,
   type ObservationFactReaders,
 } from './postgres';
-import { managementObservationSchema } from './model';
+import { managementObservationSchema, ObservationError } from './model';
 import {
   manual,
   imported,
@@ -879,4 +879,66 @@ it('rereads the clock after actual writes and rolls back when the current relati
     operations: 0,
     audits: 0,
   });
+});
+
+it('redacts a real Drizzle parameter-serialization failure without SQLSTATE including text and signature', async () => {
+  const store = ports(),
+    text = '演示：不应回显的观察正文',
+    authorName = '演示：不应回显的署名';
+  const bad = {
+    toPostgres() {
+      throw new Error('Synthetic transport conversion failed');
+    },
+  };
+  let raw: unknown;
+  await db().transaction(async (tx) => {
+    try {
+      await tx.execute(sql`select ${text},${authorName},${bad}`);
+    } catch (error) {
+      raw = error;
+    }
+  });
+  expect(String(raw)).toContain(text);
+  expect(String(raw)).toContain(authorName);
+  const projected = await store
+    .transaction((tx) => tx.execute(sql`select ${text},${authorName},${bad}`))
+    .catch((e: unknown) => e);
+  expect(projected).toMatchObject({
+    name: 'ObservationPersistenceError',
+    sqlState: undefined,
+  });
+  expect(String(projected)).not.toContain(text);
+  expect(String(projected)).not.toContain(authorName);
+  expect(JSON.stringify(projected)).not.toMatch(/query|params|cause|不应回显/);
+});
+it('preserves the stable business ObservationError but sanitizes other error values and rolls back', async () => {
+  const store = ports();
+  const domain = new ObservationError('forbidden');
+  await expect(
+    store.transaction(async () => {
+      throw domain;
+    }),
+  ).rejects.toBe(domain);
+  for (const reason of [
+    new Error('演示：敏感内容'),
+    '演示：敏感原始异常',
+    null,
+  ]) {
+    const error = await store
+      .transaction(async (tx) => {
+        await store.insertObservation(tx, observation());
+        throw reason;
+      })
+      .catch((e: unknown) => e);
+    expect(error).toMatchObject({
+      name: 'ObservationPersistenceError',
+      sqlState: undefined,
+    });
+    expect(String(error)).not.toContain('敏感');
+    expect(await counts()).toMatchObject({
+      observations: 0,
+      operations: 0,
+      audits: 0,
+    });
+  }
 });

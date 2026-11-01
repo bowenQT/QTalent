@@ -439,3 +439,28 @@ it('rejects a stored replay whose immutable content no longer matches its receip
     createManagementObservation(h.ports, h.account, manual()),
   ).rejects.toMatchObject({ code: 'invalid_data' });
 });
+
+it.each(['hr', 'manager', 'author'] as const)(
+  'noReview on the %s operator does not revoke existing business authority',
+  async (role) => {
+    const h = harness(role);
+    h.state.context.people.find(
+      (p) => p.id === h.state.context.account.personId,
+    )!.noReview = true;
+    const result = await createManagementObservation(
+      h.ports,
+      h.account,
+      manual(),
+    );
+    expect(result.observation.author.personId).toBe(
+      h.state.context.account.personId,
+    );
+    expect(
+      await readManagementObservations(h.ports, h.account, subject),
+    ).toEqual([result.observation]);
+    expect(
+      (await createManagementObservation(h.ports, h.account, manual()))
+        .replayed,
+    ).toBe(true);
+  },
+);

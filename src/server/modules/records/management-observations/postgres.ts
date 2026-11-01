@@ -23,7 +23,7 @@ export type ObservationFactReaders = Pick<
 };
 /** Do not leak Drizzle's SQL/parameters (observation text) from a database rejection. */
 export class ObservationPersistenceError extends Error {
-  constructor(readonly sqlState: string) {
+  constructor(readonly sqlState?: string) {
     super('Management observation persistence failed');
     this.name = 'ObservationPersistenceError';
   }
@@ -123,9 +123,9 @@ export function createManagementObservationPostgresPorts(
           { isolationLevel: 'read committed' },
         );
       } catch (error) {
-        const code = sqlState(error);
-        if (code) throw new ObservationPersistenceError(code);
-        throw error;
+        // Domain errors have fixed public messages. Drizzle/transport/reader errors may carry source text even without SQLSTATE.
+        if (error instanceof ObservationError) throw error;
+        throw new ObservationPersistenceError(sqlState(error));
       }
     },
     async lockOperation(tx, accountId, operationId) {
