@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { runStandardIterationImport } from './run';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
@@ -244,6 +245,30 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
     put(g, 'seed-input.json', s);
     await expect(prepareStandardIterationDemo(g)).rejects.toThrow(
       'complete input rows',
+    );
+  });
+});
+
+describe('923 explicit operator command', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it.each([[], ['--dry-run'], ['--apply', '--force']])(
+    'refuses ambiguous invocation %j before opening a connection',
+    async (...args) => {
+      await expect(runStandardIterationImport(args)).rejects.toThrow(
+        'Explicit --apply required',
+      );
+    },
+  );
+  it('refuses production before opening a connection', async () => {
+    vi.stubEnv('APP_ENV', 'production');
+    vi.stubEnv('DATABASE_URL', 'postgresql://test:test@127.0.0.1/unused_test');
+    vi.stubEnv('BETTER_AUTH_SECRET', 'synthetic-test-only-secret-00000000');
+    vi.stubEnv('BETTER_AUTH_URL', 'http://localhost:3000');
+    vi.stubEnv('ACCESS_ENFORCED', 'true');
+    vi.stubEnv('ACCESS_ISSUER', 'https://synthetic-test.cloudflareaccess.com');
+    vi.stubEnv('ACCESS_AUDIENCE', 'synthetic-test');
+    await expect(runStandardIterationImport(['--apply'])).rejects.toThrow(
+      'Demo import is forbidden in production',
     );
   });
 });
