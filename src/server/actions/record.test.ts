@@ -80,6 +80,7 @@ beforeEach(() => {
       withdrawnEvents: receipt.events,
       withdrawnConfirmationIds: receipt.confirmationIds,
       withdrawnReviewItemIds: [],
+      inputRestoration: 'available',
       originalInput: {
         operation_id: 'input-op',
         text: '演示原文',

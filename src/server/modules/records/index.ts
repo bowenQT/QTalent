@@ -28,10 +28,12 @@ export {
   readRecordConfirmationState,
   commitRecordSave,
   commitRecordUndo,
+  requireRecordUndoCommit,
   RecordWriteError,
 } from './write';
 export type {
   RecordCommand,
   RecordSaveLock,
+  RecordUndoCommit,
   RecordConfirmationWorkFact,
 } from './write';
