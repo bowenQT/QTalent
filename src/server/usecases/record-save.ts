@@ -39,6 +39,7 @@ import {
   lockRecordCommand,
   readRecordConfirmationState,
   readRecordResaveState,
+  readRecordCancellationHistory,
   recordUndoCancellationFacts,
   commitRecordSave,
   commitRecordUndo,
@@ -433,11 +434,12 @@ async function execute(
               );
             const state: ConfirmationState = { ...rows, ...scored };
             if (command.action === 'save') {
-              const resave = await readRecordResaveState(tx, lock);
-              if (resave) {
-                // Records proves the accepted undo and old current mappings;
-                // programs facts are compared under this transaction's row locks.
-                for (const fact of resave.cancelledConfirmationWork) {
+              const history = await readRecordCancellationHistory(tx, lock);
+              if (history) {
+                // The accepted native cancellation chain also applies to later
+                // evaluators of an ACTIVE event. It grants no mapping rewrite.
+                // Compare every programs fact under this transaction's row locks.
+                for (const fact of history.cancelledConfirmationWork) {
                   const item = workItems.find((row) => row.id === fact.id);
                   if (
                     !item ||
@@ -453,7 +455,15 @@ async function execute(
                       'resave_cancelled_work_changed',
                     );
                 }
-                resaveWorkFacts = resave.cancelledConfirmationWork;
+                resaveWorkFacts = history.cancelledConfirmationWork;
+              }
+              const resave = await readRecordResaveState(tx, lock);
+              if (resave) {
+                if (!history)
+                  throw new ConfirmationError(
+                    'conflict',
+                    'resave_history_changed',
+                  );
                 state.mappings = state.mappings.filter(
                   (row) => row.draftId !== lock.draftId,
                 );

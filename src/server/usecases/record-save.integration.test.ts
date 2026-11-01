@@ -1845,3 +1845,95 @@ it.each([4999, 5000])(
       });
   },
 );
+
+it('active generation cancellation history: a peer with a prior cancelled task confirms without reviving that task', async () => {
+  const f = await native();
+  const peerTask = await db().transaction((tx) =>
+    insertEvaluationWorkItem(
+      tx,
+      {
+        id: f.id + '-peer-history-task',
+        evaluationNodeId: f.node,
+        personId: f.person.one,
+        assignedRelationId: f.relationTwo,
+        assignedEvaluatorId: f.person['rater-two'],
+        kind: 'confirmation',
+        resourceId: f.draft.draftId,
+      },
+      businessNow,
+    ),
+  );
+  const first = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const firstUndo = await undoRecordSave(
+    db(),
+    f.account.one,
+    { operation_id: f.id + '-peer-history-undo', saveId: first.result.saveId },
+    f.clock,
+  );
+  const version = firstUndo.result.draftRestoration;
+  if (version.status !== 'available')
+    throw new Error('Expected exact committed version');
+  const fresh = await saveRecordDraft(
+    db(),
+    f.account.one,
+    {
+      ...f.input,
+      operation_id: f.id + '-peer-history-resave',
+      expected_revision: version.draftRevision,
+    },
+    f.clock,
+  );
+  const [cancelled] = await db()
+    .select()
+    .from(evaluationWorkItems)
+    .where(eq(evaluationWorkItems.id, peerTask.id));
+  expect(cancelled).toMatchObject({
+    state: 'cancelled',
+    revision: peerTask.revision + 1,
+  });
+  const peer = await saveRecordDraft(
+    db(),
+    f.account.two,
+    {
+      ...f.input,
+      operation_id: f.id + '-peer-history-confirm',
+      expected_revision: fresh.result.revision,
+    },
+    f.clock,
+  );
+  expect(peer.result.events).toEqual(fresh.result.events);
+  const undone = await undoRecordSave(
+    db(),
+    f.account.two,
+    {
+      operation_id: f.id + '-peer-history-score-undo',
+      saveId: peer.result.saveId,
+    },
+    f.clock,
+  );
+  const peerVersion = undone.result.draftRestoration;
+  if (peerVersion.status !== 'available')
+    throw new Error('Expected exact peer undo version');
+  const again = await saveRecordDraft(
+    db(),
+    f.account.two,
+    {
+      ...f.input,
+      operation_id: f.id + '-peer-history-again',
+      expected_revision: peerVersion.draftRevision,
+    },
+    f.clock,
+  );
+  expect(again.result.events).toEqual(fresh.result.events);
+  expect((await rowsForSave(again.result.saveId)).human[0].revision).toBe(2);
+  const [after] = await db()
+    .select()
+    .from(evaluationWorkItems)
+    .where(eq(evaluationWorkItems.id, peerTask.id));
+  expect(after).toEqual(cancelled);
+  const [currentMapping] = await db()
+    .select()
+    .from(recordDraftEvents)
+    .where(eq(recordDraftEvents.draftId, f.input.draftId));
+  expect(currentMapping.eventId).toBe(fresh.result.events[0].eventId);
+});

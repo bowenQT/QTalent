@@ -619,3 +619,92 @@ it('retains withdrawn human history as a pre-dispatch generation barrier', async
   expect(history!.withdrawnAt).not.toBeNull();
   expect(history!.draftSnapshot).toEqual(h.draft);
 });
+
+it('keeps one batch event through two manual undo/resave cycles without regenerating or double-counting', async () => {
+  const h = await arranged();
+  let saved = await saveRecordDraft(connection.db, h.account, h.input, h.clock);
+  const originalDraft = structuredClone(h.draft);
+  const undos: {
+    input: { operation_id: string; saveId: string };
+    result: Awaited<ReturnType<typeof undoRecordSave>>;
+  }[] = [];
+  for (const cycle of [1, 2]) {
+    const input = { operation_id: randomUUID(), saveId: saved.result.saveId };
+    const undone = await undoRecordSave(
+      connection.db,
+      h.account,
+      input,
+      h.clock,
+    );
+    undos.push({ input, result: undone });
+    const version = undone.result.draftRestoration;
+    if (version.status !== 'available')
+      throw new Error('Expected exact committed undo revision');
+    const pending = await h.app.requests.readBatch(h.account, {
+      batchId: h.draft.batchId,
+    });
+    expect(pending).toMatchObject({
+      status: 'success',
+      result: {
+        counts: {
+          events: { total: 1, confirmed: 0, awaiting_confirmation: 1 },
+        },
+        draftSet: {
+          drafts: [
+            { draftId: originalDraft.draftId, revision: version.draftRevision },
+          ],
+        },
+      },
+    });
+    saved = await saveRecordDraft(
+      connection.db,
+      h.account,
+      {
+        ...h.input,
+        operation_id: randomUUID(),
+        expected_revision: version.draftRevision,
+      },
+      h.clock,
+    );
+    for (const old of undos)
+      expect(
+        await undoRecordSave(connection.db, h.account, old.input, h.clock),
+      ).toEqual({ ...old.result, replayed: true });
+    const receipt = await h.app.requests.readBatch(h.account, {
+      batchId: h.draft.batchId,
+    });
+    expect(receipt).toMatchObject({
+      status: 'success',
+      result: {
+        status: 'completed',
+        counts: {
+          events: { total: 1, confirmed: 1, awaiting_confirmation: 0 },
+        },
+        confirmedDrafts: [
+          {
+            draftId: originalDraft.draftId,
+            revision: saved.result.revision,
+            events: saved.result.events,
+          },
+        ],
+      },
+    });
+    const [row] = await connection.db
+      .select()
+      .from(recordDrafts)
+      .where(eq(recordDrafts.draftId, h.draft.draftId));
+    expect(row!.draft).toEqual({
+      ...originalDraft,
+      revision: saved.result.revision,
+    });
+    expect(h.model.calls()).toBe(1);
+    const history = await connection.db
+      .select()
+      .from(recordSaves)
+      .where(eq(recordSaves.draftId, h.draft.draftId));
+    expect(history).toHaveLength(cycle + 1);
+    expect(history.filter((entry) => entry.withdrawnAt === null)).toHaveLength(
+      1,
+    );
+  }
+});
