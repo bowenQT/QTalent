@@ -196,9 +196,14 @@ it('upgrades a genuinely pre-899 seeded database using only unique historical fa
     const before = await legacyFingerprint(connection);
     const plan = await legacyPlan(connection);
     await migrate(connection.db, { migrationsFolder: folder });
-    expect(await legacyFingerprint(connection, Object.keys(before))).toEqual(
-      before,
-    );
+    expect(await legacyFingerprint(connection, before)).toEqual(before);
+    expect(
+      (
+        await connection.pool.query(
+          'SELECT (SELECT count(*)::int FROM records_events WHERE withdrawn_at IS NOT NULL) AS events, (SELECT count(*)::int FROM talent_score_reviews WHERE save_id IS NOT NULL OR confirmation_id IS NOT NULL OR counterpart_confirmation_id IS NOT NULL OR withdrawn_at IS NOT NULL) AS reviews',
+        )
+      ).rows[0],
+    ).toEqual({ events: 0, reviews: 0 });
     expect(await connection.db.select().from(programs.evaluationNodes)).toEqual(
       expect.arrayContaining(plan.nodes),
     );
@@ -256,6 +261,17 @@ it('upgrades a genuinely pre-899 seeded database using only unique historical fa
         )
       ).rows[0].n,
     ).toBe(committedMigrationCount);
+    // A changed old score must still fail preservation at exactly the same row count.
+    const preserved = await legacyFingerprint(connection, before);
+    const changed = await connection.pool.query(
+      'WITH replacement AS (SELECT c.id, a.id AS anchor_id, a.value FROM talent_confirmations AS c JOIN evaluation_anchors AS a ON a.dimension_id = c.dimension_id AND a.rule_version_id = c.rule_version_id AND a.value <> c.value WHERE c.value IS NOT NULL ORDER BY c.id, a.value LIMIT 1) UPDATE talent_confirmations AS c SET anchor_id = replacement.anchor_id, value = replacement.value FROM replacement WHERE c.id = replacement.id RETURNING c.id',
+    );
+    expect(changed.rowCount).toBe(1);
+    const altered = await legacyFingerprint(connection, before);
+    expect(altered.talent_confirmations.count).toBe(
+      preserved.talent_confirmations.count,
+    );
+    expect(altered).not.toEqual(preserved);
   });
 }, 30_000);
 it('rolls back the complete schema and journal transition if backfilling an existing event fails', async () => {
