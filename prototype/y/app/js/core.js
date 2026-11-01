@@ -128,7 +128,7 @@
         clearTimeout(timer);
         const r = opts.undo();
         const failed = r === false;
-        const text = failed ? opts.failText || '没能撤销，内容保持现在的样子' : typeof r === 'string' ? r : opts.undoneText || '已撤销';
+        const text = failed ? opts.failText || '撤销失败，已保留当前内容' : typeof r === 'string' ? r : opts.undoneText || '已撤销';
         if (failed) t.dataset.state = 'fail';
         t.innerHTML = `${failed ? NT.icon('info', 16) : ''}<span>${NT.esc(text)}</span>`;
         timer = setTimeout(close, failed || typeof r === 'string' ? 4000 : 1600);
