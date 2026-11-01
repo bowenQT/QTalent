@@ -164,6 +164,8 @@ export const evaluationWorkItems = pgTable(
         'unknown_person',
         'image_scope',
         'unknown_interviewer',
+        'unknown_project',
+        'unknown_interview_candidate',
       ],
     }).notNull(),
     resourceId: text('resource_id').notNull(),
@@ -204,7 +206,7 @@ export const evaluationWorkItems = pgTable(
     check('programs_work_revision', sql`${t.revision} > 0`),
     check(
       'programs_work_kind',
-      sql`${t.kind} in ('confirmation','speaker','unknown_person','image_scope','unknown_interviewer')`,
+      sql`${t.kind} in ('confirmation','speaker','unknown_person','image_scope','unknown_interviewer','unknown_project','unknown_interview_candidate')`,
     ),
     check(
       'programs_work_state',
