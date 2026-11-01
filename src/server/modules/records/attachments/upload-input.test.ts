@@ -5,6 +5,7 @@ import { createValidatedAttachmentInput } from './upload-input';
 function fixture() {
   const upload = {
     uploadId: 'upload',
+    recordCollectionId: 'record',
     originalId: 'original',
     originalVersionId: 'version',
     jobId: 'job',
@@ -31,6 +32,9 @@ function fixture() {
     '2026-10-25T16:00:00.000Z',
   );
   const options = {
+    readValidatedUploadInContext: vi.fn(
+      async () => structuredClone(upload) as unknown,
+    ),
     readValidatedUpload: vi.fn(async () => structuredClone(upload) as unknown),
     canProcess: vi.fn(async () => true),
     openObject: vi.fn(async () =>
@@ -51,14 +55,19 @@ describe('873 validated-upload port adapter', () => {
     const f = fixture();
     const context = { transaction: 'current' };
     const binding = await f.input.loadAuthorizedAttachment(context, f.job);
-    expect(f.options.readValidatedUpload).toHaveBeenCalledWith({
-      uploadId: 'upload',
-      originalVersionId: 'version',
-    });
+    expect(f.options.readValidatedUploadInContext).toHaveBeenCalledWith(
+      context,
+      {
+        uploadId: 'upload',
+        originalVersionId: 'version',
+      },
+    );
+    expect(f.options.readValidatedUpload).not.toHaveBeenCalled();
     expect(f.options.canProcess).toHaveBeenCalledWith(context, binding);
     expect(binding).toEqual({
       purpose: 'attachment',
       completedJobId: 'job',
+      recordCollectionId: 'record',
       accountId: 'uploader',
       quotaScope: 'record',
       target: f.upload.target,
@@ -89,9 +98,11 @@ describe('873 validated-upload port adapter', () => {
     { jobId: 'other' },
     { originalVersionId: 'other' },
     { uploadId: 'other' },
+    { recordCollectionId: undefined },
+    { recordCollectionId: 'another-collection' },
   ])('rejects missing or mismatched873 facts %#', async (patch) => {
     const f = fixture();
-    f.options.readValidatedUpload.mockResolvedValue(
+    f.options.readValidatedUploadInContext.mockResolvedValue(
       patch === null ? null : { ...f.upload, ...patch },
     );
     expect(await f.input.loadAuthorizedAttachment({}, f.job)).toBeNull();
@@ -117,4 +128,19 @@ describe('873 validated-upload port adapter', () => {
     );
     expect(f.options.openObject).not.toHaveBeenCalled();
   });
+});
+
+it('rejects a changed collection before opening bytes even when the other immutable fields match', async () => {
+  const f = fixture();
+  const binding = await f.input.loadAuthorizedAttachment({}, f.job);
+  if (!binding) throw new Error('binding required');
+  f.options.readValidatedUpload.mockResolvedValue({
+    ...f.upload,
+    recordCollectionId: 'new-collection',
+    quotaScope: 'new-collection',
+  });
+  await expect(f.input.open(binding)).rejects.toThrow(
+    'Attachment input changed',
+  );
+  expect(f.options.openObject).not.toHaveBeenCalled();
 });
