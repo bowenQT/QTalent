@@ -53,3 +53,11 @@ export type {
   SelectionPostgresServices,
   SelectionPostgresTransaction,
 } from './selection/postgres';
+export {
+  comparisonMappings,
+  comparisonBatches,
+  comparisonCases,
+  comparisonStages,
+  comparisonManualMarks,
+} from './judgment-comparison/schema';
+export { readSelectionCohortFacts } from './selection/cohort-facts';
