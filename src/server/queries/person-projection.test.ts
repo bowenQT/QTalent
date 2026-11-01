@@ -69,7 +69,7 @@ describe('identity and landing', () => {
       demo: true,
       teamId: 'org',
       teamName: 'Test',
-      teamPath: 'Synthetic org',
+      teamPath: '组织层级未接入',
       jobTitle: '职位未接入',
       level: null,
       batch: { id: 'cohort', name: 'Synthetic cohort' },

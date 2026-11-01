@@ -1,5 +1,6 @@
 import type { PersonIdentity } from '../../contracts/person';
 import { activeGrants, canReadProject, isCurrent } from '../authz';
+import { projectDirectoryProfile } from '../modules/directory';
 import { type PersonData, personBusinessDay } from './person-data';
 
 type Row = PersonData['directory']['people'][number];
@@ -56,6 +57,7 @@ export function identityOf(data: PersonData, person: Row): PersonIdentity {
     (row) => row.id === person.organizationId,
   );
   if (!organization) throw new Error('人员组织引用不存在');
+  const profile = projectDirectoryProfile(person, data.directory.organizations);
   const batch = batchOf(data, person.id);
   const hired = data.employments
     .filter((row) => row.personId === person.id)
@@ -70,11 +72,9 @@ export function identityOf(data: PersonData, person: Row): PersonIdentity {
     demo: person.demo,
     teamId: organization.id,
     teamName: organization.shortName,
-    // The organization table has no parent (BOW-834 S2): a single-level path.
-    teamPath: organization.name,
-    // No job title column yet (BOW-834 S1).
-    jobTitle: '职位未接入',
-    level: null,
+    teamPath: profile.organizationPath?.join(' / ') ?? '组织层级未接入',
+    jobTitle: profile.jobTitle ?? '职位未接入',
+    level: profile.level,
     batch: batch ? { id: batch.cohort.id, name: batch.cohort.name } : null,
     tenureLabel: batch
       ? tenure('入营', batch.enrollment.validFrom, asOf)
