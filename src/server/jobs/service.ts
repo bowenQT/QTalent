@@ -39,6 +39,13 @@ export interface JobPolicy<C> {
     job: JobRecord,
     action: 'read' | JobCommand['action'],
   ): Promise<boolean>;
+  /** Recheck current control authorization for an accepted operation, without new-command state eligibility. */
+  canReplay?(
+    context: C,
+    accountId: string,
+    job: JobRecord,
+    action: JobCommand['action'],
+  ): Promise<boolean>;
   project(
     context: C,
     accountId: string,
@@ -124,8 +131,7 @@ export function createJobService<C>(
           const policy = registry.get(current.kind);
           if (
             !policy ||
-            !(await policy.can(tx.context, accountId, current, 'read')) ||
-            !(await policy.can(tx.context, accountId, current, input.action))
+            !(await policy.can(tx.context, accountId, current, 'read'))
           )
             return { status: 'forbidden' };
           const fingerprint = JSON.stringify([
@@ -135,10 +141,21 @@ export function createJobService<C>(
           ]);
           const previous = await tx.operation(accountId, input.operationId);
           if (previous) {
+            const authorized = policy.canReplay
+              ? await policy.canReplay(
+                  tx.context,
+                  accountId,
+                  current,
+                  input.action,
+                )
+              : await policy.can(tx.context, accountId, current, input.action);
+            if (!authorized) return { status: 'forbidden' };
             if (previous.fingerprint !== fingerprint)
               return { status: 'conflict' };
             return present(tx, accountId, previous.record, policy);
           }
+          if (!(await policy.can(tx.context, accountId, current, input.action)))
+            return { status: 'forbidden' };
           if (
             input.action === 'retry' &&
             (await policy.inputVersion(tx.context, current)) !==

@@ -99,6 +99,16 @@ export function fixture(
       { id: 'grit', name: '坚毅力', axis: 'pot', core: true },
     ],
     confirmations: [],
+    cohorts: [{ id: 'cohort', name: 'Synthetic cohort' }],
+    employments: [
+      {
+        id: 'employment-one',
+        personId: 'one',
+        organizationId: 'org',
+        validFrom: '2025-01-01',
+        validTo: null,
+      },
+    ],
   };
   for (let i = 0; i < 2; i++) {
     const eventId = 'event-' + i;
@@ -109,6 +119,8 @@ export function fixture(
       personId: 'one',
       recorderId: 'actor',
       projectId: null,
+      // Synthetic legacy fixture; node-aware cases supply explicit node facts.
+      evaluationNodeId: null,
       occurredOn: '2026-06-01',
       title: 'Synthetic event',
       situation: 'Synthetic',
@@ -169,5 +181,33 @@ export function fixture(
       });
     }
   }
+  return data;
+}
+
+export function nodeFixture() {
+  const data = fixture('mentor');
+  Object.assign(data.context, {
+    evaluationNodes: [
+      { id: 'node-current', kind: 'program_cohort', cohortId: 'cohort' },
+      { id: 'node-other', kind: 'defense', cohortId: 'cohort' },
+    ],
+    evaluationNodeSubjects: [
+      { evaluationNodeId: 'node-current', personId: 'one' },
+      { evaluationNodeId: 'node-other', personId: 'one' },
+    ],
+    evaluationRelations: [
+      {
+        id: 'relation-current',
+        evaluationNodeId: 'node-current',
+        personId: 'one',
+        evaluatorId: 'actor',
+        kind: 'mentor',
+        validFrom: '2026-01-01T00:00:00.000Z',
+        validTo: null,
+        revokedAt: null,
+      },
+    ],
+  });
+  for (const event of data.events) event.evaluationNodeId = 'node-current';
   return data;
 }

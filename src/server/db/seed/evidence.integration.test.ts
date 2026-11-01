@@ -618,6 +618,7 @@ it('keeps historical group reviews in their own scale without generating individ
   await f.db.insert(historicalEvaluations).values({
     id,
     sourceRecordId: 'test-history',
+    evaluationNodeId: null,
     personId: null,
     recorderId: f.evaluator,
     occurredOn: '2026-07-24',
@@ -679,6 +680,7 @@ it('retains empty behavior only for explicit demo events and leaves unknown hist
   const historicalRow: typeof historicalEvaluations.$inferInsert = {
     id: `${f.p}-unknown-rule`,
     sourceRecordId: 'test-history',
+    evaluationNodeId: null,
     personId: f.person,
     recorderId: f.evaluator,
     occurredOn: '2026-07-24',
