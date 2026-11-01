@@ -331,7 +331,9 @@ export function planRecordConfirmation(input: {
       state.reviews.some(
         (row) =>
           !row.withdrawn &&
-          row.handled &&
+          // A later save owns its own review. Undo must not strand that
+          // review or silently rewrite another evaluator's later operation.
+          (row.handled || !saved.receipt.reviewItemIds.includes(row.id)) &&
           row.confirmationIds.some((id) =>
             saved.receipt.confirmationIds.includes(id),
           ),

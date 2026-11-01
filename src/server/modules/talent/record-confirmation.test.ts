@@ -492,6 +492,33 @@ describe('whole-save five-second undo plans', () => {
       withdrawnConfirmationIds: [expect.any(String)],
     });
   });
+  it.each([
+    ['own-open', true],
+    ['later-open', false],
+    ['own-handled', false],
+    ['later-withdrawn', true],
+    ['unrelated-open', true],
+  ] as const)('respects review dependency %s (allowed=%s)', (mode, allowed) => {
+    const f = fixture();
+    f.existingPeer(3);
+    const { command } = f.saved();
+    const saved = f.state.saves[0]!;
+    const reviewId = 'demo-dependency-review';
+    if (mode.startsWith('own-')) saved.receipt.reviewItemIds.push(reviewId);
+    f.state.reviews.push({
+      id: reviewId,
+      confirmationIds:
+        mode === 'unrelated-open'
+          ? ['demo-unrelated-confirmation']
+          : [...saved.receipt.confirmationIds],
+      handled: mode === 'own-handled',
+      withdrawn: mode === 'later-withdrawn',
+    });
+    const before = structuredClone(f.state);
+    if (allowed) expect(f.run(command).action).toBe('undo');
+    else expect(() => f.run(command)).toThrow('later_confirmation_or_review');
+    expect(f.state).toEqual(before);
+  });
   it('replays a completed undo after the deadline but still rejects revoked authority', () => {
     const f = fixture();
     const { command } = f.saved();

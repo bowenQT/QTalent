@@ -1192,6 +1192,45 @@ it('R2 P2: later evaluator review dependency prevents a partial withdrawal', asy
       .from(scoreReviews)
       .where(eq(scoreReviews.eventId, first.result.events[0].eventId)),
   ).toEqual(before);
+  // Removing the actual later dependency releases only the earlier undo;
+  // the inactive reviews stay as history, and old undo replay cannot touch
+  // the evaluator's subsequent confirmation revision.
+  await undoRecordSave(
+    db(),
+    f.account.manager,
+    { operation_id: f.id + '-C-undo', saveId: third.result.saveId },
+    f.clock,
+  );
+  const secondUndo = {
+    operation_id: f.id + '-B-undo',
+    saveId: second.result.saveId,
+  };
+  await undoRecordSave(db(), f.account.two, secondUndo, f.clock);
+  const [currentDraft] = await db()
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, f.draft.draftId));
+  const reconfirmed = await saveRecordDraft(
+    db(),
+    f.account.two,
+    {
+      ...edited(f, 1, '演示B重新判断'),
+      operation_id: f.id + '-B-reconfirm',
+      expected_revision: currentDraft.revision,
+    },
+    f.clock,
+  );
+  const currentBeforeReplay = await snapshot();
+  const replay = await undoRecordSave(db(), f.account.two, secondUndo, f.clock);
+  expect(replay.replayed).toBe(true);
+  expect(await snapshot()).toEqual(currentBeforeReplay);
+  const [newConfirmation] = (await rowsForSave(reconfirmed.result.saveId))
+    .human;
+  expect(newConfirmation).toMatchObject({
+    active: true,
+    revision: 2,
+    previousId: second.result.confirmationIds[0],
+  });
 });
 it('R2 S1: withdrawing a draft resource cancels the other evaluator pending task atomically', async () => {
   const f = await native();
