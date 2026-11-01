@@ -207,7 +207,7 @@ test('「修订入营选拔标准」的动作状态从修订推出来：起草�
   const basis = [{ type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: '演示', cat: '评价标准' }];
   const a = st.addJudgeAction('jr-xe6', 'h-xe6-1', { title: '修订入营选拔标准', kind: '修订评价标准', rule: { kind: 'front', line: 'xe-select', hyp: 'h-xe6-1' } });
   const label = (s) => s.actionState(s.get().actions.find((x) => x.id === a.id)).label;
-  assert.equal(label(st), '还没有修订草稿');
+  assert.equal(label(st), '待起草修订');
   const d = st.draftWithBasis('front', basis, 'xe-select').draft;
   assert.equal(label(st), '起草中');
   st.setDraft('front', { note: `${d.note}；写清本人做了哪部分`, why: '理由' }, 'xe-select');
@@ -235,4 +235,52 @@ test('入营选拔评委和结营评审不是同一个人；导师视角的结�
   const m = as('mentor');
   assert.equal(m.myJudgeUnits().filter((u) => !u.denied).length, 10);
   assert.equal(m.myJudgeHidden(), 2);
+});
+
+test('删掉修订草稿后动作回到「待起草修订」，可以从同一条归因重新起草，状态跟着新草稿走', () => {
+  const { as } = load();
+  const st = as('hrbp');
+  const basis = [{ type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: '演示', cat: '评价标准' }];
+  const a = st.addJudgeAction('jr-xe6', 'h-xe6-1', { title: '修订入营选拔标准', kind: '修订评价标准', rule: { kind: 'front', line: 'xe-select', hyp: 'h-xe6-1' } });
+  st.draftWithBasis('front', basis, 'xe-select');
+  st.deleteDraft('front', 'xe-select');
+  assert.equal(st.ruleOpen('front', 'xe-select'), null);
+  assert.equal(st.actionState(a).label, '待起草修订');
+  assert.equal(st.actionState(a).rev, undefined, '没有修订，判断对照会重新给出起草入口');
+  assert.ok(st.canDraftFrom(basis[0]));
+  assert.ok(st.draftWithBasis('front', basis, 'xe-select').draft);
+  assert.equal(st.actionState(a).label, '起草中');
+  assert.equal(st.get().actions.filter((x) => x.rule).length, 1, '复用原来的动作，不重复生成');
+});
+
+test('退回的撤销只生效一次；退回后起草人改过草稿，撤销失败并保留起草人的修改', () => {
+  const { as } = load();
+  let st = as('hrbp');
+  const basis = [{ type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: '演示', cat: '评价标准' }];
+  const submit = () => {
+    const d = st.ruleOpen('front', 'xe-select');
+    st.setDraft('front', { note: `${d.note}；写清本人做了哪部分`, why: '理由' }, 'xe-select');
+    st.previewDraft('front', 'xe-select');
+    assert.ok(st.submitDraft('front', 'xe-select'));
+  };
+  st.startDraft('front', basis, 'xe-select');
+  submit();
+
+  // 退回后马上撤销：回到待确认；同一个撤销再点一次返回 false
+  let undo = as('ceo').returnDraft('front', '刚过线也写一句', 'xe-select');
+  assert.equal(as('hrbp').ruleOpen('front', 'xe-select').state, 'draft');
+  assert.equal(as('ceo') && undo(), true);
+  assert.equal(as('hrbp').ruleOpen('front', 'xe-select').state, 'pending');
+  assert.equal(undo(), false);
+
+  // 退回后 HR 改了要点（预览作废）：旧撤销返回 false，草稿保持 HR 的修改，管理者确认不了
+  undo = as('ceo').returnDraft('front', '刚过线也写一句', 'xe-select');
+  st = as('hrbp');
+  const d = st.ruleOpen('front', 'xe-select');
+  st.setDraft('front', { note: `${d.note}；刚过线写清卡在哪一步` }, 'xe-select');
+  assert.equal(as('ceo') && undo(), false);
+  const after = as('hrbp').ruleOpen('front', 'xe-select');
+  assert.equal(after.state, 'draft');
+  assert.match(after.note, /刚过线写清卡在哪一步/);
+  assert.equal(as('ceo').confirmDraft('front', 'xe-select'), null);
 });

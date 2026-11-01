@@ -1,5 +1,5 @@
 /* 手机 · 我的判断对照：导师作为入营选拔评委做过的判断，和结营评审放在一起看。
-   按现在有效的评价关系显示：前段关系已失效的判断不列出；结营评审这一段没有评价关系或关系已失效的，显示无权限。
+   只列现在有效的评价关系里的判断；结营评审这一段的关系已失效或由其他评价人负责时，显示无权限。
    可对照案例（含中间档）计入门槛，偏高、偏低、一致只算最高或最低一档。不排行、不给准确率，样本不到门槛只显示「样本不足」。 */
 (function () {
   'use strict';
@@ -10,7 +10,7 @@
   NT.mshell({
     tab: 'me', title: '我的判断对照', back: 'me.html',
     allow: () => st.isRater(),
-    denyTitle: '你还没有可对照的判断', denyText: '你作为评价人给出的判断，和后一阶段的结论放在一起后会出现在这里。',
+    denyTitle: '你的判断和后一阶段的结论对上后会出现在这里', denyText: '包括你作为评价人给出的判断。',
     view: () => '我的判断对照',
     render,
   });
@@ -23,8 +23,8 @@
     mount(main, html`
       <section class="m-card">
         <h2 style="margin:0 0 var(--s-1);font-size:var(--t-lg)">${x.enough ? `${x.cases.length} 个可对照案例` : '样本不足'}</h2>
-        <p style="margin:0;font-size:var(--t-sm);line-height:1.6">${x.enough ? `优先录取或刚过线的 ${x.clear.length} 个里，${[t.high && `前段偏高 ${t.high} 个`, t.low && `前段偏低 ${t.low} 个`, t.same && `一致 ${t.same} 个`].filter(Boolean).join('，') || '没有'}${x.mid.length ? `；中间档 ${x.mid.length} 个，结营 ${Object.entries(x.midBack).map(([g, n]) => `${g} ${n}`).join(' · ')}` : ''}。` : `可对照案例 ${x.cases.length} 个（含中间档），门槛 ${st.RATER_MIN} 个，下面只列案例。`}</p>
-        <p class="nt-muted" style="margin:var(--s-2) 0 0;font-size:var(--t-xs)">中间档「通过」计入门槛，但不算偏高偏低。${hidden ? `另有 ${hidden} 个判断的入营选拔评价关系已失效，不列出。` : ''}</p>
+        <p style="margin:0;font-size:var(--t-sm);line-height:1.6">${x.enough ? `优先录取或刚过线的 ${x.clear.length} 个里，${[t.high && `前段偏高 ${t.high} 个`, t.low && `前段偏低 ${t.low} 个`, t.same && `一致 ${t.same} 个`].filter(Boolean).join('，') || '待结营结论'}${x.mid.length ? `；中间档 ${x.mid.length} 个，结营 ${Object.entries(x.midBack).map(([g, n]) => `${g} ${n}`).join(' · ')}` : ''}。` : `可对照案例 ${x.cases.length} 个（含中间档），门槛 ${st.RATER_MIN} 个，下面只列案例。`}</p>
+        <p class="nt-muted" style="margin:var(--s-2) 0 0;font-size:var(--t-xs)">中间档「通过」计入门槛，只看结营结论。${all.some((u) => u.denied) ? `${all.filter((u) => u.denied).length} 个后段无权限。` : ''}${hidden ? `另有 ${hidden} 个判断的前段关系已失效，只计数。` : ''}</p>
       </section>
       <h3 class="m-h">XEngineer 第六期 · 入营选拔 → 结营评审</h3>
       <ul class="m-list m-jlist">${all.slice().sort((a, b) => order(a) - order(b)).map((u) => html`<li class="m-jrow">

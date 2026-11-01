@@ -779,9 +779,9 @@
           person, dim: d.id,
           front: f ? { by: f.by, at: f.at, v: f.grade, r: chain.grades.indexOf(f.grade), note: f.note, std: b.std, items, team: f.team,
             src: cell(F, f, [...F.cols.items, F.cols.overall, F.cols.note], `${items} · 选拔档位 ${f.grade}：${f.note}`) }
-            : { by: null, v: null, std: b.std, miss: `${F.label}里没有这个人的行：第二批次补录，按简历和电话沟通入营` },
+            : { by: null, v: null, std: b.std, miss: `${F.label}待补这个人的行：第二批次补录，按简历和电话沟通入营` },
           back: k.grade ? { by: [k.by], at: k.at, v: k.grade, r: bg.indexOf(k.grade), note: k.note, src: cell(B, k, [B.cols.overall, B.cols.note], `${d.name} ${k.grade}：${k.note}`) }
-            : { by: [k.by], at: k.at, na: true, note: k.note, miss: '结营评审表这一行没有结论', src: cell(B, k, [B.cols.note], k.note) },
+            : { by: [k.by], at: k.at, na: true, note: k.note, miss: '结营评审表这一行待补结论', src: cell(B, k, [B.cols.note], k.note) },
         });
       }));
     } else {
@@ -811,7 +811,7 @@
       if (!relFor(me, nodes.front, u.person).ok) return { ...u, hidden: true };
       if (u.back.na) return u;
       const r = relFor(me, nodes.back, u.person);
-      return r.ok ? u : { ...u, denied: r.rel ? `${chain.back}这一段的评价关系 ${NT.md(r.rel.to)} 起失效${r.rel.ended ? ` · ${r.rel.ended}` : ''}` : `你在${chain.back}这一段没有评价关系` };
+      return r.ok ? u : { ...u, denied: r.rel ? `${chain.back}这一段的评价关系 ${NT.md(r.rel.to)} 起失效${r.rel.ended ? ` · ${r.rel.ended}` : ''}` : `${chain.back}这一段由其他评价人负责` };
     });
   });
   store.myJudgeUnits = (role = store.role()) => myUnits(ROLES[role].person).filter((u) => !u.hidden);
@@ -891,7 +891,7 @@
 
   // 「修订入营选拔标准」这类改进动作的状态从它带去的那份修订推出来：起草中 → 待确认 → 已生效，不另存、也不手工改。
   // 修订按依据认：纳入了这条结论（同一批判断对照、同一条假设）的版本里，有发布过的取最早发布的那一份，否则取最新一份；
-  // 草稿删掉或依据移出后，写「还没有修订草稿」
+  // 草稿删掉或依据移出后，写「待起草修订」，判断对照里可以从这条归因重新起草
   store.revisionOf = (a) => {
     if (!a.rule) return null;
     const vs = store.ruleVers(a.rule.kind, a.rule.line).filter((r) => (r.basis || []).some((b) => b.type === 'judge' && b.batch === a.from && b.hyp === a.rule.hyp));
@@ -901,7 +901,7 @@
   store.actionState = (a) => {
     if (!a.rule) return { s: a.state };
     const r = store.revisionOf(a);
-    if (!r) return { s: 'todo', label: '还没有修订草稿', derived: true };
+    if (!r) return { s: 'todo', label: '待起草修订', derived: true };
     const [s, label] = REV_STATE[r.state];
     return { s, label, derived: true, rev: r };
   };
@@ -1496,10 +1496,19 @@
     Object.assign(d, { state: 'draft' }); delete d.confirmedBy; delete d.confirmedAt;
     store.save(); return d;
   };
+  // 退回：返回撤销函数。撤销只生效一次；退回之后起草人改过、重新提交或删掉了草稿，都保持现状并返回 false
   store.returnDraft = (kind, why, line) => {
     const d = store.ruleOpen(kind, line); if (!d || !isCeo() || d.state !== 'pending') return null;
+    const sent = NT.clone(d);
     Object.assign(d, { state: 'draft', returned: { why, by: store.me().id, at: NT.TODAY } });
-    store.save(); return d;
+    const after = JSON.stringify(d);
+    store.save();
+    let undone = false;
+    return () => {
+      if (undone || !isCeo() || store.ruleOpen(kind, line) !== d || JSON.stringify(d) !== after) return false;
+      delete d.returned; Object.assign(d, sent);
+      undone = true; store.save(); return true;
+    };
   };
   // 确认发布：立即生效的替代旧版本；从下一个盘点批次开始的进入已排期，旧版本继续生效（AC-77）
   store.confirmDraft = (kind, line) => {

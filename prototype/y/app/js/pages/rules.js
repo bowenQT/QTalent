@@ -383,7 +383,7 @@
   function impactLine(p) {
     if (p.kind === 'watch') return html`值得关注 <b>${p.from} → ${p.to} 人</b>：进入 ${p.enter.length} 人，离开 ${p.leave.length} 人。按团队：${teamsLine(p)}。`;
     if (p.kind === 'map') return html`下一次判断对照里受影响的对照单元 <b>${p.cells} 个</b>。`;
-    if (p.kind === 'front') return html`之后新建的期次默认用新版${p.next ? html`，<b>${p.next.name}</b>建立时绑定` : ''}；${p.bound.map((g) => `${g.name}（${g.std}）`).join('、') || '已建立的期次'}保持原版本，<b>${p.keep} 条</b>选拔记录不重算。`;
+    if (p.kind === 'front') return html`之后新建的期次默认用新版${p.next ? html`，<b>${p.next.name}</b>建立时绑定` : ''}；${p.bound.map((g) => `${g.name}（${g.std}）`).join('、') || '已建立的期次'}保持原版本，<b>${p.keep} 条</b>选拔记录保持原版本。`;
     return html`取数窗口内用到这些锚点的事件 <b>${p.events} 件</b>，涉及 ${p.people} 人、${p.raters.length} 位评分人；${p.tasks ? html`将生成 <b>${p.tasks} 条复核任务</b>` : '旧分继续参与取数'}。`;
   }
   function impactFull(p, who) {
@@ -565,7 +565,7 @@
       const sug = st.ruleOpen(kind, L)?.basis?.[+b.dataset.rm]?.type === 'sug';
       const undo = st.removeBasis(kind, +b.dataset.rm, L); if (!undo) return;
       rerender();
-      NT.toast(sug ? '已移除这条依据，这条建议回到待处理' : '已移除这条依据', { undo: () => { const ok = undo(); rerender(); return ok; }, failText: '没能撤销：草稿已经变了，移除的依据保持移除' });
+      NT.toast(sug ? '已移除这条依据，这条建议回到待处理' : '已移除这条依据', { undo: () => { const ok = undo(); rerender(); return ok; }, failText: '撤销失败：草稿已有新的修改，已保留当前依据' });
     }));
     const add = $('#basis-add');
     if (add) {
@@ -593,7 +593,7 @@
       const miss = !c.lock ? '把生效点改为「从下一个盘点批次开始」' : !c.changed ? '先改至少一处' : !c.why ? '写修订理由' : !c.range ? '把标错的参数改回允许范围' : !c.preview ? '按当前草稿预览一次影响' : '';
       if (miss) { err.hidden = false; err.textContent = `提交前还要：${miss}。`; if (!c.why) $('#why')?.focus(); else $('#preview')?.focus(); return; }
       st.submitDraft(kind, L); rerender();
-      NT.toast(`已提交 ${d.v}，待${name(MGR)}确认`, { undo: () => { const ok = st.ruleOpen(kind, L) === d && d.state === 'pending' && !!st.withdrawDraft(kind, L); rerender(); return ok; }, undoneText: `已撤回，${d.v} 回到草稿`, failText: `没能撤回：${d.v} 已经不在待确认，保持现在的状态` });
+      NT.toast(`已提交 ${d.v}，待${name(MGR)}确认`, { undo: () => { const ok = st.ruleOpen(kind, L) === d && d.state === 'pending' && !!st.withdrawDraft(kind, L); rerender(); return ok; }, undoneText: `已撤回，${d.v} 回到草稿`, failText: `撤回失败：${d.v} 已离开待确认，已保留当前状态` });
     });
     $('#withdraw')?.addEventListener('click', async () => {
       const d = st.ruleOpen(kind, L);
@@ -608,7 +608,7 @@
       const v = await NT.dialog({ title: `删除草稿 ${d.v}？`, body: html`<p>草稿里的改动、理由和预览一起删除；${d.base} 保持生效。</p>`, actions: [{ label: '保留草稿', value: 'cancel', cls: 'n-btn--ghost' }, { label: '删除草稿', value: 'ok', cls: 'n-btn--ink' }] });
       if (v !== 'ok') return;
       const restore = st.deleteDraft(kind, L); rerender();
-      NT.toast(`已删除草稿 ${d.v}`, { undo: () => { const ok = restore(); rerender(); return ok; }, failText: '没能撤销：已经有一份新草稿，删除的草稿保持删除' });
+      NT.toast(`已删除草稿 ${d.v}`, { undo: () => { const ok = restore(); rerender(); return ok; }, failText: '撤销失败：已有一份新草稿，已保留当前草稿' });
     });
     $$('[data-adopt]', main).forEach((b) => b.addEventListener('click', () => {
       const fresh = !st.ruleOpen(kind); // 没有修订时纳入会新起一份草稿；撤销时这份空草稿一并删掉
@@ -641,20 +641,18 @@
       if (!undo) { NT.toast('规则状态已变化，无法确认发布，请重新核对'); return; }
       const seal = $('#seal'); seal?.classList.add('is-stamping');
       NT.toast(k === 'front' ? `已发布 ${d.v}，之后新建的期次默认用新版` : d.effect === 'now' ? `已发布 ${d.v}，${k === 'watch' ? '首页「值得关注」按新版本计算' : '新的评价按新版本计算'}` : `已确认 ${d.v}，${nextText(d)}`,
-        { undo: () => { const ok = undo(); rerender(); return ok; }, undoneText: `已撤销，${d.v} 回到待确认`, failText: '没能撤销：规则已有后续变更，发布保持' });
+        { undo: () => { const ok = undo(); rerender(); return ok; }, undoneText: `已撤销，${d.v} 回到待确认`, failText: '撤销失败：规则已有后续变更，已保留当前发布' });
     });
     $('#return')?.addEventListener('click', async () => {
       const k = kind, d = st.ruleOpen(k, L);
       const v = await NT.dialog({ title: `退回 ${d.v}？`, body: html`<p>草稿回到${name(d.by)}那里，你写的理由会出现在${name(d.by)}的待办里。</p><textarea class="n-textarea" rows="2" id="rt" placeholder="${RETURN_PH[k] || ''}"></textarea>`,
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '退回修改', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#rt', dl).value.trim(), read: (dl) => $('#rt', dl).value.trim() }] });
       if (v?.value !== 'ok') return;
-      st.returnDraft(k, v.data, L); rerender();
-      NT.toast(`已退回给${name(d.by)}修改，理由在${name(d.by)}的待办里`, { undo: () => {
-        // 退回之后起草人已经改过或重新提交，就不再拉回待确认
-        const ok = d.state === 'draft' && !!d.returned && st.ruleOpen(k, L) === d;
-        if (ok) { d.state = 'pending'; delete d.returned; st.save(); }
-        rerender(); return ok;
-      }, undoneText: `已撤销退回，${d.v} 回到待确认`, failText: `没能撤销：${d.v} 已经有了后续处理，保持现在的状态` });
+      const undo = st.returnDraft(k, v.data, L); rerender();
+      if (!undo) return;
+      // 退回之后起草人已经改过或重新提交，store 拒绝撤销，提示如实写撤销失败
+      NT.toast(`已退回给${name(d.by)}修改，理由在${name(d.by)}的待办里`, { undo: () => { const ok = undo(); rerender(); return ok; },
+        undoneText: `已撤销退回，${d.v} 回到待确认`, failText: `撤销失败：${d.v} 已有后续处理，已保留当前状态` });
     });
     $('#rv-toggle')?.addEventListener('click', () => { reviewing = !reviewing; rerender(); $('#rv-toggle')?.focus(); });
     $$('[data-rv]', main).forEach((b) => b.addEventListener('click', () => {
