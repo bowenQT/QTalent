@@ -44,7 +44,16 @@ function Draft({ draft }: { draft: DraftCard }) {
       id={`rc-${draft.key}`}
     >
       <div className="n-rcpt__head">
-        <b>{draft.people.join('、') || '涉及的人已按权限隐藏'}</b>
+        {draft.people.length ? (
+          draft.people.map((name) => (
+            <span className="n-person" key={name}>
+              <Avatar name={name} hue={neutralHue} />
+              <b>{name}</b>
+            </span>
+          ))
+        ) : (
+          <span className="nt-muted">涉及的人已按权限隐藏</span>
+        )}
       </div>
       <h4 className="n-rcpt__title">{draft.title}</h4>
       {draft.quote ? (
@@ -70,7 +79,7 @@ function Draft({ draft }: { draft: DraftCard }) {
                   <Icon name="spark" />
                   AI 建议
                 </span>
-                <small />
+                <small>{score.anchor}</small>
               </div>
             ) : (
               <div className="n-rcpt__score" key={score.key}>
@@ -232,7 +241,7 @@ export function Receipt({ view }: { view: ReceiptView }) {
           ) : null}
           <section id="confirm" className="nt-grid" aria-labelledby="rc-h">
             <h3 className="n-section-title" id="rc-h" style={{ margin: 0 }}>
-              整理出的事
+              等你确认
               {summary.awaiting ? (
                 <span className="n-count">{summary.awaiting}</span>
               ) : null}

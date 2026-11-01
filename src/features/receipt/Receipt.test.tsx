@@ -59,7 +59,9 @@ describe('receipt page', () => {
       'held',
     ]);
     expect(cards[0].textContent).toContain('需求变更后当天给出两个备选方案');
-    expect(cards[0].textContent).toContain('录音 03:12–03:28');
+    expect(cards[0].textContent).toContain('导师团复盘.m4a · 录音 03:12–03:28');
+    expect(cards[0].textContent).toContain('锚点 4 · 变化中主动给出备选');
+    expect(screen.getByRole('heading', { name: /等你确认/ })).toBeTruthy();
     expect(
       within(cards[0] as HTMLElement).getByRole('img', {
         name: /主动担当 4 分（AI 建议，未确认）/,

@@ -40,7 +40,14 @@ export type ReviewLine = {
   result: string | null;
 };
 export type DraftScore =
-  | { key: string; dimension: string; state: 'suggested'; value: number }
+  | {
+      key: string;
+      dimension: string;
+      state: 'suggested';
+      value: number;
+      /** The behaviour anchor the suggestion rests on, as 锚点 N · text. */
+      anchor: string;
+    }
   | { key: string; dimension: string; state: 'unknown'; reason: string };
 export type DraftCard = {
   key: string;
@@ -255,6 +262,7 @@ export function answer(
 function draftCard(
   draft: RecordBatchDraft,
   blocked: ReadonlySet<string>,
+  fileNames: ReadonlyMap<string, string>,
   lookup: ReceiptLookup,
 ): DraftCard {
   const cited = draft.scores.flatMap((score) =>
@@ -269,13 +277,27 @@ function draftCard(
     title: draft.sbi.title,
     quote:
       quoted?.kind === 'source'
-        ? { text: quoted.quote, where: where(quoted.reference.location) }
+        ? {
+            text: quoted.quote,
+            where: [
+              fileNames.get(quoted.reference.originalVersionId),
+              where(quoted.reference.location),
+            ]
+              .filter(Boolean)
+              .join(' · '),
+          }
         : null,
     scores: draft.scores.map((score) => {
       const key = `${score.personId}:${score.dimensionId}`;
       const dimension = lookup.dimension(score.dimensionId) ?? '维度';
       return score.state === 'suggested'
-        ? { key, dimension, state: 'suggested', value: score.value }
+        ? {
+            key,
+            dimension,
+            state: 'suggested',
+            value: score.value,
+            anchor: `锚点 ${score.value} · ${score.anchor.text}`,
+          }
         : { key, dimension, state: 'unknown', reason: score.reason };
     }),
     held: blocked.has(draft.draftId)
@@ -295,6 +317,12 @@ export function receiptView(
   const notYet = (value: number) => (reading && value === 0 ? null : value);
   const blocked = new Set(
     receipt.draftSet?.duplicateCandidates.flatMap((c) => c.draftIds) ?? [],
+  );
+  // A citation names its original version; the receipt's file line gives it a name.
+  const fileNames = new Map(
+    receipt.files.flatMap((file) =>
+      file.originalVersionId ? [[file.originalVersionId, file.filename]] : [],
+    ),
   );
   const people = receipt.personIds.flatMap((id) => {
     const found = lookup.person(id);
@@ -336,7 +364,7 @@ export function receiptView(
       })),
     ],
     drafts: (receipt.draftSet?.drafts ?? []).map((draft) =>
-      draftCard(draft, blocked, lookup),
+      draftCard(draft, blocked, fileNames, lookup),
     ),
     people,
     hidden: receipt.hasHiddenContent,

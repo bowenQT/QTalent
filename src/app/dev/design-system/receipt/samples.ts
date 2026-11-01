@@ -175,6 +175,7 @@ function draft(
   title: string,
   quote: string,
   value: 1 | 2 | 3 | 4 | 5,
+  anchorText: string,
 ): RecordBatchDraft {
   const anchor = recordBatchDraftFixture.scores[0];
   if (anchor.state !== 'suggested') throw new Error('fixture changed');
@@ -189,6 +190,7 @@ function draft(
     scores: [
       {
         ...anchor,
+        anchor: { ...anchor.anchor, text: anchorText },
         personId,
         dimensionId: 'demo-ownership',
         value,
@@ -212,6 +214,7 @@ const drafts = {
     '需求变更后当天给出两个备选方案',
     '第二天就拿了两个方案过来，每个方案的验收标准都写清楚了',
     4,
+    '变化中主动给出备选',
   ),
   docs: draft(
     'd-docs',
@@ -220,6 +223,7 @@ const drafts = {
     '主动补齐接口文档，联调时间缩短一半',
     '剩余任务按方案 B 重新拆分为 5 个 Issue',
     3,
+    '按分工补齐',
   ),
   docsAgain: draft(
     'd-docs-again',
@@ -228,6 +232,7 @@ const drafts = {
     '补齐接口文档后联调提速',
     '主动补齐接口文档，联调时间缩短一半',
     3,
+    '按分工补齐',
   ),
 };
 

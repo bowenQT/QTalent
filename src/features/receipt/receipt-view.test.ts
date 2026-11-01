@@ -64,15 +64,31 @@ describe('receipt view', () => {
     ]);
     expect(view.drafts[0]).toMatchObject({
       people: ['演示学员甲'],
-      quote: { where: '录音 03:12–03:28' },
+      quote: { where: '导师团复盘.m4a · 录音 03:12–03:28' },
       scores: [
-        { dimension: '主动担当', state: 'suggested', value: 4 },
+        {
+          dimension: '主动担当',
+          state: 'suggested',
+          value: 4,
+          anchor: '锚点 4 · 变化中主动给出备选',
+        },
         { dimension: '潜力', state: 'unknown', reason: '资料不足' },
       ],
     });
     expect(view.people).toEqual([
       { id: 'demo-p1', name: '演示学员甲', meta: '演示 · 一组' },
     ]);
+    // A cited file the receipt does not list (hidden) keeps the location only.
+    const hidden = receiptView(
+      {
+        ...sampleReceipts.review,
+        files: sampleReceipts.review.files.filter(
+          (file) => file.materialId !== 'm-audio',
+        ),
+      },
+      sampleLookup,
+    );
+    expect(hidden.drafts[0].quote?.where).toBe('录音 03:12–03:28');
   });
 
   it('counts a finished batch, its stopped files and a zero honestly', () => {
