@@ -36,8 +36,8 @@
 | `app/projects.html`               | `/projects`                       | projects / projects                 | projects / staffing                          | 已实现参考切片 |
 | `app/project.html`                | `/project?id=…`                   | project / project                   | project / staffing                           | 后续 / 404     |
 | `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 契约已定义，查询与 UI 待接入 / 404 |
-| `app/rules.html`                  | `/rules`；入营选拔标准 `/rules?r=front&line=xe-select` | standard-iteration / selection-standard.ts | 待 BOW-918 读取与动作 / evaluation-system | 入营选拔标准：UI 已实现，读取未接通时显示「待接通」（BOW-920）；其余 404 |
-| `app/judge.html`                  | `/judge`、`/judge?rater=me`       | standard-iteration / judgment-comparison.ts、standard-attribution.ts | 待 BOW-919、BOW-921 读取与动作 / evaluation-system | UI 已实现，读取未接通时显示「待接通」（BOW-920） |
+| `app/rules.html`                  | `/rules`；入营选拔标准 `/rules?r=front&line=xe-select` | standard-iteration / selection-standard.ts | 待 BOW-918 读取与动作 / evaluation-system | 入营选拔标准：UI 已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-920）；其余 404 |
+| `app/judge.html`                  | `/judge`、`/judge?rater=me`       | standard-iteration / judgment-comparison.ts、standard-attribution.ts | 待 BOW-919、BOW-921 读取与动作 / evaluation-system | UI 已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-920） |
 | `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
 | `app/admin.html`                  | `/admin`                          | admin / admin                       | admin / directory、平台                      | 后续 / 404     |
 | `m/index.html`                    | `/m`                              | mobile-workbench / mobile-workbench | mobile-workbench / 多领域聚合                | 后续 / 404     |
@@ -223,5 +223,7 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 | 删除草稿、增减关联依据、版本历史与对比、撤销退回 | 不提供 | 合同无对应动作 |
 | 规则总览页签 | 不显示 | `/rules` 总览未实现 |
 | 手机 `m/judge.html` | 不在本卡；375 宽按桌面页响应式重排 | 另卡 |
+
+视觉参照：当前 `prototype-reference.json` 指向 `91b297a`，其中没有 #259（BOW-924）的判断对照与入营选拔标准修订。本节界面按 main 上 `81e4fd4` 的原型实现；判断对照（批次、评价人、管理者摘要）、归因、修订编辑与确认发布均登记为「参照待同步」，未做像素对比，不算视觉通过。参照前移后（#248 评论 6557468925）补跑 1366 与 375 的对比。
 
 待共享文件处理（#248 登记）：`/judge` 归入导航高亮的别名（HR、管理者归「人才评价规则」，导师为自己的入口）；BOW-924 新增的 `.n-jstate[data-s='mid']`、`.n-jcase__items / __team / __deny`、`.n-impact__basis` 移入 `components.css` 后删除 `standard-iteration.css`；`prototype-reference.json` 前移到含 #259 的提交后补自动截图对照。
