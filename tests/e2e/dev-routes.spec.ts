@@ -14,6 +14,7 @@ const devRoutes = [
   '/dev/design-system',
   '/dev/design-system/general',
   '/dev/design-system/media',
+  '/dev/design-system/receipt',
   '/dev/design-system/talent',
 ];
 
