@@ -218,6 +218,10 @@ export const historicalEvaluations = pgTable(
   {
     id: text('id').primaryKey(),
     sourceRecordId: text('source_record_id').notNull(),
+    // Unknown legacy history remains unbound; no inference from current membership.
+    evaluationNodeId: text('evaluation_node_id').references(
+      () => evaluationNodes.id,
+    ),
     personId: text('person_id').references(() => people.id),
     recorderId: text('recorder_id')
       .notNull()
@@ -236,6 +240,13 @@ export const historicalEvaluations = pgTable(
       .default('original'),
   },
   (t) => [
+    foreignKey({
+      columns: [t.evaluationNodeId, t.personId],
+      foreignColumns: [
+        evaluationNodeSubjects.evaluationNodeId,
+        evaluationNodeSubjects.personId,
+      ],
+    }),
     foreignKey({
       columns: [t.fragmentId, t.originalVersionId],
       foreignColumns: [fragments.id, fragments.originalVersionId],

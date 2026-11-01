@@ -269,6 +269,8 @@ export const recordBatchDraftSchema = z
     revision,
     origin: z.literal('ai_suggestion'),
     personIds: batchIds.min(1),
+    // Explicit per-event topic lookup; null is resolved no-topic, never a grant.
+    projectId: text.nullable(),
     sourceReferences: z
       .array(materialSourceReferenceSchema)
       .min(1)

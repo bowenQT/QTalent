@@ -82,7 +82,11 @@
     const undo = st.keepFormal(pid, why);
     if (!undo) return;
     openId = null; render($('#main'));
-    NT.toast(`已保持${st.person(pid).name}的正式位置，理由记在档案里`, { undo: () => { undo(); render($('#main')); } });
+    NT.toast(`已保持${st.person(pid).name}的正式位置，理由记在档案里`, {
+      // 撤销结果如实交给 Toast：这条决定之后被更新、或校准权限已收回时，撤销失败并保留当前记录
+      undo: () => { const ok = undo(); render($('#main')); return ok; },
+      failText: '撤销失败：这条决定已更新，已保留当前记录',
+    });
   }
   function keep(id) {
     const it = st.queue().find((x) => x.id === id);
