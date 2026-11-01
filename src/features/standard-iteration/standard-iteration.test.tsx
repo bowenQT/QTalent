@@ -27,6 +27,7 @@ import {
 } from '@/app/dev/standard-iteration/samples';
 import { managerView } from '@/app/dev/standard-iteration/sample-store';
 import { Attribution } from './attribution/Attribution';
+import { JudgeBatch } from './judge/JudgeBatch';
 import { JudgeManager } from './judge/JudgeManager';
 import { JudgeRater } from './judge/JudgeRater';
 import { actionFailure } from './ports';
@@ -669,5 +670,61 @@ describe('dialogs close without acting', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(ports.createRevision).not.toHaveBeenCalled();
+  });
+});
+
+describe('JudgeBatch', () => {
+  const ports = {
+    generate: vi.fn(),
+    confirm: vi.fn(),
+    createRevision: vi.fn(),
+  };
+  it('opens a row from the link and scrolls smoothly unless motion is reduced', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    wrap(
+      <JudgeBatch
+        page={sampleHrPage}
+        standard={null}
+        currentStandardVersionId="xe-select-v1"
+        initialHypotheses={{ status: 'ready', items: sampleHypotheses }}
+        initialAttributions={[]}
+        ports={ports}
+        raterHref={(id) => `/judge?rater=${id}`}
+        onDrafted={vi.fn()}
+        initialOpen="overall"
+      />,
+    );
+    expect(screen.getAllByTestId('judge-case').length).toBeGreaterThan(0);
+    fireEvent.click(
+      within(
+        document.querySelector('[data-hyp="hyp-xe6-1"]') as HTMLElement,
+      ).getAllByRole('button', { name: /综合判断$/ })[0],
+    );
+    await waitFor(() =>
+      expect(scroll).toHaveBeenCalledWith({
+        block: 'center',
+        behavior: 'smooth',
+      }),
+    );
+  });
+
+  it('renders an empty batch without a scope line or invented counts', () => {
+    wrap(
+      <JudgeBatch
+        page={{ ...sampleHrPage, cases: [] }}
+        standard={sampleStandard}
+        currentStandardVersionId="xe-select-v1"
+        initialHypotheses={{ status: 'idle' }}
+        initialAttributions={[]}
+        ports={ports}
+        raterHref={(id) => `/judge?rater=${id}`}
+        onDrafted={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/人进入对照/)).toBeNull();
+    expect(screen.getByText(/作品完整度与创新性：/)).toBeTruthy();
+    expect(screen.queryAllByTestId('judge-case')).toHaveLength(0);
   });
 });
