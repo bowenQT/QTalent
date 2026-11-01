@@ -485,44 +485,38 @@ it('accepts the complete same-batch media set but refuses an omitted persisted m
   await c.db
     .insert(originalVersions)
     .values({ ...version, id: nextVersion, originalId: nextOriginal });
-  await c.db
-    .insert(uploadIntents)
-    .values({
-      ...intent,
-      id: nextUpload,
-      operationId: randomUUID(),
-      objectKey: nextOriginal,
-      completionOperationId: randomUUID(),
-      completed: {
-        ...intent.completed!,
-        uploadId: nextUpload,
-        originalId: nextOriginal,
-        originalVersionId: nextVersion,
-      },
-    });
-  await c.db
-    .insert(uploadObjects)
-    .values({
-      ...object,
+  await c.db.insert(uploadIntents).values({
+    ...intent,
+    id: nextUpload,
+    operationId: randomUUID(),
+    objectKey: nextOriginal,
+    completionOperationId: randomUUID(),
+    completed: {
+      ...intent.completed!,
       uploadId: nextUpload,
+      originalId: nextOriginal,
       originalVersionId: nextVersion,
-      objectKey: nextOriginal,
-    });
+    },
+  });
+  await c.db.insert(uploadObjects).values({
+    ...object,
+    uploadId: nextUpload,
+    originalVersionId: nextVersion,
+    objectKey: nextOriginal,
+  });
   const scopeAuditId = await recordAudit(c.db, {
     actorId: f.account,
     action: 'material.capture',
     resourceId: nextMaterial,
   });
-  await c.db
-    .insert(mediaMaterials)
-    .values({
-      ...material,
-      id: nextMaterial,
-      uploadId: nextUpload,
-      originalVersionId: nextVersion,
-      clientFileId: randomUUID(),
-      scopeAuditId,
-    });
+  await c.db.insert(mediaMaterials).values({
+    ...material,
+    id: nextMaterial,
+    uploadId: nextUpload,
+    originalVersionId: nextVersion,
+    clientFileId: randomUUID(),
+    scopeAuditId,
+  });
   await c.db
     .update(arrangeInputs)
     .set({
