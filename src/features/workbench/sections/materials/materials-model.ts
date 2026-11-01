@@ -128,7 +128,7 @@ export function localLine(file: LocalFile): FileLine {
         icon: 'dash',
         label: '已取消',
         tone: null,
-        meta: '这份文件不上传',
+        meta: '已移出本次投递',
       };
   }
 }
@@ -188,7 +188,10 @@ export function receiptParts(receipt: MaterialBatchReceipt): string[] {
     files.failed ? `${files.failed} 个处理中断` : '',
     files.unsupported ? `${files.unsupported} 个待换文件` : '',
     receipt.personIds.length ? `${receipt.personIds.length} 人` : '',
-    `${events.total} 件事`,
+    // While files are still being read the count only grows; a 0 then would read as nothing found.
+    receipt.status === 'processing' && !events.total
+      ? ''
+      : `${events.total} 件事`,
     reviewItems ? `${reviewItems} 处待核对` : '',
     events.awaiting_confirmation
       ? `${events.awaiting_confirmation} 件待确认`

@@ -60,6 +60,13 @@
   display: flex;
   gap: var(--s-2);
 }
+/* Two buttons beside the name leave a narrow card only a few characters of it: they go under the state line. */
+.n-dropbatch .n-file:has(> .n-dropbatch__acts) {
+  grid-template-columns: 30px minmax(0, 1fr);
+}
+.n-dropbatch .n-file > .n-dropbatch__acts {
+  grid-column: 2;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .n-rstate[data-s='processing']::before {

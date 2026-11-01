@@ -94,7 +94,9 @@ function BatchCard({ batch, state }: { batch: Batch; state: Batches }) {
         <div key={fileKey} className="n-file">
           <span className="n-file__ext">{extLabel(name)}</span>
           <div style={{ minWidth: 0 }}>
-            <div className="n-file__name">{name}</div>
+            <div className="n-file__name" title={name}>
+              {name}
+            </div>
             <div className="n-file__state">
               <span className={line.tone ?? undefined}>
                 <Icon name={line.icon} size={12} /> {line.label}
@@ -113,7 +115,7 @@ function BatchCard({ batch, state }: { batch: Batch; state: Batches }) {
               className="n-btn--sm n-btn--ghost"
               onClick={() => state.cancel(batch.id, local.clientFileId)}
             >
-              取消
+              取消上传
             </Button>
           ) : local?.state === 'interrupted' ? (
             <span className="n-dropbatch__acts">
@@ -121,7 +123,7 @@ function BatchCard({ batch, state }: { batch: Batch; state: Batches }) {
                 className="n-btn--sm n-btn--ghost"
                 onClick={() => state.cancel(batch.id, local.clientFileId)}
               >
-                不传了
+                取消上传
               </Button>
               <Button
                 className="n-btn--sm"

@@ -179,9 +179,7 @@ describe('materials with a backend', () => {
       }),
     );
     expect(head()).toBe('处理中');
-    expect(task().textContent).toContain(
-      '处理中 · 2 个文件 · 2 个处理中 · 0 件事',
-    );
+    expect(task().textContent).toContain('处理中 · 2 个文件 · 2 个处理中');
 
     await act(async () => vi.advanceTimersByTime(POLL_MS));
     expect(reads.map((read) => read.batchId)).toEqual(['batch-1']);
@@ -209,9 +207,9 @@ describe('materials with a backend', () => {
     const row = within(batchCard())
       .getByText('一.docx')
       .closest('.n-file') as HTMLElement;
-    fireEvent.click(within(row).getByRole('button', { name: '取消' }));
+    fireEvent.click(within(row).getByRole('button', { name: '取消上传' }));
     expect(uploads[0].signal.aborted).toBe(true);
-    expect(row.textContent).toContain('已取消 · 这份文件不上传');
+    expect(row.textContent).toContain('已取消 · 已移出本次投递');
     // A late answer for the canceled transfer changes nothing.
     await act(async () =>
       uploads[0].answer.resolve({ status: 'uploaded', uploadId: 'late' }),
@@ -244,7 +242,7 @@ describe('materials with a backend', () => {
     fireEvent.click(within(first).getByRole('button', { name: '重试' }));
     expect(uploads).toHaveLength(3);
     expect(uploads[2].file.name).toBe('一.docx');
-    fireEvent.click(within(second).getByRole('button', { name: '不传了' }));
+    fireEvent.click(within(second).getByRole('button', { name: '取消上传' }));
     await act(async () =>
       uploads[2].answer.resolve({ status: 'uploaded', uploadId: 'u-1' }),
     );

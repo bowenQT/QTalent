@@ -217,11 +217,26 @@ describe('file lines', () => {
 
 describe('summary parts', () => {
   it('come from the receipt counts after submission', () => {
-    expect(batchParts(sent(['a'], false))).toEqual([
-      '1 个文件',
-      '1 个处理中',
-      '0 件事',
-    ]);
+    // Still processing: no 0 for events that may yet come.
+    const processing = sent(['a'], false);
+    expect(batchParts(processing)).toEqual(['1 个文件', '1 个处理中']);
+    if (processing.submission.state !== 'sent') throw new Error('sent');
+    const early = processing.submission.receipt;
+    expect(
+      batchParts({
+        ...processing,
+        submission: {
+          state: 'sent',
+          receipt: {
+            ...early,
+            counts: {
+              ...early.counts,
+              events: { total: 2, awaiting_confirmation: 2, confirmed: 0 },
+            },
+          },
+        },
+      }),
+    ).toEqual(['1 个文件', '1 个处理中', '2 件事', '2 件待确认']);
     expect(batchParts(sent(['a', 'b', 'c'], true))).toEqual([
       '3 个文件',
       '1 个处理中断',

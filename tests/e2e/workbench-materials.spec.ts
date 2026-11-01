@@ -60,7 +60,7 @@ test('HR uploads a batch, retries an interrupted file and cancels another', asyn
   });
   const row = page.locator('#tasks .n-task');
   await expect(row).toContainText('统一投递');
-  await expect(row).toContainText('处理中 · 2 个文件 · 2 个处理中 · 0 件事');
+  await expect(row).toContainText('处理中 · 2 个文件 · 2 个处理中');
   await expect(batch(page).locator('.n-rstate')).toHaveText('待核对', {
     timeout: 10_000,
   });
@@ -71,8 +71,8 @@ test('HR uploads a batch, retries an interrupted file and cancels another', asyn
   // A second drop: cancel while uploading, nothing goes.
   await drop(page, [docx('补充记录.docx')]);
   const extra = fileRow(page, '补充记录.docx');
-  await extra.getByRole('button', { name: '取消' }).click();
-  await expect(extra).toContainText('已取消 · 这份文件不上传');
+  await extra.getByRole('button', { name: '取消上传' }).click();
+  await expect(extra).toContainText('已取消 · 已移出本次投递');
   await expect(batch(page).locator('.n-rstate')).toHaveText('已结束');
   await expect(page.locator('#tasks .n-task')).toHaveCount(2);
 });
