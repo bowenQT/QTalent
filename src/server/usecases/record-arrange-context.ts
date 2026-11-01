@@ -370,6 +370,7 @@ export async function loadRecordBatchSnapshot(
   metadata: BatchJobMetadata,
   at: string,
   batchRevision: number,
+  generation: BatchSnapshot['generation'] = { kind: 'initial' },
 ): Promise<BatchSnapshot | null> {
   const native = requireNativeInput(input);
   if (input.supersededByInputId !== null) return null;
@@ -484,7 +485,7 @@ export async function loadRecordBatchSnapshot(
     identities: input.personIds.length ? 'resolved' : 'unresolved',
     personIds: [...input.personIds],
     context: actor.context,
-    generation: { kind: 'initial' },
+    generation: structuredClone(generation),
     requestedSources: [
       {
         fragmentId: fragment.id,
