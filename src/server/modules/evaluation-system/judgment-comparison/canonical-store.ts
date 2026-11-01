@@ -23,7 +23,7 @@ export async function lockCanonicalComparisonBatch(
   tx: Transaction,
   batchId: string,
 ) {
-  if (!batchId || batchId.trim() !== batchId)
+  if (typeof batchId !== 'string' || !batchId || batchId.trim() !== batchId)
     throw new CanonicalComparisonError('invalid_input');
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended(${'comparison-batch:' + batchId}, 0))`,

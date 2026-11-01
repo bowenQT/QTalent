@@ -1,9 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
-import {
-  selectionCohortBindingSchema,
-  selectionStandardContentSchema,
-} from '@/contracts/selection-standard';
+import { and, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Transaction } from '@/server/db/client';
 import { people } from '../modules/directory';
@@ -16,6 +12,7 @@ import {
   validateCanonicalComparisonImport,
   lockCanonicalComparisonBatch,
   readCanonicalComparisonRows,
+  readSelectionCohortFacts,
   insertCanonicalComparisonRows,
   type CanonicalComparisonImport,
   type CanonicalComparisonSnapshot,
@@ -28,48 +25,6 @@ const digest = (value: unknown) =>
   createHash('sha256').update(canonicalComparisonJson(value)).digest('hex');
 const same = (a: unknown, b: unknown) =>
   canonicalComparisonJson(a) === canonicalComparisonJson(b);
-async function jsonRows(tx: Transaction, statement: SQL): Promise<unknown[]> {
-  return (await tx.execute<{ data: unknown }>(statement)).rows.map(
-    (row) => row.data,
-  );
-}
-// X1 owns the actual schema. These queries consume the exact frozen 918 tables;
-// no missing-table catch, dynamic DDL or copied lifecycle/current-version state.
-async function readCanonicalSelectionBinding(
-  tx: Transaction,
-  cohortId: string,
-) {
-  const rows = await jsonRows(
-    tx,
-    sql`select jsonb_build_object(
-    'cohortId', b.cohort_id, 'versionId', b.version_id, 'binding', b.binding,
-    'boundAtMatches', b.bound_at = (b.binding->>'boundAt')::timestamptz,
-    'content', c.content, 'origin', c.origin)
-    as data from evaluation_selection_cohort_bindings b
-    join evaluation_selection_version_content c on c.version_id=b.version_id
-    join evaluation_rule_versions v on v.id=c.version_id
-    where b.cohort_id=${cohortId} for share of b,c,v`,
-  );
-  const shape = z.strictObject({
-    cohortId: z.string(),
-    versionId: z.string(),
-    binding: selectionCohortBindingSchema,
-    boundAtMatches: z.literal(true),
-    content: selectionStandardContentSchema,
-    origin: z.enum(['baseline', 'publication']),
-  });
-  const value = shape.safeParse(rows[0]);
-  if (rows.length !== 1 || !value.success) return fail('invalid_reference');
-  const data = value.data;
-  if (
-    data.cohortId !== cohortId ||
-    data.binding.cohort.id !== cohortId ||
-    data.versionId !== data.binding.standardVersionId
-  )
-    return fail('invalid_reference');
-  return data;
-}
-
 const locationSchema = z.strictObject({
   kind: z.literal('spreadsheet'),
   sheet: z.string().trim().min(1),
@@ -126,7 +81,8 @@ async function sources(tx: Transaction, ids: string[]) {
 }
 type Source = Awaited<ReturnType<typeof sources>>[number];
 async function references(tx: Transaction, facts: CanonicalComparisonImport) {
-  const bound = await readCanonicalSelectionBinding(tx, facts.batch.cohortId);
+  const bound = await readSelectionCohortFacts(tx, facts.batch.cohortId);
+  if (!bound) return fail('invalid_reference');
   const ids = facts.cases
     .flatMap((unit) => [
       unit.front.source?.fragmentId,
@@ -199,7 +155,7 @@ async function references(tx: Transaction, facts: CanonicalComparisonImport) {
       if (
         side === 'front' &&
         stage.state === 'present' &&
-        stage.sourceStandardReference !== bound.versionId
+        stage.sourceStandardReference !== bound.binding.standardVersionId
       )
         return fail('invalid_reference');
       if (!stage.source) continue;
@@ -338,7 +294,7 @@ export async function readCanonicalComparisonBatch(
   if (factsDigest !== stored.batchDigest) return fail('incomplete');
   return {
     facts,
-    selectionStandardVersionId: refs.bound.versionId,
+    selectionStandardVersionId: refs.bound.binding.standardVersionId,
     factsDigest,
     importedAt: stored.importedAt,
   };
