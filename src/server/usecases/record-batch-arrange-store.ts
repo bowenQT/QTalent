@@ -4,6 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { Database, Transaction } from '../db/client';
 import {
   recordBatchDraftSetSchema,
+  recordBatchDraftSchema,
   recordSaveReceiptSchema,
   type RecordBatchDraftSet,
 } from '../../contracts/record';
@@ -22,6 +23,7 @@ import {
   recordDrafts,
   recordSaves,
   storeTrustedRecordDraftBatch,
+  batchDigest,
 } from '../modules/records';
 import { readBatchArrangeRules } from '../modules/records/arrange/batch-rules';
 import { projectBatchReceipt } from '../modules/records/arrange/batch-receipt';
@@ -120,7 +122,7 @@ function nativeJobStore(db: Database): JobStore<Transaction> {
               next.result = {
                 ...old,
                 trace: null,
-                manifest: [],
+                manifest: old.manifest,
               } satisfies BatchJobMetadata;
             await tx.save(next);
             current = next;
@@ -224,7 +226,15 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
     for (const saved of active) {
       const value = recordSaveReceiptSchema.parse(saved.receipt);
       const draft = all?.drafts.find((row) => row.draftId === saved.draftId);
-      if (!draft || saved.draftSnapshot.revision !== draft.revision)
+      const snapshot = recordBatchDraftSchema.parse(saved.draftSnapshot);
+      // Human save/undo advances the current ledger revision, never the retained
+      // AI draft body. Validate that transition instead of equating old/current.
+      if (
+        !draft ||
+        value.revision !== snapshot.revision + 1 ||
+        value.revision > draft.revision ||
+        !isDeepStrictEqual({ ...snapshot, revision: draft.revision }, draft)
+      )
         throw new NativeArrangeUnavailable('confirmation_snapshot_changed');
       const next = {
         draftId: saved.draftId,
@@ -389,6 +399,9 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
               metadata!,
               deps.businessNow(),
               set?.revision ?? 1,
+              set && ['queued', 'running'].includes(operation.phase)
+                ? { kind: 'revise', events: metadata!.manifest }
+                : { kind: 'initial' },
             ),
           readRules: (value) =>
             value.category === 'dimension_anchors' &&
@@ -396,9 +409,71 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
               ? readBatchArrangeRules(locked.context, value.at)
               : Promise.resolve(null),
           async reserveIdentities(plan) {
-            if (set || metadata!.manifest.length)
+            if (set) {
+              const manifest = metadata!.manifest;
+              if (
+                manifest.length !== set.drafts.length ||
+                plan.events.length !== manifest.length ||
+                new Set(manifest.map((event) => event.eventKey)).size !==
+                  manifest.length ||
+                new Set(manifest.map((event) => event.draftId)).size !==
+                  manifest.length ||
+                new Set(plan.events.map((event) => event.eventKey)).size !==
+                  manifest.length ||
+                manifest.some(
+                  (event) =>
+                    !set!.drafts.some(
+                      (draft) => draft.draftId === event.draftId,
+                    ),
+                ) ||
+                plan.events.some(
+                  (event) =>
+                    !manifest.some(
+                      (prior) => prior.eventKey === event.eventKey,
+                    ),
+                )
+              )
+                throw new NativeArrangeUnavailable(
+                  'native_revision_identity_changed',
+                );
+              return {
+                expectedBatchRevision: set.revision,
+                drafts: plan.events.map((event) => {
+                  const prior = manifest.find(
+                    (entry) => entry.eventKey === event.eventKey,
+                  )!;
+                  return {
+                    eventKey: event.eventKey,
+                    draftId: prior.draftId,
+                    previous: structuredClone(
+                      set!.drafts.find(
+                        (draft) => draft.draftId === prior.draftId,
+                      )!,
+                    ),
+                  };
+                }),
+                candidates: plan.groups.map((group) => {
+                  const prior = set!.duplicateCandidates.find((candidate) => {
+                    const keys = candidate.draftIds.map(
+                      (id) =>
+                        manifest.find((event) => event.draftId === id)
+                          ?.eventKey,
+                    );
+                    return (
+                      keys.every((key) => key !== undefined) &&
+                      batchDigest(keys.sort()) === group.key
+                    );
+                  });
+                  return {
+                    key: group.key,
+                    candidateId: prior?.candidateId ?? newId(),
+                  };
+                }),
+              };
+            }
+            if (metadata!.manifest.length)
               throw new NativeArrangeUnavailable(
-                'batch_revision_writer_not_connected',
+                'native_revision_batch_missing',
               );
             return {
               expectedBatchRevision: 1,
