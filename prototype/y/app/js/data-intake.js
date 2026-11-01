@@ -24,7 +24,7 @@
     { id: 'rel-yq', rater: 'p-yeqing', label: '导师', node: 'pg-xe6', people: [...team('t-talk-a'), ...team('t-scene-b')], from: '2026-07-06', to: '2026-09-30' },
     { id: 'rel-gmy', rater: 's-12', label: '导师', node: 'pg-xe6', people: team('t-plan-a'), from: '2026-07-06', to: '2026-08-31', ended: '08-31 起离开导师团' },
     { id: 'rel-xzy', rater: 's-28', label: '答辩评委', node: 'pg-def', people: ['p-fzx', 'p-glc'], from: '2026-09-02', to: '2026-09-09' },
-    { id: 'rel-hys', rater: 's-17', label: '答辩评委', node: 'pg-def', people: ['p-fzx', 'p-glc'], from: '2026-09-02', to: '2026-09-09' },
+    { id: 'rel-yq-def', rater: 'p-yeqing', label: '答辩评委', node: 'pg-def', people: ['p-fzx', 'p-glc'], from: '2026-09-02', to: '2026-09-09' },
   ];
 
   // ---------- 答辩节点：试用期转正答辩（演示），节点结论由 HR 确认，评委只确认本人评分 ----------
@@ -34,14 +34,14 @@
   const DEF = [
     // [事件 id, 被评价人, 评委, 已确认, 标题, 原话位置, 原话, 分数]
     ['e-def-1', 'p-fzx', 's-28', true, '讲清楚一次线上排障：先复现、再缩小范围，最后补了监控', '06:10–08:40', '我先在测试环境把客户的报错复现出来，再按时间线排除了网关和缓存，最后定位到重试配置', [['prof', 4, '锚点 4 · 引用「先复现、再按时间线排除」'], ['wis', 4, '锚点 4 · 主动补了监控']]],
-    ['e-def-2', 'p-fzx', 's-17', true, '试用期独立值班两周，组里沿用了交接文档', '14:20–15:30', '值班那两周我把常见问题整理成交接文档，现在组里新人都按这份来', [['prof', 4, '锚点 4 · 值班两周独立处理'], ['mot', 4, '锚点 4 · 主动整理交接文档']]],
+    ['e-def-2', 'p-fzx', 'p-yeqing', true, '试用期独立值班两周，组里沿用了交接文档', '14:20–15:30', '值班那两周我把常见问题整理成交接文档，现在组里新人都按这份来', [['prof', 4, '锚点 4 · 值班两周独立处理'], ['mot', 4, '锚点 4 · 主动整理交接文档']]],
     ['e-def-3', 'p-glc', 's-28', true, '答辩时说明客户工单的分级办法，举了两个例子', '22:05–23:50', '我把工单按影响面分了三级，第一级半小时内回，举两个上个月的例子', [['prof', 3, '锚点 3 · 按分工完成工单分级'], ['wis', 3, '锚点 3 · 有例子']]],
-    ['e-def-4', 'p-glc', 's-17', false, '复盘一次延误交付，讲了自己补救的做法', '27:40–29:15', '那次是我低估了联调时间，后来每天和客户对一次进度，最后晚了两天交付', [['grit', 3, '锚点 3 · 每天对一次进度'], ['open', 4, '锚点 4 · 主动说出自己的判断失误']]],
+    ['e-def-4', 'p-glc', 'p-yeqing', false, '复盘一次延误交付，讲了自己补救的做法', '27:40–29:15', '那次是我低估了联调时间，后来每天和客户对一次进度，最后晚了两天交付', [['grit', 3, '锚点 3 · 每天对一次进度'], ['open', 4, '锚点 4 · 主动说出自己的判断失误']]],
   ];
   DEF.forEach(([id, p, by, done, title, loc, quote, sc]) => SEED.EVENTS.push({
-    id, kind: 'obs', date: '2026-09-02', project: null, recorder: by, people: [p], title, bg: '试用期转正答辩', act: quote, res: '', node: 'pg-def:n0',
+    id, kind: 'obs', date: '2026-09-02', project: null, recorder: by, people: [p], title, bg: '试用期转正答辩', act: quote, res: '', node: 'pg-def:n0', drop: 'd-def',
     srcs: [{ type: 'audio', label: TRANSCRIPT, loc, by, quote }], tags: [],
-    scores: sc.map(([d, v, note]) => (done ? { p, d, v, st: 'confirmed', by, ai: v, note } : { p, d, v, st: 'ai', ai: v, note })),
+    scores: sc.map(([d, v, note]) => (done ? { p, d, v, st: 'confirmed', by, ai: v, note, hist: [{ v, kind: 'confirm', by, at: '2026-09-02' }] } : { p, d, v, st: 'ai', ai: v, note })),
   }));
   const CONCLUSION_TYPES = ['建议转正', '延长试用期', '不建议转正'];
   const CONCLUSIONS = [
@@ -74,6 +74,10 @@
         { name: '评审讨论录音.m4a', kind: 'audio', state: 'transcribing', meta: '42:08 · 转写中' },
       ],
       mentions: ['p-x62', 'p-x65'], evs: ['e-d7', 'e-d8'], held: [], verify: ['i-aze', 'i-region'] },
+    // 答辩录音由 HR 交；评委各自在这份回执里确认本人评分，都确认后 HR 才能确认节点结论
+    { id: 'd-def', title: '试用期转正答辩 · 会议录音', by: 'p-suwan', entry: 'web', at: '2026-09-02 18:20', node: 'pg-def',
+      files: [{ name: '转正答辩会议录音（演示）.m4a', kind: 'audio', state: 'done', meta: '31:40 · 区分出 4 位说话人' }],
+      mentions: ['p-fzx', 'p-glc'], evs: ['e-def-1', 'e-def-2', 'e-def-3', 'e-def-4'], held: [], verify: [] },
     { id: 'd-iv', title: '北森面评导入', by: 'p-suwan', entry: 'web', at: '2026-09-04 09:30', kind: 'interview', import: 'imp-1',
       files: [{ name: '北森面评导出 · 2026-07.pdf（演示）', kind: 'pdf', state: 'done', meta: '9 页 · 6 位候选人 · 按版式读分' }],
       mentions: [], evs: [], held: [], verify: ['i-int'] },

@@ -324,11 +324,15 @@
         ${d.files.map((f) => { const [ic, fl] = st.FILE_STATE[f.state]; return html`<div class="n-file"><span class="n-file__ext">${UI.attachKind(f.name).ext}</span><div style="min-width:0"><div class="n-file__name">${f.name}</div><div class="n-file__state"><span class="${f.state === 'failed' ? 'err' : f.state === 'done' ? 'ok' : ''}">${icon(ic, 12)} ${fl}</span> · ${f.meta}</div>${['queued', 'parsing', 'transcribing', 'uploading'].includes(f.state) ? html`<div class="n-progress is-indeterminate"><i></i></div>` : ''}</div><span></span></div>`; })}
         <div class="n-dropbatch__foot"><span class="nt-muted">${s.processing ? `${s.processing} 个处理中，可以离开，结果会回到「进行中的任务」` : [s.failed && `${s.failed} 个失败`, s.verifyOpen && `${s.verifyOpen} 处待核对`, `${s.events} 件事`].filter(Boolean).join(' · ')}</span><a class="n-btn n-btn--sm" href="receipt.html?id=${d.id}">看回执</a></div></li>`);
     };
-    const follow = (d) => {
-      draw(d); renderTasks();
+    // 批次里还有没走完的步骤就按时推进；d 是本页刚投递、要在投递区画出来的批次
+    const busy = (b) => b.files.some((f) => f.steps?.some((x) => !x.done));
+    const watch = (d) => {
       clearInterval(timer);
-      timer = setInterval(() => { if (!document.body.contains(files)) { clearInterval(timer); return; } if (st.tickDrops()) { draw(st.drop(d.id)); renderTasks(); } if (!st.drop(d.id).files.some((f) => f.steps?.some((x) => !x.done))) clearInterval(timer); }, 500);
+      timer = setInterval(() => { if (!document.body.contains(files)) { clearInterval(timer); return; } if (st.tickDrops()) { if (d) draw(st.drop(d.id)); renderTasks(); } if (!st.drops().some(busy)) clearInterval(timer); }, 500);
     };
+    const follow = (d) => { draw(d); renderTasks(); watch(d); };
+    // 刷新或离开后回到工作台：之前投递、还没处理完的批次接着推进
+    if (st.drops().some(busy)) watch(null);
     $('#drop').addEventListener('click', () => follow(st.addDemoDrop()));
     ['dragover', 'dragenter'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.add('is-over'); }));
     ['dragleave', 'drop'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.remove('is-over'); }));

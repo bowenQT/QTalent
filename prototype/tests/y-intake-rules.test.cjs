@@ -12,8 +12,8 @@ const JS = path.join(__dirname, '../y/app/js');
 const FILES = ['core.js', 'data-xe6.js', 'data.js', 'data-intake.js', 'store.js', 'intake.js'];
 const SRC = FILES.map((f) => [f, fs.readFileSync(path.join(JS, f), 'utf8')]);
 
-function load(as) {
-  const mem = new Map();
+// mem 传入同一个存储时，换视角接着上一个视角的演示状态走
+function load(as, mem = new Map(), fresh = true) {
   const ctx = {
     matchMedia: () => ({ matches: true }),
     localStorage: { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) },
@@ -24,7 +24,7 @@ function load(as) {
   ctx.window = ctx;
   vm.createContext(ctx);
   SRC.forEach(([f, s]) => vm.runInContext(s, ctx, { filename: f }));
-  ctx.NT.store.reset();
+  if (fresh) ctx.NT.store.reset();
   return ctx.NT.store;
 }
 
@@ -308,4 +308,28 @@ test('接手的事按那件事的实际状态算办完：复盘确认后移出�
   assert.equal(st.reassignTask(ra3).done, true);
   assert.ok(!st.takenOver().includes(ra3));
   assert.ok(st.reassignDone().includes(ra1), '办完的接手记录保留在处理记录里');
+});
+
+test('答辩评委在回执里确认本人评分，待办随之消失；两位评委都确认后 HR 才能确认节点结论', () => {
+  const mem = new Map();
+  const mentor = load('mentor', mem);
+  const d = mentor.drop('d-def');
+  assert.ok(mentor.canSeeDrop(d), '评委能打开答辩录音的回执');
+  const mine = mentor.dropItems(d).filter((x) => x.mine);
+  assert.equal(mine.map((x) => x.ev.id).join(','), 'e-def-2,e-def-4', '只有本人评的两件事归他确认');
+  assert.ok(mentor.todos().some((t) => t.kind === 'confirm' && t.href === 'receipt.html?id=d-def#confirm'));
+  assert.equal(mentor.canConfirmConclusion(), false);
+
+  let hr = load('hrbp', mem, false);
+  const glc = hr.conclusion('nc-glc');
+  assert.ok(hr.judgeStatus(glc).some((j) => !j.done));
+  hr.confirmConclusion('nc-glc', '建议转正', '依据', 'edit');
+  assert.equal(glc.versions.length, 0, '评委没确认完，结论确认不了');
+
+  load('mentor', mem, false).receiptConfirm('e-def-4');
+  assert.ok(!load('mentor', mem, false).todos().some((t) => t.href === 'receipt.html?id=d-def#confirm'), '确认后这条待办消失');
+  hr = load('hrbp', mem, false);
+  assert.ok(hr.judgeStatus(hr.conclusion('nc-glc')).every((j) => j.done));
+  hr.confirmConclusion('nc-glc', '建议转正', '两位评委都已确认本人评分', 'edit');
+  assert.equal(hr.conclusion('nc-glc').versions[0].type, '建议转正');
 });

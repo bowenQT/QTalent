@@ -105,6 +105,7 @@
   }
   function conclusionCard(c) {
     const js = st.judgeStatus(c), wait = js.filter((j) => !j.done), cur = c.versions[0], can = st.canConfirmConclusion();
+    const rcpt = wait.flatMap((j) => j.evs).map((e) => e.drop).find(Boolean);
     const judges = html`<ul class="n-nc__judges">${js.map((j) => html`<li><span class="n-nc__dot" data-done="${j.done}" aria-hidden="true"></span>${st.person(j.rater).name}<small>${j.label} · ${j.done ? '已确认本人评分' : '待本人确认评分'}</small>${j.evs.map((e) => html`<span class="n-nc__ev">${e.scores.map((x) => `${st.dim(x.d).name} ${x.v}`).join(' · ')}${UI.evCite(e.id, 1)}</span>`)}</li>`)}</ul>`;
     const basis = html`<div class="n-nc__basis"><span class="nt-muted">依据</span>${UI.cites(c.srcs)}<span class="nt-muted">${c.srcs.map((x) => x.label).join('、')}</span></div>`;
     let body;
@@ -116,7 +117,7 @@
       body = html`<div class="n-block" data-state="ink"><p class="n-nc__type">${UI.src('human')}<b>${cur.type}</b></p><p class="n-nc__why">${cur.why}</p>
         <div class="n-block__by"><span class="n-block__sig">${st.person(cur.by).name}</span>${NT.md(cur.at)} 确认 · 第 ${cur.v} 版${c.versions.length > 1 ? ` · 改过 ${c.versions.length - 1} 次，旧版保留` : ''}${can ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-nc="edit" data-c="${c.id}" style="margin-left:auto">${icon('pen')}修改结论</button>` : ''}</div></div>`;
     } else if (!can) body = html`<p class="nt-muted" style="margin:0">待 HR 确认结论。</p>`;
-    else if (wait.length) body = html`<p class="nt-muted" style="margin:0">等${wait.map((j) => st.person(j.rater).name).join('、')}确认本人评分以后，再确认结论。</p>`;
+    else if (wait.length) body = html`<p class="nt-muted" style="margin:0">等${wait.map((j) => st.person(j.rater).name).join('、')}确认本人评分以后，再确认结论。评委在回执里逐条确认${rcpt ? html` · <a class="n-link" href="receipt.html?id=${rcpt}">看回执</a>` : ''}</p>`;
     else if (c.ai) {
       body = html`<div class="n-block" data-state="light"><p class="n-nc__type"><span class="n-src n-src--ai">${icon('spark')}AI 草拟 · 仅供参考</span><b>${c.ai.type}</b></p><p class="n-nc__why">${c.ai.why}</p>
         <div class="n-block__by"><span class="n-review__evact"><button class="n-btn n-btn--sm" type="button" data-nc="adopt" data-c="${c.id}">${icon('check')}采用</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-nc="edit" data-c="${c.id}">${icon('pen')}改写</button></span></div></div>`;
