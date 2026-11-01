@@ -66,12 +66,6 @@ jobs:
       - run: pnpm reference:prepare
       - run: pnpm check
         id: quality
-      # 独立临时PG/本卡覆盖证据；默认正式检查先跑且总失败结果保留。
-      - name: Verify BOW-852 temporary PG and unit coverage
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.number == 161 }}
-        env:
-          BOW_852_TARGET_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: node --import tsx scripts/verify-bow-852-temporary-pg.ts "$BOW_852_TARGET_HEAD"
       # 覆盖率门槛由 pnpm check 把关；Codecov 只展示，上传失败不影响检查结论。
       - uses: codecov/codecov-action@v7
         with:

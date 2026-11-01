@@ -14,6 +14,7 @@ import {
 } from './schema';
 import {
   evaluationReassignmentReceiptSchema,
+  evaluationWorkRegistrationSchema,
   type EvaluationReassignmentReceipt,
   type ReassignEvaluationWorkInput,
   type EvaluationWorkItem,
@@ -106,10 +107,11 @@ export async function insertEvaluationWorkItem(
   input: Omit<EvaluationWorkItem, 'revision' | 'updatedAt' | 'state'>,
   now: string,
 ) {
+  const registration = evaluationWorkRegistrationSchema.parse(input);
   const [created] = await tx
     .insert(evaluationWorkItems)
     .values({
-      ...input,
+      ...registration,
       state: 'pending',
       revision: 1,
       updatedAt: now,
@@ -129,10 +131,10 @@ export async function insertEvaluationWorkItem(
     .from(evaluationWorkItems)
     .where(
       and(
-        eq(evaluationWorkItems.evaluationNodeId, input.evaluationNodeId),
-        eq(evaluationWorkItems.personId, input.personId),
-        eq(evaluationWorkItems.kind, input.kind),
-        eq(evaluationWorkItems.resourceId, input.resourceId),
+        eq(evaluationWorkItems.evaluationNodeId, registration.evaluationNodeId),
+        eq(evaluationWorkItems.personId, registration.personId),
+        eq(evaluationWorkItems.kind, registration.kind),
+        eq(evaluationWorkItems.resourceId, registration.resourceId),
       ),
     );
   if (!existing) throw new Error('Evaluation work identity disappeared');

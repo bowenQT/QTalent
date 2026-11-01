@@ -55,9 +55,7 @@ beforeAll(async () => {
   url.pathname = '/' + database;
   connection = createDatabase(url.toString());
   await migrate(connection.db, {
-    // Explicit CI-only schema composition; the default formal migration gate stays unchanged.
-    migrationsFolder:
-      process.env.BOW_852_TEST_MIGRATIONS_DIR ?? 'src/server/db/migrations',
+    migrationsFolder: 'src/server/db/migrations',
   });
   boss = new PgBoss({ connectionString: url.toString() });
   await boss.start();

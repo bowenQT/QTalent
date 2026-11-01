@@ -26,8 +26,29 @@
     {
       "idx": 3,
       "version": "7",
-      "when": 1792946589390,
-      "tag": "0003_overjoyed_sunset_bain",
+      "when": 1793513726370,
+      "tag": "0003_bow_899_evaluation_nodes",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793514000477,
+      "tag": "0004_bow_899_legacy_node_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793519890379,
+      "tag": "0005_bow_922_rule_applicability",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793519975087,
+      "tag": "0006_bow_922_legacy_rule_applicability",
       "breakpoints": true
     }
   ]
