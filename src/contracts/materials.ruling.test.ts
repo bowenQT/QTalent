@@ -84,6 +84,8 @@ function mixedReceipt() {
     files: [parsed, processing, waiting],
     textMaterial: null,
     items: [review],
+    resolvedItems: [],
+    hasHiddenContent: false,
     draftSet: {
       batchId: 'demo-batch',
       revision: 1,
