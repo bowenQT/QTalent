@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { State } from '@/components/ui/State';
 import { Person } from '@/features/person/Person';
+import { LivePersonPrint } from '@/features/person-print/LivePersonPrint';
 import { AccessDenied } from '@/features/shell/AccessDenied';
 import { ShellTitle } from '@/features/shell/ShellTitle';
 import { getShellPage } from '@/server/queries/shell';
@@ -49,7 +50,28 @@ export default async function PersonPage({ searchParams }: Props) {
   return (
     <>
       <ShellTitle title={page.data.person.name} />
-      <Person data={page.data} loadSource={readSource} />
+      <Person
+        data={page.data}
+        loadSource={readSource}
+        headActions={
+          // 导师变体没有打印入口，页头保持原样；是不是归属 HR，由服务端在打印前复核时判断。
+          page.data.role === 'mentor' ? undefined : (
+            <LivePersonPrint
+              personId={page.data.person.id}
+              personName={page.data.person.name}
+              canPrint
+            />
+          )
+        }
+      />
+      {page.data.role === 'mentor' ? (
+        // 没有入口也挂上打印稿：直接用浏览器打印时只印一句档案打印对谁开放。
+        <LivePersonPrint
+          personId={page.data.person.id}
+          personName={page.data.person.name}
+          canPrint={false}
+        />
+      ) : null}
     </>
   );
 }

@@ -1,4 +1,5 @@
 'use client';
+import type { ReactNode } from 'react';
 import type { Person as PersonData } from '@/contracts/person';
 import type { LoadSource } from '@/features/sources/SourceCite';
 import { FactsCard } from './FactsCard';
@@ -23,13 +24,16 @@ const MANAGEMENT_PENDING = ['北森面评', '节点结论', '独立管理观察'
 export function Person({
   data,
   loadSource,
+  headActions,
 }: {
   data: PersonData;
   loadSource: LoadSource;
+  /** 页头动作区的内容，由页面决定；不传时页头只有身份。 */
+  headActions?: ReactNode;
 }) {
   return (
     <>
-      <PersonHeader data={data} />
+      <PersonHeader data={data} actions={headActions} />
       <div className="nt-split nt-split--wide">
         <div className="nt-grid">
           <FactsCard timeline={data.timeline} loadSource={loadSource} />

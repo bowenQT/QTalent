@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, login, test } from './fixtures';
 
 /**
  * The profile print (BOW-911) on the development sample /dev/person-print: prototype Y's
@@ -146,4 +146,37 @@ test('by keyboard: the dialog opens, keeps a lost print and returns focus on can
   await expect(dialog).toBeHidden();
   await expect(entry).toBeFocused();
   expect(await printed(page)).toBe(0);
+});
+
+test('on the person page, managers and HR get the entry and the print is not connected; the mentor has none', async ({
+  page,
+  context,
+  referenceApp,
+}) => {
+  for (const role of ['ceo', 'hrbp'] as const) {
+    await context.clearCookies();
+    await login(context, role, referenceApp.baseURL);
+    await page.goto('/person?id=p-x07');
+    const entry = page
+      .locator('header.nt-head .nt-head__acts')
+      .getByRole('button', {
+        name: '打印档案',
+      });
+    await entry.click();
+    const notice = page.getByRole('dialog', { name: '档案打印待接通' });
+    await expect(notice).toBeVisible();
+    await notice.getByRole('button', { name: '知道了' }).click();
+    await expect(notice).toBeHidden();
+    await expect(entry).toBeFocused();
+    expect(await printed(page)).toBe(0);
+  }
+  await context.clearCookies();
+  await login(context, 'mentor', referenceApp.baseURL);
+  await page.goto('/person?id=p-x07');
+  await expect(page.locator('header.nt-head')).toBeVisible();
+  await expect(page.locator('.nt-head__acts')).toHaveCount(0);
+  await page.emulateMedia({ media: 'print' });
+  await expect(sheet(page)).toHaveText(
+    '档案打印只对管理者和这个人的归属 HR 开放，打印内容只含已确认的部分，并记入审计日志。',
+  );
 });
