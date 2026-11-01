@@ -93,3 +93,9 @@ worker使用上述`readValidatedUpload`，不直接读写uploads内部表，不�
 5. 新增离线测试运行真实Drizzle SQL生成和行映射，只替换pg I/O；它不是物理PG证明。`store.integration.test.ts`新增完整历史成员与原生事务锁/隔离级别回归，仍须在846→845→873的最终四表迁移发布后运行。缺表即失败的门禁保留，无临时DDL绕过。
 
 本阶段保持Draft+blocked，原通过只覆盖旧head；按新稳定head请求Claude增量审查，既有审查后修改1/2历史保留。没有追加供应商调用、部署或生产接线完成的声明。
+
+## X1 正式整合（0009 之后）
+
+从 main `046b24e8e2bb986eb4d3c37a8d47f7c778f53a8a` 普通同步，Drizzle 原生生成 `0010_bow_873_upload_sources`，新增集合、intent、已验证对象与读取票据四表。0000–0009 SQL/快照保留；已有行不回填假集合、绑定或授权。迁移测试覆盖空库、真实已导入0000–0009升级、历史事实保持与重复迁移。结果以最终固定head验证为准。
+
+公共 records 出口提供实际 `createPostgresUploadStore`、`lockUploadCollection`、`readUploadCollectionMembers`、`readValidatedUpload` 及相应事实类型；这些仍是内部事实，不是公开响应或授权。既有生产组合缺口继续按上述边界保留：未安装假的dispatch、ledger、duration或来源投影，四表迁移不等于整条材料生产链已接通。

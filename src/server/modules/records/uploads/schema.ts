@@ -46,7 +46,7 @@ export const uploadCollections = pgTable(
     ),
   ],
 );
-/** Schema only; parent generates migration after 852 -> 846, never in parallel. */
+/** Generated in the serial 846 -> 845 -> 873 migration sequence. */
 export const uploadIntents = pgTable(
   'records_upload_intents',
   {
