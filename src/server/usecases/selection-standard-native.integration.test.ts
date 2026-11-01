@@ -30,6 +30,7 @@ import {
   selectionCohortBindings,
   selectionPublications,
 } from '../modules/evaluation-system/selection/schema';
+import { readCurrentSelectionStandard } from '../modules/evaluation-system/selection/postgres';
 import { readEffectiveRuleVersion } from '../modules/evaluation-system/effective-version';
 import { lockRuleCategory } from '../modules/evaluation-system/applicability';
 import * as audit from '../platform/audit';
@@ -526,5 +527,33 @@ describe('918 actual baseline/cohort assembly (synthetic facts, real PostgreSQL)
     } finally {
       vi.useRealTimers();
     }
+  });
+  it('921 receives actual current922 metadata and immutable918 content, never a requested old-version fallback', async () => {
+    expect(
+      await db().transaction((tx) =>
+        readCurrentSelectionStandard(tx, 'xe-select-v1', clock),
+      ),
+    ).toBeNull();
+    await initialize();
+    const value = await db().transaction((tx) =>
+      readCurrentSelectionStandard(tx, 'xe-select-v1', clock),
+    );
+    expect(value?.content).toEqual(input.content);
+    expect(value?.version).toMatchObject({
+      versionId: input.versionId,
+      provenance: 'demo_import_snapshot',
+      effectiveFrom: input.effectiveFrom,
+    });
+    expect(
+      await db().transaction((tx) =>
+        readCurrentSelectionStandard(tx, 'xe-select-v2', clock),
+      ),
+    ).toBeNull();
+    await db().delete(selectionCategoryHeads);
+    await expect(
+      db().transaction((tx) =>
+        readCurrentSelectionStandard(tx, 'xe-select-v1', clock),
+      ),
+    ).rejects.toThrow('Selection persistence unavailable');
   });
 });

@@ -50,9 +50,11 @@ import {
 } from '../../../../contracts/standard-iteration.fixtures';
 import {
   createSelectionPostgresStore,
+  readCurrentSelectionStandard,
   initializeSelectionBaseline,
   SelectionPersistenceUnavailableError,
   type SelectionPostgresServices,
+  type SelectionPostgresTransaction,
 } from './postgres';
 import {
   selectionRevisions,
@@ -798,6 +800,16 @@ describe('918 原生事务持久适配（真实PG）', () => {
   });
   it('真实发布后不把未绑定旧期次补成新版；同tx新建期次才采用新版', async () => {
     await publication('native-cohort');
+    expect(
+      await db().transaction((tx) =>
+        readCurrentSelectionStandard(tx, 'xe-select-v1', clock),
+      ),
+    ).toBeNull();
+    expect(
+      await db().transaction((tx) =>
+        readCurrentSelectionStandard(tx, 'xe-select-v2', clock),
+      ),
+    ).toMatchObject({ version: { versionId: 'xe-select-v2' } });
     await expect(
       bindExistingSelectionCohort(db(), manager, eighth.id, clock),
     ).rejects.toThrow();
@@ -823,5 +835,84 @@ describe('918 原生事务持久适配（真实PG）', () => {
       .delete(selectionCohortBindings)
       .where(eq(selectionCohortBindings.cohortId, newCohort.id));
     await db().delete(cohorts).where(eq(cohorts.id, newCohort.id));
+  });
+  it('真实只读事务不能分配版本；无操作回执的预留版本整体回滚', async () => {
+    const before = await head();
+    await expect(
+      store.ports.read(async (tx) => {
+        await store.ports.loadAuthority(tx, hr, now);
+        return store.ports.allocateVersionId(tx);
+      }),
+    ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+    await expect(
+      store.ports.transact(
+        {
+          category: 'xe_selection',
+          accountId: hr,
+          operationId: 'incomplete-allocation',
+        },
+        async (tx) => {
+          await store.ports.loadAuthority(tx, hr, now);
+          await store.ports.allocateVersionId(tx);
+        },
+      ),
+    ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+    expect(await head()).toEqual(before);
+    expect(await db().select().from(selectionOperations)).toEqual([]);
+  });
+  it('真实事务上下文不可跨store或在结束后复用', async () => {
+    const second = createSelectionPostgresStore(db(), readers());
+    let expired!: SelectionPostgresTransaction;
+    await store.ports.read(async (tx) => {
+      expired = tx;
+    });
+    await expect(
+      store.ports.loadAuthority(expired, hr, now),
+    ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+    await expect(
+      store.ports.read((tx) => second.ports.loadAuthority(tx, hr, now)),
+    ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+  });
+  it('账号操作锁不能被另一当前账号或另一operation读取借用', async () => {
+    const lock = {
+      category: 'xe_selection' as const,
+      accountId: hr,
+      operationId: 'locked-operation',
+    };
+    await expect(
+      store.ports.transact(lock, (tx) =>
+        store.ports.loadAuthority(tx, manager, now),
+      ),
+    ).rejects.toMatchObject({ status: 'forbidden' });
+    await expect(
+      store.ports.transact(lock, async (tx) => {
+        await store.ports.loadAuthority(tx, hr, now);
+        await store.ports.readOperation(tx, hr, 'different-operation');
+      }),
+    ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+  });
+  it('未取得当前权限或未完成effect不能写audit/ledger', async () => {
+    const lock = {
+      category: 'xe_selection' as const,
+      accountId: hr,
+      operationId: 'no-effect',
+    };
+    await expect(
+      store.ports.transact(lock, (tx) =>
+        store.ports.readOperation(tx, hr, lock.operationId),
+      ),
+    ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+    await expect(
+      store.ports.transact(lock, async (tx) => {
+        await store.ports.loadAuthority(tx, hr, now);
+        await store.ports.audit(tx, {
+          actorAccountId: hr,
+          actorPersonId: iterationDemoHr.id,
+          action: 'selection_standard.create',
+          resourceId: 'no-draft',
+        });
+      }),
+    ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+    expect(await db().select().from(selectionOperations)).toEqual([]);
   });
 });

@@ -1444,6 +1444,46 @@ export async function importSelectionBaselineSnapshot(
   return { head, created: !previousHead };
 }
 
+/** Server-private input for921 after its current HR/node authorization.
+ * Read the actual922 effective version and immutable918 content; a requested old
+ * version is not silently substituted. No permission or Web DTO is created here. */
+export async function readCurrentSelectionStandard(
+  tx: Transaction,
+  requestedVersionId: string,
+  clock: () => Date = () => new Date(),
+) {
+  const versionId = selectionVersionIdSchema.parse(requestedVersionId);
+  const now = clock();
+  const effective = await readEffectiveRuleVersion(
+    tx,
+    { category: 'xe_selection', at: now.toISOString() },
+    () => now,
+  );
+  if (effective.status === 'not_found') return null;
+  if (effective.status !== 'success') conflict();
+  if (effective.version.versionId !== versionId) return null;
+  const [head] = await tx
+    .select()
+    .from(selectionCategoryHeads)
+    .where(eq(selectionCategoryHeads.category, 'xe_selection'));
+  if (!head) throw new SelectionPersistenceUnavailableError();
+  const current = await readCurrentSelectionVersion(
+    tx,
+    head,
+    now.toISOString(),
+  );
+  if (!same(current, effective.version)) conflict();
+  const [content] = await tx
+    .select()
+    .from(selectionVersionContents)
+    .where(eq(selectionVersionContents.versionId, versionId));
+  if (!content) throw new SelectionPersistenceUnavailableError();
+  return {
+    version: current,
+    content: selectionStandardContentSchema.parse(content.content),
+  };
+}
+
 /** Internal native binding read; caller authorizes the cohort before disclosure. */
 export async function readStoredSelectionCohortBinding(
   tx: Transaction,
