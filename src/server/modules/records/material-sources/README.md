@@ -50,7 +50,6 @@ reader 核验全部 parse 片段、页面摘要及原件绑定，再返回私有
 
 边界仍明确：X1现有 `confirmationSources` 只校验文本intake；附件intake没有可信原生绑定前继续失败关闭。873 `collection.target` 的 people/event 不能单独提供全部评价节点/期次/材料敏感类型，creator也不是来源全体主体。生产866 saveParse、873绑定及845入队尚未接通，本次 reader 不替代它们，更不把人工写入的PG测试夹具冒充真实附件任务运行。
 
-
 ## 同事务 PDF 保存适配
 
 `saveAttachmentPdf(tx, binding, parsed, serverProvenance)` 是866 `saveParse` 的具体原生实现：在调用方完成事务中锁定当前media job，复核parsing阶段、输入版本与取消状态，调用873 `readValidatedUploadInTransaction` 持集合锁重读实际归档事实，逐项绑定账号/集合/目标/文件/字节数/摘要，再把固定页面文本decoder的真实输出投影并写入现canonical store。没有另开事务，也不改job或独立入队；失败统一安全错误，旧items-v2无页面文本不能进入此入口。

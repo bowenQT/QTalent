@@ -26,19 +26,17 @@ function setup() {
     excerpt: source.excerpt,
   });
   const facts = { context: data.context, sources: talentSources(data) };
-  const read = vi
-    .spyOn(store, 'readMaterialFragment')
-    .mockResolvedValue({
-      source,
-      binding: {
-        parseVersionId: 'parse',
-        originalVersionId: 'version',
-        contentDigest: 'a'.repeat(64),
-        parserVersion: 'parser',
-        projectionVersion: 'pdf-page-text-v1',
-      },
-      resultDigest: 'b'.repeat(64),
-    });
+  const read = vi.spyOn(store, 'readMaterialFragment').mockResolvedValue({
+    source,
+    binding: {
+      parseVersionId: 'parse',
+      originalVersionId: 'version',
+      contentDigest: 'a'.repeat(64),
+      parserVersion: 'parser',
+      projectionVersion: 'pdf-page-text-v1',
+    },
+    resultDigest: 'b'.repeat(64),
+  });
   return { data, facts, source, read };
 }
 beforeEach(() => vi.restoreAllMocks());
