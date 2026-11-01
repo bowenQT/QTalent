@@ -66,7 +66,27 @@ const batch = {
   revision: 1,
   evaluationNodeId: 'demo-node',
   personIds: ['demo-person'],
+  projectId: null,
   files: [parsedFile],
+  textMaterial: null,
+  jobId: null,
+  items: [],
+  confirmedDrafts: [],
+  error: null,
+  counts: {
+    files: {
+      total: 1,
+      processing: 0,
+      parsed: 1,
+      needs_review: 0,
+      unsupported: 0,
+      failed: 0,
+      original_only: 0,
+      attachment_only: 0,
+    },
+    events: { total: 2, awaiting_confirmation: 2, confirmed: 0 },
+    reviewItems: 0,
+  },
 };
 const ready = { ...batch, status: 'awaiting_confirmation', draftSet };
 const duplicate = {
@@ -96,7 +116,10 @@ const reviewCommand = {
 const resolutionReceipt = {
   batchId: 'demo-batch',
   itemId: 'demo-speaker-review',
+  materialId: 'demo-material',
   revision: 2,
+  blockingReviewItemIds: [],
+  resolution: { action: 'bind', personId: 'demo-person' },
   remainingReviewItemIds: [],
   invalidatedDraftIds: [draft.draftId],
   kind: 'speaker',
@@ -505,7 +528,7 @@ describe('BOW-897 multi-event drafts and in-batch deduplication', () => {
 });
 
 describe('BOW-897 review types, permissions and recovery', () => {
-  it('exposes four pending review kinds, existing-directory candidates and explicit policy', () => {
+  it('exposes six pending review kinds, existing-directory candidates and explicit policy', () => {
     for (const item of reviews) {
       expect(materialReviewItemSchema.parse(item)).toEqual(item);
       expect(
@@ -529,6 +552,16 @@ describe('BOW-897 review types, permissions and recovery', () => {
         owner: 'BOW-905',
       },
       unknown_interviewer: {
+        resolver: 'scoped_hr',
+        resumeAt: 'interview_import',
+        owner: 'BOW-906',
+      },
+      unknown_project: {
+        resolver: 'current_node_evaluator_or_scoped_manager_or_hr',
+        resumeAt: 'organizing',
+        owner: 'BOW-845',
+      },
+      unknown_interview_candidate: {
         resolver: 'scoped_hr',
         resumeAt: 'interview_import',
         owner: 'BOW-906',
@@ -653,11 +686,34 @@ describe('BOW-897 review types, permissions and recovery', () => {
       }).success,
     ).toBe(false);
   });
-  it('resumes at the owning step only after all blocking reviews are resolved', () => {
+  it('resumes at the owning step only after target blockers are resolved', () => {
+    const accepted = {
+      speaker: { action: 'bind', personId: 'demo-person' },
+      unknown_person: { action: 'bind_people', personIds: ['demo-person'] },
+      image_scope: {
+        action: 'confirm_scope',
+        region: references.image.location.region,
+        personIds: ['demo-person'],
+      },
+      unknown_interviewer: {
+        action: 'link_existing_interviewer',
+        personId: 'demo-interviewer',
+      },
+      unknown_project: {
+        action: 'link_existing_project',
+        projectId: 'demo-project',
+      },
+      unknown_interview_candidate: {
+        action: 'link_existing_candidate',
+        personId: 'demo-person',
+      },
+    };
+
     for (const [kind, policy] of Object.entries(MATERIAL_REVIEW_POLICIES)) {
       const receipt = {
         ...resolutionReceipt,
         kind,
+        resolution: accepted[kind as keyof typeof accepted],
         resume: { stage: policy.resumeAt, jobId: 'demo-resumed-job' },
       };
       expect(materialReviewResolutionReceiptSchema.parse(receipt)).toEqual(
@@ -667,6 +723,7 @@ describe('BOW-897 review types, permissions and recovery', () => {
         materialReviewResolutionReceiptSchema.safeParse({
           ...receipt,
           remainingReviewItemIds: ['pending-review'],
+          blockingReviewItemIds: ['pending-review'],
         }).success,
       ).toBe(false);
       expect(
@@ -674,6 +731,7 @@ describe('BOW-897 review types, permissions and recovery', () => {
           ...receipt,
           resume: null,
           remainingReviewItemIds: ['pending-review'],
+          blockingReviewItemIds: ['pending-review'],
         }).resume,
       ).toBeNull();
     }
@@ -712,35 +770,42 @@ describe('BOW-897 review types, permissions and recovery', () => {
 });
 
 describe('BOW-897 truthful aggregate receipts', () => {
-  it('represents processing, review, confirmation and failure without invented content', () => {
+  it('represents unassigned processing and review without invented SBI or scores', () => {
     const processing = {
       ...batch,
       personIds: [],
       status: 'processing',
       jobId: 'demo-job',
+      draftSet: null,
+      counts: {
+        ...batch.counts,
+        events: { total: 0, awaiting_confirmation: 0, confirmed: 0 },
+      },
+    };
+    expect(materialBatchReceiptSchema.parse(processing)).toEqual(processing);
+    const item = reviews[0];
+    const waitingFile = {
+      materialId: item.materialId,
+      clientFileId: 'waiting-file',
+      filename: '演示.wav',
+      originalVersionId: item.originalVersionId,
+      status: 'needs_review',
+      reviewItemIds: [item.itemId],
     };
     const pending = {
       ...batch,
       personIds: [],
       status: 'needs_review',
-      items: reviews,
+      files: [waitingFile],
+      items: [item],
+      draftSet: null,
+      counts: {
+        files: { ...batch.counts.files, parsed: 0, needs_review: 1 },
+        events: { total: 0, awaiting_confirmation: 0, confirmed: 0 },
+        reviewItems: 1,
+      },
     };
-    const failed = {
-      ...batch,
-      files: [unsupportedFile],
-      status: 'failed',
-      code: 'all_materials_unusable',
-      message: '本批材料暂无法处理',
-      retryable: false,
-    };
-    for (const receipt of [processing, pending, ready, failed])
-      expect(materialBatchReceiptSchema.parse(receipt)).toEqual(receipt);
-    expect(
-      materialBatchReceiptSchema.parse({
-        ...ready,
-        files: [parsedFile, unsupportedFile],
-      }).files,
-    ).toEqual([parsedFile, unsupportedFile]);
+    expect(materialBatchReceiptSchema.parse(pending)).toEqual(pending);
     expect(
       materialBatchReceiptSchema.safeParse({
         ...pending,
@@ -769,41 +834,55 @@ describe('BOW-897 truthful aggregate receipts', () => {
         personIds: ['other-person'],
       }).success,
     ).toBe(false);
+    for (const patch of [
+      { items: [] },
+      { items: [item, item] },
+      { items: [{ ...item, batchId: 'other-batch' }] },
+      { items: [{ ...item, evaluationNodeId: 'other-node' }] },
+      { files: [{ ...waitingFile, reviewItemIds: ['missing-review'] }] },
+    ])
+      expect(
+        materialBatchReceiptSchema.safeParse({ ...pending, ...patch }).success,
+      ).toBe(false);
   });
-  it('keeps file-specific failures and review references explicit', () => {
-    for (const file of [
-      parsedFile,
-      unsupportedFile,
-      {
-        ...parsedFile,
-        status: 'processing',
-        jobId: 'demo-file-job',
-        parseVersionId: undefined,
+
+  it('retains per-file failure reasons while other events can be confirmed', () => {
+    const mixed = {
+      ...ready,
+      files: [parsedFile, unsupportedFile],
+      counts: {
+        ...batch.counts,
+        files: { ...batch.counts.files, total: 2, unsupported: 1 },
       },
-      {
-        ...unsupportedFile,
-        status: 'failed',
-        reason: undefined,
-        code: 'invalid_content',
+    };
+    expect(materialBatchReceiptSchema.parse(mixed)).toEqual(mixed);
+    const failed = {
+      ...batch,
+      status: 'failed',
+      files: [unsupportedFile],
+      draftSet: null,
+      counts: {
+        files: { ...batch.counts.files, parsed: 0, unsupported: 1 },
+        events: { total: 0, awaiting_confirmation: 0, confirmed: 0 },
+        reviewItems: 0,
+      },
+      error: {
+        code: 'all_materials_unusable',
+        message: '本批材料暂无法处理',
         retryable: false,
       },
-      {
-        ...parsedFile,
-        status: 'needs_review',
-        parseVersionId: undefined,
-        reviewItemIds: [reviews[0].itemId],
-      },
-    ]) {
-      const wire = Object.fromEntries(
-        Object.entries(file).filter(([, value]) => value !== undefined),
-      );
-      expect(materialFileReceiptSchema.parse(wire)).toEqual(wire);
-    }
+    };
+    expect(materialBatchReceiptSchema.parse(failed)).toEqual(failed);
     expect(
-      materialFileReceiptSchema.safeParse({
-        ...parsedFile,
-        originalVersionId: null,
+      materialBatchReceiptSchema.safeParse({
+        ...failed,
+        status: 'completed',
+        error: null,
       }).success,
+    ).toBe(true);
+    expect(
+      materialBatchReceiptSchema.safeParse({ ...mixed, error: failed.error })
+        .success,
     ).toBe(false);
     expect(
       materialBatchReceiptSchema.safeParse({
@@ -811,48 +890,36 @@ describe('BOW-897 truthful aggregate receipts', () => {
         files: [parsedFile, parsedFile],
       }).success,
     ).toBe(false);
-    const waitingFile = {
-      materialId: 'demo-material-a',
-      clientFileId: 'demo-file-a',
-      filename: '演示材料',
-      originalVersionId: 'demo-audio-v1',
-      status: 'needs_review',
-      reviewItemIds: [reviews[0].itemId],
-    };
-    const pending = {
-      ...batch,
-      status: 'needs_review',
-      items: reviews,
-      files: [waitingFile],
-    };
-    expect(materialBatchReceiptSchema.parse(pending)).toEqual(pending);
-    for (const patch of [
-      { items: [] },
-      { items: [reviews[0], reviews[0]] },
-      { items: [{ ...reviews[0], batchId: 'other-batch' }] },
-      { items: [{ ...reviews[0], evaluationNodeId: 'other-node' }] },
-      { files: [{ ...waitingFile, reviewItemIds: ['missing-review'] }] },
+  });
+
+  it('keeps the existing per-file processing, parsing, unsupported and error contracts strict', () => {
+    for (const file of [
+      parsedFile,
+      unsupportedFile,
+      {
+        materialId: 'audio',
+        clientFileId: 'audio-file',
+        filename: '演示.wav',
+        originalVersionId: null,
+        status: 'processing',
+        jobId: 'audio-job',
+      },
+      {
+        materialId: 'failed',
+        clientFileId: 'failed-file',
+        filename: '演示损坏.pdf',
+        originalVersionId: null,
+        status: 'failed',
+        code: 'invalid_content',
+        retryable: false,
+        message: '文件内容损坏',
+      },
     ])
-      expect(
-        materialBatchReceiptSchema.safeParse({ ...pending, ...patch }).success,
-      ).toBe(false);
+      expect(materialFileReceiptSchema.parse(file)).toEqual(file);
     expect(
-      materialBatchReceiptSchema.safeParse({ ...ready, files: [waitingFile] })
-        .success,
-    ).toBe(false);
-    expect(
-      materialBatchReceiptSchema.safeParse({
-        ...ready,
-        files: [
-          {
-            materialId: 'demo-material',
-            clientFileId: 'demo-file',
-            filename: '演示材料',
-            originalVersionId: null,
-            status: 'processing',
-            jobId: 'demo-job',
-          },
-        ],
+      materialFileReceiptSchema.safeParse({
+        ...parsedFile,
+        originalVersionId: null,
       }).success,
     ).toBe(false);
   });
