@@ -241,10 +241,11 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
   - 原话只在本标签页暂存：`sessionStorage['niu-talent:staffing:sentence:<projectId>']` 存 `{ accountId, text }`，刷新后还在、关掉标签页即清除，不进地址、不上服务端；清空输入框或确认需求后删除，别的项目或账号读不到。
   - `?project=<id>&demand=<id>`：用 `readStaffingDemand` 读当前版本；读不到或不属于这个项目时显示「需求链接失效」（缺失与无权同一结果）。编辑、确认走 `editStaffingDemandAction` / `confirmStaffingDemandAction`，冲突提示刷新、保留输入；被拒时显示本页的肯定式文案，不透出服务端原文。
   - 没有 `project`（含 `?new=1`）：显示「选一个项目再找人」，引到项目与课题。一句话建项目不在 BOW-852 范围内。
-  - 确认后的候选人核对：BOW-854 未合入，`openMatching` 返回 `null`，显示「候选人核对待接通」，不拿样张冒充。
+  - 确认后的候选人核对：经 `src/server/actions/staffing-match.ts` 调用 BOW-854 的匹配用例，账号从会话取，权限由用例的 `scopeFor` 判断。唯一组装点 `src/server/queries/staffing-match-runtime.ts` 在前置（匹配两表迁移、846 `readConfirmations`、837 `projectSources`、Jev 与 Gemini 复核客户端、`staffing_match` 队列与 worker 注册，见 #248 评论 6559923544）到位前返回 `null`，动作回 `not_connected`，页面显示「候选人核对待接通」，不拿样张冒充。开启被拒（403/404）显示「这次核对在你的查看范围之外」，冲突或网络失败显示「候选人核对中断」。
+  - 引用来源：`readStaffingSourceAction` 走与档案相同的当前账号来源读取（`readSourceForCurrentUser`），不依赖 BOW-854。
 - 开发样张 `/dev/staffing?role=manager|hr&scene=ts|agent|new`：原型 Y 种子数据经找人契约渲染，来源都标为原型基线；动作是内存假实现。生产构建返回 404。
 - 排序只用契约的 `orderStaffingCandidates`（必须项支持了几条），同数保持读取顺序；必须项至少两条资料不足、没有一条支持、且没有还在处理或待人工判断的要求的人，放进「条件待确认」。不出总分、胜任率或百分比。
-- 匹配入口：契约没有「取确认后的匹配任务」的读取，`StaffingPorts.openMatching` 是对 BOW-854 的接口假设，返回任务标识或 `null`（这时显示「候选人核对待接通」）。
+- 匹配入口：契约没有「取确认后的匹配任务」的读取。`openStaffingMatchAction` 用「需求 + 版本」推出操作编号，每个账号、每个需求版本只启动一次匹配，再次打开时重放同一个 run，返回它的任务标识；读取和人工判断都带这个 run 标识（`readStaffingMatchAction`、`judgeStaffingMatchAction`）。
 - 新项目入口（`?new=1`）：契约的起草需要 `projectId`，一句话建项目不在找人契约里；真实路由先引到项目，开发样张在起草完成后由 `onDemandReady` 绑定演示项目。
 - 工作台交接：读取并删除 `sessionStorage['niu-talent:draft:staffing']`（约定见 BOW-841 `send.ts`），账号不符或超过 10 分钟丢弃。
 

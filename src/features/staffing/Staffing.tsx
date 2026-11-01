@@ -19,6 +19,7 @@ import {
   takeDraft,
 } from './draft';
 import { useJob } from './use-job';
+import { JobReadError } from '@/lib/job-subscription';
 import {
   conflictText,
   demandOutOfScope,
@@ -42,6 +43,13 @@ import {
   type MatchingState,
 } from './sections/candidates/Candidates';
 import type { ManualJudgmentDraft } from './sections/candidates/ManualJudgment';
+
+/** How asking for the matching run of a confirmed revision ended. */
+type Opened =
+  | { kind: 'job'; jobId: string }
+  | { kind: 'unavailable' }
+  | { kind: 'denied' }
+  | { kind: 'failed' };
 
 type Failure =
   | { status: 'validation_error'; fieldErrors: Record<string, string[]> }
@@ -188,10 +196,13 @@ export function Staffing(props: StaffingProps) {
 
   const [matching, setMatching] = useState<{
     revision: number;
-    jobId: string | null;
+    opened: Opened;
   } | null>(() =>
     props.demand?.status === 'confirmed' && props.matchingJobId
-      ? { revision: props.demand.revision, jobId: props.matchingJobId }
+      ? {
+          revision: props.demand.revision,
+          opened: { kind: 'job', jobId: props.matchingJobId },
+        }
       : null,
   );
   const confirmed = demand?.status === 'confirmed' ? demand : null;
@@ -204,7 +215,9 @@ export function Staffing(props: StaffingProps) {
   });
   const current =
     confirmed && matching?.revision === confirmed.revision ? matching : null;
-  const matchJob = useJob(current?.jobId ?? null, ports.readMatchingJob);
+  const matchingJobId =
+    current?.opened.kind === 'job' ? current.opened.jobId : null;
+  const matchJob = useJob(matchingJobId, ports.readMatchingJob);
   const [judged, setJudged] = useState<
     ReadonlyMap<string, StaffingCandidate['requirements'][number]>
   >(new Map());
@@ -225,9 +238,17 @@ export function Staffing(props: StaffingProps) {
     let live = true;
     ports
       .openMatching(toOpen)
-      .catch(() => null)
-      .then((jobId) => {
-        if (live) setMatching({ revision: toOpen.revision, jobId });
+      .then(
+        (jobId): Opened =>
+          jobId === null ? { kind: 'unavailable' } : { kind: 'job', jobId },
+        // Refused for this viewer, or gone: not visible. Anything else: it broke.
+        (error: unknown): Opened =>
+          error instanceof JobReadError && [403, 404].includes(error.status)
+            ? { kind: 'denied' }
+            : { kind: 'failed' },
+      )
+      .then((opened) => {
+        if (live) setMatching({ revision: toOpen.revision, opened });
       });
     return () => {
       live = false;
@@ -238,9 +259,9 @@ export function Staffing(props: StaffingProps) {
 
   const matchingState: MatchingState = !current
     ? { kind: 'opening' }
-    : current.jobId === null
-      ? { kind: 'unavailable' }
-      : { kind: 'job', job: matchJob };
+    : current.opened.kind === 'job'
+      ? { kind: 'job', job: matchJob }
+      : { kind: current.opened.kind };
   const page = confirmed ? pageFor(confirmed, matchingState) : null;
   const candidates = useMemo(
     () =>
@@ -324,7 +345,9 @@ export function Staffing(props: StaffingProps) {
     requirementId: string,
     draft: ManualJudgmentDraft,
   ) {
-    if (!confirmed) return;
+    // Judgments are saved on the matching run they were made in.
+    if (!confirmed || !matchingJobId) return;
+    const runId = matchingJobId;
     const target = {
       demandId: confirmed.id,
       revision: confirmed.revision,
@@ -342,7 +365,7 @@ export function Staffing(props: StaffingProps) {
     setJudging({ ...target, busy: true, error: null });
     let error: string;
     try {
-      const result = await ports.judge({
+      const result = await ports.judge(runId, {
         operationId: operationId(),
         demandId: target.demandId,
         expectedRevision: target.revision,

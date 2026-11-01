@@ -19,6 +19,8 @@ type StaffingPage = NonNullable<StaffingJobSnapshot['result']>;
 export type MatchingState =
   | { kind: 'opening' }
   | { kind: 'unavailable' }
+  | { kind: 'denied' }
+  | { kind: 'failed' }
   | { kind: 'job'; job: JobState<StaffingJobSnapshot> | null };
 
 export type JudgingTarget = {
@@ -95,7 +97,11 @@ export function Candidates({
     );
   const job = matching.kind === 'job' ? matching.job : null;
   if (!candidates) {
-    if (job?.connection === 'forbidden' || job?.connection === 'not_found')
+    if (
+      matching.kind === 'denied' ||
+      job?.connection === 'forbidden' ||
+      job?.connection === 'not_found'
+    )
       return (
         <Section>
           <State kind="denied" title={outOfScope} />
@@ -104,7 +110,7 @@ export function Candidates({
     const settled =
       job?.snapshot &&
       ['failed', 'cancelled', 'completed'].includes(job.snapshot.status);
-    if (settled || job?.connection === 'error')
+    if (settled || matching.kind === 'failed' || job?.connection === 'error')
       return (
         <Section>
           <State kind="failed" {...matchingFailed} />
