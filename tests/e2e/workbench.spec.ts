@@ -2,10 +2,11 @@ import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures';
 
 /**
- * BOW-841 workbench sections in a real browser, on the development sample /dev/workbench
- * (fixed demo views) until /work reads real data (BOW-838). Navigation targets are not
- * built yet (record BOW-847, find people BOW-853): only the navigation and the handover
- * are checked, never the target page.
+ * BOW-841 keyboard paths through the workbench sections, on the development sample
+ * /dev/workbench (fixed demo views, so the examples and trainees are known). The real
+ * /work reads are covered in workbench-work.spec.ts. Navigation targets are not built yet
+ * (record BOW-847, find people BOW-853): only the navigation and the handover are
+ * checked, never the target page.
  */
 async function tabTo(page: Page, target: string, limit = 40) {
   for (let step = 0; step < limit; step += 1) {

@@ -1,6 +1,6 @@
 import type { ShellData } from '@/contracts/shell';
 import type {
-  ExportView,
+  ExportScope,
   TodosView,
   VerifyKind,
   WorkbenchRole,
@@ -95,36 +95,37 @@ const hrTodos: TodosView = {
   reassign: { status: 'ready', data: { items: 4, evaluators: ['谷牧野'] } },
 };
 
-// Export scopes and previews for the dialog sample.
+// Export scopes for the dialog sample. HR's first scope and its 近 12 个月 preview are
+// what the prototype shows for 苏晚; the other values are sample values.
 const preview = (people: number, rows: number, skipped = 0) => ({
   people,
   rows,
   skipped,
 });
-const exportScopes: ExportView['scopes'] = [
+const exportScopes = (first: string, people: number): ExportScope[] => [
   {
     id: 'all',
-    label: '我查看范围内的全部人员',
-    people: 129,
+    label: first,
+    people,
     previews: {
-      all: preview(16, 40, 3),
-      last12Months: preview(16, 40, 3),
-      last3Months: preview(12, 27, 3),
+      all: preview(95, 590, 16),
+      last12Months: preview(95, 561, 16),
+      last3Months: preview(60, 212, 9),
     },
   },
   {
-    id: 'pg-xe6',
+    id: 'b-xe6',
     label: 'XEngineer 第六期',
     people: 93,
     previews: {
-      all: preview(14, 34, 3),
-      last12Months: preview(14, 34, 3),
-      last3Months: preview(12, 27, 3),
+      all: preview(93, 580, 16),
+      last12Months: preview(93, 552, 16),
+      last3Months: preview(58, 205, 9),
     },
   },
   {
-    id: 'empty',
-    label: '夏季黑客松',
+    id: 'follow',
+    label: '我的关注',
     people: 0,
     previews: {
       all: preview(0, 0),
@@ -142,7 +143,10 @@ export const sampleViews: Record<WorkbenchRole, WorkbenchView> = {
     entries: { record: true, findPeople: true },
     accountId: 'sample-ceo',
     namedExamples: true,
-    exportable: { status: 'ready', data: { scopes: exportScopes } },
+    exportable: {
+      status: 'ready',
+      data: { scopes: exportScopes('全公司范围内的人', 129) },
+    },
   },
   hr: {
     role: 'hr',
@@ -152,7 +156,10 @@ export const sampleViews: Record<WorkbenchRole, WorkbenchView> = {
     accountId: 'sample-hrbp',
     namedExamples: true,
     todos: hrTodos,
-    exportable: { status: 'ready', data: { scopes: exportScopes } },
+    exportable: {
+      status: 'ready',
+      data: { scopes: exportScopes('我负责的人', 95) },
+    },
   },
   mentor: {
     role: 'mentor',

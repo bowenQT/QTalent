@@ -1,5 +1,5 @@
 import type { BrowserContext, Locator, Page } from '@playwright/test';
-import { test, expect } from '../e2e/fixtures';
+import { test, expect, login } from '../e2e/fixtures';
 import { compareElements, expectSameBox, stabilize } from './compare';
 import { referenceConfig } from './reference-config';
 import { startPrototypeServer } from './prototype-server';
@@ -11,12 +11,11 @@ import {
 } from './workbench-masks';
 
 /**
- * BOW-841 workbench sections against prototype Y, same run, element by element.
- * The engineering side is the development sample /dev/workbench (fixed demo views): the
- * real read (BOW-838) and the revised contract (#202) are not on main yet. When /work
- * reads real data, this spec moves to it and keeps the same comparisons.
- * Whole-page pixels are not compared: blocks that are not rendered move everything
- * below them. Positions are checked separately (expectSameBox) before pixels.
+ * BOW-841 /work against prototype Y, same run, element by element. The engineering side
+ * is the real page on the seeded demo database, signed in as each role (the seed and the
+ * prototype share pseudonyms). Whole-page pixels are not compared: blocks that are not
+ * rendered move everything below them. Positions are checked separately (expectSameBox)
+ * before pixels.
  */
 // Same instant on both sides, so the time-of-day greeting matches (UTC 07:00 → 上午好).
 const instant = new Date('2026-09-04T07:00:00Z');
@@ -60,7 +59,7 @@ const blocks: Record<WorkbenchRole, Block[]> = {
 
 /** Pixel comparisons: element selector (same on both sides) and masks inside it. */
 type Sample = { name: string; selector: string; mask?: readonly string[] };
-function samples(role: WorkbenchRole, desktop: boolean): Sample[] {
+function samples(role: WorkbenchRole): Sample[] {
   if (role === 'manager')
     return [
       { name: 'head', selector: '.nt-head > div:first-child' },
@@ -75,29 +74,25 @@ function samples(role: WorkbenchRole, desktop: boolean): Sample[] {
       ...shared,
       { name: 'ask', selector: '.n-asks > .n-ask:first-child' },
     ];
-  const rows = Array.from({ length: 10 }, (_, index) => ({
-    name: `student-${index + 1}`,
-    selector: `.n-students__list > li:nth-child(${index + 1}) > div:not(.n-students__acts)`,
-  }));
   return [
     ...shared,
     { name: 'asks', selector: '.n-asks' },
-    // Whole card first, since later samples restyle its rows; desktop width only: on a
-    // phone the prototype's extra recommend button narrows each row and rewraps it.
-    ...(desktop
-      ? [
-          {
-            name: 'students',
-            selector: '#students',
-            mask: withinMasks.studentActs,
-          },
-        ]
-      : []),
     { name: 'students-title', selector: '#students > h3' },
     { name: 'students-caption', selector: '#students > .nt-caption' },
-    ...rows,
   ];
 }
+
+/**
+ * Trainee rows matched by name: the read orders them by team and name (BOW-838), the
+ * prototype by group. The second line is masked: activity is unknown in the read, so the
+ * row shows the topic alone where the prototype adds this week's records.
+ */
+const studentRow = (target: Page, name: string) =>
+  target
+    .locator('.n-students__list > li', {
+      has: target.locator('b', { hasText: new RegExp(`^${name}$`) }),
+    })
+    .locator('> div:not(.n-students__acts)');
 
 /** Top and bottom relative to the main column, so the shell above does not count. */
 const span = (locator: Locator) =>
@@ -126,6 +121,7 @@ for (const role of ['manager', 'hr', 'mentor'] satisfies WorkbenchRole[]) {
     test(`${role} workbench sections at ${viewportName}`, async ({
       browser,
       context,
+      referenceApp,
     }, testInfo) => {
       const server = await startPrototypeServer();
       const referenceContext = await browser.newContext({
@@ -141,11 +137,8 @@ for (const role of ['manager', 'hr', 'mentor'] satisfies WorkbenchRole[]) {
           `${server.url}/prototype/y/app/index.html?as=${prototypeRole[role]}`,
           viewport,
         );
-        const page = await open(
-          context,
-          `/dev/workbench?role=${role}`,
-          viewport,
-        );
+        await login(context, prototypeRole[role], referenceApp.baseURL);
+        const page = await open(context, '/work', viewport);
         await expect(prototype.locator('.nt-head h1')).toBeVisible();
         await expect(page.locator('.nt-head h1')).toHaveText(/上午好/);
 
@@ -171,8 +164,8 @@ for (const role of ['manager', 'hr', 'mentor'] satisfies WorkbenchRole[]) {
             (await texts(prototype, '.n-ask')).slice(0, role === 'hr' ? 1 : 2),
           );
         if (role === 'mentor')
-          expect(await texts(page, '.n-students__list b')).toEqual(
-            await texts(prototype, '.n-students__list b'),
+          expect((await texts(page, '.n-students__list b')).sort()).toEqual(
+            (await texts(prototype, '.n-students__list b')).sort(),
           );
 
         // Arrangement: what is rendered keeps the prototype order.
@@ -216,7 +209,7 @@ for (const role of ['manager', 'hr', 'mentor'] satisfies WorkbenchRole[]) {
           }
           previous = { reference, actual };
         }
-        for (const sample of samples(role, viewportName === 'desktop'))
+        for (const sample of samples(role))
           await compareElements(
             prototype.locator(sample.selector),
             page.locator(sample.selector),
@@ -224,13 +217,41 @@ for (const role of ['manager', 'hr', 'mentor'] satisfies WorkbenchRole[]) {
             `${role}-${viewportName}-${sample.name}`,
             { mask: sample.mask, snap: true },
           );
-        if (role === 'mentor')
+        if (role === 'mentor') {
+          // At phone width the prototype's longer second line wraps into more rows
+          // (registered: activity is unknown), so only the names are compared there.
+          const part = (row: Locator) =>
+            viewportName === 'desktop' ? row : row.locator('b');
+          // Rows sit at different heights on the two sides (read order differs); centre
+          // each one so the sticky phone top bar covers neither.
+          const centred = async (target: Locator) => {
+            await target.evaluate((node) =>
+              node.scrollIntoView({ block: 'center' }),
+            );
+            return target;
+          };
+          for (const name of await texts(prototype, '.n-students__list b'))
+            await compareElements(
+              await centred(part(studentRow(prototype, name))),
+              await centred(part(studentRow(page, name))),
+              testInfo,
+              `${role}-${viewportName}-student-${name}`,
+              { mask: withinMasks.studentLine, snap: true },
+            );
+          const recordButton = (target: Page, name: string) =>
+            target
+              .locator('.n-students__list > li', {
+                has: target.locator('b', { hasText: new RegExp(`^${name}$`) }),
+              })
+              .locator('.n-students__acts .n-btn--ink');
+          const [first] = await texts(prototype, '.n-students__list b');
           await compareElements(
-            prototype.locator('.n-students__acts .n-btn--ink').first(),
-            page.locator('.n-students__acts .n-btn--ink').first(),
+            await centred(recordButton(prototype, first)),
+            await centred(recordButton(page, first)),
             testInfo,
             `${role}-${viewportName}-record-button`,
           );
+        }
       } finally {
         await referenceContext.close();
         await server.close();
@@ -242,6 +263,7 @@ for (const role of ['manager', 'hr', 'mentor'] satisfies WorkbenchRole[]) {
 test('manager example panel opens on focus and matches the prototype', async ({
   browser,
   context,
+  referenceApp,
 }, testInfo) => {
   const server = await startPrototypeServer();
   const referenceContext = await browser.newContext({
@@ -256,7 +278,8 @@ test('manager example panel opens on focus and matches the prototype', async ({
       referenceContext,
       `${server.url}/prototype/y/app/index.html?as=ceo`,
     );
-    const page = await open(context, '/dev/workbench?role=manager');
+    await login(context, 'ceo', referenceApp.baseURL);
+    const page = await open(context, '/work');
     for (const target of [prototype, page]) {
       await expect(target.locator('.n-find__asks')).toBeHidden();
       await stabilize(target);

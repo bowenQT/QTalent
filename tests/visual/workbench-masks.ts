@@ -28,8 +28,8 @@ export const withinMasks = {
   // Voice input is a scripted demo in the prototype; live recording is BOW-869.
   // The upload clip appears once BOW-861 connects the upload section.
   composer: ['#composer-mic', 'a[href="#upload"]'],
-  // Recommendation buttons are not connected; the record button is compared alone.
-  studentActs: ['.n-students__acts'],
+  // Trainee activity is unknown in the read (BOW-838): the line shows the topic alone.
+  studentLine: ['small'],
 } as const;
 
 /*
