@@ -3,7 +3,7 @@ import { canManageNodeAssignments } from '../authz/evaluation-node';
 import type { Database } from '../db/client';
 import { eligibleEvaluationWorkRelations } from '../authz/reassignment-handlers';
 import {
-  assignedEvaluationRelationIsCurrent,
+  assignedEvaluationHandlerIsCurrent,
   readEvaluationWorkItems,
   EvaluationReassignmentError,
 } from '../modules/programs';
@@ -42,7 +42,7 @@ export async function readEvaluationReassignments(
               item.evaluationNodeId,
               item.personId,
             ) &&
-            !assignedEvaluationRelationIsCurrent(context, item),
+            !assignedEvaluationHandlerIsCurrent(context, item),
         )
         .map((item) => {
           const node = nodes.get(item.evaluationNodeId);
