@@ -7,7 +7,8 @@ import { createDatabase } from '../db/client';
 import { importDemo } from '../db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '../db/seed';
 import { assignments } from '../modules/programs';
-import { loadPersonData } from './person-data';
+import { loadPersonData, talentSources } from './person-data';
+import { buildAuthorizedModelInput } from '../authz/talent';
 import { sourceFromData } from './sources';
 
 let admin: Pool | undefined;
@@ -88,6 +89,45 @@ it.each(['demo-ceo', 'demo-hrbp'])(
     });
     expect(history.kind).toBe('结营评审');
     expect(history.scale.some(([label]) => label === '结营结论')).toBe(true);
+  },
+);
+it.each(['demo-ceo', 'demo-hrbp', 'demo-mentor'])(
+  'constructs %s model input from the same current graduation provenance',
+  async (account) => {
+    const { data, history } = await historical(account, '结营评审');
+    const excerpt = data.fragments.find(
+      (row) => row.id === history.fragmentId,
+    )!.excerpt;
+    const model = await buildAuthorizedModelInput(async () => ({
+      context: data.context,
+      sources: talentSources(data),
+      records: [
+        {
+          id: 'synthetic-graduation-text',
+          subject: { personId: target, cohortId: null },
+          kind: 'evaluation',
+          fields: [
+            {
+              name: 'text',
+              kind: 'evaluation',
+              value: excerpt,
+              subjects: [],
+              sources: [history],
+            },
+          ],
+        },
+      ],
+    }));
+    if (account === 'demo-mentor') expect(model).toEqual({ items: [] });
+    else {
+      expect(model.items[0]?.fields).toEqual({ text: excerpt });
+      expect(model.items[0]?.sources[0]).toMatchObject({
+        fragmentId: history.fragmentId,
+        originalVersionId: history.originalVersionId,
+      });
+    }
+    expect(history.kind).toBe('结营评审');
+    expect(history.sourceCategory).toBe('prototype_baseline');
   },
 );
 it('reloads real relationship revocation without granting a review from the same cohort', async () => {

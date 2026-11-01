@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fixture } from './person-test-helpers';
+import { buildAuthorizedModelInput } from '../authz/talent';
+import { talentSources } from './person-data';
 import { personFromData } from './person-projection';
 import { sourceFromData } from './sources';
 import { historicalEvaluationRequiredKind } from './historical-evaluation-policy';
@@ -71,6 +73,38 @@ describe('BOW-837 restricted graduation source access on main', () => {
       expect(data.historical[0].scale).toEqual([['结营结论', restrictedText]]);
     },
   );
+  it.each(['manager', 'hr', 'mentor'] as const)(
+    '%s model input uses graduation text only when its source is currently readable',
+    async (role) => {
+      const data = historical(role);
+      const input = await buildAuthorizedModelInput(async () => ({
+        context: data.context,
+        sources: talentSources(data),
+        records: [
+          {
+            id: 'demo-graduation-text',
+            subject: { personId: 'one', cohortId: null },
+            kind: 'evaluation',
+            fields: [
+              {
+                name: 'text',
+                kind: 'evaluation',
+                value: restrictedText,
+                subjects: [],
+                sources: [reference],
+              },
+            ],
+          },
+        ],
+      }));
+      if (role === 'mentor') expect(input).toEqual({ items: [] });
+      else {
+        expect(input.items[0]?.fields).toEqual({ text: restrictedText });
+        expect(input.items[0]?.sources[0]).toMatchObject(reference);
+      }
+      expect(data.historical[0].scale).toEqual([['结营结论', restrictedText]]);
+    },
+  );
   it('retains an ordinary known weekly source for the currently assigned mentor', async () => {
     expect(
       await sourceFromData(historical('mentor', '训练营周评'), reference),
@@ -117,7 +151,7 @@ describe('closed historical sensitivity classification', () => {
     ['训练营周评', 'evaluation'],
     ['MS 路演评审', 'evaluation'],
     ['奖项答辩', 'evaluation'],
-    ['结营评审', 'performance'],
+    ['结营评审', 'restricted-evaluation'],
   ] as const)('classifies only the approved baseline %s', (kind, expected) => {
     expect(
       historicalEvaluationRequiredKind({

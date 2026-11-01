@@ -19,7 +19,7 @@ describe('BOW-834 pinned graduation seed access facts', () => {
       );
       expect(history).toBeDefined();
       expect(history && historicalEvaluationRequiredKind(history)).toBe(
-        'performance',
+        'restricted-evaluation',
       );
       expect(history).toMatchObject({
         kind: '结营评审',

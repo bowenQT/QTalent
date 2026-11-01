@@ -110,7 +110,8 @@ export function talentSources(data: PersonData): TalentSource[] {
     const requiredKinds: TalentKind[] = [];
     if (observedSources.has(key)) requiredKinds.push('management-observation');
     // Sensitivity adds an access requirement without rewriting historical facts.
-    if (historyKinds.includes('performance')) requiredKinds.push('performance');
+    if (historyKinds.includes('restricted-evaluation'))
+      requiredKinds.push('restricted-evaluation');
     if (
       links.some((link) => !eventOrder.has(link.eventId)) ||
       historyKinds.includes(null) ||
