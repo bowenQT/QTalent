@@ -538,6 +538,8 @@ describe('quick view and list', () => {
         id: 'id-' + index,
         name,
         organizationId: 'org',
+        jobTitle: null,
+        jobLevel: null,
         photo: null,
         hue: 10,
         noReview: false,
