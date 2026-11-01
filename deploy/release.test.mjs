@@ -885,3 +885,41 @@ test('environment and backup directories cannot equal the repository or release 
     }
   }
 });
+
+test('explicit empty prerequisites permit the approved merged main baseline before later chain work', async () => {
+  const f = fixture();
+  const baseline = f.target.prerequisites.bow897;
+  f.target.prerequisites = {};
+  const result = await f.manager().prepareRelease(baseline);
+  assert.equal(result.sha, baseline);
+  assert.ok(existsSync(join(f.root, 'releases', baseline, '.next/BUILD_ID')));
+  assert.equal(
+    f.state.events.filter((e) => e.args.includes('--is-ancestor')).length,
+    1,
+  );
+});
+test('main-only policy still refuses an unmerged revision before preparing or touching services', async () => {
+  const f = fixture();
+  f.target.prerequisites = {};
+  f.git('switch', '-qc', 'unmerged-main-only');
+  writeFileSync(join(f.repo, 'new.txt'), 'unmerged');
+  f.git('add', '.');
+  f.git(
+    '-c',
+    'commit.gpgsign=false',
+    '-c',
+    'core.hooksPath=/dev/null',
+    'commit',
+    '-qm',
+    'unmerged',
+  );
+  await assert.rejects(
+    f.manager().deploy(f.git('rev-parse', 'HEAD'), null, true),
+    /command_failed/,
+  );
+  assert.equal(
+    f.state.events.some((e) => e.file === 'systemctl'),
+    false,
+  );
+  assert.equal(existsSync(join(f.root, 'current')), false);
+});

@@ -6,9 +6,9 @@
 
 本目录提供双进程 systemd 样例、命名隧道路由样例、只读仓库检查和下面的环境/验收手册。样例需要按部署机的 Node/pnpm 路径、域名与隧道标识填写，不能直接启用。
 
-- 仓库内准备可以先做；首次部署等 BOW-897、BOW-899 合入 main。
+- 11/1 所有者已批准现在搭建，不等 BOW-897、BOW-899；每次部署前重新核对完整 SHA 已属于最新 main，只部署该 SHA 已有的功能、正式迁移与化名 seed。
 - X1 维护最终迁移、共享配置和 worker 注册。当前 main 的 worker 只注册示例任务；BOW-842 接入业务任务后，才能完成队列消费的部署验收。
-- 所有者已授权 X2 在已确认演示环境部署已合入 main 的完整 SHA，无需逐次另问；不开新资源，不扩大安全/权限或持久凭据配置。环境精确身份与既有入口仍须先在 #25 核实。
+- 已批准的资源范围：DO 新加坡 2 vCPU / 4 GB 一台（约 USD24/月）、Supabase 新加坡免费项目一个、CF 命名隧道和 Access 应用各一个。域名固定 hr.aidoudoulong.com，不购买域名或改其他子域；额外付费需另决。新凭证、持续访问及安全配置的执行按根编排汇总的当次确认处理，不能由资源费用批准代替。目标身份与入口、实际操作仍写 #25。
 - 首次部署可只含已合入功能；本卡关闭还要求三幕在部署环境走通、每次部署有完整记录。
 - 本轮材料不代表已经开通资源、部署、配置凭据或完成真实环境验收。
 
@@ -16,14 +16,14 @@
 
 ## 目标环境与进程
 
-| 项目   | 已确认选择                                                   | 执行前需确认                                      |
-| ------ | ------------------------------------------------------------ | ------------------------------------------------- |
-| 主机   | DigitalOcean 新加坡 sgp1，Ubuntu 24.04 LTS，2 vCPU / 4 GB 起 | 所有者开通；SSH 目标、公钥与实际系统信息          |
-| 数据库 | Supabase Pro，新加坡 ap-southeast-1                          | 所有者开通；项目与 Web/worker 各自的连接模式      |
-| 域名   | 默认 niu-talent.aidoudoulong123.com                          | 实际主机名、Access 应用和隧道一致                 |
-| Web    | Node.js 24 LTS、仓库锁定的 pnpm；127.0.0.1:3000              | `package.json` 的精确 pnpm 版本与部署机可执行路径 |
-| worker | 同一发布 SHA，127.0.0.1:3001，常驻 systemd                   | 注册的真实任务、会话数据库连接和退出恢复          |
-| 入口   | Cloudflare 命名隧道；精确 /stream 转 worker，其余转 Web      | 公网不开放 80/443/3000/3001，Access 仅 @qiniu.com |
+| 项目   | 已确认选择                                                   | 执行前需确认                                        |
+| ------ | ------------------------------------------------------------ | --------------------------------------------------- |
+| 主机   | DigitalOcean 新加坡 sgp1，Ubuntu 24.04 LTS，2 vCPU / 4 GB 起 | 所有者开通；SSH 目标、公钥与实际系统信息            |
+| 数据库 | Supabase Free，新加坡 ap-southeast-1                         | 独立 Free 组织及实际全账号免费配额；不追加 Pro 收费 |
+| 域名   | hr.aidoudoulong.com                                          | 只改该子域，实际 Access 应用与单隧道一致            |
+| Web    | Node.js 24 LTS、仓库锁定的 pnpm；127.0.0.1:3000              | `package.json` 的精确 pnpm 版本与部署机可执行路径   |
+| worker | 同一发布 SHA，127.0.0.1:3001，常驻 systemd                   | 注册的真实任务、会话数据库连接和退出恢复            |
+| 入口   | Cloudflare 命名隧道；精确 /stream 转 worker，其余转 Web      | 公网不开放 80/443/3000/3001，Access 仅 @qiniu.com   |
 
 目标目录为 `/opt/qtalent/releases/<sha>`，`/opt/qtalent/current` 指向当前版本。两个服务使用同一个 current。systemd 的启动入口不迁移数据库、不导入数据、不读取仓库里的环境文件。
 
@@ -31,7 +31,7 @@
 
 ## 环境变量与数据库连接
 
-systemd 从部署机加载 `/etc/qtalent/common.env` 加 `web.env` 或 `worker.env`；这是进程环境注入，worker 不自行读取文件。文件内容由所有者在部署机维护，按 spec 使用 root:qtalent、0640；不复制到仓库、PR、工单或日志。
+systemd 从部署机加载 `/etc/qtalent/common.env` 加 `web.env` 或 `worker.env`；这是进程环境注入，worker 不自行读取文件。文件内容只由获准的部署流程写入，权限 0600；供辅助命令以 qtalent 身份读取的文件由 qtalent 持有，systemd 只负责注入进程。实际主机的目录/属主/持续访问配置先按当次确认落地；不复制到仓库、PR、工单或日志。本机只 source ~/.config/niu-talent/deploy.env 与必要的 vendors.env，不搜索其他秘密路径。
 
 | 变量               | 放置位置                 | 用途/要求                                                               |
 | ------------------ | ------------------------ | ----------------------------------------------------------------------- |
@@ -62,6 +62,14 @@ Supabase [当前连接说明](https://supabase.com/docs/guides/database/connecti
 - 演示机器人“小犇”的 `WECOM_BOT_ID`、`WECOM_BOT_SECRET` 只放部署机。测试机器人凭据与长连接不用于部署准备；BOW-895/909 的测试连接仍按本机资源锁规则执行。
 - MCP/AgentAPI 的开关、身份与配置来自对应入口卡和 X1 的最终接线；不使用虚构变量表示“已接通”。BOW-916 展示状态，不替代真实调用证据。
 
+## 新资源与凭证边界
+
+现有 Supabase Pro 组织中的新项目不能当作免费项目；先核 Free 组织与全账号配额，不为腾位删除/暂停/升级旧项目。只使用 PostgreSQL 的本应用不需要 Supabase Data API，新项目默认的 Data API / 自动暴露新表需按确认关闭，不能把普通 public 表的默认暴露当作服务端授权。
+
+DO 操作只用已安装的 DigitalOcean app；镜像是 Ubuntu LTS，不能改用 Codex 开发机镜像。Cloudflare 复用 odd-heart-bd91，OTP Allow 仅 @qiniu.com，无 bypass；新隧道仅需自己的 connector 凭据，不为变量名齐全新建全账号 API token。需要本人登录、接受新条款或绑支付时，记录精确入口后交回根编排处理。
+
+SSH/DB/应用 secret 与四个预置演示账号密码在本次明确确认后生成；DEMO_PASSWORD 仅本机 deploy.env（0600）及获准演示机环境文件中保存，给所有者本机查看方法，不贴值。只把当前运行实际需要的 vendor 项从 vendors.env 注入该机 0600 文件；不上传测试库连接或无关变量。密钥和真实输出不进入仓库/工单/日志。
+
 ## 仓库部署前检查
 
 先在准备环境显式更新 origin/main，再在独立、干净的候选 checkout 检出已合入且符合本次部署前置的完整 SHA。下面的检查不拉代码、不读环境文件、不联网、不迁移、不启动服务，也不授权部署：
@@ -70,7 +78,7 @@ Supabase [当前连接说明](https://supabase.com/docs/guides/database/connecti
 node deploy/preflight.mjs <40位完整SHA>
 ```
 
-它核对：当前 HEAD 等于指定 SHA、该 SHA 属于本地已知 origin/main、工作区干净、Node 24、精确 pnpm 版本与受版本控制的锁文件。输出只有 SHA、固定检查名称和布尔结果，不输出 Git 路径列表、环境变量或原始子进程错误。退出 0 仅表示上述仓库检查通过；本地 origin/main 的新鲜度、897/899 合入、当前 head 的交叉审查/CI、资源授权和真实运行状态仍要单独核对。
+它核对：当前 HEAD 等于指定 SHA、该 SHA 属于本地已知 origin/main、工作区干净、Node 24、精确 pnpm 版本与受版本控制的锁文件。输出只有 SHA、固定检查名称和布尔结果，不输出 Git 路径列表、环境变量或原始子进程错误。退出 0 仅表示上述仓库检查通过；本地 origin/main 的新鲜度、配置的额外主线前置、当前 head 的交叉审查/CI、资源授权和真实运行状态仍要单独核对。
 
 离线回归：
 
@@ -106,9 +114,9 @@ JS
 
 `deploy/deploy.sh` 在已经确认的 Linux 演示机本地运行，使用既有 `qtalent` 用户、两份 systemd 单元、Git repository、工具链和环境文件。它不创建用户、不安装/启用单元、不配置隧道或安全策略，也不 SSH 到某个猜测的目标。实际执行由具备既有部署权限的操作者完成；脚本没有自动 sudo 或权限扩展。
 
-将 `target.example.json` 的**非敏感目标元数据**在部署机受控路径中填写：精确 hostname、环境确认记录、根目录/既有仓库、环境文件目录、备份目录、Node/pnpm/pg_dump 路径、Web/worker 的数据库主机/端口/库名，以及 897/899 **合入 main 后的提交 SHA**。样例故意为 `confirmed:false` 且带占位符，不能直接执行。清单不含密码或连接串；`confirmationRef` 是由操作者核验过的 #25 环境记录引用，脚本只核其格式与机器/目录/环境事实，不冒充在线核实所有者身份的授权系统。
+将 `target.example.json` 的**非敏感目标元数据**在部署机受控路径中填写：精确 hostname、环境确认记录、根目录/既有仓库、环境文件目录、备份目录、Node/pnpm/pg_dump 路径、Web/worker 的数据库主机/端口/库名，以及按本次部署计划明确指定的可选 897/899 合入 SHA。样例故意为 `confirmed:false` 且带占位符，不能直接执行。清单不含密码或连接串；`confirmationRef` 是由操作者核验过的 #25 环境记录引用，脚本只核其格式与机器/目录/环境事实，不冒充在线核实所有者身份的授权系统。
 
-所有变更入口都必须显式给出 `--target` 和匹配的 `--target-id`。脚本核对当前机器身份、真实目录、demo/production Node 运行模式、Access 开启、origin、两种数据库连接身份与 TLS 模式；环境文件只在子进程中 source，不读取后打印或复制。未知目标、production 运行域、未合 main 的 SHA、缺 897/899 前置均失败。
+所有变更入口都必须显式给出 `--target` 和匹配的 `--target-id`。脚本核对当前机器身份、真实目录、demo/production Node 运行模式、Access 开启、origin、两种数据库连接身份与 TLS 模式；环境文件只在子进程中 source，不读取后打印或复制。未知目标、production 运行域、未合 main 的 SHA 和未满足的显式前置均失败。11/1 首发批准只要求已合 main，样例 prerequisites 明确为 {}；若后续计划在其中填写 bow897/bow899 的完整 SHA，它们仍必须是候选版本的祖先，不接受未知键或占位值。空前置不放过主线归属、目标身份或环境检查。
 
 以下为操作顺序示意，`TARGET_FILE`、`TARGET_ID`、`SHA`、`PREVIOUS_SHA`、`BACKUP_FILE` 和 `SEED_BACKUP_FILE` 由 #25 已确认记录填写。不是当前机器的部署命令，本轮没有实际执行：
 
@@ -138,7 +146,7 @@ deploy/deploy.sh status --target "$TARGET_FILE" --target-id "$TARGET_ID"
 
 ### 实际执行与记录语义
 
-- 发布从既有 repository 显式 fetch main，验证目标与两个前置均是目标 SHA 的祖先。Git archive 导出到独立暂存目录，以 qtalent 用户锁定安装/构建。完整构建后才变为 `releases/<sha>`，存在不相容同名目录时拒绝覆盖。
+- 发布从既有 repository 显式 fetch main，验证目标属于最新主线，并逐项验证清单中显式设置的前置是目标 SHA 的祖先。Git archive 导出到独立暂存目录，以 qtalent 用户锁定安装/构建。完整构建后才变为 `releases/<sha>`，存在不相容同名目录时拒绝覆盖。
 - 读取 worker 数据库的 Drizzle 迁移日志（只读事务），按已安装 Drizzle 的 SQL SHA-256/时间戳合同，与发布内 journal 的完整前缀核对。迁移未应用、记录缺失或探测失败时不激活；不自动跑迁移。
 - 切换 `current` 后重启两份既有单元，以最多30次、间隔1秒检查启动就绪（单次网络探测另有10秒上限）。自动存活检查要求 /login 无令牌返回401、worker端口可连，且两个 MainPID 的实际 /proc cwd 都对应所选发布 SHA。401/端口只能证明这层健康，完整 Access、原件授权和三幕验收仍按下表另做。
 - 激活或健康失败时，恢复起始链接并重启两份服务，重新读取两个运行版本和健康状态；首次部署失败则撤掉 current、停两份服务并确认 PID 为0。恢复失败明确记为 `failed_rollback_failed`。显式应用回滚本身失败也会尝试恢复操作前的版本。
@@ -155,7 +163,7 @@ node --test --test-concurrency=2 --experimental-test-coverage '--test-coverage-i
 
 ## 实际部署顺序与恢复边界
 
-实际执行前在 #25 写明拟部署完整 SHA、前置卡合入、当前 head 的审查/CI、已确认目标机器/域名/数据库类别、计划迁移、备份和回滚证据。符合现有演示环境部署授权即可串行执行，不重复向离线所有者索要逐次许可；环境身份或前置缺失时在 #248 记录并继续独立准备。
+实际执行前在 #25 写明拟部署完整 SHA、前置卡合入、当前 head 的审查/CI、已确认目标机器/域名/数据库类别、计划迁移、备份和回滚证据。符合已确认环境的范围授权即可串行部署；涉及新凭证/持续授权/安全配置时先核本次确认，环境身份或明确前置缺失时在 #248 记录并继续独立准备。
 
 1. 所有者在控制台开通/确认主机、Supabase 项目、Access 应用和命名隧道；授权 SSH 与只读 deploy key。
 2. 装机并核对只监听 loopback、双进程环境、工具链路径。先建立 backups 与 releases 的恢复路径，完成备份恢复演练。
@@ -180,7 +188,7 @@ node --test --test-concurrency=2 --experimental-test-coverage '--test-coverage-i
 | 三幕       | 按 BOW-871/872 在部署环境走通；未接真实链路的页面按实际状态说明                                                                       |
 | 供应商     | 新加坡到听悟/MaaS/Kodo 接入点的 TCP/TLS 各20次及中位数/P95；真实请求另记接口/模型、脱敏 request/task ID 与成功/失败，不以探活代替调用 |
 
-实时推流已移到赛后，本次不将 40 分钟实时推流作为部署关闭条件。供应商接入点从对应卡最终 spec/实现读取，不在部署脚本里猜测。
+11/1 所有者要求录音 WebSocket 连续40分钟，须按实际结果保留成功、失败或未执行。当前主线 /stream 只有心跳并拒绝音频二进制，心跳连续40分钟也不能称录音通过；录音功能真合 main 后再验，不上线未合分支补能力。国内打开速度须用真实国内测点，不能用本机或新加坡测量冒充。供应商接入点从对应卡最终 spec/实现读取，不在部署脚本里猜测。
 
 ## 每次部署记录模板（写到 #25）
 
@@ -188,7 +196,7 @@ node --test --test-concurrency=2 --experimental-test-coverage '--test-coverage-i
 部署记录
 精确目标与既有环境确认记录：
 部署 SHA / 上一 SHA：
-897、899 合入证据；业务 worker / 三幕前置：
+已合 main 归属及本次显式前置；业务 worker / 三幕能力边界：
 受检 head 的交叉审查、CI：
 迁移：当前已应用版本、计划/实际结果；备份与恢复演练：
 Web 实际运行 SHA / 发布路径：

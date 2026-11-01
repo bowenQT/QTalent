@@ -149,8 +149,16 @@ export function validateTarget(
   const common = join(target.envDirectory, 'common.env');
   if (!statSync(common).isFile() || lstatSync(common).isSymbolicLink())
     fail('invalid_environment_file');
-  strict(target.prerequisites, ['bow897', 'bow899']);
-  if (!Object.values(target.prerequisites).every((sha) => SHA.test(sha)))
+  const prerequisites = target.prerequisites;
+  if (
+    !prerequisites ||
+    typeof prerequisites !== 'object' ||
+    Array.isArray(prerequisites) ||
+    Object.keys(prerequisites).some(
+      (key) => !['bow897', 'bow899'].includes(key),
+    ) ||
+    !Object.values(prerequisites).every((sha) => SHA.test(sha))
+  )
     fail('invalid_prerequisites');
   return target;
 }

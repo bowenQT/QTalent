@@ -9,7 +9,7 @@
   "repository": "/opt/qtalent/repository",
   "envDirectory": "/etc/qtalent",
   "backupDirectory": "/var/backups/qtalent",
-  "webOrigin": "https://REPLACE_CONFIRMED_DOMAIN",
+  "webOrigin": "https://hr.aidoudoulong.com",
   "nodePath": "/usr/bin/node",
   "pnpmPath": "/usr/bin/pnpm",
   "pgDumpPath": "/usr/bin/pg_dump",
@@ -25,8 +25,5 @@
       "name": "postgres"
     }
   },
-  "prerequisites": {
-    "bow897": "REPLACE_MERGED_SHA",
-    "bow899": "REPLACE_MERGED_SHA"
-  }
+  "prerequisites": {}
 }
