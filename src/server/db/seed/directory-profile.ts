@@ -1,3 +1,7 @@
+import { asc, eq } from 'drizzle-orm';
+import type { Database } from '../client';
+import { people, organizations } from '../../modules/directory';
+import { getEnv } from '../../env';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve, relative, isAbsolute } from 'node:path';
@@ -10,6 +14,7 @@ const text = z
   .refine((value) => value.trim() === value);
 const seedSchema = z.strictObject({
   kind: z.literal('directory_demo_profile'),
+  peopleProvenance: z.literal('synthetic_demo'),
   version: z.literal(1),
   people: z
     .array(
@@ -182,4 +187,70 @@ export function planDirectoryProfileBackfill(
     }
   }
   return { personUpdates, organizationUpdates };
+}
+
+/** Explicit demo maintenance command, never called by startup, HTTP or a model.
+ * The approved file is loaded inside this entry, so caller-mutated parsed rows
+ * cannot serve as source proof. The whole import commits or rolls back together.
+ */
+export async function importDirectoryProfileSeed(
+  db: Database,
+  root: string,
+  source: { relativeFile: string; sha256: string },
+) {
+  if (getEnv().APP_ENV === 'production')
+    throw new Error('Demo directory import is forbidden in production');
+  const input = readDirectoryProfileSeed(root, source);
+  return db.transaction(
+    async (tx) => {
+      // Fixed lock order across both maps; competing imports observe the committed
+      // winner under RC, then compute an empty replay or reject a value conflict.
+      const currentOrganizations = await tx
+        .select()
+        .from(organizations)
+        .orderBy(asc(organizations.id))
+        .for('update');
+      const currentPeople = await tx
+        .select()
+        .from(people)
+        .orderBy(asc(people.id))
+        .for('update');
+      const plan = planDirectoryProfileBackfill(input, {
+        people: currentPeople,
+        organizations: currentOrganizations,
+      });
+      for (const row of plan.organizationUpdates) {
+        const updated = await tx
+          .update(organizations)
+          .set({ parentId: row.parentId, hierarchyKnown: row.hierarchyKnown })
+          .where(eq(organizations.id, row.id))
+          .returning({ id: organizations.id });
+        if (updated.length !== 1)
+          throw new Error('Directory organization update lost its identity');
+      }
+      for (const row of plan.personUpdates) {
+        const updated = await tx
+          .update(people)
+          .set({ jobTitle: row.jobTitle, jobLevel: row.jobLevel })
+          .where(eq(people.id, row.id))
+          .returning({ id: people.id });
+        if (updated.length !== 1)
+          throw new Error('Directory profile update lost its identity');
+      }
+      return {
+        peopleUpdated: plan.personUpdates.length,
+        organizationsUpdated: plan.organizationUpdates.length,
+      };
+    },
+    { isolationLevel: 'read committed' },
+  );
+}
+
+/** Reviewed synthetic facts live in JSON, not in application display code. */
+export const DIRECTORY_PROFILE_DEMO_SOURCE = Object.freeze({
+  relativeFile: 'src/server/db/seed/directory-profile-demo.json',
+  sha256: '2bd3b36c7b217acd51df05f28be06686b7be419221f51fe629620754a342136d',
+});
+export function importDirectoryProfileDemo(db: Database, root: string) {
+  return importDirectoryProfileSeed(db, root, DIRECTORY_PROFILE_DEMO_SOURCE);
 }

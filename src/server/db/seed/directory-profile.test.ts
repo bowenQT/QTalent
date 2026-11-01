@@ -1,3 +1,4 @@
+import { readPrototypeSeed } from './index';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,10 +7,12 @@ import { expect, it } from 'vitest';
 import {
   parseDirectoryProfileSeed,
   planDirectoryProfileBackfill,
+  DIRECTORY_PROFILE_DEMO_SOURCE,
   readDirectoryProfileSeed,
 } from './directory-profile';
 const seed = {
   kind: 'directory_demo_profile',
+  peopleProvenance: 'synthetic_demo',
   version: 1,
   people: [
     {
@@ -198,3 +201,30 @@ it.each([
     ).toThrow();
   },
 );
+
+it('pins the 93 explicit synthetic profiles to existing pseudonymous identities, not prototype levels', () => {
+  const demo = readDirectoryProfileSeed(
+    process.cwd(),
+    DIRECTORY_PROFILE_DEMO_SOURCE,
+  );
+  const existing = readPrototypeSeed(process.cwd()).PEOPLE.filter(
+    (person) => !person.noReview,
+  );
+  expect(demo.peopleProvenance).toBe('synthetic_demo');
+  expect(demo.people).toHaveLength(93);
+  expect(demo.organizations).toEqual([]);
+  expect(new Set(demo.people.map((row) => row.id))).toEqual(
+    new Set(existing.map((row) => row.id)),
+  );
+  for (const row of demo.people) {
+    const identity = existing.find((person) => person.id === row.id)!;
+    expect(row).toMatchObject({
+      name: identity.name,
+      organizationId: identity.org,
+      demo: true,
+    });
+    expect(row.jobTitle).toContain('（演示）');
+    expect(row.jobLevel).toMatch(/^N[123]（演示）$/);
+    expect(row.jobLevel).not.toContain('届');
+  }
+});
