@@ -618,3 +618,47 @@ it('等待来源期间目标HR撤权，剩余跨期HR和可读关系不应继续
   ).toBe('forbidden');
   expect(f.state.versions).toHaveLength(2);
 });
+
+it('同账号换绑后不能重放前一署名人的成功操作，但可按当前HR权限读取历史', async () => {
+  const { f, service, command } = fixture();
+  expect(await service.confirm('account-hr', command)).toMatchObject({
+    status: 'success',
+    replayed: false,
+  });
+  f.context.account.personId = 'new-hr';
+  expect(await service.confirm('account-hr', command)).toMatchObject({
+    status: 'forbidden',
+  });
+  expect(await service.read('account-hr', f.identity)).toMatchObject({
+    status: 'success',
+    conclusion: { confirmedBy: { id: 'hr' } },
+  });
+  expect(f.state.versions).toHaveLength(1);
+  expect(f.state.audits).toHaveLength(1);
+  expect(
+    await service.confirm('account-hr', {
+      ...command,
+      operationId: 'new-hr-operation',
+      expectedVersion: 1,
+    }),
+  ).toMatchObject({
+    status: 'success',
+    replayed: false,
+    conclusion: { version: 2, confirmedBy: { id: 'new-hr' } },
+  });
+});
+it('重放等待来源时换绑也拒绝，不改历史回执或增加审计', async () => {
+  const { f, deps, service, command } = fixture();
+  expect(await service.confirm('account-hr', command)).toMatchObject({
+    status: 'success',
+  });
+  const original = structuredClone(f.state);
+  deps.resolveSources = async () => {
+    f.context.account.personId = 'new-hr';
+    return structuredClone(f.sources);
+  };
+  expect(
+    await createNodeConclusionUsecase(deps).confirm('account-hr', command),
+  ).toMatchObject({ status: 'forbidden' });
+  expect(f.state).toEqual(original);
+});
