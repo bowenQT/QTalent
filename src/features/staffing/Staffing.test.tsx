@@ -318,6 +318,60 @@ describe('entry and drafting', () => {
     expect(p.createDemand).not.toHaveBeenCalled();
   });
 
+  it('does not open a resumed draft that belongs to another project', async () => {
+    window.sessionStorage.setItem(
+      SENTENCE_KEY_PREFIX + project.id,
+      JSON.stringify({ accountId: 'me', text: '演示：这个项目要的人' }),
+    );
+    const resumed = (projectId: string) =>
+      ports({
+        readDemandJob: vi.fn(async () =>
+          job<'staffing_demand', StaffingDemand>(
+            'staffing_demand',
+            'completed',
+            { ...draft, projectId },
+            'earlier-job',
+          ),
+        ),
+      });
+    const onDemandReady = vi.fn();
+    const p = resumed('other-project');
+    render(
+      <Staffing
+        project={project}
+        demand={null}
+        resumeJobId="earlier-job"
+        accountId="me"
+        ports={p}
+        onDemandReady={onDemandReady}
+      />,
+    );
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe(
+      '这次起草的需求属于另一个项目，没有在这里打开。回到输入框，为这个项目再发一次。',
+    );
+    expect(screen.queryByRole('button', { name: '确认需求' })).toBeNull();
+    expect(onDemandReady).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '回到输入框' }));
+    expect(field()).toHaveProperty('value', '演示：这个项目要的人');
+    expect(p.editDemand).not.toHaveBeenCalled();
+    expect(p.confirmDemand).not.toHaveBeenCalled();
+    cleanup();
+    // The same project's draft still opens.
+    render(
+      <Staffing
+        project={project}
+        demand={null}
+        resumeJobId="earlier-job"
+        accountId="me"
+        ports={resumed(project.id)}
+        onDemandReady={onDemandReady}
+      />,
+    );
+    await screen.findByRole('button', { name: '确认需求' });
+    expect(onDemandReady).toHaveBeenCalledWith(draft);
+  });
+
   it('keeps the sentence in this tab for its project and account until the demand is confirmed', async () => {
     const key = SENTENCE_KEY_PREFIX + project.id;
     const p = ports({

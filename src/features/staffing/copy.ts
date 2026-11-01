@@ -50,6 +50,9 @@ export const draftSignedOut = '登录已失效，重新登录后回到输入框�
 export const draftOutOfScope =
   '起草结果现在在你的查看范围之外，可以回到输入框再发一次。';
 export const draftGone = '这次起草的记录已失效，回到输入框再发一次。';
+/** A resumed drafting job whose demand belongs to another project: it is not opened here. */
+export const draftOtherProject =
+  '这次起草的需求属于另一个项目，没有在这里打开。回到输入框，为这个项目再发一次。';
 export const draftRetrying =
   '起草进度读取中断，正在重试。也可以回到输入框再发一次。';
 export const conflictText = '需求已变化，请保留输入并刷新';

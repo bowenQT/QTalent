@@ -15,12 +15,17 @@ vi.mock('@/features/shell/AccessDenied', () => ({
   AccessDenied: () => <p>access-denied</p>,
 }));
 vi.mock('@/features/shell/ShellTitle', () => ({ ShellTitle: () => null }));
-vi.mock('@/features/staffing/LiveStaffing', () => ({
-  LiveStaffing: (props: unknown) => {
-    live(props);
-    return <p>live-staffing</p>;
-  },
-}));
+vi.mock('@/features/staffing/LiveStaffing', async () => {
+  const { useState } = await import('react');
+  return {
+    LiveStaffing: (props: { project: { id: string } }) => {
+      live(props);
+      // State taken at mount, the way the real page keeps its ports and sentence.
+      const [mountedFor] = useState(props.project.id);
+      return <p data-mounted-for={mountedFor}>live-staffing</p>;
+    },
+  };
+});
 
 import StaffingPage, { generateMetadata } from './page';
 
@@ -167,5 +172,28 @@ describe('staffing route', () => {
       expect(live).not.toHaveBeenCalled();
       cleanup();
     }
+  });
+
+  it('gives another project, or another account, a fresh page instead of keeping the last one', async () => {
+    const other = { ...project, id: 'other-project', name: '演示项目二' };
+    getProjectsPage.mockResolvedValue({
+      status: 'ok',
+      data: { projects: [project, other] },
+    });
+    const mountedFor = () =>
+      screen.getByText('live-staffing').getAttribute('data-mounted-for');
+    getShellPage.mockResolvedValue(shell(['hr']));
+    const { rerender } = render(await open({ project: project.id }));
+    expect(mountedFor()).toBe(project.id);
+    // In-app navigation re-renders the same route without unmounting it.
+    rerender(await open({ project: other.id }));
+    expect(mountedFor()).toBe(other.id);
+    const page = await open({ project: other.id });
+    getShellPage.mockResolvedValue({
+      ...shell(['hr']),
+      account: { id: 'acct-other', roles: ['hr'] },
+    });
+    const signedIn = await open({ project: other.id });
+    expect(page.key).not.toBe(signedIn.key);
   });
 });

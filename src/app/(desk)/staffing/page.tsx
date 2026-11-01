@@ -128,7 +128,10 @@ export default async function StaffingPage({
       </>
     );
   return (
+    // Keyed by project and account: moving to another project from this page gives a
+    // fresh page (ports, sentence, job) instead of carrying the previous one's state.
     <LiveStaffing
+      key={`${project.id}:${shell.account.id}`}
       project={project}
       demand={demand}
       resumeJobId={demand ? null : (params.job ?? null)}

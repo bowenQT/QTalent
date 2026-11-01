@@ -24,6 +24,7 @@ import {
   demandOutOfScope,
   draftFailed,
   draftGone,
+  draftOtherProject,
   draftOutOfScope,
   draftSignedOut,
   draftRetrying,
@@ -170,8 +171,13 @@ export function Staffing(props: StaffingProps) {
   );
   const demandJob = useJob(sent?.jobId ?? null, ports.readDemandJob);
   const demandSnapshot = demandJob?.snapshot ?? null;
-  const generated =
+  const drafted =
     demandSnapshot?.status === 'completed' ? demandSnapshot.result : null;
+  // A job from the address may have drafted another project's demand: never open it
+  // under this project, so nothing here edits or confirms it.
+  const foreign =
+    drafted !== null && projectId !== null && drafted.projectId !== projectId;
+  const generated = foreign ? null : drafted;
 
   const [edited, setEdited] = useState<StaffingDemand | null>(null);
   const demand = edited ?? props.demand ?? generated;
@@ -377,20 +383,23 @@ export function Staffing(props: StaffingProps) {
       // Reading the job can end for good (signed out, permission changed, job gone):
       // the subscription stops, so the trail must stop too.
       const lost =
+        foreign ||
         demandJob?.connection === 'forbidden' ||
         demandJob?.connection === 'not_found';
       const failed = lost || generationPhase(demandSnapshot) === 'failed';
-      const note = lost
-        ? demandJob.connection === 'not_found'
-          ? draftGone
-          : demandJob.signedOut
-            ? draftSignedOut
-            : draftOutOfScope
-        : failed
-          ? draftFailed
-          : demandJob?.connection === 'error'
-            ? draftRetrying
-            : null;
+      const note = foreign
+        ? draftOtherProject
+        : lost
+          ? demandJob?.connection === 'not_found'
+            ? draftGone
+            : demandJob?.signedOut
+              ? draftSignedOut
+              : draftOutOfScope
+          : failed
+            ? draftFailed
+            : demandJob?.connection === 'error'
+              ? draftRetrying
+              : null;
       return (
         <>
           <Generating
