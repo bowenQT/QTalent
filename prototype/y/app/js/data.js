@@ -39,6 +39,8 @@
   ];
   const KIND = { mentor: '导师', ta: '助教', judge: '评委' };
   X.staff.forEach((s) => PEOPLE.push(P(s.id, s.name, 'tdc', `${KIND[s.kind]} · XEngineer 第六期`, 'N5', '2020-03-02', s.hue, { noReview: true, staff: s.kind, ...(s.id === 'p-yeqing' ? { role: 'mentor', title: '技术专家 · XEngineer 第六期导师', level: 'N6' } : {}) })));
+  // 结营评审评委（演示）：入营选拔评委恰好也是导师的三个组，结营评审由她来评，判断对照比的是两个人的判断
+  PEOPLE.push(P('s-29', '孟砚舟', 'tdc', '结营评审评委 · XEngineer 第六期', 'N5', '2020-03-02', 318, { noReview: true, staff: 'judge' }));
   X.students.forEach((s) => PEOPLE.push(P(s.id, s.name, s.team, s.track, `${s.grad} 届`, '2026-07-06', s.hue, {
     landing: true, xe: s, manager: s.mentor, hrbp: 'p-suwan',
   })));
@@ -372,9 +374,12 @@
     SEL_ROWS.push({ person: s.id, by: SEL_BY(s), at: '2026-06-30', grade: g, row: i + 2, team: team ? '七号队' : null,
       items: team ? ['A', 'A', 'A'] : ITEMS[g], note: team ? '组队作品（七号队）：三人分工做完整套分镜生成，演示流畅，答辩由队长主讲' : NOTE[g] });
   });
+  // 结营评审一般由导师评；入营选拔评委也是这位导师的人，结营评审改由孟砚舟（演示）评，不让同一人既评前段又评后段
+  const END_JUDGE = 's-29';
+  const SAME = new Set(X.students.filter((s) => !LATE.includes(s.id) && SEL_BY(s) === s.mentor).map((s) => s.id));
   const END_ROWS = X.students.map((s, i) => {
     const j = JROW.get(s.id);
-    return { person: s.id, by: s.mentor, at: '2026-08-31', grade: s.backJ || null, row: i + 2, note: j ? j[5] : s.backJ ? `结营结论：${s.final || s.backJ}` : '结营评审表这一行是空的' };
+    return { person: s.id, by: SAME.has(s.id) ? END_JUDGE : s.mentor, at: '2026-08-31', grade: s.backJ || null, row: i + 2, note: j ? j[5] : s.backJ ? `结营结论：${s.final || s.backJ}` : '结营评审表这一行是空的' };
   });
   const SR = new Map(SEL_ROWS.map((r) => [r.person, r])), ER = new Map(END_ROWS.map((r) => [r.person, r]));
   const ROWS = X.students.map((s) => s.id).filter((p) => SR.has(p) || ER.get(p).grade).map((p) => ({ person: p, front: SR.get(p) || null, back: ER.get(p) }));
@@ -402,6 +407,7 @@
       { rater: 'p-yeqing', node: 'xe6-select', label: '入营选拔第二轮代评', people: ['p-x16', 'p-x17'], from: '2026-06-28', to: '2026-07-01', ended: '已交回贺云舒' },
       { rater: 'p-yeqing', node: 'xe6-end', label: '导师', people: ofTeams('t-talk-a', 't-scene-b'), from: '2026-07-06', to: '2026-10-01' },
       { rater: 'p-yeqing', node: 'xe6-end', label: '值班助手 · 一组代评', people: ['p-x58'], from: '2026-07-06', to: '2026-08-16', ended: '已交回邱行之' },
+      { rater: END_JUDGE, node: 'xe6-end', label: '结营评审评委', people: [...SAME], from: '2026-08-24', to: '2026-10-01' },
     ],
     // HR 预先标为不可比的案例
     marks: { 'jr-xe6:p-x42:overall': { reason: '入营后从全套组转到前端方向，选拔作品和营内课题考的是不同方向', by: 'p-suwan', at: '2026-09-02' } },
@@ -458,7 +464,7 @@
   ];
 
   NT.SEED = {
-    version: 'y7', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
+    version: 'y8', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES: [], FOLLOWS,
     FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS,
   };

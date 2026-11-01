@@ -244,8 +244,10 @@
     const ids = st.judgeHyps(b.id).flatMap((h) => st.judgeAttrib(h.id)?.actions || []);
     const acts = ids.map((x) => S.actions.find((a) => a.id === x)).filter(Boolean);
     const LABEL = { todo: '待沟通', doing: '进行中', done: '已执行待观察', reviewed: '已复盘', cancel: '未执行' };
+    // 修订入营选拔标准的动作跟着修订推进，写修订现在的状态和版本
+    const actLabel = (a) => { const x = st.actionState(a); return x.derived ? `${x.label}${x.rev ? `（${x.rev.v.replace(/^.*-(v\d+)$/, '$1')}）` : ''} · 跟着修订自动推进` : `${LABEL[a.state]}${a.did ? ` · ${NT.md(a.did)} 执行` : ` · 预计 ${NT.md(a.due)}`}`; };
     return html`<article class="n-card" id="acts"><h3 class="n-section-title">改进动作</h3>
-      ${acts.length ? html`<ul class="nt-list">${acts.map((a) => html`<li><a class="nt-plink" href="actions.html#${a.id}"><b style="font-weight:600">${a.title}</b></a><div class="nt-muted">${a.kind} · 负责人 ${name(a.owner)} · ${LABEL[a.state]}${a.did ? ` · ${NT.md(a.did)} 执行` : ` · 预计 ${NT.md(a.due)}`}</div></li>`)}</ul>`
+      ${acts.length ? html`<ul class="nt-list">${acts.map((a) => html`<li><a class="nt-plink" href="actions.html#${a.id}"><b style="font-weight:600">${a.title}</b></a><div class="nt-muted">${a.kind} · 负责人 ${name(a.owner)} · ${actLabel(a)}</div></li>`)}</ul>`
         : html`<div class="nt-empty">归因确认后，改进动作会出现在这里。</div>`}
       <p class="nt-caption">改进动作挂在「人才项目」关键节点复盘的对应节点下跟进；修订评价标准会产生新版本，新记录按新版本，旧记录保留原版本。</p></article>`;
   }
@@ -386,11 +388,12 @@
         // 入营选拔标准已有一份修订在待确认：先撤回才能补依据，这时不生成动作
         const openFront = kind === '修订评价标准' && frontLink(chain) && st.ruleOpen('front', FRONT_LINE[chain.id]);
         if (openFront && openFront.state !== 'draft') { NT.toast('入营选拔标准已有一份修订待确认，先在规则页撤回，再补这条依据'); return; }
-        const a = st.addJudgeAction(id, h.id, { title: actTitle(kind, chain, dim), kind,
+        const front = kind === '修订评价标准' && frontLink(chain);
+        const a = st.addJudgeAction(id, h.id, { title: actTitle(kind, chain, dim), kind, ...(front ? { rule: { kind: 'front', line: FRONT_LINE[chain.id], hyp: h.id } } : {}),
           then: [`目标：下一批判断对照里「${dim}」前段偏差的人数减少`, `依据：${b.name}，${dim} ${t.high + t.low} 人有偏差（${CAT[st.judgeAttrib(h.id).cats[0]]}）`, '观察：下一批判断对照按标准版本分组对比，样本够了再看改进效果'] });
         render(main);
         if (!a) { NT.toast('依据已经变化，这条结论要先复核，暂不能生成动作'); return; }
-        if (kind === '修订评价标准' && frontLink(chain)) {
+        if (front) {
           const c = st.judgeClear(units.filter((u) => u.dimName === dim), chain);
           st.draftWithBasis('front', [{ type: 'judge', batch: id, hyp: h.id, dim, n: `前段评为最高或最低一档的 ${c.clear.length} 人中 ${c.diff.length} 人与结营结论不一致`, cat: CAT[st.judgeAttrib(h.id).cats[0]] }], FRONT_LINE[chain.id]);
           location.href = frontLink(chain); return;

@@ -200,3 +200,39 @@ test('从判断对照带依据起草：已有草稿就追加并去重，预览�
   assert.equal(blocked.blocked.state, 'pending');
   assert.equal(st.ruleOpen('front', 'xe-select').basis.length, 1, '已提交的修订不被改动');
 });
+
+test('「修订入营选拔标准」的动作状态从修订推出来：起草中 → 待确认 → 已生效，撤销确认后回到待确认', () => {
+  const { as } = load();
+  let st = as('hrbp');
+  const basis = [{ type: 'judge', batch: 'jr-xe6', hyp: 'h-xe6-1', dim: '综合判断', n: '演示', cat: '评价标准' }];
+  const a = st.addJudgeAction('jr-xe6', 'h-xe6-1', { title: '修订入营选拔标准', kind: '修订评价标准', rule: { kind: 'front', line: 'xe-select', hyp: 'h-xe6-1' } });
+  const label = (s) => s.actionState(s.get().actions.find((x) => x.id === a.id)).label;
+  assert.equal(label(st), '还没有修订草稿');
+  const d = st.draftWithBasis('front', basis, 'xe-select').draft;
+  assert.equal(label(st), '起草中');
+  st.setDraft('front', { note: `${d.note}；写清本人做了哪部分`, why: '理由' }, 'xe-select');
+  st.previewDraft('front', 'xe-select');
+  st.submitDraft('front', 'xe-select');
+  assert.equal(label(st), '待确认');
+  st = as('ceo');
+  const undo = st.confirmDraft('front', 'xe-select');
+  assert.equal(label(as('hrbp')), '已生效');
+  const stored = as('hrbp').get().actions.find((x) => x.id === a.id);
+  assert.equal(stored.state, 'todo', '状态不另存，存的字段不跟着改');
+  undo();
+  assert.equal(label(as('hrbp')), '待确认');
+});
+
+test('入营选拔评委和结营评审不是同一个人；导师视角的结果不变', () => {
+  const { as } = load();
+  const st = as('hrbp');
+  const units = st.judgeUnits('jr-xe6');
+  assert.equal(units.filter((u) => u.front && [].concat(u.back.by || []).includes(u.front.by)).length, 0);
+  const moved = units.filter((u) => [].concat(u.back.by || []).includes('s-29'));
+  assert.ok(moved.length > 0);
+  assert.equal(st.person('s-29').name, '孟砚舟');
+  // 导师视角：仍按本人在两段的评价关系看，结果和换人前一样
+  const m = as('mentor');
+  assert.equal(m.myJudgeUnits().filter((u) => !u.denied).length, 10);
+  assert.equal(m.myJudgeHidden(), 2);
+});

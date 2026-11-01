@@ -889,6 +889,23 @@
     return act;
   };
 
+  // 「修订入营选拔标准」这类改进动作的状态从它带去的那份修订推出来：起草中 → 待确认 → 已生效，不另存、也不手工改。
+  // 修订按依据认：纳入了这条结论（同一批判断对照、同一条假设）的版本里，有发布过的取最早发布的那一份，否则取最新一份；
+  // 草稿删掉或依据移出后，写「还没有修订草稿」
+  store.revisionOf = (a) => {
+    if (!a.rule) return null;
+    const vs = store.ruleVers(a.rule.kind, a.rule.line).filter((r) => (r.basis || []).some((b) => b.type === 'judge' && b.batch === a.from && b.hyp === a.rule.hyp));
+    return vs.find((r) => ['live', 'old'].includes(r.state)) || vs.pop() || null;
+  };
+  const REV_STATE = { draft: ['doing', '起草中'], pending: ['doing', '待确认'], scheduled: ['doing', '待确认'], live: ['done', '已生效'], old: ['done', '已生效'] };
+  store.actionState = (a) => {
+    if (!a.rule) return { s: a.state };
+    const r = store.revisionOf(a);
+    if (!r) return { s: 'todo', label: '还没有修订草稿', derived: true };
+    const [s, label] = REV_STATE[r.state];
+    return { s, label, derived: true, rev: r };
+  };
+
   // ---------- 项目复盘：按人才项目的关键节点回看一件事做得怎么样 ----------
   // 结果从现有数据算；复盘由 HR 写并署名，AI 草拟只作参考；改进事项是挂在节点下的行动
   const XE = NT.XE6;
