@@ -47,13 +47,13 @@ describe('people list', () => {
       '参考：待观察',
       '资料不足',
       '参考：双高',
-      '暂时无法判断',
+      '待判断',
     ]);
     expect(rows()[1].querySelector('[title]')!.getAttribute('title')).toBe(
       '潜力轴缺 2 条事件',
     );
     expect(rows()[0].getAttribute('href')).toBe('/person?id=p1');
-    expect(screen.getByText(/右侧是系统按已确认分数算的参考位置/)).toBeTruthy();
+    expect(screen.getByText(/右侧是参考位置，按已确认分数算出/)).toBeTruthy();
     expect(document.body.textContent).not.toMatch(/\d+ 分|排名|%/);
   });
 
@@ -100,11 +100,11 @@ describe('people list', () => {
     const { unmount } = render(
       <People data={peopleList('mentor', [])} mentor />,
     );
-    expect(screen.getByText('还没有分给你的学员。')).toBeTruthy();
+    expect(screen.getByText('分给你的学员会出现在这里。')).toBeTruthy();
     expect(screen.queryByLabelText('团队')).toBeNull();
     unmount();
     render(<People data={peopleList('manager', [])} mentor={false} />);
-    expect(screen.getByText('你的查看范围里还没有人。')).toBeTruthy();
+    expect(screen.getByText('你查看范围里的人会出现在这里。')).toBeTruthy();
     expect(screen.queryByText(/参考位置/)).toBeNull();
   });
 
@@ -114,6 +114,8 @@ describe('people list', () => {
     first.focus();
     fireEvent.click(first);
     const drawer = screen.getByRole('dialog', { name: /演示学员甲/ });
+    // As in the prototype, the drawer title carries no 演示 badge (the row does).
+    expect(drawer.querySelector('#peek-h')!.textContent).toBe('演示学员甲');
     expect(
       within(drawer).getByText('平台组 · 后端工程师 · 入营 3 个月'),
     ).toBeTruthy();
@@ -152,7 +154,11 @@ describe('people list', () => {
     fireEvent.click(rows()[1]);
     const drawer = screen.getByRole('dialog', { name: /演示学员乙/ });
     expect(within(drawer).getByText('还没有你能看到的关键事件。')).toBeTruthy();
-    expect(within(drawer).getByText('暂无可用的已确认维度分')).toBeTruthy();
+    // No capability lines: the section is left out, the server's reason is not shown.
+    expect(
+      within(drawer).queryByRole('heading', { name: '能力线索' }),
+    ).toBeNull();
+    expect(within(drawer).queryByText('暂无可用的已确认维度分')).toBeNull();
     expect(within(drawer).queryByRole('link', { name: '查看全部' })).toBeNull();
     // A second click closes it; a modified click is left to the browser (the profile).
     fireEvent.click(rows()[1]);

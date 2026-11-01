@@ -44,7 +44,7 @@ function Position({ view }: { view: QuickView }) {
   return (
     <span title={position.reason}>
       <Badge tone="unknown" icon="dash">
-        {position.state === 'insufficient' ? '资料不足' : '暂时无法判断'}
+        {position.state === 'insufficient' ? '资料不足' : '待判断'}
       </Badge>
     </span>
   );
@@ -64,10 +64,7 @@ function QuickViewBody({ view }: { view: QuickView }) {
           size="lg"
         />
         <div>
-          <h2 id="peek-h">
-            {person.name}
-            <Demo view={view} />
-          </h2>
+          <h2 id="peek-h">{person.name}</h2>
           <p>
             {[person.teamName, person.jobTitle, person.tenureLabel]
               .filter(Boolean)
@@ -110,36 +107,35 @@ function QuickViewBody({ view }: { view: QuickView }) {
           </p>
         )}
       </section>
-      <section className="n-peek__sec">
-        <h3>能力线索</h3>
-        {capabilityLines.status === 'ready' ? (
-          <>
-            <ul className="n-peek__caps">
-              {capabilityLines.data.lines.map((line) => (
-                <li key={line.dimensionId}>
-                  <b>{line.dimensionLabel}</b>
-                  <span>{line.eventCount} 件事</span>
-                  <small>{line.topAnchor}</small>
-                </li>
-              ))}
-            </ul>
-            {capabilityLines.data.uncoveredCount ? (
-              <p className="nt-muted">
-                其余 {capabilityLines.data.uncoveredCount}{' '}
-                个维度资料不足，补充材料后出分。
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <p className="nt-muted">
-            {capabilityLines.status === 'empty'
-              ? '维度分待确认。'
-              : capabilityLines.reason}
-          </p>
-        )}
-      </section>
+      {/* Without lines the section is left out, as in the prototype: the server's
+          reason is not a line of its own. */}
+      {capabilityLines.status === 'ready' ? (
+        <section className="n-peek__sec">
+          <h3>能力线索</h3>
+          <ul className="n-peek__caps">
+            {capabilityLines.data.lines.map((line) => (
+              <li key={line.dimensionId}>
+                <b>{line.dimensionLabel}</b>
+                <span>{line.eventCount} 件事</span>
+                <small>{line.topAnchor}</small>
+              </li>
+            ))}
+          </ul>
+          {capabilityLines.data.uncoveredCount ? (
+            <p className="nt-muted">
+              其余 {capabilityLines.data.uncoveredCount}{' '}
+              个维度资料不足，补充材料后出分。
+            </p>
+          ) : null}
+        </section>
+      ) : null}
       <footer className="n-peek__foot">
-        <Link className="n-btn n-btn--sm n-btn--ink" href={href}>
+        {/* The prototype's 记一件事 sits on the left; this one stays on the right. */}
+        <Link
+          className="n-btn n-btn--sm n-btn--ink"
+          href={href}
+          style={{ marginLeft: 'auto' }}
+        >
           打开档案
         </Link>
       </footer>
@@ -250,14 +246,14 @@ export function People({
             {data.total
               ? '换个筛选条件试试。'
               : mentor
-                ? '还没有分给你的学员。'
-                : '你的查看范围里还没有人。'}
+                ? '分给你的学员会出现在这里。'
+                : '你查看范围里的人会出现在这里。'}
           </div>
         )}
       </div>
       {quad && data.total ? (
         <p className="nt-caption">
-          右侧是系统按已确认分数算的参考位置，不是正式校准的结论。
+          右侧是参考位置，按已确认分数算出，待正式校准。
         </p>
       ) : null}
     </>

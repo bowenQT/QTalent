@@ -73,7 +73,7 @@ describe('people view', () => {
       'p1',
       'p3',
     ]);
-    // 「暂时无法判断」 is not 资料不足 and is not treated as missing material.
+    // 「待判断」 is not 资料不足 and is not treated as missing material.
     expect(ids(visible(hr.people, filter({ kind: 'insufficient' })))).toEqual([
       'p2',
     ]);
