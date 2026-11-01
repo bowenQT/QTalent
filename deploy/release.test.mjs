@@ -11,6 +11,8 @@ import {
   readdirSync,
   rmSync,
   symlinkSync,
+  chmodSync,
+  statSync,
 } from 'node:fs';
 import { join, basename } from 'node:path';
 import { tmpdir, hostname } from 'node:os';
@@ -89,7 +91,9 @@ function fixture() {
     bow899 = commit('node-model'),
     first = commit('one');
   for (const role of ['common', 'web', 'worker'])
-    writeFileSync(join(base, 'env', role + '.env'), '# Synthetic fixture\n');
+    writeFileSync(join(base, 'env', role + '.env'), '# Synthetic fixture\n', {
+      mode: 0o600,
+    });
   for (const name of ['node', 'pnpm', 'pg_dump'])
     writeFileSync(join(base, 'bin', name), 'fixture executable');
   const target = {
@@ -137,6 +141,8 @@ function fixture() {
     if (file === target.nodePath) return 'v24.21.0';
     if (file === target.pnpmPath) return '11.25.0';
     if (file === 'chown') return '';
+    if (file === '/usr/bin/id' && args.join(' ') === '-u qtalent')
+      return String(statSync(join(base, 'env', 'common.env')).uid);
     if (file === 'systemctl') {
       const action = args[0];
       if (action === 'restart') {
@@ -922,4 +928,38 @@ test('main-only policy still refuses an unmerged revision before preparing or to
     false,
   );
   assert.equal(existsSync(join(f.root, 'current')), false);
+});
+
+test('rejects group-readable environment files before sourcing or starting services', () => {
+  for (const role of ['common', 'web', 'worker']) {
+    const f = fixture();
+    chmodSync(join(f.target.envDirectory, role + '.env'), 0o640);
+    assert.throws(() => f.manager(), { code: 'insecure_env_file' });
+    assert.equal(f.state.events.length, 0);
+  }
+});
+test('rechecks environment permissions after target construction before loading values', async () => {
+  const f = fixture(),
+    manager = f.manager();
+  chmodSync(join(f.target.envDirectory, 'common.env'), 0o644);
+  await assert.rejects(manager.status(), { code: 'insecure_env_file' });
+  assert.equal(
+    f.state.events.some((e) => e.file === 'runuser'),
+    false,
+  );
+});
+test('requires environment file owner to match the actual qtalent uid lookup', async () => {
+  const f = fixture(),
+    manager = f.manager();
+  const originalRun = manager.run;
+  const differentUid = statSync(join(f.target.envDirectory, 'web.env')).uid + 1;
+  manager.run = (file, args, options) =>
+    file === '/usr/bin/id'
+      ? Promise.resolve(String(differentUid))
+      : originalRun(file, args, options);
+  await assert.rejects(manager.status(), { code: 'insecure_env_file' });
+  assert.equal(
+    f.state.events.some((e) => e.file === 'runuser'),
+    false,
+  );
 });

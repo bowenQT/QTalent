@@ -48,6 +48,8 @@ systemd 从部署机加载 `/etc/qtalent/common.env` 加 `web.env` 或 `worker.e
 | DEMO_PASSWORD      | 显式 seed 命令的进程环境 | 至少 12 字符；四个演示账号首次导入使用，代码无默认值                    |
 | TEST_DATABASE_URL  | 本机测试进程环境         | 仅本机测试，loopback 且库名以 _test 结尾；不注入演示服务                |
 
+发布脚本在读取 common/web/worker 环境值前强制核对三份文件为非符号链接的普通文件、权限恰为 0600，并由 `/usr/bin/id -u qtalent` 核对实际服务属主；权限或属主不匹配以 `insecure_env_file` 拒绝，服务用户无法核实以 `service_user_unavailable` 拒绝。构造目标后、加载环境前会再次校验；脚本不自动 chmod/chown 或重建凭据。X2 在装机与每次注入后另核目录 0700、seed 与隧道凭证的专用属主和 0600，现场正确配置不能代替这项脚本门禁。
+
 两个进程仍各自只读取 `DATABASE_URL`，不新增第二个数据库变量名。部署记录只写脱敏主机类别、端口和连接模式，不能输出完整连接串。
 
 Supabase [当前连接说明](https://supabase.com/docs/guides/database/connecting-to-postgres)区分会话池 5432 与事务池 6543；事务池不支持 prepared statements，直连端点还需核对部署机的 IPv6 可达性。保持已确认的进程分工；部署前核对 Drizzle/Better Auth/node-postgres 实际没有使用命名 prepared statement。TLS 按 spec 开启并验证证书；这两项均需要真实环境证据，配置字符串存在不等于验收通过。

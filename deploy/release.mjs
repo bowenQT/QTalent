@@ -61,6 +61,15 @@ function directory(path) {
   )
     fail('invalid_target_path');
 }
+function environmentFile(path, expectedUid) {
+  const info = lstatSync(path);
+  if (!info.isFile() || info.isSymbolicLink()) fail('invalid_environment_file');
+  if (
+    (info.mode & 0o777) !== 0o600 ||
+    (expectedUid !== undefined && info.uid !== expectedUid)
+  )
+    fail('insecure_env_file');
+}
 const within = (parent, child) => {
   const path = relative(parent, child);
   return path !== '' && !path.startsWith('..') && !isAbsolute(path);
@@ -143,12 +152,10 @@ export function validateTarget(
     )
       fail('invalid_database_target');
     const file = join(target.envDirectory, role + '.env');
-    if (!statSync(file).isFile() || lstatSync(file).isSymbolicLink())
-      fail('invalid_environment_file');
+    environmentFile(file);
   }
   const common = join(target.envDirectory, 'common.env');
-  if (!statSync(common).isFile() || lstatSync(common).isSymbolicLink())
-    fail('invalid_environment_file');
+  environmentFile(common);
   const prerequisites = target.prerequisites;
   if (
     !prerequisites ||
@@ -315,6 +322,21 @@ export class ReleaseManager {
     );
   }
   async validateEnvironment() {
+    let serviceUid;
+    try {
+      serviceUid = await this.run('/usr/bin/id', ['-u', 'qtalent'], {
+        capture: true,
+      });
+    } catch {
+      fail('service_user_unavailable');
+    }
+    if (!/^\d+$/.test(serviceUid) || !Number.isSafeInteger(Number(serviceUid)))
+      fail('service_user_unavailable');
+    for (const role of ['common', 'web', 'worker'])
+      environmentFile(
+        join(this.target.envDirectory, role + '.env'),
+        Number(serviceUid),
+      );
     await this.app('web', 'validate', this.target.nodePath);
     await this.app('worker', 'validate', this.target.nodePath);
   }
