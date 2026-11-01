@@ -53,3 +53,27 @@ export type {
   SelectionPostgresServices,
   SelectionPostgresTransaction,
 } from './selection/postgres';
+export {
+  comparisonMappings,
+  comparisonBatches,
+  comparisonCases,
+  comparisonStages,
+  comparisonManualMarks,
+} from './judgment-comparison/schema';
+export { readSelectionCohortFacts } from './selection/cohort-facts';
+export {
+  canonicalComparisonJson,
+  canonicalInputFiles,
+  CanonicalComparisonError,
+  validateCanonicalComparisonImport,
+} from './judgment-comparison/canonical-input';
+export type {
+  CanonicalComparisonImport,
+  CanonicalComparisonSnapshot,
+  CanonicalComparisonStage,
+} from './judgment-comparison/canonical-input';
+export {
+  lockCanonicalComparisonBatch,
+  readCanonicalComparisonRows,
+  insertCanonicalComparisonRows,
+} from './judgment-comparison/canonical-store';
