@@ -400,6 +400,8 @@ describe('CitationMarks', () => {
         originalVersionId: 'ver-1',
         location: { kind: 'document', paragraph: '第 2 段' },
         excerpt: '来源里的一句话',
+        originalTitle: '测试材料.docx',
+        recordedByName: null,
         sourceType: 'document',
         sourceCategory: 'original',
         demo: true,
