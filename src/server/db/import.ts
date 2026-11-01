@@ -39,6 +39,7 @@ import {
   dimensions,
   ruleVersions,
   anchors,
+  backfillLegacyRuleVersionApplicability,
 } from '../modules/evaluation-system';
 import {
   originals,
@@ -549,6 +550,20 @@ export async function importDemo(
     );
     await insertChecked(tx, dimensions, seed.evidence.dimensions);
     await insertChecked(tx, ruleVersions, seed.evidence.ruleVersions);
+    await backfillLegacyRuleVersionApplicability(
+      tx,
+      [...seed.evidence.events, ...seed.evidence.historicalEvaluations].flatMap(
+        (record) =>
+          record.ruleVersionId && record.occurredOn
+            ? [
+                {
+                  ruleVersionId: record.ruleVersionId,
+                  usedAt: new Date(record.occurredOn + 'T00:00:00.000Z'),
+                },
+              ]
+            : [],
+      ),
+    );
     await insertChecked(tx, anchors, seed.evidence.anchors);
     await insertChecked(tx, importSnapshots, seed.evidence.snapshots);
     const inserted = await writeEvidence(tx, seed.evidence, true);
