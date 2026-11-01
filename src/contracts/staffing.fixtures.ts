@@ -5,6 +5,8 @@ const source = {
   originalVersionId: 'demo-version-1',
   location: { kind: 'document' as const, paragraph: '演示段落 1' },
   excerpt: '演示：独立交付服务端模块。',
+  originalTitle: '演示文档',
+  recordedByName: null,
   sourceType: 'document' as const,
   sourceCategory: 'original' as const,
   demo: true,

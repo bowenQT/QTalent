@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
 const src = fs.readFileSync(path.join(__dirname, '../y/app/js/store.js'), 'utf8');
-const found = src.match(/  store\.removeBasis = \(kind, i\) => \{[\s\S]*?\n  \};/);
+const found = src.match(/  store\.removeBasis = \(kind, i(?:, line)?\) => \{[\s\S]*?\n  \};/);
 assert.ok(found, '未找到 Y 的 removeBasis');
 function setup(basis = [{ type: 'note', text: '演示依据 A' }], sug = null) {
   const draft = { state: 'draft', v: 'v2', basis: basis.slice() };
