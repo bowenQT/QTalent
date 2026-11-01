@@ -23,24 +23,34 @@ import {
   events,
   eventSources,
   fragments,
+  originals,
+  originalVersions,
 } from '../modules/records';
 import { evaluationRelations } from '../modules/programs';
 import { accountBindings, grants, people } from '../modules/directory';
 import { projects } from '../modules/staffing';
-import { ruleVersionApplicability } from '../modules/evaluation-system';
+import {
+  anchors,
+  ruleVersionApplicability,
+} from '../modules/evaluation-system';
 import { jobSnapshots } from '../jobs/schema';
 import { recordArrangeQueue } from '../jobs/record-arrange';
-import { MODELINK_MODEL } from '../integrations/maas';
+import { MODELINK_MODEL, validModelinkInput } from '../integrations/maas';
 import {
   createRecordArrangeModelClient,
   createRecordArrangeWorker,
 } from './record-arrange-worker';
 import {
   modelBatchSchema,
+  batchMessages,
   BATCH_PROMPT_VERSION,
 } from '../modules/records/arrange/batch-prompt';
 import { materialBatchReceiptSchema } from '../../contracts/materials';
 import { recordBatchDraftSetSchema } from '../../contracts/record';
+import { loadRecordBatchSnapshot } from './record-arrange-context';
+import { parseBatchMetadata } from './record-batch-arrange-state';
+import { prepareBatch } from '../modules/records/arrange/batch';
+import { readBatchArrangeRules } from '../modules/records/arrange/batch-rules';
 
 let connection: Awaited<ReturnType<typeof nativeDatabase>>;
 let boss: PgBoss;
@@ -689,6 +699,128 @@ it('rejects an input budget overflow before creating sources or dispatching a mo
       .where(eq(arrangeInputs.creatorAccountId, h.account)),
   ).toHaveLength(0);
   expect(h.calls()).toBe(0);
+});
+async function intakeRowCounts() {
+  const result = await connection.db.execute(sql`
+    select
+      (select count(*) from ${originals}) as originals,
+      (select count(*) from ${originalVersions}) as versions,
+      (select count(*) from ${fragments}) as fragments,
+      (select count(*) from ${jobSnapshots}) as jobs,
+      (select count(*) from ${arrangeInputs}) as inputs,
+      (select count(*) from ${arrangeOperations}) as operations,
+      (select count(*) from pgboss.job) as queued
+  `);
+  return result.rows[0];
+}
+it.each([
+  ['quotes', '"'],
+  ['backslashes', '\\'],
+  ['newlines', '\n'],
+])(
+  'rejects encoded %s overflow without persistent intake or queue side effects',
+  async (_label, character) => {
+    const h = await setup();
+    const text = '演示：' + character.repeat(100000);
+    expect(Buffer.byteLength(text)).toBeLessThan(240000);
+    const before = await intakeRowCounts();
+    const result = await h.app.requests.create(h.account, { ...h.input, text });
+    expect(result).toMatchObject({
+      status: 'validation_error',
+      fieldErrors: { text: [expect.any(String)] },
+      input: { text },
+    });
+    expect(await intakeRowCounts()).toEqual(before);
+    expect(h.calls()).toBe(0);
+  },
+);
+it('uses exact encoded boundary with saved rules and preserves accepted replay after rule growth', async () => {
+  const h = await setup();
+  const [anchor] = await connection.db
+    .select()
+    .from(anchors)
+    .where(eq(anchors.id, '845-old-1'));
+  if (!anchor) throw new Error('native rule fixture required');
+  try {
+    // Exercise real frozen-rule overhead, not a guessed text-only allowance.
+    await connection.db
+      .update(anchors)
+      .set({ text: anchor.text + '"\\\n'.repeat(1000) })
+      .where(eq(anchors.id, anchor.id));
+    const original = await submitted(h);
+    const prepared = await connection.db.transaction(async (tx) => {
+      const metadata = parseBatchMetadata((await state(original.jobId)).result);
+      if (!metadata) throw new Error('native metadata required');
+      const snapshot = await loadRecordBatchSnapshot(
+        tx,
+        original.input,
+        metadata,
+        businessAt,
+        1,
+      );
+      const rules = await readBatchArrangeRules(tx, businessAt);
+      if (!snapshot || !rules) throw new Error('native preparation required');
+      expect(rules.anchorVersionId).toBe('rubric-v1');
+      const result = prepareBatch(snapshot, rules);
+      if (result.status !== 'ready')
+        throw new Error('native preparation failed');
+      return result.value;
+    });
+    const fits = (text: string) =>
+      validModelinkInput({
+        messages: batchMessages({
+          ...prepared,
+          sources: prepared.sources.map((source) => ({ ...source, text })),
+        }),
+        promptVersion: BATCH_PROMPT_VERSION,
+        schema: modelBatchSchema,
+      });
+    let low = 0,
+      high = 100000;
+    while (low + 1 < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (fits('演示：' + '"'.repeat(middle))) low = middle;
+      else high = middle;
+    }
+    let text = '演示：' + '"'.repeat(low);
+    for (let padding = 0; padding < 3 && fits(text + 'x'); padding++)
+      text += 'x';
+    expect(fits(text)).toBe(true);
+    expect(fits(text + 'x')).toBe(false);
+    expect(Buffer.byteLength(text + 'x')).toBeLessThan(240000);
+    const acceptedInput = { ...h.input, operationId: randomUUID(), text };
+    const accepted = await h.app.requests.create(h.account, acceptedInput);
+    expect(accepted.status).toBe('success');
+    const before = await intakeRowCounts();
+    expect(
+      await h.app.requests.create(h.account, {
+        ...acceptedInput,
+        operationId: randomUUID(),
+        text: text + 'x',
+      }),
+    ).toMatchObject({
+      status: 'validation_error',
+      input: { text: text + 'x' },
+    });
+    expect(await intakeRowCounts()).toEqual(before);
+    await connection.db
+      .update(anchors)
+      .set({ text: anchor.text + '"'.repeat(100000) })
+      .where(eq(anchors.id, anchor.id));
+    expect(await h.app.requests.create(h.account, acceptedInput)).toMatchObject(
+      {
+        status: 'success',
+        replayed: true,
+      },
+    );
+    expect(await intakeRowCounts()).toEqual(before);
+    expect(h.calls()).toBe(0);
+  } finally {
+    await connection.db
+      .update(anchors)
+      .set({ text: anchor.text })
+      .where(eq(anchors.id, anchor.id));
+  }
 });
 it('does not fill missing legacy batch/time/node facts with current values', async () => {
   const h = await setup();

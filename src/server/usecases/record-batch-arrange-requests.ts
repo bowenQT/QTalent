@@ -34,6 +34,7 @@ import {
   canWriteArrange,
   textSubjects,
   NativeArrangeUnavailable,
+  loadRecordBatchSnapshot,
   type RecordPageInput,
 } from './record-arrange-context';
 import {
@@ -46,6 +47,15 @@ import {
   type NativeBatchDependencies,
 } from './record-batch-arrange-store';
 import { readBatchArrangeRules } from '../modules/records/arrange/batch-rules';
+import { prepareBatch } from '../modules/records/arrange/batch';
+import {
+  batchMessages,
+  BATCH_PROMPT_VERSION,
+  modelBatchSchema,
+} from '../modules/records/arrange/batch-prompt';
+import { validModelinkInput } from '../integrations/maas';
+
+class ArrangeModelInputBudgetExceeded extends Error {}
 
 export class ArrangeInputConflict extends Error {}
 export type RecordArrangeRequestDependencies = NativeBatchDependencies;
@@ -116,7 +126,7 @@ export function createRecordBatchArrangeRequests(
       ...input,
       personIds: [...input.personIds].sort(),
     });
-    return deps.db.transaction(
+    const result = deps.db.transaction(
       async (tx): Promise<MaterialBatchSubmitResult> => {
         await lockArrangeOperation(tx, accountId, 'create', input.operationId);
         const old = await readArrangeOperation(
@@ -197,7 +207,8 @@ export function createRecordBatchArrangeRequests(
           };
         // A new intake binds its rule version at the trusted business save clock.
         // Missing rules fail before creating any source/job, not via a demo fallback.
-        if (!(await readBatchArrangeRules(tx, at)))
+        const rules = await readBatchArrangeRules(tx, at);
+        if (!rules)
           return {
             status: 'validation_error',
             fieldErrors: {
@@ -307,6 +318,30 @@ export function createRecordBatchArrangeRequests(
         };
         await insertJob(tx, job);
         await insertArrangeInput(tx, stored);
+        if (!pending.length) {
+          // Reuse the worker's persisted facts, frozen rules and exact message
+          // encoding. A rejection rolls back all intake rows before any enqueue.
+          const snapshot = await loadRecordBatchSnapshot(
+            tx,
+            stored,
+            metadata,
+            at,
+            1,
+          );
+          if (!snapshot)
+            throw new NativeArrangeUnavailable('input_authority_changed');
+          const prepared = prepareBatch(snapshot, rules);
+          if (prepared.status !== 'ready')
+            throw new NativeArrangeUnavailable('native_intake_not_ready');
+          if (
+            !validModelinkInput({
+              messages: batchMessages(prepared.value),
+              promptVersion: BATCH_PROMPT_VERSION,
+              schema: modelBatchSchema,
+            })
+          )
+            throw new ArrangeModelInputBudgetExceeded();
+        }
         await insertArrangeOperation(tx, {
           actorAccountId: accountId,
           action: 'create',
@@ -331,6 +366,14 @@ export function createRecordBatchArrangeRequests(
       },
       { isolationLevel: 'read committed' },
     );
+    return result.catch((error: unknown): MaterialBatchSubmitResult => {
+      if (!(error instanceof ArrangeModelInputBudgetExceeded)) throw error;
+      return {
+        status: 'validation_error',
+        fieldErrors: { text: ['原始文本与当前规则编码后超出本次整理预算'] },
+        input: raw,
+      };
+    });
   }
   return {
     native,
