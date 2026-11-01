@@ -1,0 +1,246 @@
+{
+  "evidenceStatus": "expected_only_actual_query_not_run",
+  "contractSha": "832209d177944b5ce18577794acb88314a6460da",
+  "audience": "hr",
+  "policy": {
+    "conclusionScope": "evaluation_system_only",
+    "laterStageUse": "comparison_not_ground_truth"
+  },
+  "batch": {
+    "id": "bow-923-xe6-selection-graduation-v1",
+    "name": "第六期选拔与结营对照（演示）",
+    "cohort": {
+      "id": "b-xe6",
+      "name": "XEngineer 第六期（演示）"
+    },
+    "selectionStandardVersionId": "xe-select-v1",
+    "mappingVersionId": "map-xe-select-v1"
+  },
+  "mapping": {
+    "versionId": "map-xe-select-v1",
+    "frontScaleId": "demo-xe-select-three-bands-v1",
+    "backScaleId": "demo-xe-graduation-three-bands-v1",
+    "rows": [
+      {
+        "frontGrade": "高分档",
+        "frontPosition": "highest",
+        "backGrade": "建议留用"
+      },
+      {
+        "frontGrade": "中间档",
+        "frontPosition": "middle",
+        "backGrade": "继续观察"
+      },
+      {
+        "frontGrade": "刚过线档",
+        "frontPosition": "just_passed",
+        "backGrade": "不建议"
+      }
+    ],
+    "confirmedBy": {
+      "id": "p-suwan",
+      "name": "苏晚（演示）"
+    },
+    "confirmedAt": "2026-02-26T01:00:00.000Z"
+  },
+  "counts": {
+    "clear": {
+      "consistent": 16,
+      "frontHigher": 5,
+      "frontLower": 3
+    },
+    "middleDistribution": {
+      "notRecommended": 15,
+      "observe": 25,
+      "recommended": 14
+    },
+    "excluded": {
+      "missingFront": 4,
+      "missingBack": 5,
+      "missingBoth": 2,
+      "notComparable": 4
+    }
+  },
+  "controls": {
+    "people": 93,
+    "frontPresent": 87,
+    "backPresent": 86,
+    "comparable": 78,
+    "sameTeamPeople": 2
+  },
+  "raters": [
+    {
+      "evaluator": {
+        "id": "s-04",
+        "name": "杜安歌（演示）"
+      },
+      "sample": {
+        "state": "sufficient_sample",
+        "threshold": 5,
+        "comparableCaseCount": 69,
+        "caseIds": [
+          "bow-923-case-016",
+          "bow-923-case-017",
+          "bow-923-case-018",
+          "bow-923-case-019",
+          "bow-923-case-020",
+          "bow-923-case-021",
+          "bow-923-case-022",
+          "bow-923-case-023",
+          "bow-923-case-024",
+          "bow-923-case-025",
+          "bow-923-case-026",
+          "bow-923-case-027",
+          "bow-923-case-028",
+          "bow-923-case-029",
+          "bow-923-case-030",
+          "bow-923-case-031",
+          "bow-923-case-032",
+          "bow-923-case-033",
+          "bow-923-case-034",
+          "bow-923-case-035",
+          "bow-923-case-036",
+          "bow-923-case-037",
+          "bow-923-case-038",
+          "bow-923-case-039",
+          "bow-923-case-040",
+          "bow-923-case-041",
+          "bow-923-case-042",
+          "bow-923-case-043",
+          "bow-923-case-044",
+          "bow-923-case-045",
+          "bow-923-case-046",
+          "bow-923-case-047",
+          "bow-923-case-048",
+          "bow-923-case-049",
+          "bow-923-case-050",
+          "bow-923-case-051",
+          "bow-923-case-052",
+          "bow-923-case-053",
+          "bow-923-case-054",
+          "bow-923-case-055",
+          "bow-923-case-056",
+          "bow-923-case-057",
+          "bow-923-case-058",
+          "bow-923-case-059",
+          "bow-923-case-060",
+          "bow-923-case-061",
+          "bow-923-case-062",
+          "bow-923-case-063",
+          "bow-923-case-064",
+          "bow-923-case-065",
+          "bow-923-case-066",
+          "bow-923-case-067",
+          "bow-923-case-068",
+          "bow-923-case-069",
+          "bow-923-case-070",
+          "bow-923-case-071",
+          "bow-923-case-072",
+          "bow-923-case-073",
+          "bow-923-case-074",
+          "bow-923-case-075",
+          "bow-923-case-076",
+          "bow-923-case-077",
+          "bow-923-case-078",
+          "bow-923-case-079",
+          "bow-923-case-080",
+          "bow-923-case-081",
+          "bow-923-case-082",
+          "bow-923-case-083",
+          "bow-923-case-084"
+        ],
+        "distribution": {
+          "clear": {
+            "consistent": 14,
+            "frontHigher": 2,
+            "frontLower": 1
+          },
+          "middleDistribution": {
+            "notRecommended": 14,
+            "observe": 24,
+            "recommended": 14
+          },
+          "excluded": {
+            "missingFront": 0,
+            "missingBack": 0,
+            "missingBoth": 0,
+            "notComparable": 0
+          }
+        }
+      }
+    },
+    {
+      "evaluator": {
+        "id": "s-01",
+        "name": "任辞远（演示）"
+      },
+      "sample": {
+        "state": "insufficient_sample",
+        "label": "样本不足",
+        "threshold": 5,
+        "comparableCaseCount": 4,
+        "caseIds": [
+          "bow-923-case-008",
+          "bow-923-case-009",
+          "bow-923-case-010",
+          "bow-923-case-011"
+        ]
+      }
+    },
+    {
+      "evaluator": {
+        "id": "p-yeqing",
+        "name": "叶青（演示）"
+      },
+      "sample": {
+        "state": "sufficient_sample",
+        "threshold": 5,
+        "comparableCaseCount": 5,
+        "caseIds": [
+          "bow-923-case-001",
+          "bow-923-case-002",
+          "bow-923-case-003",
+          "bow-923-case-004",
+          "bow-923-case-005"
+        ],
+        "distribution": {
+          "clear": {
+            "consistent": 1,
+            "frontHigher": 2,
+            "frontLower": 1
+          },
+          "middleDistribution": {
+            "notRecommended": 1,
+            "observe": 0,
+            "recommended": 0
+          },
+          "excluded": {
+            "missingFront": 0,
+            "missingBack": 0,
+            "missingBoth": 0,
+            "notComparable": 0
+          }
+        }
+      }
+    }
+  ],
+  "middleBand": {
+    "countsForMismatch": false,
+    "countsForComparableThreshold": true
+  },
+  "attributions": [
+    {
+      "caseId": "bow-923-case-003",
+      "category": "person_or_environment",
+      "demoHumanNote": "组队作品的高档位不能替代个人营内表现。此例归因于本人或环境变化，保留标准 v1。",
+      "changesStandard": false
+    }
+  ],
+  "pending": [
+    "actual_demo_database_import",
+    "database_repeat_import_deduplication",
+    "authorized_original_read_to_both_rows",
+    "bow_919_actual_query_matches_expected",
+    "prototype_and_script_use_actual_query_counts"
+  ]
+}

@@ -1,8 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 import type { DbExecutor, Transaction } from '../../db/client';
-import type { EvaluationAuthzContext } from '../../authz/evaluation-node';
+import {
+  canEvaluateNode,
+  type EvaluationAuthzContext,
+} from '../../authz/evaluation-node';
 import {
   canWorkOnEvaluationItem,
+  assignedEvaluationRelationIsCurrent,
   EvaluationReassignmentError,
 } from './reassignment-policy';
 import {
@@ -14,6 +18,7 @@ import {
 } from './schema';
 import {
   evaluationReassignmentReceiptSchema,
+  evaluationWorkRegistrationSchema,
   type EvaluationReassignmentReceipt,
   type ReassignEvaluationWorkInput,
   type EvaluationWorkItem,
@@ -106,10 +111,11 @@ export async function insertEvaluationWorkItem(
   input: Omit<EvaluationWorkItem, 'revision' | 'updatedAt' | 'state'>,
   now: string,
 ) {
+  const registration = evaluationWorkRegistrationSchema.parse(input);
   const [created] = await tx
     .insert(evaluationWorkItems)
     .values({
-      ...input,
+      ...registration,
       state: 'pending',
       revision: 1,
       updatedAt: now,
@@ -129,10 +135,10 @@ export async function insertEvaluationWorkItem(
     .from(evaluationWorkItems)
     .where(
       and(
-        eq(evaluationWorkItems.evaluationNodeId, input.evaluationNodeId),
-        eq(evaluationWorkItems.personId, input.personId),
-        eq(evaluationWorkItems.kind, input.kind),
-        eq(evaluationWorkItems.resourceId, input.resourceId),
+        eq(evaluationWorkItems.evaluationNodeId, registration.evaluationNodeId),
+        eq(evaluationWorkItems.personId, registration.personId),
+        eq(evaluationWorkItems.kind, registration.kind),
+        eq(evaluationWorkItems.resourceId, registration.resourceId),
       ),
     );
   if (!existing) throw new Error('Evaluation work identity disappeared');
@@ -174,4 +180,66 @@ export async function completeEvaluationWorkItem(
     .where(eq(evaluationWorkItems.id, item.id))
     .returning();
   return completed;
+}
+
+/** Undo a source-owned completion inside the caller's save/undo transaction.
+ * Reload current actor/scope after the work lock; a new relation cannot replace the bound one. */
+export async function undoEvaluationWorkCompletion(
+  tx: Transaction,
+  input: {
+    id: string;
+    expectedRevision: number;
+    assignedRelationId: string;
+    assignedEvaluatorId: string;
+    nextState: 'pending' | 'cancelled';
+  },
+  loadCurrentContext: (tx: Transaction) => Promise<EvaluationAuthzContext>,
+) {
+  const item = await readEvaluationWorkItemForUpdate(tx, input.id);
+  if (!item)
+    throw new EvaluationReassignmentError('not_found', '事项不存在或不可见');
+  if (
+    item.state !== 'completed' ||
+    item.revision !== input.expectedRevision ||
+    item.assignedRelationId !== input.assignedRelationId ||
+    item.assignedEvaluatorId !== input.assignedEvaluatorId ||
+    !['pending', 'cancelled'].includes(input.nextState)
+  )
+    throw new EvaluationReassignmentError(
+      'conflict',
+      '事项版本或分派状态已变化，请刷新后重试',
+    );
+  const context = await loadCurrentContext(tx);
+  if (
+    context.account.personId !== item.assignedEvaluatorId ||
+    !assignedEvaluationRelationIsCurrent(context, item) ||
+    !canEvaluateNode(context, item.evaluationNodeId, item.personId)
+  )
+    throw new EvaluationReassignmentError(
+      'forbidden',
+      '此事项已不在你的当前处理范围',
+    );
+  const [updated] = await tx
+    .update(evaluationWorkItems)
+    .set({
+      state: input.nextState,
+      revision: item.revision + 1,
+      updatedAt: context.now,
+    })
+    .where(
+      and(
+        eq(evaluationWorkItems.id, item.id),
+        eq(evaluationWorkItems.state, 'completed'),
+        eq(evaluationWorkItems.revision, input.expectedRevision),
+        eq(evaluationWorkItems.assignedRelationId, input.assignedRelationId),
+        eq(evaluationWorkItems.assignedEvaluatorId, input.assignedEvaluatorId),
+      ),
+    )
+    .returning();
+  if (!updated)
+    throw new EvaluationReassignmentError(
+      'conflict',
+      '事项版本或分派状态已变化，请刷新后重试',
+    );
+  return updated;
 }

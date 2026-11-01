@@ -1,0 +1,54 @@
+{
+  "demo": true,
+  "eventClusters": [
+    {
+      "eventId": "demo-event-retry",
+      "personId": "p-x08",
+      "evidence": [
+        {
+          "file": "project-defense.pptx",
+          "slide": 1
+        },
+        {
+          "file": "meeting-transcript.json",
+          "segments": ["turn-1", "turn-2"]
+        },
+        {
+          "file": "formal-review.pdf",
+          "page": 1,
+          "bbox": [40, 255, 530, 272]
+        },
+        {
+          "file": "../screenshots/mixed-permissions.png",
+          "message": "chat-public"
+        }
+      ]
+    },
+    {
+      "eventId": "demo-event-cache",
+      "personId": "p-x08",
+      "evidence": [
+        {
+          "file": "project-defense.pptx",
+          "slide": 2
+        },
+        {
+          "file": "meeting-transcript.json",
+          "segments": ["turn-3"]
+        },
+        {
+          "file": "formal-review.pdf",
+          "page": 1,
+          "bbox": [40, 350, 530, 367]
+        },
+        {
+          "file": "../screenshots/mixed-permissions.png",
+          "message": "chat-second-event"
+        }
+      ]
+    }
+  ],
+  "expectedEventCount": 2,
+  "mustNotMerge": [["demo-event-retry", "demo-event-cache"]],
+  "scope": "project-defense provenance examples; selection-rule and third-act seed belong to BOW-923"
+}

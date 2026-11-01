@@ -6,6 +6,9 @@ import {
   planEvaluationReassignment,
 } from './reassignment-policy';
 import {
+  evaluationWorkKindSchema,
+  evaluationWorkRegistrationSchema,
+  evaluationReassignmentReceiptSchema,
   reassignEvaluationWorkInputSchema,
   reassignEvaluationWorkResultSchema,
 } from './reassignment-contract';
@@ -190,22 +193,185 @@ describe('D13 ownership transfer and idempotent reassignment', () => {
   });
 });
 
-it('requires the assigned interviewer-review handler to retain current HR scope through completion', () => {
-  const ctx = evaluationContextFixture();
-  ctx.account = {
-    id: 'demo-new-account',
-    personId: 'demo-new-evaluator',
-    isSystemAdmin: false,
+it.each(['unknown_interviewer', 'unknown_interview_candidate'] as const)(
+  'requires the assigned %s handler to retain current HR scope through completion',
+  (kind) => {
+    const ctx = evaluationContextFixture();
+    ctx.account = {
+      id: 'demo-new-account',
+      personId: 'demo-new-evaluator',
+      isSystemAdmin: false,
+    };
+    const item = {
+      ...evaluationWorkFixture(),
+      assignedRelationId: 'demo-new-relation',
+      assignedEvaluatorId: 'demo-new-evaluator',
+      kind,
+    };
+    expect(canWorkOnEvaluationItem(ctx, item)).toBe(false);
+    ctx.grants = [{ ...ctx.grants[0], accountId: ctx.account.id }];
+    expect(canWorkOnEvaluationItem(ctx, item)).toBe(true);
+    ctx.grants[0].revokedAt = ctx.now;
+    expect(canWorkOnEvaluationItem(ctx, item)).toBe(false);
+  },
+);
+
+it.each(['unknown_project', 'unknown_interview_candidate'] as const)(
+  'preserves the stable source item for a %s reassignment and replay',
+  (kind) => {
+    expect(evaluationWorkKindSchema.parse(kind)).toBe(kind);
+    const ctx = evaluationContextFixture();
+    const successorGrant = {
+      ...ctx.grants[0],
+      accountId: 'demo-new-account',
+    };
+    const context = {
+      ...ctx,
+      hrCandidateGrants: [
+        {
+          personId: 'demo-new-evaluator',
+          accountId: 'demo-new-account',
+          isSystemAdmin: false,
+          grant: successorGrant,
+        },
+      ],
+    };
+    const work = {
+      ...evaluationWorkFixture(),
+      kind,
+      resourceId: 'demo-review-item-1',
+    };
+    const first = planEvaluationReassignment(context, work, input, null);
+    expect(
+      evaluationReassignmentReceiptSchema.parse(first.receipt),
+    ).toMatchObject({
+      workItemId: work.id,
+      kind,
+      resourceId: work.resourceId,
+    });
+    const replay = planEvaluationReassignment(
+      context,
+      {
+        ...work,
+        state: 'completed',
+        revision: 3,
+        assignedRelationId: first.receipt.assignedRelationId,
+        assignedEvaluatorId: first.receipt.assignedEvaluatorId,
+      },
+      input,
+      {
+        fingerprint: evaluationReassignmentFingerprint(input),
+        receipt: first.receipt,
+      },
+    );
+    expect(replay).toEqual({ replayed: true, receipt: first.receipt });
+    const second = {
+      ...work,
+      id: 'demo-work-item-2',
+      resourceId: 'demo-review-item-2',
+    };
+    expect(
+      planEvaluationReassignment(
+        context,
+        second,
+        {
+          ...input,
+          workItemId: second.id,
+          operationId: 'demo-operation-2',
+        },
+        null,
+      ).receipt.resourceId,
+    ).toBe(second.resourceId);
+  },
+);
+
+it('requires a trusted native task anchor rather than a material receipt or UI permission hint', () => {
+  const item = evaluationWorkFixture();
+  const registration = {
+    id: item.id,
+    evaluationNodeId: item.evaluationNodeId,
+    personId: item.personId,
+    assignedRelationId: item.assignedRelationId,
+    assignedEvaluatorId: item.assignedEvaluatorId,
+    kind: item.kind,
+    resourceId: item.resourceId,
   };
-  const item = {
-    ...evaluationWorkFixture(),
-    assignedRelationId: 'demo-new-relation',
-    assignedEvaluatorId: 'demo-new-evaluator',
-    kind: 'unknown_interviewer' as const,
-  };
-  expect(canWorkOnEvaluationItem(ctx, item)).toBe(false);
-  ctx.grants = [{ ...ctx.grants[0], accountId: ctx.account.id }];
-  expect(canWorkOnEvaluationItem(ctx, item)).toBe(true);
-  ctx.grants[0].revokedAt = ctx.now;
-  expect(canWorkOnEvaluationItem(ctx, item)).toBe(false);
+  expect(evaluationWorkRegistrationSchema.parse(registration)).toEqual(
+    registration,
+  );
+  for (const patch of [
+    { personId: null },
+    { personId: '' },
+    { evaluationNodeId: '' },
+    { assignedRelationId: null },
+    { resourceId: ' ' },
+    { kind: 'resolved' },
+    { kind: 'undo' },
+    { hasHiddenContent: false },
+    { resolvedItems: [] },
+    { canUndo: true },
+    { observedName: '演示：尚未核实的名字' },
+  ])
+    expect(
+      evaluationWorkRegistrationSchema.safeParse({ ...registration, ...patch })
+        .success,
+    ).toBe(false);
 });
+
+it.each(['unknown_interviewer', 'unknown_interview_candidate'] as const)(
+  'transfers %s after the assigned handler loses HR scope even while the exact node relation stays current',
+  (kind) => {
+    const base = evaluationContextFixture();
+    base.evaluationRelations[0].validTo = null;
+    const oldGrant: (typeof base.grants)[number] = {
+      ...base.grants[0],
+      accountId: 'demo-old-account',
+      revokedAt: base.now,
+    };
+    const context = {
+      ...base,
+      hrCandidateGrants: [
+        {
+          personId: 'demo-old-evaluator',
+          accountId: 'demo-old-account',
+          isSystemAdmin: false,
+          grant: oldGrant,
+        },
+        {
+          personId: 'demo-new-evaluator',
+          accountId: 'demo-new-account',
+          isSystemAdmin: false,
+          grant: { ...base.grants[0], accountId: 'demo-new-account' },
+        },
+      ],
+    };
+    const item = {
+      ...evaluationWorkFixture(),
+      kind,
+      state: 'processing' as const,
+    };
+    expect(assignedEvaluationRelationIsCurrent(context, item)).toBe(true);
+    expect(
+      canWorkOnEvaluationItem(
+        {
+          ...context,
+          account: {
+            id: 'demo-old-account',
+            personId: 'demo-old-evaluator',
+            isSystemAdmin: false,
+          },
+          grants: [oldGrant],
+        },
+        item,
+      ),
+    ).toBe(false);
+    expect(
+      planEvaluationReassignment(context, item, input, null).receipt
+        .assignedEvaluatorId,
+    ).toBe('demo-new-evaluator');
+    oldGrant.revokedAt = null;
+    expect(() =>
+      planEvaluationReassignment(context, item, input, null),
+    ).toThrow('状态已变化');
+  },
+);

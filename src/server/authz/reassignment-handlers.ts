@@ -14,7 +14,7 @@ export interface ReassignmentHrCandidateGrant {
 export type ReassignmentAuthzContext = EvaluationAuthzContext & {
   hrCandidateGrants?: ReassignmentHrCandidateGrant[];
 };
-/** An unknown interviewer can only be resolved by a scoped HR, not every rater. */
+/** Unknown interview identities require scoped HR, not every node rater. */
 export function eligibleEvaluationWorkRelations(
   ctx: ReassignmentAuthzContext,
   item: { evaluationNodeId: string; personId: string; kind: string },
@@ -24,7 +24,11 @@ export function eligibleEvaluationWorkRelations(
     item.evaluationNodeId,
     item.personId,
   );
-  if (item.kind !== 'unknown_interviewer') return relations;
+  if (
+    item.kind !== 'unknown_interviewer' &&
+    item.kind !== 'unknown_interview_candidate'
+  )
+    return relations;
   return relations.filter(
     (relation) =>
       ctx.hrCandidateGrants?.some(

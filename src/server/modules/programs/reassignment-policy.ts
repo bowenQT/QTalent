@@ -52,6 +52,19 @@ export function assignedEvaluationRelationIsCurrent(
       isCurrent(relation, context.now),
   );
 }
+/** The original owner must still be able to handle this KIND of item.
+ * A current node relation alone does not retain scoped HR qualification.
+ */
+export function assignedEvaluationHandlerIsCurrent(
+  context: ReassignmentAuthzContext,
+  item: EvaluationWorkItem,
+): boolean {
+  return eligibleEvaluationWorkRelations(context, item).some(
+    (relation) =>
+      relation.id === item.assignedRelationId &&
+      relation.evaluatorId === item.assignedEvaluatorId,
+  );
+}
 export function canWorkOnEvaluationItem(
   context: EvaluationAuthzContext,
   item: EvaluationWorkItem,
@@ -61,7 +74,9 @@ export function canWorkOnEvaluationItem(
     context.account.personId === item.assignedEvaluatorId &&
     assignedEvaluationRelationIsCurrent(context, item) &&
     canEvaluateNode(context, item.evaluationNodeId, item.personId) &&
-    (item.kind !== 'unknown_interviewer' ||
+    (!['unknown_interviewer', 'unknown_interview_candidate'].includes(
+      item.kind,
+    ) ||
       canManageNodeAssignments(context, item.evaluationNodeId, item.personId))
   );
 }
@@ -97,7 +112,7 @@ export function planEvaluationReassignment(
   if (
     item.revision !== input.expectedRevision ||
     (item.state !== 'pending' && item.state !== 'processing') ||
-    assignedEvaluationRelationIsCurrent(context, item)
+    assignedEvaluationHandlerIsCurrent(context, item)
   )
     throw new EvaluationReassignmentError(
       'conflict',
