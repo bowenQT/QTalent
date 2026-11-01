@@ -399,6 +399,31 @@ export async function readRecordConfirmationState(
     if (!draft?.personIds.includes(mapping.personId))
       throw new RecordWriteError('unavailable', 'event_mapping_invalid');
   }
+  const mappedEvents = mappings.length
+    ? await tx
+        .select()
+        .from(events)
+        .where(
+          inArray(
+            events.id,
+            mappings.map((row) => row.eventId),
+          ),
+        )
+    : [];
+  if (
+    mappings.some((mapping) => {
+      const event = mappedEvents.find((row) => row.id === mapping.eventId);
+      const draft = parsed.data.drafts.find(
+        (row) => row.draftId === mapping.draftId,
+      );
+      return (
+        !event ||
+        event.personId !== mapping.personId ||
+        event.evaluationNodeId !== draft?.evaluationNodeId
+      );
+    })
+  )
+    throw new RecordWriteError('unavailable', 'event_mapping_invalid');
   const saves = await tx
     .select()
     .from(recordSaves)
@@ -418,11 +443,18 @@ export async function readRecordConfirmationState(
       personId,
       eventId,
     })),
-    withdrawnDraftIds: saves
-      .filter(
-        (row) => row.withdrawnAt !== null && row.createdEventIds.length > 0,
-      )
-      .map((row) => row.draftId),
+    withdrawnDraftIds: [
+      ...new Set(
+        mappings
+          .filter((mapping) =>
+            mappedEvents.some(
+              (event) =>
+                event.id === mapping.eventId && event.withdrawnAt !== null,
+            ),
+          )
+          .map((mapping) => mapping.draftId),
+      ),
+    ],
     saves: saves.map((row) => ({
       receipt: recordSaveReceiptSchema.parse(row.receipt),
       draft: row.draftSnapshot,
@@ -780,14 +812,46 @@ export async function recordUndoCancellationFacts(
   return receipt;
 }
 
-/** Read under lockRecordCommand's batch/draft locks. This verifies ONLY records
- * facts; the usecase must compare every cancelled-work fact with locked current
- * programs rows and reauthorize all actors/sources before planning a new save.
- * No legacy inference, work state mutation or historical event revival occurs. */
+/** Read-only provenance for actual native cancellations, including earlier cycles.
+ * Callers still lock/revalidate current programs rows and current authority. This
+ * does not make an active mapping replaceable or restore a cancelled work item. */
+export interface RecordCancellationHistory {
+  cancelledConfirmationWork: RecordCancelledConfirmationWorkFact[];
+  provenance: { saveId: string; operationId: string; draftRevision: number }[];
+}
+export async function readRecordCancellationHistory(
+  tx: Transaction,
+  lock: RecordSaveLock,
+): Promise<RecordCancellationHistory | null> {
+  const chain = await readRecordEventChain(tx, lock);
+  return chain
+    ? {
+        cancelledConfirmationWork: chain.cancelledConfirmationWork,
+        provenance: chain.provenance,
+      }
+    : null;
+}
+
+/** Only a fully withdrawn CURRENT mapping is eligible for event replacement.
+ * Active generations can read cancellation provenance through the separate API. */
 export async function readRecordResaveState(
   tx: Transaction,
   lock: RecordSaveLock,
 ): Promise<RecordResaveState | null> {
+  const chain = await readRecordEventChain(tx, lock);
+  if (!chain || chain.withdrawnRevision !== chain.draftRevision) return null;
+  return {
+    saveId: chain.saveId,
+    draftRevision: chain.draftRevision,
+    withdrawnEvents: chain.currentEvents,
+    cancelledConfirmationWork: chain.cancelledConfirmationWork,
+  };
+}
+
+/** The locked draft's creation generations must be connected by exact native
+ * undo -> next save revisions. Legacy/missing/ambiguous facts fail closed; no
+ * timestamps, current cancelled state, or same-person coincidence form a link. */
+async function readRecordEventChain(tx: Transaction, lock: RecordSaveLock) {
   const [draft] = await tx
     .select()
     .from(recordDrafts)
@@ -807,19 +871,10 @@ export async function readRecordResaveState(
         eq(recordDraftEvents.draftId, lock.draftId),
       ),
     );
-  if (!mappings.length) return null;
-  const oldEvents = await tx
-    .select()
-    .from(events)
-    .where(
-      inArray(
-        events.id,
-        mappings.map((row) => row.eventId),
-      ),
-    );
   if (
-    oldEvents.length !== mappings.length ||
-    oldEvents.some((event) => !event.withdrawnAt)
+    !mappings.length ||
+    mappings.length !== draft.draft.personIds.length ||
+    mappings.some((row) => !draft.draft.personIds.includes(row.personId))
   )
     return null;
   const saves = await tx
@@ -831,86 +886,154 @@ export async function readRecordResaveState(
         eq(recordSaves.draftId, lock.draftId),
       ),
     );
-  const saved = saves.find(
-    (row) =>
-      row.withdrawnAt &&
-      row.createdEventIds.length === mappings.length &&
-      mappings.every(
-        (mapping) =>
-          row.createdEventIds.includes(mapping.eventId) &&
-          row.receipt.events.some(
-            (event) =>
-              event.eventId === mapping.eventId &&
-              event.personId === mapping.personId,
-          ),
-      ),
-  );
-  if (!saved?.withdrawnAt) return null;
-  if (
-    oldEvents.some(
-      (event) =>
-        event.recorderId !== saved.actorPersonId ||
-        event.evaluationNodeId !== draft.draft.evaluationNodeId ||
-        event.withdrawnAt?.getTime() !== saved.withdrawnAt?.getTime() ||
-        !mappings.some(
-          (mapping) =>
-            mapping.eventId === event.id && mapping.personId === event.personId,
-        ),
-    )
-  )
-    return null;
+  const generations = saves
+    .filter((row) => row.createdEventIds.length > 0)
+    .sort((a, b) => a.receipt.revision - b.receipt.revision);
+  if (!generations.length) return null;
+  const ids = generations.flatMap((row) => row.createdEventIds);
+  if (new Set(ids).size !== ids.length) return null;
+  const eventRows = await tx
+    .select()
+    .from(events)
+    .where(inArray(events.id, ids));
   const operations = await tx
     .select()
     .from(recordOperations)
     .where(
-      and(
-        eq(recordOperations.saveId, saved.saveId),
-        eq(recordOperations.action, 'undo'),
-        eq(recordOperations.actorAccountId, saved.actorAccountId),
+      inArray(
+        recordOperations.saveId,
+        generations.map((row) => row.saveId),
       ),
     );
-  if (operations.length !== 1) return null;
-  const operation = operations[0];
-  if (
-    !('cancelledConfirmationWork' in operation.receipt) ||
-    operation.createdAt.getTime() !== saved.withdrawnAt.getTime() ||
-    operation.draftSnapshot.draftId !== draft.draftId ||
-    operation.draftSnapshot.batchId !== lock.batchId ||
-    operation.draftSnapshot.evaluationNodeId !== draft.draft.evaluationNodeId
-  )
-    return null;
-  const receipt = readStoredUndoReceipt(operation.receipt);
-  if (
-    receipt.saveId !== saved.saveId ||
-    receipt.draftRestoration.status !== 'available' ||
-    receipt.draftRestoration.draftId !== draft.draftId ||
-    receipt.draftRestoration.draftRevision !== draft.revision ||
-    receipt.withdrawnEvents.length !== mappings.length ||
-    !mappings.every((mapping) =>
-      receipt.withdrawnEvents.some(
-        (event) =>
-          event.eventId === mapping.eventId &&
-          event.personId === mapping.personId,
-      ),
+  const facts = new Map<string, RecordCancelledConfirmationWorkFact>();
+  const provenance: RecordCancellationHistory['provenance'] = [];
+  let previousUndoRevision: number | null = null;
+  for (const [index, saved] of generations.entries()) {
+    const current = index === generations.length - 1;
+    const parsed = recordSaveReceiptSchema.safeParse(saved.receipt);
+    if (!parsed.success) return null;
+    const receipt = parsed.data;
+    if (
+      receipt.saveId !== saved.saveId ||
+      receipt.savedBy !== saved.actorAccountId ||
+      Date.parse(receipt.savedAt) !== saved.savedAt.getTime() ||
+      saved.draftSnapshot.draftId !== draft.draftId ||
+      saved.draftSnapshot.batchId !== lock.batchId ||
+      saved.draftSnapshot.evaluationNodeId !== draft.draft.evaluationNodeId ||
+      saved.input.expected_revision !== saved.draftSnapshot.revision ||
+      receipt.revision !== saved.input.expected_revision + 1 ||
+      receipt.revision > draft.revision ||
+      (index > 0 && saved.input.expected_revision !== previousUndoRevision) ||
+      receipt.events.length !== mappings.length ||
+      saved.createdEventIds.length !== mappings.length ||
+      receipt.events.some(
+        (row) =>
+          !saved.createdEventIds.includes(row.eventId) ||
+          !mappings.some((m) => m.personId === row.personId),
+      ) ||
+      (current &&
+        !mappings.every((m) =>
+          receipt.events.some(
+            (e) => e.personId === m.personId && e.eventId === m.eventId,
+          ),
+        ))
     )
-  )
-    return null;
-  const facts = cancelledWorkSchema.safeParse(
-    operation.receipt.cancelledConfirmationWork,
-  );
-  if (
-    !facts.success ||
-    facts.data.some(
-      (fact) =>
-        fact.evaluationNodeId !== draft.draft.evaluationNodeId ||
-        !mappings.some((mapping) => mapping.personId === fact.personId),
+      return null;
+    const saveOps = operations.filter(
+      (op) => op.saveId === saved.saveId && op.action === 'save',
+    );
+    if (
+      saveOps.length !== 1 ||
+      saveOps[0].actorAccountId !== saved.actorAccountId ||
+      saveOps[0].operationId !== saved.input.operation_id ||
+      saveOps[0].createdAt.getTime() !== saved.savedAt.getTime() ||
+      !isDeepStrictEqual(saveOps[0].receipt, saved.receipt) ||
+      !isDeepStrictEqual(saveOps[0].draftSnapshot, saved.draftSnapshot)
     )
-  )
-    return null;
+      return null;
+    if (!current && !saved.withdrawnAt) return null;
+    for (const mapping of receipt.events) {
+      const event = eventRows.find((row) => row.id === mapping.eventId);
+      if (
+        !event ||
+        event.personId !== mapping.personId ||
+        event.recorderId !== saved.actorPersonId ||
+        event.evaluationNodeId !== draft.draft.evaluationNodeId ||
+        event.projectId !== saved.input.projectId ||
+        event.ruleVersionId !== saved.draftSnapshot.anchorVersionId ||
+        (event.withdrawnAt?.getTime() ?? null) !==
+          (saved.withdrawnAt?.getTime() ?? null)
+      )
+        return null;
+    }
+    const undoOps = operations.filter(
+      (op) => op.saveId === saved.saveId && op.action === 'undo',
+    );
+    if (!saved.withdrawnAt) {
+      if (undoOps.length) return null;
+      previousUndoRevision = null;
+      continue;
+    }
+    if (undoOps.length !== 1) return null;
+    const operation = undoOps[0];
+    if (
+      operation.actorAccountId !== saved.actorAccountId ||
+      operation.createdAt.getTime() !== saved.withdrawnAt.getTime() ||
+      operation.draftSnapshot.draftId !== draft.draftId ||
+      operation.draftSnapshot.batchId !== lock.batchId ||
+      operation.draftSnapshot.evaluationNodeId !==
+        draft.draft.evaluationNodeId ||
+      !('cancelledConfirmationWork' in operation.receipt)
+    )
+      return null;
+    const undo = readStoredUndoReceipt(operation.receipt);
+    if (
+      undo.saveId !== saved.saveId ||
+      undo.draftRestoration.status !== 'available' ||
+      undo.draftRestoration.draftId !== draft.draftId ||
+      undo.draftRestoration.draftRevision <= receipt.revision ||
+      undo.draftRestoration.draftRevision > draft.revision ||
+      undo.withdrawnEvents.length !== receipt.events.length ||
+      !receipt.events.every((row) =>
+        undo.withdrawnEvents.some(
+          (e) => e.personId === row.personId && e.eventId === row.eventId,
+        ),
+      )
+    )
+      return null;
+    const cancelled = cancelledWorkSchema.safeParse(
+      operation.receipt.cancelledConfirmationWork,
+    );
+    if (
+      !cancelled.success ||
+      cancelled.data.some(
+        (fact) =>
+          fact.evaluationNodeId !== draft.draft.evaluationNodeId ||
+          !receipt.events.some((e) => e.personId === fact.personId),
+      )
+    )
+      return null;
+    for (const fact of cancelled.data) {
+      const previous = facts.get(fact.id);
+      if (previous && !isDeepStrictEqual(previous, fact)) return null;
+      facts.set(fact.id, fact);
+    }
+    previousUndoRevision = undo.draftRestoration.draftRevision;
+    provenance.push({
+      saveId: saved.saveId,
+      operationId: operation.operationId,
+      draftRevision: previousUndoRevision,
+    });
+  }
   return {
-    saveId: saved.saveId,
+    saveId: generations[generations.length - 1].saveId,
     draftRevision: draft.revision,
-    withdrawnEvents: receipt.withdrawnEvents,
-    cancelledConfirmationWork: facts.data,
+    withdrawnRevision: previousUndoRevision,
+    currentEvents: mappings.map(({ personId, eventId }) => ({
+      personId,
+      eventId,
+    })),
+    cancelledConfirmationWork: [...facts.values()],
+    provenance,
   };
 }

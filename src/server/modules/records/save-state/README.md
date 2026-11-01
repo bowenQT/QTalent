@@ -19,3 +19,11 @@
 `commitRecordSave` 再读 records 事实，用旧 eventId 作 CAS 替换当前映射，随后沿原路径推进一次 draft。不存在有效重存事实时，旧映射不会被覆盖。旧 receipt、保存、事件及人工确认历史保持；旧 undo 重放只读旧结果，不能撤销后来新事件。
 
 共享 PG 套件只验证账本、映射、版本和事务边界；真实取消 CAS、当前授权、五秒窗口、跨域评分/复核和循环重存由调用方 native PG 套件共同验收，不能用本域测试替代完整业务验证。
+
+### 连续重存与活动映射
+
+`readRecordCancellationHistory(tx, lock)` 沿当前 draft 的真实事件创建代际读取取消来源。每代必须有精确 save operation；被替换代际必须有相同 actor、node、主体、撤回时刻的原生 undo，并以该 undo 的实际 draft revision 连接下一代 save 的 expected revision。缺 operation、缺内部取消字段、revision 断链、旧事件复活或冲突的同事项快照均失败关闭。它只读原始取消事实，后续没有新取消的 undo 仍保留 `[]`，不复制或回写历史 JSON。
+
+活动代际可用该 API 获取旧取消证明；这**不**意味着可以替换活动 event。`readRecordResaveState` 继续仅对当前映射全部真实撤回、最后 undo revision 等于当前 draft 的情况开放映射 CAS。`readRecordConfirmationState.withdrawnDraftIds` 按当前映射及实际 event.withdrawnAt 判定，已被新活动事件替换的旧 save 不再永久封锁 draft。
+
+调用方应分别处理这两个结果：历史取消证明可用于活动事件后续评价，但每一项仍须对当前已锁定的 programs 行核 id/person/node/分派关系/评价人/revision，并重新授权；只有有效 `readRecordResaveState` 才能移除本次计划里的撤回映射。两者都不能把事项恢复成 pending/completed，不能绕过 HR 后续取消/改派，也不赋予原文读取权。
