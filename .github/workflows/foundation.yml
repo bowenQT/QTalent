@@ -62,6 +62,14 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Validate BOW-923 workbooks
+        run: PYTHONDONTWRITEBYTECODE=1 python3 tests/fixtures/bow-923/validate-workbooks.py tests/fixtures/bow-923
+      - name: Test BOW-923 workbook validation
+        run: >-
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover
+          -s tests/fixtures/bow-923 -p 'test_*.py'
+      - name: Test BOW-923 input isolation
+        run: node --test --test-concurrency=2 tests/fixtures/bow-923/seed-input.test.mjs
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm reference:prepare
       - name: Verify deployment scripts
