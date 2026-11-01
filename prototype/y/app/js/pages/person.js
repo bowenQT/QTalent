@@ -169,7 +169,7 @@
       title: `打印${p.name}的档案`,
       body: '打印的是截至现在已确认的内容，不是盘点冻结结果。打印会记入审计日志。',
       facts: [
-        html`<b>会打印</b>：基本信息、${evs.length} 件关键事件里 ${rows.length} 条已确认的维度分（附行为锚点、引用、评分人、规则版本和来源位置）${saved ? '、已采纳的档案摘要' : ''}${st.can('quad', pid) ? '、能力象限的正式位置' : ''}`,
+        html`<b>会打印</b>：基本信息、${evs.length} 件关键事件里 ${rows.length} 条已确认的维度分（附行为锚点、引用、评分人、规则版本和来源位置）${saved ? '、已采纳的 AI 摘要（标明 AI 生成和采纳人）' : ''}${st.can('quad', pid) ? '、能力象限的正式位置' : ''}`,
         html`<b>不打印</b>：${skipped ? `跳过的 ${skipped} 条分（未确认、待复核或还在评分复核里）、` : ''}未采纳的 AI 摘要、系统给的参考位置${hidden ? `，以及你权限外的 ${hidden} 条资料` : ''}`,
       ],
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '打印', value: 'go', cls: 'n-btn--ink', icon: 'print' }],
@@ -182,7 +182,7 @@
     sheet.innerHTML = String(html`
       <header class="n-print__head"><h1>${p.name} <small>演示</small></h1><p>${st.orgPath(p.org)} · ${p.title} · ${p.level} · ${st.tenure(p)}${land ? ` · ${land.batch.name}` : ''}</p></header>
       <dl class="n-print__meta"><dt>打印时间</dt><dd>${at}</dd><dt>打印人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；不含 AI 建议分、待按新版本复核的分、还在评分复核里的分、未采纳的 AI 摘要和参考位置；不是盘点冻结结果</dd></dl>
-      ${now.saved ? html`<section><h2>档案摘要</h2><p>${now.saved.text}</p><p class="n-print__by">${st.person(now.saved.by).name} ${NT.md(now.saved.at)} 采纳</p></section>` : ''}
+      ${now.saved ? html`<section><h2>档案摘要 <small>AI 生成 · 经人采纳</small></h2><p>${now.saved.text}</p><p class="n-print__by">${st.person(now.saved.by).name} ${NT.md(now.saved.at)} 采纳 AI 摘要</p></section>` : ''}
       ${now.quad ? html`<section><h2>能力象限 · 正式位置</h2><p>${now.f ? `${st.QN[now.f.q]} · ${now.f.snap.label}校准 · ${NT.md(now.f.snap.at)} 冻结 · ${st.person(now.f.snap.by).name}确认` : '还没有正式校准'}</p></section>` : ''}
       <section><h2>关键事件与已确认的维度分 <small>${now.evs.length} 件 · ${now.rows.length} 条</small></h2>
         ${now.evs.length ? html`<ol class="n-print__evs">${now.evs.map(({ e, rows: rs }) => html`<li><p class="n-print__ev"><b>${NT.md(e.date)} · ${e.title}</b>${e.project ? ` · ${st.project(e.project)?.name || ''}` : ''} · ${st.person(e.recorder)?.name || ''}记录</p>
