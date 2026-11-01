@@ -72,7 +72,9 @@ it('uses the shared audit writer with an opaque ticket digest and fails closed o
   vi.spyOn(runtime.reader, 'open').mockResolvedValue(
     new Response('synthetic bytes'),
   );
-  vi.mocked(recordAudit).mockResolvedValue(undefined);
+  vi.mocked(recordAudit).mockResolvedValue(
+    '00000000-0000-4000-8000-000000000001',
+  );
   const token = 'a'.repeat(43);
   const response = await runtime.http.readOriginal(
     new Request(`https://app.invalid/uploads/original?ticket=${token}`),

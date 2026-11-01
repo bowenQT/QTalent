@@ -72,12 +72,13 @@ export function createUploadRuntime(input: {
       reader,
       trustedOrigin: input.trustedOrigin,
       authenticate: jobAccount,
-      auditOriginalRead: ({ accountId, ticketDigest }) =>
-        recordAudit(input.db, {
+      auditOriginalRead: async ({ accountId, ticketDigest }) => {
+        await recordAudit(input.db, {
           actorId: accountId,
           action: 'records.original.read',
           resourceId: `upload-ticket:${ticketDigest}`,
-        }),
+        });
+      },
     }),
   };
 }
