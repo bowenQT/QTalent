@@ -3,6 +3,8 @@ import {
   pgTable,
   text,
   integer,
+  jsonb,
+  primaryKey,
   timestamp,
   boolean,
   check,
@@ -11,9 +13,11 @@ import {
   foreignKey,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { people } from '../directory';
+import { people, accountBindings } from '../directory';
 import { events, eventSources, recordSaves } from '../records';
 import { dimensions, anchors } from '../evaluation-system';
+import { evaluationNodes } from '../programs';
+import type { Calibration } from './score-review/ports';
 export const aiSuggestions = pgTable(
   'talent_ai_suggestions',
   {
@@ -198,6 +202,8 @@ export const scoreReviews = pgTable(
       .references(() => dimensions.id),
     reason: text('reason').notNull(),
     status: text('status').notNull().default('open'),
+    // New CAS token only; this does not infer any historical confirmation version.
+    revision: integer('revision').notNull().default(1),
     // Legacy reviews remain unlinked; never infer historical confirmation IDs.
     saveId: text('save_id').references(() => recordSaves.saveId),
     confirmationId: text('confirmation_id').references(() => confirmations.id),
@@ -212,6 +218,7 @@ export const scoreReviews = pgTable(
       sql`${t.reason} in ('score_gap','ai_changed_without_reason','post_freeze_position_change')`,
     ),
     check('talent_review_status', sql`${t.status} in ('open','resolved')`),
+    check('talent_review_revision_positive', sql`${t.revision} > 0`),
     check(
       'talent_review_save_provenance',
       sql`${t.saveId} is null or (${t.confirmationId} is not null and (${t.reason} <> 'score_gap' or ${t.counterpartConfirmationId} is not null))`,
@@ -234,5 +241,148 @@ export const scoreReviews = pgTable(
       .where(
         sql`${t.reason} = 'score_gap' and ${t.confirmationId} is not null and ${t.counterpartConfirmationId} is not null`,
       ),
+  ],
+);
+
+export const scoreReviewCalibrations = pgTable(
+  'talent_score_review_calibrations',
+  {
+    itemId: text('item_id')
+      .primaryKey()
+      .references(() => scoreReviews.id),
+    originalRevision: integer('original_revision').notNull(),
+    revision: integer('revision').notNull(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id),
+    personId: text('person_id')
+      .notNull()
+      .references(() => people.id),
+    evaluationNodeId: text('evaluation_node_id')
+      .notNull()
+      .references(() => evaluationNodes.id),
+    dimensionId: text('dimension_id')
+      .notNull()
+      .references(() => dimensions.id),
+    ruleVersionId: text('rule_version_id').notNull(),
+    actorAccountId: text('actor_account_id')
+      .notNull()
+      .references(() => accountBindings.accountId),
+    actorPersonId: text('actor_person_id')
+      .notNull()
+      .references(() => people.id),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }).notNull(),
+    value: integer('value').notNull(),
+    anchorId: text('anchor_id').notNull(),
+    confirmationId: text('confirmation_id')
+      .notNull()
+      .references(() => confirmations.id),
+    counterpartConfirmationId: text('counterpart_confirmation_id').references(
+      () => confirmations.id,
+    ),
+    suggestionId: text('suggestion_id').references(() => aiSuggestions.id),
+    originalFingerprint: text('original_fingerprint').notNull(),
+    scopeFingerprint: text('scope_fingerprint').notNull(),
+    sourceFactRevision: text('source_fact_revision').notNull(),
+    payload: jsonb('payload').$type<Calibration>().notNull(),
+  },
+  (t) => [
+    unique('talent_review_calibration_receipt_identity').on(
+      t.itemId,
+      t.revision,
+      t.actorAccountId,
+      t.actorPersonId,
+    ),
+    check(
+      'talent_review_calibration_revision',
+      sql`${t.originalRevision} > 0 and ${t.revision} > 0 and ${t.revision} = ${t.originalRevision} + 1`,
+    ),
+    check('talent_review_calibration_value', sql`${t.value} between 1 and 5`),
+    check(
+      'talent_review_calibration_fingerprints',
+      sql`${t.originalFingerprint} ~ '^[a-f0-9]{64}$' and ${t.scopeFingerprint} ~ '^[a-f0-9]{64}$' and ${t.sourceFactRevision} ~ '^[a-f0-9]{64}$'`,
+    ),
+    // JSON identities are type-sensitive and missing fields must fail, not yield
+    // SQL NULL (which CHECK accepts). Full contract/source validation stays native.
+    check(
+      'talent_review_calibration_payload_identity',
+      sql`jsonb_typeof(${t.payload}) = 'object'
+        and (${t.payload} -> 'itemId') is not distinct from to_jsonb(${t.itemId})
+        and (${t.payload} -> 'revision') is not distinct from to_jsonb(${t.revision})
+        and (${t.payload} #> '{original,id}') is not distinct from to_jsonb(${t.itemId})
+        and (${t.payload} #> '{original,revision}') is not distinct from to_jsonb(${t.originalRevision})
+        and (${t.payload} #> '{original,eventId}') is not distinct from to_jsonb(${t.eventId})
+        and (${t.payload} #> '{original,personId}') is not distinct from to_jsonb(${t.personId})
+        and (${t.payload} #> '{original,dimensionId}') is not distinct from to_jsonb(${t.dimensionId})`,
+    ),
+    check(
+      'talent_review_calibration_payload_score',
+      sql`(${t.payload} #> '{score,raterId}') is not distinct from to_jsonb(${t.actorPersonId})
+        and (${t.payload} #> '{score,value}') is not distinct from to_jsonb(${t.value})
+        and (${t.payload} #> '{score,anchor,id}') is not distinct from to_jsonb(${t.anchorId})
+        and (${t.payload} #> '{score,anchor,ruleVersion}') is not distinct from to_jsonb(${t.ruleVersionId})
+        and jsonb_typeof(${t.payload} #> '{score,confirmedAt}') is not distinct from 'string'
+        and (${t.payload} #>> '{score,confirmedAt}')::timestamptz is not distinct from ${t.confirmedAt}
+        and jsonb_typeof(${t.payload} #> '{score,reason}') is not distinct from 'string'
+        and coalesce((${t.payload} #>> '{score,reason}') ~ '[^[:space:]]', false)`,
+    ),
+    check(
+      'talent_review_calibration_original_kind',
+      sql`coalesce(((${t.payload} #> '{original,kind}') = '"rater_gap"'::jsonb and ${t.counterpartConfirmationId} is not null)
+        or ((${t.payload} #> '{original,kind}') = '"ai_gap"'::jsonb and ${t.suggestionId} is not null), false)`,
+    ),
+    // These keys establish referenced rows, not current event/person/node scope;
+    // the writer must lock and re-read the actual source and authorization facts.
+    foreignKey({
+      columns: [t.eventId, t.ruleVersionId],
+      foreignColumns: [events.id, events.ruleVersionId],
+    }),
+    foreignKey({
+      columns: [t.anchorId, t.dimensionId, t.ruleVersionId, t.value],
+      foreignColumns: [
+        anchors.id,
+        anchors.dimensionId,
+        anchors.ruleVersionId,
+        anchors.value,
+      ],
+    }),
+  ],
+);
+
+export const scoreReviewOperations = pgTable(
+  'talent_score_review_operations',
+  {
+    actorAccountId: text('actor_account_id').notNull(),
+    operationId: text('operation_id').notNull(),
+    actorPersonId: text('actor_person_id').notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    scopeFingerprint: text('scope_fingerprint').notNull(),
+    itemId: text('item_id').notNull(),
+    calibrationRevision: integer('calibration_revision').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.actorAccountId, t.operationId] }),
+    check(
+      'talent_review_operation_fingerprints',
+      sql`${t.fingerprint} ~ '^[a-f0-9]{64}$' and ${t.scopeFingerprint} ~ '^[a-f0-9]{64}$'`,
+    ),
+    // The immutable calibration is the only receipt payload. Including both
+    // actor identities prevents replaying another person's/account's receipt.
+    foreignKey({
+      name: 'talent_review_operation_calibration_fk',
+      columns: [
+        t.itemId,
+        t.calibrationRevision,
+        t.actorAccountId,
+        t.actorPersonId,
+      ],
+      foreignColumns: [
+        scoreReviewCalibrations.itemId,
+        scoreReviewCalibrations.revision,
+        scoreReviewCalibrations.actorAccountId,
+        scoreReviewCalibrations.actorPersonId,
+      ],
+    }),
   ],
 );
