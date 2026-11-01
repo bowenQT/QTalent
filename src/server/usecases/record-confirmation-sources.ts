@@ -68,6 +68,7 @@ export function confirmationSources(
         !input.boundAt ||
         !input.occurredOn ||
         input.origin !== 'text' ||
+        'kind' in input.originalInput ||
         input.originalInput.attachmentIds.length !== 0 ||
         !input.inputSource ||
         sourceKey(input.inputSource) !== key ||

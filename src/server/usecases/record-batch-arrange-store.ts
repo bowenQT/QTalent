@@ -542,7 +542,7 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
             } else {
               await storeTrustedRecordDraftBatch(locked.context, {
                 draftSet: value,
-                originalInput: input.originalInput,
+                originalInput: requireNativeInput(input).originalInput,
                 occurredOn: input.occurredOn!,
                 modelVersion: MODELINK_MODEL,
                 createdByAccountId: input.creatorAccountId,

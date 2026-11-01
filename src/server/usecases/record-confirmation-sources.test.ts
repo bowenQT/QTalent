@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
+import type { RecordInput } from '../../contracts/record';
 import type { StoredArrangeInput } from '../modules/records';
 import type { TalentSource } from '../authz/talent';
 import { confirmationSources } from './record-confirmation-sources';
@@ -15,7 +16,7 @@ function fixture() {
     excerpt: '林舟补齐回滚步骤（演示）',
     location: { kind: 'document', paragraph: 'input' },
   };
-  const input: StoredArrangeInput = {
+  const input: StoredArrangeInput & { originalInput: RecordInput } = {
     id: 'intake',
     creatorAccountId: 'creator',
     jobId: 'job',

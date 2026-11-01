@@ -72,6 +72,10 @@ beforeAll(async () => {
   url.pathname = '/' + databaseName;
   connection = createDatabase(url.toString());
   await migrate(db(), { migrationsFolder: 'src/server/db/migrations' });
+  if (process.env.QTALENT_MEDIA_TEST_MIGRATIONS)
+    await migrate(db(), {
+      migrationsFolder: process.env.QTALENT_MEDIA_TEST_MIGRATIONS,
+    });
   const tables = await db().execute<{ ready: boolean }>(
     sql`select to_regclass('records_saves') is not null as ready`,
   );
