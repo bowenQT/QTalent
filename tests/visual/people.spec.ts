@@ -45,6 +45,11 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
         await normalizeRegions(prototype, page, {
           omit: ['#ptabs [role="tab"]:not(:first-child)', '.nt-head__acts'],
         });
+        // Avatar photos lazy-load below the fold; a lazy image never decodes until it
+        // is scrolled to, so the full-page capture loads them all first.
+        await page.evaluate(() => {
+          for (const image of document.images) image.loading = 'eager';
+        });
         await stabilize(prototype);
         await stabilize(page);
         await matchingMasks(prototype, page, [
