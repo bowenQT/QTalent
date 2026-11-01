@@ -6,8 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=qtalent
-WorkingDirectory=/opt/qtalent
-EnvironmentFile=/etc/qtalent/runtime.env
+WorkingDirectory=/opt/qtalent/current
+EnvironmentFile=/etc/qtalent/common.env
+EnvironmentFile=/etc/qtalent/worker.env
 ExecStart=/usr/bin/env pnpm start:worker
 Restart=on-failure
 RestartSec=5

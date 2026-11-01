@@ -1,0 +1,3 @@
+{
+  "source": "# Entirely synthetic EnvironmentFile conformance input; no real credentials.\nQT_LITERAL_UNQUOTED=  one two  \nQT_LITERAL_SINGLE='$HOME $(touch never) \\ literal'\nQT_LITERAL_DOUBLE=\"$missing $(touch never)\"\nQT_LITERAL_ESCAPES=\"one\\q \\$two \\\\ three \\\"four\\\"\"\nQT_LITERAL_DOUBLE_CONT=\"one\\\ntwo\"\nQT_LITERAL_UNQUOTED_CONT=one\\\ntwo\nQT_LITERAL_MULTI_SINGLE='one\ntwo'\nQT_LITERAL_MULTI_DOUBLE=\"one\ntwo\"\nQT_LITERAL_SPACE=one\\ two\\ \nQT_LITERAL_INNER_QUOTES=one\"two'three # literal\nQT_LITERAL_EMPTY=''\nQT_LITERAL_REPLACED=first\nQT_LITERAL_REPLACED=last\nQT_LITERAL_URL=\"postgres://user:synthetic$missing@db.example.test:5432/demo\"\n"
+}
