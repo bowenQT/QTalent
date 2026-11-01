@@ -7,6 +7,7 @@ import { attachmentVersionSchema } from './parse';
 const id = z.string().min(1).max(200).regex(/\S/);
 const validatedUploadSchema = z.strictObject({
   uploadId: id,
+  recordCollectionId: id,
   originalId: id,
   originalVersionId: id,
   jobId: id,
@@ -26,10 +27,15 @@ const validatedUploadSchema = z.strictObject({
 function bindingFrom(
   upload: z.infer<typeof validatedUploadSchema>,
 ): AttachmentBinding | null {
-  if (upload.purpose !== 'attachment') return null;
+  if (
+    upload.purpose !== 'attachment' ||
+    upload.recordCollectionId !== upload.quotaScope
+  )
+    return null;
   return {
     purpose: 'attachment',
     completedJobId: upload.jobId,
+    recordCollectionId: upload.recordCollectionId,
     accountId: upload.accountId,
     quotaScope: upload.quotaScope,
     target: upload.target,
@@ -45,7 +51,16 @@ function bindingFrom(
 }
 
 export interface ValidatedAttachmentInputOptions<C> {
-  /** Bind the existing 873 readValidatedUpload(store, reference), not a table reader. */
+  /** Bind native 873 readValidatedUploadInTransaction using THIS context.
+   * Claim/completion must not start another transaction or reuse an earlier read. */
+  readValidatedUploadInContext(
+    context: C,
+    reference: {
+      uploadId: string;
+      originalVersionId: string;
+    },
+  ): Promise<unknown>;
+  /** Standalone fresh read before opening bytes outside the job transaction. */
   readValidatedUpload(reference: {
     uploadId: string;
     originalVersionId: string;
@@ -62,7 +77,7 @@ export function createValidatedAttachmentInput<C>(
   return {
     loadAuthorizedAttachment: async (context: C, job: JobRecord) => {
       const upload = validatedUploadSchema.safeParse(
-        await options.readValidatedUpload({
+        await options.readValidatedUploadInContext(context, {
           uploadId: job.resourceId,
           originalVersionId: job.inputVersion,
         }),

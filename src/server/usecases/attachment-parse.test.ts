@@ -31,6 +31,7 @@ function fixture() {
   const binding: AttachmentBinding = {
     purpose: 'attachment',
     completedJobId: 'parse-job',
+    recordCollectionId: 'record-collection',
     accountId: 'uploader',
     quotaScope: 'record-collection',
     target: { kind: 'people', personIds: ['demo-person'] },
@@ -115,6 +116,7 @@ describe('attachment parse transaction pipeline', () => {
       mediaId: 'upload-1',
       originalVersionId: 'version-1',
       accountId: 'uploader',
+      recordCollectionId: f.binding.recordCollectionId,
       target: f.binding.target,
       sources: [
         {
@@ -203,6 +205,7 @@ describe('attachment parse transaction pipeline', () => {
       originalId: 'synthetic-original',
       originalVersionId: f.binding.version.originalVersionId,
       jobId: f.binding.completedJobId,
+      recordCollectionId: f.binding.recordCollectionId,
       purpose: 'attachment',
       filename: f.binding.version.filename,
       accountId: f.binding.accountId,
@@ -218,6 +221,7 @@ describe('attachment parse transaction pipeline', () => {
     };
     const canProcess = vi.fn(async () => mayProcess);
     const input = createValidatedAttachmentInput<Context>({
+      readValidatedUploadInContext: async () => upload,
       readValidatedUpload: async () => structuredClone(upload),
       canProcess,
       openObject: async () =>

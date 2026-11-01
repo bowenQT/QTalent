@@ -88,6 +88,7 @@ export {
 } from './uploads/store';
 export type { UploadDispatch, PostgresUploadStore } from './uploads/store';
 export { readValidatedUpload } from './uploads/handoff';
+export { readValidatedUploadInTransaction } from './uploads/handoff-transaction';
 export type { ValidatedUpload } from './uploads/handoff';
 export type { UploadCollectionMembers } from './uploads/types';
 

@@ -99,3 +99,9 @@ worker使用上述`readValidatedUpload`，不直接读写uploads内部表，不�
 从 main `046b24e8e2bb986eb4d3c37a8d47f7c778f53a8a` 普通同步，Drizzle 原生生成 `0010_bow_873_upload_sources`，新增集合、intent、已验证对象与读取票据四表。0000–0009 SQL/快照保留；已有行不回填假集合、绑定或授权。迁移测试覆盖空库、真实已导入0000–0009升级、历史事实保持与重复迁移。结果以最终固定head验证为准。
 
 公共 records 出口提供实际 `createPostgresUploadStore`、`lockUploadCollection`、`readUploadCollectionMembers`、`readValidatedUpload` 及相应事实类型；这些仍是内部事实，不是公开响应或授权。既有生产组合缺口继续按上述边界保留：未安装假的dispatch、ledger、duration或来源投影，四表迁移不等于整条材料生产链已接通。
+
+## 调用方事务内的 worker handoff
+
+`readValidatedUploadInTransaction(tx, reference)` 复用现 `readUploadCollectionMembers` 的 quota 锁和 Read Committed 要求。初查只用于定位锁；可接受的 intent/object/completion 均在取得锁后重读。它与 standalone `readValidatedUpload` 共用同一事实校验，返回真实 recordCollectionId，不从 quota 标签、目标人或 creator 推导集合。调用方保持此 tx 到当前授权、saveParse、enqueue 和 job fence 完成，不能再包装一层独立 transaction。
+
+该 reader 不是处理许可，历史 released 原件仍是归档事实；当前成员有效性、全体主体/敏感类型、节点权限由调用方既有策略在同 tx 重验，unknown 仍关闭。打开字节前继续 standalone getter 对整份绑定（含 collection）重核，私有对象 key 不进入公开 DTO。此共享接线没有新增表或正式迁移，不代表926生产saveParse/845媒体producer已装配。

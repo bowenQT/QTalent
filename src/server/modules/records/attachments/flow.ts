@@ -18,14 +18,17 @@ export const attachmentJobPayloadSchema = z.strictObject({
   jobId: id,
   attempt: z.number().int().positive(),
 });
-export const attachmentBindingSchema = z.strictObject({
-  purpose: z.literal('attachment'),
-  completedJobId: id,
-  accountId: id,
-  quotaScope: id,
-  target: uploadRequestSchema.shape.target,
-  version: attachmentVersionSchema,
-});
+export const attachmentBindingSchema = z
+  .strictObject({
+    purpose: z.literal('attachment'),
+    completedJobId: id,
+    recordCollectionId: id,
+    accountId: id,
+    quotaScope: id,
+    target: uploadRequestSchema.shape.target,
+    version: attachmentVersionSchema,
+  })
+  .refine((binding) => binding.recordCollectionId === binding.quotaScope);
 export const attachmentJobResultSchema = z.strictObject({
   stage: z.enum(['parsing', 'parsed', 'unsupported', 'failed', 'cancelled']),
   mediaId: id,
@@ -49,12 +52,14 @@ export const attachmentJobResultSchema = z.strictObject({
 export interface AttachmentBinding {
   purpose: 'attachment';
   completedJobId: string;
+  recordCollectionId: string;
   accountId: string;
   quotaScope: string;
   target: UploadRequest['target'];
   version: AttachmentVersion;
 }
 export interface ArrangeAttachmentRequest {
+  recordCollectionId: string;
   mediaId: string;
   parseVersionId: string;
   originalVersionId: string;
