@@ -15,9 +15,11 @@ export async function recordAudit(
     event.metadata === undefined
       ? undefined
       : entryAuditMetadataSchema.parse(event.metadata);
+  const id = randomUUID();
   await db.insert(auditEvents).values({
-    id: randomUUID(),
+    id,
     ...event,
     ...(metadata === undefined ? {} : { metadata }),
   });
+  return id;
 }

@@ -1368,9 +1368,10 @@ it('R2 S1: pending task cancellation audit failure rolls back the entire native 
   const priorEvents = await readEvents();
   const originalAudit = audit.recordAudit;
   vi.spyOn(audit, 'recordAudit').mockImplementation(async (...args) => {
-    await originalAudit(...args);
+    const id = await originalAudit(...args);
     if (args[1].action === 'evaluation_work.record_withdrawn')
       throw new Error('synthetic pending-task audit failure');
+    return id;
   });
   await expect(
     undoRecordSave(
