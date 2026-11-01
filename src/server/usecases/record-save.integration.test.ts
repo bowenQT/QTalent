@@ -1390,3 +1390,105 @@ it('R2 S1: pending task cancellation audit failure rolls back the entire native 
     .where(eq(evaluationWorkItems.id, task.id));
   expect(current).toEqual(task);
 });
+
+it('resave continuation: a first-save undo persists its exact new draft revision in the receipt', async () => {
+  const f = await native();
+  const saved = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const undoInput = {
+    operation_id: f.id + '-resume-undo',
+    saveId: saved.result.saveId,
+  };
+  const undone = await undoRecordSave(db(), f.account.one, undoInput, f.clock);
+  const [draft] = await db()
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, f.input.draftId));
+  expect(draft.revision).toBe(saved.result.revision + 1);
+  expect(undone.result).toMatchObject({
+    inputRestoration: 'unavailable',
+    originalInput: null,
+    draftRestoration: {
+      status: 'available',
+      draftId: draft.draftId,
+      draftRevision: draft.revision,
+    },
+  });
+  const [operation] = await db()
+    .select()
+    .from(recordOperations)
+    .where(
+      and(
+        eq(recordOperations.actorAccountId, f.account.one),
+        eq(recordOperations.action, 'undo'),
+        eq(recordOperations.operationId, undoInput.operation_id),
+      ),
+    );
+  expect(operation.receipt).toMatchObject(undone.result);
+});
+
+it('resave continuation: the new revision creates new events while old undo replay preserves the new save', async () => {
+  const f = await native();
+  const first = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const undoInput = {
+    operation_id: f.id + '-resave-undo',
+    saveId: first.result.saveId,
+  };
+  const undone = await undoRecordSave(db(), f.account.one, undoInput, f.clock);
+  const [draft] = await db()
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, f.input.draftId));
+  await expect(
+    saveRecordDraft(
+      db(),
+      f.account.one,
+      {
+        ...f.input,
+        operation_id: f.id + '-stale-resave',
+        expected_revision: first.result.revision,
+      },
+      f.clock,
+    ),
+  ).rejects.toMatchObject({ status: 'conflict' });
+  const next = await saveRecordDraft(
+    db(),
+    f.account.one,
+    {
+      ...f.input,
+      operation_id: f.id + '-resave',
+      expected_revision: draft.revision,
+    },
+    f.clock,
+  );
+  expect(next.result.saveId).not.toBe(first.result.saveId);
+  expect(next.result.events[0].eventId).not.toBe(
+    first.result.events[0].eventId,
+  );
+  expect(next.result.revision).toBe(draft.revision + 1);
+  const beforeReplay = await snapshot();
+  expect(await undoRecordSave(db(), f.account.one, undoInput, f.clock)).toEqual(
+    { ...undone, replayed: true },
+  );
+  expect(await snapshot()).toEqual(beforeReplay);
+  const [current] = await db()
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, draft.draftId));
+  expect(current.revision).toBe(next.result.revision);
+  const [oldEvent] = await db()
+    .select()
+    .from(events)
+    .where(eq(events.id, first.result.events[0].eventId));
+  const [newEvent] = await db()
+    .select()
+    .from(events)
+    .where(eq(events.id, next.result.events[0].eventId));
+  expect(oldEvent.withdrawnAt).not.toBeNull();
+  expect(newEvent.withdrawnAt).toBeNull();
+  expect(
+    (await rowsForSave(first.result.saveId)).human.every((row) => !row.active),
+  ).toBe(true);
+  expect(
+    (await rowsForSave(next.result.saveId)).human.every((row) => row.active),
+  ).toBe(true);
+});
