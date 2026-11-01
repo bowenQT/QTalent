@@ -2,17 +2,17 @@
 
 ## 范围与输入版本
 
-基线 main `91b297afbc005a26a0f9bd93a2126fbd1d2fe6c9`。冻结897 `0b20a913621121848219e0966ba4bf4844d1bdb3` 的 MaterialSourceReference/MaterialImageRegion，899 `d5cf82fa264e022b8e4c928b008461e98c53293d` 的实际节点授权，843 `d688c92eed320102d099ecc1f4af74f50298f32e` 的实际 Modelink 协议与严格响应校验。Sharp 精确 `0.35.5`，X1选型及两包文件窗口见 #248/6548950329。
+当前普通组合基线 main `fe34b6faffcfb2832a1be266a155f0d7d19d69cc`，消费其中最终897核对合同、实际899节点授权与843 Modelink协议。旧组件通过仅覆盖原92f88be，不作为本次新增生产接线的验收。Sharp 精确 `0.35.5`，X1选型及两包文件窗口见 #248/6548950329。
 
-仅PNG、JPEG、WebP输入，按真实容器签名及解码格式核MIME；输出统一PNG。PNG是外发格式，不是限制只接PNG。五文件不包含图片上传lane、生产reader/存储/事务、worker、845恢复或公开HTTP。未知/名单外/整张只作附件/项目归属等未决动作未实现，不扩897契约。
+仅PNG、JPEG、WebP输入，按真实容器签名及解码格式核MIME；输出统一PNG。PNG是外发格式，不是限制只接PNG。当前文件不包含生产reader/存储/事务、worker、845恢复或公开HTTP。最终897已规定整张仅附件终态及resume:null；本片实现该状态的零读取/零外发，真实解决与撤销仍待共享人审账本接线。
 
 ## 实际裁剪
 
-`cropMaterialImage`只变换字节，不授予访问许可。输入为已经绑定原件ID、原件版本、片段/原图区域及SHA256的内存字节。先核输入预算和摘要，复制缓冲避免跨await修改，再核容器和实际解码格式。PNG动画控制区块、WebP动画标志/ANIM/ANMF、重复图像块、JPEG多图/MPF或拼接尾随内容均拒绝，不静默取首帧。原件路径、任意URL及image/*通配输入不进入解码器。
+`cropMaterialImage`只变换字节，不授予访问许可。输入为已经绑定原件ID、独立原件版本、批准原图区域及SHA256的内存字节。首次OCR允许`source:null`，不伪造fragment；已有canonical source时，其版本及区域必须与独立描述完全一致。先核输入预算和摘要，复制缓冲避免跨await修改，再核容器和实际解码格式。PNG动画控制区块、WebP动画标志/ANIM/ANMF、重复图像块、JPEG多图/MPF或拼接尾随内容均拒绝，不静默取首帧。原件路径、任意URL及image/*通配输入不进入解码器。
 
-897区域是**存储原图、裁剪前的归一化坐标**。`displayToStoredRegion`只按可信EXIF方向1～8反映射显示框；生产调用方须从已验证原件取得方向，不能相信请求自报方向。输入给裁剪器的source始终是存储坐标。按原始width/height执行左/上ceil、右/下floor；没有完整像素就拒绝。裁前不autoOrient、不resize；输出保持存储像素方向，EXIF被移除。UI框选/回看接线必须使用相同反映射，尚未在本片声称接通。
+897区域是**存储原图、裁剪前的归一化坐标**。`displayToStoredRegion`只按可信EXIF方向1～8反映射显示框；生产调用方须从已验证原件取得方向，不能相信请求自报方向。输入给裁剪器的region始终是存储坐标。按原始width/height执行左/上ceil、右/下floor；没有完整像素就拒绝。裁前不autoOrient、不resize；输出保持存储像素方向，EXIF被移除。UI框选/回看接线必须使用相同反映射，尚未在本片声称接通。
 
-使用真实Sharp.extract，转sRGB、裁后白底消除透明RGB隐藏内容，再重编码PNG；不保留原EXIF/XMP/ICC、缩略图或原始文件缓冲。canonical source保持不变，`pixelRegion`和`actualRegion`另记实际向内取整后的子区域，不能伪造新持久片段。原图ID/version/hash、裁后hash及模型/提示版本随候选追溯；这些标识不交给模型。
+使用真实Sharp.extract，转sRGB、裁后白底消除透明RGB隐藏内容，再重编码PNG；不保留原EXIF/XMP/ICC、缩略图或原始文件缓冲。canonical source保持不变（尚未生成时保持null），`pixelRegion`和`actualRegion`另记实际向内取整后的子区域，不能伪造新持久片段。原图ID/version/hash、裁后hash及模型/提示版本随候选追溯；这些标识不交给模型。
 
 ## 完整来源与当前许可
 
@@ -22,7 +22,7 @@
 
 加载及授权 → 有界读取原件 → 重载当前事实/核权 → 实际裁剪 → **再次重载当前事实/核权和版本** → 构造仅含裁后PNG的Modelink请求 → 返回前重核。摘要/来源区域、批次/item/成员revision或许可变化就拒绝，旧裁图不能复用。payload只含固定转录指令与裁后data URL，没有原始字节、完整原图URL、人员ID、存储key或凭证。
 
-本片是新图片字节边界，直接使用899授权核完整image provenance；没有把图片伪造成P0 document/recording出处来绕过类型。835旧TalentSourceLocation尚不含image，873的完整图片来源/当前处理适配和公共模型输入组合仍须X1显式接线；当前工厂未注册到生产入口。
+本片是新图片字节边界，直接使用899授权核完整image provenance；没有把图片伪造成P0 document/recording出处来绕过类型。873的完整图片来源/当前处理适配和公共模型输入组合仍须X1显式接线；当前工厂未注册到生产入口。
 
 ## 模型结果与预算的实际含义
 
@@ -34,8 +34,12 @@ Sharp.timeout从libvips开始处理计时，不含排队；maxElapsedMs/AbortSig
 
 ## 依赖和复验
 
-作者不改根package.json/pnpm-lock.yaml，也不深引Next内部。隔离目录显式临时manifest以main精确直接版本为基础，仅增加dependencies.sharp=0.35.5，复制当前锁后只在临时目录重生成importer。固定契约/authz/maas原始源码与本片文件组合，证据标`isolated_frozen_input_combination`；不是裸仓或生产验收。
+X1已在原分支提交Sharp直接依赖和锁文件；本轮沿原分支普通合最新main，使用真实仓库锁做冻结离线安装，不复制契约或隔离manifest。作者不修改根package.json/pnpm-lock.yaml。
+
+生产代码依赖与卡剩余范围分开记录：873固定`2c3ee54eecd896915ca0067fc2f7463c99aa8936`提供真实上传与collection，但UploadCompletion.source仍明确null；926固定`8a0cc9d54c5bdfb6dcbea7057afa68b093a85318`的canonical writer必须在成功OCR后以真实job fence调用，不能为第一次OCR先造解析成功。#322固定`ca0ea8759b217e9841cb656c0948af631adadec0`是保存/确认ledger，并非未解析图片的完整许可。X1的人审账本/公共出口/实际组合与845唯一恢复producer尚未交付，本片不以空端口或fake测试宣称原生接线完成。
+
+`attachment_only`在读取当前处理身份、成员与绑定版本后直接返回终态；不读原图，不发送模型，不生成恢复job或额外核对项，也不授予附件读取许可。实际查看附件仍须另一真实reader按整张全部主体/种类逐次授权；未知范围拒绝。旧执行在读取或模型返回期间遇到该状态变化，不能继续提交旧结果。
 
 定向命令：`pnpm exec vitest run src/server/usecases/material-images --maxWorkers=2`。覆盖率显式include本片crop.ts/policy.ts，沿仓库行/分支85%门槛。真实像素oracle为独立原图解码后的预定行切片及硬编码的八方向框；模型协议fake截获并解码实际发送PNG。测试不替换Sharp裁剪、不真实调用模型、不读凭证/PG、不启动开发服务。
 
-稳定head停推后交X1沿原分支只追加sharp0.35.5直接runtime及锁文件，做冻结安装/类型/实际定向复验，再交回；Optional依赖标记变化按实际锁语义审计。依赖、897/899/843/873及真实链未合，保持Draft+blocked，不关闭整卡。
+目前真实图片门禁组件与生产接线分开验收。待共享结构到位后补真实原件适配、review/解除/undo原生事务、恢复幂等及实际PG测试；依赖与默认CI齐备后才能转Ready。未运行真实供应商调用，不关闭整卡。

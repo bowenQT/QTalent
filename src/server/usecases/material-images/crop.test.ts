@@ -49,6 +49,8 @@ function input(
     bytes,
     mediaType,
     originalId: 'original-a',
+    originalVersionId: 'version-a',
+    region: r,
     sha256: digest(bytes),
     source: {
       fragmentId: 'fragment-a',
@@ -447,3 +449,29 @@ it('PNG像素压缩数据损坏时，即使头部可读也不能返回裁后成�
     code: 'invalid_content',
   });
 });
+
+it('首次解析尚无canonical fragment时使用独立版本与批准区域，不伪造出处', async () => {
+  const bytes = await image();
+  const result = await cropMaterialImage(
+    { ...input(bytes), source: null },
+    limits,
+  );
+  expect(result.source).toBeNull();
+  expect(result.originalVersionId).toBe('version-a');
+  expect(result.pixelRegion).toEqual({ left: 2, top: 2, width: 4, height: 4 });
+  expect(await decoded(result.png)).toEqual(
+    slice(raw(), { left: 2, top: 2, width: 4, height: 4 }),
+  );
+  expect(result.png.equals(bytes)).toBe(false);
+});
+it.each(['version', 'region'] as const)(
+  '已有canonical出处的%s必须与独立描述完全一致',
+  async (field) => {
+    const value = input(await image());
+    if (field === 'version') value.originalVersionId = 'version-b';
+    else value.region = { left: 0, top: 0, right: 1, bottom: 1 };
+    await expect(cropMaterialImage(value, limits)).rejects.toMatchObject({
+      code: 'conflict',
+    });
+  },
+);

@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
-import { materialSourceReferenceSchema } from '../../../contracts/sources';
+import {
+  materialImageRegionSchema,
+  materialSourceReferenceSchema,
+} from '../../../contracts/sources';
 import { activeGrants } from '../../authz';
 import {
   canEvaluateNode,
@@ -33,7 +36,8 @@ export interface ImageFacts {
   memberRevision: number;
   members: string[];
   originalId: string;
-  source: MaterialSourceReference;
+  originalVersionId: string;
+  source: MaterialSourceReference | null;
   sha256: string;
   byteLength: number;
   mediaType: ImageMime;
@@ -42,6 +46,12 @@ export interface ImageFacts {
   cancelRequested: boolean;
   scope:
     | { state: 'unknown' }
+    | {
+        state: 'attachment_only';
+        originalVersionId: string;
+        sha256: string;
+        revision: number;
+      }
     | {
         state: 'verified';
         originalVersionId: string;
@@ -103,6 +113,7 @@ type Provenance = {
 };
 export type ImageGateResult =
   | { status: 'validation_error' }
+  | { status: 'attachment_only' }
   | { status: 'forbidden' | 'not_found' | 'conflict' | 'cancelled' }
   | { status: 'failed'; code: string; retryable: boolean }
   | { status: 'needs_review'; reason: 'image_scope' }
@@ -112,7 +123,7 @@ export type ImageGateResult =
       origin: 'ai_transcription';
       text: string;
       observedNames: string[];
-      source: MaterialSourceReference;
+      source: MaterialSourceReference | null;
       provenance: Provenance;
     }
   | {
@@ -120,7 +131,7 @@ export type ImageGateResult =
       origin: 'ai_transcription';
       text: string;
       observedNames: [];
-      source: MaterialSourceReference;
+      source: MaterialSourceReference | null;
       provenance: Provenance;
     };
 class GateError extends Error {
@@ -175,6 +186,7 @@ function authorize(
       f.evaluationNodeId,
       f.recordCollectionId,
       f.originalId,
+      f.originalVersionId,
     ].every(id) ||
     ![f.revision, f.batchRevision, f.memberRevision, f.byteLength].every(
       positive,
@@ -182,12 +194,20 @@ function authorize(
     !/^[a-f0-9]{64}$/.test(f.sha256)
   )
     throw new GateError('conflict');
-  const source = materialSourceReferenceSchema.safeParse(f.source);
-  if (!source.success || source.data.location.kind !== 'image')
+  const source =
+    f.source === null
+      ? null
+      : materialSourceReferenceSchema.safeParse(f.source);
+  if (
+    source !== null &&
+    (!source.success ||
+      source.data.location.kind !== 'image' ||
+      source.data.originalVersionId !== f.originalVersionId)
+  )
     throw new GateError('conflict');
   if (
     f.materialId !== input.materialId ||
-    f.source.originalVersionId !== input.originalVersionId ||
+    f.originalVersionId !== input.originalVersionId ||
     f.revision !== input.expectedRevision
   )
     throw new GateError('conflict');
@@ -201,13 +221,22 @@ function authorize(
   )
     throw new GateError('forbidden');
   const scope = f.scope;
-  if (scope.state !== 'verified' || scope.subjects.length === 0)
-    throw new GateError('needs_review');
+  if (scope.state === 'unknown') throw new GateError('needs_review');
   if (
-    scope.originalVersionId !== f.source.originalVersionId ||
+    scope.originalVersionId !== f.originalVersionId ||
     scope.sha256 !== f.sha256 ||
-    scope.revision !== f.revision ||
-    !isDeepStrictEqual(scope.region, source.data.location.region) ||
+    scope.revision !== f.revision
+  )
+    throw new GateError('conflict');
+  // A terminal handling decision is not a source-read grant and performs no I/O.
+  if (scope.state === 'attachment_only') return;
+  if (scope.subjects.length === 0) throw new GateError('needs_review');
+  if (
+    !materialImageRegionSchema.safeParse(scope.region).success ||
+    (source !== null &&
+      source.success &&
+      source.data.location.kind === 'image' &&
+      !isDeepStrictEqual(scope.region, source.data.location.region)) ||
     new Set(
       scope.subjects.map((s) =>
         JSON.stringify([s.evaluationNodeId, s.personId]),
@@ -244,7 +273,14 @@ function fingerprint(f: ImageFacts) {
           f.scope.region,
           subjects,
         ]
-      : ['unknown'];
+      : f.scope.state === 'attachment_only'
+        ? [
+            'attachment_only',
+            f.scope.originalVersionId,
+            f.scope.sha256,
+            f.scope.revision,
+          ]
+        : ['unknown'];
   return createHash('sha256')
     .update(
       JSON.stringify([
@@ -257,7 +293,10 @@ function fingerprint(f: ImageFacts) {
         f.memberRevision,
         [...f.members].sort(),
         f.originalId,
-        materialSourceReferenceSchema.parse(f.source),
+        f.originalVersionId,
+        f.source === null
+          ? null
+          : materialSourceReferenceSchema.parse(f.source),
         f.sha256,
         f.byteLength,
         f.mediaType,
@@ -302,8 +341,12 @@ export function createImageDisclosureGate(deps: ImageGateDependencies) {
         return snapshot;
       }
       try {
-        const initial = await current(),
-          expected = fingerprint(initial.facts);
+        const initial = await current();
+        if (initial.facts.scope.state === 'attachment_only')
+          return { status: 'attachment_only' };
+        if (initial.facts.scope.state !== 'verified')
+          throw new GateError('needs_review');
+        const expected = fingerprint(initial.facts);
         const fresh = async () => {
           const snapshot = await current();
           if (fingerprint(snapshot.facts) !== expected)
@@ -324,6 +367,8 @@ export function createImageDisclosureGate(deps: ImageGateDependencies) {
             bytes: original,
             mediaType: initial.facts.mediaType,
             originalId: initial.facts.originalId,
+            originalVersionId: initial.facts.originalVersionId,
+            region: initial.facts.scope.region,
             source: initial.facts.source,
             sha256: initial.facts.sha256,
           },
@@ -382,7 +427,7 @@ export function createImageDisclosureGate(deps: ImageGateDependencies) {
             model: outcome.metadata.model,
             promptVersion: outcome.metadata.promptVersion,
             originalId: cropped.originalId,
-            originalVersionId: cropped.source.originalVersionId,
+            originalVersionId: cropped.originalVersionId,
             originalSha256: cropped.originalSha256,
             cropSha256: cropped.sha256,
             pixelRegion: cropped.pixelRegion,

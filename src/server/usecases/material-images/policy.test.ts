@@ -38,6 +38,7 @@ async function fixture() {
     memberRevision: 4,
     members: ['demo-a'],
     originalId: 'original-a',
+    originalVersionId: 'version-a',
     source: {
       fragmentId: 'fragment-a',
       originalVersionId: 'version-a',
@@ -428,3 +429,158 @@ it('PNG像素损坏但原件摘要与版本自洽时，解码失败仍保证零�
   });
   expect(f.sent).toEqual([]);
 });
+
+it('首次OCR无canonical时仍按可信完整来源门禁发送实际裁剪字节，未生成fragment', async () => {
+  const { f, gate, request } = await fixture();
+  f.facts.source = null;
+  f.output.observedNames = [];
+  const result = await gate.parse('account-a', request);
+  expect(result).toMatchObject({
+    status: 'candidate',
+    source: null,
+    provenance: { originalVersionId: 'version-a' },
+  });
+  expect(f.sent).toHaveLength(1);
+  const bytes = Buffer.from(f.sent[0]!.split(',')[1]!, 'base64');
+  expect([...(await sharp(bytes).removeAlpha().raw().toBuffer())]).toEqual(
+    Array.from({ length: 16 }, () => [0, 128, 255]).flat(),
+  );
+  expect(JSON.stringify(result)).not.toContain('fragmentId');
+});
+it.each([
+  'unknown',
+  'denied',
+  'outside-batch',
+  'stale-version',
+  'stale-region',
+] as const)('无canonical不能绕过%s', async (scenario) => {
+  const { f, gate, request } = await fixture();
+  f.facts.source = null;
+  if (f.facts.scope.state !== 'verified') throw new Error('fixture');
+  if (scenario === 'denied') f.authority.processing.allowed = false;
+  if (scenario === 'outside-batch') {
+    // This subject is fully authorized in this node, but is NOT a collection member.
+    f.authority.context.enrollments[1]!.cohortId = 'cohort-a';
+    f.authority.context.evaluationNodeSubjects[1]!.evaluationNodeId = 'node-a';
+    f.facts.scope.subjects.push({
+      personId: 'outside',
+      evaluationNodeId: 'node-a',
+    });
+  }
+  if (scenario === 'stale-version') f.facts.originalVersionId = 'version-b';
+  if (scenario === 'stale-region') f.facts.scope.region.right = 2;
+  if (scenario === 'unknown') f.facts.scope = { state: 'unknown' };
+  const result = await gate.parse('account-a', request);
+  expect(result.status).toBe(
+    scenario === 'unknown'
+      ? 'needs_review'
+      : ['denied', 'outside-batch'].includes(scenario)
+        ? 'forbidden'
+        : 'conflict',
+  );
+  expect(f.reads).toBe(0);
+  expect(f.sent).toEqual([]);
+});
+it.each([null, 'canonical'] as const)(
+  '整张仅附件（%s）不读取原件、不恢复OCR、不要求额外核对',
+  async (source) => {
+    const { f, gate, request } = await fixture();
+    if (source === null) f.facts.source = null;
+    f.facts.scope = {
+      state: 'attachment_only',
+      originalVersionId: 'version-a',
+      sha256: f.facts.sha256,
+      revision: 2,
+    };
+    expect(await gate.parse('account-a', request)).toEqual({
+      status: 'attachment_only',
+    });
+    expect(f.reads).toBe(0);
+    expect(f.sent).toEqual([]);
+  },
+);
+it.each(['version', 'digest', 'revision', 'revoked', 'cancelled'] as const)(
+  '仅附件状态仍核对%s，且不授予原件读取',
+  async (change) => {
+    const { f, gate, request } = await fixture();
+    f.facts.source = null;
+    f.facts.scope = {
+      state: 'attachment_only',
+      originalVersionId: 'version-a',
+      sha256: f.facts.sha256,
+      revision: 2,
+    };
+    if (change === 'version') f.facts.scope.originalVersionId = 'version-b';
+    if (change === 'digest') f.facts.scope.sha256 = '0'.repeat(64);
+    if (change === 'revision') f.facts.scope.revision++;
+    if (change === 'revoked') f.authority.processing.allowed = false;
+    if (change === 'cancelled') f.facts.cancelRequested = true;
+    expect(await gate.parse('account-a', request)).toEqual({
+      status:
+        change === 'cancelled'
+          ? 'cancelled'
+          : change === 'revoked'
+            ? 'forbidden'
+            : 'conflict',
+    });
+    expect(f.reads).toBe(0);
+    expect(f.sent).toEqual([]);
+  },
+);
+it('读取期间改为仅附件，旧OCR执行不得继续外发', async () => {
+  const { f, gate, request } = await fixture();
+  f.afterRead = () => {
+    f.facts.scope = {
+      state: 'attachment_only',
+      originalVersionId: 'version-a',
+      sha256: f.facts.sha256,
+      revision: 2,
+    };
+  };
+  expect(await gate.parse('account-a', request)).toEqual({
+    status: 'conflict',
+  });
+  expect(f.sent).toEqual([]);
+});
+
+it('已有canonical同节点已授权但不在批次的共同主体也拒绝，批次成员门禁不能删除', async () => {
+  const { f, gate, request } = await fixture();
+  f.authority.context.enrollments[1]!.cohortId = 'cohort-a';
+  f.authority.context.evaluationNodeSubjects[1]!.evaluationNodeId = 'node-a';
+  if (f.facts.scope.state !== 'verified') throw new Error('fixture');
+  f.facts.scope.subjects.push({
+    personId: 'outside',
+    evaluationNodeId: 'node-a',
+  });
+  expect(await gate.parse('account-a', request)).toEqual({
+    status: 'forbidden',
+  });
+  expect(f.reads).toBe(0);
+  expect(f.sent).toEqual([]);
+  // Only membership changes: this proves current authorization was not what rejected it.
+  f.facts.members.push('outside');
+  expect(await gate.parse('account-a', request)).toMatchObject({
+    status: 'needs_review',
+    reason: 'unknown_person',
+  });
+  expect(f.sent).toHaveLength(1);
+});
+it.each(['version', 'region'] as const)(
+  'canonical与独立%s不一致在读取前失败关闭',
+  async (field) => {
+    const { f, gate, request } = await fixture();
+    if (!f.facts.source || f.facts.source.location.kind !== 'image')
+      throw new Error('fixture');
+    if (field === 'version') f.facts.source.originalVersionId = 'version-b';
+    else
+      f.facts.source.location.region = {
+        ...f.facts.source.location.region,
+        right: 1,
+      };
+    expect(await gate.parse('account-a', request)).toEqual({
+      status: 'conflict',
+    });
+    expect(f.reads).toBe(0);
+    expect(f.sent).toEqual([]);
+  },
+);

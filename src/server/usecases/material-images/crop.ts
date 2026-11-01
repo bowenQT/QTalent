@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { performance } from 'node:perf_hooks';
 import sharp from 'sharp';
 import { z } from 'zod';
@@ -23,13 +24,16 @@ export interface ImageCropInput {
   bytes: Uint8Array;
   mediaType: ImageMime;
   originalId: string;
-  source: MaterialSourceReference;
+  originalVersionId: string;
+  region: MaterialImageRegion;
+  source: MaterialSourceReference | null;
   sha256: string;
 }
 export interface CroppedImage {
   png: Buffer;
-  source: MaterialSourceReference;
+  source: MaterialSourceReference | null;
   originalId: string;
+  originalVersionId: string;
   originalSha256: string;
   originalWidth: number;
   originalHeight: number;
@@ -236,9 +240,27 @@ export async function cropMaterialImage(
       fail('resource_limit', '图片处理时限已超出');
   };
   checkpoint();
-  const source = materialSourceReferenceSchema.parse(input.source);
-  if (source.location.kind !== 'image')
-    return fail('invalid_content', '图片出处类型不符');
+  const originalVersionId = z
+    .string()
+    .min(1)
+    .max(200)
+    .regex(/\S/)
+    .parse(input.originalVersionId);
+  const region = materialImageRegionSchema.parse(input.region);
+  // First OCR has a verified original and review region, but no canonical fragment yet.
+  const source =
+    input.source === null
+      ? null
+      : materialSourceReferenceSchema.parse(input.source);
+  if (source !== null) {
+    if (source.location.kind !== 'image')
+      return fail('invalid_content', '图片出处类型不符');
+    if (
+      source.originalVersionId !== originalVersionId ||
+      !isDeepStrictEqual(source.location.region, region)
+    )
+      return fail('conflict', '出处与批准原件版本或区域不一致');
+  }
   z.string().min(1).regex(/\S/).parse(input.originalId);
   z.string()
     .regex(/^[a-f0-9]{64}$/)
@@ -284,7 +306,7 @@ export async function cropMaterialImage(
       limits.maxDecodedBytes
   )
     fail('resource_limit', '图片解码尺寸超过预算');
-  const r = source.location.region,
+  const r = region,
     left = Math.ceil(r.left * width),
     top = Math.ceil(r.top * height),
     right = Math.floor(r.right * width),
@@ -314,6 +336,7 @@ export async function cropMaterialImage(
     png: result.data,
     source: structuredClone(source),
     originalId: input.originalId,
+    originalVersionId,
     originalSha256: input.sha256,
     originalWidth: width,
     originalHeight: height,
