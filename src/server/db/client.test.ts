@@ -26,6 +26,7 @@ it('creates isolated connections explicitly and keeps application singleton lazy
   expect(mocks.pool).toHaveBeenCalledWith({
     connectionString: 'postgres://localhost/local_test',
     max: 10,
+    connectionTimeoutMillis: 10_000,
   });
   const isolated = createDatabase('postgres://localhost/isolated_test');
   expect(isolated.db).toEqual({ kind: 'db' });

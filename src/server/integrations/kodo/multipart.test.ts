@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { createKodoClient } from './index';
-import { objectEtag } from './protocol';
+import { objectEtag, sha256 } from './protocol';
 const config = {
   endpoint: 'https://objects.example.test',
   uploadEndpoint: 'https://up.example.test',
@@ -236,6 +236,27 @@ describe('authenticated resumable multipart v2', () => {
           code: mode === 'part-only' ? 'integrity' : 'unavailable',
         });
     });
+  it('checkpoints the bytes from before init returns', async () => {
+    const bytes = Uint8Array.from([1, 2, 3, 4]);
+    const digest = sha256(bytes);
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => {
+      bytes[0] = 9;
+      return j({ uploadId: 'test-upload', expireAt: 604801 });
+    });
+    const client = createKodoClient(config, { fetch, now: () => 1000 });
+    const checkpoint = await client.beginMultipart({
+      objectKey: 'synthetic/small',
+      bytes,
+      contentType: 'audio/wav',
+    });
+    const payload = checkpoint
+      .split('.')[0]!
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    expect(JSON.parse(Buffer.from(payload, 'base64').toString()).sha256).toBe(
+      digest,
+    );
+  });
   it('rejects invalid start responses and empty input', async () => {
     const s = setup();
     await expect(

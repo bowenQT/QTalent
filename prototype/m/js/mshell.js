@@ -221,6 +221,8 @@
   M.hold = (btn, field, script, o = {}) => {
     let timer = 0, i = 0, down = 0;
     const start = (e) => {
+      if (down) return;
+      clearInterval(timer);
       e.preventDefault(); down = Date.now(); i = field.value.length && field.value === script.slice(0, field.value.length) ? field.value.length : 0;
       if (!i) field.value = '';
       btn.classList.add('is-on'); o.onStart && o.onStart();

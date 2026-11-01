@@ -5,9 +5,11 @@
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, icon, mount, $ } = NT;
   const M = (NT.m = {});
-  const PAGES = ['index', 'record', 'quick', 'mentor', 'people', 'person', 'inbox', 'me'];
-  // 手机端只有导师视角：不写入本地的视角设置，回到桌面版时仍是原来的视角
-  st.role = () => 'mentor';
+  const PAGES = ['index', 'record', 'quick', 'mentor', 'people', 'person', 'inbox', 'me', 'judge'];
+  // 手机端给导师用，不写入本地的视角设置，回到桌面版时仍是原来的视角。
+  // 系统管理员不能改写成导师，否则侧栏的手机入口和 ?as=admin 会看到学员与分数。
+  const incomingRole = st.role();
+  if (incomingRole !== 'admin') st.role = () => 'mentor';
   const FLOWS = [
     ['record', '录音', 'record.html', '选模式 → 实时转写 → 处理中 → 人才纪要 → 追问'],
     ['quick', '一句话记录', 'quick.html', '一句话或按住说话 → 确认 AI 建议分'],
@@ -17,6 +19,17 @@
 
   // 页面入口：NT.mshell({ tab, title, back, action, allow, denyTitle, denyText, demos, view, state, restore, render(main), bare })
   NT.mshell = (cfg) => NT.ready(() => {
+    if (incomingRole === 'admin') {
+      document.title = '系统管理员看不到这一页 · Niu-Talent 手机版';
+      document.body.classList.add('nt-mob');
+      const root = document.getElementById('app');
+      mount(root, html`
+        <div class="m-stage"><div class="m-phone"><div class="m-screen"><main id="main" class="m-body" style="padding:24px">
+          ${UI.state({ ip: 'confirm', size: 56, title: '系统管理员看不到人才数据', text: '手机版会进入导师的学员、档案和分数。系统管理员只使用桌面版的系统管理。', actions: html`<a class="n-btn n-btn--sm" href="../app/admin.html">回到系统管理</a>` })}
+        </main></div></div></div>`);
+      UI.mountIPs(root);
+      return;
+    }
     st.tickTasks();
     document.title = `${cfg.title} · Niu-Talent 手机版`;
     const role = st.role(), me = st.me();
@@ -166,7 +179,7 @@
 
   // ---------- 手机页面常用片段 ----------
   // 待办在手机上的落点：复盘去导师评价，方案去确认方案，其余沿用；判断对照、找人这类没有手机页的转到桌面版
-  const M_PAGES = ['index', 'people', 'person', 'quick', 'record', 'plan', 'inbox', 'mentor', 'me'];
+  const M_PAGES = ['index', 'people', 'person', 'quick', 'record', 'plan', 'inbox', 'mentor', 'me', 'judge'];
   const mHref = (h) => (M_PAGES.includes(h.split(/[?#]/)[0].replace('.html', '')) ? h : `../app/${h}`);
   M.todoHref = (t) => (t.kind === 'review' ? `mentor.html?id=${t.person}` : t.kind === 'plan' ? `../app/plan.html?id=${t.plan}` : mHref(t.href));
 
@@ -209,27 +222,39 @@
     };
   };
 
-  // 按住说话：按下开始把脚本里的话逐字「转写」进输入框，松开结束；没按够就提示
+  // 按住说话：按下开始把脚本里的话逐字「转写」进输入框，在按钮上松开才结束。
+  // 轻点、滑出按钮或手势被取消时恢复按下前的原话，不提交，也不开始整理。
   M.hold = (btn, field, script, o = {}) => {
-    let timer = 0, i = 0, down = 0;
+    let timer = 0, i = 0, down = 0, prev = '';
     const start = (e) => {
-      e.preventDefault(); down = Date.now(); i = field.value.length && field.value === script.slice(0, field.value.length) ? field.value.length : 0;
-      if (!i) field.value = '';
+      if (down) return;
+      e.preventDefault();
+      prev = field.value; down = Date.now(); i = 0;
       btn.classList.add('is-on'); o.onStart && o.onStart();
+      if (e.pointerId != null && btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch (err) { /* 没有指针捕获时仍靠离开和松开判断 */ } }
       timer = setInterval(() => { if (i < script.length) { field.value = script.slice(0, ++i); field.scrollTop = field.scrollHeight; } }, NT.reduced ? 1 : 55);
     };
-    const end = () => {
+    const inside = (e) => {
+      if (!e || e.clientX == null || e.clientY == null || !btn.getBoundingClientRect) return true;
+      const r = btn.getBoundingClientRect();
+      return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    };
+    const stop = () => { clearInterval(timer); timer = 0; btn.classList.remove('is-on'); down = 0; };
+    const restore = () => { field.value = prev; o.onCancel && o.onCancel(); };
+    const end = (e) => {
       if (!down) return;
-      clearInterval(timer); btn.classList.remove('is-on');
-      const held = Date.now() - down; down = 0;
-      if (held < 350 && i < 3) { field.value = ''; NT.toast('按住说话，松开结束'); o.onCancel && o.onCancel(); return; }
+      const held = Date.now() - down;
+      const kind = e && e.type;
+      if (kind === 'pointerleave' || kind === 'pointercancel' || (kind === 'pointerup' && !inside(e))) { stop(); restore(); return; }
+      stop();
+      if (held < 350) { restore(); NT.toast('按住说话，松开结束'); return; }
       field.value = script; o.onEnd && o.onEnd(script);
     };
     btn.addEventListener('pointerdown', start);
     ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => btn.addEventListener(ev, end));
     btn.addEventListener('contextmenu', (e) => e.preventDefault());
     btn.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat && !down) start(e); });
-    btn.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') end(); });
+    btn.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') end(e); });
   };
 
   // 人的行：点一下拉起速览（底部弹层），速览里再打开档案（v1.5 3.27）

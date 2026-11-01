@@ -11,7 +11,8 @@
   const CTX = 40;
   const EPHEMERAL = new Set(['as', 'q', 'hold', 'mic', 'created', 'fresh', 'add']);
   const isKeyParam = ([k, v]) => !k.startsWith('rv') && !EPHEMERAL.has(k) && /^\w{1,20}$/.test(k) && /^[\w.-]{1,40}$/.test(v);
-  const PAGE = pageKey();
+  let pageSeen = pageKey();
+  let loadGen = 0;
 
   let me = '';
   let threads = [];        // 顶层讨论
@@ -27,6 +28,8 @@
   let picking = false;
   let applying = false;
   let postingComment = false;
+  let commentGen = 0;
+  let commentAbort = null;
   const postingReplies = new Set();
 
   // ---------- 小工具 ----------
@@ -49,22 +52,58 @@
   const norm = (s) => String(s || '').replace(/\s+/g, '');
   // 页面键只留路由和对象 id 一类的参数（id=p-lin、tab=ev）：视角 as 记在 context 里，
   // 一次性的输入（q 里的原话、hold、mic 这类演示开关）也不算页面的一部分，放进 context.params
+  // 静态资源会把 /foo.html 307 到 /foo；页面里的 replaceState 常写回带 .html 的相对地址
+  function canonicalPath(pathname) {
+    const path = pathname || '/';
+    if (path.endsWith('/index.html')) return path.slice(0, -'index.html'.length);
+    if (path.endsWith('.html')) return path.slice(0, -'.html'.length);
+    return path;
+  }
   function pageKey() {
     const keep = [...new URLSearchParams(location.search).entries()].filter(isKeyParam).sort(([a], [b]) => a.localeCompare(b));
-    const path = location.pathname.replace(/\/index\.html$/, '/');
+    const path = canonicalPath(location.pathname);
     const key = path + (keep.length ? `?${keep.map(([k, v]) => `${k}=${v}`).join('&')}` : '');
     return key.length <= 200 ? key : path;
+  }
+  function syncPage() {
+    const next = pageKey();
+    if (next === pageSeen) return;
+    pageSeen = next;
+    pending = null;
+    commentDraft = '';
+    replyDrafts.clear();
+    focusId = null;
+    clearPendingMark();
+    load();
+  }
+  function followHistory() {
+    if (typeof history === 'undefined' || !history || typeof history.replaceState !== 'function') return;
+    for (const name of ['pushState', 'replaceState']) {
+      const orig = history[name];
+      if (typeof orig !== 'function') continue;
+      history[name] = function (...args) {
+        const result = orig.apply(this, args);
+        syncPage();
+        return result;
+      };
+    }
+    window.addEventListener('popstate', syncPage);
   }
   const transient = () => [...new URLSearchParams(location.search).entries()].filter((e) => !isKeyParam(e) && e[0] !== 'as' && !e[0].startsWith('rv'));
   function droppedParams() {
     const rest = transient();
-    return rest.length ? new URLSearchParams(rest).toString().slice(0, 300) : undefined;
+    if (!rest.length) return undefined;
+    // 存解码后的原文。按百分号编码再截断会切在半个 %XX 上，中文参数会丢尾巴
+    const out = {};
+    for (const [k, v] of rest) out[k] = [...String(v)].slice(0, 800).join('');
+    return out;
   }
-  async function api(method, url, body) {
+  async function api(method, url, body, signal) {
     const r = await fetch(url, {
       method, credentials: 'same-origin',
       headers: body ? { 'Content-Type': 'application/json' } : {},
       body: body ? JSON.stringify(body) : undefined,
+      signal,
     });
     let data = {};
     try { data = await r.json(); } catch (e) { /* 非 JSON 响应 */ }
@@ -217,6 +256,16 @@
     return wrap;
   }
 
+  function cancelCompose() {
+    commentGen += 1;
+    if (commentAbort) commentAbort.abort();
+    commentAbort = null;
+    pending = null;
+    commentDraft = '';
+    postingComment = false;
+    clearPendingMark();
+    renderPanel();
+  }
   function composer() {
     const box = h('div', { class: 'rv-compose' });
     const ta = h('textarea', { rows: '3', placeholder: '写下你的意见。⌘/Ctrl + Enter 发表', 'aria-label': '评论内容' });
@@ -224,25 +273,38 @@
     ta.addEventListener('input', () => { commentDraft = ta.value; });
     const err = h('p', { class: 'rv-err', hidden: true });
     const send = h('button', { class: 'rv-btn is-primary', type: 'button', disabled: postingComment }, postingComment ? '发表中…' : '发表评论');
-    const cancel = h('button', { class: 'rv-btn', type: 'button', onclick: () => { pending = null; commentDraft = ''; clearPendingMark(); renderPanel(); } }, '取消');
+    const cancel = h('button', { class: 'rv-btn', type: 'button', onclick: cancelCompose }, '取消');
     const submit = async () => {
       if (postingComment) return;
       const text = ta.value.trim();
       if (!text) { err.hidden = false; err.textContent = '先写点内容再发表。'; ta.focus(); return; }
+      const gen = ++commentGen;
+      const page = pageKey();
+      const payload = { ...pending, body: text, page, context: context() };
+      const ac = typeof AbortController === 'function' ? new AbortController() : { signal: undefined, abort() {} };
+      commentAbort = ac;
       postingComment = true;
       send.disabled = true; send.textContent = '发表中…'; err.hidden = true;
       try {
-        const { comment: c } = await api('POST', '/api/comments', { ...pending, body: text, page: PAGE, context: context() });
+        const { comment: c } = await api('POST', '/api/comments', payload, ac.signal);
+        if (gen !== commentGen) {
+          api('DELETE', `/api/comments/${c.id}`).catch(() => {});
+          return;
+        }
+        if (pageKey() !== page) return;
         threads.push(c);
         pending = null; commentDraft = ''; clearPendingMark();
         focusId = c.id;
         refresh();
         toast('评论已发表');
       } catch (e) {
+        if (gen !== commentGen || e.name === 'AbortError') return;
         err.hidden = false; err.textContent = `没有发表成功：${e.message}。内容还在，可以再试一次。`;
         send.disabled = false; send.textContent = '发表评论';
       } finally {
+        if (gen !== commentGen) return;
         postingComment = false;
+        if (commentAbort === ac) commentAbort = null;
         const current = panel.querySelector('.rv-compose .is-primary');
         if (current) { current.disabled = false; current.textContent = '发表评论'; }
       }
@@ -595,7 +657,17 @@
     if (applying) return;
     if (records.every((r) => r.target.closest && r.target.closest('#rv-ui, #rv-pins'))) return;
     clearTimeout(mutTimer);
-    mutTimer = setTimeout(() => { if (!pending) { apply(); renderPanel(); } else drawPins(); }, 200);
+    mutTimer = setTimeout(() => {
+      if (pending) { drawPins(); return; }
+      const active = document.activeElement;
+      if (active && active.tagName === 'TEXTAREA' && panel.contains(active)) {
+        apply();
+        drawPins();
+        return;
+      }
+      apply();
+      renderPanel();
+    }, 200);
   });
   let rafPins = 0;
   const schedulePins = () => { cancelAnimationFrame(rafPins); rafPins = requestAnimationFrame(drawPins); };
@@ -604,9 +676,13 @@
 
   // ---------- 启动 ----------
   async function load() {
+    const gen = ++loadGen;
+    const page = pageKey();
+    pageSeen = page;
     loadState = 'loading'; renderPanel();
     try {
-      const data = await api('GET', `/api/comments?page=${encodeURIComponent(PAGE)}`);
+      const data = await api('GET', `/api/comments?page=${encodeURIComponent(page)}`);
+      if (gen !== loadGen) return;
       me = data.me || '';
       threads = []; replies = new Map();
       for (const c of data.comments || []) {
@@ -618,6 +694,7 @@
       if (want && threads.some((t) => t.id === want)) { focus(want, true); }
       refresh();
     } catch (e) {
+      if (gen !== loadGen) return;
       loadState = 'error'; loadError = e.message;
       renderLauncher(); renderPanel();
     }
@@ -629,6 +706,7 @@
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     load();
   }
+  followHistory();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();

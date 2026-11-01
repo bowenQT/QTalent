@@ -18,7 +18,7 @@ function setup() {
     me:()=>({id:'manager-demo'}),
     save:()=>{saves++;},
   };
-  const NT={TODAY:'2026-10-26'};
+  const NT={TODAY:'2026-10-26',clone:(o)=>JSON.parse(JSON.stringify(o))};
   vm.runInNewContext(method[0],{store,S,NT,isCeo:()=>role==='ceo'},{filename:'Y/store.js'});
   return {store,d,setRole:r=>{role=r;},get saves(){return saves;}};
 }
