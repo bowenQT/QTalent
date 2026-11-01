@@ -174,6 +174,7 @@ export const evidenceRecordsSchema = z.strictObject({
       z.strictObject({
         id,
         sourceRecordId: id,
+        evaluationNodeId: id.nullable().default(null),
         personId: nullableId,
         recorderId: id,
         occurredOn: z.iso.date(),

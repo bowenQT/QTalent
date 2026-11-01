@@ -136,6 +136,7 @@ it('rejects baseline AI and historical rows even when their complete shape and r
   const history = {
     id: 'h',
     sourceRecordId: 'source-h',
+    evaluationNodeId: null,
     recorderId: 'r',
     occurredOn: '2026-07-24',
     kind: 'Synthetic history',
@@ -212,6 +213,7 @@ it('rejects dangling participants, review events and historical participants', (
         {
           id: 'h',
           sourceRecordId: 'h-source',
+          evaluationNodeId: null,
           recorderId: 'r',
           occurredOn: '2026-07-24',
           kind: 'Synthetic history',

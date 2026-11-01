@@ -10,7 +10,14 @@ import {
   accountBindings,
   grants,
 } from '../modules/directory';
-import { cohorts, enrollments, assignments } from '../modules/programs';
+import {
+  cohorts,
+  enrollments,
+  assignments,
+  evaluationNodes,
+  evaluationNodeSubjects,
+  evaluationRelations,
+} from '../modules/programs';
 import {
   originals,
   originalVersions,
@@ -30,7 +37,7 @@ import { loadPersonData } from './person-data';
 import { personFromData } from './person-projection';
 import { peopleFromData } from './people';
 import { sourceFromData } from './sources';
-import { fixture } from './person-test-helpers';
+import { fixture, nodeFixture } from './person-test-helpers';
 import { expectDirectoryOrder } from '../../../tests/fixtures/p0-contracts';
 import { importDemo } from '../db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '../db/seed';
@@ -54,7 +61,7 @@ beforeAll(async () => {
     migrationsFolder: 'src/server/db/migrations',
   });
   const db = connection.db;
-  const data = fixture();
+  const data = nodeFixture();
   await db.insert(organizations).values(data.directory.organizations);
   await db.insert(people).values(data.directory.people);
   await db.insert(cohorts).values({ id: 'cohort', name: 'Synthetic cohort' });
@@ -79,6 +86,18 @@ beforeAll(async () => {
       accountId: role,
     });
   }
+  await db.insert(evaluationNodes).values(
+    data.context.evaluationNodes!.map((node) => ({
+      ...node,
+      name: '演示：' + node.id,
+    })),
+  );
+  await db
+    .insert(evaluationNodeSubjects)
+    .values(data.context.evaluationNodeSubjects!);
+  await db
+    .insert(evaluationRelations)
+    .values(data.context.evaluationRelations!);
   await db.insert(ruleVersions).values({
     id: 'rubric-v1',
     provenance: 'demo_import_snapshot',
@@ -156,9 +175,9 @@ it('re-reads authorization and complete source relationships', async () => {
   const result = await personFromData(data, 'one');
   expect(result?.capabilityProfile).toHaveProperty('data.scores.length', 2);
   await db
-    .update(grants)
-    .set({ revokedAt: '2026-07-01' })
-    .where(eq(grants.id, 'mentor'));
+    .update(evaluationRelations)
+    .set({ revokedAt: '2026-07-01T00:00:00.000Z' })
+    .where(eq(evaluationRelations.id, 'relation-current'));
   const revoked = await loadPersonData(db, 'mentor', '2026-07-01');
   expect(await personFromData(revoked, 'one')).toBeNull();
 });

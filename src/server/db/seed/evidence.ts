@@ -305,6 +305,7 @@ export function mapEvidenceSeed(input: unknown): EvidenceSeed {
       records.historicalEvaluations.push({
         id: evaluationId,
         sourceRecordId: event.id,
+        evaluationNodeId: null,
         personId: event.people.length === 1 ? event.people[0] : null,
         recorderId: event.recorder,
         occurredOn: event.date,
@@ -358,6 +359,7 @@ export function mapEvidenceSeed(input: unknown): EvidenceSeed {
       records.historicalEvaluations.push({
         id: evaluationId,
         sourceRecordId: event.id,
+        evaluationNodeId: null,
         personId: event.people[0],
         recorderId: event.recorder,
         occurredOn: event.date,

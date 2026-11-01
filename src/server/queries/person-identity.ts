@@ -1,6 +1,6 @@
 import type { PersonIdentity } from '../../contracts/person';
 import { activeGrants, canReadProject, isCurrent } from '../authz';
-import type { PersonData } from './person-data';
+import { type PersonData, personBusinessDay } from './person-data';
 
 type Row = PersonData['directory']['people'][number];
 const day = 86_400_000;
@@ -61,7 +61,7 @@ export function identityOf(data: PersonData, person: Row): PersonIdentity {
     .filter((row) => row.personId === person.id)
     .map((row) => row.validFrom)
     .sort(byCodePoint)[0];
-  const asOf = data.context.now;
+  const asOf = personBusinessDay(data);
   return {
     id: person.id,
     name: person.name,

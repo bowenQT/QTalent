@@ -6,6 +6,9 @@ import {
   getTableColumns,
   inArray,
   or,
+  isNull,
+  isNotNull,
+  sql,
   type InferInsertModel,
 } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
@@ -22,7 +25,15 @@ import {
   grants,
   employments,
 } from '../modules/directory';
-import { cohorts, enrollments, assignments } from '../modules/programs';
+import {
+  cohorts,
+  enrollments,
+  assignments,
+  evaluationNodes,
+  evaluationNodeSubjects,
+  evaluationRelations,
+  planLegacyEvaluationNodes,
+} from '../modules/programs';
 import { projects, members, memberLogs } from '../modules/staffing';
 import {
   dimensions,
@@ -68,13 +79,13 @@ async function insertChecked<T extends PgTable>(
   keys: string[] = ['id'],
   immutable?: string[],
 ) {
-  if (!rows.length) return;
+  if (!rows.length) return [];
   const inserted = await tx
     .insert(table)
     .values(rows)
     .onConflictDoNothing()
     .returning();
-  if (inserted.length === rows.length) return;
+  if (inserted.length === rows.length) return inserted;
   const columns = getTableColumns(table) as Record<string, AnyPgColumn>;
   const input = rows as Record<string, unknown>[];
   const found = await tx
@@ -103,13 +114,18 @@ async function insertChecked<T extends PgTable>(
     )
       throw new Error('Import identity collision: ' + identity(row));
   }
+  return inserted;
 }
 
-async function writeEvidence(tx: Transaction, records: EvidenceRecords) {
+async function writeEvidence(
+  tx: Transaction,
+  records: EvidenceRecords,
+  preserveNodeBindings = false,
+) {
   await insertChecked(tx, originals, records.originals);
   await insertChecked(tx, originalVersions, records.originalVersions);
   await insertChecked(tx, fragments, records.fragments);
-  await insertChecked(tx, events, records.events);
+  const insertedEvents = await insertChecked(tx, events, records.events);
   await insertChecked(tx, eventParticipants, records.eventParticipants, [
     'eventId',
     'personId',
@@ -123,13 +139,145 @@ async function writeEvidence(tx: Transaction, records: EvidenceRecords) {
   await insertChecked(tx, aiSuggestions, records.aiSuggestions);
   await insertChecked(tx, confirmations, records.confirmations);
   await insertChecked(tx, scoreReviews, records.scoreReviews);
-  await insertChecked(tx, historicalEvaluations, records.historicalEvaluations);
+  const insertedHistorical = await insertChecked(
+    tx,
+    historicalEvaluations,
+    records.historicalEvaluations,
+    ['id'],
+    preserveNodeBindings && records.historicalEvaluations.length
+      ? Object.keys(records.historicalEvaluations[0]).filter(
+          (key) => key !== 'evaluationNodeId',
+        )
+      : undefined,
+  );
   await insertChecked(
     tx,
     historicalParticipants,
     records.historicalParticipants,
     ['evaluationId', 'personId'],
   );
+  return {
+    eventIds: insertedEvents.map((row) => row.id),
+    historicalIds: insertedHistorical.map((row) => row.id),
+  };
+}
+
+/** Bind only the already verified demo import. Unknown history never inherits a current cohort. */
+async function bindDemoEvaluationNodes(
+  tx: Transaction,
+  seed: DemoSeed,
+  inserted: { eventIds: string[]; historicalIds: string[] },
+) {
+  const current = {
+    cohorts: await tx
+      .select()
+      .from(cohorts)
+      .where(
+        inArray(
+          cohorts.id,
+          seed.cohorts.map((row) => row.id),
+        ),
+      ),
+    people: seed.people,
+    enrollments: await tx
+      .select()
+      .from(enrollments)
+      .where(
+        inArray(
+          enrollments.id,
+          seed.enrollments.map((_, i) => 'demo-enrollment-' + i),
+        ),
+      ),
+    assignments: await tx
+      .select()
+      .from(assignments)
+      .where(
+        inArray(
+          assignments.id,
+          seed.assignments.map((_, i) => 'demo-assignment-' + i),
+        ),
+      ),
+    projects: await tx
+      .select()
+      .from(projects)
+      .where(
+        inArray(
+          projects.id,
+          seed.projects.map((row) => row.id),
+        ),
+      ),
+    events: await tx
+      .select()
+      .from(events)
+      .where(
+        inArray(
+          events.id,
+          seed.evidence.events.map((row) => row.id),
+        ),
+      ),
+  };
+  const plan = planLegacyEvaluationNodes(current);
+  await insertChecked(
+    tx,
+    evaluationNodes,
+    plan.nodes,
+    ['id'],
+    ['id', 'kind', 'cohortId'],
+  );
+  await insertChecked(tx, evaluationNodeSubjects, plan.subjects, [
+    'evaluationNodeId',
+    'personId',
+  ]);
+  // Dates may have been revoked/edited after the first import: never overwrite them.
+  await insertChecked(
+    tx,
+    evaluationRelations,
+    plan.relations,
+    ['id'],
+    [
+      'id',
+      'evaluationNodeId',
+      'personId',
+      'evaluatorId',
+      'kind',
+      'legacyAssignmentId',
+    ],
+  );
+  const newEvents = new Set(inserted.eventIds);
+  const bindings = plan.eventBindings.filter((row) =>
+    newEvents.has(row.eventId),
+  );
+  if (bindings.length) {
+    await tx.execute(sql`UPDATE ${events} AS e SET evaluation_node_id = binding."evaluationNodeId"
+      FROM jsonb_to_recordset(${JSON.stringify(bindings)}::jsonb)
+        AS binding("eventId" text, "evaluationNodeId" text)
+      WHERE e.id = binding."eventId" AND e.evaluation_node_id IS NULL`);
+  }
+  // Only newly inserted evidence is bound; a rerun must not undo explicit unlinking.
+  // The pinned mapper explicitly derives these weekly rows from the same source event.
+  // Standalone historical reviews (including graduation) have no such fact and stay null.
+  const newHistory = new Set(inserted.historicalIds);
+  const weekly = seed.evidence.historicalEvaluations
+    .filter(
+      (row) =>
+        newHistory.has(row.id) &&
+        row.kind === '训练营周评' &&
+        row.ruleVersionId === 'xe-weekly-v1' &&
+        row.sourceCategory === 'prototype_baseline',
+    )
+    .map((row) => row.id);
+  if (weekly.length) {
+    await tx.execute(sql`UPDATE ${historicalEvaluations}
+      SET evaluation_node_id = ${events.evaluationNodeId} FROM ${events}
+      WHERE ${and(
+        inArray(historicalEvaluations.id, weekly),
+        eq(historicalEvaluations.sourceRecordId, events.id),
+        eq(historicalEvaluations.personId, events.personId),
+        eq(historicalEvaluations.occurredOn, events.occurredOn),
+        isNull(historicalEvaluations.evaluationNodeId),
+        isNotNull(events.evaluationNodeId),
+      )}`);
+  }
 }
 
 async function assertFormalReferences(
@@ -365,7 +513,8 @@ export async function importDemo(
     await insertChecked(tx, ruleVersions, seed.evidence.ruleVersions);
     await insertChecked(tx, anchors, seed.evidence.anchors);
     await insertChecked(tx, importSnapshots, seed.evidence.snapshots);
-    await writeEvidence(tx, seed.evidence);
+    const inserted = await writeEvidence(tx, seed.evidence, true);
+    await bindDemoEvaluationNodes(tx, seed, inserted);
   });
   return { gaps: seed.evidence.gaps };
 }

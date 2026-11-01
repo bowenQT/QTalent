@@ -96,9 +96,10 @@ export const contentCategorySchema = z.enum([
   'performance',
   'quadrant',
 ]);
-// Mentor responses can only carry `evaluation` content: a cheap projection guard
-// that fails on the server if management or quadrant content leaks into them.
-const mentorCategory = z.literal('evaluation');
+// Restricted reviews require a current relation to their explicit content node.
+// The server filters every subject/source before constructing this response;
+// cohort teaching alone still grants neither these reviews nor management content.
+const mentorCategory = z.enum(['evaluation', 'restricted-evaluation']);
 
 const sources = z.array(sourceReferenceSchema).min(1);
 const scoreFacts = {

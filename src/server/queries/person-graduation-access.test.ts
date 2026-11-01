@@ -14,6 +14,7 @@ function historical(role: 'manager' | 'hr' | 'mentor', kind = '结营评审') {
   data.historical.push({
     id: 'demo-graduation',
     sourceRecordId: 'demo-graduation',
+    evaluationNodeId: null,
     personId: 'one',
     recorderId: 'actor',
     occurredOn: '2026-06-01',

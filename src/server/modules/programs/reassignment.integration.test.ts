@@ -2,11 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { Pool } from 'pg';
 import { eq, sql } from 'drizzle-orm';
-import { generateDrizzleJson, generateMigration } from 'drizzle-kit/api';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createDatabase } from '../../db/client';
 import * as directorySchema from '../directory/schema';
 import * as programsSchema from './schema';
-import * as staffingSchema from '../staffing/schema';
 import * as evaluationSchema from '../evaluation-system/schema';
 import * as recordsSchema from '../records/schema';
 import * as auditSchema from '../../platform/audit/schema';
@@ -62,17 +61,7 @@ beforeAll(async () => {
   await admin.query('CREATE DATABASE "' + name + '"');
   url.pathname = '/' + name;
   connection = createDatabase(url.toString());
-  // A local generated test schema, never the final migration or production DB.
-  const schema = generateDrizzleJson({
-    ...directorySchema,
-    ...programsSchema,
-    ...staffingSchema,
-    ...evaluationSchema,
-    ...recordsSchema,
-    ...auditSchema,
-  });
-  const statements = await generateMigration(generateDrizzleJson({}), schema);
-  for (const statement of statements) await db().execute(sql.raw(statement));
+  await migrate(db(), { migrationsFolder: 'src/server/db/migrations' });
 }, 30_000);
 afterAll(async () => {
   try {

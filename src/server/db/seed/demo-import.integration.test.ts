@@ -387,6 +387,7 @@ function completeOrdinaryBatch() {
       {
         id: 'test-history',
         sourceRecordId: 'test-history-source',
+        evaluationNodeId: null,
         personId: 'test-person',
         recorderId: 'test-reviewer',
         occurredOn: '2026-07-24',

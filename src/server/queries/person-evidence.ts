@@ -6,7 +6,12 @@ import {
   type TalentKind,
   type TalentSource,
 } from '../authz/talent';
-import { type PersonData, eventSubject, sourceKey } from './person-data';
+import {
+  type PersonData,
+  eventSubject,
+  sourceKey,
+  historicalSubject,
+} from './person-data';
 import { byCodePoint, byPinyin } from './person-identity';
 import { sourceFromData } from './sources';
 import { historicalEvaluationRequiredKind } from './historical-evaluation-policy';
@@ -382,7 +387,7 @@ export async function collectEvidence(
       data.context,
       {
         id: row.id,
-        subject: { personId, cohortId: null },
+        subject: historicalSubject(data, row, personId),
         kind: category,
         fields: [
           {
@@ -391,7 +396,7 @@ export async function collectEvidence(
             value: row.kind,
             subjects: [...members, ...(row.personId ? [row.personId] : [])]
               .filter((id) => id !== personId)
-              .map((id) => ({ personId: id, cohortId: null })),
+              .map((id) => historicalSubject(data, row, id)),
             sources: [reference],
           },
         ],

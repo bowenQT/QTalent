@@ -9,7 +9,11 @@ import {
 } from '../authz/talent';
 import { deriveReferencePosition } from '../modules/talent';
 import type { PositionScore } from '../modules/talent';
-import { type PersonData, talentSources } from './person-data';
+import {
+  type PersonData,
+  talentSources,
+  personBusinessDay,
+} from './person-data';
 import { byCodePoint, identityOf, landingOf } from './person-identity';
 import {
   collectEvidence,
@@ -25,7 +29,12 @@ export function personRole(data: PersonData) {
     ? 'manager'
     : roles.includes('hr')
       ? 'hr'
-      : roles.includes('mentor')
+      : roles.includes('mentor') ||
+          data.context.evaluationRelations?.some(
+            (relation) =>
+              relation.evaluatorId === data.context.account.personId &&
+              isCurrent(relation, data.context.now),
+          )
         ? 'mentor'
         : null;
 }
@@ -111,10 +120,10 @@ export function referenceOf(
       value: row.score.value,
       ruleVersionId: row.score.ruleVersionId,
     }));
-  return deriveReferencePosition(scores, data.context.now);
+  return deriveReferencePosition(scores, personBusinessDay(data));
 }
 function spectrum(data: PersonData, evidence: Evidence) {
-  const asOf = data.context.now;
+  const asOf = personBusinessDay(data);
   const windowFrom = shiftDays(asOf, -365);
   const dimensions = orderedDimensions(data);
   const rank = new Map(dimensions.map((row, index) => [row.id, index]));
@@ -177,7 +186,7 @@ export async function personFromData(
   const shared = {
     role: gate.role,
     person: identityOf(data, gate.row),
-    asOf: data.context.now,
+    asOf: personBusinessDay(data),
     landing: landingOf(data, id),
     // A readable human conclusion has no date yet (BOW-834 S7): unknown, not empty.
     summary: evidence.conclusionCount
