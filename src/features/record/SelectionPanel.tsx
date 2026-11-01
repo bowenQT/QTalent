@@ -43,11 +43,14 @@ export function SelectionPanel({
   people,
   busy,
   onSubmit,
+  onEdit,
 }: {
   selection: SelectionState;
   people: readonly PersonOption[];
   busy: boolean;
   onSubmit: (choice: { personIds: string[]; projectId: string | null }) => void;
+  /** 候选里没有原话说的那个人，或一个候选都没有：回去改原话。 */
+  onEdit?: () => void;
 }) {
   const { candidates, reasons, chosen } = collect(selection, people);
   const [picked, setPicked] = useState<string[]>(chosen);
@@ -115,22 +118,39 @@ export function SelectionPanel({
           />
         </div>
       ) : null}
-      {picked.length === 0 ? (
+      {candidates.length === 0 ? (
+        <p className="nt-muted">
+          {copy.selection.noneLead}
+          {copy.selection.writeName}
+        </p>
+      ) : picked.length === 0 ? (
         <p className="nt-muted">{copy.selection.needOne}</p>
       ) : null}
-      <button
-        type="button"
-        className="n-btn n-btn--sm n-btn--ink"
-        disabled={!ready || busy}
-        onClick={() =>
-          onSubmit({
-            personIds: picked,
-            projectId: projectId === NO_PROJECT ? null : projectId,
-          })
-        }
-      >
-        {busy ? copy.selection.submitting : copy.selection.submit}
-      </button>
+      <div className="nt-row">
+        <button
+          type="button"
+          className="n-btn n-btn--sm n-btn--ink"
+          disabled={!ready || busy}
+          onClick={() =>
+            onSubmit({
+              personIds: picked,
+              projectId: projectId === NO_PROJECT ? null : projectId,
+            })
+          }
+        >
+          {busy ? copy.selection.submitting : copy.selection.submit}
+        </button>
+        {onEdit ? (
+          <button
+            type="button"
+            className="n-btn n-btn--sm n-btn--ghost"
+            disabled={busy}
+            onClick={onEdit}
+          >
+            {copy.actions.back}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

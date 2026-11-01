@@ -489,6 +489,17 @@ describe('选人与选项目', () => {
     await waitFor(() => expect(onJobChange).toHaveBeenCalledWith('job-2'));
   });
 
+  it('候选都不是原话说的人：改原话回到输入，原话还在', async () => {
+    const { readJob } = setup();
+    readJob.mockImplementation(async () => selecting);
+    await typeAndSubmit();
+    expect(await screen.findByText('这个名字对应两位同事')).toBeTruthy();
+    await click(copy.actions.back);
+    const field = screen.getByRole('textbox') as HTMLTextAreaElement;
+    expect(field.value).toBe(TEXT);
+    expect(screen.queryByText('这个名字对应两位同事')).toBeNull();
+  });
+
   it('提交选择断网：仍停在待选择，选择保留', async () => {
     const selectPeople = vi.fn().mockRejectedValue(new Error('offline'));
     const { readJob } = setup({

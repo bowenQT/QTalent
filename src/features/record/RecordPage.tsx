@@ -789,6 +789,7 @@ function RecordFlow(props: RecordPageProps) {
                     people={people}
                     busy={phase === 'submitting'}
                     onSubmit={(choice) => void chooseSelection(choice)}
+                    onEdit={() => dispatch({ type: 'back_to_write' })}
                   />
                 ) : draft && edit ? (
                   <>

@@ -164,4 +164,44 @@ describe('SelectionPanel', () => {
     });
     expect(screen.getByLabelText(copy.header.unknownPerson)).toBeTruthy();
   });
+
+  it('候选里没有原话说的人：可以回去改原话', async () => {
+    const onEdit = vi.fn();
+    render(
+      <SelectionPanel
+        selection={ambiguous}
+        people={people}
+        busy={false}
+        onSubmit={vi.fn()}
+        onEdit={onEdit}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: copy.actions.back }),
+    );
+    expect(onEdit).toHaveBeenCalled();
+  });
+
+  it('一个候选都没有：说明在原话里写上名字，不要求「至少选一位」', () => {
+    setup({
+      ...ambiguous,
+      people: [
+        {
+          state: 'needs_selection',
+          candidates: [],
+          reason: '原话里没有认出名字',
+        },
+      ],
+      project: { state: 'none' },
+    });
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(
+      screen.getByText(`${copy.selection.noneLead}${copy.selection.writeName}`),
+    ).toBeTruthy();
+    expect(screen.queryByText(copy.selection.needOne)).toBeNull();
+    // 没传 onEdit 时不显示改原话
+    expect(
+      screen.queryByRole('button', { name: copy.actions.back }),
+    ).toBeNull();
+  });
 });

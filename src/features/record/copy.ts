@@ -62,6 +62,7 @@ export const copy = {
     needOne: '至少选一位',
     noneLead: '这句话说的是谁？',
     noneRest: '在上面选一下，或在原话里写上名字',
+    writeName: '在原话里写上名字，再整理一次',
   },
   sbi: {
     title: '标题',
