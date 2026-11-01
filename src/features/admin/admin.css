@@ -112,6 +112,10 @@
   font-size: var(--t-sm);
   line-height: 1.6;
 }
+/* Engineering only: a re-queued card takes focus, and .n-card's shadow reset hides the ring. */
+.n-tfail > li:focus-visible {
+  box-shadow: var(--focus);
+}
 .n-tfail__dl dt {
   color: var(--ink-3);
 }

@@ -71,7 +71,7 @@ describe('系统管理 · 接入状态', () => {
     expect(screen.getByText('wx·****3f2a').getAttribute('title')).toBe(
       '企业微信账号只显示后四位',
     );
-    expect(screen.getByText('对上了不止一个人，待确认是谁')).toBeTruthy();
+    expect(screen.getByText('对上了多个人，待确认是谁')).toBeTruthy();
     expect(screen.getByText('近 7 天 3 条', { exact: false })).toBeTruthy();
     expect(screen.getByText('3 个待处理')).toBeTruthy();
     // Only tasks the jobs command can retry get a button.
@@ -136,6 +136,8 @@ describe('系统管理 · 接入状态', () => {
     ).toBeTruthy();
     expect(screen.getByText('已重新排队')).toBeTruthy();
     expect(screen.getByText('2 个待处理 · 1 个已重新排队')).toBeTruthy();
+    // The 重试 button is gone, so focus moves to the re-queued card.
+    expect(document.activeElement?.getAttribute('data-job')).toBe('job-tf-2');
   });
 
   it('keeps the task failed and reuses the operation id when a retry is refused', async () => {

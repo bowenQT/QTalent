@@ -43,6 +43,7 @@ test('business accounts are refused 系统管理', async ({
     page.getByRole('heading', { name: '这一页只给系统管理员' }),
   ).toBeVisible();
   await expect(page.getByRole('tab', { name: '接入状态' })).toHaveCount(0);
+  await expect(page.locator('.nt-crumbs b')).toHaveText('系统管理');
 });
 
 test('sample: a failed task is re-queued, and 375px keeps to the viewport', async ({
@@ -55,6 +56,7 @@ test('sample: a failed task is re-queued, and 375px keeps to the viewport', asyn
     page.getByText('已重新排队，处理结果会更新在这里'),
   ).toBeVisible();
   await expect(page.getByText('2 个待处理 · 1 个已重新排队')).toBeVisible();
+  await expect(page.locator('li[data-state="queued"]')).toBeFocused();
   await page.setViewportSize({ width: 375, height: 812 });
   for (const query of ['', '?pending=1', '?empty=1&wecom=never']) {
     await page.goto(`/dev/admin-connections${query}`);

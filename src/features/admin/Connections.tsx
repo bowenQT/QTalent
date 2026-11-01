@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
@@ -178,15 +178,28 @@ function TaskCard({
   task,
   busy,
   onRetry,
+  focus = false,
 }: {
   task: TaskFailure;
   busy: boolean;
   onRetry: (() => void) | null;
+  /** The card that just re-queued takes focus: its 重试 button is gone. */
+  focus?: boolean;
 }) {
+  const card = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (focus) card.current?.focus();
+  }, [focus]);
   const by = `${sourceLabel[task.source]} · ${task.initiator.name}发起 · ${stampOf(task.failedAt)}`;
   if (task.state === 'queued')
     return (
-      <li className="n-card" data-state="queued" data-job={task.jobId}>
+      <li
+        ref={card}
+        className="n-card"
+        data-state="queued"
+        data-job={task.jobId}
+        tabIndex={-1}
+      >
         <div className="n-tfail__top">
           <Badge className="n-badge--proc" data-state="queued" icon="clock">
             已重新排队
@@ -240,10 +253,10 @@ const retryFailure: Record<
 > = {
   unauthenticated: '登录已过期，重新登录后再试',
   forbidden: '这一步由有权限的人处理，刷新页面查看当前权限',
-  not_found: '这个任务已不在，刷新页面查看最新状态',
+  not_found: '任务列表已更新，刷新页面查看最新状态',
   conflict: '任务状态已变化，刷新页面查看最新状态',
-  validation_error: '重试没有提交，刷新页面后再试',
-  unavailable: '暂时无法重试，稍后再试',
+  validation_error: '重试请求有误，刷新页面后再试',
+  unavailable: '任务服务暂时中断，稍后再试',
 };
 
 /**
@@ -260,6 +273,7 @@ export function Connections({
   const toast = useToast();
   const [tasks, setTasks] = useState(data.taskFailures);
   const [busy, setBusy] = useState<string | null>(null);
+  const [requeued, setRequeued] = useState<string | null>(null);
   const operations = useRef(new Map<string, string>());
 
   async function requeue(task: TaskFailure) {
@@ -293,6 +307,7 @@ export function Connections({
           : item,
       ),
     });
+    setRequeued(task.jobId);
     toast.show('已重新排队，处理结果会更新在这里');
   }
 
@@ -376,7 +391,7 @@ export function Connections({
           </small>
         </h2>
         {binds.status === 'not_connected' ? (
-          <Pending text="读取接通后，这里列出企业微信发送人没能对上人员目录的记录。" />
+          <Pending text="读取接通后，这里列出企业微信发送人待匹配人员目录的记录。" />
         ) : binds.data.items.length ? (
           <Table head={['时间', '发送人账号', '原因', '接下来']}>
             {binds.data.items.map((item, index) => (
@@ -418,6 +433,7 @@ export function Connections({
                 key={task.jobId}
                 task={task}
                 busy={busy === task.jobId}
+                focus={requeued === task.jobId}
                 onRetry={
                   retry && task.canRetry ? () => void requeue(task) : null
                 }

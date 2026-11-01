@@ -42,7 +42,7 @@ export const bindingText: Record<
     next: '让对方在北森补上企业微信账号；补上后下一条消息会自动匹配，这次的材料需要重新发送',
   },
   ambiguous: {
-    why: '对上了不止一个人，待确认是谁',
+    why: '对上了多个人，待确认是谁',
     next: '已转给 HR 负责人确认；确认后这个账号发来的材料才入库',
   },
   departed: {
