@@ -1,4 +1,6 @@
 /** Canonical pseudonym facts in the pre-899 physical schema; migration tests only. */
+import { hashPassword } from 'better-auth/crypto';
+import { user, account } from '../../src/server/auth/schema';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { createDatabase } from '../../src/server/db/client';
@@ -12,7 +14,10 @@ import * as talent from '../../src/server/modules/talent/schema';
 type Connection = ReturnType<typeof createDatabase>;
 
 /** Insert the verified baseline into the OLD physical schema, without calling the new seed importer. */
-export async function seedVerifiedLegacyBaseline(connection: Connection) {
+export async function seedVerifiedLegacyBaseline(
+  connection: Connection,
+  password?: string,
+) {
   const seed = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
   async function insert(table: PgTable, input: readonly object[]) {
     if (!input.length) return;
@@ -61,6 +66,28 @@ export async function seedVerifiedLegacyBaseline(connection: Connection) {
       validTo: null,
     })),
   );
+  if (password !== undefined) {
+    const passwordHash = await hashPassword(password);
+    await insert(
+      user,
+      seed.accounts.map((row) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        emailVerified: true,
+      })),
+    );
+    await insert(
+      account,
+      seed.accounts.map((row) => ({
+        id: 'credential-' + row.id,
+        accountId: row.id,
+        providerId: 'credential',
+        userId: row.id,
+        password: passwordHash,
+      })),
+    );
+  }
   await insert(
     directory.accountBindings,
     seed.accounts.map((row) => ({
