@@ -16,7 +16,7 @@ import { startPrototypeServer } from './prototype-server';
  *
  * Left out on purpose: the import bar's action group (import is not connected, so the
  * engineering side shows「导入待接通」next to the disabled button) and the bar's place
- * on screen (it is sticky to a viewport whose shell differs).
+ * on screen (it is sticky to a viewport whose shell differs, so it is put in flow).
  */
 const page = 'prototype/y/app/import.html';
 const pinned = manifest.files.some((file) => file.path === page);
@@ -41,6 +41,11 @@ async function open(
   await opened.goto(url);
   await opened.locator('#iv-rows').waitFor();
   await stabilize(opened);
+  // The sticky bar would cover a different part of the rows on each side (the shells
+  // differ in height); in flow it sits after the list on both.
+  await opened.addStyleTag({
+    content: '.n-ivbar { position: static !important; }',
+  });
   return opened;
 }
 
@@ -93,6 +98,8 @@ for (const [viewportName, viewport] of viewports)
           actual.locator(selector),
           testInfo,
           `${viewportName}-${name}`,
+          // The shells differ by half a pixel in height; compare from whole pixels.
+          { snap: true },
         );
     } finally {
       await referenceContext.close();

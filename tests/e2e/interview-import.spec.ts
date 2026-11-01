@@ -62,7 +62,7 @@ test('skipped, waiting to be identified and unread rows are told apart and handl
   ).toBeVisible();
 
   const skipped = page.locator('details.nt-fold');
-  await expect(skipped.locator('li')).toBeHidden();
+  await expect(skipped.locator('li').first()).toBeHidden();
   await skipped.locator('summary').click();
   await expect(skipped.locator('li')).toHaveText([
     /唐语桐.*北森状态：淘汰/,

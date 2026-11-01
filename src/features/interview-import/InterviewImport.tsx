@@ -80,10 +80,8 @@ export function InterviewImport({
       <header className="nt-head">
         <div>
           <h1>面评导入</h1>
-          <p>
-            {batch.file} · {batch.pageCount} 页 · {batch.uploadedBy}{' '}
-            {monthDayTime(batch.uploadedAt)} 上传 · 按版式读分
-          </p>
+          {/* One text node, as in the prototype: split nodes shape the line differently. */}
+          <p>{`${batch.file} · ${batch.pageCount} 页 · ${batch.uploadedBy} ${monthDayTime(batch.uploadedAt)} 上传 · 按版式读分`}</p>
         </div>
         <span className="n-rstate" data-s={batchLabel.s}>
           {batchLabel.label}
