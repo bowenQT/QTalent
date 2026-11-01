@@ -25,6 +25,7 @@
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
 | `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
+| `app/import.html`                 | `/import?id=…`                    | interview-import / （BOW-906 读取） | 面评导入预览 / records、directory            | 角色门禁已实现；预览读取待接通，样张 `/dev/import` |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
 | `app/review.html`                 | `/review?id=…`                    | review / review                     | review / talent                              | 后续 / 404     |
@@ -50,6 +51,31 @@
 | `m/me.html`                       | `/m/me`                           | mobile-account / mobile-account     | mobile-account / directory                   | 后续 / 404     |
 | `design-system.html`              | `/dev/design-system`              | 已移植基础组件                      | —                                            | 已实现开发样张 |
 | `404.html`                        | 全局 404                          | State                               | —                                            | 已实现         |
+
+## BOW-907 面评导入预览
+
+原型 `app/import.html`（BOW-898，#250，`81e4fd4`）还原到 `src/features/interview-import/`。BOW-906（导入决策，#277）和 BOW-900（解析，#257）不在 `main`，所以：
+
+- `/import?id=…` 在服务端按角色拦截：系统管理员看「这一页属于业务视角」，HR 以外看「面评导入由 HR 处理」，HR 看「面评预览待接通」；缺 `id` 写「导入链接失效」。页面不读取任何面评数据。
+- 预览、逐行确认、补录和放进待核对在开发样张 `/dev/import` 上运行，生产环境 404。演示数据取自原型 Y 种子 `imp-1`（化名，标「演示」）。
+- 视图模型 `model.ts` 镜像 906 的决策词汇和 900 的 `Selection` 三态。906 每行只给第一个阻塞原因，预览要同时显示一行的全部待办（面试官待核对和待补录可以并存），所以读取需要返回逐行事实，行状态在前端按原型顺序推导。906 合入后把镜像换成它的契约，映射不变：
+
+| 906 | 行状态 |
+| --- | --- |
+| `skipped / not_hired` | 将跳过（折叠在「跳过的 N 行」） |
+| `duplicate` | 已导入过（同上，带「这份文件 … 导入过一次」提示） |
+| `not_ready / candidate_directory_missing` | 待认人 → 已放进待核对 |
+| `needs_review`（`unknown_interviewer`） | 面试官待核对 |
+| `not_ready / parser_manual_input`（`unrecognized`） | 有分待补录，显示页面图并补录 |
+| `not_ready / candidate_match_unconfirmed` | 待确认是谁 |
+| `planned` | 已确认 |
+
+- 「返回后保留」：每次确认、补录、放进待核对都经端口 `ports.ts` 提交，端口返回存好的那一行；离开再回来，读取到的行已带上这些结果。样张端口把它们存在本标签页的 sessionStorage。
+- 待接通：导入已确认的行、撤销导入和导入记录（906 没有持久化和档案投影）。导入条上的按钮保持禁用，旁边写「导入待接通」。
+- 链接：「去核对」「关联面试官」「查看待核对」按原型链到 `/inbox#…`，待核对页上线前返回 404。
+- 和原型的差异：面包屑缺「工作台」上级（`route-nav` 别名属共享文件，已在 #248 登记）；导入条多一个「导入待接通」徽标。
+- 新增样式暂放 `src/features/interview-import/interview-import.css`，逐字取自原型 `niu-components.css`（`81e4fd4`），全局样式同步后删除。
+- 视觉对照 `tests/visual/interview-import.spec.ts`：固定参照 `91b297a` 早于 #250，没有 `app/import.html`，这个 spec 整体跳过，等 X1 更新 `prototype-reference.json` 后自动运行。
 
 ## BOW-851 找人契约
 
