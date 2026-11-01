@@ -22,7 +22,7 @@ if (
   throw new Error(
     'Expected an exact target commit and optional --prepare-only',
   );
-const sourceHead = '65e2ee2d406b9d88891662b2e2271673844a7e3f';
+const sourceHead = 'f9ca96fd5839a463566ce70f45286cefdd8ddaf3';
 const pgFile = 'src/server/modules/staffing/demand/service.integration.test.ts';
 const testFiles = [
   pgFile,
@@ -31,8 +31,10 @@ const testFiles = [
   'src/server/modules/staffing/demand/version.test.ts',
   'src/server/usecases/staffing-demand-runtime.test.ts',
   'src/worker/index.test.ts',
+  'src/server/queries/staffing-runtime.test.ts',
+  'src/server/jobs/runtime.test.ts',
 ];
-const expectedTotal = 44; // 30 unit + 14 real PostgreSQL cases, one coverage run.
+const expectedTotal = 56; // 42 unit + 14 real PostgreSQL cases, one coverage run.
 const migrationsEnvironment = 'BOW_852_TEST_MIGRATIONS_DIR';
 if (!prepareOnly) {
   if (process.env.GITHUB_ACTIONS !== 'true' || process.env.CI !== 'true')
@@ -135,6 +137,8 @@ try {
         '--coverage.include=src/server/modules/staffing/demand/*.ts',
         '--coverage.include=src/server/usecases/staffing-demand-runtime.ts',
         '--coverage.include=src/worker/index.ts',
+        '--coverage.include=src/server/queries/staffing-runtime.ts',
+        '--coverage.include=src/server/jobs/runtime.ts',
         '--reporter=json',
         `--outputFile=${reportPath}`,
       ],
@@ -174,6 +178,8 @@ try {
           'src/server/modules/staffing/demand/*.ts',
           'src/server/usecases/staffing-demand-runtime.ts',
           'src/worker/index.ts',
+          'src/server/queries/staffing-runtime.ts',
+          'src/server/jobs/runtime.ts',
         ],
         files: Object.entries(coverageSummary)
           .filter(([path]) => path !== 'total')
