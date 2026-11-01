@@ -1330,3 +1330,91 @@ describe('candidate suggestions preserve strict identity fields', () => {
     },
   );
 });
+
+
+describe('owner ruling: unique non-hired rows skip before HR identification', () => {
+  const statuses = ['rejected', 'offer_pending', 'offer_declined'] as const;
+  function unconfirmed(status: (typeof statuses)[number]) {
+    const input = facts();
+    input.candidates[0].status = status;
+    input.candidates[0].personId = null;
+    input.confirmedCandidateId = null;
+    input.confirmedForRowRevision = null;
+    input.confirmedInterviewerId = null;
+    input.rowSnapshot!.subjectPersonIds = [];
+    return input;
+  }
+  it.each(statuses)('skips uniquely matched %s without directory identity or confirmation', (status) => {
+    const input = unconfirmed(status);
+    const before = structuredClone(input);
+    expect(planInterviewImport(input)).toEqual({ status: 'skipped', reason: 'not_hired' });
+    expect(input).toStrictEqual(before);
+  });
+  it.each(statuses)('rechecks %s when an earlier unresolved identity item exists', (status) => {
+    const input = unconfirmed(status);
+    input.candidates = [];
+    input.pendingCandidate = candidateHeld(input).item;
+    input.candidates = unconfirmed(status).candidates;
+    expect(planInterviewImport(input)).toEqual({ status: 'skipped', reason: 'not_hired' });
+  });
+  it.each(['name', 'positionCode', 'interviewTime'] as const)('holds a non-hired row whose %s does not match', (key) => {
+    const input = unconfirmed('rejected');
+    input.candidates[0][key] = 'different';
+    candidateHeld(input);
+  });
+  it.each(['name', 'positionCode'] as const)('holds a non-hired row with missing %s', (key) => {
+    const input = unconfirmed('rejected');
+    input.observedIdentity![key] = null;
+    candidateHeld(input);
+  });
+  it.each([false, true])('does not collapse two matching recruitment records using a confirmed ID (%s)', (confirmed) => {
+    const input = unconfirmed('rejected');
+    input.candidates.push({ ...input.candidates[0], candidateId: 'second-application' });
+    if (confirmed) {
+      input.confirmedCandidateId = input.candidates[0].candidateId;
+      input.confirmedForRowRevision = input.rowSnapshot!.revision;
+    }
+    candidateHeld(input);
+  });
+  it.each(['expired', 'source', 'subjects', 'candidate-person', 'snapshot'] as const)('keeps the %s guard ahead of skipping', (change) => {
+    const input = unconfirmed('rejected');
+    if (change === 'expired') input.context.grants[0].validTo = input.context.now;
+    if (change === 'source') input.originalVersionId = 'other-original';
+    if (change === 'subjects') input.rowSnapshot!.subjectPersonIds = ['outside-scope'];
+    if (change === 'candidate-person') input.candidates[0].personId = 'outside-scope';
+    if (change === 'snapshot') input.rowSnapshot = null;
+    expect(planInterviewImport(input)).toEqual(change === 'source'
+      ? { status: 'not_ready', reason: 'pdf_source_unverified' }
+      : change === 'snapshot'
+        ? { status: 'not_ready', reason: 'row_snapshot_unavailable' }
+        : { status: 'forbidden' });
+  });
+  it('does not replace an existing imported evaluation with a skip', () => {
+    const input = unconfirmed('rejected');
+    input.rowSnapshot!.import = { state: 'imported', evaluationId: 'demo-existing', personId: 'p-x08' };
+    expect(planInterviewImport(input)).toEqual({ status: 'duplicate', evaluationId: 'demo-existing', batchId: input.batchId, rowId: input.rowId, resume: null });
+  });
+  it('re-evaluates current facts after withdrawal without reusing old HR confirmation', () => {
+    const input = unconfirmed('rejected');
+    input.rowSnapshot!.revision = 2;
+    input.rowSnapshot!.import = { state: 'withdrawn', previousRevision: 1, withdrawalAuditId: 'demo-withdrawal', withdrawnAt: '2026-10-31T11:59:00Z' };
+    expect(planInterviewImport(input)).toEqual({ status: 'skipped', reason: 'not_hired' });
+    input.candidates[0].status = 'hired';
+    input.candidates[0].personId = 'p-x08';
+    expect(planInterviewImport(input)).toEqual({ status: 'not_ready', reason: 'candidate_confirmation_stale' });
+    input.confirmedForRowRevision = 2;
+    input.confirmedCandidateId = input.candidates[0].candidateId;
+    input.confirmedInterviewerId = 'p-yeqing';
+    expect(planInterviewImport(input).status).toBe('planned');
+  });
+  it('does not treat an earlier skip decision as a permanent exclusion', () => {
+    const input = unconfirmed('offer_pending');
+    expect(planInterviewImport(input).status).toBe('skipped');
+    input.candidates[0].status = 'hired';
+    input.candidates[0].personId = 'p-x08';
+    candidateHeld(input);
+    input.confirmedCandidateId = input.candidates[0].candidateId;
+    input.confirmedForRowRevision = input.rowSnapshot!.revision;
+    expect(planInterviewImport(input).status).toBe('planned');
+  });
+});
