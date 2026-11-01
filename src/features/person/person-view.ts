@@ -35,7 +35,8 @@ export const isRecent = (day: string, asOf: string) =>
   day >= addDays(asOf, -90);
 
 const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-const newestFirst = (a: TimelineEntry, b: TimelineEntry) =>
+type Dated = { id: string; occurredOn: string };
+const newestFirst = (a: Dated, b: Dated) =>
   byCodePoint(b.occurredOn, a.occurredOn) || byCodePoint(a.id, b.id);
 
 /**
@@ -52,15 +53,18 @@ export function topFacts(entries: readonly TimelineEntry[]): KeyEvent[] {
     .slice(0, 3);
 }
 
-export type TimelineMonth = { label: string; entries: TimelineEntry[] };
+export type TimelineMonth<T extends Dated = TimelineEntry> = {
+  label: string;
+  entries: T[];
+};
 
 /** 按月分组、倒序；早于 asOf 所在年 1 月 1 日的归「更早」。 */
-export function timelineMonths(
-  entries: readonly TimelineEntry[],
+export function timelineMonths<T extends Dated>(
+  entries: readonly T[],
   asOf: string,
-): TimelineMonth[] {
+): TimelineMonth<T>[] {
   const yearStart = `${asOf.slice(0, 4)}-01-01`;
-  const months: TimelineMonth[] = [];
+  const months: TimelineMonth<T>[] = [];
   for (const entry of [...entries].sort(newestFirst)) {
     const label =
       entry.occurredOn < yearStart ? '更早' : monthLabel(entry.occurredOn);

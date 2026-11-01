@@ -13,6 +13,7 @@ import { personSchema } from '@/contracts/person';
 import { fixtures } from '../../../tests/fixtures/p0-contracts';
 import { Person } from './Person';
 import { OriginalScale } from './OriginalScale';
+import { NODE_RECORDS_NOT_CONNECTED, type NodeRecords } from './node-records';
 
 const [manager, mentor, hr] = fixtures.person;
 const loadSource = vi.fn(async () => ({
@@ -374,5 +375,135 @@ describe('records waiting for their read', () => {
     const { container } = show(mentor);
     expect(screen.queryByRole('list', { name: '待接入的记录' })).toBeNull();
     expect(container.textContent).not.toMatch(/待接入|节点结论|北森面评/);
+  });
+});
+
+describe('node records once their reads are connected', () => {
+  const source = {
+    fragmentId: 'test-node-source-001',
+    originalVersionId: 'test-node-version-001',
+    location: { kind: 'document' as const, page: 2, paragraph: 'p-1' },
+  };
+  const observation = (id: string) => ({
+    kind: 'management_observation' as const,
+    id,
+    occurredOn: '2026-08-20',
+    text: '最近两次站会都主动接了别人卡住的工单。',
+    authorName: '演示管理者',
+    recordedOn: '2026-08-21',
+    sources: [source],
+  });
+  const connected: NodeRecords = {
+    interviews: {
+      status: 'ready',
+      data: [
+        {
+          kind: 'interview',
+          id: 'test-interview-001',
+          title: '专业面试（北森）',
+          occurredOn: '2026-03-12',
+          interviewerName: '演示面试官',
+          interviewerUnconfirmed: true,
+          importedByName: '演示 HR',
+          importedOn: '2026-09-01',
+          scale: [
+            ['专业能力', 'B+'],
+            ['管理能力', '非管理岗免评'],
+            ['面试结论', '通过'],
+          ],
+          sources: [source],
+        },
+      ],
+    },
+    conclusions: {
+      status: 'ready',
+      data: [
+        {
+          kind: 'node_conclusion',
+          id: 'test-conclusion-node-001',
+          occurredOn: '2026-09-03',
+          nodeName: '试用期转正答辩',
+          conclusion: '建议转正',
+          basis: '两位评委都已确认本人评分。',
+          version: 2,
+          confirmedByName: '演示 HR',
+          sources: [source],
+        },
+      ],
+    },
+    observations: { status: 'not_connected' },
+  };
+  const withRecords = (data: PersonData, records: NodeRecords) =>
+    render(
+      <Person
+        data={personSchema.parse(data)}
+        nodeRecords={records}
+        loadSource={loadSource}
+      />,
+    );
+
+  it('puts connected kinds into the timeline and keeps the rest pending', () => {
+    const { container } = withRecords(manager, connected);
+    const interview = container.querySelector('#ev-test-interview-001');
+    expect(interview?.querySelector('.n-tl__title')?.textContent).toBe(
+      '专业面试（北森）',
+    );
+    // 面试官与导入人分开署名；条目日期是面试日期，导入日期写在署名里。
+    expect(interview?.querySelector('.n-tl__date')?.textContent).toBe('03-12');
+    expect(interview?.querySelector('.n-tl__meta')?.textContent).toContain(
+      '面试官 演示面试官（写的人待确认） · 演示 HR 09-01 导入',
+    );
+    expect(interview?.querySelector('.n-scale__tag')?.textContent).toBe(
+      '原量表 · 单独保存',
+    );
+    expect(interview?.querySelector('.n-score')).toBeNull();
+
+    const conclusion = container.querySelector('#ev-test-conclusion-node-001');
+    expect(conclusion?.querySelector('.n-tl__title')?.textContent).toBe(
+      '节点结论 · 建议转正',
+    );
+    expect(conclusion?.querySelector('.n-tl__meta')?.textContent).toContain(
+      '试用期转正答辩 · 演示 HR 09-03 确认 · 第 2 版',
+    );
+    expect(conclusion?.querySelector('.n-tl__meta')?.textContent).toMatch(
+      /· 人事动作另行办理$/,
+    );
+    expect(conclusion?.querySelector('.n-tl__note')?.textContent).toBe(
+      '两位评委都已确认本人评分。',
+    );
+
+    const list = screen.getByRole('list', { name: '待接入的记录' });
+    expect(list.textContent).toBe('独立管理观察 · 待接入');
+  });
+
+  it('shows an independent observation with who and when, and no score', () => {
+    const { container } = withRecords(
+      { ...hr, timeline: { status: 'empty' } },
+      {
+        ...NODE_RECORDS_NOT_CONNECTED,
+        observations: { status: 'ready', data: [observation('test-obs-1')] },
+      },
+    );
+    const item = container.querySelector('#ev-test-obs-1');
+    expect(item?.querySelector('.n-tl__meta')?.textContent).toContain(
+      '演示管理者 · 08-21 记录',
+    );
+    expect(item?.querySelector('.n-src--obs')).toBeTruthy();
+    expect(item?.querySelector('.n-tl__dot')?.className).toBe('n-tl__dot');
+    expect(item?.querySelector('.n-score, .n-scale')).toBeNull();
+  });
+
+  it('keeps the block state when the timeline itself is unknown', () => {
+    // HR 夹具的契约时间线是「未知」：节点记录不冒充完整的时间线。
+    const { container } = withRecords(hr, {
+      ...NODE_RECORDS_NOT_CONNECTED,
+      observations: { status: 'ready', data: [observation('test-obs-2')] },
+    });
+    expect(container.querySelector('#ev-test-obs-2')).toBeNull();
+  });
+
+  it('never shows them to the mentor even when passed', () => {
+    const { container } = withRecords(mentor, connected);
+    expect(container.textContent).not.toMatch(/节点结论|北森|待接入/);
   });
 });

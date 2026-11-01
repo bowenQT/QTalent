@@ -15,6 +15,7 @@ const devRoutes = [
   '/dev/design-system/general',
   '/dev/design-system/media',
   '/dev/design-system/talent',
+  '/dev/person-nodes',
 ];
 
 async function freePort() {
