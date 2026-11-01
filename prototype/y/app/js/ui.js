@@ -122,11 +122,12 @@
     [['xls', 'xlsx', 'csv'], 'sheet', '表格', '格'],
     [['mp3', 'm4a', 'wav', 'aac'], 'audio', '录音', '时'],
     [['mp4', 'mov', 'webm', 'm4v'], 'video', '视频', '时'],
+    [['png', 'jpg', 'jpeg', 'webp'], 'image', '图片', '图'],
   ];
   const ATT_SIZE = 2 * 1024 ** 3;
   UI.ATT_MAX = 10;
   UI.ATT_ACCEPT = ATT_KINDS.flatMap(([exts]) => exts.map((x) => `.${x}`)).join(',');
-  UI.ATT_TYPES = 'PDF、Word、PPT、Excel、TXT / MD、音频和视频';
+  UI.ATT_TYPES = 'PDF、Word、PPT、Excel、TXT / MD、图片、音频和视频';
   UI.attachKind = (name) => {
     const ext = (name.includes('.') ? name.split('.').pop() : '').toLowerCase();
     const k = ATT_KINDS.find(([exts]) => exts.includes(ext));
@@ -141,7 +142,7 @@
   UI.attachLoc = (name, unit) => {
     const h = [...name].reduce((a, c) => a + c.charCodeAt(0), 0);
     const t = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
-    return unit === '页' ? `第 ${2 + (h % 9)} 页` : unit === '段' ? `第 ${3 + (h % 12)} 段` : unit === '格' ? `「汇总」表 ${'BCDEF'[h % 5]}${4 + (h % 20)}`
+    return unit === '页' ? `第 ${2 + (h % 9)} 页` : unit === '段' ? `第 ${3 + (h % 12)} 段` : unit === '格' ? `「汇总」表 ${'BCDEF'[h % 5]}${4 + (h % 20)}` : unit === '图' ? `第 1 张图 · 第 ${2 + (h % 4)}–${4 + (h % 4)} 行`
       : `${t(180 + (h % 1500))}–${t(180 + (h % 1500) + 25)}`;
   };
   const attSize = (b) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
@@ -281,7 +282,7 @@
         ${proj ? html`<a class="n-badge" href="project.html?id=${proj.id}">${icon('folder')}${proj.type === 'XEngineer 课题' ? '课题' : '项目'}：${proj.name}</a>` : ''}${who}${roleNote}</div>
       <h3 class="n-event__title">${e.title}${e.kind !== 'hist' ? UI.cites(e.srcs) : ''}</h3>
       ${e.bg || e.act || e.res ? html`<dl class="n-event__sbar">${[['情境', e.bg], ['行为', e.act], ['影响', e.res]].map(([k, v]) => html`<dt>${k}</dt><dd>${v || html`<span class="nt-muted">待补充</span>`}</dd>`)}</dl>` : ''}
-      ${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${v}</span>`)}</div><div class="n-tl__note">保留原量表，不换算成 1–5 的维度分，也不参与象限。${e.srcs?.[0] ? ` 来源：${e.srcs[0].label} · ${e.srcs[0].loc}` : ''}</div>` : ''}
+      ${e.scale ? html`<div class="n-scale"><span class="n-scale__tag">原量表 · 单独保存</span>${e.scale.map(([k, v]) => html`<span class="${v === '非管理岗免评' ? 'is-na' : ''}">${k}${v === '非管理岗免评' ? ' · ' : ' '}${v}</span>`)}</div><div class="n-tl__note">原量表单独保存，和 1–5 的维度分、能力象限分开。${e.srcs?.[0] ? ` 来源：${e.srcs[0].label} · ${e.srcs[0].loc}` : ''}</div>` : ''}
       ${tags.length ? html`<div class="n-tags"><span class="n-tags__label">标签</span>${tags}</div>` : ''}
       ${scores.length ? (canScore ? html`<div class="n-event__scores">${scores.map((s) => UI.scoreLine(s, { hist: true }))}</div>` : html`<div class="n-event__scores">${UI.lock('本人视角已隐藏维度分')}</div>`) : ''}
     </article>`;
@@ -759,6 +760,63 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el && !document.querySelector('dialog[open]')) close(); });
     return { open, close, changed: () => {}, isOpen: () => !!el };
   })();
+
+
+  // ---------- 回执里的逐条确认：一件事一张卡，只能一条一条确认或改分，没有「全部确认」 ----------
+  // x = { ev, state: 'held' | 'ai' | 'confirmed', mine, verify }；held 的事要先在待核对里确认是谁
+  UI.receiptItem = (x) => {
+    const e = x.ev, pid = e.people[0], it = x.verify && st.get().inbox.find((i) => i.id === x.verify);
+    const who = pid ? html`${UI.avatar(pid, 'sm')}<b>${st.person(pid).name}</b>${UI.demo()}` : html`<span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span><b>${it ? it.q.replace(/[？?]$/, '').replace(/^.*?「(.+?)」.*$/, '「$1」') : '待核对'}</b>`;
+    const src = e.srcs[0] || {};
+    const merged = e.srcs.length > 1 ? html`<span class="n-badge">${icon('layers')}合成自 ${e.srcs.length} 份材料</span>` : '';
+    const confirmed = x.state === 'confirmed', by = confirmed && st.person(e.scores[0].by);
+    const done = (s) => ['confirmed', 'calibrated'].includes(s.st);
+    const scores = html`<div class="n-rcpt__scores">${e.scores.map((s, i) => html`<div class="n-rcpt__score" data-i="${i}"><span class="n-score__dim">${st.dim(s.d).name}</span>${UI.dotsInline(s.v, done(s) ? 'confirmed' : 'ai')}<b>${s.v}</b>${done(s) ? (s.ai != null && s.ai !== s.v ? html`<small>AI 原为 ${s.ai}${confirmed ? '' : ` · ${st.person(s.by)?.name || ''}已确认`}</small>` : confirmed ? '' : html`<small>${st.person(s.by)?.name || ''}已确认</small>`) : html`<span class="n-src n-src--ai">${icon('spark')}AI 建议</span>`}<small>${s.note || ''}</small></div>`)}</div>`;
+    let foot;
+    if (x.state === 'skipped') foot = html`<div class="n-rcpt__foot"><span class="nt-muted">已标为名单外的人：这件事只保留在原件里</span>${it && x.mine ? html`<a class="n-link" href="inbox.html#${it.id}" style="margin-left:auto">在待核对里改回</a>` : ''}</div>`;
+    else if (x.state === 'held') foot = html`<div class="n-rcpt__foot"><span class="nt-muted">先确认${it ? it.q.match(/「.+?」/)?.[0] || '这一处' : '这一处'}是谁，之后才整理这件事、给建议分</span>${it && x.mine ? html`<a class="n-btn n-btn--sm" href="inbox.html#${it.id}">去核对</a>` : ''}</div>`;
+    else if (confirmed) foot = html`<div class="n-rcpt__foot"><span class="n-block__sig">${by?.name || ''}</span><span class="nt-muted">${NT.md(e.scores[0].hist?.[0]?.at || NT.TODAY)} 确认，已进入档案</span></div>`;
+    else if (x.mine) foot = html`<div class="n-rcpt__foot"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-rc-ok="${e.id}">${icon('check')}确认这件事</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-rc-edit="${e.id}">${icon('pen')}改分</button><span class="nt-muted">确认后计入档案</span></div>`;
+    else foot = html`<div class="n-rcpt__foot"><span class="nt-muted">等${st.person(e.recorder)?.name || '评价人'}确认</span></div>`;
+    // 身份还没确定（待认人、名单外）：只给原件里的这一处，不显示 AI 草拟的标题和建议分
+    if (['held', 'skipped'].includes(x.state)) {
+      return html`<article class="n-card n-rcpt" data-state="${x.state}" id="rc-${e.id}">
+        <div class="n-rcpt__head">${who}<span class="n-badge">${icon('user')}${x.state === 'held' ? '待认人' : '名单外的人'}</span></div>
+        ${src.quote ? html`<p class="n-cite__quote n-rcpt__quote">${src.quote}<small>${src.label} · ${src.loc}</small></p>` : ''}
+        ${foot}
+      </article>`;
+    }
+    return html`<article class="n-card n-rcpt" data-state="${x.state}" id="rc-${e.id}">
+      <div class="n-rcpt__head">${who}${merged}</div>
+      <h4 class="n-rcpt__title">${e.title}${UI.cites(e.srcs)}</h4>
+      ${src.quote ? html`<p class="n-cite__quote n-rcpt__quote">${src.quote}<small>${src.label} · ${src.loc}</small></p>` : ''}
+      ${st.lateNote?.(e) ? html`<p class="nt-muted n-rcpt__late">${icon('info', 14)}<span>${st.lateNote(e)}</span></p>` : ''}
+      ${scores}
+      ${foot}
+    </article>`;
+  };
+  // 改分：每一维选 1–5，改了分要写一句理由
+  const editForm = (e) => html`<div class="n-rcpt__edit">${e.scores.map((s, i) => (['confirmed', 'calibrated'].includes(s.st) ? html`<div class="n-rcpt__editrow"><span>${st.dim(s.d).name}</span><b>${s.v} 分</b><small>${st.person(s.by)?.name || ''}已确认</small></div>` : html`<label class="n-rcpt__editrow"><span>${st.dim(s.d).name}</span><select class="n-input" data-rc-v="${i}" aria-label="${st.dim(s.d).name}的分数">${[1, 2, 3, 4, 5].map((v) => raw(`<option value="${v}"${v === s.v ? ' selected' : ''}>${v} 分</option>`))}</select><small>AI 建议 ${s.ai}</small></label>`))}
+    <label class="n-field"><span class="n-field__label">改分理由（改了分时必填）</span><textarea class="n-textarea" rows="2" data-rc-why placeholder="比如：评审表写明是两人一起做的，个人贡献按 3 分"></textarea></label>
+    <div class="nt-row"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-rc-save="${e.id}">保存并确认</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-rc-cancel>取消</button></div></div>`;
+  UI.wireReceipt = (host, rerender) => host.addEventListener('click', (ev) => {
+    const ok = ev.target.closest('[data-rc-ok]'), edit = ev.target.closest('[data-rc-edit]'), save = ev.target.closest('[data-rc-save]');
+    // 确认后只在提示条的 5 秒内可以撤销，之后只读
+    const done = (e, back, label) => {
+      rerender();
+      NT.toast(`已确认${st.person(e.people[0]).name}的这件事${label || ''}，已进入档案`, { undo: () => { const r = back(); rerender(); return r; }, undoneText: '已撤销，回到待确认', failText: '撤销失败：这件事的分已有新的处理，已保留当前结果' });
+    };
+    if (ok) { const e = st.event(ok.dataset.rcOk); done(e, st.receiptConfirm(e.id)); }
+    if (edit) { const card = edit.closest('.n-rcpt'), e = st.event(edit.dataset.rcEdit); card.querySelector('.n-rcpt__foot').outerHTML = String(editForm(e)); card.querySelector('select')?.focus(); }
+    if (ev.target.closest('[data-rc-cancel]')) rerender();
+    if (save) {
+      const card = save.closest('.n-rcpt'), e = st.event(save.dataset.rcSave);
+      const vals = new Map(NT.$$('[data-rc-v]', card).map((x) => [+x.dataset.rcV, +x.value])), why = card.querySelector('[data-rc-why]').value.trim();
+      const changed = [...vals].some(([i, v]) => v !== (e.scores[i].ai ?? e.scores[i].v));
+      if (changed && !why) { const t = card.querySelector('[data-rc-why]'); t.closest('.n-field').classList.add('is-error'); t.focus(); t.placeholder = '改了分，写一句理由'; return; }
+      done(e, st.receiptConfirm(e.id, vals, changed ? why : ''), changed ? '（已改分）' : '');
+    }
+  });
 
   // 重置演示数据：只清本浏览器里的演示状态，评审评论在服务器上不受影响
   NT.resetDemo = async () => {

@@ -86,3 +86,5 @@ export async function insertProject(
 export { projects, members, memberLogs, createRequests } from './schema';
 
 export { normalizeMembers, fingerprintSubmission } from './create-policy';
+export { createDemandService, DemandAccessError } from './demand/service';
+export { demandJobPolicy, runDemandGeneration } from './demand/job';

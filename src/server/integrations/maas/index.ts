@@ -7,6 +7,15 @@ import {
 } from './structured';
 export * from './structured';
 export { createMaasClient, MaasRequestNotSentError } from './client';
+export {
+  createModelinkMaasClient,
+  createModelinkMaasClientFromEnv,
+  createFakeModelinkMaas,
+  MODELINK_ENDPOINT,
+  MODELINK_MODEL,
+  type ModelinkMaasClient,
+  type ModelinkStructuredInput,
+} from './modelink';
 export const maasConfigSchema = z.object({
   endpoint: z.url().startsWith('https://'),
   apiKey: z.string().min(1),

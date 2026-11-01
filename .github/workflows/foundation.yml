@@ -64,6 +64,13 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm reference:prepare
+      - name: Verify deployment scripts
+        run: >-
+          node --test --test-concurrency=2 --experimental-test-coverage
+          '--test-coverage-include=deploy/*.mjs'
+          '--test-coverage-exclude=deploy/*.test.mjs'
+          --test-coverage-lines=85 --test-coverage-branches=85
+          deploy/*.test.mjs
       - run: pnpm check
         id: quality
       # 覆盖率门槛由 pnpm check 把关；Codecov 只展示，上传失败不影响检查结论。

@@ -24,6 +24,8 @@ const reference: SourceReference = {
 const original: Source = {
   ...reference,
   excerpt: '联调时能独立定位问题',
+  originalTitle: '合成观察表',
+  recordedByName: '演示记录人',
   sourceType: 'spreadsheet',
   sourceCategory: 'original',
   demo: true,
@@ -37,6 +39,8 @@ const baseline: Source = {
     originalLocation: '第 4 行',
   },
   excerpt: '评语按原意压缩后的一句话',
+  originalTitle: '合成基线',
+  recordedByName: null,
   sourceType: 'prototype_snapshot',
   sourceCategory: 'prototype_baseline',
   displayNotice: '原型基线 2e51b50，评语按原意压缩',
@@ -282,6 +286,8 @@ describe('SourceCite identity and focus', () => {
   const otherSource: Source = {
     ...other,
     excerpt: '另一条引用的原文',
+    originalTitle: '合成观察表',
+    recordedByName: null,
     sourceType: 'spreadsheet',
     sourceCategory: 'original',
     demo: true,
@@ -382,6 +388,8 @@ describe('SourceCite recordings', () => {
       success({
         ...recording,
         excerpt: '每个方案的验收标准都写清楚了',
+        originalTitle: '合成录音',
+        recordedByName: null,
         sourceType: 'recording',
         sourceCategory: 'original',
         demo: true,
