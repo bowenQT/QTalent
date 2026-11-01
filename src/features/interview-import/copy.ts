@@ -34,8 +34,18 @@ export const unreadReasonText: Record<UnreadReason, string> = {
 export const notApplicableText = '非管理岗免评';
 export const scaleTag = '原量表 · 单独保存';
 export const sentToast = '已放进待核对，北森同步后再确认是谁';
+/** Not hired: once in review, HR keeps the original only there and nothing is filed. */
+export const sentToastNotHired = '已放进待核对，在那里选「只保留原件」，不入档';
+export const unknownHired = '同步后再核对一次';
+export const unknownNotHired = '放进待核对后选「只保留原件」，不入档';
+export const skippedNote =
+  '确认是谁以后，淘汰和未入职的候选人跳过，只导入已入职的人';
 export const importPending = '导入待接通';
 export const actionFailed = '保存失败，已保留当前内容，请稍后再试';
+/** A fill-in HR chose that did not reach the server; it stays in the field. */
+export const unsavedFill = (item: string, value: string) =>
+  value ? `「${item}」选的 ${value} 还没保存` : `「${item}」的清空还没保存`;
+export const retrySave = '重试保存';
 
 /** `2026-09-04` or `2026-09-04T09:30` → `09-04`. */
 export const monthDay = (iso: string) => iso.slice(5, 10);

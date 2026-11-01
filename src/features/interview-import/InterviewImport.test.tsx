@@ -85,7 +85,8 @@ const rows: ImportRow[] = [
       reviewItemId: 'i-int',
     },
   }),
-  row('E', { candidateStatus: 'rejected', match: null }),
+  // 906 skips a rejected application once HR has confirmed who it is.
+  row('E', { candidateStatus: 'rejected', confirmed: true }),
   row('F', { duplicate: { importedOn: '2026-08-20' } }),
 ];
 
@@ -283,6 +284,89 @@ describe('InterviewImport', () => {
     ).toBe('/inbox#i-iv-C');
   });
 
+  it('asks who a not-hired candidate is before skipping, and says what review does with it', async () => {
+    const user = userEvent.setup();
+    const notHired = row('G', {
+      candidateStatus: 'offer_pending',
+      match: null,
+    });
+    const using = ports();
+    using.sendToReview.mockResolvedValueOnce({
+      status: 'ok',
+      row: sendToReview(notHired, 'i-iv-G'),
+    });
+    show(batch({ prior: null, rows: [notHired] }), using);
+    expect(card('G').dataset.state).toBe('unknown');
+    expect(
+      within(card('G')).getByText('北森 · 已发 offer · 未入职'),
+    ).toBeTruthy();
+    expect(card('G').textContent).toContain(
+      '北森状态是已发 offer · 未入职；放进待核对后选「只保留原件」，不入档',
+    );
+    await user.click(screen.getByRole('button', { name: '放进待核对' }));
+    expect(
+      await screen.findByText('已放进待核对，在那里选「只保留原件」，不入档'),
+    ).toBeTruthy();
+    expect(document.querySelector('details.nt-fold')).toBeNull();
+  });
+
+  it.each([
+    [
+      'refused',
+      (fill: ReturnType<typeof ports>['fill']) =>
+        fill.mockResolvedValueOnce({
+          status: 'conflict',
+          message: '这一行已变化，请刷新后再看',
+        }),
+      '这一行已变化，请刷新后再看',
+    ],
+    [
+      'failing',
+      (fill: ReturnType<typeof ports>['fill']) =>
+        fill.mockRejectedValueOnce(new Error('offline')),
+      '保存失败，已保留当前内容，请稍后再试',
+    ],
+  ] as const)(
+    'keeps a fill-in that was %s, marks it unsaved and saves it on retry',
+    async (_, fail, message) => {
+      const user = userEvent.setup();
+      const using = ports();
+      fail(using.fill);
+      show(batch(), using);
+      const select = within(card('B')).getByRole('combobox');
+      fireEvent.change(select, { target: { value: 'B' } });
+      expect(await screen.findByText(message)).toBeTruthy();
+      // The choice stays in the field, said to be unsaved; the row does not move on.
+      expect(select).toHaveProperty('value', 'B');
+      expect(within(card('B')).getByRole('alert').textContent).toBe(
+        '「系统设计」选的 B 还没保存 重试保存',
+      );
+      expect(card('B').dataset.state).toBe('unread');
+      expect(
+        within(card('B')).queryByRole('button', { name: '是候选人B' }),
+      ).toBeNull();
+      await user.click(
+        within(card('B')).getByRole('button', { name: '重试保存' }),
+      );
+      expect(using.fill).toHaveBeenLastCalledWith('b-1', 'B', '系统设计', 'B');
+      await waitFor(() => expect(card('B').dataset.state).toBe('confirm'));
+      expect(within(card('B')).queryByRole('alert')).toBeNull();
+    },
+  );
+
+  it('says an unsaved clearing apart from an unsaved choice', async () => {
+    const using = ports();
+    using.fill.mockRejectedValueOnce(new Error('offline'));
+    show(batch({ rows: [{ ...rows[1], filled: { 系统设计: 'A' } }] }), using);
+    fireEvent.change(within(card('B')).getByRole('combobox'), {
+      target: { value: '' },
+    });
+    expect((await within(card('B')).findByRole('alert')).textContent).toContain(
+      '「系统设计」的清空还没保存',
+    );
+    expect(card('B').dataset.state).toBe('confirm');
+  });
+
   it('keeps the rows and says so when a change is refused or fails', async () => {
     const user = userEvent.setup();
     const using = ports();
@@ -323,7 +407,9 @@ describe('InterviewImport', () => {
     show(
       batch({
         prior: null,
-        rows: [row('E', { candidateStatus: 'offer_declined', match: null })],
+        rows: [
+          row('E', { candidateStatus: 'offer_declined', confirmed: true }),
+        ],
       }),
     );
     expect(document.querySelector('.n-note')).toBeNull();
@@ -345,6 +431,7 @@ describe('InterviewImport', () => {
         <ImportRowCard
           row={row('F', { duplicate: { importedOn: '2026-08-20' } })}
           busy={false}
+          unsaved={{}}
           flash={false}
           on={on}
         />,

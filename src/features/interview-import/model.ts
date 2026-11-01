@@ -8,15 +8,24 @@
  * blocker of a row at once (a row can wait for its interviewer and a missing score), so
  * the read behind this page returns the facts and the state is derived here:
  *
- * | 906 plan                                        | row state           |
- * | ----------------------------------------------- | ------------------- |
- * | skipped / not_hired                             | skip                |
- * | duplicate                                       | dup                 |
- * | not_ready / candidate_directory_missing         | unknown → sent      |
- * | needs_review (unknown_interviewer)              | verify              |
- * | not_ready / parser_manual_input (unrecognized)  | unread              |
- * | not_ready / candidate_match_unconfirmed         | confirm             |
- * | planned (HR confirmation stored)                | confirmed           |
+ * | 906 plan (#277)                                         | row state         |
+ * | -------------------------------------------------------- | ----------------- |
+ * | duplicate                                                | dup               |
+ * | not_ready / parser_manual_input (unrecognized)           | unread            |
+ * | needs_review (unknown_interview_candidate), in directory | confirm           |
+ * | needs_review (unknown_interview_candidate), not found    | unknown → sent    |
+ * | not_ready / candidate_match_unconfirmed                  | confirm           |
+ * | skipped / not_hired (only once HR has confirmed)         | skip              |
+ * | needs_review (unknown_interviewer)                       | verify            |
+ * | planned (HR confirmation stored)                         | confirmed         |
+ *
+ * 906 asks who a row is before it looks at the application status: every row HR has not
+ * confirmed is a candidate review item, and a rejected or not-yet-joined candidate is
+ * skipped only after HR confirms the match. Nobody in the directory usually means such a
+ * candidate, so those rows wait to be identified (sent to review, kept as the original
+ * only there) instead of skipping by themselves. Whether they may skip before HR
+ * confirms is open with the owner (#248); only `rowState` would change.
+ * `skipped / original_only` is decided in the review list and never reaches the preview.
  *
  * Import itself (906 has no persistence or profile projection yet) is not part of this
  * model: no row is ever "imported" here.
@@ -126,9 +135,9 @@ export function unreadItems(row: ImportRow) {
 
 /** The first thing a row waits for, in the prototype's order. */
 export function rowState(row: ImportRow): RowState {
-  // A rejected application stays out even when the person is in the directory (906).
-  if (row.candidateStatus !== 'hired') return 'skip';
   if (row.duplicate) return 'dup';
+  // Confirmed and not hired: skipped, even when the directory has someone by that name.
+  if (row.confirmed && row.candidateStatus !== 'hired') return 'skip';
   if (!row.match) return row.reviewItemId ? 'sent' : 'unknown';
   if (row.interviewer.status === 'pending') return 'verify';
   if (unreadItems(row).length) return 'unread';

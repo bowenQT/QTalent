@@ -59,13 +59,22 @@ const withUnread: ImportRow = {
 };
 
 describe('rowState', () => {
-  it('skips every application that did not end in a hire, even with a directory match', () => {
+  it('skips an application that did not end in a hire once HR has confirmed who it is (906)', () => {
     for (const status of [
       'rejected',
       'offer_pending',
       'offer_declined',
-    ] as const)
-      expect(rowState({ ...base, candidateStatus: status })).toBe('skip');
+    ] as const) {
+      // Not yet confirmed: 906 asks who the row is first.
+      expect(rowState({ ...base, candidateStatus: status })).toBe('confirm');
+      expect(rowState({ ...base, candidateStatus: status, match: null })).toBe(
+        'unknown',
+      );
+      // Confirmed: skipped, even with someone by that name in the directory.
+      expect(
+        rowState({ ...base, candidateStatus: status, confirmed: true }),
+      ).toBe('skip');
+    }
   });
 
   it('marks an interview an earlier import already holds', () => {
@@ -123,7 +132,7 @@ describe('summarize and batchState', () => {
     },
     { ...base, rowId: 'r5', match: null },
     { ...base, rowId: 'r6', match: null, reviewItemId: 'i-6' },
-    { ...base, rowId: 'r7', candidateStatus: 'rejected' },
+    { ...base, rowId: 'r7', candidateStatus: 'rejected', confirmed: true },
     { ...base, rowId: 'r8', duplicate: { importedOn: '2026-08-20' } },
   ];
 
@@ -156,8 +165,12 @@ describe('row changes', () => {
     expect(confirmRow(confirmed, false).confirmed).toBe(false);
     expect(confirmRow(base, false)).toBe(base);
     expect(confirmRow(withUnread, true)).toBe(withUnread);
-    const skippedRow = { ...base, candidateStatus: 'rejected' } as const;
+    // Confirming who a rejected candidate is skips the row; it stays skipped.
+    const rejected = { ...base, candidateStatus: 'rejected' } as const;
+    const skippedRow = confirmRow(rejected, true);
+    expect(rowState(skippedRow)).toBe('skip');
     expect(confirmRow(skippedRow, true)).toBe(skippedRow);
+    expect(confirmRow(skippedRow, false)).toBe(skippedRow);
   });
 
   it('fills an unread item with one of its options; clearing it takes back the confirmation', () => {

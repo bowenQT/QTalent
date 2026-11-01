@@ -12,6 +12,8 @@ import {
   monthDayTime,
   pagesText,
   sentToast,
+  sentToastNotHired,
+  skippedNote,
 } from './copy';
 import {
   batchState,
@@ -40,6 +42,11 @@ export function InterviewImport({
   const [rows, setRows] = useState(batch.rows);
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [flash, setFlash] = useState<string | null>(null);
+  // Entries HR chose that the server has not stored yet, by row and item. They stay in
+  // the field after a failed save so nothing is lost, and never count as filled in.
+  const [unsaved, setUnsaved] = useState<
+    Readonly<Record<string, Readonly<Record<string, string>>>>
+  >({});
   const toast = useToast();
 
   async function run(
@@ -61,11 +68,25 @@ export function InterviewImport({
     });
     if (result.status !== 'ok') {
       toast.show(result.message);
-      return;
+      return false;
     }
     const row = result.row;
     setRows((current) => current.map((r) => (r.rowId === rowId ? row : r)));
     done?.(row);
+    return true;
+  }
+
+  async function fill(rowId: string, item: string, value: string) {
+    const keep = (entry: string | null) =>
+      setUnsaved((current) => {
+        const forRow = { ...current[rowId] };
+        if (entry === null) delete forRow[item];
+        else forRow[item] = entry;
+        return { ...current, [rowId]: forRow };
+      });
+    keep(value);
+    if (await run(rowId, () => ports.fill(batch.id, rowId, item, value)))
+      keep(null);
   }
 
   const states = rows.map((row) => ({ row, state: rowState(row) }));
@@ -119,6 +140,7 @@ export function InterviewImport({
             key={row.rowId}
             row={row}
             busy={busy.has(row.rowId)}
+            unsaved={unsaved[row.rowId] ?? {}}
             flash={flash === row.rowId}
             on={{
               confirm: (ok) =>
@@ -127,15 +149,17 @@ export function InterviewImport({
                   () => ports.confirm(batch.id, row.rowId, ok),
                   () => setFlash(ok ? row.rowId : null),
                 ),
-              fill: (item, value) =>
-                run(row.rowId, () =>
-                  ports.fill(batch.id, row.rowId, item, value),
-                ),
+              fill: (item, value) => fill(row.rowId, item, value),
               send: () =>
                 run(
                   row.rowId,
                   () => ports.sendToReview(batch.id, row.rowId),
-                  () => toast.show(sentToast),
+                  () =>
+                    toast.show(
+                      row.candidateStatus === 'hired'
+                        ? sentToast
+                        : sentToastNotHired,
+                    ),
                 ),
             }}
           />
@@ -145,9 +169,7 @@ export function InterviewImport({
         <details className="n-card nt-fold" style={{ marginTop: 'var(--s-4)' }}>
           <summary>
             <h3 className="n-section-title">跳过的 {out.length} 行</h3>
-            <span className="nt-muted">
-              淘汰和未入职的候选人跳过，只导入已入职的人
-            </span>
+            <span className="nt-muted">{skippedNote}</span>
             <Icon name="chev" />
           </summary>
           <ul className="nt-list" style={{ marginTop: 'var(--s-3)' }}>

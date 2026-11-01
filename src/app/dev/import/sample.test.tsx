@@ -30,8 +30,9 @@ describe('sample ports', () => {
     expect(restore(sampleBatch, null).rows.map(rowState)).toEqual([
       'confirm',
       'verify',
-      'skip',
-      'skip',
+      // Rejected and not yet joined: 906 asks who they are before it skips them.
+      'unknown',
+      'unknown',
       'confirm',
       'dup',
       'unknown',

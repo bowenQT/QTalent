@@ -7,8 +7,12 @@ import {
   candidateStatusLabel,
   monthDay,
   pagesText,
+  retrySave,
   stateBadge,
+  unknownHired,
+  unknownNotHired,
   unreadReasonText,
+  unsavedFill,
 } from './copy';
 import { rowState, type ImportRow } from './model';
 
@@ -25,12 +29,15 @@ export type RowActions = {
 export function ImportRowCard({
   row,
   busy,
+  unsaved,
   flash,
   on,
 }: {
   row: ImportRow;
   /** A change to this row is being saved. */
   busy: boolean;
+  /** Entries chosen here that the server has not stored yet, by item. */
+  unsaved: Readonly<Record<string, string>>;
   /** The row was just confirmed. */
   flash: boolean;
   on: RowActions;
@@ -79,8 +86,8 @@ export function ImportRowCard({
           <span>
             人员目录里查到 0 人
             <small>
-              北森状态是{candidateStatusLabel[row.candidateStatus]}
-              ；同步后再核对一次
+              北森状态是{candidateStatusLabel[row.candidateStatus]}；
+              {row.candidateStatus === 'hired' ? unknownHired : unknownNotHired}
             </small>
           </span>
         </div>
@@ -134,7 +141,7 @@ export function ImportRowCard({
               </span>
               <select
                 className="n-input"
-                value={row.filled[item] ?? ''}
+                value={unsaved[item] ?? row.filled[item] ?? ''}
                 disabled={busy}
                 onChange={(event) => on.fill(item, event.target.value)}
               >
@@ -144,6 +151,18 @@ export function ImportRowCard({
                 ))}
               </select>
             </label>
+            {item in unsaved && !busy ? (
+              <p className="nt-field-error" role="alert">
+                {unsavedFill(item, unsaved[item])}{' '}
+                <button
+                  type="button"
+                  className="n-link"
+                  onClick={() => on.fill(item, unsaved[item])}
+                >
+                  {retrySave}
+                </button>
+              </p>
+            ) : null}
           </div>
         ) : null,
       )}
