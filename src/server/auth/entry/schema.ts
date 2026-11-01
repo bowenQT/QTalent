@@ -66,7 +66,7 @@ export const agentApiBindings = pgTable(
     agentId: text('agent_id').notNull(),
     sessionId: text('session_id')
       .notNull()
-      .references(() => session.id),
+      .references(() => session.id, { onDelete: 'cascade' }),
   },
   (t) => [
     unique('entry_agent_session').on(t.agentId, t.sessionId),

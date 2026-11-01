@@ -16,3 +16,5 @@
 `persistent.integration.test.ts` 建立随机隔离 `_test` 数据库，默认运行正式迁移。当前正式游标尚未到 903；临时结构验证可仅向该测试进程传 `BOW_903_TEST_MIGRATIONS_DIR` 指向从当前 schema 原生生成的临时目录，目录先复制已发布 0000–0009，不改 SQL/meta。临时 SQL 不提交，默认 CI 不借该变量伪绿；正式迁移可用时退役覆盖入口。
 
 只使用合成人员/组织/凭据，覆盖三渠道当前绑定、换绑、撤销、过期、revision、可信连接元组、真实 Web 会话 owner/截止、异步等待后重新读取、数据库唯一/FK/check 与事务回滚。不存在真实供应商、生产 token 或生产绑定验收。
+
+`identity.current(capability)` 额外返回 `credentialRevision`（来自已逐项核验的当前凭据 revision），供入口消息账本记录真实签发代次；该字段与审计/批次的业务资源 revision 不同。它不是客户端可传字段。原 account/person/channel/credentialId 保持不变。

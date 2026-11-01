@@ -45,15 +45,13 @@ async function setup() {
   await c.db
     .insert(organizations)
     .values({ id, name: '演示组织', shortName: '演示' });
-  await c.db
-    .insert(people)
-    .values(
-      [personId, other].map((person) => ({
-        id: person,
-        name: '演示化名',
-        organizationId: id,
-      })),
-    );
+  await c.db.insert(people).values(
+    [personId, other].map((person) => ({
+      id: person,
+      name: '演示化名',
+      organizationId: id,
+    })),
+  );
   await c.db
     .insert(accountBindings)
     .values({ accountId, personId, isSystemAdmin: false });
@@ -379,4 +377,18 @@ it('does not observe uncommitted credential changes and honors rollback', async 
     }),
   ).rejects.toBe(failure);
   expect(await reader.verify(f.token)).toHaveProperty('accountId', f.accountId);
+});
+
+it('invalidates AgentAPI mapping on actual Web logout without blocking session deletion', async () => {
+  const f = await setup();
+  const reader = readers(f).agentapi;
+  expect(await reader.verify(true)).toHaveProperty('accountId', f.accountId);
+  await c.db.delete(session).where(eq(session.id, f.owner.sessionId));
+  await expect(reader.current(f.id)).rejects.toBeInstanceOf(EntryIdentityError);
+  expect(
+    await c.db
+      .select()
+      .from(agentApiBindings)
+      .where(eq(agentApiBindings.id, f.id)),
+  ).toEqual([]);
 });
