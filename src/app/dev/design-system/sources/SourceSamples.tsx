@@ -90,7 +90,7 @@ export function SourceSamples() {
             access="locked"
             lockedText="原文在你的查看范围之外"
           />
-          ；直接打开它的地址，
+          ；直接打开它的地址，看到的是
           <a
             className="n-link"
             href={sourceHref(
@@ -101,7 +101,7 @@ export function SourceSamples() {
               SAMPLE_VIEW,
             )}
           >
-            得到链接失效
+            「原件链接失效」
           </a>
           。
         </p>
