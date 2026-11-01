@@ -16,7 +16,9 @@ import { recordAudit } from '../platform/audit';
 vi.mock('../db/client', () => ({ getDatabase: () => ({}) }));
 vi.mock('../platform/audit', () => ({ recordAudit: vi.fn() }));
 beforeEach(() => {
-  vi.mocked(recordAudit).mockReset().mockResolvedValue(undefined);
+  vi.mocked(recordAudit)
+    .mockReset()
+    .mockResolvedValue('00000000-0000-4000-8000-000000000001');
 });
 const reference = {
   fragmentId: 'fragment-0',
@@ -239,10 +241,12 @@ describe('people, profile and shared sources', () => {
   });
   it('awaits audit persistence before resolving the profile', async () => {
     vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture());
-    let complete!: () => void;
-    const persistence = new Promise<void>((resolve) => {
-      complete = resolve;
-    });
+    let complete!: (id: Awaited<ReturnType<typeof recordAudit>>) => void;
+    const persistence = new Promise<Awaited<ReturnType<typeof recordAudit>>>(
+      (resolve) => {
+        complete = resolve;
+      },
+    );
     vi.mocked(recordAudit).mockReturnValue(persistence);
     let returned = false;
     const pending = readPersonForCurrentUser({ id: 'one' }).then((result) => {
@@ -251,7 +255,7 @@ describe('people, profile and shared sources', () => {
     });
     await vi.waitFor(() => expect(recordAudit).toHaveBeenCalledOnce());
     expect(returned).toBe(false);
-    complete();
+    complete('00000000-0000-4000-8000-000000000002');
     expect((await pending).status).toBe('success');
   });
   it('does not infer compatibility between rule versions', async () => {
