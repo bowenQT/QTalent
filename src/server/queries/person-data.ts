@@ -1,7 +1,7 @@
 import 'server-only';
-import type { Database } from '../db/client';
+import type { Database, Transaction } from '../db/client';
 import { loadEvaluationContext } from '../usecases/evaluation-context';
-import { readEvidenceForTalent } from '../modules/records';
+import { readEvidenceForTalent, arrangeInputs } from '../modules/records';
 import { readTalentEvaluationRules } from '../modules/evaluation-system';
 import { readActiveConfirmations } from '../modules/talent';
 import { employments } from '../modules/directory';
@@ -17,23 +17,35 @@ export async function loadPersonData(
   now: string,
 ) {
   return db.transaction(
-    async (tx) => {
-      const base = await loadEvaluationContext(tx, accountId, now);
-      const context: TalentAuthorizationContext = base.context;
-      return {
-        context,
-        directory: base.directory,
-        staffing: base.staffing,
-        ...(await readEvidenceForTalent(tx)),
-        ...(await readTalentEvaluationRules(tx)),
-        confirmations: await readActiveConfirmations(tx),
-        // Batch names and hire dates for the identity header.
-        cohorts: await tx.select().from(cohorts),
-        employments: await tx.select().from(employments),
-      };
-    },
+    (tx) => loadPersonDataInTransaction(tx, accountId, now),
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
   );
+}
+
+/** The caller owns the transaction and its snapshot. Authorization facts are
+ * read here, not accepted from an earlier actor or permission snapshot.
+ */
+export async function loadPersonDataInTransaction(
+  tx: Transaction,
+  accountId: string,
+  now: string,
+) {
+  const base = await loadEvaluationContext(tx, accountId, now);
+  const context: TalentAuthorizationContext = base.context;
+  return {
+    context,
+    directory: base.directory,
+    staffing: base.staffing,
+    ...(await readEvidenceForTalent(tx)),
+    ...(await readTalentEvaluationRules(tx)),
+    confirmations: await readActiveConfirmations(tx),
+    // Same caller-owned snapshot, before any person/source filtering.
+    // Superseded inputs and other creators remain provenance restrictions.
+    intakeInputs: await tx.select().from(arrangeInputs),
+    // Batch names and hire dates for the identity header.
+    cohorts: await tx.select().from(cohorts),
+    employments: await tx.select().from(employments),
+  };
 }
 export type PersonData = Awaited<ReturnType<typeof loadPersonData>>;
 export {
