@@ -1,9 +1,25 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { probeAudio, validateProbeOptions } from './audio-probe';
+import {
+  probeAudio,
+  probeVideoAudio,
+  validateProbeOptions,
+} from './audio-probe';
+
+const nativeCalls = vi.hoisted(() => [] as { args: readonly string[] }[]);
+vi.mock('node:child_process', async (original) => {
+  const actual = await original<typeof import('node:child_process')>();
+  return {
+    ...actual,
+    spawn: (...args: Parameters<typeof actual.spawn>) => {
+      nativeCalls.push({ args: [...(Array.isArray(args[1]) ? args[1] : [])] });
+      return actual.spawn(...args);
+    },
+  };
+});
 
 const binaries = {
   ffprobePath:
@@ -20,6 +36,7 @@ const binaries = {
 const options = { ...binaries, timeoutMs: 10000, maxDurationMs: 10000 };
 const directories: string[] = [];
 afterEach(async () => {
+  nativeCalls.length = 0;
   await Promise.all(
     directories.splice(0).map((p) => rm(p, { recursive: true, force: true })),
   );
@@ -246,5 +263,160 @@ describe('actual media demux and decoded-sample duration', () => {
     expect(() => validateProbeOptions({ ...options, ...bad })).toThrow(
       'invalid_audio_probe_config',
     );
+  });
+});
+
+/** Different video lengths, identical short synthetic audio. No private media. */
+async function video(
+  audioTracks = 1,
+  seconds = '1',
+  extension = 'mp4',
+  videoTracks = 1,
+) {
+  const input = await file(wave());
+  const output = join(input, '..', `synthetic-video.${extension}`);
+  const result = spawnSync(
+    binaries.ffmpegPath,
+    [
+      '-nostdin',
+      '-v',
+      'error',
+      '-threads',
+      '1',
+      '-filter_threads',
+      '1',
+      '-f',
+      'lavfi',
+      '-i',
+      `color=c=black:s=16x16:r=10:d=${seconds}`,
+      '-i',
+      input,
+      ...Array.from({ length: videoTracks }, () => ['-map', '0:v:0']).flat(),
+      ...Array.from({ length: audioTracks }, () => ['-map', '1:a:0']).flat(),
+      '-c:v',
+      'mpeg4',
+      '-c:a',
+      'aac',
+      '-threads',
+      '1',
+      '-y',
+      output,
+    ],
+    { timeout: 10000, maxBuffer: 65536 },
+  );
+  expect(result.error).toBeUndefined();
+  expect(result.status).toBe(0);
+  return { path: output, bytes: await readFile(output) };
+}
+
+describe('explicit video lane decodes only the sole audio track', () => {
+  it('rejects multiple timed video tracks rather than silently narrowing the original', async () => {
+    const input = await video(1, '1', 'mp4', 2);
+    await expect(
+      probeVideoAudio(input.path, input.bytes.length, options),
+    ).rejects.toMatchObject({ code: 'invalid_archive' });
+  });
+
+  it('measures the audio samples rather than the longer video duration', async () => {
+    const a = await video(1, '1');
+    const b = await video(1, '2');
+    const first = await probeVideoAudio(a.path, a.bytes.length, options);
+    const second = await probeVideoAudio(b.path, b.bytes.length, options);
+    expect(first).toEqual(second);
+    const decodes = nativeCalls.filter(({ args }) =>
+      args.includes('pcm_s16le'),
+    );
+    expect(decodes).toHaveLength(2);
+    for (const { args } of decodes) {
+      expect(args.slice(0, args.indexOf('-i'))).toContain('-vn');
+      expect(args.slice(args.indexOf('-i') + 1)).toContain('-vn');
+      expect(
+        args.slice(args.indexOf('-map'), args.indexOf('-map') + 2),
+      ).toEqual(['-map', '0:1']);
+      expect(args.slice(-3)).toEqual(['-f', 's16le', 'pipe:1']);
+    }
+    expect(first.format).toBe('mp4');
+    expect(first.durationMs).toBeGreaterThanOrEqual(100);
+    expect(first.durationMs).toBeLessThanOrEqual(228);
+    // The same bytes remain invalid for the legacy audio-only application lane.
+    await expect(
+      probeAudio(a.path, a.bytes.length, options),
+    ).rejects.toMatchObject({ code: 'invalid_archive' });
+  });
+  it.each([0, 2])(
+    'rejects %i audio tracks instead of choosing or inventing one',
+    async (count) => {
+      const input = await video(count);
+      await expect(
+        probeVideoAudio(input.path, input.bytes.length, options),
+      ).rejects.toMatchObject({ code: 'invalid_archive' });
+    },
+  );
+  it('rejects audio-only material presented as video', async () => {
+    const input = await transcode('m4a', 'aac');
+    await expect(
+      probeVideoAudio(input.path, input.bytes.length, options),
+    ).rejects.toMatchObject({ code: 'invalid_archive' });
+    const bytes = wave();
+    await expect(
+      probeVideoAudio(await file(bytes), bytes.length, options),
+    ).rejects.toMatchObject({ code: 'invalid_archive' });
+  });
+  it('rejects a QuickTime container instead of labelling every MOV-family input MP4', async () => {
+    const input = await video(1, '1', 'mov');
+    await expect(
+      probeVideoAudio(input.path, input.bytes.length, options),
+    ).rejects.toMatchObject({ code: 'invalid_archive' });
+  });
+  it('fails on bad size, truncated video or decoded audio over budget', async () => {
+    const input = await video();
+    await expect(
+      probeVideoAudio(input.path, input.bytes.length + 1, options),
+    ).rejects.toMatchObject({ code: 'invalid_archive' });
+    const truncated = input.bytes.subarray(0, input.bytes.length / 2);
+    await expect(
+      probeVideoAudio(await file(truncated), truncated.length, options),
+    ).rejects.toMatchObject({ code: 'invalid_archive' });
+    await expect(
+      probeVideoAudio(input.path, input.bytes.length, {
+        ...options,
+        maxDurationMs: 99,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_archive' });
+  });
+  it('cancels video inspection and has no fallback for missing tools', async () => {
+    const input = await video();
+    await expect(
+      probeVideoAudio(
+        input.path,
+        input.bytes.length,
+        options,
+        AbortSignal.abort(),
+      ),
+    ).rejects.toMatchObject({ code: 'provider_unavailable' });
+    await expect(
+      probeVideoAudio(input.path, input.bytes.length, {
+        ...options,
+        ffmpegPath: '/does-not-exist/q859-ffmpeg',
+      }),
+    ).rejects.toMatchObject({ code: 'provider_unavailable' });
+  });
+});
+
+it('rejects trailing bytes tolerated by the decoder but outside the declared RIFF', async () => {
+  const bytes = Buffer.concat([
+    wave(),
+    Buffer.from('unaccounted-trailing-bytes'),
+  ]);
+  const path = await file(bytes);
+  const ordinaryDecode = spawnSync(
+    binaries.ffmpegPath,
+    ['-nostdin', '-v', 'error', '-threads', '1', '-i', path, '-f', 'null', '-'],
+    { timeout: 10000, maxBuffer: 65536 },
+  );
+  expect(ordinaryDecode.error).toBeUndefined();
+  expect(ordinaryDecode.status).toBe(0);
+  await expect(probeAudio(path, bytes.length, options)).rejects.toMatchObject({
+    code: 'invalid_archive',
   });
 });

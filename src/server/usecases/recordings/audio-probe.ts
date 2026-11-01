@@ -29,7 +29,11 @@ const metadataSchema = z.object({
     )
     .min(1)
     .max(16),
-  format: z.object({ format_name: z.string(), size: z.string() }),
+  format: z.object({
+    format_name: z.string(),
+    size: z.string(),
+    tags: z.object({ major_brand: z.string().optional() }).optional(),
+  }),
 });
 const inputOptions = [
   '-threads',
@@ -65,7 +69,7 @@ export function validateProbeOptions(options: AudioProbeOptions) {
     throw new Error('invalid_audio_probe_config');
 }
 
-/** Reject a truncated RIFF even if a decoder tolerates its inconsistent chunk sizes. */
+/** Check exact RIFF boundaries, including trailing bytes a decoder may ignore. */
 async function validateWave(path: string, byteLength: number) {
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
@@ -169,14 +173,49 @@ async function run(
   }
 }
 
-/** Actual demux + decode of a verified local file. Duration is decoded samples,
- * not duration tags, timestamps, filenames or a caller-supplied duration. */
-export async function probeAudio(
+/** The audio-only application lane must continue rejecting timed video. */
+export function probeAudio(
   path: string,
   byteLength: number,
   options: AudioProbeOptions,
   externalSignal?: AbortSignal,
 ): Promise<Pick<InspectedAudio, 'format' | 'durationMs'>> {
+  return probeMedia(path, byteLength, options, 'audio', externalSignal);
+}
+
+/** Real video bytes, audio samples only. This grants no upload or processing authority.
+ * The 873 video handoff must select this path explicitly; never relabel video as M4A. */
+export function probeVideoAudio(
+  path: string,
+  byteLength: number,
+  options: AudioProbeOptions,
+  externalSignal?: AbortSignal,
+): Promise<{ format: 'mp4'; durationMs: number }> {
+  return probeMedia(path, byteLength, options, 'video', externalSignal);
+}
+function probeMedia(
+  path: string,
+  byteLength: number,
+  options: AudioProbeOptions,
+  kind: 'audio',
+  externalSignal?: AbortSignal,
+): Promise<Pick<InspectedAudio, 'format' | 'durationMs'>>;
+function probeMedia(
+  path: string,
+  byteLength: number,
+  options: AudioProbeOptions,
+  kind: 'video',
+  externalSignal?: AbortSignal,
+): Promise<{ format: 'mp4'; durationMs: number }>;
+/** Actual demux + decode of a verified local file. Duration is decoded audio samples,
+ * never container/video duration, timestamps, filenames or caller declarations. */
+async function probeMedia(
+  path: string,
+  byteLength: number,
+  options: AudioProbeOptions,
+  kind: 'audio' | 'video',
+  externalSignal?: AbortSignal,
+): Promise<{ format: InspectedAudio['format'] | 'mp4'; durationMs: number }> {
   validateProbeOptions(options);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs);
@@ -191,7 +230,7 @@ export async function probeAudio(
         'error',
         ...inputOptions,
         '-show_entries',
-        'stream=index,codec_type,codec_name,sample_rate,channels:stream_disposition=attached_pic:format=format_name,size',
+        'stream=index,codec_type,codec_name,sample_rate,channels:stream_disposition=attached_pic:format=format_name,size:format_tags=major_brand',
         '-of',
         'json',
         '-i',
@@ -212,12 +251,20 @@ export async function probeAudio(
     if (!parsed.success) throw invalid();
     const { streams, format } = parsed.data;
     const audio = streams.filter((stream) => stream.codec_type === 'audio');
+    const video = streams.filter(
+      (stream) =>
+        stream.codec_type === 'video' && stream.disposition.attached_pic === 0,
+    );
     if (
       audio.length !== 1 ||
+      (kind === 'video' && video.length !== 1) ||
       streams.some(
         (s) =>
           s.codec_type !== 'audio' &&
-          !(s.codec_type === 'video' && s.disposition.attached_pic === 1),
+          !(
+            s.codec_type === 'video' &&
+            (kind === 'video' || s.disposition.attached_pic === 1)
+          ),
       ) ||
       !/^\d+$/.test(format.size) ||
       Number(format.size) !== byteLength ||
@@ -230,8 +277,20 @@ export async function probeAudio(
     )
       throw invalid();
     const name = format.format_name;
-    let detected: InspectedAudio['format'];
-    if (name === 'wav' || name === 'mp3' || name === 'aac') detected = name;
+    let detected: InspectedAudio['format'] | 'mp4';
+    if (kind === 'video') {
+      // FFprobe's MOV-family name also covers QuickTime and 3GP. Require an
+      // explicit supported MP4 brand; container names/extensions alone do not suffice.
+      if (
+        name !== 'mov,mp4,m4a,3gp,3g2,mj2' ||
+        !['isom', 'iso2', 'mp41', 'mp42', 'avc1', 'M4V '].includes(
+          format.tags?.major_brand ?? '',
+        )
+      )
+        throw invalid();
+      detected = 'mp4';
+    } else if (name === 'wav' || name === 'mp3' || name === 'aac')
+      detected = name;
     else if (name === 'mov,mp4,m4a,3gp,3g2,mj2') detected = 'm4a';
     else throw invalid();
     if (detected === 'wav') await validateWave(path, byteLength);
@@ -252,6 +311,11 @@ export async function probeAudio(
         '-err_detect',
         'explode',
         ...inputOptions,
+        // Input-side disables video decoding/selection; output-side below
+        // independently prohibits frames even with an explicit map.
+        '-vn',
+        '-sn',
+        '-dn',
         '-i',
         'fd:',
         '-map',
