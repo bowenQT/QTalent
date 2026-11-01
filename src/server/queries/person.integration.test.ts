@@ -201,7 +201,11 @@ it('projects actual pinned seed observations and ended project participation', a
       for (const item of profile.timeline.data.filter(
         (row) => row.kind === 'history',
       ))
-        expect(item.category).toBe('evaluation');
+        expect(item.category).toBe(
+          item.title.startsWith('结营评审')
+            ? 'restricted-evaluation'
+            : 'evaluation',
+        );
     }
     const mentorData = await loadPersonData(
       seeded.db,

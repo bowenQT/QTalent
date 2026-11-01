@@ -25,6 +25,10 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # id-token 只用于向 Codecov 证明上传来自本仓库的 CI，不需要保存上传令牌。
+    permissions:
+      contents: read
+      id-token: write
     services:
       postgres:
         image: postgres:17
@@ -62,6 +66,13 @@ jobs:
       - run: pnpm reference:prepare
       - run: pnpm check
         id: quality
+      # 覆盖率门槛由 pnpm check 把关；Codecov 只展示，上传失败不影响检查结论。
+      - uses: codecov/codecov-action@v7
+        with:
+          files: coverage/lcov.info
+          disable_search: true
+          use_oidc: true
+          fail_ci_if_error: false
       - run: pnpm test:e2e
       - run: pnpm test:visual
         if: ${{ !cancelled() && steps.quality.outcome == 'success' }}

@@ -92,6 +92,7 @@ export const sourceLabelSchema = z.enum([
 export const contentCategorySchema = z.enum([
   'evaluation',
   'management-observation',
+  'restricted-evaluation',
   'performance',
   'quadrant',
 ]);

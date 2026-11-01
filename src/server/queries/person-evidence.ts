@@ -9,6 +9,7 @@ import {
 import { type PersonData, eventSubject, sourceKey } from './person-data';
 import { byCodePoint, byPinyin } from './person-identity';
 import { sourceFromData } from './sources';
+import { historicalEvaluationRequiredKind } from './historical-evaluation-policy';
 
 type Ready<T> = T extends { status: 'ready'; data: infer D } ? D : never;
 type Variant = Extract<Person, { role: 'manager' | 'hr' }>;
@@ -17,7 +18,8 @@ export type KeyEvent = Extract<TimelineEntry, { kind: 'key_event' }>;
 export type AiInference = Ready<Variant['aiInferences']>[number];
 type EventScore = KeyEvent['scores'][number];
 type Confirmed = Extract<EventScore, { state: 'confirmed' }>;
-type Category = 'evaluation' | 'management-observation';
+type Category =
+  'evaluation' | 'management-observation' | 'restricted-evaluation';
 type Dimension = PersonData['dimensions'][number];
 
 /** An effective, non-conflicting confirmed score on a readable event. Every
@@ -66,10 +68,27 @@ const pluck = (reference: {
   originalVersionId: string;
   location: KeyEvent['sources'][number]['location'];
 }) => ({ ...refOf(reference), location: reference.location });
-const restricts = (sources: TalentSource[], reference: object) =>
+const restricts = (
+  sources: TalentSource[],
+  reference: object,
+  kind: 'management-observation' | 'restricted-evaluation',
+) =>
   sources
     .find((source) => sourceKey(source) === sourceKey(reference as never))
-    ?.requiredKinds?.includes('management-observation') ?? false;
+    ?.requiredKinds?.includes(kind) ?? false;
+// Preserve the current source classification in the response as well. Every
+// contributing source still passes all of its requiredKinds in projectTalentRecord.
+const categoryOf = (
+  sources: TalentSource[],
+  references: object[],
+  management = false,
+): Category =>
+  management ||
+  references.some((ref) => restricts(sources, ref, 'management-observation'))
+    ? 'management-observation'
+    : references.some((ref) => restricts(sources, ref, 'restricted-evaluation'))
+      ? 'restricted-evaluation'
+      : 'evaluation';
 const newestFirst = (
   a: { occurredOn: string; id: string },
   b: { occurredOn: string; id: string },
@@ -126,10 +145,11 @@ function visibleStatements(
         text: projected.fields.text,
         kind: statement.kind,
         occurredOn: event.occurredOn,
-        category:
-          kind === 'management-observation' || restricts(sources, statement)
-            ? ('management-observation' as const)
-            : ('evaluation' as const),
+        category: categoryOf(
+          sources,
+          [statement],
+          kind === 'management-observation',
+        ),
         sources: projected.sources.map(pluck),
       },
     ];
@@ -159,11 +179,11 @@ export async function collectEvidence(
     const statements = data.statements.filter(
       (row) => row.eventId === event.id,
     );
-    const category: Category =
-      statements.some((row) => row.kind === 'management_observation') ||
-      references.some((reference) => restricts(sources, reference))
-        ? 'management-observation'
-        : 'evaluation';
+    const category = categoryOf(
+      sources,
+      references,
+      statements.some((row) => row.kind === 'management_observation'),
+    );
     const subject = eventSubject(data, event);
     const others = data.participants
       .filter((row) => row.eventId === event.id)
@@ -286,9 +306,15 @@ export async function collectEvidence(
         scores.push({
           state: 'conflict',
           ...label,
-          ratings: rated.map(
-            ({ state, dimensionId, dimensionLabel, ...rating }) => rating,
-          ),
+          ratings: rated.map((score) => ({
+            scoreId: score.scoreId,
+            value: score.value,
+            anchor: score.anchor,
+            scoredByName: score.scoredByName,
+            ruleVersionId: score.ruleVersionId,
+            sourceCategory: score.sourceCategory,
+            sources: score.sources,
+          })),
         });
         continue;
       }
@@ -349,17 +375,19 @@ export async function collectEvidence(
       .filter((item) => item.evaluationId === row.id)
       .map((item) => item.personId);
     if (row.personId !== personId && !members.includes(personId)) return [];
+    const category = historicalEvaluationRequiredKind(row);
+    if (!category) return [];
     const reference = refOf(row);
     const projected = projectTalentRecord(
       data.context,
       {
         id: row.id,
         subject: { personId, cohortId: null },
-        kind: 'evaluation',
+        kind: category,
         fields: [
           {
             name: 'kind',
-            kind: 'evaluation',
+            kind: category,
             value: row.kind,
             subjects: [...members, ...(row.personId ? [row.personId] : [])]
               .filter((id) => id !== personId)
@@ -379,7 +407,7 @@ export async function collectEvidence(
         title: row.period ? `${row.kind} · ${row.period}` : row.kind,
         occurredOn: row.occurredOn,
         label: 'history' as const,
-        category: 'evaluation' as const,
+        category,
         sources: projected.sources.map(pluck),
         scale: row.scale,
       },

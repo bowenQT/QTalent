@@ -494,6 +494,7 @@ describe('mentor guards and the display label / category split', () => {
   it('requires evaluation content in every mentor block', () => {
     for (const category of [
       'management-observation',
+      'restricted-evaluation',
       'performance',
       'quadrant',
     ]) {
@@ -523,6 +524,7 @@ describe('mentor guards and the display label / category split', () => {
     for (const category of [
       'evaluation',
       'management-observation',
+      'restricted-evaluation',
       'performance',
       'quadrant',
     ]) {
