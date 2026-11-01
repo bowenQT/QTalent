@@ -62,6 +62,7 @@ function fixture() {
     },
     itemRevisions: { 'item-0': 1, 'item-1': 1 },
     otherReviewItemIds: [],
+    otherBlockingReviewItemIds: [],
     derived: { bindingRevision: 1, draftIds: [], confirmedResultIds: [] },
   };
   const authority: SpeakerBindingAuthority = {
@@ -314,16 +315,20 @@ it.each([
     f.snapshot.transcript.originalVersionId = 'another-version';
   if (mode === 'wrong_binding') f.snapshot.context.bindingRevision = 8;
   if (mode === 'unknown_derived') f.snapshot.derived = null;
-  expect(() => planSpeakerBinding(f)).toThrow();
+  expect(() => planSpeakerBinding(f)).toThrow(
+    expect.objectContaining({ code: 'conflict' }),
+  );
 });
 it('其他review种类仍阻塞；完整片段不意味着当前原件/处理许可成立', () => {
   const f = fixture();
   f.snapshot.transcript.fragments[1]!.providerSpeakerId = 'speaker-a';
   f.snapshot.otherReviewItemIds = ['image-review'];
+  f.snapshot.otherBlockingReviewItemIds = ['image-review'];
   const result = planSpeakerBinding(f);
   expect(result.resume).toBeNull();
   expect(result.receipt.remainingReviewItemIds).toEqual(['image-review']);
   f.snapshot.otherReviewItemIds = [];
+  f.snapshot.otherBlockingReviewItemIds = [];
   f.snapshot.context.canProcess = false;
   expect(planSpeakerBinding(f).resume).toBeNull();
 });
@@ -454,4 +459,66 @@ it('已有另一语段绑定已越出当前候选时，不得因最后一个合�
   expect(() =>
     planSpeakerBinding({ ...f, command: { ...f.command, itemId: 'item-1' } }),
   ).toThrow(/候选范围/);
+});
+
+it('最终897回执带真实材料、接受的动作和本材料未解决阻塞项', () => {
+  const f = fixture();
+  const plan = planSpeakerBinding(f);
+  expect(plan.receipt).toMatchObject({
+    materialId: 'material-a',
+    resolution: { action: 'bind', personId: 'demo-a' },
+    remainingReviewItemIds: ['item-1'],
+    blockingReviewItemIds: ['item-1'],
+    resume: null,
+  });
+});
+it('无关剩余项保留在回执但不扣住已全部核定的本材料', () => {
+  const f = fixture();
+  f.snapshot.transcript.fragments[1]!.providerSpeakerId = 'speaker-a';
+  f.snapshot.otherReviewItemIds = ['unrelated-image-review'];
+  const plan = planSpeakerBinding(f);
+  expect(plan.receipt.remainingReviewItemIds).toEqual([
+    'unrelated-image-review',
+  ]);
+  expect(plan.receipt.blockingReviewItemIds).toEqual([]);
+  expect(plan.resume?.work.jobId).toBe('job-a');
+});
+it.each([null, undefined, ['not-remaining'], ['image-review', 'image-review']])(
+  '本材料阻塞事实未知或不是剩余项的唯一子集时冲突：%j',
+  (blockers) => {
+    const f = fixture();
+    f.snapshot.otherReviewItemIds = ['image-review'];
+    Object.assign(f.snapshot, { otherBlockingReviewItemIds: blockers });
+    expect(() => planSpeakerBinding(f)).toThrow(
+      expect.objectContaining({ code: 'conflict' }),
+    );
+  },
+);
+it('完整来源的requiredKind也必须有当前读取许可，不能只核主kind', () => {
+  const f = fixture();
+  f.authority.context.account.personId = 'judge';
+  f.authority.actor.id = 'judge';
+  f.authority.context.grants = [];
+  f.authority.context.evaluationRelations = [
+    {
+      id: 'relation-a',
+      evaluationNodeId: 'node-a',
+      personId: 'demo-a',
+      evaluatorId: 'judge',
+      kind: 'judge',
+      validFrom: '2026-01-01',
+      validTo: null,
+      revokedAt: null,
+    },
+  ];
+  expect(
+    projectSpeakerBindings(f.snapshot, f.authority, f.accountId).items,
+  ).toHaveLength(2);
+  f.snapshot.requiredKinds = ['management-observation'];
+  expect(() =>
+    projectSpeakerBindings(f.snapshot, f.authority, f.accountId),
+  ).toThrow(expect.objectContaining({ code: 'forbidden' }));
+  expect(() => planSpeakerBinding(f)).toThrow(
+    expect.objectContaining({ code: 'forbidden' }),
+  );
 });

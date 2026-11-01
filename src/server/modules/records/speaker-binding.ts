@@ -48,8 +48,11 @@ export interface SpeakerBindingSnapshot {
   bindings: RecordingBindings;
   context: RecordingContext;
   itemRevisions: Record<string, number>;
-  /** Complete, currently disclosable blockers owned by other review kinds. null is unknown. */
+  /** Complete, currently disclosable remaining items owned by other review kinds. */
   otherReviewItemIds: string[] | null;
+  /** Server-resolved blockers of THIS material/affected target, a subset of the
+   * remaining other-kind items. null is unknown; never infer [] from item IDs. */
+  otherBlockingReviewItemIds: string[] | null;
   derived: {
     bindingRevision: number;
     draftIds: string[];
@@ -106,6 +109,10 @@ export class SpeakerBindingError extends Error {
 const positive = (value: number) => Number.isSafeInteger(value) && value > 0;
 const nonblank = (value: string) =>
   typeof value === 'string' && value.trim().length > 0;
+const uniqueIds = (value: unknown): value is string[] =>
+  Array.isArray(value) &&
+  value.every(nonblank) &&
+  new Set(value).size === value.length;
 function conflict(message: string): never {
   throw new SpeakerBindingError('conflict', message);
 }
@@ -171,10 +178,20 @@ export function assertSpeakerSnapshot(s: SpeakerBindingSnapshot) {
     conflict('绑定不能遗漏或重复离线语段');
   if (
     s.otherReviewItemIds !== null &&
-    (new Set(s.otherReviewItemIds).size !== s.otherReviewItemIds.length ||
-      s.otherReviewItemIds.some((v) => !nonblank(v) || items.has(v)))
+    (!uniqueIds(s.otherReviewItemIds) ||
+      s.otherReviewItemIds.some((v) => items.has(v)))
   )
     conflict('其他待核对集合无效');
+  if (
+    s.otherBlockingReviewItemIds !== null &&
+    (!uniqueIds(s.otherBlockingReviewItemIds) ||
+      s.otherBlockingReviewItemIds.some(
+        (v) =>
+          items.has(v) ||
+          (s.otherReviewItemIds !== null && !s.otherReviewItemIds.includes(v)),
+      ))
+  )
+    conflict('本材料阻塞项必须是其他剩余项的唯一子集');
 }
 function resolverFor(
   a: SpeakerBindingAuthority,
@@ -365,8 +382,12 @@ export function planSpeakerBinding(input: {
   const command = speakerBindingCommandSchema.parse(input.command);
   requireSpeakerAccess(s, a, accountId, true);
   z.iso.datetime().parse(now);
-  if (s.inventoryComplete !== true || s.otherReviewItemIds === null)
-    conflict('完整语段或其他待核对事实尚未就绪');
+  if (
+    s.inventoryComplete !== true ||
+    s.otherReviewItemIds === null ||
+    s.otherBlockingReviewItemIds === null
+  )
+    conflict('完整语段或本材料待核对阻塞事实尚未就绪');
   const selected = s.transcript.fragments.find(
     (f) => f.reviewItemId === command.itemId,
   );
@@ -475,23 +496,28 @@ export function planSpeakerBinding(input: {
         bindingRevision: revision,
       };
     });
+  const pendingSpeakerItemIds = s.transcript.fragments
+    .filter((f) =>
+      bindings.resolutions.some(
+        (r) =>
+          r.fragmentId === f.source.fragmentId &&
+          (r.state === 'pending' || r.state === 'deferred'),
+      ),
+    )
+    .map((f) => f.reviewItemId);
   const remainingReviewItemIds = [
-    ...s.transcript.fragments
-      .filter((f) =>
-        bindings.resolutions.some(
-          (r) =>
-            r.fragmentId === f.source.fragmentId &&
-            (r.state === 'pending' || r.state === 'deferred'),
-        ),
-      )
-      .map((f) => f.reviewItemId),
+    ...pendingSpeakerItemIds,
     ...s.otherReviewItemIds,
+  ];
+  const blockingReviewItemIds = [
+    ...pendingSpeakerItemIds,
+    ...s.otherBlockingReviewItemIds,
   ];
   let resume: SpeakerBindingPlan['resume'] = null;
   if (
     bindingChanged &&
     (resolution.action === 'bind' || resolution.action === 'mark_irrelevant') &&
-    remainingReviewItemIds.length === 0 &&
+    blockingReviewItemIds.length === 0 &&
     s.context.canProcess === true &&
     s.context.cancelRequested === false
   ) {
@@ -523,6 +549,20 @@ export function planSpeakerBinding(input: {
           .digest('hex'),
     };
   }
+  const receipt = materialReviewResolutionReceiptSchema.options[0].parse({
+    kind: 'speaker',
+    batchId: s.batchId,
+    materialId: s.materialId,
+    itemId: command.itemId,
+    revision: itemRevisions[command.itemId],
+    resolution,
+    remainingReviewItemIds,
+    blockingReviewItemIds,
+    invalidatedDraftIds: [],
+    resume: null,
+  });
+  // Validate the full frozen union too: options[0] alone omits its refinements.
+  materialReviewResolutionReceiptSchema.parse(receipt);
   return {
     changed,
     bindingChanged,
@@ -534,14 +574,6 @@ export function planSpeakerBinding(input: {
     decisions,
     invalidatedDraftIds,
     resume,
-    receipt: materialReviewResolutionReceiptSchema.options[0].parse({
-      kind: 'speaker',
-      batchId: s.batchId,
-      itemId: command.itemId,
-      revision: itemRevisions[command.itemId],
-      remainingReviewItemIds,
-      invalidatedDraftIds: [],
-      resume: null,
-    }),
+    receipt,
   };
 }

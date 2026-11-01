@@ -74,6 +74,7 @@ function fixture() {
     },
     itemRevisions: { 'item-0': 1, 'item-1': 1 },
     otherReviewItemIds: [],
+    otherBlockingReviewItemIds: [],
     derived: { bindingRevision: 1, draftIds: [], confirmedResultIds: [] },
   };
   const authority: SpeakerBindingAuthority = {
@@ -480,3 +481,123 @@ it('整批已有绑定失去当前候选资格时，新增绑定与原操作重�
   expect(f.state.resumed).toEqual([]);
   expect(f.state.operations.size).toBe(1);
 });
+
+it('最终897材料级恢复不被无关项扣住，并以同一回执重放', async () => {
+  const { f, service, command } = fixture();
+  f.state.snapshot.otherReviewItemIds = ['unrelated-image-review'];
+  await service.apply('account-hr', command);
+  const last = { ...command, itemId: 'item-1', operationId: 'last' };
+  const result = await service.apply('account-hr', last);
+  expect(result).toMatchObject({
+    status: 'success',
+    replayed: false,
+    result: {
+      materialId: 'material-a',
+      resolution: last.resolution,
+      remainingReviewItemIds: ['unrelated-image-review'],
+      blockingReviewItemIds: [],
+      resume: { stage: 'organizing', jobId: 'job-a' },
+    },
+  });
+  expect(await service.apply('account-hr', last)).toMatchObject({
+    status: 'success',
+    replayed: true,
+    result: result.status === 'success' ? result.result : null,
+  });
+  expect(f.state.resumed).toHaveLength(1);
+});
+it('本材料或受影响目标仍有其他种类阻塞时只绑定，不恢复', async () => {
+  const { f, service, command } = fixture();
+  f.state.snapshot.otherReviewItemIds = [
+    'related-image-review',
+    'unrelated-review',
+  ];
+  f.state.snapshot.otherBlockingReviewItemIds = ['related-image-review'];
+  await service.apply('account-hr', command);
+  expect(
+    await service.apply('account-hr', {
+      ...command,
+      itemId: 'item-1',
+      operationId: 'last',
+    }),
+  ).toMatchObject({
+    status: 'success',
+    result: {
+      remainingReviewItemIds: ['related-image-review', 'unrelated-review'],
+      blockingReviewItemIds: ['related-image-review'],
+      resume: null,
+    },
+  });
+  expect(f.state.resumed).toEqual([]);
+});
+it('恢复端口之后目标阻塞集合变化须整笔回滚', async () => {
+  const { f, deps, service, command } = fixture();
+  f.state.snapshot.otherReviewItemIds = ['image-review'];
+  await service.apply('account-hr', command);
+  const original = deps.commitResume;
+  deps.commitResume = async (tx, input) => {
+    const result = await original(tx, input);
+    tx.snapshot.otherBlockingReviewItemIds = ['image-review'];
+    return result;
+  };
+  expect(
+    await service.apply('account-hr', {
+      ...command,
+      itemId: 'item-1',
+      operationId: 'last',
+    }),
+  ).toMatchObject({ status: 'conflict' });
+  expect(f.state.snapshot.bindings.resolutions[1]!.state).toBe('pending');
+  expect(f.state.snapshot.otherBlockingReviewItemIds).toEqual([]);
+  expect(f.state.resumed).toEqual([]);
+  expect(f.state.operations.size).toBe(1);
+});
+it('真实grant已提交但返回另一个job也须回滚', async () => {
+  const { f, deps, service, command } = fixture();
+  await service.apply('account-hr', command);
+  const original = deps.commitResume;
+  deps.commitResume = async (tx, input) => {
+    await original(tx, input);
+    return { jobId: 'another-job' };
+  };
+  expect(
+    await service.apply('account-hr', {
+      ...command,
+      itemId: 'item-1',
+      operationId: 'last',
+    }),
+  ).toMatchObject({ status: 'conflict' });
+  expect(f.state.snapshot.bindings.resolutions[1]!.state).toBe('pending');
+  expect(f.state.resumed).toEqual([]);
+});
+it('草稿全部失效但端口返回的ID错误仍须回滚', async () => {
+  const { f, deps, service, command } = fixture();
+  f.state.snapshot.derived!.draftIds = ['draft-a'];
+  const original = deps.invalidateDrafts;
+  deps.invalidateDrafts = async (...args) => {
+    await original(...args);
+    return ['wrong-draft'];
+  };
+  expect(await service.apply('account-hr', command)).toMatchObject({
+    status: 'conflict',
+  });
+  expect(f.state.snapshot.derived!.draftIds).toEqual(['draft-a']);
+  expect(f.state.invalidated).toEqual([]);
+  expect(f.state.operations.size).toBe(0);
+});
+it.each(['material', 'resolution'] as const)(
+  '重放不得返回与已接受命令不一致的%s回执',
+  async (mode) => {
+    const { f, service, command } = fixture();
+    await service.apply('account-hr', command);
+    const op = f.state.operations.get(
+      JSON.stringify(['account-hr', command.operationId]),
+    )!;
+    if (mode === 'material') op.result.materialId = 'other-material';
+    else op.result.resolution = { action: 'mark_irrelevant' };
+    expect(await service.apply('account-hr', command)).toMatchObject({
+      status: 'conflict',
+    });
+    expect(f.state.decisions).toHaveLength(1);
+  },
+);

@@ -235,6 +235,10 @@ export function createSpeakerBindingUsecase<C>(
       after.context.attempt !== before.context.attempt ||
       after.inventoryComplete !== true ||
       !isDeepStrictEqual(after.otherReviewItemIds, before.otherReviewItemIds) ||
+      !isDeepStrictEqual(
+        after.otherBlockingReviewItemIds,
+        before.otherBlockingReviewItemIds,
+      ) ||
       !isDeepStrictEqual(after.bindings, plan.bindings) ||
       !isDeepStrictEqual(after.itemRevisions, plan.itemRevisions)
     )
@@ -303,7 +307,9 @@ export function createSpeakerBindingUsecase<C>(
               !isDeepStrictEqual(existing.version, version(snapshot)) ||
               existing.result.kind !== 'speaker' ||
               existing.result.batchId !== command.batchId ||
-              existing.result.itemId !== command.itemId
+              existing.result.materialId !== snapshot.materialId ||
+              existing.result.itemId !== command.itemId ||
+              !isDeepStrictEqual(existing.result.resolution, command.resolution)
             )
               conflict('同一操作键的输入或材料版本不同');
             const current = await load(
@@ -360,6 +366,7 @@ export function createSpeakerBindingUsecase<C>(
               invalidatedDraftIds,
               resume,
             });
+          materialReviewResolutionReceiptSchema.parse(receipt);
           await deps.saveOperation(tx, accountId, command.operationId, {
             fingerprint,
             version: version(snapshot),
