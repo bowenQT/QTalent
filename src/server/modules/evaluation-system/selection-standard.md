@@ -1,14 +1,14 @@
 # 入营选拔标准生命周期（BOW-918）
 
-输入契约为 BOW-917 冻结 `832209d177944b5ce18577794acb88314a6460da`；917 已由 Claude 编排合入 main `5726fd5d0cd6457d762327829adc002b1dda41b3`。当前通过 X1 纯同步 `13411363a383225c548b455c439b265f3f1d3a03` 消费 main `71f8d9de99bb6e2abf36049571414aed9d3f7b4d` 已合入的922类别/按时读取和区段切换，不复制实现。
+输入契约为 BOW-917 冻结 `832209d177944b5ce18577794acb88314a6460da`；917 已由 Claude 编排合入 main `5726fd5d0cd6457d762327829adc002b1dda41b3`。当前通过 X1 组合 `04b5e9ad486feff0e3be3ced8925a82fc36c3e2e` 消费已合入的922类别/按时读取及区段切换、919 canonical `7770b97` 与921原生归因/提案 `fbaaf884`；组合不代表这些后继PR已合入main。
 
 ## 当前边界
 
 `selection-standard.ts` 提供无数据库副作用的领域计划，`server/usecases/selection-standard.ts` 编排可信账号、当前服务端权限、领域计划、审计和操作回执。`selection/postgres.ts` 新增六表的原生事务适配，复用 922 类别锁、按时读取和区段切换。公共出口与最终迁移仍只由 X1 修改。
 
-适配要求调用方提供同一原生事务内的 `loadAuthority`、`creationFacts`、`readImpact`、`readCohort`；缺一个就拒绝构造，没有管理员或内存事实兜底。生产归因/影响查询、Web action/query 尚未接线。真实当前授权、显式基线导入及最小期次创建/绑定/读取入口在 `server/usecases/selection-standard-native.ts`；它们不以空归因/影响端口构造完整store。集成测试中的归因与影响来源明确是合成夹具，不证明 919/921 生产查询或端到端发布已完成。
+适配要求调用方提供同一原生事务内的 `loadAuthority`、`creationFacts`、`readImpact`、`readCohort`；缺一个就拒绝构造，没有管理员或内存事实兜底。`createNativeSelectionLifecycle` 已用同事务的真实目录授权、919 canonical、921已确认归因/提案及922/918标准绑定装配这些端口，详见下节。Web action/query 尚未接线；显式基线导入及最小期次创建/绑定/读取仍在同一 native 用例文件。原postgres协议测试的合成端口与新增真实装配测试分别记录，不相互冒充。
 
-最终迁移在846 → 845 → 873主链之后按X1游标生成；当前不提交 SQL、journal 或 snapshot。917/922 合入、生产读端口和正式迁移接线、真实 PG 验收完成前，本卡保持 Draft + blocked，不能标完成或 ready-to-merge。
+最终迁移在846 → 845 → 873主链之后按X1游标生成；当前不提交 SQL、journal 或 snapshot。917/922已合入；919/921实际代码依赖与正式迁移未齐，默认CI仍不能通过，本卡保持Draft+blocked。补齐必要门禁后转Ready for review，处理当前head审查与connector，不把Draft交接当整卡完成。
 
 ## 身份、范围与返回数据
 
@@ -57,7 +57,7 @@
 
 `selection/postgres.integration.test.ts` 使用唯一随机 loopback `_test` 数据库、固定化名导入和显式合成基线，覆盖并发发布/幂等、真实授权在类别锁等待后撤销、迟发回滚、同毫秒区段、配对修订与旧回执、不可变重发、期次持久绑定及既有资料指纹。归因与影响端口仍使用合成来源。新增表未进正式迁移时，仅可显式使用 `BOW_918_TEST_MIGRATIONS_DIR` 指向隔离生成的组合 DDL；该变量不会改变默认 CI 的迁移入口。
 
-原生生命周期14项PG已实际运行；新装配测试使用空的真实迁移数据库和独立显式合成事实，不用fixture回填生产端口。测试只通过 `test-db.env` 注入测试库，固定参照需先运行 `pnpm reference:prepare`；临时组合迁移不冒充正式迁移。具体受检SHA、命令与覆盖结果以PR证据为准。
+原生生命周期和新装配测试使用空的真实迁移数据库及独立显式合成事实。新装配通过真实919 writer与921 store生成持久输入，不用expected回填918生产端口。测试只通过 `test-db.env` 注入测试库，固定参照需先运行 `pnpm reference:prepare`；临时组合迁移不冒充正式迁移。具体受检SHA、命令与覆盖结果以PR证据为准。
 
 ## 显式基线与实际期次装配
 
@@ -68,8 +68,20 @@
 - `readNativeSelectionCohortVersion(db, accountId, cohortId, clock)`：当前实际身份/期次范围授权后读已保存绑定及校验不可变内容，缺绑定返回null，不用当前默认补历史。原有store也复用同一绑定primitive。
 - `loadSelectionAuthority` 针对这些读写事务锁定真实账号绑定/授权/人员，再取业务clock；不能直接当作原store只读事务的FOR SHARE回调。完整store装配必须明确只读/写事务边界。
 
-真实923的基线 `effectiveFrom` 和历史期次采用事实尚未获批准；本实现与合成测试不会替它选择日期。923不得以本测试输入初始化实际演示基线。919/921生产事实读取、AI提案采用以及下一期期次事实仍需固定组合，未用合成归因补齐。
+真实923的基线 `effectiveFrom` 和历史期次采用事实尚未获批准；本实现与合成测试不会替它选择日期。923不得以本测试输入初始化实际演示基线。919/921生产事实读取和AI提案采用已在固定组合实测；下一期真实描述仍须经审查的服务器配置，不给默认值。
 
-剩余门禁：生产授权/归因/影响/期次服务与 action/query 接线，X1 公共出口和主链之后的最终迁移，实际 PG 全事务验证与统一 85% 行/分支覆盖，871 第一幕类别隔离及真实链路验收。所有门禁满足后才可请求 X1 标精确 head ready。
+剩余门禁：Web action/query的可信session入口、919/921代码依赖与X1正式迁移、默认当前head完整检查与审查。真实基线时间/下一期描述仅阻真实环境应用，不能用合成测试值补生产配置。871场景联验另记证据；本卡真实PG不是浏览器或生产E2E。
 
 给921的服务器内部真实标准入口：`selection/postgres.ts` 的 `readCurrentSelectionStandard(tx, requestedVersionId, clock)`。消费实际922当前类别/时点版本并核918 head/不可变内容；无生效版本或请求的版本不是当前版返回null，损坏/冲突失败。它不授权Web或模型披露，921仍先执行当前HR/节点授权；不支持把历史版本当当前基准。公共出口仍由X1补。
+
+## 真实归因、影响与AI采用装配
+
+`createNativeSelectionLifecycle(db, {nextCohort, clock})` 返回原store和`execute`、`adoptProposal`。账号只可来自服务器认证入口；`nextCohort` 是经过核实的未来期次稳定ID/名称/来源描述，构造时冻结，缺失即unavailable，已存在的cohort不能冒充未来期次。此配置不从浏览器命令或期次排序推导，不创建空的未来cohort。
+
+- `selection-standard-facts.ts` 先读取归因/批次的路由元数据、核当前HR范围，再读真实签名归因；行锁保留归因/提案直到事务提交。每个引用重核当前两节点权限与真实source版本、位置和全文，历史署名不产生当前权限。归因修订或基准版变化即冲突。
+- 管理者摘要仅在服务器内把真实canonical送现有919算法，计偏差人数并保留归因类别；不向管理者返回人名、原文、评价人数字，不另建页面loadBatch或复制算法。
+- 影响预览读取真实已绑定期次和canonical前段判断。按人、前段节点、判断稳定ID去重；缺前段不计，HR无当前前段可见权限不计。保存的scope在刷新/发布时保持，管理者不会扩大成全库范围。持有comparison批次表SHARE锁和既有逐行读取锁，防止确认预览与发布之间新导入批次改变计数。最终仍使用原918发布事务及922区段切换。
+- `adoptProposal` 只读取921已保存且归因/基准版完全匹配的提案，新建draft时保留AI原稿，humanVersion仍null。真实HR save才产生hr_edited。重放返回原回执，迟到提案没有修改既有人工作品的入口；相同操作号不同提案使用不同内部操作键，不混淆幂等事实。
+- `selection-standard-facts.integration.test.ts` 实跑真实初始化→绑定→canonical持久化→921确认/提案持久化→918采用→HR修改→提交→管理者发布，以及撤权、引用漂移、旧归因/标准、去重、预览变化和只读查询。唯一模型为明确离线替身；上游921仍注入显式化名ComparisonDataset，仅证明实际921存储/权限和918读端，不证明尚未交接的共享canonical到921页面DTO转换。没有供应商调用。
+
+统一覆盖范围为selection领域、postgres、selection-standard用例、native与facts五个执行文件；具体命令、受检SHA、项目数及行/分支值以PR当前证据为准，不套用旧版108项结果。

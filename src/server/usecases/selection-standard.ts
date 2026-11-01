@@ -18,6 +18,8 @@ import {
   effectiveRuleVersionReadResultSchema,
   selectionCohortVersionReadInputSchema,
   selectionCohortVersionReadResultSchema,
+  selectionAiDraftSchema,
+  selectionRevisionSchema,
   type EffectiveRuleVersionReadInput,
   type EffectiveRuleVersion,
   type SelectionCohortBinding,
@@ -135,7 +137,7 @@ export interface SelectionStandardPorts<Tx> {
     Omit<
       Parameters<typeof planCreateSelectionRevision>[2],
       'draftId' | 'versionId' | 'previewId' | 'current'
-    >
+    > & { aiDraft?: z.infer<typeof selectionAiDraftSchema> }
   >;
   readRevision(
     tx: Tx,
@@ -308,6 +310,23 @@ export async function executeSelectionRevision<Tx>(
             versionId: await ports.allocateVersionId(tx),
             previewId: await ports.allocateId(tx, 'preview'),
           });
+          if (facts.aiDraft !== undefined) {
+            const aiDraft = selectionAiDraftSchema.parse(facts.aiDraft);
+            if (
+              JSON.stringify(aiDraft.basis) !==
+              JSON.stringify(record.revision.basis)
+            )
+              throw new SelectionLifecycleError(
+                'conflict',
+                'AI提案依据与当前人工归因不一致',
+              );
+            // Server-loaded initial proposal only; no save/publish command can
+            // replace the immutable AI original or manufacture an HR edit.
+            record.revision = selectionRevisionSchema.parse({
+              ...record.revision,
+              aiDraft,
+            });
+          }
           plan = { kind: 'revision', record };
           result = record.revision;
         } else if (command.action === 'undo') {
