@@ -8,7 +8,7 @@
 - 按fragment精确依赖处理核对项。无关片段的未决项不会阻断已可用片段；被保留原件的选中材料不送模型。只处理可信文本、已绑定真实版本的解析片段及完整离线稿。原量表历史面评不转为维度建议；未知上传/录音事实仍不可用，不造转写或默认时长。
 - `batch-rules.ts` 实际调用922 `readEffectiveRuleVersion` 和 `readTalentEvaluationRules`，类别固定 `dimension_anchors`，时间固定服务器保存的业务 `boundAt`。按该版本的实际anchor行选维度集合，两个版本字段保留真实rubric版本ID；当前schema没有另一个维度版本表，不创造版本名。选择标准并存、区间相邻/冲突、缺内容均有真实PG回归入口。
 - `occurredOn` 保留原事件/来源日期，与业务保存取版时间 `boundAt`、审计墙钟和人工确认时刻分开。后续发布不能替旧输入换版；确认846必须沿草稿版本。
-- `record-batch-arrange.v2` 通过843真实Modelink协议接收多个事件。引用按真实版本、位置、逐字原文与行为归属校验，评分锚点须匹配冻结内容；无效评分降为unknown且去除数值、锚点与引用，不补造来源。模型看不到未选的资料、核对账本或持久草稿ID。
+- `record-batch-arrange.v3` 通过843真实Modelink协议接收多个事件；v3只做过离线验证，历史真实失败请求使用v2。引用按真实版本、位置、逐字原文与行为归属校验，评分锚点须匹配冻结内容；无效评分降为unknown且去除数值、锚点与引用，不补造来源。模型看不到未选的资料、核对账本或持久草稿ID。
 - 一人两件事保留独立草稿；同事件多来源保留来源并集。重复和语义相似仅生成人工候选，保留事件，不自动合并或承诺全库去重。修订依据服务器持久eventKey/ID/witness映射保持身份；不能重命名、交换依据或猜配新增/消失事件。保留旧项目前再次使用当前 `canReadProject` 核权，不因批次默认无项目而清除原归属。
 - 模型外发前后重读当前来源、权限、输入、版本及取消栅栏。同操作重放仍重授权；不明发送结果不重发。必须由原生同事务实现operation/job锁、ID分配和写入；内存端口测试不证明跨进程幂等。
 - `batch-receipt.ts` 从显式服务器可披露事实派生文件/待确认计数及部分完成状态，再验最终897合同。没有以人数/评分数充当人工确认数量；不虚造hidden/resolved事实。此投影尚未接生产批次reader。
@@ -20,6 +20,26 @@
 本轮217项基础测试通过后，补修订项目授权的三项Red，再加可见项目对照后共221项通过；五个私有实现行96.28%、分支97.52%。实际命令为 `node node_modules/vitest/vitest.mjs run`，选择 `batch.test.ts`、`batch-prompt.test.ts`、`batch-validate.test.ts`、`batch-receipt.test.ts`、`record-batch-arrange.test.ts`、`modelink.test.ts`，统一 `--maxWorkers=2`。精确受检提交、后续PG/模型与组合证据以PR当前head的记录为准；不能把工作树测试归给尚未存在的提交。
 
 `batch-rules.integration.test.ts` 使用真实PG、官方已提交迁移、独立随机测试库与实际922 reader；缺测试配置或迁移直接失败，不skip、fake或手写DDL。重检查必须取得heavy槽，没取得就未运行。定向单测和纯回执投影不算PG、原生job、生产E2E或浏览器验证。
+
+## 零调用结构诊断与v3修复
+
+从稳定 `2cb9f36a3af7728028b685f18e116e6dbdab7a17` 接回，本轮不加载凭证、不连接PG、不发任何真实请求，保留原1/1尝试标记。实际843客户端的请求只有 `response_format: { type: 'json_object' }`；传给 `generateStructured` 的Zod对象用于返回后本地验形，不会成为供应商的JSON Schema约束。
+
+离线真实factory配合本地合成HTTP替身先复现两项Red：v2消息没有完整输出schema；也没有区分输入anchor.versionId和输出anchor.ruleVersion。v2只简述suggested/unknown，没有明确state字段和完整嵌套必填形状；“完全匹配给定锚点”又可能引导照抄输入锚点对象，然而输入中的dimensionId/value/versionId不属于输出anchor。**这证明提示词缺口，不能倒推上次未留原响应的具体失败字段。**
+
+最小修复只在本卡私有prompt：v3通过消息传递从实际 `modelBatchSchema` 生成的input JSON Schema，并明确state字面量、SBI四个必填字段及versionId→ruleVersion映射；未改业务schema、正确的共享843客户端、HTTP重试或引用/权限验证。JSON Schema负责可表示的字段/字面量/形状，唯一性、逐字引用、归属和锚点语义仍由原Zod refinements及 `validateBatchModel` 执行，不因提示词变更放行。
+
+离线样例通过实际客户端分别验证：合法suggested/unknown；正文不是JSON；缺sbi.situation；缺/错scores[i].state；照抄输入anchor导致缺anchor.ruleVersion；unknown多出value；缺evidence[i].reference；额外根字段；错误供应商model包装；以及DTO合法但引用伪造。诊断只取本地JSON可解析性与Zod path/code，不记录issue.message、未知字段名、值、原文或头。JSON/业务schema失败在客户端都叫invalid_response，但离线结构诊断可区分；DTO合法后 `validateBatchModel` 拒绝属于business_validation，不伪称有Zod字段路径。该harness只在测试，不是已部署诊断器。
+
+离线验证：新增两项提示词缺口先Red；修复后六目标文件 **234/234**，六私有实现行 **96.31%**、分支 **97.53%**。全类型仍只有原先5项旧846依赖诊断，没有新增本片类型错误；限定lint/格式/diff通过。新增的本地HTTP替身运行不计真实请求，旧1/1标记未变。
+
+## 第二次诊断请求方案（待批准，未执行）
+
+1. 输入冻结为本次稳定v3提交，三份既有化名原文、实际899当前授权及922真实取版；846继续固定已验输入，另建明确组件组合，不声称main/生产接线。调用前检查源码SHA/洁净树、最小授权片段、业务boundAt/原日期、模型配置和线包字节预算。不读其他凭据源，不更改模型/端点。
+2. 新预算必须明确批准为**最多1次**，不重置原1/1账本。批准后才创建新的排他尝试标记，用实际factory、maxAttempts=1、30秒单次/45秒总预算、8192输出token、1MiB响应上限；抓取计数最多1。取消、超时、错误或不明结果均结束本次，不自动重发，也不修后再试。
+3. 在真实fetch的同一响应旁路做有界内存诊断，所有分支共用取消/超时，额外读取也最多1MiB。持久化前仅投影结构：包/正文JSON是否可解析；白名单字段的类型；model/role/finish_reason等协议字面量是否匹配；具体业务Zod路径、错误码及接收类型。最多32条、深度/节点有上限；未知键统一占位符，不存未知原键、issue.message/input/完整union错误对象、值、原文、原头或完整响应。包/正文只在有界内存解析后丢弃，不落盘；精确请求标识仍只受控/私有Linear。
+4. 分类按实际阶段：配置未发送；传输/HTTP失败或outcome_unknown；envelope_json/envelope_schema；body_json；model_schema（安全Zod path/code）；business_validation；或通过。若包和DTO通过再运行真正的 `validateBatchModel`/materialize，只记录通过/拒绝和合成计数，不复制校验算法来制造更细原因。模型结果不写业务库。
+5. 每个终态都立即退出、清理线程/PG与合法重测槽，保留尝试标记。一次取得结构证据即交回，不以取得成功答案为退出条件。**当前第二次预算未批准，实际额外请求数为0，v3未真实重测。**
 
 ## 本轮真实组件运行
 

@@ -363,7 +363,7 @@ describe('record batch orchestration with native transaction requirements and843
     });
     expect(h.state.traces[0]).toMatchObject({
       modelVersion: MODELINK_MODEL,
-      promptVersion: 'record-batch-arrange.v2',
+      promptVersion: 'record-batch-arrange.v3',
       boundAt: '2026-10-31T12:00:00.000Z',
       occurredOn: '2026-10-30',
       inputVersion: 'demo-input',

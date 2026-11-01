@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   createFakeModelinkMaas,
+  createModelinkMaasClient,
   MODELINK_MODEL,
 } from '../../../integrations/maas';
 import {
   batchMessages,
+  type ModelBatch,
   modelBatchSchema,
   BATCH_PROMPT_VERSION,
 } from './batch-prompt';
@@ -13,6 +15,7 @@ import {
   type BatchSnapshot,
   type BatchRuleBundle,
 } from './batch';
+import { validateBatchModel } from './batch-validate';
 function fixture() {
   const snapshot: BatchSnapshot = {
     batchId: 'demo-batch',
@@ -115,7 +118,155 @@ function fixture() {
   };
   return { snapshot, rules };
 }
+
+function legalResponse(snapshot: BatchSnapshot): ModelBatch {
+  return {
+    events: [
+      {
+        eventKey: 'proposal-a',
+        personIds: ['demo-person'],
+        sbi: {
+          title: '演示事件',
+          situation: '',
+          behavior: '补齐回滚步骤',
+          impact: '',
+        },
+        evidence: [
+          { reference: snapshot.requestedSources[0], quote: '补齐回滚步骤' },
+        ],
+        scores: [
+          {
+            state: 'suggested',
+            personId: 'demo-person',
+            dimensionId: 'demo-dimension',
+            value: 3,
+            anchor: {
+              id: 'demo-anchor',
+              text: '有具体行为',
+              ruleVersion: 'demo-anchor-v1',
+            },
+            citations: [
+              {
+                reference: snapshot.requestedSources[0],
+                quote: '补齐回滚步骤',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    similarGroups: [],
+  };
+}
+
 describe('batch model prompt and concrete Modelink schema', () => {
+  it('puts every required nested output field and literal on the actual json_object wire', async () => {
+    const { snapshot, rules } = fixture();
+    const p = prepareBatch(snapshot, rules);
+    if (p.status !== 'ready') throw new Error('fixture');
+    let wire:
+      | {
+          response_format: unknown;
+          schema?: unknown;
+          messages: { content: string }[];
+        }
+      | undefined;
+    const client = createModelinkMaasClient(
+      { apiKey: 'offline-test-key', maxAttempts: 1 },
+      {
+        fetch: async (_url, init) => {
+          wire = JSON.parse(String(init?.body));
+          return new Response(
+            JSON.stringify({
+              model: MODELINK_MODEL,
+              choices: [
+                {
+                  finish_reason: 'stop',
+                  message: {
+                    role: 'assistant',
+                    content: JSON.stringify(legalResponse(snapshot)),
+                  },
+                },
+              ],
+            }),
+          );
+        },
+      },
+    );
+    const result = await client.generateStructured({
+      messages: batchMessages(p.value),
+      promptVersion: BATCH_PROMPT_VERSION,
+      schema: modelBatchSchema,
+    });
+    expect(result.ok).toBe(true);
+    //843 sends json_object, not JSON Schema enforcement by the provider. The
+    //actual output contract must therefore reach the model through messages.
+    expect(wire?.response_format).toEqual({ type: 'json_object' });
+    expect(wire?.schema).toBeUndefined();
+    expect(JSON.parse(wire!.messages[1].content).outputSchema).toMatchObject({
+      type: 'object',
+      required: ['events', 'similarGroups'],
+      additionalProperties: false,
+      properties: {
+        events: {
+          items: {
+            required: ['eventKey', 'personIds', 'sbi', 'evidence', 'scores'],
+            properties: {
+              sbi: { required: ['title', 'situation', 'behavior', 'impact'] },
+              scores: {
+                items: {
+                  oneOf: [
+                    {
+                      required: [
+                        'state',
+                        'personId',
+                        'dimensionId',
+                        'value',
+                        'anchor',
+                        'citations',
+                      ],
+                      properties: {
+                        state: { const: 'suggested' },
+                        anchor: {
+                          required: ['id', 'text', 'ruleVersion'],
+                          additionalProperties: false,
+                        },
+                      },
+                    },
+                    {
+                      required: ['state', 'personId', 'dimensionId', 'reason'],
+                      properties: { state: { const: 'unknown' } },
+                      additionalProperties: false,
+                    },
+                  ],
+                },
+              },
+              evidence: {
+                items: {
+                  required: ['reference', 'quote'],
+                  properties: {
+                    reference: {
+                      required: ['fragmentId', 'originalVersionId', 'location'],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+  it('distinguishes anchor input versionId from strict output ruleVersion', () => {
+    const { snapshot, rules } = fixture();
+    const p = prepareBatch(snapshot, rules);
+    if (p.status !== 'ready') throw new Error('fixture');
+    const system = batchMessages(p.value)[0].content;
+    expect(system).toContain('ruleVersion');
+    expect(system).toContain('versionId');
+    expect(system).toContain('state');
+  });
+
   it('sends only requested authorized text and necessary version/attribution metadata', () => {
     const { snapshot, rules } = fixture();
     snapshot.availableSources.push({
@@ -287,5 +438,181 @@ describe('batch model prompt and concrete Modelink schema', () => {
     if (fault === 'single-duplicate-group')
       raw.similarGroups = [{ eventKeys: ['proposal-a'], reason: '相似' }];
     expect(modelBatchSchema.safeParse(raw).success).toBe(false);
+  });
+});
+
+// Offline diagnostic harness only: no provider text, issue.message, unknown
+// keys, values or response headers are included in the diagnostic projection.
+function bodyDiagnosis(content: string) {
+  let body: unknown;
+  try {
+    body = JSON.parse(content);
+  } catch {
+    return { stage: 'body_json', issues: [] };
+  }
+  const checked = modelBatchSchema.safeParse(body);
+  return checked.success
+    ? { stage: 'valid_model_shape', issues: [] }
+    : {
+        stage: 'model_schema',
+        issues: checked.error.issues.map((issue) => ({
+          path: issue.path,
+          code: issue.code,
+        })),
+      };
+}
+async function offlineFrame(content: string, model = MODELINK_MODEL as string) {
+  const { snapshot, rules } = fixture();
+  const prepared = prepareBatch(snapshot, rules);
+  if (prepared.status !== 'ready') throw new Error('fixture');
+  let requests = 0;
+  const client = createModelinkMaasClient(
+    { apiKey: 'offline-test-key', maxAttempts: 1 },
+    {
+      fetch: async () => {
+        requests++;
+        return new Response(
+          JSON.stringify({
+            model,
+            choices: [
+              {
+                finish_reason: 'stop',
+                message: { role: 'assistant', content },
+              },
+            ],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          }),
+        );
+      },
+    },
+  );
+  const result = await client.generateStructured({
+    messages: batchMessages(prepared.value),
+    promptVersion: BATCH_PROMPT_VERSION,
+    schema: modelBatchSchema,
+  });
+  expect(requests).toBe(1); // One local transport invocation, never a paid call.
+  return { result, prepared: prepared.value };
+}
+describe('offline actual Modelink envelope, body and domain diagnostic stages', () => {
+  it('accepts each real score branch without a real request', async () => {
+    const { snapshot } = fixture();
+    for (const branch of ['suggested', 'unknown'] as const) {
+      const raw = legalResponse(snapshot);
+      if (branch === 'unknown')
+        raw.events[0].scores = [
+          {
+            state: 'unknown',
+            personId: 'demo-person',
+            dimensionId: 'demo-dimension',
+            reason: '资料不足',
+          },
+        ];
+      expect(bodyDiagnosis(JSON.stringify(raw))).toEqual({
+        stage: 'valid_model_shape',
+        issues: [],
+      });
+      expect((await offlineFrame(JSON.stringify(raw))).result.ok).toBe(true);
+    }
+  });
+  it('separates malformed body JSON from a concrete schema error that the client reports alike', async () => {
+    const text = '{"events":';
+    expect(bodyDiagnosis(text)).toEqual({ stage: 'body_json', issues: [] });
+    const { result } = await offlineFrame(text);
+    expect(result).toMatchObject({
+      ok: false,
+      kind: 'invalid_response',
+      retryable: false,
+    });
+    expect(result.metadata.usage).toEqual({
+      promptTokens: 1,
+      completionTokens: 1,
+      totalTokens: 2,
+    });
+  });
+  it.each([
+    ['missing-situation', ['events', 0, 'sbi', 'situation'], 'invalid_type'],
+    ['missing-state', ['events', 0, 'scores', 0, 'state'], 'invalid_union'],
+    ['wrong-state', ['events', 0, 'scores', 0, 'state'], 'invalid_union'],
+    [
+      'copied-input-anchor',
+      ['events', 0, 'scores', 0, 'anchor', 'ruleVersion'],
+      'invalid_type',
+    ],
+    ['unknown-with-value', ['events', 0, 'scores', 0], 'unrecognized_keys'],
+    [
+      'missing-reference',
+      ['events', 0, 'evidence', 0, 'reference'],
+      'invalid_type',
+    ],
+    ['extra-output', [], 'unrecognized_keys'],
+  ] as const)(
+    'locates %s without recording content or schema error messages',
+    async (fault, path, code) => {
+      const { snapshot, rules } = fixture();
+      const raw = legalResponse(snapshot);
+      if (fault === 'missing-situation')
+        Reflect.deleteProperty(raw.events[0].sbi, 'situation');
+      if (fault === 'missing-state')
+        Reflect.deleteProperty(raw.events[0].scores[0], 'state');
+      if (fault === 'wrong-state')
+        Object.assign(raw.events[0].scores[0], { state: 'confirmed' });
+      if (fault === 'copied-input-anchor')
+        Object.assign(raw.events[0].scores[0], {
+          anchor: structuredClone(rules.anchors[0]),
+        });
+      if (fault === 'unknown-with-value')
+        raw.events[0].scores = [
+          Object.assign(
+            {
+              state: 'unknown' as const,
+              personId: 'demo-person',
+              dimensionId: 'demo-dimension',
+              reason: '资料不足',
+            },
+            { value: 1 },
+          ),
+        ];
+      if (fault === 'missing-reference')
+        Reflect.deleteProperty(raw.events[0].evidence[0], 'reference');
+      if (fault === 'extra-output')
+        Object.assign(raw, {
+          privateOriginal: 'SYNTHETIC_CONTENT_NOT_FOR_DIAGNOSTICS',
+        });
+      const text = JSON.stringify(raw);
+      const diagnostic = bodyDiagnosis(text);
+      expect(diagnostic.stage).toBe('model_schema');
+      expect(diagnostic.issues).toContainEqual({ path, code });
+      expect(JSON.stringify(diagnostic)).not.toMatch(
+        /SYNTHETIC_CONTENT_NOT_FOR_DIAGNOSTICS|privateOriginal|message|quote|value/,
+      );
+      const { result } = await offlineFrame(text);
+      expect(result).toMatchObject({
+        ok: false,
+        kind: 'invalid_response',
+        retryable: false,
+      });
+      expect(result.metadata.usage).toBeDefined();
+    },
+  );
+  it('keeps a rejected provider envelope distinct from a valid business-shaped body', async () => {
+    const { snapshot } = fixture();
+    const body = JSON.stringify(legalResponse(snapshot));
+    expect(bodyDiagnosis(body).stage).toBe('valid_model_shape');
+    const { result } = await offlineFrame(body, 'offline-wrong-model');
+    expect(result).toMatchObject({ ok: false, kind: 'invalid_response' });
+    expect(result.metadata.usage).toBeUndefined();
+  });
+  it('does not label schema-valid forged quotations as successful domain validation', async () => {
+    const { snapshot } = fixture();
+    const raw = legalResponse(snapshot);
+    raw.events[0].evidence[0].quote = '演示：不在原文里的行为';
+    expect(bodyDiagnosis(JSON.stringify(raw)).stage).toBe('valid_model_shape');
+    const { result, prepared } = await offlineFrame(JSON.stringify(raw));
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('fixture');
+    expect(() => validateBatchModel(prepared, result.value)).toThrow(
+      'invalid_response',
+    );
   });
 });
