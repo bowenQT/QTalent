@@ -385,6 +385,248 @@ it('records the second evaluator, creates a version-linked gap, and undo preserv
     )[0].withdrawnAt,
   ).not.toBeNull();
 });
+it('reconfirms after the second evaluator undoes, preserving every inactive revision and stale undo replay', async () => {
+  const f = await native();
+  const first = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  let saved = await saveRecordDraft(
+    db(),
+    f.account.two,
+    {
+      ...f.input,
+      operation_id: f.id + '-second',
+      expected_revision: first.result.revision,
+    },
+    f.clock,
+  );
+  for (const revision of [2, 3]) {
+    const previousId = saved.result.confirmationIds[0];
+    const undoInput = {
+      operation_id: f.id + '-undo-' + revision,
+      saveId: saved.result.saveId,
+    };
+    const undone = await undoRecordSave(
+      db(),
+      f.account.two,
+      undoInput,
+      f.clock,
+    );
+    const [draft] = await db()
+      .select()
+      .from(recordDrafts)
+      .where(eq(recordDrafts.draftId, f.draft.draftId));
+    saved = await saveRecordDraft(
+      db(),
+      f.account.two,
+      {
+        ...f.input,
+        operation_id: f.id + '-reconfirm-' + revision,
+        expected_revision: draft.revision,
+      },
+      f.clock,
+    );
+    const { human } = await rowsForSave(saved.result.saveId);
+    expect(human[0]).toMatchObject({
+      revision,
+      previousId,
+      previousRevision: revision - 1,
+      evaluatorId: f.person['rater-two'],
+      active: true,
+      value: 3,
+    });
+    const [previous] = await db()
+      .select()
+      .from(confirmations)
+      .where(eq(confirmations.id, previousId));
+    expect(previous).toMatchObject({
+      active: false,
+      revision: revision - 1,
+      value: 3,
+    });
+    expect(
+      await undoRecordSave(db(), f.account.two, undoInput, f.clock),
+    ).toEqual({ ...undone, replayed: true });
+    expect((await rowsForSave(saved.result.saveId)).human[0].active).toBe(true);
+  }
+  const human = await db()
+    .select()
+    .from(confirmations)
+    .where(eq(confirmations.eventId, first.result.events[0].eventId));
+  expect(
+    human.filter((row) => row.evaluatorId === f.person['rater-two']),
+  ).toHaveLength(3);
+  expect(human.filter((row) => row.active)).toHaveLength(2);
+  expect((await rowsForSave(first.result.saveId)).human[0].active).toBe(true);
+});
+it('keeps an unexplained AI gap on reconfirmation and accepts only one concurrent new revision', async () => {
+  const f = await native();
+  const first = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const second = await saveRecordDraft(
+    db(),
+    f.account.two,
+    {
+      ...f.input,
+      operation_id: f.id + '-second',
+      expected_revision: first.result.revision,
+    },
+    f.clock,
+  );
+  await undoRecordSave(
+    db(),
+    f.account.two,
+    { operation_id: f.id + '-second-undo', saveId: second.result.saveId },
+    f.clock,
+  );
+  const [draft] = await db()
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, f.draft.draftId));
+  const command = { ...edited(f, 1), expected_revision: draft.revision };
+  const results = await Promise.allSettled(
+    ['a', 'b'].map((suffix) =>
+      saveRecordDraft(
+        db(),
+        f.account.two,
+        { ...command, operation_id: f.id + '-again-' + suffix },
+        f.clock,
+      ),
+    ),
+  );
+  const successful = results.filter((result) => result.status === 'fulfilled');
+  expect(successful).toHaveLength(1);
+  expect(results.filter((result) => result.status === 'rejected')).toHaveLength(
+    1,
+  );
+  const result = successful[0];
+  if (result.status !== 'fulfilled')
+    throw new Error('Expected one accepted reconfirmation');
+  const { human, saved } = await rowsForSave(result.value.result.saveId);
+  expect(human[0]).toMatchObject({
+    revision: 2,
+    previousId: second.result.confirmationIds[0],
+    value: 1,
+  });
+  expect(saved.input.decisions[0]).toMatchObject({
+    action: 'edit',
+    reason: '',
+  });
+  const reviews = await db()
+    .select()
+    .from(scoreReviews)
+    .where(eq(scoreReviews.saveId, saved.saveId));
+  expect(reviews.map((row) => row.reason).sort()).toEqual([
+    'ai_changed_without_reason',
+    'score_gap',
+  ]);
+});
+it('restores the second evaluator own completed task to pending before reconfirmation', async () => {
+  const f = await native();
+  const first = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const task = await db().transaction((tx) =>
+    insertEvaluationWorkItem(
+      tx,
+      {
+        id: f.id + '-second-task',
+        evaluationNodeId: f.node,
+        personId: f.person.one,
+        assignedRelationId: f.relationTwo,
+        assignedEvaluatorId: f.person['rater-two'],
+        kind: 'confirmation',
+        resourceId: f.draft.draftId,
+      },
+      businessNow,
+    ),
+  );
+  const second = await saveRecordDraft(
+    db(),
+    f.account.two,
+    {
+      ...f.input,
+      operation_id: f.id + '-second',
+      expected_revision: first.result.revision,
+    },
+    f.clock,
+  );
+  await undoRecordSave(
+    db(),
+    f.account.two,
+    { operation_id: f.id + '-second-undo', saveId: second.result.saveId },
+    f.clock,
+  );
+  const [restored] = await db()
+    .select()
+    .from(evaluationWorkItems)
+    .where(eq(evaluationWorkItems.id, task.id));
+  expect(restored).toMatchObject({
+    state: 'pending',
+    revision: task.revision + 2,
+    assignedRelationId: f.relationTwo,
+    assignedEvaluatorId: f.person['rater-two'],
+  });
+  const [draft] = await db()
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.draftId, f.draft.draftId));
+  const again = await saveRecordDraft(
+    db(),
+    f.account.two,
+    {
+      ...f.input,
+      operation_id: f.id + '-second-again',
+      expected_revision: draft.revision,
+    },
+    f.clock,
+  );
+  expect((await rowsForSave(again.result.saveId)).human[0].revision).toBe(2);
+  const [completed] = await db()
+    .select()
+    .from(evaluationWorkItems)
+    .where(eq(evaluationWorkItems.id, task.id));
+  expect(completed).toMatchObject({
+    state: 'completed',
+    revision: task.revision + 3,
+  });
+});
+it('lets a current evaluator confirm before another evaluator assigned task without consuming it', async () => {
+  const f = await native();
+  const task = await db().transaction((tx) =>
+    insertEvaluationWorkItem(
+      tx,
+      {
+        id: f.id + '-other-task',
+        evaluationNodeId: f.node,
+        personId: f.person.one,
+        assignedRelationId: f.relationOne,
+        assignedEvaluatorId: f.person['rater-one'],
+        kind: 'confirmation',
+        resourceId: f.draft.draftId,
+      },
+      businessNow,
+    ),
+  );
+  const saved = await saveRecordDraft(
+    db(),
+    f.account.two,
+    { ...f.input, operation_id: f.id + '-second-first' },
+    f.clock,
+  );
+  expect(
+    (await rowsForSave(saved.result.saveId)).saved.confirmationWork,
+  ).toEqual([]);
+  const [untouched] = await db()
+    .select()
+    .from(evaluationWorkItems)
+    .where(eq(evaluationWorkItems.id, task.id));
+  expect(untouched).toEqual(task);
+  const owner = await saveRecordDraft(
+    db(),
+    f.account.one,
+    { ...f.input, expected_revision: saved.result.revision },
+    f.clock,
+  );
+  expect(
+    (await rowsForSave(owner.result.saveId)).saved.confirmationWork,
+  ).toMatchObject([{ id: task.id }]);
+});
 it.each([4999, 5000, 5001])(
   'uses the exact wall-clock undo boundary at %s ms',
   async (elapsed) => {

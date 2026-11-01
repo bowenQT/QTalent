@@ -618,6 +618,27 @@ it('preserves exact original text when planning undo, including surrounding whit
     originalInput: { text: '  演示原话\n' },
   });
 });
+it('continues the withdrawn native confirmation revision instead of reusing revision one', () => {
+  const f = fixture();
+  f.existingPeer(3);
+  const { plan } = f.saved();
+  const own = f.state.confirmations.find(
+    (row) => row.id === plan.receipt.confirmationIds[0],
+  )!;
+  own.active = false;
+  f.state.saves[0].withdrawnAt = reassignmentNow;
+  f.request.operation_id += '-after-undo';
+  f.request.expected_revision = f.draft.revision;
+  const next = newSave(f.run());
+  expect(next.confirmations[0]).toMatchObject({
+    revision: 2,
+    previousId: own.id,
+    previousRevision: 1,
+    active: true,
+  });
+  expect(own.active).toBe(false);
+});
+
 it('does not reuse revision one when the same evaluator has inactive confirmation history', () => {
   const f = fixture();
   f.existingPeer(3, f.context.account.personId).active = false;
