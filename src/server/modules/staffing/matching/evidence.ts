@@ -1,10 +1,10 @@
-import type { AuthzContext } from '../../../authz';
+import type { EvaluationAuthzContext } from '../../../authz/evaluation-node';
 import type { TalentSource, TalentRecord } from '../../../authz/talent';
 import type { Source } from '../../../../contracts/sources';
 import { MatchingError, type EventConfirmationFact } from './types';
 
 export interface MatchingEvidenceMaterial {
-  context: AuthzContext;
+  context: EvaluationAuthzContext;
   directory: {
     people: { id: string; name: string; organizationId: string }[];
     organizations: { id: string; name: string }[];
@@ -14,6 +14,7 @@ export interface MatchingEvidenceMaterial {
     id: string;
     personId: string;
     projectId: string | null;
+    evaluationNodeId: string | null;
     situation: string;
     behavior: string;
     impact: string;
@@ -38,7 +39,7 @@ export function isMatchingNature(nature: EventConfirmationFact['nature']) {
 /** Matching-specific records only. Complete source projection comes from 837. */
 export function assembleMatchingEvidence(material: MatchingEvidenceMaterial): {
   snapshot: {
-    context: AuthzContext;
+    context: EvaluationAuthzContext;
     records: TalentRecord[];
     sources: TalentSource[];
   };
@@ -56,18 +57,23 @@ export function assembleMatchingEvidence(material: MatchingEvidenceMaterial): {
       (row) => row.id === person.organizationId,
     );
     if (!organization) throw new MatchingError('conflict');
-    // These are factual period variants, not authorization decisions. 835
-    // decides which variant is visible; the usecase merges identical identity.
-    const periods = new Set<string | null>([
-      null,
-      ...material.context.enrollments
-        .filter((row) => row.personId === person.id)
-        .map((row) => row.cohortId),
-    ]);
-    for (const cohortId of periods)
+    // Identity variants use actual node-subject facts, never inferred project
+    // membership or a cohort fallback. Shared policy still decides visibility.
+    const nodes = material.context.evaluationNodes.filter((node) =>
+      material.context.evaluationNodeSubjects.some(
+        (subject) =>
+          subject.personId === person.id &&
+          subject.evaluationNodeId === node.id,
+      ),
+    );
+    for (const node of nodes)
       records.push({
-        id: JSON.stringify(['person', person.id, cohortId]),
-        subject: { personId: person.id, cohortId },
+        id: JSON.stringify(['person', person.id, node.id]),
+        subject: {
+          personId: person.id,
+          cohortId: node.cohortId,
+          evaluationNodeId: node.id,
+        },
         kind: 'person',
         fields: [
           {
@@ -88,6 +94,16 @@ export function assembleMatchingEvidence(material: MatchingEvidenceMaterial): {
       });
   }
   for (const event of material.events) {
+    const node = material.context.evaluationNodes.find(
+      (node) =>
+        node.id === event.evaluationNodeId &&
+        material.context.evaluationNodeSubjects.some(
+          (subject) =>
+            subject.personId === event.personId &&
+            subject.evaluationNodeId === node.id,
+        ),
+    );
+    if (!node) continue;
     const facts = material.confirmations.filter(
       (fact) =>
         fact.recordId === event.id &&
@@ -112,7 +128,8 @@ export function assembleMatchingEvidence(material: MatchingEvidenceMaterial): {
       id: event.id,
       subject: {
         personId: event.personId,
-        cohortId: project?.cohortId ?? null,
+        cohortId: node.cohortId,
+        evaluationNodeId: node.id,
       },
       kind,
       fields: [

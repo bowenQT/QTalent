@@ -53,3 +53,22 @@ it('requires a claim for judging and keeps blank failures separate from four-sta
     }).success,
   ).toBe(false);
 });
+
+it('持久JSON保留复核来源版本，拒绝不一致的复核状态，旧payload仍可读', async () => {
+  const value = await run(),
+    cell = value.candidates[0]!.cells[0]!;
+  cell.review = {
+    status: 'confirmed',
+    conclusion: 'not_supported',
+    model: 'google/gemini-3.8-flash',
+    promptVersion: 'staffing-not-supported-review-v1',
+    error: null,
+  };
+  expect(matchRunSchema.parse(value).candidates[0]!.cells[0]!.review).toEqual(
+    cell.review,
+  );
+  cell.review.conclusion = 'supported';
+  expect(matchRunSchema.safeParse(value).success).toBe(false);
+  delete cell.review;
+  expect(matchRunSchema.safeParse(value).success).toBe(true);
+});

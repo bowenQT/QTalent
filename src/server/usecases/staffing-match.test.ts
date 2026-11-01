@@ -8,6 +8,7 @@ import { JevError } from '../integrations/jev';
 import { applyJobCommand } from '../jobs/state';
 import { sourceSchema } from '../../contracts/sources';
 import { ForbiddenError } from './project-context';
+import { DemandAccessError } from '../modules/staffing/demand/service';
 import { matchingFixture } from '../../../tests/fixtures/staffing-matching';
 
 const input = {
@@ -343,15 +344,13 @@ describe('BOW-854 authorized matching', () => {
   it('cancellation during an in-flight model call prevents its late conclusion', async () => {
     const f = matchingFixture();
     let finish!: (value: { conclusion: 'supported' }) => void;
-    f.decide.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-    );
+    const pending = new Promise<{ conclusion: 'supported' }>((resolve) => {
+      finish = resolve;
+    });
+    f.decide.mockImplementation(() => pending);
     const result = await start(f),
       running = f.service.execute(result.runId, 1);
-    await vi.waitFor(() => expect(f.decide).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(f.decide).toHaveBeenCalledTimes(4));
     await f.store.transaction(result.runId, async (tx) => {
       const value = (await tx.load(result.runId))!;
       await tx.save(
@@ -373,7 +372,7 @@ describe('BOW-854 authorized matching', () => {
           (candidate) => candidate.cells[0]?.match.aiJudgment === null,
         ),
     ).toBe(true);
-    expect(f.decide).toHaveBeenCalledTimes(1);
+    expect(f.decide).toHaveBeenCalledTimes(4);
   });
   it('acknowledges cancellation wake-up even when Jev has already entered awaiting_manual', async () => {
     const f = matchingFixture();
@@ -398,15 +397,13 @@ describe('BOW-854 authorized matching', () => {
   it('a duplicate delivery claims each cell once even while a previous provider call is pending', async () => {
     const f = matchingFixture();
     let finish!: (value: { conclusion: 'supported' }) => void;
-    f.decide.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-    );
+    const pending = new Promise<{ conclusion: 'supported' }>((resolve) => {
+      finish = resolve;
+    });
+    f.decide.mockImplementation(() => pending);
     const result = await start(f),
       first = f.service.execute(result.runId, 1);
-    await vi.waitFor(() => expect(f.decide).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(f.decide).toHaveBeenCalledTimes(4));
     await f.service.execute(result.runId, 1);
     finish({ conclusion: 'supported' });
     await first;
@@ -448,15 +445,13 @@ describe('BOW-854 authorized matching', () => {
   it('rechecks initiator authorization after dispatch and rejects revoked late work', async () => {
     const f = matchingFixture();
     let finish!: (value: { conclusion: 'supported' }) => void;
-    f.decide.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-    );
+    const pending = new Promise<{ conclusion: 'supported' }>((resolve) => {
+      finish = resolve;
+    });
+    f.decide.mockImplementation(() => pending);
     const result = await start(f),
       running = f.service.execute(result.runId, 1);
-    await vi.waitFor(() => expect(f.decide).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(f.decide).toHaveBeenCalledTimes(4));
     f.context.grants[0]!.revokedAt = '2026-09-03';
     finish({ conclusion: 'supported' });
     await running;
@@ -473,15 +468,13 @@ describe('BOW-854 authorized matching', () => {
   it('suppresses a result if source text changes after dispatch, and requires manual judgment', async () => {
     const f = matchingFixture();
     let finish!: (value: { conclusion: 'supported' }) => void;
-    f.decide.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-    );
+    const pending = new Promise<{ conclusion: 'supported' }>((resolve) => {
+      finish = resolve;
+    });
+    f.decide.mockImplementation(() => pending);
     const result = await start(f),
       running = f.service.execute(result.runId, 1);
-    await vi.waitFor(() => expect(f.decide).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(f.decide).toHaveBeenCalledTimes(4));
     f.sources[0]!.excerpt = '演示：已更正的来源';
     f.rawSources[0]!.excerpt = '演示：已更正的来源';
     finish({ conclusion: 'supported' });
@@ -741,4 +734,44 @@ describe('BOW-854 authorized matching', () => {
       )?.requirements[0]?.humanJudgment?.conclusion,
     ).toBe('not_supported');
   });
+});
+
+it('已合852的真实DemandAccessError按无权限边界返回', async () => {
+  const f = matchingFixture();
+  f.readDemand.mockRejectedValueOnce(new DemandAccessError());
+  expect(await f.service.start('account-hr', input)).toMatchObject({
+    status: 'forbidden',
+  });
+  expect(f.decide).not.toHaveBeenCalled();
+});
+it('当前899节点归属消失后人员退出候选，不回退到旧期次关系', async () => {
+  const f = matchingFixture();
+  f.context.evaluationNodeSubjects = f.context.evaluationNodeSubjects.filter(
+    (s) => s.personId !== 'demo-a',
+  );
+  const value = await start(f);
+  await f.service.execute(value.runId, 1);
+  expect(
+    (await page(f, value.runId)).candidates.some(
+      (c) => c.person.id === 'demo-a',
+    ),
+  ).toBe(false);
+  expect(JSON.stringify(f.decide.mock.calls)).not.toContain('fragment-demo-a');
+});
+
+it('缺实际899节点事实时拒绝启动，不启用旧期次权限回退', async () => {
+  const f = matchingFixture();
+  Reflect.deleteProperty(f.context, 'evaluationNodes');
+  expect(await f.service.start('account-hr', input)).toMatchObject({
+    status: 'forbidden',
+  });
+  expect(f.decide).not.toHaveBeenCalled();
+});
+it('未明确映射评价节点的事件不送模型，不从项目或期次猜归属', async () => {
+  const f = matchingFixture();
+  const event = f.records.find((r) => r.id === 'event-demo-a')!;
+  delete event.subject.evaluationNodeId;
+  const result = await start(f);
+  await f.service.execute(result.runId, 1);
+  expect(JSON.stringify(f.decide.mock.calls)).not.toContain('fragment-demo-a');
 });

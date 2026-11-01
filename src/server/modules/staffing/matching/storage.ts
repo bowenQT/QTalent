@@ -1,3 +1,4 @@
+import { unsupportedReviewSchema } from './review';
 import { z } from 'zod';
 import {
   staffingCandidateSchema,
@@ -26,7 +27,16 @@ const cellSchema = z
   .strictObject({
     match: staffingMatchSchema,
     claim: text.nullable(),
-    error: z.enum(['no_evidence', 'input_changed', 'jev_failed']).nullable(),
+    error: z
+      .enum([
+        'no_evidence',
+        'input_changed',
+        'jev_failed',
+        'review_failed',
+        'review_disputed',
+      ])
+      .nullable(),
+    review: unsupportedReviewSchema.nullable().optional(),
     providerError: z
       .enum([
         'configuration',

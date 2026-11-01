@@ -1,3 +1,8 @@
+import {
+  failedReview,
+  unsupportedReviewSchema,
+  type UnsupportedReview,
+} from './review';
 import { z } from 'zod';
 import {
   humanStaffingJudgmentInputSchema,
@@ -96,7 +101,7 @@ export function projectMatchingRun(
     const visibleSourceKeys = new Set(
       visible.map((unit) => sourceKey(unit.source)),
     );
-    const requirements = candidate.cells.map(({ match }) => {
+    const requirements = candidate.cells.map(({ match, review }) => {
       const permitted = <T extends NonNullable<Match['aiJudgment']>>(
         judgment: T | null,
       ): T | null =>
@@ -106,7 +111,14 @@ export function projectMatchingRun(
         )
           ? judgment
           : null;
-      const aiJudgment = permitted(match.aiJudgment),
+      const checkedReview = unsupportedReviewSchema.safeParse(review);
+      const aiJudgment = permitted(
+          match.aiJudgment?.conclusion === 'not_supported' &&
+            (!checkedReview.success ||
+              checkedReview.data.status !== 'confirmed')
+            ? null
+            : match.aiJudgment,
+        ),
         humanJudgment = permitted(match.humanJudgment);
       return {
         requirementId: match.requirementId,
@@ -201,7 +213,10 @@ function matchingScope(scope: MatchScope): MatchScope {
     })),
   };
 }
+export const MATCH_CONCURRENCY = 4;
 export function createMatchingService<C>(deps: MatchDependencies<C>) {
+  if (typeof deps.reviewUnsupported?.review !== 'function')
+    throw new Error('Missing Gemini review port');
   async function scopeFor(accountId: string, run: MatchRun) {
     const scope = matchingScope(
       await deps.scope(accountId, run.demand.id, run.demand.revision),
@@ -267,6 +282,7 @@ export function createMatchingService<C>(deps: MatchDependencies<C>) {
                   claim: null,
                   error: null,
                   providerError: null,
+                  review: null,
                 })),
               })),
             };
@@ -452,239 +468,326 @@ export function createMatchingService<C>(deps: MatchDependencies<C>) {
       }
     },
     async execute(runId: string, attempt: number): Promise<void> {
-      for (;;) {
-        const claimed = await deps.store.transaction(runId, async (tx) => {
-          const stored = await tx.load(runId);
-          if (
-            !stored ||
-            stored.job.kind !== 'staffing_match' ||
-            stored.job.attempt !== attempt ||
-            ['completed', 'cancelled'].includes(stored.job.status)
-          )
-            return null;
-          const { run } = stored;
-          let { job } = stored;
-          if (job.cancelRequestedAt !== null) {
-            await tx.save(
-              run,
-              advanceJob(
-                job,
-                {
-                  status: 'cancelled',
-                  attempt,
-                  expectedRevision: job.revision,
-                },
-                deps.now(),
-              ),
-            );
-            return null;
-          }
-          if (['failed', 'awaiting_manual'].includes(job.status)) return null;
-          let scope: MatchScope;
-          try {
-            scope = await scopeFor(run.initiatorAccountId, run);
-          } catch (error) {
-            if (!(error instanceof MatchingError)) throw error;
+      let stopped = false;
+      async function lane() {
+        for (; !stopped;) {
+          const claimed = await deps.store.transaction(runId, async (tx) => {
+            const stored = await tx.load(runId);
+            if (
+              !stored ||
+              stored.job.kind !== 'staffing_match' ||
+              stored.job.attempt !== attempt ||
+              ['completed', 'cancelled'].includes(stored.job.status)
+            )
+              return null;
+            const { run } = stored;
+            let { job } = stored;
+            if (job.cancelRequestedAt !== null) {
+              await tx.save(
+                run,
+                advanceJob(
+                  job,
+                  {
+                    status: 'cancelled',
+                    attempt,
+                    expectedRevision: job.revision,
+                  },
+                  deps.now(),
+                ),
+              );
+              return null;
+            }
+            if (['failed', 'awaiting_manual'].includes(job.status)) return null;
+            let scope: MatchScope;
+            try {
+              scope = await scopeFor(run.initiatorAccountId, run);
+            } catch (error) {
+              if (!(error instanceof MatchingError)) throw error;
+              if (job.status === 'queued')
+                job = advanceJob(
+                  job,
+                  {
+                    status: 'running',
+                    attempt,
+                    expectedRevision: job.revision,
+                  },
+                  deps.now(),
+                );
+              await tx.save(
+                run,
+                advanceJob(
+                  job,
+                  {
+                    status: 'failed',
+                    attempt,
+                    expectedRevision: job.revision,
+                    errorCode: 'input_changed',
+                    result: null,
+                  },
+                  deps.now(),
+                ),
+              );
+              return null;
+            }
             if (job.status === 'queued')
               job = advanceJob(
                 job,
                 { status: 'running', attempt, expectedRevision: job.revision },
                 deps.now(),
               );
-            await tx.save(
-              run,
-              advanceJob(
-                job,
-                {
-                  status: 'failed',
-                  attempt,
-                  expectedRevision: job.revision,
-                  errorCode: 'input_changed',
-                  result: null,
-                },
-                deps.now(),
-              ),
-            );
-            return null;
-          }
-          if (job.status === 'queued')
-            job = advanceJob(
-              job,
-              { status: 'running', attempt, expectedRevision: job.revision },
-              deps.now(),
-            );
-          const candidate = run.candidates.find((value) =>
-            value.cells.some((cell) => cell.match.progress === 'queued'),
-          );
-          const cell = candidate?.cells.find(
-            (value) => value.match.progress === 'queued',
-          );
-          if (!candidate || !cell) {
+            // Durable run/job locks make this cap apply across duplicate workers too.
             if (
-              !run.candidates.some((value) =>
-                value.cells.some((item) => item.match.progress === 'judging'),
-              )
+              run.candidates
+                .flatMap((value) => value.cells)
+                .filter((cell) => cell.match.progress === 'judging').length >=
+              MATCH_CONCURRENCY
             )
+              return null;
+            const candidate = run.candidates.find((value) =>
+              value.cells.some((cell) => cell.match.progress === 'queued'),
+            );
+            const cell = candidate?.cells.find(
+              (value) => value.match.progress === 'queued',
+            );
+            if (!candidate || !cell) {
+              if (
+                !run.candidates.some((value) =>
+                  value.cells.some((item) => item.match.progress === 'judging'),
+                )
+              )
+                await tx.save(run, processingJob(job, run, scope, deps.now()));
+              return null;
+            }
+            const visible = allowedEvidence(candidate, scope);
+            const allUnchanged =
+              visible.length === candidate.evidence.length &&
+              scope.candidates.some(
+                (value) => value.person.id === candidate.person.id,
+              );
+            if (!allUnchanged || visible.length === 0) {
+              cell.match = {
+                ...emptyMatch(cell.match.requirementId),
+                progress: 'awaiting_manual',
+              };
+              cell.error = allUnchanged ? 'no_evidence' : 'input_changed';
               await tx.save(run, processingJob(job, run, scope, deps.now()));
-            return null;
-          }
-          const visible = allowedEvidence(candidate, scope);
-          const allUnchanged =
-            visible.length === candidate.evidence.length &&
-            scope.candidates.some(
-              (value) => value.person.id === candidate.person.id,
+              return { skip: true as const };
+            }
+            cell.match.progress = 'judging';
+            cell.claim = deps.id();
+            if (job.status === 'partial')
+              job = advanceJob(
+                job,
+                {
+                  status: 'partial',
+                  attempt,
+                  expectedRevision: job.revision,
+                  result: projectMatchingRun(run, scope),
+                },
+                deps.now(),
+              );
+            await tx.save(run, job);
+            const requirement = run.demand.requirements.find(
+              (value) => value.id === cell.match.requirementId,
             );
-          if (!allUnchanged || visible.length === 0) {
-            cell.match = {
-              ...emptyMatch(cell.match.requirementId),
-              progress: 'awaiting_manual',
+            if (!requirement) throw new MatchingError('conflict');
+            return {
+              skip: false as const,
+              personId: candidate.person.id,
+              requirementId: requirement.id,
+              claim: cell.claim,
+              input: matchingInput(run.demand, requirement, {
+                ...candidate,
+                evidence: visible,
+              }),
             };
-            cell.error = allUnchanged ? 'no_evidence' : 'input_changed';
-            await tx.save(run, processingJob(job, run, scope, deps.now()));
-            return { skip: true as const };
-          }
-          cell.match.progress = 'judging';
-          cell.claim = deps.id();
-          if (job.status === 'partial')
-            job = advanceJob(
-              job,
-              {
-                status: 'partial',
-                attempt,
-                expectedRevision: job.revision,
-                result: projectMatchingRun(run, scope),
-              },
-              deps.now(),
-            );
-          await tx.save(run, job);
-          const requirement = run.demand.requirements.find(
-            (value) => value.id === cell.match.requirementId,
-          );
-          if (!requirement) throw new MatchingError('conflict');
-          return {
-            skip: false as const,
-            personId: candidate.person.id,
-            requirementId: requirement.id,
-            claim: cell.claim,
-            input: matchingInput(run.demand, requirement, {
-              ...candidate,
-              evidence: visible,
-            }),
-          };
-        });
-        if (!claimed) return;
-        if (claimed.skip) continue;
-        let conclusion: z.infer<typeof conclusionSchema> | null = null;
-        let providerError: JevErrorKind | null = null;
-        try {
-          conclusion = conclusionSchema.parse(
-            (await deps.jev.decide(claimed.input)).conclusion,
-          );
-        } catch (error) {
-          // Store only a stable category; provider exceptions may contain evidence.
-          providerError =
-            error instanceof JevError
-              ? error.kind
-              : error instanceof z.ZodError
-                ? 'invalid_response'
-                : 'outcome_unknown';
-        }
-        await deps.store.transaction(runId, async (tx) => {
-          const stored = await tx.load(runId);
-          if (
-            !stored ||
-            stored.job.attempt !== attempt ||
-            !['running', 'partial'].includes(stored.job.status)
-          )
-            return;
-          const { run, job } = stored;
-          if (job.cancelRequestedAt !== null) {
-            await tx.save(
-              run,
-              advanceJob(
-                job,
-                {
-                  status: 'cancelled',
-                  attempt,
-                  expectedRevision: job.revision,
-                },
-                deps.now(),
-              ),
-            );
-            return;
-          }
-          const candidate = run.candidates.find(
-            (value) => value.person.id === claimed.personId,
-          );
-          const cell: MatchCell | undefined = candidate?.cells.find(
-            (value) => value.match.requirementId === claimed.requirementId,
-          );
-          if (
-            !candidate ||
-            !cell ||
-            cell.claim !== claimed.claim ||
-            cell.match.progress !== 'judging' ||
-            cell.match.humanJudgment !== null
-          )
-            return;
-          let scope: MatchScope;
+          });
+          if (!claimed) return;
+          if (claimed.skip) continue;
+          let conclusion: z.infer<typeof conclusionSchema> | null = null;
+          let providerError: JevErrorKind | null = null;
           try {
-            scope = await scopeFor(run.initiatorAccountId, run);
-          } catch (error) {
-            if (!(error instanceof MatchingError)) throw error;
-            await tx.save(
-              run,
-              advanceJob(
-                job,
-                {
-                  status: 'failed',
-                  attempt,
-                  expectedRevision: job.revision,
-                  result: null,
-                  errorCode: 'input_changed',
-                },
-                deps.now(),
-              ),
+            conclusion = conclusionSchema.parse(
+              (await deps.jev.decide(structuredClone(claimed.input)))
+                .conclusion,
             );
-            return;
+          } catch (error) {
+            // Store only a stable category; provider exceptions may contain evidence.
+            providerError =
+              error instanceof JevError
+                ? error.kind
+                : error instanceof z.ZodError
+                  ? 'invalid_response'
+                  : 'outcome_unknown';
           }
-          const unchanged =
-            allowedEvidence(candidate, scope).length ===
-            candidate.evidence.length;
-          cell.match =
-            unchanged && conclusion !== null
-              ? {
-                  requirementId: claimed.requirementId,
-                  progress: 'completed',
-                  aiJudgment: {
-                    conclusion,
-                    rationale:
-                      'Jev 四态判断；所附片段为完整判断输入，程序未生成模型解释。',
-                    sources: [
-                      ...new Map(
-                        candidate.evidence.map((unit) => [
-                          sourceKey(unit.source),
-                          unit.source,
-                        ]),
-                      ).values(),
-                    ],
-                  },
-                  humanJudgment: null,
+          let review: UnsupportedReview | null = null;
+          if (conclusion === 'not_supported') {
+            // Recheck current permission/claim/input between the two providers.
+            const permitted = await deps.store.transaction(
+              runId,
+              async (tx) => {
+                const stored = await tx.load(runId);
+                if (
+                  !stored ||
+                  stored.job.attempt !== attempt ||
+                  stored.job.cancelRequestedAt !== null ||
+                  !['running', 'partial'].includes(stored.job.status)
+                )
+                  return false;
+                const candidate = stored.run.candidates.find(
+                  (c) => c.person.id === claimed.personId,
+                );
+                const cell = candidate?.cells.find(
+                  (c) => c.match.requirementId === claimed.requirementId,
+                );
+                if (
+                  !candidate ||
+                  !cell ||
+                  cell.claim !== claimed.claim ||
+                  cell.match.progress !== 'judging' ||
+                  cell.match.humanJudgment !== null
+                )
+                  return false;
+                try {
+                  return (
+                    allowedEvidence(
+                      candidate,
+                      await scopeFor(stored.run.initiatorAccountId, stored.run),
+                    ).length === candidate.evidence.length
+                  );
+                } catch (error) {
+                  if (error instanceof MatchingError) return false;
+                  throw error;
                 }
-              : {
-                  ...emptyMatch(claimed.requirementId),
-                  progress: 'awaiting_manual',
-                };
-          cell.claim = null;
-          cell.providerError = providerError;
-          cell.error = unchanged
-            ? conclusion === null
-              ? 'jev_failed'
-              : null
-            : 'input_changed';
-          await tx.save(run, processingJob(job, run, scope, deps.now()));
-        });
+              },
+            );
+            if (permitted) {
+              try {
+                review = unsupportedReviewSchema.parse(
+                  await deps.reviewUnsupported.review(claimed.input),
+                );
+              } catch {
+                review = failedReview('outcome_unknown');
+              }
+            }
+            if (review?.status !== 'confirmed') conclusion = null;
+          }
+          await deps.store.transaction(runId, async (tx) => {
+            const stored = await tx.load(runId);
+            if (
+              !stored ||
+              stored.job.attempt !== attempt ||
+              !['running', 'partial'].includes(stored.job.status)
+            )
+              return;
+            const { run, job } = stored;
+            if (job.cancelRequestedAt !== null) {
+              await tx.save(
+                run,
+                advanceJob(
+                  job,
+                  {
+                    status: 'cancelled',
+                    attempt,
+                    expectedRevision: job.revision,
+                  },
+                  deps.now(),
+                ),
+              );
+              return;
+            }
+            const candidate = run.candidates.find(
+              (value) => value.person.id === claimed.personId,
+            );
+            const cell: MatchCell | undefined = candidate?.cells.find(
+              (value) => value.match.requirementId === claimed.requirementId,
+            );
+            if (
+              !candidate ||
+              !cell ||
+              cell.claim !== claimed.claim ||
+              cell.match.progress !== 'judging' ||
+              cell.match.humanJudgment !== null
+            )
+              return;
+            let scope: MatchScope;
+            try {
+              scope = await scopeFor(run.initiatorAccountId, run);
+            } catch (error) {
+              if (!(error instanceof MatchingError)) throw error;
+              await tx.save(
+                run,
+                advanceJob(
+                  job,
+                  {
+                    status: 'failed',
+                    attempt,
+                    expectedRevision: job.revision,
+                    result: null,
+                    errorCode: 'input_changed',
+                  },
+                  deps.now(),
+                ),
+              );
+              return;
+            }
+            const unchanged =
+              allowedEvidence(candidate, scope).length ===
+              candidate.evidence.length;
+            cell.match =
+              unchanged && conclusion !== null
+                ? {
+                    requirementId: claimed.requirementId,
+                    progress: 'completed',
+                    aiJudgment: {
+                      conclusion,
+                      rationale:
+                        review?.status === 'confirmed'
+                          ? 'Jev 不支持判断已由 Gemini 同输入复核；所附片段为完整判断输入，程序未生成模型解释。'
+                          : 'Jev 四态判断；所附片段为完整判断输入，程序未生成模型解释。',
+                      sources: [
+                        ...new Map(
+                          candidate.evidence.map((unit) => [
+                            sourceKey(unit.source),
+                            unit.source,
+                          ]),
+                        ).values(),
+                      ],
+                    },
+                    humanJudgment: null,
+                  }
+                : {
+                    ...emptyMatch(claimed.requirementId),
+                    progress: 'awaiting_manual',
+                  };
+            cell.claim = null;
+            cell.providerError = providerError;
+            cell.review = review;
+            cell.error = unchanged
+              ? review?.status === 'disputed'
+                ? 'review_disputed'
+                : review?.status === 'failed'
+                  ? 'review_failed'
+                  : conclusion === null
+                    ? 'jev_failed'
+                    : null
+              : 'input_changed';
+            await tx.save(run, processingJob(job, run, scope, deps.now()));
+          });
+        }
       }
+      const settled = await Promise.allSettled(
+        Array.from({ length: MATCH_CONCURRENCY }, async () => {
+          try {
+            await lane();
+          } catch (error) {
+            stopped = true;
+            throw error;
+          }
+        }),
+      );
+      const failure = settled.find((result) => result.status === 'rejected');
+      if (failure?.status === 'rejected') throw failure.reason;
     },
   };
 }

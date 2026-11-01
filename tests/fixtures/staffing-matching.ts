@@ -1,3 +1,6 @@
+import type { EvaluationAuthzContext } from '../../src/server/authz/evaluation-node';
+import { createUnsupportedReview } from '../../src/server/modules/staffing/matching/review';
+import { createFakeModelinkMaas } from '../../src/server/integrations/maas';
 import { vi } from 'vitest';
 import type { StaffingDemand } from '../../src/contracts/staffing';
 import type { Source } from '../../src/contracts/sources';
@@ -85,7 +88,7 @@ export function matchingFixture() {
     confirmedBy: { id: 'manager', name: '演示·管理者' },
     confirmedAt: '2026-09-01T10:00:00.000Z',
   };
-  const context: Awaited<ReturnType<LoadTalentSnapshot>>['context'] = {
+  const context: EvaluationAuthzContext = {
     account: { id: 'account-hr', personId: 'hr', isSystemAdmin: false },
     now: '2026-09-04',
     grants: [
@@ -104,6 +107,12 @@ export function matchingFixture() {
     projects: [],
     members: [],
     people: [],
+    evaluationNodes: [
+      { id: 'node-cohort-a', kind: 'program_cohort', cohortId: 'cohort-a' },
+      { id: 'node-cohort-b', kind: 'program_cohort', cohortId: 'cohort-b' },
+    ],
+    evaluationNodeSubjects: [],
+    evaluationRelations: [],
   };
   const records: TalentRecord[] = [],
     sources: Source[] = [],
@@ -122,8 +131,14 @@ export function matchingFixture() {
     const subject = {
       personId: sample.id,
       cohortId: sample.id === 'hidden' ? 'cohort-b' : 'cohort-a',
+      evaluationNodeId:
+        sample.id === 'hidden' ? 'node-cohort-b' : 'node-cohort-a',
     };
     context.people.push({ id: sample.id, noReview: false });
+    context.evaluationNodeSubjects.push({
+      personId: subject.personId,
+      evaluationNodeId: subject.evaluationNodeId,
+    });
     context.enrollments.push({
       personId: sample.id,
       cohortId: subject.cohortId,
@@ -259,6 +274,9 @@ export function matchingFixture() {
     demands: { read: readDemand },
     loadEvidence,
     jev: { decide },
+    reviewUnsupported: createUnsupportedReview(
+      createFakeModelinkMaas({ conclusion: 'not_supported' }),
+    ),
     wallNow: () => new Date('2031-04-05T06:07:08.000Z'),
     id: () => 'run-' + ++nextId,
   };

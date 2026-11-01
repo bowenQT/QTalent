@@ -1,3 +1,7 @@
+import { DemandAccessError } from '../modules/staffing/demand/service';
+import { loadEvaluationContext } from './evaluation-context';
+import type { EvaluationAuthzContext } from '../authz/evaluation-node';
+import type { UnsupportedReviewClient } from '../modules/staffing/matching/review';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { fromDrizzle, type PgBoss } from 'pg-boss';
@@ -36,7 +40,7 @@ import {
   registerStaffingMatch,
 } from '../jobs/staffing-match';
 import type { Database, Transaction } from '../db/client';
-import { loadProjectContext, ForbiddenError } from './project-context';
+import { ForbiddenError } from './project-context';
 import { readEvidenceForTalent } from '../modules/records';
 
 /** Facts come from the event confirmation authority, never inferred from scores. */
@@ -55,12 +59,15 @@ export interface StaffingMatchDependencies<C> {
     accountId: string,
     today: string,
   ): Promise<{
-    snapshot: Awaited<ReturnType<LoadTalentSnapshot>>;
+    snapshot: Awaited<ReturnType<LoadTalentSnapshot>> & {
+      context: EvaluationAuthzContext;
+    };
     confirmations: EventConfirmationFact[];
     sources: Source[];
     actor: { id: string; name: string };
   }>;
   jev: JevClient;
+  reviewUnsupported: UnsupportedReviewClient;
   wallNow?: () => Date;
   id?: () => string;
 }
@@ -89,6 +96,9 @@ export function createStaffingMatchUsecase<C>(
       throw new MatchingError('conflict');
     const loaded = await deps.loadEvidence(accountId, clock.today());
     if (
+      !Array.isArray(loaded.snapshot.context.evaluationNodes) ||
+      !Array.isArray(loaded.snapshot.context.evaluationNodeSubjects) ||
+      !Array.isArray(loaded.snapshot.context.evaluationRelations) ||
       loaded.snapshot.context.account.id !== accountId ||
       loaded.snapshot.context.account.personId !== loaded.actor.id ||
       !loaded.actor.name.trim() ||
@@ -115,19 +125,26 @@ export function createStaffingMatchUsecase<C>(
         )
         .map(referenceId),
     );
-    const selectedRecords = loaded.snapshot.records.map((record) => ({
-      ...record,
-      fields: record.fields.filter((field) =>
-        record.kind === 'person'
-          ? ['name', 'orgName'].includes(field.name) && field.kind === 'person'
-          : record.kind === 'evaluation' &&
-            ['situation', 'behavior', 'impact'].includes(field.name) &&
-            field.kind === 'evaluation' &&
-            field.sources.every(
-              (source) => !observationSources.has(referenceId(source)),
-            ),
-      ),
-    }));
+    const selectedRecords = loaded.snapshot.records
+      .filter(
+        (record) =>
+          typeof record.subject.evaluationNodeId === 'string' &&
+          record.subject.evaluationNodeId.length > 0,
+      )
+      .map((record) => ({
+        ...record,
+        fields: record.fields.filter((field) =>
+          record.kind === 'person'
+            ? ['name', 'orgName'].includes(field.name) &&
+              field.kind === 'person'
+            : record.kind === 'evaluation' &&
+              ['situation', 'behavior', 'impact'].includes(field.name) &&
+              field.kind === 'evaluation' &&
+              field.sources.every(
+                (source) => !observationSources.has(referenceId(source)),
+              ),
+        ),
+      }));
     const { items } = await buildAuthorizedModelInput(async () => ({
       ...loaded.snapshot,
       records: selectedRecords,
@@ -229,19 +246,23 @@ export function createStaffingMatchUsecase<C>(
       try {
         return await loadScope(accountId, demandId, revision);
       } catch (error) {
-        if (error instanceof ForbiddenError)
+        if (
+          error instanceof ForbiddenError ||
+          error instanceof DemandAccessError
+        )
           throw new MatchingError('forbidden');
         throw error;
       }
     },
     jev: deps.jev,
+    reviewUnsupported: deps.reviewUnsupported,
     now: () => wallNow().toISOString(),
     id: deps.id ?? randomUUID,
   });
 }
 
 export type StaffingMatchEvidenceData = Awaited<
-  ReturnType<typeof loadProjectContext>
+  ReturnType<typeof loadEvaluationContext>
 > &
   Awaited<ReturnType<typeof readEvidenceForTalent>>;
 /** 846 supplies actual event confirmation facts; 837 supplies the shared complete
@@ -261,7 +282,7 @@ export function createStaffingMatchEvidenceLoader(ports: {
     ports.db.transaction(
       async (tx) => {
         const data = {
-          ...(await loadProjectContext(tx, accountId, today)),
+          ...(await loadEvaluationContext(tx, accountId, today)),
           ...(await readEvidenceForTalent(tx)),
         };
         const confirmations = await ports.readConfirmations(tx, data);

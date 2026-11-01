@@ -33,6 +33,9 @@ function fixture() {
       id: fact.recordId,
       personId: fact.personId,
       projectId: null,
+      evaluationNodeId:
+        f.records.find((r) => r.id === fact.recordId)!.subject
+          .evaluationNodeId ?? null,
       situation: z.string().parse(fields(fact.recordId).situation),
       behavior: z.string().parse(fields(fact.recordId).behavior),
       impact: z.string().parse(fields(fact.recordId).impact),

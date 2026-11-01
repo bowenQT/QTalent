@@ -1,3 +1,4 @@
+import type { UnsupportedReview, UnsupportedReviewClient } from './review';
 import type { z } from 'zod';
 import type {
   StaffingDemand,
@@ -48,7 +49,15 @@ export interface MatchScope {
 export interface MatchCell {
   match: Match;
   claim: string | null;
-  error: 'no_evidence' | 'input_changed' | 'jev_failed' | null;
+  error:
+    | 'no_evidence'
+    | 'input_changed'
+    | 'jev_failed'
+    | 'review_failed'
+    | 'review_disputed'
+    | null;
+  /** Missing only on pre-review legacy payloads; never enough to publish not_supported. */
+  review?: UnsupportedReview | null;
   providerError: JevErrorKind | null;
 }
 export interface MatchRun {
@@ -99,6 +108,7 @@ export interface MatchDependencies<C> {
     revision: number,
   ): Promise<MatchScope>;
   jev: JevClient;
+  reviewUnsupported: UnsupportedReviewClient;
   now(): string;
   id(): string;
 }

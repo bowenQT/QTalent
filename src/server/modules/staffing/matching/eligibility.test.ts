@@ -31,6 +31,7 @@ function directService(f: Fixture, run: MatchRun) {
     store: f.store,
     scope: async () => structuredClone(scope(run)),
     jev: { decide: f.decide },
+    reviewUnsupported: f.dependencies.reviewUnsupported,
     now: () => '2031-04-05T06:07:08.000Z',
     id: () => 'direct-' + ++next,
   });
