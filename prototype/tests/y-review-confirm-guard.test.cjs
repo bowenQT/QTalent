@@ -20,7 +20,7 @@ function setup(initial = {}) {
     canEditReview: () => allowed,
     review: (pid, week) => {
       const key = pid + '-' + week;
-      return { key, state: S.reviews[key]?.state || 'draft', ai, conflicts, total: 2 };
+      return { key, state: S.reviews[key]?.state || 'draft', ai, conflicts, total: 2, events: [] };
     },
     me: () => ({ id: role }),
     save: () => { saves++; },

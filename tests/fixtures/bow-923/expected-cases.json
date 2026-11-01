@@ -1,0 +1,750 @@
+[
+  {
+    "caseId": "bow-923-case-001",
+    "personId": "p-x01",
+    "expectedOutcome": {
+      "state": "front_higher",
+      "bands": 2
+    }
+  },
+  {
+    "caseId": "bow-923-case-002",
+    "personId": "p-x02",
+    "expectedOutcome": {
+      "state": "front_lower",
+      "bands": 2
+    }
+  },
+  {
+    "caseId": "bow-923-case-003",
+    "personId": "p-x03",
+    "expectedOutcome": {
+      "state": "front_higher",
+      "bands": 1
+    }
+  },
+  {
+    "caseId": "bow-923-case-004",
+    "personId": "p-x04",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-005",
+    "personId": "p-x05",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-006",
+    "personId": "p-x06",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "back"
+    }
+  },
+  {
+    "caseId": "bow-923-case-007",
+    "personId": "p-x07",
+    "expectedOutcome": {
+      "state": "not_comparable",
+      "reason": "两段判断的任务范围不同，由 HR 标注不可比（演示）",
+      "markedBy": {
+        "id": "p-suwan",
+        "name": "苏晚（演示）"
+      },
+      "markedAt": "2026-06-15T01:00:00.000Z"
+    }
+  },
+  {
+    "caseId": "bow-923-case-008",
+    "personId": "p-x08",
+    "expectedOutcome": {
+      "state": "front_higher",
+      "bands": 2
+    }
+  },
+  {
+    "caseId": "bow-923-case-009",
+    "personId": "p-x09",
+    "expectedOutcome": {
+      "state": "front_lower",
+      "bands": 2
+    }
+  },
+  {
+    "caseId": "bow-923-case-010",
+    "personId": "p-x10",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-011",
+    "personId": "p-x11",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-012",
+    "personId": "p-x12",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "back"
+    }
+  },
+  {
+    "caseId": "bow-923-case-013",
+    "personId": "p-x13",
+    "expectedOutcome": {
+      "state": "not_comparable",
+      "reason": "两段判断的任务范围不同，由 HR 标注不可比（演示）",
+      "markedBy": {
+        "id": "p-suwan",
+        "name": "苏晚（演示）"
+      },
+      "markedAt": "2026-06-15T01:00:00.000Z"
+    }
+  },
+  {
+    "caseId": "bow-923-case-014",
+    "personId": "p-x14",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "front"
+    }
+  },
+  {
+    "caseId": "bow-923-case-015",
+    "personId": "p-x15",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "both"
+    }
+  },
+  {
+    "caseId": "bow-923-case-016",
+    "personId": "p-x16",
+    "expectedOutcome": {
+      "state": "front_higher",
+      "bands": 2
+    }
+  },
+  {
+    "caseId": "bow-923-case-017",
+    "personId": "p-x17",
+    "expectedOutcome": {
+      "state": "front_lower",
+      "bands": 2
+    }
+  },
+  {
+    "caseId": "bow-923-case-018",
+    "personId": "p-x18",
+    "expectedOutcome": {
+      "state": "front_higher",
+      "bands": 1
+    }
+  },
+  {
+    "caseId": "bow-923-case-019",
+    "personId": "p-x19",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-020",
+    "personId": "p-x20",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-021",
+    "personId": "p-x21",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-022",
+    "personId": "p-x22",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-023",
+    "personId": "p-x23",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-024",
+    "personId": "p-x24",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-025",
+    "personId": "p-x25",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-026",
+    "personId": "p-x26",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-027",
+    "personId": "p-x27",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-028",
+    "personId": "p-x28",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-029",
+    "personId": "p-x29",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-030",
+    "personId": "p-x30",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-031",
+    "personId": "p-x31",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-032",
+    "personId": "p-x32",
+    "expectedOutcome": {
+      "state": "consistent"
+    }
+  },
+  {
+    "caseId": "bow-923-case-033",
+    "personId": "p-x33",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-034",
+    "personId": "p-x34",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-035",
+    "personId": "p-x35",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-036",
+    "personId": "p-x36",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-037",
+    "personId": "p-x37",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-038",
+    "personId": "p-x38",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-039",
+    "personId": "p-x39",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-040",
+    "personId": "p-x40",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-041",
+    "personId": "p-x41",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-042",
+    "personId": "p-x42",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-043",
+    "personId": "p-x43",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-044",
+    "personId": "p-x44",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-045",
+    "personId": "p-x45",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-046",
+    "personId": "p-x46",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "不建议"
+    }
+  },
+  {
+    "caseId": "bow-923-case-047",
+    "personId": "p-x47",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-048",
+    "personId": "p-x48",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-049",
+    "personId": "p-x49",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-050",
+    "personId": "p-x50",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-051",
+    "personId": "p-x51",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-052",
+    "personId": "p-x52",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-053",
+    "personId": "p-x53",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-054",
+    "personId": "p-x54",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-055",
+    "personId": "p-x55",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-056",
+    "personId": "p-x56",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-057",
+    "personId": "p-x57",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-058",
+    "personId": "p-x58",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-059",
+    "personId": "p-x59",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-060",
+    "personId": "p-x60",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-061",
+    "personId": "p-x61",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-062",
+    "personId": "p-x62",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-063",
+    "personId": "p-x63",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-064",
+    "personId": "p-x64",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-065",
+    "personId": "p-x65",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-066",
+    "personId": "p-x66",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-067",
+    "personId": "p-x67",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-068",
+    "personId": "p-x68",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-069",
+    "personId": "p-x69",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-070",
+    "personId": "p-x70",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-case-071",
+    "personId": "p-x71",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-072",
+    "personId": "p-x72",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-073",
+    "personId": "p-x73",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-074",
+    "personId": "p-x74",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-075",
+    "personId": "p-x75",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-076",
+    "personId": "p-x76",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-077",
+    "personId": "p-x77",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-078",
+    "personId": "p-x78",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-079",
+    "personId": "p-x79",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-080",
+    "personId": "p-x80",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-081",
+    "personId": "p-x81",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-082",
+    "personId": "p-x82",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-083",
+    "personId": "p-x83",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-084",
+    "personId": "p-x84",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-case-085",
+    "personId": "p-x85",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "front"
+    }
+  },
+  {
+    "caseId": "bow-923-case-086",
+    "personId": "p-x86",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "front"
+    }
+  },
+  {
+    "caseId": "bow-923-case-087",
+    "personId": "p-x87",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "front"
+    }
+  },
+  {
+    "caseId": "bow-923-case-088",
+    "personId": "p-x88",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "back"
+    }
+  },
+  {
+    "caseId": "bow-923-case-089",
+    "personId": "p-x89",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "back"
+    }
+  },
+  {
+    "caseId": "bow-923-case-090",
+    "personId": "p-x90",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "back"
+    }
+  },
+  {
+    "caseId": "bow-923-case-091",
+    "personId": "p-x91",
+    "expectedOutcome": {
+      "state": "missing",
+      "missing": "both"
+    }
+  },
+  {
+    "caseId": "bow-923-case-092",
+    "personId": "p-x92",
+    "expectedOutcome": {
+      "state": "not_comparable",
+      "reason": "两段判断的任务范围不同，由 HR 标注不可比（演示）",
+      "markedBy": {
+        "id": "p-suwan",
+        "name": "苏晚（演示）"
+      },
+      "markedAt": "2026-06-15T01:00:00.000Z"
+    }
+  },
+  {
+    "caseId": "bow-923-case-093",
+    "personId": "p-x93",
+    "expectedOutcome": {
+      "state": "not_comparable",
+      "reason": "两段判断的任务范围不同，由 HR 标注不可比（演示）",
+      "markedBy": {
+        "id": "p-suwan",
+        "name": "苏晚（演示）"
+      },
+      "markedAt": "2026-06-15T01:00:00.000Z"
+    }
+  }
+]

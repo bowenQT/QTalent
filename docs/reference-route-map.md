@@ -9,7 +9,9 @@
 | 原型没有登录页       | `/login`             | `auth/LoginForm`                                       | Better Auth 登录协议 | `/api/auth/sign-in/email`、`/api/auth/sign-out` | 认证                                 | 邮箱密码登录、错误保留输入、阻止重复点击   |
 | `app/js/shell.js`    | `(desk)/layout`      | `shell/Shell`、`AccountMenu`、`CommandMenu`            | `shell.ts`           | `queries/shell.ts`                              | directory、programs 授权             | 按服务端导航渲染，账号菜单退出后回登录     |
 | `app/projects.html`  | `/projects`          | `projects/Projects`、`ProjectCard`、`NewProjectDialog` | `projects.ts`        | `queries/projects.ts`、`actions/projects.ts`    | directory、programs、staffing、audit | 管理者 / HR / 导师列表、状态筛选、新建项目 |
+| 无独立原件页；设计系统 `#c-doc` 引用角标的「打开完整纪要」 | `/sources?fragment=…&version=…` | `sources/SourceViewer`、`SourceCite`、`source-href` | `sources.ts`（P0 读取；897 材料来源经 `fromMaterialSource`） | `queries/sources.ts` 的 `readSourceForCurrentUser` | records、talent 授权、audit | 只读；地址只带两个标识，位置由服务端解析；被拒与不存在同一个「原件链接失效」页；原件全文待 BOW-873 授权读取，显示「原件待接入」；原型没有对应页，视觉为参照待同步，交视觉审查 |
 | `design-system.html` | `/dev/design-system` | 基础组件样张                                           | —                    | 路由中的生产环境门禁                            | —                                    | 仅开发环境；生产返回 404                   |
+| 同上 | `/dev/design-system/sources`、`/dev/design-system/sources/view` | 原件查看器样张（六种定位、代码快照、基线、待接入） | `sources.ts` 校验后的合成样张 | 路由中的生产环境门禁 | — | 仅开发环境；生产返回 404 |
 | `404.html`           | 全局 `not-found.tsx` | `components/ui/State`                                  | —                    | Next.js 404                                     | —                                    | 通用返回入口                               |
 
 `/` 仅重定向 `/projects`；登录后的导航「工作台」指向 `/work`，仍返回 404，不借参考切片冒充已完成的工作台。
@@ -23,8 +25,9 @@
 | `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
-| `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
+| `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | UI 已还原（BOW-847，样张 `/dev/record`）；页面读取与读写待 845 / 846 接入，路由显示「记一件事待接通」 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
+| `app/import.html`                 | `/import?id=…`                    | interview-import / （BOW-906 读取） | 面评导入预览 / records、directory            | 角色门禁已实现；预览读取待接通，样张 `/dev/import`；视觉参照待同步 |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
 | `app/review.html`                 | `/review?id=…`                    | review / review                     | review / talent                              | 后续 / 404     |
@@ -35,9 +38,9 @@
 | `app/actions.html`                | `/program-actions`                | program-actions / program-actions   | program-actions / programs                   | 后续 / 404     |
 | `app/projects.html`               | `/projects`                       | projects / projects                 | projects / staffing                          | 已实现参考切片 |
 | `app/project.html`                | `/project?id=…`                   | project / project                   | project / staffing                           | 后续 / 404     |
-| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 契约已定义，查询与 UI 待接入 / 404 |
-| `app/rules.html`                  | `/rules`                          | rules / rules                       | rules / evaluation-system                    | 后续 / 404     |
-| `app/judge.html`                  | `/judge?rater=me`                 | judge / judge                       | judge / evaluation-system                    | 后续 / 404     |
+| `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 路由已按角色拦截；活文档组件在开发样张 `/dev/staffing`，真实读取待 BOW-852、854 |
+| `app/rules.html`                  | `/rules`；入营选拔标准 `/rules?r=front&line=xe-select` | standard-iteration / selection-standard.ts | 待 BOW-918 读取与动作 / evaluation-system | 入营选拔标准：UI 已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-920）；其余 404 |
+| `app/judge.html`                  | `/judge`、`/judge?rater=me`       | standard-iteration / judgment-comparison.ts、standard-attribution.ts | 待 BOW-919、BOW-921 读取与动作 / evaluation-system | UI 已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-920） |
 | `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
 | `app/admin.html`                  | `/admin`                          | admin / admin                       | admin / directory、平台                      | 后续 / 404     |
 | `m/index.html`                    | `/m`                              | mobile-workbench / mobile-workbench | mobile-workbench / 多领域聚合                | 后续 / 404     |
@@ -50,6 +53,52 @@
 | `m/me.html`                       | `/m/me`                           | mobile-account / mobile-account     | mobile-account / directory                   | 后续 / 404     |
 | `design-system.html`              | `/dev/design-system`              | 已移植基础组件                      | —                                            | 已实现开发样张 |
 | `404.html`                        | 全局 404                          | State                               | —                                            | 已实现         |
+
+## BOW-847 记一件事
+
+原型 `app/record.html` 还原到 `src/features/record/`。BOW-845（页面读取与整理，#185）和 BOW-846（保存与五秒撤销，#289）不在 `main`，所以：
+
+- `/record` 在服务端按角色拦截：系统管理员看「这一页属于业务视角」，管理者、HR、导师看「记一件事待接通」。页面不读取任何人员或记录。
+- 写原话 → 整理 → 待确认 → 保存 → 5 秒内撤销，在开发样张 `/dev/record?role=hr|mentor|manager` 上运行，生产环境 404。`?scene=fail|offline|conflict|selection` 走失败、断网、保存冲突、待选人的路径。样张替身按 844 / 897 契约回应，任务快照经 `recordJobSchema` 校验；演示人员取自原型 Y 种子（化名，标「演示」）。
+- 845、846 合入后，`/record` 只做绑定：页面读取的人、项目、维度、署名和默认锚点传进 `RecordPage`，动作依次绑整理、选人、保存、撤销、草稿读取与重试，`onJobChange` 更新 `?job=`。原话永远不进 URL。
+- 待接通：语音输入和添加附件。两个按钮留在原型的位置，标「语音输入待接通」「添加附件待接通」；旁边的提示句写「写原话就行，一整段也可以；语音和附件待接通」，不写可以附上文件或拖进来。附件由 BOW-870 经 `attachmentSlot` 接入。
+- 和原型的差异：
+  - 标签：844 / 897 的记事契约没有标签，所以整理轨迹是 3 步（没有「从标签库里打标签」），也没有标签行。契约补上标签后再接。
+  - 整理中：原型在浏览器里边整理边写出人员和文字，工程等后台任务完成才拿到草稿，整理中只显示轨迹和「整理中」。
+  - 待确认时焦点交给标题，原型不移焦点。
+  - 「谁」的下拉按 `main` 上的原型种子，比固定参照多两位演示人员。
+- 照原型的部分：分数说明里的原话引用是普通文字（「锚点 4 · 引用「……」」），「原话」里不加标记；保存后 5 秒内撤销，回到待确认，整理结果和改过的文字、分数都在，再保存换新的 operation_id。
+- 工程补的状态（原型没有）：没写名字时「先选一下是谁」，候选人用设计系统的选择列表，一人一行。
+- 新增样式暂放 `src/features/record/record.css`（小犇容器的行盒），全局样式同步后并入。
+- 视觉对照：`tests/visual/record.spec.ts` 对固定参照 `91b297a`（这一页在 `91b297a` 与 `81e4fd4` 之间只改了撤销提示的文字，四个状态逐元素一致），在 1366 和 375 两个宽度逐块比较写原话、待确认、已保存三个状态：先比文字，再比像素。含小犇或多段文字的块逐个子元素比较，并检查子元素在块内的位置。上面列出的差异不在比较范围内；撤销提示固定在视口上，不比。
+
+## BOW-907 面评导入预览
+
+原型 `app/import.html`（BOW-898，#250，`81e4fd4`）还原到 `src/features/interview-import/`。BOW-906（导入决策，#277）和 BOW-900（解析，#257）不在 `main`，所以：
+
+- `/import?id=…` 在服务端按角色拦截：系统管理员看「这一页属于业务视角」，HR 以外看「面评导入由 HR 处理」，HR 看「面评预览待接通」；缺 `id` 写「导入链接失效」。页面不读取任何面评数据。
+- 预览、逐行确认、补录和放进待核对在开发样张 `/dev/import` 上运行，生产环境 404。演示数据取自原型 Y 种子 `imp-1`（化名，标「演示」）。
+- 视图模型 `model.ts` 镜像 906 的决策词汇和 900 的 `Selection` 三态。906 每行只给第一个阻塞原因，预览要同时显示一行的全部待办（面试官待核对和待补录可以并存），所以读取需要返回逐行事实，行状态在前端推导。出口表按 #277 的实际出口（审查 [6558574643](https://github.com/bowenQT/QTalent/pull/277#issuecomment-6558574643)「待同步」）对齐，906 合入后把镜像换成它的契约，映射不变：
+
+| 906（#277） | 行状态 |
+| --- | --- |
+| `duplicate` | 已导入过（折叠在「跳过的 N 行」，带「这份文件 … 导入过一次」提示） |
+| `not_ready / parser_manual_input`（`unrecognized`） | 有分待补录，显示页面图并补录 |
+| `needs_review(unknown_interview_candidate)`，目录里有这个人 | 待确认是谁（HR 在预览里确认，即 906 的 `confirmedCandidateId`） |
+| `needs_review(unknown_interview_candidate)`，目录里查不到 | 待认人 → 已放进待核对 |
+| `not_ready / candidate_match_unconfirmed` | 待确认是谁 |
+| `skipped / not_hired`（HR 确认是谁之后） | 将跳过（折叠在「跳过的 N 行」） |
+| `needs_review(unknown_interviewer)` | 面试官待核对 |
+| `planned` | 已确认 |
+
+- 淘汰和未入职：906 现在先认人、后看招聘状态，HR 确认是谁之前不跳过。目录里通常查不到这些人，所以原型种子里的唐语桐（淘汰）、宋知意（已发 offer · 未入职）在预览里是「待认人」，行内写「确认是谁之前不入档」，和原型「跳过的 3 行」不同。HR 确认之前能否直接跳过还在等所有者裁决（[#248 评论 6558715526](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6558715526)）；如果改为提前跳过，只改 `rowState` 的顺序。
+- `skipped / original_only` 在待核对里决定，不回到预览；`candidate_directory_missing` 在 #277 已不可达，从映射里删去。
+- 「返回后保留」：每次确认、补录、放进待核对都经端口 `ports.ts` 提交，端口返回存好的那一行；离开再回来，读取到的行已带上这些结果。样张端口把它们存在本标签页的 sessionStorage。
+- 待接通：导入已确认的行、撤销导入和导入记录（906 没有持久化和档案投影）。导入条上的按钮保持禁用，旁边写「导入待接通」。
+- 链接：「去核对」「关联面试官」「查看待核对」按原型链到 `/inbox#…`，待核对页上线前返回 404。
+- 和原型的差异：面包屑缺「工作台」上级（`route-nav` 别名属共享文件，已在 #248 登记）；导入条多一个「导入待接通」徽标；淘汰和未入职的两行见上；补录保存失败时选项留在框里，标「还没保存」并给「重试保存」。
+- 新增样式暂放 `src/features/interview-import/interview-import.css`，逐字取自原型 `niu-components.css`（`81e4fd4`），全局样式同步后删除。
+- 视觉对照：**参照待同步**。固定参照 `91b297a` 早于 #250，没有 `app/import.html`；本页按 `main` 上 `81e4fd4` 的原型实现，`91b297a` 里没有可比的部分，所以不写成视觉通过。`tests/visual/interview-import.spec.ts` 在参照缺页时整体跳过；同步到 `81e4fd4` 的请求见 [#248 评论 6557468925](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6557468925)，参照更新后自动补跑。
 
 ## BOW-851 找人契约
 
@@ -154,28 +203,28 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 
 ## P0 工作台、人员与来源合同（BOW-836）
 
-依据：[已交叉审规格](https://linear.app/bowenzhong/document/51834ba3247b)。仅新增 Zod 合同和合成夹具，不实现页面或读取。前端 BOW-839/840/841 负责人评审仍是独立合入条件，本表不宣称已获评审。原型基线仍为 `prototype-reference.json` 的 `2e51b50`，没有新遮罩或 UI 修改。
+依据：[已交叉审规格](https://linear.app/bowenzhong/document/51834ba3247b)、BOW-836 的 10/26 修订清单与[所有者恢复裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6553550926)。本片提供 Zod 合同、合成夹具及现有人才/来源读取的形状适配，不实现页面；工作台真实读取仍由 BOW-838 接入。消费 main 已冻结的 BOW-897，保留 #216 来源索引及 #284 的受限评价分类。工程原型参照以 `prototype-reference.json` 为准；历史原件的 `2e51b50` 是其固定来源证明，两者不混用。前端消费方评审仍是独立条件，本表不宣称已获评审。
 
 | 消费页面 / 区块 | 合同字段 | 数据来源 / 当前表达 | 后续责任 |
 | --- | --- | --- | --- |
-| `/work` 问候与入口 | `workbench.greeting / entries` | directory 身份及服务端授权；合同就绪，查询尚未接入 | BOW-838/841 |
-| 管理者找人入口 | `findPeople` | 仅可用动作，不包含找人结果 | BOW-838；P2 找人链路 |
+| `/work` 问候、业务日与入口 | `workbench.greeting / asOf / entries` | directory 身份及服务端授权；`entries` 是动作授权唯一来源（管理者与 HR `record, find_people`、导师 `record`），导航由 shell 决定；查询由 `queries/workbench.ts` 提供页面包络与当前授权读取，UI 由 841 接入；`/work` 仍为 404 | BOW-838/841 |
 | 管理者判断提醒、值得关注的人/项目、我的关注 | `judgmentReminders / noteworthyPeople / noteworthyProjects / myWatch` | evaluation-system / talent / programs；固定 `not_connected` | P2/P4 对应链路 |
 | HR 有变化的人、判断对照 | `changedPeople / judgmentComparison` | talent / evaluation-system；固定 `not_connected` | P4/P7 对应链路 |
 | HR/导师待办与材料任务 | `todos / materialTasks` | records / jobs；固定 `not_connected`，无伪零角标 | P3 待办汇总与材料链路 |
-| 导师学员 / 推荐 | `trainees / recommendations` | directory + records 授权学员可 ready/empty/insufficient_evidence/unknown；推荐固定 `not_connected` | BOW-838/841；推荐后续卡 |
-| `/people` 列表、速览 | `peopleList / quickView` | directory、records、staffing 公开入口；合同就绪，读取/UI 未接入 | BOW-837/839 |
-| `/person?id=…` 摘要 | `summary` | directory 身份；records 已授权事实、自述、人工结论分性质呈现 | BOW-837/840 |
-| 档案能力谱 | `capabilityProfile` | records 确认表维度分：锚点、评价人、规则版本、有效来源及 sourceCategory；演示种子的 prototype_baseline 例外计入，无 AI 建议分 | BOW-834/835/837/840 |
-| 档案小象限 | `referencePosition` | talent 当前有效确认分计算；只给参考分类或资料不足/未知，不设新阈值，无正式位置 | BOW-837/840 |
+| 导师学员 / 推荐 | `trainees / recommendations` | `trainees` 是精简投影（头像四项、课题、本人本周记录活跃度 ready/unknown），不含摘要、分数、来源；推荐固定 `not_connected` | BOW-838/841；推荐后续卡 |
+| `/people` 列表、速览 | `peopleList / quickView` | 身份（含 teamPath、level、batch、tenureLabel）、`projectLoad`、`recentFacts`（≤3，原文角标）、`capabilityLines`（无窗口，只有事件数与锚点）；先授权后聚合；合同及既有读取形状已适配，页面/结果包络接入由消费卡完成 | BOW-837/839 |
+| `/person?id=…` 摘要 | `summary` | 署名、有日期的人工结论，带授权类别 `category`；事实与自述在时间线，AI 在 `aiInferences` | BOW-837/840 |
+| 档案能力谱 | `capabilityProfile` | 服务端按 `asOf` 前 365 天（含边界日）切窗口，带 `windowFrom`、维度状态与窗口内确认分（锚点、评价人姓名、规则版本、来源、事件）；分差 ≥ 2 的证据冲突不计入；演示种子的 prototype_baseline 例外计入，无 AI 建议分 | BOW-834/835/837/840 |
+| 档案小象限 | `referencePosition` | talent 当前有效确认分计算；只给参考分类或资料不足/未知，档案另有 `bonus`（领导力或开放性各自均值 ≥ 4，不改象限），不设新阈值，无正式位置 | BOW-837/840 |
 | 校准轨迹、档案版本与变化 | `calibrationHistory / versionsAndChanges` | talent 盘点冻结未接入；固定 `not_connected` | 后续盘点冻结链路 |
-| 管理观察 / AI 推断 | `managementObservations / aiInferences` | records 按性质与当前权限分别投影，AI 继承来源权限 | BOW-835/837/840 |
-| 时间线、参与项目 | `timeline / projects` | records / staffing 已授权公开入口 | BOW-837/840 |
-| 所有引用角标展开 | `sourceReadInput / sourceReadResult` | records 的 fragmentId + originalVersionId + location；每次核对关联及当前权限，不整件返回 | BOW-834/835/837；播放 URL 由 BOW-873 后续接入 |
+| AI 推断 | `aiInferences` | 独立块，不冒充人工结论；`category` 随输入内容定类，导师变体只能是 `evaluation` | BOW-835/837/840 |
+| 时间线、参与项目 | `timeline / projects` | 关键事件、自述、历史量表三种条目：`label`（界面来源标签）与 `category`（授权类别）分开，事件带逐分来源与证据冲突；项目含角色、方式、起止；均为已授权入口 | BOW-837/840 |
+| 所有引用角标展开 | `sourceReadInput / sourceReadResult` | 入参只有 fragmentId + originalVersionId（`toSourceReadInput`），结果含 `originalTitle`、可空的 `recordedByName`；每次核对关联及当前权限，不整件返回 | BOW-834/835/837；播放 URL 由 BOW-873 后续接入 |
+| 三个页面的结果包络 | `peoplePage / workbenchPage / personPage` | `ok` / `forbidden`（档案另有 `not_found`），拒绝不带 message 与人名；返回前须解析 | BOW-837/838 |
 
 状态规则：已接入的事实块 `ready` 必有非空 payload；`empty` 仅表示权限范围内确无记录；`insufficient_evidence` / `unknown` 带原因而无数值。来源读取失败沿用 `validation_error / forbidden / not_found / conflict`，不得伪装空状态。加载中是前端本地状态。未接入区块只含 `{status: 'not_connected'}`，不携带伪计数、数组或业务记录。
 
-角色规则：档案摘要、能力谱、时间线、项目供管理者、范围内 HR、所带学员导师读取；管理观察、小象限、校准轨迹、版本变化仅管理者/范围内 HR。导师严格变体不含这些字段，也没有 hiddenN；系统管理员无业务成功变体，查询入口拒绝后使用现有通用权限提示。AI 推断只可来自该角色已授权来源。schema 是边界校验，不替代服务端授权。
+角色规则：档案摘要、能力谱、时间线、项目供管理者、范围内 HR、所带学员导师读取；象限位置、校准轨迹、版本变化及 `management-observation` / `restricted-evaluation` / `performance` / `quadrant` 类内容仅当前获权的管理者/范围内 HR（导师变体的 `category` 只能是 `evaluation`）。导师严格变体不含这些字段，也没有 hiddenN；系统管理员无业务成功变体，查询入口拒绝后使用现有通用权限提示。AI 推断只可来自该角色已授权来源。schema 是边界校验，不替代服务端授权。
 
 列表按授权 → 姓名/岗位检索与团队筛选 → teamName、name、id 稳定排序；本次有界演示目录不分页，total 恰为可见筛选结果数。排序由 BOW-837 查询实现并测试，合同不重排数据、不提供 score 或校准变化参数。ID tie-break 仅确保重名稳定，非人才排名。
 
@@ -185,8 +234,82 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 
 BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认分一样参加能力谱和参考位置；原型 AI 建议及资料不足不计入。这个合同不决定授权或正式导入许可，正式入口拒绝 prototype_baseline 由 BOW-834 保证。前端负责人需评审新增快照位置、来源类别与提示的展示；当前尚无该验收证据。
 
+
+本次恢复与清单的差异以版本 Y 和更新裁决为准：
+
+- R3.1 已按 10/26 决定让管理者也有 `record`，与 Y 的「记一件事」一致；不因 DY-16 的实时录音禁入而移除该文字记录入口。
+- R4.1 的受限历史不再一律映射为 `performance`。结营沿 #284 的 `restricted-evaluation`，原 `kind`、量表、分值和来源保持；当前源策略、页面投影与模型输入仍同源核权。导师响应严格只接受 `evaluation`，本片不补造节点评价关系，899 的同节点正向授权仍待其真实适配。
+- R0.7 的证据冲突沿 Y DY-09：同一事件、维度的有效确认分差至少 2 才为冲突；不把任何不同分值都判为冲突。冲突组不进入速览线索、能力谱或参考位置。
+- Y 的工作台命名、排序和角色边界优先：中文拼音排序、系统管理员整页拒绝、无隐藏数量；旧清单不恢复版本 X 的导航或管理者处理型首页。
+
+读取适配不补缺失业务事实：`level=null`、`jobTitle` 沿既有「职位未接入」占位、组织路径当前单级；参与人角色/本人角色省略；人工结论缺形成日期时 `unknown`，不拿事件日冒充；`recordedByName=null`，不借事件记录人充当原件记录人；维度暂按组和 id 排列，等待目录顺序。R2.3 待确认 AI 事件排除、R4.1 显式入库类别与团队记录者正向集合、R0.1 页面包络/真实 UI、R3 工作台活动等仍由 834/837/838 与实际消费者完成，不以本片契约测试或形状适配当成整链验收。
+
 ## BOW-844 记事与评分复核契约
 
 `src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
 
 本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
+
+## 找人（BOW-853）
+
+`src/features/staffing/` 是找人活文档：一句话 → 起草需求卡（跟随 `staffing_demand` 任务）→ 编辑（切换必须 / 加分、补一句要求）→ 确认 → 候选人逐条四态与出处、处理进度、待人工判断时选四态并署名。区块只读 `view.ts` 的视图模型；契约修订只改映射。页面动作经 `ports.ts` 的 `StaffingPorts` 传入：真实路由用 `live-ports.ts`（BOW-852 的 Server Action 与 `/api/jobs/[jobId]`），开发样张用内存假实现。
+
+- `/staffing`：服务端先按账号角色拦截，导师看到「这一页属于其他视角」，系统管理员看到业务视角提示；管理者、HR 进入真实数据：
+  - `?project=<id>`：项目须在当前账号的项目读取范围内，否则显示「项目链接失效」。没有需求时是一句话入口：标题写「为「<项目名>」找人」，不放通用示例句（所有者 11/1 裁决，#248 评论 6557416529；原型只在新项目入口放示例句）。发出后调用 `createStaffingDemandAction`，跟随 `staffing_demand` 任务；地址改为 `?project=<id>&job=<jobId>`，刷新后继续跟随同一任务。
+  - 原话只在本标签页暂存：`sessionStorage['niu-talent:staffing:sentence:<projectId>']` 存 `{ accountId, text }`，刷新后还在、关掉标签页即清除，不进地址、不上服务端；清空输入框或确认需求后删除，别的项目或账号读不到。
+  - `?project=<id>&demand=<id>`：用 `readStaffingDemand` 读当前版本；读不到或不属于这个项目时显示「需求链接失效」（缺失与无权同一结果）。编辑、确认走 `editStaffingDemandAction` / `confirmStaffingDemandAction`，冲突提示刷新、保留输入；被拒时显示本页的肯定式文案，不透出服务端原文。
+  - 没有 `project`（含 `?new=1`）：显示「选一个项目再找人」，引到项目与课题。一句话建项目不在 BOW-852 范围内。
+  - 确认后的候选人核对：BOW-854 未合入，`openMatching` 返回 `null`，显示「候选人核对待接通」，不拿样张冒充。
+- 开发样张 `/dev/staffing?role=manager|hr&scene=ts|agent|new`：原型 Y 种子数据经找人契约渲染，来源都标为原型基线；动作是内存假实现。生产构建返回 404。
+- 排序只用契约的 `orderStaffingCandidates`（必须项支持了几条），同数保持读取顺序；必须项至少两条资料不足、没有一条支持、且没有还在处理或待人工判断的要求的人，放进「条件待确认」。不出总分、胜任率或百分比。
+- 匹配入口：契约没有「取确认后的匹配任务」的读取，`StaffingPorts.openMatching` 是对 BOW-854 的接口假设，返回任务标识或 `null`（这时显示「候选人核对待接通」）。
+- 新项目入口（`?new=1`）：契约的起草需要 `projectId`，一句话建项目不在找人契约里；真实路由先引到项目，开发样张在起草完成后由 `onDemandReady` 绑定演示项目。
+- 工作台交接：读取并删除 `sessionStorage['niu-talent:draft:staffing']`（约定见 BOW-841 `send.ts`），账号不符或超过 10 分钟丢弃。
+
+**同次渲染截图对比**（`tests/visual/staffing.spec.ts`，遮罩与说明在 `tests/visual/staffing-masks.ts`）：管理者 `pr-agent`、HR `pr-ts` 项目页与管理者入口，桌面 1366×900 与窄屏 375×812。先比文字（标题、状态、要求、候选人姓名、逐条状态与证据句），再比位置与间距，最后逐元素比像素。页头和需求卡另在真实路由上比（同一份需求写入隔离测试库，管理者 `ceo`、HR `hrbp` 登录）；候选人部分在 BOW-854 合入前仍用开发样张比。
+
+| 原型元素                                                                             | 工程处理                           | 原因                                                    |
+| ------------------------------------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------- |
+| 右栏方案槽位、版本、确认、手动补入（`#plan`）                                        | 不渲染，保留空栏位                 | 方案契约 `not_connected`（D11：决赛找人止于四态和出处） |
+| 候选卡「放入」按钮、拖放（`.n-candidate` 的 grab 光标）                              | 不渲染                             | 同上                                                    |
+| 候选卡「演示」徽标、届别、在几个项目、相关维度分、发展方向、意愿与释放（`.n-cmeta`） | 不渲染；只比姓名与逐条要求         | 契约候选人只有 `id / name / orgName`                    |
+| 头像按人着色                                                                         | 统一中性色                         | 契约无色相；遮罩                                        |
+| 需求卡「来自」行的提出人和日期、角色行                                               | 只显示原话；不渲染角色             | 契约无提出人、日期、角色                                |
+| 要求改写成宽松说法（`.nt-req`），AI 徽标里的「点要求可以改写」 | 不渲染；徽标去掉这半句 | 契约无备选说法；文案不承诺页面上没有的功能；遮罩 `.nt-req`；徽标折行不同，标题行只比标题 |
+| 「检索 N 人」                                                                        | 只显示进入候选的人数               | 契约无检索范围人数；遮罩 `#cand-meta`                   |
+| 原型里不带引用角标的「支持 / 不支持」 | 每条明确结论都有引用角标 | 契约要求明确结论必须有来源；遮罩 `.n-cite` |
+| 入口的目标角色模板（`.n-tpls`），副标题「或者从目标角色模板开始」 | 不渲染；副标题去掉这半句，截图只比标题 | 模板没有契约；文案不承诺页面上没有的功能（`docs/ui-copy.md`） |
+| 起草轨迹五步（含检索与核对） | 两步：理解需求、起草需求卡 | 确认后才匹配，起草任务只产出需求卡 |
+| 需求卡说明「改了要求，候选人会按新要求重新核对。」（`staffing.js` 一直显示） | 只在确认后显示；草稿态只显示「确认后开始核对候选人；改了要求要重新确认。」 | 确认前还没有核对任何候选人，这句话只在确认后成立 |
+
+**原型没有设计、按设计系统组合的部分**（待 BOW-925 前端覆盖检查确认）：需求卡确认行（墨色按钮「确认需求」+ 说明；确认后一行「某某 MM-DD 确认」，键盘确认后焦点移到这一行；保存期间按钮只标 `aria-disabled`，焦点留在原控件）；起草结果读取失败按 401 / 403 / 404 分开提示，恢复的起草任务属于另一个项目时不打开需求卡，都用 `nt-field-error`，「回到输入框」后焦点落在输入框；候选卡里的处理进度（设计系统「处理进度」徽标与说明，「失败」和四态分开）；人工判断表单（四态文字选择、可引用来源勾选、「理由（必填，会署名留档）」、墨色「署名确认」，沿用判断对照的归因样式）；署名结论显示为「人工结论」标记 + 判断人与日期。
+
+## BOW-920 判断对照、归因与修订发布
+
+`src/features/standard-iteration/` 按 BOW-917 合同实现三块界面：判断对照（HR 按批次、评价人本人、HR 看单个评价人、管理者摘要）、归因（AI 假设 → HR 选类别写理由署名 → 只有含「评价标准」的归因能起草）、入营选拔标准修订（HR 原处编辑要点 → 保存并预览影响 → 提交；管理者确认发布、5 秒撤销或写理由退回）。动作以 `ports.ts` 的端口传入，类型取自合同；feature 不引用 server。
+
+真实路由 `/judge` 与 `/rules?r=front&line=xe-select` 在 BOW-918、BOW-919、BOW-921 的查询与动作入口合入前只显示「待接通」，不渲染夹具；导师在 `/rules` 看到「由 HR 和管理者维护」，系统管理员看到业务视角提示。开发样张 `/dev/standard-iteration?role=hr|manager|rater`（可加 `view=standard`、`rater=gu|he|xu|ye`、`seed=fresh|pending|returned`、`ai=ok|fail|empty`）用化名、合成评语和合同 schema 解析的结果走通整条链路，状态存在本标签页的 sessionStorage；生产返回 404。
+
+与原型 Y（含 BOW-924 已评审修订）的已知差异，均来自合同当前没有对应字段或动作：
+
+| 原型 | 工程 | 原因 / 后续 |
+| --- | --- | --- |
+| 页头写对照链路、时间范围和发起人 | 写「入营选拔 → 结营评审 · 期次」和可对照范围 | 合同 batch 没有发起人与时间范围 |
+| 中间档按方向落进偏差列 | 中间档不进五列分布，案例里标「只看结营结论」 | 合同 `middle_distribution` 无方向；按裁决不进偏差分布 |
+| 入营选拔三项分、组队名 | 只显示选拔档位与「组队作品」 | 合同只有档位与 teamId |
+| 标为不可比及撤销 | 不提供 | 合同无该动作 |
+| 批次列表、已有假设与归因读取 | HR 按批次进入；假设与归因只在本次会话内 | 合同无列表读取；接通时由页面传入 |
+| 管理者看匿名分布与归因文字 | 只看每批不一致人数与归因类别 | 合同 manager 投影只有这两项 |
+| 改写假设、改进动作卡、按标准版本对比 | 不提供 | 合同无对应字段 |
+| 点「起草修订」直接进草稿 | 先弹「起草入营选拔标准修订？」，理由预填归因结论，确认后进草稿 | 合同 createRevision 需要修订理由和归因版本 |
+| HR 草稿页只有要点编辑 | 草稿顶部多一块「AI 建议 · 采用 AI 建议」，浅底并标「AI 建议」来源 | 合同 `aiDraft`；采用后仍由 HR 编辑、保存 |
+| 修订是一段说明文字 | 修订是标准要点的增删改，原处标出原值 | 合同 `reviewPoints` 与 `changes` |
+| 「预览影响」单独一步 | 「保存并预览影响」：保存返回按当前草稿计算的预览 | 合同 save 结果携带 impactPreview |
+| 要点打开编辑时点保存或提交（原型未定义） | 先提示「保存或取消正在编辑的要点」，不发请求 | 未保存的输入不在草稿里，直接提交会把旧内容送给管理者 |
+| 删除草稿、增减关联依据、版本历史与对比、撤销退回 | 不提供 | 合同无对应动作 |
+| 规则总览页签 | 不显示 | `/rules` 总览未实现 |
+| 手机 `m/judge.html` | 不在本卡；375 宽按桌面页响应式重排 | 另卡 |
+
+视觉参照：当前 `prototype-reference.json` 指向 `91b297a`，其中没有 #259（BOW-924）的判断对照与入营选拔标准修订。本节界面按 main 上 `81e4fd4` 的原型实现；判断对照（批次、评价人、管理者摘要）、归因、修订编辑与确认发布均登记为「参照待同步」，未做像素对比，不算视觉通过。参照前移后（#248 评论 6557468925）补跑 1366 与 375 的对比。
+
+待共享文件处理（#248 登记）：`/judge` 归入导航高亮的别名（HR、管理者归「人才评价规则」，导师为自己的入口）；BOW-924 新增的 `.n-jstate[data-s='mid']`、`.n-jcase__items / __team / __deny`、`.n-impact__basis` 移入 `components.css` 后删除 `standard-iteration.css`；`prototype-reference.json` 前移到含 #259 的提交后补自动截图对照。

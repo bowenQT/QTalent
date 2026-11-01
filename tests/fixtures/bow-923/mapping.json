@@ -1,0 +1,27 @@
+{
+  "versionId": "map-xe-select-v1",
+  "frontScaleId": "demo-xe-select-three-bands-v1",
+  "backScaleId": "demo-xe-graduation-three-bands-v1",
+  "rows": [
+    {
+      "frontGrade": "高分档",
+      "frontPosition": "highest",
+      "backGrade": "建议留用"
+    },
+    {
+      "frontGrade": "中间档",
+      "frontPosition": "middle",
+      "backGrade": "继续观察"
+    },
+    {
+      "frontGrade": "刚过线档",
+      "frontPosition": "just_passed",
+      "backGrade": "不建议"
+    }
+  ],
+  "confirmedBy": {
+    "id": "p-suwan",
+    "name": "苏晚（演示）"
+  },
+  "confirmedAt": "2026-02-26T01:00:00.000Z"
+}
