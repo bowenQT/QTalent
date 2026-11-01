@@ -16,7 +16,9 @@ import {
   conflictText,
   demandOutOfScope,
   draftFailed,
-  draftLost,
+  draftGone,
+  draftOutOfScope,
+  draftSignedOut,
   draftRetrying,
   offline,
   saveFailed,
@@ -350,7 +352,11 @@ export function Staffing(props: StaffingProps) {
         demandJob?.connection === 'not_found';
       const failed = lost || generationPhase(demandSnapshot) === 'failed';
       const note = lost
-        ? draftLost
+        ? demandJob.connection === 'not_found'
+          ? draftGone
+          : demandJob.signedOut
+            ? draftSignedOut
+            : draftOutOfScope
         : failed
           ? draftFailed
           : demandJob?.connection === 'error'
@@ -365,9 +371,13 @@ export function Staffing(props: StaffingProps) {
           />
           {note ? (
             <div className="nt-row" style={{ marginTop: 'var(--s-3)' }}>
-              <span className="nt-muted" role={failed ? 'alert' : undefined}>
-                {note}
-              </span>
+              {failed ? (
+                <span className="nt-field-error" role="alert">
+                  {note}
+                </span>
+              ) : (
+                <span className="nt-muted">{note}</span>
+              )}
               <button
                 type="button"
                 className="n-btn n-btn--sm"

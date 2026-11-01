@@ -815,7 +815,12 @@ describe('first-round review fixes', () => {
   };
 
   it('ends the drafting trail when the job can no longer be read, keeping the sentence', async () => {
-    for (const status of [401, 403, 404]) {
+    const notes = new Map([
+      [401, '登录已失效，重新登录后回到输入框再发一次。'],
+      [403, '起草结果现在在你的查看范围之外，可以回到输入框再发一次。'],
+      [404, '这次起草的记录已失效，回到输入框再发一次。'],
+    ]);
+    for (const [status, note] of notes) {
       render(
         <Staffing
           project={project}
@@ -830,9 +835,9 @@ describe('first-round review fixes', () => {
       );
       fireEvent.change(field(), { target: { value: `找人 ${status}` } });
       fireEvent.click(screen.getByRole('button', { name: '开始' }));
-      expect((await screen.findByRole('alert')).textContent).toBe(
-        '起草结果读取失败，请重新登录后回到输入框再发一次。',
-      );
+      const alert = await screen.findByRole('alert');
+      expect(alert.textContent).toBe(note);
+      expect(alert.className).toBe('nt-field-error');
       expect(
         document.querySelector('.n-trail__step[data-state="failed"]'),
       ).toBeTruthy();
@@ -970,6 +975,62 @@ describe('first-round review fixes', () => {
     });
     expect(screen.queryByText('演示：旧版本的理由')).toBeNull();
     expect(within(card('演示甲')).getByText('待人工判断')).toBeTruthy();
+  });
+
+  it('keeps the keyboard focus while saving and moves it to the confirmed line', async () => {
+    const saved = deferred<Awaited<ReturnType<StaffingPorts['editDemand']>>>();
+    render(
+      <Staffing
+        project={project}
+        demand={draft}
+        accountId="me"
+        ports={ports({ editDemand: vi.fn(() => saved.promise) })}
+      />,
+    );
+    // Before confirming nothing is matched yet: only the confirm caption is shown.
+    expect(
+      screen.getByText('确认后开始核对候选人；改了要求要重新确认。'),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText('改了要求，候选人会按新要求重新核对。'),
+    ).toBeNull();
+    const toggle = screen.getByRole('button', {
+      name: '有语音经验：加分，切换为必须项',
+    });
+    toggle.focus();
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-disabled')).toBe('true');
+    expect(toggle).toHaveProperty('disabled', false);
+    expect(document.activeElement).toBe(toggle);
+    const confirm = screen.getByRole('button', { name: '确认需求' });
+    expect(confirm.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(confirm);
+    await act(async () => {
+      saved.resolve({
+        status: 'success',
+        demand: {
+          ...draft,
+          revision: 2,
+          requirements: draft.requirements.map((item) => ({
+            ...item,
+            priority: 'required' as const,
+          })),
+        },
+        replayed: false,
+      });
+    });
+    expect(document.activeElement).toBe(toggle);
+    expect(toggle.getAttribute('aria-disabled')).toBe('false');
+
+    screen.getByRole('button', { name: '确认需求' }).focus();
+    fireEvent.click(screen.getByRole('button', { name: '确认需求' }));
+    const line = await screen.findByText(
+      '演示审核人 09-04 确认 · 按这版要求核对候选人',
+    );
+    expect(document.activeElement).toBe(line);
+    expect(
+      screen.getByText('改了要求，候选人会按新要求重新核对。'),
+    ).toBeTruthy();
   });
 
   it('keeps what is typed while an added requirement is being saved', async () => {

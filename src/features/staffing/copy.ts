@@ -40,7 +40,10 @@ export const matchingFailed = {
   text: '需求和已核对的结果都已保留，可以稍后刷新再看。',
 };
 export const draftFailed = '需求卡生成失败，回到输入框再发一次。';
-export const draftLost = '起草结果读取失败，请重新登录后回到输入框再发一次。';
+export const draftSignedOut = '登录已失效，重新登录后回到输入框再发一次。';
+export const draftOutOfScope =
+  '起草结果现在在你的查看范围之外，可以回到输入框再发一次。';
+export const draftGone = '这次起草的记录已失效，回到输入框再发一次。';
 export const draftRetrying =
   '起草进度读取中断，正在重试。也可以回到输入框再发一次。';
 export const conflictText = '需求已变化，请保留输入并刷新';

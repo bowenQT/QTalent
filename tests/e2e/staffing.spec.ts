@@ -87,17 +87,30 @@ test('on BOW-852 data, HR edits and confirms the demand; matching shows as not c
     page.getByText('来自：「演示：TS 新人组要一个能带大家对齐节奏的牵头人」'),
   ).toBeVisible();
 
+  // Only the confirm caption before confirming: nothing is matched yet.
+  await expect(
+    page.getByText('改了要求，候选人会按新要求重新核对。'),
+  ).toHaveCount(0);
+  // By keyboard: saving keeps the focus on the toggled requirement.
   await page
     .getByRole('button', { name: '懂测试和部署：加分，切换为必须项' })
-    .click();
-  await expect(
-    page.getByRole('button', { name: '懂测试和部署：必须，切换为加分项' }),
-  ).toBeVisible();
+    .focus();
+  await page.keyboard.press('Enter');
+  const toggled = page.getByRole('button', {
+    name: '懂测试和部署：必须，切换为加分项',
+  });
+  await expect(toggled).toBeVisible();
+  await expect(toggled).toBeFocused();
   await page.getByRole('textbox', { name: '补一句要求' }).fill('10 月能到岗');
   await page.keyboard.press('Enter');
   await expect(page.locator('#reqs li').last()).toHaveText('必须10 月能到岗');
-  await page.getByRole('button', { name: '确认需求' }).click();
-  await expect(page.getByText(/确认 · 按这版要求核对候选人/)).toBeVisible();
+  await page.getByRole('button', { name: '确认需求' }).focus();
+  await page.keyboard.press('Enter');
+  // Confirming replaces the button: the focus moves to the confirmed line.
+  await expect(page.getByText(/确认 · 按这版要求核对候选人/)).toBeFocused();
+  await expect(
+    page.getByText('改了要求，候选人会按新要求重新核对。'),
+  ).toBeVisible();
   await expect(
     page.getByRole('heading', { name: '候选人核对待接通' }),
   ).toBeVisible();

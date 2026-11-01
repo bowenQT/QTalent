@@ -1,5 +1,5 @@
 'use client';
-import { useId, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import type { StaffingDemand } from '@/contracts/staffing';
 import type { ProjectHead } from '../../view';
@@ -19,6 +19,10 @@ export const MAX_REQUIREMENT_LENGTH = 200;
  * The demand card: the AI draft of the requirements, which the viewer edits and then
  * confirms. Rewriting a requirement into its looser form (`.nt-req`) and the role row are
  * not rendered: the contract has neither alternatives nor roles.
+ *
+ * While saving, the buttons are only marked `aria-disabled`: a disabled button drops the
+ * keyboard focus to the page body. Confirming replaces the button with the confirmed
+ * line, so the focus moves there.
  */
 export function DemandCard({
   demand,
@@ -40,6 +44,14 @@ export function DemandCard({
 }) {
   const [draft, setDraft] = useState('');
   const errorId = useId();
+  const confirming = useRef(false);
+  const confirmedRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (demand.status === 'confirmed' && confirming.current) {
+      confirming.current = false;
+      confirmedRef.current?.focus();
+    }
+  }, [demand.status]);
   async function add() {
     const text = draft.trim();
     if (!text || busy) return;
@@ -90,8 +102,10 @@ export function DemandCard({
                 type="button"
                 style={{ border: 0, cursor: 'pointer' }}
                 aria-label={`${item.text}：${required ? '必须' : '加分'}，切换为${required ? '加分项' : '必须项'}`}
-                disabled={busy}
-                onClick={() => onToggle(item.id)}
+                aria-disabled={busy}
+                onClick={() => {
+                  if (!busy) onToggle(item.id);
+                }}
               >
                 {required ? '必须' : '加分'}
               </button>
@@ -117,14 +131,13 @@ export function DemandCard({
           className="n-btn n-btn--sm"
           type="button"
           id="reqadd-go"
-          disabled={busy}
+          aria-disabled={busy}
           onClick={() => void add()}
         >
           <Icon name="plus" />
           加上
         </button>
       </div>
-      <p className="nt-caption">{demandCaption}</p>
       {error ? (
         <p id={errorId} role="alert" className="nt-field-error">
           {error}
@@ -135,8 +148,12 @@ export function DemandCard({
           <button
             className="n-btn n-btn--sm n-btn--ink"
             type="button"
-            disabled={busy}
-            onClick={onConfirm}
+            aria-disabled={busy}
+            onClick={() => {
+              if (busy) return;
+              confirming.current = true;
+              onConfirm();
+            }}
           >
             <Icon name="check" />
             {confirmButton}
@@ -144,12 +161,20 @@ export function DemandCard({
           <span className="nt-muted">{confirmCaption}</span>
         </div>
       ) : (
-        <p className="nt-muted" style={{ margin: 'var(--s-3) 0 0' }}>
-          {confirmedLine(
-            demand.confirmedBy.name,
-            formatDay(demand.confirmedAt),
-          )}
-        </p>
+        <>
+          <p className="nt-caption">{demandCaption}</p>
+          <p
+            ref={confirmedRef}
+            tabIndex={-1}
+            className="nt-muted"
+            style={{ margin: 'var(--s-3) 0 0' }}
+          >
+            {confirmedLine(
+              demand.confirmedBy.name,
+              formatDay(demand.confirmedAt),
+            )}
+          </p>
+        </>
       )}
     </article>
   );
