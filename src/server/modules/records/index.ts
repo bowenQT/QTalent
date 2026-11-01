@@ -103,3 +103,8 @@ export {
   wecomArchivedMediaListSchema,
 } from './wecom/facts';
 export type { WecomArchivedMedia } from './wecom/facts';
+
+export type {
+  StoredRecordOriginalInput,
+  MediaRecordOriginalInput,
+} from './arrange/input-state/original-input';

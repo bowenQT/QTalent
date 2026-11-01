@@ -3,18 +3,20 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Transaction } from '../../db/client';
 import {
   recordBatchDraftSetSchema,
-  recordInputSchema,
   recordSaveReceiptSchema,
   recordUndoReceiptSchema,
   type RecordBatchDraft,
   type RecordBatchDraftSet,
-  type RecordInput,
   type RecordSaveInput,
   type RecordSaveResult,
   type RecordUndoInput,
   type RecordUndoResult,
 } from '../../../contracts/record';
 import { events, eventSources, eventParticipants } from './schema';
+import {
+  storedRecordOriginalInputSchema,
+  type StoredRecordOriginalInput,
+} from './arrange/input-state/original-input';
 import {
   recordDraftBatches,
   recordDrafts,
@@ -106,7 +108,7 @@ export async function storeTrustedRecordDraftBatch(
   tx: Transaction,
   value: {
     draftSet: RecordBatchDraftSet;
-    originalInput: RecordInput;
+    originalInput: StoredRecordOriginalInput;
     occurredOn: string;
     modelVersion: string;
     createdByAccountId: string;
@@ -114,7 +116,7 @@ export async function storeTrustedRecordDraftBatch(
   },
 ) {
   const set = recordBatchDraftSetSchema.parse(value.draftSet);
-  recordInputSchema.parse(value.originalInput);
+  storedRecordOriginalInputSchema.parse(value.originalInput);
   if (
     !value.modelVersion.trim() ||
     !/^\d{4}-\d{2}-\d{2}$/.test(value.occurredOn)

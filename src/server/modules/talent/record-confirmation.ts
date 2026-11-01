@@ -5,7 +5,6 @@ import {
   recordSaveReceiptSchema,
   type RecordBatchDraft,
   type RecordBatchDraftSet,
-  type RecordInput,
   type RecordSaveInput,
   type RecordSaveResult,
   type RecordUndoInput,
@@ -19,6 +18,7 @@ import {
   type EvaluationAuthzContext,
 } from '../../authz/evaluation-node';
 import type { TalentKind } from '../../authz/talent';
+import type { StoredRecordOriginalInput } from '../records';
 import { canReadProject } from '../../authz';
 
 type SaveReceipt = Extract<RecordSaveResult, { status: 'success' }>['result'];
@@ -60,7 +60,7 @@ export interface ConfirmationRules {
 export interface ConfirmationSaveFact {
   receipt: SaveReceipt;
   draft: RecordBatchDraft;
-  originalInput: RecordInput;
+  originalInput: StoredRecordOriginalInput;
   createdEventIds: string[];
   withdrawnAt: string | null;
 }
