@@ -30,7 +30,9 @@ import {
 import { recordAudit } from '../../../platform/audit';
 import { auditEvents } from '../../../platform/audit/schema';
 import { jobSnapshots } from '../../../jobs/schema';
-import { originals, originalVersions } from '../schema';
+import { originals, originalVersions, fragments } from '../schema';
+import { writeMaterialParse } from '../material-sources/store';
+import { readMaterialSource } from '../../../usecases/read-material-source';
 import { arrangeInputs } from '../arrange/input-state/schema';
 import {
   uploadCollections,
@@ -812,4 +814,178 @@ it('does not reopen a terminal processing job solely because its old image decis
     .set({ status: 'completed' })
     .where(eq(jobSnapshots.jobId, f.row.inputId));
   expect(await imageRead(f)).toBeNull();
+});
+
+async function canonicalImage() {
+  const f = await imageCase();
+  const source = {
+    fragmentId: randomUUID(),
+    originalVersionId: f.row.originalVersionId,
+    location: { kind: 'image' as const, region: f.resolution.region },
+    excerpt: '演示：图片中的明确行为事实。',
+    demo: true,
+    sourceCategory: 'original' as const,
+  };
+  await c.db
+    .update(jobSnapshots)
+    .set({ status: 'running' })
+    .where(eq(jobSnapshots.jobId, f.row.inputId));
+  await c.db.transaction((tx) =>
+    writeMaterialParse(
+      tx,
+      {
+        binding: {
+          parseVersionId: randomUUID(),
+          originalVersionId: f.row.originalVersionId,
+          contentDigest: 'a'.repeat(64),
+          parserVersion: 'synthetic-image-v1',
+          projectionVersion: 'canonical-image-v1',
+        },
+        fragments: [source],
+        pages: [],
+      },
+      {
+        jobId: f.row.inputId,
+        attempt: 1,
+        expectedRevision: 1,
+        inputVersion: f.row.inputVersion,
+      },
+    ),
+  );
+  return { ...f, source };
+}
+it('reads a verified canonical image through the real person/source union and rejects current node revocation', async () => {
+  const f = await canonicalImage();
+  const reference = {
+    fragmentId: f.source.fragmentId,
+    originalVersionId: f.source.originalVersionId,
+  };
+  expect(
+    await readMaterialSource(
+      c.db,
+      f.account,
+      reference,
+      () => '2026-11-01T12:00:00.000Z',
+    ),
+  ).toMatchObject({ status: 'success', source: f.source });
+  await c.db
+    .update(evaluationRelations)
+    .set({ revokedAt: '2026-11-01T11:00:00.000Z' })
+    .where(eq(evaluationRelations.evaluatorId, f.evaluator));
+  expect(
+    await readMaterialSource(
+      c.db,
+      f.account,
+      reference,
+      () => '2026-11-01T12:00:00.000Z',
+    ),
+  ).toMatchObject({ status: 'not_found' });
+});
+it('keeps unknown capture scope unavailable even after a successful canonical parser publication', async () => {
+  const f = await canonicalImage();
+  await c.db
+    .update(mediaMaterials)
+    .set({ intakeScope: null, scopeAuditId: null })
+    .where(eq(mediaMaterials.id, f.row.id));
+  expect(
+    await readMaterialSource(
+      c.db,
+      f.account,
+      {
+        fragmentId: f.source.fragmentId,
+        originalVersionId: f.source.originalVersionId,
+      },
+      () => '2026-11-01T12:00:00.000Z',
+    ),
+  ).toMatchObject({ status: 'not_found' });
+});
+it('fails closed on canonical text tampering instead of trusting a current scope or receipt', async () => {
+  const f = await canonicalImage();
+  await c.db
+    .update(fragments)
+    .set({ excerpt: '演示：被改变的解析文本' })
+    .where(eq(fragments.id, f.source.fragmentId));
+  expect(
+    await readMaterialSource(
+      c.db,
+      f.account,
+      {
+        fragmentId: f.source.fragmentId,
+        originalVersionId: f.source.originalVersionId,
+      },
+      () => '2026-11-01T12:00:00.000Z',
+    ),
+  ).toMatchObject({ status: 'not_found' });
+});
+it('retains another creator superseded intake as a restriction on the whole original, without using AI attribution', async () => {
+  const f = await canonicalImage(),
+    other = await seedNativeCase(c.db),
+    inputId = randomUUID(),
+    materialId = randomUUID(),
+    inputVersion = randomUUID();
+  const [input] = await c.db
+    .select()
+    .from(arrangeInputs)
+    .where(eq(arrangeInputs.id, f.row.inputId));
+  await c.db.insert(jobSnapshots).values({
+    jobId: inputId,
+    kind: 'record_organize',
+    resourceId: inputId,
+    inputVersion,
+    status: 'completed',
+    attempt: 1,
+    revision: 1,
+    updatedAt: '2026-11-01T12:00:00.000Z',
+  });
+  await c.db.insert(arrangeInputs).values({
+    ...input,
+    id: inputId,
+    jobId: inputId,
+    inputVersion,
+    creatorAccountId: other.account,
+    evaluationNodeId: other.node,
+    supersededByInputId: input.id,
+    originalInput: {
+      kind: 'media',
+      operationId: inputId,
+      materialIds: [materialId],
+    },
+    personIds: [f.target],
+  });
+  const scopeAuditId = await recordAudit(c.db, {
+    actorId: other.account,
+    action: 'material.capture',
+    resourceId: materialId,
+  });
+  await c.db.insert(mediaMaterials).values({
+    ...f.row,
+    id: materialId,
+    inputId,
+    inputVersion,
+    clientFileId: randomUUID(),
+    scopeAuditId,
+    intakeScope: {
+      subjects: [
+        {
+          personId: other.target,
+          evaluationNodeId: other.node,
+          cohortId: other.cohort,
+        },
+      ],
+      kind: 'evaluation',
+      requiredKinds: [],
+      occurredOn: '2026-11-01',
+    },
+  });
+  expect(
+    await readMaterialSource(
+      c.db,
+      f.account,
+      {
+        fragmentId: f.source.fragmentId,
+        originalVersionId: f.source.originalVersionId,
+      },
+      () => '2026-11-01T12:00:00.000Z',
+    ),
+  ).toMatchObject({ status: 'not_found' });
 });

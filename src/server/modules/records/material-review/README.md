@@ -15,6 +15,6 @@
 
 `createInitialImageDisclosureReader(db)`（usecases/media-initial-image.ts）可供905的 `loadCurrent` 消费。它只接首次图片提取、同批媒体输入、无项目的本人创建输入：原件完整 scope 必须已由可信捕获写入且有对应 material.capture 审计，账号当前绑定须匹配 job 原签名，所有原件共同主体/限制类别都重新通过既有节点写权与原文/模型策略。`members` 是完整人员集合；物理上传成员与 revision 另按873的真实集合锁核。未知范围、跨节点、非本人输入、已存在 canonical fragment、终态 job 均失败关闭，不把该窄入口扩成通用读取。调用方必须保留905裁剪前后/模型前后重读，不跨网络持事务。首次 source 仍为 null，不能伪造片段。
 
-输入表已接严格内部媒体变体；旧文本消费者显式收窄并保持原严格文本合同。846 内部批次与 save 账本已沿用严格 StoredRecordOriginalInput 保存媒体材料 ID，不伪造原话；AI 草稿 origin 仍为 ai_suggestion，公开文本 RecordInput 与撤销的 unavailable/null 投影不放宽。此内部写入端口仍要求 producer 在同事务完成真实来源授权，结构接通本身不能处理尚无 canonical 完整来源的媒体。完整 canonical 媒体来源、845 createFromSources producer 和 worker 的媒体分支仍待接入。此交付不宣称图片→模型→926→845整链完成，不宣称生产路由可用。人工补采集流程尚待所有者选择，不把结构注释变成全材料强制确认。
+输入表已接严格内部媒体变体；旧文本消费者显式收窄并保持原严格文本合同。846 内部批次与 save 账本已沿用严格 StoredRecordOriginalInput 保存媒体材料 ID，不伪造原话；AI 草稿 origin 仍为 ai_suggestion，公开文本 RecordInput 与撤销的 unavailable/null 投影不放宽。此内部写入端口仍要求 producer 在同事务完成真实来源授权，结构接通本身不能处理尚无 canonical 完整来源的媒体。canonical 图片来源已在同一 person/source 快照读取全部捕获范围与经926验证的解析包，保留其他创建者和 superseded intake 限制；未知范围、缺实际捕获审计、解析篡改失败关闭，公开读取仍走现有当前权限。此片仅开放 original 类图片；其他媒体类别仍失败关闭，等待各 producer 的真实分类。捕获写端必须在原件版本锁下追加真实范围事实，不能改写已知捕获范围或绕过完整共同主体；保存图锁与来源复读保持既有边界。845 createFromSources producer、媒体确认整链和 worker 的媒体分支仍待接入。此交付不宣称图片→模型→926→845整链完成，不宣称生产路由可用。人工补采集流程尚待所有者选择，不把结构注释变成全材料强制确认。
 
 正式迁移遵守873→269游标。所有测试默认使用正式迁移；本机媒体及文本/保存组合回归可显式传 `QTALENT_MEDIA_TEST_MIGRATIONS` 指向 Drizzle 原生生成的临时目录，SQL/meta 不进仓库。临时结构通过不等于默认正式CI通过。

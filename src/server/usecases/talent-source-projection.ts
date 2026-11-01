@@ -172,6 +172,7 @@ export function talentSources(
         versions: data.versions,
         originals: data.originals,
         inputs: data.intakeInputs,
+        mediaSourceProvenance: data.mediaSourceProvenance,
         linkedSourceKeys: new Set(
           [...data.eventSources, ...data.historical].map(sourceKey),
         ),

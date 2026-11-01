@@ -1,3 +1,7 @@
+import { isDeepStrictEqual } from 'node:util';
+import type { MediaSourceProvenance } from '../modules/records/material-review/provenance';
+import { mediaIntakeScopeSchema } from '../modules/records/material-review/scope';
+import { mediaRecordOriginalInputSchema } from '../modules/records/arrange/input-state/original-input';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
@@ -27,6 +31,7 @@ const kinds = new Set<TalentKind>([
 ]);
 interface ConfirmationProvenance {
   sources: TalentSource[];
+  mediaSourceProvenance?: MediaSourceProvenance;
   linkedSourceKeys: ReadonlySet<string>;
   versions: { id: string; originalId: string; contentDigest: string }[];
   originals: { id: string; kind: string }[];
@@ -42,17 +47,90 @@ export function confirmationSources(
 ): TalentSource[] {
   return data.sources.map((source) => {
     const key = sourceKey(source);
+    const media = data.mediaSourceProvenance;
+    const captures =
+      media?.materials.filter(
+        (row) => row.originalVersionId === source.originalVersionId,
+      ) ?? [];
     const matches = data.inputs.filter(
       (input) =>
+        captures.some((row) => row.inputId === input.id) ||
         (input.inputSource && sourceKey(input.inputSource) === key) ||
         input.sourceContexts.some((context) => sourceKey(context) === key),
     );
-    if (!matches.length) return source;
+    if (!matches.length && !captures.length) return source;
     let complete =
       !data.linkedSourceKeys.has(key) || source.subjects.length > 0;
     const subjects = [...source.subjects];
     const required = new Set(source.requiredKinds ?? []);
+    // Initial image slice only: other parser categories remain fail-closed until
+    // their authoritative classification/producer is connected. Never treat an
+    // AI-attributed person as the original's complete subject set.
+    for (const capture of captures) {
+      const input = matches.find((row) => row.id === capture.inputId);
+      const stored = mediaRecordOriginalInputSchema.safeParse(
+        input?.originalInput,
+      );
+      const scope = mediaIntakeScopeSchema.safeParse(capture.intakeScope);
+      const canonical = media?.canonical.find((row) => sourceKey(row) === key);
+      if (
+        !input ||
+        !stored.success ||
+        !scope.success ||
+        !input.batchId ||
+        !input.evaluationNodeId ||
+        !input.boundAt ||
+        !input.occurredOn ||
+        input.origin !== 'attachment' ||
+        input.inputVersion !== capture.inputVersion ||
+        !stored.data.materialIds.includes(capture.id) ||
+        !media?.audit.some(
+          (row) =>
+            row.id === capture.scopeAuditId &&
+            row.action === 'material.capture' &&
+            row.resourceId === capture.id,
+        ) ||
+        !canonical ||
+        canonical.sourceCategory !== 'original' ||
+        canonical.location.kind !== 'image' ||
+        canonical.excerpt !== source.excerpt ||
+        !isDeepStrictEqual(canonical.location, source.location) ||
+        scope.data.subjects.some(
+          (subject) => subject.evaluationNodeId !== input.evaluationNodeId,
+        )
+      ) {
+        complete = false;
+        continue;
+      }
+      subjects.push(...scope.data.subjects);
+      if (scope.data.kind !== source.kind) required.add(scope.data.kind);
+      for (const kind of scope.data.requiredKinds) required.add(kind);
+    }
     for (const input of matches) {
+      if ('kind' in input.originalInput) {
+        // Every media reference needs a real material/canonical binding. Keep
+        // other creators and superseded captures; lifecycle is not provenance.
+        if (!captures.some((row) => row.inputId === input.id)) complete = false;
+        for (const context of input.sourceContexts.filter(
+          (row) => sourceKey(row) === key,
+        )) {
+          if (
+            !context.subjects.length ||
+            !kinds.has(context.kind) ||
+            context.requiredKinds.some((kind) => !kinds.has(kind)) ||
+            context.subjects.some(
+              (subject) => !subject.personId || !subject.evaluationNodeId,
+            )
+          ) {
+            complete = false;
+            continue;
+          }
+          subjects.push(...context.subjects);
+          if (context.kind !== source.kind) required.add(context.kind);
+          for (const kind of context.requiredKinds) required.add(kind);
+        }
+        continue;
+      }
       const contexts = input.sourceContexts.filter(
         (context) => sourceKey(context) === key,
       );

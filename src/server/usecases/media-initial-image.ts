@@ -18,31 +18,7 @@ import { parseBatchMetadata } from './record-batch-arrange-state';
 import { ForbiddenError } from './project-context';
 import { mediaRecordOriginalInputSchema } from '../modules/records/arrange/input-state/original-input';
 
-const kind = z.enum([
-  'person',
-  'evaluation',
-  'restricted-evaluation',
-  'confirmed-score',
-  'quadrant',
-  'management-observation',
-  'change',
-  'performance',
-  'ai-inference',
-]);
-const scopeSchema = z.strictObject({
-  subjects: z
-    .array(
-      z.strictObject({
-        personId: z.string().min(1),
-        evaluationNodeId: z.string().min(1),
-        cohortId: z.string().nullable(),
-      }),
-    )
-    .min(1),
-  kind,
-  requiredKinds: z.array(kind),
-  occurredOn: z.iso.date(),
-});
+import { mediaIntakeScopeSchema as scopeSchema } from '../modules/records/material-review/scope';
 
 /** First image extraction only. A canonical parsed source must use the complete
  * existing source loader instead. No URL, object key or original text is exposed.

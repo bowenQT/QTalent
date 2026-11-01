@@ -1,3 +1,4 @@
+import { readMediaSourceProvenance } from './material-review/provenance';
 import type { DbExecutor } from '../../db/client';
 import {
   events,
@@ -24,5 +25,6 @@ export async function readEvidenceForTalent(db: DbExecutor) {
     fragments: await db.select().from(fragments),
     historical: await db.select().from(historicalEvaluations),
     historicalParticipants: await db.select().from(historicalParticipants),
+    ...(await readMediaSourceProvenance(db)),
   };
 }
