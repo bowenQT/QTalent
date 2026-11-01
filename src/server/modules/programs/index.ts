@@ -44,3 +44,9 @@ export type {
   EvaluationWorkItem,
 } from './reassignment-contract';
 export { planLegacyEvaluationNodes } from './legacy-node-mapping';
+
+export {
+  nodeConclusions,
+  nodeConclusionVersions,
+  nodeConclusionOperations,
+} from './node-conclusions/schema';
