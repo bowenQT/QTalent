@@ -7,6 +7,10 @@ const old = (): StoredArrangeInput => ({
   creatorAccountId: 'actor',
   jobId: 'old-job',
   inputVersion: 'v1',
+  batchId: null,
+  evaluationNodeId: null,
+  boundAt: null,
+  occurredOn: null,
   origin: 'text',
   originalInput: {
     operation_id: 'create',
@@ -43,6 +47,12 @@ const selection = (): RecordSelectionInput => ({
 describe('new input after explicit selection', () => {
   it('preserves raw input/attachments and creates new identities without reviving the old draft', () => {
     const previous = old();
+    Object.assign(previous, {
+      batchId: 'stable-batch',
+      evaluationNodeId: 'node',
+      boundAt: new Date('2026-10-24T02:00:00Z'),
+      occurredOn: '2026-10-23',
+    });
     const next = bindSelectedInput(
       previous,
       selection(),
@@ -63,6 +73,10 @@ describe('new input after explicit selection', () => {
       inputVersion: 'v2',
       personIds: ['p1', 'p2'],
       originalInput: previous.originalInput,
+      batchId: 'stable-batch',
+      evaluationNodeId: 'node',
+      boundAt: new Date('2026-10-24T02:00:00Z'),
+      occurredOn: '2026-10-23',
     });
     expect(next.sourceContexts[0]!.subjects).toHaveLength(2);
     expect(previous.personIds).toEqual([]);
@@ -90,6 +104,12 @@ describe('new input after explicit selection', () => {
           createdAt: new Date(),
         },
       );
+      expect([
+        next.batchId,
+        next.evaluationNodeId,
+        next.boundAt,
+        next.occurredOn,
+      ]).toEqual([null, null, null, null]);
       expect(next.sourceContexts).toEqual(previous.sourceContexts);
     },
   );
