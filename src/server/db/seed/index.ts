@@ -214,7 +214,8 @@ export function mapPrototypeSeed(input: PrototypeSeed) {
       validTo: null,
     }),
   );
-  // The teaching/HR authorization continues through closing review, independently of ended project membership.
+  // Legacy cohort relationships are separate from restricted-content access.
+  // A cohort teaching assignment does not grant graduation-review access.
   const validity = { validFrom: '2026-07-06', validTo: null, revokedAt: null };
   const accounts = Object.entries(raw.ROLES).map(([key, role]) => ({
     id: `demo-${key}`,

@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { createJobSnapshotSchema, jobCommandSchema } from './jobs';
-import { sourceReadInputSchema, sourceReferenceSchema } from './sources';
+import {
+  materialSourceSchema,
+  sourceReadInputSchema,
+  sourceReferenceSchema,
+} from './sources';
 
 export const MAX_UPLOAD_BYTES = 2 * 1024 ** 3;
 export const MAX_ATTACHMENTS = 10;
@@ -418,4 +422,73 @@ export type RecordingClientMessage = z.infer<
 >;
 export type RecordingServerMessage = z.infer<
   typeof recordingServerMessageSchema
+>;
+
+/**
+ * New intake endpoint declaration, separate from the seven-format uploader.
+ * Lookups and declared metadata never grant authority. BOW-873 resolves owner,
+ * actual bytes/type and original version; unsupported inputs get an explicit
+ * result before a grant. Unassigned targets are private staging only: selecting
+ * a node alone cannot authorize parsing/model disclosure of the material.
+ */
+export const materialUploadRequestSchema = z.strictObject({
+  ...uploadRequestSchema.shape,
+  purpose: z.enum(['audio', 'video', 'attachment', 'image']),
+  target: z.union([
+    uploadTargetSchema,
+    z.strictObject({
+      kind: z.literal('unassigned'),
+      evaluationNodeId: id,
+    }),
+  ]),
+});
+export const materialRequestUploadResultSchema = z.union([
+  requestUploadResultSchema,
+  z.strictObject({
+    status: z.literal('unsupported'),
+    reason: z.enum(['format', 'size']),
+    message: text,
+  }),
+]);
+export const materialFileInputSchema = z.strictObject({
+  clientFileId: id,
+  uploadId: id,
+});
+export const materialExtractionResultSchema = z.discriminatedUnion('status', [
+  z
+    .strictObject({
+      status: z.literal('parsed'),
+      parseVersionId: id,
+      originalVersionId: id,
+      fragments: z.array(materialSourceSchema).min(1),
+    })
+    .refine(
+      (result) =>
+        result.fragments.every(
+          (fragment) => fragment.originalVersionId === result.originalVersionId,
+        ) &&
+        new Set(result.fragments.map((fragment) => fragment.fragmentId))
+          .size === result.fragments.length,
+      '片段须唯一且属于同一原件版本',
+    ),
+  z.strictObject({
+    status: z.literal('unsupported'),
+    reason: z.enum(['format', 'scanned', 'no_usable_content']),
+    message: text,
+  }),
+  z.strictObject({
+    status: z.literal('failed'),
+    code: z.enum(['invalid_content', 'processing_failed']),
+    message: text,
+    retryable: z.boolean(),
+  }),
+]);
+export type MaterialFileInput = z.infer<typeof materialFileInputSchema>;
+export type MaterialExtractionResult = z.infer<
+  typeof materialExtractionResultSchema
+>;
+
+export type MaterialUploadRequest = z.infer<typeof materialUploadRequestSchema>;
+export type MaterialRequestUploadResult = z.infer<
+  typeof materialRequestUploadResultSchema
 >;
