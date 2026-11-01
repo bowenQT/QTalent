@@ -403,7 +403,7 @@
   // ---------- 待办（按视角） ----------
   store.todos = () => {
     const role = store.role(), me = ROLES[role].person, list = [];
-    const visibleInbox = S.inbox.filter((i) => !i.done && (role === 'hrbp' || i.by === me || (role === 'mentor')));
+    const visibleInbox = S.inbox.filter((i) => !i.done && (role === 'hrbp' || i.by === me)); // 评价人只看自己交的材料里的待核对
     if (role !== 'self' && role !== 'lead') visibleInbox.slice().sort((a, b) => (a.later ? 1 : 0) - (b.later ? 1 : 0)).forEach((i) => list.push({ kind: 'verify', badge: '待核对', cls: 'n-badge--ai', icon: 'spark', title: i.q.replace(/？$/, ''), sub: `${i.src} · ${i.at}${i.later ? ' · 已选稍后处理' : ''}`, due: i.later ? '稍后' : '今天', href: `inbox.html#${i.id}` }));
     if (store.can('calibrate')) store.queue().forEach((q) => list.push({ kind: 'calib', badge: q.kindLabel, cls: q.kind === 'conflict' ? 'n-badge--conflict' : '', icon: q.kind === 'conflict' ? 'split' : '', title: q.title, sub: q.sub, due: q.pair, href: `queue.html#${q.id}` }));
     S.tracks.filter((t) => t.state === 'on' && (t.owner === me || t.helper === me) && store.scope(t.person)).forEach((t) => list.push({ kind: 'track', badge: '跟踪到期', title: `重点跟踪 · ${store.person(t.person).name}`, sub: t.q, due: NT.md(t.next), href: `person.html?id=${t.person}#track` }));
@@ -462,14 +462,18 @@
   };
 
   // ---------- Landing 对人复盘 ----------
-  store.review = (pid, week = 'W8') => {
+  // 一件事是否落在这份复盘的范围里：复盘里直接补的事件按当天记日期，但归属这次复盘；其余按发生日期
+  const reviewSpan = (pid, week) => {
     const b = store.landingOf(pid)?.batch || store.batch('b-xe6');
-    const w = b.weeks.find((x) => x[0] === week);
-    const from = b.from, to = w[4];
-    const key = `${pid}-${week}`;
-    // 复盘里直接补的事件按当天记日期，但归属这次复盘
-    const evs = S.events.filter((e) => e.kind === 'obs' && e.people.includes(pid) && (e.review === key || (e.date && e.date >= from && e.date <= to)));
+    return { key: `${pid}-${week}`, from: b.from, to: b.weeks.find((x) => x[0] === week)[4] };
+  };
+  const inReview = (e, pid, { key, from, to }) => e.kind === 'obs' && e.people.includes(pid) && (e.review === key || (e.date && e.date >= from && e.date <= to));
+  store.review = (pid, week = 'W8') => {
+    const span = reviewSpan(pid, week), { key, from, to } = span;
     const saved = S.reviews[key] || {};
+    // 复盘的终态检查只在这一处：确认时记下当时的事件（saved.events），之后不论从哪条路径进来的事都不并入已确认的复盘，
+    // 作为这个人单独的一件待确认的事留在原批次回执里（store.lateReviews）；撤销确认后照常按范围归入
+    const evs = S.events.filter((e) => inReview(e, pid, span) && (!saved.events || saved.events.includes(e.id)));
     const rows = SEED.DIMS.map((d) => {
       const items = [];
       evs.forEach((e) => e.scores.forEach((s, i) => { if (s.p === pid && s.d === d.id) items.push({ e, s, i }); }));
@@ -490,10 +494,13 @@
     if (!store.canEditReview(pid)) return null;
     const r = store.review(pid, week);
     if (!r || r.state === 'confirmed' || r.ai || r.conflicts) return null;
-    const confirmed = { state: 'confirmed', by: store.me().id, at: NT.TODAY };
+    const confirmed = { state: 'confirmed', by: store.me().id, at: NT.TODAY, events: r.events.map((e) => e.id) };
     S.reviews[r.key] = confirmed; store.save();
     return confirmed;
   };
+  // 这件事落在哪些已确认的对人复盘范围里、却不在确认时记下的事件里：这些复盘保持不变，这件事单独待确认
+  store.lateReviews = (e) => (e.kind !== 'obs' ? [] : e.people.flatMap((pid) => (store.landingOf(pid)?.batch || store.batch('b-xe6')).weeks
+    .map((w) => reviewSpan(pid, w[0])).filter((span) => S.reviews[span.key]?.events && inReview(e, pid, span) && !S.reviews[span.key].events.includes(e.id)).map((span) => span.key)));
   // 对人复盘每一维的评价：AI 草拟只作参考，HR 和所带导师可以采用、改写、修正；每次保存署名，旧版本保留
   store.canEditReview = (pid, role = store.role()) => (role === 'hrbp' && store.scope(pid, role) === 'full') || (role === 'mentor' && store.scope(pid, role) === 'mentor');
   store.reviewEvalHist = (pid, week, dim) => S.reviewEvals?.[`${pid}-${week}`]?.[dim] || [];
@@ -543,13 +550,15 @@
     return saved.ids.every((id) => seen.has(id)) ? saved : null;
   };
 
-  // 档案里这个视角能看到的事件：导师看不到管理观察和管理受限资料；项目负责人只看自己项目相关的
+  // 面评等招聘资料按来源类别标记（cat: 'recruit'），类型名统一写「招聘评估」（需求定稿 v1.2 §3.9.2）；可见过滤看类别，不看类型名
+  store.isRecruit = (e) => e.kind === 'hist' && e.cat === 'recruit';
+  // 档案里这个视角能看到的事件：导师看不到管理观察、管理受限资料和招聘资料；项目负责人只看自己项目相关的
   store.visibleEvents = (pid) => {
     const role = store.role(), scope = store.scope(pid), land = store.landingOf(pid);
     let events = store.eventsOf(pid), hidden = 0;
     if (role === 'mentor') {
       const team = land ? land.row[2] : [];
-      const keep = (e) => (e.kind === 'obs' && (team.includes(e.recorder) || e.recorder === store.me().id)) || (e.kind === 'hist' && !e.restricted && e.histType !== '招聘评估') || e.kind === 'self';
+      const keep = (e) => (e.kind === 'obs' && (team.includes(e.recorder) || e.recorder === store.me().id)) || (e.kind === 'hist' && !e.restricted && !store.isRecruit(e)) || e.kind === 'self';
       hidden = events.filter((e) => !keep(e)).length; events = events.filter(keep);
     } else if (scope === 'project') {
       const owned = S.projects.filter((x) => x.owner === store.me().id).map((x) => x.id);
