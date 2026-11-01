@@ -36,8 +36,8 @@ loadBindings 少任何片段或重复片段都会失败，不会据残缺清单�
 ## 必需的生产接线
 
 - RecordingPorts.transaction：Read Committed 的原生短事务，和 873 / 846 共用 quota 锁、当前成员与节点写权限，锁后读取 BOW-860 绑定修订及恢复 ledger；saveRun 原子保存 claim/claimExpiresAt 和原有 run，同事务投影正式 media job 状态。旧存储没有期限字段时必须显式迁移/核对，不把 undefined 当释放或过期。缺少上下文即拒绝，不提供 allow-all / draft / 0 默认值。该私有字段的最终持久映射/迁移交 X1，不在本片生成。
-- readValidatedUpload 只提供历史归档事实，不是永久授权；不复制其内部上传表或创建第二份原件。inspectAudio 需通过真实授权读取该不可变版本，解析媒体时长并重算摘要/长度。当前仅注入假实现验证，尚未提供媒体解码器和真实 Kodo 读取。
-- prepareSource 使用既有 Kodo 能力签发；临时 URL / object key 不进入公开任务结果、前端、错误或日志。11/1 所有者在 #248/6551983878 决定沿用 856 唯一 S3 预签名实现；本轮仍固定旧客户端输入，未做真实来源/听悟调用，不绕证书、不新增签名器或资源，后续消费 856 稳定输入再联验。
+- readValidatedUpload 只提供历史归档事实，不是永久授权；不复制其内部上传表或创建第二份原件。当前已提供 createKodoAudioInspector 私有适配，用现有 Kodo statObject/openObject 读取不可变版本、验证摘要/长度并实际解码（见下一节）。调用前后的原生权限 checkpoint、生产组合与真实来源读取仍需接线验收，不能用归档历史事实代替当前处理许可。
+- prepareSource 使用既有 Kodo 能力签发；临时 URL / object key 不进入公开任务结果、前端、错误或日志。11/1 所有者在 #248/6551983878 决定沿用 856 唯一 S3 预签名实现；本分支的旧共享组合尚待 X1 同步 main 27d7da28b887d3e0b8043a7ee3cdd915e67c2d56 中已合的 856/S3 固定输入（受审 68943e675424b2bca8788a8899ee920a8f031078）与后续修复；私有适配复用同名 statObject/openObject，不另写签名器。当前没有真实来源/听悟调用，不绕证书、不新增资源，不能将旧组合的合成传输验证当作 S3 生产联验。
 - insertTranscript / 待核对数据 / 任务 checkpoint 的持久表与最终迁移、873 / 837 完整来源授权投影、播放短链和逐句定位页面仍待接。
 - enqueuePoll / enqueueShaping 必须使用同原生事务、852 的唯一 producer / outbox；jobs/recordings.ts 只导出严格 payload、固定 queue 和 handler / dispatch 工厂，不注册 worker，不另起 producer。生产恢复 job 与 BOW-860 的 ledger 必须一致。租约后的崩溃重投由这一处持久队列保证。
 - MP4 在 857 客户端可用，但 873 的旧七格式应用入口尚不接受 MP4；897 新材料 lane 的 video 分派需独立接入，不伪装 audio。
@@ -45,6 +45,22 @@ loadBindings 少任何片段或重复片段都会失败，不会据残缺清单�
 共享接线请求和权威字段答复见 #248 评论 6548144838、6548172004、6548237650。真实播放、真实转写、PG/事务隔离、845 整理和人工确认的端到端验收尚未运行，整卡保留未完成。
 
 本轮尝试普通同步 main 5c053a6（含已合 897/e446）时，在共享 record.ts、materials.ts、materials.fixtures.ts、materials.test.ts、material-review.ts 冲突，已原样中止、保留 f67329f 输入并登记 #248/6553620929。没有自行选共享 blob 或宣称已对齐 main；稳定私有修复交回后由 X1 统一同步继承 873/897，再复验完整组合与 CI。
+
+## 真实字节与时长私有适配
+
+`usecases/recordings/inspect-audio.ts` 的 `createKodoAudioInspector` 可作为 RecordingPorts.inspectAudio 注入。它要求调用方给出当前 run 的 uploadId、uploadJobId、originalId 和 originalVersionId，先与归档交接核对，错误版本在任何对象读取前拒绝。它不创建当前权限、集合或绑定修订，不能独立授予读取权限。
+
+- 仅复用现有 Kodo 客户端的 statObject/openObject。读前和读后核对对象标识、etag、类型与长度；实际流逐字节计数和重算 SHA-256，少字节、多字节、摘要不符和版本变化均拒绝。不得改用会整体缓冲的 read()。
+- 临时文件位于随机私有目录，文件权限为 0600；只保存这次已验证的编码字节。无论成功、错误或取消，都关闭对象流/文件并删除目录。输出只含版本、摘要、字节数、实际格式与时长，不含对象 key、签名 URL、请求头、文件路径、媒体元数据或原生工具诊断。
+- `audio-probe.ts` 先由 ffprobe 核实容器和唯一音轨，再用 ffmpeg 实际解码成 16kHz、单声道、16-bit PCM，流式计数采样量，不保留解码内容。时长向上取整到毫秒；不读取 duration 标签、不信任上传声明或文件名，不以 0 或估算码率兜底。额外 RIFF chunk 边界核对拒绝解码器可能容忍的截断 WAV。多音轨、时序视频轨、坏容器、解码错误或超量采样均拒绝；这不扩展 MP4 应用入口。
+- 仅接受已有四种音频格式。原生进程用部署方显式提供的绝对二进制路径，无 shell、不继承应用环境。每次只继承一个本地只读 FD，输入协议仅 fd，容器仅 wav/mp3/aac/mov；禁止经媒体外部引用读取网络或任意本地文件。M4A 从可 seek 的普通文件描述符读取。单解码线程、有限探测/输出/时限，超限杀进程并等待退出后清理。max_alloc 是单次分配限制，不能冒称进程总内存限额；生产仍须在唯一隔离 worker 设置 CPU/内存与并发限制。
+- 配置必须显式给出 ffprobePath、ffmpegPath、timeoutMs、maxDurationMs、maxBytes、readTimeoutMs，界限分别不超过 10 分钟、6 小时、既有 2GiB 和 10 分钟。readTimeoutMs 覆盖本次读取及解析总预算，timeoutMs 额外限制原生解析；应由生产组合与租约期限一起确定。外部 AbortSignal 可提前终止读取/解析，取消仍由原处理用例在真实 checkpoint 上决定；本地中止不等于云端 ASR 取消。
+
+本机验证使用已有 FFmpeg 7.1.1，未安装系统/包依赖。生产和 CI 的固定二进制供应交 X1，缺失时报 provider_unavailable，没有假实现后备。测试用 QTALENT_TEST_FFPROBE_PATH / QTALENT_TEST_FFMPEG_PATH 指向部署提供的二进制；未设置时仅使用平台固定路径，不跳过缺失验证。指令依据 [FFmpeg 7.1.1 的 FD/协议选项](https://github.com/FFmpeg/FFmpeg/blob/n7.1.1/doc/protocols.texi) 与 [ffprobe 选项](https://github.com/FFmpeg/FFmpeg/blob/n7.1.1/doc/ffprobe.texi)，不依赖时长元数据声明。
+
+本轮普通合 main 27d7da28b887d3e0b8043a7ee3cdd915e67c2d56 时仍遇同五个共享契约冲突，已 abort；精确请求见 #248/6557465954。没有自行选共享 blob 或假称已消费最终 main。860 固定 e5020a6b2d431086c858bb34a0a1415f21fd2604 增加的 otherBlockingReviewItemIds 必须与 otherReviewItemIds 在同锁内真实读取，未知即冲突，不能默认空数组。本轮不改 860 或伪造人工 ledger，真实绑定恢复仍未接。
+
+另以只读 detached main 27d7da28b887d3e0b8043a7ee3cdd915e67c2d56 的真实 S3 Kodo 客户端，直接注入本分支私有适配，验证合成 HTTP 流→实际 FFmpeg 的路径：读前/读后 stat 加 1 次 S3 GET 共 3 次本地传输回调，100ms、摘要/长度匹配；错误原件版本在额外对象读取前拒绝。没有复制或改动共享 Kodo 源码，没有外网访问。该独立组件组合不代表本分支已完成共享 merge、全仓最终 main 类型检查或生产接线。
 
 ## 验证边界
 

@@ -277,7 +277,12 @@ export function createRecordingProcessor(
         const media = validateArchive(
           run,
           upload,
-          await ports.inspectAudio(upload),
+          await ports.inspectAudio(upload, {
+            uploadId: run.uploadId,
+            uploadJobId: run.uploadJobId,
+            originalId: run.originalId,
+            originalVersionId: run.originalVersionId,
+          }),
         );
         if (!(await checkpoint(async () => true))) return 'handled';
         const source = await ports.prepareSource(upload, media);

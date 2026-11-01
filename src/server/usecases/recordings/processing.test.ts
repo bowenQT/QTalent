@@ -110,18 +110,20 @@ function harness() {
   const enqueueShaping = vi.fn<RecordingTransaction['enqueueShaping']>(
     async () => ({ jobId: 'demo-shaping-job' }),
   );
+  const storageConfig = {
+    endpoint: 'https://objects.example.test',
+    s3Region: 'cn-east-1',
+    uploadEndpoint: 'https://up.example.test',
+    managementEndpoint: 'https://rs.example.test',
+    bucket: 'demo',
+    accessKey: 'synthetic-ak',
+    secretKey: 'synthetic-key',
+  };
   const prepareSource = vi.fn(async () =>
-    createKodoClient(
-      {
-        endpoint: 'https://objects.example.test',
-        uploadEndpoint: 'https://up.example.test',
-        managementEndpoint: 'https://rs.example.test',
-        bucket: 'demo',
-        accessKey: 'synthetic-ak',
-        secretKey: 'synthetic-key',
-      },
-      { now: () => 1000, fetch: vi.fn() },
-    ).createTranscriptionSource({
+    createKodoClient(storageConfig, {
+      now: () => 1000,
+      fetch: vi.fn(),
+    }).createTranscriptionSource({
       objectKey: upload.object.objectKey,
       purpose: 'tingwu-offline',
       requiredRemainingTtlMs: 11100000,

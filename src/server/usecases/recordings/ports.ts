@@ -59,7 +59,16 @@ export type RecordingPorts = {
   /** Read authorized archived bytes, decode/probe actual media, recompute digest + byte length.
    * Do not derive duration from upload metadata, filename or a default value.
    */
-  inspectAudio(upload: ArchivedUpload): Promise<InspectedAudio>;
+  inspectAudio(
+    upload: ArchivedUpload,
+    reference: {
+      uploadId: string;
+      uploadJobId: string;
+      originalId: string;
+      originalVersionId: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<InspectedAudio>;
   /** Existing Kodo signer only; capability is ephemeral, never persisted or logged. */
   prepareSource(
     upload: ArchivedUpload,
