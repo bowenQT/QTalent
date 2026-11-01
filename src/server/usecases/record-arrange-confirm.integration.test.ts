@@ -21,6 +21,7 @@ import {
 import { evaluationRelations } from '../modules/programs';
 import { recordArrangeQueue } from '../jobs/record-arrange';
 import type { RecordSaveInput } from '../../contracts/record';
+import type { BatchArrangeTransaction } from './record-batch-arrange';
 let connection: Awaited<ReturnType<typeof nativeDatabase>>;
 let boss: PgBoss;
 beforeAll(async () => {
@@ -291,4 +292,75 @@ it('does not accept a changed retained AI body as merely a confirmation revision
     .from(recordSaves)
     .where(eq(recordSaves.saveId, saved.result.saveId));
   expect(retained!.draftSnapshot.sbi.title).toBe(h.draft.sbi.title);
+});
+
+// Internal identity preparation only: this deliberately does not create a Web
+// regeneration action or change a terminal job into a runnable operation.
+it('reserves existing event identities from the real persisted manifest', async () => {
+  const h = await arranged();
+  const plan: Parameters<BatchArrangeTransaction['reserveIdentities']>[0] = {
+    events: [
+      {
+        eventKey: 'proposal-0',
+        personIds: [h.target],
+        sbi: h.draft.sbi,
+        evidence: [
+          { reference: h.draft.sourceReferences[0]!, quote: '补齐回滚步骤' },
+        ],
+        scores: [
+          {
+            state: 'unknown',
+            personId: h.target,
+            dimensionId: 'native-prof',
+            reason: '资料不足（演示）',
+          },
+        ],
+      },
+    ],
+    groups: [],
+  };
+  const request = {
+    accountId: h.account,
+    batchId: h.draft.batchId,
+    operationId: h.intake.originalInput.operation_id,
+    attempt: 1,
+  };
+  const ledger = await h.app.requests.native.ports.locked(request, (tx) =>
+    tx.reserveIdentities(plan),
+  );
+  expect(ledger).toMatchObject({
+    expectedBatchRevision: 2,
+    drafts: [
+      { eventKey: 'proposal-0', draftId: h.draft.draftId, previous: h.draft },
+    ],
+  });
+  const replay = await h.app.requests.native.ports.locked(request, (tx) =>
+    tx.reserveIdentities(plan),
+  );
+  expect(replay).toEqual(ledger);
+  await expect(
+    h.app.requests.native.ports.locked(request, (tx) =>
+      tx.reserveIdentities({
+        ...plan,
+        events: [{ ...plan.events[0]!, eventKey: 'replacement' }],
+      }),
+    ),
+  ).rejects.toThrow('native_revision_identity_changed');
+  await expect(
+    h.app.requests.native.ports.locked(request, (tx) =>
+      tx.reserveIdentities({
+        ...plan,
+        events: [plan.events[0]!, plan.events[0]!],
+      }),
+    ),
+  ).rejects.toThrow('native_revision_identity_changed');
+  expect(
+    (
+      await connection.db
+        .select()
+        .from(recordDrafts)
+        .where(eq(recordDrafts.draftId, h.draft.draftId))
+    )[0]!.draft,
+  ).toEqual(h.draft);
+  expect(h.model.calls()).toBe(1);
 });
