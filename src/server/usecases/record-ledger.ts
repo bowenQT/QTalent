@@ -4,6 +4,7 @@ import type { Transaction } from '../db/client';
 import {
   recordBatchDraftSchema,
   recordSaveReceiptSchema,
+  recordSaveInputSchema,
 } from '../../contracts/record';
 import {
   recordDraftBatches,
@@ -22,7 +23,7 @@ import {
   historicalParticipants,
   readEvidenceForTalent,
 } from '../modules/records';
-import { confirmations, scoreReviews } from '../modules/talent';
+import { aiSuggestions, confirmations, scoreReviews } from '../modules/talent';
 import { lockConfirmationIntakes } from './record-confirmation-sources';
 import { talentSources, sourceKey } from './talent-source-projection';
 import { loadEvaluationContext } from './evaluation-context';
@@ -81,7 +82,7 @@ export async function readLockedRecordLedger(
     ${events}, ${eventParticipants}, ${eventSources}, ${statements},
     ${originals}, ${originalVersions}, ${fragments},
     ${historicalEvaluations}, ${historicalParticipants},
-    ${confirmations}, ${scoreReviews} in share mode`);
+    ${aiSuggestions}, ${confirmations}, ${scoreReviews} in share mode`);
 
   // Intake rows are fixed by the first table fence. All other facts are read
   // after the final wait. Sources are never narrowed by target, active status,
@@ -133,6 +134,13 @@ export async function readLockedRecordLedger(
         .where(inArray(scoreReviews.eventId, ids))
         .orderBy(scoreReviews.id)
     : [];
+  const suggestions = ids.length
+    ? await tx
+        .select()
+        .from(aiSuggestions)
+        .where(inArray(aiSuggestions.eventId, ids))
+        .orderBy(aiSuggestions.id)
+    : [];
   const ledgerEvents = targetEvents.map((event) => {
     const mapped = mappings.find((mapping) => mapping.eventId === event.id);
     const history = saves.filter((save) => {
@@ -147,6 +155,7 @@ export async function readLockedRecordLedger(
     const saveFacts = history.map((save) => {
       const receipt = recordSaveReceiptSchema.safeParse(save.receipt);
       const draft = recordBatchDraftSchema.safeParse(save.draftSnapshot);
+      const input = recordSaveInputSchema.safeParse(save.input);
       const accepted = operations.filter(
         (op) => op.saveId === save.saveId && op.action === 'save',
       );
@@ -157,6 +166,10 @@ export async function readLockedRecordLedger(
       const proof =
         receipt.success &&
         draft.success &&
+        input.success &&
+        input.data.draftId === save.draftId &&
+        input.data.expected_revision === draft.data.revision &&
+        input.data.personIds.includes(event.personId) &&
         accepted.length === 1 &&
         !!op &&
         receipt.data.saveId === save.saveId &&
@@ -187,6 +200,11 @@ export async function readLockedRecordLedger(
               batchId: save.batchId,
               draftId: save.draftId,
               acceptedRevision: save.draftSnapshot.revision,
+              // Only this target person's accepted decisions; never the whole
+              // batch input or confirmation.reason (which may describe lineage).
+              acceptedDecisions: input.data.decisions.filter(
+                (decision) => decision.personId === event.personId,
+              ),
               actorAccountId: save.actorAccountId,
               actorPersonId: save.actorPersonId,
               operationId: op.operationId,
@@ -254,8 +272,58 @@ export async function readLockedRecordLedger(
             row.confirmedAt?.getTime() === owner.fact.savedAt.getTime() &&
             !(row.active && (owner.fact.withdrawnAt || event.withdrawnAt)) &&
             links.some((link) => sourceKey(link) === sourceKey(row));
+          const decision =
+            owner?.availability === 'available'
+              ? owner.fact.acceptedDecisions.find(
+                  (item) => item.dimensionId === row.dimensionId,
+                )
+              : undefined;
+          const originalDraftScore = owned
+            ? saves
+                .find((save) => save.saveId === owners[0]!.saveId)
+                ?.draftSnapshot.scores.find(
+                  (score) =>
+                    score.personId === event.personId &&
+                    score.dimensionId === row.dimensionId,
+                )
+            : undefined;
+          const suggestion = suggestions.find(
+            (item) => item.id === row.suggestionId,
+          );
+          const boundSuggestion =
+            suggestion &&
+            originalDraftScore &&
+            suggestion.sourceCategory === 'original' &&
+            suggestion.eventId === event.id &&
+            suggestion.dimensionId === row.dimensionId &&
+            suggestion.ruleVersionId === row.ruleVersionId &&
+            sourceKey(suggestion) === sourceKey(row) &&
+            links.some((link) => sourceKey(link) === sourceKey(suggestion)) &&
+            (originalDraftScore.state === 'suggested'
+              ? suggestion.status === 'scored' &&
+                suggestion.value === originalDraftScore.value &&
+                suggestion.anchorId === originalDraftScore.anchor.id &&
+                suggestion.ruleVersionId ===
+                  originalDraftScore.anchor.ruleVersion &&
+                sourceKey(suggestion) ===
+                  sourceKey(originalDraftScore.citations[0]!.reference) &&
+                suggestion.rationale ===
+                  originalDraftScore.citations
+                    .map((citation) => citation.quote)
+                    .join('\n')
+              : suggestion.status === 'unknown' &&
+                suggestion.value === null &&
+                suggestion.anchorId === null &&
+                suggestion.rationale === originalDraftScore.reason);
           return {
             row,
+            acceptedDecision:
+              owned && decision
+                ? available(decision)
+                : unavailable('accepted_decision_unverified'),
+            suggestion: boundSuggestion
+              ? available({ row: suggestion, originalDraftScore })
+              : unavailable('suggestion_provenance_unverified'),
             ownership: owned
               ? available(owners[0]!.saveId)
               : unavailable('confirmation_ownership_unverified'),

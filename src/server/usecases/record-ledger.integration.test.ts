@@ -14,7 +14,7 @@ import {
   fragments,
   originalVersions,
 } from '../modules/records';
-import { confirmations, scoreReviews } from '../modules/talent';
+import { aiSuggestions, confirmations, scoreReviews } from '../modules/talent';
 import { evaluationRelations } from '../modules/programs';
 import { jobSnapshots } from '../jobs/schema';
 import * as audit from '../platform/audit';
@@ -672,4 +672,79 @@ it('takes the trusted current clock after waiting, not the request-start timesta
   }
   await holding;
   expect((await reading).context.now).toBe(at);
+});
+
+it('reads accepted user action/reason independently from confirmation lineage and binds the original AI evidence', async () => {
+  const f = await seedRecordCase(db());
+  const result = await saveRecordDraft(
+    db(),
+    f.account.one,
+    {
+      ...f.input,
+      decisions: [
+        { ...f.input.decisions[0], action: 'edit', value: 1, reason: '' },
+      ],
+    },
+    f.clock,
+  );
+  await db()
+    .update(confirmations)
+    .set({ reason: '演示：撤销重存谱系说明，不是本次用户理由' })
+    .where(eq(confirmations.id, result.result.confirmationIds[0]));
+  const row = (await read(f)).events.find(
+    (e) => e.event.id === result.result.events[0].eventId,
+  )!.confirmations[0];
+  expect(row).toMatchObject({
+    acceptedDecision: {
+      availability: 'available',
+      fact: {
+        personId: f.person.one,
+        dimensionId: 'native-prof',
+        action: 'edit',
+        value: 1,
+        reason: '',
+      },
+    },
+    suggestion: {
+      availability: 'available',
+      fact: {
+        row: {
+          id: row.row.suggestionId,
+          eventId: row.row.eventId,
+          dimensionId: row.row.dimensionId,
+          ruleVersionId: row.row.ruleVersionId,
+          value: 3,
+          anchorId: 'native-v1-3',
+          fragmentId: f.fragmentId,
+          originalVersionId: f.versionId,
+        },
+        originalDraftScore: {
+          state: 'suggested',
+          value: 3,
+          citations: [{ quote: '演示：完成任务并逐一记录验证。' }],
+        },
+      },
+    },
+  });
+  expect(row).not.toHaveProperty('originalInput');
+});
+it('does not treat a different persisted AI value as the accepted immutable draft suggestion', async () => {
+  const { f, result } = await saved();
+  const [confirmation] = await db()
+    .select()
+    .from(confirmations)
+    .where(eq(confirmations.id, result.result.confirmationIds[0]));
+  await db()
+    .update(aiSuggestions)
+    .set({ value: 4, anchorId: 'native-v1-4' })
+    .where(eq(aiSuggestions.id, confirmation.suggestionId!));
+  const row = (await read(f)).events.find(
+    (e) => e.event.id === result.result.events[0].eventId,
+  )!.confirmations[0];
+  expect(row).toMatchObject({
+    suggestion: {
+      availability: 'unavailable',
+      reason: 'suggestion_provenance_unverified',
+    },
+  });
 });
