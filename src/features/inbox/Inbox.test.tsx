@@ -69,8 +69,12 @@ describe('cards', () => {
     expect(scope.textContent).toContain('框选范围待接通');
     for (const field of document.querySelectorAll('input'))
       expect(field.disabled).toBe(true);
-    expect(within(card('i-int')).getByLabelText('在人员目录里找')).toBeTruthy();
-    expect(within(card('i-aze')).getByLabelText('在名单里找')).toBeTruthy();
+    expect(
+      within(card('i-int')).getByLabelText('在人员目录里找 · 待接通'),
+    ).toBeTruthy();
+    expect(
+      within(card('i-aze')).getByLabelText('在名单里找 · 待接通'),
+    ).toBeTruthy();
   });
 
   it('shows the mentor only the items of their own materials', () => {
@@ -186,7 +190,7 @@ describe('picking', () => {
       await screen.findByRole('heading', { name: '现在没有要核对的' }),
     ).toBeTruthy();
     expect(
-      screen.getByText('1 处放在了稍后处理，在右侧继续核对。'),
+      screen.getByText('1 处放在了稍后处理，在「稍后处理」里继续核对。'),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '继续核对' }));
     choose('i-spk', '季叙白');
@@ -232,7 +236,7 @@ describe('failures keep the card and the question', () => {
     ],
     [
       { status: 'validation_error', fieldErrors: {}, input: {} },
-      '这次选择没有保存，请再选一次',
+      '这次选择保存失败，请再选一次',
     ],
   ] as const)('%j', async (result, text) => {
     failing(result as never);

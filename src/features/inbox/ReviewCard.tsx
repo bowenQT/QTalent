@@ -66,17 +66,20 @@ const unknownMark = (
 );
 
 /** The prototype's search field. Directory lookups have no read yet, so the field
- * stays visible and disabled, and says so. */
-function Search({ label }: { label: string }) {
+ * stays visible and disabled, and its label says so. */
+function Search({
+  label,
+  style = { margin: 'var(--s-1) 0' },
+}: {
+  label: string;
+  style?: CSSProperties;
+}) {
   return (
-    <label className="n-field" style={{ margin: 'var(--s-1) 0' }}>
-      <span className="n-field__label">{label}</span>
-      <input
-        className="n-input"
-        placeholder={notConnected.search}
-        autoComplete="off"
-        disabled
-      />
+    <label className="n-field" style={style}>
+      <span className="n-field__label">
+        {label} · {notConnected.search}
+      </span>
+      <input className="n-input" autoComplete="off" disabled />
     </label>
   );
 }
@@ -215,14 +218,21 @@ export function ReviewCard({
     case 'unknown_interviewer':
       body = (
         <>
+          <Search
+            label="在人员目录里找"
+            style={{ marginBottom: 'var(--s-2)' }}
+          />
+          {/* As the prototype: the directory matches, then 稍后处理. The contract's
+              candidates stand in for the matches until the search read exists. */}
           <div className="n-choices">
-            {item.candidates.map((candidate) =>
-              person(candidate.personId, {
-                action: 'link_existing_interviewer',
-                personId: candidate.personId,
-              }),
-            )}
-            <Search label="在人员目录里找" />
+            <div className="n-choices">
+              {item.candidates.map((candidate) =>
+                person(candidate.personId, {
+                  action: 'link_existing_interviewer',
+                  personId: candidate.personId,
+                }),
+              )}
+            </div>
             {later('稍后处理')}
           </div>
           <p className="nt-caption" style={{ marginTop: 'var(--s-2)' }}>

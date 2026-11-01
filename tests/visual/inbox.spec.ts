@@ -204,6 +204,17 @@ test('each kind reuses the design-system 核对卡', async ({
         `${id} choice`,
       );
     }
+    // A choice that cannot be picked looks it (`.n-choice:disabled`, 81e4fd4).
+    const scope = page
+      .locator('article#i-region .n-choice')
+      .filter({ hasText: '整理框出的范围' });
+    await expect(scope).toBeDisabled();
+    const look = await scope.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { opacity: Number(style.opacity), cursor: style.cursor };
+    });
+    expect(look.opacity).toBeLessThan(1);
+    expect(look.cursor).toBe('not-allowed');
     // The same「都不是，稍后处理」choice, pixel for pixel.
     await compareElements(
       reference.locator('.n-choice').last(),

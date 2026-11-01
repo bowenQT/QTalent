@@ -12,7 +12,7 @@ export const allDone = {
 };
 export const restLater = (kindLabel: string | null, count: number) => ({
   title: kindLabel ? `${kindLabel}都核对完了` : '现在没有要核对的',
-  text: `${count} 处放在了稍后处理，在右侧继续核对。`,
+  text: `${count} 处放在了稍后处理，在「稍后处理」里继续核对。`,
 });
 export const undoneText = '已撤销，回到待核对';
 
@@ -22,7 +22,7 @@ export const notConnected = {
     title: '待核对待接通',
     text: '接通后，录音、文档、截图和面评里要你确认的地方会出现在这里。',
   },
-  search: '按姓名查找待接通',
+  search: '待接通',
   scope: '框选范围待接通',
 };
 
@@ -31,7 +31,7 @@ export const failed = {
   conflict: '这一处刚有变化，刷新后再选',
   forbidden: '这一处现在在你的查看范围之外，刷新后按当前权限查看',
   not_found: '这一处已经处理过或已移走，刷新后再看',
-  validation_error: '这次选择没有保存，请再选一次',
+  validation_error: '这次选择保存失败，请再选一次',
   offline: '保存失败，请检查网络后再试一次',
 };
 export const undoFailed = {
