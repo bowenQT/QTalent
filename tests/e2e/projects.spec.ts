@@ -67,6 +67,12 @@ test('login, accessible creation, request replay and account logout', async ({
   await page.getByLabel('邮箱').fill('ceo@qtalent.test');
   await page.getByLabel('密码').fill(demoPassword);
   await page.getByRole('button', { name: '登录', exact: true }).click();
+  // Login lands on the workbench (BOW-874); the first visit compiles /work in dev.
+  await expect(page).toHaveURL(/\/work$/, { timeout: 30_000 });
+  await page
+    .getByRole('complementary', { name: '主导航' })
+    .getByRole('link', { name: '项目与课题' })
+    .click();
   await expect(page).toHaveURL(/\/projects$/);
   await page.getByRole('button', { name: '新建项目', exact: true }).click();
   await page.getByRole('button', { name: '创建', exact: true }).click();
