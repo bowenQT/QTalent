@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { MAX_ATTACHMENTS, materialFileInputSchema } from './media';
-import { materialReviewItemSchema } from './material-review';
+import {
+  materialReviewItemSchema,
+  materialReviewResolvedItemSchema,
+} from './material-review';
 import { recordActionResultSchema, recordBatchDraftSetSchema } from './record';
 
 const id = z.string().min(1).max(200).regex(/\S/);
@@ -105,6 +108,8 @@ export const materialBatchReceiptSchema = z
     evaluationNodeId: id,
     personIds: ids,
     projectId: id.nullable(),
+    // One owner-authorized bit, never a hidden count or identity/category list.
+    hasHiddenContent: z.boolean(),
     status: z.enum([
       'processing',
       'needs_review',
@@ -120,6 +125,7 @@ export const materialBatchReceiptSchema = z
       .strictObject({ materialId: id, originalVersionId: id })
       .nullable(),
     items: z.array(materialReviewItemSchema),
+    resolvedItems: z.array(materialReviewResolvedItemSchema),
     draftSet: recordBatchDraftSetSchema.nullable(),
     confirmedDrafts: z.array(confirmedDraftSchema),
     counts: z.strictObject({
@@ -191,13 +197,11 @@ export const materialBatchReceiptSchema = z
     );
   }, '待确认与已确认事件不可重复计数，确认主体不可越出当前批次')
   .refine((value) => {
-    if (
-      new Set(value.items.map((entry) => entry.itemId)).size !==
-      value.items.length
-    )
+    const reviews = [...value.items, ...value.resolvedItems];
+    if (new Set(reviews.map((entry) => entry.itemId)).size !== reviews.length)
       return false;
     return (
-      value.items.every((item) => {
+      reviews.every((item) => {
         const material =
           value.files.find((entry) => entry.materialId === item.materialId) ??
           (value.textMaterial?.materialId === item.materialId

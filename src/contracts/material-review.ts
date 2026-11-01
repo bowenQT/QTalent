@@ -292,6 +292,169 @@ export const materialReviewResolutionReceiptSchema = z
           ] as string[]
         ).includes(value.resolution.action)),
   );
+/** Read-only current resolved items, not a client-writable result history.
+ * Current authorization filters these just like pending items. Availability is
+ * display metadata: the write transaction must recheck actual dependencies.
+ */
+const resolved = {
+  itemId: id,
+  batchId: id,
+  evaluationNodeId: id,
+  materialId: id,
+  originalVersionId: id,
+  revision,
+  source: materialSourceReferenceSchema.nullable(),
+  state: z.literal('resolved'),
+  resolvedAt: z.iso.datetime(),
+  auditId: id,
+  undo: z.discriminatedUnion('status', [
+    z.strictObject({ status: z.literal('available') }),
+    z.strictObject({
+      status: z.literal('blocked'),
+      reason: z.enum(['dependent_draft_confirmed', 'interview_row_imported']),
+    }),
+  ]),
+};
+export const materialReviewResolvedItemSchema = z
+  .discriminatedUnion('kind', [
+    z.strictObject({
+      ...resolved,
+      kind: z.literal('speaker'),
+      source: materialSourceReferenceSchema,
+      resolution: z.discriminatedUnion('action', [
+        z.strictObject({ action: z.literal('bind'), personId: id }),
+        z.strictObject({ action: z.literal('mark_irrelevant') }),
+      ]),
+    }),
+    z.strictObject({
+      ...resolved,
+      kind: z.literal('unknown_person'),
+      resolution: z.discriminatedUnion('action', [
+        z.strictObject({
+          action: z.literal('bind_people'),
+          personIds: ids.min(1),
+        }),
+        z.strictObject({ action: z.literal('keep_original_only') }),
+      ]),
+    }),
+    z.strictObject({
+      ...resolved,
+      kind: z.literal('image_scope'),
+      resolution: z.discriminatedUnion('action', [
+        z.strictObject({
+          action: z.literal('confirm_scope'),
+          region: materialImageRegionSchema,
+          personIds: ids.min(1),
+        }),
+        z.strictObject({ action: z.literal('keep_attachment_only') }),
+      ]),
+    }),
+    z.strictObject({
+      ...resolved,
+      kind: z.literal('unknown_interviewer'),
+      source: pdfSource,
+      importRowId: id,
+      resolution: z.strictObject({
+        action: z.literal('link_existing_interviewer'),
+        personId: id,
+      }),
+    }),
+    z.strictObject({
+      ...resolved,
+      kind: z.literal('unknown_project'),
+      resolution: z.discriminatedUnion('action', [
+        z.strictObject({
+          action: z.literal('link_existing_project'),
+          projectId: id,
+        }),
+        z.strictObject({ action: z.literal('mark_no_project') }),
+      ]),
+    }),
+    z.strictObject({
+      ...resolved,
+      kind: z.literal('unknown_interview_candidate'),
+      source: pdfSource,
+      importRowId: id,
+      resolution: z.discriminatedUnion('action', [
+        z.strictObject({
+          action: z.literal('link_existing_candidate'),
+          personId: id,
+        }),
+        z.strictObject({ action: z.literal('keep_original_only') }),
+      ]),
+    }),
+  ])
+  .refine(
+    (value) =>
+      value.source === null ||
+      value.source.originalVersionId === value.originalVersionId,
+  )
+  .refine(
+    (value) =>
+      value.source === null ||
+      ((value.kind !== 'image_scope' ||
+        value.source.location.kind === 'image') &&
+        (value.kind !== 'speaker' ||
+          ['recording', 'video'].includes(value.source.location.kind))),
+  )
+  .refine(
+    (value) =>
+      value.undo.status !== 'blocked' ||
+      value.undo.reason !== 'interview_row_imported' ||
+      ['unknown_interviewer', 'unknown_interview_candidate'].includes(
+        value.kind,
+      ),
+  );
+
+/** All six kinds use the same version fence. Actor/permission, resolved payload
+ * and cutoff flags are server facts and cannot be supplied by the caller.
+ */
+export const materialReviewUndoCommandSchema = z.strictObject({
+  ...command,
+  action: z.literal('undo'),
+  kind: z.enum([
+    'speaker',
+    'unknown_person',
+    'image_scope',
+    'unknown_interviewer',
+    'unknown_project',
+    'unknown_interview_candidate',
+  ]),
+});
+export const materialReviewUndoReceiptSchema = z
+  .strictObject({
+    previousRevision: revision,
+    item: materialReviewItemSchema.refine((value) => value.state === 'pending'),
+    invalidatedDraftIds: ids,
+    auditId: id,
+    resume: z.null(),
+  })
+  .refine((value) => value.item.revision === value.previousRevision + 1);
+/** Recheck current authority, material/row binding and actual dependent draft
+ * confirmations/imported rows AFTER the source locks, including on replay.
+ * A confirmed dependent draft or imported row conflicts; withdraw confirmation
+ * or import first. Undo, audit, draft invalidation and pending revision commit
+ * together. Never modify confirmed history or automatically enqueue the model.
+ * Same actor/key/semantic command replays the original receipt without a new
+ * write/job; stale versions or another payload conflict and preserve input.
+ */
+export const materialReviewUndoResultSchema = recordActionResultSchema(
+  materialReviewUndoCommandSchema,
+  materialReviewUndoReceiptSchema,
+);
+export type MaterialReviewResolvedItem = z.infer<
+  typeof materialReviewResolvedItemSchema
+>;
+export type MaterialReviewUndoCommand = z.infer<
+  typeof materialReviewUndoCommandSchema
+>;
+export type MaterialReviewUndoReceipt = z.infer<
+  typeof materialReviewUndoReceiptSchema
+>;
+export type MaterialReviewUndoResult = z.infer<
+  typeof materialReviewUndoResultSchema
+>;
+
 /** Resolution, invalidation and target-specific resume enqueue commit together.
  * Actor/key/payload replay uses the original receipt/job after CURRENT checks;
  * changed payload or stale revision conflicts and preserves input. Defer/unbind

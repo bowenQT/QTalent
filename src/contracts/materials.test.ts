@@ -71,6 +71,8 @@ const batch = {
   textMaterial: null,
   jobId: null,
   items: [],
+  resolvedItems: [],
+  hasHiddenContent: false,
   confirmedDrafts: [],
   error: null,
   counts: {
