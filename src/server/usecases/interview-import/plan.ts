@@ -20,6 +20,14 @@ import {
   type MaterialReviewCommand,
 } from '../../../contracts/material-review';
 
+import {
+  readInterviewRowSnapshot,
+  committedInterviewResolution,
+  sameInterviewReview,
+  type InterviewRowSnapshot,
+  type CommittedInterviewResolution,
+} from './review-state';
+
 /** Trusted server snapshot, not a transport request or a persisted authorization. */
 export interface InterviewImportFacts {
   context: EvaluationAuthzContext;
@@ -30,7 +38,7 @@ export interface InterviewImportFacts {
   materialId: string | null;
   parsed: InterviewReviewResult;
   reviewIndex: number;
-  /** The frozen parser does NOT supply these two observed fields. Missing means not ready. */
+  /** Name comes from 900 identity.candidateName; positionCode requires an authoritative recruitment record. Never infer it from the PDF or filename. */
   observedIdentity: { name: string | null; positionCode: string | null } | null;
   candidates: {
     candidateId: string;
@@ -42,6 +50,9 @@ export interface InterviewImportFacts {
   }[];
   /** A stored HR preview confirmation, not a client-selected directory id. */
   confirmedCandidateId: string | null;
+  /** Actual stored preview confirmation bound to the current row revision. */
+  confirmedForRowRevision: number | null;
+  confirmedInterviewerId: string | null;
   directory: Pick<typeof people.$inferSelect, 'id' | 'name'>[];
   employments: Pick<
     typeof employments.$inferSelect,
@@ -50,6 +61,12 @@ export interface InterviewImportFacts {
   /** Separately resolved canonical fragment; never calculated from PDF box coordinates here. */
   source: unknown;
   existing: (InterviewImportIdentity & { evaluationId: string })[];
+  /** Loaded under the row/source locks. Null is unavailable, never unimported. */
+  rowSnapshot: InterviewRowSnapshot | null;
+  pendingCandidate: MaterialReviewItem | null;
+  candidateResolution: MaterialReviewCommand | null;
+  resolvedCandidate: CommittedInterviewResolution | null;
+  resolvedInterviewer: CommittedInterviewResolution | null;
   pendingInterviewer: MaterialReviewItem | null;
   resolution: MaterialReviewCommand | null;
 }
@@ -69,12 +86,24 @@ type NotReadyReason =
   | 'pdf_source_unverified'
   | 'material_identity_missing'
   | 'resume_conflict'
-  | 'interviewer_directory_missing';
+  | 'interviewer_directory_missing'
+  | 'row_snapshot_unavailable'
+  | 'resolution_snapshot_unavailable'
+  | 'remaining_review_blockers'
+  | 'candidate_confirmation_stale'
+  | 'interviewer_confirmation_stale'
+  | 'review_revision_unavailable';
 export type InterviewImportPlan =
   | { status: 'forbidden' }
   | { status: 'not_ready'; reason: NotReadyReason }
-  | { status: 'skipped'; reason: 'not_hired' }
-  | { status: 'needs_review'; item: MaterialReviewItem; resume: null }
+  | { status: 'skipped'; reason: 'not_hired' | 'original_only' }
+  | { status: 'conflict'; reason: 'interview_row_imported' }
+  | {
+      status: 'needs_review';
+      item: MaterialReviewItem;
+      hasHiddenContent: boolean;
+      resume: null;
+    }
   | {
       status: 'duplicate';
       evaluationId: string;
@@ -129,6 +158,48 @@ export function planInterviewImport(
   const { context } = facts;
   if (!activeGrants(context).some((grant) => grant.role === 'hr'))
     return { status: 'forbidden' };
+  const checkedSource = materialSourceSchema.safeParse(facts.source);
+  if (
+    !checkedSource.success ||
+    checkedSource.data.sourceCategory !== 'historical_evaluation' ||
+    checkedSource.data.originalVersionId !== facts.originalVersionId ||
+    checkedSource.data.location.kind !== 'pdf'
+  )
+    return notReady('pdf_source_unverified');
+  if (!facts.materialId?.trim()) return notReady('material_identity_missing');
+  const pdfLocation = checkedSource.data.location;
+  const source = checkedSource.data;
+  const scope = { ...facts, source };
+  const checkedRow = readInterviewRowSnapshot(scope, facts.rowSnapshot);
+  if (checkedRow.status === 'forbidden') return { status: 'forbidden' };
+  if (checkedRow.status === 'unavailable')
+    return notReady('row_snapshot_unavailable');
+  if (checkedRow.status !== 'available') return notReady('resume_conflict');
+  const row = checkedRow.row;
+  if (row.import.state === 'imported') {
+    if (
+      !canManageNodeAssignments(
+        context,
+        facts.evaluationNodeId,
+        row.import.personId,
+      )
+    )
+      return { status: 'forbidden' };
+    if (facts.resolution !== null || facts.candidateResolution !== null)
+      return { status: 'conflict', reason: 'interview_row_imported' };
+    return {
+      status: 'duplicate',
+      evaluationId: row.import.evaluationId,
+      batchId: facts.batchId,
+      rowId: facts.rowId,
+      resume: null,
+    };
+  }
+  if (
+    row.import.state === 'withdrawn' &&
+    facts.confirmedForRowRevision !== row.revision
+  )
+    return notReady('candidate_confirmation_stale');
   if (facts.parsed.status === 'rejected') return notReady('parser_rejected');
   const review = facts.parsed.reviews[facts.reviewIndex];
   if (
@@ -146,38 +217,210 @@ export function planInterviewImport(
     return notReady('parser_manual_input');
   // Metadata completeness above narrows the semantic state, not the external type.
   const interviewTime = review.metadata.interviewTime!.value;
+  if (
+    source.location.kind !== 'pdf' ||
+    source.location.page !== review.templateSource.page ||
+    source.demo !== review.demo
+  )
+    return notReady('pdf_source_unverified');
+  if (
+    (facts.resolvedCandidate !== null &&
+      (facts.pendingCandidate === null ||
+        facts.candidateResolution === null)) ||
+    (facts.resolvedInterviewer !== null &&
+      (facts.pendingInterviewer === null || facts.resolution === null))
+  )
+    return notReady('resume_conflict');
+  function hold(item: MaterialReviewItem, hidden = false): InterviewImportPlan {
+    if (
+      item.kind !== 'unknown_interviewer' &&
+      item.kind !== 'unknown_interview_candidate'
+    )
+      return notReady('resume_conflict');
+    const candidates = item.candidates.filter(
+      (c) =>
+        facts.directory.some((p) => p.id === c.personId) &&
+        (item.kind === 'unknown_interviewer' ||
+          canManageNodeAssignments(
+            context,
+            facts.evaluationNodeId,
+            c.personId,
+          )),
+    );
+    return {
+      status: 'needs_review',
+      item: {
+        ...item,
+        candidates: candidates.map((c) => ({
+          personId: c.personId,
+          displayName: facts.directory.find((p) => p.id === c.personId)!.name,
+        })),
+      },
+      resume: null,
+      hasHiddenContent:
+        row.hasHiddenContent! ||
+        hidden ||
+        candidates.length !== item.candidates.length,
+    };
+  }
   const observed = facts.observedIdentity;
-  if (!observed?.name?.trim() || !observed.positionCode?.trim())
-    return notReady('candidate_identity_missing');
+  const observedName = observed?.name?.trim() ? observed.name : null;
+  let candidateResumed = false;
+  let selectedPersonId: string | null = null;
+  function candidatePending(): InterviewImportPlan {
+    if (row.import.state === 'withdrawn')
+      return notReady('review_revision_unavailable');
+    const matching = facts.candidates.filter(
+      (c) =>
+        observedName !== null &&
+        !!observed?.positionCode?.trim() &&
+        c.name === observedName &&
+        c.positionCode === observed.positionCode &&
+        c.interviewTime === interviewTime,
+    );
+    const visible = matching.filter(
+      (c) =>
+        c.personId !== null &&
+        facts.directory.some((p) => p.id === c.personId) &&
+        canManageNodeAssignments(context, facts.evaluationNodeId, c.personId),
+    );
+    const candidates = [
+      ...new Map(
+        visible.map((c) => [
+          c.personId!,
+          { personId: c.personId!, displayName: c.name },
+        ]),
+      ).values(),
+    ];
+    const item = materialReviewItemSchema.parse({
+      itemId:
+        'interview-candidate:' +
+        createHash('sha256')
+          .update(
+            JSON.stringify([
+              facts.batchId,
+              facts.rowId,
+              facts.originalVersionId,
+            ]),
+          )
+          .digest('hex'),
+      batchId: facts.batchId,
+      evaluationNodeId: facts.evaluationNodeId,
+      materialId: facts.materialId,
+      originalVersionId: facts.originalVersionId,
+      revision: 1,
+      state: 'pending',
+      source: {
+        fragmentId: source.fragmentId,
+        originalVersionId: source.originalVersionId,
+        location: source.location,
+      },
+      kind: 'unknown_interview_candidate',
+      importRowId: facts.rowId,
+      observedName,
+      candidates,
+    });
+    return hold(
+      item,
+      matching.some(
+        (c) =>
+          c.personId !== null &&
+          !canManageNodeAssignments(
+            context,
+            facts.evaluationNodeId,
+            c.personId,
+          ),
+      ),
+    );
+  }
+  if (facts.pendingCandidate !== null || facts.candidateResolution !== null) {
+    const parsedItem = materialReviewItemSchema.safeParse(
+      facts.pendingCandidate,
+    );
+    if (
+      !parsedItem.success ||
+      parsedItem.data.kind !== 'unknown_interview_candidate' ||
+      !sameInterviewReview(
+        scope,
+        parsedItem.data,
+        'unknown_interview_candidate',
+        observedName,
+      )
+    )
+      return notReady('resume_conflict');
+    const item = parsedItem.data;
+    const held = hold(item);
+    if (facts.candidateResolution === null) return held;
+    const command = materialReviewCommandSchema.safeParse(
+      facts.candidateResolution,
+    );
+    if (
+      !command.success ||
+      command.data.kind !== item.kind ||
+      command.data.batchId !== item.batchId ||
+      command.data.itemId !== item.itemId ||
+      command.data.expectedRevision !== item.revision
+    )
+      return notReady('resume_conflict');
+    if (command.data.resolution.action === 'defer') return held;
+    if (facts.resolvedCandidate === null)
+      return notReady('resolution_snapshot_unavailable');
+    const committed = committedInterviewResolution(
+      scope,
+      item,
+      command.data,
+      facts.resolvedCandidate,
+      row.revision,
+    );
+    if (!committed || committed.item.kind !== 'unknown_interview_candidate')
+      return notReady('resume_conflict');
+    if (committed.item.resolution.action === 'keep_original_only')
+      return { status: 'skipped', reason: 'original_only' };
+    selectedPersonId = committed.item.resolution.personId;
+    if (
+      !canManageNodeAssignments(
+        context,
+        facts.evaluationNodeId,
+        selectedPersonId,
+      )
+    )
+      return { status: 'forbidden' };
+    candidateResumed = committed.receipt.resume !== null;
+  }
+  if (!observedName || !observed?.positionCode?.trim()) {
+    return selectedPersonId === null
+      ? candidatePending()
+      : notReady('candidate_identity_missing');
+  }
   const matches = facts.candidates.filter(
     (candidate) =>
+      facts.confirmedForRowRevision === row.revision &&
       candidate.candidateId === facts.confirmedCandidateId &&
-      candidate.name === observed.name &&
+      candidate.name === observedName &&
       candidate.positionCode === observed.positionCode &&
-      candidate.interviewTime === interviewTime,
+      candidate.interviewTime === interviewTime &&
+      (selectedPersonId === null || candidate.personId === selectedPersonId),
   );
-  if (matches.length !== 1) return notReady('candidate_match_unconfirmed');
+  if (matches.length !== 1)
+    return selectedPersonId === null
+      ? candidatePending()
+      : notReady('candidate_match_unconfirmed');
   const candidate = matches[0];
-  // A rejected application stays excluded even if this person already exists.
+  const personId = candidate.personId;
+  if (
+    personId &&
+    !canManageNodeAssignments(context, facts.evaluationNodeId, personId)
+  )
+    return { status: 'forbidden' };
   if (candidate.status !== 'hired')
     return { status: 'skipped', reason: 'not_hired' };
-  const personId = candidate.personId;
   if (
     !personId ||
     !facts.directory.some(
       (person) => person.id === personId && person.name === candidate.name,
     )
   )
-    return notReady('candidate_directory_missing');
-  if (
-    !context.evaluationNodes.some(
-      (node) => node.id === facts.evaluationNodeId && node.kind === 'interview',
-    ) ||
-    !canManageNodeAssignments(context, facts.evaluationNodeId, personId)
-  )
-    return { status: 'forbidden' };
-  // An application flag / passing interview is not employment. Do not invent a
-  // new former-employee exclusion: current access is independently checked above.
+    return candidatePending();
   if (
     !facts.employments.some(
       (entry) =>
@@ -186,22 +429,9 @@ export function planInterviewImport(
     )
   )
     return notReady('employment_unverified');
-  const checkedSource = materialSourceSchema.safeParse(facts.source);
-  if (
-    !checkedSource.success ||
-    checkedSource.data.sourceCategory !== 'historical_evaluation' ||
-    checkedSource.data.originalVersionId !== facts.originalVersionId ||
-    checkedSource.data.location.kind !== 'pdf' ||
-    checkedSource.data.location.page !== review.templateSource.page ||
-    checkedSource.data.demo !== review.demo
-  )
-    return notReady('pdf_source_unverified');
-  if (!facts.materialId?.trim()) return notReady('material_identity_missing');
-  const pdfLocation = checkedSource.data.location;
-  const source = checkedSource.data;
   const observedInterviewer = review.metadata.interviewer!.value;
   let interviewerId: string | undefined;
-  let resumed = false;
+  let resumed = candidateResumed;
   if (facts.pendingInterviewer !== null || facts.resolution !== null) {
     const checkedItem = materialReviewItemSchema.safeParse(
       facts.pendingInterviewer,
@@ -223,8 +453,7 @@ export function planInterviewImport(
       item.source.location.textRange.end !== pdfLocation.textRange.end
     )
       return notReady('resume_conflict');
-    if (facts.resolution === null)
-      return { status: 'needs_review', item, resume: null };
+    if (facts.resolution === null) return hold(item);
     const checkedCommand = materialReviewCommandSchema.safeParse(
       facts.resolution,
     );
@@ -240,15 +469,32 @@ export function planInterviewImport(
       command.expectedRevision !== item.revision
     )
       return notReady('resume_conflict');
-    if (command.resolution.action === 'defer')
-      return { status: 'needs_review', item, resume: null };
-    const selectedId = command.resolution.personId;
+    if (command.resolution.action === 'defer') return hold(item);
+    if (facts.resolvedInterviewer === null)
+      return notReady('resolution_snapshot_unavailable');
+    const committed = committedInterviewResolution(
+      scope,
+      item,
+      command,
+      facts.resolvedInterviewer,
+      row.revision,
+    );
+    if (!committed || committed.item.kind !== 'unknown_interviewer')
+      return notReady('resume_conflict');
+    const selectedId = committed.item.resolution.personId;
     const selected = facts.directory.filter(
       (person) => person.id === selectedId,
     );
     if (selected.length !== 1) return notReady('interviewer_directory_missing');
     interviewerId = selected[0].id;
-    resumed = true;
+    resumed = resumed || committed.receipt.resume !== null;
+  } else if (row.import.state === 'withdrawn') {
+    const selected = facts.directory.filter(
+      (person) => person.id === facts.confirmedInterviewerId,
+    );
+    if (selected.length !== 1)
+      return notReady('interviewer_confirmation_stale');
+    interviewerId = selected[0].id;
   } else {
     const matches = facts.directory.filter(
       (person) => person.name === observedInterviewer,
@@ -256,6 +502,8 @@ export function planInterviewImport(
     if (matches.length === 1) interviewerId = matches[0].id;
   }
   if (interviewerId === undefined) {
+    if (row.import.state === 'withdrawn')
+      return notReady('review_revision_unavailable');
     // A deterministic proposed item permits idempotent creation; persistence and
     // revision CAS still belong to the future transaction adapter.
     const itemId =
@@ -283,8 +531,10 @@ export function planInterviewImport(
       observedName: observedInterviewer,
       candidates: [],
     });
-    return { status: 'needs_review', item, resume: null };
+    return hold(item);
   }
+  if (row.blockingReviewItemIds!.length)
+    return notReady('remaining_review_blockers');
   const identity = {
     candidateId: candidate.candidateId,
     interviewTime,

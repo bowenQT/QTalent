@@ -2,7 +2,7 @@
 
 本目录提供两个内部能力：纯函数 `planInterviewImport` 生成逐行导入决策；`parseInterviewPdfIsolated` 在可终止的 Node 线程里执行确定性 PDF 解析。没有数据库、原件下载、模型调用、队列注册、HTTP/Next 路由或档案写入。`planned` 不是入档回执，解析返回结果也不是人工确认。
 
-## 固定输入与净差
+## 原分支历史输入与净差
 
 | 输入       | 固定提交                                   | 实际消费                                                                         |
 | ---------- | ------------------------------------------ | -------------------------------------------------------------------------------- |
@@ -69,4 +69,38 @@ node node_modules/vitest/vitest.mjs run src/server/usecases/interview-import/pdf
 
 后续入口责任见 [#248/6548326080](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6548326080)，900稳定输入见 [#229/6548629274](https://github.com/bowenQT/QTalent/issues/229#issuecomment-6548629274)。worker应用注册/唯一producer/公共出口仍X1；历史分类、独立署名、节点与档案投影及生产持久化须另开明确窗口。本层无写库能力，失败无入档计划，不把这些事实当数据库零写入验收。
 
-正式模板字段/维度/选项/版式规格和职位编号仍缺，阻塞真实模板支持和完整E2E。GitHub blocked-by全部（899、900、897、873、843、904、845）真合main、实际接线/权限/原件/模型分类验收前，保持Draft/整卡未完成，不ready、不关闭、不部署。
+正式模板字段/维度/选项/版式按所有者裁决延期，当前只支持合成模板；这不是本轮合成模板交付的阻断理由。职位编号的权威招聘记录仍缺，不能拿测试值补齐。GitHub blocked-by全部（899、900、897、873、843、904、845）真合main、实际接线/权限/原件/模型分类验收前，保持Draft/整卡未完成，不ready、不关闭、不部署。
+
+## 本轮：最终897核对与行只读栅栏
+
+本轮仅改 plan.ts、plan.test.ts、新增 review-state.ts 及本说明。原 c1822464 的跨工具通过只覆盖旧计划与隔离线程，不覆盖这些增量。普通同步 main 27d7da28b887d3e0b8043a7ee3cdd915e67c2d56 在17个共享/节点授权文件冲突，已立即 abort；精确路径和 X1 请求见 #248/6557917011。未选择旧 contract blob。本轮运行验证通过临时只读解析映射，直接加载该固定 main 的实际 material-review.ts、sources.ts、authz/index.ts、authz/evaluation-node.ts 及其同树依赖；未复制 schema 或改项目配置，不代表原分支已完成共享同步。
+
+- 未确认、缺字段或未绑定目录的候选进入真正的 unknown_interview_candidate，不能按 unknown_person 处理。身份、任职和“姓名＋职位号＋面试时间”的严格匹配仍保留；手工关联也不能补出职位号。keep_original_only 只保留原件、跳过该行，defer 不恢复。候选与面试官各有独立 item 身份。
+- InterviewRowSnapshot 是未来原生事务锁后读取的服务端事实，不是客户端请求或新实现的生产端口。必须提供同批次/行/节点/材料/原件身份、当前行修订、真实导入或已审计撤销状态、当前账号/HR授权期次绑定、whole-original/HR 权限、完整 scope subjects（仅真实已核实为空才可[]）、hidden 布尔及目标 blockers。缺字段/null/未知返回 unavailable/not_ready，不补空集合、allow 或未导入状态；已知 subjects 逐人再跑899当前权限。
+- imported 行在重新解析或修改关联前即只读：普通重复返回同一 evaluationId，核对命令 conflict。仅有当前原生导入撤销审计和新行修订仍不够，更正还要当前行版本的真实 HR 逐行确认（confirmedForRowRevision、confirmedCandidateId、confirmedInterviewerId）。不自动重用旧关联，不在撤销后把旧核对 item 重建成 revision 1。
+- 恢复要求原 pending 问题及命令与已提交 resolved item、最终 resolution receipt 一致：行修订、item 修订、语义、source 和原始观察名都核对。incoming command 不是已提交决定；回执 resume 不是权限。当前目标 blockers 非空不整理，未知身份不计分、不入档。
+- projectInterviewReviewState 只投影当前可见的已解决项；已导入时 undo 显示 interview_row_imported。过期权限拒绝、当前不可见关联整项隐藏，只返回 hasHiddenContent 布尔，无隐藏姓名、ID 或计数；待核对重放也重新过滤候选，并使用当前目录名。
+- consumeInterviewUndoReceipt 只校验真实已提交撤销回执，不执行撤销。要求当前行未导入、当前 resolved.undo 可用、命令版本与原件/行一致、回执 pending revision+1、auditId、resume:null；当前不可见关联或候选拒绝。dependent_draft_confirmed 保持阻断，不把AuthzContext业务钟用于审计/撤销时限，不改846的5秒墙钟规则，不伪造审计、失效列表或恢复 job。
+
+### 必需原生读取/接线（当前均未提供）
+
+1. 在本域后续事务适配中，用同一个原生 row/source 锁读取真实行状态、当前完整原件权限/subjects、当前 HR 确认与其行修订、pending/历史 resolved 决定及真实审计/回执、全部当前目标 blockers。原件历史/上传 getter 不提供这些授权；未知行范围无法由899已知 person API推出，缺真实读取保持 unavailable。面试官还需独立的当前工作人员目录判定，不能把任意同名员工当面试官。最终 schema/迁移和公共入口交 X1。
+2. 持久导入 CAS、逐行唯一性、重复身份索引、原量表/独立署名与来源写入、审计和同事务回执尚未实现。当前 planned 只是决策值，没有写入历史评价，也不是零重复写的数据库验收。
+3. 实际 resolution/undo handler 仍须在同事务完成原生双 revision CAS、审计、未确认草稿失效和 pending/resolved 投影；current resolved/audit/receipt 必须由存储加载，不能由客户端提交给这些私有校验函数。当前函数没有成功写接口、没有虚构生产 port 或 SQL。
+4. 原件通过873核版本与当前读取，再将900 pageTexts/摘要/片段绑定 canonical 原件。生产 worker 的编译入口、依赖供应和 Next 打包后运行仍待 X1，不把源码 tsx 线程实测当生产打包证明。
+5. 本片不实现843模型分类、904管理观察、845整理或846确认；原评语分类仍需经当前权限/敏感属性过滤的固定输入，AI 分类不能冒充人工结论。本轮无新模型/供应商请求。
+6. 档案来源 projection 仍须和837明确对接 src/server/queries/person-data.ts 中 row.sourceCategory / row.kind / source fragment 与节点主体映射，消费906实际历史评价和署名；不放宽当前未知历史类型清空 subjects 的保护。真正写入/来源分类未冻结前，不造新的 sourceCategory 值或空来源作成功。
+
+### 合成材料的权威字段缺口
+
+实际900三模板能提供带定位的姓名与面试时间，positionNumber 固定 null；896 candidates.json 只有候选身份/目录身份/录用状态/材料文件，没有职位号或面试时间字段。当前正例的 DEMO-JOB-01 仅是隔离算法夹具，不进入生产或冒充PDF提取。
+
+最小建议：由权威招聘记录按 candidateId 提供 positionCode、原面试时间及记录身份/版本，再与 PDF 姓名/时间和当前 HR 逐行确认核对。缺该记录仍待核对或未就绪；不得从文件名、默认职位号或手工选人推导职位号。本轮没有改为“姓名＋时间”匹配，正式模板延期不影响这项缺口的如实披露。
+
+### 本轮验证（精确私有源码＋固定外部输入）
+
+- RED：原 c182 生产代码＋新增3反例，读取最终 main27d 实际897契约，3/3失败、原56项未选中。反例分别证明未知候选没有真实待核对、已导入换面试官仍 planned、未提交命令即可恢复。日志 /tmp/qtalent-q906-red.log。
+- GREEN：项目既有 Vitest，以 /tmp/qtalent-q906-final-contract.config.mts 只读映射上述固定输入，执行本目录全部测试、maxWorkers=2、testTimeout=20000、coverage.include 本目录全部自维护逻辑（只排除测试文件，不排除 worker）。147/147通过：逐行/核对115＋原实际线程32；五逻辑文件行96.44%、分支94.24%，语句96.41%、函数96.22%。覆盖目录 /tmp/qtalent-q906-final-coverage。
+- 框架时限说明：一次在本机11核、load约39时，原未改的 termination_failed 用例撞到 Vitest 默认5秒，146过/1超时；保留 /tmp/qtalent-q906-default-worker-timeout.log。上述GREEN仅把测试框架时限改为20秒，生产预算、真实线程、故障注入和断言均未改，不称默认CI因此已绿。
+- 类型同样区分输入：项目原分支默认 tsc 仍有21诊断，因旧897没有新增kind/已解决/undo等导出及最终回执字段。TypeScript 编译器只读映射最终897/899后，本目录0诊断；另有6条旧继承夹具的 originalTitle/recordedByName 诊断（staffing.fixtures、standard-iteration.fixtures、SourceCite.test），不在本卡修改。证据 /tmp/qtalent-q906-type-proof.json。没有据此宣布全仓或最终main类型通过。
+- 本目录ESLint零warning、Prettier、项目架构边界、净diff检查通过。没有完整 check/integration/e2e/visual、真实PG、模型/供应商/原件网络调用或新服务/subagent；未持heavy/WeCom槽。默认完整组合、CI和实际持久导入待X1共享同步及原生接线后复验。

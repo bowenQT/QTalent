@@ -3,7 +3,16 @@ import { readFile } from 'node:fs/promises';
 import { parseInterviewReviewPdf } from '../../modules/records/attachments/interview-review/parser';
 import type { InterviewReviewResult } from '../../modules/records/attachments/interview-review/types';
 import { materialSourcesFixture } from '../../../contracts/materials.fixtures';
-import { materialReviewItemSchema } from '../../../contracts/material-review';
+import {
+  materialReviewItemSchema,
+  materialReviewResolvedItemSchema,
+  materialReviewResolutionReceiptSchema,
+} from '../../../contracts/material-review';
+import {
+  projectInterviewReviewState,
+  consumeInterviewUndoReceipt,
+} from './review-state';
+import { materialSourceSchema } from '../../../contracts/sources';
 import directoryFixture from '../../../../tests/fixtures/bow-896/directory.json';
 import candidateFixture from '../../../../tests/fixtures/bow-896/candidates.json';
 import { planInterviewImport, type InterviewImportFacts } from './plan';
@@ -109,6 +118,8 @@ function facts(file = 'professional'): InterviewImportFacts {
       },
     ],
     confirmedCandidateId: candidate.candidateId,
+    confirmedForRowRevision: 1,
+    confirmedInterviewerId: file === 'unknown-interviewer' ? null : 'p-yeqing',
     directory: people,
     employments: [
       { personId: 'p-x08', validFrom: '2026-01-01', validTo: null },
@@ -117,6 +128,25 @@ function facts(file = 'professional'): InterviewImportFacts {
     // or evidence that the PDFs above have been persisted/cited in production.
     source: structuredClone(materialSourcesFixture[1]),
     existing: [],
+    rowSnapshot: {
+      batchId: 'demo-import-batch',
+      rowId: 'demo-import-row',
+      evaluationNodeId: 'demo-interview-node',
+      materialId: 'demo-pdf-material',
+      originalVersionId: 'demo-pdf-v1',
+      revision: 1,
+      actorAccountId: 'demo-hr-account',
+      hrCohortId: 'demo-hiring',
+      access: 'allowed',
+      subjectPersonIds: ['p-x08'],
+      hasHiddenContent: false,
+      blockingReviewItemIds: [],
+      import: { state: 'unimported' },
+    },
+    pendingCandidate: null,
+    candidateResolution: null,
+    resolvedCandidate: null,
+    resolvedInterviewer: null,
     pendingInterviewer: null,
     resolution: null,
   };
@@ -125,6 +155,18 @@ function planned(input = facts()) {
   const value = planInterviewImport(input);
   expect(value.status).toBe('planned');
   if (value.status !== 'planned') throw new Error(JSON.stringify(value));
+  return value;
+}
+function candidateHeld(input: InterviewImportFacts) {
+  const value = planInterviewImport(input);
+  expect(value).toMatchObject({
+    status: 'needs_review',
+    item: { kind: 'unknown_interview_candidate', importRowId: input.rowId },
+    resume: null,
+  });
+  if (value.status !== 'needs_review') throw new Error('candidate fixture');
+  expect(materialReviewItemSchema.safeParse(value.item).success).toBe(true);
+  expect(value).not.toHaveProperty('originalReview');
   return value;
 }
 function pending() {
@@ -144,6 +186,40 @@ function resumeFacts() {
     expectedRevision: value.item.revision,
     kind: 'unknown_interviewer',
     resolution: { action: 'link_existing_interviewer', personId: 'p-yeqing' },
+  };
+  const item = value.item;
+  if (item.kind !== 'unknown_interviewer') throw new Error('fixture');
+  input.resolvedInterviewer = {
+    rowRevision: 1,
+    item: {
+      itemId: item.itemId,
+      batchId: item.batchId,
+      evaluationNodeId: item.evaluationNodeId,
+      materialId: item.materialId,
+      originalVersionId: item.originalVersionId,
+      source: item.source,
+      kind: item.kind,
+      importRowId: item.importRowId,
+      observedName: item.observedName,
+      state: 'resolved',
+      revision: item.revision + 1,
+      resolvedAt: '2026-10-31T11:59:00Z',
+      auditId: 'demo-real-ledger-audit',
+      undo: { status: 'available' },
+      resolution: { action: 'link_existing_interviewer', personId: 'p-yeqing' },
+    },
+    receipt: {
+      kind: 'unknown_interviewer',
+      batchId: item.batchId,
+      materialId: item.materialId,
+      itemId: item.itemId,
+      revision: item.revision + 1,
+      resolution: { action: 'link_existing_interviewer', personId: 'p-yeqing' },
+      remainingReviewItemIds: [],
+      blockingReviewItemIds: [],
+      invalidatedDraftIds: [],
+      resume: { stage: 'interview_import', jobId: 'demo-committed-resume' },
+    },
   };
   return input;
 }
@@ -281,15 +357,9 @@ describe('interview import planning with frozen 900 / 899 / 897 inputs', () => {
   it('never synthesizes candidate identity from a parser DTO that lacks it', () => {
     const input = facts();
     input.observedIdentity = null;
-    expect(planInterviewImport(input)).toEqual({
-      status: 'not_ready',
-      reason: 'candidate_identity_missing',
-    });
+    candidateHeld(input);
     input.observedIdentity = { name: '谷嘉树（演示）', positionCode: null };
-    expect(planInterviewImport(input)).toEqual({
-      status: 'not_ready',
-      reason: 'candidate_identity_missing',
-    });
+    candidateHeld(input);
   });
   it.each(['name', 'positionCode', 'interviewTime'])(
     'requires the actual %s match and HR confirmation',
@@ -297,44 +367,26 @@ describe('interview import planning with frozen 900 / 899 / 897 inputs', () => {
       const input = facts();
       input.candidates[0][field as 'name' | 'positionCode' | 'interviewTime'] =
         'mismatch';
-      expect(planInterviewImport(input)).toEqual({
-        status: 'not_ready',
-        reason: 'candidate_match_unconfirmed',
-      });
+      candidateHeld(input);
     },
   );
   it('does not resolve ambiguous matches or a different HR-selected candidate', () => {
     const input = facts();
     input.confirmedCandidateId = null;
-    expect(planInterviewImport(input)).toEqual({
-      status: 'not_ready',
-      reason: 'candidate_match_unconfirmed',
-    });
+    candidateHeld(input);
     input.confirmedCandidateId = 'missing';
-    expect(planInterviewImport(input)).toEqual({
-      status: 'not_ready',
-      reason: 'candidate_match_unconfirmed',
-    });
+    candidateHeld(input);
     input.candidates.push({ ...input.candidates[0] });
     input.confirmedCandidateId = input.candidates[0].candidateId;
-    expect(planInterviewImport(input)).toEqual({
-      status: 'not_ready',
-      reason: 'candidate_match_unconfirmed',
-    });
+    candidateHeld(input);
   });
   it('rejects an unbound candidate or disagreement with the current directory name', () => {
     const input = facts();
     input.candidates[0].personId = null;
-    expect(planInterviewImport(input)).toEqual({
-      status: 'not_ready',
-      reason: 'candidate_directory_missing',
-    });
+    candidateHeld(input);
     input.candidates[0].personId = 'p-x08';
     input.directory.find((p) => p.id === 'p-x08')!.name = 'other';
-    expect(planInterviewImport(input)).toEqual({
-      status: 'not_ready',
-      reason: 'candidate_directory_missing',
-    });
+    candidateHeld(input);
   });
   it.each(['score-missing', 'score-multiple'])(
     'holds real %s results without assigning a default score',
@@ -446,10 +498,7 @@ describe('interview import planning with frozen 900 / 899 / 897 inputs', () => {
     const input = resumeFacts();
     if (input.resolution?.kind !== 'unknown_interviewer')
       throw new Error('fixture');
-    input.resolution.resolution = {
-      action: 'link_existing_interviewer',
-      personId: 'missing',
-    };
+    input.directory = input.directory.filter((p) => p.id !== 'p-yeqing');
     expect(planInterviewImport(input)).toEqual({
       status: 'not_ready',
       reason: 'interviewer_directory_missing',
@@ -537,4 +586,747 @@ describe('interview import planning with frozen 900 / 899 / 897 inputs', () => {
     input.context.grants[0].revokedAt = input.context.now;
     expect(planInterviewImport(input)).toEqual({ status: 'forbidden' });
   });
+});
+
+describe('final 897 regression: row and current review facts', () => {
+  function row(input: InterviewImportFacts) {
+    return {
+      batchId: input.batchId,
+      rowId: input.rowId,
+      evaluationNodeId: input.evaluationNodeId,
+      materialId: input.materialId,
+      originalVersionId: input.originalVersionId,
+      revision: 1,
+      actorAccountId: 'demo-hr-account',
+      hrCohortId: 'demo-hiring',
+      access: 'allowed',
+      hasHiddenContent: false,
+      subjectPersonIds: ['p-x08'],
+      blockingReviewItemIds: [],
+      import: { state: 'unimported' },
+    };
+  }
+  it('creates a real unknown_interview_candidate item when HR has not confirmed a match', () => {
+    const input = facts();
+    input.confirmedCandidateId = null;
+    Object.assign(input, { rowSnapshot: row(input) });
+    const probe = {
+      itemId: 'demo-candidate-item',
+      batchId: input.batchId,
+      evaluationNodeId: input.evaluationNodeId,
+      materialId: input.materialId,
+      originalVersionId: input.originalVersionId,
+      revision: 1,
+      state: 'pending',
+      source: {
+        fragmentId: materialSourcesFixture[1].fragmentId,
+        originalVersionId: input.originalVersionId,
+        location: materialSourcesFixture[1].location,
+      },
+      kind: 'unknown_interview_candidate',
+      importRowId: input.rowId,
+      observedName: input.observedIdentity?.name,
+      candidates: [],
+    };
+    expect(materialReviewItemSchema.safeParse(probe).success).toBe(true);
+    expect(planInterviewImport(input)).toMatchObject({
+      status: 'needs_review',
+      item: { kind: 'unknown_interview_candidate', importRowId: input.rowId },
+      resume: null,
+    });
+  });
+  it('does not reimport an imported row by changing its interviewer', () => {
+    const input = resumeFacts();
+    Object.assign(input, {
+      rowSnapshot: {
+        ...row(input),
+        import: {
+          state: 'imported',
+          evaluationId: 'demo-existing-evaluation',
+          personId: 'p-x08',
+        },
+      },
+    });
+    expect(planInterviewImport(input)).toMatchObject({
+      status: 'conflict',
+      reason: 'interview_row_imported',
+    });
+  });
+  it('does not treat an uncommitted resolution command as a current resolved receipt', () => {
+    const input = resumeFacts();
+    Object.assign(input, {
+      rowSnapshot: row(input),
+      resolvedInterviewer: null,
+    });
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'resolution_snapshot_unavailable',
+    });
+  });
+});
+
+function scope(input: InterviewImportFacts) {
+  return { ...input, source: materialSourceSchema.parse(input.source) };
+}
+function ledger(
+  item: ReturnType<typeof pending>['value']['item'],
+  resolution: unknown,
+) {
+  const base = Object.fromEntries(
+    Object.entries(item).filter(([key]) => key !== 'candidates'),
+  );
+  return {
+    rowRevision: 1,
+    item: materialReviewResolvedItemSchema.parse({
+      ...base,
+      state: 'resolved',
+      revision: item.revision + 1,
+      resolvedAt: '2026-10-31T11:59:00Z',
+      auditId: 'demo-committed-audit',
+      undo: { status: 'available' },
+      resolution,
+    }),
+    receipt: materialReviewResolutionReceiptSchema.parse({
+      kind: item.kind,
+      batchId: item.batchId,
+      materialId: item.materialId,
+      itemId: item.itemId,
+      revision: item.revision + 1,
+      resolution,
+      remainingReviewItemIds: [],
+      blockingReviewItemIds: [],
+      invalidatedDraftIds: [],
+      resume:
+        resolution &&
+        typeof resolution === 'object' &&
+        'action' in resolution &&
+        resolution.action === 'keep_original_only'
+          ? null
+          : { stage: 'interview_import', jobId: 'demo-committed-resume' },
+    }),
+  };
+}
+function candidateResumeFacts(
+  action:
+    | 'link_existing_candidate'
+    | 'keep_original_only' = 'link_existing_candidate',
+) {
+  const input = facts();
+  input.confirmedCandidateId = null;
+  const held = candidateHeld(input);
+  input.pendingCandidate = held.item;
+  input.confirmedCandidateId = input.candidates[0].candidateId;
+  const resolution =
+    action === 'keep_original_only'
+      ? { action }
+      : { action, personId: 'p-x08' };
+  input.candidateResolution = {
+    operationId: 'demo-candidate-operation',
+    batchId: input.batchId,
+    itemId: held.item.itemId,
+    expectedRevision: held.item.revision,
+    kind: 'unknown_interview_candidate',
+    resolution,
+  };
+  input.resolvedCandidate = ledger(held.item, resolution);
+  return input;
+}
+function undoFixture() {
+  const input = resumeFacts();
+  const resolved = input.resolvedInterviewer!.item;
+  const pendingItem = input.pendingInterviewer!;
+  const command = {
+    kind: resolved.kind,
+    action: 'undo',
+    operationId: 'demo-undo',
+    batchId: input.batchId,
+    itemId: resolved.itemId,
+    expectedRevision: resolved.revision,
+  };
+  const receipt = {
+    previousRevision: resolved.revision,
+    item: { ...pendingItem, revision: resolved.revision + 1, state: 'pending' },
+    invalidatedDraftIds: ['demo-unconfirmed-draft'],
+    auditId: 'demo-committed-undo-audit',
+    resume: null,
+  };
+  return { input, resolved, command, receipt };
+}
+describe('final 897 current snapshot, receipt, privacy and withdrawal boundary', () => {
+  it.each(['missing', 'scope', 'hidden-bit', 'blockers', 'permission'])(
+    'keeps unknown %s facts unavailable rather than manufacturing defaults',
+    (kind) => {
+      const input = facts();
+      if (kind === 'missing') input.rowSnapshot = null;
+      if (kind === 'scope') input.rowSnapshot!.subjectPersonIds = null;
+      if (kind === 'hidden-bit') input.rowSnapshot!.hasHiddenContent = null;
+      if (kind === 'blockers') input.rowSnapshot!.blockingReviewItemIds = null;
+      if (kind === 'permission') input.rowSnapshot!.access = 'unavailable';
+      expect(planInterviewImport(input)).toEqual({
+        status: 'not_ready',
+        reason: 'row_snapshot_unavailable',
+      });
+    },
+  );
+  it.each([
+    'batchId',
+    'rowId',
+    'evaluationNodeId',
+    'materialId',
+    'originalVersionId',
+  ] as const)('rejects a current row snapshot bound to another %s', (key) => {
+    const input = facts();
+    input.rowSnapshot![key] = 'other';
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'resume_conflict',
+    });
+  });
+  it('rechecks all current scope subjects and full-original permission', () => {
+    const input = facts();
+    input.rowSnapshot!.subjectPersonIds!.push('outside-scope');
+    expect(planInterviewImport(input)).toEqual({ status: 'forbidden' });
+    input.rowSnapshot!.subjectPersonIds = ['p-x08'];
+    input.rowSnapshot!.access = 'forbidden';
+    expect(planInterviewImport(input)).toEqual({ status: 'forbidden' });
+  });
+  it('returns an imported row read-only regardless of a different PDF interviewer name', () => {
+    const input = facts();
+    input.rowSnapshot!.import = {
+      state: 'imported',
+      evaluationId: 'demo-existing',
+      personId: 'p-x08',
+    };
+    if (input.parsed.status === 'rejected') throw new Error('fixture');
+    input.parsed.reviews[0].metadata.interviewer!.value = 'different';
+    expect(planInterviewImport(input)).toEqual({
+      status: 'duplicate',
+      evaluationId: 'demo-existing',
+      batchId: input.batchId,
+      rowId: input.rowId,
+      resume: null,
+    });
+    input.rowSnapshot!.import.personId = 'outside-scope';
+    expect(planInterviewImport(input)).toEqual({ status: 'forbidden' });
+  });
+  it('permits a fresh plan only after an explicit newer audited import withdrawal', () => {
+    const input = facts();
+    input.rowSnapshot!.revision = 2;
+    input.rowSnapshot!.import = {
+      state: 'withdrawn',
+      previousRevision: 1,
+      withdrawalAuditId: 'demo-import-withdrawal-audit',
+      withdrawnAt: '2026-10-31T11:59:00Z',
+    };
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'candidate_confirmation_stale',
+    });
+    input.confirmedForRowRevision = 2;
+    input.confirmedInterviewerId = null;
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'interviewer_confirmation_stale',
+    });
+    input.confirmedInterviewerId = 'p-yeqing';
+    expect(planInterviewImport(input).status).toBe('planned');
+    input.rowSnapshot!.import.previousRevision = 2;
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'resume_conflict',
+    });
+    input.rowSnapshot!.import.previousRevision = 1;
+    input.rowSnapshot!.import.withdrawalAuditId = '';
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'row_snapshot_unavailable',
+    });
+  });
+  it('does not bypass other current target blockers after a resolution', () => {
+    const input = resumeFacts();
+    input.rowSnapshot!.blockingReviewItemIds = ['another-current-target-item'];
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'remaining_review_blockers',
+    });
+  });
+  it('links a candidate only using a committed current resolution, exact match, employment and current permission', () => {
+    const input = candidateResumeFacts();
+    expect(planned(input).personId).toBe('p-x08');
+    input.resolvedCandidate = null;
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'resolution_snapshot_unavailable',
+    });
+  });
+  it('retains only the original for the actual committed keep_original_only decision', () => {
+    const input = candidateResumeFacts('keep_original_only');
+    expect(planInterviewImport(input)).toEqual({
+      status: 'skipped',
+      reason: 'original_only',
+    });
+    input.rowSnapshot!.import = {
+      state: 'imported',
+      evaluationId: 'demo-existing',
+      personId: 'p-x08',
+    };
+    expect(planInterviewImport(input)).toEqual({
+      status: 'conflict',
+      reason: 'interview_row_imported',
+    });
+  });
+  it('keeps a deferred candidate pending without a job or an import plan', () => {
+    const input = candidateResumeFacts();
+    input.candidateResolution!.resolution = { action: 'defer' };
+    expect(planInterviewImport(input)).toMatchObject({
+      status: 'needs_review',
+      item: { kind: 'unknown_interview_candidate' },
+      resume: null,
+    });
+  });
+  it('never fills the synthetic parser null positionNumber with DEMO-JOB-01 or a manual link', () => {
+    const input = candidateResumeFacts();
+    if (input.parsed.status === 'rejected') throw new Error('fixture');
+    expect(input.parsed.reviews[0].identity.positionNumber).toBeNull();
+    input.observedIdentity!.positionCode = null;
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'candidate_identity_missing',
+    });
+  });
+  it.each([
+    'kind',
+    'batch',
+    'revision',
+    'resolution',
+    'source',
+    'row-version',
+    'audit',
+    'receipt-item',
+    'receipt-resolution',
+  ])('rejects a stale or mismatched committed candidate %s', (change) => {
+    const input = candidateResumeFacts();
+    const evidence = input.resolvedCandidate!;
+    if (change === 'kind')
+      Reflect.set(evidence.item, 'kind', 'unknown_interviewer');
+    if (change === 'batch') evidence.item.batchId = 'other';
+    if (change === 'revision') evidence.item.revision++;
+    if (change === 'resolution')
+      Reflect.set(evidence.item, 'resolution', {
+        action: 'keep_original_only',
+      });
+    if (change === 'source') evidence.item.source = null;
+    if (change === 'row-version') evidence.rowRevision++;
+    if (change === 'audit') evidence.item.auditId = '';
+    if (change === 'receipt-item') evidence.receipt.itemId = 'other';
+    if (change === 'receipt-resolution')
+      Reflect.set(evidence.receipt, 'resolution', {
+        action: 'keep_original_only',
+      });
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'resume_conflict',
+    });
+  });
+  it('keeps a committed candidate link from bypassing a missing HR confirmation or current person scope', () => {
+    const input = candidateResumeFacts();
+    input.confirmedCandidateId = null;
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'candidate_match_unconfirmed',
+    });
+    input.confirmedCandidateId = input.candidates[0].candidateId;
+    const resolution = {
+      action: 'link_existing_candidate',
+      personId: 'outside-scope',
+    };
+    Reflect.set(input.candidateResolution!, 'resolution', resolution);
+    input.resolvedCandidate = ledger(input.pendingCandidate!, resolution);
+    expect(planInterviewImport(input)).toEqual({ status: 'forbidden' });
+  });
+  it('filters hidden candidate suggestions to one boolean without names, IDs or counts', () => {
+    const input = facts();
+    input.confirmedCandidateId = null;
+    input.candidates.push({
+      ...input.candidates[0],
+      candidateId: 'hidden-candidate',
+      personId: 'hidden-person',
+      name: input.candidates[0].name,
+    });
+    input.directory.push({ id: 'hidden-person', name: '隐藏化名（演示）' });
+    const value = candidateHeld(input);
+    expect(value.hasHiddenContent).toBe(true);
+    expect(JSON.stringify(value)).not.toContain('hidden-person');
+    expect(JSON.stringify(value)).not.toContain('隐藏化名');
+    expect(value).not.toHaveProperty('hiddenCount');
+    input.pendingCandidate = value.item;
+    if (input.pendingCandidate.kind !== 'unknown_interview_candidate')
+      throw new Error('fixture');
+    input.pendingCandidate.candidates.push({
+      personId: 'hidden-person',
+      displayName: '隐藏化名（演示）',
+    });
+    const replay = planInterviewImport(input);
+    expect(replay).toMatchObject({
+      status: 'needs_review',
+      hasHiddenContent: true,
+    });
+    expect(JSON.stringify(replay)).not.toContain('hidden-person');
+  });
+  it('projects current resolved items read-only and masks current invisible links', () => {
+    const input = resumeFacts();
+    const original = structuredClone(input.resolvedInterviewer!.item);
+    input.rowSnapshot!.import = {
+      state: 'imported',
+      evaluationId: 'demo-existing',
+      personId: 'p-x08',
+    };
+    const value = projectInterviewReviewState(
+      scope(input),
+      input.rowSnapshot,
+      [original],
+      input.directory.map((p) => p.id),
+    );
+    expect(value).toMatchObject({
+      status: 'projected',
+      resolvedItems: [
+        { undo: { status: 'blocked', reason: 'interview_row_imported' } },
+      ],
+      hasHiddenContent: false,
+    });
+    expect(original.undo).toEqual({ status: 'available' });
+    expect(
+      projectInterviewReviewState(
+        scope(input),
+        input.rowSnapshot,
+        [original],
+        [],
+      ),
+    ).toEqual({
+      status: 'projected',
+      resolvedItems: [],
+      hasHiddenContent: true,
+    });
+  });
+  it('does not disclose decisions to expired HR or accept another row in a projection', () => {
+    const input = resumeFacts();
+    const item = structuredClone(input.resolvedInterviewer!.item);
+    input.context.grants[0].validTo = input.context.now;
+    expect(
+      projectInterviewReviewState(scope(input), input.rowSnapshot, [item], []),
+    ).toEqual({ status: 'forbidden' });
+    input.context.grants[0].validTo = null;
+    item.batchId = 'other';
+    expect(
+      projectInterviewReviewState(scope(input), input.rowSnapshot, [item], []),
+    ).toEqual({ status: 'conflict' });
+  });
+  it('consumes only an actual valid undo receipt with revision+1 and resume:null', () => {
+    const f = undoFixture();
+    const value = consumeInterviewUndoReceipt(
+      scope(f.input),
+      f.input.rowSnapshot,
+      f.resolved,
+      f.command,
+      f.receipt,
+      f.input.directory.map((p) => p.id),
+    );
+    expect(value).toEqual({ status: 'accepted', receipt: f.receipt });
+    expect(f.receipt.resume).toBeNull();
+  });
+  it('rejects undo after import until audited import withdrawal; dependent confirmations stay blocked', () => {
+    const f = undoFixture();
+    f.input.rowSnapshot!.import = {
+      state: 'imported',
+      evaluationId: 'demo-existing',
+      personId: 'p-x08',
+    };
+    const consume = () =>
+      consumeInterviewUndoReceipt(
+        scope(f.input),
+        f.input.rowSnapshot,
+        f.resolved,
+        f.command,
+        f.receipt,
+        f.input.directory.map((p) => p.id),
+      );
+    expect(consume()).toEqual({
+      status: 'conflict',
+      reason: 'interview_row_imported',
+    });
+    f.input.rowSnapshot!.revision = 2;
+    f.input.rowSnapshot!.import = {
+      state: 'withdrawn',
+      previousRevision: 1,
+      withdrawalAuditId: 'demo-withdrawal',
+      withdrawnAt: '2026-10-31T11:59:00Z',
+    };
+    expect(consume().status).toBe('accepted');
+    f.resolved.undo = {
+      status: 'blocked',
+      reason: 'dependent_draft_confirmed',
+    };
+    expect(consume()).toEqual({ status: 'conflict' });
+  });
+  it.each([
+    'kind',
+    'revision',
+    'audit',
+    'resume',
+    'material',
+    'source',
+    'stale-pending',
+    'hidden-candidate',
+  ])('rejects invalid or stale undo %s without echoing input', (change) => {
+    const f = undoFixture();
+    if (change === 'kind') Reflect.set(f.command, 'kind', 'unknown_person');
+    if (change === 'revision') f.command.expectedRevision++;
+    if (change === 'audit') f.receipt.auditId = '';
+    if (change === 'resume')
+      Reflect.set(f.receipt, 'resume', {
+        stage: 'interview_import',
+        jobId: 'fake',
+      });
+    if (change === 'material') f.receipt.item.materialId = 'other';
+    if (change === 'source') f.receipt.item.source = null;
+    if (change === 'stale-pending') f.receipt.item.revision++;
+    if (change === 'hidden-candidate') {
+      if (f.receipt.item.kind !== 'unknown_interviewer')
+        throw new Error('fixture');
+      f.receipt.item.candidates = [
+        { personId: 'hidden-person', displayName: '隐藏化名（演示）' },
+      ];
+    }
+    expect(
+      consumeInterviewUndoReceipt(
+        scope(f.input),
+        f.input.rowSnapshot,
+        f.resolved,
+        f.command,
+        f.receipt,
+        f.input.directory.map((p) => p.id),
+      ),
+    ).toEqual({ status: 'conflict' });
+  });
+  it('keeps unknown directory visibility unavailable and reauthorizes receipt replays', () => {
+    const f = undoFixture();
+    expect(
+      consumeInterviewUndoReceipt(
+        scope(f.input),
+        f.input.rowSnapshot,
+        f.resolved,
+        f.command,
+        f.receipt,
+        null,
+      ),
+    ).toEqual({ status: 'unavailable' });
+    f.input.context.grants[0].revokedAt = f.input.context.now;
+    expect(
+      consumeInterviewUndoReceipt(
+        scope(f.input),
+        f.input.rowSnapshot,
+        f.resolved,
+        f.command,
+        f.receipt,
+        f.input.directory.map((p) => p.id),
+      ),
+    ).toEqual({ status: 'forbidden' });
+  });
+});
+
+describe('current interview review replay privacy', () => {
+  it('does not accept a prior hidden association through an otherwise empty undo item', () => {
+    const f = undoFixture();
+    const value = consumeInterviewUndoReceipt(
+      scope(f.input),
+      f.input.rowSnapshot,
+      f.resolved,
+      f.command,
+      f.receipt,
+      [],
+    );
+    expect(value).toEqual({ status: 'conflict' });
+    expect(JSON.stringify(value)).not.toContain('p-yeqing');
+  });
+  it('rejects duplicate or malformed resolved decisions instead of inflating the read projection', () => {
+    const input = resumeFacts();
+    const decision = input.resolvedInterviewer!.item;
+    const visible = input.directory.map((p) => p.id);
+    expect(
+      projectInterviewReviewState(
+        scope(input),
+        input.rowSnapshot,
+        [decision, decision],
+        visible,
+      ),
+    ).toEqual({ status: 'conflict' });
+    Reflect.set(decision, 'state', 'pending');
+    expect(
+      projectInterviewReviewState(
+        scope(input),
+        input.rowSnapshot,
+        [decision],
+        visible,
+      ),
+    ).toEqual({ status: 'conflict' });
+  });
+  it('removes stale interviewer suggestions on a pending replay', () => {
+    const { input, value } = pending();
+    input.pendingInterviewer = value.item;
+    if (input.pendingInterviewer.kind !== 'unknown_interviewer')
+      throw new Error('fixture');
+    input.pendingInterviewer.candidates = [
+      {
+        personId: 'outside-current-directory',
+        displayName: '隐藏化名（演示）',
+      },
+    ];
+    const replay = planInterviewImport(input);
+    expect(replay).toMatchObject({
+      status: 'needs_review',
+      hasHiddenContent: true,
+      item: { candidates: [] },
+    });
+    expect(JSON.stringify(replay)).not.toContain('outside-current-directory');
+    expect(JSON.stringify(replay)).not.toContain('隐藏化名');
+  });
+});
+
+describe('import withdrawal preserves association version fences', () => {
+  it('requires a real current pending revision instead of recreating revision 1 after withdrawal', () => {
+    const input = facts();
+    input.confirmedCandidateId = null;
+    input.rowSnapshot!.revision = 2;
+    input.rowSnapshot!.import = {
+      state: 'withdrawn',
+      previousRevision: 1,
+      withdrawalAuditId: 'demo-audited-withdrawal',
+      withdrawnAt: '2026-10-31T11:59:00Z',
+    };
+    input.confirmedForRowRevision = 2;
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'review_revision_unavailable',
+    });
+  });
+  it('does not reuse a resolution from an earlier import-row version or ignore incomplete decision history', () => {
+    const input = candidateResumeFacts();
+    input.rowSnapshot!.revision = 2;
+    input.confirmedForRowRevision = 2;
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'resume_conflict',
+    });
+    input.resolvedCandidate!.rowRevision = 2;
+    input.pendingCandidate = null;
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'resume_conflict',
+    });
+  });
+  it('keeps the imported-row command cutoff ahead of parsing or proposed association changes', () => {
+    const input = resumeFacts();
+    input.rowSnapshot!.import = {
+      state: 'imported',
+      evaluationId: 'demo-existing',
+      personId: 'p-x08',
+    };
+    input.parsed = {
+      status: 'rejected',
+      reason: 'unknown_template',
+      message: '演示未知模板',
+    };
+    expect(planInterviewImport(input)).toEqual({
+      status: 'conflict',
+      reason: 'interview_row_imported',
+    });
+  });
+});
+
+describe('current lookup labels and execution-time provenance', () => {
+  it('uses current visible directory labels rather than stale suggestion names', () => {
+    const { input, value } = pending();
+    input.pendingInterviewer = value.item;
+    if (input.pendingInterviewer.kind !== 'unknown_interviewer')
+      throw new Error('fixture');
+    input.pendingInterviewer.candidates = [
+      { personId: 'p-yeqing', displayName: '旧显示名（演示）' },
+    ];
+    input.directory.find((p) => p.id === 'p-yeqing')!.name =
+      '当前显示名（演示）';
+    const shown = planInterviewImport(input);
+    expect(shown).toMatchObject({
+      status: 'needs_review',
+      item: {
+        candidates: [
+          { personId: 'p-yeqing', displayName: '当前显示名（演示）' },
+        ],
+      },
+    });
+    expect(JSON.stringify(shown)).not.toContain('旧显示名');
+  });
+  it('does not use the permission business clock as the audit execution clock', () => {
+    const input = resumeFacts();
+    input.context.now = '2026-09-04T00:00:00Z';
+    input.resolvedInterviewer!.item.resolvedAt = '2026-11-01T01:00:00Z';
+    expect(planInterviewImport(input).status).toBe('planned');
+    const fresh = facts();
+    fresh.context.now = input.context.now;
+    fresh.rowSnapshot!.revision = 2;
+    fresh.rowSnapshot!.import = {
+      state: 'withdrawn',
+      previousRevision: 1,
+      withdrawalAuditId: 'demo-actual-audit',
+      withdrawnAt: '2026-11-01T01:00:00Z',
+    };
+    fresh.confirmedForRowRevision = 2;
+    fresh.confirmedInterviewerId = 'p-yeqing';
+    expect(planInterviewImport(fresh).status).toBe('planned');
+  });
+});
+
+describe('unknown candidate rows use current explicit HR material scope', () => {
+  it('can create the real review kind for a known-empty subject set without inventing a person', () => {
+    const input = facts();
+    input.candidates = [];
+    input.confirmedCandidateId = null;
+    input.rowSnapshot!.subjectPersonIds = [];
+    input.observedIdentity = null;
+    const value = candidateHeld(input);
+    expect(value.item).toMatchObject({
+      kind: 'unknown_interview_candidate',
+      observedName: null,
+      candidates: [],
+    });
+    expect(value).toHaveProperty('hasHiddenContent', false);
+  });
+  it.each(['actor', 'hr-scope'])(
+    'rejects a stale %s material permission even with known-empty subjects',
+    (change) => {
+      const input = facts();
+      input.rowSnapshot!.subjectPersonIds = [];
+      input.confirmedCandidateId = null;
+      if (change === 'actor')
+        input.rowSnapshot!.actorAccountId = 'another-account';
+      else input.rowSnapshot!.hrCohortId = 'another-hr-scope';
+      expect(planInterviewImport(input)).toEqual({ status: 'forbidden' });
+    },
+  );
+});
+
+describe('candidate suggestions preserve strict identity fields', () => {
+  it.each(['name', 'positionCode', 'interviewTime'] as const)(
+    'does not suggest a directory person from a mismatched %s record',
+    (key) => {
+      const input = facts();
+      input.confirmedCandidateId = null;
+      input.candidates[0][key] = 'mismatch';
+      const value = candidateHeld(input);
+      expect(value.item).toMatchObject({
+        kind: 'unknown_interview_candidate',
+        candidates: [],
+      });
+      expect(value.hasHiddenContent).toBe(false);
+    },
+  );
 });
