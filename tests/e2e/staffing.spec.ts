@@ -68,6 +68,22 @@ test('a mentor is stopped at /staffing; HR sends a sentence and its drafting job
     }),
   ).toBeVisible();
   expect(decodeURIComponent(page.url())).not.toContain('牵头人');
+  // Reading the job is refused after another reload: 「回到输入框」 brings the sentence back.
+  await page.route('**/api/jobs/**', (route) =>
+    route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: '{"status":"forbidden"}',
+    }),
+  );
+  await page.reload();
+  await expect(page.locator('.nt-field-error[role="alert"]')).toHaveText(
+    '起草结果现在在你的查看范围之外，可以回到输入框再发一次。',
+  );
+  await page.getByRole('button', { name: '回到输入框' }).click();
+  await expect(
+    page.getByRole('textbox', { name: '描述项目和要找的人' }),
+  ).toHaveValue('演示：TS 新人组要一个能带大家对齐节奏的牵头人');
 });
 
 test('on BOW-852 data, HR edits and confirms the demand; matching shows as not connected', async ({
