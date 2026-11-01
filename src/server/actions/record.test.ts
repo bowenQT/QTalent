@@ -77,6 +77,7 @@ beforeEach(() => {
     replayed: true,
     result: {
       saveId: 'save',
+      draftRestoration: { status: 'refresh_required' },
       withdrawnEvents: receipt.events,
       withdrawnConfirmationIds: receipt.confirmationIds,
       withdrawnReviewItemIds: [],

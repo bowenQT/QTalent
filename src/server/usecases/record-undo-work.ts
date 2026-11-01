@@ -15,6 +15,7 @@ import {
   requireRecordUndoCommit,
   RecordWriteError,
   type RecordUndoCommit,
+  type RecordCancelledConfirmationWorkFact,
 } from '../modules/records';
 import { canEvaluateNode } from '../authz/evaluation-node';
 import { loadEvaluationContext } from './evaluation-context';
@@ -35,10 +36,10 @@ export async function cancelWithdrawnRecordConfirmationWork(
   commit: RecordUndoCommit,
   expectedWork: readonly EvaluationWorkItem[],
   clock: { businessNow(): string; wallNow(): string },
-): Promise<void> {
+): Promise<RecordCancelledConfirmationWorkFact[]> {
   const scope = requireRecordUndoCommit(tx, commit);
   // A second evaluator may withdraw scores without withdrawing the event.
-  if (!scope.withdrawnEvents.length) return;
+  if (!scope.withdrawnEvents.length) return [];
   const personIds = scope.withdrawnEvents.map((event) => event.personId);
   const expected = expectedWork.filter(
     (item) =>
@@ -207,6 +208,7 @@ export async function cancelWithdrawnRecordConfirmationWork(
   )
     throw new RecordWriteError('conflict', 'undo_window_closed');
 
+  const facts: RecordCancelledConfirmationWorkFact[] = [];
   for (const item of expected) {
     const updated = await tx
       .update(evaluationWorkItems)
@@ -228,12 +230,22 @@ export async function cancelWithdrawnRecordConfirmationWork(
           eq(evaluationWorkItems.resourceId, scope.draftId),
         ),
       )
-      .returning({ id: evaluationWorkItems.id });
+      .returning();
     if (updated.length !== 1) conflict();
+    const actual = updated[0];
+    facts.push({
+      id: actual.id,
+      personId: actual.personId,
+      evaluationNodeId: actual.evaluationNodeId,
+      assignedRelationId: actual.assignedRelationId,
+      assignedEvaluatorId: actual.assignedEvaluatorId,
+      cancelledRevision: actual.revision,
+    });
     await recordAudit(tx, {
       actorId: scope.accountId,
       action: 'evaluation_work.record_withdrawn',
       resourceId: item.id,
     });
   }
+  return facts;
 }

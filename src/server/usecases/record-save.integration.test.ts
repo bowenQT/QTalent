@@ -1492,3 +1492,100 @@ it('resave continuation: the new revision creates new events while old undo repl
     (await rowsForSave(next.result.saveId)).human.every((row) => row.active),
   ).toBe(true);
 });
+
+it('resave continuation: two undo/resave cycles keep the original cancelled assignment unchanged', async () => {
+  const f = await native();
+  const task = await db().transaction((tx) =>
+    insertEvaluationWorkItem(
+      tx,
+      {
+        id: f.id + '-resave-task',
+        evaluationNodeId: f.node,
+        personId: f.person.one,
+        assignedRelationId: f.relationOne,
+        assignedEvaluatorId: f.person['rater-one'],
+        kind: 'confirmation',
+        resourceId: f.draft.draftId,
+      },
+      businessNow,
+    ),
+  );
+  let saved = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const history: {
+    input: { operation_id: string; saveId: string };
+    result: Awaited<ReturnType<typeof undoRecordSave>>;
+  }[] = [];
+  for (const cycle of [1, 2]) {
+    const input = {
+      operation_id: f.id + '-cycle-undo-' + cycle,
+      saveId: saved.result.saveId,
+    };
+    const undone = await undoRecordSave(db(), f.account.one, input, f.clock);
+    history.push({ input, result: undone });
+    const version = undone.result.draftRestoration;
+    if (version.status !== 'available')
+      throw new Error('New undo must retain its committed revision');
+    saved = await saveRecordDraft(
+      db(),
+      f.account.one,
+      {
+        ...f.input,
+        operation_id: f.id + '-cycle-save-' + cycle,
+        expected_revision: version.draftRevision,
+      },
+      f.clock,
+    );
+    const [item] = await db()
+      .select()
+      .from(evaluationWorkItems)
+      .where(eq(evaluationWorkItems.id, task.id));
+    expect(item).toMatchObject({
+      state: 'cancelled',
+      revision: task.revision + 2,
+      assignedRelationId: task.assignedRelationId,
+      assignedEvaluatorId: task.assignedEvaluatorId,
+    });
+    for (const old of history)
+      expect(
+        await undoRecordSave(db(), f.account.one, old.input, f.clock),
+      ).toEqual({ ...old.result, replayed: true });
+  }
+});
+
+it('resave continuation: another currently authorized evaluator can confirm the new active event', async () => {
+  const f = await native();
+  const saved = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  const undone = await undoRecordSave(
+    db(),
+    f.account.one,
+    {
+      operation_id: f.id + '-first-undo-for-peer',
+      saveId: saved.result.saveId,
+    },
+    f.clock,
+  );
+  const version = undone.result.draftRestoration;
+  if (version.status !== 'available')
+    throw new Error('New undo must retain its committed revision');
+  const next = await saveRecordDraft(
+    db(),
+    f.account.one,
+    {
+      ...f.input,
+      operation_id: f.id + '-new-first',
+      expected_revision: version.draftRevision,
+    },
+    f.clock,
+  );
+  const peer = await saveRecordDraft(
+    db(),
+    f.account.two,
+    {
+      ...f.input,
+      operation_id: f.id + '-new-peer',
+      expected_revision: next.result.revision,
+    },
+    f.clock,
+  );
+  expect(peer.result.events).toEqual(next.result.events);
+});

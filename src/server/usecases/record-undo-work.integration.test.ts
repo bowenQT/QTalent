@@ -105,6 +105,11 @@ async function issue(tx: Transaction, f: Fixture, saved: Saved) {
       expectedDraftRevision: saved.result.revision,
       receipt: {
         saveId: saved.result.saveId,
+        draftRestoration: {
+          status: 'available',
+          draftId: f.draft.draftId,
+          draftRevision: saved.result.revision + 1,
+        },
         withdrawnEvents: saved.result.events.filter((event) =>
           lock.retainedSave!.createdEventIds.includes(event.eventId),
         ),
@@ -342,6 +347,11 @@ it.each(['legacy', 'previously_available'] as const)(
       await issue(tx, f, saved);
       const retained = {
         saveId: saved.result.saveId,
+        draftRestoration: {
+          status: 'available',
+          draftId: f.draft.draftId,
+          draftRevision: saved.result.revision + 1,
+        },
         withdrawnEvents: saved.result.events,
         withdrawnConfirmationIds: saved.result.confirmationIds,
         withdrawnReviewItemIds: saved.result.reviewItemIds,

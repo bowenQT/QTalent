@@ -38,12 +38,15 @@ import {
   readEvidenceForTalent,
   lockRecordCommand,
   readRecordConfirmationState,
+  readRecordResaveState,
+  recordUndoCancellationFacts,
   commitRecordSave,
   commitRecordUndo,
   RecordWriteError,
   type RecordCommand,
   type RecordSaveLock,
   type RecordConfirmationWorkFact,
+  type RecordCancelledConfirmationWorkFact,
   type StoredArrangeInput,
 } from '../modules/records';
 import {
@@ -396,6 +399,7 @@ async function execute(
         );
         await lockAuthority(tx, accountId, actorPersonId, draft);
         let lastWall = '';
+        let resaveWorkFacts: RecordCancelledConfirmationWorkFact[] = [];
         const native = createConfirmRecordDraftUsecase({
           businessNow: () => clock.businessNow(),
           wallNow: () => (lastWall = clock.wallNow()),
@@ -428,6 +432,36 @@ async function execute(
                 'later_review_without_provenance',
               );
             const state: ConfirmationState = { ...rows, ...scored };
+            if (command.action === 'save') {
+              const resave = await readRecordResaveState(tx, lock);
+              if (resave) {
+                // Records proves the accepted undo and old current mappings;
+                // programs facts are compared under this transaction's row locks.
+                for (const fact of resave.cancelledConfirmationWork) {
+                  const item = workItems.find((row) => row.id === fact.id);
+                  if (
+                    !item ||
+                    item.state !== 'cancelled' ||
+                    item.revision !== fact.cancelledRevision ||
+                    item.personId !== fact.personId ||
+                    item.evaluationNodeId !== fact.evaluationNodeId ||
+                    item.assignedRelationId !== fact.assignedRelationId ||
+                    item.assignedEvaluatorId !== fact.assignedEvaluatorId
+                  )
+                    throw new ConfirmationError(
+                      'conflict',
+                      'resave_cancelled_work_changed',
+                    );
+                }
+                resaveWorkFacts = resave.cancelledConfirmationWork;
+                state.mappings = state.mappings.filter(
+                  (row) => row.draftId !== lock.draftId,
+                );
+                state.withdrawnDraftIds = state.withdrawnDraftIds.filter(
+                  (id) => id !== lock.draftId,
+                );
+              }
+            }
             return state;
           },
           loadAuthorization: async (_account, at) =>
@@ -468,11 +502,27 @@ async function execute(
           for (const item of workItems) {
             // A confirmation assignment does not order other evaluators' scores.
             if (item.assignedEvaluatorId !== actorPersonId) continue;
-            if (item.state === 'cancelled')
-              throw new ConfirmationError(
-                'conflict',
-                'confirmation_task_cancelled',
+            if (item.state === 'cancelled') {
+              if (!resaveWorkFacts.some((fact) => fact.id === item.id))
+                throw new ConfirmationError(
+                  'conflict',
+                  'confirmation_task_cancelled',
+                );
+              const current = await loadCurrent(
+                tx,
+                accountId,
+                clock.businessNow(),
+                actorPersonId,
               );
+              if (!assignedEvaluationRelationIsCurrent(current.context, item))
+                throw new ConfirmationError(
+                  'forbidden',
+                  'confirmation_task_permission_changed',
+                );
+              // A retained native-undo cancellation is not a new assignment.
+              // Leave its state/revision intact; only the fresh score is saved.
+              continue;
+            }
             if (item.state === 'completed') continue;
             const current = await loadCurrent(
               tx,
@@ -522,6 +572,7 @@ async function execute(
             before.batch.modelVersion,
           );
         } else {
+          const cancelledFacts: RecordCancelledConfirmationWorkFact[] = [];
           const workFacts = lock.retainedSave?.confirmationWork;
           if (!Array.isArray(workFacts))
             throw new ConfirmationError(
@@ -554,7 +605,7 @@ async function execute(
                 'forbidden',
                 'confirmation_task_permission_changed',
               );
-            await undoEvaluationWorkCompletion(
+            const updated = await undoEvaluationWorkCompletion(
               tx,
               {
                 id: item.id,
@@ -578,6 +629,15 @@ async function execute(
                   )
                 ).context,
             );
+            if (updated.state === 'cancelled')
+              cancelledFacts.push({
+                id: updated.id,
+                personId: updated.personId,
+                evaluationNodeId: updated.evaluationNodeId,
+                assignedRelationId: updated.assignedRelationId,
+                assignedEvaluatorId: updated.assignedEvaluatorId,
+                cancelledRevision: updated.revision,
+              });
           }
           await withdrawRecordConfirmations(
             tx,
@@ -594,11 +654,18 @@ async function execute(
             fingerprint,
             lastWall,
           );
-          await cancelWithdrawnRecordConfirmationWork(
+          cancelledFacts.push(
+            ...(await cancelWithdrawnRecordConfirmationWork(
+              tx,
+              committedUndo,
+              workItems,
+              clock,
+            )),
+          );
+          plan.receipt = await recordUndoCancellationFacts(
             tx,
             committedUndo,
-            workItems,
-            clock,
+            cancelledFacts,
           );
         }
         await recordAudit(tx, {
