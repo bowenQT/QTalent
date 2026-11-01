@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { peopleList, seeds } from '@/features/people/people-test-data';
 import PeoplePage, { generateMetadata } from './page';
+import ErrorPage from './error';
+import Loading from './loading';
 
 const { shell, list } = vi.hoisted(() => ({ shell: vi.fn(), list: vi.fn() }));
 vi.mock('@/server/queries/shell', () => ({ getShellPage: shell }));
@@ -51,5 +53,14 @@ describe('/people', () => {
       '所带学员',
     );
     expect(document.querySelectorAll('.n-person-row')).toHaveLength(4);
+  });
+
+  it('says it is loading, and offers a retry when the read fails', () => {
+    render(<Loading />);
+    expect(screen.getByRole('status').textContent).toBe('内容加载中');
+    const reset = vi.fn();
+    render(<ErrorPage reset={reset} />);
+    fireEvent.click(screen.getByRole('button', { name: '重新加载' }));
+    expect(reset).toHaveBeenCalledOnce();
   });
 });
