@@ -436,12 +436,14 @@ it('rolls back ownership and replay state if audit persistence fails', async () 
     await db().execute(sql.raw('DROP FUNCTION fail_b899_audit()'));
   }
 });
-it('reads only scoped orphan work and enforces the HR-only unknown-interviewer handler', async () => {
+it('reads only scoped orphan work and enforces both HR-only interview review handlers', async () => {
   const kinds = [
     'speaker',
     'unknown_person',
     'image_scope',
     'unknown_interviewer',
+    'unknown_project',
+    'unknown_interview_candidate',
   ] as const;
   for (const kind of kinds)
     await db().transaction((tx) =>
@@ -479,12 +481,12 @@ it('reads only scoped orphan work and enforces the HR-only unknown-interviewer h
     'demo-hr-account',
     now(),
   );
-  expect(result.items).toHaveLength(5);
+  expect(result.items).toHaveLength(7);
   expect(JSON.stringify(result)).not.toContain('demo-outside');
-  expect(
-    result.items.find((item) => item.kind === 'unknown_interviewer')!
-      .candidates,
-  ).toEqual([]);
+  for (const kind of ['unknown_interviewer', 'unknown_interview_candidate'])
+    expect(result.items.find((item) => item.kind === kind)!.candidates).toEqual(
+      [],
+    );
   expect(
     result.items
       .find((item) => item.kind === 'speaker')!
@@ -493,14 +495,19 @@ it('reads only scoped orphan work and enforces the HR-only unknown-interviewer h
   await expect(
     readEvaluationReassignments(db(), 'demo-new-account', now()),
   ).rejects.toThrow('HR');
-  const interviewerInput = {
-    ...input,
-    operationId: 'demo-interviewer-operation',
-    workItemId: 'demo-work-unknown_interviewer',
-  };
-  await expect(
-    reassignEvaluationWork(db(), 'demo-hr-account', interviewerInput, now),
-  ).rejects.toThrow('接手评价关系');
+  for (const kind of ['unknown_interviewer', 'unknown_interview_candidate'])
+    await expect(
+      reassignEvaluationWork(
+        db(),
+        'demo-hr-account',
+        {
+          ...input,
+          operationId: 'demo-' + kind + '-operation',
+          workItemId: 'demo-work-' + kind,
+        },
+        now,
+      ),
+    ).rejects.toThrow('接手评价关系');
   await db().insert(grants).values({
     id: 'demo-successor-hr',
     accountId: 'demo-new-account',
@@ -509,21 +516,31 @@ it('reads only scoped orphan work and enforces the HR-only unknown-interviewer h
     cohortId: 'demo-cohort',
     validFrom: '2026-01-01',
   });
-  expect(
-    (await readEvaluationReassignments(db(), 'demo-hr-account', now())).items
-      .find((item) => item.kind === 'unknown_interviewer')!
-      .candidates.map((candidate) => candidate.relationId),
-  ).toEqual(['demo-new-relation']);
-  expect(
-    (
-      await reassignEvaluationWork(
-        db(),
-        'demo-hr-account',
-        interviewerInput,
-        now,
-      )
-    ).receipt.assignedEvaluatorId,
-  ).toBe('demo-new-evaluator');
+  for (const kind of ['unknown_interviewer', 'unknown_interview_candidate']) {
+    expect(
+      (await readEvaluationReassignments(db(), 'demo-hr-account', now())).items
+        .find((item) => item.kind === kind)!
+        .candidates.map((candidate) => candidate.relationId),
+    ).toEqual(['demo-new-relation']);
+    expect(
+      (
+        await reassignEvaluationWork(
+          db(),
+          'demo-hr-account',
+          {
+            ...input,
+            operationId: 'demo-' + kind + '-operation',
+            workItemId: 'demo-work-' + kind,
+          },
+          now,
+        )
+      ).receipt,
+    ).toMatchObject({
+      assignedEvaluatorId: 'demo-new-evaluator',
+      kind,
+      resourceId: 'demo-resource-' + kind,
+    });
+  }
   for (const accountId of [
     'demo-old-account',
     'demo-new-account',
@@ -719,59 +736,225 @@ it('observes an HR revocation committed while the request is waiting for the wor
   expect(await db().select().from(auditEvents)).toHaveLength(0);
 });
 
-it('reloads source-completion authority after its own row lock instead of accepting a stale worker context', async () => {
-  await reassignEvaluationWork(db(), 'demo-hr-account', input, now);
-  let release!: () => void;
-  let acquired!: () => void;
-  const ready = new Promise<void>((resolve) => {
-    acquired = resolve;
-  });
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const blocker = db().transaction(async (tx) => {
-    await readEvaluationWorkItemForUpdate(tx, original.id);
-    acquired();
-    await held;
-  });
-  await ready;
-  const pending = db()
-    .transaction((tx) =>
+it.each([
+  { kind: 'confirmation', revoked: 'relation' },
+  { kind: 'unknown_interview_candidate', revoked: 'relation' },
+  { kind: 'unknown_interview_candidate', revoked: 'hr' },
+] as const)(
+  'reloads $kind completion authority after a committed $revoked revocation during the row-lock wait',
+  async ({ kind, revoked }) => {
+    await db()
+      .update(evaluationWorkItems)
+      .set({ kind })
+      .where(eq(evaluationWorkItems.id, original.id));
+    if (kind === 'unknown_interview_candidate')
+      await db().insert(grants).values({
+        id: 'demo-successor-hr',
+        accountId: 'demo-new-account',
+        role: 'hr',
+        scope: 'cohort',
+        cohortId: 'demo-cohort',
+        validFrom: '2026-01-01',
+      });
+    await reassignEvaluationWork(db(), 'demo-hr-account', input, now);
+    let release!: () => void;
+    let acquired!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const blocker = db().transaction(async (tx) => {
+      await readEvaluationWorkItemForUpdate(tx, original.id);
+      acquired();
+      await held;
+    });
+    await ready;
+    const pending = db()
+      .transaction((tx) =>
+        completeEvaluationWorkItem(
+          tx,
+          original.id,
+          2,
+          async (lockedTx) =>
+            (await loadEvaluationContext(lockedTx, 'demo-new-account', now()))
+              .context,
+        ),
+      )
+      .then(
+        (value) => ({ value, error: null }),
+        (error: unknown) => ({ value: null, error }),
+      );
+    try {
+      await vi.waitFor(
+        async () => {
+          const waiting = await admin!.query(
+            'SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = $1 AND wait_event_type = $2',
+            [name, 'Lock'],
+          );
+          expect(waiting.rows[0].n).toBeGreaterThan(0);
+        },
+        { interval: 20, timeout: 3000 },
+      );
+      if (revoked === 'relation')
+        await db()
+          .update(evaluationRelations)
+          .set({ revokedAt: reassignmentNow })
+          .where(eq(evaluationRelations.id, 'demo-new-relation'));
+      else
+        await db()
+          .update(grants)
+          .set({ revokedAt: '2026-10-31' })
+          .where(eq(grants.id, 'demo-successor-hr'));
+    } finally {
+      release();
+      await blocker;
+    }
+    const result = await pending;
+    expect(result.value).toBeNull();
+    expect((result.error as Error).message).toContain('当前处理范围');
+    expect(await currentWork()).toMatchObject({
+      revision: 2,
+      state: 'pending',
+    });
+    expect(await db().select().from(auditEvents)).toHaveLength(1);
+  },
+);
+
+it.each(['unknown_project', 'unknown_interview_candidate'] as const)(
+  'keeps a %s native work item stable through concurrent transfer, completion and registration replay',
+  async (kind) => {
+    await db().insert(grants).values({
+      id: 'demo-successor-hr',
+      accountId: 'demo-new-account',
+      role: 'hr',
+      scope: 'cohort',
+      cohortId: 'demo-cohort',
+      validFrom: '2026-01-01',
+    });
+    // A source may register only after it has resolved a trusted node/subject.
+    // This tests the native port; it does not invent an unknown candidate's identity.
+    const registration = {
+      id: 'demo-source-work',
+      evaluationNodeId: 'demo-node',
+      personId: 'demo-person',
+      assignedRelationId: 'demo-old-relation',
+      assignedEvaluatorId: 'demo-old-evaluator',
+      kind,
+      resourceId: 'demo-source-review-item-1',
+    };
+    await db().transaction((tx) =>
+      insertEvaluationWorkItem(tx, registration, now()),
+    );
+    const sourceInput = { ...input, workItemId: registration.id };
+    const results = await Promise.all([
+      reassignEvaluationWork(db(), 'demo-hr-account', sourceInput, now),
+      reassignEvaluationWork(db(), 'demo-hr-account', sourceInput, now),
+    ]);
+    expect(results.map((result) => result.replayed).sort()).toEqual([
+      false,
+      true,
+    ]);
+    expect(results[0].receipt).toEqual(results[1].receipt);
+    expect(results[0].receipt).toMatchObject({
+      workItemId: registration.id,
+      kind,
+      resourceId: registration.resourceId,
+      revision: 2,
+    });
+    await db().transaction((tx) =>
       completeEvaluationWorkItem(
         tx,
-        original.id,
+        registration.id,
         2,
         async (lockedTx) =>
           (await loadEvaluationContext(lockedTx, 'demo-new-account', now()))
             .context,
       ),
-    )
-    .then(
-      (value) => ({ value, error: null }),
-      (error: unknown) => ({ value: null, error }),
     );
-  try {
-    await vi.waitFor(
-      async () => {
-        const waiting = await admin!.query(
-          'SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = $1 AND wait_event_type = $2',
-          [name, 'Lock'],
-        );
-        expect(waiting.rows[0].n).toBeGreaterThan(0);
-      },
-      { interval: 20, timeout: 3000 },
+    const replay = await db().transaction((tx) =>
+      insertEvaluationWorkItem(
+        tx,
+        {
+          ...registration,
+          id: 'demo-repeated-delivery-id',
+        },
+        now(),
+      ),
+    );
+    expect(replay).toMatchObject({
+      id: registration.id,
+      resourceId: registration.resourceId,
+      state: 'completed',
+      revision: 3,
+      assignedRelationId: 'demo-new-relation',
+    });
+    expect(
+      await reassignEvaluationWork(db(), 'demo-hr-account', sourceInput, now),
+    ).toEqual({ replayed: true, receipt: results[0].receipt });
+    await expect(
+      reassignEvaluationWork(
+        db(),
+        'demo-hr-account',
+        {
+          ...sourceInput,
+          operationId: 'demo-new-operation',
+          expectedRevision: 3,
+        },
+        now,
+      ),
+    ).rejects.toThrow('状态已变化');
+    const cancelled = {
+      ...registration,
+      id: 'demo-cancelled-work',
+      resourceId: 'demo-source-review-item-2',
+    };
+    await db().transaction((tx) =>
+      insertEvaluationWorkItem(tx, cancelled, now()),
     );
     await db()
-      .update(evaluationRelations)
-      .set({ revokedAt: reassignmentNow })
-      .where(eq(evaluationRelations.id, 'demo-new-relation'));
-  } finally {
-    release();
-    await blocker;
-  }
-  const result = await pending;
-  expect(result.value).toBeNull();
-  expect((result.error as Error).message).toContain('当前处理范围');
-  expect(await currentWork()).toMatchObject({ revision: 2, state: 'pending' });
-  expect(await db().select().from(auditEvents)).toHaveLength(1);
-});
+      .update(evaluationWorkItems)
+      .set({ state: 'cancelled' })
+      .where(eq(evaluationWorkItems.id, cancelled.id));
+    expect(
+      await db().transaction((tx) =>
+        insertEvaluationWorkItem(tx, cancelled, now()),
+      ),
+    ).toMatchObject({ id: cancelled.id, state: 'cancelled', revision: 1 });
+    const queue = await readEvaluationReassignments(
+      db(),
+      'demo-hr-account',
+      now(),
+    );
+    expect(queue.items.map((item) => item.workItemId)).toEqual([original.id]);
+    expect(
+      await db().select().from(evaluationReassignmentOperations),
+    ).toHaveLength(1);
+    expect(await db().select().from(auditEvents)).toHaveLength(1);
+  },
+);
+
+it.each(['', '   '])(
+  'rejects an empty stable source reference %j before registration',
+  async (resourceId) => {
+    await expect(
+      db().transaction((tx) =>
+        insertEvaluationWorkItem(
+          tx,
+          {
+            id: 'demo-invalid-registration',
+            evaluationNodeId: 'demo-node',
+            personId: 'demo-person',
+            assignedRelationId: 'demo-old-relation',
+            assignedEvaluatorId: 'demo-old-evaluator',
+            kind: 'confirmation',
+            resourceId,
+          },
+          now(),
+        ),
+      ),
+    ).rejects.toThrow();
+    expect(await db().select().from(evaluationWorkItems)).toHaveLength(1);
+  },
+);

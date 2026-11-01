@@ -61,7 +61,9 @@ export function canWorkOnEvaluationItem(
     context.account.personId === item.assignedEvaluatorId &&
     assignedEvaluationRelationIsCurrent(context, item) &&
     canEvaluateNode(context, item.evaluationNodeId, item.personId) &&
-    (item.kind !== 'unknown_interviewer' ||
+    (!['unknown_interviewer', 'unknown_interview_candidate'].includes(
+      item.kind,
+    ) ||
       canManageNodeAssignments(context, item.evaluationNodeId, item.personId))
   );
 }
