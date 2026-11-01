@@ -206,7 +206,7 @@
     r.sent = true; st.save();
   };
   // 导入和撤销导入都记审计：谁、什么时候、哪几行
-  const ivAudit = (imp, act, rows) => { (I().audit ||= []).unshift({ at: NT.TODAY, by: me(), act, obj: `${imp.file} · ${rows.map((r) => r.pages).join('、')}`, imp: imp.id, n: rows.length }); };
+  const ivAudit = (imp, act, rows) => { (I().audit ||= []).unshift({ at: NT.TODAY, by: me(), act, obj: imp.file, rows: rows.map((r) => `${r.pages} ${r.name}`).join('、'), imp: imp.id, n: rows.length }); };
   st.ivAudit = (impId) => (I().audit || []).filter((x) => x.imp === impId);
   // 导入已确认的行：写成面试段的历史评价，保留原量表；未入职、未确认的行不写
   st.ivImport = (impId) => {
