@@ -7,6 +7,7 @@ import type { Source } from '@/contracts/sources';
 import SourcesPage, { metadata } from './page';
 import SourceNotFound from './not-found';
 import Loading from './loading';
+import { ShellTitleProvider, usePageTitle } from '@/features/shell/ShellTitle';
 import ErrorPage from './error';
 
 const { shellQuery, sourceQuery } = vi.hoisted(() => ({
@@ -143,7 +144,17 @@ describe('source viewer route', () => {
 
 describe('source viewer route states', () => {
   it('uses one invalid-link page for missing and out-of-scope originals', () => {
-    render(<SourceNotFound />);
+    function Crumb() {
+      return <output>{usePageTitle()}</output>;
+    }
+    render(
+      <ShellTitleProvider>
+        <Crumb />
+        <SourceNotFound />
+      </ShellTitleProvider>,
+    );
+    // 顶栏面包屑只写通用的「原件」，不带任何原件标题。
+    expect(screen.getByRole('status').textContent).toBe('原件');
     expect(screen.getByRole('heading', { name: '原件链接失效' })).toBeTruthy();
     expect(screen.getByText(/超出你的查看范围/)).toBeTruthy();
     expect(screen.getByRole('link', { name: '返回' })).toBeTruthy();

@@ -297,8 +297,8 @@ describe('SourceViewer locates every kind of original', () => {
     const rows = [...target.querySelectorAll('li')].map((li) => li.textContent);
     expect(rows).toEqual(['12const a = 1;', '13const b = 2;']);
     expect(screen.getByText('提交的代码快照')).toBeTruthy();
-    const sha = screen.getByText('3f9c1e7');
-    expect(sha.getAttribute('title')).toBe(commit);
+    // 完整提交号直接显示，触屏和键盘也能核对，不只放在悬停提示里。
+    expect(screen.getByText(commit).getAttribute('title')).toBeNull();
     expect(
       screen.getByText('git.example.com/demo/repo').closest('a'),
     ).toBeNull();

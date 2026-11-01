@@ -69,6 +69,25 @@ test('every location kind opens from its citation, lands on the cited place and 
     }));
     expect(width.scroll, `${key} overflows the phone width`).toBe(width.client);
   }
+  // 播放条在手机宽仍画出波形，引用的时间段至少有一根看得见的刻度。
+  for (const key of ['recording', 'video']) {
+    await page.goto(sourceHref(ids(key), VIEW));
+    const bars = await page.locator('.n-player__track i').evaluateAll((items) =>
+      items.map((item) => ({
+        width: item.getBoundingClientRect().width,
+        mark: item.classList.contains('is-mark'),
+      })),
+    );
+    expect(
+      bars.every((bar) => bar.width >= 1),
+      `${key} bars collapse`,
+    ).toBe(true);
+    expect(
+      bars.some((bar) => bar.mark),
+      `${key} has no marked bar`,
+    ).toBe(true);
+    await expect(page.locator('.n-player__track')).toBeInViewport();
+  }
   await page.goto(sourceHref(ids('spreadsheet'), VIEW));
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   const target = page.locator('[aria-current="location"]');

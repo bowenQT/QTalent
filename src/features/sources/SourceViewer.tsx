@@ -293,9 +293,7 @@ function CodeMeta({
       <dt>仓库</dt>
       <dd>{location.repository}</dd>
       <dt>提交</dt>
-      <dd className={styles.mono} title={location.commit}>
-        {location.commit.slice(0, 7)}
-      </dd>
+      <dd className={styles.mono}>{location.commit}</dd>
       <dt>路径</dt>
       <dd className={styles.mono}>{location.path}</dd>
       <dt>行</dt>

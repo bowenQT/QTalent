@@ -66,14 +66,16 @@ export function SourceSamples() {
       </section>
       <section className="nt-sec" data-sample="kinds">
         <h2>六种定位与其他出处</h2>
-        <ul className="n-card nt-list" style={{ display: 'grid', gap: 12 }}>
-          {sampleKeys.map((name, i) => (
-            <li key={name} data-kind={name}>
-              {sample(name).label}
-              <SampleCite name={name} index={i + 1} />
-            </li>
-          ))}
-        </ul>
+        <div className="n-card">
+          <ul className="nt-list" style={{ display: 'grid', gap: 12 }}>
+            {sampleKeys.map((name, i) => (
+              <li key={name} data-kind={name}>
+                {sample(name).label}
+                <SampleCite name={name} index={i + 1} />
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
       <section className="nt-sec" data-sample="locked">
         <h2>查看范围以外的原件</h2>

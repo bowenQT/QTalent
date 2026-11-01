@@ -214,6 +214,10 @@
 .track {
   min-width: 0;
 }
+/* 刻度再窄也留 1px，引用的时间段在任何宽度下都看得见。 */
+.track i {
+  min-width: 1px;
+}
 .time {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -310,6 +314,18 @@
 }
 
 @media (max-width: 760px) {
+  /* 手机宽：时间文字换到轨道下一行，轨道占满按钮右侧，刻度间距收到 1px。 */
+  .player {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: var(--s-1);
+  }
+  .player .track {
+    gap: 1px;
+  }
+  .time {
+    grid-column: 2;
+    white-space: normal;
+  }
   .paras li {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px;
