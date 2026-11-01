@@ -200,18 +200,10 @@ export function planInterviewImport(
   if (
     !Number.isInteger(facts.reviewIndex) ||
     !review ||
-    Object.values(review.metadata).some(
-      (field) => field === null || !field.value.trim(),
-    ) ||
-    [
-      ...review.dimensions.map((row) => row.selection),
-      review.interviewRating,
-      review.suggestedLevel,
-    ].some((selection) => selection.status === 'unrecognized')
+    !review.metadata.interviewTime?.value.trim()
   )
     return notReady('parser_manual_input');
-  // Metadata completeness above narrows the semantic state, not the external type.
-  const interviewTime = review.metadata.interviewTime!.value;
+  const interviewTime = review.metadata.interviewTime.value;
   if (
     source.location.kind !== 'pdf' ||
     source.location.page !== review.templateSource.page ||
@@ -285,7 +277,7 @@ export function planInterviewImport(
       [
         facts.pendingInterviewer,
         'unknown_interviewer',
-        review.metadata.interviewer!.value,
+        review.metadata.interviewer?.value ?? null,
       ],
     ] as const) {
       if (pending === null) continue;
@@ -310,6 +302,17 @@ export function planInterviewImport(
     // The next invocation reloads current facts; this is not a permanent tombstone.
     return { status: 'skipped', reason: 'not_hired' };
   }
+  if (
+    Object.values(review.metadata).some(
+      (field) => field === null || !field.value.trim(),
+    ) ||
+    [
+      ...review.dimensions.map((row) => row.selection),
+      review.interviewRating,
+      review.suggestedLevel,
+    ].some((selection) => selection.status === 'unrecognized')
+  )
+    return notReady('parser_manual_input');
   if (
     row.import.state === 'withdrawn' &&
     facts.confirmedForRowRevision !== row.revision

@@ -118,8 +118,8 @@ node node_modules/vitest/vitest.mjs run src/server/usecases/interview-import/pdf
 | 唯一hired                                                     | 继续当前行HR确认、目录任职、面试官及其他栅栏，不凭面试通过入档 |
 | 已审计撤回后重新处理                                          | 重新读取当前招聘事实；非录用仍可跳过，入档则须新行版本确认     |
 
-未解决的候选/面试官提案不能迫使HR先认人再跳过；其原件/行/观察名仍须一致。提交的核对命令不借跳过冒充成功回执，仍走原有版本与已提交决定校验。
+非录用的唯一三项匹配不要求先补齐评分、面试官、评语；入档仍要求完整解析。未解决的候选/面试官提案不能迫使HR先认人再跳过；其原件/行/观察名仍须一致。提交的核对命令不借跳过冒充成功回执，仍走原有版本与已提交决定校验。
 
 跳过是可重新计算的决策，不删除原件、不改写候选、不产生永久排除标记。测试证明同一输入不被修改，下一次加载新事实可重新计划；**跳过持久状态、撤回审计/CAS与重新排队仍须原生事务接线**，本片不把纯函数等同这些实际写入已经存在。900仍无权威职位号，未伪造其生产输入。
 
-本次验证使用实际原分支（X1已在2fc17f5普通整合main325de93），不再用临时合同解析映射：Node24.21.0、pnpm11.25.0。27项新裁决用例中，最初21项在旧生产实现下10失败/11通过；实现后本目录174/174通过（142决策/回执＋32实际隔离线程），统一行96.25%、分支94.28%。命令为 `pnpm exec vitest run src/server/usecases/interview-import --maxWorkers=2 --testTimeout=20000 --coverage '--coverage.include=src/server/usecases/interview-import/*.ts' '--coverage.exclude=**/*.test.ts'`，框架20秒不改变生产预算。实际线程结束仍断言threadId=-1。全仓typecheck、format:check、本目录ESLint、架构边界与diff检查通过；未跑完整check/PG/e2e/visual或供应商调用，无heavy槽/服务。新head的远端CI与Claude增量审查另以PR回执为准。
+本次验证使用实际原分支（X1已在2fc17f5普通整合main325de93），不再用临时合同解析映射：Node24.21.0、pnpm11.25.0。30项新裁决用例中，最初21项在旧生产实现下10失败/11通过；另3项证明未识别评分/面试官/评语缺失仍阻挡跳过，修复前3失败。最终本目录177/177通过（145决策/回执＋32实际隔离线程），统一行96.27%、分支94.35%。命令为 `pnpm exec vitest run src/server/usecases/interview-import --maxWorkers=2 --testTimeout=20000 --coverage '--coverage.include=src/server/usecases/interview-import/*.ts' '--coverage.exclude=**/*.test.ts'`，框架20秒不改变生产预算。实际线程结束仍断言threadId=-1。全仓typecheck、format:check、本目录ESLint、架构边界与diff检查通过；未跑完整check/PG/e2e/visual或供应商调用，无heavy槽/服务。新head的远端CI与Claude增量审查另以PR回执为准。

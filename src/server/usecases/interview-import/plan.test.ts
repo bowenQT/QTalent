@@ -1368,6 +1368,26 @@ describe('owner ruling: unique non-hired rows skip before HR identification', ()
       });
     },
   );
+  it.each(['score', 'interviewer', 'comment'] as const)(
+    'does not demand unrelated %s completion before a uniquely identified non-hired skip',
+    (change) => {
+      const input = unconfirmed('rejected');
+      if (input.parsed.status === 'rejected') throw new Error('fixture');
+      const value = input.parsed.reviews[0];
+      if (change === 'score')
+        value.dimensions[0].selection = {
+          status: 'unrecognized',
+          reason: 'missing_selection',
+          source: value.templateSource,
+        };
+      if (change === 'interviewer') value.metadata.interviewer = null;
+      if (change === 'comment') value.metadata.overallComment = null;
+      expect(planInterviewImport(input)).toEqual({
+        status: 'skipped',
+        reason: 'not_hired',
+      });
+    },
+  );
   it('skips an unconfirmed non-hired application even when its employee identity is known', () => {
     const input = unconfirmed('rejected');
     input.candidates[0].personId = 'p-x08';
