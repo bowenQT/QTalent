@@ -335,7 +335,13 @@ it("another creator's attachment intake remains a restriction even when another 
       boundAt: new Date(businessNow),
       occurredOn: '2026-10-01',
       origin: 'attachment',
-      originalInput: { text: '演示附件输入', attachmentIds: [f.originalId] },
+      originalInput: {
+        operation_id: f.id + '-input-operation',
+        personId: null,
+        projectId: null,
+        text: '演示附件输入',
+        attachmentIds: [f.originalId],
+      },
       inputSource: f.reference,
       sourceContexts: [
         {
