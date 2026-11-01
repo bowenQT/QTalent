@@ -7,6 +7,15 @@ const local = {
   BETTER_AUTH_URL: 'http://localhost:3000',
 };
 describe('runtime configuration', () => {
+  it('keeps the shared MaaS key optional and validates it without aliases', () => {
+    expect(parseEnv(local).QINIU_MAAS_API_KEY).toBeUndefined();
+    expect(
+      parseEnv({ ...local, QINIU_MAAS_API_KEY: 'synthetic-key' })
+        .QINIU_MAAS_API_KEY,
+    ).toBe('synthetic-key');
+    for (const QINIU_MAAS_API_KEY of ['', ' ', 'bad key'])
+      expect(() => parseEnv({ ...local, QINIU_MAAS_API_KEY })).toThrow();
+  });
   it('preserves optional Modelink settings without blocking unrelated startup', () => {
     const settings = {
       MODELINK_API_KEY: 'synthetic-offline-key',
