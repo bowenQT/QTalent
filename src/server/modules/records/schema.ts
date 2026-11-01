@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { people } from '../directory';
 import { projects } from '../staffing';
+import { evaluationNodes, evaluationNodeSubjects } from '../programs';
 import { ruleVersions } from '../evaluation-system';
 export type SourceLocation =
   | { kind: 'document'; page?: number; paragraph: string }
@@ -83,6 +84,11 @@ export const events = pgTable(
   'records_events',
   {
     id: text('id').primaryKey(),
+    // Existing ambiguous rows remain quarantined for evaluators until mapped.
+    // Every new batch draft/save uses its explicit frozen evaluation node.
+    evaluationNodeId: text('evaluation_node_id').references(
+      () => evaluationNodes.id,
+    ),
     personId: text('person_id')
       .notNull()
       .references(() => people.id),
@@ -102,6 +108,13 @@ export const events = pgTable(
   },
   (t) => [
     unique('records_event_rule_version').on(t.id, t.ruleVersionId),
+    foreignKey({
+      columns: [t.evaluationNodeId, t.personId],
+      foreignColumns: [
+        evaluationNodeSubjects.evaluationNodeId,
+        evaluationNodeSubjects.personId,
+      ],
+    }),
     check(
       'records_sbi',
       sql`length(trim(${t.situation})) > 0 and (${t.demo} or length(trim(${t.behavior})) > 0)`,
@@ -205,6 +218,10 @@ export const historicalEvaluations = pgTable(
   {
     id: text('id').primaryKey(),
     sourceRecordId: text('source_record_id').notNull(),
+    // Unknown legacy history remains unbound; no inference from current membership.
+    evaluationNodeId: text('evaluation_node_id').references(
+      () => evaluationNodes.id,
+    ),
     personId: text('person_id').references(() => people.id),
     recorderId: text('recorder_id')
       .notNull()
@@ -223,6 +240,13 @@ export const historicalEvaluations = pgTable(
       .default('original'),
   },
   (t) => [
+    foreignKey({
+      columns: [t.evaluationNodeId, t.personId],
+      foreignColumns: [
+        evaluationNodeSubjects.evaluationNodeId,
+        evaluationNodeSubjects.personId,
+      ],
+    }),
     foreignKey({
       columns: [t.fragmentId, t.originalVersionId],
       foreignColumns: [fragments.id, fragments.originalVersionId],

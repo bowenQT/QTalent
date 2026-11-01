@@ -491,10 +491,9 @@ describe('quick view and people list', () => {
 });
 
 describe('mentor guards and the display label / category split', () => {
-  it('requires evaluation content in every mentor block', () => {
+  it('limits every mentor block to server-authorized evaluation categories', () => {
     for (const category of [
       'management-observation',
-      'restricted-evaluation',
       'performance',
       'quadrant',
     ]) {

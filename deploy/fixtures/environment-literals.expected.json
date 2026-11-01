@@ -1,0 +1,15 @@
+{
+  "QT_LITERAL_UNQUOTED": "one two",
+  "QT_LITERAL_SINGLE": "$HOME $(touch never) \\ literal",
+  "QT_LITERAL_DOUBLE": "$missing $(touch never)",
+  "QT_LITERAL_ESCAPES": "one\\q $two \\ three \"four\"",
+  "QT_LITERAL_DOUBLE_CONT": "onetwo",
+  "QT_LITERAL_UNQUOTED_CONT": "onetwo",
+  "QT_LITERAL_MULTI_SINGLE": "one\ntwo",
+  "QT_LITERAL_MULTI_DOUBLE": "one\ntwo",
+  "QT_LITERAL_SPACE": "one two ",
+  "QT_LITERAL_INNER_QUOTES": "one\"two'three # literal",
+  "QT_LITERAL_EMPTY": "",
+  "QT_LITERAL_REPLACED": "last",
+  "QT_LITERAL_URL": "postgres://user:synthetic$missing@db.example.test:5432/demo"
+}

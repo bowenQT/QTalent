@@ -5,6 +5,14 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { eq, getTableName, sql } from 'drizzle-orm';
 import { createDatabase, type Database } from '../client';
 import { importDemo, importEvidence } from '../import';
+import {
+  loadPersonData,
+  talentSources,
+  eventSubject,
+} from '../../queries/person-data';
+import { sourceFromData } from '../../queries/sources';
+import { personFromData } from '../../queries/person-projection';
+import { buildAuthorizedModelInput } from '../../authz/talent';
 import { mapPrototypeSeed, readPrototypeSeed } from './index';
 import {
   organizations,
@@ -13,13 +21,22 @@ import {
   employments,
   grants,
 } from '../../modules/directory';
-import { cohorts, enrollments, assignments } from '../../modules/programs';
+import {
+  cohorts,
+  enrollments,
+  assignments,
+  evaluationNodes,
+  evaluationNodeSubjects,
+  evaluationRelations,
+} from '../../modules/programs';
 import { user, account } from '../../auth/schema';
 import { projects, members, memberLogs } from '../../modules/staffing';
 import {
   dimensions,
   ruleVersions,
   anchors,
+  ruleVersionApplicability,
+  readEffectiveRuleVersion,
 } from '../../modules/evaluation-system';
 import {
   importSnapshots,
@@ -102,6 +119,7 @@ async function fingerprints(db: Database) {
     memberLogs,
     dimensions,
     ruleVersions,
+    ruleVersionApplicability,
     anchors,
     importSnapshots,
     originals,
@@ -190,6 +208,71 @@ it('imports all approved baseline rows and reruns with identical data, IDs and r
   });
 }, 30_000);
 
+it('backfills separate rubric and weekly applicability from source dates and preserves the intervals on rerun', async () => {
+  await isolated(async (db) => {
+    const mapped = seed();
+    await importDemo(db, mapped, password);
+    const applicability = await db.select().from(ruleVersionApplicability);
+    expect(applicability).toHaveLength(2);
+    for (const [versionId, category] of [
+      ['rubric-v1', 'dimension_anchors'],
+      ['xe-weekly-v1', 'xe_weekly'],
+    ] as const) {
+      const dates = [
+        ...mapped.evidence.events,
+        ...mapped.evidence.historicalEvaluations,
+      ]
+        .filter((record) => record.ruleVersionId === versionId)
+        .map((record) => record.occurredOn)
+        .sort();
+      const effectiveFrom = dates[0] + 'T00:00:00.000Z';
+      expect(applicability.find((row) => row.versionId === versionId)).toEqual({
+        periodId: `legacy:${versionId}`,
+        versionId,
+        category,
+        effectiveFrom: new Date(effectiveFrom),
+        effectiveUntil: null,
+      });
+      expect(
+        await readEffectiveRuleVersion(db, { category, at: effectiveFrom }),
+      ).toMatchObject({
+        status: 'success',
+        version: {
+          versionId,
+          category,
+          provenance: 'demo_import_snapshot',
+          effectiveFrom,
+        },
+      });
+    }
+    expect(
+      await readEffectiveRuleVersion(db, {
+        category: 'xe_selection',
+        at: '2026-10-31T00:00:00.000Z',
+      }),
+    ).toMatchObject({ status: 'not_found' });
+    expect(await db.select().from(ruleVersions)).toEqual(
+      expect.arrayContaining(mapped.evidence.ruleVersions),
+    );
+    await db
+      .update(ruleVersionApplicability)
+      .set({
+        effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+        effectiveUntil: new Date('2026-10-01T00:00:00Z'),
+      })
+      .where(eq(ruleVersionApplicability.versionId, 'xe-weekly-v1'));
+    const before = await fingerprints(db);
+    await importDemo(db, seed(), password);
+    expect(await fingerprints(db)).toEqual(before);
+    expect(
+      await readEffectiveRuleVersion(db, {
+        category: 'xe_weekly',
+        at: '2026-10-01T00:00:00.000Z',
+      }),
+    ).toMatchObject({ status: 'not_found' });
+  });
+}, 30_000);
+
 it('rolls back the complete base and evidence batch if a late confirmation insert fails', async () => {
   await isolated(async (db) => {
     await db.execute(
@@ -213,6 +296,7 @@ it('rolls back the complete base and evidence batch if a late confirmation inser
       aiSuggestions,
       importSnapshots,
       ruleVersions,
+      ruleVersionApplicability,
       user,
     ])
       expect(await count(db, table)).toBe(0);
@@ -316,6 +400,7 @@ function ordinaryBatch() {
     events: [
       {
         id: 'test-event',
+        evaluationNodeId: 'test-node',
         personId: 'test-person',
         recorderId: 'test-reviewer',
         occurredOn: '2026-07-24',
@@ -387,6 +472,7 @@ function completeOrdinaryBatch() {
       {
         id: 'test-history',
         sourceRecordId: 'test-history-source',
+        evaluationNodeId: null,
         personId: 'test-person',
         recorderId: 'test-reviewer',
         occurredOn: '2026-07-24',
@@ -413,6 +499,23 @@ async function realReferences(db: Database) {
       demo: false,
     })),
   );
+  await db
+    .insert(evaluationNodes)
+    .values({ id: 'test-node', kind: 'interview', name: '演示正式面试' });
+  await db
+    .insert(evaluationNodeSubjects)
+    .values({ evaluationNodeId: 'test-node', personId: 'test-person' });
+  await db.insert(evaluationRelations).values({
+    id: 'test-relation',
+    evaluationNodeId: 'test-node',
+    personId: 'test-person',
+    evaluatorId: 'test-reviewer',
+    kind: 'interviewer',
+    validFrom: '2026-01-01T00:00:00.000Z',
+  });
+  await db
+    .insert(accountBindings)
+    .values({ accountId: 'test-evaluator', personId: 'test-reviewer' });
   await db.insert(dimensions).values({
     id: 'test-dimension',
     name: 'Synthetic dimension',
@@ -533,3 +636,148 @@ it('direct demo entry refuses production even with a forged input demo flag', as
     vi.unstubAllEnvs();
   }
 });
+
+it('keeps an explicit formal event node through current source, profile and model authorization', async () => {
+  await isolated(async (db) => {
+    await realReferences(db);
+    await importEvidence(db, ordinaryBatch());
+    const read = () =>
+      loadPersonData(db, 'test-evaluator', '2026-07-24T12:00:00.000Z');
+    const data = await read();
+    expect(data.events[0].evaluationNodeId).toBe('test-node');
+    const source = {
+      fragmentId: 'test-fragment',
+      originalVersionId: 'test-version',
+    };
+    expect(await sourceFromData(data, source)).toHaveProperty(
+      'status',
+      'success',
+    );
+    expect(await personFromData(data, 'test-person')).toHaveProperty(
+      'capabilityProfile.data.scores.length',
+      1,
+    );
+    const model = (snapshot: typeof data) =>
+      buildAuthorizedModelInput(async () => ({
+        context: snapshot.context,
+        sources: talentSources(snapshot),
+        records: [
+          {
+            id: 'formal-model-input',
+            subject: eventSubject(snapshot, snapshot.events[0]),
+            kind: 'evaluation',
+            fields: [
+              {
+                name: 'text',
+                kind: 'evaluation',
+                value: 'Synthetic observation',
+                subjects: [],
+                sources: [source],
+              },
+            ],
+          },
+        ],
+      }));
+    expect(await model(data)).toHaveProperty(
+      'items.0.fields.text',
+      'Synthetic observation',
+    );
+    await db
+      .update(evaluationRelations)
+      .set({ revokedAt: '2026-07-24T12:00:00.000Z' })
+      .where(eq(evaluationRelations.id, 'test-relation'));
+    const revoked = await read();
+    expect(await sourceFromData(revoked, source)).toHaveProperty(
+      'status',
+      'not_found',
+    );
+    expect(await personFromData(revoked, 'test-person')).toBeNull();
+    expect(await model(revoked)).toEqual({ items: [] });
+  });
+});
+it('rejects an explicit formal event node that does not contain its person without writing any evidence', async () => {
+  await isolated(async (db) => {
+    await realReferences(db);
+    await db
+      .insert(evaluationNodes)
+      .values({ id: 'other-node', kind: 'defense', name: '演示另一个节点' });
+    await db
+      .insert(evaluationNodeSubjects)
+      .values({ evaluationNodeId: 'other-node', personId: 'test-reviewer' });
+    const batch = ordinaryBatch();
+    batch.events[0].evaluationNodeId = 'other-node';
+    await expect(importEvidence(db, batch)).rejects.toThrow();
+    expect(await count(db, originals)).toBe(0);
+    expect(await count(db, events)).toBe(0);
+  });
+});
+
+it.each([false, true])(
+  'keeps unknown formal nodes restricted to the existing manager/HR policy in a mixed batch (%s)',
+  async (mixed) => {
+    await isolated(async (db) => {
+      await realReferences(db);
+      await db
+        .insert(accountBindings)
+        .values({ accountId: 'test-manager', personId: 'test-reviewer' });
+      await db.insert(grants).values({
+        id: 'test-manager-grant',
+        accountId: 'test-manager',
+        role: 'manager',
+        scope: 'company',
+        cohortId: null,
+        validFrom: '2026-01-01',
+      });
+      const batch = ordinaryBatch();
+      const unknown = {
+        ...batch.events[0],
+        id: 'test-unknown-event',
+        evaluationNodeId: null,
+      };
+      await importEvidence(db, {
+        ...batch,
+        events: mixed
+          ? [...batch.events, unknown]
+          : batch.events.map((row) => ({ ...row, evaluationNodeId: null })),
+        eventSources: mixed
+          ? [
+              ...batch.eventSources,
+              { ...batch.eventSources[0], eventId: unknown.id },
+            ]
+          : batch.eventSources,
+      });
+      const evaluator = await loadPersonData(
+        db,
+        'test-evaluator',
+        '2026-07-24T12:00:00.000Z',
+      );
+      const source = {
+        fragmentId: 'test-fragment',
+        originalVersionId: 'test-version',
+      };
+      expect(
+        evaluator.events.find(
+          (row) => row.id === (mixed ? unknown.id : 'test-event'),
+        )?.evaluationNodeId,
+      ).toBeNull();
+      if (mixed)
+        expect(
+          evaluator.events.find((row) => row.id === 'test-event')
+            ?.evaluationNodeId,
+        ).toBe('test-node');
+      expect(await sourceFromData(evaluator, source)).toHaveProperty(
+        'status',
+        'not_found',
+      );
+      const manager = await loadPersonData(
+        db,
+        'test-manager',
+        '2026-07-24T12:00:00.000Z',
+      );
+      expect(await sourceFromData(manager, source)).toHaveProperty(
+        'status',
+        'success',
+      );
+    });
+  },
+);
