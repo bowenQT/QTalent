@@ -18,7 +18,7 @@ import {
   evaluationWorkItems,
   completeEvaluationWorkItem,
   canWorkOnEvaluationItem,
-  assignedEvaluationHandlerIsCurrent,
+  assignedEvaluationRelationIsCurrent,
   EvaluationReassignmentError,
 } from '../modules/programs';
 import { projects, members } from '../modules/staffing';
@@ -517,13 +517,14 @@ async function execute(
               item.state !== 'completed' ||
               item.revision !== fact.completedRevision ||
               item.assignedRelationId !== fact.assignedRelationId ||
-              item.assignedEvaluatorId !== fact.assignedEvaluatorId
+              item.assignedEvaluatorId !== fact.assignedEvaluatorId ||
+              item.assignedEvaluatorId !== actorPersonId
             )
               throw new ConfirmationError(
                 'conflict',
                 'confirmation_task_changed',
               );
-            if (!assignedEvaluationHandlerIsCurrent(current.context, item))
+            if (!assignedEvaluationRelationIsCurrent(current.context, item))
               throw new ConfirmationError(
                 'forbidden',
                 'confirmation_task_permission_changed',

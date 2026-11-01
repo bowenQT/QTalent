@@ -800,3 +800,50 @@ it('confirms one event while separate event drafts await their duplicate decisio
     reason: 'duplicate_decision_required',
   });
 });
+
+it("does not substitute another current relation for the completed task's original bound relation", async () => {
+  const f = await native();
+  await db().transaction((tx) =>
+    insertEvaluationWorkItem(
+      tx,
+      {
+        id: f.id + '-task',
+        evaluationNodeId: f.node,
+        personId: f.person.one,
+        assignedRelationId: f.relationOne,
+        assignedEvaluatorId: f.person['rater-one'],
+        kind: 'confirmation',
+        resourceId: f.draft.draftId,
+      },
+      businessNow,
+    ),
+  );
+  const saved = await saveRecordDraft(db(), f.account.one, f.input, f.clock);
+  await db()
+    .update(evaluationRelations)
+    .set({ revokedAt: businessNow })
+    .where(eq(evaluationRelations.id, f.relationOne));
+  await db()
+    .insert(evaluationRelations)
+    .values({
+      id: f.id + '-replacement-relation',
+      evaluationNodeId: f.node,
+      personId: f.person.one,
+      evaluatorId: f.person['rater-one'],
+      kind: 'evaluator',
+      validFrom: businessNow,
+    });
+  const before = await snapshot();
+  await expect(
+    undoRecordSave(
+      db(),
+      f.account.one,
+      { operation_id: f.id + '-undo', saveId: saved.result.saveId },
+      f.clock,
+    ),
+  ).rejects.toMatchObject({
+    status: 'forbidden',
+    reason: 'confirmation_task_permission_changed',
+  });
+  expect(await snapshot()).toEqual(before);
+});
