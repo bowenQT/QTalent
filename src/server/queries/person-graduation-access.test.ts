@@ -47,11 +47,11 @@ describe('BOW-837 restricted graduation source access on main', () => {
     expect(profile).not.toBeNull();
     expect(profile?.timeline).toMatchObject({
       status: 'ready',
-      data: [{ id: 'statement-1' }],
+      data: [{ id: 'event-1', kind: 'key_event' }],
     });
     expect(profile?.capabilityProfile).toMatchObject({
       status: 'ready',
-      data: [{ id: 'event-1-grit' }, { id: 'event-1-prof' }],
+      data: { scores: [{ id: 'event-1-prof' }, { id: 'event-1-grit' }] },
     });
     expect(JSON.stringify(profile)).not.toContain('fragment-0');
     expect(JSON.stringify(profile)).not.toContain(restrictedText);
@@ -66,10 +66,20 @@ describe('BOW-837 restricted graduation source access on main', () => {
         status: 'success',
         source: { excerpt: restrictedText },
       });
-      expect((await personFromData(data, 'one'))?.timeline).toHaveProperty(
-        'data.length',
-        2,
-      );
+      const profile = await personFromData(data, 'one');
+      expect(profile?.timeline).toMatchObject({
+        status: 'ready',
+        data: [
+          {
+            id: 'demo-graduation',
+            kind: 'history',
+            category: 'restricted-evaluation',
+            scale: [['结营结论', restrictedText]],
+          },
+          { id: 'event-0', kind: 'key_event' },
+          { id: 'event-1', kind: 'key_event' },
+        ],
+      });
       expect(data.historical[0].scale).toEqual([['结营结论', restrictedText]]);
     },
   );
