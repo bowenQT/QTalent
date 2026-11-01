@@ -263,9 +263,10 @@ it('upgrades a genuinely pre-899 seeded database using only unique historical fa
     ).toBe(committedMigrationCount);
     // A changed old score must still fail preservation at exactly the same row count.
     const preserved = await legacyFingerprint(connection, before);
-    await connection.pool.query(
-      'UPDATE talent_confirmations SET value = CASE WHEN value = 5 THEN 4 ELSE value + 1 END WHERE id = (SELECT id FROM talent_confirmations LIMIT 1)',
+    const changed = await connection.pool.query(
+      'WITH replacement AS (SELECT c.id, a.id AS anchor_id, a.value FROM talent_confirmations AS c JOIN evaluation_anchors AS a ON a.dimension_id = c.dimension_id AND a.rule_version_id = c.rule_version_id AND a.value <> c.value WHERE c.value IS NOT NULL ORDER BY c.id, a.value LIMIT 1) UPDATE talent_confirmations AS c SET anchor_id = replacement.anchor_id, value = replacement.value FROM replacement WHERE c.id = replacement.id RETURNING c.id',
     );
+    expect(changed.rowCount).toBe(1);
     const altered = await legacyFingerprint(connection, before);
     expect(altered.talent_confirmations.count).toBe(
       preserved.talent_confirmations.count,
