@@ -24,7 +24,8 @@ export function EditableText({
   const ref = useRef<HTMLSpanElement>(null);
   const [focused, setFocused] = useState(false);
   const [edited, setEdited] = useState(false);
-  const showPlaceholder = editable && !focused && value === '' && !!placeholder;
+  // 原型保存后仍用灰字留着「补充情境」「补充影响」，空着的字段看得出来是空的。
+  const showPlaceholder = !focused && value === '' && !!placeholder;
   const shown = showPlaceholder ? placeholder : value;
   useLayoutEffect(() => {
     const element = ref.current;

@@ -5,7 +5,7 @@ import { Icon } from '@/components/ui/Icon';
 import { copy } from './copy';
 import type { PersonOption } from './types';
 
-/** 输入态：谁、原话、提示句、主按钮。附件入口由 attachmentSlot 接入（BOW-870）。 */
+/** 输入态：谁、原话、语音与附件入口、提示句、主按钮。附件入口由 attachmentSlot 接入（BOW-870），语音输入未接通。 */
 export function RecordInput({
   people,
   personId,
@@ -86,7 +86,28 @@ export function RecordInput({
           }}
         />
         <div className="n-eventin__bar">
-          {attachmentSlot}
+          {/* 按原型的位置留着；没接通时说明待接通，不假装能用。 */}
+          <button
+            className="n-btn n-btn--ghost n-btn--icon"
+            type="button"
+            id="ev-mic"
+            aria-disabled="true"
+            aria-label={copy.input.micPending}
+            title={copy.input.micPending}
+          >
+            <Icon name="mic" />
+          </button>
+          {attachmentSlot ?? (
+            <button
+              className="n-btn n-btn--ghost n-btn--icon"
+              type="button"
+              aria-disabled="true"
+              aria-label={copy.input.attachPending}
+              title={copy.input.attachPending}
+            >
+              <Icon name="clip" />
+            </button>
+          )}
           <span className="n-eventin__hint" id="ev-hint">
             {tooLong
               ? copy.input.tooLong(maxLength)

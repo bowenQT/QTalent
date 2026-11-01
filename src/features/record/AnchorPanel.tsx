@@ -2,7 +2,10 @@
 import { Badge } from '@/components/ui/Badge';
 import { copy } from './copy';
 import type { AnchorFocus } from './ScoreList';
-import type { AnchorMap, DimensionOption } from './types';
+import type { AnchorMap, AnchorSet, DimensionOption } from './types';
+
+/** 心性维度的锚点全公司一套，不随被记录人变；页面读取时一并给出。 */
+export type IdleAnchor = { dimensionId: string; set: AnchorSet };
 
 export type AnchorLoad =
   | { status: 'loading' }
@@ -17,23 +20,28 @@ export function AnchorPanel({
   focus,
   load,
   dimensions,
+  idle,
   onRetry,
 }: {
   focus: AnchorFocus | null;
   load: AnchorLoad;
   dimensions: readonly DimensionOption[];
+  /** 还没有分可看时（写原话、没有建议分）显示的一套，原型默认是内生动力。 */
+  idle?: IdleAnchor;
   onRetry: () => void;
 }) {
+  const dimensionId = focus ? focus.dimensionId : idle?.dimensionId;
   const dimensionName =
-    dimensions.find((d) => d.id === focus?.dimensionId)?.name ??
+    dimensions.find((d) => d.id === dimensionId)?.name ??
     copy.score.unknownDimension;
-  const set =
-    focus && load.status === 'ready'
+  const set = focus
+    ? load.status === 'ready'
       ? load.map[focus.personId]?.[focus.dimensionId]
-      : undefined;
+      : undefined
+    : idle?.set;
   return (
     <div className="n-anchor" id="anchor">
-      {focus && set ? (
+      {set ? (
         <>
           <b>{copy.anchor.title(dimensionName)}</b>{' '}
           <Badge style={{ marginLeft: 6 }}>{set.ruleVersion}</Badge>
@@ -47,7 +55,7 @@ export function AnchorPanel({
               <li
                 key={index}
                 data-v={index + 1}
-                className={focus.hit === index + 1 ? 'is-hit' : undefined}
+                className={focus?.hit === index + 1 ? 'is-hit' : undefined}
               >
                 <b>{index + 1}</b>
                 {text}

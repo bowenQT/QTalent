@@ -14,7 +14,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Icon } from '@/components/ui/Icon';
 import { State } from '@/components/ui/State';
 import { UNDO_MS, useToast } from '@/components/ui/Toast';
-import { AnchorPanel, type AnchorLoad } from './AnchorPanel';
+import { AnchorPanel, type AnchorLoad, type IdleAnchor } from './AnchorPanel';
 import {
   buildSaveInput,
   hasUnresolvedSelection,
@@ -65,6 +65,7 @@ import {
   type RecordJob,
 } from './types';
 import { useRecordJob, type ReadRecordJob } from './use-record-job';
+import './record.css';
 
 export const DEFAULT_MAX_LENGTH = 2000;
 const AUTO_START_MS = 300;
@@ -81,6 +82,8 @@ export type RecordPageProps = {
   dimensions: readonly DimensionOption[];
   actions: RecordActions;
   loadAnchors: LoadAnchors;
+  /** 还没有分可看时右栏显示的锚点（原型默认内生动力），由页面读取提供；缺省显示提示句。 */
+  idleAnchor?: IdleAnchor;
   entry?: RecordEntry;
   /** 演示数据：头部显示「演示」徽标。 */
   demo?: boolean;
@@ -872,9 +875,7 @@ function RecordFlow(props: RecordPageProps) {
                           id="ev-save"
                           disabled={phase === 'saving' || blocked}
                           aria-busy={phase === 'saving' || undefined}
-                          aria-describedby={
-                            pending > 0 ? 'save-notice' : undefined
-                          }
+                          aria-describedby="score-hint"
                           onClick={() => void save()}
                         >
                           <Icon name="check" />
@@ -891,11 +892,6 @@ function RecordFlow(props: RecordPageProps) {
                         >
                           {copy.actions.back}
                         </button>
-                        {pending > 0 ? (
-                          <span className="nt-muted" id="save-notice">
-                            {copy.hint.saveNotice}
-                          </span>
-                        ) : null}
                         <span className="n-eventin__hint" id="score-hint">
                           {blocked ? copy.selection.saveBlocked : hintText}
                         </span>
@@ -912,6 +908,7 @@ function RecordFlow(props: RecordPageProps) {
             focus={shownFocus}
             load={anchorLoad}
             dimensions={dimensions}
+            idle={props.idleAnchor}
             onRetry={() => setAnchorTry((n) => n + 1)}
           />
           <div className="n-card" style={{ padding: 'var(--s-4) var(--s-5)' }}>

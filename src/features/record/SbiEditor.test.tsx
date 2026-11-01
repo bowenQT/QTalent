@@ -61,15 +61,17 @@ describe('SbiEditor', () => {
     expect(behavior.textContent).toBe('改了一半');
   });
 
-  it('只读（已保存）：不可编辑，没有流光底和占位', () => {
+  it('只读（已保存）：不可编辑，没有流光底，空字段照原型留灰字', () => {
     render(<SbiEditor sbi={sbi} editable={false} onChange={() => undefined} />);
     const title = screen.getByRole('textbox', { name: copy.sbi.title });
     expect(title.getAttribute('contenteditable')).toBeNull();
     expect(title.getAttribute('aria-readonly')).toBe('true');
     expect(title.classList.contains('is-light')).toBe(false);
-    expect(
-      screen.getByRole('textbox', { name: copy.sbi.situation }).textContent,
-    ).toBe('');
+    const situation = screen.getByRole('textbox', {
+      name: copy.sbi.situation,
+    });
+    expect(situation.textContent).toBe(copy.sbi.situationPlaceholder);
+    expect(situation.getAttribute('data-empty')).toBe('1');
   });
 
   it('必填项空着时给出提示；服务端指出的问题按字段显示', () => {

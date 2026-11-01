@@ -6,6 +6,7 @@ import { ShellTitle } from '@/features/shell/ShellTitle';
 import { sampleServer } from './sample-actions';
 import {
   sampleAccount,
+  sampleAnchors,
   sampleDimensions,
   samplePeople,
   sampleProjects,
@@ -52,6 +53,7 @@ export function SampleRecord({
         actions={server.actions}
         readJob={server.readJob}
         loadAnchors={server.loadAnchors}
+        idleAnchor={{ dimensionId: 'mot', set: sampleAnchors('mot') }}
         entry={{ personId, handoff, jobId: jobId ?? undefined }}
         demo
         showExample

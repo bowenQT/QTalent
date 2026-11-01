@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CitationMarks } from './CitationMarks';
+import { InputQuotes, SourceMarks } from './CitationMarks';
 import { copy } from './copy';
 import { OrganizeHeader } from './OrganizeHeader';
 import { BannerNotice, FailurePanel } from './RecordNotices';
@@ -391,8 +391,40 @@ describe('BannerNotice 与 FailurePanel', () => {
   });
 });
 
-describe('CitationMarks', () => {
-  it('原话引用展开显示引文，来源引用展开时才读取原文', async () => {
+describe('InputQuotes / SourceMarks', () => {
+  const citations = [
+    { kind: 'input', quote: '独立完成', start: 5, end: 9 },
+    {
+      kind: 'source',
+      quote: '来源里的一句话',
+      reference: {
+        fragmentId: 'frag-1',
+        originalVersionId: 'ver-1',
+        location: { kind: 'document', paragraph: '第 2 段' },
+      },
+    },
+  ] as const;
+
+  it('原话引用照原型行内写出，点引文跳回原话', async () => {
+    const onJumpInput = vi.fn();
+    const view = render(
+      <span>
+        锚点 3
+        <InputQuotes citations={[...citations]} onJumpInput={onJumpInput} />
+      </span>,
+    );
+    expect(view.container.textContent).toBe(
+      `锚点 3${copy.cite.inline}「独立完成」`,
+    );
+    await userEvent.click(screen.getByRole('button', { name: '「独立完成」' }));
+    expect(onJumpInput).toHaveBeenCalledWith({
+      start: 5,
+      end: 9,
+      quote: '独立完成',
+    });
+  });
+
+  it('来源引用用角标，从 1 编号，展开时才读取原文', async () => {
     const loadSource = vi.fn().mockResolvedValue({
       status: 'success',
       source: {
@@ -407,41 +439,10 @@ describe('CitationMarks', () => {
         demo: true,
       },
     });
-    const onJumpInput = vi.fn();
-    render(
-      <CitationMarks
-        citations={[
-          { kind: 'input', quote: '独立完成', start: 5, end: 9 },
-          {
-            kind: 'source',
-            quote: '来源里的一句话',
-            reference: {
-              fragmentId: 'frag-1',
-              originalVersionId: 'ver-1',
-              location: { kind: 'document', paragraph: '第 2 段' },
-            },
-          },
-        ]}
-        loadSource={loadSource}
-        onJumpInput={onJumpInput}
-      />,
-    );
+    render(<SourceMarks citations={[...citations]} loadSource={loadSource} />);
+    expect(screen.queryByRole('button', { name: '「独立完成」' })).toBeNull();
     expect(loadSource).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole('button', { name: /^引用 1/ }));
-    expect(screen.getByText('「独立完成」')).toBeTruthy();
-    expect(
-      screen.getByText(copy.cite.inputLocation(5, 9), { exact: false }),
-    ).toBeTruthy();
-    await userEvent.click(
-      screen.getByRole('button', { name: copy.sbi.rawJump }),
-    );
-    expect(onJumpInput).toHaveBeenCalledWith({
-      start: 5,
-      end: 9,
-      quote: '独立完成',
-    });
-
-    await userEvent.hover(screen.getByRole('button', { name: /^引用 2/ }));
+    await userEvent.hover(screen.getByRole('button', { name: /^引用 1/ }));
     expect(await screen.findByText('来源里的一句话')).toBeTruthy();
     expect(loadSource).toHaveBeenCalledWith({
       fragmentId: 'frag-1',

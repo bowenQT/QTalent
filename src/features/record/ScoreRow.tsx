@@ -3,7 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
 import type { LoadSource } from '@/features/sources/SourceCite';
-import { CitationMarks } from './CitationMarks';
+import { InputQuotes, SourceMarks } from './CitationMarks';
 import { copy } from './copy';
 import type { QuoteRange } from './RawInput';
 import type { RecordScore } from './types';
@@ -115,12 +115,18 @@ export function ScoreRow(props: ScoreRowProps) {
             copy.score.confirmed
           )
         ) : (
-          copy.score.anchorNote(score.value)
+          // 确认前照原型写锚点和原话引用；确认后只写「已确认」，引文仍在「原话」里。
+          <span>
+            {copy.score.anchorNote(score.value)}
+            <InputQuotes
+              citations={score.citations}
+              onJumpInput={props.onJumpInput}
+            />
+          </span>
         )}
-        <CitationMarks
+        <SourceMarks
           citations={score.citations}
           loadSource={props.loadSource}
-          onJumpInput={props.onJumpInput}
         />
       </span>
       {reasonVisible ? (

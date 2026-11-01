@@ -16,6 +16,8 @@ export const copy = {
       '比如：孟逸尘今天主动把任务池同步给了全组，下午组员就接上了，分工比之前清楚多了。',
     placeholderPlain: '写下这次发生了什么：谁做了什么，带来了什么结果。',
     hint: '写原话就行，一整段也可以',
+    micPending: '语音输入待接通',
+    attachPending: '添加附件待接通',
     submit: '整理成关键事件',
     submitting: '提交中…',
     whoMissingLead: '这句话说的是谁？',
@@ -94,12 +96,9 @@ export const copy = {
     pending: (n: number) =>
       `文字可以直接改；还有 ${n} 项 AI 建议分，保存时一并确认`,
     allConfirmed: '分数都已由你确认',
-    saveNotice: '保存即确认以下各项分数',
   },
   cite: {
-    inputTitle: '原话',
-    inputLocation: (start: number, end: number) => `第 ${start + 1}–${end} 字`,
-    mark: '原话引用',
+    inline: ' · 引用',
   },
   anchor: {
     title: (dimension: string) => `${dimension} · 1–5 分锚点`,

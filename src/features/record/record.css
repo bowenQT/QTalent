@@ -1,0 +1,21 @@
+/*
+ * 记一件事的功能级样式（全局样式是共享文件，并入前留在这里）。
+ * 原型里 IP 形象本身就是 .n-event__ip；工程多包了一层，行盒会把头部撑高 5px。
+ */
+.n-event__ip {
+  display: flex;
+}
+/* 原话引文照原型是说明里的普通文字，可以点；只在悬停和聚焦时提示可跳转。 */
+.n-score__quote {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.n-score__quote:hover {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

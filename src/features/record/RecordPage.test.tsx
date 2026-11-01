@@ -189,7 +189,17 @@ describe('输入与整理', () => {
     expect(rows[1]?.getAttribute('data-state')).toBe('unknown');
     expect(screen.getByText(copy.score.insufficient)).toBeTruthy();
     expect(screen.getByText(copy.hint.pending(1))).toBeTruthy();
-    expect(screen.getByText(copy.hint.saveNotice)).toBeTruthy();
+    // 保存按钮的说明就是提示句：保存时一并确认建议分
+    const described = screen
+      .getByRole('button', { name: copy.actions.save })
+      .getAttribute('aria-describedby');
+    expect(document.getElementById(described ?? '')?.textContent).toBe(
+      copy.hint.pending(1),
+    );
+    // 确认前照原型写出锚点和原话引用
+    expect(rows[0]?.querySelector('.n-score__note')?.textContent).toBe(
+      `${copy.score.anchorNote(3)}${copy.cite.inline}「独立完成」`,
+    );
     // 没有总分、百分比、排名
     expect(view.container.textContent).not.toMatch(/总分|%|排名/);
     // 保存前没有调用保存
@@ -1182,10 +1192,7 @@ describe('锚点面板与引用', () => {
     ) as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(details.querySelector('mark')?.textContent).toBe('独立完成');
-    await userEvent.click(screen.getByRole('button', { name: /^引用 1/ }));
-    await userEvent.click(
-      screen.getByRole('button', { name: copy.sbi.rawJump }),
-    );
+    await userEvent.click(screen.getByRole('button', { name: '「独立完成」' }));
     expect(details.open).toBe(true);
     expect(details.querySelector('mark')?.getAttribute('data-active')).toBe(
       '1',

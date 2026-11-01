@@ -42,7 +42,7 @@ function setup(over: Partial<ScoreRowProps> = {}) {
 }
 
 describe('建议分', () => {
-  it('点亮建议值，始终是 AI 建议（未确认），note 写锚点和引用', () => {
+  it('点亮建议值，始终是 AI 建议（未确认），note 照原型写锚点和原话引用', () => {
     const { view } = setup();
     expect(
       view.container.querySelector('.n-score')?.getAttribute('data-state'),
@@ -54,8 +54,10 @@ describe('建议分', () => {
     expect(dots.every((d) => d.getAttribute('aria-checked') === 'false')).toBe(
       true,
     );
-    expect(screen.getByText(copy.score.anchorNote(3))).toBeTruthy();
-    expect(screen.getByRole('button', { name: /引用 1/ })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: '「独立完成」' }).closest('span')
+        ?.parentElement?.textContent,
+    ).toBe(`${copy.score.anchorNote(3)}${copy.cite.inline}「独立完成」`);
     expect(screen.getByRole('radiogroup', { name: '专业度分数' })).toBeTruthy();
   });
 
@@ -152,10 +154,9 @@ describe('建议分', () => {
 
   it('跳转到原话的引用会回报引用范围', async () => {
     const { props } = setup();
-    await userEvent.click(screen.getByRole('button', { name: /引用 1/ }));
-    await userEvent.click(
-      screen.getByRole('button', { name: copy.sbi.rawJump }),
-    );
+    const quote = screen.getByRole('button', { name: '「独立完成」' });
+    expect(quote.getAttribute('title')).toBe(copy.sbi.rawJump);
+    await userEvent.click(quote);
     expect(props.onJumpInput).toHaveBeenCalledWith({
       start: 5,
       end: 9,
