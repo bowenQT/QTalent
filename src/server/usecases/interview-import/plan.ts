@@ -195,11 +195,6 @@ export function planInterviewImport(
       resume: null,
     };
   }
-  if (
-    row.import.state === 'withdrawn' &&
-    facts.confirmedForRowRevision !== row.revision
-  )
-    return notReady('candidate_confirmation_stale');
   if (facts.parsed.status === 'rejected') return notReady('parser_rejected');
   const review = facts.parsed.reviews[facts.reviewIndex];
   if (
@@ -265,19 +260,67 @@ export function planInterviewImport(
   }
   const observed = facts.observedIdentity;
   const observedName = observed?.name?.trim() ? observed.name : null;
+  // Match recruitment facts before narrowing by an HR-selected identity. A
+  // selected ID must not make an ambiguous name/job/time triple look unique.
+  const identityMatches = facts.candidates.filter(
+    (candidate) =>
+      observedName !== null &&
+      !!observed?.positionCode?.trim() &&
+      candidate.name === observedName &&
+      candidate.positionCode === observed.positionCode &&
+      candidate.interviewTime === interviewTime,
+  );
+  const uniqueCandidate =
+    identityMatches.length === 1 ? identityMatches[0] : null;
+  if (
+    uniqueCandidate &&
+    uniqueCandidate.status !== 'hired' &&
+    facts.candidateResolution === null &&
+    facts.resolution === null
+  ) {
+    // A fresh row decision can supersede an unresolved identity suggestion;
+    // submitted review commands still use the committed-receipt checks below.
+    for (const [pending, kind, name] of [
+      [facts.pendingCandidate, 'unknown_interview_candidate', observedName],
+      [
+        facts.pendingInterviewer,
+        'unknown_interviewer',
+        review.metadata.interviewer!.value,
+      ],
+    ] as const) {
+      if (pending === null) continue;
+      const checked = materialReviewItemSchema.safeParse(pending);
+      if (
+        !checked.success ||
+        checked.data.kind !== kind ||
+        !sameInterviewReview(scope, checked.data, kind, name)
+      )
+        return notReady('resume_conflict');
+    }
+    if (
+      uniqueCandidate.personId !== null &&
+      !canManageNodeAssignments(
+        context,
+        facts.evaluationNodeId,
+        uniqueCandidate.personId,
+      )
+    )
+      return { status: 'forbidden' };
+    // No profile, resume job, person creation or original deletion is proposed.
+    // The next invocation reloads current facts; this is not a permanent tombstone.
+    return { status: 'skipped', reason: 'not_hired' };
+  }
+  if (
+    row.import.state === 'withdrawn' &&
+    facts.confirmedForRowRevision !== row.revision
+  )
+    return notReady('candidate_confirmation_stale');
   let candidateResumed = false;
   let selectedPersonId: string | null = null;
   function candidatePending(): InterviewImportPlan {
     if (row.import.state === 'withdrawn')
       return notReady('review_revision_unavailable');
-    const matching = facts.candidates.filter(
-      (c) =>
-        observedName !== null &&
-        !!observed?.positionCode?.trim() &&
-        c.name === observedName &&
-        c.positionCode === observed.positionCode &&
-        c.interviewTime === interviewTime,
-    );
+    const matching = identityMatches;
     const visible = matching.filter(
       (c) =>
         c.personId !== null &&
@@ -392,8 +435,9 @@ export function planInterviewImport(
       ? candidatePending()
       : notReady('candidate_identity_missing');
   }
-  const matches = facts.candidates.filter(
+  const matches = identityMatches.filter(
     (candidate) =>
+      identityMatches.length === 1 &&
       facts.confirmedForRowRevision === row.revision &&
       candidate.candidateId === facts.confirmedCandidateId &&
       candidate.name === observedName &&
