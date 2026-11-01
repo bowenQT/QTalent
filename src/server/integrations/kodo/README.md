@@ -37,3 +37,20 @@ BOW-857 提交阶段调用 `takeTranscriptionSourceUrl(source,{now?,requiredRema
 协议依据：[上传策略](https://developer-doc.qiniu.com/products/kodo/development-guidelines/security/1-put-policy)、[v2 初始化](https://developer.qiniu.com/kodo/6365/initialize-multipartupload)、[上传片](https://developer.qiniu.com/kodo/6366/upload-part)、[列举片](https://developer.qiniu.com/kodo/6858/listparts)、[完成对象](https://developer.qiniu.com/kodo/6368/complete-multipart-upload)、[QBox 管理签名](https://developer.qiniu.com/kodo/6671/historical-document-management-certificate)、[官方 JS SDK 上传](https://github.com/qiniu/js-sdk/blob/master/src/upload/resume.ts)。
 
 S3 依据：[七牛访问域名与寻址](https://developer.qiniu.com/kodo/4088/s3-access-domainname)、[七牛 S3 鉴权](https://developer.qiniu.com/kodo/4093/s3-authentication)、[SigV4 查询签名与官方测试向量](https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)。私有性仅通过 [官方只读 bucketInfo 接口](https://github.com/qiniu/go-sdk/blob/master/storagev2/apis/api_get_bucket_info.go)核对，不调整 bucket 权限。
+
+## S3 读取错误分类（856 后续缺陷）
+
+原 S3 有效读取、Range、匿名与自然过期验收继续有效，见 [#48/6554197593](https://github.com/bowenQT/QTalent/issues/48#issuecomment-6554197593)。其后 873 接线发现 HTTP400 被统一记为 `invalid_input`；本次只修 Kodo 的 S3 GET 非成功路径，调用方消费现有 `KodoError.code/status`，无需解析供应商 XML 或 Message。
+
+| S3 GET 的真实状态与明确 Code                    | 现有安全错误                  |
+| ----------------------------------------------- | ----------------------------- |
+| HTTP400，`ExpiredToken`                         | `expired`，status400          |
+| HTTP400，`NotSupportAnonymous`                  | `unauthorized`，status400     |
+| HTTP400，其他/缺失 Code，包括 `InvalidArgument` | 原 `invalid_input`，status400 |
+| 其他非成功 HTTP 状态                            | 原 HTTP 映射，不以 XML 覆盖   |
+
+允许列表只包含本卡已审真实400样本中的两种 Code。解析仅接受完整、无歧义的 S3 scalar `Error` 信封；不展开实体、不从 Message 猜测。保留的错误体最多8KiB，先按声明长度拒绝明显超限，流式累计也检查实际长度；超限即取消，不相信含合法Code的截断前缀。重复字段、非预期/嵌套标记、畸形实体、非法UTF-8或读取失败仍按原HTTP分类。该保守识别器不作为通用XML解析器；不支持的形式继续失败关闭。
+
+错误体读取服从同一请求的取消/超时，清理reader锁并请求取消流；取消hook自身的异常不进错误，也不拖住有界请求。最终错误只含既有安全code/status，不新增S3Code、原文、Message、key、URL或cause。成功200/206仍走原有字节与Range校验，正文看似XML错误也作为正常数据。原生上传、stat和分片API保持原有HTTP映射，不参与此解析。
+
+本次验证完全离线：真实样本只引用已审Code/status，其余信封字段从零合成，不复用原始供应商错误体。没有重新读取凭证或访问供应商；原S3签名算法、TTL、域名、TLS和桶权限均不改。
