@@ -21,6 +21,18 @@
 
 `batch-rules.integration.test.ts` 使用真实PG、官方已提交迁移、独立随机测试库与实际922 reader；缺测试配置或迁移直接失败，不skip、fake或手写DDL。重检查必须取得heavy槽，没取得就未运行。定向单测和纯回执投影不算PG、原生job、生产E2E或浏览器验证。
 
+## 本轮真实组件运行
+
+受检实现 `a2e2ba00727845a4c3269d51a997e945a60be048`：六目标文件221/221，加入fixtures后六个私有实现行96.30%、分支97.53%。官方main迁移和实际922 reader的6项真PG全部通过，reader行/分支100%；未执行完整check或生产E2E。
+
+独立清洁组合 `3b0b72064e5c14fc21b3ca690bffa78fd4acbebb` = 上述实现 + 846固定 `1f733d49c5ffe9cfa877563ffd251e973922b0ae`。受控手动脚本导入实际源码，使用899原生授权loader、实际入库的三份化名原文、922实际取版和846公开writer；三草稿逐字段存取、原日期与真实双版本、重复insert拒绝及事务回滚通过。测试库均已删除。这里不代表生产请求loader/job/去重账本接通、人工确认或浏览器E2E通过。
+
+一次真实模型运行：实际Modelink factory，`google/gemini-3.8-flash`，`record-batch-arrange.v2`，maxAttempts=1；输入仅三份明确已授权化名样例与真实读取的合成规则，业务取版时刻来自实际 `createClock('local')`，原日期仍2026-09-03。请求返回 **invalid_response**，21.537秒，1次请求/1次尝试，890输入和2497输出token。精确非秘密请求标识只留受控记录；未保存模型结果、未生成可接受草稿，没有成功后的原文/归属/版本校验通过声明。**授权预算1/1已用完，不重发。**
+
+包结构校验后才会记录usage，因此当前失败范围为正文JSON解析或具体业务Zod校验；未留原始响应，不能认定具体错误字段。prompt尚未枚举完整输出字段可能影响结构一致性，只是待证假设。若要进一步真实诊断，另需明确新请求预算及安全结构诊断方案；不在本轮猜修共享843客户端或再发请求。
+
+当前head CI的实际受检实现a2e2ba0运行41307493598失败于旧846消费的5项类型诊断；E2E/visual跳过。后续文档提交不改受检实现字节，不把上述组件通过写成全仓通过。
+
 ## 原生接线仍需完成
 
 846真实入口是 `storeTrustedRecordDraftBatch(tx,{draftSet,originalInput,occurredOn,modelVersion,createdByAccountId,createdAt})`，初次insert；旧185的 `persistRecordDraft` 不是这个入口。固定846输入 `1f733d49c5ffe9cfa877563ffd251e973922b0ae` 可用于明确组合验证，不能称已在main。需要追加版本CAS时由846提供真实API，不复制旧writer。
