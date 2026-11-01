@@ -1517,13 +1517,14 @@
   // 退回：返回撤销函数。撤销只生效一次；退回之后起草人改过、重新提交或删掉了草稿，都保持现状并返回 false
   store.returnDraft = (kind, why, line) => {
     const d = store.ruleOpen(kind, line); if (!d || !isCeo() || d.state !== 'pending') return null;
-    const sent = NT.clone(d);
-    Object.assign(d, { state: 'draft', returned: { why, by: store.me().id, at: NT.TODAY } });
+    const sent = NT.clone(d), returned = { why, by: store.me().id, at: NT.TODAY };
+    Object.assign(d, { state: 'draft', returned });
     const after = JSON.stringify(d);
     store.save();
     let undone = false;
     return () => {
-      if (undone || !isCeo() || store.ruleOpen(kind, line) !== d || JSON.stringify(d) !== after) return false;
+      // 撤销必须对应同一次退回：退回记录还是这一次写入的那个对象，草稿内容也没变
+      if (undone || !isCeo() || store.ruleOpen(kind, line) !== d || d.returned !== returned || JSON.stringify(d) !== after) return false;
       delete d.returned; Object.assign(d, sent);
       undone = true; store.save(); return true;
     };
