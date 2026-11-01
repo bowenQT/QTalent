@@ -1,0 +1,67 @@
+/*
+ * Rules added to prototype/y/assets/niu-components.css by BOW-924 (#259, bdbcf71),
+ * copied verbatim. The shared stylesheet port belongs to X1 (#248 shared-file
+ * request); delete this file once components.css carries these rules.
+ */
+.n-jstate[data-s='mid'] {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--ink-2);
+}
+.n-jstate[data-s='mid']::before {
+  content: '–';
+}
+/* 入营选拔：三项评审的原量表、组队作品；评价人视角里没有评价关系的那一段用锁和斜纹底，写明原因 */
+.n-jcase__items {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.n-jcase__team {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-radius: var(--r-chip);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.n-jcase__deny {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+  margin-top: var(--s-2);
+  padding: var(--s-2);
+  border-radius: 6px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--sheet) 0 6px,
+    var(--sheet-sunk) 6px 7px
+  );
+  color: var(--ink-2);
+}
+.n-jcase__deny b {
+  display: block;
+  color: var(--ink);
+}
+.n-jcase__deny svg {
+  margin-top: 3px;
+  color: var(--ink-3);
+}
+.n-impact__basis {
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: var(--t-sm);
+}
+.n-impact__basis li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.n-impact__basis svg {
+  color: var(--ink-3);
+  flex: none;
+}
