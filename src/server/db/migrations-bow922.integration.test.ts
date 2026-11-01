@@ -199,9 +199,9 @@ it('upgrades canonical old seeded facts through 899, classifies only the two kno
       .from(ruleVersions)
       .orderBy(ruleVersions.id);
     await migrate(connection.db, { migrationsFolder: folder });
-    expect(
-      await fingerprintMigrationFacts(connection, Object.keys(before), false),
-    ).toEqual(before);
+    expect(await fingerprintMigrationFacts(connection, before, false)).toEqual(
+      before,
+    );
     expect(
       await connection.db.select().from(ruleVersions).orderBy(ruleVersions.id),
     ).toEqual(versions);
