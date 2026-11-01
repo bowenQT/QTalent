@@ -9,6 +9,7 @@ import {
   stabilize,
 } from './compare';
 import {
+  personAppOnly,
   personFacts,
   personMask,
   personOmit,
@@ -71,6 +72,11 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
             : [...personOmit, 'div:has(> #summary)', '#summary'],
           replace: summary ? personReplace : [],
         });
+        await page.evaluate((queries) => {
+          for (const query of queries)
+            for (const node of document.querySelectorAll<HTMLElement>(query))
+              node.style.setProperty('display', 'none', 'important');
+        }, personAppOnly);
         await stabilize(prototype);
         await stabilize(page);
         await matchingMasks(prototype, page, personMask);

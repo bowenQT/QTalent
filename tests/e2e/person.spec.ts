@@ -20,7 +20,23 @@ const MENTOR_FORBIDDEN = [
   '专业骨干',
   '待观察',
   '导师视角已隐藏',
+  // 结营评审只给与结营节点有当前评价关系的人；导师所带的学员也一样（#284）。
+  '结营评审',
+  '导师留用建议',
+  '结营结论',
+  // 节点结论、北森面评属于管理者与 HR 变体，导师这里连「待接入」也没有。
+  '待接入',
+  '节点结论',
+  '北森面评',
 ];
+// 管理者与 HR 变体里，读取还没接通的三类记录（BOW-906、902、904）。
+const PENDING = ['北森面评 · 待接入', '节点结论 · 待接入', '管理观察 · 待接入'];
+
+async function expectPending(page: Page) {
+  await expect(
+    page.getByRole('list', { name: '待接入的记录' }).getByRole('listitem'),
+  ).toHaveText(PENDING);
+}
 
 async function prototypeName(id: string) {
   const server = await startPrototypeServer();
@@ -61,6 +77,7 @@ test('manager: profile blocks, citations, timeline and source read refusals', as
   await expect(page.locator('.n-miniquad')).toHaveCount(1);
   await expect(page.locator('#spectrum')).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/总分|排名|%/);
+  await expectPending(page);
 
   // 悬停展开原文：读到的摘录出现在浮层里；演示基线来源带说明与「演示」。
   const { mark, request } = await openFirstCite(page);
@@ -152,6 +169,13 @@ test('hr: reference position is visible for a cohort member', async ({
   await expect(page.getByText('能力象限', { exact: true })).toBeVisible();
   await expect(page.getByText('参考位置', { exact: true })).toBeVisible();
   await expect(page.locator('.n-miniquad')).toHaveCount(1);
+  // 结营评审按管理受限的历史资料列出，保留原量表，不换算成维度分。
+  const review = page.locator('.n-tl__item', { hasText: '结营评审' });
+  await expect(review).toHaveCount(1);
+  await expect(review).toContainText('管理受限');
+  await expect(review.locator('.n-scale')).toContainText('能力等级');
+  await expect(review.locator('.n-score')).toHaveCount(0);
+  await expectPending(page);
 });
 
 test('mentor: no quadrant, change or management content in the page or the response', async ({

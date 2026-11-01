@@ -234,6 +234,20 @@ describe('timeline', () => {
     expect(history.querySelector('.n-tl__dot.is-hist')).toBeTruthy();
   });
 
+  it('marks a graduation review as restricted like performance history', () => {
+    const data = structuredClone(manager);
+    if (data.timeline.status !== 'ready') throw new Error('ready timeline');
+    data.timeline.data = data.timeline.data.map((entry) =>
+      entry.id === 'test-history-performance'
+        ? { ...entry, category: 'restricted-evaluation' }
+        : entry,
+    );
+    const { container } = show(data);
+    const review = container.querySelector('#ev-test-history-performance')!;
+    expect(review.textContent).toContain('管理受限');
+    expect(review.querySelector('.n-tl__note')).toBeNull();
+  });
+
   it('shows ordinary history and self reports with their place and source', () => {
     const { container } = show(mentor);
     const history = container.querySelector('#ev-test-history-evaluation')!;
@@ -306,28 +320,55 @@ describe('projects', () => {
 });
 
 describe('OriginalScale', () => {
-  it('keeps the original items and says it is not a dimension score', () => {
-    render(
+  it('keeps the original items apart from dimension scores', () => {
+    const { container } = render(
       <OriginalScale
-        scaleName="面试评价表"
+        separate
         items={[
           ['沟通', 'B+'],
-          ['技术深度', '良好'],
+          ['管理能力', '非管理岗免评'],
         ]}
       />,
     );
-    const group = screen.getByRole('group', {
-      name: '面试评价表原量表，不是维度分',
-    });
-    expect(group.querySelector('.n-scale')?.textContent).toBe(
-      '沟通 B+技术深度 良好',
+    const scale = container.querySelector('.n-scale')!;
+    expect(scale.textContent).toBe(
+      '原量表 · 单独保存沟通 B+管理能力 · 非管理岗免评',
     );
-    expect(group.querySelector('.n-score')).toBeNull();
-    expect(group.textContent).toContain('不是维度分');
+    expect(scale.querySelector('.n-scale__tag')?.textContent).toBe(
+      '原量表 · 单独保存',
+    );
+    expect(scale.querySelector('.is-na')?.textContent).toBe(
+      '管理能力 · 非管理岗免评',
+    );
+    expect(container.querySelector('.n-score')).toBeNull();
+    expect(container.textContent).not.toMatch(/不是维度分|不适用|认不出/);
+  });
+  it('leaves the tag out unless the scale is marked separate', () => {
+    const { container } = render(<OriginalScale items={[['沟通', 'B+']]} />);
+    expect(container.querySelector('.n-scale__tag')).toBeNull();
+    expect(container.querySelector('.is-na')).toBeNull();
   });
   it('refuses an empty scale', () => {
-    expect(() =>
-      render(<OriginalScale scaleName="面试" items={[]} />),
-    ).toThrow();
+    expect(() => render(<OriginalScale items={[]} />)).toThrow();
+  });
+});
+
+describe('records waiting for their read', () => {
+  it.each([
+    ['manager', manager],
+    ['hr', hr],
+  ] as const)('lists them for the %s variant', (_, data) => {
+    show(data);
+    const list = screen.getByRole('list', { name: '待接入的记录' });
+    expect(
+      within(list)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['北森面评 · 待接入', '节点结论 · 待接入', '管理观察 · 待接入']);
+  });
+  it('shows none of them to the mentor', () => {
+    const { container } = show(mentor);
+    expect(screen.queryByRole('list', { name: '待接入的记录' })).toBeNull();
+    expect(container.textContent).not.toMatch(/待接入|节点结论|北森面评/);
   });
 });

@@ -1,0 +1,16 @@
+/*
+ * Original-scale chips added to prototype Y by BOW-898 (prototype/y/assets/
+ * niu-components.css, .n-scale__tag and .n-scale span.is-na). The global stylesheet
+ * is shared, so the two rules live here until it is synced.
+ */
+.tag {
+  background: var(--sheet-sunk);
+  box-shadow: none !important;
+  color: var(--ink-2) !important;
+  font-weight: 600;
+}
+
+.exempt {
+  color: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--line) !important;
+}

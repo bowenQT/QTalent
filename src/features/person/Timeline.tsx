@@ -6,6 +6,7 @@ import { Src } from '@/components/ui/Src';
 import { formatLocation } from '@/features/sources/source-format';
 import { SourceCite, type LoadSource } from '@/features/sources/SourceCite';
 import { BlockState } from './BlockState';
+import { OriginalScale } from './OriginalScale';
 import { PersonEventCard } from './PersonEventCard';
 import {
   monthDay,
@@ -66,8 +67,11 @@ function Entry({
       : entry.kind === 'self_report'
         ? ' is-self'
         : '';
+  // 绩效类历史资料和结营评审（#284 的受限评价类别）都按管理受限列出。
   const restricted =
-    entry.kind === 'history' && entry.category === 'performance';
+    entry.kind === 'history' &&
+    (entry.category === 'performance' ||
+      entry.category === 'restricted-evaluation');
   const cite = (
     <SourceCite source={entry.sources[0]} index={1} loadSource={loadSource} />
   );
@@ -133,13 +137,7 @@ function Entry({
         </div>
         {entry.kind === 'history' ? (
           <>
-            <div className="n-scale">
-              {entry.scale.map(([key, value], index) => (
-                <span key={index}>
-                  {key} {value}
-                </span>
-              ))}
-            </div>
+            <OriginalScale items={entry.scale} />
             {restricted ? null : (
               <div className="n-tl__note">
                 保留原量表，AI 打分时可以引用其中的文字评价。
@@ -164,10 +162,13 @@ function Entry({
 export function Timeline({
   timeline,
   asOf,
+  pending = [],
   loadSource,
 }: {
   timeline: Person['timeline'];
   asOf: string;
+  /** 这个视角能看、但读取还没接通的条目类别，写成「待接入」，不当作没有记录。 */
+  pending?: readonly string[];
   loadSource: LoadSource;
 }) {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
@@ -257,6 +258,25 @@ export function Timeline({
       ) : (
         <BlockState block={timeline} empty="记录后的事件会出现在这里" />
       )}
+      {pending.length ? (
+        <ul
+          className="nt-row"
+          aria-label="待接入的记录"
+          style={{
+            marginTop: 'var(--s-3)',
+            listStyle: 'none',
+            padding: 0,
+          }}
+        >
+          {pending.map((label) => (
+            <li key={label}>
+              <Badge tone="unknown" icon="dash">
+                {label} · 待接入
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </article>
   );
 }

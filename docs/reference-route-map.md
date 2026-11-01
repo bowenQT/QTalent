@@ -22,7 +22,7 @@
 | --------------------------------- | --------------------------------- | ----------------------------------- | -------------------------------------------- | -------------- |
 | `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
-| `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
+| `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 档案主体已接真实读取（BOW-840，见下文）；北森面评、节点结论、管理观察待接入 |
 | `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
@@ -194,6 +194,47 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 - Y 的工作台命名、排序和角色边界优先：中文拼音排序、系统管理员整页拒绝、无隐藏数量；旧清单不恢复版本 X 的导航或管理者处理型首页。
 
 读取适配不补缺失业务事实：`level=null`、`jobTitle` 沿既有「职位未接入」占位、组织路径当前单级；参与人角色/本人角色省略；人工结论缺形成日期时 `unknown`，不拿事件日冒充；`recordedByName=null`，不借事件记录人充当原件记录人；维度暂按组和 id 排列，等待目录顺序。R2.3 待确认 AI 事件排除、R4.1 显式入库类别与团队记录者正向集合、R0.1 页面包络/真实 UI、R3 工作台活动等仍由 834/837/838 与实际消费者完成，不以本片契约测试或形状适配当成整链验收。
+
+## BOW-840 人员档案
+
+路由 `/person?id=…`（`src/app/(desk)/person/`），组件在 `src/features/person/`，引用角标绑定层在 `src/features/sources/`。契约取 main 上 BOW-836 的最终版本，读取用 BOW-837 的 `readPersonForCurrentUser`（含 BOW-899 节点授权与 #284 结营评审的受限类别）。页面只按服务端给的视角变体渲染，不在前端判断权限。来源读取暂用路由内的只读 Server Action `read-source.ts`，`server/actions/sources.ts` 提供后替换。
+
+### 不渲染与截图处理
+
+选择器与处理方式在 `tests/visual/person-regions.ts`，取消时同步删除。
+
+| 区块                                         | 选择器                                                                                      | 处理                           | 原因                                                                 | 取消条件               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------- | ---------------------- |
+| 头部动作                                     | `.nt-head__acts`                                                                            | omit                           | 记一件事、关注、推荐、重点跟踪、上传材料、打印档案的路由与契约未上线 | 对应路由与契约上线     |
+| 为什么值得关注                               | `#why`                                                                                      | omit                           | 值得关注留在原型演示                                                 | 值得关注进入工程       |
+| 判断变化与档案版本条                         | `#judgechg`                                                                                 | omit                           | `versionsAndChanges: not_connected`                                  | 盘点冻结接入           |
+| 发展方向、重点跟踪、活跃度与安排、值得聊一聊 | `#dirwrap`、`[data-trackwrap]`、`article:has(#pachanges)`、`#sigwrap`                       | omit                           | 无契约字段                                                           | 对应契约上线           |
+| 本人纠错                                     | `article:has([data-corr])`                                                                  | omit                           | 纠错链路不在 P0                                                      | 纠错链路上线           |
+| 摘要的采纳 / 改写 / 删去、补上时间           | `#sum-acts`、`[data-date]`                                                                  | omit                           | 写入不在范围                                                         | 写入链路上线           |
+| 正式位置行、重新校准提示与保持记录           | `.nt-dl > dt/dd:first-of-type`、`.nt-dl ~ .n-notice`、`.nt-dl ~ .nt-caption:has(.ink-hand)` | omit                           | `calibrationHistory: not_connected`                                  | 盘点冻结接入           |
+| 时间线变化条目                               | `li:has(.n-tl__dot.is-change)`                                                              | omit                           | 同判断变化                                                           | 盘点冻结接入           |
+| 事件卡标签行                                 | `.n-tags`                                                                                   | omit                           | P0 无标签模型                                                        | 标签模型接入           |
+| 导师时间线隐藏提示                           | `#timeline > .n-lock`                                                                       | omit                           | 不返回隐藏计数                                                       | 长期差异               |
+| 摘要区                                       | `#summary`                                                                                  | replace；工程侧没有摘要时 omit | 内容由后端决定                                                       | 摘要内容与原型对齐     |
+| 小象限                                       | `.n-miniquad`                                                                               | mask                           | 校准轨迹未接入，参考点画在象限中心                                   | 校准接入且点位规则对齐 |
+| 待接入的记录 | `#timeline > ul[aria-label="待接入的记录"]` | 工程侧隐藏 | 原型没有这一行，工程侧如实列出读取还没接通的三类记录 | 三类记录都接通 |
+
+### 待接入的记录
+
+管理者与 HR 变体的时间线末尾列出「北森面评 · 待接入」「节点结论 · 待接入」「管理观察 · 待接入」三项，导师变体没有。契约没有这三类的字段，前端不自定接口；对应读取接通后，从 `Person.tsx` 的 `MANAGEMENT_PENDING` 删掉一项，并按原型 Y（#250）补条目：
+
+| 类别                 | 依赖            | 原型样式                                                                                       |
+| -------------------- | --------------- | ---------------------------------------------------------------------------------------------- |
+| 北森面评（历史评价） | BOW-906         | 原量表前加「原量表 · 单独保存」标签（`OriginalScale` 的 `separate`）；导入人与原评价人分开署名 |
+| 节点结论             | BOW-902（#275） | 时间线单独一条「节点结论 · 类型」，署名确认人、日期、第几版、查看依据                          |
+| 管理观察             | BOW-904（#274） | 按权限显示，写明谁、何时，不出分                                                               |
+
+原量表里的「非管理岗免评」按原型标为 `is-na`，写成「管理能力 · 非管理岗免评」。原型 #250 新增的 `.n-scale__tag`、`.n-scale span.is-na` 两条样式还没同步进全局样式，暂放在 `src/features/person/original-scale.module.css`；`prototype-reference.json` 的参照提交仍早于 #250，截图对比用的原型也还没有这些样式。
+
+### 与原型的已知差异
+
+- 前端：事件卡项目徽标写「项目：」（契约不区分课题与项目）；项目名称不做链接；单一来源的关键事件不写来源名称（时间线条目没有来源标题）；自述与历史资料在位置后加原文角标；某个分的出处与事件出处不同时，分数行另画角标；受限历史资料日期写 `MM-DD`（原型写半年度）；能力谱展开超过 6 条时的提示沿用组件文案。
+- 数据（BOW-837 / 834）：`jobTitle` 为占位「职位未接入」、`level` 为空、`teamPath` 只有单级；导师名单、项目顺序、维度顺序与原型不同。截图比较在这些修正后才有意义。
 
 ## BOW-844 记事与评分复核契约
 

@@ -25,6 +25,10 @@ export const personOmit = [
   '#timeline > .n-lock',
 ] as const;
 export const personReplace = ['#summary'] as const;
+/** 只在工程侧出现、原型没有的版面（待接入的记录），比较前在工程侧隐藏。 */
+export const personAppOnly = [
+  '#timeline > ul[aria-label="待接入的记录"]',
+] as const;
 export const personMask = ['.n-miniquad'] as const;
 
 /** 数据相等闸：像素比较前先比这些文字，不相等就报数据差异，不再比截图。 */
