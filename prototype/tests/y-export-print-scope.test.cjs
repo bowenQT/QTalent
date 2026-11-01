@@ -156,3 +156,45 @@ test('审计、导出和打印的时刻用演示时钟：日期是演示日，�
   st.audit('拒绝打印', '某人的档案');
   assert.equal(st.audits()[0].at, '09-04 15:01');
 });
+
+test('还在评分复核队列里的分不导出、不打印，计入已跳过；复核后再进导出', () => {
+  const st = load('hrbp');
+  const pid = 'p-x14';
+  const ev = st.event('e-x14-3'), s = ev.scores[0];
+  assert.ok(st.queue().some((q) => q.kind === 'gap' && q.ev.id === 'e-x14-3'), '种子：改了 AI 的分差大又没写理由，在评分复核队列里');
+  const before = st.exportRows([pid]);
+  assert.ok(!before.rows.some((r) => r.ev === 'e-x14-3'), '评分复核里的分不导出');
+  assert.ok(before.skipped >= 1);
+  st.calibrate('e-x14-3', 0, 4, '引用能支撑 4 分');
+  assert.equal(st.inScoreReview(s), false);
+  const after = st.exportRows([pid]);
+  assert.equal(after.rows.filter((r) => r.ev === 'e-x14-3').length, 1, '校准后离开队列，按已校准的分导出');
+  assert.equal(after.skipped, before.skipped - 1);
+
+  // 两位评价人分差大、待校准的分同样跳过
+  const pending = { p: pid, d: 'grit', st: 'conflict', v: 3, raters: [{ by: 's-09', v: 2 }, { by: 'p-yeqing', v: 5 }] };
+  ev.scores.push(pending);
+  assert.equal(st.inScoreReview(pending), true);
+  const withConflict = st.exportRows([pid]);
+  assert.ok(!withConflict.rows.some((r) => r.ev === 'e-x14-3' && r.dim === '坚毅力'));
+  assert.equal(withConflict.skipped, after.skipped + 1);
+});
+
+test('多来源事件：来源位置取这条分的引用所在的那一处，对不上时列出全部来源', () => {
+  const st = load('hrbp');
+  const rows = st.exportRows(['p-x01']).rows.filter((r) => r.ev === 'e-x01-2');
+  const by = (dim) => rows.find((r) => r.dim === dim);
+  assert.equal(by('专业度').src, 'XEngineer 第六期观察表 · W4–W5 · 突出表现 · 第 6 行');
+  assert.equal(by('专业度').srcExact, true);
+  assert.equal(by('智慧力').src, 'XEngineer 第六期观察表 · W4–W5 · 待改进 · 第 6 行', '引用落在待改进那一处，不再取第一处');
+
+  // 引用的是事件描述，两处来源原文里都没有：关联不足，列出全部来源
+  const loose = st.exportRows(['p-x03']).rows.find((r) => r.ev === 'e-x03-1' && r.dim === '专业度');
+  assert.equal(loose.srcExact, false);
+  assert.equal(loose.src, st.event('e-x03-1').srcs.map((x) => `${x.label} · ${x.loc}`).join('；'));
+
+  // 只有一处来源的事件就是那一处
+  const single = st.exportRows(['p-x03']).rows.find((r) => r.ev === 'e-x03-3');
+  assert.equal(single.srcExact, true);
+  assert.equal(single.src, 'XEngineer 第六期观察表 · W7–W8 · 待改进 · 第 8 行');
+});

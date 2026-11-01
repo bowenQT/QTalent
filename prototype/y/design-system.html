@@ -2125,21 +2125,21 @@
       <div class="n-lock" style="margin-top:var(--s-3);max-width:760px"><svg><use href="#i-lock"/></svg><span>接入配置（机器人回调地址、MCP 与 AgentAPI 的令牌）在部署时完成，这里只看状态。页面不显示消息正文、文件内容、查询内容和密钥。</span></div>
 
       <h3 class="ds-sub">工作台 · 导出已确认内容</h3>
-      <p>入口在管理者和 HR 工作台的标题右侧；导师没有这个入口。选范围和事件时间后，弹窗实时写出会导出多少人、多少条已确认的维度分，以及有多少条未确认或待复核的分不导出；范围里没有已确认内容时不生成，并说明原因。表格每行是一条已确认的维度分，附行为锚点、原文引用、评分人、规则版本和来源位置，按新版本复核过的分取复核后的值和评分人；象限位置和盘点结论以盘点冻结快照为准，不导出。生成前按当前视角再取一次，范围外的人不会进表。</p>
+      <p>入口在管理者和 HR 工作台的标题右侧；导师没有这个入口。选范围和事件时间后，弹窗实时写出会导出多少人、多少条已确认的维度分，以及已跳过多少条分：未确认的、待按新版本复核的，和还在评分复核里的（待校准、改了 AI 的分差 2 分以上又没写理由）；范围里没有已确认内容时不生成，并说明原因。表格每行是一条已确认的维度分，附行为锚点、原文引用、评分人、规则版本和来源位置，按新版本复核过的分取复核后的值和评分人；一件事有几处来源时，来源位置写这条分的引用所在的那一处，对不上具体位置就写「全部来源：」并列出这件事的每一处；象限位置和盘点结论以盘点冻结快照为准，不导出。生成前按当前视角再取一次，范围外的人不会进表。</p>
       <div class="ds-grid c2">
         <div class="n-dialog n-dialog--static" aria-hidden="true">
           <h3>导出已确认内容</h3>
           <div class="n-export">
             <div class="n-export__pick"><label class="n-field"><span class="n-field__label">范围</span><span class="n-select">我负责的人（93 人）</span></label><label class="n-field"><span class="n-field__label">事件时间</span><span class="n-select">近 12 个月</span></label></div>
-            <p class="n-export__sum"><b>93 人 · 556 条已确认的维度分</b><span>另有 4 条未确认或待复核的分，不导出</span></p>
-            <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl><dt>导出时间</dt><dd>生成时写入，精确到分钟</dd><dt>导出人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至导出时已确认的关键事件与维度分，按新版本复核过的取复核结果；不含 AI 建议分、待校准和待复核的分；不是盘点冻结结果</dd><dt>范围</dt><dd>我负责的人 · 近 12 个月</dd></dl></div>
+            <p class="n-export__sum"><b>93 人 · 555 条已确认的维度分</b><span>已跳过 3 条未确认、待复核或还在评分复核里的分</span></p>
+            <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl><dt>导出时间</dt><dd>生成时写入，精确到分钟</dd><dt>导出人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至导出时已确认的关键事件与维度分，按新版本复核过的取复核结果；不含 AI 建议分、待按新版本复核的分和还在评分复核里的分；不是盘点冻结结果</dd><dt>范围</dt><dd>我负责的人 · 近 12 个月</dd></dl></div>
           </div>
           <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-download"/></svg>生成表格</span></div>
         </div>
         <div style="display:grid;gap:var(--s-3);align-content:start">
           <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">
             <h3>导出已确认内容</h3>
-            <div class="n-export"><p class="n-export__sum"><b>这个范围里还没有已确认的内容</b><span>另有 3 条未确认或待复核的分，不导出</span></p></div>
+            <div class="n-export"><p class="n-export__sum"><b>这个范围里还没有已确认的内容</b><span>已跳过 3 条未确认、待复核或还在评分复核里的分</span></p></div>
             <p class="n-dialog__hint">换一个范围或时间再生成</p>
             <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-download"/></svg>生成表格</span></div>
           </div>
@@ -2153,7 +2153,7 @@
       </div>
 
       <h3 class="ds-sub">档案页 · 打印档案</h3>
-      <p>入口在档案标题右侧，只给管理者和这个人的归属 HR；导师和员工没有入口。点开先说会打印什么、不打印什么；确认后按当前视角再校验一次并重新取数，越权就拒绝、不生成内容，并记入审计日志。打印稿只含已确认的内容：已确认的维度分（附引用、评分人、规则版本和来源）、已采纳的档案摘要、能力象限的正式位置；不含 AI 建议分、待校准的分、未采纳的 AI 摘要和系统给的参考位置。直接用浏览器打印只会印出一句提示：有打印入口的视角指向「打印档案」，没有入口的视角写明档案打印对谁开放。</p>
+      <p>入口在档案标题右侧，只给管理者和这个人的归属 HR；导师和员工没有入口。点开先说会打印什么、不打印什么；确认后按当前视角再校验一次并重新取数，越权就拒绝、不生成内容，并记入审计日志。打印稿只含已确认的内容：已确认的维度分（附引用、评分人、规则版本和来源）、已采纳的档案摘要、能力象限的正式位置；不含 AI 建议分、待按新版本复核和还在评分复核里的分、未采纳的 AI 摘要和系统给的参考位置，跳过的条数写在确认弹窗里。来源和导出同一套：一件事里各条分来源相同就在事件下写一次，不同就逐条写，对不上具体位置的写「全部来源」。直接用浏览器打印只会印出一句提示：有打印入口的视角指向「打印档案」，没有入口的视角写明档案打印对谁开放。</p>
       <div class="ds-grid c2">
         <div style="display:grid;gap:var(--s-3);align-content:start">
           <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">
@@ -2170,10 +2170,10 @@
         </div>
         <div class="n-print is-preview" aria-label="打印稿样张">
           <header class="n-print__head"><h1>苏少卿 <small>演示</small></h1><p>XEngineer 第六期 / 线索雷达 · 产品方向 · 2027 届 · 入营 2 个月</p></header>
-          <dl class="n-print__meta"><dt>打印时间</dt><dd>2026-09-04 14:20</dd><dt>打印人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；不含 AI 建议分、待校准和待复核的分、未采纳的 AI 摘要和参考位置；不是盘点冻结结果</dd></dl>
+          <dl class="n-print__meta"><dt>打印时间</dt><dd>2026-09-04 14:20</dd><dt>打印人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；不含 AI 建议分、待按新版本复核的分、还在评分复核里的分、未采纳的 AI 摘要和参考位置；不是盘点冻结结果</dd></dl>
           <section><h2>能力象限 · 正式位置</h2><p>还没有正式校准</p></section>
           <section><h2>关键事件与已确认的维度分 <small>3 件 · 11 条</small></h2>
-            <ol class="n-print__evs"><li><p class="n-print__ev"><b>08-28 · 把自动触达做到增量同步和断点续传</b> · 线索雷达 · 任辞远记录</p><ul><li>专业度 4 · 任辞远评 · 评价规则 v1<br><span>锚点 4：超出本届学员预期</span><br><span>引用「在团队中负责串通模块、引导组员沟通」</span></li><li>内生动力 4 · 任辞远评 · 评价规则 v1<br><span>锚点 4：有难度或模糊的情境下主动表现，并有可见结果</span><br><span>引用「做事踏实」</span></li></ul><p class="n-print__src">来源：XEngineer 第六期观察表 · W7–W8 · 突出表现 · 第 6 行</p></li></ol>
+            <ol class="n-print__evs"><li><p class="n-print__ev"><b>08-28 · 把自动触达做到增量同步和断点续传</b> · 线索雷达 · 任辞远记录</p><ul><li>专业度 4 · 任辞远评 · 评价规则 v1<br><span>锚点 4：超出本届学员预期</span><br><span>引用「在团队中负责串通模块、引导组员沟通」</span></li><li>内生动力 4 · 任辞远评 · 评价规则 v1<br><span>锚点 4：有难度或模糊的情境下主动表现，并有可见结果</span><br><span>引用「做事踏实」</span></li></ul><p class="n-print__src">来源：XEngineer 第六期观察表 · W7–W8 · 突出表现 · 第 6 行</p></li><li><p class="n-print__ev"><b>08-07 · 围绕线索从发现到 CRM 准入的全链路</b> · 线索雷达 · 苏鹤年记录</p><ul><li>专业度 4 · 苏鹤年评 · 评价规则 v1<br><span>锚点 4：超出本届学员预期</span><br><span>引用「节奏清晰（边界→骨架→V2 设计→工程→文档/测试）」</span><br><span class="n-print__src">来源：XEngineer 第六期观察表 · W4–W5 · 突出表现 · 第 6 行</span></li><li>智慧力 2 · 苏鹤年评 · 评价规则 v1<br><span>锚点 2：相关行为偶发，需要他人推动才发生</span><br><span>引用「搭建了运营工作台并完成路演汇报」</span><br><span class="n-print__src">全部来源：XEngineer 第六期观察表 · W4–W5 · 突出表现 · 第 6 行；XEngineer 第六期观察表 · W4–W5 · 待改进 · 第 6 行</span></li></ul></li></ol>
           </section>
           <footer class="n-print__foot">仅限内部使用 · 本次打印已记入审计日志 · 演示数据，人员均为化名</footer>
         </div>

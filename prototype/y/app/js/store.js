@@ -418,13 +418,15 @@
   };
 
   // ---------- HR 校准队列 ----------
+  // 还在评分复核队列里的分：两位评价人分差大待校准，或改了 AI 的分差 2 分以上又没写理由、还没复核。队列和导出、打印用同一个判断
+  store.inScoreReview = (s) => s.st === 'conflict' || (s.st === 'confirmed' && !!s.bigGap && !lastRev(s));
   store.queue = () => {
     const q = [];
     S.events.forEach((e) => e.scores.forEach((s, i) => {
       if (!store.scope(s.p) || store.scope(s.p) === 'self') return;
       const name = store.person(s.p).name, dn = store.dim(s.d).name;
       if (s.st === 'conflict') q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'conflict', kindLabel: '待校准', title: `${dn}分差 ${Math.abs(s.raters[0].v - s.raters[1].v)} 分`, sub: `${name} · ${s.raters.map((r) => `${store.person(r.by).name} ${r.v}`).join(' / ')}`, pair: s.raters.map((r) => r.v).join(' / ') });
-      else if (s.bigGap && s.st === 'confirmed' && !lastRev(s)) q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'gap', kindLabel: '与 AI 分差大', title: `${name} · ${dn}`, sub: `${store.person(s.by).name}确认 ${s.v}，AI 建议 ${s.ai}，没写理由`, pair: `${s.v} / ${s.ai}` });
+      else if (store.inScoreReview(s)) q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'gap', kindLabel: '与 AI 分差大', title: `${name} · ${dn}`, sub: `${store.person(s.by).name}确认 ${s.v}，AI 建议 ${s.ai}，没写理由`, pair: `${s.v} / ${s.ai}` });
     }));
     store.visiblePeople().filter((p) => store.scope(p.id) === 'full' && store.needsRecal(p.id)).forEach((p) => {
       const f = store.formal(p.id), r = store.refPos(p.id);
@@ -1523,16 +1525,27 @@
   };
   // 规则版本在导出和打印里写成「评价规则 v1」，不露内部编号
   const ruleName = (v) => (v ? `评价规则 ${v.replace(/^.*-(v\d+)$/, '$1')}` : '');
-  // 取数和档案同一套：按新版本复核过的分用复核后的值、评分人和版本；待按新版本复核的分、AI 建议分和待校准的分都不导出，只计条数
+  // 一条分的来源位置：事件只有一处来源就是它；有几处时，看这条分的引用落在哪一处原文里。
+  // 引用对不上或同时落在几处，就是关联不足，列出这件事的全部来源，不只取第一处
+  const citeOf = (note) => (/引用「(.+)」/.exec(note || '')?.[1] || '').replace(/…$/, '');
+  store.scoreSrcs = (s, e) => {
+    const all = e.srcs || [];
+    if (all.length < 2) return { list: all, exact: true };
+    const q = citeOf(s.note), hit = q ? all.filter((x) => (x.quote || '').includes(q)) : [];
+    return hit.length === 1 ? { list: hit, exact: true } : { list: all, exact: false };
+  };
+  // 取数和档案同一套：按新版本复核过的分用复核后的值、评分人和版本；待按新版本复核的分、AI 建议分、待校准的分
+  // 和还在评分复核队列里的分都不导出，计入「已跳过」
   store.exportRows = (pids, from) => {
     const rows = []; let skipped = 0;
     pids.filter((pid) => store.canExport(pid)).forEach((pid) => {
-      const cur = store.scoresOf(pid, { visible: true, from });
+      const cur = store.scoresOf(pid, { visible: true, from }).filter((s) => !store.inScoreReview(s));
       skipped += store.scoresOf(pid, { visible: true, from, all: true, anyVer: true }).length - cur.length;
       cur.forEach((s) => {
-        const e = s.ev, src = e.srcs?.[0], ver = store.ruleVer(s.ver);
+        const e = s.ev, ver = store.ruleVer(s.ver), srcs = store.scoreSrcs(s, e);
         rows.push({ pid, ev: e.id, date: e.date, title: e.title, dim: store.dim(s.d)?.name || s.d, v: s.v,
-          anchor: ver ? store.anchors(s.d, pid, ver).list[s.v - 1] || '' : '', note: s.note || '', by: s.by, rubric: ruleName(s.ver), src: src ? `${src.label} · ${src.loc}` : '' });
+          anchor: ver ? store.anchors(s.d, pid, ver).list[s.v - 1] || '' : '', note: s.note || '', by: s.by, rubric: ruleName(s.ver),
+          src: srcs.list.map((x) => `${x.label} · ${x.loc}`).join('；'), srcExact: srcs.exact });
       });
     });
     return { rows, skipped, people: new Set(rows.map((r) => r.pid)).size };
