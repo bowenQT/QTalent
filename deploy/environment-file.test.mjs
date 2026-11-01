@@ -161,10 +161,12 @@ test('standalone helper never logs literal secret values on parse or identity fa
 });
 
 test('accepted literal fixture matches the target-systemd conformance oracle', () => {
-  const source = readFileSync(
-    new URL('./fixtures/environment-literals.txt', import.meta.url),
-    'utf8',
-  );
+  const source = JSON.parse(
+    readFileSync(
+      new URL('./fixtures/environment-literals.source.json', import.meta.url),
+      'utf8',
+    ),
+  ).source;
   const expected = JSON.parse(
     readFileSync(
       new URL('./fixtures/environment-literals.expected.json', import.meta.url),
@@ -175,8 +177,14 @@ test('accepted literal fixture matches the target-systemd conformance oracle', (
 });
 
 test('recorded systemd conformance proof matches the exact accepted fixture bytes', () => {
-  const source = readFileSync(
-    new URL('./fixtures/environment-literals.txt', import.meta.url),
+  const source = Buffer.from(
+    JSON.parse(
+      readFileSync(
+        new URL('./fixtures/environment-literals.source.json', import.meta.url),
+        'utf8',
+      ),
+    ).source,
+    'utf8',
   );
   const expected = JSON.parse(
     readFileSync(

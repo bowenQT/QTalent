@@ -126,7 +126,7 @@ JS
 
 键名限ASCII字母/下划线开头及字母数字下划线。`export`、无等号行、拼接引号、闭引号后的非空白内容（含行尾注释）、未闭引号/转义、BOM/NUL/无效UTF-8等拒绝；不要把该文件当shell脚本source。该受限语法拒绝不支持的形状，不悄悄改写值。每份文件上限1MiB，秘密仅留600文件/子进程环境；pg_dump子进程仍使用077 umask。实际common/web/worker文件不在本次离线测试中读取或修改。
 
-`deploy/fixtures/environment-literals.txt`与对应expected.json是纯合成输入。systemd-environment-proof.json记录演示机systemd255对同一字节的实际摘要对照（13项变量，单元collect、正式服务PID未变）；单测固定该摘要，不打印合成secret的值。这是解析语义证据，不代表本未合脚本已安装或执行生产发布。
+`deploy/fixtures/environment-literals.source.json`解码后字节与对应expected.json是纯合成输入（JSON编码保留测试所需的行尾空白，不在Git文本行尾放空格）。systemd-environment-proof.json记录演示机systemd255对同一字节的实际摘要对照（13项变量，单元collect、正式服务PID未变）；单测固定该摘要，不打印合成secret的值。这是解析语义证据，不代表本未合脚本已安装或执行生产发布。
 
 以下为操作顺序示意，`TARGET_FILE`、`TARGET_ID`、`SHA`、`PREVIOUS_SHA`、`BACKUP_FILE` 和 `SEED_BACKUP_FILE` 由 #25 已确认记录填写。不是当前机器的部署命令，本轮没有实际执行：
 
