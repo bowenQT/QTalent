@@ -10,21 +10,25 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { Pool } from 'pg';
-import { eq, getTableColumns, getTableName } from 'drizzle-orm';
-import type { PgTable } from 'drizzle-orm/pg-core';
+import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createDatabase } from './client';
 import { importDemo } from './import';
 import { mapPrototypeSeed, readPrototypeSeed } from './seed';
+import {
+  seedVerifiedLegacyBaseline as legacySeed,
+  fingerprintMigrationFacts as legacyFingerprint,
+} from '../../../tests/fixtures/legacy-migration-seed';
 import * as directory from '../modules/directory/schema';
 import * as programs from '../modules/programs/schema';
 import * as staffing from '../modules/staffing/schema';
-import * as rules from '../modules/evaluation-system/schema';
 import * as records from '../modules/records/schema';
-import * as talent from '../modules/talent/schema';
 import { planLegacyEvaluationNodes } from '../modules/programs/legacy-node-mapping';
 
 const folder = 'src/server/db/migrations';
+const committedMigrationCount = JSON.parse(
+  readFileSync(join(folder, 'meta/_journal.json'), 'utf8'),
+).entries.length;
 const password = 'Synthetic-test-password-only';
 let admin: Pool;
 let source: URL;
@@ -84,125 +88,6 @@ async function previous(connection: Connection) {
     rmSync(temporary, { recursive: true, force: true });
   }
 }
-/** Insert the verified baseline into the OLD physical schema, without calling the new seed importer. */
-async function legacySeed(connection: Connection) {
-  const seed = mapped();
-  async function insert(table: PgTable, input: readonly object[]) {
-    if (!input.length) return;
-    const columns = getTableColumns(table);
-    const rows = input as Record<string, unknown>[];
-    const keys = [...new Set(rows.flatMap(Object.keys))].filter(
-      (key) => key in columns && key !== 'evaluationNodeId',
-    );
-    for (let start = 0; start < rows.length; start += 100) {
-      const values: unknown[] = [];
-      const placeholders = rows.slice(start, start + 100).map(
-        (row) =>
-          '(' +
-          keys
-            .map((key) => {
-              const value = row[key];
-              if (value === undefined) return 'DEFAULT';
-              values.push(
-                columns[key].dataType === 'json' && value !== null
-                  ? JSON.stringify(value)
-                  : value,
-              );
-              return '$' + values.length;
-            })
-            .join(',') +
-          ')',
-      );
-      await connection.pool.query(
-        `INSERT INTO "${getTableName(table)}" (${keys.map((key) => '"' + columns[key].name + '"').join(',')}) VALUES ${placeholders.join(',')}`,
-        values,
-      );
-    }
-  }
-  await insert(
-    directory.organizations,
-    seed.organizations.map((row) => ({ ...row, shortName: row.name })),
-  );
-  await insert(directory.people, seed.people);
-  await insert(
-    directory.employments,
-    seed.people.map((row) => ({
-      id: 'demo-employment-' + row.id,
-      personId: row.id,
-      organizationId: row.organizationId,
-      validFrom: row.joined,
-      validTo: null,
-    })),
-  );
-  await insert(
-    directory.accountBindings,
-    seed.accounts.map((row) => ({
-      accountId: row.id,
-      personId: row.personId,
-      isSystemAdmin: row.isSystemAdmin,
-    })),
-  );
-  await insert(programs.cohorts, seed.cohorts);
-  await insert(
-    directory.grants,
-    seed.grants.map((row, i) => ({ ...row, id: 'demo-grant-' + i })),
-  );
-  await insert(
-    programs.enrollments,
-    seed.enrollments.map((row, i) => ({ ...row, id: 'demo-enrollment-' + i })),
-  );
-  await insert(
-    programs.assignments,
-    seed.assignments.map((row, i) => ({ ...row, id: 'demo-assignment-' + i })),
-  );
-  await insert(staffing.projects, seed.projects);
-  await insert(staffing.members, seed.members);
-  await insert(staffing.memberLogs, seed.memberLogs);
-  await insert(rules.dimensions, seed.evidence.dimensions);
-  await insert(rules.ruleVersions, seed.evidence.ruleVersions);
-  await insert(rules.anchors, seed.evidence.anchors);
-  await insert(records.importSnapshots, seed.evidence.snapshots);
-  for (const [table, rows] of [
-    [records.originals, seed.evidence.originals],
-    [records.originalVersions, seed.evidence.originalVersions],
-    [records.fragments, seed.evidence.fragments],
-    [records.events, seed.evidence.events],
-    [records.eventParticipants, seed.evidence.eventParticipants],
-    [records.eventSources, seed.evidence.eventSources],
-    [records.statements, seed.evidence.statements],
-    [talent.aiSuggestions, seed.evidence.aiSuggestions],
-    [talent.confirmations, seed.evidence.confirmations],
-    [talent.scoreReviews, seed.evidence.scoreReviews],
-    [records.historicalEvaluations, seed.evidence.historicalEvaluations],
-    [records.historicalParticipants, seed.evidence.historicalParticipants],
-  ] as const)
-    await insert(table, rows);
-  return seed;
-}
-async function legacyFingerprint(
-  connection: Connection,
-  names?: string[],
-  omitNode = true,
-) {
-  const tables =
-    names ??
-    (
-      await connection.pool.query<{ tablename: string }>(
-        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename",
-      )
-    ).rows.map((row) => row.tablename);
-  const result: Record<string, unknown> = {};
-  for (const name of tables) {
-    const row = omitNode
-      ? "(to_jsonb(t) - 'evaluation_node_id')"
-      : 'to_jsonb(t)';
-    const snapshot = await connection.pool.query(
-      `SELECT count(*)::int AS count, md5(coalesce(string_agg(${row}::text, '' ORDER BY ${row}::text), '')) AS digest FROM "${name}" AS t`,
-    );
-    result[name] = snapshot.rows[0];
-  }
-  return result;
-}
 async function legacyPlan(connection: Connection) {
   return planLegacyEvaluationNodes({
     cohorts: await connection.db.select().from(programs.cohorts),
@@ -243,7 +128,7 @@ it('keeps all three published SQL migrations byte-identical and migrates an empt
           'SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations',
         )
       ).rows[0].n,
-    ).toBe(5);
+    ).toBe(committedMigrationCount);
     expect(await connection.db.select().from(programs.evaluationNodes)).toEqual(
       [],
     );
@@ -370,7 +255,7 @@ it('upgrades a genuinely pre-899 seeded database using only unique historical fa
           'SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations',
         )
       ).rows[0].n,
-    ).toBe(5);
+    ).toBe(committedMigrationCount);
   });
 }, 30_000);
 it('rolls back the complete schema and journal transition if backfilling an existing event fails', async () => {

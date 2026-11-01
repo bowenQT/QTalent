@@ -82,9 +82,7 @@ async function isolated(run: (db: Database) => Promise<void>) {
   const connection = createDatabase(url.toString());
   try {
     await migrate(connection.db, {
-      // CI always uses the committed directory; the override is only for X1's isolated pre-migration validation.
-      migrationsFolder:
-        process.env.BOW_922_TEST_MIGRATIONS_DIR ?? 'src/server/db/migrations',
+      migrationsFolder: 'src/server/db/migrations',
     });
     await run(connection.db);
   } finally {

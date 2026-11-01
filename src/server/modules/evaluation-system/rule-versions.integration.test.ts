@@ -50,11 +50,8 @@ beforeAll(async () => {
   await admin.query(`CREATE DATABASE "${name}"`);
   url.pathname = `/${name}`;
   connection = createDatabase(url.toString());
-  // The override permits an isolated Drizzle-generated temporary migration while
-  // X1's serial migration is pending. CI uses the committed migration directory.
   await migrate(connection.db, {
-    migrationsFolder:
-      process.env.BOW_922_TEST_MIGRATIONS_DIR ?? 'src/server/db/migrations',
+    migrationsFolder: 'src/server/db/migrations',
   });
 }, 30_000);
 beforeEach(async () => {

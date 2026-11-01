@@ -66,12 +66,6 @@ jobs:
       - run: pnpm reference:prepare
       - run: pnpm check
         id: quality
-      # 独立临时PG证据：默认正式迁移检查先运行且结果保持；不替换其迁移目录。
-      - name: Verify BOW-922 temporary PG combination
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.number == 265 }}
-        env:
-          BOW_922_TARGET_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: node --import tsx scripts/verify-bow-922-temporary-pg.ts "$BOW_922_TARGET_HEAD"
       # 覆盖率门槛由 pnpm check 把关；Codecov 只展示，上传失败不影响检查结论。
       - uses: codecov/codecov-action@v7
         with:

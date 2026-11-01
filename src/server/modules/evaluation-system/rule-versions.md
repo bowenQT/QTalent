@@ -1,6 +1,6 @@
 # 规则版本的类别与生效读取（BOW-922）
 
-前置契约 BOW-917 已由 main `5726fd5d0cd6457d762327829adc002b1dda41b3` 合入，来源冻结 `832209d177944b5ce18577794acb88314a6460da`。本轮沿 #265 原分支普通合并该 main；八个旧前置的 add/add 冲突全部取 main 原样 blob，不修改契约。时间存储方案依据 #248 评论 6547780983。
+前置契约 BOW-917 已由 main `5726fd5d0cd6457d762327829adc002b1dda41b3` 合入，来源冻结 `832209d177944b5ce18577794acb88314a6460da`。本轮X1沿 #265 原分支普通合并 main de21f0057fbea79d6e06cf30b9d55a27c2dfdd96（含最终897、836、899和受限评价保护），不修改契约。时间存储方案依据 #248 评论 6547780983。
 
 ## 生效区段与读取
 
@@ -8,7 +8,7 @@
 
 v1→v2→恢复v1保存为 v1=[t0,t1)、v2=[t1,t2)、v1=[t2,∞)。恢复时新增区段，不延长第一段，也不改写中间窗口。区段不反向依赖918表；918发布/撤销回执保存实际periodId，供后续配对撤销和generation栅栏使用。
 
-内部允许 [t,t) 留存同毫秒操作的区段身份；数据库拒绝反向和无限时间。公开读取仍只返回正区间。`readEffectiveRuleVersion(db, {category, at?}, clock?)` 按左闭右开选取；没有元数据返回 not_found，同类别多个有效区段返回 conflict，即使它们属于同一versionId。不给at时只读一次服务端时钟，不按id、来源或锚点数量猜测。公开响应仍使用原 effectiveRuleVersionReadResultSchema，不增加periodId或更改字段。
+内部允许 [t,t) 留存同毫秒操作的区段身份；数据库拒绝反向和无限时间。公开读取仍只返回正区间。`readEffectiveRuleVersion(db, {category, at?}, clock?)` 按左闭右开选取；没有元数据返回 not_found，同类别多个有效区段返回 conflict，即使它们属于同一versionId。不给at时只读一次服务端时钟，不按id、来源或锚点数量猜测。实际业务消费者必须显式传业务at或注入createClock(APP_ENV).now的动态时钟，演示环境不得依赖默认墙钟决定版本；本卡不改变现有调用签名。公开响应仍使用原 effectiveRuleVersionReadResultSchema，不增加periodId或更改字段。
 
 读取是授权后的领域端口，不授予来源权限。845显式取dimension_anchors，再按返回版本取锚点；918按期次取已持久化的不可变binding，不用global current替换旧绑定。类别切段不修改既有分数、锚点、档案或快照。
 
@@ -32,16 +32,18 @@ v1→v2→恢复v1保存为 v1=[t0,t1)、v2=[t1,t2)、v1=[t2,∞)。恢复时新
 
 `backfillLegacyRuleVersionApplicability(tx, usages)` 现在只接受显式Transaction。先按稳定顺序锁住两个已知类别，再重新检查哪些目录版本尚无任何区段；存在任意历史段（包括已闭合或多次恢复）就全部保留，不覆盖旧起止或重新索取旧证据。任一待补版本缺时间则整体抛错；并发回填等待锁后重查，只生成一次固定起始记录。provenance/sourceCommit及未知版本保持原样。
 
-生产importDemo已在原事务中先写验证过的ruleVersions，再传入seed事件/历史评价的非空ruleVersionId与occurredOn（UTC日起点）；本轮不改import.ts。现有数据库回填同样必须提供可追溯使用日期，不能把缺口当当前日期补齐。
+生产importDemo在原事务中先写验证过的ruleVersions，再传入seed事件/历史评价的非空ruleVersionId与occurredOn（UTC日起点），与899节点绑定同事务提交。既有数据库则由0006显式读取已存在的事件/历史评价使用日期，不要求重跑seed；缺口不当当前日期补齐。
 
-## X1接线与迁移
+## X1接线与正式迁移
 
-- 已有公共index不由作者改。本轮需追加实际实现：lockRuleCategory、switchSelectionApplicability、RuleApplicabilityConflictError，以及SelectionApplicabilitySwitch / RuleApplicabilityPeriod两个类型。作者给出精确head并停止writer后，X1沿原分支追加。
-- 最终迁移仍在899合入后排第2位由X1生成；本轮只把已提交迁移复制到/tmp，由Drizzle生成临时增量，未提交SQL/meta/journal，也不改写已发布迁移。
-- 当前正式迁移没有applicability表，默认集成/CI仍可能因42P01失败。临时组合通过只能证明该明确组合，不能冒称默认CI或最终串行迁移通过。最终表与存量显式回填落地后，还须在真实升级路径复验。
+- 公共index已实际导出读取、回填、类别锁、切段和相邻类型，不留待请求的空出口。
+- 899的0003/0004已合main后，X1从当前生产schema原生生成0005_bow_922_rule_applicability.sql（新表、FK、三个既有check和两个索引）；生成SQL未手改，没有增加EXCLUDE、扩展或期次生命周期表。
+- 用drizzle-kit --custom创建0006_bow_922_legacy_rule_applicability.sql，单独承载数据回填。旧0000–0004 SQL/快照字节不变，journal旧entries原样追加。源事实表在这次显式事务中持SHARE锁，两个类别沿现有稳定顺序持事务advisory锁；只给缺少任意区段的rubric-v1/xe-weekly-v1插入legacy身份，起点来自真实事件/历史评价最早日期的UTC零点，provenance/sourceCommit及原分数、节点、事实不改。已有任意历史/恢复区段保留，未知版本不猜类别；待补已知版本没有使用日期或日期非有限时，整个待应用迁移事务失败回滚（含0005和journal），应先核实来源再重试，不用部署时间填空。
+- 显式执行默认db:migrate；Web/worker启动和build不隐式迁移。空库无旧版本时0006不造元数据，后续正常seed在同一事务中按已验证事实回填。
+- PR265专用临时CI步骤、verify-bow-922-temporary-pg.ts及全部三个BOW_922_TEST_MIGRATIONS_DIR覆盖已退役。所有正常测试固定使用src/server/db/migrations；升级测试的临时目录只复制明确已发布的旧阶段，不生成替代SQL，也不替换默认CI。
 
 ## 验证范围
 
 保留原25条回填/导入单测及原33项PG组合的适用断言，区段ID与显式事务按本次模型更新。真实PG新增覆盖v1→v2→v1时点、三个类别隔离、同毫秒空段、旧period/未来/回拨/重叠冲突、锁等待后的CAS、稳定多类别顺序、legacy并发幂等、缺日期与迟发失败回滚、旧终点和来源保留。
 
-测试入口只接受loopback且库名以_test结尾的TEST_DATABASE_URL；每个文件自行创建并清理随机测试库。BOW_922_TEST_MIGRATIONS_DIR仅显式临时组合可设置，默认CI仍走提交目录。不缺库跳过、不用fake替代PG。完整重检查先取得本机heavy槽，单测maxWorkers=2；不读取供应商或真实员工材料。
+测试入口只接受loopback且库名以_test结尾的TEST_DATABASE_URL；每个文件自行创建并清理随机测试库。默认PG检查固定走正式提交目录，不再接受迁移目录环境覆盖。新增迁移回归独立覆盖空库/固定原型旧seed经899后的升级、缺日期/非有限日期的DDL与journal回滚，以及已有多段/旧边界保留；原始事实全表摘要在升级前后核对不变。不缺库跳过、不用fake替代PG。完整重检查先取得本机heavy槽，单测maxWorkers=2；不读取供应商或真实员工材料。

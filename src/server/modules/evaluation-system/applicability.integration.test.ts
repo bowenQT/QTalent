@@ -44,8 +44,7 @@ beforeAll(async () => {
   url.pathname = `/${name}`;
   connection = createDatabase(url.toString());
   await migrate(connection.db, {
-    migrationsFolder:
-      process.env.BOW_922_TEST_MIGRATIONS_DIR ?? 'src/server/db/migrations',
+    migrationsFolder: 'src/server/db/migrations',
   });
 }, 30_000);
 beforeEach(async () => {
