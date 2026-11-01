@@ -448,7 +448,8 @@ describe('whole-save five-second undo plans', () => {
       expect(p.action).toBe('undo');
       expect(p.receipt).toMatchObject({
         withdrawnEvents: [{ personId: 'demo-person' }],
-        originalInput: { text: '演示原话' },
+        inputRestoration: 'unavailable',
+        originalInput: null,
       });
     }
   });
@@ -517,6 +518,31 @@ describe('whole-save five-second undo plans', () => {
     const before = structuredClone(f.state);
     if (allowed) expect(f.run(command).action).toBe('undo');
     else expect(() => f.run(command)).toThrow('later_confirmation_or_review');
+    expect(f.state).toEqual(before);
+  });
+  it('does not reuse a stored available input projection as current read authority', () => {
+    const f = fixture();
+    const { command } = f.saved();
+    const undo = f.run(command);
+    if (undo.action !== 'undo' || undo.replayed)
+      throw new Error('fixture undo');
+    f.state.operations.push({
+      action: 'undo',
+      actorAccountId: f.context.account.id,
+      operationId: command.input.operation_id,
+      fingerprint: confirmationFingerprint(command),
+      draft: undo.draft,
+      receipt: {
+        ...undo.receipt,
+        inputRestoration: 'available',
+        originalInput: structuredClone(f.state.saves[0].originalInput),
+      },
+    });
+    const before = structuredClone(f.state);
+    expect(f.run(command).receipt).toMatchObject({
+      inputRestoration: 'unavailable',
+      originalInput: null,
+    });
     expect(f.state).toEqual(before);
   });
   it('replays a completed undo after the deadline but still rejects revoked authority', () => {
@@ -637,13 +663,15 @@ it('does not accept a forged suggestion quote just because its source identity i
   score.citations[0]!.quote = '演示：来源中不存在的原话';
   expect(() => f.run()).toThrow('quote_not_verbatim');
 });
-it('preserves exact original text when planning undo, including surrounding whitespace', () => {
+it('retains exact private input but does not infer complete input access from the draft', () => {
   const f = fixture();
   const { command } = f.saved();
   f.state.saves[0]!.originalInput.text = '  演示原话\n';
   expect(f.run(command).receipt).toMatchObject({
-    originalInput: { text: '  演示原话\n' },
+    inputRestoration: 'unavailable',
+    originalInput: null,
   });
+  expect(f.state.saves[0]!.originalInput.text).toBe('  演示原话\n');
 });
 it('continues the withdrawn native confirmation revision instead of reusing revision one', () => {
   const f = fixture();
