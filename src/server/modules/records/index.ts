@@ -93,3 +93,9 @@ export type { ValidatedUpload } from './uploads/handoff';
 export type { UploadCollectionMembers } from './uploads/types';
 
 export { readAuthorizedMaterialSource } from './material-sources/read';
+export { wecomMessages, wecomReceiptAttempts } from './wecom/schema';
+export {
+  wecomArchivedMediaSchema,
+  wecomArchivedMediaListSchema,
+} from './wecom/facts';
+export type { WecomArchivedMedia } from './wecom/facts';
