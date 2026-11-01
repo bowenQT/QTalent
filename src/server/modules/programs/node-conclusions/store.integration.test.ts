@@ -74,7 +74,10 @@ beforeAll(async () => {
   created = true;
   url.pathname = '/' + databaseName;
   connection = createDatabase(url.toString());
-  await migrate(db(), { migrationsFolder: 'src/server/db/migrations' });
+  await migrate(db(), {
+    migrationsFolder:
+      process.env.BOW902_TEST_MIGRATIONS ?? 'src/server/db/migrations',
+  });
   // No CREATE TABLE fallback: missing controlled migrations must fail loudly.
   await db().select().from(nodeConclusions).limit(1);
 }, 30000);
@@ -110,14 +113,12 @@ beforeEach(async () => {
     );
   await db().insert(accountBindings).values({ accountId, personId: 'demo-hr' });
   await db().insert(cohorts).values({ id: 'demo-cohort', name: '演示期次' });
-  await db()
-    .insert(evaluationNodes)
-    .values({
-      id: identity.evaluationNodeId,
-      name: '演示答辩',
-      kind: 'defense',
-      cohortId: 'demo-cohort',
-    });
+  await db().insert(evaluationNodes).values({
+    id: identity.evaluationNodeId,
+    name: '演示答辩',
+    kind: 'defense',
+    cohortId: 'demo-cohort',
+  });
   await db()
     .insert(evaluationNodeSubjects)
     .values([identity, { ...identity, personId: 'demo-other' }]);
