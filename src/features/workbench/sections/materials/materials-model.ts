@@ -219,31 +219,62 @@ export function batchParts(batch: Batch) {
     : localParts(batch);
 }
 
-/** Files to draw: the receipt's for submitted ones, this page's for the rest. */
+/**
+ * Files to draw: the receipt's for submitted ones, this page's for the rest. A file
+ * that went with the batch but is missing from the current receipt (hidden by
+ * permission) is left out: the server never said it is queued, so the old local
+ * state is not drawn as if it were.
+ */
 export function fileLines(
   batch: Batch,
 ): { key: string; name: string; line: FileLine; local?: LocalFile }[] {
   const { submission } = batch;
-  return batch.files.map((file) => {
-    const receipt =
-      submission.state === 'sent'
-        ? submission.receipt.files.find(
-            (entry) => entry.clientFileId === file.clientFileId,
-          )
-        : undefined;
-    return receipt
-      ? {
-          key: file.clientFileId,
-          name: receipt.filename,
-          line: receiptLine(receipt),
-        }
-      : {
+  return batch.files.flatMap((file) => {
+    if (submission.state !== 'sent')
+      return [
+        {
           key: file.clientFileId,
           name: file.name,
           line: localLine(file),
           local: file,
-        };
+        },
+      ];
+    const receipt = submission.receipt.files.find(
+      (entry) => entry.clientFileId === file.clientFileId,
+    );
+    if (receipt)
+      return [
+        {
+          key: file.clientFileId,
+          name: receipt.filename,
+          line: receiptLine(receipt),
+        },
+      ];
+    // Only uploaded files went; rejected and canceled ones stay as this page knows them.
+    return file.state === 'uploaded'
+      ? []
+      : [
+          {
+            key: file.clientFileId,
+            name: file.name,
+            line: localLine(file),
+            local: file,
+          },
+        ];
   });
+}
+
+/**
+ * Batches the upload area shows: the latest, and every older one that still waits on
+ * this page (uploading, interrupted, submitting), so a new drop never strands the
+ * cancel, retry or resubmit of an earlier batch.
+ */
+export function openBatches(batches: readonly Batch[]) {
+  return batches.filter(
+    (batch, index) =>
+      index === 0 ||
+      (batch.submission.state !== 'sent' && batchState(batch)[0] !== 'done'),
+  );
 }
 
 /** Batches still moving: uploading, submitting, or processing on the server. */

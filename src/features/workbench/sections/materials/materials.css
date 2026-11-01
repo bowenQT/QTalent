@@ -37,6 +37,9 @@
   box-shadow: inset 0 0 0 1px var(--line);
   list-style: none;
 }
+.n-dropbatch + .n-dropbatch {
+  margin-top: var(--s-2);
+}
 .n-dropbatch__head,
 .n-dropbatch__foot {
   display: flex;

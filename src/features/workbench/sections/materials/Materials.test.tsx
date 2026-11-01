@@ -252,6 +252,80 @@ describe('materials with a backend', () => {
     ]);
   });
 
+  it('keeps an interrupted batch reachable after the next drop, and both still go', async () => {
+    const { port, uploads, submits } = manualPort();
+    mount(port);
+    choose([doc('甲.docx')]);
+    await act(async () => uploads[0].answer.reject(new Error('network')));
+    choose([doc('乙.docx')]);
+    const cards = () => [
+      ...document.querySelectorAll<HTMLElement>('.n-dropbatch'),
+    ];
+    expect(
+      cards().map((card) => card.querySelector('.n-rstate')!.textContent),
+    ).toEqual(['上传中', '上传中断']);
+    fireEvent.click(within(cards()[1]).getByRole('button', { name: '重试' }));
+    expect(uploads[2].file.name).toBe('甲.docx');
+    await act(async () =>
+      uploads[2].answer.resolve({ status: 'uploaded', uploadId: 'u-a' }),
+    );
+    await act(async () =>
+      uploads[1].answer.resolve({ status: 'uploaded', uploadId: 'u-b' }),
+    );
+    expect(
+      submits.map((submit) =>
+        submit.input.files.map((entry) => entry.uploadId),
+      ),
+    ).toEqual([['u-a'], ['u-b']]);
+    await act(async () =>
+      submits[0].answer.resolve({
+        status: 'interrupted',
+        message: '服务暂时不可用',
+      }),
+    );
+    // The latest batch is still submitting; the older one's resubmit stays in reach.
+    fireEvent.click(
+      within(cards()[1]).getByRole('button', { name: '重新提交' }),
+    );
+    expect(submits[2].input.operationId).toBe(submits[0].input.operationId);
+    await act(async () =>
+      submits[2].answer.resolve({
+        status: 'accepted',
+        receipt: sampleReceipt(
+          'batch-a',
+          [
+            {
+              clientFileId: submits[2].input.files[0].clientFileId,
+              filename: '甲.docx',
+            },
+          ],
+          true,
+        ),
+      }),
+    );
+    // Once it went, the older batch leaves the upload area and stays in the task list.
+    expect(cards()).toHaveLength(1);
+    expect(document.querySelectorAll('#tasks .n-task')).toHaveLength(2);
+  });
+
+  it('cancels in an older batch while a newer one uploads', async () => {
+    const { port, uploads, submits } = manualPort();
+    mount(port);
+    choose([doc('甲.docx'), doc('丙.docx')]);
+    choose([doc('乙.docx')]);
+    const older = document.querySelectorAll<HTMLElement>('.n-dropbatch')[1];
+    fireEvent.click(
+      within(older).getAllByRole('button', { name: '取消上传' })[0],
+    );
+    expect(uploads[0].signal.aborted).toBe(true);
+    expect(uploads[2].signal.aborted).toBe(false);
+    await act(async () =>
+      uploads[1].answer.resolve({ status: 'uploaded', uploadId: 'u-c' }),
+    );
+    expect(submits.map((submit) => submit.input.files.length)).toEqual([1]);
+    expect(submits[0].input.files[0].uploadId).toBe('u-c');
+  });
+
   it('ends without submitting when the server rejects every file', async () => {
     const { port, uploads, submits } = manualPort();
     mount(port);

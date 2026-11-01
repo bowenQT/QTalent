@@ -6,6 +6,7 @@ import {
   batchState,
   fileLines,
   inProgress,
+  openBatches,
   localLine,
   receiptLine,
   settled,
@@ -212,6 +213,72 @@ describe('file lines', () => {
       ['b.docx', '待核对', false],
       ['c.docx', '待换文件', true],
     ]);
+  });
+
+  it('leave out a submitted file the current receipt does not show, with no progress', () => {
+    const partial = sent(['a', 'b'], true);
+    if (partial.submission.state !== 'sent') throw new Error('sent');
+    const only = (names: string[]): Batch => {
+      if (partial.submission.state !== 'sent') throw new Error('sent');
+      const receipt = partial.submission.receipt;
+      return {
+        ...partial,
+        files: [...partial.files, file('canceled', 'c')],
+        submission: {
+          state: 'sent',
+          receipt: {
+            ...receipt,
+            hasHiddenContent: true,
+            files: receipt.files.filter((entry) =>
+              names.includes(entry.clientFileId),
+            ),
+          },
+        },
+      };
+    };
+    const shown = (lines: ReturnType<typeof fileLines>) =>
+      lines.map((line) => [line.name, line.line.label, line.line.progress]);
+    expect(shown(fileLines(only(['b'])))).toEqual([
+      ['b.docx', '待核对', undefined],
+      ['c.docx', '已取消', undefined],
+    ]);
+    expect(shown(fileLines(only([])))).toEqual([
+      ['c.docx', '已取消', undefined],
+    ]);
+  });
+});
+
+describe('open batches', () => {
+  const stamp = (entry: Batch, id: string): Batch => ({ ...entry, id });
+  it('keep every older batch that still waits here, after the latest', () => {
+    const latest = stamp(
+      batch([file('uploading')], { state: 'waiting' }),
+      'new',
+    );
+    const interrupted = stamp(
+      batch([file('interrupted'), file('uploaded')], { state: 'waiting' }),
+      'cut',
+    );
+    const resubmit = stamp(
+      batch([file('uploaded')], {
+        state: 'interrupted',
+        operationId: 'op',
+        message: '原因',
+      }),
+      'again',
+    );
+    const ended = stamp(batch([file('rejected')], { state: 'waiting' }), 'end');
+    const submitted = stamp(sent(['a'], false), 'sent');
+    expect(
+      openBatches([latest, interrupted, ended, submitted, resubmit]).map(
+        (entry) => entry.id,
+      ),
+    ).toEqual(['new', 'cut', 'again']);
+    expect(openBatches([submitted, latest]).map((entry) => entry.id)).toEqual([
+      'sent',
+      'new',
+    ]);
+    expect(openBatches([])).toEqual([]);
   });
 });
 

@@ -13,6 +13,7 @@ import {
   batchState,
   fileLines,
   inProgress,
+  openBatches,
   uploadHint,
   uploadRules,
   type Batch,
@@ -158,7 +159,7 @@ function BatchCard({ batch, state }: { batch: Batch; state: Batches }) {
   );
 }
 
-/** 上传材料: the drop zone and the batch just dropped. */
+/** 上传材料: the drop zone, the batch just dropped and any earlier one still waiting here. */
 /** Without a port the drop zone stays in place, inert, under a 待接入 note. */
 function UploadArea({ state }: { state: Batches | null }) {
   if (!state)
@@ -180,7 +181,6 @@ function UploadArea({ state }: { state: Batches | null }) {
 
 function ConnectedUpload({ state }: { state: Batches }) {
   const toast = useToast();
-  const latest = state.batches[0];
   const select = (selection: FileSelection) => {
     if (selection.overflow) toast.show(selection.overflow.message);
     state.add(selection);
@@ -194,7 +194,9 @@ function ConnectedUpload({ state }: { state: Batches }) {
         onSelect={select}
       />
       <ul className="n-files" id="files">
-        {latest ? <BatchCard batch={latest} state={state} /> : null}
+        {openBatches(state.batches).map((batch) => (
+          <BatchCard key={batch.id} batch={batch} state={state} />
+        ))}
       </ul>
     </>
   );
