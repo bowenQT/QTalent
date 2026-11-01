@@ -283,6 +283,7 @@ beforeEach(async () => {
 describe('canonical comparison native transactions', () => {
   it('persists raw facts with independent sources and full original precision', async () => {
     const input = fixture();
+    input.cases[0].work = { kind: 'individual', workId: 'work' };
     const result = await write(input);
     expect(result.status).toBe('inserted');
     const actual = await read();
@@ -414,6 +415,50 @@ describe('canonical comparison native transactions', () => {
     await write(input);
     expect((await read())?.facts).toEqual(input);
   });
+  it('allows a batch with both stages explicitly absent and no source rows', async () => {
+    const input = fixture();
+    input.manualMarks = [];
+    input.cases[0].front = {
+      state: 'missing',
+      reason: '无前段（演示）',
+      source: null,
+    };
+    input.cases[0].back = {
+      state: 'missing',
+      reason: '无后段（演示）',
+      source: null,
+    };
+    await write(input);
+    expect((await read())?.facts).toEqual(input);
+  });
+  it('rejects a missing fragment or mismatched original version without writes', async () => {
+    const input = fixture();
+    input.cases[0].front.source!.fragmentId = 'absent-fragment';
+    await expect(write(input)).rejects.toThrow('comparison_invalid_reference');
+    input.cases[0].front.source!.fragmentId = 'front-row';
+    input.cases[0].front.source!.originalVersionId = 'absent-version';
+    await expect(write(input)).rejects.toThrow('comparison_invalid_reference');
+    expect(await counts()).toEqual({
+      batches: 0,
+      cases: 0,
+      stages: 0,
+      marks: 0,
+      maps: 0,
+    });
+  });
+  it('rejects a signer who is not in the actual directory', async () => {
+    const input = fixture();
+    input.mapping.confirmedById = 'unknown-signer';
+    await expect(write(input)).rejects.toThrow('comparison_invalid_reference');
+  });
+  it('detects actual fragment row movement after import', async () => {
+    await write(fixture());
+    await db()
+      .update(fragments)
+      .set({ location: { kind: 'spreadsheet', sheet: '演示', cell: 'A3:P3' } })
+      .where(eq(fragments.id, 'front-row'));
+    await expect(read()).rejects.toThrow('comparison_incomplete');
+  });
   it('detects a deleted stage instead of inventing a missing state', async () => {
     await write(fixture());
     await db().execute(
@@ -435,6 +480,40 @@ describe('canonical comparison native transactions', () => {
     await expect(read()).rejects.toThrow('comparison_incomplete');
   });
   const invalidSources: [string, () => Promise<unknown>][] = [
+    [
+      'malformed cell',
+      () =>
+        db()
+          .update(fragments)
+          .set({
+            location: {
+              kind: 'spreadsheet',
+              sheet: '演示',
+              cell: 'not-a-cell',
+            },
+          })
+          .where(eq(fragments.id, 'front-row')),
+    ],
+    [
+      'column out of XLSX range',
+      () =>
+        db()
+          .update(fragments)
+          .set({
+            location: { kind: 'spreadsheet', sheet: '演示', cell: 'XFE2' },
+          })
+          .where(eq(fragments.id, 'front-row')),
+    ],
+    [
+      'row out of XLSX range',
+      () =>
+        db()
+          .update(fragments)
+          .set({
+            location: { kind: 'spreadsheet', sheet: '演示', cell: 'A1048577' },
+          })
+          .where(eq(fragments.id, 'front-row')),
+    ],
     [
       'wrong commit',
       () =>

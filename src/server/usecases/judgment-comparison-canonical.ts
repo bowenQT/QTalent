@@ -291,7 +291,7 @@ export async function readCanonicalComparisonBatch(
     sources: refs.rows,
     binding: refs.bound,
   });
-  if (factsDigest !== stored.batchDigest) return fail('incomplete');
+  if (factsDigest !== stored.factsDigest) return fail('incomplete');
   return {
     facts,
     selectionStandardVersionId: refs.bound.binding.standardVersionId,
