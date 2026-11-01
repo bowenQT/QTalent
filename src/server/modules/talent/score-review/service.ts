@@ -157,6 +157,19 @@ export async function resolveScoreReview(
       const scope = scopeFingerprint(target);
       // Permission and evidence checks precede every replay, including resolved rows.
       const operation = await port.operation(accountId, action.operation_id);
+      // Evidence/receipt reads may wait. Keep the actor that authorized those
+      // reads, and recheck current role and target scope before using them.
+      const stillAuthorized = async () => {
+        const current = await requireHr(port, accountId);
+        if (current.personId !== authority.personId)
+          throw new ScoreReviewForbiddenError();
+        const allowed = await port.canReview(current, target);
+        const final = await requireHr(port, accountId);
+        if (final.personId !== authority.personId)
+          throw new ScoreReviewForbiddenError();
+        return allowed;
+      };
+      if (!(await stillAuthorized())) return notFound();
       if (operation) {
         if (
           operation.accountId !== accountId ||
@@ -169,6 +182,8 @@ export async function resolveScoreReview(
         )
           return conflict(action, '同一提交编号不能用于不同内容');
         const receipt = reviewCalibrationSchema.parse(operation.result);
+        if (receipt.score.raterId !== authority.personId)
+          throw new ScoreReviewForbiddenError();
         if (
           receipt.itemId !== target.itemId ||
           digest(receipt.original) !== digest(original)
@@ -231,6 +246,8 @@ export async function resolveScoreReview(
           reason: action.reason,
         },
       });
+      // Anchor/calibration reads can also wait before the first write.
+      if (!(await stillAuthorized())) return notFound();
       await port.applyCalibration({
         accountId,
         actorPersonId: authority.personId,

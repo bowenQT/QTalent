@@ -109,6 +109,7 @@ class MemoryRepository implements ScoreReviewRepository {
   payloadReads: string[] = [];
   calls: string[] = [];
   afterEventLock?: (state: State) => void;
+  afterRead?: (stage: string) => void;
   failure?:
     'after_projection' | 'after_closure' | 'after_receipt' | 'store_conflict';
   private tail: Promise<unknown> = Promise.resolve();
@@ -151,11 +152,16 @@ class MemoryRepository implements ScoreReviewRepository {
         structuredClone(
           state.targets.find((value) => value.itemId === id) ?? null,
         ),
-      canReview: async (_authority, target) =>
-        this.allowedNodes.has(target.evaluationNodeId) &&
-        this.allowedPeople.has(target.personId),
+      canReview: async (_authority, target) => {
+        const allowed =
+          this.allowedNodes.has(target.evaluationNodeId) &&
+          this.allowedPeople.has(target.personId);
+        this.afterRead?.('canReview');
+        return allowed;
+      },
       authorizedItem: async (_authority, target) => {
         this.payloadReads.push(target.itemId);
+        this.afterRead?.('authorizedItem');
         return this.hiddenEvidence.has(target.itemId)
           ? null
           : structuredClone(state.items[target.itemId]);
@@ -167,19 +173,24 @@ class MemoryRepository implements ScoreReviewRepository {
         this.calls.push('event-lock');
         this.afterEventLock?.(state);
       },
-      operation: async (account, operationId) =>
-        structuredClone(
+      operation: async (account, operationId) => {
+        this.afterRead?.('operation');
+        return structuredClone(
           state.operations[this.key(account, operationId)] ?? null,
-        ),
+        );
+      },
       calibration: async (id) =>
         structuredClone(state.calibrations[id] ?? null),
-      anchor: async (target, value) => ({
-        id: `demo-anchor-${value}`,
-        text: '演示行为锚点',
-        ruleVersion: target.ruleVersion,
-        dimensionId: target.dimensionId,
-        value,
-      }),
+      anchor: async (target, value) => {
+        this.afterRead?.('anchor');
+        return {
+          id: `demo-anchor-${value}`,
+          text: '演示行为锚点',
+          ruleVersion: target.ruleVersion,
+          dimensionId: target.dimensionId,
+          value,
+        };
+      },
       applyCalibration: async (write) => {
         if (this.failure === 'store_conflict')
           throw new ScoreReviewStoreConflict();
@@ -618,12 +629,81 @@ describe('HR score review use cases on explicit adapter ports', () => {
   });
 });
 
-it('同账号换绑后不得将旧签署人的校准operation重放为当前本人成功', async () => {
-  const db = new MemoryRepository();
-  const first = success(await resolve(db));
-  const before = structuredClone(db.state);
-  db.authority!.personId = 'demo-new-hr';
-  expect((await resolve(db)).status).toBe('forbidden');
-  expect(db.state).toEqual(before);
-  expect(first.result.score.raterId).toBe('demo-hr-a');
+describe('current signer at replay and write boundary', () => {
+  it('rejects a rebound account replay without changing the historical receipt', async () => {
+    const db = new MemoryRepository();
+    success(await resolve(db));
+    const before = structuredClone(db.state);
+    db.authority!.personId = 'demo-new-hr';
+    expect((await resolve(db)).status).toBe('forbidden');
+    expect(db.state).toEqual(before);
+  });
+
+  it.each(
+    [false, true].flatMap((replay) =>
+      (replay
+        ? ['authorizedItem', 'operation']
+        : ['authorizedItem', 'operation', 'anchor']
+      ).flatMap((stage) =>
+        ['rebind', 'revoke', 'scope'].map((change) => ({
+          replay,
+          stage,
+          change,
+        })),
+      ),
+    ),
+  )(
+    'rejects $change after $stage (replay=$replay)',
+    async ({ replay, stage, change }) => {
+      const db = new MemoryRepository();
+      if (replay) success(await resolve(db));
+      const before = structuredClone(db.state);
+      db.afterRead = (at) => {
+        if (at !== stage) return;
+        if (change === 'rebind') db.authority!.personId = 'demo-new-hr';
+        else if (change === 'revoke') db.authority!.hasHrRole = false;
+        else db.allowedNodes.clear();
+      };
+      expect((await resolve(db)).status).toBe(
+        change === 'scope' ? 'not_found' : 'forbidden',
+      );
+      expect(db.state).toEqual(before);
+    },
+  );
+
+  it.each(['rebind', 'revoke'])(
+    'rechecks identity after final scope check waits: %s',
+    async (change) => {
+      const db = new MemoryRepository();
+      success(await resolve(db));
+      const before = structuredClone(db.state);
+      let scopeChecks = 0;
+      db.afterRead = (stage) => {
+        if (stage !== 'canReview' || ++scopeChecks !== 2) return;
+        if (change === 'rebind') db.authority!.personId = 'demo-new-hr';
+        else db.authority!.hasHrRole = false;
+      };
+      expect((await resolve(db)).status).toBe('forbidden');
+      expect(db.state).toEqual(before);
+    },
+  );
+
+  it('allows the same signer replay and a newly bound HR to read and submit a different operation', async () => {
+    const db = new MemoryRepository();
+    const first = success(await resolve(db));
+    expect(success(await resolve(db)).replayed).toBe(true);
+    const historical = structuredClone(first.result);
+    db.authority!.personId = 'demo-new-hr';
+    expect(
+      (await readScoreReviewQueue(db, 'hr-a')).items.map((value) => value.id),
+    ).toEqual(['review-ai']);
+    const result = success(
+      await resolve(db, {
+        ...action('review-ai', 'new-operation'),
+        kind: 'ai_gap',
+      }),
+    );
+    expect(result.result.score.raterId).toBe('demo-new-hr');
+    expect(db.state.calibrations['review-1']).toEqual(historical);
+  });
 });
