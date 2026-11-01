@@ -77,3 +77,9 @@ export type {
   RecordUndoCommit,
   RecordConfirmationWorkFact,
 } from './write';
+export { wecomMessages, wecomReceiptAttempts } from './wecom/schema';
+export {
+  wecomArchivedMediaSchema,
+  wecomArchivedMediaListSchema,
+} from './wecom/facts';
+export type { WecomArchivedMedia } from './wecom/facts';

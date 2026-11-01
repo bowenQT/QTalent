@@ -133,6 +133,7 @@ describe('Web current authentication sources in real PostgreSQL', () => {
       accountId: f.accountId,
       personId: f.personId,
       credentialId: f.sessionId,
+      credentialRevision: 1,
     });
     expect(mocks.access).toHaveBeenCalledTimes(2);
     expect(mocks.session).toHaveBeenCalledTimes(2);
