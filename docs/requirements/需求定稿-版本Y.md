@@ -201,6 +201,7 @@
 | 对象 | 本次工程范围与验收口径 | 原型 / 赛后边界 |
 | --- | --- | --- |
 | 录音 | P3：Kodo 上传完整录音、离线转写、核对说话人与整理；异步任务状态按真实结果返回 | P5 实时转写、常驻录音 WebSocket、桌面实时录音留赛后（865、868、869 为 Backlog）。DY-16、AC-Y14 保留为原型能力，不列为决赛工程必过项；删除旧 40 分钟 WebSocket 验收要求。此决定不撤销已经选择的部署形态 |
+| 工程角色与移动入口 | 决赛验收使用管理者、HR、评价人、系统管理员四类真实账号；评价人包含当前有效关系内的导师 / 助教 / 评委，权限按节点与关系判断。桌面和手机按各入口实际角色及授权验收 | DY-01 的原型视角与 AC-Y10「手机只有导师」不自动成为所有工程入口的角色白名单；不因此开放管理员人才数据 |
 | 当前节点权限（D13） | 评价人只读当前节点且关系有效的资料；到期未办项由 HR 重新指派。每次读取、重放、确认与模型外发前重新核权 | “曾经评价过”不授予跨节点或永久访问权；UI 角色切换不形成授权 |
 | 面评 PDF | 确定性解析北森 PDF；只导入已入职者。姓名、职位、面试官与原始出处不足就待核对，不猜关联；面试官须目录内核实。原量表单独保存，不换算维度分或进入象限 | Excel 不是面评导入源；三套化名 PDF 的测试结果不替代正式模板验收。导入后改关联先撤销并审计，再重新导入 |
 | 答辩（S34） | 在面试链后做真：事件草稿与 HR 节点结论，评委只确认本人评分 | 不另建独立会议纪要产品；节点结论与关键事件评分分别保存 |
@@ -211,7 +212,8 @@
 | 找人（D11） | 每条要求只返回支持 / 不支持 / 资料不足 / 证据冲突及授权来源；正式方案仍经人确认 | 无总分、胜任率或按分数排名；Jev confidence 不成为能力分 |
 | 出口（D10 / S35） | 单人打印与批量导出只包含有权读取的已确认内容，隐藏字段和 AI 待确认内容不得漏出 | 导出成功不代表新的业务确认，也不扩大可见范围 |
 | 系统管理（S22） | 833 负责受控部署配置，916 只读接入状态与失败原因；管理员不获得人才资料权限 | 不以状态页代替正式凭证配置系统，不显示密钥、材料正文或人员信息 |
-| 覆盖提醒（S13）与引用（S02） | 覆盖提醒从真实已登记事项与当前授权计算；出处回到真实文本、表格、图片或音视频片段 | 未接通返回 `not_connected`；不能用空列表代表全覆盖，也不能伪造定位 |
+| 覆盖提醒（S13） | 从真实已登记事项与当前授权计算 | 未接通返回 `not_connected`，不能用空列表代表全覆盖 |
+| 代码出处（S02） | 897 冻结代码仓库标识、40 位 commit、相对路径、行范围与保存摘录；926 负责 canonical 存取和当前授权，908 消费真实出处 | 性质是「提交的代码快照」，不宣称服务器已读取代码仓库，不新增自动抓仓库能力；片段持久化与实际读取未接通时不能仅以 schema 通过宣称完成 |
 
 P5 的最终依据为 [11/1 范围裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6554049925) 及 BOW-894 的最终覆盖段；旧“恢复 868 / 40 分钟”说明不再生效。P3 的归档与离线转写仍在本次范围内。
 
@@ -221,25 +223,25 @@ P5 的最终依据为 [11/1 范围裁决](https://github.com/bowenQT/QTalent/iss
 
 | 三幕 / 用户故事 | 本次层级 | 后端 / 集成卡（Codex） | 页面 / 验收卡（Claude Code，另标其他责任） | 关键依赖与必须留下的验收证据 |
 | --- | --- | --- | --- | --- |
-| 收：真实登录、当前节点与人员身份 | 工程 | 834、899、903 | 874；833（X2） | 当前角色与范围来自服务端；跨节点、关系到期、撤权后重放拒绝；四角色实际账号与页面分别验收 |
-| 收：提交文字 / 文件为批次，查看逐文件与逐事件回执 | 工程 | 897、845、846、873、842 | 847、861、862 | 主体 / 范围 / 附件核对完成才整理；唯一任务结果与草稿原生事务，稳定事件键及幂等；部分确认与失败重试不能重复写入 |
-| 收：原件解析、引用定位与当前权限（S02） | 工程 | 866（文本）、900（面评）、901（Office）、905（图片）、926（片段存储） | 908 | 先 873 受控原件，真实片段再交 845；文本范围 / 页 / 单元格 / 时间点各按原始来源验证；不以组件定位通过代替生产原件读取 |
-| 收：上传录音、离线转写与说话人核对 | 工程 P3 | 856、857、859、860 | 861、862 | 完整音频归档、离线供应商结果、当前说话人关联与待认人不出建议分；服务失败不能显示成功 |
-| 收：三套面评 PDF → 预览 → 已入职人员历史评价 | 工程 | 896、900、906 | 907、908 | 899 授权与真实目录、926 来源、受控解析 worker；原量表、署名、撤销 / 重导入审计、重复批次 / 行恢复；正式模板仍须验证 |
-| 收：答辩事件草稿与 HR 节点结论（S34） | 工程 | 845、846、902；904 为独立管理观察 | 847、840 | 面试链后接答辩；节点结论不冒充评委评分。独立观察有本人来源与权限，不能混入 AI 推断 |
-| 收：确认后进入档案、待办与覆盖提醒（S13） | 工程 | 837、838、846、849、863 | 839、840、841、862 | 真实确认事务与当前读取；待核实 / 未确认不进入正式评分；覆盖从已登记事项派生，未接通如实提示 |
-| 用：需求卡 → 逐条四态与来源 → 人工确认 | 工程 | 852、850、854 | 853 | 先确认需求卡；Jev / 模型输入先授权过滤；新材料必须实际解析并确认后才能影响匹配，保留请求与来源链 |
-| 用：从企业微信提交并在 Web 处理 | 工程 | 895、903、909；873 / 845 producer | 916、861、847 | 可信 scope + bot + sender、当前绑定与撤权、持久消息 / 回执幂等账本；媒体只归档一次，隐藏数量和姓名不出回执 |
-| 用：MCP 三工具与 AgentAPI 多轮 | 工程 | 895、903、910、915 | 916；872 走查 | MCP 与 AgentAPI 各实调，不能互相替代；AgentAPI 会话隔离 / 撤权 / 超时退出，三幕人工确认均转 Web |
-| 迭代：入营选拔 ↔ 结营的判断对照（S15） | 工程 | 917、919、923；899 节点授权 | 920、924（原型） | 两段来源各自回到真实行，按人×判断比较；已过滤案例推导分布，不含隐藏或他人案例；管理者只看批次 / 偏差人数 / 归因类别 |
-| 迭代：HR 归因与 AI 起草（S16） | 工程 | 921、843；919 真实案例 | 920 | 先授权并只用已确认材料；成功空假设和模型失败均不得强造草稿；非标准归因不改标准；保留 AI 原稿、提示词版本、真实 HR 修改 |
-| 迭代：影响预览、管理者发布与新期次使用（S20） | 工程 | 918、922；921 提案 | 920；923（Codex 数据），872 走查 | 真实版本目录 / period / 期次绑定与发布事务；6 期旧版，7 期演示新版；刷新与重启后仍生效，撤销不重写历史 |
-| 出口：单人档案打印、已确认内容批量导出（S35） | 工程 | 912、837、926 | 911、925（原型核对） | D10 权限先过滤、只导出已确认；不能用一个人的打印代替批量导出验收 |
-| 入口与运行状态（S22） | 工程 | 833（X2）、903、909、910、915 | 916、874 | 配置与只读状态职责分开，失败可诊断但不泄露凭据 / 人员资料；真实路由、权限与连接分别验证 |
-| 三幕最终走查与同材料减负 | 工程验收 | 871（Codex 回归）、896 / 923（化名材料） | 872（三幕）、913（同材料实测）；833（X2） | 已部署 SHA、迁移、Web / worker 一致；桌面 / 手机录屏、真实操作与可追踪业务 ID。913 用相同材料和确认结果测旧 / 新流程，包含复核、返工及系统使用成本，不复用不可比数字 |
-| 实时录音 P5、完整长期盘点与维度锚点修订 | 原型 / 赛后 | 865、868；不扩充本次迭代卡 | 869；既有原型保留 | 不列入三幕工程必过；后续另按原需求和批准范围实施 |
+| 收：真实登录、当前节点与人员身份 | 工程 | [BOW-834](https://linear.app/bowenzhong/issue/BOW-834)、[BOW-899](https://linear.app/bowenzhong/issue/BOW-899)、[BOW-903](https://linear.app/bowenzhong/issue/BOW-903) | [BOW-874](https://linear.app/bowenzhong/issue/BOW-874)；[BOW-833](https://linear.app/bowenzhong/issue/BOW-833)（X2） | 当前角色与范围来自服务端；跨节点、关系到期、撤权后重放拒绝；四角色实际账号与页面分别验收 |
+| 收：提交文字 / 文件为批次，查看逐文件与逐事件回执 | 工程 | [BOW-897](https://linear.app/bowenzhong/issue/BOW-897)、[BOW-845](https://linear.app/bowenzhong/issue/BOW-845)、[BOW-846](https://linear.app/bowenzhong/issue/BOW-846)、[BOW-873](https://linear.app/bowenzhong/issue/BOW-873)、[BOW-842](https://linear.app/bowenzhong/issue/BOW-842) | [BOW-847](https://linear.app/bowenzhong/issue/BOW-847)、[BOW-861](https://linear.app/bowenzhong/issue/BOW-861)、[BOW-862](https://linear.app/bowenzhong/issue/BOW-862) | 主体 / 范围 / 附件核对完成才整理；唯一任务结果与草稿原生事务，稳定事件键及幂等；部分确认与失败重试不能重复写入 |
+| 收：原件解析、引用定位与当前权限（S02） | 工程 | [BOW-866](https://linear.app/bowenzhong/issue/BOW-866)（文本）、[BOW-900](https://linear.app/bowenzhong/issue/BOW-900)（面评）、[BOW-901](https://linear.app/bowenzhong/issue/BOW-901)（Office）、[BOW-905](https://linear.app/bowenzhong/issue/BOW-905)（图片）、[BOW-926](https://linear.app/bowenzhong/issue/BOW-926)（片段存储） | [BOW-908](https://linear.app/bowenzhong/issue/BOW-908) | 先 [BOW-873](https://linear.app/bowenzhong/issue/BOW-873) 受控原件，真实片段再交 [BOW-845](https://linear.app/bowenzhong/issue/BOW-845)；文本范围 / 页 / 单元格 / 时间点与代码 commit / 路径 / 行范围各按原始来源验证；不以组件定位通过代替生产原件读取 |
+| 收：上传录音、离线转写与说话人核对 | 工程 P3 | [BOW-856](https://linear.app/bowenzhong/issue/BOW-856)、[BOW-857](https://linear.app/bowenzhong/issue/BOW-857)、[BOW-859](https://linear.app/bowenzhong/issue/BOW-859)、[BOW-860](https://linear.app/bowenzhong/issue/BOW-860) | [BOW-861](https://linear.app/bowenzhong/issue/BOW-861)、[BOW-862](https://linear.app/bowenzhong/issue/BOW-862) | 完整音频归档、离线供应商结果、当前说话人关联与待认人不出建议分；服务失败不能显示成功 |
+| 收：三套面评 PDF → 预览 → 已入职人员历史评价 | 工程 | [BOW-896](https://linear.app/bowenzhong/issue/BOW-896)、[BOW-900](https://linear.app/bowenzhong/issue/BOW-900)、[BOW-906](https://linear.app/bowenzhong/issue/BOW-906) | [BOW-907](https://linear.app/bowenzhong/issue/BOW-907)、[BOW-908](https://linear.app/bowenzhong/issue/BOW-908) | [BOW-899](https://linear.app/bowenzhong/issue/BOW-899) 授权与真实目录、[BOW-926](https://linear.app/bowenzhong/issue/BOW-926) 来源、受控解析 worker；原量表、署名、撤销 / 重导入审计、重复批次 / 行恢复；正式模板仍须验证 |
+| 收：答辩事件草稿与 HR 节点结论（S34） | 工程 | [BOW-845](https://linear.app/bowenzhong/issue/BOW-845)、[BOW-846](https://linear.app/bowenzhong/issue/BOW-846)、[BOW-902](https://linear.app/bowenzhong/issue/BOW-902)；[BOW-904](https://linear.app/bowenzhong/issue/BOW-904) 为独立管理观察 | [BOW-847](https://linear.app/bowenzhong/issue/BOW-847)、[BOW-840](https://linear.app/bowenzhong/issue/BOW-840) | 面试链后接答辩；节点结论不冒充评委评分。独立观察有本人来源与权限，不能混入 AI 推断 |
+| 收：确认后进入档案、待办与覆盖提醒（S13） | 工程 | [BOW-837](https://linear.app/bowenzhong/issue/BOW-837)、[BOW-838](https://linear.app/bowenzhong/issue/BOW-838)、[BOW-846](https://linear.app/bowenzhong/issue/BOW-846)、[BOW-849](https://linear.app/bowenzhong/issue/BOW-849)、[BOW-863](https://linear.app/bowenzhong/issue/BOW-863) | [BOW-839](https://linear.app/bowenzhong/issue/BOW-839)、[BOW-840](https://linear.app/bowenzhong/issue/BOW-840)、[BOW-841](https://linear.app/bowenzhong/issue/BOW-841)、[BOW-862](https://linear.app/bowenzhong/issue/BOW-862) | 真实确认事务与当前读取；待核实 / 未确认不进入正式评分；覆盖从已登记事项派生，未接通如实提示 |
+| 用：需求卡 → 逐条四态与来源 → 人工确认 | 工程 | [BOW-852](https://linear.app/bowenzhong/issue/BOW-852)、[BOW-850](https://linear.app/bowenzhong/issue/BOW-850)、[BOW-854](https://linear.app/bowenzhong/issue/BOW-854) | [BOW-853](https://linear.app/bowenzhong/issue/BOW-853) | 先确认需求卡；Jev / 模型输入先授权过滤；新材料必须实际解析并确认后才能影响匹配，保留请求与来源链 |
+| 用：从企业微信提交并在 Web 处理 | 工程 | [BOW-895](https://linear.app/bowenzhong/issue/BOW-895)、[BOW-903](https://linear.app/bowenzhong/issue/BOW-903)、[BOW-909](https://linear.app/bowenzhong/issue/BOW-909)；[BOW-873](https://linear.app/bowenzhong/issue/BOW-873) / [BOW-845](https://linear.app/bowenzhong/issue/BOW-845) producer | [BOW-916](https://linear.app/bowenzhong/issue/BOW-916)、[BOW-861](https://linear.app/bowenzhong/issue/BOW-861)、[BOW-847](https://linear.app/bowenzhong/issue/BOW-847) | 可信 scope + bot + sender、当前绑定与撤权、持久消息 / 回执幂等账本；媒体只归档一次，隐藏数量和姓名不出回执 |
+| 用：MCP 三工具与 AgentAPI 多轮 | 工程 | [BOW-895](https://linear.app/bowenzhong/issue/BOW-895)、[BOW-903](https://linear.app/bowenzhong/issue/BOW-903)、[BOW-910](https://linear.app/bowenzhong/issue/BOW-910)、[BOW-915](https://linear.app/bowenzhong/issue/BOW-915) | [BOW-916](https://linear.app/bowenzhong/issue/BOW-916)；[BOW-872](https://linear.app/bowenzhong/issue/BOW-872) 走查 | MCP 与 AgentAPI 各实调，不能互相替代；AgentAPI 会话隔离 / 撤权 / 超时退出，三幕人工确认均转 Web |
+| 迭代：入营选拔 ↔ 结营的判断对照 | 工程 | [BOW-917](https://linear.app/bowenzhong/issue/BOW-917)、[BOW-919](https://linear.app/bowenzhong/issue/BOW-919)、[BOW-923](https://linear.app/bowenzhong/issue/BOW-923)；[BOW-899](https://linear.app/bowenzhong/issue/BOW-899) 节点授权 | [BOW-920](https://linear.app/bowenzhong/issue/BOW-920)、[BOW-924](https://linear.app/bowenzhong/issue/BOW-924)（原型） | 两段来源各自回到真实行，按人×判断比较；已过滤案例推导分布，不含隐藏或他人案例；管理者只看批次 / 偏差人数 / 归因类别 |
+| 迭代：HR 归因与 AI 起草 | 工程 | [BOW-921](https://linear.app/bowenzhong/issue/BOW-921)、[BOW-843](https://linear.app/bowenzhong/issue/BOW-843)；[BOW-919](https://linear.app/bowenzhong/issue/BOW-919) 真实案例 | [BOW-920](https://linear.app/bowenzhong/issue/BOW-920) | 先授权并只用已确认材料；成功空假设和模型失败均不得强造草稿；非标准归因不改标准；保留 AI 原稿、提示词版本、真实 HR 修改 |
+| 迭代：影响预览、管理者发布与新期次使用 | 工程 | [BOW-918](https://linear.app/bowenzhong/issue/BOW-918)、[BOW-922](https://linear.app/bowenzhong/issue/BOW-922)；[BOW-921](https://linear.app/bowenzhong/issue/BOW-921) 提案 | [BOW-920](https://linear.app/bowenzhong/issue/BOW-920)；[BOW-923](https://linear.app/bowenzhong/issue/BOW-923)（Codex 数据），[BOW-872](https://linear.app/bowenzhong/issue/BOW-872) 走查 | 真实版本目录 / period / 期次绑定与发布事务；6 期旧版，7 期演示新版；刷新与重启后仍生效，撤销不重写历史 |
+| 出口：单人档案打印、已确认内容批量导出（S35） | 工程 | [BOW-912](https://linear.app/bowenzhong/issue/BOW-912)、[BOW-837](https://linear.app/bowenzhong/issue/BOW-837)、[BOW-926](https://linear.app/bowenzhong/issue/BOW-926) | [BOW-911](https://linear.app/bowenzhong/issue/BOW-911)、[BOW-925](https://linear.app/bowenzhong/issue/BOW-925)（原型核对） | D10 权限先过滤、只导出已确认；不能用一个人的打印代替批量导出验收 |
+| 入口与运行状态（S22） | 工程 | [BOW-833](https://linear.app/bowenzhong/issue/BOW-833)（X2）、[BOW-903](https://linear.app/bowenzhong/issue/BOW-903)、[BOW-909](https://linear.app/bowenzhong/issue/BOW-909)、[BOW-910](https://linear.app/bowenzhong/issue/BOW-910)、[BOW-915](https://linear.app/bowenzhong/issue/BOW-915) | [BOW-916](https://linear.app/bowenzhong/issue/BOW-916)、[BOW-874](https://linear.app/bowenzhong/issue/BOW-874) | 配置与只读状态职责分开，失败可诊断但不泄露凭据 / 人员资料；真实路由、权限与连接分别验证 |
+| 三幕最终走查与同材料减负 | 工程验收 | [BOW-871](https://linear.app/bowenzhong/issue/BOW-871)（Codex 回归）、[BOW-896](https://linear.app/bowenzhong/issue/BOW-896) / [BOW-923](https://linear.app/bowenzhong/issue/BOW-923)（化名材料） | [BOW-872](https://linear.app/bowenzhong/issue/BOW-872)（三幕）、[BOW-913](https://linear.app/bowenzhong/issue/BOW-913)（同材料实测）；[BOW-833](https://linear.app/bowenzhong/issue/BOW-833)（X2） | 已部署 SHA、迁移、Web / worker 一致；桌面 / 手机录屏、真实操作与可追踪业务 ID。[BOW-913](https://linear.app/bowenzhong/issue/BOW-913) 用相同材料和确认结果测旧 / 新流程，包含复核、返工及系统使用成本，不复用不可比数字 |
+| 实时录音 P5、维度锚点修订、盘点锁版与不兼容复核 | 原型 / 赛后 | [BOW-865](https://linear.app/bowenzhong/issue/BOW-865)、[BOW-868](https://linear.app/bowenzhong/issue/BOW-868)；不扩充本次迭代卡 | [BOW-869](https://linear.app/bowenzhong/issue/BOW-869)；既有原型保留 | 不列入三幕工程必过；后续另按原需求和批准范围实施 |
 
-本表保留已在 BOW-894 明确给出的 S02 / S13 / S15 / S16 / S20 / S22 / S34 / S35 编号；其余先用可验证的故事名称。完整 S 编号与方案页逐条对应的核对状态见 10.6，不根据编号空档推测故事。
+本表保留已在 BOW-894 明确给出的 S02 / S13 / S22 / S34 / S35 编号；S15 / S16 / S20 已知均属第三幕，但不推测三个编号各自的子故事名称。其余先用可验证的故事名称。完整 S 编号与方案页逐条对应的核对状态见 10.6，不根据编号空档推测故事。
 
 ### 10.4 当前实现证据与剩余接线
 
@@ -266,6 +268,10 @@ X2 的 [#25 部署记录](https://github.com/bowenQT/QTalent/issues/25#issuecomm
 - **未验证**：四角色各自的浏览器业务流程、三幕录屏、正式 PDF 模板、所有已支持来源在生产的解析→人工确认→读取 / 匹配闭环、第三幕发布后新期次读取、合法签名但过期的 Access 输入。四账号 API 登录通过不写成四角色浏览器通过；传输 WebSocket 通过不写成已实现 P5。
 - **后续责任**：X1 完成正式结构与装配，卡片作者补真实接口和当前 head 验证，X2 部署已合 main，Claude Code 在 BOW-872 实走桌面 / 手机并给出三幕业务证据；BOW-913 另做同材料减负实测。缺口保留在决赛范围内，不因尚未完成改成赛后。
 
-### 10.6 尚待核对的来源
+### 10.6 故事原稿缺源与交付边界
 
-指定 `prototype/final-round.html` 在本次基线 Git 树与指定本机路径均未找到；已在 [#248 登记固定来源请求](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6563030585)。本次三幕使用 BOW-872 的当前验收全文作为可核实脚本来源。完整方案页及全部 S 编号尚待根编排给出获准读取的固定版本，随后逐项核对；目前不能宣布“方案页、脚本、卡片全部无冲突”，也不新写或修改原型来补齐缺失来源。
+指定 `prototype/final-round.html` 在本次基线 Git 树与指定本机路径均未找到；已在 [#248 登记固定来源请求](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6563030585)。根编排进一步核查获准的 GitHub 路径历史、相关 issue / PR / 已知分支、Linear 附件和文档、Drive 项目搜索，仍未定位完整 S01～S35 原稿。禁区与真实人事材料未读取。
+
+本次以 BOW-872 的当前验收全文核对「收 / 用 / 迭代」及四角色、桌面 / 手机的验收轮廓。基线 `prototype/index.html` 仍是旧原型导览（手机仅导师、固定 8 人及 W4 周评），不拿它替代最终三幕脚本，也不修改原型补造来源。
+
+**待所有者输入**：提供完整故事 / 方案原稿的固定版本或可读取位置；根编排跟踪，BOW-894 在收到后补全所有 S 编号与跨文档一致性核对。当前交付是已批准范围的需求 / 架构纠偏及有证据的卡片对照，可以独立审查合入；完整原稿一致性仍未验证，BOW-894 不因本次部分交付自动关闭。该缺源不改变已明确的决赛范围，也不阻止现有工程卡继续执行。
