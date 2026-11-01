@@ -25,3 +25,10 @@ export type {
   SelectionApplicabilitySwitch,
   RuleApplicabilityPeriod,
 } from './applicability';
+
+export {
+  attributionHypotheses,
+  standardAttributions,
+  selectionDraftProposals,
+  attributionOperations,
+} from './standard-attribution/schema';
