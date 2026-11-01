@@ -28,17 +28,20 @@ export function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   if (!result.success) throw new KodoError('invalid_input');
   return result.data;
 }
-export const originSchema = z.url().refine((value) => {
-  const url = new URL(value);
-  return (
-    url.protocol === 'https:' &&
-    !url.username &&
-    !url.password &&
-    !url.search &&
-    !url.hash &&
-    url.pathname === '/'
-  );
-});
+export const originSchema = z
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      url.pathname === '/'
+    );
+  })
+  .transform((value) => new URL(value).origin);
 export const kodoConfigSchema = z.object({
   endpoint: originSchema,
   accessKey: z.string().min(1),
@@ -55,13 +58,13 @@ export const keySchema = z
   .max(750)
   .refine(
     (key) =>
-      !/[\x00-\x1f\x7f\\]/.test(key) &&
+      !/[\x00-\x1f\x7f\\"]/.test(key) &&
       !key.split('/').some((part) => part === '.' || part === '..') &&
       Buffer.byteLength(key) <= 750,
   );
 export const mimeSchema = z
   .string()
-  .regex(/^[a-zA-Z0-9!#$&^_.+-]+\/[a-zA-Z0-9!#$&^_.+-]+$/);
+  .regex(/^[a-zA-Z0-9#$&^_.+-]+\/[a-zA-Z0-9#$&^_.+-]+$/);
 export const sha256 = (bytes: Uint8Array) =>
   createHash('sha256').update(bytes).digest('hex');
 // Qiniu uses URL-safe Base64 with padding, not Node's unpadded base64url.

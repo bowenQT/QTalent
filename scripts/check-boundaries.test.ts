@@ -16,6 +16,15 @@ describe('architectural boundaries', () => {
     expect(
       checkImport('src/features/projects/Projects.tsx', 'node:fs'),
     ).toBeTruthy();
+    expect(checkImport('src/app/page.tsx', 'fs')).toBeTruthy();
+    expect(
+      checkImport('src/features/projects/Projects.tsx', 'fs/promises'),
+    ).toBeTruthy();
+    expect(checkImport('src/app/page.tsx', 'node:sqlite')).toBeTruthy();
+    expect(checkImport('src/app/page.tsx', 'node:test')).toBeTruthy();
+    expect(checkImport('src/app/page.tsx', 'sqlite')).toBeNull();
+    expect(checkImport('src/app/page.tsx', 'fs/nope')).toBeNull();
+    expect(checkImport('src/worker/index.ts', 'fs')).toBeNull();
     expect(
       checkImport('src/server/integrations/maas/index.ts', 'pg'),
     ).toBeTruthy();

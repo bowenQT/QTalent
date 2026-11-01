@@ -1,7 +1,11 @@
 import { readdir, readFile } from 'node:fs/promises';
+import { isBuiltin } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
+function isNodeBuiltin(specifier: string): boolean {
+  return isBuiltin(specifier);
+}
 export function checkImport(file: string, specifier: string): string | null {
   const target = specifier.startsWith('@/')
     ? `src/${specifier.slice(2)}`
@@ -14,7 +18,7 @@ export function checkImport(file: string, specifier: string): string | null {
   if (
     frontend &&
     (/^(pg|pg-boss|drizzle-orm|better-auth)(?:[/:]|$)/.test(target) ||
-      /^node:/.test(target))
+      isNodeBuiltin(target))
   )
     return 'UI cannot import server runtime packages';
   if (/^src\/(contracts|lib)\//.test(file) && /^src\/server\//.test(target))
