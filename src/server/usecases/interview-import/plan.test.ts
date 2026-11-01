@@ -1457,7 +1457,7 @@ describe('owner ruling: unique non-hired rows skip before HR identification', ()
     },
   );
   it.each([false, true])(
-    'does not collapse two matching recruitment records using a confirmed ID (%s)',
+    'requires HR confirmation before skipping duplicate recruitment matches (%s)',
     (confirmed) => {
       const input = unconfirmed('rejected');
       input.candidates.push({
@@ -1467,8 +1467,11 @@ describe('owner ruling: unique non-hired rows skip before HR identification', ()
       if (confirmed) {
         input.confirmedCandidateId = input.candidates[0].candidateId;
         input.confirmedForRowRevision = input.rowSnapshot!.revision;
-      }
-      candidateHeld(input);
+        expect(planInterviewImport(input)).toEqual({
+          status: 'skipped',
+          reason: 'not_hired',
+        });
+      } else candidateHeld(input);
     },
   );
   it.each([
@@ -1543,5 +1546,85 @@ describe('owner ruling: unique non-hired rows skip before HR identification', ()
     input.confirmedCandidateId = input.candidates[0].candidateId;
     input.confirmedForRowRevision = input.rowSnapshot!.revision;
     expect(planInterviewImport(input).status).toBe('planned');
+  });
+});
+
+describe('B1: HR disambiguation is distinct from automatic unique matching', () => {
+  function duplicateFacts(
+    status: 'hired' | 'rejected' | 'offer_pending' | 'offer_declined',
+    samePerson: boolean,
+    reviewed: boolean,
+  ) {
+    const input = reviewed ? candidateResumeFacts() : facts();
+    input.candidates[0].status = status;
+    input.candidates.push({
+      ...input.candidates[0],
+      candidateId: 'demo-second-application',
+      personId: samePerson ? input.candidates[0].personId : 'demo-other-person',
+    });
+    return input;
+  }
+  describe.each([true, false])('same person: %s', (samePerson) => {
+    it.each(['hired', 'rejected', 'offer_pending', 'offer_declined'] as const)(
+      'accepts a committed HR selection among duplicate %s records',
+      (status) => {
+        const input = duplicateFacts(status, samePerson, true);
+        const before = structuredClone(input);
+        if (status === 'hired') {
+          const value = planned(input);
+          expect(value).toMatchObject({ personId: 'p-x08' });
+        } else {
+          expect(planInterviewImport(input)).toEqual({
+            status: 'skipped',
+            reason: 'not_hired',
+          });
+        }
+        expect(input).toEqual(before);
+      },
+    );
+    it.each(['hired', 'rejected', 'offer_pending', 'offer_declined'] as const)(
+      'accepts current-row HR preview confirmation among duplicate %s records',
+      (status) => {
+        const input = duplicateFacts(status, samePerson, false);
+        if (status === 'hired') planned(input);
+        else
+          expect(planInterviewImport(input)).toEqual({
+            status: 'skipped',
+            reason: 'not_hired',
+          });
+      },
+    );
+  });
+  it.each(['hired', 'rejected'] as const)(
+    'keeps unconfirmed duplicate %s records in review',
+    (status) => {
+      const input = duplicateFacts(status, true, false);
+      input.confirmedCandidateId = null;
+      candidateHeld(input);
+    },
+  );
+  it.each(['stale-revision', 'missing-id', 'duplicate-id'] as const)(
+    'does not accept %s as HR disambiguation',
+    (mode) => {
+      const input = duplicateFacts('hired', true, false);
+      if (mode === 'stale-revision') input.confirmedForRowRevision = 0;
+      if (mode === 'missing-id') input.confirmedCandidateId = 'missing';
+      if (mode === 'duplicate-id')
+        input.candidates[1].candidateId = input.candidates[0].candidateId;
+      candidateHeld(input);
+    },
+  );
+  it('still requires the actual committed review receipt', () => {
+    const input = duplicateFacts('hired', true, true);
+    input.resolvedCandidate = null;
+    expect(planInterviewImport(input)).toEqual({
+      status: 'not_ready',
+      reason: 'resolution_snapshot_unavailable',
+    });
+  });
+  it('still denies current HR revocation after disambiguation', () => {
+    const input = duplicateFacts('hired', true, true);
+    input.context.grants[0].revokedAt = input.context.now;
+    expect(planInterviewImport(input)).toEqual({ status: 'forbidden' });
   });
 });

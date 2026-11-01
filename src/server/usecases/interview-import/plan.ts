@@ -438,9 +438,10 @@ export function planInterviewImport(
       ? candidatePending()
       : notReady('candidate_identity_missing');
   }
+  // Automatic pre-confirmation skipping requires uniqueness above. A current
+  // HR confirmation instead disambiguates the exact recruitment record below.
   const matches = identityMatches.filter(
     (candidate) =>
-      identityMatches.length === 1 &&
       facts.confirmedForRowRevision === row.revision &&
       candidate.candidateId === facts.confirmedCandidateId &&
       candidate.name === observedName &&
