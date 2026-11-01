@@ -8,6 +8,7 @@ import {
   boolean,
   date,
   jsonb,
+  timestamp,
   unique,
   check,
   primaryKey,
@@ -183,6 +184,7 @@ export const events = pgTable(
       .notNull()
       .references(() => ruleVersions.id),
     demo: boolean('demo').notNull().default(false),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
   },
   (t) => [
     unique('records_event_rule_version').on(t.id, t.ruleVersionId),
@@ -193,10 +195,7 @@ export const events = pgTable(
         evaluationNodeSubjects.personId,
       ],
     }),
-    check(
-      'records_sbi',
-      sql`length(trim(${t.situation})) > 0 and (${t.demo} or length(trim(${t.behavior})) > 0)`,
-    ),
+    check('records_sbi', sql`${t.demo} or length(trim(${t.behavior})) > 0`),
   ],
 );
 export const eventParticipants = pgTable(

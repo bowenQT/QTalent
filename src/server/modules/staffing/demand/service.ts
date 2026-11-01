@@ -78,84 +78,91 @@ export function queuedSnapshot(job: JobRecord) {
   });
 }
 export function createDemandService(deps: DemandDependencies) {
+  async function createInTransaction(
+    tx: Transaction,
+    accountId: string,
+    input: { operationId: string; projectId: string; inputText: string },
+  ) {
+    await operationLock(tx, accountId, input.operationId);
+    const now = deps.now();
+    const { context } = await deps.loadContext(tx, accountId, now);
+    if (
+      !canWriteDemand(context, {
+        projectId: input.projectId,
+        initiatorAccountId: '',
+      })
+    )
+      throw new DemandAccessError();
+    const fingerprint = JSON.stringify([
+      'create',
+      input.projectId,
+      input.inputText,
+    ]);
+    const [old] = await tx
+      .select()
+      .from(demandOperations)
+      .where(
+        and(
+          eq(demandOperations.accountId, accountId),
+          eq(demandOperations.operationId, input.operationId),
+        ),
+      );
+    if (old) {
+      if (old.fingerprint !== fingerprint || old.revision !== null)
+        throw new DemandConflictError();
+      // The initial acknowledgement is immutable; current progress is read from the shared jobs endpoint.
+      const root = await loadDemandRoot(tx, old.demandId);
+      if (!root || !canReadDemand(context, root)) throw new DemandAccessError();
+      const job = newJob(
+        {
+          jobId: root.id,
+          kind: 'staffing_demand',
+          resourceId: root.id,
+          inputVersion: inputVersion(root.inputText, root.promptVersion),
+        },
+        root.createdAt,
+      );
+      return { snapshot: queuedSnapshot(job), replayed: true };
+    }
+    const id = randomUUID();
+    await tx.insert(demandRoots).values({
+      id,
+      projectId: input.projectId,
+      initiatorAccountId: accountId,
+      initiatorPersonId: context.account.personId,
+      inputText: input.inputText,
+      promptVersion: DEMAND_PROMPT_VERSION,
+      createdAt: now,
+    });
+    const job = newJob(
+      {
+        jobId: id,
+        kind: 'staffing_demand',
+        resourceId: id,
+        inputVersion: inputVersion(input.inputText, DEMAND_PROMPT_VERSION),
+      },
+      now,
+    );
+    await insertJob(tx, job);
+    await deps.enqueue(tx, job);
+    await tx.insert(demandOperations).values({
+      accountId,
+      operationId: input.operationId,
+      fingerprint,
+      demandId: id,
+      revision: null,
+    });
+    return { snapshot: queuedSnapshot(job), replayed: false };
+  }
   return {
+    createInTransaction,
     async create(
       accountId: string,
       input: { operationId: string; projectId: string; inputText: string },
     ) {
-      return deps.db.transaction(async (tx) => {
-        await operationLock(tx, accountId, input.operationId);
-        const now = deps.now();
-        const { context } = await deps.loadContext(tx, accountId, now);
-        if (
-          !canWriteDemand(context, {
-            projectId: input.projectId,
-            initiatorAccountId: '',
-          })
-        )
-          throw new DemandAccessError();
-        const fingerprint = JSON.stringify([
-          'create',
-          input.projectId,
-          input.inputText,
-        ]);
-        const [old] = await tx
-          .select()
-          .from(demandOperations)
-          .where(
-            and(
-              eq(demandOperations.accountId, accountId),
-              eq(demandOperations.operationId, input.operationId),
-            ),
-          );
-        if (old) {
-          if (old.fingerprint !== fingerprint || old.revision !== null)
-            throw new DemandConflictError();
-          // The initial acknowledgement is immutable; current progress is read from the shared jobs endpoint.
-          const root = await loadDemandRoot(tx, old.demandId);
-          if (!root || !canReadDemand(context, root))
-            throw new DemandAccessError();
-          const job = newJob(
-            {
-              jobId: root.id,
-              kind: 'staffing_demand',
-              resourceId: root.id,
-              inputVersion: inputVersion(root.inputText, root.promptVersion),
-            },
-            root.createdAt,
-          );
-          return { snapshot: queuedSnapshot(job), replayed: true };
-        }
-        const id = randomUUID();
-        await tx.insert(demandRoots).values({
-          id,
-          projectId: input.projectId,
-          initiatorAccountId: accountId,
-          initiatorPersonId: context.account.personId,
-          inputText: input.inputText,
-          promptVersion: DEMAND_PROMPT_VERSION,
-          createdAt: now,
-        });
-        const job = newJob(
-          {
-            jobId: id,
-            kind: 'staffing_demand',
-            resourceId: id,
-            inputVersion: inputVersion(input.inputText, DEMAND_PROMPT_VERSION),
-          },
-          now,
-        );
-        await insertJob(tx, job);
-        await deps.enqueue(tx, job);
-        await tx.insert(demandOperations).values({
-          accountId,
-          operationId: input.operationId,
-          fingerprint,
-          demandId: id,
-          revision: null,
-        });
-        return { snapshot: queuedSnapshot(job), replayed: false };
-      });
+      return deps.db.transaction((tx) =>
+        createInTransaction(tx, accountId, input),
+      );
     },
     async change(
       accountId: string,
