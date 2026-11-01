@@ -317,11 +317,18 @@ describe('approved baseline evidence mapping', () => {
   it('does not evaluate store.js or import its derived profiles and quadrants', () => {
     const root = mkdtempSync(join(tmpdir(), 'qtalent-no-store-'));
     try {
-      const directory = join(root, '.reference-cache/prototype/y/app/js');
+      const directory = join(
+        root,
+        '.reference-cache/evidence/prototype/y/app/js',
+      );
       mkdirSync(directory, { recursive: true });
       for (const file of ['data-xe6.js', 'data.js'])
         cpSync(
-          join(process.cwd(), '.reference-cache/prototype/y/app/js', file),
+          join(
+            process.cwd(),
+            '.reference-cache/evidence/prototype/y/app/js',
+            file,
+          ),
           join(directory, file),
         );
       cpSync(

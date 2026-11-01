@@ -7,6 +7,7 @@ import {
   evidenceSeedFields,
   mapEvidenceSeed,
   EVIDENCE_SOURCES,
+  EVIDENCE_BASELINE,
   snapshotFieldSources,
 } from './evidence';
 import type {
@@ -90,11 +91,7 @@ const seedSchema = z.object({
 export type PrototypeSeed = z.infer<typeof seedSchema>;
 /** Only trusted, digest-pinned repository source is evaluated. VM is not an untrusted-code sandbox. */
 export function readPrototypeSeed(root: string): PrototypeSeed {
-  const reference = z
-    .object({ commit: z.string().min(7) })
-    .parse(
-      JSON.parse(readFileSync(join(root, 'prototype-reference.json'), 'utf8')),
-    );
+  const reference = { commit: EVIDENCE_BASELINE };
   const context = createContext(
     { window: { NT: {} } },
     { codeGeneration: { strings: false, wasm: false } },
@@ -106,7 +103,7 @@ export function readPrototypeSeed(root: string): PrototypeSeed {
   let firstEvents: unknown = [];
   for (const [file, expected] of Object.entries(EVIDENCE_SOURCES)) {
     const source = readFileSync(
-      join(root, '.reference-cache/prototype/y/app/js', file),
+      join(root, '.reference-cache/evidence', expected.path),
       'utf8',
     );
     if (
