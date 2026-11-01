@@ -41,9 +41,16 @@
   // 判断对照生成的改进作用于人才评价规则，只给能看判断对照汇总的视角；对人的行动按归属范围过滤
   // 具体人员的管理行动必须有完整管理范围；仅有跨项目可见权限不能读取任用判断。
   const visible = (a) => (st.judgeBatch(a.from) ? st.canJudge() : !a.person || st.can('mgmt', a.person));
-  const sorted = (l) => l.slice().sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state));
+  const sorted = (l) => l.slice().sort((a, b) => ORDER.indexOf(st.actionState(a).s) - ORDER.indexOf(st.actionState(b).s));
 
   function actionRow(a) {
+    const x = st.actionState(a);
+    // 修订入营选拔标准的动作：状态跟着修订推进，只读，点开到规则页看那份修订
+    if (x.derived) {
+      return html`<div class="n-action" id="${a.id}"><div><div class="n-action__title">${a.title}${a.kind ? html` <span class="n-kind">${a.kind}</span>` : ''}</div>
+        <div class="n-action__meta">${from(a)}${from(a) ? ' · ' : ''}${x.rev ? `修订 ${x.rev.v.replace(/^.*-(v\d+)$/, '$1')} · ` : ''}状态跟着修订自动推进 · 负责人 ${st.person(a.owner).name}</div></div>
+        <a class="n-astate" data-s="${x.s}" href="rules.html?r=${a.rule.kind}&line=${a.rule.line}" title="在人才评价规则里看这份修订">${x.label}</a></div>`;
+    }
     return html`<div class="n-action" id="${a.id}"><div><div class="n-action__title">${a.title}${a.kind ? html` <span class="n-kind">${a.kind}</span>` : ''}</div>
       <div class="n-action__meta">${from(a)}${from(a) ? ' · ' : ''}预计 ${NT.md(a.due)}${a.did ? ` · 实际 ${NT.md(a.did)}` : ''}${a.observe && a.state !== 'cancel' ? ` · 观察到 ${NT.md(a.observe)}` : ''} · 负责人 ${st.person(a.owner).name}${a.state === 'cancel' ? html` · <span class="why">${a.why}</span>` : ''}</div></div>
       <span class="n-menuwrap"><button class="n-astate" type="button" data-s="${a.state}" data-act="${a.id}" style="border:0;cursor:pointer" aria-label="改状态：${LABEL[a.state]}">${LABEL[a.state]}</button></span></div>`;
@@ -199,6 +206,7 @@
   }
 
   async function setState(a, s) {
+    if (a.rule) return; // 跟着修订推进的动作不手工改
     const hadWhy = Object.prototype.hasOwnProperty.call(a, 'why');
     const prev = { state: a.state, did: a.did, stateAt: a.stateAt, stateTs: a.stateTs, why: a.why };
     if (s === 'cancel') {
