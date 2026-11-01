@@ -172,12 +172,14 @@ export function requireNativeInput(input: StoredArrangeInput) {
     !input.boundAt ||
     !input.occurredOn ||
     input.origin !== 'text' ||
+    'kind' in input.originalInput ||
     input.originalInput.attachmentIds.length ||
     !input.inputSource ||
     input.sourceContexts.length !== 1
   )
     throw new NativeArrangeUnavailable('native_text_input_facts_required');
   return {
+    originalInput: input.originalInput,
     batchId: input.batchId,
     evaluationNodeId: input.evaluationNodeId,
     boundAt: input.boundAt.toISOString(),
@@ -370,14 +372,15 @@ export async function loadRecordBatchSnapshot(
   metadata: BatchJobMetadata,
   at: string,
   batchRevision: number,
+  generation: BatchSnapshot['generation'] = { kind: 'initial' },
 ): Promise<BatchSnapshot | null> {
   const native = requireNativeInput(input);
   if (input.supersededByInputId !== null) return null;
   const attribution = input.sourceContexts[0]!;
   if (
-    input.originalInput.operation_id !== metadata.operationId ||
-    input.originalInput.projectId !== input.projectId ||
-    input.originalInput.personId !==
+    native.originalInput.operation_id !== metadata.operationId ||
+    native.originalInput.projectId !== input.projectId ||
+    native.originalInput.personId !==
       (input.personIds.length === 1 ? input.personIds[0] : null) ||
     attribution.kind !== 'evaluation' ||
     attribution.requiredKinds.length !== 0 ||
@@ -420,7 +423,7 @@ export async function loadRecordBatchSnapshot(
     stored.originalVersionId !== version.id ||
     version.contentDigest !==
       createHash('sha256').update(fragment.excerpt).digest('hex') ||
-    fragment.excerpt.trim() !== input.originalInput.text.trim()
+    fragment.excerpt.trim() !== native.originalInput.text.trim()
   )
     throw new NativeArrangeUnavailable('immutable_text_source_changed');
   // Consume the current846 projection instead of reviving its removed sourcesForDraft.
@@ -484,7 +487,7 @@ export async function loadRecordBatchSnapshot(
     identities: input.personIds.length ? 'resolved' : 'unresolved',
     personIds: [...input.personIds],
     context: actor.context,
-    generation: { kind: 'initial' },
+    generation: structuredClone(generation),
     requestedSources: [
       {
         fragmentId: fragment.id,

@@ -99,6 +99,7 @@ export function fixture(
       { id: 'grit', name: '坚毅力', axis: 'pot', core: true },
     ],
     confirmations: [],
+    intakeInputs: [],
     cohorts: [{ id: 'cohort', name: 'Synthetic cohort' }],
     employments: [
       {
@@ -131,6 +132,10 @@ export function fixture(
       withdrawnAt: null,
     });
     data.fragments.push({
+      parseVersionId: null,
+      sourceCategory: null,
+      evaluationKind: null,
+      demo: null,
       id: fragmentId,
       originalVersionId: 'version',
       excerpt: 'Synthetic observation',

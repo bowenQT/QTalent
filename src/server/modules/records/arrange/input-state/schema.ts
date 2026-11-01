@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { MAX_ATTACHMENTS } from '../../../../../contracts/media';
 import {
   pgTable,
   text,
@@ -13,7 +14,7 @@ import {
 import { accountBindings } from '../../../directory';
 import { evaluationNodes } from '../../../programs';
 import { jobSnapshots } from '../../../../jobs/schema';
-import type { RecordInput } from '../../../../../contracts/record';
+import type { StoredRecordOriginalInput } from './original-input';
 import type { TalentKind, TalentSubject } from '../../../../authz/talent';
 
 /** Immutable provenance facts supplied only by trusted source producers. Never grants or cached permission decisions. */
@@ -48,7 +49,9 @@ export const arrangeInputs = pgTable(
     origin: text('origin', {
       enum: ['text', 'recording', 'attachment'],
     }).notNull(),
-    originalInput: jsonb('original_input').$type<RecordInput>().notNull(),
+    originalInput: jsonb('original_input')
+      .$type<StoredRecordOriginalInput>()
+      .notNull(),
     sourceContexts: jsonb('source_contexts')
       .$type<ArrangeSourceContext[]>()
       .notNull(),
@@ -86,7 +89,13 @@ export const arrangeInputs = pgTable(
     ),
     check(
       'records_arrange_original_input',
-      sql`jsonb_typeof(${t.originalInput}) = 'object' and jsonb_typeof(${t.originalInput}->'text') = 'string' and (${t.originalInput}->>'text') ~ '[^[:space:]]'`,
+      sql`jsonb_typeof(${t.originalInput}) = 'object' and (
+        coalesce(jsonb_typeof(${t.originalInput}->'text') = 'string' and (${t.originalInput}->>'text') ~ '[^[:space:]]', false)
+        or coalesce(${t.originalInput}->>'kind' = 'media' and jsonb_typeof(${t.originalInput}->'operationId') = 'string'
+          and (${t.originalInput}->>'operationId') ~ '[^[:space:]]'
+          and jsonb_typeof(${t.originalInput}->'materialIds') = 'array'
+          and jsonb_array_length(${t.originalInput}->'materialIds') between 1 and ${sql.raw(String(MAX_ATTACHMENTS))}, false)
+      )`,
     ),
     check(
       'records_arrange_new_input',

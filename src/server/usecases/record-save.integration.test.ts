@@ -72,6 +72,10 @@ beforeAll(async () => {
   url.pathname = '/' + databaseName;
   connection = createDatabase(url.toString());
   await migrate(db(), { migrationsFolder: 'src/server/db/migrations' });
+  if (process.env.QTALENT_MEDIA_TEST_MIGRATIONS)
+    await migrate(db(), {
+      migrationsFolder: process.env.QTALENT_MEDIA_TEST_MIGRATIONS,
+    });
   const tables = await db().execute<{ ready: boolean }>(
     sql`select to_regclass('records_saves') is not null as ready`,
   );
@@ -1368,9 +1372,10 @@ it('R2 S1: pending task cancellation audit failure rolls back the entire native 
   const priorEvents = await readEvents();
   const originalAudit = audit.recordAudit;
   vi.spyOn(audit, 'recordAudit').mockImplementation(async (...args) => {
-    await originalAudit(...args);
+    const id = await originalAudit(...args);
     if (args[1].action === 'evaluation_work.record_withdrawn')
       throw new Error('synthetic pending-task audit failure');
+    return id;
   });
   await expect(
     undoRecordSave(

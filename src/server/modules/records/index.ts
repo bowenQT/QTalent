@@ -1,10 +1,16 @@
 /** Events have one evaluated person. Participants and shared source fragments never imply a score. */
+export { readMediaReviewStateInTransaction } from './material-review/read';
+export type { MediaReviewState } from './material-review/read';
+export { currentImageDecision } from './material-review/image-decision';
+export type { CurrentImageDecision } from './material-review/image-decision';
 export {
   historicalEvaluations,
   historicalParticipants,
   originals,
   originalVersions,
   fragments,
+  materialParses,
+  materialPdfPages,
   events,
   eventParticipants,
   eventSources,
@@ -63,6 +69,7 @@ export {
 
 export {
   storeTrustedRecordDraftBatch,
+  reviseTrustedRecordDraftBatch,
   lockRecordCommand,
   readRecordConfirmationState,
   commitRecordSave,
@@ -76,3 +83,23 @@ export type {
   RecordUndoCommit,
   RecordConfirmationWorkFact,
 } from './write';
+
+// Internal upload facts require current authorization in the consuming usecase.
+export {
+  createPostgresUploadStore,
+  lockUploadCollection,
+  readUploadCollectionMembers,
+} from './uploads/store';
+export type { UploadDispatch, PostgresUploadStore } from './uploads/store';
+export { readValidatedUpload } from './uploads/handoff';
+export { readValidatedUploadInTransaction } from './uploads/handoff-transaction';
+export type { ValidatedUpload } from './uploads/handoff';
+export type { UploadCollectionMembers } from './uploads/types';
+
+export { readAuthorizedMaterialSource } from './material-sources/read';
+export { wecomMessages, wecomReceiptAttempts } from './wecom/schema';
+export {
+  wecomArchivedMediaSchema,
+  wecomArchivedMediaListSchema,
+} from './wecom/facts';
+export type { WecomArchivedMedia } from './wecom/facts';

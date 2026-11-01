@@ -372,6 +372,10 @@ describe('timeline entries', () => {
     const data = fixture();
     data.statements[1].kind = 'self_report';
     data.fragments.push({
+      parseVersionId: null,
+      sourceCategory: null,
+      evaluationKind: null,
+      demo: null,
       id: 'fragment-h',
       originalVersionId: 'version',
       excerpt: 'Synthetic history',
@@ -594,4 +598,30 @@ describe('strict projection', () => {
       false,
     );
   });
+});
+
+it('keeps material locators out of the unmigrated legacy source/profile contract', async () => {
+  const data = fixture();
+  for (const fragment of data.fragments) {
+    fragment.location = {
+      kind: 'pdf',
+      page: 1,
+      textRange: { start: 0, end: 2 },
+    };
+    fragment.parseVersionId = 'demo-parse';
+    fragment.sourceCategory = 'original';
+    fragment.demo = true;
+  }
+  const fragment = data.fragments[0]!;
+  expect(
+    (
+      await sourceFromData(data, {
+        fragmentId: fragment.id,
+        originalVersionId: fragment.originalVersionId,
+      })
+    ).status,
+  ).toBe('not_found');
+  const person = await profileOf(data);
+  expect(person.timeline.status).toBe('empty');
+  expect(person.capabilityProfile.status).toBe('insufficient_evidence');
 });
