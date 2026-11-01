@@ -154,28 +154,28 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 
 ## P0 工作台、人员与来源合同（BOW-836）
 
-依据：[已交叉审规格](https://linear.app/bowenzhong/document/51834ba3247b)。仅新增 Zod 合同和合成夹具，不实现页面或读取。前端 BOW-839/840/841 负责人评审仍是独立合入条件，本表不宣称已获评审。原型基线仍为 `prototype-reference.json` 的 `2e51b50`，没有新遮罩或 UI 修改。
+依据：[已交叉审规格](https://linear.app/bowenzhong/document/51834ba3247b)、BOW-836 的 10/26 修订清单与[所有者恢复裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6553550926)。本片提供 Zod 合同、合成夹具及现有人才/来源读取的形状适配，不实现页面；工作台真实读取仍由 BOW-838 接入。消费 main 已冻结的 BOW-897，保留 #216 来源索引及 #284 的受限评价分类。工程原型参照以 `prototype-reference.json` 为准；历史原件的 `2e51b50` 是其固定来源证明，两者不混用。前端消费方评审仍是独立条件，本表不宣称已获评审。
 
 | 消费页面 / 区块 | 合同字段 | 数据来源 / 当前表达 | 后续责任 |
 | --- | --- | --- | --- |
-| `/work` 问候与入口 | `workbench.greeting / entries` | directory 身份及服务端授权；合同就绪，查询尚未接入 | BOW-838/841 |
-| 管理者找人入口 | `findPeople` | 仅可用动作，不包含找人结果 | BOW-838；P2 找人链路 |
+| `/work` 问候、业务日与入口 | `workbench.greeting / asOf / entries` | directory 身份及服务端授权；`entries` 是动作授权唯一来源（管理者与 HR `record, find_people`、导师 `record`），导航由 shell 决定；查询由 `queries/workbench.ts` 提供页面包络与当前授权读取，UI 由 841 接入；`/work` 仍为 404 | BOW-838/841 |
 | 管理者判断提醒、值得关注的人/项目、我的关注 | `judgmentReminders / noteworthyPeople / noteworthyProjects / myWatch` | evaluation-system / talent / programs；固定 `not_connected` | P2/P4 对应链路 |
 | HR 有变化的人、判断对照 | `changedPeople / judgmentComparison` | talent / evaluation-system；固定 `not_connected` | P4/P7 对应链路 |
 | HR/导师待办与材料任务 | `todos / materialTasks` | records / jobs；固定 `not_connected`，无伪零角标 | P3 待办汇总与材料链路 |
-| 导师学员 / 推荐 | `trainees / recommendations` | directory + records 授权学员可 ready/empty/insufficient_evidence/unknown；推荐固定 `not_connected` | BOW-838/841；推荐后续卡 |
-| `/people` 列表、速览 | `peopleList / quickView` | directory、records、staffing 公开入口；合同就绪，读取/UI 未接入 | BOW-837/839 |
-| `/person?id=…` 摘要 | `summary` | directory 身份；records 已授权事实、自述、人工结论分性质呈现 | BOW-837/840 |
-| 档案能力谱 | `capabilityProfile` | records 确认表维度分：锚点、评价人、规则版本、有效来源及 sourceCategory；演示种子的 prototype_baseline 例外计入，无 AI 建议分 | BOW-834/835/837/840 |
-| 档案小象限 | `referencePosition` | talent 当前有效确认分计算；只给参考分类或资料不足/未知，不设新阈值，无正式位置 | BOW-837/840 |
+| 导师学员 / 推荐 | `trainees / recommendations` | `trainees` 是精简投影（头像四项、课题、本人本周记录活跃度 ready/unknown），不含摘要、分数、来源；推荐固定 `not_connected` | BOW-838/841；推荐后续卡 |
+| `/people` 列表、速览 | `peopleList / quickView` | 身份（含 teamPath、level、batch、tenureLabel）、`projectLoad`、`recentFacts`（≤3，原文角标）、`capabilityLines`（无窗口，只有事件数与锚点）；先授权后聚合；合同及既有读取形状已适配，页面/结果包络接入由消费卡完成 | BOW-837/839 |
+| `/person?id=…` 摘要 | `summary` | 署名、有日期的人工结论，带授权类别 `category`；事实与自述在时间线，AI 在 `aiInferences` | BOW-837/840 |
+| 档案能力谱 | `capabilityProfile` | 服务端按 `asOf` 前 365 天（含边界日）切窗口，带 `windowFrom`、维度状态与窗口内确认分（锚点、评价人姓名、规则版本、来源、事件）；分差 ≥ 2 的证据冲突不计入；演示种子的 prototype_baseline 例外计入，无 AI 建议分 | BOW-834/835/837/840 |
+| 档案小象限 | `referencePosition` | talent 当前有效确认分计算；只给参考分类或资料不足/未知，档案另有 `bonus`（领导力或开放性各自均值 ≥ 4，不改象限），不设新阈值，无正式位置 | BOW-837/840 |
 | 校准轨迹、档案版本与变化 | `calibrationHistory / versionsAndChanges` | talent 盘点冻结未接入；固定 `not_connected` | 后续盘点冻结链路 |
-| 管理观察 / AI 推断 | `managementObservations / aiInferences` | records 按性质与当前权限分别投影，AI 继承来源权限 | BOW-835/837/840 |
-| 时间线、参与项目 | `timeline / projects` | records / staffing 已授权公开入口 | BOW-837/840 |
-| 所有引用角标展开 | `sourceReadInput / sourceReadResult` | records 的 fragmentId + originalVersionId + location；每次核对关联及当前权限，不整件返回 | BOW-834/835/837；播放 URL 由 BOW-873 后续接入 |
+| AI 推断 | `aiInferences` | 独立块，不冒充人工结论；`category` 随输入内容定类，导师变体只能是 `evaluation` | BOW-835/837/840 |
+| 时间线、参与项目 | `timeline / projects` | 关键事件、自述、历史量表三种条目：`label`（界面来源标签）与 `category`（授权类别）分开，事件带逐分来源与证据冲突；项目含角色、方式、起止；均为已授权入口 | BOW-837/840 |
+| 所有引用角标展开 | `sourceReadInput / sourceReadResult` | 入参只有 fragmentId + originalVersionId（`toSourceReadInput`），结果含 `originalTitle`、可空的 `recordedByName`；每次核对关联及当前权限，不整件返回 | BOW-834/835/837；播放 URL 由 BOW-873 后续接入 |
+| 三个页面的结果包络 | `peoplePage / workbenchPage / personPage` | `ok` / `forbidden`（档案另有 `not_found`），拒绝不带 message 与人名；返回前须解析 | BOW-837/838 |
 
 状态规则：已接入的事实块 `ready` 必有非空 payload；`empty` 仅表示权限范围内确无记录；`insufficient_evidence` / `unknown` 带原因而无数值。来源读取失败沿用 `validation_error / forbidden / not_found / conflict`，不得伪装空状态。加载中是前端本地状态。未接入区块只含 `{status: 'not_connected'}`，不携带伪计数、数组或业务记录。
 
-角色规则：档案摘要、能力谱、时间线、项目供管理者、范围内 HR、所带学员导师读取；管理观察、小象限、校准轨迹、版本变化仅管理者/范围内 HR。导师严格变体不含这些字段，也没有 hiddenN；系统管理员无业务成功变体，查询入口拒绝后使用现有通用权限提示。AI 推断只可来自该角色已授权来源。schema 是边界校验，不替代服务端授权。
+角色规则：档案摘要、能力谱、时间线、项目供管理者、范围内 HR、所带学员导师读取；象限位置、校准轨迹、版本变化及 `management-observation` / `restricted-evaluation` / `performance` / `quadrant` 类内容仅当前获权的管理者/范围内 HR（导师变体的 `category` 只能是 `evaluation`）。导师严格变体不含这些字段，也没有 hiddenN；系统管理员无业务成功变体，查询入口拒绝后使用现有通用权限提示。AI 推断只可来自该角色已授权来源。schema 是边界校验，不替代服务端授权。
 
 列表按授权 → 姓名/岗位检索与团队筛选 → teamName、name、id 稳定排序；本次有界演示目录不分页，total 恰为可见筛选结果数。排序由 BOW-837 查询实现并测试，合同不重排数据、不提供 score 或校准变化参数。ID tie-break 仅确保重名稳定，非人才排名。
 
@@ -184,6 +184,16 @@ trace 与 `app-output` 显示登录请求实际返回 200 并设置会话 cookie
 前端开发夹具：`tests/fixtures/p0-contracts.ts`，只含 `test-*` 标识和明确合成描述，涵盖三角色、ready/empty/insufficient_evidence/unknown/not_connected、来源拒绝。不得作为生产 fallback。测试：`src/contracts/p0-contracts.test.ts`；不改变工程共享配置与覆盖率排除。
 
 BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认分一样参加能力谱和参考位置；原型 AI 建议及资料不足不计入。这个合同不决定授权或正式导入许可，正式入口拒绝 prototype_baseline 由 BOW-834 保证。前端负责人需评审新增快照位置、来源类别与提示的展示；当前尚无该验收证据。
+
+
+本次恢复与清单的差异以版本 Y 和更新裁决为准：
+
+- R3.1 已按 10/26 决定让管理者也有 `record`，与 Y 的「记一件事」一致；不因 DY-16 的实时录音禁入而移除该文字记录入口。
+- R4.1 的受限历史不再一律映射为 `performance`。结营沿 #284 的 `restricted-evaluation`，原 `kind`、量表、分值和来源保持；当前源策略、页面投影与模型输入仍同源核权。导师响应严格只接受 `evaluation`，本片不补造节点评价关系，899 的同节点正向授权仍待其真实适配。
+- R0.7 的证据冲突沿 Y DY-09：同一事件、维度的有效确认分差至少 2 才为冲突；不把任何不同分值都判为冲突。冲突组不进入速览线索、能力谱或参考位置。
+- Y 的工作台命名、排序和角色边界优先：中文拼音排序、系统管理员整页拒绝、无隐藏数量；旧清单不恢复版本 X 的导航或管理者处理型首页。
+
+读取适配不补缺失业务事实：`level=null`、`jobTitle` 沿既有「职位未接入」占位、组织路径当前单级；参与人角色/本人角色省略；人工结论缺形成日期时 `unknown`，不拿事件日冒充；`recordedByName=null`，不借事件记录人充当原件记录人；维度暂按组和 id 排列，等待目录顺序。R2.3 待确认 AI 事件排除、R4.1 显式入库类别与团队记录者正向集合、R0.1 页面包络/真实 UI、R3 工作台活动等仍由 834/837/838 与实际消费者完成，不以本片契约测试或形状适配当成整链验收。
 
 ## BOW-844 记事与评分复核契约
 
