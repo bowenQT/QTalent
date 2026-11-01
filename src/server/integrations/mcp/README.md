@@ -1,11 +1,11 @@
-# BOW-910 MCP 三工具：协议适配第一片
+# BOW-910 MCP 三工具：协议与原生领域组合
 
-本片实现可直接处理标准 Request/Response 的 Streamable HTTP 适配，以及三个工具到实际 BOW-903 用例的分派。没有 Next 路由、生产 listener、个人令牌发行、数据库适配或部署。默认没有生产工具 handler；缺失时返回 unavailable。定向 HTTP 用例的身份、材料和领域 I/O 全为明确的合成输入，不代表正式客户端、真实业务或部署验收。
+本片实现可直接处理标准 Request/Response 的 Streamable HTTP 适配，以及三个工具到实际 BOW-903 用例的分派。原生 PostgreSQL、领域 handler 与 pg-boss producer 的组合见 `../../usecases/mcp/README.md`；本目录继续只负责协议。没有 Next 路由、生产 listener、个人令牌发行或部署。未配置真实身份 reader/完整审计仍不可接通，测试不代表正式客户端或部署验收。
 
 ## 固定输入
 
-- 起点 main：91b297afbc005a26a0f9bd93a2126fbd1d2fe6c9。
-- BOW-903：80b4755d6e96a3462e9a56c0ac0a7944b5be767e，普通合并，不复制身份、节点、材料或业务合同。
+- 当前组合：main fe34b6f、903 4913220，经X1 b122038合回；随后消费3fef8c3三个真实同事务入口和ca0完整intake来源图。
+- 初版903输入80b4755已由上述最终合同替代；沿原分支普通合并，不复制身份、节点、材料或业务合同。
 - BOW-895 MCP 历史实验：bd2e9f1af5e563c8effb5e1ab664b4552577c096。两个实际客户端的合成只读调用已在 #218/6547057111 记录；不是本片的真实三工具验收。
 - 没有 MCP SDK 依赖，使用现有 Node/Web HTTP API 和 Zod。协议依据为 [MCP 2025-11-25 Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)、[生命周期](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)和[工具](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)。
 
@@ -21,9 +21,9 @@
 2. 排除北森绩效和晋升的原文、摘要以及直接或间接引用；HR 的 Web 可见性不等于允许经 MCP 返回。
 3. 来源不全、性质未知、权限事实缺失或无法可信过滤时返回 false；不能依据 DTO 形状、客户端安全标记或敏感词扫描放行。
 
-本模块只信任显式安装的服务端输出授权结果，不能从 QuickView 中的 fragmentId 自行推断来源性质。当前没有已完成上述要求的生产 handler，不应把普通 Web handler 原样安装为默认实现。测试中的独立合成来源清单证明拒绝被传输层保持，不能证明缺失的生产来源读取已完成。
+本模块只信任显式安装的服务端输出授权结果，不能从 QuickView 中的 fragmentId 自行推断来源性质。原生组合已提供真实读取/producer handler，仍不得把普通 Web handler 原样安装为默认实现。原协议测试的独立合成来源清单只证明传输层拒绝；新增原生PG测试另证明真实来源/事务行为。
 
-调用走实际 createEntryToolUsecase：执行前后重新读取身份和权限，校验输出对象/版本，再执行输出授权。拒绝会抛出事务，由外层统一映射；实际 PostgreSQL 回滚与锁语义仍由生产事务适配器保证。审计仍使用 903，只记录账号、渠道、固定工具名、对象和版本，不记录 token、参数、原文或原始异常。
+调用走实际 createEntryToolUsecase：执行前后重新读取身份和权限，校验输出对象/版本，再执行输出授权。拒绝会抛出事务，由外层统一映射；原生组合以实际Read Committed事务保证回滚；领域锁等待后重读，预算异常仅在整个事务退出后映射。审计仍使用 903，只记录账号、渠道、固定工具名、对象和版本，不记录 token、参数、原文或原始异常。
 
 ## HTTP 行为
 
@@ -43,9 +43,9 @@
     pnpm exec vitest run src/server/integrations/mcp/ --maxWorkers=2 \
       --coverage --coverage.include='src/server/integrations/mcp/{http,tools}.ts'
 
-HTTP 测试自己在 127.0.0.1 选择空闲端口，结束时关闭 listener 与连接。没有供应商调用、数据库、真实账号凭证或外部客户端会话。测试事务只证明用例要求回滚，不冒充 PG 原子性。完整 check/integration/e2e/visual 仍须遵守共享 resource-heavy-1/2 锁。
+HTTP 测试自己在 127.0.0.1 选择空闲端口，结束时关闭 listener 与连接。没有供应商调用、数据库、真实账号凭证或外部客户端会话。测试事务只证明用例要求回滚，不冒充 PG 原子性。完整 check/integration/e2e/visual及覆盖遵守共享 resource-heavy-1/2/3 锁，第三槽遵守20%空闲内存门槛。
 
-共享与真实接线交 X1 协调：生产 MCP 令牌到账号绑定及撤销回查、三领域 handler 和来源性质过滤、事务/审计与并发撤权、必要公共出口与入口导入边界、唯一 Web 路由和按身份限流。本片不改 package/lock、worker、公共 index、数据库 schema 或迁移。
+共享与真实接线交 X1 协调：生产 MCP 令牌到账号绑定及撤销回查、完整EntryAudit正式记录方式、必要公共出口与入口导入边界、唯一 Web 路由。三领域handler/来源过滤/实际事务及每账号最多2个并发业务调用已在私有原生组合实现；部署级调用频率策略仍由实际入口明确，不称为分布式限流。本片不改 package/lock、worker、公共 index、数据库 schema 或迁移。
 
 正式客户端配置须使用 X2 确认的精确部署 URL、已批准的 Cloudflare Access 接入方式及正式个人令牌方案；当前三者未就绪，所以本片不提供可直接连接的配置、不复用 895 的一次性测试认证值、不声明正式 Codex/Claude Code 已接通。
 

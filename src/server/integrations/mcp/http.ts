@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { EntryIdentityError } from '../../auth/entry/identity';
-import { McpToolProtocolError, type McpTools } from './tools';
+import { McpCapacityError, McpToolProtocolError, type McpTools } from './tools';
 
 const versions: readonly string[] = ['2025-03-26', '2025-06-18', '2025-11-25'];
 const latestVersion = '2025-11-25';
@@ -264,6 +264,8 @@ export function createMcpHttpHandler(options: {
         inFlight--;
       }
     } catch (error) {
+      if (error instanceof McpCapacityError)
+        return json(429, { error: 'busy' }, { 'retry-after': '1' });
       if (error instanceof EntryIdentityError)
         return json(
           error.kind === 'unauthenticated' ? 401 : 503,

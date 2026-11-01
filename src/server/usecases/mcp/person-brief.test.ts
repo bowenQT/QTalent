@@ -105,6 +105,21 @@ describe('MCP brief over the canonical full provenance snapshot', () => {
     },
   );
 
+  it('preserves authorized pinned prototype evidence through the existing demo checks', async () => {
+    const data: McpPersonData = { ...nodeFixture(), intakeInputs: [] };
+    const result = await mcpPersonBriefFromData(data, 'one');
+    expect(result).toEqual(await quickViewFromData(data, 'one'));
+    expect(result?.recentFacts.status).toBe('ready');
+  });
+
+  it('does not return a fragment whose original version cannot be resolved', async () => {
+    const data = fixture();
+    data.versions = [];
+    expect((await mcpPersonBriefFromData(data, 'one'))?.recentFacts).toEqual({
+      status: 'empty',
+    });
+  });
+
   it('keeps an unknown original out without guessing from a benign title', async () => {
     const data = fixture();
     data.intakeInputs = [];

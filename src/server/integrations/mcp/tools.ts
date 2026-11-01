@@ -11,6 +11,13 @@ import type {
 import { EntryIdentityError } from '../../auth/entry/identity';
 import { createEntryToolUsecase } from '../../usecases/entry/tools';
 
+export class McpCapacityError extends Error {
+  constructor() {
+    super('MCP account capacity reached');
+    this.name = 'McpCapacityError';
+  }
+}
+
 export class McpToolProtocolError extends Error {
   constructor() {
     super('Invalid tool parameters');
