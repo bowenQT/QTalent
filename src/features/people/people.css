@@ -1,4 +1,4 @@
-/* Inline styles of the prototype's people.js team header and row card, named here. */
+/* Inline styles of the prototype's people.js (team header, row card, chips), named here. */
 .nt-team {
   font-size: var(--t-xs);
   color: var(--ink-3);
@@ -7,4 +7,7 @@
 }
 .nt-rows {
   padding: var(--s-1);
+}
+.nt-filter .n-chips {
+  margin: 0;
 }

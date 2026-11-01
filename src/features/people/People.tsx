@@ -4,9 +4,8 @@ import { useState } from 'react';
 import type { PeopleList, QuickView } from '@/contracts/people';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
-import { Chips } from '@/components/ui/Chips';
+import { Chips, Count } from '@/components/ui/Chips';
 import { Peek, usePeek } from '@/components/ui/Peek';
-import { Tabs } from '@/components/ui/Tabs';
 import {
   allTeams,
   groups,
@@ -230,6 +229,7 @@ export function People({
                         name={view.person.name}
                         hue={view.person.hue}
                         photo={view.person.photo}
+                        size=""
                       />
                       <div>
                         <div className="n-person__name">
@@ -269,22 +269,32 @@ export function People({
           <h1>{mentor ? '所带学员' : '人才'}</h1>
           <p>
             {mentor
-              ? `你${batch ? `在 ${batch} ` : ''}带的学员，每位学员的全部评价都在档案里。`
+              ? `你${batch ? `在 ${batch}` : ''}带的学员，每位学员的全部评价都在档案里。`
               : `你能查看的 ${data.total} 人，按团队和姓名排列。`}
           </p>
         </div>
       </header>
-      <Tabs
-        label="人员"
-        items={[
-          {
-            id: 'list',
-            label: mentor ? '学员' : '人员',
-            count: data.total || undefined,
-            content: list,
-          },
-        ]}
-      />
+      {/* 重点跟踪 and 值得聊一聊 are other cards: the one tab left needs no switching. */}
+      <div className="n-tabs" role="tablist" aria-label="人员">
+        <button
+          type="button"
+          role="tab"
+          id="pt-list"
+          aria-selected="true"
+          aria-controls="pp-list"
+        >
+          {mentor ? '学员' : '人员'}
+          {data.total ? <Count tone="quiet">{data.total}</Count> : null}
+        </button>
+      </div>
+      <div
+        className="n-tabpanel"
+        role="tabpanel"
+        id="pp-list"
+        aria-labelledby="pt-list"
+      >
+        {list}
+      </div>
       <Peek
         open={Boolean(opened)}
         onClose={peek.close}

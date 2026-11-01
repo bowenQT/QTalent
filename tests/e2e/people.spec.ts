@@ -34,9 +34,15 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
       );
       // Job title, level and the team's parent path have no columns yet (BOW-834
       // S1 / S2): compare the facts the read does carry, and the group sizes.
+      // Project counts only include projects the caller may read (837): a mentor
+      // can see fewer than the prototype, which counts them all.
       const carried = (metas: string[]) =>
         metas.map((meta) =>
-          meta.split(' · ').filter((part) => /项目|期$/.test(part)),
+          meta
+            .split(' · ')
+            .filter((part) =>
+              role === 'mentor' ? /期$/.test(part) : /项目|期$/.test(part),
+            ),
         );
       expect(carried(await texts(page, '#plist .n-person__meta'))).toEqual(
         carried(await texts(prototype, '#pp-list .n-person__meta')),
@@ -46,13 +52,15 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
       expect(sizes(await texts(page, '#plist .nt-team'))).toEqual(
         sizes(await texts(prototype, '#pp-list .nt-h2')),
       );
-      for (const selector of ['.nt-head p', '.n-chip'])
-        expect(await texts(page, selector), selector).toEqual(
-          await texts(
-            prototype,
-            `${selector === '.n-chip' ? '#pp-list ' : ''}${selector}`,
-          ),
-        );
+      expect(await texts(page, '.nt-head p')).toEqual(
+        await texts(prototype, '.nt-head p'),
+      );
+      // 「可能需要重新校准」 has no field in the list read yet (route map, BOW-839).
+      expect(await texts(page, '.nt-filter .n-chip')).toEqual(
+        (await texts(prototype, '#pp-list .n-chip')).filter(
+          (chip) => chip !== '可能需要重新校准',
+        ),
+      );
     } finally {
       await prototypeContext.close();
       await server.close();

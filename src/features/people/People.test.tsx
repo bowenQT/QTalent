@@ -64,7 +64,7 @@ describe('people list', () => {
     );
     expect(
       screen.getByText(
-        '你在 XEngineer 第六期 带的学员，每位学员的全部评价都在档案里。',
+        '你在 XEngineer 第六期带的学员，每位学员的全部评价都在档案里。',
       ),
     ).toBeTruthy();
     expect(screen.getByRole('tab').textContent).toBe('学员4');
