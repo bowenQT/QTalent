@@ -60,7 +60,7 @@ export function ChangeTable({
           const point = change.kind === 'add' ? change.after : change.before;
           return (
             <tr key={point.id}>
-              <th scope="row" style={{ width: '11em' }}>
+              <th scope="row" style={{ width: '1%', whiteSpace: 'nowrap' }}>
                 {kindLabel[change.kind]}
               </th>
               <td>
