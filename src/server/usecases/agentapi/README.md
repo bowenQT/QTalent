@@ -42,3 +42,15 @@
 4. `create/read`会话工厂与唯一HTTP组合由X1提供共享入口；创建使用已实现的Native client.create和903可信owner，不制造token。全部供应商I/O在事务外。未发布reader/schema前本PR仍不能称生产可运行或转Ready。
 
 本轮边界：只增 service.ts/service.test.ts 并更新本说明；未改共享schema、SQL、公共出口、认证、MCP handler或路由。正式DDL/main依赖、真实PG并发/回滚、完整当前head CI、最终三幕工具/部署验收分别保留，不把替身通过替代其中任何一项。
+
+## 原生 store 增量（X1 bf058f9c 后）
+
+`postgres.ts` 的 `createAgentConversationStore(db)` 已真实落地三表读取/保存。`transaction` 拥有RC事务，`inTransaction` 复用调用方外层事务，不套假Database或嵌套拥有事务的业务service。先锁conversation，再读完整turn/tool；`save` 只接受该事务内被锁的同一会话，校验签发身份/provider不变、turn顺序和输入digest不变、历史工具args/成功DTO/归属/服务器业务键不变、状态不倒退、不能删除历史。每次读取再次严格解析DTO；精确wire大小使用紧凑 `{status,payload}`，不以JSONB展示字节数代替。
+
+`createAgentConversationPostgresPorts` 是私有具体组合，复用903真实不透明身份服务，在锁等待后调用current，再在本事务读899上下文；没有凭据发行或管理员兜底。当前仅 `person_brief` 消费现910领域handler，实际读取完整person来源、重新构造投影、同事务写entry审计及tool回执。材料/需求两个工具在写入前返回unavailable，历史回执也不会默认验证通过：现 createInTransaction 的幂等重放在业务操作不存在时可能创建，不能拿它当只读历史验证。待X1给真实readBatchInTransaction与demand/job历史reader后再接这两项。
+
+进一步的共享身份接口请求：903当前authenticator参数仍是Database，身份issuer的current读取使用其既有连接；本增量没有声称凭据查询已加入同一个Transaction，也不复制其签名/owner/expiry算法。X1应将其真实只读reader提取为DbExecutor或等价最小入口，保持已签发opaque identity的同owner约束，供915锁后同tx重验。现PG已验证真实行锁等待后发生credential revision/授权撤销时零provider发送，以及真实session删除、换绑拒绝。
+
+本轮验收：新增21条原生PG + X1三表19PG + 903既有15PG + 本卡89unit = 144/144；统一五生产文件行96.91%、分支90.12%。manifest与schema blob已核匹配X1 bf058f9c，测试只加载test-db.env并显式使用其受控临时迁移；未改任何SQL/meta、未读取供应商凭据或发真实请求。测试provider为明确离线替身，存储/身份/权限/person投影/审计为真实代码与真实PG。缺失/creating会话拒绝，不把测试插入的绑定行说成已实现provider会话工厂。
+
+仍未完成：真实provider创建意图/ACK收敛工厂、上述只读领域/身份入口、剩余工具、唯一HTTP/生命周期注册、正式迁移和默认CI，以及批准环境的三幕多轮验收。该清单替代旧的笼统“缺三表/缺store”，本卡继续等待精确共享接口后推进Ready。
