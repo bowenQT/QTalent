@@ -30,7 +30,7 @@ function ordered(value: unknown): unknown {
   }
   return value;
 }
-function digest(value: object) {
+export function digest(value: object) {
   return createHash('sha256')
     .update(JSON.stringify(ordered(value)))
     .digest('hex');

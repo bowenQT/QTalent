@@ -617,3 +617,13 @@ describe('HR score review use cases on explicit adapter ports', () => {
     );
   });
 });
+
+it('同账号换绑后不得将旧签署人的校准operation重放为当前本人成功', async () => {
+  const db = new MemoryRepository();
+  const first = success(await resolve(db));
+  const before = structuredClone(db.state);
+  db.authority!.personId = 'demo-new-hr';
+  expect((await resolve(db)).status).toBe('forbidden');
+  expect(db.state).toEqual(before);
+  expect(first.result.score.raterId).toBe('demo-hr-a');
+});
