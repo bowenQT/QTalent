@@ -39,3 +39,13 @@ reader 核验全部 parse 片段、页面摘要及原件绑定，再返回私有
 - 866真实PDF已做固定组合联验；901/905/906实际输出适配、845 canonical loader、873可信上传上下文仍需各责任方交付。当前没有应用入口调用此纯规则。
 
 此目录不读原始员工资料、不调用模型、不开下载端点；同页 bbox 不转换成字符范围。BOW-926 在上述剩余验收完成前保持进行中。
+
+## 授权读取续作
+
+`readAuthorizedMaterialSource` 在当前完整来源图上调用既有 `readTalentSource`，未通过全部共有人及 requiredKinds 权限时不查询 parse 详情；通过后按两 ID 从同一事务重载 canonical 整包，核对原件版本、摘要、位置和原文，再只返回最终897材料结果。数据库错误、绑定摘要、主体图和下载地址不进入返回值。旧无 parse 绑定的片段仍交原 reader，不推测类别。
+
+`usecases/read-material-source.ts` 是已认证服务端 accountId 的领域入口：在同一 repeatable-read 事务内调用 X1 `loadPersonDataInTransaction` 与完整 `talentSources`，读取成功才写 `source.read` 审计；审计失败整组回滚且不返回原文。调用者不传入权限图、actor、locator 或缓存能力；此函数没有接 Web 路由或生成原件下载票。每次新调用重新读取当前账号绑定、角色、节点关系和业务时钟。事务内保持一致快照，不声称对快照建立后的并发撤权实行线性化。
+
+共享出口由 X1 导出 `readAuthorizedMaterialSource`。当前已准备真实PG反例：五类位置、隐藏共有人/撤回事件、未知历史类别、无关联材料、撤权/到期/换绑、额外管理观察限制、身份拒绝、原件版本及摘要漂移、审计回滚、全量附件intake。受控926结构须基于当前正式迁移前缀重新生成后运行，不能用旧目录证明新组合通过。
+
+边界仍明确：X1现有 `confirmationSources` 只校验文本intake；附件intake没有可信原生绑定前继续失败关闭。873 `collection.target` 的 people/event 不能单独提供全部评价节点/期次/材料敏感类型，creator也不是来源全体主体。生产866 saveParse、873绑定及845入队尚未接通，本次 reader 不替代它们，更不把人工写入的PG测试夹具冒充真实附件任务运行。
