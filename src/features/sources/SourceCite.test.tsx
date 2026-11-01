@@ -24,6 +24,8 @@ const reference: SourceReference = {
 const original: Source = {
   ...reference,
   excerpt: '联调时能独立定位问题',
+  originalTitle: '合成观察表',
+  recordedByName: '演示记录人',
   sourceType: 'spreadsheet',
   sourceCategory: 'original',
   demo: true,
@@ -37,6 +39,8 @@ const baseline: Source = {
     originalLocation: '第 4 行',
   },
   excerpt: '评语按原意压缩后的一句话',
+  originalTitle: '合成基线',
+  recordedByName: null,
   sourceType: 'prototype_snapshot',
   sourceCategory: 'prototype_baseline',
   displayNotice: '原型基线 2e51b50，评语按原意压缩',
@@ -282,6 +286,8 @@ describe('SourceCite identity and focus', () => {
   const otherSource: Source = {
     ...other,
     excerpt: '另一条引用的原文',
+    originalTitle: '合成观察表',
+    recordedByName: null,
     sourceType: 'spreadsheet',
     sourceCategory: 'original',
     demo: true,
@@ -382,6 +388,8 @@ describe('SourceCite recordings', () => {
       success({
         ...recording,
         excerpt: '每个方案的验收标准都写清楚了',
+        originalTitle: '合成录音',
+        recordedByName: null,
         sourceType: 'recording',
         sourceCategory: 'original',
         demo: true,
@@ -393,4 +401,49 @@ describe('SourceCite recordings', () => {
     expect(popText(view)).toContain('录音 · 03:12–03:28');
     expect(screen.queryByRole('button', { name: '播放这一段' })).toBeNull();
   });
+});
+
+describe('SourceCite original viewer link', () => {
+  const link = () => screen.queryByRole('link', { name: '查看原件' });
+
+  it('offers 查看原件 only after the read succeeds, built from the two identifiers', async () => {
+    let resolve!: (value: SourceReadResult) => void;
+    const load = vi.fn<LoadSource>(
+      () => new Promise<SourceReadResult>((r) => (resolve = r)),
+    );
+    setup(load);
+    await userEvent.setup().hover(mark());
+    expect(link()).toBeNull();
+    await act(async () => resolve(success(original)));
+    expect(link()?.getAttribute('href')).toBe(
+      '/sources?fragment=frag-test-1&version=ver-test-1',
+    );
+  });
+
+  it('links a baseline source to the same viewer', async () => {
+    const load = vi.fn<LoadSource>().mockResolvedValue(success(baseline));
+    setup(load, {
+      fragmentId: baseline.fragmentId,
+      originalVersionId: baseline.originalVersionId,
+      location: baseline.location,
+    });
+    await userEvent.setup().hover(mark());
+    await waitFor(() => expect(link()).not.toBeNull());
+  });
+
+  it.each([
+    ['forbidden', '原文在你的查看范围之外'],
+    ['not_found', '原文已移除或链接失效'],
+  ] as const)(
+    'gives no way into the original when %s',
+    async (status, text) => {
+      const load = vi
+        .fn<LoadSource>()
+        .mockResolvedValue({ status, message: '服务端消息' });
+      const view = setup(load);
+      await userEvent.setup().hover(mark());
+      await waitFor(() => expect(popText(view)).toContain(text));
+      expect(link()).toBeNull();
+    },
+  );
 });

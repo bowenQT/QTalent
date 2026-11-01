@@ -129,6 +129,7 @@ describe('record evidence and actions', () => {
       withdrawnConfirmationIds: saved.confirmationIds,
       withdrawnReviewItemIds: saved.reviewItemIds,
       originalInput: recordDraftFixture.originalInput,
+      inputRestoration: 'available' as const,
     };
     const withdrawn = recordUndoReceiptSchema.parse(undo);
     expect(withdrawn.saveId).toBe(saved.saveId);
@@ -264,5 +265,44 @@ describe('review thresholds and calibration', () => {
     expect(reviewQueueActionSchema.safeParse(blank).success).toBe(false);
     const invalid = { ...action, kind: 'rater_gap' };
     expect(reviewQueueActionSchema.safeParse(invalid).success).toBe(false);
+  });
+});
+
+describe('undo input restoration authorization', () => {
+  const base = {
+    saveId: 'demo-save',
+    withdrawnEvents: [],
+    withdrawnConfirmationIds: [],
+    withdrawnReviewItemIds: [],
+  };
+  it('allows unavailable original input without preventing an undo receipt', () => {
+    expect(
+      recordUndoReceiptSchema.parse({
+        ...base,
+        inputRestoration: 'unavailable',
+        originalInput: null,
+      }),
+    ).toMatchObject({ inputRestoration: 'unavailable', originalInput: null });
+  });
+  it('requires the current authorization discriminator and its matching input', () => {
+    for (const receipt of [
+      { ...base, originalInput: recordDraftFixture.originalInput },
+      { ...base, inputRestoration: 'available', originalInput: null },
+      {
+        ...base,
+        inputRestoration: 'unavailable',
+        originalInput: recordDraftFixture.originalInput,
+      },
+      { ...base, inputRestoration: 'available' },
+      { ...base, inputRestoration: 'unavailable' },
+    ])
+      expect(recordUndoReceiptSchema.safeParse(receipt).success).toBe(false);
+    expect(
+      recordUndoReceiptSchema.safeParse({
+        ...base,
+        inputRestoration: 'available',
+        originalInput: recordDraftFixture.originalInput,
+      }).success,
+    ).toBe(true);
   });
 });

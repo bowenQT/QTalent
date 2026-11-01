@@ -15,6 +15,10 @@ const environmentSchema = z
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.string().url(),
     DEMO_PASSWORD: z.string().min(12).optional(),
+    // Optional vendor settings are validated by the adapter only when that integration is used.
+    MODELINK_API_KEY: z.string().optional(),
+    MODELINK_BASE_URL: z.string().optional(),
+    MODELINK_MODEL: z.string().optional(),
     WORKER_PORT: z.coerce.number().int().min(1024).max(65535).default(3001),
     ACCESS_ENFORCED: z
       .enum(['true', 'false'])
@@ -22,6 +26,10 @@ const environmentSchema = z
       .transform((value) => value === 'true'),
     ACCESS_ISSUER: z.string().url().optional(),
     ACCESS_AUDIENCE: z.string().min(1).optional(),
+    QINIU_MAAS_API_KEY: z
+      .string()
+      .regex(/^[^\s]+$/)
+      .optional(),
   })
   .superRefine((value, context) => {
     if (

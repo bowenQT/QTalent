@@ -130,6 +130,26 @@ describe('offline client', () => {
     });
     expect(JSON.stringify(input().source)).not.toContain('private');
   });
+  it('submits the original MP4 source for speech only without enabling visual algorithms', async () => {
+    const d = setup();
+    const client = createOfflineTingwu(d);
+    const videoUrl = 'https://private.test/synthetic-video.mp4?token=private';
+    const source = new TranscriptionSource('video.mp4', 10800000, videoUrl);
+    await expect(
+      client.submitOffline({
+        ...input(),
+        source,
+        media: { format: 'mp4', byteLength: 1024, durationMs: 1000 },
+      }),
+    ).resolves.toMatchObject({ providerTaskId: 'task1' });
+    expect(d.request).toHaveBeenCalledOnce();
+    expect(d.request.mock.calls[0][0].body).toEqual({
+      AppKey: 'synthetic',
+      Input: { FileUrl: videoUrl, SourceLanguage: 'cn', TaskKey: 'op1' },
+      Parameters: { Transcription: { DiarizationEnabled: true } },
+    });
+  });
+
   it('refuses expired or arbitrary source before request', async () => {
     const d = setup();
     const client = createOfflineTingwu(d);
@@ -244,20 +264,25 @@ describe('offline client', () => {
 });
 describe('offline failures', () => {
   it.each([
-    'provider_auth',
-    'rate_limited',
-    'provider_failed',
-    'timeout',
-    'aborted',
-    'protocol_error',
-    'transport_error',
-  ] as const)('sanitizes query %s', async (code) => {
-    const d = setup(vi.fn().mockRejectedValue(new TingwuHttpError(code, 503)));
-    await expect(
-      createOfflineTingwu(d).queryOffline('task1'),
-    ).rejects.toBeInstanceOf(Error);
-    expect(d.request).toHaveBeenCalledOnce();
-  });
+    ['provider_auth', 'provider_auth', false],
+    ['rate_limited', 'rate_limited', true],
+    ['provider_failed', 'provider_failed', true],
+    ['timeout', 'timeout', true],
+    ['aborted', 'cancelled', false],
+    ['protocol_error', 'malformed_result', false],
+    ['transport_error', 'transport_error', true],
+  ] as const)(
+    'distinguishes sanitized query %s',
+    async (providerCode, code, retryable) => {
+      const d = setup(
+        vi.fn().mockRejectedValue(new TingwuHttpError(providerCode, 503)),
+      );
+      await expect(
+        createOfflineTingwu(d).queryOffline('task1'),
+      ).rejects.toMatchObject({ code, retryable });
+      expect(d.request).toHaveBeenCalledOnce();
+    },
+  );
   it('query foreign task cannot supply a transcript', async () => {
     const r = response();
     r.Data.TaskId = 'other';

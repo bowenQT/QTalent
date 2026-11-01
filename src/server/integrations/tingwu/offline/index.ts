@@ -20,7 +20,7 @@ const inputSchema = z.object({
   sourceRef: z.string().min(1),
   operationId: z.string().min(1).max(128),
   media: z.object({
-    format: z.enum(['mp3', 'm4a', 'wav', 'aac']),
+    format: z.enum(['mp3', 'm4a', 'wav', 'aac', 'mp4']),
     byteLength: z
       .number()
       .int()
@@ -42,7 +42,7 @@ export interface OfflineInput {
   operationId: string;
   source: TranscriptionSource;
   media: {
-    format: 'mp3' | 'm4a' | 'wav' | 'aac';
+    format: 'mp3' | 'm4a' | 'wav' | 'aac' | 'mp4';
     byteLength: number;
     durationMs: number;
   };

@@ -3,14 +3,18 @@ import { pathToFileURL } from 'node:url';
 import { PgBoss } from 'pg-boss';
 import { WebSocketServer } from 'ws';
 import { getEnv } from '../server/env';
+import { createClock } from '../lib/clock';
 import { getSession } from '../server/auth';
 import { verifyAccessRequest } from '../server/access';
 import { registerExampleJob } from '../server/jobs/example';
 import { registerProgressExample } from '../server/jobs/progress-worker';
 import { getDatabase } from '../server/db/client';
+import { createModelinkMaasClientFromEnv } from '../server/integrations/maas';
+import { createStaffingDemandRuntime } from '../server/usecases/staffing-demand-runtime';
 import { authenticateHandshake, heartbeatReply } from './handshake';
 export async function startWorker() {
   const env = getEnv();
+  const clock = createClock(env.APP_ENV);
   const boss = new PgBoss({ connectionString: env.DATABASE_URL });
   boss.on('error', (error) =>
     console.error('Worker database error', error.name),
@@ -19,6 +23,16 @@ export async function startWorker() {
   try {
     await registerExampleJob(boss);
     await registerProgressExample(boss, getDatabase());
+    await createStaffingDemandRuntime({
+      db: getDatabase(),
+      boss,
+      now: () => clock.now().toISOString(),
+      maas: createModelinkMaasClientFromEnv({
+        MODELINK_API_KEY: env.MODELINK_API_KEY,
+        MODELINK_BASE_URL: env.MODELINK_BASE_URL,
+        MODELINK_MODEL: env.MODELINK_MODEL,
+      }),
+    }).register();
   } catch (error) {
     await boss.stop();
     throw error;
