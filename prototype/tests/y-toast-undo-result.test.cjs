@@ -76,7 +76,7 @@ test('undo() 返回 false 时显示没撤销，不显示 undoneText', () => {
   const h = show({ undo: () => false, undoneText: '已撤销，记录没有保存' });
   h.click();
   assert.doesNotMatch(h.t.innerHTML, /已撤销/);
-  assert.match(h.t.innerHTML, /没能撤销/);
+  assert.match(h.t.innerHTML, /撤销失败，已保留当前内容/);
   assert.equal(h.t.dataset.state, 'fail');
   assert.match(h.t.innerHTML, /#i-info/);
   assert.equal(h.lastTimer().ms, 4000);
@@ -84,9 +84,9 @@ test('undo() 返回 false 时显示没撤销，不显示 undoneText', () => {
 
 test('undo() 返回 false 时用调用方给的 failText', () => {
   const { show } = boot();
-  const h = show({ undo: () => false, failText: '没能撤销：这条已经被处理' });
+  const h = show({ undo: () => false, failText: '撤销失败：这条已经被处理' });
   h.click();
-  assert.match(h.t.innerHTML, /没能撤销：这条已经被处理/);
+  assert.match(h.t.innerHTML, /撤销失败：这条已经被处理/);
 });
 
 test('undo() 返回字符串时显示这段文字，并转义', () => {
