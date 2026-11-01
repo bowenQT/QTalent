@@ -17,6 +17,7 @@ import {
   assignments,
   evaluationWorkItems,
   completeEvaluationWorkItem,
+  undoEvaluationWorkCompletion,
   canWorkOnEvaluationItem,
   assignedEvaluationRelationIsCurrent,
   EvaluationReassignmentError,
@@ -531,14 +532,30 @@ async function execute(
                 'forbidden',
                 'confirmation_task_permission_changed',
               );
-            await tx
-              .update(evaluationWorkItems)
-              .set({
-                state: 'cancelled',
-                revision: item.revision + 1,
-                updatedAt: current.context.now,
-              })
-              .where(eq(evaluationWorkItems.id, item.id));
+            await undoEvaluationWorkCompletion(
+              tx,
+              {
+                id: item.id,
+                expectedRevision: fact.completedRevision,
+                assignedRelationId: fact.assignedRelationId,
+                assignedEvaluatorId: fact.assignedEvaluatorId,
+                nextState: plan.receipt.withdrawnEvents.some(
+                  (event) => event.personId === item.personId,
+                )
+                  ? 'cancelled'
+                  : 'pending',
+              },
+              async () =>
+                (
+                  await loadCurrent(
+                    tx,
+                    accountId,
+                    clock.businessNow(),
+                    actorPersonId,
+                    lock.retainedSave,
+                  )
+                ).context,
+            );
           }
           await withdrawRecordConfirmations(
             tx,
