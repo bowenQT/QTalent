@@ -7,6 +7,7 @@ import {
 } from './reassignment-policy';
 import {
   evaluationWorkKindSchema,
+  evaluationWorkRegistrationSchema,
   evaluationReassignmentReceiptSchema,
   reassignEvaluationWorkInputSchema,
   reassignEvaluationWorkResultSchema,
@@ -283,3 +284,36 @@ it.each(['unknown_project', 'unknown_interview_candidate'] as const)(
     ).toBe(second.resourceId);
   },
 );
+
+it('requires a trusted native task anchor rather than a material receipt or UI permission hint', () => {
+  const item = evaluationWorkFixture();
+  const registration = {
+    id: item.id,
+    evaluationNodeId: item.evaluationNodeId,
+    personId: item.personId,
+    assignedRelationId: item.assignedRelationId,
+    assignedEvaluatorId: item.assignedEvaluatorId,
+    kind: item.kind,
+    resourceId: item.resourceId,
+  };
+  expect(evaluationWorkRegistrationSchema.parse(registration)).toEqual(
+    registration,
+  );
+  for (const patch of [
+    { personId: null },
+    { personId: '' },
+    { evaluationNodeId: '' },
+    { assignedRelationId: null },
+    { resourceId: ' ' },
+    { kind: 'resolved' },
+    { kind: 'undo' },
+    { hasHiddenContent: false },
+    { resolvedItems: [] },
+    { canUndo: true },
+    { observedName: '演示：尚未核实的名字' },
+  ])
+    expect(
+      evaluationWorkRegistrationSchema.safeParse({ ...registration, ...patch })
+        .success,
+    ).toBe(false);
+});
