@@ -131,7 +131,13 @@ test('managers, HR and mentors get their own /work from the real read', async ({
   ).toBeVisible();
   await expect(page.getByRole('region', { name: '找人' })).toHaveCount(0);
   // Nothing to hand over in the seed, and the other groups are not connected.
-  await expect(page.locator('#todo, .nt-cols, #btn-export')).toHaveCount(0);
+  await expect(page.locator('#todo, #btn-export')).toHaveCount(0);
+  // Materials have no upload backend yet (BOW-873): 待接入, no tasks or progress.
+  await expect(page.locator('#upload')).toContainText('待接入');
+  await expect(page.locator('#tasks')).toContainText('待接入');
+  await expect(page.locator('#tasks .n-task, [role=progressbar]')).toHaveCount(
+    0,
+  );
 
   await context.clearCookies();
   await login(context, 'mentor', referenceApp.baseURL);
@@ -143,7 +149,11 @@ test('managers, HR and mentors get their own /work from the real read', async ({
   expect(names.length).toBeGreaterThan(0);
   // Activity is unknown in the read: the second line never says 本周待记 or 0.
   await expect(students).not.toContainText('本周待记');
-  await expect(page.locator('#todo, #recos, details#fold')).toHaveCount(0);
+  await expect(page.locator('#todo, #recos')).toHaveCount(0);
+  // Materials fold closed, with no count while nothing is connected.
+  const fold = page.locator('details#fold');
+  await expect(fold).not.toHaveAttribute('open');
+  await expect(fold.locator('summary')).toHaveText('材料与任务');
 
   await context.clearCookies();
   await login(context, 'admin', referenceApp.baseURL);

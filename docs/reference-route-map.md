@@ -220,6 +220,7 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 | 待办 · 待核对（说话人、未知人员、图片范围、未知面试官） | `sections/todos` | HR | 视图模型 `VerifyItem`，等 897 下游读取 | `not_connected`，不渲染 |
 | 待办 · 节点结论 | `sections/todos` | HR | 视图模型 `ConclusionItem`，等 BOW-902 读取 | `not_connected`，不渲染 |
 | 导出已确认内容 | `sections/export` | 管理者、HR | 视图模型 `ExportView` 加 `ExportPort.generate`，等 BOW-912 | `not_connected`，不渲染 |
+| 进行中的任务、上传材料（导师收进「材料与任务」） | `sections/materials` | HR、导师 | `MaterialsPort`，等 BOW-873 与 897 批次用例（见下文 BOW-861） | 渲染并标「待接入」，不画计数与进度 |
 
 待办卡只在至少一组已接通且有事项，或全部组已接通时出现；有任何一组未接通时标题不出总数，组内计数照常。开发样张 `/dev/workbench?role=manager|hr|mentor` 用固定演示视图展示全部区块（含未接通的三块，导出用脚本化的 `SampleExport`，`&export=fail` 第一次生成失败），生产构建返回 404；样张不是 `/work` 的兜底数据。
 
@@ -231,12 +232,12 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 | `.nt-ceo`（`#watch`、`#progs`、`#follows`） | 管理者 | 不渲染 | 值得关注、我的关注未接入 | 对应链路接入 |
 | `.n-find__tpls` 及标签「或从角色模板开始」 | 管理者 | 不渲染；弹出面板只比 `.n-find__asks` | 角色模板属找人契约（BOW-851） | 找人契约接入 |
 | `#changes` | HR | 不渲染 | 有变化的人未接入 | 盘点冻结链路 |
-| `.nt-cols`（`#todo`、判断对照、进行中的任务、`#upload`） | HR | 种子库没有待分派的事，整块不渲染 | 待核对、节点结论未接通；判断对照、材料任务未接入 | 对应读取接入 |
-| `#todo`、`#recos`、`details#fold` | 导师 | 不渲染；右列留空列 | 待办、推荐、材料与任务未接入 | 对应链路、BOW-861 |
+| `.nt-cols` 内的 `#todo`、判断对照 | HR | 种子库没有待分派的事，`#todo` 不渲染，左列留空列；判断对照不渲染 | 待核对、节点结论未接通；判断对照未接入 | 对应读取接入 |
+| `#todo`、`#recos` | 导师 | 不渲染 | 待办、推荐未接入 | 对应链路 |
 | `.nt-head p`（HR、导师） | HR、导师 | 只比 `h1` | 日期后的人才项目状态句没有契约字段（D6） | 契约补状态句或人才项目接入 |
 | `.n-asks .n-ask:nth-child(2)` | HR | 只比第一句 | 「发起结营盘点」，盘点留在原型演示 | 盘点链路 |
 | `#composer-mic` | 三视角 | 元素内遮罩 | 语音输入是脚本演示；实时录音由 BOW-869 做 | BOW-869 |
-| `a[href="#upload"]` | HR、导师 | 元素内遮罩 | 上传区未接入，锚点无目标 | BOW-861 |
+| `a[href="#upload"]` | 管理者（找人框） | 元素内遮罩 | 管理者工作台没有上传区；HR、导师的回形针已由 BOW-861 接上并参与比较 | 长期差异 |
 | `#students` 学员行 | 导师 | 按姓名逐行比，第二行（`small`）遮罩；窄屏只比姓名 | 读取按组名、姓名拼音排序；`activity` 为 unknown，第二行只有课题，原型还有本周记录 | 838 接通近期记录 |
 | `#students` 整卡 | 导师 | 只比标题、说明和逐行 | 同上，加上原型多一个「推荐」按钮 | 推荐链路、近期记录 |
 
@@ -253,4 +254,35 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 9. 导出：共享图标表没有 download 图标，按钮和下载链接内联同一路径；确认弹窗的「生成表格」按钮没有图标（`ConfirmDialog` 只接受图标表里的名字）。失败说明用读取返回的原因，原型固定写「导出服务超时」。
 10. 原型 #250 / #260 新增的样式（`.n-export*`、`.n-exst`、`.n-note`、`.n-ra*`、`.n-choice:disabled`）共享样式移植里还没有，先逐字放在 `src/features/workbench/workbench.css`，共享移植后删除（#248 已登记）。
 
-**上传材料、进行中的任务**归 BOW-861（改 `layouts` 的 HR、导师侧栏与 Composer 的 `uploadAnchor` 一行）。
+**上传材料、进行中的任务**见下文 BOW-861。
+
+## 工作台上传材料与进行中的任务（BOW-861）
+
+区块在 `src/features/workbench/sections/materials/`，`Workbench.tsx` 只登记一个 `materials` 区块：HR 放进 `.nt-cols` 侧栏（「进行中的任务」「上传材料」两张卡），导师放进右列（`details#fold`「材料与任务」，默认折叠）。输入框的回形针链到 `#upload`，导师页据此展开折叠。
+
+**接通方式**：区块只认 `MaterialsPort`（`materials-port.tsx`）：`upload`（873 的申请上传、传输进度、完成校验）、`submit`（897 `materialBatchInputSchema`，重新提交沿用同一 operationId）、`read`（897 回执快照）。
+
+- `/work` 不提供端口，两张卡和折叠都标「待接入」：拖放区在原位但不可用，不画任务行、计数和进度；导师折叠的摘要行不写「N 个在处理」。
+- 开发样张 `/dev/workbench?role=hr|mentor` 提供脚本化的 `SampleMaterials`：每个文件十步进度；`&upload=fail` 让第一次传输在 60% 中断；批次提交时处理中，第一次读回执后定稿。回执用 897 schema 解析，第一个文件已解析，第二个有一处待核对（名单外的人），其余处理中断。
+
+**状态与计数**：
+
+- 格式、单个大小、数量取 `MEDIA_FORMATS`、`MAX_UPLOAD_BYTES`、`MAX_ATTACHMENTS`（本次七种格式）。
+- 提交前用本页知道的状态：上传中、上传中断（可重试或不传）、待换文件（格式或大小）、已取消。没有上传成功的文件时批次不提交，写「已结束」。
+- 提交后批次标签只取回执的 `status`（处理中 → 待核对 → 待确认 → 已完成；整批失败为「整理失败」）；文件按回执的七种状态各有说法；计数只读 `counts`，「N 人」取 `personIds`，`hasHiddenContent` 写「部分内容已按权限隐藏」。
+
+**与原型的差异**：
+
+| 原型（`81e4fd4`） | 工程 | 原因 | 取消条件 |
+| --- | --- | --- | --- |
+| 「开始录音」`.nt-recstart` | 不渲染 | 录音页属 BOW-869 | BOW-869 |
+| 批次行的「看回执」「去确认 N 件」、批次卡底部「看回执」 | 不渲染 | 回执页、记一件事确认入口还没有工程页面 | 回执页与 BOW-847 接入 |
+| 任务列表里的单文件录音任务（演示种子） | 不渲染 | 没有「列出我的任务」读取，只列本页投递的批次 | 契约补列表读取 |
+| 「N 个处理中，可以离开，结果会回到『进行中的任务』」 | 只写计数 | 离开后的批次没有列表读取可回来 | 同上 |
+| 面评 PDF 批次（「打开导入预览」） | 不做 | 归 BOW-907 | — |
+| 拖放区说明「PDF、Word、PPT、Excel……音频和视频」 | 本次七种格式 | BOW-858 本次格式清单 | 格式范围扩大 |
+| HEIC 转成 JPG 重传 | 换文件 | 本次格式清单不含图片 | — |
+
+**截图对比**：`tests/visual/workbench.spec.ts` 在 `/work` 上比 HR 两张卡的标题、拖放区（说明文字遮罩）和 `#upload` 的列位置，导师比折叠标题和 `#fold` 的列位置。批次回执、任务行在固定参照 `91b297a` 里还是单文件版本，统一投递来自 `81e4fd4`（#250），记为**参照待同步**；目前只在开发样张上与工作区原型人工并排对照，参照指针前移后补进自动对比。
+
+**共享样式**：`.n-dropbatch*` 与 `.n-rstate[data-s=processing|verify|confirm|done]` 先逐字放在 `sections/materials/materials.css`，已在 #248 登记移植请求，移植后删除。

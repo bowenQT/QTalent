@@ -63,7 +63,7 @@ function samples(role: WorkbenchRole): Sample[] {
   if (role === 'manager')
     return [
       { name: 'head', selector: '.nt-head > div:first-child' },
-      { name: 'find', selector: 'section.n-find', mask: withinMasks.composer },
+      { name: 'find', selector: 'section.n-find', mask: withinMasks.find },
     ];
   const shared: Sample[] = [
     { name: 'greeting', selector: '.nt-head h1' },
@@ -73,12 +73,19 @@ function samples(role: WorkbenchRole): Sample[] {
     return [
       ...shared,
       { name: 'ask', selector: '.n-asks > .n-ask:first-child' },
+      // Materials (BOW-861): titles and the drop zone. The task rows and the batch
+      // receipt are not compared (not connected on /work; see the route map).
+      { name: 'tasks-title', selector: 'article:has(> #tasks) > h3' },
+      { name: 'upload-title', selector: '#upload > h3' },
+      { name: 'drop', selector: '#upload .n-drop', mask: withinMasks.drop },
     ];
   return [
     ...shared,
     { name: 'asks', selector: '.n-asks' },
     { name: 'students-title', selector: '#students > h3' },
     { name: 'students-caption', selector: '#students > .nt-caption' },
+    // Closed by default on both sides; the count is drawn only when connected.
+    { name: 'fold-title', selector: '#fold > summary h3' },
   ];
 }
 
@@ -209,6 +216,14 @@ for (const role of ['manager', 'hr', 'mentor'] satisfies WorkbenchRole[]) {
           }
           previous = { reference, actual };
         }
+        // Materials (BOW-861) sit in the side column: same column on both sides.
+        if (role !== 'manager')
+          await expectSameBox(
+            prototype.locator(role === 'hr' ? '#upload' : '#fold'),
+            page.locator(role === 'hr' ? '#upload' : '#fold'),
+            `${role} materials`,
+            { keys: ['x', 'width'] },
+          );
         for (const sample of samples(role))
           await compareElements(
             prototype.locator(sample.selector),

@@ -19,15 +19,18 @@ export const prototypeRole: Record<WorkbenchRole, 'ceo' | 'hrbp' | 'mentor'> = {
  */
 export const notRendered: Record<WorkbenchRole, readonly string[]> = {
   manager: ['#jsig', '.nt-ceo'],
-  hr: ['#changes', '.nt-cols'],
-  mentor: ['#recos', '#todo', 'details#fold'],
+  hr: ['#changes'],
+  mentor: ['#recos', '#todo'],
 };
 
 /** Inside a compared element, areas that exist on both sides but differ on purpose. */
 export const withinMasks = {
   // Voice input is a scripted demo in the prototype; live recording is BOW-869.
-  // The upload clip appears once BOW-861 connects the upload section.
-  composer: ['#composer-mic', 'a[href="#upload"]'],
+  composer: ['#composer-mic'],
+  // The manager's find box has no upload section, so no clip either.
+  find: ['#composer-mic', 'a[href="#upload"]'],
+  // Formats: this round's seven (BOW-858) where the prototype lists every kind.
+  drop: ['small'],
   // Trainee activity is unknown in the read (BOW-838): the line shows the topic alone.
   studentLine: ['small'],
 } as const;
