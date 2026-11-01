@@ -313,10 +313,20 @@
   // 部门负责人在校准时的拖动和理由：存成建议，HR /管理者打开同一团队时可以看到并采纳
   store.calibSuggestions = (batch, team) => S.calibSuggest?.[`${batch}:${team}`] || {};
   store.suggestCalib = (batch, team, pid, sug) => {
+    // 管理者只能对自己完整可见、尚未冻结的当前批次人员提出校准建议。
+    const b = store.batch(batch), p = store.person(pid);
+    if (store.role() !== 'lead' || !b || !p || !sug || b.status === 'confirmed'
+      || store.scope(pid) !== 'full' || S.snaps.some((s) => s.batch === batch && s.teams?.includes(team))) return null;
+    const validTeam = b.kind === 'landing'
+      ? team === 'newcomers' && b.newcomers?.some((n) => n[0] === pid)
+      : b.kind === 'inventory' && p.org === team && store.inOrg(p.org, b.org);
+    if (!validTeam) return null;
     S.calibSuggest = S.calibSuggest || {};
     const k = `${batch}:${team}`;
-    (S.calibSuggest[k] = S.calibSuggest[k] || {})[pid] = { ...sug, by: store.me().id, at: NT.TODAY };
+    const saved = { ...sug, by: store.me().id, at: NT.TODAY };
+    (S.calibSuggest[k] = S.calibSuggest[k] || {})[pid] = saved;
     store.save();
+    return saved;
   };
 
   // ---------- 变化（change-v1 / 3.14） ----------
