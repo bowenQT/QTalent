@@ -41,6 +41,8 @@
     if (changed) st.save();
     return changed;
   };
+  // 批次还没处理完：有文件步骤没走完，或有整理出的事还没到就绪时间
+  st.dropPending = (d) => !!d && (d.files.some((f) => f.steps?.some((x) => !x.done)) || st.get().events.some((e) => e.drop === d.id && e.readyAt > Date.now()));
   // 一件事在这个批次里的状态：held 待核对后才能归到人；ai 待确认；confirmed 已确认
   const evState = (e) => (e.scores.every((s) => ['confirmed', 'calibrated'].includes(s.st)) ? 'confirmed' : 'ai');
   // 这件事由谁确认：记录人本人，且对这个人在本节点有有效的评价关系（HR 以记录人身份确认自己交的材料）
@@ -55,27 +57,28 @@
     });
     return items.map((x) => ({ ...x, mine: ['held', 'skipped'].includes(x.state) ? x.ev.recorder === me() : st.confirmerOk(x.ev) }));
   };
-  // 改回待确认：只动本人确认的维度；HR 校准过或其他人确认的维度保留分数和历史。返回改回的维度数
-  // 所属对人复盘已确认的分跟着复盘冻结：回执里不再改回待确认，和复盘页的撤销规则一致
+  // 所属对人复盘已确认的分跟着复盘冻结，和复盘页的撤销规则一致
   st.reviewLockOf = (e, s) => {
     if (!s.p) return null;
     const b = st.landingOf(s.p)?.batch || st.batch('b-xe6');
     return b.weeks.map((w) => w[0]).find((wk) => st.get().reviews?.[`${s.p}-${wk}`]?.state === 'confirmed' && st.review(s.p, wk).events.includes(e)) || null;
   };
-  st.receiptRevertible = (e) => e.scores.map((s, i) => [s, i]).filter(([s]) => s.st === 'confirmed' && s.by === me() && !st.reviewLockOf(e, s)).map(([, i]) => i);
-  st.receiptRevert = (evId) => {
-    const e = st.event(evId), idx = e ? st.receiptRevertible(e) : [];
-    idx.forEach((i) => st.unconfirmScore(evId, i));
-    return idx.length;
-  };
+  // 比赛范围：回执上确认的事只在确认后 5 秒内可以撤销（和记录的撤销窗口 RECORD_UNDO_WINDOW_MS 一致），之后只读；确认后的更正流程放到赛后
+  st.RECEIPT_UNDO_MS = 5000;
   // 回执上确认一件事：只确认还待确认的维度，已经人工确认或校准过的分保持原样；vals 是改过的分（维度序号 → 分数）。
-  // 返回撤销函数，只还原这一次改动的维度，原有的人工判断和历史都保留
+  // 返回撤销函数，只还原这一次改动的维度，原有的人工判断和历史都保留；超过撤销窗口、这几维之后又被改过或已随复盘确认时返回 false
   st.receiptConfirm = (evId, vals = new Map(), why = '') => {
     const e = st.event(evId); if (!e) return null;
     const idx = e.scores.map((s, i) => (['confirmed', 'calibrated'].includes(s.st) ? -1 : i)).filter((i) => i >= 0);
     const snaps = idx.map((i) => [i, NT.clone(e.scores[i])]);
     idx.forEach((i) => st.confirmScore(e.id, i, vals.has(i) ? vals.get(i) : (e.scores[i].ai ?? e.scores[i].v), why));
-    return () => { snaps.forEach(([i, s]) => { e.scores[i] = NT.clone(s); }); st.save(); };
+    const at = Date.now(), after = idx.map((i) => JSON.stringify(e.scores[i]));
+    let used = false;
+    return () => {
+      if (used || Date.now() - at > st.RECEIPT_UNDO_MS || st.event(evId) !== e) return false;
+      if (idx.some((i, k) => JSON.stringify(e.scores[i]) !== after[k] || st.reviewLockOf(e, e.scores[i]))) return false;
+      used = true; snaps.forEach(([i, sc]) => { e.scores[i] = NT.clone(sc); }); st.save(); return true;
+    };
   };
   // 回执的计数只算当前视角看得到的：HR 看全部，评价人看自己要确认的事和自己交的待核对；看不到的不给数量，只用 hidden 提示一句。
   // 「件事」只算身份已确定的事：待认人只计入待核对，名单外的不计
@@ -117,7 +120,8 @@
   st.addDemoDrop = () => {
     const now = Date.now(), id = NT.uid('d');
     const iid = `i-${id}`;
-    st.get().inbox.push({ id: iid, kind: 'region', drop: id, src: '路演群截图.png', at: '第 1 张图', by: me(), q: '路演群截图里要整理哪几行？', rows: [['p-x07', '服务端的压测报告我放群文件了'], [null, ''], ['p-x06', '下午我把 UI 走查的问题单整理出来']], options: [] });
+    st.get().inbox.push({ id: iid, kind: 'region', drop: id, src: '路演群截图.png', at: '第 1 张图', by: me(), q: '路演群截图里要整理哪几行？', rows: [['p-x07', '服务端的压测报告我放群文件了', { title: '把服务端压测报告整理好放进群文件', d: 'mot', v: 3, note: '常规情境下稳定表现' }], [null, ''],
+      ['p-x06', '下午我把 UI 走查的问题单整理出来', { title: '主动把 UI 走查的问题整理成问题单', d: 'mot', v: 3, note: '常规情境下稳定表现' }]], options: [] });
     const d = { id, title: '本次投递 · 3 个文件', by: me(), entry: 'web', at: `${NT.TODAY} ${new Date().toTimeString().slice(0, 5)}`, node: 'pg-xe6',
       files: [
         { name: 'W8 对人复盘纪要.docx', kind: 'doc', state: 'parsing', meta: '解析中 · 读取 9 段', steps: [{ at: now + 2400, set: { state: 'done', meta: '9 段 · 定位到段落' } }] },
@@ -158,34 +162,46 @@
   st.visibleInbox = () => st.get().inbox.filter((i) => role() === 'hrbp' || i.by === me());
   const baseResolve = st.resolveInbox, baseUnresolve = st.unresolveInbox;
   const ivRow = (it) => st.importOf(it.iv[0])?.rows.find((r) => r.id === it.iv[1]);
-  // 核对结果的撤销截止到依赖它的草稿被确认、或关联的面评行导入为止：之后只读，更正走撤销确认或撤销导入
-  const depEvent = (it) => st.event(it.ev && I().held[it.ev] ? it.ev : `e-${it.id}`);
+  // 核对结果的撤销截止到依赖它的草稿被确认、或关联的面评行导入为止：之后只读。确认后 5 秒内可在提示条上撤销确认，导入可以撤销导入
+  // 依赖这处核对的事：认出人以后整理的那件事，或图片范围里整理出的几件事
+  const depEvents = (it) => [st.event(it.ev && I().held[it.ev] ? it.ev : `e-${it.id}`), ...st.get().events.filter((e) => e.verifyOf === it.id)].filter(Boolean);
   st.inboxLockReason = (it) => {
     if (!it) return null;
     if ((it.iv && ivRow(it)?.imported) || (it.kind === 'interviewer' && I().imports.some((imp) => imp.rows.some((r) => r.verify === it.id && r.imported)))) return 'import';
-    const ev = it.done ? depEvent(it) : null;
-    // HR 校准过、或已随对人复盘确认的分，回执里改不回去：身份更正交给 HR
-    if (ev?.scores.some((x) => x.st === 'calibrated' || (x.st === 'confirmed' && st.reviewLockOf(ev, x)))) return 'final';
-    if (ev?.scores.some((x) => x.st === 'confirmed')) return 'confirmed';
+    if (it.done && depEvents(it).some((e) => e.scores.some((x) => ['confirmed', 'calibrated'].includes(x.st)))) return 'confirmed';
     return null;
   };
   st.inboxLocked = (it) => !!st.inboxLockReason(it);
-  st.LOCK_TEXT = { import: ['已随导入写进档案', '要更正，先在面评导入页撤销导入', '去撤销导入'], confirmed: ['建议分已确认', '要更正，先在回执里把这件事改回待确认', '去回执改回待确认'], final: ['分数已校准或已随复盘确认', '要更正身份，请联系负责的 HR'] };
-  // 锁定后更正的入口：导入锁到那次面评导入，确认锁到这处核对所在的回执
+  st.LOCK_TEXT = { import: ['已随导入写进档案', '要更正，先在面评导入页撤销导入', '去撤销导入'], confirmed: ['建议分已确认', '建议分已确认，核对结果已保留'] };
+  // 锁定后更正的入口：只有导入锁有，指到那次面评导入；确认锁只读
   st.lockHref = (it) => {
-    const why = st.inboxLockReason(it); if (!why) return null;
-    if (why === 'final') return null;
-    if (why === 'import') { const imp = it.iv ? st.importOf(it.iv[0]) : I().imports.find((x) => x.rows.some((r) => r.verify === it.id)); return imp ? `import.html?id=${imp.id}` : null; }
-    const d = I().drops.find((x) => x.verify?.includes(it.id)) || st.drop(depEvent(it)?.drop);
-    return d ? st.dropHref(d) : null;
+    if (st.inboxLockReason(it) !== 'import') return null;
+    const imp = it.iv ? st.importOf(it.iv[0]) : I().imports.find((x) => x.rows.some((r) => r.verify === it.id));
+    return imp ? `import.html?id=${imp.id}` : null;
   };
   // 处理结果的一句话里，「名单外」按类型说：课题核对写「明确无课题」
   st.noneText = (it) => (it.kind === 'project' ? '明确无课题' : '名单外的人');
   st.resolveInbox = (id, choice) => {
     const it = st.get().inbox.find((x) => x.id === id);
     if (!it || it.done || st.inboxLocked(it)) return;
+    // 图片范围选「整理范围内的行」：范围内每一行整理成一件待确认的事，出处是这张截图的那一行，回到原批次的回执
+    if (choice === 'rows' && it.kind === 'region') {
+      const d = I().drops.find((x) => x.verify?.includes(it.id)) || st.drop(it.drop);
+      const added = [];
+      it.rows.forEach(([pid, text, dr = {}], n) => {
+        if (!pid) return;
+        const v = dr.v ?? 3, dim = dr.d || 'prof';
+        st.addEvent({ id: `e-${it.id}-${n + 1}`, kind: 'obs', date: NT.TODAY, project: dr.project || st.landingOf(pid)?.row[1] || d?.project, recorder: it.by, people: [pid],
+          title: dr.title || text, bg: it.src, act: text, res: '', drop: d?.id, verifyOf: it.id,
+          srcs: [{ type: 'image', label: it.src, loc: `${it.at} · 第 ${n + 1} 行`, quote: text }], tags: [],
+          scores: [{ p: pid, d: dim, v, st: 'ai', ai: v, note: `锚点 ${v} · ${dr.note || '范围内的这一行'}` }] });
+        if (d && !d.mentions.includes(pid)) { d.mentions.push(pid); added.push(pid); }
+      });
+      it.added = added;
+      it.done = true; it.later = false; it.choice = choice; st.save(); return;
+    }
     // 「名单里没有这个人」「整张只作附件」也是处理完成：这一处不入档
-    if (choice === 'none' || choice === 'attach' || choice === 'rows') {
+    if (choice === 'none' || choice === 'attach') {
       // 候选人不在人员目录里：面评那一行跳过，不导入
       if (it.iv && choice === 'none') { const r = ivRow(it); if (r) r.unknown = false; }
       it.done = true; it.later = false; it.choice = choice; st.save(); return;
@@ -208,6 +224,13 @@
   st.unresolveInbox = (id) => {
     const it = st.get().inbox.find((x) => x.id === id); if (!it || st.inboxLocked(it)) return false;
     if (it.ev && I().held[it.ev]) st.get().events = st.get().events.filter((e) => e.id !== it.ev);
+    // 图片范围整理出的事一起撤回，批次里因此新加的人也去掉
+    if (it.kind === 'region') {
+      st.get().events = st.get().events.filter((e) => e.verifyOf !== it.id);
+      const d = I().drops.find((x) => x.verify?.includes(it.id)) || st.drop(it.drop);
+      if (d && it.added) d.mentions = d.mentions.filter((p) => !it.added.includes(p));
+      delete it.added;
+    }
     if (it.kind === 'interviewer') I().imports.forEach((imp) => imp.rows.forEach((r) => { if (r.verify === id) { r.interviewer = null; r.ok = false; } }));
     if (it.iv) { const r = ivRow(it); if (r) { r.match = null; r.unknown = true; r.ok = false; delete r.joined; } }
     baseUnresolve(id);

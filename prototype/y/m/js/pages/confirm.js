@@ -17,6 +17,7 @@
     render,
   });
 
+  let timer = 0;
   function render(main) {
     st.tickDrops();
     const s = st.dropSummary(d), items = st.dropItems(d);
@@ -32,9 +33,16 @@
       </section>
       ${open.length ? html`<h3 class="m-h">先核对 ${open.length} 处</h3><ul class="m-list">${open.map((i) => html`<li><a class="m-row" href="inbox.html#${i.id}">${icon('spark')}<span>${i.q.replace(/？$/, '')}<small>${i.src} · ${i.at}</small></span>${icon('chev')}</a></li>`)}</ul>` : ''}
       <h3 class="m-h" id="confirm">逐条确认${left ? html`<span class="n-count">${left}</span>` : ''}</h3>
-      ${left ? html`<p class="nt-muted" style="margin:-4px 0 var(--s-3)">看证据和出处，确认或改分；确认后才进入档案。</p>` : mine.length && !held ? html`<div class="m-card">${UI.state({ ip: 'done', size: 40, title: '这份回执里的事都确认完了', text: '已进入档案。改主意可以在下面改回待确认。' })}</div>` : ''}
+      ${left ? html`<p class="nt-muted" style="margin:-4px 0 var(--s-3)">看证据和出处，确认或改分；确认后才进入档案。</p>` : mine.length && !held ? html`<div class="m-card">${UI.state({ ip: 'done', size: 40, title: '这份回执里的事都确认完了', text: '已进入档案。' })}</div>` : ''}
+      ${!mine.length && st.dropPending(d) ? html`<div class="m-card"><p class="nt-muted" style="margin:0">材料还在处理，整理出的事会出现在这里；可以先离开。</p></div>` : ''}
       <div class="nt-grid" id="rc-list">${mine.map(UI.receiptItem)}</div>
       ${s.hidden ? html`<p class="nt-muted" style="margin:var(--s-3) 0 0">部分内容已按权限隐藏</p>` : ''}`);
     UI.wireReceipt($('#rc-list'), () => render($('#main')));
+    // 批次还在处理时继续推进；文件状态变了或整理出的事就绪了才重画，不打断正在改的分
+    clearInterval(timer);
+    if (st.dropPending(d)) {
+      const ready = items.length;
+      timer = setInterval(() => { if (st.tickDrops() || st.dropItems(d).length !== ready || !st.dropPending(d)) render($('#main')); }, 600);
+    }
   }
 })();

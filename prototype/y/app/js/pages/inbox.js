@@ -26,7 +26,7 @@
     const targets = [...new Set(all.filter((i) => ['person', 'speaker', 'unknown'].includes(i.kind)).flatMap((i) => i.options.map((o) => o[0])))].filter((id) => st.person(id) && st.scope(id));
     const nOpen = all.filter((i) => !i.done && !i.later).length;
     mount(main, html`
-      <header class="nt-head"><div><h1>待核对</h1><p>选出这几处说的是谁、哪个课题、整理哪一部分，选完即生效，随时可以撤销。</p></div></header>
+      <header class="nt-head"><div><h1>待核对</h1><p>选出这几处说的是谁、哪个课题、整理哪一部分，选完即生效；整理出的建议分确认前，可以在「已核对」里撤销。</p></div></header>
       ${kinds.length > 1 ? html`<div class="n-chips" role="group" aria-label="按类型筛选" id="ib-kinds"><button class="n-chip" type="button" data-k="all" aria-pressed="${kind === 'all'}">全部<b>${nOpen}</b></button>${kinds.map(([k, l]) => html`<button class="n-chip" type="button" data-k="${k}" aria-pressed="${kind === k}">${l}<b>${all.filter((i) => i.kind === k && !i.done && !i.later).length || ''}</b></button>`)}</div>` : ''}
       <div class="nt-split">
         <div class="nt-grid" id="cards">
@@ -57,10 +57,10 @@
   }
 
   // 处理结果的一句话：归到谁、关联到谁、怎么处理这张图
-  // 锁定的核对结果不给撤销，写明为什么锁、更正去哪里
+  // 锁定的核对结果不给撤销，写明为什么锁；导入锁给撤销导入的入口
   function lockNote(i) {
-    const [why, hint, go] = st.LOCK_TEXT[st.inboxLockReason(i)], href = st.lockHref(i);
-    return html`<span class="nt-muted">${why} · ${href ? html`<a class="n-link" href="${href}">${go}</a>` : hint}</span>`;
+    const [why, , go] = st.LOCK_TEXT[st.inboxLockReason(i)], href = st.lockHref(i);
+    return html`<span class="nt-muted">${why}${href ? html` · <a class="n-link" href="${href}">${go}</a>` : ''}</span>`;
   }
 
   function result(i) {
@@ -146,7 +146,7 @@
       if (n) { n.textContent = +n.textContent + 1; n.animate([{ transform: 'scale(1.5)' }, { transform: 'none' }], { duration: NT.reduced ? 1 : 360, easing: 'cubic-bezier(.2,.8,.2,1)' }); }
       const msg = v === 'skip' ? '已放到稍后处理，待办里仍会保留'
         : v === 'none' ? (item.kind === 'project' ? '已记下：明确无课题' : '已记下：名单外的人，只留在原件里')
-        : v === 'rows' ? '已选好范围，整理结果会回到这次投递的回执'
+        : v === 'rows' ? `已整理范围内的 ${item.rows.filter((r) => r[0]).length} 行，建议分在这次投递的回执里等确认`
         : v === 'attach' ? '这张图只作附件保存'
         : item.kind === 'interviewer' ? `已关联到${st.person(v).name}，面评那一行可以导入了`
         : `已归到${st.person(v)?.name || st.project(v)?.name}${item.draft || item.ev ? '，事件进了待确认' : ''}`;

@@ -43,12 +43,10 @@
     };
   }
 
-  // 锁定的核对结果不给撤销，写明为什么锁；更正在回执里改回待确认（手机回执页），撤销导入只在电脑上做，校准或随复盘确认后交给 HR
+  // 锁定的核对结果不给撤销，写明为什么锁；导入锁给撤销导入的入口（在电脑上做）
   function lockNote(i) {
-    const why = st.inboxLockReason(i), [text, hint, go] = st.LOCK_TEXT[why], href = st.lockHref(i);
-    const m = why === 'confirmed' && href?.match(/receipt\.html\?id=(.+)$/);
-    const to = m ? `confirm.html?r=${m[1]}` : href && `../app/${href}`;
-    return html`<small>${text} · ${to ? html`<a class="n-link" href="${to}" style="display:inline;padding:0;font-size:inherit">${go}</a>` : hint}</small>`;
+    const [text, , go] = st.LOCK_TEXT[st.inboxLockReason(i)], href = st.lockHref(i);
+    return html`<small>${text}${href ? html` · <a class="n-link" href="../app/${href}" style="display:inline;padding:0;font-size:inherit">${go}</a>` : ''}</small>`;
   }
 
   // 图片范围要对着整张图框选行，手机上只说明并给电脑端入口，不在这里处理

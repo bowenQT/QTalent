@@ -772,10 +772,10 @@
     const confirmed = x.state === 'confirmed', by = confirmed && st.person(e.scores[0].by);
     const done = (s) => ['confirmed', 'calibrated'].includes(s.st);
     const scores = html`<div class="n-rcpt__scores">${e.scores.map((s, i) => html`<div class="n-rcpt__score" data-i="${i}"><span class="n-score__dim">${st.dim(s.d).name}</span>${UI.dotsInline(s.v, done(s) ? 'confirmed' : 'ai')}<b>${s.v}</b>${done(s) ? (s.ai != null && s.ai !== s.v ? html`<small>AI 原为 ${s.ai}${confirmed ? '' : ` · ${st.person(s.by)?.name || ''}已确认`}</small>` : confirmed ? '' : html`<small>${st.person(s.by)?.name || ''}已确认</small>`) : html`<span class="n-src n-src--ai">${icon('spark')}AI 建议</span>`}<small>${s.note || ''}</small></div>`)}</div>`;
-    let foot, wk;
+    let foot;
     if (x.state === 'skipped') foot = html`<div class="n-rcpt__foot"><span class="nt-muted">已标为名单外的人：这件事只保留在原件里</span>${it && x.mine ? html`<a class="n-link" href="inbox.html#${it.id}" style="margin-left:auto">在待核对里改回</a>` : ''}</div>`;
     else if (x.state === 'held') foot = html`<div class="n-rcpt__foot"><span class="nt-muted">先确认${it ? it.q.match(/「.+?」/)?.[0] || '这一处' : '这一处'}是谁，之后才整理这件事、给建议分</span>${it && x.mine ? html`<a class="n-btn n-btn--sm" href="inbox.html#${it.id}">去核对</a>` : ''}</div>`;
-    else if (confirmed) foot = html`<div class="n-rcpt__foot"><span class="n-block__sig">${by?.name || ''}</span><span class="nt-muted">${NT.md(e.scores[0].hist?.[0]?.at || NT.TODAY)} 确认，已进入档案</span>${x.mine && st.receiptRevertible(e).length ? html`<button class="n-link" type="button" data-rc-undo="${e.id}" style="margin-left:auto">改回待确认</button>` : x.mine && (wk = e.scores.map((s) => s.st === 'confirmed' && s.by === st.me().id && st.reviewLockOf(e, s)).find(Boolean)) ? html`<span class="nt-muted" style="margin-left:auto">已随 ${wk} 对人复盘确认</span>` : ''}</div>`;
+    else if (confirmed) foot = html`<div class="n-rcpt__foot"><span class="n-block__sig">${by?.name || ''}</span><span class="nt-muted">${NT.md(e.scores[0].hist?.[0]?.at || NT.TODAY)} 确认，已进入档案</span></div>`;
     else if (x.mine) foot = html`<div class="n-rcpt__foot"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-rc-ok="${e.id}">${icon('check')}确认这件事</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-rc-edit="${e.id}">${icon('pen')}改分</button><span class="nt-muted">确认后计入档案</span></div>`;
     else foot = html`<div class="n-rcpt__foot"><span class="nt-muted">等${st.person(e.recorder)?.name || '评价人'}确认</span></div>`;
     // 身份还没确定（待认人、名单外）：只给原件里的这一处，不显示 AI 草拟的标题和建议分
@@ -799,10 +799,11 @@
     <label class="n-field"><span class="n-field__label">改分理由（改了分时必填）</span><textarea class="n-textarea" rows="2" data-rc-why placeholder="比如：评审表写明是两人一起做的，个人贡献按 3 分"></textarea></label>
     <div class="nt-row"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-rc-save="${e.id}">保存并确认</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-rc-cancel>取消</button></div></div>`;
   UI.wireReceipt = (host, rerender) => host.addEventListener('click', (ev) => {
-    const ok = ev.target.closest('[data-rc-ok]'), edit = ev.target.closest('[data-rc-edit]'), save = ev.target.closest('[data-rc-save]'), undo = ev.target.closest('[data-rc-undo]');
+    const ok = ev.target.closest('[data-rc-ok]'), edit = ev.target.closest('[data-rc-edit]'), save = ev.target.closest('[data-rc-save]');
+    // 确认后只在提示条的 5 秒内可以撤销，之后只读
     const done = (e, back, label) => {
       rerender();
-      NT.toast(`已确认${st.person(e.people[0]).name}的这件事${label || ''}，已进入档案`, { undo: () => { back(); rerender(); }, undoneText: '已撤销，回到待确认' });
+      NT.toast(`已确认${st.person(e.people[0]).name}的这件事${label || ''}，已进入档案`, { undo: () => { const r = back(); rerender(); return r; }, undoneText: '已撤销，回到待确认', failText: '撤销失败：这件事的分已有新的处理，已保留当前结果' });
     };
     if (ok) { const e = st.event(ok.dataset.rcOk); done(e, st.receiptConfirm(e.id)); }
     if (edit) { const card = edit.closest('.n-rcpt'), e = st.event(edit.dataset.rcEdit); card.querySelector('.n-rcpt__foot').outerHTML = String(editForm(e)); card.querySelector('select')?.focus(); }
@@ -813,10 +814,6 @@
       const changed = [...vals].some(([i, v]) => v !== (e.scores[i].ai ?? e.scores[i].v));
       if (changed && !why) { const t = card.querySelector('[data-rc-why]'); t.closest('.n-field').classList.add('is-error'); t.focus(); t.placeholder = '改了分，写一句理由'; return; }
       done(e, st.receiptConfirm(e.id, vals, changed ? why : ''), changed ? '（已改分）' : '');
-    }
-    if (undo) {
-      const e = st.event(undo.dataset.rcUndo), n = st.receiptRevert(e.id); rerender();
-      NT.toast(n < e.scores.length ? `已把你确认的 ${n} 个维度改回待确认，已校准的维度保持原样` : '已改回待确认');
     }
   });
 

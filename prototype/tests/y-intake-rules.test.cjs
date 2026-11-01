@@ -367,20 +367,22 @@ test('回到工作台：之前投递、还没处理完的批次接着按时推�
   assert.equal(timers.filter(Boolean).length, 0, '都处理完以后停止轮询');
 });
 
-test('回执上改回待确认只动本人确认的维度：HR 校准过的维度保留分数和历史', () => {
-  const mem = new Map();
-  const mentor = load('mentor', mem);
-  mentor.receiptConfirm('e-d1');
-  const hr = load('hrbp', mem, false);
-  hr.calibrate('e-d1', 0, 2, '评审表写明是两人一起做的');
-  const m = load('mentor', mem, false);
-  assert.equal(m.receiptRevertible(m.event('e-d1')).join(','), '1', '只有导师本人确认的那一维能改回');
-  assert.equal(m.receiptRevert('e-d1'), 1);
-  const e = m.event('e-d1');
-  assert.equal(e.scores[0].st, 'calibrated');
-  assert.equal(e.scores[0].v, 2);
-  assert.ok(e.scores[0].hist.some((h) => h.kind === 'calib'), 'HR 的校准记录还在');
-  assert.equal(e.scores[1].st, 'ai');
+test('回执确认后只在 5 秒内可以撤销：只还原这一次确认的维度，超过撤销窗口后只读', () => {
+  const st = load('mentor');
+  const before = JSON.stringify(st.event('e-d1').scores);
+  const undo = st.receiptConfirm('e-d1');
+  assert.ok(st.event('e-d1').scores.every((x) => ['confirmed', 'calibrated'].includes(x.st)));
+  assert.equal(undo(), true, '5 秒内可以撤销');
+  assert.equal(JSON.stringify(st.event('e-d1').scores), before, '回到确认前');
+  assert.equal(undo(), false, '同一次确认只撤销一次');
+  const late = st.receiptConfirm('e-d1');
+  st.RECEIPT_UNDO_MS = -1;
+  assert.equal(late(), false, '超过撤销窗口后只读');
+  assert.ok(st.event('e-d1').scores.every((x) => ['confirmed', 'calibrated'].includes(x.st)));
+  assert.equal(st.RECEIPT_UNDO_MS !== undefined && typeof st.receiptRevert, 'undefined', '回执上没有长期的「改回待确认」');
+  for (const f of ['../y/app/js/ui.js', '../y/m/js/pages/confirm.js', '../y/app/js/pages/receipt.js']) {
+    assert.doesNotMatch(fs.readFileSync(path.join(__dirname, f), 'utf8'), /改回待确认|data-rc-undo/, `${f} 不再有长期的改回待确认`);
+  }
 });
 
 test('面评待认人的那一行在待核对里可以选「名单外的人」，这一行收进跳过的行', () => {
@@ -427,49 +429,95 @@ test('回执不给被权限隐藏的数量：有隐藏时只标 hidden，页面�
   }
 });
 
-test('核对结果的撤销截止到依赖它的草稿被确认：确认后只读，改回待确认以后才能撤销核对', () => {
+test('核对结果的撤销截止到依赖它的草稿被确认：确认后只读，5 秒内撤销确认后才能撤销核对', () => {
   const st = load('mentor');
   const it = st.get().inbox.find((i) => i.id === 'i-spk');
   st.resolveInbox('i-spk', it.options[0][0]);
   assert.equal(st.inboxLockReason(it), null);
-  st.receiptConfirm(it.ev);
+  const undo = st.receiptConfirm(it.ev);
   assert.equal(st.inboxLockReason(it), 'confirmed');
-  assert.equal(st.lockHref(it), 'receipt.html?id=d-ms2', '更正入口指到这处核对所在的回执');
+  assert.equal(st.lockHref(it), null, '确认锁只读，不给更正入口');
   assert.equal(st.unresolveInbox('i-spk'), false);
   assert.ok(st.event(it.ev), '撤销被拒，这件事和确认的分都还在');
-  st.receiptRevert(it.ev);
+  assert.equal(undo(), true, '提示条上 5 秒内撤销确认');
   assert.equal(st.inboxLockReason(it), null);
   assert.equal(st.unresolveInbox('i-spk'), true);
 });
 
-test('HR 校准过的分锁住身份核对：不能撤销，也不给回执入口，更正交给 HR', () => {
+test('确认后 HR 又校准了：撤销确认被拒，校准的分保留，身份核对仍只读', () => {
   const st = load('mentor');
   const it = st.get().inbox.find((i) => i.id === 'i-spk');
   st.resolveInbox('i-spk', it.options[0][0]);
-  st.receiptConfirm(it.ev);
-  const e = st.event(it.ev);
-  Object.assign(e.scores[0], { st: 'calibrated', v: 2 });
-  assert.equal(st.inboxLockReason(it), 'final');
-  assert.equal(st.lockHref(it), null);
-  assert.equal(st.receiptRevert(it.ev), 0, '校准的维度不改回');
-  assert.equal(st.unresolveInbox('i-spk'), false);
+  const undo = st.receiptConfirm(it.ev);
+  st.calibrate(it.ev, 0, 2, '评审表写明是两人一起做的');
+  assert.equal(undo(), false, '这一维之后又被处理过，撤销被拒');
   assert.equal(st.event(it.ev).scores[0].v, 2, '校准的分保留');
+  assert.equal(st.inboxLockReason(it), 'confirmed');
+  assert.equal(st.lockHref(it), null);
+  assert.equal(st.unresolveInbox('i-spk'), false);
 });
 
-test('所属对人复盘已确认后，回执里不能把分改回待确认', () => {
+test('所属对人复盘已确认后，撤销回执上的确认被拒', () => {
   const st = load('hrbp');
-  const r0 = st.review('p-x62', 'W8');
-  r0.events.forEach((e) => { if (e.scores.some((x) => x.st === 'ai')) st.receiptConfirm(e.id); });
-  const r1 = st.review('p-x62', 'W8');
-  assert.equal(r1.ai, 0);
+  const undos = [];
+  st.review('p-x62', 'W8').events.forEach((e) => { if (e.scores.some((x) => x.st === 'ai')) undos.push(st.receiptConfirm(e.id)); });
+  assert.equal(st.review('p-x62', 'W8').ai, 0);
   assert.ok(st.confirmReview('p-x62', 'W8'), '复盘可以确认');
-  const e = r1.events.find((x) => x.drop && x.scores.some((sc) => sc.p === 'p-x62' && sc.by === st.me().id));
-  assert.ok(e, '复盘里有一件从回执确认的事');
-  assert.equal(st.receiptRevertible(e).length, 0);
-  assert.equal(st.receiptRevert(e.id), 0);
+  assert.ok(undos.length && undos.every((u) => u() === false), '复盘确认后，撤销确认被拒');
   const r2 = st.review('p-x62', 'W8');
   assert.equal(r2.state, 'confirmed');
   assert.equal(r2.ai, 0, '已确认的复盘里没有待确认的分');
+});
+
+test('图片范围选「整理范围内的行」：每一行整理成一件待确认的事，回到原批次的回执；撤销后一起撤回', () => {
+  const st = load('hrbp');
+  const d = st.drop('d-hr'), s0 = st.dropSummary(d);
+  st.resolveInbox('i-region', 'rows');
+  const evs = st.get().events.filter((e) => e.verifyOf === 'i-region');
+  assert.equal(evs.map((e) => e.people[0]).sort().join(','), 'p-x62,p-x63,p-x65', '范围内的三行各一件');
+  assert.ok(evs.every((e) => e.drop === 'd-hr' && e.srcs[0].type === 'image' && e.srcs[0].label === '评审群截图.png' && e.scores.every((x) => x.st === 'ai')));
+  const s1 = st.dropSummary(d);
+  assert.equal(s1.events, s0.events + 3, '回执里多出 3 件事');
+  assert.equal(s1.toConfirm, s0.toConfirm + 3);
+  assert.equal(s1.verifyOpen, s0.verifyOpen - 1);
+  assert.equal(s1.people, s0.people + 1, '截图里新出现的人也算进涉及的人');
+  assert.ok(st.dropItems(d).filter((x) => x.ev.verifyOf === 'i-region').every((x) => x.mine), '交材料的 HR 在回执里确认');
+  assert.equal(st.unresolveInbox('i-region'), true);
+  assert.equal(st.get().events.filter((e) => e.verifyOf === 'i-region').length, 0);
+  assert.equal(st.dropSummary(d).events, s0.events);
+  assert.equal(st.dropSummary(d).people, s0.people);
+  st.resolveInbox('i-region', 'rows');
+  st.receiptConfirm(evs[0].id);
+  assert.equal(st.inboxLockReason(st.get().inbox.find((i) => i.id === 'i-region')), 'confirmed', '确认其中一件后，范围选择只读');
+  assert.equal(st.unresolveInbox('i-region'), false);
+  // 连接器给的路径：工作台投递演示材料，再选整理范围内的 2 行
+  const m = load('mentor');
+  const d2 = m.addDemoDrop();
+  m.resolveInbox(`i-${d2.id}`, 'rows');
+  const got = m.dropItems(d2).filter((x) => x.ev.verifyOf);
+  assert.equal(got.length, 2);
+  assert.ok(got.every((x) => x.mine && x.state === 'ai'));
+});
+
+test('手机回执页：批次还在处理时继续轮询，整理结果就绪后刷新确认列表，处理完停下', () => {
+  const st = load('mentor');
+  const d = st.addDemoDrop();
+  const timers = [];
+  let cfg, items = 0;
+  const NTs = { store: st, ui: { receiptItem: () => { items += 1; return ''; }, wireReceipt() {}, state: () => '' },
+    html: () => '', icon: () => '', mount() {}, $: () => ({}), param: () => d.id, mshell: (c) => { cfg = c; } };
+  const ctx = { window: { NT: NTs }, setInterval: (fn) => { timers.push(fn); return timers.length; }, clearInterval: (id) => { if (id) timers[id - 1] = null; } };
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../y/m/js/pages/confirm.js'), 'utf8'), ctx);
+  cfg.render({});
+  assert.equal(items, 0, '纪要还没读完，没有可确认的事');
+  assert.equal(timers.filter(Boolean).length, 1, '批次没处理完，继续轮询');
+  d.files.forEach((f) => (f.steps || []).forEach((x) => { x.at = 0; }));
+  st.get().events.filter((e) => e.drop === d.id).forEach((e) => { e.readyAt = 0; });
+  items = 0;
+  timers.find(Boolean)();
+  assert.ok(items > 0, '整理结果就绪后刷新了确认列表');
+  assert.equal(timers.filter(Boolean).length, 0, '处理完以后停止轮询');
 });
 
 test('课题核对可以选「明确无课题」', () => {
