@@ -69,6 +69,8 @@ export {
   commitRecordSave,
   commitRecordUndo,
   requireRecordUndoCommit,
+  recordUndoCancellationFacts,
+  readRecordResaveState,
   RecordWriteError,
 } from './write';
 export type {
@@ -76,4 +78,6 @@ export type {
   RecordSaveLock,
   RecordUndoCommit,
   RecordConfirmationWorkFact,
+  RecordCancelledConfirmationWorkFact,
+  RecordResaveState,
 } from './write';
