@@ -1,0 +1,304 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  applicationEnvironment,
+  dumpEnvironment,
+  runApplication,
+} from './app-command.mjs';
+const expected = {
+  origin: 'https://demo.example.test',
+  database: {
+    host: 'db.example.test',
+    port: 5432,
+    name: 'demo',
+    projectRef: 'aaaaaaaaaaaaaaaaaaaa',
+    username: 'postgres.aaaaaaaaaaaaaaaaaaaa',
+  },
+};
+const environment = {
+  APP_ENV: 'demo',
+  NODE_ENV: 'production',
+  ACCESS_ENFORCED: 'true',
+  BETTER_AUTH_URL: expected.origin,
+  WORKER_PORT: '3001',
+  DATABASE_URL:
+    'postgres://postgres.aaaaaaaaaaaaaaaaaaaa:synthetic%40password@db.example.test:5432/demo?sslmode=verify-full',
+};
+test('checks actual demo, origin and database identity before executing', () => {
+  assert.equal(applicationEnvironment(environment, expected).APP_ENV, 'demo');
+  for (const change of [
+    { APP_ENV: 'production' },
+    { NODE_ENV: 'test' },
+    { ACCESS_ENFORCED: 'false' },
+    { BETTER_AUTH_URL: 'https://other.example.test' },
+    { WORKER_PORT: '4001' },
+    {
+      DATABASE_URL:
+        'postgres://postgres.aaaaaaaaaaaaaaaaaaaa:test@other.example.test:5432/demo?sslmode=require',
+    },
+    {
+      DATABASE_URL:
+        'postgres://postgres.aaaaaaaaaaaaaaaaaaaa:test@db.example.test:6543/demo?sslmode=require',
+    },
+    {
+      DATABASE_URL:
+        'postgres://postgres.aaaaaaaaaaaaaaaaaaaa:test@db.example.test:5432/other?sslmode=require',
+    },
+    {
+      DATABASE_URL:
+        'postgres://postgres.aaaaaaaaaaaaaaaaaaaa:test@db.example.test:5432/demo',
+    },
+    { DATABASE_URL: 'not-a-url' },
+  ])
+    assert.throws(() =>
+      applicationEnvironment({ ...environment, ...change }, expected),
+    );
+});
+test('maps credentials only into libpq environment, never command arguments', () => {
+  const env = dumpEnvironment(environment, expected);
+  assert.equal(env.PGPASSWORD, 'synthetic@password');
+  assert.equal(env.PGUSER, 'postgres.aaaaaaaaaaaaaaaaaaaa');
+  assert.equal(env.PGDATABASE, 'demo');
+  assert.equal(env.PGSSLMODE, 'verify-full');
+  assert.equal(
+    dumpEnvironment(
+      {
+        ...environment,
+        DATABASE_URL:
+          environment.DATABASE_URL + '&sslrootcert=%2Ftrusted%2Fca.pem',
+      },
+      expected,
+    ).PGSSLROOTCERT,
+    '/trusted/ca.pem',
+  );
+});
+test('validation never invokes a command, and environment mismatch blocks it', () => {
+  let calls = 0;
+  const execute = () => {
+    calls++;
+    return { status: 0 };
+  };
+  assert.equal(
+    runApplication(
+      [JSON.stringify(expected), 'validate', '/bin/unused'],
+      environment,
+      execute,
+    ),
+    0,
+  );
+  assert.equal(calls, 0);
+  assert.equal(
+    runApplication(
+      [JSON.stringify(expected), 'command', '/bin/unused'],
+      {
+        ...environment,
+        APP_ENV: 'production',
+      },
+      execute,
+    ),
+    1,
+  );
+  assert.equal(calls, 0);
+});
+test('explicit command/dump operation preserves exit status and rejects malformed commands', () => {
+  let received;
+  const execute = (file, args, options) => {
+    received = { file, args, options };
+    return { status: 0 };
+  };
+  assert.equal(
+    runApplication(
+      [
+        JSON.stringify(expected),
+        'dump',
+        '/bin/pg_dump',
+        '--file',
+        '/tmp/demo.dump',
+      ],
+      environment,
+      execute,
+    ),
+    0,
+  );
+  assert.deepEqual(received.args, ['--file', '/tmp/demo.dump']);
+  assert.equal(received.options.env.PGPASSWORD, 'synthetic@password');
+  assert.equal(JSON.stringify(received.args).includes('password'), false);
+  assert.equal(
+    runApplication(
+      [JSON.stringify(expected), 'command', '/bin/false'],
+      environment,
+      () => ({ status: 4 }),
+    ),
+    1,
+  );
+  assert.equal(
+    runApplication(
+      [JSON.stringify(expected), 'command', 'relative-path'],
+      environment,
+      execute,
+    ),
+    1,
+  );
+  assert.equal(
+    runApplication(
+      [JSON.stringify(expected), 'unknown', '/bin/test'],
+      environment,
+      execute,
+    ),
+    1,
+  );
+  assert.equal(
+    runApplication(
+      ['invalid-json', 'command', '/bin/test'],
+      environment,
+      execute,
+    ),
+    1,
+  );
+});
+
+test('standalone command boundary validates before invoking a child', () => {
+  const script = fileURLToPath(new URL('./app-command.mjs', import.meta.url));
+  const result = spawnSync(
+    process.execPath,
+    [script, JSON.stringify(expected), 'validate', '/bin/unused'],
+    {
+      env: { ...process.env, ...environment },
+      encoding: 'utf8',
+    },
+  );
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, '');
+  assert.equal(result.stderr, '');
+});
+
+test('shared Supabase pool rejects another project username on both role ports', () => {
+  for (const port of [5432, 6543]) {
+    const projectRef = 'aaaaaaaaaaaaaaaaaaaa';
+    const target = {
+      origin: expected.origin,
+      database: {
+        host: 'shared.example.test',
+        port,
+        name: 'postgres',
+        projectRef,
+        username: `postgres.${projectRef}`,
+      },
+    };
+    const correct = {
+      ...environment,
+      DATABASE_URL: `postgres://postgres.${projectRef}:synthetic@shared.example.test:${port}/postgres?sslmode=verify-full`,
+    };
+    assert.equal(applicationEnvironment(correct, target).APP_ENV, 'demo');
+    assert.throws(
+      () =>
+        applicationEnvironment(
+          {
+            ...correct,
+            DATABASE_URL: correct.DATABASE_URL.replace(
+              projectRef,
+              'bbbbbbbbbbbbbbbbbbbb',
+            ),
+          },
+          target,
+        ),
+      /database_mismatch/,
+    );
+  }
+});
+
+// Owner 6555906310: regress the real locked driver's query precedence, offline.
+import { createRequire } from 'node:module';
+const pgRequire = createRequire(createRequire(import.meta.url).resolve('pg'));
+const parsePgConnection = pgRequire('pg-connection-string').parse;
+for (const [key, value, expectedField] of [
+  ['host', 'other.example.test', 'host'],
+  ['user', 'postgres.bbbbbbbbbbbbbbbbbbbb', 'user'],
+  ['port', '6543', 'port'],
+]) {
+  test('rejects query ' + key + ' before any database child can run', () => {
+    const raw = environment.DATABASE_URL + '&' + key + '=' + value;
+    assert.equal(String(parsePgConnection(raw)[expectedField]), value);
+    let childCalls = 0;
+    const result = runApplication(
+      [JSON.stringify(expected), 'command', '/bin/unused', 'db:migrate'],
+      { ...environment, DATABASE_URL: raw },
+      () => {
+        childCalls++;
+        return { status: 0 };
+      },
+    );
+    assert.equal(childCalls, 0);
+    assert.notEqual(result, 0);
+    assert.throws(
+      () =>
+        applicationEnvironment({ ...environment, DATABASE_URL: raw }, expected),
+      /database_query_parameter_not_allowed/,
+    );
+  });
+}
+for (const query of [
+  'sslmode=require&sslmode=verify-full',
+  'sslmode=verify-full&%73slmode=require',
+  'sslmode=verify-full&sslrootcert=one&sslrootcert=two',
+]) {
+  test(
+    'rejects duplicate query keys before backup or migration: ' +
+      query.split('=')[0],
+    () => {
+      const raw = environment.DATABASE_URL.split('?')[0] + '?' + query;
+      for (const operation of ['command', 'dump', 'validate']) {
+        let childCalls = 0;
+        assert.notEqual(
+          runApplication(
+            [JSON.stringify(expected), operation, '/bin/unused'],
+            { ...environment, DATABASE_URL: raw },
+            () => {
+              childCalls++;
+              return { status: 0 };
+            },
+          ),
+          0,
+        );
+        assert.equal(childCalls, 0);
+      }
+      assert.throws(
+        () => dumpEnvironment({ ...environment, DATABASE_URL: raw }, expected),
+        /database_query_parameter_duplicate/,
+      );
+    },
+  );
+}
+test('rejects every other query key, including an SSL bypass, without leaking its URL', () => {
+  const raw = environment.DATABASE_URL + '&ssl=0';
+  let calls = 0;
+  assert.notEqual(
+    runApplication(
+      [JSON.stringify(expected), 'command', '/bin/unused'],
+      { ...environment, DATABASE_URL: raw },
+      () => {
+        calls++;
+        return { status: 0 };
+      },
+    ),
+    0,
+  );
+  assert.equal(calls, 0);
+  const cli = spawnSync(
+    process.execPath,
+    [
+      fileURLToPath(new URL('./app-command.mjs', import.meta.url)),
+      JSON.stringify(expected),
+      'validate',
+    ],
+    {
+      env: { ...process.env, ...environment, DATABASE_URL: raw },
+      encoding: 'utf8',
+    },
+  );
+  assert.notEqual(cli.status, 0);
+  assert.equal((cli.stdout + cli.stderr).includes('synthetic'), false);
+  assert.match(cli.stderr, /database_query_parameter_not_allowed/);
+});

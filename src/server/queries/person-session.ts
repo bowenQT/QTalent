@@ -6,6 +6,6 @@ import { createClock } from '../../lib/clock';
 import { loadPersonData } from './person-data';
 export async function loadCurrentPersonData() {
   const session = await requireSession();
-  const today = createClock(getEnv().APP_ENV).today();
-  return loadPersonData(getDatabase(), session.user.id, today);
+  const now = createClock(getEnv().APP_ENV).now().toISOString();
+  return loadPersonData(getDatabase(), session.user.id, now);
 }
