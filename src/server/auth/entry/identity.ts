@@ -3,6 +3,7 @@ export type EntryChannel = 'web' | 'wecom' | 'mcp' | 'agentapi';
 export type CredentialBinding = {
   credentialId: string;
   accountId: string;
+  personId: string;
   revision: number;
   expiresAt: string;
   revokedAt: string | null;
@@ -25,6 +26,11 @@ export class EntryIdentityError extends Error {
 const bindingSchema = z.strictObject({
   credentialId: z.string().min(1).max(200),
   accountId: z.string().min(1).max(200),
+  personId: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine((value) => value.trim().length > 0),
   revision: z.number().int().positive(),
   expiresAt: z.iso.datetime(),
   revokedAt: z.iso.datetime().nullable(),
@@ -91,6 +97,7 @@ export function createEntryIdentityService(
     },
     async current(identity: EntryIdentity): Promise<{
       accountId: string;
+      personId: string;
       channel: EntryChannel;
       credentialId: string;
     }> {
@@ -110,6 +117,7 @@ export function createEntryIdentityService(
         if (
           !current ||
           current.accountId !== state.binding.accountId ||
+          current.personId !== state.binding.personId ||
           current.credentialId !== state.binding.credentialId ||
           current.revision !== state.binding.revision ||
           issued.get(identity) !== state
@@ -118,6 +126,7 @@ export function createEntryIdentityService(
         return {
           channel: state.channel,
           accountId: current.accountId,
+          personId: current.personId,
           credentialId: current.credentialId,
         };
       } catch (error) {

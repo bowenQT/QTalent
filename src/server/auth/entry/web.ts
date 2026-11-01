@@ -1,7 +1,9 @@
 import { and, eq } from 'drizzle-orm';
+import { errors } from 'jose';
 import { z } from 'zod';
 import { verifyAccessRequest } from '../../access';
 import type { Database } from '../../db/client';
+import { getEnv } from '../../env';
 import { accountBindings } from '../../modules/directory';
 import { getSession } from '../index';
 import { session } from '../schema';
@@ -62,7 +64,24 @@ export function createWebEntryAuthenticator(
   async function readCurrent(headers: Headers): Promise<BoundSession> {
     // Keep Access ahead of Better Auth; neither a cookie nor a gateway JWT alone
     // is an application identity. Better Auth has cookieCache disabled.
-    await verifyAccessRequest(new Headers(headers));
+    if (getEnv().ACCESS_ENFORCED && !headers.get('cf-access-jwt-assertion'))
+      reject();
+    try {
+      await verifyAccessRequest(new Headers(headers));
+    } catch (error) {
+      // Match jobs/request: credential failures require authentication; JWKS
+      // availability and key rotation remain dependency failures.
+      if (
+        error instanceof errors.JWTClaimValidationFailed ||
+        error instanceof errors.JWTExpired ||
+        error instanceof errors.JOSEAlgNotAllowed ||
+        error instanceof errors.JWSInvalid ||
+        error instanceof errors.JWTInvalid ||
+        error instanceof errors.JWSSignatureVerificationFailed
+      )
+        reject();
+      unavailable();
+    }
     const raw = await getSession(new Headers(headers));
     if (!raw) reject();
     const parsed = proofSchema.safeParse(raw);
@@ -113,6 +132,7 @@ export function createWebEntryAuthenticator(
     return {
       credentialId: row.sessionId,
       accountId: row.accountId,
+      personId: row.personId,
       // This single-use adapter has one request-local generation. It is NOT an
       // auth_session database revision or updatedAt converted into a counter.
       // All revocation/account/person checks use the real source on every call.

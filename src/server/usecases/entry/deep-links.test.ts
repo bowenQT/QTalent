@@ -26,6 +26,7 @@ async function fixture() {
   const binding: CredentialBinding = {
     credentialId: 'demo-web-row',
     accountId: 'demo-hr-account',
+    personId: 'demo-hr',
     revision: 1,
     expiresAt: '2026-11-02T00:00:00.000Z',
     revokedAt: null,
@@ -34,6 +35,7 @@ async function fixture() {
     ...binding,
     credentialId: 'demo-other-row',
     accountId: 'demo-other-account',
+    personId: 'demo-other',
   };
   const service = createEntryIdentityService(
     {

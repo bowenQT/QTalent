@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { errors } from 'jose';
 import type { Pool } from 'pg';
 import { createWebEntryAuthenticator } from './web';
 import { createEntryIdentityService } from './identity';
-const mocks = vi.hoisted(() => ({ access: vi.fn(), session: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  access: vi.fn(),
+  session: vi.fn(),
+  env: vi.fn(),
+}));
 vi.mock('../../access', () => ({ verifyAccessRequest: mocks.access }));
+vi.mock('../../env', () => ({ getEnv: mocks.env }));
 vi.mock('../index', () => ({ getSession: mocks.session }));
 const start = Date.parse('2026-11-01T01:00:00.000Z');
 const end = start + 60_000;
@@ -66,10 +72,125 @@ function deferred() {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.env.mockReturnValue({ ACCESS_ENFORCED: true });
   mocks.access.mockResolvedValue(undefined);
   mocks.session.mockImplementation(async () => apiProof());
 });
 describe('request-owned production Web authenticator', () => {
+  it.each([null, ''])(
+    'rejects missing or empty enforced Access proof (%s) before any verifier',
+    async (assertion) => {
+      const f = fixture();
+      if (assertion === null) f.headers.delete('cf-access-jwt-assertion');
+      else f.headers.set('cf-access-jwt-assertion', assertion);
+      await expect(f.reader.verify(f.headers)).rejects.toMatchObject({
+        kind: 'unauthenticated',
+        message: 'unauthenticated',
+      });
+      expect(mocks.access).not.toHaveBeenCalled();
+      expect(mocks.session).not.toHaveBeenCalled();
+      expect(f.query).not.toHaveBeenCalled();
+    },
+  );
+  it('does not require an Access assertion when enforcement is disabled', async () => {
+    const f = fixture();
+    mocks.env.mockReturnValue({ ACCESS_ENFORCED: false });
+    f.headers.delete('cf-access-jwt-assertion');
+    await expect(f.reader.verify(f.headers)).resolves.toMatchObject({
+      credentialId: 'demo-session',
+    });
+    expect(mocks.access).toHaveBeenCalledOnce();
+    expect(mocks.session).toHaveBeenCalledOnce();
+    expect(f.query).toHaveBeenCalledOnce();
+  });
+  describe.each(['verify', 'current'] as const)(
+    'Access classification on %s',
+    (operation) => {
+      it.each([
+        [
+          new errors.JWTClaimValidationFailed('synthetic-private-token', {}),
+          'unauthenticated',
+        ],
+        [
+          new errors.JWTExpired('synthetic-private-token', {}),
+          'unauthenticated',
+        ],
+        [
+          new errors.JOSEAlgNotAllowed('synthetic-private-token'),
+          'unauthenticated',
+        ],
+        [new errors.JWSInvalid('synthetic-private-token'), 'unauthenticated'],
+        [new errors.JWTInvalid('synthetic-private-token'), 'unauthenticated'],
+        [
+          new errors.JWSSignatureVerificationFailed('synthetic-private-token'),
+          'unauthenticated',
+        ],
+        [
+          new errors.JWKSTimeout('synthetic-private-provider-error'),
+          'unavailable',
+        ],
+        [
+          new errors.JWKSNoMatchingKey('synthetic-private-provider-error'),
+          'unavailable',
+        ],
+        [
+          new errors.JWKSInvalid('synthetic-private-provider-error'),
+          'unavailable',
+        ],
+        [
+          new errors.JWKInvalid('synthetic-private-provider-error'),
+          'unavailable',
+        ],
+        [
+          new errors.JWKSMultipleMatchingKeys(
+            'synthetic-private-provider-error',
+          ),
+          'unavailable',
+        ],
+        [
+          new errors.JOSENotSupported('synthetic-private-provider-error'),
+          'unavailable',
+        ],
+        [
+          new errors.JOSEError('synthetic-private-provider-error'),
+          'unavailable',
+        ],
+        [new TypeError('synthetic-private-provider-error'), 'unavailable'],
+        [
+          new DOMException('synthetic-private-provider-error', 'TimeoutError'),
+          'unavailable',
+        ],
+        [new Error('Access authentication required'), 'unavailable'],
+      ] as const)(
+        'maps %s to %s and retires the request without leaking the failure',
+        async (error, kind) => {
+          const f = fixture();
+          if (operation === 'current') await f.reader.verify(f.headers);
+          mocks.access.mockClear().mockRejectedValue(error);
+          mocks.session.mockClear();
+          f.query.mockClear();
+          const result =
+            operation === 'verify'
+              ? f.reader.verify(f.headers)
+              : f.reader.current('demo-session');
+          await expect(result).rejects.toMatchObject({ kind, message: kind });
+          expect(mocks.access).toHaveBeenCalledOnce();
+          expect(mocks.session).not.toHaveBeenCalled();
+          expect(f.query).not.toHaveBeenCalled();
+          mocks.access.mockResolvedValue(undefined);
+          await expect(f.reader.current('demo-session')).rejects.toMatchObject({
+            kind: 'unauthenticated',
+          });
+          await expect(f.reader.verify(f.headers)).rejects.toMatchObject({
+            kind: 'unauthenticated',
+          });
+          expect(mocks.access).toHaveBeenCalledOnce();
+          expect(mocks.session).not.toHaveBeenCalled();
+          expect(f.query).not.toHaveBeenCalled();
+        },
+      );
+    },
+  );
   it('uses Access then Better Auth then actual SQL on verify and every current call', async () => {
     const f = fixture();
     const cap = await f.identities.authenticate('web', f.headers);
@@ -77,6 +198,7 @@ describe('request-owned production Web authenticator', () => {
       expect(await f.identities.current(cap)).toEqual({
         channel: 'web',
         accountId: 'demo-account',
+        personId: 'demo-person',
         credentialId: 'demo-session',
       });
     expect(mocks.access).toHaveBeenCalledTimes(3);

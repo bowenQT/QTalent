@@ -60,6 +60,7 @@ async function fixture(channel: EntryChannel = 'web') {
   const binding: CredentialBinding = {
     credentialId: 'demo-row',
     accountId: 'demo-hr-account',
+    personId: 'demo-hr',
     revision: 1,
     expiresAt: '2026-11-02T00:00:00.000Z',
     revokedAt: null,

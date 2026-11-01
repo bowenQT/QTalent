@@ -13,6 +13,7 @@ function fixture() {
   let binding: CredentialBinding | null = {
     credentialId: 'synthetic-credential-row',
     accountId: 'demo-account',
+    personId: 'demo-person',
     revision: 1,
     expiresAt: '2026-11-01T02:00:00.000Z',
     revokedAt: null,
@@ -52,6 +53,7 @@ describe('trusted entry identities', () => {
       expect(await f.service.current(identity)).toEqual({
         channel,
         accountId: 'demo-account',
+        personId: 'demo-person',
         credentialId: 'synthetic-credential-row',
       });
       await f.service.current(identity);
@@ -77,7 +79,7 @@ describe('trusted entry identities', () => {
     });
     expect(f.current).not.toHaveBeenCalled();
   });
-  it.each(['accountId', 'credentialId', 'revision'] as const)(
+  it.each(['accountId', 'personId', 'credentialId', 'revision'] as const)(
     'invalidates old identities when %s changes',
     async (field) => {
       const f = fixture();
@@ -135,6 +137,8 @@ describe('trusted entry identities', () => {
   it('requires complete, current, bounded server credential metadata', async () => {
     for (const value of [
       {},
+      { ...fixture().get(), personId: undefined },
+      { ...fixture().get(), personId: '' },
       { ...fixture().get(), revision: 0 },
       { ...fixture().get(), expiresAt: instant },
       { ...fixture().get(), revokedAt: instant },

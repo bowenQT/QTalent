@@ -70,6 +70,8 @@
 - `authenticateWebEntryRequest(db, headers, clocks)` 每次请求新建现有Web认证器及identity service，返回本请求身份和真实当前DB上下文loader；不接受客户端account/person/role，不是全局单例。领域消费者仍必须执行现有当前对象/来源权限，并在其真实事务内调用loader。此工厂不注册路由、handler或新凭据。
 - 四渠道已颁发的进程内identity只要观察到一次撤销/过期/换绑/不可用就退役。恢复后要新认证；并发中的旧positive读取必须仍对应同一有效issuance，不能把已退役引用复活。持久绑定版本和撤销历史仍需真实外部reader，本规则不冒充跨进程追踪。
 - 普通深链的不存在与越权统一forbidden，不借错误类型探测对象是否存在。授权通过后才判断版本或返回刷新链接。
-- 待根云端子任务处理：Web Access缺失/过期/无效凭据分类（web.ts、web.test.ts冻结）；已有非有限截止检查不删。
+- 已消费根云端固定两文件补丁并核摘要：Web Access启用时缺头/六类jose凭据错误返回unauthenticated；JWKS等依赖故障返回unavailable。非有限截止、请求单次、Access→BetterAuth→SQL及退役保护保留，未改公共认证模块。
 - 真实外部源缺口已记#248/6561015457：MCP个人凭据digest及撤销修订、WeCom受认证连接的issuer/sender绑定、AgentAPI由已认证Web用户发起的会话归属。无配置不回退demo。未签发/部署token或创建真实映射。
 - 领域同事务边界与审计字段请求见#248/6561056178：现person loader、需求service自己开事务，不能在entry外层包一层就宣称写入可撤回。当前代码未复制其私有schema/来源授权。
+
+当前私有 CredentialBinding 必须含服务器目录读取的 personId；身份刷新同时比较 accountId、personId、credentialId、revision，权限上下文必须仍属同一 person。客户端工具参数不能提供该绑定。任何刷新失败都会永久退休当前进程内 capability，恢复数据必须重新认证。外部消费者的合成 reader 也须显式提供这个字段，旧形状失败关闭；这不表示外部凭据存储或生产接线已经完成。

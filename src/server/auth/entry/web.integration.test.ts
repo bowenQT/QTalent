@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({ access: vi.fn(), session: vi.fn() }));
 // Control only existing authentication interfaces; all adapter SQL is real.
 // This is not a live user, cookie cryptography or JWKS acceptance test.
 vi.mock('../../access', () => ({ verifyAccessRequest: mocks.access }));
+vi.mock('../../env', () => ({ getEnv: () => ({ ACCESS_ENFORCED: false }) }));
 vi.mock('../index', () => ({ getSession: mocks.session }));
 let admin: Pool | undefined;
 let connection: ReturnType<typeof createDatabase> | undefined;
@@ -130,6 +131,7 @@ describe('Web current authentication sources in real PostgreSQL', () => {
     expect(await f.identities.current(cap)).toEqual({
       channel: 'web',
       accountId: f.accountId,
+      personId: f.personId,
       credentialId: f.sessionId,
     });
     expect(mocks.access).toHaveBeenCalledTimes(2);

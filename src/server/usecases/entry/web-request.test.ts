@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 import { authenticateWebEntryRequest } from './web-request';
 const boundary = vi.hoisted(() => ({ access: vi.fn(), session: vi.fn() }));
 vi.mock('../../access', () => ({ verifyAccessRequest: boundary.access }));
+vi.mock('../../env', () => ({ getEnv: () => ({ ACCESS_ENFORCED: false }) }));
 vi.mock('../../auth', () => ({ getSession: boundary.session }));
 const now = '2026-11-01T01:00:00.000Z';
 const expiry = new Date('2026-11-01T02:00:00.000Z');
