@@ -38,11 +38,53 @@ describe('reference position from authorized confirmations', () => {
       status: 'ready',
       data: {
         kind: 'reference',
+        bonus: false,
         quadrant: 'high_professional_high_potential',
       },
     });
     const extras = [score('c', 'mot', 4), score('d', 'mot', 4)];
     expect(derive([...ready, ...extras])).toEqual(derive(ready));
+  });
+  it('sets the bonus flag from extra items without moving the quadrant', () => {
+    const quadrant = (rows: PositionScore[]) =>
+      (derive(rows) as { data: { quadrant: string } }).data.quadrant;
+    const flagged = [
+      score('c', 'lead', 4, 'pot', false),
+      score('d', 'open', 5, 'pot', false),
+    ];
+    expect(derive([...ready, ...flagged])).toHaveProperty('data.bonus', true);
+    expect(quadrant([...ready, ...flagged])).toBe(quadrant(ready));
+    expect(
+      derive([...ready, score('c', 'lead', 3, 'pot', false)]),
+    ).toHaveProperty('data.bonus', false);
+    expect(derive(ready)).toHaveProperty('data.bonus', false);
+  });
+  it('marks a bonus when either extra dimension reaches four on its own', () => {
+    const highLeadership = [
+      score('c', 'lead', 5, 'pot', false),
+      score('d', 'open', 1, 'pot', false),
+    ];
+    expect(derive([...ready, ...highLeadership])).toHaveProperty(
+      'data.bonus',
+      true,
+    );
+    const highOpenness = [
+      score('c', 'lead', 1, 'pot', false),
+      score('d', 'open', 4, 'pot', false),
+      score('e', 'lead', 1, 'pot', false),
+    ];
+    expect(derive([...ready, ...highOpenness])).toHaveProperty(
+      'data.bonus',
+      true,
+    );
+    expect(
+      derive([
+        ...ready,
+        score('c', 'lead', 5, 'pot', false),
+        score('d', 'lead', 1, 'pot', false),
+        score('e', 'open', 3, 'pot', false),
+      ]),
+    ).toHaveProperty('data.bonus', false);
   });
   it('uses a 12-month inclusive window and excludes future events', () => {
     const withDate = (occurredOn: string) =>
@@ -50,6 +92,16 @@ describe('reference position from authorized confirmations', () => {
     expect(derive(withDate('2025-07-01')).status).toBe('ready');
     for (const date of ['2025-06-30', '2026-07-02'])
       expect(derive(withDate(date)).status).toBe('insufficient_evidence');
+  });
+  it('uses the same 365-day boundary as the spectrum across a leap day', () => {
+    const dated = (occurredOn: string) =>
+      ready.map((row) => ({ ...row, occurredOn }));
+    expect(
+      deriveReferencePosition(dated('2023-03-01'), '2024-03-01').status,
+    ).toBe('insufficient_evidence');
+    expect(
+      deriveReferencePosition(dated('2023-03-02'), '2024-03-01').status,
+    ).toBe('ready');
   });
   it('returns four categories without exact axes or a total', () => {
     for (const prof of [2, 4])
@@ -64,6 +116,7 @@ describe('reference position from authorized confirmations', () => {
           status: 'ready',
           data: {
             kind: 'reference',
+            bonus: false,
             quadrant: `${x}_professional_${y}_potential`,
           },
         });

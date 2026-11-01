@@ -7,3 +7,40 @@ export async function readProgramScopes(db: DbExecutor) {
   };
 }
 export { cohorts, enrollments, assignments } from './schema';
+
+export {
+  evaluationNodes,
+  evaluationNodeSubjects,
+  evaluationRelations,
+  evaluationWorkItems,
+  evaluationReassignmentOperations,
+} from './schema';
+export {
+  readEvaluationAuthorizationFacts,
+  readEvaluationWorkItems,
+  readEvaluationWorkItemForUpdate,
+  readEvaluationReassignmentOperation,
+  persistEvaluationReassignment,
+  insertEvaluationWorkItem,
+  completeEvaluationWorkItem,
+} from './reassignment-store';
+export {
+  EvaluationReassignmentError,
+  evaluationReassignmentFingerprint,
+  assignedEvaluationRelationIsCurrent,
+  assignedEvaluationHandlerIsCurrent,
+  canWorkOnEvaluationItem,
+  planEvaluationReassignment,
+} from './reassignment-policy';
+export {
+  reassignEvaluationWorkInputSchema,
+  evaluationReassignmentReceiptSchema,
+  reassignEvaluationWorkResultSchema,
+} from './reassignment-contract';
+export type {
+  ReassignEvaluationWorkInput,
+  EvaluationReassignmentReceipt,
+  ReassignEvaluationWorkResult,
+  EvaluationWorkItem,
+} from './reassignment-contract';
+export { planLegacyEvaluationNodes } from './legacy-node-mapping';

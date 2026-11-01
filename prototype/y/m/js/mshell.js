@@ -5,7 +5,7 @@
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, icon, mount, $ } = NT;
   const M = (NT.m = {});
-  const PAGES = ['index', 'record', 'quick', 'mentor', 'people', 'person', 'inbox', 'me'];
+  const PAGES = ['index', 'record', 'quick', 'mentor', 'people', 'person', 'inbox', 'me', 'judge', 'confirm'];
   // 手机端给导师用，不写入本地的视角设置，回到桌面版时仍是原来的视角。
   // 系统管理员不能改写成导师，否则侧栏的手机入口和 ?as=admin 会看到学员与分数。
   const incomingRole = st.role();
@@ -14,7 +14,8 @@
     ['record', '录音', 'record.html', '选模式 → 实时转写 → 处理中 → 人才纪要 → 追问'],
     ['quick', '一句话记录', 'quick.html', '一句话或按住说话 → 确认 AI 建议分'],
     ['mentor', '导师评价', 'mentor.html', '选学员 → 说一段话 → 逐项确认 → 确认复盘'],
-    ['inbox', '待核对', 'inbox.html', '逐条确认「小孟」「分镜那个组」指的是谁'],
+    ['inbox', '待核对', 'inbox.html', '逐条确认「小孟」「说话人 2」指的是谁'],
+    ['confirm', '回执确认', 'confirm.html?r=d-ms2', '企业微信回执里的链接 → 逐条确认或改分'],
   ];
 
   // 页面入口：NT.mshell({ tab, title, back, action, allow, denyTitle, denyText, demos, view, state, restore, render(main), bare })
@@ -52,7 +53,7 @@
         <aside class="m-side" aria-label="手机版说明">
           <h1><span class="nt-ip" data-ip="rest" data-size="24"></span>Niu-Talent 手机版</h1>
           <p>手机端只给导师用，做复盘现场最常用的几件事。管理者和 HR 的工作在桌面版完成。</p>
-          <div><h2>四条流程</h2><ol class="m-flows">${FLOWS.map(([id, t, href, sub]) => html`<li><a href="${href}" ${NT.raw(page === id || (id === 'mentor' && (page === 'people' || page === 'person')) ? 'aria-current="page"' : '')}>${t}<small>${sub}</small></a></li>`)}</ol></div>
+          <div><h2>五条流程</h2><ol class="m-flows">${FLOWS.map(([id, t, href, sub]) => html`<li><a href="${href}" ${NT.raw(page === id || (id === 'mentor' && (page === 'people' || page === 'person')) ? 'aria-current="page"' : '')}>${t}<small>${sub}</small></a></li>`)}</ol></div>
           <div><h2>身份</h2><p>${me.name} · ${st.roles[role].label} · ${st.roles[role].scope}</p></div>
           ${cfg.demos?.length ? html`<div><h2>演示其他情况</h2><div class="m-side__links">${cfg.demos.map(([t, h]) => html`<a class="n-btn n-btn--sm" href="${h}">${t}</a>`)}</div></div>` : ''}
           <div class="m-side__links">
@@ -179,8 +180,9 @@
 
   // ---------- 手机页面常用片段 ----------
   // 待办在手机上的落点：复盘去导师评价，方案去确认方案，其余沿用；判断对照、找人这类没有手机页的转到桌面版
-  const M_PAGES = ['index', 'people', 'person', 'quick', 'record', 'plan', 'inbox', 'mentor', 'me'];
-  const mHref = (h) => (M_PAGES.includes(h.split(/[?#]/)[0].replace('.html', '')) ? h : `../app/${h}`);
+  const M_PAGES = ['index', 'people', 'person', 'quick', 'record', 'plan', 'inbox', 'mentor', 'me', 'judge'];
+  // 回执在手机上打开确认页（企业微信回执里的链接落到这里）
+  const mHref = (h) => (/^receipt\.html\?id=/.test(h) ? `confirm.html?r=${h.match(/id=([^&#]+)/)[1]}` : M_PAGES.includes(h.split(/[?#]/)[0].replace('.html', '')) ? h : `../app/${h}`);
   M.todoHref = (t) => (t.kind === 'review' ? `mentor.html?id=${t.person}` : t.kind === 'plan' ? `../app/plan.html?id=${t.plan}` : mHref(t.href));
 
   // 一行分数：AI 建议是带流光的空心点，点圆点即确认或改分；改分留下 AI 的淡影和差值，差 2 分以上提示写理由。

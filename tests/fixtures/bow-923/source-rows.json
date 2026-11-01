@@ -1,0 +1,3443 @@
+[
+  {
+    "personId": "p-x01",
+    "front": {
+      "personId": "p-x01",
+      "row": 2,
+      "source": {
+        "fragmentId": "bow-923-front-row-001",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A2:P2"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x01",
+      "row": 2,
+      "source": {
+        "fragmentId": "bow-923-back-row-001",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A2:J2"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x02",
+    "front": {
+      "personId": "p-x02",
+      "row": 3,
+      "source": {
+        "fragmentId": "bow-923-front-row-002",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A3:P3"
+        },
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x02",
+      "row": 3,
+      "source": {
+        "fragmentId": "bow-923-back-row-002",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A3:J3"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x03",
+    "front": {
+      "personId": "p-x03",
+      "row": 4,
+      "source": {
+        "fragmentId": "bow-923-front-row-003",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A4:P4"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x03",
+      "row": 4,
+      "source": {
+        "fragmentId": "bow-923-back-row-003",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A4:J4"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x04",
+    "front": {
+      "personId": "p-x04",
+      "row": 5,
+      "source": {
+        "fragmentId": "bow-923-front-row-004",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A5:P5"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x04",
+      "row": 5,
+      "source": {
+        "fragmentId": "bow-923-back-row-004",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A5:J5"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x05",
+    "front": {
+      "personId": "p-x05",
+      "row": 6,
+      "source": {
+        "fragmentId": "bow-923-front-row-005",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A6:P6"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x05",
+      "row": 6,
+      "source": {
+        "fragmentId": "bow-923-back-row-005",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A6:J6"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x06",
+    "front": {
+      "personId": "p-x06",
+      "row": 7,
+      "source": {
+        "fragmentId": "bow-923-front-row-006",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A7:P7"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x06",
+      "row": 7,
+      "source": {
+        "fragmentId": "bow-923-back-row-006",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A7:J7"
+        },
+        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x07",
+    "front": {
+      "personId": "p-x07",
+      "row": 8,
+      "source": {
+        "fragmentId": "bow-923-front-row-007",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A8:P8"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x07",
+      "row": 8,
+      "source": {
+        "fragmentId": "bow-923-back-row-007",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A8:J8"
+        },
+        "excerpt": "演示重建：本次仅记录替代课题的演示配合，未评价入营作品所涉任务。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x08",
+    "front": {
+      "personId": "p-x08",
+      "row": 9,
+      "source": {
+        "fragmentId": "bow-923-front-row-008",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A9:P9"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x08",
+      "row": 9,
+      "source": {
+        "fragmentId": "bow-923-back-row-008",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A9:J9"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x09",
+    "front": {
+      "personId": "p-x09",
+      "row": 10,
+      "source": {
+        "fragmentId": "bow-923-front-row-009",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A10:P10"
+        },
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x09",
+      "row": 10,
+      "source": {
+        "fragmentId": "bow-923-back-row-009",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A10:J10"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x10",
+    "front": {
+      "personId": "p-x10",
+      "row": 11,
+      "source": {
+        "fragmentId": "bow-923-front-row-010",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A11:P11"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x10",
+      "row": 11,
+      "source": {
+        "fragmentId": "bow-923-back-row-010",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A11:J11"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x11",
+    "front": {
+      "personId": "p-x11",
+      "row": 12,
+      "source": {
+        "fragmentId": "bow-923-front-row-011",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A12:P12"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x11",
+      "row": 12,
+      "source": {
+        "fragmentId": "bow-923-back-row-011",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A12:J12"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x12",
+    "front": {
+      "personId": "p-x12",
+      "row": 13,
+      "source": {
+        "fragmentId": "bow-923-front-row-012",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A13:P13"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x12",
+      "row": 13,
+      "source": {
+        "fragmentId": "bow-923-back-row-012",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A13:J13"
+        },
+        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x13",
+    "front": {
+      "personId": "p-x13",
+      "row": 14,
+      "source": {
+        "fragmentId": "bow-923-front-row-013",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A14:P14"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x13",
+      "row": 14,
+      "source": {
+        "fragmentId": "bow-923-back-row-013",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A14:J14"
+        },
+        "excerpt": "演示重建：本次仅记录替代课题的演示配合，未评价入营作品所涉任务。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x14",
+    "front": {
+      "personId": "p-x14",
+      "row": 15,
+      "source": {
+        "fragmentId": "bow-923-front-row-014",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A15:P15"
+        },
+        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x14",
+      "row": 15,
+      "source": {
+        "fragmentId": "bow-923-back-row-014",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A15:J15"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x15",
+    "front": {
+      "personId": "p-x15",
+      "row": 16,
+      "source": {
+        "fragmentId": "bow-923-front-row-015",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A16:P16"
+        },
+        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x15",
+      "row": 16,
+      "source": {
+        "fragmentId": "bow-923-back-row-015",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A16:J16"
+        },
+        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x16",
+    "front": {
+      "personId": "p-x16",
+      "row": 17,
+      "source": {
+        "fragmentId": "bow-923-front-row-016",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A17:P17"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x16",
+      "row": 17,
+      "source": {
+        "fragmentId": "bow-923-back-row-016",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A17:J17"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x17",
+    "front": {
+      "personId": "p-x17",
+      "row": 18,
+      "source": {
+        "fragmentId": "bow-923-front-row-017",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A18:P18"
+        },
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x17",
+      "row": 18,
+      "source": {
+        "fragmentId": "bow-923-back-row-017",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A18:J18"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x18",
+    "front": {
+      "personId": "p-x18",
+      "row": 19,
+      "source": {
+        "fragmentId": "bow-923-front-row-018",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A19:P19"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x18",
+      "row": 19,
+      "source": {
+        "fragmentId": "bow-923-back-row-018",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A19:J19"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x19",
+    "front": {
+      "personId": "p-x19",
+      "row": 20,
+      "source": {
+        "fragmentId": "bow-923-front-row-019",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A20:P20"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x19",
+      "row": 20,
+      "source": {
+        "fragmentId": "bow-923-back-row-019",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A20:J20"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x20",
+    "front": {
+      "personId": "p-x20",
+      "row": 21,
+      "source": {
+        "fragmentId": "bow-923-front-row-020",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A21:P21"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x20",
+      "row": 21,
+      "source": {
+        "fragmentId": "bow-923-back-row-020",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A21:J21"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x21",
+    "front": {
+      "personId": "p-x21",
+      "row": 22,
+      "source": {
+        "fragmentId": "bow-923-front-row-021",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A22:P22"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x21",
+      "row": 22,
+      "source": {
+        "fragmentId": "bow-923-back-row-021",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A22:J22"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x22",
+    "front": {
+      "personId": "p-x22",
+      "row": 23,
+      "source": {
+        "fragmentId": "bow-923-front-row-022",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A23:P23"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x22",
+      "row": 23,
+      "source": {
+        "fragmentId": "bow-923-back-row-022",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A23:J23"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x23",
+    "front": {
+      "personId": "p-x23",
+      "row": 24,
+      "source": {
+        "fragmentId": "bow-923-front-row-023",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A24:P24"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x23",
+      "row": 24,
+      "source": {
+        "fragmentId": "bow-923-back-row-023",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A24:J24"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x24",
+    "front": {
+      "personId": "p-x24",
+      "row": 25,
+      "source": {
+        "fragmentId": "bow-923-front-row-024",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A25:P25"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x24",
+      "row": 25,
+      "source": {
+        "fragmentId": "bow-923-back-row-024",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A25:J25"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x25",
+    "front": {
+      "personId": "p-x25",
+      "row": 26,
+      "source": {
+        "fragmentId": "bow-923-front-row-025",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A26:P26"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x25",
+      "row": 26,
+      "source": {
+        "fragmentId": "bow-923-back-row-025",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A26:J26"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x26",
+    "front": {
+      "personId": "p-x26",
+      "row": 27,
+      "source": {
+        "fragmentId": "bow-923-front-row-026",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A27:P27"
+        },
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x26",
+      "row": 27,
+      "source": {
+        "fragmentId": "bow-923-back-row-026",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A27:J27"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x27",
+    "front": {
+      "personId": "p-x27",
+      "row": 28,
+      "source": {
+        "fragmentId": "bow-923-front-row-027",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A28:P28"
+        },
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x27",
+      "row": 28,
+      "source": {
+        "fragmentId": "bow-923-back-row-027",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A28:J28"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x28",
+    "front": {
+      "personId": "p-x28",
+      "row": 29,
+      "source": {
+        "fragmentId": "bow-923-front-row-028",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A29:P29"
+        },
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x28",
+      "row": 29,
+      "source": {
+        "fragmentId": "bow-923-back-row-028",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A29:J29"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x29",
+    "front": {
+      "personId": "p-x29",
+      "row": 30,
+      "source": {
+        "fragmentId": "bow-923-front-row-029",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A30:P30"
+        },
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x29",
+      "row": 30,
+      "source": {
+        "fragmentId": "bow-923-back-row-029",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A30:J30"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x30",
+    "front": {
+      "personId": "p-x30",
+      "row": 31,
+      "source": {
+        "fragmentId": "bow-923-front-row-030",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A31:P31"
+        },
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x30",
+      "row": 31,
+      "source": {
+        "fragmentId": "bow-923-back-row-030",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A31:J31"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x31",
+    "front": {
+      "personId": "p-x31",
+      "row": 32,
+      "source": {
+        "fragmentId": "bow-923-front-row-031",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A32:P32"
+        },
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x31",
+      "row": 32,
+      "source": {
+        "fragmentId": "bow-923-back-row-031",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A32:J32"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x32",
+    "front": {
+      "personId": "p-x32",
+      "row": 33,
+      "source": {
+        "fragmentId": "bow-923-front-row-032",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A33:P33"
+        },
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x32",
+      "row": 33,
+      "source": {
+        "fragmentId": "bow-923-back-row-032",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A33:J33"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x33",
+    "front": {
+      "personId": "p-x33",
+      "row": 34,
+      "source": {
+        "fragmentId": "bow-923-front-row-033",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A34:P34"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x33",
+      "row": 34,
+      "source": {
+        "fragmentId": "bow-923-back-row-033",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A34:J34"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x34",
+    "front": {
+      "personId": "p-x34",
+      "row": 35,
+      "source": {
+        "fragmentId": "bow-923-front-row-034",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A35:P35"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x34",
+      "row": 35,
+      "source": {
+        "fragmentId": "bow-923-back-row-034",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A35:J35"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x35",
+    "front": {
+      "personId": "p-x35",
+      "row": 36,
+      "source": {
+        "fragmentId": "bow-923-front-row-035",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A36:P36"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x35",
+      "row": 36,
+      "source": {
+        "fragmentId": "bow-923-back-row-035",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A36:J36"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x36",
+    "front": {
+      "personId": "p-x36",
+      "row": 37,
+      "source": {
+        "fragmentId": "bow-923-front-row-036",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A37:P37"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x36",
+      "row": 37,
+      "source": {
+        "fragmentId": "bow-923-back-row-036",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A37:J37"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x37",
+    "front": {
+      "personId": "p-x37",
+      "row": 38,
+      "source": {
+        "fragmentId": "bow-923-front-row-037",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A38:P38"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x37",
+      "row": 38,
+      "source": {
+        "fragmentId": "bow-923-back-row-037",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A38:J38"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x38",
+    "front": {
+      "personId": "p-x38",
+      "row": 39,
+      "source": {
+        "fragmentId": "bow-923-front-row-038",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A39:P39"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x38",
+      "row": 39,
+      "source": {
+        "fragmentId": "bow-923-back-row-038",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A39:J39"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x39",
+    "front": {
+      "personId": "p-x39",
+      "row": 40,
+      "source": {
+        "fragmentId": "bow-923-front-row-039",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A40:P40"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x39",
+      "row": 40,
+      "source": {
+        "fragmentId": "bow-923-back-row-039",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A40:J40"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x40",
+    "front": {
+      "personId": "p-x40",
+      "row": 41,
+      "source": {
+        "fragmentId": "bow-923-front-row-040",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A41:P41"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x40",
+      "row": 41,
+      "source": {
+        "fragmentId": "bow-923-back-row-040",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A41:J41"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x41",
+    "front": {
+      "personId": "p-x41",
+      "row": 42,
+      "source": {
+        "fragmentId": "bow-923-front-row-041",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A42:P42"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x41",
+      "row": 42,
+      "source": {
+        "fragmentId": "bow-923-back-row-041",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A42:J42"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x42",
+    "front": {
+      "personId": "p-x42",
+      "row": 43,
+      "source": {
+        "fragmentId": "bow-923-front-row-042",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A43:P43"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x42",
+      "row": 43,
+      "source": {
+        "fragmentId": "bow-923-back-row-042",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A43:J43"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x43",
+    "front": {
+      "personId": "p-x43",
+      "row": 44,
+      "source": {
+        "fragmentId": "bow-923-front-row-043",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A44:P44"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x43",
+      "row": 44,
+      "source": {
+        "fragmentId": "bow-923-back-row-043",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A44:J44"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x44",
+    "front": {
+      "personId": "p-x44",
+      "row": 45,
+      "source": {
+        "fragmentId": "bow-923-front-row-044",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A45:P45"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x44",
+      "row": 45,
+      "source": {
+        "fragmentId": "bow-923-back-row-044",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A45:J45"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x45",
+    "front": {
+      "personId": "p-x45",
+      "row": 46,
+      "source": {
+        "fragmentId": "bow-923-front-row-045",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A46:P46"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x45",
+      "row": 46,
+      "source": {
+        "fragmentId": "bow-923-back-row-045",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A46:J46"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x46",
+    "front": {
+      "personId": "p-x46",
+      "row": 47,
+      "source": {
+        "fragmentId": "bow-923-front-row-046",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A47:P47"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x46",
+      "row": 47,
+      "source": {
+        "fragmentId": "bow-923-back-row-046",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A47:J47"
+        },
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x47",
+    "front": {
+      "personId": "p-x47",
+      "row": 48,
+      "source": {
+        "fragmentId": "bow-923-front-row-047",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A48:P48"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x47",
+      "row": 48,
+      "source": {
+        "fragmentId": "bow-923-back-row-047",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A48:J48"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x48",
+    "front": {
+      "personId": "p-x48",
+      "row": 49,
+      "source": {
+        "fragmentId": "bow-923-front-row-048",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A49:P49"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x48",
+      "row": 49,
+      "source": {
+        "fragmentId": "bow-923-back-row-048",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A49:J49"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x49",
+    "front": {
+      "personId": "p-x49",
+      "row": 50,
+      "source": {
+        "fragmentId": "bow-923-front-row-049",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A50:P50"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x49",
+      "row": 50,
+      "source": {
+        "fragmentId": "bow-923-back-row-049",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A50:J50"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x50",
+    "front": {
+      "personId": "p-x50",
+      "row": 51,
+      "source": {
+        "fragmentId": "bow-923-front-row-050",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A51:P51"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x50",
+      "row": 51,
+      "source": {
+        "fragmentId": "bow-923-back-row-050",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A51:J51"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x51",
+    "front": {
+      "personId": "p-x51",
+      "row": 52,
+      "source": {
+        "fragmentId": "bow-923-front-row-051",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A52:P52"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x51",
+      "row": 52,
+      "source": {
+        "fragmentId": "bow-923-back-row-051",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A52:J52"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x52",
+    "front": {
+      "personId": "p-x52",
+      "row": 53,
+      "source": {
+        "fragmentId": "bow-923-front-row-052",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A53:P53"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x52",
+      "row": 53,
+      "source": {
+        "fragmentId": "bow-923-back-row-052",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A53:J53"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x53",
+    "front": {
+      "personId": "p-x53",
+      "row": 54,
+      "source": {
+        "fragmentId": "bow-923-front-row-053",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A54:P54"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x53",
+      "row": 54,
+      "source": {
+        "fragmentId": "bow-923-back-row-053",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A54:J54"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x54",
+    "front": {
+      "personId": "p-x54",
+      "row": 55,
+      "source": {
+        "fragmentId": "bow-923-front-row-054",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A55:P55"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x54",
+      "row": 55,
+      "source": {
+        "fragmentId": "bow-923-back-row-054",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A55:J55"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x55",
+    "front": {
+      "personId": "p-x55",
+      "row": 56,
+      "source": {
+        "fragmentId": "bow-923-front-row-055",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A56:P56"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x55",
+      "row": 56,
+      "source": {
+        "fragmentId": "bow-923-back-row-055",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A56:J56"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x56",
+    "front": {
+      "personId": "p-x56",
+      "row": 57,
+      "source": {
+        "fragmentId": "bow-923-front-row-056",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A57:P57"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x56",
+      "row": 57,
+      "source": {
+        "fragmentId": "bow-923-back-row-056",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A57:J57"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x57",
+    "front": {
+      "personId": "p-x57",
+      "row": 58,
+      "source": {
+        "fragmentId": "bow-923-front-row-057",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A58:P58"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x57",
+      "row": 58,
+      "source": {
+        "fragmentId": "bow-923-back-row-057",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A58:J58"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x58",
+    "front": {
+      "personId": "p-x58",
+      "row": 59,
+      "source": {
+        "fragmentId": "bow-923-front-row-058",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A59:P59"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x58",
+      "row": 59,
+      "source": {
+        "fragmentId": "bow-923-back-row-058",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A59:J59"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x59",
+    "front": {
+      "personId": "p-x59",
+      "row": 60,
+      "source": {
+        "fragmentId": "bow-923-front-row-059",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A60:P60"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x59",
+      "row": 60,
+      "source": {
+        "fragmentId": "bow-923-back-row-059",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A60:J60"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x60",
+    "front": {
+      "personId": "p-x60",
+      "row": 61,
+      "source": {
+        "fragmentId": "bow-923-front-row-060",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A61:P61"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x60",
+      "row": 61,
+      "source": {
+        "fragmentId": "bow-923-back-row-060",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A61:J61"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x61",
+    "front": {
+      "personId": "p-x61",
+      "row": 62,
+      "source": {
+        "fragmentId": "bow-923-front-row-061",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A62:P62"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x61",
+      "row": 62,
+      "source": {
+        "fragmentId": "bow-923-back-row-061",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A62:J62"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x62",
+    "front": {
+      "personId": "p-x62",
+      "row": 63,
+      "source": {
+        "fragmentId": "bow-923-front-row-062",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A63:P63"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x62",
+      "row": 63,
+      "source": {
+        "fragmentId": "bow-923-back-row-062",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A63:J63"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x63",
+    "front": {
+      "personId": "p-x63",
+      "row": 64,
+      "source": {
+        "fragmentId": "bow-923-front-row-063",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A64:P64"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x63",
+      "row": 64,
+      "source": {
+        "fragmentId": "bow-923-back-row-063",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A64:J64"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x64",
+    "front": {
+      "personId": "p-x64",
+      "row": 65,
+      "source": {
+        "fragmentId": "bow-923-front-row-064",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A65:P65"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x64",
+      "row": 65,
+      "source": {
+        "fragmentId": "bow-923-back-row-064",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A65:J65"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x65",
+    "front": {
+      "personId": "p-x65",
+      "row": 66,
+      "source": {
+        "fragmentId": "bow-923-front-row-065",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A66:P66"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x65",
+      "row": 66,
+      "source": {
+        "fragmentId": "bow-923-back-row-065",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A66:J66"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x66",
+    "front": {
+      "personId": "p-x66",
+      "row": 67,
+      "source": {
+        "fragmentId": "bow-923-front-row-066",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A67:P67"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x66",
+      "row": 67,
+      "source": {
+        "fragmentId": "bow-923-back-row-066",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A67:J67"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x67",
+    "front": {
+      "personId": "p-x67",
+      "row": 68,
+      "source": {
+        "fragmentId": "bow-923-front-row-067",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A68:P68"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x67",
+      "row": 68,
+      "source": {
+        "fragmentId": "bow-923-back-row-067",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A68:J68"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x68",
+    "front": {
+      "personId": "p-x68",
+      "row": 69,
+      "source": {
+        "fragmentId": "bow-923-front-row-068",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A69:P69"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x68",
+      "row": 69,
+      "source": {
+        "fragmentId": "bow-923-back-row-068",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A69:J69"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x69",
+    "front": {
+      "personId": "p-x69",
+      "row": 70,
+      "source": {
+        "fragmentId": "bow-923-front-row-069",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A70:P70"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x69",
+      "row": 70,
+      "source": {
+        "fragmentId": "bow-923-back-row-069",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A70:J70"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x70",
+    "front": {
+      "personId": "p-x70",
+      "row": 71,
+      "source": {
+        "fragmentId": "bow-923-front-row-070",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A71:P71"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x70",
+      "row": 71,
+      "source": {
+        "fragmentId": "bow-923-back-row-070",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A71:J71"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x71",
+    "front": {
+      "personId": "p-x71",
+      "row": 72,
+      "source": {
+        "fragmentId": "bow-923-front-row-071",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A72:P72"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x71",
+      "row": 72,
+      "source": {
+        "fragmentId": "bow-923-back-row-071",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A72:J72"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x72",
+    "front": {
+      "personId": "p-x72",
+      "row": 73,
+      "source": {
+        "fragmentId": "bow-923-front-row-072",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A73:P73"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x72",
+      "row": 73,
+      "source": {
+        "fragmentId": "bow-923-back-row-072",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A73:J73"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x73",
+    "front": {
+      "personId": "p-x73",
+      "row": 74,
+      "source": {
+        "fragmentId": "bow-923-front-row-073",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A74:P74"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x73",
+      "row": 74,
+      "source": {
+        "fragmentId": "bow-923-back-row-073",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A74:J74"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x74",
+    "front": {
+      "personId": "p-x74",
+      "row": 75,
+      "source": {
+        "fragmentId": "bow-923-front-row-074",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A75:P75"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x74",
+      "row": 75,
+      "source": {
+        "fragmentId": "bow-923-back-row-074",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A75:J75"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x75",
+    "front": {
+      "personId": "p-x75",
+      "row": 76,
+      "source": {
+        "fragmentId": "bow-923-front-row-075",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A76:P76"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x75",
+      "row": 76,
+      "source": {
+        "fragmentId": "bow-923-back-row-075",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A76:J76"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x76",
+    "front": {
+      "personId": "p-x76",
+      "row": 77,
+      "source": {
+        "fragmentId": "bow-923-front-row-076",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A77:P77"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x76",
+      "row": 77,
+      "source": {
+        "fragmentId": "bow-923-back-row-076",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A77:J77"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x77",
+    "front": {
+      "personId": "p-x77",
+      "row": 78,
+      "source": {
+        "fragmentId": "bow-923-front-row-077",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A78:P78"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x77",
+      "row": 78,
+      "source": {
+        "fragmentId": "bow-923-back-row-077",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A78:J78"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x78",
+    "front": {
+      "personId": "p-x78",
+      "row": 79,
+      "source": {
+        "fragmentId": "bow-923-front-row-078",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A79:P79"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x78",
+      "row": 79,
+      "source": {
+        "fragmentId": "bow-923-back-row-078",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A79:J79"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x79",
+    "front": {
+      "personId": "p-x79",
+      "row": 80,
+      "source": {
+        "fragmentId": "bow-923-front-row-079",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A80:P80"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x79",
+      "row": 80,
+      "source": {
+        "fragmentId": "bow-923-back-row-079",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A80:J80"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x80",
+    "front": {
+      "personId": "p-x80",
+      "row": 81,
+      "source": {
+        "fragmentId": "bow-923-front-row-080",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A81:P81"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x80",
+      "row": 81,
+      "source": {
+        "fragmentId": "bow-923-back-row-080",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A81:J81"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x81",
+    "front": {
+      "personId": "p-x81",
+      "row": 82,
+      "source": {
+        "fragmentId": "bow-923-front-row-081",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A82:P82"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x81",
+      "row": 82,
+      "source": {
+        "fragmentId": "bow-923-back-row-081",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A82:J82"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x82",
+    "front": {
+      "personId": "p-x82",
+      "row": 83,
+      "source": {
+        "fragmentId": "bow-923-front-row-082",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A83:P83"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x82",
+      "row": 83,
+      "source": {
+        "fragmentId": "bow-923-back-row-082",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A83:J83"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x83",
+    "front": {
+      "personId": "p-x83",
+      "row": 84,
+      "source": {
+        "fragmentId": "bow-923-front-row-083",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A84:P84"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x83",
+      "row": 84,
+      "source": {
+        "fragmentId": "bow-923-back-row-083",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A84:J84"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x84",
+    "front": {
+      "personId": "p-x84",
+      "row": 85,
+      "source": {
+        "fragmentId": "bow-923-front-row-084",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A85:P85"
+        },
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x84",
+      "row": 85,
+      "source": {
+        "fragmentId": "bow-923-back-row-084",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A85:J85"
+        },
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x85",
+    "front": {
+      "personId": "p-x85",
+      "row": 86,
+      "source": {
+        "fragmentId": "bow-923-front-row-085",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A86:P86"
+        },
+        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x85",
+      "row": 86,
+      "source": {
+        "fragmentId": "bow-923-back-row-085",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A86:J86"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x86",
+    "front": {
+      "personId": "p-x86",
+      "row": 87,
+      "source": {
+        "fragmentId": "bow-923-front-row-086",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A87:P87"
+        },
+        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x86",
+      "row": 87,
+      "source": {
+        "fragmentId": "bow-923-back-row-086",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A87:J87"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x87",
+    "front": {
+      "personId": "p-x87",
+      "row": 88,
+      "source": {
+        "fragmentId": "bow-923-front-row-087",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A88:P88"
+        },
+        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x87",
+      "row": 88,
+      "source": {
+        "fragmentId": "bow-923-back-row-087",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A88:J88"
+        },
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x88",
+    "front": {
+      "personId": "p-x88",
+      "row": 89,
+      "source": {
+        "fragmentId": "bow-923-front-row-088",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A89:P89"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x88",
+      "row": 89,
+      "source": {
+        "fragmentId": "bow-923-back-row-088",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A89:J89"
+        },
+        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x89",
+    "front": {
+      "personId": "p-x89",
+      "row": 90,
+      "source": {
+        "fragmentId": "bow-923-front-row-089",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A90:P90"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x89",
+      "row": 90,
+      "source": {
+        "fragmentId": "bow-923-back-row-089",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A90:J90"
+        },
+        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x90",
+    "front": {
+      "personId": "p-x90",
+      "row": 91,
+      "source": {
+        "fragmentId": "bow-923-front-row-090",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A91:P91"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x90",
+      "row": 91,
+      "source": {
+        "fragmentId": "bow-923-back-row-090",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A91:J91"
+        },
+        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x91",
+    "front": {
+      "personId": "p-x91",
+      "row": 92,
+      "source": {
+        "fragmentId": "bow-923-front-row-091",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A92:P92"
+        },
+        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x91",
+      "row": 92,
+      "source": {
+        "fragmentId": "bow-923-back-row-091",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A92:J92"
+        },
+        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x92",
+    "front": {
+      "personId": "p-x92",
+      "row": 93,
+      "source": {
+        "fragmentId": "bow-923-front-row-092",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A93:P93"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x92",
+      "row": 93,
+      "source": {
+        "fragmentId": "bow-923-back-row-092",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A93:J93"
+        },
+        "excerpt": "演示重建：本次仅记录替代课题的演示配合，未评价入营作品所涉任务。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  },
+  {
+    "personId": "p-x93",
+    "front": {
+      "personId": "p-x93",
+      "row": 94,
+      "source": {
+        "fragmentId": "bow-923-front-row-093",
+        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "作品评审（演示）",
+          "cell": "A94:P94"
+        },
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    },
+    "back": {
+      "personId": "p-x93",
+      "row": 94,
+      "source": {
+        "fragmentId": "bow-923-back-row-093",
+        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "location": {
+          "kind": "spreadsheet",
+          "sheet": "结营评审（演示）",
+          "cell": "A94:J94"
+        },
+        "excerpt": "演示重建：本次仅记录替代课题的演示配合，未评价入营作品所涉任务。",
+        "sourceType": "spreadsheet",
+        "sourceCategory": "original",
+        "demo": true
+      }
+    }
+  }
+]
