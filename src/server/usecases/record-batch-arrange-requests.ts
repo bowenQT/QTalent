@@ -382,6 +382,61 @@ export function createRecordBatchArrangeRequests(
       };
     });
   }
+  async function readBatchInTransaction(
+    tx: Transaction,
+    accountId: string,
+    raw: unknown,
+  ): Promise<MaterialBatchReadResult> {
+    const checked = materialBatchReadInputSchema.safeParse(raw);
+    if (!checked.success)
+      return {
+        status: 'validation_error',
+        fieldErrors: { batchId: ['请提供有效批次'] },
+        input: raw,
+      };
+    const currentInputs = () =>
+      tx
+        .select()
+        .from(arrangeInputs)
+        .where(
+          and(
+            eq(arrangeInputs.batchId, checked.data.batchId),
+            eq(arrangeInputs.creatorAccountId, accountId),
+            isNull(arrangeInputs.supersededByInputId),
+          ),
+        );
+    const rows = await currentInputs();
+    if (rows.length !== 1)
+      return { status: 'not_found', message: '批次不存在或当前不可见' };
+    const job = await readArrangeJobRecord(tx, rows[0]!.jobId, true);
+    // Locate inside the caller transaction without taking an input lock ahead
+    // of the job. Waiting for that lock may supersede or rebind the batch.
+    const current = await currentInputs();
+    if (
+      !job ||
+      current.length !== 1 ||
+      current[0]!.id !== rows[0]!.id ||
+      current[0]!.jobId !== job.jobId ||
+      current[0]!.id !== job.resourceId ||
+      !(await native.authorized(tx, accountId, job))
+    )
+      return { status: 'not_found', message: '批次不存在或当前不可见' };
+    const input = await native.inputForJob(tx, job);
+    const metadata = parseBatchMetadata(job.result);
+    if (!input || !metadata)
+      return { status: 'not_found', message: '批次原生事实不可用' };
+    if (
+      input.batchId !== checked.data.batchId ||
+      input.creatorAccountId !== accountId ||
+      input.supersededByInputId !== null
+    )
+      return { status: 'not_found', message: '批次不存在或当前不可见' };
+    return {
+      status: 'success',
+      replayed: false,
+      result: await native.receipt(tx, job, input, metadata),
+    };
+  }
   return {
     native,
     policy: native.policy,
@@ -415,44 +470,11 @@ export function createRecordBatchArrangeRequests(
       accountId: string,
       command: Parameters<typeof service.command>[1],
     ) => service.command(accountId, command),
-    async readBatch(
-      accountId: string,
-      raw: unknown,
-    ): Promise<MaterialBatchReadResult> {
-      const checked = materialBatchReadInputSchema.safeParse(raw);
-      if (!checked.success)
-        return {
-          status: 'validation_error',
-          fieldErrors: { batchId: ['请提供有效批次'] },
-          input: raw,
-        };
-      const rows = await deps.db
-        .select()
-        .from(arrangeInputs)
-        .where(
-          and(
-            eq(arrangeInputs.batchId, checked.data.batchId),
-            eq(arrangeInputs.creatorAccountId, accountId),
-            isNull(arrangeInputs.supersededByInputId),
-          ),
-        );
-      if (rows.length !== 1)
-        return { status: 'not_found', message: '批次不存在或当前不可见' };
-      return native.store.locked(rows[0]!.jobId, async (locked) => {
-        const job = locked.record;
-        if (!job || !(await native.authorized(locked.context, accountId, job)))
-          return { status: 'not_found', message: '批次不存在或当前不可见' };
-        const input = await native.inputForJob(locked.context, job);
-        const metadata = parseBatchMetadata(job.result);
-        if (!input || !metadata)
-          return { status: 'not_found', message: '批次原生事实不可用' };
-        return {
-          status: 'success',
-          replayed: false,
-          result: await native.receipt(locked.context, job, input, metadata),
-        };
-      });
-    },
+    readBatchInTransaction,
+    readBatch: (accountId: string, raw: unknown) =>
+      deps.db.transaction((tx) => readBatchInTransaction(tx, accountId, raw), {
+        isolationLevel: 'read committed',
+      }),
     async page(accountId: string, input: RecordPageInput) {
       return deps.db.transaction(async (tx) => {
         const actor = await loadArrangeActor(tx, accountId, deps.businessNow());

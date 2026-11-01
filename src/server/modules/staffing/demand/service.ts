@@ -154,8 +154,25 @@ export function createDemandService(deps: DemandDependencies) {
     });
     return { snapshot: queuedSnapshot(job), replayed: false };
   }
+  async function readInTransaction(
+    tx: Transaction,
+    accountId: string,
+    demandId: string,
+    revision?: number,
+  ): Promise<StaffingDemand | null> {
+    const { context } = await deps.loadContext(tx, accountId, deps.now());
+    const root = await loadDemandRoot(tx, demandId);
+    if (!root || !canReadDemand(context, root)) return null;
+    const row = await loadVersion(
+      tx,
+      root.id,
+      revision ?? root.currentRevision,
+    );
+    return row ? staffingDemandSchema.parse(row.demand) : null;
+  }
   return {
     createInTransaction,
+    readInTransaction,
     async create(
       accountId: string,
       input: { operationId: string; projectId: string; inputText: string },
@@ -252,17 +269,9 @@ export function createDemandService(deps: DemandDependencies) {
       demandId: string,
       revision?: number,
     ): Promise<StaffingDemand | null> {
-      return deps.db.transaction(async (tx) => {
-        const { context } = await deps.loadContext(tx, accountId, deps.now());
-        const root = await loadDemandRoot(tx, demandId);
-        if (!root || !canReadDemand(context, root)) return null;
-        const row = await loadVersion(
-          tx,
-          root.id,
-          revision ?? root.currentRevision,
-        );
-        return row ? staffingDemandSchema.parse(row.demand) : null;
-      });
+      return deps.db.transaction((tx) =>
+        readInTransaction(tx, accountId, demandId, revision),
+      );
     },
   };
 }
