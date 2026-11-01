@@ -6,7 +6,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
 import { Progress } from '@/components/ui/Progress';
-import { useToast } from '@/components/ui/Toast';
+import { UNDO_MS, useToast } from '@/components/ui/Toast';
 import { Niu } from '@/components/brand/Niu';
 import { copy } from './copy';
 import {
@@ -59,6 +59,9 @@ function focusCard(draftId: string) {
   );
 }
 
+/** 离截止还有多少毫秒；在事件里调用，不在渲染里。 */
+const msUntil = (until: number) => until - Date.now();
+
 function draftOrder(prev: string[], view: ReceiptView) {
   const ids = [
     ...(view.receipt.draftSet?.drafts ?? []).map((d) => d.draftId),
@@ -95,6 +98,8 @@ export function ReceiptPage({
   const [confirmed, setConfirmed] = useState<Record<string, ConfirmedDraft>>(
     {},
   );
+  // 本页刚撤销的事：重读还没带回它时，照撤销前的内容留在待确认
+  const [undone, setUndone] = useState<Record<string, RecordBatchDraft>>({});
   const ops = useRef(new Map<string, { key: string; id: string }>());
   // 卡片按第一次出现的顺序排，确认或撤销后留在原位
   const [order, setOrder] = useState(() => draftOrder([], initial));
@@ -158,42 +163,25 @@ export function ReceiptPage({
       const result = await actions.save(saveInput(draft, values, reason, id));
       if (result.status === 'success') {
         ops.current.delete(draft.draftId);
-        const saveId = result.result.saveId;
+        const { saveId, savedAt, undoUntil } = result.result;
         setConfirmed((all) => ({
           ...all,
           [draft.draftId]: {
             draft,
             values,
             by: viewerName,
-            on: shanghai(result.result.savedAt, false),
+            on: shanghai(savedAt, false),
           },
         }));
+        setUndone((all) => {
+          const next = { ...all };
+          delete next[draft.draftId];
+          return next;
+        });
+        // 撤销窗口按服务端的 undoUntil 算，保存成功就给出，不等重读
+        offerUndo(draft, values, saveId, Date.parse(undoUntil));
         await reload();
         focusCard(draft.draftId);
-        toast.show(
-          copy.toast.confirmed(
-            people(view, draft.personIds),
-            isEdited(draft, values),
-          ),
-          {
-            undoneText: copy.toast.undone,
-            failedText: copy.toast.undoFailed,
-            onUndo: async () => {
-              const undone = await actions.undo({
-                operation_id: newId(),
-                saveId,
-              });
-              if (undone.status !== 'success') throw new Error(undone.status);
-              setConfirmed((all) => {
-                const next = { ...all };
-                delete next[draft.draftId];
-                return next;
-              });
-              await reload();
-              focusCard(draft.draftId);
-            },
-          },
-        );
       } else if (result.status === 'conflict')
         setProblem(draft.draftId, { message: result.message, reload: true });
       else if (result.status === 'validation_error')
@@ -213,9 +201,51 @@ export function ReceiptPage({
     }
   }
 
+  function offerUndo(
+    draft: RecordBatchDraft,
+    values: EditValues,
+    saveId: string,
+    until: number,
+  ) {
+    const message = copy.toast.confirmed(
+      people(view, draft.personIds),
+      isEdited(draft, values),
+    );
+    const remaining = msUntil(until);
+    if (remaining <= 0) {
+      toast.show(message);
+      return;
+    }
+    const close = toast.show(message, {
+      undoneText: copy.toast.undone,
+      failedText: copy.toast.undoFailed,
+      onUndo: async () => {
+        if (msUntil(until) <= 0) {
+          close();
+          toast.show(copy.toast.undoLate);
+          return;
+        }
+        const result = await actions.undo({ operation_id: newId(), saveId });
+        if (result.status !== 'success') throw new Error(result.status);
+        setConfirmed((all) => {
+          const next = { ...all };
+          delete next[draft.draftId];
+          return next;
+        });
+        setUndone((all) => ({ ...all, [draft.draftId]: draft }));
+        await reload();
+        focusCard(draft.draftId);
+      },
+    });
+    if (remaining < UNDO_MS) setTimeout(close, remaining);
+  }
+
   const card = (id: string) => {
-    const draft = drafts.find((d) => d.draftId === id);
     const done = confirmed[id];
+    // 本页的确认和撤销结果先于读取快照：重读失败或还没跟上时，卡片也不回到旧状态
+    const draft = done
+      ? undefined
+      : (drafts.find((d) => d.draftId === id) ?? undone[id]);
     if (draft || done) {
       const mine = draft ? Boolean(view.confirmers[id]?.mine) : true;
       return (

@@ -87,6 +87,7 @@ export const copy = {
     whyPlaceholder: '比如：评审表写明是两人一起做的，个人贡献按 3 分',
     whyRequired: '改了分，写一句理由',
     save: '保存并确认',
+    refreshed: '这件事有了新版本，分数已换成最新的 AI 建议，请重新选择',
     cancel: '取消',
   },
   toast: {
@@ -94,6 +95,7 @@ export const copy = {
       `已确认${name}的这件事${edited ? '（已改分）' : ''}，已进入档案`,
     undone: '已撤销，回到待确认',
     undoFailed: '撤销失败：这件事的分已有新的处理，已保留当前结果',
+    undoLate: '撤销时间已过，这件事已确认',
   },
   problem: {
     offline: '网络中断，改动还在，再试一次',

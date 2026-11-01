@@ -91,6 +91,19 @@ export function ReceiptItem({
   );
   const [reason, setReason] = useState('');
   const [whyMissing, setWhyMissing] = useState(false);
+  // 草稿有了新版本（轮询或载入最新版本）：分值换成新的建议；正在改的分作废并说明
+  const [revision, setRevision] = useState(draft.revision);
+  const [refreshed, setRefreshed] = useState(false);
+  if (revision !== draft.revision) {
+    setRevision(draft.revision);
+    setValues(suggestedValues(draft));
+    setRefreshed(editing);
+  }
+  // 一件事涉及多人时，每个分数写明是谁的
+  const label = (personId: string, dim: string) => {
+    const name = view.people[personId]?.name;
+    return draft.personIds.length > 1 && name ? `${name} · ${dim}` : dim;
+  };
   const why = useRef<HTMLTextAreaElement>(null);
   const firstSelect = useRef<HTMLSelectElement>(null);
   const whyId = useId();
@@ -105,6 +118,7 @@ export function ReceiptItem({
   });
 
   const save = () => {
+    setRefreshed(false);
     const edited = isEdited(draft, values);
     if (edited && !reason.trim()) {
       setWhyMissing(true);
@@ -139,8 +153,16 @@ export function ReceiptItem({
   else if (editing)
     foot = (
       <div className="n-rcpt__edit">
+        {refreshed ? (
+          <p className="n-field__err" role="status">
+            {copy.edit.refreshed}
+          </p>
+        ) : null}
         {draft.scores.map((score, i) => {
-          const dim = view.dimensions[score.dimensionId] ?? score.dimensionId;
+          const dim = label(
+            score.personId,
+            view.dimensions[score.dimensionId] ?? score.dimensionId,
+          );
           if (score.state === 'unknown')
             return (
               <div className="n-rcpt__editrow" key={draftScoreKey(score)}>
@@ -214,6 +236,7 @@ export function ReceiptItem({
               setValues(suggestedValues(draft));
               setReason('');
               setWhyMissing(false);
+              setRefreshed(false);
             }}
           >
             {copy.edit.cancel}
@@ -288,7 +311,10 @@ export function ReceiptItem({
       ) : null}
       <div className="n-rcpt__scores">
         {draft.scores.map((score) => {
-          const dim = view.dimensions[score.dimensionId] ?? score.dimensionId;
+          const dim = label(
+            score.personId,
+            view.dimensions[score.dimensionId] ?? score.dimensionId,
+          );
           if (score.state === 'unknown')
             return (
               <div className="n-rcpt__score" key={draftScoreKey(score)}>
