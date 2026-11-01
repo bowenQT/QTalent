@@ -72,3 +72,26 @@ test('草稿被移除后旧撤销不能复活已删除规则',()=>{
   assert.equal(undo(),false);
   assert.equal(f.saves,1);
 });
+test('第二次退回写了同样的理由，旧撤销也认得出不是同一次退回', () => {
+  const f=setup(),first=f.store.returnDraft('watch','补充依据');
+  // HR 原样重新提交，管理者同一天用同一句理由再退回：草稿内容和第一次退回后一模一样
+  f.d.state='pending'; delete f.d.returned;
+  const second=f.store.returnDraft('watch','补充依据');
+  assert.equal(first(),false,'旧撤销只认自己写入的那次退回');
+  assert.equal(f.d.state,'draft');
+  assert.equal(second(),true);
+  assert.equal(f.d.state,'pending');
+});
+test('规则页把退回的撤销结果如实交给 Toast，失败提示用肯定式', () => {
+  const page = fs.readFileSync(path.join(__dirname, '../y/app/js/pages/rules.js'), 'utf8');
+  const block = page.match(/const undo = st\.returnDraft\(k, v\.data, L\);[\s\S]*?\n    \}\);/)[0];
+  const undoSrc = block.match(/undo: (\(\) => \{[^}]*\})/)[1];
+  let drawn = 0;
+  const wrap = (ok) => vm.runInNewContext(undoSrc, { undo: () => ok, rerender: () => { drawn++; } });
+  assert.equal(wrap(false)(), false, '草稿已有后续处理时返回 false，Toast 显示失败');
+  assert.equal(wrap(true)(), true);
+  assert.equal(drawn, 2);
+  const texts = [...block.matchAll(/(?:NT\.toast\(|failText: )[`']([^`']+)[`']/g)].map((m) => m[1]);
+  assert.ok(texts.some((t) => t.startsWith('撤销失败：')), '有撤销失败的文案');
+  for (const t of texts) assert.doesNotMatch(t, /不能|未执行|没有|无法/, `${t} 用肯定式`);
+});
