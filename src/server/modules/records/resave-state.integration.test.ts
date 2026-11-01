@@ -17,6 +17,7 @@ import {
   commitRecordSave,
   recordUndoCancellationFacts,
   readRecordResaveState,
+  readRecordCancellationHistory,
   readRecordConfirmationState,
   readStoredUndoReceipt,
   requireRecordUndoCommit,
@@ -28,7 +29,7 @@ import {
   evaluationWorkItems,
 } from '../programs';
 import { loadEvaluationContext } from '../../usecases/evaluation-context';
-import { saveRecordDraft } from '../../usecases/record-save';
+import { saveRecordDraft, undoRecordSave } from '../../usecases/record-save';
 import {
   seedRecordCase,
   seedRecordRules,
@@ -382,3 +383,221 @@ it('stores exact real cancellation CAS output and leaves cancelled work unchange
     ).toEqual(cancelled);
   });
 });
+
+async function nativeCycleCase() {
+  const f = await seedRecordCase(connection.db);
+  const task = await connection.db.transaction((tx) =>
+    insertEvaluationWorkItem(
+      tx,
+      {
+        id: f.id + '-native-chain-task',
+        kind: 'confirmation',
+        resourceId: f.draft.draftId,
+        evaluationNodeId: f.node,
+        personId: f.person.one,
+        assignedRelationId: f.relationOne,
+        assignedEvaluatorId: f.person['rater-one'],
+      },
+      f.clock.businessNow(),
+    ),
+  );
+  let saved = await saveRecordDraft(
+    connection.db,
+    f.account.one,
+    f.input,
+    f.clock,
+  );
+  const originalSaveId = saved.result.saveId;
+  for (const cycle of [1, 2]) {
+    const undone = await undoRecordSave(
+      connection.db,
+      f.account.one,
+      {
+        operation_id: f.id + '-chain-undo-' + cycle,
+        saveId: saved.result.saveId,
+      },
+      f.clock,
+    );
+    const revision = undone.result.draftRestoration;
+    if (revision.status !== 'available')
+      throw new Error('Native committed revision required');
+    saved = await saveRecordDraft(
+      connection.db,
+      f.account.one,
+      {
+        ...f.input,
+        operation_id: f.id + '-chain-save-' + cycle,
+        expected_revision: revision.draftRevision,
+      },
+      f.clock,
+    );
+  }
+  return { f, task, saved, originalSaveId };
+}
+async function withCurrentLock(
+  h: Awaited<ReturnType<typeof nativeCycleCase>>,
+  action: (
+    tx: Transaction,
+    lock: Awaited<ReturnType<typeof lockRecordCommand>>,
+  ) => Promise<void>,
+) {
+  await connection.db.transaction(async (tx) => {
+    const lock = await lockRecordCommand(tx, h.f.account.two, {
+      action: 'save',
+      input: {
+        ...h.f.input,
+        operation_id: h.f.id + '-inspect-current',
+        expected_revision: h.saved.result.revision,
+      },
+    });
+    await action(tx, lock);
+  });
+}
+it('retains real earlier cancellation provenance through two cycles and an active mapping without rewriting either undo', async () => {
+  const h = await nativeCycleCase();
+  const before = await connection.db
+    .select()
+    .from(recordOperations)
+    .where(eq(recordOperations.action, 'undo'));
+  await withCurrentLock(h, async (tx, lock) => {
+    const history = await readRecordCancellationHistory(tx, lock);
+    expect(history?.provenance).toHaveLength(2);
+    expect(history?.cancelledConfirmationWork).toEqual([
+      {
+        id: h.task.id,
+        personId: h.task.personId,
+        evaluationNodeId: h.task.evaluationNodeId,
+        assignedRelationId: h.task.assignedRelationId,
+        assignedEvaluatorId: h.task.assignedEvaluatorId,
+        cancelledRevision: h.task.revision + 2,
+      },
+    ]);
+    expect(history?.provenance[0].saveId).toBe(h.originalSaveId);
+    expect(await readRecordResaveState(tx, lock)).toBeNull();
+    const state = await readRecordConfirmationState(tx, lock);
+    expect(state.withdrawnDraftIds).not.toContain(h.f.draft.draftId);
+    expect(
+      state.mappings.map(({ personId, eventId }) => ({ personId, eventId })),
+    ).toEqual(h.saved.result.events);
+    const ownUndos = before
+      .filter((op) => op.draftSnapshot.draftId === h.f.draft.draftId)
+      .sort((a, b) => a.operationId.localeCompare(b.operationId));
+    expect(ownUndos[1].receipt).toHaveProperty('cancelledConfirmationWork', []);
+  });
+  expect(
+    await connection.db
+      .select()
+      .from(recordOperations)
+      .where(eq(recordOperations.action, 'undo')),
+  ).toEqual(before);
+  const [item] = await connection.db
+    .select()
+    .from(evaluationWorkItems)
+    .where(eq(evaluationWorkItems.id, h.task.id));
+  expect(item).toMatchObject({
+    state: 'cancelled',
+    revision: h.task.revision + 2,
+  });
+});
+it.each([
+  'missing_undo',
+  'missing_cancellation',
+  'revision_gap',
+  'event_revival',
+  'missing_save_operation',
+] as const)(
+  'does not supply cancellation provenance when the real generation chain has %s',
+  async (mode) => {
+    const h = await nativeCycleCase();
+    await expect(
+      connection.db.transaction(async (tx) => {
+        const lock = await lockRecordCommand(tx, h.f.account.one, {
+          action: 'save',
+          input: {
+            ...h.f.input,
+            operation_id: h.f.id + '-tamper-check',
+            expected_revision: h.saved.result.revision,
+          },
+        });
+        const [op] = await tx
+          .select()
+          .from(recordOperations)
+          .where(
+            and(
+              eq(recordOperations.saveId, h.originalSaveId),
+              eq(recordOperations.action, 'undo'),
+            ),
+          );
+        if (mode === 'missing_undo')
+          await tx
+            .delete(recordOperations)
+            .where(
+              and(
+                eq(recordOperations.saveId, h.originalSaveId),
+                eq(recordOperations.action, 'undo'),
+              ),
+            );
+        if (mode === 'missing_save_operation')
+          await tx
+            .delete(recordOperations)
+            .where(
+              and(
+                eq(recordOperations.saveId, h.originalSaveId),
+                eq(recordOperations.action, 'save'),
+              ),
+            );
+        if (mode === 'missing_cancellation') {
+          const receipt = { ...op.receipt };
+          delete (receipt as { cancelledConfirmationWork?: unknown })
+            .cancelledConfirmationWork;
+          await tx
+            .update(recordOperations)
+            .set({ receipt })
+            .where(
+              and(
+                eq(recordOperations.saveId, h.originalSaveId),
+                eq(recordOperations.action, 'undo'),
+              ),
+            );
+        }
+        if (mode === 'revision_gap') {
+          const receipt = readStoredUndoReceipt(op.receipt);
+          if (receipt.draftRestoration.status !== 'available')
+            throw new Error('Expected native revision');
+          await tx
+            .update(recordOperations)
+            .set({
+              receipt: {
+                ...op.receipt,
+                draftRestoration: {
+                  ...receipt.draftRestoration,
+                  draftRevision: receipt.draftRestoration.draftRevision + 1,
+                },
+              },
+            })
+            .where(
+              and(
+                eq(recordOperations.saveId, h.originalSaveId),
+                eq(recordOperations.action, 'undo'),
+              ),
+            );
+        }
+        if (mode === 'event_revival') {
+          const [saved] = await tx
+            .select()
+            .from(recordSaves)
+            .where(eq(recordSaves.saveId, h.originalSaveId));
+          await tx
+            .update(events)
+            .set({ withdrawnAt: null })
+            .where(eq(events.id, saved.createdEventIds[0]));
+        }
+        expect(await readRecordCancellationHistory(tx, lock)).toBeNull();
+        throw new Error('rollback synthetic corruption');
+      }),
+    ).rejects.toThrow('rollback synthetic corruption');
+    await withCurrentLock(h, async (tx, lock) => {
+      expect(await readRecordCancellationHistory(tx, lock)).not.toBeNull();
+    });
+  },
+);

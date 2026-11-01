@@ -71,6 +71,7 @@ export {
   requireRecordUndoCommit,
   recordUndoCancellationFacts,
   readRecordResaveState,
+  readRecordCancellationHistory,
   RecordWriteError,
 } from './write';
 export type {
@@ -80,4 +81,5 @@ export type {
   RecordConfirmationWorkFact,
   RecordCancelledConfirmationWorkFact,
   RecordResaveState,
+  RecordCancellationHistory,
 } from './write';
