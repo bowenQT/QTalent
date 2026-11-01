@@ -15,6 +15,7 @@ const devRoutes = [
   '/dev/design-system/general',
   '/dev/design-system/media',
   '/dev/design-system/talent',
+  '/dev/standard-iteration?role=hr',
 ];
 
 async function freePort() {
@@ -27,7 +28,7 @@ async function freePort() {
   return address.port;
 }
 
-test('production build serves no design-system sample routes', async () => {
+test('production build serves no development sample routes', async () => {
   expect(
     existsSync('.next/BUILD_ID'),
     '缺少生产构建产物，请先运行 pnpm build',
