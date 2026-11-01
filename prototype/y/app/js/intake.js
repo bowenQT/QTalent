@@ -56,7 +56,13 @@
     return items.map((x) => ({ ...x, mine: ['held', 'skipped'].includes(x.state) ? x.ev.recorder === me() : st.confirmerOk(x.ev) }));
   };
   // 改回待确认：只动本人确认的维度；HR 校准过或其他人确认的维度保留分数和历史。返回改回的维度数
-  st.receiptRevertible = (e) => e.scores.map((s, i) => [s, i]).filter(([s]) => s.st === 'confirmed' && s.by === me()).map(([, i]) => i);
+  // 所属对人复盘已确认的分跟着复盘冻结：回执里不再改回待确认，和复盘页的撤销规则一致
+  st.reviewLockOf = (e, s) => {
+    if (!s.p) return null;
+    const b = st.landingOf(s.p)?.batch || st.batch('b-xe6');
+    return b.weeks.map((w) => w[0]).find((wk) => st.get().reviews?.[`${s.p}-${wk}`]?.state === 'confirmed' && st.review(s.p, wk).events.includes(e)) || null;
+  };
+  st.receiptRevertible = (e) => e.scores.map((s, i) => [s, i]).filter(([s]) => s.st === 'confirmed' && s.by === me() && !st.reviewLockOf(e, s)).map(([, i]) => i);
   st.receiptRevert = (evId) => {
     const e = st.event(evId), idx = e ? st.receiptRevertible(e) : [];
     idx.forEach((i) => st.unconfirmScore(evId, i));
@@ -157,14 +163,18 @@
   st.inboxLockReason = (it) => {
     if (!it) return null;
     if ((it.iv && ivRow(it)?.imported) || (it.kind === 'interviewer' && I().imports.some((imp) => imp.rows.some((r) => r.verify === it.id && r.imported)))) return 'import';
-    if (it.done && depEvent(it)?.scores.some((x) => ['confirmed', 'calibrated'].includes(x.st))) return 'confirmed';
+    const ev = it.done ? depEvent(it) : null;
+    // HR 校准过、或已随对人复盘确认的分，回执里改不回去：身份更正交给 HR
+    if (ev?.scores.some((x) => x.st === 'calibrated' || (x.st === 'confirmed' && st.reviewLockOf(ev, x)))) return 'final';
+    if (ev?.scores.some((x) => x.st === 'confirmed')) return 'confirmed';
     return null;
   };
   st.inboxLocked = (it) => !!st.inboxLockReason(it);
-  st.LOCK_TEXT = { import: ['已随导入写进档案', '要更正，先在面评导入页撤销导入', '去撤销导入'], confirmed: ['建议分已确认', '要更正，先在回执里把这件事改回待确认', '去回执改回待确认'] };
+  st.LOCK_TEXT = { import: ['已随导入写进档案', '要更正，先在面评导入页撤销导入', '去撤销导入'], confirmed: ['建议分已确认', '要更正，先在回执里把这件事改回待确认', '去回执改回待确认'], final: ['分数已校准或已随复盘确认', '要更正身份，请联系负责的 HR'] };
   // 锁定后更正的入口：导入锁到那次面评导入，确认锁到这处核对所在的回执
   st.lockHref = (it) => {
     const why = st.inboxLockReason(it); if (!why) return null;
+    if (why === 'final') return null;
     if (why === 'import') { const imp = it.iv ? st.importOf(it.iv[0]) : I().imports.find((x) => x.rows.some((r) => r.verify === it.id)); return imp ? `import.html?id=${imp.id}` : null; }
     const d = I().drops.find((x) => x.verify?.includes(it.id)) || st.drop(depEvent(it)?.drop);
     return d ? st.dropHref(d) : null;

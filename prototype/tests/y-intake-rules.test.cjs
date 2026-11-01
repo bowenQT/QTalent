@@ -442,6 +442,36 @@ test('核对结果的撤销截止到依赖它的草稿被确认：确认后只�
   assert.equal(st.unresolveInbox('i-spk'), true);
 });
 
+test('HR 校准过的分锁住身份核对：不能撤销，也不给回执入口，更正交给 HR', () => {
+  const st = load('mentor');
+  const it = st.get().inbox.find((i) => i.id === 'i-spk');
+  st.resolveInbox('i-spk', it.options[0][0]);
+  st.receiptConfirm(it.ev);
+  const e = st.event(it.ev);
+  Object.assign(e.scores[0], { st: 'calibrated', v: 2 });
+  assert.equal(st.inboxLockReason(it), 'final');
+  assert.equal(st.lockHref(it), null);
+  assert.equal(st.receiptRevert(it.ev), 0, '校准的维度不改回');
+  assert.equal(st.unresolveInbox('i-spk'), false);
+  assert.equal(st.event(it.ev).scores[0].v, 2, '校准的分保留');
+});
+
+test('所属对人复盘已确认后，回执里不能把分改回待确认', () => {
+  const st = load('hrbp');
+  const r0 = st.review('p-x62', 'W8');
+  r0.events.forEach((e) => { if (e.scores.some((x) => x.st === 'ai')) st.receiptConfirm(e.id); });
+  const r1 = st.review('p-x62', 'W8');
+  assert.equal(r1.ai, 0);
+  assert.ok(st.confirmReview('p-x62', 'W8'), '复盘可以确认');
+  const e = r1.events.find((x) => x.drop && x.scores.some((sc) => sc.p === 'p-x62' && sc.by === st.me().id));
+  assert.ok(e, '复盘里有一件从回执确认的事');
+  assert.equal(st.receiptRevertible(e).length, 0);
+  assert.equal(st.receiptRevert(e.id), 0);
+  const r2 = st.review('p-x62', 'W8');
+  assert.equal(r2.state, 'confirmed');
+  assert.equal(r2.ai, 0, '已确认的复盘里没有待确认的分');
+});
+
 test('课题核对可以选「明确无课题」', () => {
   const st = load('mentor');
   const it = st.get().inbox.find((i) => i.kind === 'project' && !i.done);

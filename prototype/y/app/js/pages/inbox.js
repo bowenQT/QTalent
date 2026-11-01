@@ -59,8 +59,8 @@
   // 处理结果的一句话：归到谁、关联到谁、怎么处理这张图
   // 锁定的核对结果不给撤销，写明为什么锁、更正去哪里
   function lockNote(i) {
-    const [why, , go] = st.LOCK_TEXT[st.inboxLockReason(i)], href = st.lockHref(i);
-    return html`<span class="nt-muted">${why}${href ? html` · <a class="n-link" href="${href}">${go}</a>` : ''}</span>`;
+    const [why, hint, go] = st.LOCK_TEXT[st.inboxLockReason(i)], href = st.lockHref(i);
+    return html`<span class="nt-muted">${why} · ${href ? html`<a class="n-link" href="${href}">${go}</a>` : hint}</span>`;
   }
 
   function result(i) {
