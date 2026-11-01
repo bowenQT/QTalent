@@ -38,6 +38,11 @@ test('a mentor is stopped at /staffing; HR sends a sentence and its drafting job
   ).toBeVisible();
   await page.goto('/staffing?project=pr-ts');
   await expect(page).toHaveTitle('找人 · Niu-Talent');
+  // Entered from a project: the entry names it and offers no general sayings.
+  await expect(
+    page.getByRole('heading', { name: '为「业务成功部 TS 新人组」找人' }),
+  ).toBeVisible();
+  await expect(page.locator('.n-ask')).toHaveCount(0);
   await page
     .getByRole('textbox', { name: '描述项目和要找的人' })
     .fill('演示：TS 新人组要一个能带大家对齐节奏的牵头人');
@@ -54,9 +59,14 @@ test('a mentor is stopped at /staffing; HR sends a sentence and its drafting job
       current_revision: 0,
     },
   ]);
-  // A reload follows the same job; the sentence is not in the address.
+  // A reload follows the same job; the sentence stays in this tab, not in the address.
   await page.reload();
   await expect(page.getByText('理解需求')).toBeVisible();
+  await expect(
+    page.locator('.nt-head p', {
+      hasText: '演示：TS 新人组要一个能带大家对齐节奏的牵头人',
+    }),
+  ).toBeVisible();
   expect(decodeURIComponent(page.url())).not.toContain('牵头人');
 });
 

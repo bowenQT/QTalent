@@ -2,7 +2,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DRAFT_TTL_MS,
+  dropSentence,
   hasDraft,
+  keepSentence,
+  readSentence,
+  SENTENCE_KEY_PREFIX,
   STAFFING_DRAFT_KEY,
   sessionStorageOrNull,
   takeDraft,
@@ -98,5 +102,66 @@ describe('sessionStorageOrNull', () => {
       },
     });
     expect(sessionStorageOrNull()).toBeNull();
+  });
+});
+
+describe('sentence kept for the tab', () => {
+  const key = SENTENCE_KEY_PREFIX + 'pr-1';
+  const memory = () => {
+    const items = new Map<string, string>();
+    return {
+      items,
+      getItem: (name: string) => items.get(name) ?? null,
+      setItem: (name: string, value: string) => void items.set(name, value),
+      removeItem: (name: string) => void items.delete(name),
+    };
+  };
+  const blocked = {
+    getItem: () => {
+      throw new Error('blocked');
+    },
+    setItem: () => {
+      throw new Error('full');
+    },
+    removeItem: () => {
+      throw new Error('blocked');
+    },
+  };
+
+  it('keeps, reads and drops the sentence of one project and account', () => {
+    const store = memory();
+    keepSentence(store, 'pr-1', 'me', '要一个负责人');
+    expect(readSentence(store, 'pr-1', 'me')).toBe('要一个负责人');
+    expect(readSentence(store, 'pr-1', 'someone-else')).toBeNull();
+    expect(readSentence(store, 'pr-2', 'me')).toBeNull();
+    keepSentence(store, 'pr-1', 'me', '  ');
+    expect(store.items.has(key)).toBe(false);
+    keepSentence(store, 'pr-1', 'me', '要一个负责人');
+    dropSentence(store, 'pr-1');
+    expect(store.items.size).toBe(0);
+  });
+
+  it('ignores what it cannot read and storage that refuses', () => {
+    const store = memory();
+    for (const raw of [
+      '{',
+      'null',
+      '"text"',
+      '{"accountId":"me"}',
+      '{"accountId":"me","text":1}',
+      '{"accountId":"me","text":""}',
+    ]) {
+      store.items.set(key, raw);
+      expect(readSentence(store, 'pr-1', 'me')).toBeNull();
+    }
+    expect(readSentence(null, 'pr-1', 'me')).toBeNull();
+    expect(readSentence(blocked, 'pr-1', 'me')).toBeNull();
+    expect(() =>
+      keepSentence(blocked, 'pr-1', 'me', '要一个负责人'),
+    ).not.toThrow();
+    expect(() => dropSentence(blocked, 'pr-1')).not.toThrow();
+    expect(() =>
+      keepSentence(null, 'pr-1', 'me', '要一个负责人'),
+    ).not.toThrow();
   });
 });

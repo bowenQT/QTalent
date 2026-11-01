@@ -1,7 +1,7 @@
 import { Niu } from '@/components/brand/Niu';
 import { Trail, type TrailStep } from '@/components/ui/Trail';
 import type { StaffingDemandJobSnapshot } from '@/contracts/staffing';
-import { generatingTitle } from '../../copy';
+import { generatingTitle, projectTitle } from '../../copy';
 
 type Phase = 'waiting' | 'working' | 'done' | 'failed';
 
@@ -45,10 +45,12 @@ export function generationSteps(
 }
 
 export function Generating({
+  projectName = null,
   text,
   snapshot,
   stopped = false,
 }: {
+  projectName?: string | null;
   text: string;
   snapshot: StaffingDemandJobSnapshot | null;
   /** Reading the job ended for good; the page says why next to the trail. */
@@ -60,7 +62,7 @@ export function Generating({
     <>
       <header className="nt-head">
         <div>
-          <h1>{generatingTitle}</h1>
+          <h1>{projectName ? projectTitle(projectName) : generatingTitle}</h1>
           {text ? <p>{text}</p> : null}
         </div>
       </header>

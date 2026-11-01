@@ -53,7 +53,69 @@ export function hasDraft(storage: DraftStorage | null): boolean {
   }
 }
 
-export function sessionStorageOrNull(): DraftStorage | null {
+/**
+ * The sentence typed on a project's entry, kept for this tab only (sessionStorage), so a
+ * reload or「回到输入框」finds it again; it never goes into the address or to the server.
+ * One entry per project, owned by one account, cleared once the demand is confirmed.
+ */
+export const SENTENCE_KEY_PREFIX = 'niu-talent:staffing:sentence:';
+type SentenceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+export function readSentence(
+  storage: SentenceStorage | null,
+  projectId: string,
+  accountId: string,
+): string | null {
+  try {
+    const raw = storage?.getItem(SENTENCE_KEY_PREFIX + projectId);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      !('accountId' in value) ||
+      !('text' in value) ||
+      value.accountId !== accountId ||
+      typeof value.text !== 'string'
+    )
+      return null;
+    return value.text || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps the sentence for the project; an empty sentence removes the entry. */
+export function keepSentence(
+  storage: SentenceStorage | null,
+  projectId: string,
+  accountId: string,
+  text: string,
+) {
+  try {
+    if (!text.trim()) storage?.removeItem(SENTENCE_KEY_PREFIX + projectId);
+    else
+      storage?.setItem(
+        SENTENCE_KEY_PREFIX + projectId,
+        JSON.stringify({ accountId, text }),
+      );
+  } catch {
+    // Storage full or blocked: the sentence stays only in the field.
+  }
+}
+
+export function dropSentence(
+  storage: SentenceStorage | null,
+  projectId: string,
+) {
+  try {
+    storage?.removeItem(SENTENCE_KEY_PREFIX + projectId);
+  } catch {
+    // Blocked storage holds nothing to drop.
+  }
+}
+
+export function sessionStorageOrNull(): Storage | null {
   try {
     return window.sessionStorage;
   } catch {

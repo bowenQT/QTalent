@@ -7,21 +7,29 @@ import {
   entryPlaceholder,
   entrySayings,
   entryTitle,
+  projectEntryLede,
+  projectEntryPlaceholder,
+  projectTitle,
 } from '../../copy';
 
 export const MAX_SENTENCE_LENGTH = 600;
 
 /**
  * One sentence about the project and the person wanted. Templates (the prototype's
- * `.n-tpls`) are not rendered: target role templates have no contract yet.
+ * `.n-tpls`) are not rendered: target role templates have no contract yet. Entered from
+ * a project, the entry names it and shows no sayings: the demand is saved under this
+ * project, whatever the sentence names.
  */
 export function Entry({
+  projectName,
   text,
   onTextChange,
   onSend,
   sending,
   error,
 }: {
+  /** The project the demand is saved under; null on the new-project entry. */
+  projectName: string | null;
   text: string;
   onTextChange: (text: string) => void;
   onSend: () => void;
@@ -44,8 +52,8 @@ export function Entry({
     <>
       <header className="nt-head">
         <div>
-          <h1>{entryTitle}</h1>
-          <p>{entryLede}</p>
+          <h1>{projectName ? projectTitle(projectName) : entryTitle}</h1>
+          <p>{projectName ? projectEntryLede : entryLede}</p>
         </div>
       </header>
       <div className="n-composer" style={{ maxWidth: 720 }}>
@@ -56,7 +64,7 @@ export function Entry({
           rows={2}
           aria-label="描述项目和要找的人"
           aria-describedby={error ? errorId : undefined}
-          placeholder={entryPlaceholder}
+          placeholder={projectName ? projectEntryPlaceholder : entryPlaceholder}
           maxLength={MAX_SENTENCE_LENGTH}
           value={text}
           readOnly={sending}
@@ -84,19 +92,21 @@ export function Entry({
           {error}
         </p>
       ) : null}
-      <div className="n-asks" style={{ marginTop: 'var(--s-3)' }}>
-        {entrySayings.map((saying) => (
-          <button
-            key={saying}
-            className="n-ask"
-            type="button"
-            disabled={sending}
-            onClick={() => onTextChange(saying)}
-          >
-            {saying}
-          </button>
-        ))}
-      </div>
+      {projectName ? null : (
+        <div className="n-asks" style={{ marginTop: 'var(--s-3)' }}>
+          {entrySayings.map((saying) => (
+            <button
+              key={saying}
+              className="n-ask"
+              type="button"
+              disabled={sending}
+              onClick={() => onTextChange(saying)}
+            >
+              {saying}
+            </button>
+          ))}
+        </div>
+      )}
     </>
   );
 }

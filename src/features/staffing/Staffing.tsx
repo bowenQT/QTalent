@@ -10,7 +10,14 @@ import type { StaffingCandidate, StaffingDemand } from '@/contracts/staffing';
 import type { StaffingPorts } from './ports';
 import { projectStatusTone, type ProjectHead } from './view';
 import { projectHref } from './format';
-import { hasDraft, sessionStorageOrNull, takeDraft } from './draft';
+import {
+  dropSentence,
+  hasDraft,
+  keepSentence,
+  readSentence,
+  sessionStorageOrNull,
+  takeDraft,
+} from './draft';
 import { useJob } from './use-job';
 import {
   conflictText,
@@ -21,6 +28,7 @@ import {
   draftSignedOut,
   draftRetrying,
   offline,
+  projectTitle,
   saveFailed,
 } from './copy';
 import { Entry } from './sections/entry/Entry';
@@ -85,7 +93,7 @@ function ProjectHeader({ project }: { project: ProjectHead }) {
   return (
     <header className="nt-head">
       <div>
-        <h1>为「{project.name}」找人</h1>
+        <h1>{projectTitle(project.name)}</h1>
         <p>{project.goal}</p>
       </div>
       <div className="nt-head__acts">
@@ -137,8 +145,23 @@ export function Staffing(props: StaffingProps) {
     () => (props.fromWorkbench ? readHandoff(accountId) : null),
     () => null,
   );
-  const [typed, setTyped] = useState<string | null>(null);
-  const text = typed ?? handed ?? '';
+  const projectId = props.project?.id ?? null;
+  // The sentence kept for this tab and project, read after hydration like the handoff.
+  const stored = useSyncExternalStore(
+    noSubscribe,
+    () =>
+      projectId
+        ? readSentence(sessionStorageOrNull(), projectId, accountId)
+        : null,
+    () => null,
+  );
+  const [typed, setTypedState] = useState<string | null>(null);
+  const setTyped = (next: string) => {
+    setTypedState(next);
+    if (projectId)
+      keepSentence(sessionStorageOrNull(), projectId, accountId, next);
+  };
+  const text = typed ?? handed ?? stored ?? '';
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   // A resumed job keeps no sentence: the job snapshot does not carry it.
@@ -240,6 +263,8 @@ export function Staffing(props: StaffingProps) {
         inputText,
       });
       if (result.status === 'success') {
+        if (projectId)
+          keepSentence(sessionStorageOrNull(), projectId, accountId, inputText);
         setSent({ text: inputText, jobId: result.snapshot.jobId });
         onJobStarted?.(result.snapshot.jobId);
       } else setSendError(failureText(result));
@@ -262,6 +287,8 @@ export function Staffing(props: StaffingProps) {
         setEditError(failureText(result));
         return false;
       }
+      if (result.demand.status === 'confirmed' && projectId)
+        dropSentence(sessionStorageOrNull(), projectId);
       setEdited(result.demand);
       setJudged(new Map());
       setJudging(null);
@@ -345,6 +372,8 @@ export function Staffing(props: StaffingProps) {
 
   if (!demand || !props.project) {
     if (sent) {
+      // A resumed job carries no sentence; the tab may still keep it.
+      const sentText = sent.text || stored || '';
       // Reading the job can end for good (signed out, permission changed, job gone):
       // the subscription stops, so the trail must stop too.
       const lost =
@@ -365,7 +394,8 @@ export function Staffing(props: StaffingProps) {
       return (
         <>
           <Generating
-            text={sent.text}
+            projectName={props.project?.name ?? null}
+            text={sentText}
             snapshot={demandSnapshot}
             stopped={lost}
           />
@@ -382,7 +412,7 @@ export function Staffing(props: StaffingProps) {
                 type="button"
                 className="n-btn n-btn--sm"
                 onClick={() => {
-                  setTyped(sent.text);
+                  setTyped(sentText);
                   setSent(null);
                 }}
               >
@@ -395,6 +425,7 @@ export function Staffing(props: StaffingProps) {
     }
     return (
       <Entry
+        projectName={props.project?.name ?? null}
         text={text}
         onTextChange={setTyped}
         onSend={() => void send()}

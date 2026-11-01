@@ -21,7 +21,7 @@ import { JobReadError } from '@/lib/job-subscription';
 import type { StaffingPorts } from './ports';
 import type { ProjectHead } from './view';
 import { Staffing, failureText, withRequirement } from './Staffing';
-import { STAFFING_DRAFT_KEY } from './draft';
+import { SENTENCE_KEY_PREFIX, STAFFING_DRAFT_KEY } from './draft';
 
 beforeEach(() => {
   vi.stubGlobal('matchMedia', () => ({
@@ -212,20 +212,23 @@ describe('entry and drafting', () => {
     render(
       <Staffing project={project} demand={null} accountId="me" ports={p} />,
     );
+    // Entered from a project: the entry names it and offers no general sayings.
     expect(
-      screen.getByRole('heading', { name: '为一个项目或关键岗位找人' }),
+      screen.getByRole('heading', { name: '为「演示项目」找人' }),
     ).toBeTruthy();
+    expect(screen.getByText('说一句这个项目要什么样的人。')).toBeTruthy();
+    expect(field().getAttribute('placeholder')).toBe(
+      '比如：要负责哪一块、需要哪些经验、什么时候到岗',
+    );
+    expect(document.querySelector('.n-asks')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '开始' }));
     expect(p.createDemand).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole('button', { name: '智能体平台应用后端要找一个 owner' }),
-    );
-    expect(field()).toHaveProperty('value', '智能体平台应用后端要找一个 owner');
+    fireEvent.change(field(), { target: { value: '要一个服务端负责人' } });
     fireEvent.keyDown(field(), { key: 'Enter', metaKey: true });
-    await screen.findByRole('heading', { name: '为「演示项目」找人' });
+    await screen.findByText('来自：「演示：寻找服务端负责人」');
     expect(p.createDemand).toHaveBeenCalledWith({
       operationId: expect.any(String),
-      inputText: '智能体平台应用后端要找一个 owner',
+      inputText: '要一个服务端负责人',
     });
     expect(screen.getByText('来自：「演示：寻找服务端负责人」')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: /候选人/ })).toBeNull();
@@ -243,10 +246,22 @@ describe('entry and drafting', () => {
         onDemandReady={onDemandReady}
       />,
     );
-    fireEvent.change(field(), { target: { value: '找一个负责人' } });
+    // The new-project entry keeps the prototype's title and sayings.
+    expect(
+      screen.getByRole('heading', { name: '为一个项目或关键岗位找人' }),
+    ).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole('button', { name: '智能体平台应用后端要找一个 owner' }),
+    );
+    expect(field()).toHaveProperty('value', '智能体平台应用后端要找一个 owner');
     fireEvent.click(screen.getByRole('button', { name: '开始' }));
     await waitFor(() => expect(onDemandReady).toHaveBeenCalledWith(draft));
     expect(screen.getByText('起草需求卡 · 2 步')).toBeTruthy();
+    expect(
+      screen.getByRole('heading', { name: '为一个项目找人' }),
+    ).toBeTruthy();
+    // Without a project nothing is kept in the tab.
+    expect(window.sessionStorage.length).toBe(0);
   });
 
   it('reports the drafting job and the drafted demand for the address', async () => {
@@ -264,7 +279,7 @@ describe('entry and drafting', () => {
     );
     fireEvent.change(field(), { target: { value: '找一个负责人' } });
     fireEvent.click(screen.getByRole('button', { name: '开始' }));
-    await screen.findByRole('heading', { name: '为「演示项目」找人' });
+    await screen.findByText('来自：「演示：寻找服务端负责人」');
     expect(onJobStarted).toHaveBeenCalledWith('staffing_demand-job');
     expect(onDemandReady).toHaveBeenCalledWith(draft);
   });
@@ -291,7 +306,7 @@ describe('entry and drafting', () => {
     );
     expect(
       screen
-        .getByRole('heading', { name: '为一个项目找人' })
+        .getByRole('heading', { name: '为「演示项目」找人' })
         .parentElement?.querySelector('p'),
     ).toBeNull();
     await waitFor(() =>
@@ -301,6 +316,83 @@ describe('entry and drafting', () => {
       ),
     );
     expect(p.createDemand).not.toHaveBeenCalled();
+  });
+
+  it('keeps the sentence in this tab for its project and account until the demand is confirmed', async () => {
+    const key = SENTENCE_KEY_PREFIX + project.id;
+    const p = ports({
+      readDemandJob: vi.fn(async () => Promise.reject(new JobReadError(404))),
+    });
+    render(
+      <Staffing project={project} demand={null} accountId="me" ports={p} />,
+    );
+    fireEvent.change(field(), { target: { value: '要一个服务端负责人' } });
+    expect(JSON.parse(window.sessionStorage.getItem(key)!)).toEqual({
+      accountId: 'me',
+      text: '要一个服务端负责人',
+    });
+    cleanup();
+    // A reload: the typed sentence is back in the field.
+    render(
+      <Staffing project={project} demand={null} accountId="me" ports={p} />,
+    );
+    expect(field()).toHaveProperty('value', '要一个服务端负责人');
+    cleanup();
+    // A reload while drafting: the trail shows it, and「回到输入框」brings it back.
+    render(
+      <Staffing
+        project={project}
+        demand={null}
+        resumeJobId="earlier-job"
+        accountId="me"
+        ports={p}
+      />,
+    );
+    expect(
+      screen.getByRole('heading', { name: '为「演示项目」找人' }).parentElement
+        ?.textContent,
+    ).toContain('要一个服务端负责人');
+    fireEvent.click(await screen.findByRole('button', { name: '回到输入框' }));
+    expect(field()).toHaveProperty('value', '要一个服务端负责人');
+    cleanup();
+    // Another project, or another account, starts empty.
+    for (const [other, account] of [
+      [{ ...project, id: 'other-project' }, 'me'],
+      [project, 'someone-else'],
+    ] as const) {
+      render(
+        <Staffing
+          project={other}
+          demand={null}
+          accountId={account}
+          ports={p}
+        />,
+      );
+      expect(field()).toHaveProperty('value', '');
+      cleanup();
+    }
+    // Emptying the field drops it; confirming the demand drops it too.
+    render(
+      <Staffing project={project} demand={null} accountId="me" ports={p} />,
+    );
+    fireEvent.change(field(), { target: { value: '' } });
+    expect(window.sessionStorage.getItem(key)).toBeNull();
+    cleanup();
+    window.sessionStorage.setItem(
+      key,
+      JSON.stringify({ accountId: 'me', text: '演示：要一个负责人' }),
+    );
+    render(
+      <Staffing
+        project={project}
+        demand={draft}
+        accountId="me"
+        ports={ports()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: '确认需求' }));
+    await screen.findByText('演示审核人 09-04 确认 · 按这版要求核对候选人');
+    expect(window.sessionStorage.getItem(key)).toBeNull();
   });
 
   it('keeps the sentence and says why when sending is refused', async () => {

@@ -13,6 +13,12 @@ export const entrySayings = [
   'TS 新人组还缺一个懂测试和部署、能带大家对齐节奏的人',
 ] as const;
 export const generatingTitle = '为一个项目找人';
+// New (owner ruling 11/1, #248): entered from a project, the page names the project and
+// shows no general sayings, which would be saved under this project whatever they say.
+export const projectTitle = (name: string) => `为「${name}」找人`;
+export const projectEntryLede = '说一句这个项目要什么样的人。';
+export const projectEntryPlaceholder =
+  '比如：要负责哪一块、需要哪些经验、什么时候到岗';
 
 // The prototype adds「点要求可以改写」; rewriting a requirement is not on this page.
 export const demandBadge = 'AI 起草 · 点「必须 / 加分」切换';
