@@ -71,7 +71,7 @@ export function Inbox({
   const resolved = data.resolvedItems.filter(isPageResolved);
   const isOpen = (item: PageItem) =>
     item.state === 'pending' || resumed.has(item.itemId);
-  const kinds = openKinds(items);
+  const kinds = openKinds(items, isOpen);
   const shown: Filter =
     filter !== 'all' && !kinds.includes(filter) ? 'all' : filter;
   const open = items.filter(
@@ -226,11 +226,14 @@ export function Inbox({
                     <button
                       className="n-link"
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
                         setResumed((current) =>
                           new Set(current).add(item.itemId),
-                        )
-                      }
+                        );
+                        // 正在筛别的类型时，切到这条的类型，让它出现在卡片区。
+                        if (shown !== 'all' && shown !== item.kind)
+                          setFilter(item.kind);
+                      }}
                     >
                       继续核对
                     </button>

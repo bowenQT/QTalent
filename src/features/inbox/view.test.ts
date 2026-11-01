@@ -235,6 +235,12 @@ describe('kinds', () => {
       item('unknown_person'),
     ].filter(isPageItem);
     expect(openKinds(items)).toEqual(['unknown_person', 'unknown_interviewer']);
+    // A deferred item brought back counts once the page says it is open.
+    expect(openKinds(items, () => true)).toEqual([
+      'speaker',
+      'unknown_person',
+      'unknown_interviewer',
+    ]);
   });
   it('gives a stable hue in range', () => {
     expect(hueOf('p-x15')).toBe(hueOf('p-x15'));

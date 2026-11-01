@@ -152,10 +152,16 @@ export function doneText(resolution: Resolution, people: People): string {
   }
 }
 
-/** Kinds that still have open items, in the prototype's order, for the filter chips. */
-export function openKinds(items: readonly PageItem[]): PageKind[] {
+/**
+ * Kinds that still have open items, in the prototype's order, for the filter chips.
+ * `isOpen` lets the page count deferred items brought back with「继续核对」.
+ */
+export function openKinds(
+  items: readonly PageItem[],
+  isOpen: (item: PageItem) => boolean = (item) => item.state === 'pending',
+): PageKind[] {
   return PAGE_KINDS.filter((kind) =>
-    items.some((item) => item.kind === kind && item.state === 'pending'),
+    items.some((item) => item.kind === kind && isOpen(item)),
   );
 }
 

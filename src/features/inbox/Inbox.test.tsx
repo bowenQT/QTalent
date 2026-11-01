@@ -182,6 +182,24 @@ describe('picking', () => {
     expect(screen.queryByRole('heading', { name: /^稍后处理/ })).toBeNull();
   });
 
+  it('switches to the item kind when resuming under another filter', async () => {
+    show(sampleData('hr'));
+    choose('i-spk', '都不是，稍后处理');
+    await screen.findByText('已放到稍后处理，待办里仍会保留');
+    const chips = screen.getByRole('group', { name: '按类型筛选' });
+    fireEvent.click(within(chips).getByRole('button', { name: /未知人员/ }));
+    expect(document.getElementById('i-spk')).toBeNull();
+    fireEvent.click(
+      within(aside('稍后处理')).getByRole('button', { name: '继续核对' }),
+    );
+    expect(card('i-spk')).toBeTruthy();
+    expect(
+      within(chips)
+        .getByRole('button', { name: /说话人/ })
+        .getAttribute('aria-pressed'),
+    ).toBe('true');
+  });
+
   it('says what is left when everything open was put aside or resolved', async () => {
     const data = sampleData('mentor');
     show({ ...data, items: data.items.slice(0, 1) });
