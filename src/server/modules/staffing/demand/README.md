@@ -6,7 +6,7 @@
 
 ## 接线边界
 
-createStaffingDemandRuntime({db,boss,maas}) 显式组合已有数据库、已启动pg-boss与MaaS客户端；构造无网络调用。register() 只在worker显式调用，policy须加入既有jobs runtime。共享入口由协调单写；尚未注册前不能称生产已接入。本目录不读取环境变量或生成凭据。
+createStaffingDemandRuntime({db,boss,maas}) 显式组合已有数据库、已启动pg-boss与MaaS客户端；构造无网络调用。register() 只在worker显式调用，policy须加入既有jobs runtime。共享入口由协调单写，当前worker显式注册本runtime；源码接线不冒称演示环境已部署。本目录不读取环境变量或生成凭据。
 
 ## 重试与故障
 
@@ -15,4 +15,6 @@ running重投只忽略，不发送第二次模型调用、不破坏仍在运行�
 
 ## 验证
 
-固定样例在prompt.ts，单测使用严格fake。真实隔离PostgreSQL覆盖生成/编辑/确认/历史、并发幂等、冲突、原子回滚、撤权、显式retry、cancel与重复delivery。迁移由协调按83→94→本卡串行生成，未手工写SQL。一次真实模型运行仍待单独授权执行与记录；离线CI不替代该完成条件。
+固定样例在prompt.ts，单测使用严格fake。真实隔离PostgreSQL覆盖生成/编辑/确认/历史、并发幂等、冲突、原子回滚、撤权、显式retry、cancel与重复delivery。正式迁移由X1在899/922已合后，从当前schema原生生成0007_bow_852_staffing_demands.sql；仅三张需求表，生成SQL未手改，已发布0000–0006与快照/journal历史保留。旧未发布0003候选和PR专用临时CI/脚本/目录覆盖已退役；默认测试固定使用提交迁移目录。空库、已有完整seed升级、冲突DDL+journal回滚与重放由本卡迁移回归验证。
+
+2026-11-01已执行一次固定合成样例的真实Modelink/Gemini需求生成：实际受信环境工厂、当前数据库授权、原生队列及业务prompt/严格schema串联，HTTP200、attempts1，只保存draft revision1，必须/加分各一条，无人工确认或评分/排名。非敏感请求标识/耗时/usage及清理证据见[BOW-852单次真实验收](https://github.com/bowenQT/QTalent/issues/44#issuecomment-6556038429)；本轮预算已消耗，不重复付费请求。模型前后撤权、retry/cancel与重复delivery仍单独由真实PG+协议fake回归验证，未冒称进行了真实供应商撤权实验。

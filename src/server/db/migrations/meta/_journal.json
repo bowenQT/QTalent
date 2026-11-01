@@ -50,6 +50,13 @@
       "when": 1793519975087,
       "tag": "0006_bow_922_legacy_rule_applicability",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793523619030,
+      "tag": "0007_bow_852_staffing_demands",
+      "breakpoints": true
     }
   ]
 }
