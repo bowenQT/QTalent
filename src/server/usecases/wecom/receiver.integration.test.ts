@@ -1,3 +1,4 @@
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createHash, randomUUID } from 'node:crypto';
 import { eq, getTableName, sql } from 'drizzle-orm';
 import { PgBoss } from 'pg-boss';
@@ -28,6 +29,10 @@ let connection: Awaited<ReturnType<typeof nativeDatabase>>;
 let boss: PgBoss;
 beforeAll(async () => {
   connection = await nativeDatabase();
+  if (process.env.BOW_909_TEST_MIGRATIONS_DIR)
+    await migrate(connection.db, {
+      migrationsFolder: process.env.BOW_909_TEST_MIGRATIONS_DIR,
+    });
   await seedNativeRules(connection.db);
   boss = new PgBoss({ connectionString: connection.testUrl });
   boss.on('error', () => undefined);
