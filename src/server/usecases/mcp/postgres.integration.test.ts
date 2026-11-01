@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { PgBoss } from 'pg-boss';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
@@ -17,7 +18,13 @@ import {
   eventSources,
   statements,
 } from '../../modules/records';
-import { recordAudit } from '../../platform/audit';
+import { recordEntryAudit } from '../entry/audit';
+import {
+  createMcpEntryAuthenticator,
+  entryAccountBindingDigest,
+  mcpTokenDigest,
+} from '../../auth/entry/persistent';
+import { mcpCredentials } from '../../auth/entry/schema';
 import { auditEvents } from '../../platform/audit/schema';
 import { createEntryIdentityService } from '../../auth/entry/identity';
 import type { EntryAudit } from '../entry/context';
@@ -34,6 +41,10 @@ let connection: Awaited<ReturnType<typeof nativeDatabase>>;
 let boss: PgBoss;
 beforeAll(async () => {
   connection = await nativeDatabase();
+  if (process.env.BOW_903_TEST_MIGRATIONS_DIR)
+    await migrate(connection.db, {
+      migrationsFolder: process.env.BOW_903_TEST_MIGRATIONS_DIR,
+    });
   await seedNativeRules(connection.db);
   boss = new PgBoss({ connectionString: connection.testUrl });
   await boss.start();
@@ -79,35 +90,33 @@ async function setup() {
     audit?: (tx: Transaction, event: EntryAudit) => Promise<void>;
   } = { refreshes: 0 };
   const proof = 'synthetic-mcp-proof-' + randomUUID();
-  async function binding(credentialId: string) {
-    const [account] = await connection.db
-      .select()
-      .from(accountBindings)
-      .where(eq(accountBindings.accountId, facts.account));
-    if (!account) return null;
-    return {
-      credentialId,
-      accountId: account.accountId,
-      personId: account.personId,
+  const credentialId = facts.prefix + '-credential';
+  await connection.db.insert(mcpCredentials).values(
+    [proof, proof + '-second'].map((token, index) => ({
+      id: credentialId + index,
+      accountId: facts.account,
+      accountBindingDigest: entryAccountBindingDigest(
+        facts.account,
+        facts.evaluator,
+      ),
+      tokenDigest: mcpTokenDigest(token),
       revision: 1,
-      expiresAt: '2026-12-01T00:00:00.000Z',
+      expiresAt: new Date('2026-12-01T00:00:00.000Z'),
       revokedAt: null,
-    };
-  }
-  // Only the external token lookup is synthetic. Every current directory and
-  // domain fact is queried from the real isolated database. No production token.
+    })),
+  );
+  const reader = createMcpEntryAuthenticator(
+    connection.db,
+    () => new Date(wallAt),
+  );
+  // Schedule adversarial changes around the real reader, never substitute facts.
   const identities = createEntryIdentityService(
     {
       mcp: {
-        verify: async (value) =>
-          value === proof || value === proof + '-second'
-            ? binding(
-                value === proof ? 'synthetic-binding-a' : 'synthetic-binding-b',
-              )
-            : null,
+        verify: reader.verify,
         current: async (id) => {
           await control.refresh?.(++control.refreshes);
-          return binding(id);
+          return reader.current(id);
         },
       },
     },
@@ -120,17 +129,7 @@ async function setup() {
     businessNow: () => businessAt,
     now: () => new Date(wallAt),
     audit: async (tx, event) => {
-      // Explicit test auditor stores all five fields in the existing table,
-      // proving tx rollback. This is NOT the pending production audit format.
-      await recordAudit(tx, {
-        actorId: event.actorId,
-        action: event.action,
-        resourceId: JSON.stringify([
-          event.channel,
-          event.resourceId,
-          event.revision,
-        ]),
-      });
+      await recordEntryAudit(tx, event);
       await control.audit?.(tx, event);
     },
   };
@@ -166,6 +165,7 @@ async function setup() {
     options,
     send,
     proof,
+    credentialId,
     demand: {
       operationId: randomUUID(),
       projectId,
@@ -195,7 +195,7 @@ const outcome = (
   >,
 ) => result.structuredContent;
 
-it('runs all three real handlers through the HTTP composition and persists producer queues and complete test audits', async () => {
+it('runs all three real handlers through the HTTP composition and persists producer queues and native entry audits', async () => {
   const f = await setup();
   const before = await counts();
   for (const [name, args] of [
@@ -220,7 +220,7 @@ it('runs all three real handlers through the HTTP composition and persists produ
     .where(eq(auditEvents.actorId, f.account));
   const entry = audits.filter((row) => row.action.startsWith('entry.tool.'));
   expect(entry).toHaveLength(3);
-  expect(entry.map((row) => JSON.parse(row.resourceId)[0])).toEqual([
+  expect(entry.map((row) => row.metadata?.channel)).toEqual([
     'mcp',
     'mcp',
     'mcp',
@@ -440,11 +440,8 @@ it('applies the account limit across two credentials and releases slots after fa
   ).toBe('success');
 });
 
-it('fails closed when a production auditor or external verifier has not been supplied', async () => {
+it('fails closed when explicitly composed without an external verifier', async () => {
   const f = await setup();
-  const missing = { ...f.options };
-  Reflect.deleteProperty(missing, 'audit');
-  expect(() => createMcpPostgresTools(missing)).toThrowError('unavailable');
   const http = createMcpPostgresHttp({
     ...f.options,
     identities: createEntryIdentityService(),
@@ -528,4 +525,52 @@ it('filters native persisted personnel provenance before returning the actual pe
     payload: { recentFacts: { status: 'empty' } },
   });
   expect(JSON.stringify(hidden)).not.toContain(eventId);
+});
+
+it('uses native identity and audit by default and rejects credential revocation on the next HTTP call', async () => {
+  const f = await setup();
+  const tools = createMcpPostgresTools({
+    db: connection.db,
+    boss,
+    now: () => new Date(wallAt),
+    businessNow: () => businessAt,
+  });
+  const identity = await tools.authenticate(f.proof);
+  expect(
+    outcome(await tools.call(identity, 'person_brief', { id: f.target })),
+  ).toMatchObject({ status: 'success' });
+  const rows = await connection.db
+    .select()
+    .from(auditEvents)
+    .where(eq(auditEvents.actorId, f.account));
+  expect(
+    rows.find((row) => row.action === 'entry.tool.person_brief')?.metadata,
+  ).toEqual({ channel: 'mcp', revision: null });
+  await connection.db
+    .update(mcpCredentials)
+    .set({ revokedAt: new Date(wallAt) })
+    .where(eq(mcpCredentials.id, f.credentialId + '0'));
+  await expect(tools.authenticate(f.proof)).rejects.toMatchObject({
+    kind: 'unauthenticated',
+  });
+  await expect(
+    tools.call(identity, 'person_brief', { id: f.target }),
+  ).rejects.toMatchObject({ kind: 'unauthenticated' });
+  expect((await f.send('person_brief', { id: f.target })).status).toBe(401);
+});
+
+it('rolls back native producer effects when the persisted credential revision changes during the call', async () => {
+  const f = await setup();
+  const before = await counts();
+  f.control.refresh = async (n) => {
+    if (n === 5)
+      await connection.db
+        .update(mcpCredentials)
+        .set({ revision: 2 })
+        .where(eq(mcpCredentials.id, f.credentialId + '0'));
+  };
+  expect(
+    outcome(await f.tools.call(f.identity, 'draft_requirement', f.demand)),
+  ).toEqual({ status: 'unauthenticated' });
+  expect(await counts()).toEqual(before);
 });

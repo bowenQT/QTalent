@@ -1,7 +1,12 @@
 import { sql } from 'drizzle-orm';
 import { fromDrizzle, type PgBoss } from 'pg-boss';
 import type { Database, Transaction } from '../../db/client';
-import type { EntryIdentityService } from '../../auth/entry/identity';
+import {
+  createEntryIdentityService,
+  type EntryIdentityService,
+} from '../../auth/entry/identity';
+import { createMcpEntryAuthenticator } from '../../auth/entry/persistent';
+import { recordEntryAudit } from '../entry/audit';
 import { createMcpTools, McpCapacityError } from '../../integrations/mcp/tools';
 import { createMcpHttpHandler } from '../../integrations/mcp/http';
 import { recordArrangeQueue } from '../../jobs/record-arrange';
@@ -23,22 +28,28 @@ import { createMcpDomainHandlers } from './handlers';
 export interface McpPostgresOptions {
   db: Database;
   boss: PgBoss;
-  identities: EntryIdentityService;
-  /** Mandatory shared writer. Must persist every EntryAudit field in this tx.
-   * No fallback silently drops channel/revision into the legacy audit shape. */
-  audit(tx: Transaction, event: EntryAudit): Promise<void>;
+  /** Optional test instrumentation; production defaults to the native reader. */
+  identities?: EntryIdentityService;
+  /** Optional test instrumentation; production uses the real same-tx writer. */
+  audit?(tx: Transaction, event: EntryAudit): Promise<void>;
   businessNow?: () => string;
   now?: () => Date;
 }
 
 /** Concrete producer composition; never constructs credentials, registers a
  * worker or invokes a model. The caller supplies the single existing boss and
- * the actual 903 identity service. An absent auditor refuses construction. */
+ * native 903 identity reader and entry audit writer. No credential provisioning. */
 export function createMcpPostgresTools(options: McpPostgresOptions) {
-  if (typeof options.audit !== 'function')
-    throw new EntryUsecaseError('unavailable');
   const now = options.now ?? (() => new Date());
   const businessNow = options.businessNow ?? (() => now().toISOString());
+  const identities =
+    options.identities ??
+    createEntryIdentityService(
+      {
+        mcp: createMcpEntryAuthenticator(options.db, now),
+      },
+      now,
+    );
   const demands = createStaffingDemandRuntime({
     db: options.db,
     boss: options.boss,
@@ -58,9 +69,9 @@ export function createMcpPostgresTools(options: McpPostgresOptions) {
     },
   });
   const tools = createMcpTools({
-    identities: options.identities,
+    identities,
     entry: {
-      loadContext: createEntryContextLoader(options.identities, {
+      loadContext: createEntryContextLoader(identities, {
         businessNow,
         load: loadEntryAuthorizationContext,
       }),
@@ -83,7 +94,7 @@ export function createMcpPostgresTools(options: McpPostgresOptions) {
             throw error;
           }
         },
-        audit: options.audit,
+        audit: options.audit ?? recordEntryAudit,
       },
     },
   });
@@ -94,7 +105,7 @@ export function createMcpPostgresTools(options: McpPostgresOptions) {
   return {
     ...tools,
     async call(...args: Parameters<typeof tools.call>) {
-      const actor = await options.identities.current(args[0]);
+      const actor = await identities.current(args[0]);
       const count = active.get(actor.accountId) ?? 0;
       if (count >= 2) throw new McpCapacityError();
       active.set(actor.accountId, count + 1);

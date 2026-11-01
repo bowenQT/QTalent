@@ -1,10 +1,10 @@
 # BOW-910 MCP 三工具：协议与原生领域组合
 
-本片实现可直接处理标准 Request/Response 的 Streamable HTTP 适配，以及三个工具到实际 BOW-903 用例的分派。原生 PostgreSQL、领域 handler 与 pg-boss producer 的组合见 `../../usecases/mcp/README.md`；本目录继续只负责协议。没有 Next 路由、生产 listener、个人令牌发行或部署。未配置真实身份 reader/完整审计仍不可接通，测试不代表正式客户端或部署验收。
+本片实现可直接处理标准 Request/Response 的 Streamable HTTP 适配，以及三个工具到实际 BOW-903 用例的分派。原生 PostgreSQL、领域 handler 与 pg-boss producer 的组合见 `../../usecases/mcp/README.md`；本目录继续只负责协议。没有 Next 路由、生产 listener、个人令牌发行或部署。私有原生组合已接真实身份reader/完整审计，正式DDL和路由仍待集成；测试不代表正式客户端或部署验收。
 
 ## 固定输入
 
-- 当前组合：main fe34b6f、903 4913220，经X1 b122038合回；随后消费3fef8c3三个真实同事务入口和ca0完整intake来源图。
+- 当前组合：main fe34b6f、903 4913220，经X1 b122038合回；随后消费3fef8c3三个真实同事务入口和ca0完整intake来源图，以及b43b26a的903持久MCP reader与入口审计。
 - 初版903输入80b4755已由上述最终合同替代；沿原分支普通合并，不复制身份、节点、材料或业务合同。
 - BOW-895 MCP 历史实验：bd2e9f1af5e563c8effb5e1ab664b4552577c096。两个实际客户端的合成只读调用已在 #218/6547057111 记录；不是本片的真实三工具验收。
 - 没有 MCP SDK 依赖，使用现有 Node/Web HTTP API 和 Zod。协议依据为 [MCP 2025-11-25 Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)、[生命周期](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)和[工具](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)。
@@ -45,7 +45,7 @@
 
 HTTP 测试自己在 127.0.0.1 选择空闲端口，结束时关闭 listener 与连接。没有供应商调用、数据库、真实账号凭证或外部客户端会话。测试事务只证明用例要求回滚，不冒充 PG 原子性。完整 check/integration/e2e/visual及覆盖遵守共享 resource-heavy-1/2/3 锁，第三槽遵守20%空闲内存门槛。
 
-共享与真实接线交 X1 协调：生产 MCP 令牌到账号绑定及撤销回查、完整EntryAudit正式记录方式、必要公共出口与入口导入边界、唯一 Web 路由。三领域handler/来源过滤/实际事务及每账号最多2个并发业务调用已在私有原生组合实现；部署级调用频率策略仍由实际入口明确，不称为分布式限流。本片不改 package/lock、worker、公共 index、数据库 schema 或迁移。
+共享与真实接线交 X1 协调：入口身份与审计正式迁移、必要公共出口与入口导入边界、唯一 Web 路由。MCP令牌摘要到账号当前绑定及撤销回查、完整EntryAudit writer已消费X1固定实现。三领域handler/来源过滤/实际事务及每账号最多2个并发业务调用已在私有原生组合实现；部署级调用频率策略仍由实际入口明确，不称为分布式限流。本片不改 package/lock、worker、公共 index、数据库 schema 或迁移。
 
 正式客户端配置须使用 X2 确认的精确部署 URL、已批准的 Cloudflare Access 接入方式及正式个人令牌方案；当前三者未就绪，所以本片不提供可直接连接的配置、不复用 895 的一次性测试认证值、不声明正式 Codex/Claude Code 已接通。
 

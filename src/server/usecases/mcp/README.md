@@ -9,14 +9,14 @@
 
 ## 原生组合与验证
 
-`createMcpPostgresTools` 和 `createMcpPostgresHttp` 接收实际Database、既有单一PgBoss、903 identities和必填同事务audit函数。它们直接构造真实需求/记录producer及三handler；不注册worker、不调用模型、不生成token。每账号最多2个并发业务调用，不同凭据共享限额，所有结束路径释放；HTTP映射容量不足为429，原全局8个POST上限保留。
+`createMcpPostgresTools` 和 `createMcpPostgresHttp` 接收实际Database、既有单一PgBoss、903原生MCP凭据reader和同事务recordEntryAudit函数。未显式提供测试instrumentation时，自动构造createMcpEntryAuthenticator、createEntryIdentityService并使用recordEntryAudit，不需调用方另造身份/审计实现。它们直接构造真实需求/记录producer及三handler；不注册worker、不调用模型、不生成token。每账号最多2个并发业务调用，不同凭据共享限额，所有结束路径释放；HTTP映射容量不足为429，原全局8个POST上限保留。
 
-事务采用Read Committed，领域operation锁后重读当前事实；执行前后903重验身份及权限，输出授权再次以真实当前来源/原生幂等重放确认。预算异常必须逃出完整事务后才映射validation_error。只有审计成功后才能提交业务和队列；审核写入函数不是可选noop。person完整来源图在读取前不按目标人裁剪，最后投影发生变化则整次拒绝，避免旧DTO泄露。
+事务采用Read Committed，领域operation锁后重读当前事实；执行前后903重验身份及权限，输出授权再次以真实当前来源/原生幂等重放确认。预算异常必须逃出完整事务后才映射validation_error。只有审计成功后才能提交业务和队列；审计默认始终为真实writer，不是可选noop。person完整来源图在读取前不按目标人裁剪，最后投影发生变化则整次拒绝，避免旧DTO泄露。
 
-统一单测和真实PG套件见 `postgres.integration.test.ts`：真实HTTP三工具、队列单次入队/并发重放/冲突、业务及队列/审计原子回滚、预算/字节上限、锁等待后撤权、读取中来源改变、真实目录换绑、每账号并发及错误释放。供应商token lookup是明确合成测试适配，当前目录/权限/业务/queue均是真实隔离PG。测试审计将五字段显式编码存入现有表，只证明同tx性质，不将该编码冒充批准的生产格式。
+统一单测和真实PG套件见 `postgres.integration.test.ts`：真实HTTP三工具、队列单次入队/并发重放/冲突、业务及队列/审计原子回滚、预算/字节上限、锁等待后撤权、读取中来源改变、真实目录换绑、每账号并发及错误释放。测试只插入合成凭据的域分离摘要；token lookup、目录/权限/业务/queue及metadata审计均为真实隔离PG。测试调度钩子仅在真实reader前制造撤销/换绑/来源变化，不替代身份事实。测试不创建生产凭据。原生结构未正式合入时，测试可显式消费X1提供的BOW_903_TEST_MIGRATIONS_DIR受控目录，不能当默认正式CI通过。
 
 ## 共享生产入口与整卡验收
 
-共享审计现只有actor/action/resourceId，channel/revision的正式记录方式由X1给出；本目录不静默丢字段或另造表，缺audit拒绝构造。903外部token digest/revision native reader、唯一Web路由及部署级频率策略仍由对应writer接线。没有默认账号、管理员兜底或假handler。
+已消费X1 b43b26a：真实审计保留nullable resourceId及严格channel/revision metadata，903 token摘要/绑定修订读取也已接入。正式DDL、唯一Web路由及部署级频率策略仍由对应writer接线。没有默认账号、管理员兜底或假handler。
 
 真实部署后的Cloudflare Access双客户端验收仍归整卡，不能用回环HTTP和测试身份替代。未配置的渠道保持拒绝；不签发或创建生产token。PR保持Refs #233 / Part of BOW-910，正式依赖和当前head检查/交叉审查齐后推进Ready。
