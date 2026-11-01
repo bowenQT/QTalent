@@ -6,6 +6,7 @@ import {
 } from './index';
 const config = {
   endpoint: 'https://objects.example.test',
+  s3Region: 'cn-east-1',
   uploadEndpoint: 'https://up.example.test',
   managementEndpoint: 'https://rs.example.test',
   accessKey: 'synthetic-ak',
@@ -82,7 +83,9 @@ describe('private Kodo adapter', () => {
       now: () => 1_700_000_000_000,
       requiredRemainingTtlMs: 10800000,
     });
-    expect(url.startsWith('https://cdn.example/synthetic/a?e=')).toBe(true);
+    expect(
+      url.startsWith('https://cdn.example/synthetic/a?X-Amz-Algorithm='),
+    ).toBe(true);
     expect(url).not.toContain(':443');
     expect(url).not.toContain('CDN');
   });
@@ -98,12 +101,14 @@ describe('private Kodo adapter', () => {
       requiredRemainingTtlMs: 11100000,
     });
     expect(JSON.stringify(source)).not.toContain('token');
+    expect(JSON.stringify(source)).not.toContain('X-Amz-');
+    expect(JSON.stringify(source)).not.toContain(config.accessKey);
     expect(
       takeTranscriptionSourceUrl(source, {
         now: () => time,
         requiredRemainingTtlMs: 10800000,
       }),
-    ).toContain('https://objects.example.test/synthetic/a?e=');
+    ).toContain('https://objects.example.test/synthetic/a?X-Amz-Algorithm=');
     time += 400000;
     expect(() =>
       takeTranscriptionSourceUrl(source, {
@@ -112,4 +117,30 @@ describe('private Kodo adapter', () => {
       }),
     ).toThrow();
   });
+});
+
+it('issues the frozen 2 GiB media limit in exact bytes without allocating an object', () => {
+  const network = vi.fn();
+  const client = createKodoClient(config, { now: () => 1000, fetch: network });
+  for (const byteLimit of [1_073_741_825, 2_000_000_000, 2_147_483_648]) {
+    const grant = client.issueUploadGrant({
+      objectKey: 'synthetic/limit',
+      byteLimit,
+      contentType: 'application/octet-stream',
+      expiresAt: 61000,
+    });
+    const policy = JSON.parse(
+      Buffer.from(grant.token.split(':')[2], 'base64url').toString(),
+    );
+    expect(policy.fsizeLimit).toBe(byteLimit);
+  }
+  expect(() =>
+    client.issueUploadGrant({
+      objectKey: 'synthetic/limit',
+      byteLimit: 2_147_483_649,
+      contentType: 'application/octet-stream',
+      expiresAt: 61000,
+    }),
+  ).toThrow(KodoError);
+  expect(network).not.toHaveBeenCalled();
 });

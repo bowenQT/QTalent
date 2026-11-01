@@ -33,6 +33,8 @@ importDemo 是显式服务端 seed 路径。函数自身通过 getEnv 读取运�
 
 importEvidence(db, input) 是内部正式完整证据批入口，实际解析后进入事务写入；没有新增 HTTP/Action。顶层和每条写入记录均 strict 解析，不先 strip 客户端控制字段。拒绝 prototype_baseline、prototype_snapshot、snapshot_field、demo=true 及无正式评价人/修改人的确认。全部版本、片段、事件与关联必须构成同一批的完整原件链，复合 ID 采用无歧义元组键；它不是后续“给已有事件确认分”的用例。实际人物必须为非 demo，实际规则必须已 published，不能只相信 payload 的 sourceCategory。
 
+内部正式事件导入可携明确的 evaluationNodeId；入口在事务中核对该节点与被评价人的既有 node/subject 事实，不从项目、姓名或当前期次补默认节点。错误节点或其他主体节点拒绝并保持整批回滚，核对后的节点原样写入事件、来源和确认分读取链。旧内部批次未提供节点时保留 null，只沿用原管理者/HR范围，评价人继续拒绝；这不是897新采集合同必填节点的替代。已存在的未映射事件不经重复导入暗中改属节点；demo固定快照回填与正式入口分开。
+
 正式调用方仍负责当前资源授权、原件真实性及可见范围；导入校验不是授权 API，也不允许通过任意 SQL 绕过。后续确认、修订和来源读取各由责任卡接入。
 
 正式事件的 situation 保留显式字符串，包括真实空字符串，不填造背景；缺字段或 null 仍拒绝，behavior 仍要求非空白。当前 main25af415 的 records_sbi 数据库 CHECK 尚要求情境非空，该约束的后续修正由 BOW-846 新迁移交付，本 mapper 不改 records schema 或已合迁移。解析正例不代表当前数据库已接受空背景；该写入场景待846迁移后联验。
