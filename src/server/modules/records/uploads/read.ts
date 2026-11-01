@@ -5,6 +5,7 @@ import {
 } from '../../../../contracts/media';
 import { UploadError, type UploadOptions, type ReadTicket } from './types';
 import { requireUploadAccount, safeUpload } from './service';
+import { readOriginalStorage } from './read-storage';
 const hash = (token: string) =>
   createHash('sha256').update(token).digest('hex');
 function parseRange(header?: string) {
@@ -139,9 +140,9 @@ export function createOriginalReader(options: UploadOptions) {
           throw new UploadError('validation_error', 'invalid_range');
         const expectedLength = expectedEnd - expectedStart + 1;
         const expectedContentRange = `bytes ${expectedStart}-${expectedEnd}/${object.byteLength}`;
-        const stat = await options.storage.statObject({
-          objectKey: object.objectKey,
-        });
+        const stat = await readOriginalStorage(() =>
+          options.storage.statObject({ objectKey: object.objectKey }),
+        );
         if (
           stat.key !== object.objectKey ||
           stat.byteLength !== object.byteLength ||
@@ -149,10 +150,9 @@ export function createOriginalReader(options: UploadOptions) {
           stat.etag !== object.etag
         )
           throw new UploadError('unavailable', 'original_integrity');
-        const opened = await options.storage.openObject({
-          objectKey: object.objectKey,
-          range,
-        });
+        const opened = await readOriginalStorage(() =>
+          options.storage.openObject({ objectKey: object.objectKey, range }),
+        );
         try {
           if (
             ticket.expiresAt <= now() ||
