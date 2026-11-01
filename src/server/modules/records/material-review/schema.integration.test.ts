@@ -4,6 +4,10 @@ import { readMediaReviewStateInTransaction } from './read';
 import { lockUploadCollection } from '../uploads/store';
 import { currentImageDecision } from './image-decision';
 import {
+  captureMediaMaterialInTransaction,
+  MediaCaptureUnavailable,
+} from '../../../usecases/media-capture';
+import {
   createInitialImageDisclosureReader,
   readInitialImageDisclosureInTransaction,
 } from '../../../usecases/media-initial-image';
@@ -989,3 +993,332 @@ it('retains another creator superseded intake as a restriction on the whole orig
     ),
   ).toMatchObject({ status: 'not_found' });
 });
+
+async function uncaptured() {
+  const f = await material();
+  await c.db
+    .delete(mediaReviewItems)
+    .where(eq(mediaReviewItems.materialId, f.row.id));
+  await c.db.delete(mediaMaterials).where(eq(mediaMaterials.id, f.row.id));
+  const command = {
+    materialId: f.row.id,
+    inputId: f.row.inputId,
+    inputVersion: f.row.inputVersion,
+    clientFileId: f.row.clientFileId,
+    uploadId: f.row.uploadId,
+    recordCollectionId: f.row.recordCollectionId,
+    originalVersionId: f.row.originalVersionId,
+    scope: {
+      subjects: [
+        { personId: f.target, evaluationNodeId: f.node, cohortId: f.cohort },
+      ],
+      kind: 'evaluation' as const,
+      requiredKinds: [],
+      occurredOn: '2026-11-01',
+    },
+  };
+  const capture = (input = command, account = f.account) =>
+    c.db.transaction((tx) =>
+      captureMediaMaterialInTransaction(
+        tx,
+        account,
+        input,
+        '2026-11-01T12:00:00Z',
+      ),
+    );
+  const audits = () =>
+    c.db.select().from(auditEvents).where(eq(auditEvents.resourceId, f.row.id));
+  return { ...f, command, capture, audits };
+}
+
+it('captures exact native media provenance with one real audit and replays without changing intake or job facts', async () => {
+  const f = await uncaptured();
+  const beforeJob = await c.db
+    .select()
+    .from(jobSnapshots)
+    .where(eq(jobSnapshots.jobId, f.row.inputId));
+  const beforeInput = await c.db
+    .select()
+    .from(arrangeInputs)
+    .where(eq(arrangeInputs.id, f.row.inputId));
+  const created = await f.capture();
+  expect(created.replayed).toBe(false);
+  expect(created.material).toMatchObject({
+    ...f.row,
+    intakeScope: f.command.scope,
+    scopeAuditId: expect.any(String),
+  });
+  expect(await f.audits()).toMatchObject([
+    {
+      id: created.material.scopeAuditId,
+      actorId: f.account,
+      action: 'material.capture',
+      resourceId: f.row.id,
+    },
+  ]);
+  expect(await f.capture()).toEqual({ ...created, replayed: true });
+  expect(await f.audits()).toHaveLength(1);
+  expect(
+    await c.db
+      .select()
+      .from(jobSnapshots)
+      .where(eq(jobSnapshots.jobId, f.row.inputId)),
+  ).toEqual(beforeJob);
+  expect(
+    await c.db
+      .select()
+      .from(arrangeInputs)
+      .where(eq(arrangeInputs.id, f.row.inputId)),
+  ).toEqual(beforeInput);
+});
+
+it('retains unknown capture scope and never upgrades it through a replay', async () => {
+  const f = await uncaptured();
+  const unknown = { ...f.command, scope: null };
+  const first = await c.db.transaction((tx) =>
+    captureMediaMaterialInTransaction(
+      tx,
+      f.account,
+      unknown,
+      '2026-11-01T12:00:00Z',
+    ),
+  );
+  expect(first.material.intakeScope).toBeNull();
+  expect(first.material.scopeAuditId).toBeNull();
+  expect(await f.audits()).toEqual([]);
+  await expect(f.capture()).rejects.toBeInstanceOf(MediaCaptureUnavailable);
+  expect(
+    (
+      await c.db
+        .select()
+        .from(mediaMaterials)
+        .where(eq(mediaMaterials.id, f.row.id))
+    )[0].intakeScope,
+  ).toBeNull();
+});
+
+it('keeps capture and audit invisible outside and rolls both back with the caller', async () => {
+  const f = await uncaptured();
+  const failure = new Error('synthetic capture rollback');
+  await expect(
+    c.db.transaction(async (tx) => {
+      const result = await captureMediaMaterialInTransaction(
+        tx,
+        f.account,
+        f.command,
+        '2026-11-01T12:00:00Z',
+      );
+      expect(result.material.scopeAuditId).not.toBeNull();
+      expect(
+        await c.db
+          .select()
+          .from(mediaMaterials)
+          .where(eq(mediaMaterials.id, f.row.id)),
+      ).toEqual([]);
+      expect(await f.audits()).toEqual([]);
+      throw failure;
+    }),
+  ).rejects.toBe(failure);
+  expect(
+    await c.db
+      .select()
+      .from(mediaMaterials)
+      .where(eq(mediaMaterials.id, f.row.id)),
+  ).toEqual([]);
+  expect(await f.audits()).toEqual([]);
+});
+
+it.each([
+  'binding',
+  'revoked',
+  'released',
+  'superseded',
+  'cancelled',
+  'running',
+] as const)(
+  'refuses capture after current %s changes without writing audit or material',
+  async (change) => {
+    const f = await uncaptured();
+    if (change === 'binding')
+      await c.db
+        .update(accountBindings)
+        .set({ personId: f.other })
+        .where(eq(accountBindings.accountId, f.account));
+    if (change === 'revoked')
+      await c.db
+        .update(evaluationRelations)
+        .set({ revokedAt: '2026-11-01T00:00:00Z' })
+        .where(eq(evaluationRelations.evaluatorId, f.evaluator));
+    if (change === 'released')
+      await c.db
+        .update(uploadIntents)
+        .set({
+          releasedAt: 150,
+          releaseOperationId: randomUUID(),
+          releaseFingerprint: 'e'.repeat(64),
+        })
+        .where(eq(uploadIntents.id, f.row.uploadId));
+    if (change === 'superseded') {
+      const replacement = await material();
+      await c.db
+        .update(arrangeInputs)
+        .set({ supersededByInputId: replacement.row.inputId })
+        .where(eq(arrangeInputs.id, f.row.inputId));
+    }
+    if (change === 'cancelled')
+      await c.db
+        .update(jobSnapshots)
+        .set({ cancelRequestedAt: '2026-11-01T00:00:00Z' })
+        .where(eq(jobSnapshots.jobId, f.row.inputId));
+    if (change === 'running')
+      await c.db
+        .update(jobSnapshots)
+        .set({ status: 'running' })
+        .where(eq(jobSnapshots.jobId, f.row.inputId));
+    await expect(f.capture()).rejects.toBeInstanceOf(MediaCaptureUnavailable);
+    expect(await f.audits()).toEqual([]);
+    expect(
+      await c.db
+        .select()
+        .from(mediaMaterials)
+        .where(eq(mediaMaterials.id, f.row.id)),
+    ).toEqual([]);
+  },
+);
+
+it.each([
+  'date',
+  'cohort',
+  'node',
+  'missing-person',
+  'restricted-kind',
+  'version',
+  'file-id',
+] as const)(
+  'rejects inconsistent or changed %s facts without overwriting original capture',
+  async (change) => {
+    const f = await uncaptured();
+    const first = await f.capture();
+    const command = structuredClone(f.command);
+    if (change === 'date') command.scope.occurredOn = '2026-10-31';
+    if (change === 'cohort')
+      command.scope.subjects[0].cohortId = 'unknown-cohort';
+    if (change === 'node')
+      command.scope.subjects[0].evaluationNodeId = 'unknown-node';
+    if (change === 'missing-person')
+      command.scope.subjects[0].personId = f.other;
+    if (change === 'restricted-kind')
+      Object.assign(command.scope, {
+        requiredKinds: ['restricted-evaluation'],
+      });
+    if (change === 'version') command.inputVersion = randomUUID();
+    if (change === 'file-id') command.clientFileId = randomUUID();
+    await expect(f.capture(command)).rejects.toBeInstanceOf(
+      MediaCaptureUnavailable,
+    );
+    expect(
+      await c.db
+        .select()
+        .from(mediaMaterials)
+        .where(eq(mediaMaterials.id, f.row.id)),
+    ).toEqual([first.material]);
+    expect(await f.audits()).toHaveLength(1);
+  },
+);
+
+it('serializes duplicate capture into one immutable row and audit', async () => {
+  const f = await uncaptured();
+  const results = await Promise.all([f.capture(), f.capture()]);
+  expect(results.map((r) => r.replayed).sort()).toEqual([false, true]);
+  expect(results[0].material).toEqual(results[1].material);
+  expect(await f.audits()).toHaveLength(1);
+});
+
+it('does not create an initial capture after canonical publication or accept another material audit', async () => {
+  const f = await uncaptured();
+  await c.db.insert(fragments).values({
+    id: randomUUID(),
+    originalVersionId: f.row.originalVersionId,
+    excerpt: '演示原件片段',
+    location: { kind: 'document', paragraph: '1' },
+  });
+  await expect(f.capture()).rejects.toBeInstanceOf(MediaCaptureUnavailable);
+  expect(await f.audits()).toEqual([]);
+  const valid = await uncaptured();
+  await valid.capture();
+  const unrelated = await recordAudit(c.db, {
+    actorId: valid.account,
+    action: 'unrelated',
+    resourceId: valid.row.id,
+  });
+  await c.db
+    .update(mediaMaterials)
+    .set({ scopeAuditId: unrelated })
+    .where(eq(mediaMaterials.id, valid.row.id));
+  await expect(valid.capture()).rejects.toBeInstanceOf(MediaCaptureUnavailable);
+});
+
+it('waits on the real collection quota lock and rejects a release committed during that wait', async () => {
+  const f = await uncaptured();
+  let reading: Promise<unknown> | undefined;
+  let signal!: (pid: number) => void;
+  let reject!: (error: unknown) => void;
+  const ready = new Promise<number>((resolve, fail) => {
+    signal = resolve;
+    reject = fail;
+  });
+  try {
+    await c.db.transaction(async (tx) => {
+      await tx.execute(sql`set local statement_timeout = '10s'`);
+      await lockUploadCollection(tx, f.row.recordCollectionId);
+      const blocker = await tx.execute<{ pid: number }>(
+        sql`select pg_backend_pid() as pid`,
+      );
+      reading = c.db.transaction(async (reader) => {
+        await reader.execute(sql`set local statement_timeout = '10s'`);
+        const pid = await reader.execute<{ pid: number }>(
+          sql`select pg_backend_pid() as pid`,
+        );
+        signal(pid.rows[0].pid);
+        return captureMediaMaterialInTransaction(
+          reader,
+          f.account,
+          f.command,
+          '2026-11-01T12:00:00Z',
+        );
+      });
+      void reading.catch(reject);
+      const readerPid = await ready;
+      await expect
+        .poll(
+          async () => {
+            const result = await c.db.execute<{ blocked: boolean }>(
+              sql`select ${blocker.rows[0].pid}::int = any(pg_blocking_pids(${readerPid}::int)) as blocked`,
+            );
+            return result.rows[0].blocked;
+          },
+          { timeout: 5000 },
+        )
+        .toBe(true);
+      await tx
+        .update(uploadIntents)
+        .set({
+          releasedAt: 300,
+          releaseOperationId: randomUUID(),
+          releaseFingerprint: 'e'.repeat(64),
+          revision: 2,
+        })
+        .where(eq(uploadIntents.id, f.row.uploadId));
+    });
+    await expect(reading).rejects.toBeInstanceOf(MediaCaptureUnavailable);
+    expect(await f.audits()).toEqual([]);
+    expect(
+      await c.db
+        .select()
+        .from(mediaMaterials)
+        .where(eq(mediaMaterials.id, f.row.id)),
+    ).toEqual([]);
+  } finally {
+    if (reading) await Promise.allSettled([reading]);
+  }
+}, 15000);

@@ -1,14 +1,7 @@
-import { eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Database, Transaction } from '../db/client';
 import { canReadTalent } from '../authz/talent';
-import { accountBindings, grants, people } from '../modules/directory';
-import {
-  evaluationNodes,
-  evaluationNodeSubjects,
-  evaluationRelations,
-  enrollments,
-} from '../modules/programs';
+import { lockMediaAuthorityFacts } from './media-authority-locks';
 import {
   readMediaReviewStateInTransaction,
   currentImageDecision,
@@ -111,46 +104,7 @@ export async function readInitialImageDisclosureInTransaction(
       JSON.stringify([...state.upload.target.personIds].sort())
   )
     return null;
-  await tx
-    .select()
-    .from(accountBindings)
-    .where(eq(accountBindings.accountId, accountId))
-    .for('share');
-  await tx
-    .select()
-    .from(grants)
-    .where(eq(grants.accountId, accountId))
-    .orderBy(grants.id)
-    .for('share');
-  await tx
-    .select()
-    .from(people)
-    .where(inArray(people.id, ids))
-    .orderBy(people.id)
-    .for('share');
-  await tx
-    .select()
-    .from(evaluationNodes)
-    .where(inArray(evaluationNodes.id, nodes))
-    .orderBy(evaluationNodes.id)
-    .for('share');
-  await tx
-    .select()
-    .from(evaluationNodeSubjects)
-    .where(inArray(evaluationNodeSubjects.personId, ids))
-    .for('share');
-  await tx
-    .select()
-    .from(evaluationRelations)
-    .where(inArray(evaluationRelations.personId, ids))
-    .orderBy(evaluationRelations.id)
-    .for('share');
-  await tx
-    .select()
-    .from(enrollments)
-    .where(inArray(enrollments.personId, ids))
-    .orderBy(enrollments.id)
-    .for('share');
+  await lockMediaAuthorityFacts(tx, accountId, ids, nodes);
   let actor;
   try {
     actor = await loadArrangeActor(tx, accountId, businessNow);

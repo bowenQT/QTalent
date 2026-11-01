@@ -18,3 +18,7 @@
 输入表已接严格内部媒体变体；旧文本消费者显式收窄并保持原严格文本合同。846 内部批次与 save 账本已沿用严格 StoredRecordOriginalInput 保存媒体材料 ID，不伪造原话；AI 草稿 origin 仍为 ai_suggestion，公开文本 RecordInput 与撤销的 unavailable/null 投影不放宽。此内部写入端口仍要求 producer 在同事务完成真实来源授权，结构接通本身不能处理尚无 canonical 完整来源的媒体。canonical 图片来源已在同一 person/source 快照读取全部捕获范围与经926验证的解析包，保留其他创建者和 superseded intake 限制；未知范围、缺实际捕获审计、解析篡改失败关闭，公开读取仍走现有当前权限。此片仅开放 original 类图片；其他媒体类别仍失败关闭，等待各 producer 的真实分类。捕获写端必须在原件版本锁下追加真实范围事实，不能改写已知捕获范围或绕过完整共同主体；保存图锁与来源复读保持既有边界。845 createFromSources producer、媒体确认整链和 worker 的媒体分支仍待接入。此交付不宣称图片→模型→926→845整链完成，不宣称生产路由可用。人工补采集流程尚待所有者选择，不把结构注释变成全材料强制确认。
 
 正式迁移遵守873→269游标。所有测试默认使用正式迁移；本机媒体及文本/保存组合回归可显式传 `QTALENT_MEDIA_TEST_MIGRATIONS` 指向 Drizzle 原生生成的临时目录，SQL/meta 不进仓库。临时结构通过不等于默认正式CI通过。
+
+`captureMediaMaterialInTransaction(tx, accountId, input, now)`（usecases/media-capture.ts）提供内部原件登记：调用方已经在同事务建立媒体 intake/job，材料 ID 已在内部媒体子集预留，且 job 仍在未生成草稿的 awaiting_manual 阶段。它按 quota → job → input → material → original → 当前身份/节点事实锁序核当前完成上传、同批、原件摘要与输入签名，再写材料及真实 material.capture 审计。相同 ID 只能重放完全相同事实；未知范围保持 null，不从上传 target 或创建者推为完整范围，也不能用重放升级范围。新登记不得晚于 canonical 发布。既有公共文本入口、队列和 worker 不变。
+
+该函数只供可信 intake 编排，不能直接接客户端 scope。完整主体、性质和发生日期须由已有可信采集来源提供；此函数验证其与输入、节点、当前权限的一致性，不能证明调用方遗漏了哪些现实主体。当前未新增采集 UI/HTTP 路由，也未实现全部媒体 intake producer。私有作者可消费该原生登记端口，但 review/undo、批次创建及模型恢复仍须各自真实接通并验证，不能据本登记宣称整链已完成。
