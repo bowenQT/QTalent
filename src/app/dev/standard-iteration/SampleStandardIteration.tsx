@@ -9,6 +9,7 @@ import {
   SelectionRevisionPage,
   SelectionStandardCurrent,
 } from '@/features/standard-iteration/revision/SelectionStandard';
+import { applyChanges } from '@/features/standard-iteration/revision/revision-view';
 import {
   createSampleStore,
   managerView,
@@ -90,7 +91,18 @@ export function SampleStandardIteration({ query }: { query: SampleQuery }) {
               }
             : sampleStandardVersion
         }
-        content={sampleStandard}
+        content={
+          // A published revision is the current standard: its confirmed changes apply.
+          revision?.state === 'active' && revision.humanVersion
+            ? {
+                ...sampleStandard,
+                reviewPoints: applyChanges(
+                  sampleStandard.reviewPoints,
+                  revision.humanVersion.changes,
+                ),
+              }
+            : sampleStandard
+        }
         draftHref={query.role === 'hr' ? `${judgeHref}#attrib` : null}
       />
     );

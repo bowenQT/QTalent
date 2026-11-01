@@ -401,6 +401,52 @@ describe('HrRevision failures', () => {
     ).toBeTruthy();
   });
 
+  it('asks to save or cancel an open point before saving or submitting', async () => {
+    const user = userEvent.setup();
+    const ports = {
+      save: vi.fn(),
+      submit: fail(conflict),
+      withdraw: vi.fn(),
+    };
+    wrap(
+      <HrRevision
+        initial={{ ...draft, humanVersion: pending.humanVersion }}
+        base={sampleStandard.reviewPoints}
+        ports={ports}
+        judgeHref="/judge"
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '改要点 1' }));
+    await user.type(screen.getByLabelText('要点说明'), '，另看现场演示');
+    await user.click(screen.getByRole('button', { name: '提交管理者确认' }));
+    expect(screen.getByRole('alert').textContent).toBe(
+      '提交前还要：保存或取消正在编辑的要点。',
+    );
+    expect(ports.submit).not.toHaveBeenCalled();
+    // Cancelling drops the open input; the saved draft can go to the manager.
+    await user.click(screen.getByRole('button', { name: '取消' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    await user.click(screen.getByRole('button', { name: '提交管理者确认' }));
+    expect(ports.submit).toHaveBeenCalledTimes(1);
+    cleanup();
+
+    wrap(
+      <HrRevision
+        initial={{ ...draft, aiDraft: null }}
+        base={sampleStandard.reviewPoints}
+        ports={ports}
+        judgeHref="/judge"
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '删除要点 4' }));
+    await user.click(screen.getByRole('button', { name: '改要点 1' }));
+    await user.click(screen.getByRole('button', { name: '保存并预览影响' }));
+    expect(screen.getByRole('alert').textContent).toBe(
+      '保存前还要：保存或取消正在编辑的要点。',
+    );
+    expect(ports.save).not.toHaveBeenCalled();
+  });
+
   it('keeps the submit when the undo cannot withdraw it', async () => {
     const user = userEvent.setup();
     const ports = {
@@ -801,6 +847,35 @@ describe('judge summaries', () => {
     expect(
       screen.getByRole('heading', { name: '这位评价人的判断会出现在这里' }),
     ).toBeTruthy();
+  });
+
+  it('shows a rater grade spread only once the sample reaches the threshold', () => {
+    const xu = sampleRaterPage('xu');
+    expect(xu.sample.state).toBe('sufficient_sample');
+    const rater = (sample: typeof xu.sample) =>
+      wrap(
+        <JudgeRater
+          self={false}
+          raterName="许致远"
+          cases={xu.cases}
+          sample={sample}
+          mapping={null}
+          back={{ href: '/judge', label: '回到判断对照' }}
+        />,
+      );
+    rater(xu.sample);
+    expect(screen.getByText(/许致远给出的等级：/)).toBeTruthy();
+    cleanup();
+    rater({
+      state: 'insufficient_sample',
+      label: '样本不足',
+      threshold: 5,
+      comparableCaseCount: 4,
+      caseIds: xu.cases.map((unit) => unit.id),
+    });
+    expect(screen.getByRole('heading', { name: '样本不足' })).toBeTruthy();
+    expect(screen.queryByText(/给出的等级/)).toBeNull();
+    expect(screen.getAllByTestId('judge-case').length).toBe(xu.cases.length);
   });
 
   it('names a batch by its cohort when the caller has no batch name', () => {

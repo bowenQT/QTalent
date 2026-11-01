@@ -383,6 +383,29 @@ describe('Manager: 确认发布', () => {
     expect(screen.queryByRole('button', { name: /确认发布/ })).toBeNull();
   });
 
+  it('shows the published content as the standard in force', async () => {
+    const user = userEvent.setup();
+    walk({ role: 'manager', view: 'standard', seed: 'pending' });
+    await user.click(
+      await screen.findByRole('button', { name: '确认发布 xe-select-v2' }),
+    );
+    await user.click(
+      within(
+        await screen.findByRole('dialog', { name: '确认发布 xe-select-v2？' }),
+      ).getByRole('button', { name: '确认发布 xe-select-v2' }),
+    );
+    await screen.findByText(
+      '已发布 xe-select-v2，之后新建的期次默认用新版',
+      {},
+      slow,
+    );
+    cleanup();
+    walk({ view: 'standard', seed: null });
+    await screen.findByText('生效中 xe-select-v2');
+    expect(screen.getByText(/个人贡献核验/)).toBeTruthy();
+    expect(screen.getByText(/每一档写清要看到本人做了哪部分/)).toBeTruthy();
+  });
+
   it('sees per-batch counts and categories only, no cases or raters', async () => {
     walk({ role: 'manager' });
     expect(await screen.findByText('判断对照')).toBeTruthy();
@@ -409,6 +432,7 @@ describe('Rater: 我的判断对照', () => {
   it('shows 样本不足 below the threshold, without any figure', async () => {
     walk({ role: 'rater', rater: 'gu' });
     expect((await screen.findAllByText(/样本不足/)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/给出的等级/)).toBeNull();
   });
 
   it('lets HR read one rater, linked back to the batch', async () => {
