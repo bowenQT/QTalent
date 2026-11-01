@@ -6,7 +6,7 @@ import { and, eq } from 'drizzle-orm';
 import { createDatabase } from '../db/client';
 import { importDemo } from '../db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '../db/seed';
-import { assignments } from '../modules/programs';
+import { evaluationRelations } from '../modules/programs';
 import { loadPersonData, talentSources } from './person-data';
 import { buildAuthorizedModelInput } from '../authz/talent';
 import { sourceFromData } from './sources';
@@ -134,12 +134,12 @@ it('reloads real relationship revocation without granting a review from the same
   const { data, result } = await historical('demo-mentor', '训练营周评');
   expect(result.status).toBe('success');
   await connection!.db
-    .update(assignments)
-    .set({ revokedAt: '2026-11-01' })
+    .update(evaluationRelations)
+    .set({ revokedAt: '2026-11-01T00:00:00.000Z' })
     .where(
       and(
-        eq(assignments.personId, data.context.account.personId),
-        eq(assignments.studentId, target),
+        eq(evaluationRelations.evaluatorId, data.context.account.personId),
+        eq(evaluationRelations.personId, target),
       ),
     );
   expect((await historical('demo-mentor', '训练营周评')).result.status).toBe(
