@@ -1,0 +1,19 @@
+{
+  "reviewPoints": [
+    {
+      "id": "work-completeness-innovation",
+      "title": "作品完整度与创新性",
+      "description": "演示要点：检查可运行的主流程、作品边界与有依据的方案取舍。"
+    },
+    {
+      "id": "development-process-quality",
+      "title": "开发过程与质量",
+      "description": "演示要点：检查过程记录、失败恢复与可复现的验证步骤。"
+    },
+    {
+      "id": "demo-expression",
+      "title": "演示与表达",
+      "description": "演示要点：说明本人贡献、现场演示过程，并回应具体问题。"
+    }
+  ]
+}
