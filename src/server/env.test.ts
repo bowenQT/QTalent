@@ -7,6 +7,22 @@ const local = {
   BETTER_AUTH_URL: 'http://localhost:3000',
 };
 describe('runtime configuration', () => {
+  it('preserves optional Modelink settings without blocking unrelated startup', () => {
+    const settings = {
+      MODELINK_API_KEY: 'synthetic-offline-key',
+      MODELINK_BASE_URL: 'https://api.modelink.ai/v1',
+      MODELINK_MODEL: 'google/gemini-3.8-flash',
+    };
+    expect(parseEnv({ ...local, ...settings })).toMatchObject(settings);
+    expect(
+      parseEnv({
+        ...local,
+        MODELINK_API_KEY: '',
+        MODELINK_BASE_URL: 'unconfigured',
+        MODELINK_MODEL: 'unconfigured',
+      }).APP_ENV,
+    ).toBe('test');
+  });
   it('accepts isolated test settings without optional external integrations', () =>
     expect(parseEnv(local).APP_ENV).toBe('test'));
   it('rejects missing database and short authentication secret', () => {
