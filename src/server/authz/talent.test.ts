@@ -572,9 +572,29 @@ describe('provenance restriction and expiry edge cases', () => {
       { kind: 'document' as const, paragraph: 'P2' },
       { kind: 'spreadsheet' as const, sheet: 'Sheet1', cell: 'B2' },
       { kind: 'recording' as const, startMs: 0, endMs: 1000 },
+      { kind: 'pdf' as const, page: 1, textRange: { start: 0, end: 3 } },
+      { kind: 'presentation' as const, slide: 2 },
+      { kind: 'video' as const, startMs: 0, endMs: 1000 },
+      {
+        kind: 'image' as const,
+        region: { left: 0, top: 0, right: 1, bottom: 1 },
+      },
+      {
+        kind: 'code' as const,
+        repository: 'synthetic-demo',
+        commit: 'a'.repeat(40),
+        path: 'src/demo.ts',
+        startLine: 1,
+        endLine: 3,
+      },
     ]) {
       const candidate = {
-        ...source({ location }),
+        ...source({
+          location: {
+            ...location,
+            rawText: 'must not escape',
+          } as unknown as typeof location,
+        }),
         rawOriginal: 'Must not escape',
       };
       const load = async () => ({

@@ -1,3 +1,4 @@
+import type { MaterialSourceLocation } from '../../contracts/sources';
 import {
   activeGrants,
   isCurrent,
@@ -48,6 +49,7 @@ export interface TalentSourceReference {
   originalVersionId: string;
 }
 export type TalentSourceLocation =
+  | MaterialSourceLocation
   | { kind: 'document'; page?: number; paragraph: string }
   | { kind: 'spreadsheet'; sheet: string; cell: string }
   | { kind: 'recording'; startMs: number; endMs: number }
@@ -260,20 +262,65 @@ function visibleSource(source: TalentSource): VisibleTalentSource {
           : { originalLocation: location.originalLocation }),
       },
     };
-  const safeLocation: TalentSourceLocation =
-    location.kind === 'document'
-      ? {
-          kind: 'document',
-          paragraph: location.paragraph,
-          ...(location.page === undefined ? {} : { page: location.page }),
-        }
-      : location.kind === 'spreadsheet'
-        ? { kind: 'spreadsheet', sheet: location.sheet, cell: location.cell }
-        : {
-            kind: 'recording',
-            startMs: location.startMs,
-            endMs: location.endMs,
-          };
+  let safeLocation: TalentSourceLocation;
+  switch (location.kind) {
+    case 'document':
+      safeLocation = {
+        kind: 'document',
+        paragraph: location.paragraph,
+        ...(location.page === undefined ? {} : { page: location.page }),
+      };
+      break;
+    case 'spreadsheet':
+      safeLocation = {
+        kind: 'spreadsheet',
+        sheet: location.sheet,
+        cell: location.cell,
+      };
+      break;
+    case 'recording':
+    case 'video':
+      safeLocation = {
+        kind: location.kind,
+        startMs: location.startMs,
+        endMs: location.endMs,
+      };
+      break;
+    case 'pdf':
+      safeLocation = {
+        kind: 'pdf',
+        page: location.page,
+        textRange: {
+          start: location.textRange.start,
+          end: location.textRange.end,
+        },
+      };
+      break;
+    case 'presentation':
+      safeLocation = { kind: 'presentation', slide: location.slide };
+      break;
+    case 'image':
+      safeLocation = {
+        kind: 'image',
+        region: {
+          left: location.region.left,
+          top: location.region.top,
+          right: location.region.right,
+          bottom: location.region.bottom,
+        },
+      };
+      break;
+    case 'code':
+      safeLocation = {
+        kind: 'code',
+        repository: location.repository,
+        commit: location.commit,
+        path: location.path,
+        startLine: location.startLine,
+        endLine: location.endLine,
+      };
+      break;
+  }
   return {
     fragmentId: source.fragmentId,
     originalVersionId: source.originalVersionId,

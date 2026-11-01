@@ -5,6 +5,8 @@ export {
   originals,
   originalVersions,
   fragments,
+  materialParses,
+  materialPdfPages,
   events,
   eventParticipants,
   eventSources,
