@@ -20,6 +20,10 @@ import {
   executeSelectionRevision,
   readSelectionCohortVersion,
 } from '../../../usecases/selection-standard';
+import {
+  bindExistingSelectionCohort,
+  createSelectionCohort,
+} from '../../../usecases/selection-standard-native';
 import { cohorts } from '../../programs';
 import {
   organizations,
@@ -791,5 +795,33 @@ describe('918 原生事务持久适配（真实PG）', () => {
         at: now,
       }),
     ).toMatchObject({ status: 'success', version: { versionId: 'rubric-v1' } });
+  });
+  it('真实发布后不把未绑定旧期次补成新版；同tx新建期次才采用新版', async () => {
+    await publication('native-cohort');
+    await expect(
+      bindExistingSelectionCohort(db(), manager, eighth.id, clock),
+    ).rejects.toThrow();
+    await expect(
+      createSelectionCohort(db(), manager, eighth, clock),
+    ).rejects.toThrow('已有期次缺少创建时绑定');
+    expect(
+      await db()
+        .select()
+        .from(selectionCohortBindings)
+        .where(eq(selectionCohortBindings.cohortId, eighth.id)),
+    ).toEqual([]);
+    const newCohort = {
+      id: 'selection-demo-new-after-publish',
+      name: '发布后新期次（演示）',
+    };
+    const saved = await createSelectionCohort(db(), manager, newCohort, clock);
+    expect(saved.standardVersionId).toBe('xe-select-v2');
+    expect(
+      await createSelectionCohort(db(), manager, newCohort, clock),
+    ).toEqual(saved);
+    await db()
+      .delete(selectionCohortBindings)
+      .where(eq(selectionCohortBindings.cohortId, newCohort.id));
+    await db().delete(cohorts).where(eq(cohorts.id, newCohort.id));
   });
 });

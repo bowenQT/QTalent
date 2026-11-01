@@ -133,7 +133,7 @@ function conflict(): never {
     '选拔标准或事务版本已变化，请刷新后重试',
   );
 }
-function storageFailure(error: unknown): Error {
+export function selectionStorageFailure(error: unknown): Error {
   if (
     error instanceof SelectionLifecycleError ||
     error instanceof SelectionPersistenceUnavailableError
@@ -279,6 +279,48 @@ export interface SelectionPostgresServices {
     cohortId: string,
   ): Promise<SelectionCohortBinding['cohort'] | null>;
 }
+async function readCurrentSelectionVersion(
+  tx: Transaction,
+  current: Head,
+  now: string,
+) {
+  const result = await readEffectiveRuleVersion(
+    tx,
+    { category: 'xe_selection', at: now },
+    () => new Date(now),
+  );
+  if (result.status !== 'success')
+    throw new SelectionLifecycleError(result.status, result.message);
+  const period = (
+    await tx
+      .select()
+      .from(ruleVersionApplicability)
+      .where(eq(ruleVersionApplicability.periodId, current.currentPeriodId))
+  )[0];
+  if (
+    !period ||
+    current.versionId !== result.version.versionId ||
+    period.category !== 'xe_selection' ||
+    period.versionId !== current.versionId ||
+    period.effectiveFrom.toISOString() !== result.version.effectiveFrom ||
+    period.effectiveUntil !== null ||
+    result.version.effectiveUntil !== null
+  )
+    conflict();
+  return result.version;
+}
+
+function unpackBinding(row: typeof selectionCohortBindings.$inferSelect) {
+  const binding = selectionCohortBindingSchema.parse(row.binding);
+  if (
+    binding.cohort.id !== row.cohortId ||
+    binding.standardVersionId !== row.versionId ||
+    Date.parse(binding.boundAt) !== row.boundAt.getTime()
+  )
+    throw new SelectionPersistenceUnavailableError();
+  return binding;
+}
+
 export function createSelectionPostgresStore(
   db: Database,
   services: SelectionPostgresServices,
@@ -392,7 +434,7 @@ export function createSelectionPostgresStore(
         },
       );
     } catch (error) {
-      throw storageFailure(error);
+      throw selectionStorageFailure(error);
     }
   }
   async function record(tx: SelectionPostgresTransaction, id: string) {
@@ -421,32 +463,11 @@ export function createSelectionPostgresStore(
     return selectionStandardContentSchema.parse(row.content);
   }
   async function currentVersion(tx: SelectionPostgresTransaction) {
-    const current = head(tx);
-    const now = authority(tx).context.now;
-    const result = await readEffectiveRuleVersion(
+    return readCurrentSelectionVersion(
       tx.db,
-      { category: 'xe_selection', at: now },
-      () => new Date(now),
+      head(tx),
+      authority(tx).context.now,
     );
-    if (result.status !== 'success')
-      throw new SelectionLifecycleError(result.status, result.message);
-    const period = (
-      await tx.db
-        .select()
-        .from(ruleVersionApplicability)
-        .where(eq(ruleVersionApplicability.periodId, current.currentPeriodId))
-    )[0];
-    if (
-      !period ||
-      current.versionId !== result.version.versionId ||
-      period.category !== 'xe_selection' ||
-      period.versionId !== current.versionId ||
-      period.effectiveFrom.toISOString() !== result.version.effectiveFrom ||
-      period.effectiveUntil !== null ||
-      result.version.effectiveUntil !== null
-    )
-      conflict();
-    return result.version;
   }
   async function putRecord(
     tx: SelectionPostgresTransaction,
@@ -911,16 +932,6 @@ export function createSelectionPostgresStore(
       .orderBy(selectionCohortBindings.cohortId);
     return rows.map((row) => unpackBinding(row)).sort(compareBindings);
   }
-  function unpackBinding(row: typeof selectionCohortBindings.$inferSelect) {
-    const binding = selectionCohortBindingSchema.parse(row.binding);
-    if (
-      binding.cohort.id !== row.cohortId ||
-      binding.standardVersionId !== row.versionId ||
-      Date.parse(binding.boundAt) !== row.boundAt.getTime()
-    )
-      throw new SelectionPersistenceUnavailableError();
-    return binding;
-  }
   const ports: SelectionStandardPorts<SelectionPostgresTransaction> = {
     transact: (lock, work) => transact(lock, work, true),
     read: (work) => transact(null, work, false),
@@ -1116,13 +1127,7 @@ export function createSelectionPostgresStore(
         if (!(error instanceof SelectionLifecycleError)) throw error;
         authorizeSelectionAction(authority(tx), 'hr', cohortId);
       }
-      const row = (
-        await tx.db
-          .select()
-          .from(selectionCohortBindings)
-          .where(eq(selectionCohortBindings.cohortId, cohortId))
-      )[0];
-      return row ? unpackBinding(row) : null;
+      return readStoredSelectionCohortBinding(tx.db, cohortId);
     },
     async allocateId(tx) {
       state(tx, true);
@@ -1225,24 +1230,16 @@ export function createSelectionPostgresStore(
       if (!(error instanceof SelectionLifecycleError)) throw error;
       authorizeSelectionAction(fresh, 'hr', cohortId);
     }
-    const existing = await ports.readCohortBinding(tx, cohortId);
-    if (existing) return existing;
     const cohort = await services.readCohort(tx.db, fresh, cohortId);
     if (!cohort)
       throw new SelectionLifecycleError('not_found', '期次不存在或不可见');
     if (cohort.id !== cohortId) conflict();
-    const binding = planSelectionCohortBinding(
+    const { binding, created } = await bindSelectionCohortFacts(
+      tx.db,
       fresh,
       cohort,
-      null,
-      await currentVersion(tx),
     );
-    await tx.db.insert(selectionCohortBindings).values({
-      cohortId,
-      versionId: binding.standardVersionId,
-      binding,
-      boundAt: new Date(binding.boundAt),
-    });
+    if (!created) return binding;
     current.effect = { kind: 'binding', binding };
     current.auditedAction = null;
     await ports.audit(tx, {
@@ -1271,92 +1268,251 @@ export async function initializeSelectionBaseline(
   clock: () => Date = () => new Date(),
 ) {
   try {
-    const input = baselineSchema.parse(raw);
     return await db.transaction(
-      async (tx) => {
-        await lockRuleCategory(tx, 'xe_selection');
-        const now = clock();
-        const current = await readEffectiveRuleVersion(
-          tx,
-          { category: 'xe_selection', at: now.toISOString() },
-          () => now,
-        );
-        if (
-          current.status !== 'success' ||
-          current.version.versionId !== input.versionId ||
-          current.version.effectiveUntil !== null ||
-          input.nextVersionOrdinal <=
-            Number(input.versionId.slice('xe-select-v'.length))
-        )
-          conflict();
-        const period = (
-          await tx
-            .select()
-            .from(ruleVersionApplicability)
-            .where(
-              eq(ruleVersionApplicability.periodId, input.existingPeriodId),
-            )
-            .for('update')
-        )[0];
-        if (
-          !period ||
-          period.category !== 'xe_selection' ||
-          period.versionId !== input.versionId ||
-          period.effectiveFrom.toISOString() !==
-            current.version.effectiveFrom ||
-          period.effectiveUntil !== null
-        )
-          conflict();
-        const oldHead = (
-          await tx
-            .select()
-            .from(selectionCategoryHeads)
-            .where(eq(selectionCategoryHeads.category, 'xe_selection'))
-            .for('update')
-        )[0];
-        const oldContent = (
-          await tx
-            .select()
-            .from(selectionVersionContents)
-            .where(eq(selectionVersionContents.versionId, input.versionId))
-        )[0];
-        if (oldHead) {
-          if (
-            !oldContent ||
-            oldContent.origin !== 'baseline' ||
-            oldHead.versionId !== input.versionId ||
-            oldHead.currentRevisionId !== null ||
-            !same(oldContent.content, input.content) ||
-            oldContent.sourceReference !== input.sourceReference
-          )
-            conflict();
-          return oldHead;
-        }
-        if (oldContent) conflict();
-        await tx.insert(selectionVersionContents).values({
-          versionId: input.versionId,
-          content: input.content,
-          origin: 'baseline',
-          sourceReference: input.sourceReference,
-          recordedAt: now,
-        });
-        const [created] = await tx
-          .insert(selectionCategoryHeads)
-          .values({
-            category: 'xe_selection',
-            versionId: input.versionId,
-            currentPeriodId: input.existingPeriodId,
-            currentRevisionId: null,
-            currentPublicationId: null,
-            generation: 1,
-            nextVersionOrdinal: input.nextVersionOrdinal,
-          })
-          .returning();
-        return created;
-      },
+      (tx) => initializeSelectionBaselineTransaction(tx, raw, clock),
       { isolationLevel: 'read committed' },
     );
   } catch (error) {
-    throw storageFailure(error);
+    throw selectionStorageFailure(error);
   }
+}
+
+/** Shared implementation for existing-directory bootstrap and the explicit
+ * reviewed snapshot import. Neither path invents a publication/HR signature. */
+async function initializeSelectionBaselineTransaction(
+  tx: Transaction,
+  raw: z.infer<typeof baselineSchema>,
+  clock: () => Date,
+) {
+  const input = baselineSchema.parse(raw);
+  await lockRuleCategory(tx, 'xe_selection');
+  const now = clock();
+  const current = await readEffectiveRuleVersion(
+    tx,
+    { category: 'xe_selection', at: now.toISOString() },
+    () => now,
+  );
+  if (
+    current.status !== 'success' ||
+    current.version.versionId !== input.versionId ||
+    current.version.effectiveUntil !== null ||
+    input.nextVersionOrdinal <=
+      Number(input.versionId.slice('xe-select-v'.length))
+  )
+    conflict();
+  const period = (
+    await tx
+      .select()
+      .from(ruleVersionApplicability)
+      .where(eq(ruleVersionApplicability.periodId, input.existingPeriodId))
+      .for('update')
+  )[0];
+  if (
+    !period ||
+    period.category !== 'xe_selection' ||
+    period.versionId !== input.versionId ||
+    period.effectiveFrom.toISOString() !== current.version.effectiveFrom ||
+    period.effectiveUntil !== null
+  )
+    conflict();
+  const oldHead = (
+    await tx
+      .select()
+      .from(selectionCategoryHeads)
+      .where(eq(selectionCategoryHeads.category, 'xe_selection'))
+      .for('update')
+  )[0];
+  const oldContent = (
+    await tx
+      .select()
+      .from(selectionVersionContents)
+      .where(eq(selectionVersionContents.versionId, input.versionId))
+  )[0];
+  if (oldHead) {
+    if (
+      !oldContent ||
+      oldContent.origin !== 'baseline' ||
+      oldHead.versionId !== input.versionId ||
+      oldHead.currentRevisionId !== null ||
+      !same(oldContent.content, input.content) ||
+      oldContent.sourceReference !== input.sourceReference
+    )
+      conflict();
+    return oldHead;
+  }
+  if (oldContent) conflict();
+  await tx.insert(selectionVersionContents).values({
+    versionId: input.versionId,
+    content: input.content,
+    origin: 'baseline',
+    sourceReference: input.sourceReference,
+    recordedAt: now,
+  });
+  const [created] = await tx
+    .insert(selectionCategoryHeads)
+    .values({
+      category: 'xe_selection',
+      versionId: input.versionId,
+      currentPeriodId: input.existingPeriodId,
+      currentRevisionId: null,
+      currentPublicationId: null,
+      generation: 1,
+      nextVersionOrdinal: input.nextVersionOrdinal,
+    })
+    .returning();
+  return created;
+}
+
+const snapshotBaselineSchema = baselineSchema
+  .omit({ existingPeriodId: true })
+  .extend({
+    sourceCommit: z.string().regex(/^[a-f0-9]{40}$/),
+    periodId: text,
+    effectiveFrom: z.iso.datetime(),
+  })
+  .strict();
+export type SelectionBaselineSnapshot = z.infer<typeof snapshotBaselineSchema>;
+
+/** Internal trusted import, on the caller's SAME live transaction. The usecase
+ * authorizes a current manager before calling. Time/content/source are reviewed
+ * input facts, never inferred from the import clock or a comparison row. */
+export async function importSelectionBaselineSnapshot(
+  tx: Transaction,
+  raw: SelectionBaselineSnapshot,
+  clock: () => Date = () => new Date(),
+) {
+  const input = snapshotBaselineSchema.parse(raw);
+  await lockRuleCategory(tx, 'xe_selection');
+  const now = clock();
+  const effectiveFrom = new Date(input.effectiveFrom);
+  if (!Number.isFinite(now.getTime()) || effectiveFrom > now) conflict();
+  const [previousHead] = await tx
+    .select()
+    .from(selectionCategoryHeads)
+    .where(eq(selectionCategoryHeads.category, 'xe_selection'))
+    .for('update');
+  const versions = await tx
+    .select()
+    .from(ruleVersions)
+    .where(eq(ruleVersions.id, input.versionId))
+    .for('update');
+  const periods = await tx
+    .select()
+    .from(ruleVersionApplicability)
+    .where(eq(ruleVersionApplicability.category, 'xe_selection'))
+    .for('update');
+  const old = versions[0];
+  if (
+    old &&
+    (old.provenance !== 'demo_import_snapshot' ||
+      old.sourceCommit !== input.sourceCommit)
+  )
+    conflict();
+  if (
+    periods.length &&
+    (periods.length !== 1 ||
+      periods[0]!.periodId !== input.periodId ||
+      periods[0]!.versionId !== input.versionId ||
+      periods[0]!.effectiveFrom.getTime() !== effectiveFrom.getTime() ||
+      periods[0]!.effectiveUntil !== null)
+  )
+    conflict();
+  if (!old)
+    await tx.insert(ruleVersions).values({
+      id: input.versionId,
+      provenance: 'demo_import_snapshot',
+      sourceCommit: input.sourceCommit,
+    });
+  if (!periods.length)
+    await switchSelectionApplicability(tx, {
+      expectedPeriodId: null,
+      newPeriodId: input.periodId,
+      versionId: input.versionId,
+      at: effectiveFrom,
+    });
+  const head = await initializeSelectionBaselineTransaction(
+    tx,
+    {
+      versionId: input.versionId,
+      existingPeriodId: input.periodId,
+      content: input.content,
+      sourceReference: input.sourceReference,
+      nextVersionOrdinal: input.nextVersionOrdinal,
+    },
+    () => now,
+  );
+  return { head, created: !previousHead };
+}
+
+/** Internal native binding read; caller authorizes the cohort before disclosure. */
+export async function readStoredSelectionCohortBinding(
+  tx: Transaction,
+  cohortId: string,
+) {
+  const [row] = await tx
+    .select()
+    .from(selectionCohortBindings)
+    .where(eq(selectionCohortBindings.cohortId, cohortId));
+  if (!row) return null;
+  const binding = unpackBinding(row);
+  const [content] = await tx
+    .select()
+    .from(selectionVersionContents)
+    .where(eq(selectionVersionContents.versionId, binding.standardVersionId));
+  if (!content) conflict();
+  selectionStandardContentSchema.parse(content.content);
+  return binding;
+}
+
+/** Reused by the existing lifecycle store and the actual cohort usecase.
+ * Caller owns the transaction, current directory authorization and audit. */
+export async function bindSelectionCohortFacts(
+  tx: Transaction,
+  authority: SelectionAuthority,
+  cohort: SelectionCohortBinding['cohort'],
+  mode: 'current' | 'baseline_import' = 'current',
+) {
+  await lockRuleCategory(tx, 'xe_selection');
+  try {
+    authorizeSelectionAction(authority, 'manager');
+  } catch (error) {
+    if (!(error instanceof SelectionLifecycleError)) throw error;
+    authorizeSelectionAction(authority, 'hr', cohort.id);
+  }
+  const existing = await readStoredSelectionCohortBinding(tx, cohort.id);
+  if (existing) return { binding: existing, created: false };
+  const [head] = await tx
+    .select()
+    .from(selectionCategoryHeads)
+    .where(eq(selectionCategoryHeads.category, 'xe_selection'))
+    .for('update');
+  if (!head) conflict();
+  if (
+    mode === 'baseline_import' &&
+    (head.generation !== 1 ||
+      head.currentRevisionId !== null ||
+      head.currentPublicationId !== null)
+  )
+    conflict();
+
+  const current = await readCurrentSelectionVersion(
+    tx,
+    head,
+    authority.context.now,
+  );
+  const [content] = await tx
+    .select()
+    .from(selectionVersionContents)
+    .where(eq(selectionVersionContents.versionId, current.versionId));
+  if (!content) conflict();
+  if (mode === 'baseline_import' && content.origin !== 'baseline') conflict();
+  selectionStandardContentSchema.parse(content.content);
+  const binding = planSelectionCohortBinding(authority, cohort, null, current);
+  await tx.insert(selectionCohortBindings).values({
+    cohortId: cohort.id,
+    versionId: binding.standardVersionId,
+    binding,
+    boundAt: new Date(binding.boundAt),
+  });
+  return { binding, created: true };
 }

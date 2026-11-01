@@ -1,14 +1,14 @@
 # 入营选拔标准生命周期（BOW-918）
 
-输入契约为 BOW-917 冻结 `832209d177944b5ce18577794acb88314a6460da`；917 已由 Claude 编排合入 main `5726fd5d0cd6457d762327829adc002b1dda41b3`。本阶段通过 X1 的普通合并 `dc3330fd59a8dc52ca1e9e42e1a2d393b9b00078` 消费 BOW-922 固定 `787300573034f82b2b4db9dd737d86a067d9c636`，没有复制契约、类别读取或区段切换实现。
+输入契约为 BOW-917 冻结 `832209d177944b5ce18577794acb88314a6460da`；917 已由 Claude 编排合入 main `5726fd5d0cd6457d762327829adc002b1dda41b3`。当前通过 X1 纯同步 `13411363a383225c548b455c439b265f3f1d3a03` 消费 main `71f8d9de99bb6e2abf36049571414aed9d3f7b4d` 已合入的922类别/按时读取和区段切换，不复制实现。
 
 ## 当前边界
 
 `selection-standard.ts` 提供无数据库副作用的领域计划，`server/usecases/selection-standard.ts` 编排可信账号、当前服务端权限、领域计划、审计和操作回执。`selection/postgres.ts` 新增六表的原生事务适配，复用 922 类别锁、按时读取和区段切换。公共出口与最终迁移仍只由 X1 修改。
 
-适配要求调用方提供同一原生事务内的 `loadAuthority`、`creationFacts`、`readImpact`、`readCohort`；缺一个就拒绝构造，没有管理员或内存事实兜底。生产归因/影响查询、实际新建期次入口、Web action/query 尚未接线。集成测试中的归因与影响来源明确是合成夹具，不证明 919/921 生产查询或端到端发布已完成。
+适配要求调用方提供同一原生事务内的 `loadAuthority`、`creationFacts`、`readImpact`、`readCohort`；缺一个就拒绝构造，没有管理员或内存事实兜底。生产归因/影响查询、Web action/query 尚未接线。真实当前授权、显式基线导入及最小期次创建/绑定/读取入口在 `server/usecases/selection-standard-native.ts`；它们不以空归因/影响端口构造完整store。集成测试中的归因与影响来源明确是合成夹具，不证明 919/921 生产查询或端到端发布已完成。
 
-最终迁移排在主链 904/902 之后由 X1 生成；当前不提交 SQL、journal 或 snapshot。917/922 合入、生产读端口和正式迁移接线、真实 PG 验收完成前，本卡保持 Draft + blocked，不能标完成或 ready-to-merge。
+最终迁移在846 → 845 → 873主链之后按X1游标生成；当前不提交 SQL、journal 或 snapshot。917/922 合入、生产读端口和正式迁移接线、真实 PG 验收完成前，本卡保持 Draft + blocked，不能标完成或 ready-to-merge。
 
 ## 身份、范围与返回数据
 
@@ -47,7 +47,7 @@
 
 ## 期次绑定
 
-`bindCohort` 必须在该 store 的 `ports.transact` 内调用：先取得上述类别锁，再由可信服务在同一原生事务创建/读取实际期次和当前身份，按当前生效区段插入一次绑定及审计。重复采用返回已保存绑定，不修改版本。实际新建期次适配尚未接入，不能把 helper 的存在当生产接线完成。
+`bindCohort` 必须在该 store 的 `ports.transact` 内调用：先取得上述类别锁，再由可信服务在同一原生事务创建/读取实际期次和当前身份，按当前生效区段插入一次绑定及审计。重复采用返回已保存绑定，不修改版本。`createSelectionCohort` 已将实际目录期次创建和首次采用放在同一原生事务，使用同一个绑定计划/当前922读取，不另造发布器；Web入口仍需独立接线。
 
 第六期留 v1；发布后已绑定 v2 的第七期在撤销后仍留 v2；之后新建期次恢复默认 v1。按期次查询先核当前该期次范围授权，仅读保存的绑定和不可变内容；没有绑定返回 not_found，不拿全局当前版补历史。发布/撤销不会写历史结果、分数、冻结快照或档案版本。
 
@@ -57,6 +57,17 @@
 
 `selection/postgres.integration.test.ts` 使用唯一随机 loopback `_test` 数据库、固定化名导入和显式合成基线，覆盖并发发布/幂等、真实授权在类别锁等待后撤销、迟发回滚、同毫秒区段、配对修订与旧回执、不可变重发、期次持久绑定及既有资料指纹。归因与影响端口仍使用合成来源。新增表未进正式迁移时，仅可显式使用 `BOW_918_TEST_MIGRATIONS_DIR` 指向隔离生成的组合 DDL；该变量不会改变默认 CI 的迁移入口。
 
-本阶段尚无获准的 TEST_DATABASE_URL，**原生 PG 集成、并发、重启与新增 SQL 覆盖率尚未实跑**。不从容器配置找凭据、不猜密码、不运行已撤回的启动器；缺入口不跳过测试冒称通过。离线检查、临时 DDL、实际受检 SHA、默认 CI 结果分别记录在 PR，不能复用早期纯领域阶段的覆盖率充当本阶段覆盖率。
+原生生命周期14项PG已实际运行；新装配测试使用空的真实迁移数据库和独立显式合成事实，不用fixture回填生产端口。测试只通过 `test-db.env` 注入测试库，固定参照需先运行 `pnpm reference:prepare`；临时组合迁移不冒充正式迁移。具体受检SHA、命令与覆盖结果以PR证据为准。
+
+## 显式基线与实际期次装配
+
+- `initializeReviewedSelectionBaseline(db, accountId, reviewed, clock)`：当前真实管理者授权后，在同一事务导入 `demo_import_snapshot` 目录、实际922开放区段、不可变基线内容、918 head与审计。`reviewed` 必须明确包含 `versionId/content/sourceCommit/sourceReference/effectiveFrom/periodId/nextVersionOrdinal`。无默认生效时间、无伪造publisher；这不是接受客户端角色/任意基线的Web动作。
+- 同基线并发重复调用不重写事实、不重复审计；不同内容/来源/区段拒绝。审计失败整体回滚。现有发布目录不可被重标为导入快照，已关闭区段不可被重开。
+- `bindExistingSelectionCohort(db, accountId, cohortId, clock)`：真实当前manager或该期HR，核实际cohort存在后，仅在generation1、无发布修订的显式基线初始化阶段一次性采用基线。发布或撤销后不得给旧期次补绑当前版本。它不创建目录期次、不接受指定版本，也不伪造历史绑定时间。
+- `createSelectionCohort(db, accountId, {id,name}, clock)`：当前manager在同一事务创建实际cohort并首次绑定。缺基线/审计失败整体回滚；相同id不同名称拒绝；已有但未绑定期次也拒绝，不能借创建入口补写历史。仅最小创建/绑定能力，不实现完整选拔流程。
+- `readNativeSelectionCohortVersion(db, accountId, cohortId, clock)`：当前实际身份/期次范围授权后读已保存绑定及校验不可变内容，缺绑定返回null，不用当前默认补历史。原有store也复用同一绑定primitive。
+- `loadSelectionAuthority` 针对这些读写事务锁定真实账号绑定/授权/人员，再取业务clock；不能直接当作原store只读事务的FOR SHARE回调。完整store装配必须明确只读/写事务边界。
+
+真实923的基线 `effectiveFrom` 和历史期次采用事实尚未获批准；本实现与合成测试不会替它选择日期。923不得以本测试输入初始化实际演示基线。919/921生产事实读取、AI提案采用以及下一期期次事实仍需固定组合，未用合成归因补齐。
 
 剩余门禁：生产授权/归因/影响/期次服务与 action/query 接线，X1 公共出口和主链之后的最终迁移，实际 PG 全事务验证与统一 85% 行/分支覆盖，871 第一幕类别隔离及真实链路验收。所有门禁满足后才可请求 X1 标精确 head ready。
