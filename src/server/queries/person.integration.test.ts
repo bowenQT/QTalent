@@ -31,6 +31,7 @@ import { personFromData } from './person-projection';
 import { peopleFromData } from './people';
 import { sourceFromData } from './sources';
 import { fixture } from './person-test-helpers';
+import { expectDirectoryOrder } from '../../../tests/fixtures/p0-contracts';
 import { importDemo } from '../db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '../db/seed';
 let admin: Pool | undefined;
@@ -119,7 +120,7 @@ it('reads actual PostgreSQL confirmation and evidence tables for four accounts',
   for (const role of ['manager', 'hr', 'mentor']) {
     const data = await loadPersonData(db, role, '2026-07-01');
     const result = await personFromData(data, 'one');
-    expect(result?.capabilityProfile).toHaveProperty('data.length', 4);
+    expect(result?.capabilityProfile).toHaveProperty('data.scores.length', 4);
     const list = await peopleFromData(data);
     expect(list.total).toBe(role === 'manager' ? 3 : 1);
     if (role === 'mentor') {
@@ -153,7 +154,7 @@ it('re-reads authorization and complete source relationships', async () => {
   });
   expect(source.status).toBe('not_found');
   const result = await personFromData(data, 'one');
-  expect(result?.capabilityProfile).toHaveProperty('data.length', 2);
+  expect(result?.capabilityProfile).toHaveProperty('data.scores.length', 2);
   await db
     .update(grants)
     .set({ revokedAt: '2026-07-01' })
@@ -189,10 +190,22 @@ it('projects actual pinned seed observations and ended project participation', a
       if (profile?.timeline.status !== 'ready')
         throw new Error('Missing timeline');
       expect(profile.timeline.data.length).toBeGreaterThan(0);
-      for (const item of profile.timeline.data) {
-        expect(item.statement.nature).toBe('management_observation');
-        expect(item.statement.sources.length).toBeGreaterThan(0);
+      const events = profile.timeline.data.filter(
+        (item) => item.kind === 'key_event',
+      );
+      expect(events.length).toBeGreaterThan(0);
+      for (const item of events) {
+        expect(item.category).toBe('management-observation');
+        expect(item.sources.length).toBeGreaterThan(0);
       }
+      for (const item of profile.timeline.data.filter(
+        (row) => row.kind === 'history',
+      ))
+        expect(item.category).toBe(
+          item.title.startsWith('结营评审')
+            ? 'restricted-evaluation'
+            : 'evaluation',
+        );
     }
     const mentorData = await loadPersonData(
       seeded.db,
@@ -200,7 +213,14 @@ it('projects actual pinned seed observations and ended project participation', a
       '2026-10-25',
     );
     const restricted = await personFromData(mentorData, target);
-    expect(restricted?.timeline.status).toBe('empty');
+    // The mentor keeps ordinary history reviews, but no management observation.
+    expect(restricted?.timeline.status).toBe('ready');
+    if (restricted?.timeline.status !== 'ready')
+      throw new Error('Missing timeline');
+    expect(
+      restricted.timeline.data.every((row) => row.kind === 'history'),
+    ).toBe(true);
+    expect(JSON.stringify(restricted)).not.toContain('management-observation');
     expect(restricted).not.toHaveProperty('managementObservations');
     const managerData = await loadPersonData(
       seeded.db,
@@ -230,10 +250,46 @@ it('projects actual pinned seed observations and ended project participation', a
       name: mapped.projects.find(
         (project) => project.id === previous.projectId,
       )!.name,
-      participation: 'member',
+      role: previous.role,
+      mode: previous.mode,
+      from: previous.validFrom,
+      to: previous.validTo,
     });
   } finally {
     await seeded.pool.end();
     await admin!.query('DROP DATABASE "' + seedName + '"');
   }
 }, 30_000);
+
+it('projects the pinned seed for every demo account inside the contract', async () => {
+  const seedName =
+    'qtalent_list_seed_' + randomUUID().replaceAll('-', '') + '_test';
+  await admin!.query('CREATE DATABASE "' + seedName + '"');
+  const url = new URL(process.env.TEST_DATABASE_URL!);
+  url.pathname = '/' + seedName;
+  const seeded = createDatabase(url.toString());
+  try {
+    await migrate(seeded.db, { migrationsFolder: 'src/server/db/migrations' });
+    const mapped = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
+    await importDemo(seeded.db, mapped, 'Synthetic-test-password-only');
+    for (const account of ['demo-ceo', 'demo-hrbp', 'demo-mentor']) {
+      const data = await loadPersonData(seeded.db, account, '2026-10-25');
+      // peopleFromData and personFromData parse their own output strictly.
+      const list = await peopleFromData(data);
+      expect(list.total).toBeGreaterThan(0);
+      expectDirectoryOrder(list.people);
+      for (const row of list.people.slice(0, 5)) {
+        const profile = await personFromData(data, row.person.id);
+        expect(profile?.person).toEqual(row.person);
+      }
+      if (account === 'demo-mentor') {
+        expect(list.role).toBe('mentor');
+        expect(JSON.stringify(list)).not.toContain('referencePosition');
+        expect(JSON.stringify(list)).not.toContain('management-observation');
+      }
+    }
+  } finally {
+    await seeded.pool.end();
+    await admin!.query('DROP DATABASE "' + seedName + '"');
+  }
+}, 120_000);
