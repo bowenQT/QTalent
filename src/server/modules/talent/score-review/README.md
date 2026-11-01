@@ -51,3 +51,12 @@ pnpm exec vitest run src/server/modules/talent/score-review --maxWorkers=2 --cov
 已合服务的换绑重放缺陷已拆为独立安全修复#319（固定`1ea8469cbb8a612be736a3bb57509838fb1b6086`），本续作普通消费。18个等待期间换绑、撤权和范围收回反例在旧main失败，修复后63项通过；旧署名回执保持，合法新HR仍可做新操作。此处与云端校准写计划校验组合114项通过，仍不代表原生校准事务完成。`digest`仅由本续作导出供纯校验复用，独立修复PR不含此导出。
 
 固定ledger组合验证为151/151（849的114项unit、20项范围PG，加X1实际ledger的17项PG），类型通过。共享输入23文件未改，私有净diff仍原7文件。X1校准结构/投影最小提案已登记#248/6562723052；该提案尚非已执行DDL或已完成存储。
+
+
+### 原生写入进行中（尚待结构联验）
+
+已普通消费X1 `ca0ea8759b217e9841cb656c0948af631adadec0`，真实acceptedDecision与绑定AI原始事实已到，不再猜取确认行的谱系理由。私有`postgres.ts`按正式冻结6562785414提供不可变校准/原签名回执、review revision CAS、同savepoint操作账本与审计；原确认行保持，不插第三rater。
+
+`resolveNativeScoreReview`已在本卡usecase组合真实ledger写栅栏、完整当前权限关系锁、锁后重读、既有projectTalentRecord完整共同主体与requiredKinds策略、原保存用户理由和旧规则锚点，再调用现服务与私有store。未接公开route；当前有效评分/工作台公共消费仍由X1接线。
+
+新增PG代码以实际846双评价人saveRecordDraft制造两类review，验证持久CAS/回滚/原分保全/精确FK，以及原生命令重放、换绑、撤权和共同主体拒绝。共享schema/受控迁移尚未到，新增PG尚未执行，当前type仅剩冻结表/列不存在；不得沿用前述151项作为这批新代码的通过证据。测试允许X1已核定的BOW849_TEST_MIGRATIONS目录，缺结构明确失败，无CREATE TABLE/skip兜底。
