@@ -1,6 +1,6 @@
 # BOW-919 canonical facts 持久化
 
-本目录的原生持久层保存人×判断、原量表和人工标记，不保存对照结论或统计答案。既有 calculation/projection 不变。输入 schema 与类型以 `canonical-input.ts` 为唯一实现；输入校验、原生五表存取及跨域同事务 usecase 已实现。公共出口与五表/918 受控结构待 X1，真实 PostgreSQL 验证尚未运行，不能把源码提交当持久化通过。
+本目录的原生持久层保存人×判断、原量表和人工标记，不保存对照结论或统计答案。既有 calculation/projection 不变。输入 schema 与类型以 `canonical-input.ts` 为唯一实现；输入校验、原生五表存取及跨域同事务 usecase 已实现。已组合 X1 五表、918 真实绑定读取及公共出口；隔离 PostgreSQL 事务验证已通过。真实演示节点、实际导入/授权查询与最终迁移仍分别待原职责窗口，不能把隔离 PG 通过当完整三幕验收。
 
 ## 私有接口冻结
 
@@ -47,14 +47,31 @@ source 只返回 fragmentId、originalVersionId、rowPersonId、row；rowPersonI
 
 batch 在同事务先插以满足立即 FK，再插 cases/stages/marks；事务提交前核完整读回与摘要，事务外仍全有或全无。source ISO 时间使用文本保留原始小数精度，运行 imported_at 使用数据库时间。摘要不代替 FK/形态/完整性约束。
 
-918 固定输入为 PR269 的 `69e57cc90e44835eaecba99cddec8a79b867dfa9`。实际绑定表 `evaluation_selection_cohort_bindings` 与内容表 `evaluation_selection_version_content` 尚不在本基线 main；只读其真实绑定/版本内容，不复制 lifecycle 或保存第二个 current version。所有 present 前段必须匹配期次绑定。没有受控结构不运行假 PG 或把缺结构当空数据。
+918 固定输入为 PR269 的 `69e57cc90e44835eaecba99cddec8a79b867dfa9`。X1 结构 `5f551e355ee284a1bf5c59adba501e9e7395e762` 和公共出口 `e1573eaaa3f3d28e785f3300a73f341241e2298d` 已普通组合。usecase 直接消费 X1 的 `readSelectionCohortFacts(tx, cohortId)`，只读真实期次 binding/content，不复制 lifecycle 或保存第二个 current version。所有 present 前段必须匹配期次绑定。缺结构/SQL 错误不变成空数据。
 
 `selection_review` / `graduation_review` 的真实节点种类仍待所有者决定；不能猜 interview/defense、别名同节点或用空 cohort 绕约束。此项只阻真实 923 节点准备和联验，不阻输入校验、原生存储实现与合法合成隔离 PG。
 
 ## 当前验证与剩余
 
-基线 main `71f8d9de99bb6e2abf36049571414aed9d3f7b4d`。输入单测覆盖独立来源、显式缺段、人×判断、重复 ID、三档对应、人工标记目标/时间、禁止答案/授权伪输入、摘要来源和无隐式改写。原生并发/回滚/外部来源漂移反例位于 `src/server/usecases/judgment-comparison-canonical.integration.test.ts`，待 X1 结构后执行，不宣称 PG 或完整三幕查询通过。输入校验定向覆盖率行 100%、分支 96%（31 单测），只覆盖输入层，不能替代原生层覆盖率。
+基线 main `71f8d9de99bb6e2abf36049571414aed9d3f7b4d`。输入单测覆盖独立来源、显式缺段、人×判断、重复 ID、三档对应、人工标记目标/时间、禁止答案/授权伪输入、摘要来源和无隐式改写。原生并发/回滚/外部来源漂移反例位于 `src/server/usecases/judgment-comparison-canonical.integration.test.ts`。组合提交 `7770b9730a676e58bd44ba4276698e5a133e7a07` 已使用 X1 原生临时迁移实跑 33 个 PG 用例，加上 31 个输入单测，共 64/64、0 跳过。三份执行文件行覆盖率 96.05%、分支 93.16%，每份文件的两项均超过 85%。类型检查通过。测试使用真实 SQL、真实事务和来源表，没有 fake store；例中节点仅为合法合成节点，不是待裁决的真实 923 节点映射。
 
 测试库仅从 test-db.env 加载；完整重检查先领共享 heavy 槽，单测 maxWorkers=2。禁止读取真实材料，不需要供应商请求。最终真实 Web 查询、918/923/921/873/908 接线和节点裁决仍分别由原负责窗口承担。
 
 真实 PG 测试默认使用正式迁移目录；临时组合时可由操作方将 `QTALENT_COMPARISON_TEST_MIGRATIONS` 指向 X1 原生生成的受控迁移目录，不接受手写 DDL。测试建立唯一随机隔离 `_test` 库，并清理自身连接和库；合成合法节点仅验证存储，不冒充真实 923 节点映射。
+
+验证命令：
+
+```sh
+pnpm exec tsc --noEmit --incremental false
+pnpm exec vitest run --config vitest.integration.config.ts \
+  src/server/usecases/judgment-comparison-canonical.integration.test.ts \
+  src/server/modules/evaluation-system/judgment-comparison/canonical-input.test.ts \
+  --maxWorkers=2 --coverage \
+  --coverage.include=src/server/usecases/judgment-comparison-canonical.ts \
+  --coverage.include=src/server/modules/evaluation-system/judgment-comparison/canonical-store.ts \
+  --coverage.include=src/server/modules/evaluation-system/judgment-comparison/canonical-input.ts
+```
+
+回归重点：并发相同批次只写一次；相同 ID 异事实冲突；原件登记及五表在外层事务整体回滚；后插 case 身份碰撞回滚；同人多判断保留；缺段只能显式写入；漏 stage/漏人工 mark/实际正文或行定位漂移失败关闭；目录、节点主体、期次版本、原件版本/摘要/路径、独立原件和合法 XLSX 行坐标均校验；数据库错误不包装为空批次。测试完成后自身数据库/连接已清理，heavy 槽已释放。
+
+本函数没有当前 account/grants 参数，目录存在和历史署名都不是当前授权证明。它不提供可直接外发的 ComparisonDataset；完整来源披露、当前节点有效关系、撤权、评价人投影和模型前过滤继续由授权读取方执行。
