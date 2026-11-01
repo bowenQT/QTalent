@@ -81,3 +81,19 @@ test('不同人员的保持正式位置相互独立', () => {
   assert.equal(f.S.recalKeeps['p-other'].why,'乙');
   assert.equal(f.saves,3);
 });
+test('队列页把撤销结果如实交给 Toast：失败时显示肯定式的失败文案，不再另弹提示', () => {
+  const page = fs.readFileSync(path.join(__dirname, '../y/app/js/pages/queue.js'), 'utf8');
+  const call = page.match(/NT\.toast\(`已保持\$\{st\.person\(pid\)\.name\}的正式位置[\s\S]*?\n    \}\);/);
+  assert.ok(call, '缺少保持正式位置的 Toast');
+  // 取出真实的 undo 包装，确认它把 keepFormal 返回的撤销结果原样交回 Toast（#283：返回 false 显示失败）
+  const undoSrc = call[0].match(/undo: (\(\) => \{[^}]*\})/)[1];
+  let rendered = 0;
+  const wrap = (inner) => vm.runInNewContext(undoSrc, { undo: inner, render: () => { rendered++; }, $: () => null });
+  assert.equal(wrap(() => false)(), false, '撤销失败时返回 false');
+  assert.equal(wrap(() => true)(), true);
+  assert.equal(rendered, 2, '成功和失败都刷新队列');
+  const fail = call[0].match(/failText: '([^']+)'/)[1];
+  assert.match(fail, /^撤销失败：.*已保留/);
+  assert.doesNotMatch(fail, /不能|无权限|没有/);
+  assert.equal((call[0].match(/NT\.toast\(/g) || []).length, 1, '失败时不另弹一个 Toast');
+});
