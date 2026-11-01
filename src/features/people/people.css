@@ -1,0 +1,10 @@
+/* Inline styles of the prototype's people.js team header and row card, named here. */
+.nt-team {
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+  font-weight: 500;
+  margin: var(--s-4) 0 var(--s-1);
+}
+.nt-rows {
+  padding: var(--s-1);
+}
