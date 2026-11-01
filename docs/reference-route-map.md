@@ -39,8 +39,8 @@
 | `app/projects.html`               | `/projects`                       | projects / projects                 | projects / staffing                          | 已实现参考切片 |
 | `app/project.html`                | `/project?id=…`                   | project / project                   | project / staffing                           | 后续 / 404     |
 | `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 契约已定义，查询与 UI 待接入 / 404 |
-| `app/rules.html`                  | `/rules`                          | rules / rules                       | rules / evaluation-system                    | 后续 / 404     |
-| `app/judge.html`                  | `/judge?rater=me`                 | judge / judge                       | judge / evaluation-system                    | 后续 / 404     |
+| `app/rules.html`                  | `/rules`；入营选拔标准 `/rules?r=front&line=xe-select` | standard-iteration / selection-standard.ts | 待 BOW-918 读取与动作 / evaluation-system | 入营选拔标准：UI 已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-920）；其余 404 |
+| `app/judge.html`                  | `/judge`、`/judge?rater=me`       | standard-iteration / judgment-comparison.ts、standard-attribution.ts | 待 BOW-919、BOW-921 读取与动作 / evaluation-system | UI 已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-920） |
 | `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
 | `app/admin.html`                  | `/admin`                          | admin / admin                       | admin / directory、平台                      | 后续 / 404     |
 | `m/index.html`                    | `/m`                              | mobile-workbench / mobile-workbench | mobile-workbench / 多领域聚合                | 后续 / 404     |
@@ -231,3 +231,33 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 `src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
 
 本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
+
+## BOW-920 判断对照、归因与修订发布
+
+`src/features/standard-iteration/` 按 BOW-917 合同实现三块界面：判断对照（HR 按批次、评价人本人、HR 看单个评价人、管理者摘要）、归因（AI 假设 → HR 选类别写理由署名 → 只有含「评价标准」的归因能起草）、入营选拔标准修订（HR 原处编辑要点 → 保存并预览影响 → 提交；管理者确认发布、5 秒撤销或写理由退回）。动作以 `ports.ts` 的端口传入，类型取自合同；feature 不引用 server。
+
+真实路由 `/judge` 与 `/rules?r=front&line=xe-select` 在 BOW-918、BOW-919、BOW-921 的查询与动作入口合入前只显示「待接通」，不渲染夹具；导师在 `/rules` 看到「由 HR 和管理者维护」，系统管理员看到业务视角提示。开发样张 `/dev/standard-iteration?role=hr|manager|rater`（可加 `view=standard`、`rater=gu|he|xu|ye`、`seed=fresh|pending|returned`、`ai=ok|fail|empty`）用化名、合成评语和合同 schema 解析的结果走通整条链路，状态存在本标签页的 sessionStorage；生产返回 404。
+
+与原型 Y（含 BOW-924 已评审修订）的已知差异，均来自合同当前没有对应字段或动作：
+
+| 原型 | 工程 | 原因 / 后续 |
+| --- | --- | --- |
+| 页头写对照链路、时间范围和发起人 | 写「入营选拔 → 结营评审 · 期次」和可对照范围 | 合同 batch 没有发起人与时间范围 |
+| 中间档按方向落进偏差列 | 中间档不进五列分布，案例里标「只看结营结论」 | 合同 `middle_distribution` 无方向；按裁决不进偏差分布 |
+| 入营选拔三项分、组队名 | 只显示选拔档位与「组队作品」 | 合同只有档位与 teamId |
+| 标为不可比及撤销 | 不提供 | 合同无该动作 |
+| 批次列表、已有假设与归因读取 | HR 按批次进入；假设与归因只在本次会话内 | 合同无列表读取；接通时由页面传入 |
+| 管理者看匿名分布与归因文字 | 只看每批不一致人数与归因类别 | 合同 manager 投影只有这两项 |
+| 改写假设、改进动作卡、按标准版本对比 | 不提供 | 合同无对应字段 |
+| 点「起草修订」直接进草稿 | 先弹「起草入营选拔标准修订？」，理由预填归因结论，确认后进草稿 | 合同 createRevision 需要修订理由和归因版本 |
+| HR 草稿页只有要点编辑 | 草稿顶部多一块「AI 建议 · 采用 AI 建议」，浅底并标「AI 建议」来源 | 合同 `aiDraft`；采用后仍由 HR 编辑、保存 |
+| 修订是一段说明文字 | 修订是标准要点的增删改，原处标出原值 | 合同 `reviewPoints` 与 `changes` |
+| 「预览影响」单独一步 | 「保存并预览影响」：保存返回按当前草稿计算的预览 | 合同 save 结果携带 impactPreview |
+| 要点打开编辑时点保存或提交（原型未定义） | 先提示「保存或取消正在编辑的要点」，不发请求 | 未保存的输入不在草稿里，直接提交会把旧内容送给管理者 |
+| 删除草稿、增减关联依据、版本历史与对比、撤销退回 | 不提供 | 合同无对应动作 |
+| 规则总览页签 | 不显示 | `/rules` 总览未实现 |
+| 手机 `m/judge.html` | 不在本卡；375 宽按桌面页响应式重排 | 另卡 |
+
+视觉参照：当前 `prototype-reference.json` 指向 `91b297a`，其中没有 #259（BOW-924）的判断对照与入营选拔标准修订。本节界面按 main 上 `81e4fd4` 的原型实现；判断对照（批次、评价人、管理者摘要）、归因、修订编辑与确认发布均登记为「参照待同步」，未做像素对比，不算视觉通过。参照前移后（#248 评论 6557468925）补跑 1366 与 375 的对比。
+
+待共享文件处理（#248 登记）：`/judge` 归入导航高亮的别名（HR、管理者归「人才评价规则」，导师为自己的入口）；BOW-924 新增的 `.n-jstate[data-s='mid']`、`.n-jcase__items / __team / __deny`、`.n-impact__basis` 移入 `components.css` 后删除 `standard-iteration.css`；`prototype-reference.json` 前移到含 #259 的提交后补自动截图对照。
