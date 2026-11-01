@@ -373,6 +373,12 @@
         <div class="sw-item"><div class="sw-chip" style="background:var(--q-ll)"></div><div><b>待观察</b><code>#F1F2F4</code></div></div>
       </div>
       <p class="ds-caption">象限四色只做区域底色，彼此明度接近，避免「红灯区」式的褒贬暗示。</p>
+
+      <h3 class="ds-sub">操作反馈</h3>
+      <div class="sw">
+        <div class="sw-item"><div class="sw-chip" style="background:var(--ink);display:grid;place-items:center;color:var(--op-fail-on-ink)"><svg width="22" height="22"><use href="#i-info"/></svg></div><div><b>操作没成功</b><code>#F2B8A0</code> 深色 Toast 上的图标</div></div>
+      </div>
+      <p class="ds-caption">操作反馈只说撤销、保存、重试这类操作本身有没有成功，和证据判断无关，不借用支持、不支持、资料不足、证据冲突的颜色；颜色之外总配图标和一句写清结果的文字。</p>
     </section>
 
     <!-- ═════════ 字体 ═════════ -->
@@ -2112,7 +2118,9 @@
       <div class="ds-row" style="margin-bottom: var(--s-5)">
         <button class="n-btn n-btn--sm" type="button" id="toast-run">保存一条记录</button>
         <span id="toast-slot"></span>
+        <div class="n-toast" data-state="fail"><svg width="16" height="16"><use href="#i-info"/></svg><span>撤销失败：这条已由苏晚处理，已保留当前内容</span></div>
       </div>
+      <p class="ds-caption" style="margin-bottom: var(--s-5)">点「撤销」后如实说结果：撤销成功写「已撤销」或这次操作自己的说明；撤销失败（例如这条已经有了后续处理）换成右边的样子，先写「撤销失败」，再写原因和「已保留当前内容」，停留 4 秒。</p>
       <div class="ds-grid states-grid" id="states">
         <div class="n-card n-state"><span data-ip="searching"></span><p class="n-state__title">正在检索</p><p class="n-state__text">在你有权限查看的 38 人中核对证据。</p></div>
         <div class="n-card n-state"><span data-ip="listening"></span><p class="n-state__title">关键事件会出现在这里</p><p class="n-state__text">说一句最近做的事，或者上传一段复盘录音。</p><button class="n-btn n-btn--sm n-btn--ink" type="button">记录第一条</button></div>
