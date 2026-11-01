@@ -42,6 +42,12 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
         ).toEqual(
           await prototype.locator('#pp-list .n-person__name').allTextContents(),
         );
+        await page.evaluate(() => {
+          for (const node of document.querySelectorAll<HTMLElement>(
+            '.n-person-row > :nth-child(2)',
+          ))
+            node.style.setProperty('display', 'none', 'important');
+        });
         await normalizeRegions(prototype, page, {
           omit: [
             '#ptabs [role="tab"]:not(:first-child)',
@@ -54,12 +60,6 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
           // Team parent path, job title and level have no columns yet (BOW-834
           // S1 / S2): same-size placeholders on both sides.
           replace: ['.n-tabpanel .nt-h2', '.n-tabpanel .n-person__meta'],
-        });
-        await page.evaluate(() => {
-          for (const node of document.querySelectorAll<HTMLElement>(
-            '.n-person-row > :nth-child(2)',
-          ))
-            node.style.setProperty('display', 'none', 'important');
         });
         // Avatar photos lazy-load below the fold; a lazy image never decodes until it
         // is scrolled to, so the full-page capture loads them all first.
