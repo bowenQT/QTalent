@@ -270,9 +270,7 @@ export function Timeline({
         >
           {pending.map((label) => (
             <li key={label}>
-              <Badge tone="unknown" icon="dash">
-                {label} · 待接入
-              </Badge>
+              <Badge tone="prep">{label} · 待接入</Badge>
             </li>
           ))}
         </ul>

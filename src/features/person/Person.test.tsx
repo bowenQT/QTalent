@@ -364,7 +364,11 @@ describe('records waiting for their read', () => {
       within(list)
         .getAllByRole('listitem')
         .map((item) => item.textContent),
-    ).toEqual(['北森面评 · 待接入', '节点结论 · 待接入', '管理观察 · 待接入']);
+    ).toEqual([
+      '北森面评 · 待接入',
+      '节点结论 · 待接入',
+      '独立管理观察 · 待接入',
+    ]);
   });
   it('shows none of them to the mentor', () => {
     const { container } = show(mentor);

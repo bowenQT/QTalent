@@ -30,7 +30,11 @@ const MENTOR_FORBIDDEN = [
   '北森面评',
 ];
 // 管理者与 HR 变体里，读取还没接通的三类记录（BOW-906、902、904）。
-const PENDING = ['北森面评 · 待接入', '节点结论 · 待接入', '管理观察 · 待接入'];
+const PENDING = [
+  '北森面评 · 待接入',
+  '节点结论 · 待接入',
+  '独立管理观察 · 待接入',
+];
 
 async function expectPending(page: Page) {
   await expect(
