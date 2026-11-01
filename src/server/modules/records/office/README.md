@@ -4,6 +4,7 @@
 
 - PPTX 按 `presentation.xml` 的实际幻灯顺序读取正文和备注，分别产生 `slide_text` / `speaker_notes`，同页使用 `{ kind: 'presentation', slide }`。备注按关系绑定，不按文件名数字配对；被移除的幻灯部件不成为页面。缺页序、缺目标或复用备注的歧义文件明确失败。
 - XLSX 用原工作表名称与原单元格地址 `{ kind: 'spreadsheet', sheet, cell }`，稀疏位置、隐藏行/列/表如实保留。合并单元格只读原始存值，不向跟随单元格填值。缺少工作簿声明、孤立工作表、重复地址和未知类型不猜测恢复。
+- XLSX 共享字符串和内联字符串的每个 `<t>` 按 [ST_Xstring](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/d34ae755-c53f-4a44-a363-c6dd3ee018a4) 单次还原 `_xHHHH_` UTF-16 码元，再拼接富文本；`甲_x000D_乙` 还原回车，`_x005F_x0041_` 保留字面量 `_x0041_`。不递归解码、不跨富文本节点创造转义；XML 实体仍由 XML 层先处理，原 `<v>`、原件字节和定位不改。
 - `constant` 与 `formula` 分开。公式保留表达式、种类、共享索引和范围；`cached.state` 明确区分 `present` / `missing`。仅 `<v>` 的缓存参与文本提取；缺缓存的 `text` 是 `null`，不当作 0 或成功重算。合法空文本是 `''`，布尔假是 `false`，数字保留十进制原字串，避免大整数舍入。`raw` 是原 `<v>` 的字面值（内联文本没有 `<v>`，为 `''`）。日期序列数保留数字，不推断显示格式或时区。共享公式跟随项不补算表达式。
 - 人名、团队归属、原量表的含义与身份均不推断。团队结果只在原单元格出现一次，不复制给成员；下游必须明确完成人工/服务端归属与权限流程。
 
@@ -58,7 +59,7 @@ OfficeParser 提供实际 PPTX 文本/备注 AST 与有预算的 XLSX 原始工�
 
 ## 可复核验证
 
-`parse.test.ts` 直接解析 `tests/fixtures/office` 的纯合成 ZIP/OOXML 字节，并用真实 ZIP/XML 修改制造失败输入。没有 mock 解析器输出，没有真实员工文件、模型或网络服务。测试覆盖页序/备注配对、缓存与常量、0/false/空/缺失、大整数、隐藏行列、团队合并值不扩散、声明歧义、损坏/未知内容、固定预算和外链不发起 fetch。
+`parse.test.ts` 直接解析 `tests/fixtures/office` 的纯合成 ZIP/OOXML 字节，并用真实 ZIP/XML 修改制造失败输入。没有 mock 解析器输出，没有真实员工文件、模型或网络服务。 `spreadsheet.test.ts` 另以真实合成 XLSX 包覆盖共享/内联/富文本的转义、回车、代理对、伪形似文本、重复引用与稀疏定位，并核固定真实 worker 的完整输出等价。测试覆盖页序/备注配对、缓存与常量、0/false/空/缺失、大整数、隐藏行列、团队合并值不扩散、声明歧义、损坏/未知内容、固定预算和外链不发起 fetch。
 
 ```sh
 pnpm exec vitest run src/server/modules/records/office --maxWorkers=2 --coverage --coverage.include='src/server/modules/records/office/*.ts'

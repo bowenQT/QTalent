@@ -17,6 +17,13 @@ function one(parent: Element, name: string): Element | undefined {
     throw new OfficeParseError('invalid_document', 'duplicate_cell_field');
   return found[0];
 }
+function decodeXstring(text: string): string {
+  // ST_Xstring applies to each <t>. Replace original matches once: a decoded
+  // underscore must not make a literal _xHHHH_ sequence decode a second time.
+  return text.replace(/_x([0-9A-Fa-f]{4})_/g, (_escape, hex: string) =>
+    String.fromCharCode(Number.parseInt(hex, 16)),
+  );
+}
 function textRuns(parent: Element): string {
   // Phonetic rPh runs are pronunciation aids, not a second copy of source text.
   return Array.from(parent.childNodes)
@@ -25,10 +32,10 @@ function textRuns(parent: Element): string {
     )
     .map((n) =>
       n.localName === 't'
-        ? (n.textContent ?? '')
+        ? decodeXstring(n.textContent ?? '')
         : n.localName === 'r'
           ? children(n, 't')
-              .map((t) => t.textContent ?? '')
+              .map((t) => decodeXstring(t.textContent ?? ''))
               .join('')
           : '',
     )
