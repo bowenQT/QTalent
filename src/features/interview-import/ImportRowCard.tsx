@@ -156,7 +156,7 @@ export function ImportRowCard({
                 {unsavedFill(item, unsaved[item])}{' '}
                 <button
                   type="button"
-                  className="n-link"
+                  className="n-btn n-btn--sm n-btn--ghost"
                   onClick={() => on.fill(item, unsaved[item])}
                 >
                   {retrySave}

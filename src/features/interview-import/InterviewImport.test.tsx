@@ -301,11 +301,11 @@ describe('InterviewImport', () => {
       within(card('G')).getByText('北森 · 已发 offer · 未入职'),
     ).toBeTruthy();
     expect(card('G').textContent).toContain(
-      '北森状态是已发 offer · 未入职；放进待核对后选「只保留原件」，不入档',
+      '北森状态是已发 offer · 未入职；确认是谁之前不入档',
     );
     await user.click(screen.getByRole('button', { name: '放进待核对' }));
     expect(
-      await screen.findByText('已放进待核对，在那里选「只保留原件」，不入档'),
+      await screen.findByText('已放进待核对，确认是谁之前不入档'),
     ).toBeTruthy();
     expect(document.querySelector('details.nt-fold')).toBeNull();
   });

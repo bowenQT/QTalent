@@ -34,10 +34,10 @@ export const unreadReasonText: Record<UnreadReason, string> = {
 export const notApplicableText = '非管理岗免评';
 export const scaleTag = '原量表 · 单独保存';
 export const sentToast = '已放进待核对，北森同步后再确认是谁';
-/** Not hired: once in review, HR keeps the original only there and nothing is filed. */
-export const sentToastNotHired = '已放进待核对，在那里选「只保留原件」，不入档';
+/** Not hired: nothing is filed for the row until it is known who it is. */
+export const sentToastNotHired = '已放进待核对，确认是谁之前不入档';
 export const unknownHired = '同步后再核对一次';
-export const unknownNotHired = '放进待核对后选「只保留原件」，不入档';
+export const unknownNotHired = '确认是谁之前不入档';
 export const skippedNote =
   '确认是谁以后，淘汰和未入职的候选人跳过，只导入已入职的人';
 export const importPending = '导入待接通';

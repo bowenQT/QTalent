@@ -73,7 +73,7 @@ test('skipped, waiting to be identified and unread rows are told apart and handl
     ['r4', '已发 offer · 未入职'],
   ])
     await expect(page.locator(`#iv-${id}`)).toContainText(
-      `北森状态是${status}；放进待核对后选「只保留原件」，不入档`,
+      `北森状态是${status}；确认是谁之前不入档`,
     );
 
   await expect(page.locator('.n-ivscale .is-na').first()).toHaveText(
