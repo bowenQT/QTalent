@@ -65,20 +65,20 @@
 | 906（#277） | 行状态 |
 | --- | --- |
 | `duplicate` | 已导入过（折叠在「跳过的 N 行」，带「这份文件 … 导入过一次」提示） |
+| `skipped / not_hired`（姓名、职位编号、面试时间唯一定位到招聘记录，或 HR 已确认是谁） | 将跳过（折叠在「跳过的 N 行」） |
 | `not_ready / parser_manual_input`（`unrecognized`） | 有分待补录，显示页面图并补录 |
 | `needs_review(unknown_interview_candidate)`，目录里有这个人 | 待确认是谁（HR 在预览里确认，即 906 的 `confirmedCandidateId`） |
 | `needs_review(unknown_interview_candidate)`，目录里查不到 | 待认人 → 已放进待核对 |
 | `not_ready / candidate_match_unconfirmed` | 待确认是谁 |
-| `skipped / not_hired`（HR 确认是谁之后） | 将跳过（折叠在「跳过的 N 行」） |
 | `needs_review(unknown_interviewer)` | 面试官待核对 |
 | `planned` | 已确认 |
 
-- 淘汰和未入职：906 现在先认人、后看招聘状态，HR 确认是谁之前不跳过。目录里通常查不到这些人，所以原型种子里的唐语桐（淘汰）、宋知意（已发 offer · 未入职）在预览里是「待认人」，行内写「确认是谁之前不入档」，和原型「跳过的 3 行」不同。HR 确认之前能否直接跳过还在等所有者裁决（[#248 评论 6558715526](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6558715526)）；如果改为提前跳过，只改 `rowState` 的顺序。
+- 淘汰和未入职：北森状态是淘汰、已发 offer 未入职、放弃录用，且姓名、职位编号、面试时间能唯一定位到一条招聘记录的行，在 HR 确认是谁之前直接收进「跳过的 N 行」，和原型一致（[#248 评论 6560666796](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6560666796)）。三项定位不到唯一记录的行仍是「待认人」或「待确认是谁」。
 - `skipped / original_only` 在待核对里决定，不回到预览；`candidate_directory_missing` 在 #277 已不可达，从映射里删去。
 - 「返回后保留」：每次确认、补录、放进待核对都经端口 `ports.ts` 提交，端口返回存好的那一行；离开再回来，读取到的行已带上这些结果。样张端口把它们存在本标签页的 sessionStorage。
 - 待接通：导入已确认的行、撤销导入和导入记录（906 没有持久化和档案投影）。导入条上的按钮保持禁用，旁边写「导入待接通」。
 - 链接：「去核对」「关联面试官」「查看待核对」按原型链到 `/inbox#…`，待核对页上线前返回 404。
-- 和原型的差异：面包屑缺「工作台」上级（`route-nav` 别名属共享文件，已在 #248 登记）；导入条多一个「导入待接通」徽标；淘汰和未入职的两行见上；补录保存失败时选项留在框里，标「还没保存」并给「重试保存」。
+- 和原型的差异：面包屑缺「工作台」上级（`route-nav` 别名属共享文件，已在 #248 登记）；导入条多一个「导入待接通」徽标；补录保存失败时选项留在框里，标「还没保存」并给「重试保存」。
 - 新增样式暂放 `src/features/interview-import/interview-import.css`，逐字取自原型 `niu-components.css`（`81e4fd4`），全局样式同步后删除。
 - 视觉对照：**参照待同步**。固定参照 `91b297a` 早于 #250，没有 `app/import.html`；本页按 `main` 上 `81e4fd4` 的原型实现，`91b297a` 里没有可比的部分，所以不写成视觉通过。`tests/visual/interview-import.spec.ts` 在参照缺页时整体跳过；同步到 `81e4fd4` 的请求见 [#248 评论 6557468925](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6557468925)，参照更新后自动补跑。
 
