@@ -23,10 +23,7 @@ packages=(
 for item in "${packages[@]}"; do
   name=${item%%=*}; version=${item#*=}
   printf 'Checking fixed official package %s\n' "$name"
-  apt-cache madison "$name" | awk -F'|' -v expected="$version" '
-    {gsub(/^[ \t]+|[ \t]+$/, "", $2)}
-    $2 == expected && $3 ~ /https?:\/\/([a-z0-9.-]+\.)?(archive|security)\.ubuntu\.com\/ubuntu/ {ok=1}
-    END {exit !ok}'
+  apt-cache madison "$name" | python3 scripts/check-media-source.py "$name" "$version"
 done
 sudo apt-get install -y --no-install-recommends --no-remove "${packages[@]}"
 for item in "${packages[@]}"; do

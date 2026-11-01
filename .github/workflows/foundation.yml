@@ -79,6 +79,8 @@ jobs:
           '--test-coverage-exclude=deploy/*.test.mjs'
           --test-coverage-lines=85 --test-coverage-branches=85
           deploy/*.test.mjs
+      - name: Test official media source validation
+        run: PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-media-source.py
       - name: Install and verify fixed official media tools
         timeout-minutes: 5
         run: bash scripts/install-official-media.sh
