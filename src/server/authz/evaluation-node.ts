@@ -35,6 +35,7 @@ const purposes: readonly string[] = [
 const evaluatorKinds: readonly TalentKind[] = [
   'person',
   'evaluation',
+  'restricted-evaluation',
   'confirmed-score',
 ];
 const directKinds: readonly TalentKind[] = [

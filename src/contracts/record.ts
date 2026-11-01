@@ -172,14 +172,30 @@ export const recordUndoInputSchema = z.strictObject({
   operation_id: text,
   saveId: text,
 });
-export const recordUndoReceiptSchema = z.strictObject({
+const recordUndoReceiptBase = {
   saveId: text,
   // Only events created by this batch; a second rater may create none.
   withdrawnEvents: eventMappingsSchema,
   withdrawnConfirmationIds: z.array(text),
   withdrawnReviewItemIds: z.array(text),
-  originalInput: recordInputSchema,
-});
+};
+// Undo eligibility never implies access to the entire original input. The server
+// reprojects this pair under current complete-input authorization on every replay.
+export const recordUndoReceiptSchema = z.discriminatedUnion(
+  'inputRestoration',
+  [
+    z.strictObject({
+      ...recordUndoReceiptBase,
+      inputRestoration: z.literal('available'),
+      originalInput: recordInputSchema,
+    }),
+    z.strictObject({
+      ...recordUndoReceiptBase,
+      inputRestoration: z.literal('unavailable'),
+      originalInput: z.null(),
+    }),
+  ],
+);
 
 // Typed input is returned on conflicts so callers can retain edits.
 export function recordActionResultSchema<
@@ -269,6 +285,8 @@ export const recordBatchDraftSchema = z
     revision,
     origin: z.literal('ai_suggestion'),
     personIds: batchIds.min(1),
+    // Explicit per-event topic lookup; null is resolved no-topic, never a grant.
+    projectId: text.nullable(),
     sourceReferences: z
       .array(materialSourceReferenceSchema)
       .min(1)

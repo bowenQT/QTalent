@@ -18,7 +18,7 @@
       tasks: SEED.TASKS, batches: SEED.BATCHES, conclusions: SEED.CONCLUSIONS, tagCands: SEED.TAG_CANDIDATES, taglibAdd: [],
       seen: {}, snaps: [], reviews: {}, reviewEvals: {}, corrections: [], selfNotes: [], directions: SEED.DIRECTIONS,
       watchClues: SEED.WATCH_CLUES, follows: SEED.FOLLOWS, rules: SEED.RULES, ruleSugs: SEED.RULE_SUGS, reviewHolds: [],
-      recalKeeps: {}, nodeRetros: SEED.NODE_RETROS, judgeMarks: {}, judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])),
+      recalKeeps: {}, nodeRetros: SEED.NODE_RETROS, judgeMarks: NT.clone(SEED.JUDGE.marks || {}), judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])),
     });
     S = s;
     // 每件事固定保存时生效的维度与锚点版本（v1.6 3.35.6）；之后补日期、确认分数都按这一版。种子只有 rubric-v1 生效过
@@ -226,7 +226,8 @@
       if (o.from && e.date < o.from) return;
       if (o.to && e.date > o.to) return;
       e.scores.forEach((s) => {
-        if (s.p !== pid || s.v == null) return;
+        // 待校准的分（多位评价人分歧）没有定值，只在 all 时取到，用来计入导出的「已跳过」；「资料不足」不出分，不算
+        if (s.p !== pid || (s.v == null && !(o.all && s.st === 'conflict'))) return;
         // 不兼容修订生效后，旧版本下的分待按新版本复核：原分保留，复核前不参与当前版本的取数（v1.6 3.35.5）。
         // 判断对照按原版本对照证据，传 anyVer: true
         if (!o.anyVer && store.heldBy(e, s)) return;
@@ -305,9 +306,15 @@
     if (!store.can('calibrate') || !f || r.na || r.q === f.q || !why) return null;
     S.recalKeeps = S.recalKeeps || {};
     const prev = S.recalKeeps[pid];
-    S.recalKeeps[pid] = { snap: snapKey(f), q: f.q, refQ: r.q, why, by: store.me().id, at: NT.TODAY, ts: Date.now() };
+    const current = { snap: snapKey(f), q: f.q, refQ: r.q, why, by: store.me().id, at: NT.TODAY, ts: Date.now() };
+    S.recalKeeps[pid] = current;
     store.save();
-    return () => { if (prev) S.recalKeeps[pid] = prev; else delete S.recalKeeps[pid]; store.save(); };
+    return () => {
+      // 只能撤销自己写入且仍生效的决定，不能覆盖之后的 HR 决定。
+      if (!store.can('calibrate') || S.recalKeeps[pid] !== current) return false;
+      if (prev) S.recalKeeps[pid] = prev; else delete S.recalKeeps[pid];
+      store.save(); return true;
+    };
   };
   store.freeze = (snap) => { S.snaps.push(snap); store.save(); };
   // 部门负责人在校准时的拖动和理由：存成建议，HR /管理者打开同一团队时可以看到并采纳
@@ -396,7 +403,7 @@
   // ---------- 待办（按视角） ----------
   store.todos = () => {
     const role = store.role(), me = ROLES[role].person, list = [];
-    const visibleInbox = S.inbox.filter((i) => !i.done && (role === 'hrbp' || i.by === me || (role === 'mentor')));
+    const visibleInbox = S.inbox.filter((i) => !i.done && (role === 'hrbp' || i.by === me)); // 评价人只看自己交的材料里的待核对
     if (role !== 'self' && role !== 'lead') visibleInbox.slice().sort((a, b) => (a.later ? 1 : 0) - (b.later ? 1 : 0)).forEach((i) => list.push({ kind: 'verify', badge: '待核对', cls: 'n-badge--ai', icon: 'spark', title: i.q.replace(/？$/, ''), sub: `${i.src} · ${i.at}${i.later ? ' · 已选稍后处理' : ''}`, due: i.later ? '稍后' : '今天', href: `inbox.html#${i.id}` }));
     if (store.can('calibrate')) store.queue().forEach((q) => list.push({ kind: 'calib', badge: q.kindLabel, cls: q.kind === 'conflict' ? 'n-badge--conflict' : '', icon: q.kind === 'conflict' ? 'split' : '', title: q.title, sub: q.sub, due: q.pair, href: `queue.html#${q.id}` }));
     S.tracks.filter((t) => t.state === 'on' && (t.owner === me || t.helper === me) && store.scope(t.person)).forEach((t) => list.push({ kind: 'track', badge: '跟踪到期', title: `重点跟踪 · ${store.person(t.person).name}`, sub: t.q, due: NT.md(t.next), href: `person.html?id=${t.person}#track` }));
@@ -428,13 +435,15 @@
   };
 
   // ---------- HR 校准队列 ----------
+  // 还在评分复核队列里的分：两位评价人分差大待校准，或改了 AI 的分差 2 分以上又没写理由、还没复核。队列和导出、打印用同一个判断
+  store.inScoreReview = (s) => s.st === 'conflict' || (s.st === 'confirmed' && !!s.bigGap && !lastRev(s));
   store.queue = () => {
     const q = [];
     S.events.forEach((e) => e.scores.forEach((s, i) => {
       if (!store.scope(s.p) || store.scope(s.p) === 'self') return;
       const name = store.person(s.p).name, dn = store.dim(s.d).name;
       if (s.st === 'conflict') q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'conflict', kindLabel: '待校准', title: `${dn}分差 ${Math.abs(s.raters[0].v - s.raters[1].v)} 分`, sub: `${name} · ${s.raters.map((r) => `${store.person(r.by).name} ${r.v}`).join(' / ')}`, pair: s.raters.map((r) => r.v).join(' / ') });
-      else if (s.bigGap && s.st === 'confirmed' && !lastRev(s)) q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'gap', kindLabel: '与 AI 分差大', title: `${name} · ${dn}`, sub: `${store.person(s.by).name}确认 ${s.v}，AI 建议 ${s.ai}，没写理由`, pair: `${s.v} / ${s.ai}` });
+      else if (store.inScoreReview(s)) q.push({ id: `${e.id}-${i}`, ev: e, s, i, kind: 'gap', kindLabel: '与 AI 分差大', title: `${name} · ${dn}`, sub: `${store.person(s.by).name}确认 ${s.v}，AI 建议 ${s.ai}，没写理由`, pair: `${s.v} / ${s.ai}` });
     }));
     store.visiblePeople().filter((p) => store.scope(p.id) === 'full' && store.needsRecal(p.id)).forEach((p) => {
       const f = store.formal(p.id), r = store.refPos(p.id);
@@ -453,14 +462,18 @@
   };
 
   // ---------- Landing 对人复盘 ----------
-  store.review = (pid, week = 'W8') => {
+  // 一件事是否落在这份复盘的范围里：复盘里直接补的事件按当天记日期，但归属这次复盘；其余按发生日期
+  const reviewSpan = (pid, week) => {
     const b = store.landingOf(pid)?.batch || store.batch('b-xe6');
-    const w = b.weeks.find((x) => x[0] === week);
-    const from = b.from, to = w[4];
-    const key = `${pid}-${week}`;
-    // 复盘里直接补的事件按当天记日期，但归属这次复盘
-    const evs = S.events.filter((e) => e.kind === 'obs' && e.people.includes(pid) && (e.review === key || (e.date && e.date >= from && e.date <= to)));
+    return { key: `${pid}-${week}`, from: b.from, to: b.weeks.find((x) => x[0] === week)[4] };
+  };
+  const inReview = (e, pid, { key, from, to }) => e.kind === 'obs' && e.people.includes(pid) && (e.review === key || (e.date && e.date >= from && e.date <= to));
+  store.review = (pid, week = 'W8') => {
+    const span = reviewSpan(pid, week), { key, from, to } = span;
     const saved = S.reviews[key] || {};
+    // 复盘的终态检查只在这一处：确认时记下当时的事件（saved.events），之后不论从哪条路径进来的事都不并入已确认的复盘，
+    // 作为这个人单独的一件待确认的事留在原批次回执里（store.lateReviews）；撤销确认后照常按范围归入
+    const evs = S.events.filter((e) => inReview(e, pid, span) && (!saved.events || saved.events.includes(e.id)));
     const rows = SEED.DIMS.map((d) => {
       const items = [];
       evs.forEach((e) => e.scores.forEach((s, i) => { if (s.p === pid && s.d === d.id) items.push({ e, s, i }); }));
@@ -481,10 +494,13 @@
     if (!store.canEditReview(pid)) return null;
     const r = store.review(pid, week);
     if (!r || r.state === 'confirmed' || r.ai || r.conflicts) return null;
-    const confirmed = { state: 'confirmed', by: store.me().id, at: NT.TODAY };
+    const confirmed = { state: 'confirmed', by: store.me().id, at: NT.TODAY, events: r.events.map((e) => e.id) };
     S.reviews[r.key] = confirmed; store.save();
     return confirmed;
   };
+  // 这件事落在哪些已确认的对人复盘范围里、却不在确认时记下的事件里：这些复盘保持不变，这件事单独待确认
+  store.lateReviews = (e) => (e.kind !== 'obs' ? [] : e.people.flatMap((pid) => (store.landingOf(pid)?.batch || store.batch('b-xe6')).weeks
+    .map((w) => reviewSpan(pid, w[0])).filter((span) => S.reviews[span.key]?.events && inReview(e, pid, span) && !S.reviews[span.key].events.includes(e.id)).map((span) => span.key)));
   // 对人复盘每一维的评价：AI 草拟只作参考，HR 和所带导师可以采用、改写、修正；每次保存署名，旧版本保留
   store.canEditReview = (pid, role = store.role()) => (role === 'hrbp' && store.scope(pid, role) === 'full') || (role === 'mentor' && store.scope(pid, role) === 'mentor');
   store.reviewEvalHist = (pid, week, dim) => S.reviewEvals?.[`${pid}-${week}`]?.[dim] || [];
@@ -534,13 +550,15 @@
     return saved.ids.every((id) => seen.has(id)) ? saved : null;
   };
 
-  // 档案里这个视角能看到的事件：导师看不到管理观察和管理受限资料；项目负责人只看自己项目相关的
+  // 面评等招聘资料按来源类别标记（cat: 'recruit'），类型名统一写「招聘评估」（需求定稿 v1.2 §3.9.2）；可见过滤看类别，不看类型名
+  store.isRecruit = (e) => e.kind === 'hist' && e.cat === 'recruit';
+  // 档案里这个视角能看到的事件：导师看不到管理观察、管理受限资料和招聘资料；项目负责人只看自己项目相关的
   store.visibleEvents = (pid) => {
     const role = store.role(), scope = store.scope(pid), land = store.landingOf(pid);
     let events = store.eventsOf(pid), hidden = 0;
     if (role === 'mentor') {
       const team = land ? land.row[2] : [];
-      const keep = (e) => (e.kind === 'obs' && (team.includes(e.recorder) || e.recorder === store.me().id)) || (e.kind === 'hist' && !e.restricted && e.histType !== '招聘评估') || e.kind === 'self';
+      const keep = (e) => (e.kind === 'obs' && (team.includes(e.recorder) || e.recorder === store.me().id)) || (e.kind === 'hist' && !e.restricted && !store.isRecruit(e)) || e.kind === 'self';
       hidden = events.filter((e) => !keep(e)).length; events = events.filter(keep);
     } else if (scope === 'project') {
       const owned = S.projects.filter((x) => x.owner === store.me().id).map((x) => x.id);
@@ -740,6 +758,9 @@
   store.judgeChain = (id) => J.chains.find((c) => c.id === id);
   store.judgeMap = (id) => J.maps.find((m) => m.id === id);
   store.judgeStd = (id) => J.stds.find((x) => x.id === id);
+  // 判断对照按所在期次读取所用的选拔标准版本：期次建立时绑定，之后发布的新版不改它
+  const periodStd = (pgId) => SEED.PROGRAMS.find((g) => g.id === pgId)?.std || null;
+  J.batches.forEach((b) => { if (b.program) b.std = periodStd(b.program); });
   store.judgeBatch = (id) => J.batches.find((b) => b.id === id);
   store.judgeBatches = (chain) => J.batches.filter((b) => !chain || b.chain === chain);
   // 社招后段：对照窗口内、对应维度已确认分的均值所在档；至少 2 条来自不同事件
@@ -766,15 +787,21 @@
       out.push({ ...u, id, batch: batchId, dimName: chain.dims.find((d) => d.id === u.dim).name, state, gap: state === 'high' || state === 'low' ? Math.abs(u.front.r - u.back.r) : 0, mark });
     };
     if (chain.scale === 'grade') {
-      const g = J.xe[batchId];
-      // 两段都能回到原始表格：等级在维度列，评语在评语列
-      const cell = ([label, sheet, at], row, cols, quote, by) => ({ type: 'sheet', label, loc: `「${sheet}」表 ${cols.map((c) => `${c}${row}`).join('、')} · ${at}`, quote, by });
-      const bg = chain.backGrades || chain.grades;
-      g.rows.forEach(([pid, by, fr, fnote, bk, bnote, backBy], i) => chain.dims.forEach((d) => { const row = g.sheetRow?.[pid] ?? i + 2; push({
-        person: pid, dim: d.id,
-        front: { by, v: fr[d.id] ?? null, r: chain.grades.indexOf(fr[d.id]), note: fnote, std: b.std, src: cell(g.src.front, row, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${fr[d.id] ?? '—'}：${fnote}`, by) },
-        back: bk[d.id] ? { by: [backBy || g.back], v: bk[d.id], r: bg.indexOf(bk[d.id]), note: bnote, src: cell(g.src.back, row, [g.src.cols[d.id], g.src.cols.note], `${d.name} ${bk[d.id]}：${bnote}`, backBy || g.back) } : { by: [backBy || g.back], na: true, note: bnote, miss: '结营评审未体现这个维度', src: cell(g.src.back, row, [g.src.cols.note], bnote, backBy || g.back) },
-      }); }));
+      const g = J.xe[batchId], bg = chain.backGrades || chain.grades;
+      // 两段各回到自己那张原表：等级、评语各在一列，行号是这个人在那张表里的行
+      const cell = (src, r, cols, quote) => ({ type: 'sheet', label: src.label, loc: `「${src.sheet}」第 ${r.row} 行 · ${cols.join('、')} 列 · ${NT.md(r.at)}`, quote, by: r.by });
+      const F = g.src.front, B = g.src.back;
+      g.rows.forEach(({ person, front: f, back: k }) => chain.dims.forEach((d) => {
+        const items = f?.items ? chain.items.map((n, i) => `${n} ${f.items[i]}`).join(' · ') : '';
+        push({
+          person, dim: d.id,
+          front: f ? { by: f.by, at: f.at, v: f.grade, r: chain.grades.indexOf(f.grade), note: f.note, std: b.std, items, team: f.team,
+            src: cell(F, f, [...F.cols.items, F.cols.overall, F.cols.note], `${items} · 选拔档位 ${f.grade}：${f.note}`) }
+            : { by: null, v: null, std: b.std, miss: `${F.label}待补这个人的行：第二批次补录，按简历和电话沟通入营` },
+          back: k.grade ? { by: [k.by], at: k.at, v: k.grade, r: bg.indexOf(k.grade), note: k.note, src: cell(B, k, [B.cols.overall, B.cols.note], `${d.name} ${k.grade}：${k.note}`) }
+            : { by: [k.by], at: k.at, na: true, note: k.note, miss: '结营评审表这一行待补结论', src: cell(B, k, [B.cols.note], k.note) },
+        });
+      }));
     } else {
       J.hire[batchId].forEach(([pid, by, ev, fr, fnote]) => chain.dims.forEach((d) => {
         const bk = hireBack(pid, map.back[d.id], chain);
@@ -788,10 +815,26 @@
   // 视角：管理者看汇总与结论；HR 看归属范围；部门负责人、导师、员工只在自己是评价人时看到本人的案例
   store.canJudge = (role = store.role()) => ['ceo', 'hrbp'].includes(role);
   store.judgeScope = (u, role = store.role()) => role === 'ceo' || (role === 'hrbp' && store.scope(u.person, role) === 'full');
-  store.myJudgeUnits = (role = store.role()) => {
-    const me = ROLES[role].person;
-    return J.batches.flatMap((b) => store.judgeUnits(b.id)).filter((u) => u.front.by === me);
+  // 评价人视角：做过前段判断只是筛选条件，每一段都按演示「今天」当前有效、同节点的评价关系授权，有效期左闭右开 [from, to)。
+  // 前段没有当前有效的关系，整条不列出（只计数）；后段没有关系（跨节点）或关系已失效，这一段显示无权限，也不给对照结论
+  const relFor = (me, node, pid) => {
+    const list = (J.rels || []).filter((r) => r.rater === me && r.node === node && r.people.includes(pid));
+    const ok = list.find((r) => NT.TODAY >= r.from && NT.TODAY < r.to);
+    return ok ? { ok: true, rel: ok } : { ok: false, rel: list[0] || null };
   };
+  const myUnits = (me) => J.batches.flatMap((b) => {
+    const chain = store.judgeChain(b.chain), nodes = chain.nodes;
+    return store.judgeUnits(b.id).filter((u) => u.front.by === me).map((u) => {
+      if (!nodes) return u;
+      if (!relFor(me, nodes.front, u.person).ok) return { ...u, hidden: true };
+      if (u.back.na) return u;
+      const r = relFor(me, nodes.back, u.person);
+      return r.ok ? u : { ...u, denied: r.rel ? `${chain.back}这一段的评价关系 ${NT.md(r.rel.to)} 起失效${r.rel.ended ? ` · ${r.rel.ended}` : ''}` : `${chain.back}这一段由其他评价人负责` };
+    });
+  });
+  store.myJudgeUnits = (role = store.role()) => myUnits(ROLES[role].person).filter((u) => !u.hidden);
+  // 前段评价关系已经失效、不再列出的判断条数
+  store.myJudgeHidden = (role = store.role()) => myUnits(ROLES[role].person).filter((u) => u.hidden).length;
   store.isRater = (role = store.role()) => store.myJudgeUnits(role).length > 0;
   store.canSeeRater = (rater, role = store.role()) => role === 'hrbp' || (role !== 'ceo' && ROLES[role].person === rater);
   const COMPARABLE = ['same', 'high', 'low'];
@@ -801,10 +844,15 @@
     units.forEach((u) => { t[u.state] += 1; });
     return t;
   };
+  // 可对照案例（含中间档）都计入门槛；偏高、偏低、一致只算前段给了最高或最低一档的案例，中间档只看后段结论的分布。看不到后段的案例不计
   store.raterStats = (units, rater) => {
-    const mine = units.filter((u) => u.front.by === rater);
+    const mine = units.filter((u) => u.front.by === rater && !u.denied);
+    const chainOf = (u) => store.judgeChain(store.judgeBatch(u.batch).chain);
     const cases = mine.filter(store.judgeComparable);
-    return { units: mine, cases, enough: cases.length >= RATER_MIN, tally: store.judgeTally(cases) };
+    const clear = cases.filter((u) => store.judgeClear([u], chainOf(u)).clear.length), mid = cases.filter((u) => !clear.includes(u));
+    const midBack = {};
+    mid.forEach((u) => { midBack[u.back.v] = (midBack[u.back.v] || 0) + 1; });
+    return { units: mine, cases, clear, mid, midBack, enough: cases.length >= RATER_MIN, tally: store.judgeTally(clear) };
   };
   store.judgeHyps = (batchId) => J.hyps[batchId] || [];
   store.judgeAttrib = (hypId) => S.judgeAttribs[hypId] || null;
@@ -832,7 +880,7 @@
   store.hypCheck = (h) => {
     const { units, scope } = hypScope(h);
     const byId = new Map(units.map((u) => [u.id, u]));
-    const dropped = [...new Set([...h.cases.filter((cid) => !byId.has(cid) || !store.judgeComparable(byId.get(cid))), ...scope.filter((u) => u.state === 'nc').map((u) => u.id)])];
+    const dropped = [...new Set([...h.cases.filter((cid) => !byId.has(cid) || !store.judgeComparable(byId.get(cid))), ...scope.filter((u) => u.state === 'nc' && !J.marks?.[u.id]).map((u) => u.id)])]; // 种子里预先标好的不可比不算依据变化
     const few = !!h.rater && !store.raterStats(units, h.rater).enough;
     const changed = hypPrint(h) !== baseOf(h);
     return { ok: !dropped.length && !few && !changed, dropped, few, changed };
@@ -857,6 +905,23 @@
     S.judgeAttribs[hypId].actions.push(act.id);
     store.save();
     return act;
+  };
+
+  // 「修订入营选拔标准」这类改进动作的状态从它带去的那份修订推出来：起草中 → 待确认 → 已生效，不另存、也不手工改。
+  // 修订按依据认：纳入了这条结论（同一批判断对照、同一条假设）的版本里，有发布过的取最早发布的那一份，否则取最新一份；
+  // 草稿删掉或依据移出后，写「待起草修订」，判断对照里可以从这条归因重新起草
+  store.revisionOf = (a) => {
+    if (!a.rule) return null;
+    const vs = store.ruleVers(a.rule.kind, a.rule.line).filter((r) => (r.basis || []).some((b) => b.type === 'judge' && b.batch === a.from && b.hyp === a.rule.hyp));
+    return vs.find((r) => ['live', 'old'].includes(r.state)) || vs.pop() || null;
+  };
+  const REV_STATE = { draft: ['doing', '起草中'], pending: ['doing', '待确认'], scheduled: ['doing', '待确认'], live: ['done', '已生效'], old: ['done', '已生效'] };
+  store.actionState = (a) => {
+    if (!a.rule) return { s: a.state };
+    const r = store.revisionOf(a);
+    if (!r) return { s: 'todo', label: '待起草修订', derived: true };
+    const [s, label] = REV_STATE[r.state];
+    return { s, label, derived: true, rev: r };
   };
 
   // ---------- 项目复盘：按人才项目的关键节点回看一件事做得怎么样 ----------
@@ -890,12 +955,22 @@
   // 每条结果：k 是看什么，v 是数，href 可以回到来源页面
   store.nodeFacts = (pgId, node) => {
     const g = SEED.PROGRAMS.find((x) => x.id === pgId), S6 = XE.students, T = XE.teams;
+    // 下一期：已建立的期次按绑定的版本；还在筹备的，建立时绑定当时的默认版本
+    if (g.next) {
+      const live = store.ruleLive('front', 'xe-select');
+      return [{ k: '选拔标准', v: g.std ? `${g.std} · 建立时绑定` : `还在筹备，建立期次时绑定当时的默认版本（现在是 ${live.v}）`, href: 'rules.html?r=front&line=xe-select' }];
+    }
     if (pgId !== 'pg-xe6') return g.people.length ? [{ k: '参与', v: `${g.people.length} 人` }] : [];
+    if (node.id === 'sel') {
+      const rows = J.xe['jr-xe6'].rows.filter((r) => r.front).map((r) => r.front);
+      return [{ k: '作品评审', v: `${rows.length} / ${S6.length} 人有选拔记录，${S6.length - rows.length} 人是第二批次补录` },
+        { k: '选拔档位', v: tally(rows, ['优先录取', '通过', '刚过线'], (x) => x.grade) },
+        ...(store.canJudge() ? [{ k: '到结营时看', v: judgeLine(), href: 'judge.html?id=jr-xe6' }] : [])];
+    }
     if (node.id === 'w4') {
       const miss = S6.filter((x) => !x.front).length;
       return [{ k: '交了周评', v: `${S6.length - miss} / ${S6.length} 人${miss ? `，${miss} 人缺记录` : ''}` },
-        { k: '三档分布', v: tally(S6, ['表现突出', '正常发挥', '需关注'], (x) => x.front) },
-        ...(store.canJudge() ? [{ k: '到结营时看', v: judgeLine(), href: 'judge.html?id=jr-xe6' }] : [])];
+        { k: '三档分布', v: tally(S6, ['表现突出', '正常发挥', '需关注'], (x) => x.front) }];
     }
     if (node.id === 'mid') {
       const E = Object.values(S.snaps.find((x) => x.batch === 'b-xe6-mid')?.entries || {});
@@ -1053,18 +1128,27 @@
   // 已处理的线索留在 HR 视图里：核实的、不采纳的连同理由（v1.4 3.20.3），管理者不经过这里
   store.watchHandled = () => (store.role() === 'hrbp' ? S.watchClues.filter((c) => ['verified', 'rejected'].includes(c.state) && store.scope(c.person) === 'full').sort((a, b) => (b.verifiedAt || '').localeCompare(a.verifiedAt || '')) : []);
   store.verifyClue = (id, ok, why) => {
-    const c = S.watchClues.find((x) => x.id === id); if (!c) return null;
+    const c = S.watchClues.find((x) => x.id === id);
+    // 核实线索是 HR 的有范围写操作；处理时重查状态，防止旧按钮重复覆盖。
+    if (!c || store.role() !== 'hrbp' || store.scope(c.person) !== 'full' || c.state !== 'pending' || (!ok && !why?.trim())) return null;
+    const handledToken = NT.uid('vh');
     if (ok) {
-      Object.assign(c, { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now() });
+      Object.assign(c, { state: 'verified', verifiedBy: store.me().id, verifiedAt: NT.TODAY, verifiedTs: Date.now(), handledToken });
       delete c.rejectWhy; // 已核实不能保留先前的「不采纳」理由
     } else {
-      Object.assign(c, { state: 'rejected', rejectWhy: why, verifiedBy: store.me().id, verifiedAt: NT.TODAY });
+      Object.assign(c, { state: 'rejected', rejectWhy: why.trim(), verifiedBy: store.me().id, verifiedAt: NT.TODAY, handledToken });
       delete c.verifiedTs; // 已不采纳不再保留先前核实时刻
     }
     store.save();
     return c;
   };
-  store.unverifyClue = (id) => { const c = S.watchClues.find((x) => x.id === id); c.state = 'pending'; delete c.verifiedBy; delete c.verifiedAt; delete c.verifiedTs; delete c.rejectWhy; store.save(); };
+  store.unverifyClue = (id, expectedToken) => {
+    const c = S.watchClues.find((x) => x.id === id);
+    if (!c || store.role() !== 'hrbp' || store.scope(c.person) !== 'full' || !['verified', 'rejected'].includes(c.state)
+      || (expectedToken != null && c.handledToken !== expectedToken)) return false;
+    c.state = 'pending'; delete c.verifiedBy; delete c.verifiedAt; delete c.verifiedTs; delete c.rejectWhy; delete c.handledToken;
+    store.save(); return true;
+  };
 
   // ---------- 推荐方向（v1.5 3.31）：带目标角色的提名，走值得关注的核实流程 ----------
   // 「适合做 FDE」「适合做产品架构师」：中英文之间留空格，中文之间不留
@@ -1210,7 +1294,7 @@
     ['tags', '标签库', '档案和找人里能用的标签：收录、并入、停用'],
   ];
   store.ruleKindName = (k) => store.RULE_KINDS.find((x) => x[0] === k)?.[1] || k;
-  store.FRONT_LINES = [['xe-weekly', 'XEngineer 周评标准'], ['map-xe', '周评与结营评审对应表']];
+  store.FRONT_LINES = [['xe-select', 'XEngineer 入营选拔标准'], ['map-xe-select', '入营选拔与结营评审对应表']];
   const FAM = new Map(SEED.FAMILIES);
   store.families = SEED.FAMILIES;
   store.familyOf = (pid) => PEOPLE.get(pid)?.family || 'biz';
@@ -1233,21 +1317,39 @@
 
   const isHrbp = () => store.role() === 'hrbp', isCeo = () => store.role() === 'ceo';
   const nextV = (v) => v.replace(/(\d+)$/, (n) => +n + 1);
-  // 起草：从生效中的版本复制一份；同一类规则同时只有一份在修订中
-  store.startDraft = (kind, basis = []) => {
+  // 起草：从生效中的版本复制一份；同一类规则同时只有一份在修订中。
+  // 前段评价标准按 line 区分：只能从 HR 已确认、归因含「评价标准」的判断对照结论起草，确认发布即成为之后新建期次的默认版本
+  store.NEXT_PERIOD = SEED.PROGRAMS.find((g) => g.next) || null;
+  store.canDraftFrom = (b) => {
+    const a = b?.type === 'judge' && S.judgeAttribs[b.hyp];
+    return !!a && a.batch === b.batch && a.cats.includes('std') && ROLES.hrbp.person === a.by;
+  };
+  store.startDraft = (kind, basis = [], line) => {
     if (!isHrbp()) return null;
-    const open = store.ruleOpen(kind); if (open) return open;
-    const live = store.ruleLive(kind);
+    const open = store.ruleOpen(kind, line); if (open) return open;
+    if (kind === 'front' && !basis.some(store.canDraftFrom)) return null;
+    const live = store.ruleLive(kind, line);
     const d = { ...NT.clone(live), v: nextV(live.v), state: 'draft', base: live.v, by: store.me().id, at: NT.TODAY, effect: 'now', compat: 'ok', why: '', basis: NT.clone(basis), preview: null };
-    delete d.confirmedBy; delete d.effAt; delete d.demo; delete d.from;
+    delete d.confirmedBy; delete d.confirmedAt; delete d.effAt; delete d.demo; delete d.from; delete d.returned;
     if (store.inventoryLock() && store.lockedKinds.includes(kind)) d.effect = 'next';
     S.rules[kind].push(d); store.save();
     return d;
   };
-  const draftOf = (kind) => { const d = store.ruleOpen(kind); return d && d.state === 'draft' && isHrbp() ? d : null; };
+  // 从判断对照带着依据起草：已有可编辑的草稿就去重追加依据（预览随之作废）；已提交的返回 blocked，要先撤回
+  const sameBasis = (x, y) => x.type === y.type && (x.type === 'sug' ? x.sug === y.sug : x.type === 'judge' ? x.batch === y.batch && x.hyp === y.hyp : JSON.stringify(x) === JSON.stringify(y));
+  store.draftWithBasis = (kind, basis, line) => {
+    if (!isHrbp() || (kind === 'front' && !basis.some(store.canDraftFrom))) return null;
+    const open = store.ruleOpen(kind, line);
+    if (open && open.state !== 'draft') return { blocked: open };
+    if (!open) return { draft: store.startDraft(kind, basis, line) };
+    const add = basis.filter((b) => !(open.basis || []).some((x) => sameBasis(x, b)));
+    if (add.length) { open.basis = [...(open.basis || []), ...NT.clone(add)]; open.preview = null; store.save(); }
+    return { draft: open, added: add.length };
+  };
+  const draftOf = (kind, line) => { const d = store.ruleOpen(kind, line); return d && d.state === 'draft' && isHrbp() ? d : null; };
   // 改动后预览作废：确认人看到的必须是按当前草稿算出来的那一份（3.35.4）
   const touch = (d) => { d.preview = null; store.save(); };
-  store.setDraft = (kind, patch) => { const d = draftOf(kind); if (!d) return null; Object.assign(d, patch); if (!('why' in patch) && !('basis' in patch)) d.preview = null; store.save(); return d; };
+  store.setDraft = (kind, patch, line) => { const d = draftOf(kind, line); if (!d) return null; Object.assign(d, patch); if (!('why' in patch) && !('basis' in patch)) d.preview = null; store.save(); return d; };
   store.setDraftParam = (kind, key, val) => { const d = draftOf(kind); if (!d) return null; d.params = { ...d.params, [key]: val }; touch(d); return d; };
   store.setDraftAnchor = (kind, set, i, text) => {
     const d = draftOf(kind); if (!d) return null;
@@ -1257,20 +1359,20 @@
     touch(d); return d;
   };
   // 删除草稿：纳入这份草稿的修订建议回到待处理；返回撤销函数，期间又起草了新的一份时保持删除
-  store.deleteDraft = (kind) => {
-    const d = draftOf(kind); if (!d) return null;
+  store.deleteDraft = (kind, line) => {
+    const d = draftOf(kind, line); if (!d) return null;
     const sugs = S.ruleSugs.filter((x) => x.draft === d.v && x.state === 'adopted'), snaps = NT.clone(sugs);
     sugs.forEach((x) => { x.state = 'open'; delete x.handledBy; delete x.handledAt; delete x.draft; });
     S.rules[kind] = S.rules[kind].filter((r) => r !== d); store.save();
     return () => {
-      if (store.ruleOpen(kind)) return false;
+      if (store.ruleOpen(kind, line)) return false;
       S.rules[kind].push(d); snaps.forEach((sn) => Object.assign(S.ruleSugs.find((x) => x.id === sn.id), sn)); store.save();
       return true;
     };
   };
   // 移除草稿的一条依据；修订建议类依据同时把那条建议恢复为待处理，撤销时两边一起恢复
-  store.removeBasis = (kind, i) => {
-    const d = draftOf(kind); if (!d || !d.basis?.[i]) return null;
+  store.removeBasis = (kind, i, line) => {
+    const d = draftOf(kind, line); if (!d || !d.basis?.[i]) return null;
     const [b] = d.basis.splice(i, 1);
     const sug = b.type === 'sug' ? S.ruleSugs.find((x) => x.id === b.sug && x.state === 'adopted' && x.draft === d.v) : null, snap = sug && NT.clone(sug);
     if (sug) { sug.state = 'open'; delete sug.handledBy; delete sug.handledAt; delete sug.draft; }
@@ -1278,7 +1380,7 @@
     let restored = false;
     return () => {
       // 旧 Toast 再次触发不能重复写回同一条依据。
-      if (restored || draftOf(kind) !== d) return false;
+      if (restored || draftOf(kind, line) !== d) return false;
       d.basis.splice(Math.min(i, d.basis.length), 0, b);
       if (snap) { const x = S.ruleSugs.find((y) => y.id === snap.id); if (x && x.state === 'open') Object.assign(x, snap); }
       restored = true;
@@ -1375,10 +1477,20 @@
     S.events.forEach((e) => { if (e.kind === 'obs' && e.date) e.scores.forEach((s) => { if (COUNTED.includes(s.st) && store.heldBy(e, s) === h) list.push(s); }); });
     return { ...h, n: list.length, people: new Set(list.map((s) => s.p)).size, raters: new Set(list.map((s) => s.by).filter(Boolean)).size };
   }).filter((h) => h.n);
-  store.previewDraft = (kind) => {
-    const d = draftOf(kind); if (!d) return null;
+  // 前段标准的预览汇总了依据，说明和依据任一改动，预览都要重算
+  const frontKey = (d) => JSON.stringify([d.note, d.basis || []]);
+  // 前段评价标准：只看之后新建期次的适用范围、已绑定期次与保留旧版的条数、汇总依据；不列名单，也不涉及个人的分数
+  function frontImpact(d) {
+    const g = store.NEXT_PERIOD, rows = Object.values(J.xe).flatMap((x) => x.rows.filter((r) => r.front));
+    const judge = (d.basis || []).filter((b) => b.type === 'judge');
+    return { kind: 'front', at: NT.TODAY, key: frontKey(d), next: g && !g.std ? { id: g.id, name: g.name, node: g.nodes[0][1], at: g.nodes[0][0] } : null,
+      bound: SEED.PROGRAMS.filter((x) => x.std).map((x) => ({ id: x.id, name: x.name, std: x.std })),
+      keep: rows.length, keepBatch: J.batches.filter((b) => b.std === d.base).map((b) => b.name), basis: judge.map((b) => ({ dim: b.dim, n: b.n, batch: store.judgeBatch(b.batch)?.name })), notes: (d.basis || []).length - judge.length };
+  }
+  store.previewDraft = (kind, line) => {
+    const d = draftOf(kind, line); if (!d) return null;
     if (store.forcedBreak(d)) d.compat = 'break';
-    d.preview = kind === 'watch' ? watchImpact(d) : rubricImpact(d);
+    d.preview = kind === 'watch' ? watchImpact(d) : kind === 'front' ? frontImpact(d) : rubricImpact(d);
     store.save();
     return d.preview;
   };
@@ -1389,7 +1501,7 @@
   store.lockBlocks = (d, kind = store.ruleKind(d.v)) => d.effect === 'now' && store.lockedKinds.includes(kind) && !!store.inventoryLock();
   store.draftChecks = (d) => {
     const ch = store.ruleChanges(d);
-    const key = d.params ? JSON.stringify(d.params) : JSON.stringify(d.content);
+    const key = d.params ? JSON.stringify(d.params) : d.line ? frontKey(d) : JSON.stringify(d.content);
     return {
       lock: !store.lockBlocks(d),
       changed: ch.length > 0,
@@ -1398,23 +1510,33 @@
       preview: !!d.preview && d.preview.key === key,
     };
   };
-  store.submitDraft = (kind) => {
-    const d = draftOf(kind); if (!d) return null;
+  store.submitDraft = (kind, line) => {
+    const d = draftOf(kind, line); if (!d) return null;
     const c = store.draftChecks(d);
     if (!c.lock || !c.changed || !c.why || !c.range || !c.preview) return null;
     Object.assign(d, { state: 'pending', submittedAt: NT.TODAY }); delete d.returned;
     store.save(); return d;
   };
   // 待确认、已排期都可以撤回到草稿；已排期的撤回后要重新提交确认（3.35.3）
-  store.withdrawDraft = (kind) => {
-    const d = store.ruleOpen(kind); if (!d || !isHrbp() || !['pending', 'scheduled'].includes(d.state)) return null;
+  store.withdrawDraft = (kind, line) => {
+    const d = store.ruleOpen(kind, line); if (!d || !isHrbp() || !['pending', 'scheduled'].includes(d.state)) return null;
     Object.assign(d, { state: 'draft' }); delete d.confirmedBy; delete d.confirmedAt;
     store.save(); return d;
   };
+  // 退回：返回撤销函数。撤销只生效一次；退回之后起草人改过、重新提交或删掉了草稿，都保持现状并返回 false
   store.returnDraft = (kind, why, line) => {
     const d = store.ruleOpen(kind, line); if (!d || !isCeo() || d.state !== 'pending') return null;
-    Object.assign(d, { state: 'draft', returned: { why, by: store.me().id, at: NT.TODAY } });
-    store.save(); return d;
+    const sent = NT.clone(d), returned = { why, by: store.me().id, at: NT.TODAY };
+    Object.assign(d, { state: 'draft', returned });
+    const after = JSON.stringify(d);
+    store.save();
+    let undone = false;
+    return () => {
+      // 撤销必须对应同一次退回：退回记录还是这一次写入的那个对象，草稿内容也没变
+      if (undone || !isCeo() || store.ruleOpen(kind, line) !== d || d.returned !== returned || JSON.stringify(d) !== after) return false;
+      delete d.returned; Object.assign(d, sent);
+      undone = true; store.save(); return true;
+    };
   };
   // 确认发布：立即生效的替代旧版本；从下一个盘点批次开始的进入已排期，旧版本继续生效（AC-77）
   store.confirmDraft = (kind, line) => {
@@ -1496,7 +1618,13 @@
     const s = { id: NT.uid('rs'), rule: 'rubric', state: 'open', by: store.me().id, at: NT.TODAY, ...o };
     S.ruleSugs.unshift(s); store.save(); return s;
   };
-  store.removeRuleSug = (id) => { S.ruleSugs = S.ruleSugs.filter((s) => s.id !== id); store.save(); };
+  store.removeRuleSug = (id) => {
+    const i = S.ruleSugs.findIndex((s) => s.id === id);
+    const s = S.ruleSugs[i];
+    // 已被 HR 处理的建议及其草稿依据必须保留；只允许提交者撤回待处理建议。
+    if (!s || !store.canSuggestRule() || s.by !== store.me().id || s.state !== 'open') return false;
+    S.ruleSugs.splice(i, 1); store.save(); return true;
+  };
   store.ruleSugs = (o = {}) => S.ruleSugs.filter((s) => (!o.state || s.state === o.state) && (!o.by || s.by === o.by));
   // HR 处理：纳入草稿（作为依据挂到草稿上）或不采纳（写理由）
   store.handleRuleSug = (id, ok, why) => {
@@ -1516,6 +1644,66 @@
     if (s.draft) { const d = store.ruleVer(s.draft); if (d) d.basis = (d.basis || []).filter((b) => b.sug !== id); }
     s.state = 'open'; delete s.handledBy; delete s.handledAt; delete s.why; delete s.draft; store.save();
   };
+
+  // ---------- 导出与审计（BOW-911 档案打印、BOW-912 批量导出） ----------
+  // 口径：截至导出时已确认的内容。事件分只取已确认、已校准的，AI 建议分和待校准的分不进；
+  // 人员先按当前视角的查看范围过滤，事件再按档案的可见规则过滤；象限和盘点结论以盘点冻结快照为准，不进导出
+  store.canExport = (pid, role = store.role()) => ['ceo', 'hrbp'].includes(role) && (!pid || store.scope(pid, role) === 'full');
+  store.exportScopes = () => {
+    const role = store.role(), mine = store.visiblePeople().filter((p) => store.canExport(p.id, role)), ids = new Set(mine.map((p) => p.id));
+    const out = [{ id: 'all', label: role === 'ceo' ? '全公司范围内的人' : '我负责的人', people: mine.map((p) => p.id) }];
+    S.batches.filter((b) => b.kind === 'landing').forEach((b) => {
+      const ps = b.newcomers.map(([pid]) => pid).filter((pid) => ids.has(pid));
+      if (ps.length) out.push({ id: b.id, label: b.name, people: ps });
+    });
+    if (store.canFollow()) out.push({ id: 'follow', label: '我的关注', people: store.followList().map((f) => f.person).filter((pid) => ids.has(pid)) });
+    return out;
+  };
+  // 规则版本在导出和打印里写成「评价规则 v1」，不露内部编号
+  const ruleName = (v) => (v ? `评价规则 ${v.replace(/^.*-(v\d+)$/, '$1')}` : '');
+  // 一条分的来源位置：事件只有一处来源就是它；有几处时，看这条分的引用落在哪一处原文里。
+  // 引用对不上或同时落在几处，就是关联不足，列出这件事的全部来源，不只取第一处
+  const citeOf = (note) => (/引用「(.+)」/.exec(note || '')?.[1] || '').replace(/…$/, '');
+  store.scoreSrcs = (s, e) => {
+    const all = e.srcs || [];
+    if (all.length < 2) return { list: all, exact: true };
+    const q = citeOf(s.note), hit = q ? all.filter((x) => (x.quote || '').includes(q)) : [];
+    return hit.length === 1 ? { list: hit, exact: true } : { list: all, exact: false };
+  };
+  // 取数和档案同一套：按新版本复核过的分用复核后的值、评分人和版本；待按新版本复核的分、AI 建议分、待校准的分
+  // 和还在评分复核队列里的分都不导出，计入「已跳过」
+  store.exportRows = (pids, from) => {
+    const rows = []; let skipped = 0;
+    pids.filter((pid) => store.canExport(pid)).forEach((pid) => {
+      const cur = store.scoresOf(pid, { visible: true, from }).filter((s) => !store.inScoreReview(s));
+      skipped += store.scoresOf(pid, { visible: true, from, all: true, anyVer: true }).length - cur.length;
+      cur.forEach((s) => {
+        const e = s.ev, ver = store.ruleVer(s.ver), srcs = store.scoreSrcs(s, e);
+        rows.push({ pid, ev: e.id, date: e.date, title: e.title, dim: store.dim(s.d)?.name || s.d, v: s.v,
+          anchor: ver ? store.anchors(s.d, pid, ver).list[s.v - 1] || '' : '', note: s.note || '', by: s.by, rubric: ruleName(s.ver),
+          src: srcs.list.map((x) => `${x.label} · ${x.loc}`).join('；'), srcExact: srcs.exact });
+      });
+    });
+    return { rows, skipped, people: new Set(rows.map((r) => r.pid)).size };
+  };
+  // 生成时按当前视角再判一次：已没有导出资格的拒绝并记审计；范围里没有已确认内容的不生成。两种都不出文件、不记导出成功
+  store.exportCheck = (pids, from) => {
+    if (!store.canExport()) return { state: 'deny' };
+    const r = store.exportRows(pids, from);
+    return { state: r.rows.length ? 'ok' : 'empty', ...r };
+  };
+  // 演示时钟：日期是 NT.TODAY，时刻从 15:00 起、每记一条审计往后一分钟，不读本机时钟。
+  // 导出表头、打印稿和审计用同一个时刻
+  store.clockNow = () => {
+    const m = 15 * 60 + (S.audit || []).length;
+    return `${NT.TODAY} ${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  };
+  // 审计只记谁在什么时间对什么做了什么，不记导出或打印的内容本身
+  store.audit = (act, obj) => {
+    (S.audit ||= []).unshift({ at: NT.md(store.clockNow()), by: store.me().id, act, obj });
+    store.save();
+  };
+  store.audits = () => S.audit || [];
 
   // ---------- 全局搜索 ----------
   store.search = (q) => {
