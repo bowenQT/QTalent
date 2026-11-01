@@ -9,7 +9,13 @@ import {
 } from './app-command.mjs';
 const expected = {
   origin: 'https://demo.example.test',
-  database: { host: 'db.example.test', port: 5432, name: 'demo' },
+  database: {
+    host: 'db.example.test',
+    port: 5432,
+    name: 'demo',
+    projectRef: 'aaaaaaaaaaaaaaaaaaaa',
+    username: 'postgres.aaaaaaaaaaaaaaaaaaaa',
+  },
 };
 const environment = {
   APP_ENV: 'demo',
@@ -18,7 +24,7 @@ const environment = {
   BETTER_AUTH_URL: expected.origin,
   WORKER_PORT: '3001',
   DATABASE_URL:
-    'postgres://demo:synthetic%40password@db.example.test:5432/demo?sslmode=verify-full',
+    'postgres://postgres.aaaaaaaaaaaaaaaaaaaa:synthetic%40password@db.example.test:5432/demo?sslmode=verify-full',
 };
 test('checks actual demo, origin and database identity before executing', () => {
   assert.equal(applicationEnvironment(environment, expected).APP_ENV, 'demo');
@@ -30,17 +36,20 @@ test('checks actual demo, origin and database identity before executing', () => 
     { WORKER_PORT: '4001' },
     {
       DATABASE_URL:
-        'postgres://demo:test@other.example.test:5432/demo?sslmode=require',
+        'postgres://postgres.aaaaaaaaaaaaaaaaaaaa:test@other.example.test:5432/demo?sslmode=require',
     },
     {
       DATABASE_URL:
-        'postgres://demo:test@db.example.test:6543/demo?sslmode=require',
+        'postgres://postgres.aaaaaaaaaaaaaaaaaaaa:test@db.example.test:6543/demo?sslmode=require',
     },
     {
       DATABASE_URL:
-        'postgres://demo:test@db.example.test:5432/other?sslmode=require',
+        'postgres://postgres.aaaaaaaaaaaaaaaaaaaa:test@db.example.test:5432/other?sslmode=require',
     },
-    { DATABASE_URL: 'postgres://demo:test@db.example.test:5432/demo' },
+    {
+      DATABASE_URL:
+        'postgres://postgres.aaaaaaaaaaaaaaaaaaaa:test@db.example.test:5432/demo',
+    },
     { DATABASE_URL: 'not-a-url' },
   ])
     assert.throws(() =>
@@ -50,7 +59,7 @@ test('checks actual demo, origin and database identity before executing', () => 
 test('maps credentials only into libpq environment, never command arguments', () => {
   const env = dumpEnvironment(environment, expected);
   assert.equal(env.PGPASSWORD, 'synthetic@password');
-  assert.equal(env.PGUSER, 'demo');
+  assert.equal(env.PGUSER, 'postgres.aaaaaaaaaaaaaaaaaaaa');
   assert.equal(env.PGDATABASE, 'demo');
   assert.equal(env.PGSSLMODE, 'verify-full');
   assert.equal(
@@ -163,4 +172,39 @@ test('standalone command boundary validates before invoking a child', () => {
   assert.equal(result.status, 0);
   assert.equal(result.stdout, '');
   assert.equal(result.stderr, '');
+});
+
+test('shared Supabase pool rejects another project username on both role ports', () => {
+  for (const port of [5432, 6543]) {
+    const projectRef = 'aaaaaaaaaaaaaaaaaaaa';
+    const target = {
+      origin: expected.origin,
+      database: {
+        host: 'shared.example.test',
+        port,
+        name: 'postgres',
+        projectRef,
+        username: `postgres.${projectRef}`,
+      },
+    };
+    const correct = {
+      ...environment,
+      DATABASE_URL: `postgres://postgres.${projectRef}:synthetic@shared.example.test:${port}/postgres?sslmode=verify-full`,
+    };
+    assert.equal(applicationEnvironment(correct, target).APP_ENV, 'demo');
+    assert.throws(
+      () =>
+        applicationEnvironment(
+          {
+            ...correct,
+            DATABASE_URL: correct.DATABASE_URL.replace(
+              projectRef,
+              'bbbbbbbbbbbbbbbbbbbb',
+            ),
+          },
+          target,
+        ),
+      /database_mismatch/,
+    );
+  }
 });

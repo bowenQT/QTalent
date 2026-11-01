@@ -17,13 +17,16 @@
     "web": {
       "host": "REPLACE_CONFIRMED_POOL_HOST",
       "port": 6543,
-      "name": "postgres"
+      "name": "postgres",
+      "username": "postgres.REPLACE_CONFIRMED_PROJECT_REF"
     },
     "worker": {
       "host": "REPLACE_CONFIRMED_SESSION_HOST",
       "port": 5432,
-      "name": "postgres"
-    }
+      "name": "postgres",
+      "username": "postgres.REPLACE_CONFIRMED_PROJECT_REF"
+    },
+    "projectRef": "REPLACE_CONFIRMED_PROJECT_REF"
   },
   "prerequisites": {}
 }

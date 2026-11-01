@@ -116,9 +116,17 @@ JS
 
 `deploy/deploy.sh` 在已经确认的 Linux 演示机本地运行，使用既有 `qtalent` 用户、两份 systemd 单元、Git repository、工具链和环境文件。它不创建用户、不安装/启用单元、不配置隧道或安全策略，也不 SSH 到某个猜测的目标。实际执行由具备既有部署权限的操作者完成；脚本没有自动 sudo 或权限扩展。
 
-将 `target.example.json` 的**非敏感目标元数据**在部署机受控路径中填写：精确 hostname、环境确认记录、根目录/既有仓库、环境文件目录、备份目录、Node/pnpm/pg_dump 路径、Web/worker 的数据库主机/端口/库名，以及按本次部署计划明确指定的可选 897/899 合入 SHA。样例故意为 `confirmed:false` 且带占位符，不能直接执行。清单不含密码或连接串；`confirmationRef` 是由操作者核验过的 #25 环境记录引用，脚本只核其格式与机器/目录/环境事实，不冒充在线核实所有者身份的授权系统。
+将 `target.example.json` 的**非敏感目标元数据**在部署机受控路径中填写：精确 hostname、环境确认记录、根目录/既有仓库、环境文件目录、备份目录、Node/pnpm/pg_dump 路径、Supabase非秘密projectRef、Web/worker各自预期数据库用户名及主机/端口/库名，以及按本次部署计划明确指定的可选 897/899 合入 SHA。样例故意为 `confirmed:false` 且带占位符，不能直接执行。清单不含密码或连接串；`confirmationRef` 是由操作者核验过的 #25 环境记录引用，脚本只核其格式与机器/目录/环境事实，不冒充在线核实所有者身份的授权系统。
 
-所有变更入口都必须显式给出 `--target` 和匹配的 `--target-id`。脚本核对当前机器身份、真实目录、demo/production Node 运行模式、Access 开启、origin、两种数据库连接身份与 TLS 模式；环境文件只在子进程中 source，不读取后打印或复制。未知目标、production 运行域、未合 main 的 SHA 和未满足的显式前置均失败。11/1 首发批准只要求已合 main，样例 prerequisites 明确为 {}；若后续计划在其中填写 bow897/bow899 的完整 SHA，它们仍必须是候选版本的祖先，不接受未知键或占位值。空前置不放过主线归属、目标身份或环境检查。
+所有变更入口都必须显式给出 `--target` 和匹配的 `--target-id`。脚本核对当前机器身份、真实目录、demo/production Node 运行模式、Access 开启、origin、两种数据库连接身份与 TLS 模式；环境文件只由qtalent子进程以受限EnvironmentFile字面语义读取，不执行shell，不读取后打印或复制。common.env先加载，role文件后加载，同名变量以后者为准；文件描述符读值前再次要求普通文件、0600、实际qtalent属主，不跟随符号链接。未知目标、production 运行域、未合 main 的 SHA 和未满足的显式前置均失败。11/1 首发批准只要求已合 main，样例 prerequisites 明确为 {}；若后续计划在其中填写 bow897/bow899 的完整 SHA，它们仍必须是候选版本的祖先，不接受未知键或占位值。空前置不放过主线归属、目标身份或环境检查。
+
+### 环境文件的字面值子集
+
+本工具按[systemd EnvironmentFile](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#EnvironmentFile=)的受限子集读取UTF-8 `KEY=value`：整行#或;注释、空值、重复键后者覆盖；单/双引号多行值、双引号及无引号反斜线续行、对应反斜线规则；无引号首尾空白去除、内部空白保留。`$`、反引号、`$(...)`均为普通数据，不插值或执行。单引号内全部字面保留；双引号只处理systemd规定的转义，未知反斜线保留。
+
+键名限ASCII字母/下划线开头及字母数字下划线。`export`、无等号行、拼接引号、闭引号后的非空白内容（含行尾注释）、未闭引号/转义、BOM/NUL/无效UTF-8等拒绝；不要把该文件当shell脚本source。该受限语法拒绝不支持的形状，不悄悄改写值。每份文件上限1MiB，秘密仅留600文件/子进程环境；pg_dump子进程仍使用077 umask。实际common/web/worker文件不在本次离线测试中读取或修改。
+
+`deploy/fixtures/environment-literals.txt`与对应expected.json是纯合成输入。systemd-environment-proof.json记录演示机systemd255对同一字节的实际摘要对照（13项变量，单元collect、正式服务PID未变）；单测固定该摘要，不打印合成secret的值。这是解析语义证据，不代表本未合脚本已安装或执行生产发布。
 
 以下为操作顺序示意，`TARGET_FILE`、`TARGET_ID`、`SHA`、`PREVIOUS_SHA`、`BACKUP_FILE` 和 `SEED_BACKUP_FILE` 由 #25 已确认记录填写。不是当前机器的部署命令，本轮没有实际执行：
 
@@ -148,13 +156,13 @@ deploy/deploy.sh status --target "$TARGET_FILE" --target-id "$TARGET_ID"
 
 ### 实际执行与记录语义
 
-- 发布从既有 repository 显式 fetch main，验证目标属于最新主线，并逐项验证清单中显式设置的前置是目标 SHA 的祖先。Git archive 导出到独立暂存目录，以 qtalent 用户锁定安装/构建。完整构建后才变为 `releases/<sha>`，存在不相容同名目录时拒绝覆盖。
+- 发布从既有 repository 显式 fetch main，验证目标属于最新主线，并逐项验证清单中显式设置的前置是目标 SHA 的祖先。Git archive 导出到独立暂存目录，以 qtalent 用户锁定安装/构建。安装后从候选版本的prototype-reference.json固定commit导出独立临时原型快照，调用候选版本已有的prepare-reference.ts --verified-snapshot，先逐文件核Git blob摘要再物化.reference-cache；不依赖release中的Git历史，也不把候选目录里较新的prototype文件当固定来源。构建后才变为 `releases/<sha>`，发布元数据与缓存reference.json必须匹配；旧工具产生的缺缓存/缺referenceCommit目录拒绝复用，不覆盖或自动修补活动目录。
 - 读取 worker 数据库的 Drizzle 迁移日志（只读事务），按已安装 Drizzle 的 SQL SHA-256/时间戳合同，与发布内 journal 的完整前缀核对。迁移未应用、记录缺失或探测失败时不激活；不自动跑迁移。
 - 切换 `current` 后重启两份既有单元，以最多30次、间隔1秒检查启动就绪（单次网络探测另有10秒上限）。自动存活检查要求 /login 无令牌返回401、worker端口可连，且两个 MainPID 的实际 /proc cwd 都对应所选发布 SHA。401/端口只能证明这层健康，完整 Access、原件授权和三幕验收仍按下表另做。
 - 激活或健康失败时，恢复起始链接并重启两份服务，重新读取两个运行版本和健康状态；首次部署失败则撤掉 current、停两份服务并确认 PID 为0。恢复失败明确记为 `failed_rollback_failed`。显式应用回滚本身失败也会尝试恢复操作前的版本。
 - 部署机 `.deployment-lock` 将准备、备份、数据库写入、部署/回滚串行化。崩溃后的锁不按时间自动回收；先核记录、锁内进程信息和实际服务，确认原操作已停止后再处理。这里的主机操作锁不同于本机 Git 领卡锁。
 - 每个操作以独立 JSON 写入 `<root>/deployment-records/`；阶段和终态原子更新，记录目标/来源SHA、实际Web与worker版本、迁移哈希/时间、备份摘要、回滚结果和稳定错误码，不写环境值、命令输出或原始异常。CLI返回记录标识。记录目录不是新的任务看板，真实结果仍回填 #25。
-- 备份的连接信息只进入 libpq 环境，不放命令参数；备份子进程使用私有 umask。备份摘要绑定目标数据库身份，迁移/seed 前核验且标记一次性消耗；数据库命令失败写 `outcome_unknown`，不盲目重试、自动回切数据库或声称已恢复。
+- 备份的连接信息只进入 libpq 环境，不放命令参数；备份子进程使用私有 umask。备份指纹v2固定包含projectRef及Web/worker各自host/port/name/username，URL解码后的用户名必须逐角色与清单完全一致且属于同一projectRef；共享pool的host/port/name相同不能替代项目身份。旧指纹或其他项目的备份不能授权写入，须重新显式备份，不自动重标记旧备份。迁移/seed前核验且标记一次性消耗；数据库命令失败写 `outcome_unknown`，不盲目重试、自动回切数据库或声称已恢复。
 - 清理只识别本工具的受管目录/备份元数据；保留最近3份已激活发布、7天备份，跳过外部目录、符号链接和不相容元数据。部署后的发布清理失败会返回维护警告，保留健康服务和失败记录，不伪称清理成功。
 
 离线验证使用真实临时 Git、归档和文件系统；只控制 Linux 服务/构建/数据库 I/O。不会把这些结果当作真实 systemd、Supabase、TLS、Access 或三幕验收：

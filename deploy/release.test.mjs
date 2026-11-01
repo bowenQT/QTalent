@@ -14,7 +14,8 @@ import {
   chmodSync,
   statSync,
 } from 'node:fs';
-import { join, basename } from 'node:path';
+import { join, basename, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { tmpdir, hostname } from 'node:os';
 import { createHash } from 'node:crypto';
 import {
@@ -87,6 +88,34 @@ function fixture() {
     git('push', '-q', 'origin', 'main');
     return git('rev-parse', 'HEAD');
   };
+  mkdirSync(join(repo, 'scripts'), { recursive: true });
+  writeFileSync(
+    join(repo, 'scripts/prepare-reference.ts'),
+    readFileSync(new URL('../scripts/prepare-reference.ts', import.meta.url)),
+  );
+  mkdirSync(join(repo, 'prototype/y'), { recursive: true });
+  const referenceBytes = Buffer.from('fixed synthetic reference');
+  writeFileSync(join(repo, 'prototype/y/fixed.txt'), referenceBytes);
+  const reference = commit('reference');
+  writeFileSync(
+    join(repo, 'prototype-reference.json'),
+    JSON.stringify({ commit: reference }),
+  );
+  mkdirSync(join(repo, 'tests/fixtures'), { recursive: true });
+  writeFileSync(
+    join(repo, 'tests/fixtures/prototype-manifest.json'),
+    JSON.stringify({
+      files: [
+        {
+          path: 'prototype/y/fixed.txt',
+          sha: createHash('sha1')
+            .update(`blob ${referenceBytes.length}\0`)
+            .update(referenceBytes)
+            .digest('hex'),
+        },
+      ],
+    }),
+  );
   const bow897 = commit('contract'),
     bow899 = commit('node-model'),
     first = commit('one');
@@ -113,8 +142,19 @@ function fixture() {
     pnpmPath: join(base, 'bin', 'pnpm'),
     pgDumpPath: join(base, 'bin', 'pg_dump'),
     database: {
-      web: { host: 'pool.example.test', port: 6543, name: 'demo' },
-      worker: { host: 'db.example.test', port: 5432, name: 'demo' },
+      projectRef: 'aaaaaaaaaaaaaaaaaaaa',
+      web: {
+        host: 'pool.example.test',
+        port: 6543,
+        name: 'demo',
+        username: 'postgres.aaaaaaaaaaaaaaaaaaaa',
+      },
+      worker: {
+        host: 'db.example.test',
+        port: 5432,
+        name: 'demo',
+        username: 'postgres.aaaaaaaaaaaaaaaaaaaa',
+      },
     },
     prerequisites: { bow897, bow899 },
   };
@@ -169,13 +209,24 @@ function fixture() {
       const command = args.slice(args.indexOf('--') + 1);
       if (command[0] === 'git' || command[0] === 'tar')
         return nativeRun(command[0], command.slice(1), options);
-      assert.equal(command[0], '/bin/bash');
-      const entry = command.indexOf('qtalent-env');
-      const roleCommand = command.slice(entry + 3);
+      assert.equal(command[0], target.nodePath);
+      const roleCommand = command;
       const operation = roleCommand[3],
         executable = roleCommand[4],
         flags = roleCommand.slice(5);
       if (operation === 'validate') return '';
+      if (executable === target.nodePath && flags[0] === '--import')
+        return nativeRun(
+          process.execPath,
+          [
+            '--import',
+            fileURLToPath(
+              new URL('../node_modules/tsx/dist/loader.mjs', import.meta.url),
+            ),
+            ...flags.slice(2),
+          ],
+          options,
+        );
       if (
         executable === target.nodePath &&
         flags[0]?.endsWith('migration-state.mjs')
@@ -962,4 +1013,283 @@ test('requires environment file owner to match the actual qtalent uid lookup', a
     f.state.events.some((e) => e.file === 'runuser'),
     false,
   );
+});
+
+test('archive preparation materializes fixed seed inputs without release Git history', async () => {
+  const f = fixture();
+  const project = fileURLToPath(new URL('..', import.meta.url));
+  const reference = JSON.parse(
+    readFileSync(join(project, 'prototype-reference.json'), 'utf8'),
+  );
+  const manifest = JSON.parse(
+    readFileSync(
+      join(project, 'tests/fixtures/prototype-manifest.json'),
+      'utf8',
+    ),
+  );
+  for (const path of [
+    'prototype-reference.json',
+    'tests/fixtures/prototype-manifest.json',
+    'scripts/prepare-reference.ts',
+  ]) {
+    mkdirSync(dirname(join(f.repo, path)), { recursive: true });
+    writeFileSync(join(f.repo, path), readFileSync(join(project, path)));
+  }
+  for (const entry of manifest.files) {
+    mkdirSync(dirname(join(f.repo, entry.path)), { recursive: true });
+    writeFileSync(
+      join(f.repo, entry.path),
+      execFileSync('git', ['show', `${reference.commit}:${entry.path}`], {
+        cwd: project,
+      }),
+    );
+  }
+  // Make the actual fixed commit available in this isolated fixture repository.
+  f.git('fetch', '-q', project, reference.commit);
+  f.git('add', '.');
+  f.git(
+    '-c',
+    'commit.gpgsign=false',
+    '-c',
+    'core.hooksPath=/dev/null',
+    'commit',
+    '-qm',
+    'fixed reference inputs',
+  );
+  f.git('push', '-q', 'origin', 'main');
+  const sha = f.git('rev-parse', 'HEAD');
+  // The candidate's checked-in prototype may evolve independently of the pinned input.
+  writeFileSync(
+    join(f.repo, 'prototype/y/app/js/data.js'),
+    'newer unpinned prototype',
+  );
+  f.git('add', '.');
+  f.git(
+    '-c',
+    'commit.gpgsign=false',
+    '-c',
+    'core.hooksPath=/dev/null',
+    'commit',
+    '-qm',
+    'later prototype',
+  );
+  f.git('push', '-q', 'origin', 'main');
+  const candidate = f.git('rev-parse', 'HEAD');
+  const result = await f.manager().prepareRelease(candidate);
+  const release = join(f.root, 'releases', candidate);
+  assert.equal(existsSync(join(release, '.git')), false);
+  assert.equal(
+    readFileSync(join(release, 'prototype/y/app/js/data.js'), 'utf8'),
+    'newer unpinned prototype',
+  );
+  const seedCode = `import {readPrototypeSeed} from ${JSON.stringify(join(project, 'src/server/db/seed/index.ts'))};const data=readPrototypeSeed(process.argv[1]);if(data.PEOPLE.length!==124)process.exit(2);`;
+  execFileSync(
+    process.execPath,
+    [
+      '--import',
+      join(project, 'node_modules/tsx/dist/loader.mjs'),
+      '--input-type=module',
+      '-e',
+      seedCode,
+      release,
+    ],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  assert.ok(
+    existsSync(
+      join(release, '.reference-cache/prototype/y/app/js/data-xe6.js'),
+    ),
+  );
+  assert.ok(
+    existsSync(join(release, '.reference-cache/prototype/y/app/js/data.js')),
+  );
+  assert.equal(f.latest().databaseChanged, false);
+  assert.equal(
+    f.state.events.some((e) => e.args.includes('db:seed')),
+    false,
+  );
+});
+
+test('helper reads literal dollar secrets and never executes environment file commands', async () => {
+  const f = fixture();
+  f.target.nodePath = process.execPath;
+  const marker = join(f.base, 'must-not-execute');
+  const literal = `$(touch ${marker})`;
+  writeFileSync(
+    join(f.target.envDirectory, 'common.env'),
+    `APP_ENV=demo\nNODE_ENV=production\nACCESS_ENFORCED=true\nBETTER_AUTH_URL=${f.target.webOrigin}\nSYNTHETIC_LITERAL="${literal}"\n`,
+    { mode: 0o600 },
+  );
+  writeFileSync(
+    join(f.target.envDirectory, 'worker.env'),
+    'DATABASE_URL="postgres://postgres.aaaaaaaaaaaaaaaaaaaa:synthetic$missing@db.example.test:5432/demo?sslmode=verify-full"\n',
+    { mode: 0o600 },
+  );
+  const manager = f.manager({
+    run: async (file, args, options) => {
+      if (file === 'runuser') {
+        const command = args.slice(args.indexOf('--') + 1);
+        return nativeRun(command[0], command.slice(1), options);
+      }
+      throw new Error('Unexpected command boundary');
+    },
+  });
+  const script =
+    'if(!process.env.DATABASE_URL.includes("synthetic$missing")||process.env.SYNTHETIC_LITERAL!==process.argv[1])process.exit(3)';
+  await manager.app('worker', 'command', process.execPath, [
+    '-e',
+    script,
+    literal,
+  ]);
+  assert.equal(existsSync(marker), false);
+});
+
+test('backup fingerprint binds both pool usernames and explicit project identity', async () => {
+  const f = fixture();
+  const manager = f.manager();
+  manager.target.database.projectRef = 'aaaaaaaaaaaaaaaaaaaa';
+  manager.target.database.web.username =
+    manager.target.database.worker.username = 'postgres.aaaaaaaaaaaaaaaaaaaa';
+  const first = manager.databaseFingerprint();
+  for (const role of ['web', 'worker']) {
+    manager.target.database[role].username = 'reader.aaaaaaaaaaaaaaaaaaaa';
+    assert.notEqual(manager.databaseFingerprint(), first);
+    manager.target.database[role].username = 'postgres.aaaaaaaaaaaaaaaaaaaa';
+  }
+  manager.target.database.projectRef = 'bbbbbbbbbbbbbbbbbbbb';
+  assert.notEqual(manager.databaseFingerprint(), first);
+});
+
+test('another Supabase project or old fingerprint cannot authorize database writes', async () => {
+  const f = fixture(),
+    manager = f.manager();
+  await manager.prepareRelease(f.first);
+  const backup = await manager.backup();
+  const originalMetadata = JSON.parse(
+    readFileSync(backup.file + '.json', 'utf8'),
+  );
+  const legacy = {
+    ...originalMetadata,
+    databaseFingerprint: createHash('sha256')
+      .update(JSON.stringify(f.target.database.worker))
+      .digest('hex'),
+  };
+  writeFileSync(backup.file + '.json', JSON.stringify(legacy));
+  await assert.rejects(
+    manager.database('migrate', f.first, backup.file),
+    /invalid_backup/,
+  );
+  writeFileSync(backup.file + '.json', JSON.stringify(originalMetadata));
+  f.target.database.projectRef = 'bbbbbbbbbbbbbbbbbbbb';
+  for (const role of ['web', 'worker'])
+    f.target.database[role].username = 'postgres.bbbbbbbbbbbbbbbbbbbb';
+  await assert.rejects(
+    f.manager().database('seed', f.first, backup.file),
+    /invalid_backup/,
+  );
+  assert.equal(
+    f.state.events.some(
+      (e) => e.args.includes('db:seed') || e.args.includes('db:migrate'),
+    ),
+    false,
+  );
+  assert.equal(
+    JSON.parse(readFileSync(backup.file + '.json', 'utf8')).consumedBy,
+    null,
+  );
+});
+
+test('target metadata refuses project and username disagreement before commands', () => {
+  const f = fixture();
+  assert.throws(
+    () =>
+      validateTarget(
+        {
+          ...f.target,
+          database: { ...f.target.database, projectRef: 'not-a-project' },
+        },
+        f.target.id,
+      ),
+    /invalid_database_target/,
+  );
+  for (const role of ['web', 'worker']) {
+    const db = structuredClone(f.target.database);
+    db[role].username = 'postgres.bbbbbbbbbbbbbbbbbbbb';
+    assert.throws(
+      () => validateTarget({ ...f.target, database: db }, f.target.id),
+      /invalid_database_target/,
+    );
+    delete db[role].username;
+    assert.throws(() =>
+      validateTarget({ ...f.target, database: db }, f.target.id),
+    );
+  }
+  assert.equal(f.state.events.length, 0);
+});
+
+test('reference digest failure removes staging without changing database or active release', async () => {
+  const f = fixture();
+  writeFileSync(
+    join(f.repo, 'tests/fixtures/prototype-manifest.json'),
+    JSON.stringify({
+      files: [{ path: 'prototype/y/fixed.txt', sha: '0'.repeat(40) }],
+    }),
+  );
+  f.git('add', '.');
+  f.git(
+    '-c',
+    'commit.gpgsign=false',
+    '-c',
+    'core.hooksPath=/dev/null',
+    'commit',
+    '-qm',
+    'bad fixed digest',
+  );
+  f.git('push', '-q', 'origin', 'main');
+  await assert.rejects(
+    f.manager().prepareRelease(f.git('rev-parse', 'HEAD')),
+    /command_failed/,
+  );
+  assert.deepEqual(readdirSync(join(f.root, 'releases')), []);
+  assert.equal(existsSync(join(f.root, 'current')), false);
+  assert.equal(f.latest().databaseChanged, false);
+});
+
+test('reference manifest cannot escape the fixed prototype subtree', async () => {
+  const f = fixture();
+  writeFileSync(
+    join(f.repo, 'tests/fixtures/prototype-manifest.json'),
+    JSON.stringify({
+      files: [{ path: 'prototype/y/../outside', sha: '0'.repeat(40) }],
+    }),
+  );
+  f.git('add', '.');
+  f.git(
+    '-c',
+    'commit.gpgsign=false',
+    '-c',
+    'core.hooksPath=/dev/null',
+    'commit',
+    '-qm',
+    'bad reference path',
+  );
+  f.git('push', '-q', 'origin', 'main');
+  await assert.rejects(
+    f.manager().prepareRelease(f.git('rev-parse', 'HEAD')),
+    /invalid_reference/,
+  );
+  assert.deepEqual(readdirSync(join(f.root, 'releases')), []);
+  assert.equal(f.latest().databaseChanged, false);
+});
+
+test('incomplete legacy release metadata cannot be reused for seed', async () => {
+  const f = fixture(),
+    manager = f.manager();
+  await manager.prepareRelease(f.first);
+  const path = join(f.root, 'releases', f.first);
+  const metadata = JSON.parse(readFileSync(join(path, 'release.json'), 'utf8'));
+  delete metadata.referenceCommit;
+  writeFileSync(join(path, 'release.json'), JSON.stringify(metadata));
+  await assert.rejects(manager.prepareRelease(f.first), /invalid_release/);
+  assert.equal(f.latest().databaseChanged, false);
 });

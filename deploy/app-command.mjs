@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { loadEnvironmentFiles } from './environment-file.mjs';
 
 export function applicationEnvironment(input, expected) {
   if (
@@ -19,6 +20,9 @@ export function applicationEnvironment(input, expected) {
   if (
     !['postgres:', 'postgresql:'].includes(url.protocol) ||
     url.hostname !== expected.database.host ||
+    !/^[a-z0-9]{20}$/.test(expected.database.projectRef ?? '') ||
+    decodeURIComponent(url.username) !== expected.database.username ||
+    !expected.database.username.endsWith('.' + expected.database.projectRef) ||
     Number(url.port || '5432') !== expected.database.port ||
     decodeURIComponent(url.pathname.slice(1)) !== expected.database.name ||
     !['require', 'verify-ca', 'verify-full'].includes(
@@ -50,10 +54,13 @@ export function runApplication(args, input = process.env, execute = spawnSync) {
   try {
     const [expectedJson, operation, executable, ...commandArgs] = args;
     const expected = JSON.parse(expectedJson);
+    const loaded = expected.envFiles
+      ? loadEnvironmentFiles(expected.envFiles, input)
+      : input;
     const env =
       operation === 'dump'
-        ? dumpEnvironment(input, expected)
-        : applicationEnvironment(input, expected);
+        ? dumpEnvironment(loaded, expected)
+        : applicationEnvironment(loaded, expected);
     if (!['command', 'dump', 'validate'].includes(operation))
       throw new Error('invalid_operation');
     if (operation === 'validate') return 0;
@@ -68,5 +75,10 @@ export function runApplication(args, input = process.env, execute = spawnSync) {
     return 1;
   }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  process.umask(0o077);
   process.exitCode = runApplication(process.argv.slice(2));
+}

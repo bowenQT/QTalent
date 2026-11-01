@@ -141,13 +141,17 @@ export function validateTarget(
       !statSync(target[name]).isFile()
     )
       fail('invalid_executable');
-  strict(target.database, ['web', 'worker']);
+  strict(target.database, ['projectRef', 'web', 'worker']);
+  if (!/^[a-z0-9]{20}$/.test(target.database.projectRef))
+    fail('invalid_database_target');
   for (const role of ['web', 'worker']) {
     const db = target.database[role];
-    strict(db, ['host', 'port', 'name']);
+    strict(db, ['host', 'port', 'name', 'username']);
     if (
       !/^[a-zA-Z0-9.-]+$/.test(db.host) ||
       !/^[a-zA-Z0-9_-]+$/.test(db.name) ||
+      !/^[a-zA-Z_][a-zA-Z0-9_]*\.[a-z0-9]{20}$/.test(db.username) ||
+      !db.username.endsWith('.' + target.database.projectRef) ||
       db.port !== (role === 'web' ? 6543 : 5432)
     )
       fail('invalid_database_target');
@@ -292,7 +296,11 @@ export class ReleaseManager {
     const t = this.target;
     const expected = JSON.stringify({
       origin: t.webOrigin,
-      database: t.database[role],
+      database: { ...t.database[role], projectRef: t.database.projectRef },
+      envFiles: [
+        join(t.envDirectory, 'common.env'),
+        join(t.envDirectory, role + '.env'),
+      ],
     });
     const command = [
       t.nodePath,
@@ -302,24 +310,10 @@ export class ReleaseManager {
       executable,
       ...args,
     ];
-    return this.run(
-      'runuser',
-      [
-        '-u',
-        'qtalent',
-        '--',
-        '/bin/bash',
-        '--noprofile',
-        '--norc',
-        '-c',
-        'umask 077; set -a; . "$1"; . "$2"; set +a; shift 2; exec "$@"',
-        'qtalent-env',
-        join(t.envDirectory, 'common.env'),
-        join(t.envDirectory, role + '.env'),
-        ...command,
-      ],
-      { cwd, ...options },
-    );
+    return this.run('runuser', ['-u', 'qtalent', '--', ...command], {
+      cwd,
+      ...options,
+    });
   }
   async validateEnvironment() {
     let serviceUid;
@@ -437,9 +431,20 @@ export class ReleaseManager {
     if (
       metadata.sha !== sha ||
       metadata.targetId !== this.target.id ||
-      !existsSync(join(path, '.next', 'BUILD_ID'))
+      !existsSync(join(path, '.next', 'BUILD_ID')) ||
+      !/^[a-f0-9]{7,40}$/.test(metadata.referenceCommit ?? '') ||
+      !existsSync(join(path, '.reference-cache/reference.json'))
     )
       fail('invalid_release');
+    let reference;
+    try {
+      reference = JSON.parse(
+        readFileSync(join(path, '.reference-cache/reference.json'), 'utf8'),
+      );
+    } catch {
+      fail('invalid_release');
+    }
+    if (reference.commit !== metadata.referenceCommit) fail('invalid_release');
     return { path, metadata };
   }
   point(sha) {
@@ -498,6 +503,85 @@ export class ReleaseManager {
       }
     }
   }
+  async prepareReference(path) {
+    const referenceText = readFileSync(
+      join(path, 'prototype-reference.json'),
+      'utf8',
+    );
+    const manifestText = readFileSync(
+      join(path, 'tests/fixtures/prototype-manifest.json'),
+      'utf8',
+    );
+    const { commit } = JSON.parse(referenceText);
+    const { files } = JSON.parse(manifestText);
+    if (
+      !/^[a-f0-9]{7,40}$/.test(commit ?? '') ||
+      !Array.isArray(files) ||
+      files.length === 0 ||
+      files.some(
+        (entry) =>
+          typeof entry.path !== 'string' ||
+          !entry.path.startsWith('prototype/y/') ||
+          entry.path.split('/').some((p) => !p || p === '.' || p === '..'),
+      )
+    )
+      fail('invalid_reference');
+    const snapshot = join(path, '.reference-input');
+    mkdirSync(snapshot);
+    try {
+      await this.run('chown', ['qtalent:qtalent', snapshot]);
+      const archive = join(snapshot, 'reference.tar');
+      await this.git(
+        'archive',
+        '--format=tar',
+        '--output',
+        archive,
+        commit,
+        '--',
+        ...files.map((entry) => entry.path),
+      );
+      await this.run('runuser', [
+        '-u',
+        'qtalent',
+        '--',
+        'tar',
+        '-xf',
+        archive,
+        '-C',
+        snapshot,
+      ]);
+      unlinkSync(archive);
+      mkdirSync(join(snapshot, 'tests/fixtures'), { recursive: true });
+      writeFileSync(join(snapshot, 'prototype-reference.json'), referenceText);
+      writeFileSync(
+        join(snapshot, 'tests/fixtures/prototype-manifest.json'),
+        manifestText,
+      );
+      await this.app(
+        'web',
+        'command',
+        this.target.nodePath,
+        [
+          '--import',
+          'tsx',
+          join(path, 'scripts/prepare-reference.ts'),
+          '--verified-snapshot',
+        ],
+        snapshot,
+      );
+      const cache = join(snapshot, '.reference-cache');
+      if (
+        !existsSync(join(cache, 'reference.json')) ||
+        JSON.parse(readFileSync(join(cache, 'reference.json'), 'utf8'))
+          .commit !== commit
+      )
+        fail('reference_not_prepared');
+      renameSync(cache, join(path, '.reference-cache'));
+      return commit;
+    } finally {
+      rmSync(snapshot, { recursive: true, force: true });
+    }
+  }
   async prepare(sha, operationId) {
     const final = join(this.releases, sha);
     if (existsSync(final)) return this.release(sha);
@@ -525,6 +609,7 @@ export class ReleaseManager {
         ['install', '--frozen-lockfile', '--prod=false', '--ignore-scripts'],
         stage,
       );
+      const referenceCommit = await this.prepareReference(stage);
       await this.app('web', 'command', this.target.pnpmPath, ['build'], stage);
       if (!existsSync(join(stage, '.next', 'BUILD_ID'))) fail('missing_build');
       const cache = join(stage, '.next', 'cache');
@@ -533,6 +618,7 @@ export class ReleaseManager {
       this.writeJson(join(stage, 'release.json'), {
         targetId: this.target.id,
         sha,
+        referenceCommit,
         preparedAt: this.now().toISOString(),
         activatedAt: null,
       });
@@ -596,7 +682,26 @@ export class ReleaseManager {
   }
   databaseFingerprint() {
     return createHash('sha256')
-      .update(JSON.stringify(this.target.database.worker))
+      .update(
+        JSON.stringify({
+          version: 2,
+          projectRef: this.target.database.projectRef,
+          ...Object.fromEntries(
+            ['web', 'worker'].map((role) => {
+              const db = this.target.database[role];
+              return [
+                role,
+                {
+                  host: db.host,
+                  port: db.port,
+                  name: db.name,
+                  username: db.username,
+                },
+              ];
+            }),
+          ),
+        }),
+      )
       .digest('hex');
   }
   async migrationState(path) {
