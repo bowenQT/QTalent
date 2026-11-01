@@ -25,6 +25,7 @@
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
 | `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
+| `app/receipt.html`                | `/receipt?id=…`                   | receipt / materials.ts、record.ts   | receipt / records、talent                    | 页面与样张已做（BOW-847），读取与保存待接通 |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
 | `app/review.html`                 | `/review?id=…`                    | review / review                     | review / talent                              | 后续 / 404     |
@@ -200,3 +201,22 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 `src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
 
 本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
+
+## BOW-847 回执页
+
+原型 `app/receipt.html`（BOW-898，#250 合入）；工程 `/receipt?id=…`，组件在 `src/features/receipt/`。回执快照用 897 冻结的 `materialBatchReceiptSchema`，逐件确认用 844 的 `recordSaveInput`，撤销用 `recordUndoInput`，5 秒窗口以服务端为准。
+
+- **待接通**：回执读取（BOW-845 #185）、逐件保存与撤销（BOW-846 #289）、企业微信深链核验（BOW-903 #271）都不在 main。`/receipt` 只写「回执待接通」，不读取材料；缺 `id` 写「回执链接失效」；系统管理员看「这一页属于业务视角」。页面跑在开发样张 `/dev/receipt?role=mentor|hr&scene=normal|processing|conflict|empty|hidden`（生产 404），替身每次返回都经契约 schema 校验。
+- **页面读取补的字段**：897 回执没有批次标题、入口、提交人、提交时间、人名、维度名，也没有「这件事由谁确认」。页面按 `ReceiptView` 读这些，由 845 的页面读取在服务端按当前权限给出；`confirmers[draftId].mine` 只决定显示确认按钮还是「等某人确认」，能否保存仍由保存动作判断。
+- **和原型的差异**：
+  - 「人」和「涉及的人」只算 897 的 `personIds`（已确定、当前可见的主体），所以样张是 3 人；原型把还在待核对的两个名字也算进去，是 5 人。
+  - 待认人卡：说话人没有显示名，写「说话人 · 16:30–17:45」；原型是「说话人 2」。未知人员的待核对项没有原文引文，只写名字和位置。
+  - 待核对的「去核对」和待认人卡的「去核对」写「核对待接通」：待办页 `/inbox` 还没有。
+  - 文件行只写状态（已解析、处理中、待核对、只保留原件、只作附件、暂不支持、失败），不写时长、页数和说话人数：回执里没有这些。「转成 JPG 重传」属于投递（BOW-861），这里不做。
+  - 面评导入的回执（原型 `kind: 'interview'` 跳到导入页）不在 897 回执里，由面评导入页（BOW-907）负责。
+  - 刷新后已确认的事只有人员和事件映射（897 `confirmedDrafts`），卡片写「已确认，已进入档案」，不再显示分数；本页刚确认的事保留确认时的内容和署名。
+  - 整批失败（`error`）在概览下写原因，状态标签写「处理失败」；原型没有这个状态。
+- **手机**：本片做桌面页面在 375px 宽度下的确认（e2e 覆盖改分并保存、无横向滚动）。独立的手机回执页 `m/confirm.html` 需要手机外壳，路由映射里 `/m/*` 仍是后续，已在 #248 登记。
+- **样式**：`.n-rstate` 的批次四态、`.n-rsum`、`.n-rcpt*`、`.n-imcard`、`.n-term` 暂放 `src/features/receipt/receipt.css`（原样复制原型 898 的这一段），全局样式同步后并入。
+- **视觉**：`tests/visual/receipt.spec.ts` 在固定参照更新到 898 之后的提交前跳过；本 PR 另用工作树原型（main 上 #250 之后）同次逐元素比过标题、概览之外的区块和三张事件卡，桌面与 375 宽都一致。
+
