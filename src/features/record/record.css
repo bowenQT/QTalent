@@ -5,14 +5,10 @@
 .n-event__ip {
   display: flex;
 }
-/* 原话引文照原型是说明里的普通文字，可以点；只在悬停和聚焦时提示可跳转。 */
+/* 原话引文照原型是说明里的普通文字（随文字折行），可以点；只在悬停时提示可跳转。 */
 .n-score__quote {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
   color: inherit;
-  cursor: pointer;
+  text-decoration: none;
 }
 .n-score__quote:hover {
   color: var(--ink-2);

@@ -67,6 +67,7 @@ export function RawInput({
   return (
     <details
       className="n-event__raw"
+      id="ev-raw"
       open={open}
       onToggle={(event) => onToggle(event.currentTarget.open)}
     >

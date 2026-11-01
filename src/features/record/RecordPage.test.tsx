@@ -1192,7 +1192,7 @@ describe('锚点面板与引用', () => {
     ) as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(details.querySelector('mark')?.textContent).toBe('独立完成');
-    await userEvent.click(screen.getByRole('button', { name: '「独立完成」' }));
+    await userEvent.click(screen.getByRole('link', { name: '「独立完成」' }));
     expect(details.open).toBe(true);
     expect(details.querySelector('mark')?.getAttribute('data-active')).toBe(
       '1',

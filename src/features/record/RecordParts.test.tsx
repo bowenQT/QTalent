@@ -416,7 +416,7 @@ describe('InputQuotes / SourceMarks', () => {
     expect(view.container.textContent).toBe(
       `锚点 3${copy.cite.inline}「独立完成」`,
     );
-    await userEvent.click(screen.getByRole('button', { name: '「独立完成」' }));
+    await userEvent.click(screen.getByRole('link', { name: '「独立完成」' }));
     expect(onJumpInput).toHaveBeenCalledWith({
       start: 5,
       end: 9,
@@ -440,7 +440,7 @@ describe('InputQuotes / SourceMarks', () => {
       },
     });
     render(<SourceMarks citations={[...citations]} loadSource={loadSource} />);
-    expect(screen.queryByRole('button', { name: '「独立完成」' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '「独立完成」' })).toBeNull();
     expect(loadSource).not.toHaveBeenCalled();
     await userEvent.hover(screen.getByRole('button', { name: /^引用 1/ }));
     expect(await screen.findByText('来源里的一句话')).toBeTruthy();

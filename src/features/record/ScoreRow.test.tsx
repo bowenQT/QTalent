@@ -55,7 +55,7 @@ describe('建议分', () => {
       true,
     );
     expect(
-      screen.getByRole('button', { name: '「独立完成」' }).closest('span')
+      screen.getByRole('link', { name: '「独立完成」' }).closest('span')
         ?.parentElement?.textContent,
     ).toBe(`${copy.score.anchorNote(3)}${copy.cite.inline}「独立完成」`);
     expect(screen.getByRole('radiogroup', { name: '专业度分数' })).toBeTruthy();
@@ -154,7 +154,7 @@ describe('建议分', () => {
 
   it('跳转到原话的引用会回报引用范围', async () => {
     const { props } = setup();
-    const quote = screen.getByRole('button', { name: '「独立完成」' });
+    const quote = screen.getByRole('link', { name: '「独立完成」' });
     expect(quote.getAttribute('title')).toBe(copy.sbi.rawJump);
     await userEvent.click(quote);
     expect(props.onJumpInput).toHaveBeenCalledWith({

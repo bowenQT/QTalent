@@ -20,20 +20,22 @@ export function InputQuotes({
     citation.kind === 'input' ? (
       <span key={`input:${citation.start}:${citation.end}`}>
         {copy.cite.inline}
-        <button
-          type="button"
+        {/* 跳到同一页的「原话」：用页内链接，引文能像原型那样随文字折行。 */}
+        <a
           className="n-score__quote"
+          href="#ev-raw"
           title={copy.sbi.rawJump}
-          onClick={() =>
+          onClick={(event) => {
+            event.preventDefault();
             onJumpInput({
               start: citation.start,
               end: citation.end,
               quote: citation.quote,
-            })
-          }
+            });
+          }}
         >
           「{citation.quote}」
-        </button>
+        </a>
       </span>
     ) : null,
   );
