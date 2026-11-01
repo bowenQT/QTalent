@@ -63,7 +63,7 @@
     const res = st.reassign(sel.map((x) => x.id), to);
     notices.push(...res.conflicts);
     render($('#main'));
-    if (res.done.length) NT.toast(`已交给${name} ${res.done.length} 件${res.conflicts.length ? `，${res.conflicts.length} 件已有变化` : ''}`, { undo: () => { const ok = res.undo(); render($('#main')); return ok; }, undoneText: '已撤销分派', failText: '没能撤销：接手的事已经有人开始办，分派保持' });
+    if (res.done.length) NT.toast(`已交给${name} ${res.done.length} 件${res.conflicts.length ? `，${res.conflicts.length} 件已有变化` : ''}`, { undo: () => { const ok = res.undo(); render($('#main')); return ok; }, undoneText: '已撤销分派', failText: '撤销失败：接手的事已经有人开始办，已保留这次分派' });
     else if (res.conflicts.length) $('#ra-ok')?.focus();
   }
 })();

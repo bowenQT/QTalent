@@ -232,10 +232,12 @@ test('待核对选「名单外的人」后，回执上这件事标为已跳过�
   const d = st.drop('d-ms2');
   const item = () => st.dropItems(d).find((x) => x.ev.id === 'e-d5');
   assert.equal(item().state, 'held');
-  const before = st.dropSummary(d).events;
+  // 待认人只计入待核对，不算一件事；选名单外以后也不算
+  const before = st.dropSummary(d);
   st.resolveInbox('i-xz', 'none');
   assert.equal(item().state, 'skipped');
-  assert.equal(st.dropSummary(d).events, before - 1);
+  assert.equal(st.dropSummary(d).events, before.events);
+  assert.equal(st.dropSummary(d).verifyOpen, before.verifyOpen - 1);
   assert.equal(st.dropSummary(d).skipped, 1);
   st.unresolveInbox('i-xz');
   assert.equal(item().state, 'held');
@@ -256,6 +258,8 @@ test('导入后人员和面试官关联只读：待核对里不能撤销或改�
   const it7 = st.get().inbox.find((i) => i.id === 'i-iv-r7'), it2 = st.get().inbox.find((i) => i.id === r2.verify);
   assert.equal(st.inboxLocked(it7), true);
   assert.equal(st.inboxLocked(it2), true);
+  assert.equal(st.lockHref(it7), 'import.html?id=imp-1', '更正入口指到这次面评导入');
+  assert.equal(st.lockHref(it2), 'import.html?id=imp-1');
   assert.equal(st.unresolveInbox('i-iv-r7'), false, '候选人关联只读');
   assert.equal(st.unresolveInbox(r2.verify), false, '面试官关联只读');
   assert.equal(r7.match, 'p-x12');
@@ -389,4 +393,61 @@ test('面评待认人的那一行在待核对里可以选「名单外的人」�
   assert.ok(it.iv && it.kind === 'person' && !it.options.length, '面评待认人条目没有候选，只能搜索或选名单外');
   hr.resolveInbox(it.id, 'none');
   assert.equal(hr.ivRowState(hr.importOf('imp-1').rows.find((r) => r.id === 'r7')), 'skip');
+});
+
+test('回执计数：「件事」只算身份已确定的事，待认人只计入待核对，认出人以后才算一件事', () => {
+  const st = load('mentor');
+  const d = st.drop('d-ms2');
+  const s0 = st.dropSummary(d);
+  assert.equal(s0.events, st.dropItems(d).filter((x) => x.mine && !['held', 'skipped'].includes(x.state)).length);
+  assert.equal(s0.verifyOpen, st.visibleInbox().filter((i) => d.verify.includes(i.id) && !i.done).length, '和待核对页的计数对得上');
+  const it = st.get().inbox.find((i) => i.id === 'i-spk');
+  st.resolveInbox('i-spk', it.options[0][0]);
+  const s1 = st.dropSummary(d);
+  assert.equal(s1.events, s0.events + 1, '认出人以后算一件事');
+  assert.equal(s1.verifyOpen, s0.verifyOpen - 1);
+  const m = fs.readFileSync(path.join(__dirname, '../y/m/js/pages/confirm.js'), 'utf8');
+  assert.match(m, /const left = s\.mineToConfirm/, '手机回执的角标和「件待你确认」同一个数');
+});
+
+test('回执不给被权限隐藏的数量：有隐藏时只标 hidden，页面写一句「部分内容已按权限隐藏」', () => {
+  const mentor = load('mentor');
+  const d = mentor.drop('d-def');
+  const s = mentor.dropSummary(d);
+  assert.equal(s.events, 2, '只算本人要确认的两件事');
+  assert.equal(s.people, 0, '查看范围外的人不计数');
+  assert.equal(s.hidden, true);
+  const hr = load('hrbp');
+  assert.equal(hr.dropSummary(hr.drop('d-def')).events, 4);
+  assert.equal(hr.dropSummary(hr.drop('d-def')).hidden, false);
+  for (const f of ['../y/app/js/pages/receipt.js', '../y/m/js/pages/confirm.js']) {
+    const src = fs.readFileSync(path.join(__dirname, f), 'utf8');
+    assert.doesNotMatch(src, /已隐藏。|属于其他评价人/, `${f} 不再写被隐藏的数量`);
+    assert.match(src, /部分内容已按权限隐藏/);
+  }
+});
+
+test('核对结果的撤销截止到依赖它的草稿被确认：确认后只读，改回待确认以后才能撤销核对', () => {
+  const st = load('mentor');
+  const it = st.get().inbox.find((i) => i.id === 'i-spk');
+  st.resolveInbox('i-spk', it.options[0][0]);
+  assert.equal(st.inboxLockReason(it), null);
+  st.receiptConfirm(it.ev);
+  assert.equal(st.inboxLockReason(it), 'confirmed');
+  assert.equal(st.lockHref(it), 'receipt.html?id=d-ms2', '更正入口指到这处核对所在的回执');
+  assert.equal(st.unresolveInbox('i-spk'), false);
+  assert.ok(st.event(it.ev), '撤销被拒，这件事和确认的分都还在');
+  st.receiptRevert(it.ev);
+  assert.equal(st.inboxLockReason(it), null);
+  assert.equal(st.unresolveInbox('i-spk'), true);
+});
+
+test('课题核对可以选「明确无课题」', () => {
+  const st = load('mentor');
+  const it = st.get().inbox.find((i) => i.kind === 'project' && !i.done);
+  st.resolveInbox(it.id, 'none');
+  assert.equal(it.done, true);
+  assert.equal(st.noneText(it), '明确无课题');
+  const src = fs.readFileSync(path.join(__dirname, '../y/app/js/pages/inbox.js'), 'utf8');
+  assert.match(src, /明确无课题|st\.noneText/);
 });

@@ -71,21 +71,27 @@
     idx.forEach((i) => st.confirmScore(e.id, i, vals.has(i) ? vals.get(i) : (e.scores[i].ai ?? e.scores[i].v), why));
     return () => { snaps.forEach(([i, s]) => { e.scores[i] = NT.clone(s); }); st.save(); };
   };
+  // 回执的计数只算当前视角看得到的：HR 看全部，评价人看自己要确认的事和自己交的待核对；看不到的不给数量，只用 hidden 提示一句。
+  // 「件事」只算身份已确定的事：待认人只计入待核对，名单外的不计
   st.dropSummary = (d) => {
-    const items = st.dropItems(d), inbox = st.get().inbox;
-    const verify = d.verify.map((id) => inbox.find((i) => i.id === id)).filter(Boolean);
+    const all = st.dropItems(d), inbox = st.get().inbox, hr = role() === 'hrbp';
+    const items = hr ? all : all.filter((x) => x.mine);
+    const seen = new Set(st.visibleInbox().map((i) => i.id));
+    const allVerify = d.verify.map((id) => inbox.find((i) => i.id === id)).filter(Boolean), verify = allVerify.filter((i) => seen.has(i.id));
+    const people = d.mentions.filter((p) => st.scope(p));
     return {
       files: d.files.length,
       processing: d.files.filter((f) => ['uploading', 'queued', 'parsing', 'transcribing'].includes(f.state)).length,
       failed: d.files.filter((f) => f.state === 'failed').length,
-      people: d.mentions.length,
-      events: items.filter((x) => x.state !== 'skipped').length,
+      people: people.length,
+      events: items.filter((x) => !['held', 'skipped'].includes(x.state)).length,
       skipped: items.filter((x) => x.state === 'skipped').length,
       verifyOpen: verify.filter((i) => !i.done).length,
       verify,
       toConfirm: items.filter((x) => x.state === 'ai').length,
       mineToConfirm: items.filter((x) => x.state === 'ai' && x.mine).length,
       confirmed: items.filter((x) => x.state === 'confirmed').length,
+      hidden: items.length < all.length || verify.length < allVerify.length || people.length < d.mentions.length,
     };
   };
   // 批次一行的状态：先说还在处理的，再说待核对、待确认，都完成才写已完成
@@ -146,8 +152,25 @@
   st.visibleInbox = () => st.get().inbox.filter((i) => role() === 'hrbp' || i.by === me());
   const baseResolve = st.resolveInbox, baseUnresolve = st.unresolveInbox;
   const ivRow = (it) => st.importOf(it.iv[0])?.rows.find((r) => r.id === it.iv[1]);
-  // 关联到的面评行已经导入：人员和面试官关联只读，待核对里不能再改或撤销，要更正先撤销导入
-  st.inboxLocked = (it) => !!it && ((it.iv && !!ivRow(it)?.imported) || (it.kind === 'interviewer' && I().imports.some((imp) => imp.rows.some((r) => r.verify === it.id && r.imported))));
+  // 核对结果的撤销截止到依赖它的草稿被确认、或关联的面评行导入为止：之后只读，更正走撤销确认或撤销导入
+  const depEvent = (it) => st.event(it.ev && I().held[it.ev] ? it.ev : `e-${it.id}`);
+  st.inboxLockReason = (it) => {
+    if (!it) return null;
+    if ((it.iv && ivRow(it)?.imported) || (it.kind === 'interviewer' && I().imports.some((imp) => imp.rows.some((r) => r.verify === it.id && r.imported)))) return 'import';
+    if (it.done && depEvent(it)?.scores.some((x) => ['confirmed', 'calibrated'].includes(x.st))) return 'confirmed';
+    return null;
+  };
+  st.inboxLocked = (it) => !!st.inboxLockReason(it);
+  st.LOCK_TEXT = { import: ['已随导入写进档案', '要更正，先在面评导入页撤销导入', '去撤销导入'], confirmed: ['建议分已确认', '要更正，先在回执里把这件事改回待确认', '去回执改回待确认'] };
+  // 锁定后更正的入口：导入锁到那次面评导入，确认锁到这处核对所在的回执
+  st.lockHref = (it) => {
+    const why = st.inboxLockReason(it); if (!why) return null;
+    if (why === 'import') { const imp = it.iv ? st.importOf(it.iv[0]) : I().imports.find((x) => x.rows.some((r) => r.verify === it.id)); return imp ? `import.html?id=${imp.id}` : null; }
+    const d = I().drops.find((x) => x.verify?.includes(it.id)) || st.drop(depEvent(it)?.drop);
+    return d ? st.dropHref(d) : null;
+  };
+  // 处理结果的一句话里，「名单外」按类型说：课题核对写「明确无课题」
+  st.noneText = (it) => (it.kind === 'project' ? '明确无课题' : '名单外的人');
   st.resolveInbox = (id, choice) => {
     const it = st.get().inbox.find((x) => x.id === id);
     if (!it || it.done || st.inboxLocked(it)) return;

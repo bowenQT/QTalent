@@ -20,9 +20,10 @@
   function render(main) {
     st.tickDrops();
     const s = st.dropSummary(d), items = st.dropItems(d);
-    const mine = items.filter((x) => x.mine), others = items.length - mine.length;
+    const mine = items.filter((x) => x.mine);
     const open = s.verify.filter((i) => !i.done && i.by === st.me().id);
-    const left = mine.filter((x) => !['confirmed', 'skipped'].includes(x.state)).length;
+    // 角标和上方「件待你确认」同一个数：待认人只算在待核对里，认出人以后才算
+    const left = s.mineToConfirm, held = mine.some((x) => x.state === 'held');
     mount(main, html`
       <section class="m-card">
         <p class="nt-muted" style="margin:0 0 4px">${st.ENTRY[d.entry]} · ${d.at.slice(5)}</p>
@@ -31,9 +32,9 @@
       </section>
       ${open.length ? html`<h3 class="m-h">先核对 ${open.length} 处</h3><ul class="m-list">${open.map((i) => html`<li><a class="m-row" href="inbox.html#${i.id}">${icon('spark')}<span>${i.q.replace(/？$/, '')}<small>${i.src} · ${i.at}</small></span>${icon('chev')}</a></li>`)}</ul>` : ''}
       <h3 class="m-h" id="confirm">逐条确认${left ? html`<span class="n-count">${left}</span>` : ''}</h3>
-      ${left ? html`<p class="nt-muted" style="margin:-4px 0 var(--s-3)">看证据和出处，确认或改分；确认后才进入档案。</p>` : mine.length ? html`<div class="m-card">${UI.state({ ip: 'done', size: 40, title: '这份回执里的事都确认完了', text: '已进入档案。改主意可以在下面改回待确认。' })}</div>` : ''}
+      ${left ? html`<p class="nt-muted" style="margin:-4px 0 var(--s-3)">看证据和出处，确认或改分；确认后才进入档案。</p>` : mine.length && !held ? html`<div class="m-card">${UI.state({ ip: 'done', size: 40, title: '这份回执里的事都确认完了', text: '已进入档案。改主意可以在下面改回待确认。' })}</div>` : ''}
       <div class="nt-grid" id="rc-list">${mine.map(UI.receiptItem)}</div>
-      ${others ? html`<p class="nt-muted" style="margin:var(--s-3) 0 0">另有 ${others} 件事属于其他评价人，已隐藏。</p>` : ''}`);
+      ${s.hidden ? html`<p class="nt-muted" style="margin:var(--s-3) 0 0">部分内容已按权限隐藏</p>` : ''}`);
     UI.wireReceipt($('#rc-list'), () => render($('#main')));
   }
 })();

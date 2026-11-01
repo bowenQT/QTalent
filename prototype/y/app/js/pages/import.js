@@ -101,7 +101,7 @@
     if (v !== 'ok') return;
     const res = st.ivImport(imp.id);
     render($('#main'));
-    NT.toast(`已导入 ${res.n} 行面评，在档案的时间线里`, { undo: () => { const ok = res.undo(); render($('#main')); return ok; }, undoneText: '已撤销导入，回到预览', failText: '没能撤销：这几行已经撤销过导入' });
+    NT.toast(`已导入 ${res.n} 行面评，在档案的时间线里`, { undo: () => { const ok = res.undo(); render($('#main')); return ok; }, undoneText: '已撤销导入，回到预览', failText: '撤销失败：这几行已撤销过导入，档案保持原样' });
   }
 
   async function undoAll(imp) {
@@ -115,6 +115,6 @@
     if (v !== 'ok') return;
     const ok = st.ivUndoImport(imp.id);
     render($('#main'));
-    NT.toast(ok ? `已撤销导入 ${rows.length} 行，回到预览` : '没能撤销导入：这几行已经不在档案里了');
+    NT.toast(ok ? `已撤销导入 ${rows.length} 行，回到预览` : '撤销失败：这几行已撤出档案，预览保持原样');
   }
 })();

@@ -17,6 +17,8 @@
   });
 
   let timer = 0;
+  // 被权限隐藏的内容不给数量，只在确实有隐藏时写这一句；桌面、手机和企业微信回执同一个写法
+  const HIDDEN = '部分内容已按权限隐藏';
   function render(main) {
     const d = st.drop(id);
     if (d.kind === 'interview') { location.replace(st.dropHref(d)); return; }
@@ -43,21 +45,22 @@
             ${s.processing ? html`<p class="nt-caption">还在处理的文件读完后，这份回执会更新；可以先离开。</p>` : ''}
           </article>
           ${s.verify.length ? html`<article class="n-card"><h3 class="n-section-title">待核对${s.verifyOpen ? html`<span class="n-count">${s.verifyOpen}</span>` : ''}</h3>
-            <ul class="nt-list">${s.verify.map((i) => html`<li class="nt-row" style="justify-content:space-between;gap:var(--s-3)"><span><span class="n-kind">${Object.fromEntries(st.INBOX_KINDS)[i.kind]}</span> ${i.q.replace(/？$/, '')}${i.done ? html` → <b>${i.choice === 'none' ? '名单外的人' : i.choice === 'rows' ? '整理范围内的部分' : i.choice === 'attach' ? '只作附件' : st.person(i.choice)?.name || ''}</b>` : ''}</span>${i.done ? html`<span class="n-badge n-badge--yes">${icon('check')}已核对</span>` : i.by === st.me().id || st.role() === 'hrbp' ? html`<a class="n-btn n-btn--sm" href="inbox.html#${i.id}">去核对</a>` : ''}</li>`)}</ul>
+            <ul class="nt-list">${s.verify.map((i) => html`<li class="nt-row" style="justify-content:space-between;gap:var(--s-3)"><span><span class="n-kind">${Object.fromEntries(st.INBOX_KINDS)[i.kind]}</span> ${i.q.replace(/？$/, '')}${i.done ? html` → <b>${i.choice === 'none' ? st.noneText(i) : i.choice === 'rows' ? '整理范围内的部分' : i.choice === 'attach' ? '只作附件' : st.person(i.choice)?.name || ''}</b>` : ''}</span>${i.done ? html`<span class="n-badge n-badge--yes">${icon('check')}已核对</span>` : i.by === st.me().id || st.role() === 'hrbp' ? html`<a class="n-btn n-btn--sm" href="inbox.html#${i.id}">去核对</a>` : ''}</li>`)}</ul>
           </article>` : ''}
           <section id="confirm" class="nt-grid" aria-labelledby="rc-h">
             <h3 class="n-section-title" id="rc-h" style="margin:0">${mine.length ? '等你确认' : raters ? `等${raters}确认` : '整理出的事'}${s.mineToConfirm ? html`<span class="n-count">${s.mineToConfirm}</span>` : ''}</h3>
             ${mine.length ? html`<p class="nt-muted" style="margin:0">一件一件看证据和出处，确认或改分；确认后才进入档案、象限和找人证据。</p>` : ''}
             ${items.length ? '' : html`<div class="nt-empty">${s.processing ? '整理出的事会出现在这里。' : '这次的材料里整理出 0 件事，原件已保存。'}</div>`}
             ${mine.map(UI.receiptItem)}
-            ${canSeeOthers ? others.map(UI.receiptItem) : others.length ? html`<p class="nt-muted" style="margin:0">另有 ${others.length} 件事属于其他评价人，已隐藏。</p>` : ''}
+            ${canSeeOthers ? others.map(UI.receiptItem) : ''}
+            ${s.hidden ? html`<p class="nt-muted" style="margin:0">${HIDDEN}</p>` : ''}
           </section>
         </div>
         <aside class="nt-grid nt-sticky">
           ${channelCard(d, s)}
           <article class="n-card"><h3 class="n-section-title">涉及的人</h3>
             <div class="nt-grid" style="gap:var(--s-2)">${d.mentions.filter((p) => st.scope(p)).map((p) => UI.person(p, { size: 'sm', meta: st.orgShort(st.person(p).org) }))}</div>
-            ${d.mentions.some((p) => !st.scope(p)) ? html`<p class="nt-muted" style="margin:var(--s-2) 0 0">另有 ${d.mentions.filter((p) => !st.scope(p)).length} 人在你的查看范围之外，已隐藏。</p>` : ''}
+            ${!s.people ? html`<p class="nt-muted" style="margin:0">${HIDDEN}</p>` : ''}
           </article>
         </aside>
       </div>`);
@@ -82,7 +85,7 @@
 
   // 提交人在入口里看到的回执：企业微信单聊回一张卡，Claude Code 里回一段文字；确认都回到这一页
   function channelCard(d, s) {
-    const line = `读完了「${d.title}」：${s.files} 个文件，涉及 ${s.people} 人，整理出 ${s.events} 件事。${s.verifyOpen ? `${s.verifyOpen} 处等你核对，` : ''}${s.toConfirm ? `${s.toConfirm} 件事的建议分等你确认。` : ''}`;
+    const line = `读完了「${d.title}」：${s.files} 个文件，涉及 ${s.people} 人，整理出 ${s.events} 件事。${s.verifyOpen ? `${s.verifyOpen} 处等你核对，` : ''}${s.toConfirm ? `${s.toConfirm} 件事的建议分等你确认。` : ''}${s.hidden ? HIDDEN : ''}`;
     if (d.entry === 'wecom') {
       return html`<article class="n-card n-imcard" aria-label="企业微信里的回执"><h3 class="n-section-title">企业微信里的回执 ${UI.demo()}</h3>
         <div class="n-imcard__bubble"><span class="nt-ip" data-ip="rest" data-size="24"></span><div><b>小犇</b><p>${line}</p><a class="n-btn n-btn--sm" href="#confirm">${icon('up-r')}到 Web 确认</a></div></div>
@@ -93,7 +96,7 @@
         <pre class="n-term">⏺ 调用 niu · ${d.tool}
   涉及的人  ${d.mentions.map((p) => st.person(p).name).join('、')}
   出处      ${d.files[0].name} ${d.files[0].meta}
-⏺ 已交给 Niu-Talent，整理出 ${s.events} 件事
+⏺ 已交给 Niu-Talent，整理出 ${s.events} 件事${s.hidden ? `\n  ${HIDDEN}` : ''}
   建议分等你确认 → 在 Web 上确认</pre>
         <p class="nt-caption">桌面 agent 只能交材料、看人和起草需求；确认回到这一页做。</p></article>`;
     }

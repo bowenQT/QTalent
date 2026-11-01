@@ -34,13 +34,21 @@
       ${others.length ? html`<h3 class="m-h">其他待办</h3><ul class="m-list">${others.map(M.todoRow)}</ul>`
         : !verify.length && !later.length ? html`<div class="m-card" style="margin-top:var(--s-3)">${UI.state({ ip: 'rest', size: 40, title: '待办都处理完了', text: '新的待确认会出现在这里。' })}</div>` : ''}
 
-      ${done.length ? html`<h3 class="m-h">已核对</h3><ul class="m-list">${done.map((i) => html`<li><div class="m-row">${icon('check')}<span>${i.q.replace(/？$/, '')}<small>→ ${DONE_TEXT[i.choice] || st.person(i.choice)?.name || st.project(i.choice)?.name}</small></span><button class="n-link" type="button" data-undo="${i.id}">撤销</button></div></li>`)}</ul>` : ''}`);
+      ${done.length ? html`<h3 class="m-h">已核对</h3><ul class="m-list">${done.map((i) => html`<li><div class="m-row">${icon('check')}<span>${i.q.replace(/？$/, '')}<small>→ ${i.choice === 'none' && i.kind === 'project' ? '明确无课题' : DONE_TEXT[i.choice] || st.person(i.choice)?.name || st.project(i.choice)?.name}</small>${st.inboxLocked(i) ? lockNote(i) : ''}</span>${st.inboxLocked(i) ? '' : html`<button class="n-link" type="button" data-undo="${i.id}">撤销</button>`}</div></li>`)}</ul>` : ''}`);
     main.onclick = (e) => {
       const c = e.target.closest('.n-choice');
       if (c) pick(c.closest('[data-item]'), c);
       const u = e.target.closest('[data-undo]');
       if (u) { st.unresolveInbox(u.dataset.undo); render(main); }
     };
+  }
+
+  // 锁定的核对结果不给撤销，写明为什么锁；更正在回执里改回待确认（手机回执页），撤销导入只在电脑上做
+  function lockNote(i) {
+    const why = st.inboxLockReason(i), [text, , go] = st.LOCK_TEXT[why], href = st.lockHref(i);
+    const m = why === 'confirmed' && href?.match(/receipt\.html\?id=(.+)$/);
+    const to = m ? `confirm.html?r=${m[1]}` : href && `../app/${href}`;
+    return html`<small>${text}${to ? html` · <a class="n-link" href="${to}" style="display:inline;padding:0;font-size:inherit">${go}</a>` : ''}</small>`;
   }
 
   // 图片范围要对着整张图框选行，手机上只说明并给电脑端入口，不在这里处理
@@ -64,6 +72,7 @@
       ${i.note ? html`<p class="nt-muted" style="margin:0 0 var(--s-2)">${i.note}</p>` : ''}
       <div class="n-choices m-choices">
         ${i.options.map(([id, why]) => html`<button class="n-choice" type="button" data-v="${id}">${isProj ? html`<span class="n-avatar n-avatar--sm" style="--hue:220;border-radius:6px">${icon('folder', 12)}</span>${st.project(id).name}` : html`${UI.avatar(id, 'sm')}${st.person(id).name}`}<small>${why}</small></button>`)}
+        ${isProj ? html`<button class="n-choice" type="button" data-v="none"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk);border-radius:6px">${icon('dash', 12)}</span>明确无课题<small>这一处不挂到课题上</small></button>` : ''}
         ${i.kind === 'unknown' || i.iv ? html`<button class="n-choice" type="button" data-v="none"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">${icon('dash', 12)}</span>名单外的人<small>${i.iv ? '这一行收进跳过的行' : '只保留在原件里'}</small></button>` : ''}
         ${isLater ? '' : html`<button class="n-choice" type="button" data-v="skip"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>都不是，稍后处理<small></small></button>`}
       </div>
@@ -80,10 +89,10 @@
     NT.$$('.n-choice', cardEl).forEach((x) => x.classList.toggle('is-picked', x === btn));
     st.resolveInbox(id, v);
     const name = v === 'skip' ? '' : (st.person(v)?.name || st.project(v)?.name);
-    NT.toast(v === 'skip' ? '已放到稍后处理，待办里仍会保留' : v === 'none' ? '已记下：名单外的人，只留在原件里' : `已归到${name}${item.draft || item.ev ? '，事件进了待确认' : ''}`, {
+    NT.toast(v === 'skip' ? '已放到稍后处理，待办里仍会保留' : v === 'none' ? (item.kind === 'project' ? '已记下：明确无课题' : '已记下：名单外的人，只留在原件里') : `已归到${name}${item.draft || item.ev ? '，事件进了待确认' : ''}`, {
       // 撤销回到点选之前：原来在稍后处理里的，仍回到稍后处理
       undo: () => { const ok = st.unresolveInbox(id) !== false; if (ok && wasLater) st.resolveInbox(id, 'skip'); render($('#main')); return ok; },
-      undoneText: wasLater ? '已撤销，回到稍后处理' : '已撤销，回到待核对',
+      undoneText: wasLater ? '已撤销，回到稍后处理' : '已撤销，回到待核对', failText: `撤销失败：${(st.LOCK_TEXT[st.inboxLockReason(item)] || st.LOCK_TEXT.confirmed)[1]}`,
     });
     const h = cardEl.offsetHeight;
     cardEl.animate([{ opacity: 1, height: `${h}px` }, { opacity: 0, transform: 'translateX(24px)', height: `${h}px`, offset: 0.6 }, { opacity: 0, height: '0px', paddingTop: 0, paddingBottom: 0, marginTop: 0 }], { duration: NT.reduced ? 1 : 520, easing: 'cubic-bezier(.2,.8,.2,1)' }).onfinish = () => render($('#main'));

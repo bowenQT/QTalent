@@ -37,7 +37,7 @@
             <div class="nt-grid" style="gap:var(--s-2)" id="dock">${targets.map((id) => html`<div class="n-person-row" data-dock="${id}" style="padding:var(--s-2)">${UI.person(id, { size: 'sm', meta: `${st.eventsOf(id, { kind: 'obs' }).length} 条事件` })}<span class="n-count is-quiet" data-n="${id}">${st.eventsOf(id, { kind: 'obs' }).length}</span></div>`)}</div>
           </article>` : ''}
           ${later.length ? html`<article class="n-card"><h3 class="n-section-title">稍后处理<span class="n-count is-quiet">${later.length}</span></h3><ul class="nt-list" style="font-size:var(--t-sm)">${later.map((i) => html`<li class="nt-row" style="justify-content:space-between"><span><span class="n-kind">${KIND[i.kind]}</span> ${i.q.replace(/？$/, '')}</span><button class="n-link" type="button" data-undo="${i.id}">继续核对</button></li>`)}</ul></article>` : ''}
-          ${done.length ? html`<article class="n-card"><h3 class="n-section-title">已核对</h3><ul class="nt-list" style="font-size:var(--t-sm)">${done.map((i) => html`<li class="nt-row" style="justify-content:space-between"><span><span class="n-kind">${KIND[i.kind]}</span> ${i.q.replace(/？$/, '')} → <b>${result(i)}</b></span>${st.inboxLocked(i) ? html`<span class="nt-muted" title="要更正，先在面评导入页撤销导入">已随导入写进档案</span>` : html`<button class="n-link" type="button" data-undo="${i.id}">撤销</button>`}</li>`)}</ul></article>` : ''}
+          ${done.length ? html`<article class="n-card"><h3 class="n-section-title">已核对</h3><ul class="nt-list" style="font-size:var(--t-sm)">${done.map((i) => html`<li class="nt-row" style="justify-content:space-between"><span><span class="n-kind">${KIND[i.kind]}</span> ${i.q.replace(/？$/, '')} → <b>${result(i)}</b></span>${st.inboxLocked(i) ? lockNote(i) : html`<button class="n-link" type="button" data-undo="${i.id}">撤销</button>`}</li>`)}</ul></article>` : ''}
         </aside>
       </div>`);
     main.onclick = (e) => {
@@ -57,8 +57,14 @@
   }
 
   // 处理结果的一句话：归到谁、关联到谁、怎么处理这张图
+  // 锁定的核对结果不给撤销，写明为什么锁、更正去哪里
+  function lockNote(i) {
+    const [why, , go] = st.LOCK_TEXT[st.inboxLockReason(i)], href = st.lockHref(i);
+    return html`<span class="nt-muted">${why}${href ? html` · <a class="n-link" href="${href}">${go}</a>` : ''}</span>`;
+  }
+
   function result(i) {
-    if (i.choice === 'none') return '名单外的人，只留在原件里';
+    if (i.choice === 'none') return i.kind === 'project' ? '明确无课题' : '名单外的人，只留在原件里';
     if (i.choice === 'rows') return `整理范围内的 ${i.rows.filter((r) => r[0]).length} 行`;
     if (i.choice === 'attach') return '整张只作附件';
     const name = st.person(i.choice)?.name || st.project(i.choice)?.name;
@@ -112,6 +118,7 @@
       <div class="n-choices">
         ${i.options.map(([id, why]) => (isProj ? html`<button class="n-choice" type="button" data-v="${id}"><span class="n-avatar n-avatar--sm" style="--hue:220;border-radius:6px">${icon('folder', 12)}</span>${st.project(id).name}<small>${why}</small></button>` : personChoice(id, why)))}
         ${i.kind === 'unknown' || (i.kind === 'person' && !i.options.length) ? html`<label class="n-field" style="margin:var(--s-1) 0"><span class="n-field__label">在名单里找</span><input class="n-input" data-find="${i.id}" value="${q[i.id] || ''}" placeholder="输入姓名" autocomplete="off"></label><div class="n-choices" data-found="${i.id}">${found(i)}</div>` : ''}
+        ${isProj ? html`<button class="n-choice" type="button" data-v="none"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk);border-radius:6px">${icon('dash', 12)}</span>明确无课题<small>这一处不挂到课题上</small></button>` : ''}
         ${i.kind === 'unknown' || i.iv ? html`<button class="n-choice" type="button" data-v="none"><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">${icon('dash', 12)}</span>名单外的人<small>${i.iv ? '这一行收进跳过的行' : '只保留在原件里'}</small></button>` : ''}
         ${skipChoice()}
       </div>
@@ -138,12 +145,12 @@
       const n = $(`[data-n="${v}"]`);
       if (n) { n.textContent = +n.textContent + 1; n.animate([{ transform: 'scale(1.5)' }, { transform: 'none' }], { duration: NT.reduced ? 1 : 360, easing: 'cubic-bezier(.2,.8,.2,1)' }); }
       const msg = v === 'skip' ? '已放到稍后处理，待办里仍会保留'
-        : v === 'none' ? '已记下：名单外的人，只留在原件里'
+        : v === 'none' ? (item.kind === 'project' ? '已记下：明确无课题' : '已记下：名单外的人，只留在原件里')
         : v === 'rows' ? '已选好范围，整理结果会回到这次投递的回执'
         : v === 'attach' ? '这张图只作附件保存'
         : item.kind === 'interviewer' ? `已关联到${st.person(v).name}，面评那一行可以导入了`
         : `已归到${st.person(v)?.name || st.project(v)?.name}${item.draft || item.ev ? '，事件进了待确认' : ''}`;
-      NT.toast(msg, { undo: () => { const ok = st.unresolveInbox(id) !== false; render($('#main')); return ok; }, undoneText: '已撤销，回到待核对', failText: '没能撤销：这一行面评已经导入，要更正先在导入页撤销导入' });
+      NT.toast(msg, { undo: () => { const ok = st.unresolveInbox(id) !== false; render($('#main')); return ok; }, undoneText: '已撤销，回到待核对', failText: `撤销失败：${(st.LOCK_TEXT[st.inboxLockReason(item)] || st.LOCK_TEXT.import)[1]}` });
       cardEl.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateX(12px)' }], { duration: NT.reduced ? 1 : 280 }).onfinish = () => render($('#main'));
     };
     if (draft && dock) NT.flyTo(draft, dock, finish);
