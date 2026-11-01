@@ -46,6 +46,7 @@ describe('source viewer samples', () => {
       'pdf-pending',
       'image-pending',
       'pdf-restricted',
+      'image-restricted',
       'image-failed',
     ]);
     expect(sample('code').source.provenance).toEqual({

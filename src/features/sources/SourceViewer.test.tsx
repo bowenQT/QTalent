@@ -379,16 +379,18 @@ describe('SourceViewer before the original is connected', () => {
   it.each([
     [
       { status: 'restricted' } as const,
-      '完整原件在你的查看范围之外',
-      '这里只给你看引用的这一段，见「提取」',
+      '完整{}在你的查看范围之外',
+      '只能查看引用的这一段，见「提取」',
     ],
-    [{ status: 'failed' } as const, '原件暂时打不开', '刷新页面再试'],
+    [{ status: 'failed' } as const, '{}暂时打不开', '刷新页面再试'],
   ])('says why the original stays closed: %o', (original, title, text) => {
     show(
       source({ kind: 'pdf', page: 2, textRange: { start: 0, end: 3 } }),
       original,
     );
-    expect(screen.getByRole('status').textContent).toBe(`${title}${text}`);
+    expect(screen.getByRole('status').textContent).toBe(
+      `${title.replace('{}', '原件')}${text}`,
+    );
     expect(
       screen.getByText('引用的原文', { selector: 'blockquote' }),
     ).toBeTruthy();
@@ -400,7 +402,10 @@ describe('SourceViewer before the original is connected', () => {
       }),
       original,
     );
-    expect(screen.getByText(`${title}，${text}`)).toBeTruthy();
+    // 图片的原因写在图框外的说明里，图框里不再压字，也不写「原图待接入」。
+    const notice = screen.getByRole('status');
+    expect(notice.textContent).toBe(`${title.replace('{}', '原图')}${text}`);
+    expect(notice.closest('figure')).toBeNull();
     expect(screen.queryByText('原图待接入')).toBeNull();
     expect(screen.queryByRole('img', { name: '图片原件' })).toBeNull();
   });

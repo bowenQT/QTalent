@@ -354,6 +354,20 @@ const samples: Record<string, SourceSample> = {
     }),
     original: { status: 'restricted' },
   },
+  'image-restricted': {
+    label: '图片完整原图在查看范围之外',
+    source: material({
+      ...ids('image-restricted'),
+      location: {
+        kind: 'image',
+        region: { left: 0.15, top: 0.3, right: 0.85, bottom: 0.7 },
+      },
+      excerpt: '群聊截图里这一条是本人的周报摘要',
+      sourceCategory: 'original',
+      demo: true,
+    }),
+    original: { status: 'restricted' },
+  },
   'image-failed': {
     label: '图片原图暂时打不开',
     source: material({

@@ -1,4 +1,5 @@
 import styles from './source-viewer.module.css';
+import { Notice } from './Notice';
 import { locatedProps, type Locate } from './located';
 import type { At, Content } from './viewer-model';
 
@@ -11,13 +12,13 @@ const percent = (value: number) => `${Math.round(value * 100)}%`;
 export function ImageOriginal({
   location,
   content,
-  emptyText = '原图待接入',
+  notice,
   locate,
 }: {
   location: At<'image'>;
   content: Content<'image'> | null;
-  /** 没有原图时框里写的话：待接入、范围之外或打不开。 */
-  emptyText?: string;
+  /** 原图打不开的原因（范围之外或打不开），写在图框上方，不压在遮罩里。 */
+  notice: { title: string; text: string } | null;
   locate: Locate;
 }) {
   const { left, top, right, bottom } = location.region;
@@ -30,28 +31,33 @@ export function ImageOriginal({
   };
   const where = `左 ${percent(left)}，上 ${percent(top)}，宽 ${percent(right - left)}，高 ${percent(bottom - top)}`;
   return (
-    <figure className={styles.shot}>
-      <div className={styles.frame} style={frame}>
-        {image ? (
-          // 授权的短时地址，交给浏览器直接读；不经过 next/image 的优化与缓存。
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={image.url} alt="图片原件" />
-        ) : (
-          <span className={styles.frameEmpty}>{emptyText}</span>
-        )}
-        <div
-          {...locatedProps(locate, styles.region)}
-          role="img"
-          aria-label={`引用的区域：${where}`}
-          style={{
-            left: `${left * 100}%`,
-            top: `${top * 100}%`,
-            width: `${(right - left) * 100}%`,
-            height: `${(bottom - top) * 100}%`,
-          }}
-        />
-      </div>
-      <figcaption>蓝框是引用的区域</figcaption>
-    </figure>
+    <div className={styles.original}>
+      {notice ? <Notice {...notice} /> : null}
+      <figure className={styles.shot}>
+        <div className={styles.frame} style={frame}>
+          {image ? (
+            // 授权的短时地址，交给浏览器直接读；不经过 next/image 的优化与缓存。
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={image.url} alt="图片原件" />
+          ) : (
+            <span className={styles.frameEmpty}>
+              {notice ? null : '原图待接入'}
+            </span>
+          )}
+          <div
+            {...locatedProps(locate, styles.region)}
+            role="img"
+            aria-label={`引用的区域：${where}`}
+            style={{
+              left: `${left * 100}%`,
+              top: `${top * 100}%`,
+              width: `${(right - left) * 100}%`,
+              height: `${(bottom - top) * 100}%`,
+            }}
+          />
+        </div>
+        <figcaption>蓝框是引用的区域</figcaption>
+      </figure>
+    </div>
   );
 }
