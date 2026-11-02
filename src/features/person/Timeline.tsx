@@ -6,6 +6,8 @@ import { Src } from '@/components/ui/Src';
 import { formatLocation } from '@/features/sources/source-format';
 import { SourceCite, type LoadSource } from '@/features/sources/SourceCite';
 import { BlockState } from './BlockState';
+import { NodeRecordEntry } from './NodeRecordEntry';
+import type { NodeRecord } from './node-records';
 import { OriginalScale } from './OriginalScale';
 import { PersonEventCard } from './PersonEventCard';
 import {
@@ -24,6 +26,10 @@ function placeText(entry: TimelineEntry) {
     : formatLocation(location);
 }
 const cardId = (id: string) => `tl-card-${id}`;
+const isNodeRecord = (item: TimelineEntry | NodeRecord): item is NodeRecord =>
+  item.kind === 'interview' ||
+  item.kind === 'node_conclusion' ||
+  item.kind === 'management_observation';
 
 function KeyEventMeta({ event }: { event: KeyEvent }) {
   const count = event.sources.length;
@@ -162,11 +168,14 @@ function Entry({
 export function Timeline({
   timeline,
   asOf,
+  records = [],
   pending = [],
   loadSource,
 }: {
   timeline: Person['timeline'];
   asOf: string;
+  /** 已接通的节点相关记录（北森面评、节点结论、独立管理观察），和契约条目一起按日期排。 */
+  records?: readonly NodeRecord[];
   /** 这个视角能看、但读取还没接通的条目类别，写成「待接入」，不当作没有记录。 */
   pending?: readonly string[];
   loadSource: LoadSource;
@@ -227,6 +236,10 @@ export function Timeline({
 
   const entries = timeline.status === 'ready' ? timeline.data : [];
   const keyEvents = entries.filter((entry) => entry.kind === 'key_event');
+  // 契约时间线读取失败或资料不足时只给块状态，不让节点记录冒充完整的时间线。
+  const listed =
+    timeline.status === 'ready' ||
+    (timeline.status === 'empty' && records.length > 0);
   return (
     <article className="n-card" id="timeline">
       <h3 className="n-section-title">
@@ -238,21 +251,29 @@ export function Timeline({
           {keyEvents.length} 条关键事件 · 按事件真实发生的时间
         </small>
       </h3>
-      {timeline.status === 'ready' ? (
+      {listed ? (
         <ol className="n-tl">
-          {timelineMonths(entries, asOf).flatMap((month) => [
+          {timelineMonths([...entries, ...records], asOf).flatMap((month) => [
             <li key={`m-${month.label}`} className="n-tl__month">
               {month.label}
             </li>,
-            ...month.entries.map((entry) => (
-              <Entry
-                key={entry.id}
-                entry={entry}
-                open={open.has(entry.id)}
-                onToggle={toggle}
-                loadSource={loadSource}
-              />
-            )),
+            ...month.entries.map((entry) =>
+              isNodeRecord(entry) ? (
+                <NodeRecordEntry
+                  key={entry.id}
+                  record={entry}
+                  loadSource={loadSource}
+                />
+              ) : (
+                <Entry
+                  key={entry.id}
+                  entry={entry}
+                  open={open.has(entry.id)}
+                  onToggle={toggle}
+                  loadSource={loadSource}
+                />
+              ),
+            ),
           ])}
         </ol>
       ) : (

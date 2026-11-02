@@ -18,6 +18,7 @@ const devRoutes = [
   '/dev/design-system/sources',
   '/dev/design-system/sources/view',
   '/dev/staffing?role=hr&scene=ts',
+  '/dev/person-nodes',
 ];
 
 async function freePort() {
