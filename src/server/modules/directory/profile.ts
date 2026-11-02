@@ -11,11 +11,14 @@ export interface DirectoryProfileOrganization {
   name: string;
   parentId: string | null;
   hierarchyKnown: boolean;
+  isGroup: boolean;
 }
 export interface DirectoryProfile {
   jobTitle: string | null;
   level: string | null;
   organizationPath: string[] | null;
+  /** Prototype orgPath: the parent and the organization, grouping nodes skipped. */
+  displayPath: string[] | null;
   demo: boolean;
 }
 export class DirectoryProfileError extends Error {
@@ -45,6 +48,7 @@ export function projectDirectoryProfile(
     rows.set(row.id, row);
   }
   const path: string[] = [];
+  const chain: DirectoryProfileOrganization[] = [];
   const visited = new Set<string>();
   let current: string | null = person.organizationId;
   let unknown = false;
@@ -59,12 +63,20 @@ export function projectDirectoryProfile(
       break;
     }
     path.unshift(row.name);
+    chain.push(row);
     current = row.parentId;
   }
   return {
     jobTitle: person.jobTitle,
     level: person.jobLevel,
     organizationPath: unknown ? null : path,
+    displayPath: unknown
+      ? null
+      : chain
+          .slice(0, 2)
+          .filter((row, index) => index === 0 || !row.isGroup)
+          .reverse()
+          .map((row) => row.name),
     demo: person.demo,
   };
 }

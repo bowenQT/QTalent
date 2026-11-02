@@ -34,6 +34,7 @@ const seedSchema = z.strictObject({
         id: text,
         name: text,
         parentId: text.nullable(),
+        isGroup: z.boolean(),
       }),
     )
     .max(2000),
@@ -111,6 +112,7 @@ export interface ExistingDirectoryProfileOrganization {
   name: string;
   parentId: string | null;
   hierarchyKnown: boolean;
+  isGroup: boolean;
 }
 
 /** Plan against rows locked by the native writer in the same transaction.
@@ -141,6 +143,7 @@ export function planDirectoryProfileBackfill(
     id: string;
     parentId: string | null;
     hierarchyKnown: true;
+    isGroup: boolean;
   }[] = [];
   for (const row of seed.people) {
     const existing = people.get(row.id);
@@ -174,7 +177,10 @@ export function planDirectoryProfileBackfill(
     )
       throw new Error('Directory organization identity collision');
     if (existing.hierarchyKnown) {
-      if (existing.parentId !== row.parentId)
+      if (
+        existing.parentId !== row.parentId ||
+        existing.isGroup !== row.isGroup
+      )
         throw new Error('Directory hierarchy value conflict');
     } else {
       if (existing.parentId !== null)
@@ -183,6 +189,7 @@ export function planDirectoryProfileBackfill(
         id: row.id,
         parentId: row.parentId,
         hierarchyKnown: true,
+        isGroup: row.isGroup,
       });
     }
   }
@@ -222,7 +229,11 @@ export async function importDirectoryProfileSeed(
       for (const row of plan.organizationUpdates) {
         const updated = await tx
           .update(organizations)
-          .set({ parentId: row.parentId, hierarchyKnown: row.hierarchyKnown })
+          .set({
+            parentId: row.parentId,
+            hierarchyKnown: row.hierarchyKnown,
+            isGroup: row.isGroup,
+          })
           .where(eq(organizations.id, row.id))
           .returning({ id: organizations.id });
         if (updated.length !== 1)
@@ -249,7 +260,7 @@ export async function importDirectoryProfileSeed(
 /** Reviewed synthetic facts live in JSON, not in application display code. */
 export const DIRECTORY_PROFILE_DEMO_SOURCE = Object.freeze({
   relativeFile: 'src/server/db/seed/directory-profile-demo.json',
-  sha256: '3fe131c07407341bfe69058480292d1015da4c98c1c7d7f27c53e3171793b2ff',
+  sha256: '958d76d791815b993371eee4020cc12461707a5baad000dc2c05341665e3d08e',
 });
 export function importDirectoryProfileDemo(db: Database, root: string) {
   return importDirectoryProfileSeed(db, root, DIRECTORY_PROFILE_DEMO_SOURCE);

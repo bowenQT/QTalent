@@ -17,6 +17,8 @@ export const organizations = pgTable(
     shortName: text('short_name').notNull(),
     parentId: text('parent_id'),
     hierarchyKnown: boolean('hierarchy_known').notNull().default(false),
+    // A grouping node (prototype ORGS `group`), never shown in a display path.
+    isGroup: boolean('is_group').notNull().default(false),
   },
   (t) => [
     foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }),
@@ -27,6 +29,10 @@ export const organizations = pgTable(
     check(
       'directory_organizations_unknown_parent_null',
       sql`${t.hierarchyKnown} or ${t.parentId} is null`,
+    ),
+    check(
+      'directory_organizations_unknown_not_group',
+      sql`${t.hierarchyKnown} or not ${t.isGroup}`,
     ),
   ],
 );

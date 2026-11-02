@@ -25,8 +25,8 @@ const seed = {
     },
   ],
   organizations: [
-    { id: 'leaf', name: '合成团队', parentId: 'root' },
-    { id: 'root', name: '合成组织', parentId: null },
+    { id: 'leaf', name: '合成团队', parentId: 'root', isGroup: false },
+    { id: 'root', name: '合成组织', parentId: null, isGroup: true },
   ],
 };
 it('retains explicit values and root facts without prototype-derived substitutions', () => {
@@ -107,6 +107,7 @@ const current = () => ({
     ...row,
     parentId: null as string | null,
     hierarchyKnown: false,
+    isGroup: false,
   })),
 });
 it('plans only explicit missing values without mutating its inputs', () => {
@@ -126,6 +127,7 @@ it('plans only explicit missing values without mutating its inputs', () => {
       id: row.id,
       parentId: row.parentId,
       hierarchyKnown: true,
+      isGroup: row.isGroup,
     })),
   });
   expect(facts).toEqual(before);
@@ -229,6 +231,7 @@ it('pins the 93 explicit synthetic profiles to existing pseudonymous identities,
       id: org.id,
       name: org.name,
       parentId: org.parent,
+      isGroup: org.group,
     })),
   );
   expect(new Set(demo.people.map((row) => row.id))).toEqual(

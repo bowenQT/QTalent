@@ -73,6 +73,7 @@ export function identityOf(data: PersonData, person: Row): PersonIdentity {
     teamId: organization.id,
     teamName: organization.shortName,
     teamPath: profile.organizationPath?.join(' / ') ?? '组织层级未接入',
+    orgPath: profile.displayPath?.join(' / ') ?? '组织层级未接入',
     jobTitle: profile.jobTitle ?? '职位未接入',
     level: profile.level,
     batch: batch ? { id: batch.cohort.id, name: batch.cohort.name } : null,

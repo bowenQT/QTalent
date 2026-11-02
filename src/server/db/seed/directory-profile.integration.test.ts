@@ -47,8 +47,8 @@ const input = () => ({
     },
   ],
   organizations: [
-    { id: 'leaf', name: '合成团队', parentId: 'root' },
-    { id: 'root', name: '合成组织', parentId: null },
+    { id: 'leaf', name: '合成团队', parentId: 'root', isGroup: false },
+    { id: 'root', name: '合成组织', parentId: null, isGroup: false },
   ],
 });
 function source(value: unknown = input()) {
@@ -151,6 +151,7 @@ it('retains nullable legacy shape and adds only explicit facts; exact replay wri
     level: after.jobLevel,
     demo: true,
     organizationPath: ['合成组织', '合成团队'],
+    displayPath: ['合成组织', '合成团队'],
   });
   expect(await importDirectoryProfileSeed(db(), root, file)).toEqual({
     peopleUpdated: 0,
@@ -272,6 +273,7 @@ it('new facts remain behind current HR scope and revocation instead of widening 
     jobTitle: input().people[0].jobTitle,
     level: input().people[0].jobLevel,
     teamPath: '合成组织 / 合成团队',
+    orgPath: '合成组织 / 合成团队',
     demo: true,
   });
   await db()
@@ -336,11 +338,14 @@ it('imports all 93 fixed synthetic profiles against the real approved demo ident
     expect(row).toMatchObject({
       hierarchyKnown: true,
       parentId: tree.get(row.id)!.parentId,
+      isGroup: tree.get(row.id)!.group,
     });
   const data = await loadPersonData(db(), 'demo-hrbp', '2026-11-01');
   expect((await personFromData(data, 'p-x01'))?.person).toMatchObject({
     jobTitle: facts.people.find((row) => row.id === 'p-x01')!.jobTitle,
     teamPath: '人才项目 / XEngineer 第六期 / 线索雷达',
+    // The prototype orgPath skips the「人才项目」grouping node.
+    orgPath: 'XEngineer 第六期 / 线索雷达',
     demo: true,
   });
 }, 30_000);

@@ -72,6 +72,7 @@ export function fixture(
           shortName: 'Test',
           parentId: null,
           hierarchyKnown: false,
+          isGroup: false,
         },
       ],
     },

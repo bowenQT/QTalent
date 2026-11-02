@@ -60,6 +60,7 @@ function actor(): ArrangeActor {
           shortName: '演示',
           parentId: null,
           hierarchyKnown: false,
+          isGroup: false,
         },
       ],
     },

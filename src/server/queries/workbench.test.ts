@@ -368,6 +368,7 @@ describe('workbench with the frozen 836 DTO and current 899 authorization', () =
         shortName: '技术',
         parentId: null,
         hierarchyKnown: false,
+        isGroup: false,
       },
       {
         id: 'org-c',
@@ -375,6 +376,7 @@ describe('workbench with the frozen 836 DTO and current 899 authorization', () =
         shortName: '研发',
         parentId: null,
         hierarchyKnown: false,
+        isGroup: false,
       },
     );
     data.context.evaluationNodeSubjects = rows.map((row) => ({
