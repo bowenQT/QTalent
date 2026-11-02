@@ -34,6 +34,8 @@ function fixture() {
     'demo-account',
     'demo-person',
     false,
+    1, // current directory binding generation
+    1, // generation the session was issued under
   ];
   // Only pg.query is replaced. Drizzle builds the actual join, columns and SQL.
   const query = vi.fn(async () => ({ rows: row === null ? [] : [row] }));
@@ -200,6 +202,7 @@ describe('request-owned production Web authenticator', () => {
         accountId: 'demo-account',
         personId: 'demo-person',
         credentialId: 'demo-session',
+        credentialRevision: 1,
       });
     expect(mocks.access).toHaveBeenCalledTimes(3);
     expect(mocks.session).toHaveBeenCalledTimes(3);
@@ -271,6 +274,8 @@ describe('request-owned production Web authenticator', () => {
     'row_shape',
     'row_date',
     'system_admin',
+    'session_generation_stale',
+    'session_generation_missing',
   ])('rejects inconsistent authoritative metadata: %s', async (kind) => {
     const f = fixture();
     const proof = apiProof();
@@ -286,6 +291,8 @@ describe('request-owned production Web authenticator', () => {
     if (kind === 'row_shape') row[4] = '';
     if (kind === 'row_date') row[2] = new Date(NaN);
     if (kind === 'system_admin') row[5] = true;
+    if (kind === 'session_generation_stale') row[6] = 3;
+    if (kind === 'session_generation_missing') row[7] = null;
     if (kind !== 'missing_row') f.setRow(row);
     await expect(f.reader.verify(f.headers)).rejects.toMatchObject({
       kind: ['api_shape', 'api_date', 'row_shape', 'row_date'].includes(kind)
@@ -316,6 +323,7 @@ describe('request-owned production Web authenticator', () => {
     'deleted',
     'expired',
     'person_changed',
+    'rebound_same_person',
     'account_changed',
     'gateway_denied',
     'cookie_denied',
@@ -330,6 +338,7 @@ describe('request-owned production Web authenticator', () => {
       if (kind === 'deleted') f.setRow(null);
       if (kind === 'expired') row[2] = new Date(start);
       if (kind === 'person_changed') row[4] = 'other-person';
+      if (kind === 'rebound_same_person') row[6] = 3;
       if (kind === 'account_changed') {
         const proof = apiProof();
         proof.user.id = proof.session.userId = 'other-account';

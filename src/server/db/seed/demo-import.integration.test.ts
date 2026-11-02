@@ -4,10 +4,15 @@ import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { eq, getTableName, sql } from 'drizzle-orm';
 import { createDatabase, type Database } from '../client';
-import { importDemo, importEvidence } from '../import';
+import {
+  importDemo,
+  importEvidence,
+  revertDemoStatementKinds,
+  upgradeDemoStatementKinds,
+} from '../import';
 import {
   loadPersonData,
-  talentSources,
+  completeTalentSources,
   eventSubject,
 } from '../../queries/person-data';
 import { sourceFromData } from '../../queries/sources';
@@ -48,6 +53,7 @@ import {
   historicalEvaluations,
   historicalParticipants,
   eventSources,
+  eventParticipants,
 } from '../../modules/records';
 import {
   confirmations,
@@ -130,6 +136,10 @@ async function fingerprints(db: Database) {
     historicalEvaluations,
     historicalParticipants,
     eventSources,
+    eventParticipants,
+    evaluationNodes,
+    evaluationNodeSubjects,
+    evaluationRelations,
     confirmations,
     aiSuggestions,
     scoreReviews,
@@ -619,6 +629,123 @@ it.each([
     });
   },
 );
+// BOW-837: older demo databases hold the seed's sheet-cell statements as
+// management observations; the same IDs now carry original_fact.
+async function kindsOf(db: Database) {
+  const rows = await db.select({ kind: statements.kind }).from(statements);
+  return rows.reduce<Record<string, number>>(
+    (all, row) => ({ ...all, [row.kind]: (all[row.kind] ?? 0) + 1 }),
+    {},
+  );
+}
+// The old seed is simulated from the current one: same rows, every
+// statement set back to management_observation, which is all it differed in.
+const asOldSeed = (db: Database) =>
+  db.update(statements).set({ kind: 'management_observation' });
+it('upgrades an older demo database in place, replays the seed and can revert', async () => {
+  await isolated(async (db) => {
+    await importDemo(db, seed(), password);
+    const current = await fingerprints(db);
+    await asOldSeed(db);
+    const old = await fingerprints(db);
+    // A plain rerun cannot change the kind and rolls back as a whole.
+    await expect(importDemo(db, seed(), password)).rejects.toThrow(
+      /Import identity collision/,
+    );
+    expect(await fingerprints(db)).toEqual(old);
+    expect(await upgradeDemoStatementKinds(db, seed(), password)).toEqual({
+      upgraded: 446,
+    });
+    expect(await kindsOf(db)).toEqual({ original_fact: 446 });
+    expect(await fingerprints(db)).toEqual(current);
+    await importDemo(db, seed(), password);
+    expect(await fingerprints(db)).toEqual(current);
+    // Running the upgrade twice fails closed and writes nothing.
+    await expect(
+      upgradeDemoStatementKinds(db, seed(), password),
+    ).rejects.toThrow(/precondition failed/);
+    expect(await fingerprints(db)).toEqual(current);
+    expect(await revertDemoStatementKinds(db, seed())).toEqual({
+      reverted: 446,
+    });
+    expect(await fingerprints(db)).toEqual(old);
+    await expect(importDemo(db, seed(), password)).rejects.toThrow(
+      /Import identity collision/,
+    );
+  });
+}, 60_000);
+it('refuses the upgrade unless every fixed row, kind and cell matches the seed', async () => {
+  await isolated(async (db) => {
+    await importDemo(db, seed(), password);
+    await asOldSeed(db);
+    const mapped = seed();
+    const [row] = mapped.evidence.statements;
+    const cell = mapped.evidence.fragments.find(
+      (f) => f.id === row.fragmentId,
+    )!;
+    const setRow = (patch: Partial<typeof statements.$inferInsert>) => () =>
+      db.update(statements).set(patch).where(eq(statements.id, row.id));
+    const setCell = (excerpt: string) => () =>
+      db.update(fragments).set({ excerpt }).where(eq(fragments.id, cell.id));
+    // Each case breaks one precondition, is checked alone, then is undone.
+    const cases = [
+      // One row already moved: mixed kinds.
+      [
+        setRow({ kind: 'original_fact' }),
+        setRow({ kind: 'management_observation' }),
+      ],
+      // Same ID, different quoted text.
+      [setRow({ text: 'Synthetic edited text' }), setRow({ text: row.text })],
+      // The cell the statement cites no longer matches the seed.
+      [setCell('Synthetic edited cell'), setCell(cell.excerpt)],
+      // Another old-kind statement on the same event and cell.
+      [
+        () =>
+          db.insert(statements).values({
+            ...row,
+            id: 'synthetic-extra-statement',
+            kind: 'management_observation',
+          }),
+        () =>
+          db
+            .delete(statements)
+            .where(eq(statements.id, 'synthetic-extra-statement')),
+      ],
+    ] as const;
+    const old = await fingerprints(db);
+    for (const [change, undo] of cases) {
+      await change();
+      const before = await fingerprints(db);
+      await expect(
+        upgradeDemoStatementKinds(db, seed(), password),
+      ).rejects.toThrow(/precondition failed/);
+      expect(await fingerprints(db)).toEqual(before);
+      await undo();
+      expect(await fingerprints(db)).toEqual(old);
+    }
+    expect(await upgradeDemoStatementKinds(db, seed(), password)).toEqual({
+      upgraded: 446,
+    });
+  });
+}, 60_000);
+it('refuses the statement-kind upgrade and revert in production', async () => {
+  vi.stubEnv('APP_ENV', 'production');
+  vi.stubEnv('ACCESS_ENFORCED', 'true');
+  vi.stubEnv('ACCESS_ISSUER', 'https://synthetic-team.cloudflareaccess.com');
+  vi.stubEnv('ACCESS_AUDIENCE', 'synthetic-test-audience');
+  try {
+    await isolated(async (db) => {
+      await expect(
+        upgradeDemoStatementKinds(db, seed(), password),
+      ).rejects.toThrow(/production/);
+      await expect(revertDemoStatementKinds(db, seed())).rejects.toThrow(
+        /production/,
+      );
+    });
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 it('direct demo entry refuses production even with a forged input demo flag', async () => {
   const mapped = Object.assign(seed(), { demo: true, APP_ENV: 'test' });
   vi.stubEnv('APP_ENV', 'production');
@@ -660,7 +787,7 @@ it('keeps an explicit formal event node through current source, profile and mode
     const model = (snapshot: typeof data) =>
       buildAuthorizedModelInput(async () => ({
         context: snapshot.context,
-        sources: talentSources(snapshot),
+        sources: completeTalentSources(snapshot),
         records: [
           {
             id: 'formal-model-input',

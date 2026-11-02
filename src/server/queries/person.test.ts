@@ -16,7 +16,9 @@ import { recordAudit } from '../platform/audit';
 vi.mock('../db/client', () => ({ getDatabase: () => ({}) }));
 vi.mock('../platform/audit', () => ({ recordAudit: vi.fn() }));
 beforeEach(() => {
-  vi.mocked(recordAudit).mockReset().mockResolvedValue(undefined);
+  vi.mocked(recordAudit)
+    .mockReset()
+    .mockResolvedValue('00000000-0000-4000-8000-000000000001');
 });
 const reference = {
   fragmentId: 'fragment-0',
@@ -239,10 +241,12 @@ describe('people, profile and shared sources', () => {
   });
   it('awaits audit persistence before resolving the profile', async () => {
     vi.mocked(loadCurrentPersonData).mockResolvedValue(fixture());
-    let complete!: () => void;
-    const persistence = new Promise<void>((resolve) => {
-      complete = resolve;
-    });
+    let complete!: (id: Awaited<ReturnType<typeof recordAudit>>) => void;
+    const persistence = new Promise<Awaited<ReturnType<typeof recordAudit>>>(
+      (resolve) => {
+        complete = resolve;
+      },
+    );
     vi.mocked(recordAudit).mockReturnValue(persistence);
     let returned = false;
     const pending = readPersonForCurrentUser({ id: 'one' }).then((result) => {
@@ -251,7 +255,7 @@ describe('people, profile and shared sources', () => {
     });
     await vi.waitFor(() => expect(recordAudit).toHaveBeenCalledOnce());
     expect(returned).toBe(false);
-    complete();
+    complete('00000000-0000-4000-8000-000000000002');
     expect((await pending).status).toBe('success');
   });
   it('does not infer compatibility between rule versions', async () => {
@@ -368,4 +372,64 @@ it('retains ended non-owner participation only under current project authorizati
   data.staffing.projects[0].cohortId = 'cohort';
   data.staffing.members[0].validFrom = '2027-01-01';
   expect((await personFromData(data, 'one'))?.projects.status).toBe('empty');
+});
+it('counts an event by its statement materials; a score-only citation stays on the score', async () => {
+  const data = fixture('hr');
+  const cited = { fragmentId: 'fragment-act', originalVersionId: 'version' };
+  data.fragments.push({
+    ...data.fragments[0]!,
+    id: cited.fragmentId,
+    originalVersionId: cited.originalVersionId,
+    excerpt: 'Synthetic behavior',
+    location: { kind: 'snapshot_field', fieldPath: 'event-0.act' },
+  });
+  data.eventSources.push({ eventId: 'event-0', ...cited });
+  Object.assign(
+    data.confirmations.find((row) => row.id === 'event-0-prof')!,
+    cited,
+  );
+  const profile = await personFromData(data, 'one');
+  expect(personSchema.safeParse(profile).success).toBe(true);
+  if (profile?.timeline.status !== 'ready') throw new Error('Missing timeline');
+  const event = profile.timeline.data.find((row) => row.id === 'event-0');
+  if (event?.kind !== 'key_event') throw new Error('Missing key event');
+  expect(event.sources.map((row) => row.fragmentId)).toEqual(['fragment-0']);
+  const score = event.scores.find((row) => row.dimensionId === 'prof');
+  expect(score).toMatchObject({
+    state: 'confirmed',
+    sources: [expect.objectContaining(cited)],
+  });
+
+  // The hidden score citation is still checked before filtering: a locator
+  // the legacy contract cannot carry suppresses the whole card.
+  const act = data.fragments.find((row) => row.id === cited.fragmentId)!;
+  const legacyLocation = act.location;
+  Object.assign(act, {
+    location: { kind: 'pdf', page: 1, textRange: { start: 0, end: 2 } },
+    parseVersionId: 'demo-parse',
+    sourceCategory: 'original',
+    demo: true,
+  });
+  const unmigrated = await personFromData(data, 'one');
+  if (unmigrated?.timeline.status !== 'ready')
+    throw new Error('Missing timeline');
+  expect(unmigrated.timeline.data.map((row) => row.id)).not.toContain(
+    'event-0',
+  );
+  Object.assign(act, {
+    location: legacyLocation,
+    parseVersionId: null,
+    sourceCategory: null,
+    demo: null,
+  });
+
+  // Without statements (native saves write none) every linked source counts.
+  data.statements = data.statements.filter((row) => row.eventId !== 'event-0');
+  const native = await personFromData(data, 'one');
+  if (native?.timeline.status !== 'ready') throw new Error('Missing timeline');
+  const unfiltered = native.timeline.data.find((row) => row.id === 'event-0');
+  expect(
+    unfiltered?.kind === 'key_event' &&
+      unfiltered.sources.map((row) => row.fragmentId).sort(),
+  ).toEqual(['fragment-0', 'fragment-act']);
 });

@@ -134,6 +134,13 @@ const environmentSchema = z.object({
   QINIU_JEV_MODEL: z.literal(JEV_MODEL).default(JEV_MODEL),
 });
 
+/** The exact check createJevClientFromEnv applies: true only when it builds a live client. */
+export function jevEnvironmentReady(
+  environment: Record<string, string | undefined>,
+): boolean {
+  return environmentSchema.safeParse(environment).success;
+}
+
 /** Read existing names only on explicit composition; never load a .env file. */
 export function createJevClientFromEnv(
   environment: Record<string, string | undefined> = process.env,
