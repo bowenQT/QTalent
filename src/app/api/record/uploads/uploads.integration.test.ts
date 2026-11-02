@@ -370,9 +370,32 @@ it('refuses another account’s staging collection and an unfinished upload', as
     bytes: 12,
   });
   h.account = seeded.outsiderAccount;
-  expect(
-    (await post(requestUpload, '/api/record/uploads', request)).status,
-  ).toBe(403);
+  const outsider = await post(requestUpload, '/api/record/uploads', request);
+  expect(outsider.status).toBe(403);
+  const outsiderBody = await outsider.json();
+  // A missing collection and another account's record collection answer alike.
+  const peopleCollection = randomUUID();
+  await connection.db.insert(uploadCollections).values({
+    id: peopleCollection,
+    creatorAccountId: seeded.account,
+    operationId: randomUUID(),
+    target: { kind: 'people', personIds: [seeded.target] },
+    targetFingerprint: 'a'.repeat(64),
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 60_000,
+    revision: 1,
+  });
+  for (const recordCollectionId of [randomUUID(), peopleCollection]) {
+    const refused = await post(requestUpload, '/api/record/uploads', {
+      ...request,
+      recordCollectionId,
+      operationId: randomUUID(),
+    });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({
+      status: outsiderBody.status,
+    });
+  }
   h.account = seeded.account;
   const granted = materialRequestUploadResultSchema.parse(
     await (await post(requestUpload, '/api/record/uploads', request)).json(),

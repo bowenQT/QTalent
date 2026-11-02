@@ -67,8 +67,10 @@ export function createMaterialUploadRuntime(input: {
       // Staging collections never enter an 846 record save ledger.
       async loadBinding(collectionId, tx) {
         const collection = await tx.findCollection(collectionId);
+        // Any other collection is refused like a missing one, so its existence
+        // and kind never show through this entry.
         if (collection?.target.kind !== 'unassigned')
-          throw new Error('Only staging collections have a known binding');
+          throw new UploadError('forbidden', 'record_write_required');
         return { state: 'draft', externalAttachmentCount: 0 };
       },
       async collectionForEvent() {
