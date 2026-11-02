@@ -42,3 +42,24 @@ export const todosDone = {
   title: '待办都处理完了',
   text: '新的待核对、校准和到期的跟踪会出现在这里。',
 } as const;
+
+/** Manager home blocks whose reads are not on main yet (版本 Y DY-04). */
+export const managerPending = {
+  watch:
+    '接通后，按写明的规则入选的人会出现在这里，按入选时间排列，不显示分数。',
+  programs:
+    '接通后，刚过关键节点、还有留用或落位没定的期次会出现在这里，一期一行。',
+  follows: '接通后，你关注的人和他们的新进展会出现在这里，只有你自己看得到。',
+} as const;
+
+// Verbatim from prototype/y/app/js/pages/workbench.js (CAT_NOTE and empty states).
+export const watchCategories = [
+  ['top', '突出表现', '导师提名或推荐，HR 已核实'],
+  ['new', '新发现', '近期有多件事印证，或 AI 线索经 HR 核实'],
+  ['act', '需要介入', '约定的跟进没有按时发生，HR 在跟'],
+] as const;
+export const watchEmpty = '这一类入选的人会出现在这里。';
+export const programsEmpty = '近两周没有需要留意的期次。';
+export const followsEmpty =
+  '在值得关注或速览里点「加关注」，之后他们的新进展会出现在这里。';
+export const followUpdatesEmpty = '关注以来的新进展会出现在这里。';
