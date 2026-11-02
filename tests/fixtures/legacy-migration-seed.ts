@@ -1,6 +1,8 @@
 /** Canonical pseudonym facts in the pre-899 physical schema; migration tests only. */
 import { hashPassword } from 'better-auth/crypto';
 import { user, account } from '../../src/server/auth/schema';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { createDatabase } from '../../src/server/db/client';
@@ -13,6 +15,43 @@ import * as records from '../../src/server/modules/records/schema';
 import * as talent from '../../src/server/modules/talent/schema';
 type Connection = ReturnType<typeof createDatabase>;
 
+/** The pre-899 physical columns, pinned to the last snapshot before 899.
+ * Later migrations only add columns, so these exist in every newer database;
+ * columns added later take their defaults when an old database is upgraded. */
+const legacyColumns = new Map(
+  Object.values(
+    JSON.parse(
+      readFileSync(
+        join(process.cwd(), 'src/server/db/migrations/meta/0002_snapshot.json'),
+        'utf8',
+      ),
+    ).tables as Record<
+      string,
+      { name: string; columns: Record<string, unknown> }
+    >,
+  ).map((table) => [table.name, new Set(Object.keys(table.columns))]),
+);
+function legacyKeys(table: PgTable) {
+  const columns = getTableColumns(table);
+  const known = legacyColumns.get(getTableName(table));
+  if (!known) throw new Error('Not a pre-899 table: ' + getTableName(table));
+  return Object.keys(columns).filter((key) => known.has(columns[key].name));
+}
+
+/** Read an old database through its pre-899 columns only. */
+export async function readLegacyRows<T extends PgTable>(
+  connection: Connection,
+  table: T,
+): Promise<T['$inferSelect'][]> {
+  const columns = getTableColumns(table);
+  const selection = Object.fromEntries(
+    legacyKeys(table).map((key) => [key, columns[key]]),
+  );
+  return (await connection.db
+    .select(selection)
+    .from(table as PgTable)) as T['$inferSelect'][];
+}
+
 /** Insert the verified baseline into the OLD physical schema, without calling the new seed importer. */
 export async function seedVerifiedLegacyBaseline(
   connection: Connection,
@@ -23,8 +62,9 @@ export async function seedVerifiedLegacyBaseline(
     if (!input.length) return;
     const columns = getTableColumns(table);
     const rows = input as Record<string, unknown>[];
-    const keys = [...new Set(rows.flatMap(Object.keys))].filter(
-      (key) => key in columns && key !== 'evaluationNodeId',
+    const legacy = new Set(legacyKeys(table));
+    const keys = [...new Set(rows.flatMap(Object.keys))].filter((key) =>
+      legacy.has(key),
     );
     for (let start = 0; start < rows.length; start += 100) {
       const values: unknown[] = [];

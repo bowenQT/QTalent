@@ -17,6 +17,7 @@ import { importDemo } from './import';
 import { mapPrototypeSeed, readPrototypeSeed } from './seed';
 import {
   seedVerifiedLegacyBaseline as legacySeed,
+  readLegacyRows,
   fingerprintMigrationFacts as legacyFingerprint,
 } from '../../../tests/fixtures/legacy-migration-seed';
 import * as directory from '../modules/directory/schema';
@@ -90,11 +91,11 @@ async function previous(connection: Connection) {
 }
 async function legacyPlan(connection: Connection) {
   return planLegacyEvaluationNodes({
-    cohorts: await connection.db.select().from(programs.cohorts),
-    people: await connection.db.select().from(directory.people),
-    enrollments: await connection.db.select().from(programs.enrollments),
-    assignments: await connection.db.select().from(programs.assignments),
-    projects: await connection.db.select().from(staffing.projects),
+    cohorts: await readLegacyRows(connection, programs.cohorts),
+    people: await readLegacyRows(connection, directory.people),
+    enrollments: await readLegacyRows(connection, programs.enrollments),
+    assignments: await readLegacyRows(connection, programs.assignments),
+    projects: await readLegacyRows(connection, staffing.projects),
     events: await connection.db
       .select({
         id: records.events.id,
