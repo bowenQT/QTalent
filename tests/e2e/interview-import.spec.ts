@@ -90,8 +90,10 @@ test('skipped, waiting to be identified and unread rows are told apart and handl
   await expect(page.locator('.n-ivbar')).toContainText('导入待接通');
 });
 
+// imp-1 is the sample batch; the stored /import has no such batch, so HR sees the link
+// as expired while every other role is refused before any batch is read.
 for (const [role, heading] of [
-  ['hrbp', '面评预览待接通'],
+  ['hrbp', '导入链接失效'],
   ['mentor', '面评导入由 HR 处理'],
   ['ceo', '面评导入由 HR 处理'],
   ['admin', '这一页属于业务视角'],
