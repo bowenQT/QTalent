@@ -150,7 +150,7 @@
 
 ## 同次渲染视觉检查
 
-`tests/visual/reference.spec.ts` 同次运行、同浏览器、同视口分别渲染原型和工程；每用例使用新上下文、独立临时 PostgreSQL 数据库、迁移与导入。原型静态服务只读取 `reference:prepare` 从固定 Git 提交物化的 `.reference-cache/`，再逐文件核对 `tests/fixtures/prototype-manifest.json` 的 Git blob SHA，拒绝混入变动后的原型。工作树中的原型后续变化不改变缓存基线；无 Git 的快照环境只能显式使用 `--verified-snapshot` 准备经摘要确认的等价基线，绝不静默回退到工作树。基线提交唯一来源为 `prototype-reference.json`，种子与截图服务共享该约束。
+`tests/visual/reference.spec.ts` 同次运行、同浏览器、同视口分别渲染原型和工程；每用例使用新上下文、独立临时 PostgreSQL 数据库、迁移与导入。原型静态服务只读取 `reference:prepare` 从固定 Git 提交物化的 `.reference-cache/`，再逐文件核对 `tests/fixtures/prototype-manifest.json` 的 Git blob SHA，拒绝混入变动后的原型。工作树中的原型后续变化不改变缓存基线；无 Git 的快照环境只能显式使用 `--verified-snapshot` 准备经摘要确认的等价基线，绝不静默回退到工作树。视觉参照提交唯一来源为 `prototype-reference.json`；不可变证据独立使用固定 `2e51b50` 的原 blob / SHA-256，存放在 `.reference-cache/evidence/`，不受视觉指针前移影响。种子加载只读后者，来源身份与历史规则不变，详见[固定演示证据映射](../src/server/db/seed/README.md#来源与映射)。
 
 - 桌面 1366×900；响应式窄屏 375×812；三账号外壳 + 列表，新建弹窗，开发样张的输入、按钮、徽标。
 - 先比较项目名称、顺序、目标；弹窗先比较完整 owner 选项。数据有差异即失败，不进入像素比较。
@@ -178,6 +178,12 @@
 | `expectSameBox(原型元素, 工程元素, 名称, { keys, tolerance })` | 几何先于像素：软断言文档坐标下的矩形一致，默认四项、容差 1px                                                                                                                                                                       |
 
 调用顺序固定：`normalizeRegions` → `stabilize` → `matchingMasks` → `compare` / `compareElements`；`expectSameBox` 必须在 `compareElements` 之前，因为后者会把工程元素宽度改成原型宽度。
+
+### 81e4fd4 参照同步的验收边界
+
+视觉文件固定到 `81e4fd448f11d6c515bf447a81e85606d7b239ff`，manifest 包含该版本全部 90 份文件，涵盖投递回执、面评导入、重新分派、批量导出、档案打印、接入状态和判断对照修订。证据缓存仍来自 `2e51b50`；这次前移不移植新增页面或样式，不改数据相等闸、像素阈值、遮罩或权限。
+
+BOW-920、907、862、911、916、908、841 等页面卡的新区块由各 PR 在该参照上补跑实际对比。原先标为「参照待同步」的区块仅解除缺少参照文件这一前置，仍是「待对应 PR 对比」；全局既有切片回归通过不代表这些新区块视觉通过。原型与真实权限读取的数据有差异时照常失败并登记，不靠截图要求放宽来源权限。
 
 ## 实际验证与环境边界
 

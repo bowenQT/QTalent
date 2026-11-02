@@ -4,7 +4,7 @@
 
 ## 来源与映射
 
-加载器只执行固定 2e51b50 的 data-xe6.js、data.js，并逐文件校验 SHA-256 和 Git blob SHA；不执行 store.js。两个文件分别登记 prototype_snapshot 原件及版本，保留路径、commit、blob 和摘要。字段在 XE6 与最终 SEED 中值相同则指向前者；最终新增或改变的字段指向 data.js。来源链终止于原型求值快照，不冒充原观察表或逐格作者。
+加载器只执行固定 2e51b50 的 data-xe6.js、data.js，并逐文件校验 SHA-256 和 Git blob SHA；不执行 store.js。`pnpm reference:prepare` 将这两份不可变证据单独准备到 `.reference-cache/evidence/prototype/y/app/js/`，视觉文件继续放在 `.reference-cache/prototype/y/`。两组文件全部校验后才发布缓存；视觉指针前移不会改变证据字节、snapshot 来源身份或历史规则。`readPrototypeSeed` 只读证据缓存，不读视觉数据或视觉指针；缺文件或摘要不符就失败，不回退。显式 `--verified-snapshot` 模式也必须另外提供这两份证据缓存，并通过原 blob / SHA-256 校验，不能用新版视觉 data.js 代替。两个文件分别登记 prototype_snapshot 原件及版本，保留路径、commit、blob 和摘要。字段在 XE6 与最终 SEED 中值相同则指向前者；最终新增或改变的字段指向 data.js。来源链终止于原型求值快照，不冒充原观察表或逐格作者。
 
 每个 srcs[i] 建 snapshot_field 片段，原 loc 仅保留为 originalLocation 展示标签。普通评分提取 note 的“引用「…」”正文，仅去掉引文末尾省略号；先唯一匹配显式 src.quote，再在没有来源匹配时用 act。固定快照有 23 条文字同时出现在两处，来源优先得到已定的 442 个 srcs 与 116 个 act 定位；多来源匹配或没有匹配会给出仅含记录 ID / 缺字段的错误，不猜位置。
 
