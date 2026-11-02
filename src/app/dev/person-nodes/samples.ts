@@ -72,6 +72,7 @@ const identity = {
   teamId: 'dev-team-001',
   teamName: '业务成功部',
   teamPath: '业务成功部',
+  orgPath: '业务成功部',
   jobTitle: 'TS 工程师',
   level: 'N3',
   batch: null,
