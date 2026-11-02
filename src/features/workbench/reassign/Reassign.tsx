@@ -86,7 +86,8 @@ export function Reassign({ items }: { items: ReassignItem[] }) {
     if (!batch.length) return;
     setBusy(true);
     const byId = new Map(items.map((item) => [item.workItemId, item]));
-    let done = 0;
+    // Successes by who took them: a retry can carry requests to different evaluators.
+    const done = new Map<string, number>();
     const changedNow: Changed[] = [];
     const unansweredNow: Sent[] = [];
     for (const sent of batch) {
@@ -104,7 +105,7 @@ export function Reassign({ items }: { items: ReassignItem[] }) {
       )
         attempts.current.delete(sent.attempt.workItemId);
       if (result.status === 'success') {
-        done++;
+        done.set(sent.name, (done.get(sent.name) ?? 0) + 1);
         continue;
       }
       const item = byId.get(sent.attempt.workItemId);
@@ -123,13 +124,12 @@ export function Reassign({ items }: { items: ReassignItem[] }) {
       ...current.filter((sent) => !carried.has(sent.attempt.operationId)),
       ...unansweredNow,
     ]);
-    const name = batch[0].name;
-    if (done)
+    if (done.size)
       toast.show(
-        `已交给${name} ${done} 件${changedNow.length ? `，${changedNow.length} 件已有变化` : ''}`,
+        `已交给${[...done].map(([name, count]) => `${name} ${count} 件`).join('、')}${changedNow.length ? `，${changedNow.length} 件已有变化` : ''}`,
       );
     else if (changedNow.length) focusNotice.current = true;
-    if (done || changedNow.length) router.refresh();
+    if (done.size || changedNow.length) router.refresh();
   }
 
   function submit() {

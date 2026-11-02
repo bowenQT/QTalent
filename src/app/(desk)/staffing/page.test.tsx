@@ -105,6 +105,64 @@ describe('staffing route', () => {
     expect(await generateMetadata()).toEqual({ title: '找人 · Niu-Talent' });
   });
 
+  it('takes a workbench sentence into a project the viewer picks, keeping the handoff', async () => {
+    getShellPage.mockResolvedValue(shell(['manager']));
+    getProjectsPage.mockResolvedValue({
+      status: 'ok',
+      data: {
+        projects: [
+          project,
+          {
+            ...project,
+            id: 'demo-running',
+            name: '进行中项目',
+            goal: '',
+            status: '进行中',
+          },
+          {
+            ...project,
+            id: 'demo-ended',
+            name: '已结束项目',
+            status: '已结束',
+          },
+          {
+            ...project,
+            id: 'demo-archived',
+            name: '已归档项目',
+            status: '已归档',
+          },
+        ],
+      },
+    });
+    render(await open({ new: '1', draft: 'work' }));
+    expect(
+      screen.getByRole('heading', { name: '这句话为哪个项目找人' }),
+    ).toBeTruthy();
+    const links = screen
+      .getByRole('list', { name: '可以找人的项目' })
+      .querySelectorAll('a');
+    expect(
+      [...links].map((link) => [link.textContent, link.getAttribute('href')]),
+    ).toEqual([
+      ['演示项目', '/staffing?project=demo-project&draft=work'],
+      ['进行中项目', '/staffing?project=demo-running&draft=work'],
+    ]);
+    // The sentence is not in any address and nothing is drafted yet.
+    expect(document.body.innerHTML).not.toContain('寻找');
+    expect(live).not.toHaveBeenCalled();
+  });
+
+  it('points to creating a project when none is open to find people for', async () => {
+    getShellPage.mockResolvedValue(shell(['hr']));
+    getProjectsPage.mockResolvedValue({ status: 'forbidden' });
+    render(await open({ draft: 'work' }));
+    expect(screen.getByText('选一个项目再找人')).toBeTruthy();
+    expect(
+      screen.getByRole('link', { name: '打开项目与课题' }).getAttribute('href'),
+    ).toBe('/projects');
+    expect(live).not.toHaveBeenCalled();
+  });
+
   it('says the link is stale for a project the viewer cannot read', async () => {
     getShellPage.mockResolvedValue(shell(['hr']));
     getProjectsPage.mockResolvedValueOnce({

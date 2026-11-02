@@ -258,3 +258,31 @@ test('only HR reaches the reassignment page', async ({
   await page.getByRole('link', { name: '回到工作台' }).click();
   await expect(page).toHaveURL(/\/work$/);
 });
+
+test('a manager finds people from /work: the sentence reaches the chosen project', async ({
+  context,
+  page,
+  referenceApp,
+}) => {
+  await login(context, 'ceo', referenceApp.baseURL);
+  await page.goto('/work');
+  const sentence = '演示：语音硬件端云联调要一个独立负责服务端模块的 owner';
+  const find = page.getByRole('textbox', { name: '描述你要找什么样的人' });
+  await find.fill(sentence);
+  await find.press('Enter');
+  // No project yet: the page asks for one, and the sentence stays out of the address.
+  await expect(
+    page.getByRole('heading', { name: '这句话为哪个项目找人' }),
+  ).toBeVisible();
+  expect(page.url()).toMatch(/\/staffing\?new=1&draft=work$/);
+  const choice = page
+    .getByRole('list', { name: '可以找人的项目' })
+    .getByRole('link')
+    .first();
+  await expect(choice).toHaveAttribute('href', /&draft=work$/);
+  await choice.click();
+  await expect(page).toHaveURL(/\/staffing\?project=[^&]+&draft=work$/);
+  await expect(
+    page.getByRole('textbox', { name: '描述项目和要找的人' }),
+  ).toHaveValue(sentence);
+});
