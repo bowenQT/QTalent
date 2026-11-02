@@ -272,7 +272,8 @@ export function Connections({
 }) {
   const toast = useToast();
   const [tasks, setTasks] = useState(data.taskFailures);
-  const [busy, setBusy] = useState<string | null>(null);
+  // Each task tracks its own request, so two retries in flight do not unlock each other.
+  const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
   const [requeued, setRequeued] = useState<string | null>(null);
   const operations = useRef(new Map<string, string>());
 
@@ -282,31 +283,45 @@ export function Connections({
     const operationId =
       operations.current.get(task.jobId) ?? crypto.randomUUID();
     operations.current.set(task.jobId, operationId);
-    setBusy(task.jobId);
-    const result = await retry({
-      jobId: task.jobId,
-      action: 'retry',
-      operationId,
-      expectedRevision: task.revision,
-    });
-    setBusy(null);
+    setBusy((current) => new Set(current).add(task.jobId));
+    let result: JobResponse;
+    try {
+      result = await retry({
+        jobId: task.jobId,
+        action: 'retry',
+        operationId,
+        expectedRevision: task.revision,
+      });
+    } catch {
+      // No answer: the operation id stays, so 重试 resends the same request.
+      toast.show('连接中断，结果待核实：再点一次「重试」会按原请求重发');
+      return;
+    } finally {
+      setBusy((current) => {
+        const next = new Set(current);
+        next.delete(task.jobId);
+        return next;
+      });
+    }
     if (result.status !== 'success') {
       toast.show(retryFailure[result.status]);
       return;
     }
     operations.current.delete(task.jobId);
-    setTasks({
-      status: 'ready',
-      data: tasks.data.map((item) =>
-        item.jobId === task.jobId
-          ? {
-              ...item,
-              state: 'queued',
-              revision: result.snapshot.revision,
-            }
-          : item,
-      ),
-    });
+    const { revision } = result.snapshot;
+    // Apply to the latest list: another retry may have answered in the meantime.
+    setTasks((current) =>
+      current.status === 'ready'
+        ? {
+            status: 'ready',
+            data: current.data.map((item) =>
+              item.jobId === task.jobId
+                ? { ...item, state: 'queued', revision }
+                : item,
+            ),
+          }
+        : current,
+    );
     setRequeued(task.jobId);
     toast.show('已重新排队，处理结果会更新在这里');
   }
@@ -432,7 +447,7 @@ export function Connections({
               <TaskCard
                 key={task.jobId}
                 task={task}
-                busy={busy === task.jobId}
+                busy={busy.has(task.jobId)}
                 focus={requeued === task.jobId}
                 onRetry={
                   retry && task.canRetry ? () => void requeue(task) : null

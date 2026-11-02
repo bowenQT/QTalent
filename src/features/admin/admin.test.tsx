@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/components/ui/Toast';
 import type { AdminConnections } from '@/contracts/admin-connections';
@@ -8,6 +8,7 @@ import { ShellTitleProvider } from '@/features/shell/ShellTitle';
 import { SampleAdmin } from '@/app/dev/admin-connections/SampleAdmin';
 import { sampleConnections } from '@/app/dev/admin-connections/samples';
 import { AdminPage } from './AdminPage';
+import type { JobResponse } from '@/contracts/jobs';
 import type { RetryPort } from './Connections';
 import { durationText, stampOf } from './copy';
 import { adminTabOf } from './tabs';
@@ -152,6 +153,70 @@ describe('系统管理 · 接入状态', () => {
     await user.click(button);
     const [first, second] = retry.mock.calls.map(([command]) => command);
     expect(second.operationId).toBe(first.operationId);
+    expect(screen.getByText('3 个待处理')).toBeTruthy();
+  });
+
+  it('keeps both results when two retries answer out of order', async () => {
+    const user = userEvent.setup();
+    const answers = new Map<string, (value: JobResponse) => void>();
+    const retry = vi.fn<RetryPort>(
+      (command) =>
+        new Promise((resolve) => answers.set(command.jobId, resolve)),
+    );
+    const queued = (jobId: string, revision: number): JobResponse => ({
+      status: 'success',
+      snapshot: {
+        schemaVersion: 1,
+        jobId,
+        kind: 'entry_task',
+        status: 'queued',
+        attempt: 2,
+        revision,
+        updatedAt: '2026-09-04T06:00:00.000Z',
+        progress: null,
+        result: null,
+        error: null,
+        canRetry: false,
+        canCancel: true,
+        cancelRequestedAt: null,
+      },
+    });
+    show(full, retry);
+    const [a, b] = screen.getAllByRole('button', {
+      name: '重试',
+    }) as HTMLButtonElement[];
+    await user.click(a);
+    await user.click(b);
+    const [first, second] = retry.mock.calls.map(([command]) => command);
+    // The first answer does not unlock the request still in flight.
+    await act(async () => answers.get(first.jobId)!(queued(first.jobId, 5)));
+    expect(b.disabled).toBe(true);
+    await act(async () => answers.get(second.jobId)!(queued(second.jobId, 9)));
+    expect(screen.getAllByText('已重新排队')).toHaveLength(2);
+    expect(screen.getByText('1 个待处理 · 2 个已重新排队')).toBeTruthy();
+    expect(screen.queryAllByRole('button', { name: '重试' })).toHaveLength(0);
+  });
+
+  it('frees the button after a lost answer and resends the same request', async () => {
+    const user = userEvent.setup();
+    const retry = vi
+      .fn<RetryPort>()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({ status: 'conflict' });
+    show(full, retry);
+    const button = screen.getAllByRole('button', {
+      name: '重试',
+    })[0] as HTMLButtonElement;
+    await user.click(button);
+    expect(
+      await screen.findByText(
+        '连接中断，结果待核实：再点一次「重试」会按原请求重发',
+      ),
+    ).toBeTruthy();
+    expect(button.disabled).toBe(false);
+    await user.click(button);
+    const [first, second] = retry.mock.calls.map(([command]) => command);
+    expect(second).toEqual(first);
     expect(screen.getByText('3 个待处理')).toBeTruthy();
   });
 
