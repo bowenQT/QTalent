@@ -60,9 +60,10 @@ export interface StaffingMatchDependencies<C> {
       revision?: number,
     ): Promise<StaffingDemand | null>;
   };
+  /** `now` is the full authorization instant, the same as demand reads. */
   loadEvidence(
     accountId: string,
-    today: string,
+    now: string,
   ): Promise<{
     snapshot: Awaited<ReturnType<LoadTalentSnapshot>> & {
       context: EvaluationAuthzContext;
@@ -99,7 +100,10 @@ export function createStaffingMatchUsecase<C>(
       JSON.stringify(demand) !== JSON.stringify(parsedCurrent)
     )
       throw new MatchingError('conflict');
-    const loaded = await deps.loadEvidence(accountId, clock.today());
+    const loaded = await deps.loadEvidence(
+      accountId,
+      clock.now().toISOString(),
+    );
     if (
       !Array.isArray(loaded.snapshot.context.evaluationNodes) ||
       !Array.isArray(loaded.snapshot.context.evaluationNodeSubjects) ||
@@ -288,13 +292,13 @@ export function createStaffingMatchEvidenceLoader(ports: {
     data: StaffingMatchEvidenceData,
   ): Promise<{ sources: TalentSource[]; details: Source[] }>;
 }): StaffingMatchDependencies<Transaction>['loadEvidence'] {
-  return (accountId, today) =>
+  return (accountId, now) =>
     ports.db.transaction(
       async (tx) => {
         // The complete intake table, read in this same snapshot, so sources
         // shared with not-yet-confirmed text keep all their subjects.
         const data = {
-          ...(await loadEvaluationContext(tx, accountId, today)),
+          ...(await loadEvaluationContext(tx, accountId, now)),
           ...(await readEvidenceForTalent(tx)),
           intake: await readIntakeTable(tx, 'snapshot'),
         };
