@@ -243,13 +243,13 @@ export function matchingFixture() {
         ? null
         : structuredClone(demand),
   );
-  const loadEvidence = vi.fn(async (account: string, today: string) => ({
+  const loadEvidence = vi.fn(async (account: string, now: string) => ({
     snapshot: {
       ...structuredClone(snapshot),
       context: {
         ...structuredClone(context),
         account: { ...context.account, id: account },
-        now: today,
+        now,
       },
     },
     confirmations: structuredClone(facts),

@@ -1,5 +1,7 @@
 # 节点人工结论（BOW-902）
 
+> 当前原生续作已接真实存储及 X1 ca0 账本，见 [node-conclusions/README.md](node-conclusions/README.md)。下文是首片的交付边界，不能据“selector尚未接”判断当前状态；仍缺权威完成集合，不能猜ready。
+
 已交付独立领域、事务用例和原生 PostgreSQL 的事务／锁／当前授权读取基础。结论表持久化、生产权威来源和页面尚未接通。原第一片为377f92c693edf724811f4fc830fb9c501b093c28，本轮普通合入main325de93fde83987bdcdffa10cf00bb70e91e07c3；897来源契约和899授权现在均从实际main单源消费，没有复制上游文件。
 
 ## 人工结论
