@@ -17,6 +17,7 @@ const aliases: readonly {
   // prototype/y/app/js/pages/person.js: the crumb reads 人才 for every role, including the
   // mentor whose entry is labelled 所带学员.
   { path: '/person', parent: 'people', title: '人员档案', parentLabel: '人才' },
+  { path: '/work/reassign', parent: 'work', title: '重新分派' },
 ];
 
 /** Admin sessions never see business titles: the shell shows one fixed line. */

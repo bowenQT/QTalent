@@ -7,8 +7,11 @@ import { test, expect, login, type DemoRole } from './fixtures';
  */
 test('confirmed rows stay confirmed after leaving the preview and coming back', async ({
   page,
+  context,
   referenceApp,
 }) => {
+  // 「去核对」落到真实的待核对页，它要登录；以 HR 进入，离开后才能留在 /inbox。
+  await login(context, 'hrbp', referenceApp.baseURL);
   await page.goto(`${referenceApp.baseURL}/dev/import`);
   const row = (id: string) => page.locator(`#iv-${id}`);
   await page.getByRole('button', { name: '是孟逸尘' }).click();
