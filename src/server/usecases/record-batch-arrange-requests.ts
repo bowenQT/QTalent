@@ -1,10 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { lockIntakeTable, readIntakeTable } from './talent-source-projection';
 import {
   materialBatchInputSchema,
   materialBatchReadInputSchema,
+  type MaterialBatchInput,
   type MaterialBatchSubmitResult,
   type MaterialBatchReadResult,
 } from '../../contracts/materials';
@@ -12,6 +13,12 @@ import { materialReviewItemSchema } from '../../contracts/material-review';
 import { recordInputSchema } from '../../contracts/record';
 import type { Transaction } from '../db/client';
 import { originals, originalVersions, fragments } from '../modules/records';
+import {
+  uploadIntents,
+  uploadObjects,
+} from '../modules/records/uploads/schema';
+import { readValidatedUploadInTransaction } from '../modules/records/uploads/handoff-transaction';
+import { mediaMaterials } from '../modules/records/material-review/schema';
 import {
   arrangeInputs,
   type StoredArrangeInput,
@@ -33,7 +40,9 @@ import {
   loadArrangeActor,
   buildRecordPageContext,
   canWriteArrange,
+  defaultIntakeNode,
   textSubjects,
+  type ArrangeActor,
   NativeArrangeUnavailable,
   loadRecordBatchSnapshot,
   type RecordPageInput,
@@ -95,6 +104,170 @@ export function createRecordBatchArrangeRequests(
     deps.now().toISOString(),
   );
   const id = deps.newId ?? randomUUID;
+  const unassignedTarget = z.strictObject({
+    kind: z.literal('unassigned'),
+    evaluationNodeId: z.string(),
+  });
+  /**
+   * A files-only batch. Each file is the actor's own completed, unreleased upload
+   * with an unassigned target on this node and in no other current batch; its
+   * parse runs as the upload's own media job, so nothing is enqueued here. The
+   * batch job stays queued: arranging the parsed files is not connected yet.
+   * Lock order after the intake writer lock: each upload collection's quota lock
+   * in collection order, then the rows written here.
+   */
+  async function createMedia(
+    tx: Transaction,
+    accountId: string,
+    input: MaterialBatchInput,
+    facts: { actor: ArrangeActor; at: string; nodeId: string; fingerprint: string },
+  ): Promise<MaterialBatchSubmitResult> {
+    const { actor, at, nodeId, fingerprint } = facts;
+    const refused = (): MaterialBatchSubmitResult => ({
+      status: 'validation_error',
+      fieldErrors: {
+        files: ['有文件还没上传完成，或不能放进这次投递，请重新上传后再提交'],
+      },
+      input,
+    });
+    const uploadIds = input.files.map((file) => file.uploadId);
+    const located = await tx
+      .select({
+        uploadId: uploadIntents.id,
+        recordCollectionId: uploadIntents.recordCollectionId,
+        originalVersionId: uploadObjects.originalVersionId,
+      })
+      .from(uploadIntents)
+      .innerJoin(uploadObjects, eq(uploadObjects.uploadId, uploadIntents.id))
+      .where(inArray(uploadIntents.id, uploadIds));
+    if (located.length !== uploadIds.length) return refused();
+    const ordered = [...located].sort(
+      (a, b) =>
+        a.recordCollectionId.localeCompare(b.recordCollectionId) ||
+        a.uploadId.localeCompare(b.uploadId),
+    );
+    const uploads = new Map<
+      string,
+      NonNullable<Awaited<ReturnType<typeof readValidatedUploadInTransaction>>>
+    >();
+    for (const row of ordered) {
+      const upload = await readValidatedUploadInTransaction(tx, row);
+      const target = unassignedTarget.safeParse(upload?.target);
+      if (
+        !upload ||
+        upload.accountId !== accountId ||
+        !target.success ||
+        target.data.evaluationNodeId !== nodeId
+      )
+        return refused();
+      uploads.set(row.uploadId, upload);
+    }
+    // Read under the quota locks: a release or another batch commits under them too.
+    const [released] = await tx
+      .select({ id: uploadIntents.id })
+      .from(uploadIntents)
+      .where(
+        and(
+          inArray(uploadIntents.id, uploadIds),
+          isNotNull(uploadIntents.releasedAt),
+        ),
+      )
+      .limit(1);
+    const [bound] = await tx
+      .select({ id: mediaMaterials.id })
+      .from(mediaMaterials)
+      .innerJoin(arrangeInputs, eq(arrangeInputs.id, mediaMaterials.inputId))
+      .where(
+        and(
+          inArray(mediaMaterials.uploadId, uploadIds),
+          isNull(arrangeInputs.supersededByInputId),
+        ),
+      )
+      .limit(1);
+    if (released || bound) return refused();
+    const inputId = id(),
+      batchId = id(),
+      jobId = id(),
+      inputVersion = id();
+    const files = input.files.map((file) => ({
+      file,
+      upload: uploads.get(file.uploadId)!,
+    }));
+    const metadata = initialBatchMetadata(
+      actor.context.account.personId,
+      input.operationId,
+      [],
+    );
+    const job: JobRecord = {
+      ...newJob(
+        { jobId, kind: 'record_organize', resourceId: inputId, inputVersion },
+        deps.now().toISOString(),
+      ),
+      result: metadata,
+    };
+    const stored: StoredArrangeInput = {
+      id: inputId,
+      creatorAccountId: accountId,
+      jobId,
+      inputVersion,
+      batchId,
+      evaluationNodeId: nodeId,
+      boundAt: new Date(at),
+      occurredOn: at.slice(0, 10),
+      origin: 'attachment',
+      originalInput: {
+        kind: 'media',
+        operationId: input.operationId,
+        materialIds: files.map(({ upload }) => upload.originalId),
+      },
+      sourceContexts: [],
+      inputSource: null,
+      personIds: [],
+      projectMode: 'none',
+      projectId: null,
+      projectCandidateIds: [],
+      supersededByInputId: null,
+      createdAt: deps.now(),
+    };
+    await insertJob(tx, job);
+    await insertArrangeInput(tx, stored);
+    await tx.insert(mediaMaterials).values(
+      files.map(({ file, upload }) => ({
+        id: upload.originalId,
+        inputId,
+        inputVersion,
+        clientFileId: file.clientFileId,
+        uploadId: upload.uploadId,
+        recordCollectionId: upload.recordCollectionId,
+        originalVersionId: upload.originalVersionId,
+        revision: 1,
+        // The files' people and scope are unknown until their parse is checked.
+        intakeScope: null,
+        scopeAuditId: null,
+        createdAt: deps.now(),
+      })),
+    );
+    await insertArrangeOperation(tx, {
+      actorAccountId: accountId,
+      action: 'create',
+      operationId: input.operationId,
+      fingerprint,
+      inputId,
+      jobId,
+    });
+    if (!(await native.authorized(tx, accountId, job, stored)))
+      throw new NativeArrangeUnavailable('input_authority_changed');
+    await recordAudit(tx, {
+      actorId: accountId,
+      action: 'record.batch.create',
+      resourceId: batchId,
+    });
+    return {
+      status: 'success',
+      replayed: false,
+      result: await native.receipt(tx, job, stored, metadata),
+    };
+  }
   // The caller owns rollback: encoded-budget failures occur after staging facts
   // and must escape the whole transaction before being mapped to validation.
   // Its first lock is the intake writer lock (SHARE ROW EXCLUSIVE): callers
@@ -112,17 +285,25 @@ export function createRecordBatchArrangeRequests(
         input: raw,
       };
     const input = checked.data;
-    if (input.files.length)
+    if (input.files.length && input.text.trim())
       return {
         status: 'validation_error',
-        fieldErrors: {
-          files: [
-            '上传与录音来源尚待真实取得/绑定读取；本入口仅处理文本，原材料不作推断',
-          ],
-        },
+        fieldErrors: { files: ['文字和文件请分两次投递'] },
         input: raw,
       };
-    if (!input.text.trim() || Buffer.byteLength(input.text, 'utf8') > 240000)
+    if (
+      input.files.length &&
+      (input.personIds.length || input.projectId !== null)
+    )
+      return {
+        status: 'validation_error',
+        fieldErrors: { files: ['文件投递时不选人员和项目，由解析结果核对'] },
+        input: raw,
+      };
+    if (
+      !input.files.length &&
+      (!input.text.trim() || Buffer.byteLength(input.text, 'utf8') > 240000)
+    )
       return {
         status: 'validation_error',
         fieldErrors: { text: ['请提供非空且在本次整理预算内的原始文本'] },
@@ -178,24 +359,30 @@ export function createRecordBatchArrangeRequests(
     if (!z.iso.datetime().safeParse(at).success)
       throw new NativeArrangeUnavailable('business_clock_required');
     const actor = await loadArrangeActor(tx, accountId, at);
-    if (
-      !canWriteArrange(
-        actor,
-        input.personIds,
-        input.projectId,
-        input.evaluationNodeId,
-      )
-    )
+    const resolved = input.evaluationNodeId
+      ? ({ status: 'resolved', evaluationNodeId: input.evaluationNodeId } as const)
+      : defaultIntakeNode(actor);
+    if (resolved.status !== 'resolved')
+      return {
+        status: 'validation_error',
+        fieldErrors: {
+          evaluationNodeId: [
+            resolved.status === 'missing'
+              ? '当前没有进行中的评价节点，材料尚未提交'
+              : '有多个同时开始的评价节点，无法确定投到哪一个，材料尚未提交',
+          ],
+        },
+        input: raw,
+      };
+    const nodeId = resolved.evaluationNodeId;
+    if (!canWriteArrange(actor, input.personIds, input.projectId, nodeId))
       return {
         status: 'forbidden',
         message: '当前账号没有此节点的记录权限',
       };
-    const subjects = textSubjects(
-      actor,
-      input.text,
-      input.personIds,
-      input.evaluationNodeId,
-    );
+    if (input.files.length)
+      return createMedia(tx, accountId, input, { actor, at, nodeId, fingerprint });
+    const subjects = textSubjects(actor, input.text, input.personIds, nodeId);
     if (
       subjects.some(
         (subject) =>
@@ -250,7 +437,7 @@ export function createRecordBatchArrangeRequests(
           materialReviewItemSchema.parse({
             itemId: id(),
             batchId,
-            evaluationNodeId: input.evaluationNodeId,
+            evaluationNodeId: nodeId,
             materialId: fragmentId,
             originalVersionId,
             revision: 1,
@@ -291,7 +478,7 @@ export function createRecordBatchArrangeRequests(
       jobId,
       inputVersion,
       batchId,
-      evaluationNodeId: input.evaluationNodeId,
+      evaluationNodeId: nodeId,
       boundAt: new Date(at),
       occurredOn: at.slice(0, 10),
       origin: 'text',

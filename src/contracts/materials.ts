@@ -16,11 +16,19 @@ const ids = z
  * model disclosure; unassigned personIds:[] never means "all people". A project
  * is intake context, not a substitute for node/source permission. Same actor,
  * operationId and semantic payload replay; changed payload conflicts.
+ *
+ * Without evaluationNodeId the server takes the actor's in-progress node: one the
+ * actor can currently write records on, the latest by the earliest validFrom of
+ * the actor's current relations there. None, or a tie, is a validation error on
+ * evaluationNodeId; the server never picks one silently.
+ *
+ * Files are completed 873 uploads with an unassigned target on that node. A batch
+ * carries either text or files, not both; files go in with no people or project.
  */
 export const materialBatchInputSchema = z
   .strictObject({
     operationId: id,
-    evaluationNodeId: id,
+    evaluationNodeId: id.optional(),
     personIds: ids,
     projectId: id.nullable(),
     text: z.string(),

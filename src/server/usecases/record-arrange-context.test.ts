@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canWriteArrange,
   buildRecordPageContext,
+  defaultIntakeNode,
   textSubjects,
   type ArrangeActor,
 } from './record-arrange-context';
@@ -173,4 +174,65 @@ it('does not guess a node or combine two nodes to authorize one intake', () => {
   expect(canWriteArrange(a, ['demo-lin', 'demo-xu'], null)).toBe(false);
   expect(canWriteArrange(a, ['demo-lin'], null, 'demo-node')).toBe(true);
   expect(canWriteArrange(a, ['demo-xu'], null, 'other-node')).toBe(true);
+});
+
+describe('default intake node', () => {
+  function withSecondNode(validFrom: string): ArrangeActor {
+    const base = actor();
+    const person = base.context.people[0]!;
+    const facts = {
+      evaluationNodes: [
+        ...base.facts.evaluationNodes,
+        {
+          id: 'demo-node-2',
+          name: '演示节点二',
+          kind: 'program_cohort' as const,
+          cohortId: 'cohort-demo',
+        },
+      ],
+      evaluationNodeSubjects: [
+        ...base.facts.evaluationNodeSubjects,
+        { evaluationNodeId: 'demo-node-2', personId: person.id },
+      ],
+      evaluationRelations: [
+        ...base.facts.evaluationRelations,
+        {
+          ...base.facts.evaluationRelations[0]!,
+          id: 'demo-relation-node-2',
+          evaluationNodeId: 'demo-node-2',
+          validFrom,
+        },
+      ],
+    };
+    return { ...base, facts, context: { ...base.context, ...facts } };
+  }
+  it('takes the only node the submitter can currently write on', () => {
+    expect(defaultIntakeNode(actor())).toEqual({
+      status: 'resolved',
+      evaluationNodeId: 'demo-node',
+    });
+  });
+  it('takes the node whose current relations started most recently', () => {
+    expect(defaultIntakeNode(withSecondNode('2026-03-01T00:00:00.000Z'))).toEqual(
+      { status: 'resolved', evaluationNodeId: 'demo-node-2' },
+    );
+  });
+  it('refuses to pick between nodes that started together', () => {
+    expect(defaultIntakeNode(withSecondNode('2026-01-01T00:00:00.000Z'))).toEqual(
+      { status: 'ambiguous' },
+    );
+  });
+  it('reports no node once every relation is revoked', () => {
+    const base = actor();
+    const evaluationRelations = base.facts.evaluationRelations.map(
+      (relation) => ({ ...relation, revokedAt: '2026-02-01T00:00:00.000Z' }),
+    );
+    expect(
+      defaultIntakeNode({
+        ...base,
+        facts: { ...base.facts, evaluationRelations },
+        context: { ...base.context, evaluationRelations },
+      }),
+    ).toEqual({ status: 'missing' });
+  });
 });
