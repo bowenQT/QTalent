@@ -14,6 +14,7 @@ import {
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { createDatabase, type Database, type Transaction } from './client';
 import { readPrototypeSeed, mapPrototypeSeed, type DemoSeed } from './seed';
+import { importDirectoryProfileDemo } from './seed/directory-profile';
 import {
   parseFormalEvidence,
   type EvidenceRecords,
@@ -584,6 +585,7 @@ export async function runImport() {
       mapPrototypeSeed(readPrototypeSeed(process.cwd())),
       env.DEMO_PASSWORD,
     );
+    await importDirectoryProfileDemo(connection.db, process.cwd());
     console.log(JSON.stringify(report));
   } finally {
     await connection.pool.end();
