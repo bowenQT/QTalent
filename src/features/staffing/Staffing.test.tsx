@@ -872,6 +872,15 @@ describe('candidates', () => {
         },
         '这次核对在你的查看范围之外',
       ],
+      // An opened run whose runtime went away is not a refusal.
+      [
+        {
+          readMatchingJob: vi.fn(async () =>
+            Promise.reject(new JobReadError(503)),
+          ),
+        },
+        '候选人核对待接通',
+      ],
       [
         {
           readMatchingJob: vi.fn(async () =>

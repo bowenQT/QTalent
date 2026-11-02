@@ -140,7 +140,7 @@ describe('live ports', () => {
       await statusOf(
         ports.readMatchingJob('run-1', new AbortController().signal),
       ),
-    ).toBe(404);
+    ).toBe(503);
   });
 
   it('opens, reads and judges the matching run through its actions', async () => {

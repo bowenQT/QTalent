@@ -16,6 +16,7 @@ import {
 } from '@/contracts/staffing';
 import { JobReadError, readJobSnapshot } from '@/lib/job-subscription';
 import type { StaffingPorts } from './ports';
+import { notConnectedStatus } from './use-job';
 
 /** A matching refusal, as the job subscription and the page tell them apart. */
 const refusal = { forbidden: 403, not_found: 404, conflict: 409 } as const;
@@ -53,9 +54,12 @@ export function livePorts(projectId: string): StaffingPorts {
       signal.throwIfAborted();
       if (result.status === 'success')
         return staffingJobSnapshotSchema.parse(result.snapshot);
-      // Not connected cannot happen for a run the page opened; treat it as gone.
+      // A run the page opened can lose its runtime when the server configuration
+      // changes. That is not a refusal: keep the run and retry until it is back.
       throw new JobReadError(
-        result.status === 'not_connected' ? 404 : refusal[result.status],
+        result.status === 'not_connected'
+          ? notConnectedStatus
+          : refusal[result.status],
       );
     },
     async judge(runId, input) {

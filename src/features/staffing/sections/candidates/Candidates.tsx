@@ -89,13 +89,13 @@ export function Candidates({
   ) => void;
   onCancelJudgment: () => void;
 }) {
-  if (matching.kind === 'unavailable')
+  const job = matching.kind === 'job' ? matching.job : null;
+  if (matching.kind === 'unavailable' || (!candidates && job?.notConnected))
     return (
       <Section>
         <State {...matchingUnavailable} />
       </Section>
     );
-  const job = matching.kind === 'job' ? matching.job : null;
   if (!candidates) {
     if (
       matching.kind === 'denied' ||
