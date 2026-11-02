@@ -117,20 +117,25 @@ export function createModelinkMaasClient(
   );
 }
 
+const environmentSchema = z.object({
+  MODELINK_API_KEY: z.string().regex(/^[^\s]+$/),
+  MODELINK_BASE_URL: z.literal(MODELINK_BASE_URL).default(MODELINK_BASE_URL),
+  MODELINK_MODEL: z.literal(MODELINK_MODEL).default(MODELINK_MODEL),
+});
+
+/** The exact check createModelinkMaasClientFromEnv applies: true only when it builds a live client. */
+export function modelinkEnvironmentReady(
+  environment: Record<string, string | undefined>,
+): boolean {
+  return environmentSchema.safeParse(environment).success;
+}
+
 /** Only invoked by server composition or an explicit manual probe; never loads env files. */
 export function createModelinkMaasClientFromEnv(
   environment: Record<string, string | undefined> = process.env,
   transport: { fetch?: typeof fetch } = {},
 ): ModelinkMaasClient {
-  const checked = z
-    .object({
-      MODELINK_API_KEY: z.string().regex(/^[^\s]+$/),
-      MODELINK_BASE_URL: z
-        .literal(MODELINK_BASE_URL)
-        .default(MODELINK_BASE_URL),
-      MODELINK_MODEL: z.literal(MODELINK_MODEL).default(MODELINK_MODEL),
-    })
-    .safeParse(environment);
+  const checked = environmentSchema.safeParse(environment);
   return createModelinkMaasClient(
     checked.success
       ? {
