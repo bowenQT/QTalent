@@ -9,7 +9,10 @@ import {
   stabilize,
 } from './compare';
 import {
+  hideGroupHistory,
+  mentorSubsetGaps,
   personAppOnly,
+  personEventCardMask,
   personFacts,
   personMask,
   personOmit,
@@ -47,23 +50,38 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
         await page.goto(`/person?id=${SAMPLE}`);
         await expect(prototype.locator('#timeline')).toBeVisible();
         await expect(page.locator('#timeline')).toBeVisible();
+        await hideGroupHistory(prototype);
         const [left, right] = [
           await personFacts(prototype),
           await personFacts(page),
         ];
         const { projects: leftProjects, ...leftRest } = left;
         const { projects: rightProjects, ...rightRest } = right;
-        expect(
-          rightRest,
-          'data/order mismatch, screenshot comparison intentionally stopped',
-        ).toEqual(leftRest);
-        // 导师只能读到授权后的项目子集，顺序不变。
-        if (role === 'mentor')
+        if (role === 'mentor') {
+          // 导师只能读到授权后的子集（项目、事件、能力谱、时间线），顺序不变。
+          expect(
+            mentorSubsetGaps(left, right),
+            'data/order mismatch, screenshot comparison intentionally stopped',
+          ).toEqual([]);
           expect(
             rightProjects.every((name) => leftProjects.includes(name)),
             'mentor projects must be a subset',
           ).toBe(true);
-        else expect(rightProjects, 'project mismatch').toEqual(leftProjects);
+          if (JSON.stringify(leftRest) !== JSON.stringify(rightRest)) {
+            // 内容少于原型时版面必然不同，像素比较没有意义；子集闸门已经比过内容。
+            testInfo.annotations.push({
+              type: 'skip-screenshot',
+              description: '导师可见内容少于原型（裁决 ②），只比内容子集',
+            });
+            return;
+          }
+        } else {
+          expect(
+            rightRest,
+            'data/order mismatch, screenshot comparison intentionally stopped',
+          ).toEqual(leftRest);
+          expect(rightProjects, 'project mismatch').toEqual(leftProjects);
+        }
         // 工程侧没有摘要（人工结论与 AI 推断都为空）时，原型摘要按 omit 处理。
         const summary = (await page.locator('#summary').count()) > 0;
         await normalizeRegions(prototype, page, {
@@ -129,6 +147,9 @@ test('manager expanded event card matches the prototype', async ({
       page.locator('.nt-tl-card:not([hidden]) .n-event').first(),
       testInfo,
       'person-event-card',
+      // 映射表 BOW-840「与原型的已知差异」：项目徽标写「项目：」（契约不区分课题与
+      // 项目）；分数的出处与事件出处不同时，分数行另画角标。
+      { mask: personEventCardMask },
     );
   } finally {
     await referenceContext.close();
