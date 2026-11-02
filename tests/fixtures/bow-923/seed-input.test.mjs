@@ -42,8 +42,16 @@ test('regenerates exact seed facts while refusing to read any expected/computed 
 
 test('a new generation reuses no identity it owns, so it imports beside the previous one', async () => {
   const previous = await readJson('superseded-identities.json');
-  const current = seedIdentities(await readJson('seed-input.json'));
-  assert.notEqual(previous.fixtureVersion, current.fixtureVersion);
+  const current = seedIdentities(
+    await readJson('seed-input.json'),
+    await readJson('source-rows.json'),
+    await readJson('manifest.json'),
+  );
+  assert.equal(previous.fixtureVersion, 'bow-923-v2');
+  assert.equal(current.fixtureVersion, 'bow-923-v3');
+  // Missing stages still register their source row, so all 186 count.
+  assert.equal(previous.owned.fragment.length, 186);
+  assert.equal(current.owned.fragment.length, 186);
   assert.deepEqual(Object.keys(current.owned), Object.keys(previous.owned));
   for (const [kind, ids] of Object.entries(current.owned)) {
     assert(ids.length > 0, `no ${kind} identities found`);

@@ -1,6 +1,6 @@
 import {
   recordSaveInputSchema,
-  type RecordDraft,
+  type RecordBatchDraft,
   type RecordSaveInput,
 } from '@/contracts/record';
 import {
@@ -16,7 +16,7 @@ export type EditState = {
   scores: Record<ScoreKey, EditScore>;
 };
 
-export function initEdit(draft: RecordDraft): EditState {
+export function initEdit(draft: RecordBatchDraft): EditState {
   const scores: Record<ScoreKey, EditScore> = {};
   for (const score of draft.scores) {
     if (score.state !== 'suggested') continue;
@@ -29,30 +29,11 @@ export function initEdit(draft: RecordDraft): EditState {
   return { sbi: { ...draft.sbi }, scores };
 }
 
-/** 草稿里已确定的人，去重并保持顺序。 */
-export function resolvedPersonIds(draft: RecordDraft): string[] {
-  const ids: string[] = [];
-  for (const person of draft.people)
-    if (person.state === 'resolved' && !ids.includes(person.id))
-      ids.push(person.id);
-  return ids;
-}
-
-/** 人或项目还有待选择或识别不到时，不能保存。 */
-export function hasUnresolvedSelection(draft: RecordDraft): boolean {
-  return (
-    draft.people.some((person) => person.state !== 'resolved') ||
-    draft.people.length === 0 ||
-    draft.project.state === 'needs_selection'
-  );
-}
-
-export function resolvedProjectId(draft: RecordDraft): string | null {
-  return draft.project.state === 'resolved' ? draft.project.id : null;
-}
-
 /** 还没有被用户点击确认的建议分数量（保存时一并确认）。 */
-export function untouchedCount(draft: RecordDraft, edit: EditState): number {
+export function untouchedCount(
+  draft: RecordBatchDraft,
+  edit: EditState,
+): number {
   return draft.scores.filter(
     (score) =>
       score.state === 'suggested' &&
@@ -60,12 +41,12 @@ export function untouchedCount(draft: RecordDraft, edit: EditState): number {
   ).length;
 }
 
-export function suggestedCount(draft: RecordDraft): number {
+export function suggestedCount(draft: RecordBatchDraft): number {
   return draft.scores.filter((score) => score.state === 'suggested').length;
 }
 
 /** SBI 或分数相对草稿有修改。 */
-export function isEdited(draft: RecordDraft, edit: EditState): boolean {
+export function isEdited(draft: RecordBatchDraft, edit: EditState): boolean {
   const { sbi } = draft;
   if (
     edit.sbi.title !== sbi.title ||
@@ -79,24 +60,20 @@ export function isEdited(draft: RecordDraft, edit: EditState): boolean {
   );
 }
 
-export type BuildFailure =
-  'unresolved_selection' | 'empty_title' | 'empty_behavior' | 'invalid';
+export type BuildFailure = 'empty_title' | 'empty_behavior' | 'invalid';
 export type BuildResult =
   { ok: true; input: RecordSaveInput } | { ok: false; reason: BuildFailure };
 
 /**
- * 编辑后的草稿 → 保存入参。
+ * 编辑后的批次草稿 → 846 保存入参。人和项目以草稿为准（897 草稿里已确定）。
  * 每条建议分一项决定：值未改为 confirm，改了为 edit（带理由）；资料不足的行不发决定。
  * 评分人、确认时间、规则版本和锚点校验全部由服务端给出。
  */
 export function buildSaveInput(
-  draft: RecordDraft,
+  draft: RecordBatchDraft,
   edit: EditState,
   operationId: string,
 ): BuildResult {
-  if (hasUnresolvedSelection(draft)) {
-    return { ok: false, reason: 'unresolved_selection' };
-  }
   const sbi: RecordSbi = {
     title: edit.sbi.title.trim(),
     situation: edit.sbi.situation.trim(),
@@ -105,7 +82,7 @@ export function buildSaveInput(
   };
   if (!sbi.title) return { ok: false, reason: 'empty_title' };
   if (!sbi.behavior) return { ok: false, reason: 'empty_behavior' };
-  const personIds = resolvedPersonIds(draft);
+  const { personIds } = draft;
   const seen = new Set<ScoreKey>();
   const decisions: RecordSaveInput['decisions'] = [];
   for (const score of draft.scores) {
@@ -132,7 +109,7 @@ export function buildSaveInput(
     expected_revision: draft.revision,
     draftId: draft.draftId,
     personIds,
-    projectId: resolvedProjectId(draft),
+    projectId: draft.projectId,
     sbi,
     decisions,
   });

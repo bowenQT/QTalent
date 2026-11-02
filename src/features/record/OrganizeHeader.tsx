@@ -13,7 +13,6 @@ export function OrganizeHeader({
   people,
   project,
   origin,
-  demo,
   niu,
 }: {
   /** 草稿里已确定的人；识别前为空。 */
@@ -21,10 +20,13 @@ export function OrganizeHeader({
   people: readonly PersonOption[];
   project: ProjectOption | null;
   origin: 'text' | 'recording' | 'attachment';
-  demo: boolean;
   niu: NiuState;
 }) {
   const [first, ...others] = personIds;
+  // 按这件事记给的人判断，不用整页开关：真实数据里的演示人员也要标出来
+  const demo = personIds.some(
+    (id) => people.find((person) => person.id === id)?.demo,
+  );
   const main = people.find((person) => person.id === first);
   const names = others.map(
     (id) =>
