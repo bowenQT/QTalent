@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { readFile, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import { z } from 'zod';
 import {
   comparisonActorSchema,
@@ -10,23 +10,71 @@ import {
 } from '../../../../contracts/judgment-comparison';
 import { selectionStandardContentSchema } from '../../../../contracts/selection-standard';
 
-const exec = promisify(execFile);
 /** Each fixture generation is a pinned Git commit with its own persisted
  * identities. Only the current one is imported by the operator commands; the
- * superseded one stays readable so tests can prove both coexist. */
+ * superseded one stays readable so tests can prove both coexist.
+ *
+ * The release package has no .git, so the runtime never reads Git: it reads
+ * the packaged files and requires each to match the SHA-256 of that file at
+ * `sourceCommit` (recompute with `git show <commit>:<path> | shasum -a 256`).
+ * `sourceCommit` stays the persisted provenance of the facts. */
 export const FACT_GENERATIONS = {
   'bow-923-v2': {
     sourceCommit: '6dff525b42f812423d981d12fd40aff8999cf00f',
     // v2 recorded each review point with the overall front band names.
     reviewPointGrades: null,
     prototypeCommit: false,
+    digests: {
+      'seed-input.json':
+        'eca4787ad3ad8fd808503c66e7bb89cccc73d57d8b28625be3f54c22a95e9b3f',
+      'mapping.json':
+        '9b07f8285f739b98fb5aee015ed0ea5cc731e95f45779f638ed535de3649f5e8',
+      'selection-standard.json':
+        '0f497e62f1e9745555a82048cff9d856fe3844f03e538636a58816f19594fba7',
+      'manual-comparability-marks.json':
+        '6f64501962db0167256601ba7d88f69cda088a31b1551fca06e31d7791e9414a',
+      'source-rows.json':
+        '0099ef7466a5e77538b98e9a70b2a71ec32955abd7e6d941d3532b3368e77327',
+      'manifest.json':
+        '667e03e3adbe5065f587e4f2de43d0251f90854a4e70fc2ce4ae3b7b2c23f4ac',
+      '作品评审表.xlsx':
+        'cb32e39ae6e84ef7c5d6efbf1e183150cf8df9f1844f92dc1c592efc88e7e280',
+      '结营评审表.xlsx':
+        '8f7039cf3f56a4c0157a1bfe5a39dec7102b5572643630e93fd4591c9b90bdfa',
+    },
   },
   'bow-923-v3': {
     sourceCommit: '47870d6fc902fd810b608591d4f6709e46d34148',
     reviewPointGrades: ['A', 'B', 'C'],
     prototypeCommit: true,
+    digests: {
+      'seed-input.json':
+        '8e346b06447e6f3a13f005b4d02efff42556599dca8d0ce464736bfac3e54ecf',
+      'mapping.json':
+        'fb73a1d1641394f1c017c9d6ba9a012869e5f4583fe7b34797ea8d4e285ec06a',
+      'selection-standard.json':
+        '0f497e62f1e9745555a82048cff9d856fe3844f03e538636a58816f19594fba7',
+      'manual-comparability-marks.json':
+        '7e464d25beb0cc92df0d7e953b3c77d0b0ca59f6e4f4c7a27ae085b9627ef897',
+      'source-rows.json':
+        'd62938f719e0d6ba13c854cf22d3332f3dcde100d9643d8d6065179ec7b43f7c',
+      'manifest.json':
+        '98787ec2efe6e5f0aa6b70683472c3622b51f970cf748a2221e05bccf58d9575',
+      '作品评审表.xlsx':
+        'e5f48dd01f9b1b343840d0e9f23a029d6865eedf31c609d1b8213a09a7d6c4a8',
+      '结营评审表.xlsx':
+        '153b0c1b1a293124783956607f84d80ebc05f55f4fe95c53004e15e028acf5c8',
+    },
   },
-} as const;
+} as const satisfies Record<
+  string,
+  {
+    sourceCommit: string;
+    reviewPointGrades: readonly string[] | null;
+    prototypeCommit: boolean;
+    digests: Record<(typeof FACT_FILES)[number], string>;
+  }
+>;
 export type FactGeneration = keyof typeof FACT_GENERATIONS;
 export const CURRENT_FACT_GENERATION: FactGeneration = 'bow-923-v3';
 export const FACT_SOURCE_COMMIT =
@@ -304,20 +352,37 @@ async function workbook(bytes: Uint8Array) {
   });
 }
 
-/** Read only fixed input facts, never scene, expected outputs or the working tree. */
+export class StandardIterationFactError extends Error {
+  constructor(
+    readonly code: 'fixture_missing' | 'fixture_digest_mismatch',
+    /** A constant fixture file name, never a filesystem path. */
+    readonly file: (typeof FACT_FILES)[number],
+  ) {
+    super(`${code}: ${file}`);
+    this.name = 'StandardIterationFactError';
+  }
+}
+
+/** Read only the eight fixed input facts from `root` (the release package or
+ * checkout), never scene or expected outputs, and accept each only if its
+ * bytes match the pinned digest. Runs before any database transaction. */
 export async function readStandardIterationFactFiles(
-  cwd: string,
+  root: string,
   generation: FactGeneration = CURRENT_FACT_GENERATION,
 ): Promise<FactFiles> {
-  const { sourceCommit } = FACT_GENERATIONS[generation];
+  const { digests } = FACT_GENERATIONS[generation];
   const entries = await Promise.all(
     FACT_FILES.map(async (name) => {
-      const { stdout } = await exec(
-        'git',
-        ['show', `${sourceCommit}:${FACT_DIRECTORY}/${name}`],
-        { cwd, encoding: 'buffer', maxBuffer: 2_000_000, timeout: 10000 },
-      );
-      return [name, new Uint8Array(stdout)] as const;
+      const path = join(root, FACT_DIRECTORY, name);
+      const info = await stat(path).catch(() => null);
+      if (!info?.isFile())
+        throw new StandardIterationFactError('fixture_missing', name);
+      if (info.size > 2_000_000)
+        throw new StandardIterationFactError('fixture_digest_mismatch', name);
+      const bytes = new Uint8Array(await readFile(path));
+      if (createHash('sha256').update(bytes).digest('hex') !== digests[name])
+        throw new StandardIterationFactError('fixture_digest_mismatch', name);
+      return [name, bytes] as const;
     }),
   );
   return Object.fromEntries(entries) as FactFiles;

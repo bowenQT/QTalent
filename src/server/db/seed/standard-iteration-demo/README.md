@@ -1,6 +1,6 @@
 # BOW-923 演示事实导入与演示初始化
 
-把 `tests/fixtures/bow-923` 的第六期判断对照事实导入正式工程的数据库：两份化名演示原表登记为原件、版本与逐行片段，93 个案例、两段判断和 HR 不可比标记写入 919 的 canonical 五张表。导入只读固定 Git 提交里的文件，不读工作树、`scene.mjs`、预期 JSON 或任何计算结果。
+把 `tests/fixtures/bow-923` 的第六期判断对照事实导入正式工程的数据库：两份化名演示原表登记为原件、版本与逐行片段，93 个案例、两段判断和 HR 不可比标记写入 919 的 canonical 五张表。导入只读八个固定输入文件，不读 `scene.mjs`、预期 JSON 或任何计算结果；每个文件都要和代码里写死的 SHA-256 摘要一致。
 
 ## 夹具代与固定来源
 
@@ -13,9 +13,19 @@
 
 每一代的持久化身份互不重复：批次、原件版本、案例、行出处、判断、对应表版本都由夹具按代派生；原件 ID 由导入器按代派生为 `<代>-original-front` / `<代>-original-back`。每一代是一份独立演示原件的第 1 版，所以数字列 `version` 固定为 1，不会撞键；「不写死」指的是原件 ID 按代派生。同一原件重新渲染时才会升 version。节点 ID 也随代更换（v2 是 `bow-923-xe6-*`，v3 是 `xe6-select` / `xe6-end`）。目录人员、期次 `b-xe6`、`xe-select-v1` 和量表是多代共用的事实。
 
+## 运行时读取与摘要
+
+发布包由 `deploy/release.mjs` 用 `git archive` 生成，没有 `.git`，所以运行时不调用 Git：读取包内（或 checkout 内）的夹具文件，核对写死的摘要。摘要等于该代固定提交下的文件摘要，可用下面的命令复算：
+
+```sh
+git show 47870d6fc902fd810b608591d4f6709e46d34148:tests/fixtures/bow-923/mapping.json | shasum -a 256
+```
+
+`sourceCommit` 仍作为事实出处写库。工作树里这八个文件一旦改动，初始化和导入都会在事务前失败，此时需要换代：新的固定提交、新的摘要和新的持久化身份。旧代 v2 的文件已不在工作树，只由测试从固定提交抽到临时目录读取。
+
 ## 输入校验
 
-`readStandardIterationFactFiles(cwd, generation)` 从固定提交有界读取八个文件；`prepareStandardIterationDemo(files, generation)` 校验 JSON 结构和内部一致性、两份 XLSX 与人工标记的 manifest 摘要，再逐格核对真实表格：整行表头、非日期列的文字类型、人员与期次、作品与同队、三项原档位、最终档位、评价人、UTC 数值日期、记录状态和引用原文。缺段的行仍登记片段，但不能有档位、评价人或日期。
+`readStandardIterationFactFiles(root, generation)` 从 `root/tests/fixtures/bow-923` 有界读取八个文件（`root` 是发布包或 checkout 根目录），逐个核对 `FACT_GENERATIONS[代].digests`，缺失报 `fixture_missing`，大小超限或摘要不符报 `fixture_digest_mismatch`，错误只带固定文件名、不带路径；这一步在任何数据库事务之前。`prepareStandardIterationDemo(files, generation)` 校验 JSON 结构和内部一致性、两份 XLSX 与人工标记的 manifest 摘要，再逐格核对真实表格：整行表头、非日期列的文字类型、人员与期次、作品与同队、三项原档位、最终档位、评价人、UTC 数值日期、记录状态和引用原文。缺段的行仍登记片段，但不能有档位、评价人或日期。
 
 XLSX 只用 Python3 标准库读取这两份经摘要核对的固定文件，设时间、输出和解压体积上限，不求值公式、不访问外链、不落临时文件。
 
@@ -63,6 +73,8 @@ pnpm exec vitest run --config vitest.integration.config.ts src/server/db/seed/st
 
 PG 测试在隔离的 `_test` 库上使用正式迁移。正向用例里的节点、时间和账号是测试专用事实，不是演示环境的事实。覆盖：
 
+- 发布工件：和 `prepare` 一样用 `git archive` 生成无 `.git` 的工件，CLI 的 PATH 里只有 `node` 和 `python3`、没有 git；从工件运行 `--init` 首次成功、重放 `unchanged`；包内夹具被篡改或缺失时回执只有稳定错误码和文件名，节点、基线、绑定、事实和 s-29 都没写；
+- 无数据库的读取测试（`input.test.ts`）：从无 `.git` 的临时根读取并核对摘要，逐个篡改八个文件都被拒绝，缺失文件被拒绝，写死的摘要等于固定提交下的文件摘要；
 - 当前代首导、重放、两个导入者等待同一批次锁、真实 CLI 首导与重放；
 - 先导 v2、再导 v3、再重放 v3，三步都成功，v2 的行逐字节不变；
 - `--init` 首次全部 `created`、再次全部 `unchanged`，`s-29` 缺失时插入、重复执行不变、已存在但名称/组织/hue/noReview 不同时拒绝且不写任何事实；行数和生效区间不变；真实 CLI 初始化与拒绝非管理者；旧代节点保留；已有节点 kind 不同时拒绝且不建基线；
