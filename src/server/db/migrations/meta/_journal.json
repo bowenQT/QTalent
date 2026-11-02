@@ -176,6 +176,13 @@
       "when": 1793643560179,
       "tag": "0024_bow_873_unassigned_collection",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793645019602,
+      "tag": "0025_bow_906_import_review_items",
+      "breakpoints": true
     }
   ]
 }

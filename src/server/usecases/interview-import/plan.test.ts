@@ -15,7 +15,11 @@ import {
 import { materialSourceSchema } from '../../../contracts/sources';
 import directoryFixture from '../../../../tests/fixtures/bow-896/directory.json';
 import candidateFixture from '../../../../tests/fixtures/bow-896/candidates.json';
-import { planInterviewImport, type InterviewImportFacts } from './plan';
+import {
+  planInterviewImport,
+  unreadInterviewItems,
+  type InterviewImportFacts,
+} from './plan';
 
 const parsed = new Map<string, InterviewReviewResult>();
 const files = [
@@ -458,6 +462,71 @@ describe('interview import planning with frozen 900 / 899 / 897 inputs', () => {
       });
     },
   );
+  describe('HR entries for items the parser could not read', () => {
+    function filled(file = 'score-missing') {
+      const input = facts(file);
+      const unread = unreadInterviewItems(review(file));
+      expect(unread.length).toBeGreaterThan(0);
+      input.manualInput = {
+        forRowRevision: 1,
+        values: Object.fromEntries(
+          unread.map(({ item, options }) => [item, options[0]]),
+        ),
+      };
+      return { input, unread };
+    }
+    it('plans once every unread item has an entry, keeping the parsed review as read', () => {
+      const { input, unread } = filled();
+      const before = JSON.stringify(review('score-missing'));
+      const value = planned(input);
+      // Byte-for-byte the parsed review: HR's entries never become parsed values.
+      expect(JSON.stringify(value.originalReview)).toBe(before);
+      expect(value.manualEntries).toEqual(
+        unread.map(({ item, options, source }) => ({
+          item,
+          value: options[0],
+          source,
+          enteredBy: 'hr',
+        })),
+      );
+    });
+    it('refuses a partial fill, an option outside the template or an extra entry', () => {
+      const { input } = filled('score-multiple');
+      const [first, ...rest] = Object.keys(input.manualInput!.values);
+      if (rest.length) {
+        const partial = structuredClone(input);
+        delete (partial.manualInput!.values as Record<string, string>)[first];
+        expect(planInterviewImport(partial)).toMatchObject({
+          reason: 'parser_manual_input',
+        });
+      }
+      const missing = facts('score-missing');
+      missing.manualInput = { forRowRevision: 1, values: {} };
+      expect(planInterviewImport(missing)).toMatchObject({
+        reason: 'parser_manual_input',
+      });
+      const wrong = filled().input;
+      const key = Object.keys(wrong.manualInput!.values)[0];
+      wrong.manualInput = { forRowRevision: 1, values: { [key]: '9' } };
+      expect(planInterviewImport(wrong)).toMatchObject({
+        reason: 'parser_manual_input',
+      });
+      const extra = facts();
+      extra.manualInput = { forRowRevision: 1, values: { 潜力: '3' } };
+      expect(planInterviewImport(extra)).toMatchObject({
+        reason: 'parser_manual_input',
+      });
+    });
+    it('refuses entries made for an earlier row revision', () => {
+      const { input } = filled();
+      input.rowSnapshot!.revision = 2;
+      input.confirmedForRowRevision = 2;
+      expect(planInterviewImport(input)).toEqual({
+        status: 'not_ready',
+        reason: 'manual_input_stale',
+      });
+    });
+  });
   it('keeps an unknown template rejected', () => {
     expect(planInterviewImport(facts('unknown-template'))).toEqual({
       status: 'not_ready',

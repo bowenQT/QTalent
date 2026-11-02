@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import { readPdfLayout } from './pdf-layout';
-import { INTERVIEW_TEMPLATES, type InterviewTemplate } from './templates';
+import {
+  INTERVIEW_DIMENSION_OPTIONS,
+  INTERVIEW_TEMPLATES,
+  type InterviewTemplate,
+} from './templates';
 import type {
   InterviewReviewOptions,
   InterviewReviewResult,
@@ -629,7 +633,7 @@ function parseSection(
                   anchors.find((anchor) => anchor.name === name)!.line,
                 ),
               }
-          : selection(name, ['1', '2', '3', '4', '5']),
+          : selection(name, INTERVIEW_DIMENSION_OPTIONS),
     })),
     interviewRating: selection(template.rating.label, template.rating.options),
     suggestedLevel: selection(template.level.label, template.level.options),
