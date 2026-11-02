@@ -29,11 +29,6 @@ export type ReceiptView = {
   entry: ReceiptEntry;
   /** MCP 入口调用的工具名，其他入口为 null。 */
   tool: string | null;
-  /**
-   * 回执会不会发到提交人的企业微信单聊：服务端确认企业微信回执通道已接通、且这个人已绑定时
-   * 才为 true。为 false 时网页投递不写「回执也会发到」，也不放占位。
-   */
-  wecomReceipt: boolean;
   submittedBy: string;
   /** ISO 时间。 */
   submittedAt: string;

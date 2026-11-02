@@ -106,6 +106,7 @@ export const copy = {
   channel: {
     wecom: '企业微信里的回执',
     mcp: 'Claude Code 里的回执',
+    /** 企业微信回执（#282）接通后再显示，现在页面不用。 */
     web: '回执也会发到',
     webText: '你的企业微信单聊，带这一页的链接；手机上也能打开确认。',
     bot: '小犇',

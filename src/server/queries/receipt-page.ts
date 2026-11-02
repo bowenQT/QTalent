@@ -31,7 +31,6 @@ export type ReceiptPageView = {
   title: string;
   entry: 'web';
   tool: null;
-  wecomReceipt: boolean;
   submittedBy: string;
   submittedAt: string;
   people: Record<string, ReceiptPagePerson>;
@@ -188,9 +187,6 @@ export async function readReceiptView(
           // metadata arrive with their entries (#282, #280, #330).
           entry: 'web',
           tool: null,
-          // The WeCom receipt channel (BOW-909, #282) is not on main, so no batch's
-          // receipt goes to WeCom yet; the page then says nothing about it.
-          wecomReceipt: false,
           submittedBy: nameOf(input && personOf.get(input.creator)) || '提交人',
           submittedAt: new Date(input?.createdAt ?? now).toISOString(),
           people: Object.fromEntries(

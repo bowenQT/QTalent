@@ -520,6 +520,8 @@ export function ReceiptPage({
           </section>
         </div>
         <aside className="nt-grid nt-sticky">
+          {/* 网页投递：原型写「回执也会发到你的企业微信单聊」。企业微信回执（#282）接通前
+              没有可读的通道信号，这句无条件不显示，也不放占位（已登记为已知差异）。 */}
           {view.entry === 'wecom' ? (
             <article
               className="n-card n-imcard"
@@ -550,13 +552,6 @@ export function ReceiptPage({
                 {`⏺ 调用 niu · ${view.tool ?? ''}\n  涉及的人  ${people(view, receipt.personIds)}\n  出处      ${receipt.files[0]?.filename ?? '原话'}\n⏺ 已交给 Niu-Talent，整理出 ${receipt.counts.events.total} 件事${receipt.hasHiddenContent ? `\n  ${copy.confirm.hidden}` : ''}\n  建议分等你确认 → 在 Web 上确认`}
               </pre>
               <p className="nt-caption">{copy.channel.mcpCaption}</p>
-            </article>
-          ) : view.wecomReceipt ? (
-            <article className="n-card n-imcard">
-              <h3 className="n-section-title">{copy.channel.web}</h3>
-              <p className="nt-muted" style={{ margin: 0 }}>
-                {copy.channel.webText}
-              </p>
             </article>
           ) : null}
           <article className="n-card">
