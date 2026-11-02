@@ -1,4 +1,5 @@
 'use client';
+import type { ReactNode } from 'react';
 import type { Person as PersonData } from '@/contracts/person';
 import type { LoadSource } from '@/features/sources/SourceCite';
 import { FactsCard } from './FactsCard';
@@ -27,15 +28,18 @@ export function Person({
   data,
   nodeRecords = NODE_RECORDS_NOT_CONNECTED,
   loadSource,
+  headActions,
 }: {
   data: PersonData;
   nodeRecords?: NodeRecords;
   loadSource: LoadSource;
+  /** 页头动作区的内容，由页面决定；不传时页头只有身份。 */
+  headActions?: ReactNode;
 }) {
   const mentor = data.role === 'mentor';
   return (
     <>
-      <PersonHeader data={data} />
+      <PersonHeader data={data} actions={headActions} />
       <div className="nt-split nt-split--wide">
         <div className="nt-grid">
           <FactsCard timeline={data.timeline} loadSource={loadSource} />
