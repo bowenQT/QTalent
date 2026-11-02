@@ -30,9 +30,10 @@
  * model: no row is ever "imported" here.
  */
 
-/** Application status in the recruiting record (906 `candidates[].status`). */
+/** Application status in the recruiting record (906 `candidates[].status`);
+ * `unknown` when no record matches the printed name. */
 export type CandidateStatus =
-  'hired' | 'rejected' | 'offer_pending' | 'offer_declined';
+  'hired' | 'rejected' | 'offer_pending' | 'offer_declined' | 'unknown';
 
 /** Why the parser could not read a selection (900 `Selection.reason`). */
 export type UnreadReason =
