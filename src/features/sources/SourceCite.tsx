@@ -4,6 +4,7 @@ import { Cite, type CiteSourceKind } from '@/components/ui/Cite';
 import { Badge } from '@/components/ui/Badge';
 import {
   sourceReadResultSchema,
+  toSourceReadInput,
   type Source,
   type SourceReadInput,
   type SourceReadResult,
@@ -35,14 +36,6 @@ const CITE_KIND: Record<SourceReference['location']['kind'], CiteSourceKind> = {
   recording: 'timestamp',
   snapshot_field: 'paragraph',
 };
-
-/** 唯一把引用转成读取入参的地方：只取两个标识，位置由服务端按标识解析，不信任客户端。 */
-function toSourceReadInput(source: SourceReference): SourceReadInput {
-  return {
-    fragmentId: source.fragmentId,
-    originalVersionId: source.originalVersionId,
-  };
-}
 
 function settle(requested: SourceReference, result: SourceReadResult): Phase {
   const parsed = sourceReadResultSchema.safeParse(result);
@@ -143,6 +136,12 @@ function SourceCiteReader({ source, index, loadSource }: SourceCiteProps) {
     cite = (
       <Cite
         {...base}
+        // 读到原文后才有原件标题与记录人；记录人未知时不显示，不拿事件记录人代替。
+        source={{
+          ...base.source,
+          title: found.originalTitle,
+          by: found.recordedByName ?? undefined,
+        }}
         access="granted"
         // 读到原文才给入口；地址只由这条引用的两个标识生成，各页面点进来落到同一处。
         jump={{ label: '查看原件', href: sourceHref(found) }}
