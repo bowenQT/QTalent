@@ -7,7 +7,9 @@ import {
   useReducer,
   useRef,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from 'react';
 import { useReducedMotion } from 'motion/react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -39,7 +41,7 @@ import {
   type Connection,
 } from './record-flow';
 import { sessionDraftEpoch } from '@/lib/session-drafts';
-import { createSessionScope } from './session-scope';
+import { createSessionScope, type SessionScope } from './session-scope';
 import { SavedSign } from './SavedSign';
 import { SbiEditor } from './SbiEditor';
 import { ScoreList, type AnchorFocus } from './ScoreList';
@@ -97,6 +99,13 @@ export function RecordPage(props: RecordPageProps) {
   return <RecordFlow key={props.accountId} {...props} />;
 }
 
+/** 本地状态的设置函数也经门闸：会话结束后的任何回调都改不动它。 */
+function useScopedState<T>(scope: SessionScope, initial: T) {
+  const [value, set] = useState<T>(initial);
+  const scoped = useMemo(() => scope.wrap(set), [scope]);
+  return [value, scoped as Dispatch<SetStateAction<T>>] as const;
+}
+
 function RecordFlow(props: RecordPageProps) {
   const {
     accountId,
@@ -116,9 +125,15 @@ function RecordFlow(props: RecordPageProps) {
     [accountId, epoch, props.actions, props.loadAnchors],
   );
   const { actions, drafts } = scope;
-  const toast = useToast();
+  // 会话一结束就清掉登记过的计时器；卸载时同样清掉
+  useEffect(() => scope.attach(), [scope]);
+  const rawToast = useToast();
+  const toast = useMemo(
+    () => ({ show: scope.toast(rawToast.show) }),
+    [scope, rawToast],
+  );
   const reduced = Boolean(useReducedMotion());
-  const [state, dispatch] = useReducer(recordReducer, undefined, () =>
+  const [state, rawDispatch] = useReducer(recordReducer, undefined, () =>
     initialState({
       personId: people.some((p) => p.id === entry?.personId)
         ? (entry?.personId ?? null)
@@ -126,21 +141,23 @@ function RecordFlow(props: RecordPageProps) {
       batchId: entry?.batchId,
     }),
   );
+  // 所有状态改动都在改的那一刻核验会话：请求落定后才退出的，续体里的 dispatch 也被拦下
+  const dispatch = useMemo(() => scope.wrap(rawDispatch), [scope]);
   const { phase, draft, edit } = state;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const loadSeq = useRef(0);
-  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [confirm, setConfirm] = useState<Confirm>(null);
-  const [copyOut, setCopyOut] = useState<string | null>(null);
-  const [missing, setMissing] = useState<{
+  const settleTimer = useRef<(() => void) | null>(null);
+  const [confirm, setConfirm] = useScopedState<Confirm>(scope, null);
+  const [copyOut, setCopyOut] = useScopedState<string | null>(scope, null);
+  const [missing, setMissing] = useScopedState<{
     title?: boolean;
     behavior?: boolean;
-  }>({});
-  const [settling, setSettling] = useState(false);
-  const [focus, setFocus] = useState<AnchorFocus | null>(null);
-  const [anchorTry, setAnchorTry] = useState(0);
-  const [autoStart, setAutoStart] = useState(false);
+  }>(scope, {});
+  const [settling, setSettling] = useScopedState(scope, false);
+  const [focus, setFocus] = useScopedState<AnchorFocus | null>(scope, null);
+  const [anchorTry, setAnchorTry] = useScopedState(scope, 0);
+  const [autoStart, setAutoStart] = useScopedState(scope, false);
 
   // ---------- 批次进度 ----------
   const listening = phase === 'organizing' && !state.failure;
@@ -213,33 +230,26 @@ function RecordFlow(props: RecordPageProps) {
   // 输入态防抖写入会话暂存（D19）；开始整理或保存后删除
   useEffect(() => {
     if (phase !== 'write') return;
-    // 经门闸写入：退出或换账号后到点也不写回
-    const timer = setTimeout(
+    // 登记在门闸上的计时器：退出或换账号后被清掉，到点也不写回
+    return scope.timeout(
       () => drafts.stashInput({ text: state.text, personId: state.personId }),
       STASH_DEBOUNCE_MS,
     );
-    return () => clearTimeout(timer);
-  }, [drafts, phase, state.text, state.personId]);
+  }, [scope, drafts, phase, state.text, state.personId]);
 
   // 未保存内容：硬离开时提示
   const dirty = isDirty(state);
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => {
+      // 退出后的离开不再拦：那些内容已经不属于当前账号
+      if (!scope.live()) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
-
-  // 卸载时收起撤销之外的计时
-  useEffect(
-    () => () => {
-      if (settleTimer.current) clearTimeout(settleTimer.current);
-    },
-    [],
-  );
+  }, [dirty, scope]);
 
   // ---------- 锚点 ----------
   const anchorKey = useMemo(() => {
@@ -258,10 +268,10 @@ function RecordFlow(props: RecordPageProps) {
       anchorTry,
     ]);
   }, [draft, phase, anchorTry]);
-  const [anchorResult, setAnchorResult] = useState<{
+  const [anchorResult, setAnchorResult] = useScopedState<{
     key: string;
     load: AnchorLoad;
-  } | null>(null);
+  } | null>(scope, null);
   const loadAnchors = scope.loadAnchors;
   useEffect(() => {
     if (!anchorKey) return;
@@ -370,12 +380,11 @@ function RecordFlow(props: RecordPageProps) {
   const startFromEffect = useEffectEvent(() => void start());
   useEffect(() => {
     if (!autoStart) return;
-    const timer = setTimeout(() => {
+    return scope.timeout(() => {
       setAutoStart(false);
       startFromEffect();
     }, AUTO_START_MS);
-    return () => clearTimeout(timer);
-  }, [autoStart]);
+  }, [autoStart, scope, setAutoStart]);
 
   async function save() {
     if (!draft || !edit) return;
@@ -410,6 +419,9 @@ function RecordFlow(props: RecordPageProps) {
     dispatch({ type: 'save_begin', op });
     try {
       const result = await actions.save(input);
+      // 回执带保存人：不是本页的账号就丢弃，不改状态、不动暂存
+      if (result.status === 'success' && result.result.savedBy !== accountId)
+        return;
       if (result.status === 'success') {
         drafts.clearInput();
         dispatch({
@@ -439,8 +451,8 @@ function RecordFlow(props: RecordPageProps) {
   function settle() {
     if (reduced) return;
     setSettling(true);
-    if (settleTimer.current) clearTimeout(settleTimer.current);
-    settleTimer.current = setTimeout(() => setSettling(false), 700);
+    settleTimer.current?.();
+    settleTimer.current = scope.timeout(() => setSettling(false), 700);
   }
 
   function announceSaved(
@@ -493,7 +505,7 @@ function RecordFlow(props: RecordPageProps) {
         );
       },
     });
-    if (remaining < UNDO_MS) setTimeout(close, remaining);
+    if (remaining < UNDO_MS) scope.timeout(close, remaining);
   }
 
   function requestBack() {

@@ -9,13 +9,21 @@ export const SESSION_DRAFT_PREFIX = 'niu-talent:';
 type Store = Pick<Storage, 'length' | 'key' | 'removeItem'>;
 
 let epoch = 0;
+const listeners = new Set<() => void>();
 
 export function sessionDraftEpoch() {
   return epoch;
 }
 
+/** Called once per clearing, after the epoch moved on; returns the unsubscribe. */
+export function onSessionDraftsCleared(listener: () => void) {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
+
 export function clearSessionDrafts(store: Store | null = defaultStore()) {
   epoch += 1;
+  for (const listener of [...listeners]) listener();
   if (!store) return;
   try {
     const keys: string[] = [];

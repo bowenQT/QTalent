@@ -59,6 +59,18 @@ describe('recognizePerson', () => {
     expect(recognizePerson('苏少卿今天一起补了测试', withSingle)).toBe('a');
   });
 
+  it('按字形和字母计数：组合 emoji、纯符号不算姓名', () => {
+    const odd = [
+      ...people,
+      person('e1', '👍🏽'),
+      person('e2', '👩‍💻'),
+      person('e3', '一👍🏽'),
+      person('e4', '★☆'),
+    ];
+    expect(recognizePerson('今天👍🏽👩‍💻一👍🏽★☆', odd)).toBeNull();
+    expect(recognizePerson('苏少卿今天👍🏽', odd)).toBe('a');
+  });
+
   it('同一位的姓名出现多次：仍是这一位', () => {
     expect(recognizePerson('苏少卿先改，苏少卿再测', people)).toBe('a');
   });

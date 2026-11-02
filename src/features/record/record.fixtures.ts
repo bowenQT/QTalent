@@ -209,7 +209,7 @@ export const receipt: RecordSaveReceipt = {
   revision: 2,
   confirmationIds: ['c-1'],
   reviewItemIds: [],
-  savedBy: 'account-1',
+  savedBy: 'acc-1',
   savedAt: '2026-10-26T08:00:00.000Z',
   undoUntil: '2026-10-26T08:00:05.000Z',
 };

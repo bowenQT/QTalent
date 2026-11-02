@@ -8,9 +8,19 @@ import type { PersonOption } from './types';
  * - 重名（两位「王一鸣」）；
  * - 姓名互相包含（候选有「王一」和「王一鸣」，原话写「王一鸣」时两个姓名都算出现）；
  * - 原话里出现了多位候选的姓名。
- * - 不到 2 个字的姓名不参与自动选中（单字「一」会命中「今天一起」）。
+ * - 姓名里的字不到 2 个时不参与自动选中：按字形（Intl.Segmenter）计数，只数含字母类字符
+ *   （`\p{L}`）的字形；单字「一」会命中「今天一起」，纯 emoji 或符号也不算姓名。
  * 赛后可以由 845 在整理时识别（两阶段授权）替代。
  */
+const graphemes = new Intl.Segmenter('zh', { granularity: 'grapheme' });
+/** 姓名里含字母类字符的字形个数；👍🏽、👩‍💻 这类组合 emoji 一个也不算。 */
+function letterCount(name: string) {
+  let count = 0;
+  for (const { segment } of graphemes.segment(name))
+    if (/\p{L}/u.test(segment)) count += 1;
+  return count;
+}
+
 export function recognizePerson(
   text: string,
   people: readonly PersonOption[],
@@ -18,7 +28,7 @@ export function recognizePerson(
   const byName = new Map<string, PersonOption[]>();
   for (const person of people) {
     const name = person.name.trim();
-    if ([...name].length < 2) continue;
+    if (letterCount(name) < 2) continue;
     byName.set(name, [...(byName.get(name) ?? []), person]);
   }
   const hits = [...byName].filter(([name]) => text.includes(name));

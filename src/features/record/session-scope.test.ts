@@ -98,3 +98,51 @@ it('reads and writes only this account’s drafts, and nothing once ended', () =
   expect(scope.drafts.takeHandoff()).toBeNull();
   expect(window.sessionStorage.getItem(inputStashKey('acc-1'))).toBe('kept');
 });
+
+it('runs changes, timers and toasts only while live; clears timers when the session ends', () => {
+  vi.useFakeTimers();
+  try {
+    const scope = createSessionScope(
+      'acc-1',
+      sessionDraftEpoch(),
+      actions(),
+      vi.fn(),
+    );
+    const detach = scope.attach();
+    const change = vi.fn();
+    scope.wrap(change)('a');
+    expect(scope.run(() => 'ran')).toBe('ran');
+    const fired = vi.fn();
+    scope.timeout(fired, 100);
+    const cancelled = vi.fn();
+    scope.timeout(cancelled, 100)();
+    const show = vi.fn((_message: string) => () => 'closed');
+    expect(scope.toast(show)('提示')()).toBe('closed');
+    vi.advanceTimersByTime(100);
+    expect(fired).toHaveBeenCalledTimes(1);
+    expect(cancelled).not.toHaveBeenCalled();
+
+    const late = vi.fn();
+    scope.timeout(late, 100);
+    clearSessionDrafts();
+    vi.advanceTimersByTime(100);
+    expect(late).not.toHaveBeenCalled();
+    scope.wrap(change)('b');
+    expect(change).toHaveBeenCalledTimes(1);
+    expect(scope.run(() => 'ran')).toBeUndefined();
+    show.mockClear();
+    expect(scope.toast(show)('提示')()).toBeUndefined();
+    expect(show).not.toHaveBeenCalled();
+    detach();
+
+    // Attaching an already ended scope clears what it had registered.
+    const ended = createSessionScope('acc-1', -1, actions(), vi.fn());
+    const never = vi.fn();
+    ended.timeout(never, 10);
+    ended.attach()();
+    vi.advanceTimersByTime(10);
+    expect(never).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
