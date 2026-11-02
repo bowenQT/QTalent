@@ -166,6 +166,12 @@ deploy/deploy.sh status --target "$TARGET_FILE" --target-id "$TARGET_ID"
 
 BOW-837 演示库陈述类别（`--upgrade-statement-kinds` / `--revert-statement-kinds`）：只能作为 `seed` 的可选步骤，复用同一套目标核验、备份绑定与一次性消耗、部署锁和操作记录（记录写 `seedStep`）。发布把清单里 worker 数据库的 host/port/name/username 传给 `pnpm db:seed <步骤>`，子命令先核对自己的连接与清单一致、`APP_ENV=demo`，不一致就在连接前拒绝；没有手工命令入口。升级在一个事务里精确校验 446 条固定陈述及其单元格后改为 `original_fact`，并重放完整导入；反向只把这 446 行的类别改回，不是全库恢复，全库恢复靠升级前的备份。
 
+BOW-923 第六期演示初始化（`src/server/db/seed/standard-iteration-demo/run.ts --init --as <管理者账号>`）的前提条件：
+
+- 在发布包根目录 `releases/<SHA>` 执行。命令从包内 `tests/fixtures/bow-923` 读取八个固定夹具，并按代码里写死的 SHA-256 摘要校验，不需要也不使用 `.git`；在别处执行会报 `fixture_missing`，不写库。
+- 执行前先确认部署机上有 `python3`（`command -v python3`），解两份 XLSX 只用它的标准库。缺失时会在任何事务之前以 `import_failed` 失败。preflight 不检查这一项。
+- 夹具缺失或被改动时，回执分别是 `fixture_missing` / `fixture_digest_mismatch`，并带固定文件名 `file`，都发生在任何数据库事务之前。
+
 ### 实际执行与记录语义
 
 - 发布从既有 repository 显式 fetch main，验证目标属于最新主线，并逐项验证清单中显式设置的前置是目标 SHA 的祖先。Git archive 导出到独立暂存目录，以 qtalent 用户锁定安装/构建。安装后从候选版本的prototype-reference.json固定commit导出独立临时原型快照，调用候选版本已有的prepare-reference.ts --verified-snapshot，先逐文件核Git blob摘要再物化.reference-cache；不依赖release中的Git历史，也不把候选目录里较新的prototype文件当固定来源。构建后才变为 `releases/<sha>`，发布元数据与缓存reference.json必须匹配；旧工具产生的缺缓存/缺referenceCommit目录拒绝复用，不覆盖或自动修补活动目录。
