@@ -34,8 +34,8 @@ class ManualMarkFacts(unittest.TestCase):
         edit(self.source["marks"][0])
         self.inputs["manualComparabilityMarks"] = copy.deepcopy(self.source["marks"])
 
-    def test_positive_four_independent_facts(self):
-        self.assertEqual(set(self.validate()), {"bow-923-case-007", "bow-923-case-013", "bow-923-case-092", "bow-923-case-093"})
+    def test_positive_prototype_mark(self):
+        self.assertEqual(set(self.validate()), {"bow-923-v3-case-042"})
 
     def test_missing_fact_collection(self):
         del self.inputs["manualComparabilityMarks"]
@@ -64,12 +64,12 @@ class ManualMarkFacts(unittest.TestCase):
             self.validate()
 
     def test_unknown_case_rejected(self):
-        self.change(lambda mark: mark.update(caseId="bow-923-case-999"))
+        self.change(lambda mark: mark.update(caseId="bow-923-v3-case-999"))
         with self.assertRaisesRegex(ValueError, "unknown case"):
             self.validate()
 
     def test_known_case_with_wrong_mark_identity_rejected(self):
-        self.change(lambda mark: mark.update(caseId="bow-923-case-001"))
+        self.change(lambda mark: mark.update(caseId="bow-923-v3-case-001"))
         with self.assertRaisesRegex(ValueError, "id/case mismatch"):
             self.validate()
 
@@ -89,7 +89,7 @@ class ManualMarkFacts(unittest.TestCase):
             self.validate()
 
     def test_duplicate_case_rejected(self):
-        self.source["marks"][1] = copy.deepcopy(self.source["marks"][0])
+        self.source["marks"].append(copy.deepcopy(self.source["marks"][0]))
         self.inputs["manualComparabilityMarks"] = copy.deepcopy(self.source["marks"])
         with self.assertRaisesRegex(ValueError, "duplicate manual mark"):
             self.validate()
@@ -117,7 +117,7 @@ class ManualMarkFacts(unittest.TestCase):
             self.validate()
 
     def test_missing_stage_is_not_a_manual_exclusion(self):
-        case = next(case for case in self.inputs["cases"] if case["id"] == "bow-923-case-007")
+        case = next(case for case in self.inputs["cases"] if case["id"] == "bow-923-v3-case-042")
         case["front"] = {"state": "missing", "reason": "演示缺段"}
         with self.assertRaisesRegex(ValueError, "disguise a missing stage"):
             self.validate()
@@ -145,7 +145,8 @@ class ManualMarkFacts(unittest.TestCase):
             root = Path(tmp)
             shutil.copytree(ROOT, root, dirs_exist_ok=True)
             expected = read("expected-results.json")
-            expected["raters"][0]["sample"]["distribution"]["excluded"]["notComparable"] = 2
+            rater = next(entry for entry in expected["raters"] if "distribution" in entry["sample"])
+            rater["sample"]["distribution"]["excluded"]["notComparable"] = 2
             (root / "expected-results.json").write_text(json.dumps(expected, ensure_ascii=False))
             with self.assertRaisesRegex(ValueError, "sample distribution"):
                 checks.validate(root)
@@ -155,7 +156,7 @@ class ManualMarkFacts(unittest.TestCase):
             root = Path(tmp)
             shutil.copytree(ROOT, root, dirs_exist_ok=True)
             case = self.inputs["cases"][0]
-            self.change(lambda mark: mark.update(id="bow-923-hr-mark-001", caseId=case["id"], personId=case["person"]["id"]))
+            self.change(lambda mark: mark.update(id="bow-923-v3-hr-mark-001", caseId=case["id"], personId=case["person"]["id"]))
             self.validate()  # Valid authored HR facts, but deliberately wrong scenario target.
             for name, data in [("seed-input.json", self.inputs), (MARK_FILE, self.source)]:
                 (root / name).write_text(json.dumps(data, ensure_ascii=False))
