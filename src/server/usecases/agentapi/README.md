@@ -47,12 +47,18 @@
 
 `postgres.ts` 的 `createAgentConversationStore(db)` 已真实落地三表读取/保存。`transaction` 拥有RC事务，`inTransaction` 复用调用方外层事务，不套假Database或嵌套拥有事务的业务service。先锁conversation，再读完整turn/tool；`save` 只接受该事务内被锁的同一会话，校验签发身份/provider不变、turn顺序和输入digest不变、历史工具args/成功DTO/归属/服务器业务键不变、状态不倒退、不能删除历史。每次读取再次严格解析DTO；精确wire大小使用紧凑 `{status,payload}`，不以JSONB展示字节数代替。
 
-`createAgentConversationPostgresPorts` 是私有具体组合，复用903真实不透明身份服务，在锁等待后调用current，再在本事务读899上下文；没有凭据发行或管理员兜底。当前仅 `person_brief` 消费现910领域handler，实际读取完整person来源、重新构造投影、同事务写entry审计及tool回执。材料/需求两个工具在写入前返回unavailable，历史回执也不会默认验证通过：现 createInTransaction 的幂等重放在业务操作不存在时可能创建，不能拿它当只读历史验证。待X1给真实readBatchInTransaction与demand/job历史reader后再接这两项。
+`createAgentConversationPostgresPorts` 是私有具体组合，复用903真实不透明身份服务，在锁等待后调用current，再在本事务读899上下文；没有凭据发行或管理员兜底。三个工具都消费现910领域handler，同事务写entry审计及tool回执；历史回执只用只读reader重验，不拿 createInTransaction 的幂等重放当历史验证（业务操作不存在时它可能创建）。接线见下文「历史读取接线」。
 
 同事务身份（BOW-915 重做）：`identities.currentInTransaction(tx, identity)` 与 AgentAPI 持久 reader 的 `currentInTransaction` 共享原不透明能力校验、绑定比较、await 后原截止复核与失败退休；只接受 Read Committed，按 session → account → binding 加共享锁后在新语句重读。其他渠道缺同事务 reader 时 unavailable，不退回 pool。本组合的显式身份检查和 899 上下文加载都走调用方事务。会话锁之前先对 session、binding 取 `FOR KEY SHARE`：登出（session 删除级联 binding、再置空本行 binding）会排在本轮之后，不再与同事务重读死锁；代次/有效期更新不被阻挡，锁等待后重读。真实 PG 覆盖两种登出交错（修复前登出一侧被选为 40P01 死锁牺牲者）。
 
-需求创建快照：`createStaffingDemandRuntime(...).readCreationSnapshotInTransaction(tx, accountId, { operationId, jobId })` 只读、要求 RC，按 worker 的 job → root 顺序加锁，锁后重读 create operation、root 与当前授权；queued 时 result 为 null，不把后续编辑版本冒充生成结果，不重放 create。`draft_requirement` 的执行与历史重验尚未接入它，仍 unavailable。
+需求创建快照：`createStaffingDemandRuntime(...).readCreationSnapshotInTransaction(tx, accountId, { operationId, jobId })` 只读、要求 RC，按 worker 的 job → root 顺序加锁，锁后重读 create operation、root 与当前授权；queued 时 result 为 null，不把后续编辑版本冒充生成结果，不重放 create。`draft_requirement` 的历史重验用它（见下文）；未传 `demandSnapshots` 时该工具仍在写入前 unavailable。
 
 本轮验收：新增21条原生PG + X1三表19PG + 903既有15PG + 本卡89unit = 144/144；统一五生产文件行96.91%、分支90.12%。manifest与schema blob已核匹配X1 bf058f9c，测试只加载test-db.env并显式使用其受控临时迁移；未改任何SQL/meta、未读取供应商凭据或发真实请求。测试provider为明确离线替身，存储/身份/权限/person投影/审计为真实代码与真实PG。缺失/creating会话拒绝，不把测试插入的绑定行说成已实现provider会话工厂。
 
 仍未完成：真实provider创建意图/ACK收敛工厂、上述只读领域/身份入口、剩余工具、唯一HTTP/生命周期注册、正式迁移和默认CI，以及批准环境的三幕多轮验收。该清单替代旧的笼统“缺三表/缺store”，本卡继续等待精确共享接口后推进Ready。
+
+## 历史读取接线（BOW-915，叠在 #325 上）
+
+- `draft_requirement`：以服务器业务键（不是模型给的 operationId）调用 `readCreationSnapshotInTransaction`。快照须解析为冻结 DTO、jobId 与已披露一致；有生成结果时 projectId/inputText 须与参数一致。已披露的生成结果不可变，须完全相等；披露时仍 queued 的，之后生成完成不算撤回。
+- `submit_material_batch`：执行走 `record_moment` handler（`createInTransaction`，服务器业务键）。重验调用 `records.readBatchInTransaction(tx, accountId, { batchId })`：须是本人当前未被替代的批次且原生授权通过；batchId、评价节点、人员、项目须与已披露回执和参数一致；已披露的每份文件（materialId、clientFileId，已有原始版本时连同版本）和内联文本原件须仍在当前批次。状态、计数、核对项和草稿的推进不算撤回，不做整份相等比较。
+- 锁顺序：全局顺序是 intake 表锁在前、arrange job 行锁在后（arrange runner 先取 intake SHARE 再锁 job 行）。`readBatchInTransaction` 自身先取 intake SHARE 再锁 job 行；会话事务是先重验历史、后执行新提交，若只靠读取方的 SHARE，随后 `createInTransaction` 要把它升级为写锁，会被同样持 SHARE、正等该 job 行的 runner 挡住而成环（`entry-transaction-readers.md` 所说的「先读后建」）。所以重验批次和执行提交前都先取 intake 写锁（SHARE ROW EXCLUSIVE），读取方的 SHARE 和提交的写锁随后都是已持有的锁。在它之前本事务只持有凭据链、会话行和需求 job/root 行，intake 持有方都不等待这些行。真实 PG 覆盖：runner 持 intake SHARE 后等待 job 行，会话同时重验该批次并提交第二批，两边都完成；去掉重验前的写锁后，该用例失败（死锁被检测，一方回滚）。代价：含材料历史的会话每次事务都会短暂阻挡 intake 写入（事务内没有供应商 I/O）。

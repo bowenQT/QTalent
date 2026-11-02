@@ -3,8 +3,6 @@ import { z } from 'zod';
 import {
   comparisonCohortSchema,
   comparisonManagerBasisSchema,
-  comparisonMappingSchema,
-  comparisonStageSchema,
   comparisonTableRowSchema,
 } from '../../contracts/judgment-comparison';
 import { revisionEligibleAttributionSchema } from '../../contracts/standard-attribution';
@@ -15,20 +13,17 @@ import {
   canManageNodeAssignments,
   cohortHrCanReadNodeSubject,
 } from '../authz/evaluation-node';
-import { accountBindings, grants, people } from '../modules/directory';
+import { accountBindings, grants } from '../modules/directory';
 import { cohorts } from '../modules/programs';
-import { fragments, originals, originalVersions } from '../modules/records';
 import {
   comparisonBatches,
   standardAttributions,
   selectionDraftProposals,
   canonicalComparisonJson,
   type CanonicalComparisonSnapshot,
-  type CanonicalComparisonStage,
 } from '../modules/evaluation-system';
 import { selectionCohortBindings } from '../modules/evaluation-system/selection/schema';
 import { calculateComparison } from '../modules/evaluation-system/judgment-comparison/calculation';
-import type { ComparisonFacts } from '../modules/evaluation-system/judgment-comparison/ports';
 import {
   authorizeSelectionAction,
   SelectionLifecycleError,
@@ -42,7 +37,10 @@ import {
 } from '../modules/evaluation-system/selection/postgres';
 import { selectionDraftProposalSchema } from './standard-attribution/hypotheses';
 import { loadEvaluationContext } from './evaluation-context';
-import { readCanonicalComparisonBatch } from './judgment-comparison-canonical';
+import {
+  comparisonDatasetFromSnapshot,
+  readCanonicalForTransaction,
+} from './judgment-comparison-dataset';
 
 const nextFactSchema = comparisonCohortSchema
   .extend({ sourceReference: z.string().trim().min(1) })
@@ -66,10 +64,6 @@ function authorizeScope(authority: SelectionAuthority, cohortId: string) {
     authorizeSelectionAction(authority, 'manager');
   else authorizeSelectionAction(authority, 'hr', cohortId);
 }
-async function actualCohort(tx: Transaction, id: string) {
-  const [value] = await tx.select().from(cohorts).where(eq(cohorts.id, id));
-  return value ?? unavailable();
-}
 async function authorizedCanonical(
   tx: Transaction,
   authority: SelectionAuthority,
@@ -82,148 +76,22 @@ async function authorizedCanonical(
   if (!route)
     throw new SelectionLifecycleError('not_found', '对照批次不存在或不可见');
   authorizeScope(authority, route.cohortId);
-  // A read-only transaction cannot take row locks. The selection store runs it
-  // at Repeatable Read, so access facts and canonical rows share one snapshot.
-  const mode = await tx.execute<{ readOnly: string }>(
-    sql`select current_setting('transaction_read_only') as "readOnly"`,
-  );
-  const value = await readCanonicalComparisonBatch(tx, batchId, {
-    lock: mode.rows[0]?.readOnly !== 'on',
-  });
+  const value = await readCanonicalForTransaction(tx, batchId);
   if (!value) return unavailable();
   return value;
 }
 
-/** Only the manager's aggregate is produced here, never a second page loadBatch.
- * Cases are transient real facts for the existing919 algorithm. */
+/** The canonical batch as the comparison reader sees it, with each outcome
+ * computed by the existing 919 algorithm. Cases are transient real facts. */
 async function summaryFacts(
   tx: Transaction,
   snapshot: CanonicalComparisonSnapshot,
 ) {
-  const { facts } = snapshot;
-  const cohort = await actualCohort(tx, facts.batch.cohortId);
-  const personIds = [
-    ...new Set([
-      facts.mapping.confirmedById,
-      ...facts.manualMarks.map((m) => m.markedById),
-      ...facts.cases.flatMap((unit) => [
-        unit.personId,
-        ...(unit.front.state === 'present' ? [unit.front.evaluatorId] : []),
-        ...(unit.back.state === 'present' ? [unit.back.evaluatorId] : []),
-      ]),
-    ]),
-  ];
-  const persons = await tx
-    .select({ id: people.id, name: people.name })
-    .from(people)
-    .where(inArray(people.id, personIds));
-  const actor = (id: string) =>
-    persons.find((p) => p.id === id) ?? unavailable();
-  const sourceIds = [
-    ...new Set(
-      facts.cases
-        .flatMap((unit) => [
-          unit.front.source?.fragmentId,
-          unit.back.source?.fragmentId,
-        ])
-        .filter((id): id is string => id !== undefined),
-    ),
-  ];
-  const rows = sourceIds.length
-    ? await tx
-        .select({
-          id: fragments.id,
-          versionId: fragments.originalVersionId,
-          excerpt: fragments.excerpt,
-          location: fragments.location,
-          title: originals.title,
-        })
-        .from(fragments)
-        .innerJoin(
-          originalVersions,
-          eq(originalVersions.id, fragments.originalVersionId),
-        )
-        .innerJoin(originals, eq(originals.id, originalVersions.originalId))
-        .where(inArray(fragments.id, sourceIds))
-    : [];
-  function stage(value: CanonicalComparisonStage, nodeId: string) {
-    if (value.state === 'missing')
-      return comparisonStageSchema.parse({
-        state: 'missing',
-        reason: value.reason,
-      });
-    const source =
-      rows.find(
-        (row) =>
-          row.id === value.source.fragmentId &&
-          row.versionId === value.source.originalVersionId,
-      ) ?? unavailable();
-    return comparisonStageSchema.parse({
-      state: 'present',
-      judgment: {
-        judgmentId: value.judgmentId,
-        nodeId,
-        cohortId: cohort.id,
-        standardVersionId: value.sourceStandardReference,
-        scaleId: value.scaleId,
-        grade: value.grade,
-        evaluator: actor(value.evaluatorId),
-        evaluatedAt: value.evaluatedAt,
-        confirmation: value.confirmation,
-        row: {
-          personId: value.source.rowPersonId,
-          row: value.source.row,
-          source: {
-            fragmentId: source.id,
-            originalVersionId: source.versionId,
-            location: source.location,
-            excerpt: source.excerpt,
-            originalTitle: source.title,
-            recordedByName: null,
-            sourceCategory: 'original',
-            sourceType: 'spreadsheet',
-            demo: facts.batch.nature === 'demo_rebuilt',
-          },
-        },
-      },
-    });
-  }
-  const mapping = comparisonMappingSchema.parse({
-    versionId: facts.mapping.versionId,
-    frontScaleId: facts.mapping.frontScaleId,
-    backScaleId: facts.mapping.backScaleId,
-    rows: facts.mapping.rows,
-    confirmedBy: actor(facts.mapping.confirmedById),
-    confirmedAt: facts.mapping.confirmedAt,
-  });
-  const cases = facts.cases.map((unit) => {
-    const mark = facts.manualMarks.find((m) => m.caseId === unit.id);
-    const value: ComparisonFacts = {
-      id: unit.id,
-      batchId: facts.batch.id,
-      person: actor(unit.personId),
-      judgment: unit.judgment,
-      cohort,
-      selectionStandardVersionId: snapshot.selectionStandardVersionId,
-      mappingVersionId: facts.mapping.versionId,
-      frontNodeId: unit.frontNodeId,
-      backNodeId: unit.backNodeId,
-      work: unit.work,
-      front: stage(unit.front, unit.frontNodeId),
-      back: stage(unit.back, unit.backNodeId),
-      ...(mark
-        ? {
-            nonComparable: {
-              reason: mark.reason,
-              markedBy: actor(mark.markedById),
-              markedAt: mark.markedAt,
-            },
-          }
-        : {}),
-    };
-    return calculateComparison(value, mapping);
-  });
-  return { cohort, cases };
+  const data = await comparisonDatasetFromSnapshot(tx, snapshot);
+  return {
+    batch: data.batch,
+    cases: data.cases.map((unit) => calculateComparison(unit, data.mapping)),
+  };
 }
 
 /** Persisted results/bindings for a known authorized scope. A saved preview keeps
@@ -238,9 +106,10 @@ export async function readNativeSelectionImpact(
   const next = nextFactSchema.parse(reviewedNext);
   const ids = [...new Set(scopeCohortIds)].sort();
   if (!ids.length) unavailable();
-  for (const id of [...ids, next.id]) authorizeScope(authority, id);
+  for (const id of ids) authorizeScope(authority, id);
   // A descriptor is not a pre-created cohort. Existing/bound next IDs need a new
-  // reviewed plan; they cannot be relabelled as a future cohort.
+  // reviewed plan; they cannot be relabelled as a future cohort. A future cohort
+  // has no grant to hold yet, so only an existing one is checked for scope.
   if (
     (
       await tx
@@ -248,8 +117,10 @@ export async function readNativeSelectionImpact(
         .from(cohorts)
         .where(eq(cohorts.id, next.id))
     ).length
-  )
+  ) {
+    authorizeScope(authority, next.id);
     conflict();
+  }
   // Prevent a newly imported result batch appearing between preview comparison
   // and publication commit. Existing rows use919's batch/row locks below.
   await tx.execute(sql`lock table evaluation_comparison_batches in share mode`);
@@ -486,13 +357,7 @@ export async function readNativeSelectionCreationFacts(
     .filter((id) => id !== reviewedNext?.id);
   const managerBasis = [
     comparisonManagerBasisSchema.parse({
-      batch: {
-        id: snapshot.facts.batch.id,
-        name: snapshot.facts.batch.name,
-        cohort: facts.cohort,
-        mappingVersionId: snapshot.facts.mapping.versionId,
-        selectionStandardVersionId: snapshot.selectionStandardVersionId,
-      },
+      batch: facts.batch,
       discrepancyPeople: new Set(
         allowed
           .filter((unit) =>
