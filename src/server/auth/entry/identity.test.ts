@@ -55,6 +55,7 @@ describe('trusted entry identities', () => {
         accountId: 'demo-account',
         personId: 'demo-person',
         credentialId: 'synthetic-credential-row',
+        credentialRevision: 1,
       });
       await f.service.current(identity);
       expect(f.current).toHaveBeenCalledTimes(2);
