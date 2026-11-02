@@ -27,6 +27,7 @@ import { auditEvents } from '../../platform/audit/schema';
 import { loadEntryAuthorizationContext } from '../entry/context';
 import { recordEntryAudit } from '../entry/audit';
 import { PgBoss } from 'pg-boss';
+import { createFakeModelinkMaas } from '../../integrations/maas';
 import {
   createStaffingDemandRuntime,
   staffingDemandQueue,
@@ -806,6 +807,10 @@ async function withDemands(f: Awaited<ReturnType<typeof setup>>) {
   const demands = createStaffingDemandRuntime({
     db: c.db,
     boss,
+    // Offline model boundary only; generation, state and storage are real.
+    maas: createFakeModelinkMaas({
+      requirements: [{ text: '演示：工程交付', priority: 'required' }],
+    }),
     now: () => businessAt,
   });
   const ports = createAgentConversationPostgresPorts({
@@ -838,6 +843,7 @@ async function withDemands(f: Awaited<ReturnType<typeof setup>>) {
   const service = createAgentConversationService(ports, f.provider);
   return {
     projectId,
+    demands,
     submit: () =>
       service.submit(f.identity, f.conversationId, 'op-one', '起草演示需求'),
     advance: () => service.advance(f.identity, f.conversationId, 'op-one'),
@@ -936,4 +942,43 @@ it('a creation the reader no longer resolves to the disclosed job fails revalida
   await expect(d.advance()).rejects.toMatchObject({
     kind: 'permission_changed',
   });
+});
+it('a queued disclosure stays valid after the real generation completes; the result is the creation version', async () => {
+  const f = await setup();
+  const d = await withDemands(f);
+  await d.submit();
+  await d.advance();
+  const [tool] = await c.db
+    .select()
+    .from(agentApiToolEvents)
+    .where(eq(agentApiToolEvents.conversationId, f.conversationId));
+  const { jobId } = entryToolSuccessSchemas.draft_requirement.parse(
+    tool!.successPayload,
+  );
+  await d.demands.run({ jobId, attempt: 1 });
+  const completed = await c.db.transaction((tx) =>
+    d.demands.readCreationSnapshotInTransaction(tx, f.account, {
+      operationId: tool!.businessOperationId,
+      jobId,
+    }),
+  );
+  expect(completed).toMatchObject({ status: 'completed' });
+  expect(completed!.result).toMatchObject({
+    projectId: d.projectId,
+    inputText: '演示：需要工程负责人',
+    revision: 1,
+  });
+  f.events.push(
+    {
+      id: 'evt-answer',
+      type: 'agent.message',
+      content: [{ type: 'text', text: '演示建议' }],
+    },
+    {
+      id: 'evt-end',
+      type: 'session.status_idle',
+      stop_reason: { type: 'end_turn' },
+    },
+  );
+  await expect(d.advance()).resolves.toMatchObject({ status: 'complete' });
 });
