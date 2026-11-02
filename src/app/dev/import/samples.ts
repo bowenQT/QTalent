@@ -69,6 +69,7 @@ const row = (
   > &
     Partial<ImportRow>,
 ): ImportRow => ({
+  located: true,
   match: null,
   interviewer: { status: 'matched', name: '叶青' },
   scale: [],
