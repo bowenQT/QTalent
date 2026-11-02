@@ -1,0 +1,33 @@
+{
+  "demo": true,
+  "provenance": "offline macOS Tingting speech synthesis; not a real conversation or supplier transcription",
+  "format": {
+    "sampleRateHz": 16000,
+    "channels": 1,
+    "sampleWidthBytes": 2
+  },
+  "durationMs": 20298,
+  "speakerId": "p-yeqing",
+  "speaker": "叶青（演示旁白）",
+  "segments": [
+    {
+      "startMs": 0,
+      "endMs": 9171,
+      "text": "这是化名演示录音。谷嘉树先复现失败片段，给每段保留请求键，把失败项放到重试队列。",
+      "eventId": "demo-event-retry"
+    },
+    {
+      "startMs": 9671,
+      "endMs": 12431,
+      "text": "重复提交后，输出只有一份。",
+      "eventId": "demo-event-retry"
+    },
+    {
+      "startMs": 12931,
+      "endMs": 20298,
+      "text": "另一次缓存回收任务增加了清理开关和回滚说明。这是两件事，不能合并。",
+      "eventId": "demo-event-cache"
+    }
+  ],
+  "expectedEventCount": 2
+}
