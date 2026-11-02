@@ -12,6 +12,7 @@ import {
   type InferInsertModel,
 } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
+import { z } from 'zod';
 import { createDatabase, type Database, type Transaction } from './client';
 import { readPrototypeSeed, mapPrototypeSeed, type DemoSeed } from './seed';
 import { importDirectoryProfileDemo } from './seed/directory-profile';
@@ -380,23 +381,39 @@ export async function importEvidence(db: Database, input: unknown) {
   });
 }
 
+/** Shared gate for every demo write: non-production and the pinned snapshot. */
+function verifiedSeed(input: DemoSeed) {
+  if (getEnv().APP_ENV === 'production')
+    throw new Error('Demo import is forbidden in production');
+  // A mutable raw object cannot prove ownership by a fixed Git blob.
+  const verified = readPrototypeSeed(process.cwd());
+  if (canonical(input.raw) !== canonical(verified))
+    throw new Error('Demo input must match the verified snapshot');
+  return mapPrototypeSeed(verified);
+}
+
 /** Explicit server seed path. Neither a payload mode nor demo=true can change the running environment. */
 export async function importDemo(
   db: Database,
   input: DemoSeed,
   password: string,
 ) {
-  if (getEnv().APP_ENV === 'production')
-    throw new Error('Demo import is forbidden in production');
+  return writeDemo(db, input, password);
+}
+
+/** `prelude` runs first in the same transaction; a failing replay undoes it. */
+async function writeDemo(
+  db: Database,
+  input: DemoSeed,
+  password: string,
+  prelude?: (tx: Transaction, seed: DemoSeed) => Promise<void>,
+) {
+  const seed = verifiedSeed(input);
   if (password.length < 12)
     throw new Error('DEMO_PASSWORD must contain at least 12 characters');
-  // A mutable raw object cannot prove ownership by a fixed Git blob.
-  const verified = readPrototypeSeed(process.cwd());
-  if (canonical(input.raw) !== canonical(verified))
-    throw new Error('Demo input must match the verified snapshot');
-  const seed = mapPrototypeSeed(verified);
   const passwordHash = await hashPassword(password);
   await db.transaction(async (tx) => {
+    await prelude?.(tx, seed);
     await insertChecked(
       tx,
       organizations,
@@ -573,23 +590,210 @@ export async function importDemo(
   return { gaps: seed.evidence.gaps };
 }
 
-export async function runImport() {
+type StatementKind = (typeof statements.$inferSelect)['kind'];
+
+/**
+ * BOW-837: the seed now files statements quoted from an original sheet cell as
+ * original facts; older demo databases hold the same rows as management
+ * observations. Moves exactly those fixed seed rows between the two kinds, and
+ * only when every row and its cell fragment still match the pinned seed and
+ * holds `from`; anything else fails before writing.
+ */
+async function moveDemoStatementKinds(
+  tx: Transaction,
+  seed: DemoSeed,
+  from: StatementKind,
+  to: StatementKind,
+) {
+  // The mapper marks a statement original_fact only when its source is a sheet cell.
+  const targets = seed.evidence.statements.filter(
+    (row) => row.kind === 'original_fact',
+  );
+  const ids = targets.map((row) => row.id);
+  if (!ids.length) throw new Error('Demo statement kinds: no seed rows');
+  const fail = (id: string) => {
+    throw new Error('Demo statement kinds precondition failed: ' + id);
+  };
+  const found = new Map(
+    (
+      await tx
+        .select()
+        .from(statements)
+        .where(inArray(statements.id, ids))
+        .for('update')
+    ).map((row) => [row.id, row as Record<string, unknown>]),
+  );
+  for (const row of targets) {
+    const actual = found.get(row.id);
+    const expected: Record<string, unknown> = { ...row, kind: from };
+    if (
+      !actual ||
+      Object.keys(expected).some(
+        (key) => canonical(expected[key]) !== canonical(actual[key]),
+      )
+    )
+      fail(row.id);
+  }
+  // Any other statement on the same event or cell still holding `from` means
+  // the database is not the seed this step was written for.
+  const eventIds = [...new Set(targets.map((row) => row.eventId))];
+  const fragmentIds = [...new Set(targets.map((row) => row.fragmentId))];
+  const stray = await tx
+    .select({ id: statements.id })
+    .from(statements)
+    .where(
+      and(
+        eq(statements.kind, from),
+        or(
+          inArray(statements.eventId, eventIds),
+          inArray(statements.fragmentId, fragmentIds),
+        ),
+      ),
+    )
+    .for('update');
+  const fixed = new Set(ids);
+  for (const row of stray) if (!fixed.has(row.id)) fail(row.id);
+  const cells = new Map(
+    seed.evidence.fragments.map((row) => [
+      row.id,
+      row as Record<string, unknown>,
+    ]),
+  );
+  const actualCells = new Map(
+    (
+      await tx
+        .select()
+        .from(fragments)
+        .where(inArray(fragments.id, fragmentIds))
+        .for('update')
+    ).map((row) => [row.id, row as Record<string, unknown>]),
+  );
+  for (const id of fragmentIds) {
+    const expected = cells.get(id);
+    const actual = actualCells.get(id);
+    if (
+      !expected ||
+      !actual ||
+      Object.keys(expected).some(
+        (key) => canonical(expected[key]) !== canonical(actual[key]),
+      )
+    )
+      fail(id);
+  }
+  const moved = await tx
+    .update(statements)
+    .set({ kind: to })
+    .where(and(inArray(statements.id, ids), eq(statements.kind, from)))
+    .returning({ id: statements.id });
+  if (moved.length !== ids.length) fail('count');
+  return moved.length;
+}
+
+/** Explicit non-production upgrade of an older demo database; replays the full seed in the same transaction. */
+export async function upgradeDemoStatementKinds(
+  db: Database,
+  input: DemoSeed,
+  password: string,
+) {
+  let upgraded = 0;
+  // Any other drift from the current seed fails the replay and undoes the upgrade.
+  await writeDemo(db, input, password, async (tx, seed) => {
+    upgraded = await moveDemoStatementKinds(
+      tx,
+      seed,
+      'management_observation',
+      'original_fact',
+    );
+  });
+  return { upgraded };
+}
+
+/** Undo of the upgrade, for rolling the app back to a release whose seed predates it. */
+export async function revertDemoStatementKinds(db: Database, input: DemoSeed) {
+  const seed = verifiedSeed(input);
+  return db.transaction(async (tx) => ({
+    reverted: await moveDemoStatementKinds(
+      tx,
+      seed,
+      'original_fact',
+      'management_observation',
+    ),
+  }));
+}
+
+const SEED_STEPS = ['upgrade-statement-kinds', 'revert-statement-kinds'];
+const manifestDatabase = z.strictObject({
+  host: z.string().min(1),
+  port: z.number().int().positive(),
+  name: z.string().min(1),
+  username: z.string().min(1),
+});
+
+/**
+ * A seed step has no operator command: only `deploy.sh seed
+ * --upgrade-statement-kinds` (or `--revert-statement-kinds`) runs it, after
+ * the deploy flow has checked the target, consumed a fresh backup and taken
+ * its lock. It passes the worker database from the verified target manifest;
+ * the step refuses unless this process is the demo app connected to exactly
+ * that database.
+ */
+export function boundSeedStep(
+  args: string[],
+  env: { APP_ENV: string; DATABASE_URL: string },
+) {
+  if (!args.length) return undefined;
+  const [step, manifest, ...rest] = args;
+  if (rest.length || !SEED_STEPS.includes(step) || manifest === undefined)
+    throw new Error('Unknown seed command');
+  if (env.APP_ENV !== 'demo')
+    throw new Error('Seed steps run only in the demo deployment');
+  let expected: z.infer<typeof manifestDatabase>;
+  try {
+    expected = manifestDatabase.parse(JSON.parse(manifest));
+  } catch {
+    throw new Error('Seed step requires the verified database identity');
+  }
+  const url = new URL(env.DATABASE_URL);
+  const actual = {
+    host: decodeURIComponent(url.hostname.replace(/^\[(.*)\]$/, '$1')),
+    port: Number(url.port || '5432'),
+    name: decodeURI(url.pathname.slice(1)),
+    username: decodeURIComponent(url.username),
+  };
+  if (
+    (Object.keys(expected) as (keyof typeof expected)[]).some(
+      (key) => actual[key] !== expected[key],
+    )
+  )
+    throw new Error('Seed step database identity mismatch');
+  return step;
+}
+
+export async function runImport(args: string[] = []) {
   const env = getEnv();
   if (env.APP_ENV === 'production')
     throw new Error('Demo import is forbidden in production');
   if (!env.DEMO_PASSWORD) throw new Error('DEMO_PASSWORD is required');
+  const command = boundSeedStep(args, env);
   const connection = createDatabase(env.DATABASE_URL);
   try {
-    const report = await importDemo(
-      connection.db,
-      mapPrototypeSeed(readPrototypeSeed(process.cwd())),
-      env.DEMO_PASSWORD,
-    );
-    await importDirectoryProfileDemo(connection.db, process.cwd());
+    const seed = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
+    const report =
+      command === 'upgrade-statement-kinds'
+        ? await upgradeDemoStatementKinds(
+            connection.db,
+            seed,
+            env.DEMO_PASSWORD,
+          )
+        : command === 'revert-statement-kinds'
+          ? await revertDemoStatementKinds(connection.db, seed)
+          : await importDemo(connection.db, seed, env.DEMO_PASSWORD);
+    if (command === undefined)
+      await importDirectoryProfileDemo(connection.db, process.cwd());
     console.log(JSON.stringify(report));
   } finally {
     await connection.pool.end();
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
-  await runImport();
+  await runImport(process.argv.slice(2));
