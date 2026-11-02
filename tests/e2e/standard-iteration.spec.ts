@@ -85,7 +85,7 @@ for (const width of [375, 1366])
     }
   });
 
-test('the real routes say 待接通 until their reads are connected', async ({
+test('/rules reads the standard from the database; /judge stays 待接通 until its read is connected', async ({
   page,
   context,
   referenceApp,
@@ -98,10 +98,17 @@ test('the real routes say 待接通 until their reads are connected', async ({
   await expect(page).toHaveTitle('判断对照 · Niu-Talent');
   await page.goto('/rules?r=front&line=xe-select');
   await expect(
-    page.getByRole('heading', { name: '入营选拔标准待接通' }),
+    page.getByRole('heading', { name: '还没有生效的入营选拔标准' }),
   ).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/许致远|第六期判断对照/);
   expect((await page.goto('/rules'))?.status()).toBe(404);
+
+  await context.clearCookies();
+  await login(context, 'ceo', referenceApp.baseURL);
+  await page.goto('/rules?r=front&line=xe-select');
+  await expect(
+    page.getByRole('heading', { name: '还没有生效的入营选拔标准' }),
+  ).toBeVisible();
 
   await context.clearCookies();
   await login(context, 'mentor', referenceApp.baseURL);

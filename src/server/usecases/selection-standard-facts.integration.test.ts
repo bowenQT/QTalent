@@ -19,6 +19,7 @@ import {
 import { originals, originalVersions, fragments } from '../modules/records';
 import {
   canonicalInputFiles,
+  ruleVersionApplicability,
   standardAttributions,
   selectionDraftProposals,
   type CanonicalComparisonImport,
@@ -727,6 +728,14 @@ describe('/rules page read', () => {
     expect(await app().readPage('outsider', null)).toEqual({
       status: 'forbidden',
     });
+  });
+  it('before any standard takes effect the page says so rather than 404', async () => {
+    await db()
+      .update(ruleVersionApplicability)
+      .set({ effectiveFrom: new Date('2026-12-01T00:00:00.000Z') })
+      .where(eq(ruleVersionApplicability.versionId, 'xe-select-v1'));
+    for (const viewer of ['hr', 'manager'])
+      expect(await app().readPage(viewer, null)).toEqual({ status: 'none' });
   });
   it('an unknown draft is not found rather than the standard in force', async () => {
     expect(await app().readPage('hr', 'absent')).toEqual({

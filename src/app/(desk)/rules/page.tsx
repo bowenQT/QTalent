@@ -3,6 +3,7 @@ import { AccessDenied } from '@/features/shell/AccessDenied';
 import {
   AdminNotice,
   RulesDenied,
+  StandardNone,
 } from '@/features/standard-iteration/NotConnected';
 import { getSelectionStandardPage } from '@/server/queries/rules';
 import { getShellPage } from '@/server/queries/shell';
@@ -49,5 +50,6 @@ export default async function RulesPage({
   if (page.status === 'admin') return <AdminNotice />;
   if (page.status === 'forbidden') return <AccessDenied />;
   if (page.status === 'not_found') notFound();
+  if (page.status === 'none') return <StandardNone />;
   return <LiveRules page={page} />;
 }
