@@ -9,8 +9,7 @@ export default async function Login({
   searchParams: Promise<{ returnTo?: string | string[] }>;
 }) {
   const { returnTo } = await searchParams;
-  const next =
-    returnTo === undefined ? '/work' : safeEntryReturnTo(returnTo);
+  const next = returnTo === undefined ? '/work' : safeEntryReturnTo(returnTo);
   return (
     <main className="nt-login">
       <section className="n-card">
