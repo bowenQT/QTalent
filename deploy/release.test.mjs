@@ -1414,13 +1414,13 @@ test('reference manifest cannot escape the fixed prototype subtree', async () =>
   assert.equal(f.latest().databaseChanged, false);
 });
 
-test('prepare requires python3 with the init standard modules as the service user', async () => {
+test('prepare warns early when the service environment lacks python3 or the init modules', async () => {
   const f = fixture();
   await f.manager().prepareRelease(f.first);
   const check = f.state.events.find(
     (e) => e.file === 'runuser' && e.args.includes('/usr/bin/env'),
   );
-  // Same runuser + app-command path (and so the same PATH) as the init.
+  // Runs through the service user's app-command environment.
   assert.deepEqual(check.args.slice(0, 3), ['-u', 'qtalent', '--']);
   assert.deepEqual(check.args.slice(check.args.indexOf('/usr/bin/env')), [
     '/usr/bin/env',
@@ -1429,6 +1429,19 @@ test('prepare requires python3 with the init standard modules as the service use
     '-c',
     'import io,json,sys,zipfile,xml.etree.ElementTree;print("python_ok")',
   ]);
+  // An already prepared release still runs the check on every prepare.
+  const checks = () =>
+    f.state.events.filter(
+      (e) => e.file === 'runuser' && e.args.includes('/usr/bin/env'),
+    ).length;
+  const before = checks();
+  await f.manager().prepareRelease(f.first);
+  assert.equal(checks(), before + 1);
+  f.state.pythonMissing = true;
+  await assert.rejects(f.manager().prepareRelease(f.first), {
+    code: 'python_unavailable',
+  });
+  assert.equal(f.latest().databaseChanged, false);
   for (const broken of [{ pythonMissing: true }, { pythonOutput: '' }]) {
     const g = fixture();
     Object.assign(g.state, broken);

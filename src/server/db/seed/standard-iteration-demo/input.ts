@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -272,8 +273,10 @@ function unique<T>(rows: T[], key: (v: T) => string, name: string) {
 // Restricted to the two pinned, digest-checked synthetic OOXML files. This is
 // not a general upload parser. Python3 stdlib already validates these fixtures
 // in CI; no third-party package, formula evaluation, external link or file write.
+const WORKBOOK_IMPORTS =
+  'import io,json,sys,zipfile,xml.etree.ElementTree as E';
 const WORKBOOK_READER = String.raw`
-import io,json,sys,zipfile,xml.etree.ElementTree as E
+${WORKBOOK_IMPORTS}
 b=sys.stdin.buffer.read(2000001)
 if len(b)>2000000: raise ValueError('size')
 with zipfile.ZipFile(io.BytesIO(b)) as z:
@@ -301,18 +304,53 @@ with zipfile.ZipFile(io.BytesIO(b)) as z:
    cells[addr]={'type':typ,'value':val}
  print(json.dumps({'sheet':sheets[0].get('name'),'cells':cells},ensure_ascii=False))
 `;
+/** The one interpreter resolution (executable name, PATH, isolated mode)
+ * shared by the workbook reader and its entry check. */
+function spawnWorkbookPython(script: string) {
+  return spawn('python3', ['-I', '-c', script], {
+    env: {
+      NODE_ENV: 'test',
+      PATH: process.env.PATH,
+      PYTHONDONTWRITEBYTECODE: '1',
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+}
+
+/** Entry check run before any fact read or transaction: the interpreter the
+ * reader will spawn starts and loads the reader's own standard modules. */
+export async function requireWorkbookReader() {
+  const ready = await new Promise<boolean>((resolve) => {
+    const child = spawnWorkbookPython(
+      `${WORKBOOK_IMPORTS}\nprint("python_ok")`,
+    );
+    let output = '';
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve(false);
+    }, 10000);
+    child.stderr.resume();
+    child.stdout.on('data', (chunk: Buffer) => {
+      if (output.length < 64) output += chunk.toString();
+    });
+    child.on('error', () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve(code === 0 && output.trim() === 'python_ok');
+    });
+    child.stdin.on('error', () => undefined);
+    child.stdin.end();
+  });
+  if (!ready) throw new StandardIterationFactError('python_unavailable');
+}
+
 async function workbook(bytes: Uint8Array) {
   // execFile has no stdin option; use the bounded process stream explicitly.
-  const { spawn } = await import('node:child_process');
   return new Promise<z.infer<typeof workbookSchema>>((resolve, reject) => {
-    const child = spawn('python3', ['-I', '-c', WORKBOOK_READER], {
-      env: {
-        NODE_ENV: 'test',
-        PATH: process.env.PATH,
-        PYTHONDONTWRITEBYTECODE: '1',
-      },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const child = spawnWorkbookPython(WORKBOOK_READER);
     const chunks: Buffer[] = [];
     let length = 0;
     let invalid = false;
@@ -357,11 +395,15 @@ const FACT_LIMIT = 2_000_000;
 
 export class StandardIterationFactError extends Error {
   constructor(
-    readonly code: 'fixture_missing' | 'fixture_digest_mismatch',
+    readonly code:
+      | 'python_unavailable'
+      | 'fixture_missing'
+      | 'fixture_too_large'
+      | 'fixture_digest_mismatch',
     /** A constant fixture file name, never a filesystem path. */
-    readonly file: (typeof FACT_FILES)[number],
+    readonly file?: (typeof FACT_FILES)[number],
   ) {
-    super(`${code}: ${file}`);
+    super(file ? `${code}: ${file}` : code);
     this.name = 'StandardIterationFactError';
   }
 }
@@ -373,6 +415,8 @@ export async function readStandardIterationFactFiles(
   root: string,
   generation: FactGeneration = CURRENT_FACT_GENERATION,
 ): Promise<FactFiles> {
+  // The decoder is required to use these facts at all; check it first.
+  await requireWorkbookReader();
   const { digests } = FACT_GENERATIONS[generation];
   const entries = await Promise.all(
     FACT_FILES.map(async (name) => {
@@ -396,10 +440,7 @@ export async function readStandardIterationFactFiles(
           if (!bytesRead) break;
           length += bytesRead;
           if (length > FACT_LIMIT)
-            throw new StandardIterationFactError(
-              'fixture_digest_mismatch',
-              name,
-            );
+            throw new StandardIterationFactError('fixture_too_large', name);
         }
         const bytes = buffer.slice(0, length);
         if (createHash('sha256').update(bytes).digest('hex') !== digests[name])

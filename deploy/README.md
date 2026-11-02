@@ -169,7 +169,7 @@ BOW-837 演示库陈述类别（`--upgrade-statement-kinds` / `--revert-statemen
 BOW-923 第六期演示初始化（`src/server/db/seed/standard-iteration-demo/run.ts --init --as <管理者账号>`）的前提条件：
 
 - 在发布包根目录 `releases/<SHA>` 执行。命令从包内 `tests/fixtures/bow-923` 读取八个固定夹具，并按代码里写死的 SHA-256 摘要校验，不需要也不使用 `.git`；在别处执行会报 `fixture_missing`，不写库。
-- 需要 `python3`，解两份 XLSX 只用它的标准库（`io`、`json`、`sys`、`zipfile`、`xml.etree.ElementTree`）。`prepare` 会以 qtalent 账号、经同一个 app-command 环境（因此是同一个 PATH）执行 `/usr/bin/env python3 -I -c …`，导入这些模块；失败时以 `python_unavailable` 拒绝发布，不生成发布包，也不写库。init 运行时如果仍缺 `python3`，会在任何事务之前以 `import_failed` 失败。
+- 需要 `python3`，解两份 XLSX 只用它的标准库（`io`、`json`、`sys`、`zipfile`、`xml.etree.ElementTree`）。`prepare` 用服务环境（qtalent 账号经 app-command）执行 `/usr/bin/env python3 -I -c …`，作为提前预警；发布目录已存在时重跑 prepare 也会检查。失败时以 `python_unavailable` 拒绝，首次准备不会留下完成的发布目录。初始化入口自己还会再检查：`--init` / `--apply` 在读取任何夹具、开启任何事务之前，按 reader 实际调用解释器的方式（当前 shell 的 PATH 里的 `python3 -I`）检查解释器和这些模块，不满足就以 `python_unavailable` 退出，不写库。部署请求里请在执行 init 的同一个 shell 里先跑 `command -v python3`。
 - 夹具缺失或被改动时，回执分别是 `fixture_missing` / `fixture_digest_mismatch`，并带固定文件名 `file`，都发生在任何数据库事务之前。
 
 ### 实际执行与记录语义

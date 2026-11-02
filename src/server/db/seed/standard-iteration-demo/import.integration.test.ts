@@ -1072,6 +1072,30 @@ describe('923 init from the release artifact (no .git, no git on PATH)', () => {
       import: { status: 'unchanged' },
     });
   }, 90_000);
+  it('without python3 on PATH the artifact init fails before any read or transaction', async () => {
+    await managerAccount();
+    await db().delete(people).where(eq(people.id, DEMO_GRADUATION_REVIEWER.id));
+    const nodeOnly = mkdtempSync(join(tmpdir(), 'artifact-bin-node-'));
+    try {
+      symlinkSync(process.execPath, join(nodeOnly, 'node'));
+      expect(
+        await runCli(['--init', '--as', MANAGER], {
+          root: artifact,
+          path: nodeOnly,
+          timeout: 30_000,
+        }),
+      ).toEqual({
+        code: 1,
+        stdout: '',
+        stderr:
+          JSON.stringify({ status: 'failed', code: 'python_unavailable' }) +
+          '\n',
+      });
+      await nothingWritten();
+    } finally {
+      rmSync(nodeOnly, { recursive: true, force: true });
+    }
+  }, 60_000);
   it.each([
     ['tampered', 'fixture_digest_mismatch'],
     ['missing', 'fixture_missing'],

@@ -31,7 +31,8 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const SHA = /^[0-9a-f]{40}$/;
 // The BOW-923 demo init decodes its pinned workbooks with `python3 -I` and
-// only these standard modules; prepare proves they load for the service user.
+// only these standard modules; prepare warns early when the service
+// environment cannot load them (the init entry itself is the gate).
 const PYTHON_CHECK =
   'import io,json,sys,zipfile,xml.etree.ElementTree;print("python_ok")';
 // One-off demo seed steps, each an explicit flag on `seed` (BOW-837).
@@ -624,8 +625,9 @@ export class ReleaseManager {
       rmSync(snapshot, { recursive: true, force: true });
     }
   }
-  /** Same user and PATH as the app commands that run the demo init: resolve
-   * `python3` through that environment, in isolated mode as init does. */
+  /** Early warning only: the service environment can start `python3 -I` and
+   * load the demo init's workbook modules. The init entry checks again with
+   * its own PATH before reading or writing anything; this is not that gate. */
   async requirePython(path) {
     let output;
     try {
@@ -644,7 +646,11 @@ export class ReleaseManager {
   }
   async prepare(sha, operationId) {
     const final = join(this.releases, sha);
-    if (existsSync(final)) return this.release(sha);
+    if (existsSync(final)) {
+      const existing = this.release(sha);
+      await this.requirePython(final);
+      return existing;
+    }
     const stage = join(this.releases, '.pending-' + operationId);
     mkdirSync(stage);
     try {

@@ -286,10 +286,25 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
         join(root, FACT_DIRECTORY, 'mapping.json'),
         Buffer.alloc(2_000_001, 0x20),
       );
+      // Its own code, raised by the bounded read before any digest is taken.
       await expect(readStandardIterationFactFiles(root)).rejects.toMatchObject({
-        code: 'fixture_digest_mismatch',
+        code: 'fixture_too_large',
         file: 'mapping.json',
       });
+    });
+    it('refuses before reading when the reader interpreter is not on PATH', async () => {
+      const root = copy();
+      rmSync(join(root, FACT_DIRECTORY, 'mapping.json'));
+      const path = process.env.PATH;
+      process.env.PATH = root;
+      try {
+        // python_unavailable, not fixture_missing: checked before any read.
+        await expect(
+          readStandardIterationFactFiles(root),
+        ).rejects.toMatchObject({ code: 'python_unavailable' });
+      } finally {
+        process.env.PATH = path;
+      }
     });
     it('refuses a missing file, naming only the fixture file', async () => {
       const root = copy();

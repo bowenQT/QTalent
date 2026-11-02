@@ -25,7 +25,7 @@ git show 47870d6fc902fd810b608591d4f6709e46d34148:tests/fixtures/bow-923/mapping
 
 ## 输入校验
 
-`readStandardIterationFactFiles(root, generation)` 从 `root/tests/fixtures/bow-923` 有界读取八个文件（`root` 是发布包或 checkout 根目录），逐个核对 `FACT_GENERATIONS[代].digests`，缺失报 `fixture_missing`，大小超限或摘要不符报 `fixture_digest_mismatch`，错误只带固定文件名、不带路径；这一步在任何数据库事务之前。`prepareStandardIterationDemo(files, generation)` 校验 JSON 结构和内部一致性、两份 XLSX 与人工标记的 manifest 摘要，再逐格核对真实表格：整行表头、非日期列的文字类型、人员与期次、作品与同队、三项原档位、最终档位、评价人、UTC 数值日期、记录状态和引用原文。缺段的行仍登记片段，但不能有档位、评价人或日期。
+`readStandardIterationFactFiles(root, generation)` 从 `root/tests/fixtures/bow-923` 有界读取八个文件（`root` 是发布包或 checkout 根目录），逐个核对 `FACT_GENERATIONS[代].digests`，缺失报 `fixture_missing`，大小超限在有界读取时报 `fixture_too_large`，摘要不符报 `fixture_digest_mismatch`，错误只带固定文件名、不带路径；这一步在任何数据库事务之前。`prepareStandardIterationDemo(files, generation)` 校验 JSON 结构和内部一致性、两份 XLSX 与人工标记的 manifest 摘要，再逐格核对真实表格：整行表头、非日期列的文字类型、人员与期次、作品与同队、三项原档位、最终档位、评价人、UTC 数值日期、记录状态和引用原文。缺段的行仍登记片段，但不能有档位、评价人或日期。
 
 XLSX 只用 Python3 标准库读取这两份经摘要核对的固定文件，设时间、输出和解压体积上限，不求值公式、不访问外链、不落临时文件。
 
@@ -36,7 +36,7 @@ pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --init --as <账
 pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --apply
 ```
 
-两个命令都使用服务端 `getEnv()`，只拒绝 `APP_ENV=production`，不核验连接的到底是哪个库（后续改走部署受控入口）；不自动加入 `db:seed`。成功时只输出回执，失败只输出稳定的错误分类，不打印 SQL 原错、连接串或原文。两个命令都必须在发布包（或 checkout）根目录执行；在别处执行会报 `fixture_missing`，不写库。解两份 XLSX 需要 `python3`（只用标准库）。
+两个命令都使用服务端 `getEnv()`，只拒绝 `APP_ENV=production`，不核验连接的到底是哪个库（后续改走部署受控入口）；不自动加入 `db:seed`。成功时只输出回执，失败只输出稳定的错误分类，不打印 SQL 原错、连接串或原文。两个命令都必须在发布包（或 checkout）根目录执行；在别处执行会报 `fixture_missing`，不写库。解两份 XLSX 需要 `python3`（只用标准库）：读取夹具之前，入口先用 reader 同一套解释器解析方式（当前 PATH 里的 `python3 -I`）加载所需模块，不满足就以 `python_unavailable` 退出，不写库。
 
 ### `--init --as <账号ID>`：幂等的演示初始化
 
