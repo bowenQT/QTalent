@@ -9,20 +9,23 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/components/ui/Toast';
+import { materialBatchReceiptSchema } from '@/contracts/materials';
 import type { RecordBatchDraft } from '@/contracts/record';
 import type { ShellData } from '@/contracts/shell';
 import {
   materialReferencesFixture as refs,
   recordBatchDraftFixture,
 } from '@/contracts/materials.fixtures';
+import { copy } from '@/features/receipt/copy';
 import { ReceiptPage } from '@/features/receipt/ReceiptPage';
 import type { ReceiptView } from '@/features/receipt/types';
 import ReceiptRoute from './page';
 
 /*
  * H3：从真实入口走到目标动作。page.tsx → LiveReceipt → ReceiptPage 都是生产代码，只替换
- * 服务端查询、Server Action 和读取路由的网络。Next 默认把同一页的 Server Action 排成一条
+ * 服务端查询、Server Action 和路由的网络。Next 默认把同一页的 Server Action 排成一条
  * 串行队列，这里用一条 promise 链给它建模：前一个 action 没返回，后一个不开始。
+ * 保存和撤销的替身按契约 schema 校验入参和返回，不合契约的替身让用例直接失败。
  */
 const queue = vi.hoisted(() => {
   let tail: Promise<unknown> = Promise.resolve();
@@ -43,15 +46,29 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   undo: vi.fn(),
 }));
+/** 撤销替身：先校验入参，再按契约校验返回。撤销路由和（旧接线的）Server Action 共用它。 */
+const serveUndo = vi.hoisted(() => async (input: unknown) => {
+  const { recordUndoInputSchema, recordUndoResultSchema } =
+    await import('@/contracts/record');
+  recordUndoInputSchema.parse(input);
+  return recordUndoResultSchema.parse(await mocks.undo(input));
+});
 vi.mock('@/server/queries/shell', () => ({ getShellPage: mocks.shell }));
 vi.mock('@/server/queries/receipt-page', () => ({
   readReceiptForCurrentUser: mocks.read,
 }));
-vi.mock('@/server/actions/record-batch', () => ({
-  saveRecordBatchAction: queue.serial((input: unknown) => mocks.save(input)),
-}));
+vi.mock('@/server/actions/record-batch', async () => {
+  const { recordSaveInputSchema, recordSaveResultSchema } =
+    await import('@/contracts/record');
+  return {
+    saveRecordBatchAction: queue.serial(async (input: unknown) => {
+      recordSaveInputSchema.parse(input);
+      return recordSaveResultSchema.parse(await mocks.save(input));
+    }),
+  };
+});
 vi.mock('@/server/actions/record', () => ({
-  undoRecordAction: queue.serial((input: unknown) => mocks.undo(input)),
+  undoRecordAction: queue.serial(serveUndo),
 }));
 vi.mock('next/navigation', () => ({
   usePathname: () => '/receipt',
@@ -84,7 +101,7 @@ function view(
   revision = 1,
 ): ReceiptView {
   return {
-    receipt: {
+    receipt: materialBatchReceiptSchema.parse({
       batchId: 'demo-batch',
       revision,
       evaluationNodeId: 'demo-node',
@@ -121,7 +138,7 @@ function view(
       })),
       counts: counts(pending.length, confirmed.length),
       error: null,
-    },
+    }),
     title: '演示项目 · 演示节点',
     entry: 'web',
     tool: null,
@@ -147,23 +164,26 @@ function view(
     },
   } as unknown as ReceiptView;
 }
-const saved = (saveId: string, eventId: string) => ({
+const saved = (saveId: string, eventId: string, draftId = 'demo-event-draft-a') => {
+  const at = Date.now();
+  return {
+    status: 'success' as const,
+    replayed: false,
+    result: {
+      saveId,
+      events: [{ personId: 'demo-person', eventId }],
+      revision: 2,
+      confirmationIds: ['c-' + saveId + draftId],
+      reviewItemIds: [],
+      savedBy: 'acct',
+      savedAt: new Date(at).toISOString(),
+      undoUntil: new Date(at + 5000).toISOString(),
+    },
+  };
+};
+const undone = (saveId: string, draftRevision: number, replayed = false) => ({
   status: 'success' as const,
-  replayed: false,
-  result: {
-    saveId,
-    events: [{ personId: 'demo-person', eventId }],
-    revision: 2,
-    confirmationIds: ['c-' + saveId],
-    reviewItemIds: [],
-    savedBy: 'acct',
-    savedAt: new Date().toISOString(),
-    undoUntil: new Date(Date.now() + 5000).toISOString(),
-  },
-});
-const undone = (saveId: string, draftRevision: number) => ({
-  status: 'success' as const,
-  replayed: false,
+  replayed,
   result: {
     saveId,
     withdrawnEvents: [{ personId: 'demo-person', eventId: 'ev-1' }],
@@ -196,17 +216,45 @@ const shell: ShellData = {
   role: 'mentor',
 };
 
-/** 读取路由的网络：每次请求挂起，测试按顺序给出响应。 */
+/**
+ * 路由的网络。GET 读取：每次请求挂起，测试按顺序给出响应；POST 撤销：交给撤销替身，
+ * 替身抛错时这次请求就是网络中断。
+ */
 function stubRoute() {
-  const replies: ((body: unknown) => void)[] = [];
-  const fetch = vi.fn<(url: string) => Promise<Response>>(
-    () =>
-      new Promise<Response>((resolve) =>
-        replies.push((body) => resolve(Response.json(body))),
-      ),
+  const replies: ((body: unknown, status?: number) => void)[] = [];
+  const fetch = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(
+    (url, init) => {
+      if (url === '/api/record/undo' && init?.method === 'POST')
+        return serveUndo(JSON.parse(String(init.body))).then((body) =>
+          Response.json(body),
+        );
+      return new Promise<Response>((resolve) =>
+        replies.push((body, status = 200) =>
+          resolve(Response.json(body, { status })),
+        ),
+      );
+    },
   );
   vi.stubGlobal('fetch', fetch);
-  return { fetch, reply: (i: number, body: unknown) => replies[i]!(body) };
+  const reads = () =>
+    fetch.mock.calls.filter(([url]) => url.startsWith('/api/receipt/'));
+  return {
+    fetch,
+    reads,
+    reply: (i: number, body: unknown, status?: number) =>
+      replies[i]!(body, status),
+  };
+}
+/** 撤销替身的每次调用挂起，测试按顺序让它成功或网络中断。 */
+function holdUndo() {
+  const calls: { ok: (body: unknown) => void; drop: () => void }[] = [];
+  mocks.undo.mockImplementation(
+    () =>
+      new Promise((ok, fail) =>
+        calls.push({ ok, drop: () => fail(new Error('offline')) }),
+      ),
+  );
+  return calls;
 }
 
 beforeEach(() => {
@@ -249,16 +297,20 @@ describe('生产接线：保存 → 撤销 → 再保存', () => {
       within(card()).getByRole('button', { name: '保存并确认' }),
     );
     // 保存后的重读发出去了，一直没回
-    await waitFor(() => expect(route.fetch).toHaveBeenCalledTimes(1));
-    expect(route.fetch.mock.calls[0]![0]).toBe('/api/receipt/demo-batch');
+    await waitFor(() => expect(route.reads()).toHaveLength(1));
+    expect(route.reads()[0]![0]).toBe('/api/receipt/demo-batch');
 
     await user.click(await screen.findByRole('button', { name: '撤销' }));
     // 读取不在 Server Action 队列里：撤销不用等它
     await waitFor(() => expect(mocks.undo).toHaveBeenCalledTimes(1));
+    expect(route.fetch).toHaveBeenCalledWith(
+      '/api/record/undo',
+      expect.objectContaining({ method: 'POST' }),
+    );
     expect(mocks.undo.mock.calls[0]![0]).toMatchObject({ saveId: 'save-1' });
 
     // 撤销后的重读：这件事回到待确认，版本 3
-    await waitFor(() => expect(route.fetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(route.reads()).toHaveLength(2));
     route.reply(1, {
       status: 'success',
       view: view([{ ...draft, revision: 3 }, other], [], 3),
@@ -281,7 +333,7 @@ describe('生产接线：保存 → 撤销 → 再保存', () => {
     expect(second.expected_revision).toBe(3);
     expect(second.operation_id).not.toBe(first.operation_id);
     expect(second.decisions[0]).toMatchObject({ action: 'edit', value: 5 });
-    await waitFor(() => expect(route.fetch).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(route.reads()).toHaveLength(3));
     route.reply(2, {
       status: 'success',
       view: view([other], [['demo-event-draft-a', 'ev-2']], 3),
@@ -323,5 +375,105 @@ describe('生产接线：保存 → 撤销 → 再保存', () => {
     expect(mocks.undo).not.toHaveBeenCalled();
     release({ status: 'unavailable' });
     await waitFor(() => expect(mocks.undo).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('第二次裁决：撤销走路由、撤销结果按快照比对', () => {
+  const cardB = () => document.getElementById('rc-demo-event-draft-b')!;
+  async function mount() {
+    render(
+      <ToastProvider>
+        {await ReceiptRoute({
+          searchParams: Promise.resolve({ id: 'demo-batch' }),
+        })}
+      </ToastProvider>,
+    );
+  }
+
+  it('用例 A：另一件事的保存很慢、占着 Server Action 队列：撤销照样立刻送到服务端并成功', async () => {
+    const user = userEvent.setup();
+    stubRoute();
+    let releaseB!: (value: unknown) => void;
+    mocks.save
+      .mockResolvedValueOnce(saved('save-1', 'ev-1'))
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (releaseB = resolve)),
+      );
+    mocks.undo.mockResolvedValue(undone('save-1', 3));
+    await mount();
+    await user.click(
+      within(card()).getByRole('button', { name: /确认这件事/ }),
+    );
+    const undo = await screen.findByRole('button', { name: '撤销' });
+    // 撤销窗口内，B 的保存发出去了，一直没回
+    await user.click(
+      within(cardB()).getByRole('button', { name: /确认这件事/ }),
+    );
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
+    await user.click(undo);
+    await waitFor(() => expect(mocks.undo).toHaveBeenCalledTimes(1), {
+      timeout: 500,
+    });
+    expect(mocks.undo.mock.calls[0]![0]).toMatchObject({ saveId: 'save-1' });
+    expect(await screen.findByText(copy.toast.undone)).toBeTruthy();
+    releaseB(saved('save-2', 'ev-2', 'demo-event-draft-b'));
+  });
+
+  it('用例 B：撤销结果待核实期间读到别处的再次确认，旧回放随后返回成功：卡片仍按快照显示已确认', async () => {
+    const user = userEvent.setup();
+    const route = stubRoute();
+    const undos = holdUndo();
+    mocks.save.mockResolvedValueOnce(saved('save-1', 'ev-1'));
+    await mount();
+    await user.click(
+      within(card()).getByRole('button', { name: /确认这件事/ }),
+    );
+    // 保存后的读取：本页这次保存
+    await waitFor(() => expect(route.reads()).toHaveLength(1));
+    route.reply(0, {
+      status: 'success',
+      view: view([other], [['demo-event-draft-a', 'ev-1']], 2),
+    });
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    // 撤销其实生效了，回应丢了：结果待核实
+    await waitFor(() => expect(undos).toHaveLength(1));
+    undos[0]!.drop();
+    await user.click(
+      await within(card()).findByRole('button', { name: '再试一次撤销' }),
+    );
+    // 重试（同一个操作编号，服务端回放）的回应迟迟不回
+    await waitFor(() => expect(undos).toHaveLength(2));
+    const [first, second] = mocks.undo.mock.calls.map(([input]) => input);
+    expect(second.operation_id).toBe(first.operation_id);
+    // 这期间另一个标签页撤销后重新确认（新事件、新版本），本页联网恢复读到了它
+    window.dispatchEvent(new Event('online'));
+    await waitFor(() => expect(route.reads()).toHaveLength(2));
+    route.reply(1, {
+      status: 'success',
+      view: view([other], [['demo-event-draft-a', 'ev-2']], 4),
+    });
+    await waitFor(() =>
+      expect(
+        within(card()).queryByRole('button', { name: '再试一次撤销' }),
+      ).toBeNull(),
+    );
+    expect(card().dataset.state).toBe('confirmed');
+    // 旧的回放这时才回来：撤销的是 save-1，不说明快照里这次确认
+    undos[1]!.ok(undone('save-1', 3, true));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(card().dataset.state).toBe('confirmed');
+    expect(
+      within(card()).queryByRole('button', { name: /确认这件事/ }),
+    ).toBeNull();
+    // 之后的读取失败：仍按上次的快照显示
+    window.dispatchEvent(new Event('online'));
+    await waitFor(() => expect(route.reads()).toHaveLength(3));
+    route.reply(2, { status: 'unavailable' }, 503);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(card().dataset.state).toBe('confirmed');
+    expect(
+      within(card()).queryByRole('button', { name: /确认这件事/ }),
+    ).toBeNull();
+    expect(await screen.findByText(copy.toast.undoSuperseded)).toBeTruthy();
   });
 });

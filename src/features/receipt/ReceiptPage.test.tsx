@@ -411,6 +411,7 @@ describe('确认之后', () => {
         confirmedDrafts: [
           {
             draftId: 'demo-event-draft-a',
+            revision: 2,
             events: [{ personId: 'demo-person', eventId: 'ev-1' }],
           },
         ],
@@ -1204,10 +1205,17 @@ describe('本页状态和读取快照的优先规则', () => {
 
   it('撤销之后才发起的读取读到这件事已确认：撤销记录作废，照快照显示已确认', async () => {
     const user = userEvent.setup();
-    const read = vi.fn().mockResolvedValue({
-      status: 'success',
-      view: snapshot([b], ['demo-event-draft-a']),
-    });
+    // 保存后的读取读到本页这次保存；撤销之后的读取读到别处重新保存（另一个事件）
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 'success',
+        view: snapshot([b], [['demo-event-draft-a', 'ev-1']]),
+      })
+      .mockResolvedValue({
+        status: 'success',
+        view: snapshot([b], ['demo-event-draft-a']),
+      });
     mountWith(make({ confirmers: bothMine }), {
       read,
       save: vi.fn().mockResolvedValue(saved()),

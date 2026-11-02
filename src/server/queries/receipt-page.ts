@@ -10,7 +10,7 @@ import {
 } from '../authz/evaluation-node';
 import { getDatabase, type Database } from '../db/client';
 import { getEnv } from '../env';
-import { jobAccount } from '../jobs/request';
+import { jobAccount, sessionLost } from '../jobs/request';
 import { accountBindings, organizations, people } from '../modules/directory';
 import { readTalentEvaluationRules } from '../modules/evaluation-system';
 import { evaluationNodes } from '../modules/programs';
@@ -89,14 +89,23 @@ export type ReceiptRouteResult =
  * The receipt read behind the GET route (`/api/receipt/<batchId>`). It first checks the
  * request's access identity and session the way `/api/jobs` does, and answers
  * `unauthenticated` instead of redirecting to the login page; then it is the same read
- * as the page's. Dependency failures while checking throw; the route answers 503.
+ * as the page's. A session that ends while the read runs is also `unauthenticated`,
+ * not a failed read. Dependency failures throw; the route answers 503.
  */
 export async function readReceiptForRequest(
   headers: Headers,
   input: unknown,
 ): Promise<ReceiptRouteResult> {
   if (!(await jobAccount(headers))) return { status: 'unauthenticated' };
-  return readReceiptForCurrentUser(input);
+  try {
+    const result = await readReceiptForCurrentUser(input);
+    if (result.status === 'unavailable' && (await sessionLost(headers)))
+      return { status: 'unauthenticated' };
+    return result;
+  } catch (error) {
+    if (await sessionLost(headers, error)) return { status: 'unauthenticated' };
+    throw error;
+  }
 }
 
 /** Display facts for an already authorized receipt, in one read-only snapshot. */

@@ -1,5 +1,6 @@
 import type { MaterialBatchReceipt } from '@/contracts/materials';
 import type { RecordBatchDraft } from '@/contracts/record';
+import { matchesSave } from '@/features/record/record-flow';
 import type { EditValues } from './receipt-model';
 
 /*
@@ -16,8 +17,10 @@ export type SavedRecord = {
   /** 确认日期，MM-DD。 */
   on: string;
   saveId: string;
-  /** 这次保存建的事件（人和事件编号），用来和快照里的确认对上。 */
+  /** 这次保存建的事件（人和事件编号，eventKey），用来和快照里的确认对上。 */
   events: string;
+  /** 保存回执给的版本和事件映射，用来判断快照是否已前进到别的保存。 */
+  receipt: { revision: number; events: { personId: string; eventId: string }[] };
 };
 
 /**
@@ -94,6 +97,21 @@ export function reconcile(
       items[id] = { ...(op ? { op } : {}), ...(edit ? { edit } : {}) };
   }
   return { ...local, items };
+}
+
+/**
+ * 撤销结果（包括重试的回放）到达时，快照是否已经前进到别的保存：这件事在已确认里，
+ * 但版本或事件映射和这次保存的回执对不上（别处又确认过）。这时撤销结果丢弃，以快照为准。
+ * 快照里还没有这件事的确认（读取没跟上，或已回到待确认）不算前进。
+ */
+export function savedElsewhere(
+  receipt: MaterialBatchReceipt,
+  save: SavedRecord,
+): boolean {
+  const entry = receipt.confirmedDrafts.find(
+    (d) => d.draftId === save.draft.draftId,
+  );
+  return Boolean(entry) && !matchesSave(save.receipt, entry!);
 }
 
 /** 卡片该怎么显示：只由快照和进行中的操作决定。 */

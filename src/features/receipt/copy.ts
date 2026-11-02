@@ -106,6 +106,7 @@ export const copy = {
     undoFailed: '撤销被拒绝，以回执里的状态为准',
     undoLate: '撤销时间已过，以回执里的状态为准',
     undoUnknown: '撤销结果待核实，可以在这件事上再试一次',
+    undoSuperseded: '这件事已在别处再次确认，以回执里的状态为准',
   },
   read: {
     stale: (time: string) => `这次刷新中断了，下面是 ${time} 读到的回执`,

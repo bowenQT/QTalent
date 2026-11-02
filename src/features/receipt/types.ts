@@ -59,5 +59,14 @@ export type ReceiptActions = {
   save: (
     input: RecordSaveInput,
   ) => Promise<RecordSaveResult | { status: 'unavailable' }>;
-  undo: (input: RecordUndoInput) => Promise<RecordUndoResult>;
+  /**
+   * 撤销走 POST 路由，不排在其他保存后面；signal：超时或卸载时中止。
+   * `unauthenticated`：登录已失效；`unavailable`：这次没送到或看不懂回应，结果待核实。
+   */
+  undo: (
+    input: RecordUndoInput,
+    signal?: AbortSignal,
+  ) => Promise<
+    RecordUndoResult | { status: 'unauthenticated' } | { status: 'unavailable' }
+  >;
 };

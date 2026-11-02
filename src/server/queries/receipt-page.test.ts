@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { redirect } from 'next/navigation';
 import {
   readReceiptForCurrentUser,
@@ -10,8 +10,12 @@ const runtime = vi.hoisted(() => ({
   session: vi.fn(),
   transaction: vi.fn(),
   account: vi.fn(),
+  lost: vi.fn(),
 }));
-vi.mock('../jobs/request', () => ({ jobAccount: runtime.account }));
+vi.mock('../jobs/request', () => ({
+  jobAccount: runtime.account,
+  sessionLost: runtime.lost,
+}));
 vi.mock('./record-arrange', () => ({
   readRecordMaterialBatchForCurrentUser: runtime.readBatch,
 }));
@@ -100,4 +104,39 @@ it('GET 路由的读取：会话有效时就是页面的同一个读取', async 
   });
   expect(runtime.account).toHaveBeenCalledWith(headers);
   expect(runtime.readBatch).toHaveBeenCalledWith({ batchId: 'b' });
+});
+
+describe('GET 路由的读取：会话在读取途中失效', () => {
+  beforeEach(() => {
+    runtime.account.mockResolvedValue('acc-1');
+  });
+
+  it('读取中 requireSession 跳到登录页：答登录失效，不当成读取中断', async () => {
+    runtime.readBatch.mockImplementation(async () => redirect('/login'));
+    runtime.lost.mockResolvedValue(true);
+    const headers = new Headers({ cookie: 'x' });
+    expect(await readReceiptForRequest(headers, { batchId: 'b' })).toEqual({
+      status: 'unauthenticated',
+    });
+    expect(runtime.lost).toHaveBeenCalledWith(headers, expect.anything());
+  });
+
+  it('读取答 unavailable、再查已认不出账号：答登录失效；还认得出就仍是中断', async () => {
+    runtime.readBatch.mockResolvedValue({ status: 'unavailable' });
+    runtime.lost.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    expect(await readReceiptForRequest(new Headers(), { batchId: 'b' })).toEqual(
+      { status: 'unauthenticated' },
+    );
+    expect(await readReceiptForRequest(new Headers(), { batchId: 'b' })).toEqual(
+      { status: 'unavailable' },
+    );
+  });
+
+  it('会话还在时，读取放行的抛错照常抛出，路由答 503', async () => {
+    runtime.readBatch.mockImplementation(async () => redirect('/work'));
+    runtime.lost.mockResolvedValue(false);
+    await expect(
+      readReceiptForRequest(new Headers(), { batchId: 'b' }),
+    ).rejects.toMatchObject({ digest: expect.stringContaining('/work') });
+  });
 });

@@ -30,6 +30,7 @@ import {
   eventKey,
   isLatestSave,
   reconcile,
+  savedElsewhere,
   type LocalItem,
   type LocalState,
   type SavedRecord,
@@ -142,6 +143,10 @@ export function ReceiptPage({
   const lost = useRef(false);
   // 在途读取：失效、卸载时一起中止；轮询只在没有在途读取时发起
   const inflight = useRef(new Set<AbortController>());
+  // 在途撤销：失效、卸载时一起中止
+  const writes = useRef(new Set<AbortController>());
+  // 最近一次采用的快照；撤销结果到达时和它比对，快照已前进就不采用
+  const current = useRef(initial.receipt);
   // 自动重读连续失败的次数，到上限暂停轮询
   const failures = useRef(0);
   // 上次读到回执的时间（ISO）；页面卸载后返回的读取不再改页面
@@ -149,10 +154,10 @@ export function ReceiptPage({
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
-    const pending = inflight.current;
+    const pending = [inflight.current, writes.current];
     return () => {
       alive.current = false;
-      for (const controller of pending) controller.abort();
+      for (const set of pending) for (const controller of set) controller.abort();
     };
   }, []);
   // 撤销结果不知道时，卡片上的重试沿用同一次撤销
@@ -161,6 +166,17 @@ export function ReceiptPage({
   // 卡片按第一次出现的顺序排，确认或撤销后留在原位
   const [order, setOrder] = useState(() => draftOrder([], initial));
   const { receipt } = view;
+
+  /** 失效屏障：之后不再发起读取，在途的读取和撤销一起中止，迟到的结果也不再采用。 */
+  const loseAccess = useCallback(
+    (status: 'forbidden' | 'not_found' | 'unauthenticated') => {
+      lost.current = true;
+      for (const set of [inflight.current, writes.current])
+        for (const controller of set) controller.abort();
+      setReadIssue({ kind: 'lost', status });
+    },
+    [],
+  );
 
   /**
    * 重读回执；带回的快照被采用时返回 true。poll：自动轮询，有在途读取或已到失败上限时不发起；
@@ -196,6 +212,7 @@ export function ReceiptPage({
         shown.current = started;
         failures.current = 0;
         readAt.current = new Date().toISOString();
+        current.current = result.view.receipt;
         setView(result.view);
         setOrder((prev) => draftOrder(prev, result.view));
         setLocal((all) => reconcile(all, started, result.view.receipt));
@@ -207,10 +224,7 @@ export function ReceiptPage({
         result.status === 'not_found' ||
         result.status === 'unauthenticated'
       ) {
-        // 失效屏障：之后不再发起读取，在途的读取一起中止，迟到的结果也不再采用
-        lost.current = true;
-        for (const other of inflight.current) other.abort();
-        setReadIssue({ kind: 'lost', status: result.status });
+        loseAccess(result.status);
         return false;
       }
       // 中断：保留当前内容并写明它是上次读到的，下一次轮询、联网或操作再读
@@ -222,7 +236,7 @@ export function ReceiptPage({
       });
       return false;
     },
-    [actions, batchId, timeouts.read],
+    [actions, batchId, timeouts.read, loseAccess],
   );
 
   // 断网恢复后读一次
@@ -315,7 +329,7 @@ export function ReceiptPage({
       const result = timed.value;
       if (result.status === 'success') {
         ops.current.delete(draft.draftId);
-        const { saveId, savedAt, undoUntil, events } = result.result;
+        const { saveId, savedAt, undoUntil, events, revision } = result.result;
         const record: SavedRecord = {
           draft,
           values,
@@ -324,6 +338,7 @@ export function ReceiptPage({
           on: shanghai(savedAt, false),
           saveId,
           events: eventKey(events),
+          receipt: { revision, events },
         };
         // 在 updater 外取值：updater 到渲染时才执行，那时紧接着的重读已经发起了
         const at = reads.current;
@@ -398,19 +413,43 @@ export function ReceiptPage({
           : item,
       );
     };
-    async function attempt(): Promise<'success' | 'refused' | 'unknown'> {
+    async function attempt(): Promise<
+      'success' | 'refused' | 'unknown' | 'superseded' | 'lost'
+    > {
+      if (lost.current) return 'lost';
+      const controller = new AbortController();
+      writes.current.add(controller);
       let result;
       try {
         const timed = await within(
-          actions.undo({ operation_id: operation, saveId }),
+          actions.undo({ operation_id: operation, saveId }, controller.signal),
           timeouts.write,
         );
-        if (!timed.done) return 'unknown';
+        if (!timed.done) {
+          controller.abort();
+          return 'unknown';
+        }
         result = timed.value;
       } catch {
         return 'unknown';
+      } finally {
+        writes.current.delete(controller);
       }
+      if (result.status === 'unauthenticated') {
+        loseAccess('unauthenticated');
+        return 'lost';
+      }
+      if (result.status === 'unavailable') return 'unknown';
       if (result.status !== 'success') return 'refused';
+      // 回放可能是早先那次撤销的结果：快照已读到别处的再次确认时，以快照为准，丢弃这次结果
+      if (savedElsewhere(current.current, save)) {
+        setItem(id, (item) =>
+          item.op && item.op.kind !== 'undone' && item.op.save.saveId === saveId
+            ? { edit: item.edit }
+            : item,
+        );
+        return 'superseded';
+      }
       // 撤销推进了草稿版本：重读没跟上时按回执给的版本再保存；分和理由照保存时的留着
       const restored = result.result.draftRestoration;
       const at = reads.current;
@@ -437,9 +476,14 @@ export function ReceiptPage({
     function retry() {
       markUnknown(true);
       void attempt().then((outcome) => {
+        if (outcome === 'success') return;
+        if (outcome === 'superseded') {
+          toast.show(copy.toast.undoSuperseded);
+          return;
+        }
         // 被拒（例如评价关系已撤权，服务端先鉴权再重放）证明不了之前那次没生效：
         // 改为请用户刷新回执看这件事现在的状态
-        if (outcome !== 'success') markUnknown(false, outcome === 'refused');
+        markUnknown(false, outcome === 'refused');
       });
     }
     retries.current.set(id, retry);
@@ -459,11 +503,15 @@ export function ReceiptPage({
           void reload();
           throw new Error('undo refused');
         }
-        if (outcome === 'unknown') {
-          // 不说「已撤销」也不说「撤销失败」：收起提示，交给卡片上的重试
+        if (outcome === 'superseded') {
+          close();
+          toast.show(copy.toast.undoSuperseded);
+        }
+        if (outcome === 'unknown' || outcome === 'lost') {
+          // 不说「已撤销」也不说「撤销失败」：收起提示，交给卡片上的重试；失效时页面顶部另写
           close();
           markUnknown(false);
-          toast.show(copy.toast.undoUnknown);
+          if (outcome === 'unknown') toast.show(copy.toast.undoUnknown);
         }
       },
     });

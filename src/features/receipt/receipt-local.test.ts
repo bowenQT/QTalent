@@ -6,6 +6,7 @@ import {
   emptyLocal,
   eventKey,
   reconcile,
+  savedElsewhere,
   type LocalState,
   type SavedRecord,
 } from './receipt-local';
@@ -49,6 +50,10 @@ const save: SavedRecord = {
   on: '09-03',
   saveId: 'save-1',
   events: eventKey([{ personId: 'demo-person', eventId: 'ev-1' }]),
+  receipt: {
+    revision: 2,
+    events: [{ personId: 'demo-person', eventId: 'ev-1' }],
+  },
 };
 const signed = { [save.events]: save };
 const withOp = (op: NonNullable<LocalState['items'][string]['op']>) => ({
@@ -126,5 +131,24 @@ describe('reconcile：只有能说明操作的成功读取才清掉它', () => {
       kind: 'settled',
       signed: null,
     });
+  });
+});
+
+describe('撤销结果到达时，快照是否已前进（复用 matchesSave）', () => {
+  it('快照里的已确认就是这次保存：没有前进，撤销结果采用', () => {
+    expect(savedElsewhere(snapshot('settled'), save)).toBe(false);
+  });
+  it('快照里还没有这件事的确认（读取没跟上或已回到待确认）：不算前进', () => {
+    expect(savedElsewhere(snapshot('pending'), save)).toBe(false);
+    expect(savedElsewhere(snapshot('absent'), save)).toBe(false);
+  });
+  it('别处又确认过：事件编号或版本对不上就算前进，撤销结果丢弃', () => {
+    expect(savedElsewhere(snapshot('settled', 'ev-2'), save)).toBe(true);
+    expect(
+      savedElsewhere(snapshot('settled'), {
+        ...save,
+        receipt: { ...save.receipt, revision: 1 },
+      }),
+    ).toBe(true);
   });
 });
