@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { TalentKind, TalentSource } from '../authz/talent';
 import type { StoredArrangeInput } from '../modules/records';
 import { sourceKey } from './source-key';
+import { intakeRows, type IntakeTable } from './talent-source-projection';
 
 const kinds = new Set<TalentKind>([
   'person',
@@ -19,7 +20,8 @@ interface ConfirmationProvenance {
   linkedSourceKeys: ReadonlySet<string>;
   versions: { id: string; originalId: string; contentDigest: string }[];
   originals: { id: string; kind: string }[];
-  inputs: StoredArrangeInput[];
+  /** The whole intake table as read by readIntakeTable, never a subset. */
+  intake: IntakeTable;
 }
 
 /** Internal to talent-source-projection: callers use completeTalentSources.
@@ -30,9 +32,10 @@ interface ConfirmationProvenance {
 export function confirmationSources(
   data: ConfirmationProvenance,
 ): TalentSource[] {
+  const inputs: readonly StoredArrangeInput[] = intakeRows(data.intake);
   return data.sources.map((source) => {
     const key = sourceKey(source);
-    const matches = data.inputs.filter(
+    const matches = inputs.filter(
       (input) =>
         (input.inputSource && sourceKey(input.inputSource) === key) ||
         input.sourceContexts.some((context) => sourceKey(context) === key),

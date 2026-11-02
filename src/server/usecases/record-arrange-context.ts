@@ -26,7 +26,7 @@ import {
   statements,
 } from '../modules/records';
 import type { StoredArrangeInput } from '../modules/records/arrange/input-state/schema';
-import type { IntakeTable } from './talent-source-projection';
+import { intakeRows, type IntakeTable } from './talent-source-projection';
 import { sourceKey } from './source-key';
 import type { BatchSnapshot } from '../modules/records/arrange/batch';
 import { loadEvaluationContext } from './evaluation-context';
@@ -198,7 +198,7 @@ export async function lockNativeTextFacts(
 ) {
   const native = requireNativeInput(input);
   const key = sourceKey(input.inputSource!);
-  const sharedContexts = intake.rows.flatMap((row) =>
+  const sharedContexts = intakeRows(intake).flatMap((row) =>
     row.sourceContexts.filter((context) => sourceKey(context) === key),
   );
   await tx
@@ -337,11 +337,10 @@ export async function lockNativeTextFacts(
         [
           ...new Set([
             native.evaluationNodeId,
-            ...[...input.sourceContexts, ...sharedContexts].flatMap(
-              (context) =>
-                context.subjects.flatMap(
-                  (subject) => subject.evaluationNodeId ?? [],
-                ),
+            ...[...input.sourceContexts, ...sharedContexts].flatMap((context) =>
+              context.subjects.flatMap(
+                (subject) => subject.evaluationNodeId ?? [],
+              ),
             ),
             ...lockedGraph.events
               .filter((event) => linked.includes(event.id))
@@ -442,7 +441,7 @@ export async function loadRecordBatchSnapshot(
     throw new NativeArrangeUnavailable('immutable_text_source_changed');
   // The same complete projection every reader uses: formal links plus every
   // intake on this fragment (superseded included). This input is one of them.
-  if (!intake.rows.some((row) => row.id === input.id))
+  if (!intakeRows(intake).some((row) => row.id === input.id))
     throw new NativeArrangeUnavailable('complete_source_graph_missing');
   const { completeTalentSources } = await import('./talent-source-projection');
   const graph = completeTalentSources({ ...actor, ...data, intake }).find(

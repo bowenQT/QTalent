@@ -26,15 +26,34 @@ export type RawTalentSourceData = Awaited<
   staffing: { projects: { id: string; cohortId: string | null }[] };
 };
 
-declare const intakeTableBrand: unique symbol;
-/** The whole arrange_inputs table, unfiltered. Only readIntakeTable (and the
- * test fixture below) produce one, so no caller can pass a filtered subset. */
-export type IntakeTable = {
-  readonly [intakeTableBrand]: true;
-  readonly rows: readonly StoredArrangeInput[];
-};
-const asIntakeTable = (rows: StoredArrangeInput[]) =>
-  ({ rows }) as unknown as IntakeTable;
+/** The whole arrange_inputs table, unfiltered. Only readIntakeTable creates one;
+ * it is registered in a module-private WeakSet, its rows are a frozen private
+ * copy, and intakeRows refuses anything not issued here. A spread copy or a
+ * hand-built `{ rows }` is not registered, so no caller can swap in a subset. */
+class IssuedIntakeTable {
+  readonly #rows: readonly StoredArrangeInput[];
+  constructor(rows: StoredArrangeInput[]) {
+    this.#rows = deepFreeze(structuredClone(rows));
+  }
+  get rows(): readonly StoredArrangeInput[] {
+    return this.#rows;
+  }
+}
+export type IntakeTable = IssuedIntakeTable;
+const issued = new WeakSet<object>();
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const item of Object.values(value)) deepFreeze(item);
+  }
+  return value;
+}
+/** The rows of a table issued by readIntakeTable; throws for anything else. */
+export function intakeRows(table: IntakeTable): readonly StoredArrangeInput[] {
+  if (!issued.has(table))
+    throw new Error('intake table was not read by readIntakeTable');
+  return table.rows;
+}
 
 /** Read every intake row: no creator, person, batch or superseded filter.
  * - 'snapshot': read-only paths inside the caller's own snapshot, no lock. Safe
@@ -51,7 +70,9 @@ export async function readIntakeTable(
   mode: 'snapshot' | 'locked' | 'locked-for-write',
 ): Promise<IntakeTable> {
   if (mode !== 'snapshot') await lockIntakeTable(tx, mode);
-  return asIntakeTable(await tx.select().from(arrangeInputs));
+  const table = new IssuedIntakeTable(await tx.select().from(arrangeInputs));
+  issued.add(table);
+  return table;
 }
 /** Take the intake lock alone, as a transaction's first lock (see readIntakeTable). */
 export async function lockIntakeTable(
@@ -63,11 +84,6 @@ export async function lockIntakeTable(
       ? sql`lock table ${arrangeInputs} in share mode`
       : sql`lock table ${arrangeInputs} in share row exclusive mode`,
   );
-}
-
-/** Unit-test fixtures only; production code must read the table. */
-export function intakeTableForTests(rows: StoredArrangeInput[]): IntakeTable {
-  return asIntakeTable(rows);
 }
 
 export type TalentSourceProjectionData = RawTalentSourceData & {
@@ -150,7 +166,7 @@ export function completeTalentSources(
     sources: rawTalentSourceGraph(data),
     versions: data.versions,
     originals: data.originals,
-    inputs: [...data.intake.rows],
+    intake: data.intake,
     linkedSourceKeys: new Set(
       [...data.eventSources, ...data.historical].map(sourceKey),
     ),
