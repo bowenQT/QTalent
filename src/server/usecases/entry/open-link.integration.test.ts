@@ -27,12 +27,22 @@ import { recordArrangeQueue } from '../../jobs/record-arrange';
 import { recordDraftBatches } from '../../modules/records/save-state/schema';
 import { openEntryLinkRequest } from './open-link';
 
-const mocks = vi.hoisted(() => ({ session: vi.fn() }));
-// Only the existing authentication interfaces are controlled; every adapter,
-// reader, permission and audit statement below is real code on real PG.
+const mocks = vi.hoisted(() => ({
+  session: vi.fn(),
+  db: undefined as unknown,
+}));
+// Only the existing authentication interfaces and the process database handle
+// are controlled; every adapter, reader, permission and audit statement below
+// is real code on real PG.
 vi.mock('../../access', () => ({ verifyAccessRequest: vi.fn() }));
-vi.mock('../../env', () => ({ getEnv: () => ({ ACCESS_ENFORCED: false }) }));
+vi.mock('../../env', () => ({
+  getEnv: () => ({ ACCESS_ENFORCED: false, APP_ENV: 'test' }),
+}));
 vi.mock('../../auth/index', () => ({ getSession: mocks.session }));
+vi.mock('../../db/client', async (original) => ({
+  ...(await original<typeof import('../../db/client')>()),
+  getDatabase: () => mocks.db,
+}));
 
 let c: Awaited<ReturnType<typeof nativeDatabase>>;
 beforeAll(async () => {
@@ -42,6 +52,7 @@ beforeAll(async () => {
       migrationsFolder: process.env.BOW_915_TEST_MIGRATIONS_DIR,
     });
   await seedNativeRules(c.db);
+  mocks.db = c.db;
 }, 30000);
 let boss: PgBoss | undefined;
 let started = false;
@@ -53,7 +64,8 @@ beforeEach(() => {
   mocks.session.mockReset();
 });
 const wallNow = () => new Date(wallAt);
-const expiresAt = new Date('2026-12-01T00:00:00Z');
+// The route reads the real wall clock, so sessions outlive any run date.
+const expiresAt = new Date('2099-01-01T00:00:00Z');
 
 async function setup() {
   const facts = await seedNativeCase(c.db);
@@ -202,6 +214,52 @@ it('opens the batch receipt and the demand on the find-people page for the curre
     status: 'ready',
     href: `/staffing?project=${f.projectId}&demand=${f.demandId}`,
   });
+  expect(await f.opens()).toEqual(
+    expect.arrayContaining([
+      {
+        resourceId: f.batch.batchId,
+        metadata: { channel: 'web', revision: f.batch.revision },
+      },
+      { resourceId: f.demandId, metadata: { channel: 'web', revision: 2 } },
+    ]),
+  );
+}, 15000);
+// H3: the real route handler, with its own clock, database handle and
+// never-enqueue batch reader, from GET /entry/open to the redirect.
+const routeGet = async (href: string) => {
+  const { GET } = await import('../../../app/entry/open/route');
+  return GET(
+    new Request('https://site.invalid' + href, {
+      headers: { cookie: 'synthetic=1' },
+    }),
+  );
+};
+it('GET /entry/open sends an anonymous opener to sign-in with a safe return link', async () => {
+  const f = await setup();
+  f.as(null);
+  const response = await routeGet(f.batchLink());
+  expect(response.status).toBe(302);
+  expect(response.headers.get('location')).toBe(
+    `/login?${new URLSearchParams({ returnTo: f.batchLink() })}`,
+  );
+  expect(response.headers.get('cache-control')).toBe('no-store, private');
+  expect(await f.opens()).toEqual([]);
+}, 15000);
+it('GET /entry/open redirects the owner to the real object pages and audits each open', async () => {
+  const f = await setup();
+  f.as(f.account);
+  const batch = await routeGet(f.batchLink());
+  expect(batch.status).toBe(302);
+  expect(batch.headers.get('location')).toBe(`/receipt?id=${f.batch.batchId}`);
+  const demand = await routeGet(f.demandLink());
+  expect(demand.status).toBe(302);
+  expect(demand.headers.get('location')).toBe(
+    `/staffing?project=${f.projectId}&demand=${f.demandId}`,
+  );
+  const stale = await routeGet(f.demandLink(1));
+  expect(stale.headers.get('location')).toBe(f.demandLink(2));
+  f.as(f.outsiderAccount);
+  expect((await routeGet(f.batchLink())).status).toBe(404);
   expect(await f.opens()).toEqual(
     expect.arrayContaining([
       {
