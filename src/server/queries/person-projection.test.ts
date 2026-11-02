@@ -284,14 +284,16 @@ describe('effective scores and conflicts', () => {
     const profile = spectrum(person);
     expect(profile.windowFrom).toBe('2025-07-01');
     expect(profile.scores.every((row) => row.eventId === 'event-0')).toBe(true);
+    // The old card is still readable, so the hint asks for concrete behavior.
     expect(profile.dimensions.find((row) => row.id === 'grit')).toMatchObject({
       state: 'insufficient',
-      missing: expect.any(String),
+      missing: '有记录，待补具体行为',
     });
+    // Potential core follows the prototype order, not the ID order.
     expect(profile.dimensions.map((row) => [row.id, row.group])).toEqual([
       ['prof', 'professional'],
-      ['grit', 'potential_core'],
       ['mot', 'potential_core'],
+      ['grit', 'potential_core'],
     ]);
     // Old scores stay on the cards.
     expect(
@@ -366,7 +368,10 @@ describe('timeline entries', () => {
     data.events[0].recorderId = 'ghost';
     const person = await profileOf(data);
     expect(person.timeline.status).toBe('empty');
-    expect(person.capabilityProfile.status).toBe('insufficient_evidence');
+    expect(person.capabilityProfile).toEqual({
+      status: 'insufficient_evidence',
+      reason: '待补已确认的事件',
+    });
   });
   it('adds self reports and classified history, orders newest first', async () => {
     const data = fixture();
@@ -586,6 +591,28 @@ describe('source detail', () => {
 });
 
 describe('strict projection', () => {
+  it('gives the mentor a hidden-record hint identical to no record at all', async () => {
+    const data = fixture('mentor');
+    data.statements[1].kind = 'management_observation';
+    const person = await profileOf(data);
+    expect(person.role).toBe('mentor');
+    expect(spectrum(person).dimensions.map((row) => row.id)).toEqual([
+      'prof',
+      'mot',
+      'grit',
+    ]);
+    // event-1 carries the only grit score and is hidden from the mentor.
+    expect(
+      spectrum(person).dimensions.find((row) => row.id === 'grit'),
+    ).toEqual({
+      id: 'grit',
+      label: expect.any(String),
+      group: 'potential_core',
+      state: 'insufficient',
+      missing: '待补受挫后如何反应的事件',
+    });
+    expect(JSON.stringify(person)).not.toContain('有记录');
+  });
   it('rejects a mentor response that carries management category content', async () => {
     const data = fixture('hr');
     data.statements[0].kind = 'management_observation';
