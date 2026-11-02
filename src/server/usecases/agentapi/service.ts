@@ -271,11 +271,6 @@ export function createAgentConversationService<C>(
         return {
           session: ledger.conversation.providerSessionId,
           userEventId: turn.userEventId!,
-          completed: ledger.tools
-            .filter(
-              (row) => row.operationId === operationId && row.state === 'sent',
-            )
-            .map((row) => row.eventId),
         };
       });
       if (snapshot.result !== undefined) return snapshot.result;
@@ -286,7 +281,14 @@ export function createAgentConversationService<C>(
           throw error instanceof AgentApiError ? error : safe(error);
         });
       try {
-        await guarded(identity, id, async (_tx, ledger) => {
+        // Replay against the ledger as it is after GET, under the session lock:
+        // a concurrent advance may have sent a tool result, or finished the
+        // turn, since this request took its snapshot.
+        const fresh = await guarded(identity, id, async (_tx, ledger) => {
+          const turn = ledger.turns.find(
+            (row) => row.operationId === operationId,
+          )!;
+          if (turn.state !== 'submitted') return { result: view(turn) };
           for (const tool of ledger.tools.filter(
             (row) => row.operationId === operationId,
           )) {
@@ -302,11 +304,20 @@ export function createAgentConversationService<C>(
             )
               throw new AgentSessionError('protocol');
           }
+          return {
+            completed: ledger.tools
+              .filter(
+                (row) =>
+                  row.operationId === operationId && row.state === 'sent',
+              )
+              .map((row) => row.eventId),
+          };
         });
+        if (fresh.result !== undefined) return fresh.result;
         const observed = inspectNativeTurn(
           events,
           snapshot.userEventId,
-          new Set(snapshot.completed),
+          new Set(fresh.completed),
         );
         if (observed.status === 'waiting')
           return guarded(identity, id, async () => ({ status: 'waiting' }));

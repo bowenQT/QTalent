@@ -432,6 +432,47 @@ describe('AgentAPI conversation orchestration (explicit transaction substitute)'
     expect(f.execute).toHaveBeenCalledTimes(1);
     expect(f.provider.send).toHaveBeenCalledTimes(2);
   });
+  it('replays a poll against the ledger after GET when a concurrent advance already sent the tool result', async () => {
+    const f = fixture();
+    await f.submit();
+    let release!: (events: NativeEvent[]) => void;
+    vi.mocked(f.provider.events)
+      .mockImplementationOnce(
+        () =>
+          new Promise<NativeEvent[]>((resolve) => {
+            release = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(toolEvents());
+    const slow = f.advance();
+    await vi.waitFor(() => expect(release).toBeDefined());
+    await expect(f.advance()).resolves.toEqual({ status: 'waiting' });
+    expect(f.row().tools[0]).toMatchObject({ state: 'sent' });
+    release([...toolEvents(), ...completeEvents.slice(1)]);
+    await expect(slow).resolves.toMatchObject({ status: 'complete' });
+    expect(f.row().conversation.state).toBe('active');
+    expect(f.execute).toHaveBeenCalledTimes(1);
+  });
+  it('returns the finished turn when a concurrent advance completed it during GET', async () => {
+    const f = fixture();
+    await f.submit();
+    let release!: (events: NativeEvent[]) => void;
+    vi.mocked(f.provider.events).mockImplementationOnce(
+      () =>
+        new Promise<NativeEvent[]>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const slow = f.advance();
+    await vi.waitFor(() => expect(release).toBeDefined());
+    await expect(f.advance()).resolves.toMatchObject({ status: 'complete' });
+    release(structuredClone(completeEvents));
+    await expect(slow).resolves.toMatchObject({
+      status: 'complete',
+      text: '演示建议，待人工核实。',
+    });
+    expect(f.row().conversation.state).toBe('active');
+  });
   it('does not resend a crashed sending tool receipt; completed tool history must stay identical', async () => {
     const f = fixture();
     await f.submit();
