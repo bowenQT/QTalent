@@ -14,6 +14,7 @@ import {
   fileState,
   formatLocation,
   heldEntries,
+  locationFor,
   isEdited,
   leadQuote,
   materialCount,
@@ -24,6 +25,7 @@ import {
   saveInput,
   saveKey,
   skippedEntries,
+  sourceLine,
   suggestedValues,
 } from './receipt-model';
 import type { ReceiptView } from './types';
@@ -91,6 +93,20 @@ describe('出处位置', () => {
     expect(materialLabel({ ...receipt, textMaterial: null }, 'text-v1')).toBe(
       '原件',
     );
+  });
+
+  it('这次写下的原话：出处只写「原话」，不拼段落；段落不是编号时不写「第…段」', () => {
+    // 手写原话的定位：服务端给的 paragraph 是 input，不是段落编号
+    const typed = {
+      fragmentId: 'f-text',
+      originalVersionId: 'text-v1',
+      location: { kind: 'document' as const, paragraph: 'input' },
+    };
+    expect(sourceLine(receipt, typed)).toBe('原话');
+    expect(locationFor(receipt, typed)).toBe('这次写下的');
+    expect(formatLocation(typed)).toBe('文中');
+    expect(sourceLine(receipt, refs.document)).not.toContain('原话');
+    expect(locationFor(receipt, refs.document)).toBe('第 2 段');
   });
 
   it('格式角标取扩展名，没有扩展名写「文件」', () => {
