@@ -20,8 +20,6 @@ export const copy = {
     attachPending: '添加附件待接通',
     submit: '整理成关键事件',
     submitting: '提交中…',
-    whoMissingLead: '这句话说的是谁？',
-    whoMissingRest: '在上面选一下，或在原话里写上名字',
     tooLong: (max: number) => `原话控制在 ${max} 字以内，再整理`,
     attachmentsKept: (n: number) => `已带上 ${n} 个附件`,
   },
@@ -32,7 +30,7 @@ export const copy = {
       '拆出情境、行为、影响',
       '对照锚点给涉及的维度打建议分',
     ],
-    queued: '已提交，排队整理',
+    queued: '已提交，整理中',
     kept: '原话已保留',
   },
   header: {
@@ -51,18 +49,46 @@ export const copy = {
     goneAction: '回到记一件事',
     draftGoneTitle: '这条记录已移除或超出你的查看范围',
   },
-  selection: {
-    title: '先选一下是谁',
-    peopleLabel: '人员',
-    projectLabel: '项目',
-    noProject: '单独记录',
-    submit: '按这个选择继续整理',
-    submitting: '提交中…',
-    saveBlocked: '先选一下是谁',
-    needOne: '至少选一位',
-    noneLead: '这句话说的是谁？',
-    noneRest: '在上面选一下，或在原话里写上名字',
-    writeName: '在原话里写上名字，再整理一次',
+  node: {
+    pending: {
+      title: '评价节点推导待接通',
+      text: '接通后在这里整理成关键事件，原话还在这里',
+    },
+    multiple: {
+      title: '这次记在哪个评价节点，待 HRBP 确认',
+      text: '所选人员同时在几个评价节点里。请 HRBP 确认后再整理，原话还在这里',
+    },
+    none: {
+      title: '所选人员待加入你负责的评价节点',
+      text: '请 HRBP 加入后再整理，原话还在这里',
+    },
+    unavailable: {
+      title: '评价节点这次读取中断',
+      text: '原话还在这里，稍后再点「整理成关键事件」',
+    },
+    pickPerson: {
+      title: '在「谁」里选一位同事，再整理',
+      text: '系统按这位同事所在的评价节点记录，原话还在这里',
+    },
+  },
+  handoff: {
+    many: {
+      title: '整理出几件事，到回执里逐件确认',
+      text: '每件事单独确认或改分，原话和整理结果都在回执里',
+    },
+    review: {
+      title: '有几处待核对，到回执里处理',
+      text: '核对完成后，在回执里逐件确认',
+    },
+    none: {
+      title: '整理结果在回执里',
+      text: '补充具体的行为和结果后，可以再整理一次',
+    },
+    confirmed: {
+      title: '这件事已确认，已进入档案',
+      text: '在回执里查看这次记录',
+    },
+    open: '打开回执',
   },
   sbi: {
     title: '标题',
@@ -127,11 +153,7 @@ export const copy = {
   },
   failure: {
     processing_failed: '整理中断了，原话还在',
-    dependency_unavailable: 'AI 服务暂时繁忙，原话还在，稍后再试',
-    input_changed: '原话已更新，请按新内容重新整理',
-    cancelled: '这次整理已取消',
-    commandFailed: '重新整理遇到问题，原话还在，稍后再试',
-    commandConflict: '这次整理刚刚有了新状态，请稍后再看',
+    all_materials_unusable: '这段原话待补充具体的人和事，补充后再整理',
   },
   offline: {
     start: '网络中断了，内容还在这里',
@@ -140,6 +162,7 @@ export const copy = {
   conflict: {
     title: '这条记录刚刚有了更新，你改的内容还在这里',
     savedAlready: '这条记录已经保存过',
+    draftGone: '这件事的最新状态在回执里，打开回执查看',
     copyLabel: '可复制的内容',
   },
   forbidden: {

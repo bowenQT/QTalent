@@ -1,6 +1,7 @@
 'use client';
 import { Icon } from '@/components/ui/Icon';
 import { copy } from './copy';
+import type { HandoffReason } from './batch-route';
 import { failureView, type FailureKind } from './errors';
 import type { Banner } from './record-flow';
 
@@ -124,43 +125,42 @@ export function BannerNotice({
       return <Notice>{banner.message}</Notice>;
     case 'saveProblems':
       return <Notice>{copy.banner.problems}</Notice>;
-    case 'who':
-      return null;
+    case 'node': {
+      const text =
+        banner.reason === 'pending' || banner.reason === 'unavailable'
+          ? copy.node[banner.reason]
+          : banner.picked
+            ? copy.node[banner.reason]
+            : copy.node.pickPerson;
+      return (
+        <Notice>
+          <b>{text.title}</b>
+          <div className="nt-muted">{text.text}</div>
+        </Notice>
+      );
+    }
   }
 }
 
-/** 整理失败或取消：写发生了什么和怎么办，不展示任何整理结果，也不把失败写成资料不足。 */
-export function FailurePanel({
-  failure,
-  canReorganize,
-  busy,
-  commandMessage,
-  onReorganize,
+/** 整理结果交给回执页：一句话说为什么，链接到这个批次的回执。 */
+export function HandoffPanel({
+  reason,
+  href,
   onEdit,
 }: {
-  failure: FailureKind;
-  canReorganize: boolean;
-  busy: boolean;
-  commandMessage: string | null;
-  onReorganize: () => void;
+  reason: HandoffReason;
+  href: string;
   onEdit: () => void;
 }) {
-  const view = failureView(failure);
+  const text = copy.handoff[reason];
   return (
     <Notice
       actions={
         <>
-          {view.reorganize && canReorganize ? (
-            <button
-              type="button"
-              className="n-btn n-btn--sm n-btn--ink"
-              disabled={busy}
-              onClick={onReorganize}
-            >
-              {copy.actions.reorganize}
-            </button>
-          ) : null}
-          {view.edit || !canReorganize ? (
+          <a className="n-btn n-btn--sm n-btn--ink" href={href}>
+            {copy.handoff.open}
+          </a>
+          {reason === 'none' ? (
             <button
               type="button"
               className="n-btn n-btn--sm n-btn--ghost"
@@ -172,8 +172,50 @@ export function FailurePanel({
         </>
       }
     >
+      <b>{text.title}</b>
+      <div className="nt-muted">{text.text}</div>
+    </Notice>
+  );
+}
+
+/** 整理失败：写发生了什么和怎么办，不展示任何整理结果，也不把失败写成资料不足。 */
+export function FailurePanel({
+  failure,
+  canReorganize,
+  onReorganize,
+  onEdit,
+}: {
+  failure: FailureKind;
+  /** 回执说可以重试、原话也还在时，才给「重新整理」（新的 operation_id）。 */
+  canReorganize: boolean;
+  onReorganize: () => void;
+  onEdit: () => void;
+}) {
+  const view = failureView(failure, canReorganize);
+  return (
+    <Notice
+      actions={
+        <>
+          {view.reorganize ? (
+            <button
+              type="button"
+              className="n-btn n-btn--sm n-btn--ink"
+              onClick={onReorganize}
+            >
+              {copy.actions.reorganize}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="n-btn n-btn--sm n-btn--ghost"
+            onClick={onEdit}
+          >
+            {copy.actions.back}
+          </button>
+        </>
+      }
+    >
       {view.message}
-      {commandMessage ? <div className="nt-muted">{commandMessage}</div> : null}
     </Notice>
   );
 }

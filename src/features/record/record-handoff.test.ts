@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BATCH_STASH_KEY,
   HANDOFF_KEY,
   INPUT_STASH_KEY,
   STASH_TTL_MS,
+  clearBatchStash,
   clearRecordInputStash,
+  restoreBatchInput,
   restoreInput,
+  stashBatchInput,
   stashInput,
   takeHandoff,
 } from './record-handoff';
@@ -115,6 +119,66 @@ describe('输入暂存', () => {
     };
     expect(() =>
       stashInput('acc-1', { text: 'x', personId: null }, NOW, full),
+    ).not.toThrow();
+  });
+});
+
+describe('批次原话', () => {
+  it('提交后按批次记下，刷新回来只认同一批次、同一账号、未超时', () => {
+    const store = memory();
+    stashBatchInput(
+      'acc-1',
+      'b-1',
+      { text: '原话', personId: 'p1' },
+      NOW,
+      store,
+    );
+    expect(restoreBatchInput('acc-1', 'b-1', NOW + 1000, store)).toEqual({
+      text: '原话',
+      personId: 'p1',
+    });
+    expect(restoreBatchInput('acc-1', 'b-2', NOW, store)).toBeNull();
+    expect(restoreBatchInput('acc-2', 'b-1', NOW, store)).toBeNull();
+    expect(
+      restoreBatchInput('acc-1', 'b-1', NOW + STASH_TTL_MS + 1, store),
+    ).toBeNull();
+    // 输入暂存不认带批次的那一份
+    expect(restoreInput('acc-1', NOW, store)).toBeNull();
+  });
+
+  it('保存后、退出登录时清掉；存储不可用时不报错', () => {
+    const store = memory();
+    stashBatchInput(
+      'acc-1',
+      'b-1',
+      { text: '原话', personId: null },
+      NOW,
+      store,
+    );
+    clearBatchStash(store);
+    expect(store.data.has(BATCH_STASH_KEY)).toBe(false);
+    stashBatchInput(
+      'acc-1',
+      'b-1',
+      { text: '原话', personId: null },
+      NOW,
+      store,
+    );
+    clearRecordInputStash(store);
+    expect(store.data.has(BATCH_STASH_KEY)).toBe(false);
+    expect(() =>
+      stashBatchInput('acc-1', 'b', { text: 'x', personId: null }, NOW, null),
+    ).not.toThrow();
+    expect(restoreBatchInput('acc-1', 'b', NOW, null)).toBeNull();
+    expect(() => clearBatchStash(null)).not.toThrow();
+    const full = {
+      ...memory(),
+      setItem: () => {
+        throw new Error('quota');
+      },
+    };
+    expect(() =>
+      stashBatchInput('acc-1', 'b', { text: 'x', personId: null }, NOW, full),
     ).not.toThrow();
   });
 });

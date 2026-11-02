@@ -12,19 +12,26 @@ import {
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/components/ui/Toast';
 import { copy } from './copy';
-import { HANDOFF_KEY, INPUT_STASH_KEY, stashInput } from './record-handoff';
 import {
+  BATCH_STASH_KEY,
+  HANDOFF_KEY,
+  INPUT_STASH_KEY,
+  stashBatchInput,
+  stashInput,
+} from './record-handoff';
+import {
+  batch,
   dimensions,
-  doneJob,
+  doneBatch,
   draft,
-  job,
+  NODE,
   people,
   receipt,
   TEXT,
   twoPeopleDraft,
 } from './record.fixtures';
 import { RecordPage, type RecordPageProps } from './RecordPage';
-import type { AnchorMap, RecordActions, RecordJob } from './types';
+import type { AnchorMap, RecordActions } from './types';
 
 const anchors: AnchorMap = {
   p1: {
@@ -53,6 +60,7 @@ function liveReceipt(at = Date.now()) {
 const ok = <T,>(result: T, replayed = false) =>
   Promise.resolve({ status: 'success' as const, replayed, result });
 
+type Mock = ReturnType<typeof vi.fn>;
 type Overrides = Omit<Partial<RecordPageProps>, 'actions'> & {
   actions?: Partial<RecordActions>;
 };
@@ -60,9 +68,12 @@ type Overrides = Omit<Partial<RecordPageProps>, 'actions'> & {
 function setup(over: Overrides = {}) {
   let n = 0;
   const actions = {
-    start: vi.fn(() => ok(job())),
-    selectPeople: vi.fn(() => ok(job({ jobId: 'job-2' }))),
-    openDraft: vi.fn(() => ok(draft)),
+    resolveNode: vi.fn(async () => ({
+      status: 'unique' as const,
+      evaluationNodeId: NODE,
+    })),
+    submit: vi.fn(() => ok(batch())),
+    readBatch: vi.fn(() => ok(doneBatch)),
     save: vi.fn(() => ok(liveReceipt())),
     undo: vi.fn(() =>
       ok({
@@ -74,22 +85,17 @@ function setup(over: Overrides = {}) {
         originalInput: null,
       }),
     ),
-    retryJob: vi.fn(),
     loadSource: vi.fn(),
     ...over.actions,
   } as unknown as RecordActions & {
-    start: ReturnType<typeof vi.fn>;
-    selectPeople: ReturnType<typeof vi.fn>;
-    openDraft: ReturnType<typeof vi.fn>;
-    save: ReturnType<typeof vi.fn>;
-    undo: ReturnType<typeof vi.fn>;
-    retryJob: ReturnType<typeof vi.fn>;
+    resolveNode: Mock;
+    submit: Mock;
+    readBatch: Mock;
+    save: Mock;
+    undo: Mock;
   };
-  const readJob =
-    (over.readJob as ReturnType<typeof vi.fn> | undefined) ??
-    vi.fn(async (): Promise<RecordJob> => doneJob);
   const loadAnchors = vi.fn(async () => anchors);
-  const onJobChange = vi.fn();
+  const onBatchChange = vi.fn();
   const props: RecordPageProps = {
     accountId: 'acc-1',
     accountName: '演示导师',
@@ -98,10 +104,9 @@ function setup(over: Overrides = {}) {
     projects: [{ id: 'proj-1', name: '演示项目', kind: 'project' }],
     dimensions,
     loadAnchors,
-    onJobChange,
+    onBatchChange,
     newId: () => `id-${++n}`,
     ...over,
-    readJob: readJob as unknown as RecordPageProps['readJob'],
     actions,
   };
   const view = render(
@@ -109,7 +114,7 @@ function setup(over: Overrides = {}) {
       <RecordPage {...props} />
     </ToastProvider>,
   );
-  return { actions, readJob, loadAnchors, onJobChange, view, props };
+  return { actions, loadAnchors, onBatchChange, view, props };
 }
 
 async function typeAndSubmit(text = TEXT) {
@@ -121,6 +126,11 @@ async function typeAndSubmit(text = TEXT) {
 const field = (name: string) => screen.findByRole('textbox', { name });
 const click = (name: string | RegExp) =>
   userEvent.click(screen.getByRole('button', { name }));
+const pick = (personId: string) =>
+  userEvent.selectOptions(
+    screen.getByRole('combobox', { name: copy.input.whoLabel }),
+    personId,
+  );
 
 beforeEach(() => {
   window.sessionStorage.clear();
@@ -137,47 +147,66 @@ afterEach(() => {
 });
 
 describe('输入与整理', () => {
-  it('空内容点主按钮：聚焦输入框，不提交', async () => {
+  it('空内容点主按钮：聚焦输入框，不推导、不提交', async () => {
     const { actions } = setup();
     await click(copy.input.submit);
-    expect(actions.start).not.toHaveBeenCalled();
+    expect(actions.resolveNode).not.toHaveBeenCalled();
+    expect(actions.submit).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(screen.getByRole('textbox'));
   });
 
-  it('写原话、选人、整理：提交契约入参，随后进入整理中并显示 3 步', async () => {
-    let resolveStart: (value: unknown) => void = () => undefined;
-    const { actions, onJobChange, view } = setup({
-      readJob: vi.fn(async () => job()),
+  it('写原话、选人、整理：先按所选人员推导节点，再提交 897 批次，随后进入整理中', async () => {
+    let resolveSubmit: (value: unknown) => void = () => undefined;
+    const { actions, onBatchChange, view } = setup({
       actions: {
-        start: vi.fn(
-          () => new Promise((resolve) => (resolveStart = resolve)),
+        readBatch: vi.fn(() => ok(batch())) as never,
+        submit: vi.fn(
+          () => new Promise((resolve) => (resolveSubmit = resolve)),
         ) as never,
       },
     });
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: copy.input.whoLabel }),
-      'p1',
-    );
+    await pick('p1');
     await typeAndSubmit(` ${TEXT} `);
-    expect(actions.start).toHaveBeenCalledWith({
-      operation_id: 'id-1',
-      text: TEXT,
-      attachmentIds: [],
-      personId: 'p1',
+    expect(actions.resolveNode).toHaveBeenCalledWith({
+      personIds: ['p1'],
       projectId: null,
     });
+    await waitFor(() =>
+      expect(actions.submit).toHaveBeenCalledWith({
+        operationId: 'id-1',
+        evaluationNodeId: NODE,
+        personIds: ['p1'],
+        projectId: null,
+        text: TEXT,
+        files: [],
+      }),
+    );
     // 请求在途：输入只读、按钮锁定
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).readOnly).toBe(
       true,
     );
     await act(async () =>
-      resolveStart({ status: 'success', replayed: false, result: job() }),
+      resolveSubmit({ status: 'success', replayed: false, result: batch() }),
     );
     expect(view.container.querySelectorAll('.n-trail__step')).toHaveLength(3);
     expect(screen.getByText(copy.trail.queued)).toBeTruthy();
-    expect(onJobChange).toHaveBeenCalledWith('job-1');
+    expect(onBatchChange).toHaveBeenCalledWith('batch-1');
     // 整理中不出现任何 SBI 与分数
     expect(screen.queryByRole('radio')).toBeNull();
+  });
+
+  it('「从原话里识别」：按空的人员推导，节点唯一时照常提交', async () => {
+    const { actions } = setup();
+    await typeAndSubmit();
+    expect(actions.resolveNode).toHaveBeenCalledWith({
+      personIds: [],
+      projectId: null,
+    });
+    await waitFor(() =>
+      expect(actions.submit.mock.calls[0]?.[0]).toMatchObject({
+        personIds: [],
+      }),
+    );
   });
 
   it('整理完成：SBI 可改，建议分始终是 AI 建议（未确认），资料不足不出数字', async () => {
@@ -190,26 +219,25 @@ describe('输入与整理', () => {
     expect(rows[1]?.getAttribute('data-state')).toBe('unknown');
     expect(screen.getByText(copy.score.insufficient)).toBeTruthy();
     expect(screen.getByText(copy.hint.pending(1))).toBeTruthy();
-    // 保存按钮的说明就是提示句：保存时一并确认建议分
     const described = screen
       .getByRole('button', { name: copy.actions.save })
       .getAttribute('aria-describedby');
     expect(document.getElementById(described ?? '')?.textContent).toBe(
       copy.hint.pending(1),
     );
-    // 确认前照原型写出锚点和原话引用
+    // 引用本页原话的照原型写成行内引文；原话一栏是本页写下的原话
     expect(rows[0]?.querySelector('.n-score__note')?.textContent).toBe(
       `${copy.score.anchorNote(3)}${copy.cite.inline}「独立完成」`,
     );
+    expect(view.container.textContent).toContain(TEXT);
     // 没有总分、百分比、排名
     expect(view.container.textContent).not.toMatch(/总分|%|排名/);
-    // 保存前没有调用保存
     expect(view.container.querySelector('.visually-hidden')?.textContent).toBe(
       copy.live.ready(1),
     );
   });
 
-  it('整理中显示的头部带人与小犇，完成后头部带姓名', async () => {
+  it('整理完成后头部带姓名与小犇', async () => {
     setup();
     await typeAndSubmit();
     await field(copy.sbi.title);
@@ -218,38 +246,75 @@ describe('输入与整理', () => {
   });
 
   it('提交断网：内容保留，提示可重试，重试复用同一个 operation_id', async () => {
-    const start = vi
+    const submit = vi
       .fn()
       .mockRejectedValueOnce(new Error('offline'))
-      .mockImplementation(() => ok(job()));
-    setup({ actions: { start: start as never } });
+      .mockImplementation(() => ok(batch()));
+    setup({ actions: { submit: submit as never } });
     await typeAndSubmit();
     expect(await screen.findByText(copy.offline.start)).toBeTruthy();
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
       TEXT,
     );
     await click(copy.banner.sendRetry);
-    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
-    expect(start.mock.calls[1]?.[0].operation_id).toBe(
-      start.mock.calls[0]?.[0].operation_id,
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
+    expect(submit.mock.calls[1]?.[0].operationId).toBe(
+      submit.mock.calls[0]?.[0].operationId,
     );
   });
 
-  it('内容变了重试换新的 operation_id', async () => {
-    const start = vi.fn().mockRejectedValue(new Error('offline'));
-    setup({ actions: { start: start as never } });
+  it('推导节点断网：内容保留，提示可重试', async () => {
+    const resolveNode = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ status: 'unique', evaluationNodeId: NODE });
+    const { actions } = setup({
+      actions: { resolveNode: resolveNode as never },
+    });
+    await typeAndSubmit();
+    expect(await screen.findByText(copy.offline.start)).toBeTruthy();
+    expect(actions.submit).not.toHaveBeenCalled();
+    await click(copy.banner.sendRetry);
+    await waitFor(() => expect(actions.submit).toHaveBeenCalledTimes(1));
+  });
+
+  it('服务端读不到节点：如实说暂时读不到，不提交，原话保留', async () => {
+    const { actions } = setup({
+      actions: {
+        resolveNode: vi.fn(async () => ({ status: 'unavailable' as const })),
+      },
+    });
+    await typeAndSubmit();
+    expect(await screen.findByText(copy.node.unavailable.title)).toBeTruthy();
+    expect(actions.submit).not.toHaveBeenCalled();
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).not.toBe(
+      '',
+    );
+  });
+
+  it('内容变了或节点变了，重试换新的 operation_id', async () => {
+    const submit = vi.fn().mockRejectedValue(new Error('offline'));
+    const resolveNode = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 'unique', evaluationNodeId: NODE })
+      .mockResolvedValueOnce({ status: 'unique', evaluationNodeId: NODE })
+      .mockResolvedValue({ status: 'unique', evaluationNodeId: 'node-2' });
+    setup({
+      actions: { submit: submit as never, resolveNode: resolveNode as never },
+    });
     await typeAndSubmit();
     await screen.findByText(copy.offline.start);
     await userEvent.type(screen.getByRole('textbox'), '补一句');
     await click(copy.input.submit);
-    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
-    expect(start.mock.calls[1]?.[0].operation_id).not.toBe(
-      start.mock.calls[0]?.[0].operation_id,
-    );
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
+    await click(copy.banner.sendRetry);
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(3));
+    const ids = submit.mock.calls.map((call) => call[0].operationId);
+    expect(new Set(ids).size).toBe(3);
   });
 
   it('服务端拒绝：回到输入，保留原话并说明', async () => {
-    const start = vi
+    const submit = vi
       .fn()
       .mockResolvedValueOnce({ status: 'forbidden', message: '范围已调整' })
       .mockResolvedValueOnce({
@@ -262,7 +327,7 @@ describe('输入与整理', () => {
         message: '这条已在整理',
         input: {},
       });
-    setup({ actions: { start: start as never } });
+    setup({ actions: { submit: submit as never } });
     await typeAndSubmit();
     expect(await screen.findByText(/范围已调整/)).toBeTruthy();
     expect(screen.getByText(copy.forbidden.title)).toBeTruthy();
@@ -270,23 +335,6 @@ describe('输入与整理', () => {
     expect(await screen.findByText(copy.banner.startRefused)).toBeTruthy();
     await click(copy.input.submit);
     expect(await screen.findByText('这条已在整理')).toBeTruthy();
-    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
-      TEXT,
-    );
-  });
-
-  it('识别不到人：回到输入并提醒选人，焦点交给「谁」', async () => {
-    const none = {
-      ...doneJob,
-      result: { ...draft, people: [{ state: 'none' as const }] },
-    };
-    const { readJob } = setup();
-    readJob.mockResolvedValue(none);
-    await typeAndSubmit();
-    expect(await screen.findByText(copy.input.whoMissingLead)).toBeTruthy();
-    expect(document.activeElement).toBe(
-      screen.getByRole('combobox', { name: copy.input.whoLabel }),
-    );
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
       TEXT,
     );
@@ -303,272 +351,171 @@ describe('输入与整理', () => {
       key: 'Enter',
       ctrlKey: true,
     });
-    expect(actions.start).not.toHaveBeenCalled();
+    expect(actions.submit).not.toHaveBeenCalled();
   });
 });
 
-describe('整理失败与重试', () => {
-  const failed = (
-    canRetry: boolean,
-    code: 'processing_failed' | 'dependency_unavailable' = 'processing_failed',
-  ) =>
-    job({
-      status: 'failed',
-      revision: 4,
-      canRetry,
-      error: { code, message: '内部错误' },
+describe('评价节点由服务端推导', () => {
+  it('选了人但节点有多个或没有：写明原因，不提交，原话保留', async () => {
+    const resolveNode = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 'multiple' })
+      .mockResolvedValueOnce({ status: 'none' });
+    const { actions } = setup({
+      actions: { resolveNode: resolveNode as never },
     });
+    await pick('p1');
+    await typeAndSubmit();
+    expect(await screen.findByText(copy.node.multiple.title)).toBeTruthy();
+    await click(copy.input.submit);
+    expect(await screen.findByText(copy.node.none.title)).toBeTruthy();
+    expect(actions.submit).not.toHaveBeenCalled();
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
+      TEXT,
+    );
+    // 改了输入，提示消失
+    await userEvent.type(screen.getByRole('textbox'), '。');
+    expect(screen.queryByText(copy.node.none.title)).toBeNull();
+  });
 
+  it('没选人且节点不唯一：提示先在「谁」里选人，焦点交给「谁」', async () => {
+    const { actions } = setup({
+      actions: {
+        resolveNode: vi.fn(async () => ({ status: 'multiple' })) as never,
+      },
+    });
+    await typeAndSubmit();
+    expect(await screen.findByText(copy.node.pickPerson.title)).toBeTruthy();
+    expect(document.activeElement).toBe(
+      screen.getByRole('combobox', { name: copy.input.whoLabel }),
+    );
+    expect(actions.submit).not.toHaveBeenCalled();
+  });
+
+  it('推导入口待接通：写明待接通，不提交', async () => {
+    const { actions } = setup({ actions: { resolveNode: null } });
+    await typeAndSubmit();
+    expect(await screen.findByText(copy.node.pending.title)).toBeTruthy();
+    expect(actions.submit).not.toHaveBeenCalled();
+  });
+});
+
+describe('多件事或有核对项：交给回执页', () => {
+  it.each([
+    ['many', batch({ drafts: [draft, { ...twoPeopleDraft, draftId: 'd-2' }] })],
+    ['review', batch({ drafts: [], review: true })],
+    ['none', batch({ drafts: [] })],
+  ] as const)(
+    '%s：一句话说明，链接到这个批次的回执',
+    async (reason, receipt) => {
+      setup({ actions: { readBatch: vi.fn(() => ok(receipt)) as never } });
+      await typeAndSubmit();
+      expect(await screen.findByText(copy.handoff[reason].title)).toBeTruthy();
+      expect(
+        screen
+          .getByRole('link', { name: copy.handoff.open })
+          .getAttribute('href'),
+      ).toBe('/receipt?id=batch-1');
+      // 本页不做多件确认：没有分数和保存按钮
+      expect(screen.queryByRole('radio')).toBeNull();
+      expect(
+        screen.queryByRole('button', { name: copy.actions.save }),
+      ).toBeNull();
+    },
+  );
+});
+
+describe('整理失败与重新整理', () => {
   it('失败：不渲染任何结果，原话保留，不把失败写成资料不足', async () => {
-    const { readJob, view } = setup();
-    readJob.mockResolvedValue(failed(true));
+    const { view } = setup({
+      actions: {
+        readBatch: vi.fn(() => ok(batch({ status: 'failed' }))) as never,
+      },
+    });
     await typeAndSubmit();
     expect(
       await screen.findByText(copy.failure.processing_failed),
     ).toBeTruthy();
     expect(screen.queryByRole('radio')).toBeNull();
     expect(screen.queryByText(copy.score.insufficient)).toBeNull();
-    expect(screen.queryByText('内部错误')).toBeNull();
+    expect(screen.queryByText('整理中断')).toBeNull();
     expect(
       view.container.querySelector('li[data-state="failed"]'),
     ).toBeTruthy();
     expect(screen.getByText(copy.trail.kept)).toBeTruthy();
   });
 
-  it('可重试：带独立 operationId 与 expectedRevision，成功后唤醒订阅', async () => {
-    const retryJob = vi.fn(async () => ({
-      status: 'success' as const,
-      snapshot: job({ revision: 5, status: 'queued' }),
-    }));
-    const { readJob } = setup({ actions: { retryJob: retryJob as never } });
-    readJob
-      .mockResolvedValueOnce(failed(true))
-      .mockResolvedValue({ ...doneJob, revision: 6 });
+  it('可以重试：用同一原话提交新批次（新 operation_id）', async () => {
+    const readBatch = vi
+      .fn()
+      .mockImplementationOnce(() => ok(batch({ status: 'failed' })))
+      .mockImplementation(() => ok(batch({ drafts: [draft], batchId: 'b-2' })));
+    const submit = vi
+      .fn()
+      .mockImplementationOnce(() => ok(batch()))
+      .mockImplementation(() => ok(batch({ batchId: 'b-2' })));
+    setup({
+      actions: { readBatch: readBatch as never, submit: submit as never },
+    });
     await typeAndSubmit();
     await userEvent.click(
       await screen.findByRole('button', { name: copy.actions.reorganize }),
     );
-    await waitFor(() => expect(retryJob).toHaveBeenCalledTimes(1));
-    const command = retryJob.mock.calls[0] as unknown as [
-      Record<string, unknown>,
-    ];
-    expect(command[0]).toMatchObject({
-      jobId: 'job-1',
-      action: 'retry',
-      expectedRevision: 4,
-    });
-    expect(typeof command[0]?.operationId).toBe('string');
-    // 命令成功后订阅被唤醒并读到结果
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
+    expect(submit.mock.calls[1]?.[0].operationId).not.toBe(
+      submit.mock.calls[0]?.[0].operationId,
+    );
+    expect(submit.mock.calls[1]?.[0].text).toBe(TEXT);
     expect(await field(copy.sbi.title)).toBeTruthy();
   });
 
-  it('重试命令被拒绝：按状态给通用说明，原话保留，失败面板还在', async () => {
-    const retryJob = vi
-      .fn()
-      .mockResolvedValueOnce({ status: 'conflict' })
-      .mockResolvedValueOnce({ status: 'unavailable' })
-      .mockRejectedValueOnce(new Error('offline'));
-    const { readJob } = setup({ actions: { retryJob: retryJob as never } });
-    readJob.mockResolvedValue(failed(true));
-    await typeAndSubmit();
-    await userEvent.click(
-      await screen.findByRole('button', { name: copy.actions.reorganize }),
-    );
-    expect(await screen.findByText(copy.failure.commandConflict)).toBeTruthy();
-    await click(copy.actions.reorganize);
-    expect(await screen.findByText(copy.failure.commandFailed)).toBeTruthy();
-    await click(copy.actions.reorganize);
-    await waitFor(() => expect(retryJob).toHaveBeenCalledTimes(3));
-    // 同一任务版本的重试复用同一个 operationId
-    const ids = retryJob.mock.calls.map(
-      (call) => (call as unknown as [{ operationId: string }])[0].operationId,
-    );
-    expect(new Set(ids).size).toBe(1);
-    expect(screen.getByText(copy.failure.processing_failed)).toBeTruthy();
-  });
-
-  it('不能原任务重试时，用同一原话发起新整理（新 operation_id）', async () => {
-    const { actions, readJob } = setup();
-    readJob.mockResolvedValue(failed(false, 'dependency_unavailable'));
-    await typeAndSubmit();
-    expect(
-      await screen.findByText(copy.failure.dependency_unavailable),
-    ).toBeTruthy();
-    await click(copy.actions.reorganize);
-    await waitFor(() => expect(actions.start).toHaveBeenCalledTimes(2));
-    const [first, second] = actions.start.mock.calls.map(
-      (call) =>
-        (call as unknown as [{ operation_id: string; text: string }])[0],
-    );
-    expect(second?.operation_id).not.toBe(first?.operation_id);
-    expect(second?.text).toBe(first?.text);
-  });
-
-  it('改原话：回到输入并保留原话', async () => {
-    const { readJob } = setup();
-    readJob.mockResolvedValue(failed(true));
+  it('不能重试时只能改原话，回到输入并保留原话', async () => {
+    setup({
+      actions: {
+        readBatch: vi.fn(() =>
+          ok(batch({ status: 'failed', retryable: false })),
+        ) as never,
+      },
+    });
     await typeAndSubmit();
     await screen.findByText(copy.failure.processing_failed);
+    expect(
+      screen.queryByRole('button', { name: copy.actions.reorganize }),
+    ).toBeNull();
     await click(copy.actions.back);
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
       TEXT,
     );
   });
-
-  it('已取消只能改原话', async () => {
-    const { readJob } = setup();
-    readJob.mockResolvedValue(job({ status: 'cancelled' }));
-    await typeAndSubmit();
-    expect(await screen.findByText(copy.failure.cancelled)).toBeTruthy();
-    expect(
-      screen.queryByRole('button', { name: copy.actions.reorganize }),
-    ).toBeNull();
-  });
 });
 
 describe('连接状态', () => {
-  it('轮询失败：保留进度并提示，不当成失败', async () => {
-    const { readJob } = setup();
-    readJob
-      .mockResolvedValueOnce(job({ status: 'running' }))
-      .mockRejectedValue(new Error('offline'));
+  it('读进度失败：保留进度并提示，不当成失败，恢复后继续', async () => {
+    const readBatch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockImplementation(() => ok(doneBatch));
+    setup({ actions: { readBatch: readBatch as never } });
     await typeAndSubmit();
-    await screen.findByText(copy.trail.title);
-    window.dispatchEvent(new Event('online'));
     expect(await screen.findByText(copy.connection.lost)).toBeTruthy();
     expect(screen.queryByText(copy.failure.processing_failed)).toBeNull();
+    window.dispatchEvent(new Event('online'));
+    expect(await field(copy.sbi.title)).toBeTruthy();
   });
 
-  it('任务已不可查看：整页说明，可回到记一件事', async () => {
-    const { JobReadError } = await import('@/lib/job-subscription');
-    const { readJob } = setup();
-    readJob.mockRejectedValue(new JobReadError(404));
+  it('批次已不可查看：整页说明，可回到记一件事', async () => {
+    setup({
+      actions: {
+        readBatch: vi.fn(async () => ({
+          status: 'not_found',
+          message: '批次不存在或当前不可见',
+        })) as never,
+      },
+    });
     await typeAndSubmit();
     expect(await screen.findByText(copy.connection.goneTitle)).toBeTruthy();
     await click(copy.connection.goneAction);
     expect(screen.getByRole('textbox')).toBeTruthy();
-  });
-});
-
-describe('选人与选项目', () => {
-  const selecting = job({
-    status: 'awaiting_manual',
-    result: {
-      state: 'selection_required',
-      draftId: 'draft-1',
-      inputVersion: 'v7',
-      originalInput: draft.originalInput,
-      people: [
-        {
-          state: 'needs_selection',
-          candidates: [
-            { id: 'p1', label: '演示甲' },
-            { id: 'p2', label: '演示乙' },
-          ],
-          reason: '这个名字对应两位同事',
-        },
-      ],
-      project: { state: 'none' },
-    },
-  });
-
-  it('选定后提交，随后由新任务接管', async () => {
-    const { actions, readJob, onJobChange } = setup();
-    readJob.mockImplementation(async () => selecting);
-    await typeAndSubmit();
-    expect(await screen.findByText('这个名字对应两位同事')).toBeTruthy();
-    await userEvent.click(screen.getByLabelText('演示乙'));
-    readJob.mockImplementation(async () => doneJob);
-    await click(copy.selection.submit);
-    expect(actions.selectPeople).toHaveBeenCalledWith({
-      operation_id: 'id-2',
-      draftId: 'draft-1',
-      expected_input_version: 'v7',
-      personIds: ['p2'],
-      projectId: null,
-    });
-    await waitFor(() => expect(onJobChange).toHaveBeenCalledWith('job-2'));
-  });
-
-  it('候选都不是原话说的人：改原话回到输入，原话还在', async () => {
-    const { readJob } = setup();
-    readJob.mockImplementation(async () => selecting);
-    await typeAndSubmit();
-    expect(await screen.findByText('这个名字对应两位同事')).toBeTruthy();
-    await click(copy.actions.back);
-    const field = screen.getByRole('textbox') as HTMLTextAreaElement;
-    expect(field.value).toBe(TEXT);
-    expect(screen.queryByText('这个名字对应两位同事')).toBeNull();
-  });
-
-  it('提交选择断网：仍停在待选择，选择保留', async () => {
-    const selectPeople = vi.fn().mockRejectedValue(new Error('offline'));
-    const { readJob } = setup({
-      actions: { selectPeople: selectPeople as never },
-    });
-    readJob.mockImplementation(async () => selecting);
-    await typeAndSubmit();
-    await userEvent.click(await screen.findByLabelText('演示甲'));
-    await click(copy.selection.submit);
-    expect(await screen.findByText(copy.offline.start)).toBeTruthy();
-    expect((screen.getByLabelText('演示甲') as HTMLInputElement).checked).toBe(
-      true,
-    );
-  });
-
-  it('提交选择被拒绝：说明原因', async () => {
-    const selectPeople = vi
-      .fn()
-      .mockResolvedValueOnce({
-        status: 'conflict',
-        message: '候选刚刚变化',
-        input: {},
-      })
-      .mockResolvedValueOnce({
-        status: 'validation_error',
-        fieldErrors: {},
-        input: {},
-      });
-    const { readJob } = setup({
-      actions: { selectPeople: selectPeople as never },
-    });
-    readJob.mockImplementation(async () => selecting);
-    await typeAndSubmit();
-    await userEvent.click(await screen.findByLabelText('演示甲'));
-    await click(copy.selection.submit);
-    expect(await screen.findByText('候选刚刚变化')).toBeTruthy();
-    await click(copy.selection.submit);
-    expect(await screen.findByText(copy.banner.startRefused)).toBeTruthy();
-  });
-
-  it('草稿里还有待选择的人：先选，选定前不能保存', async () => {
-    const pending = {
-      ...doneJob,
-      result: {
-        ...draft,
-        people: [
-          {
-            state: 'needs_selection' as const,
-            candidates: [{ id: 'p1', label: '演示甲' }],
-            reason: '重名',
-          },
-        ],
-      },
-    };
-    const { readJob } = setup();
-    readJob.mockResolvedValue(pending);
-    await typeAndSubmit();
-    expect(await screen.findByText('重名')).toBeTruthy();
-    expect(
-      (
-        screen.getByRole('button', {
-          name: copy.actions.save,
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-    expect(
-      screen.getAllByText(copy.selection.saveBlocked).length,
-    ).toBeGreaterThan(0);
   });
 });
 
@@ -735,18 +682,26 @@ describe('确认、改分与保存', () => {
       message: '别处刚保存过',
       input: {},
     });
-    const openDraft = vi
+    const readBatch = vi
       .fn()
+      .mockImplementationOnce(() => ok(doneBatch))
       .mockRejectedValueOnce(new Error('offline'))
       .mockImplementation(() =>
-        ok({
-          ...draft,
-          revision: 2,
-          sbi: { ...draft.sbi, title: '最新的标题' },
-        }),
+        ok(
+          batch({
+            revision: 5,
+            drafts: [
+              {
+                ...draft,
+                revision: 2,
+                sbi: { ...draft.sbi, title: '最新的标题' },
+              },
+            ],
+          }),
+        ),
       );
     await toReview({
-      actions: { save: save as never, openDraft: openDraft as never },
+      actions: { save: save as never, readBatch: readBatch as never },
     });
     const behavior = screen.getByRole('textbox', { name: copy.sbi.behavior });
     behavior.textContent = '我改过的行为';
@@ -761,7 +716,7 @@ describe('确认、改分与保存', () => {
     await userEvent.click(
       within(dialog).getByRole('button', { name: copy.actions.keepEditing }),
     );
-    expect(openDraft).not.toHaveBeenCalled();
+    expect(readBatch).toHaveBeenCalledTimes(1);
     await click(copy.actions.loadLatest);
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', {
@@ -781,7 +736,7 @@ describe('确认、改分与保存', () => {
         screen.getByRole('textbox', { name: copy.sbi.title }).textContent,
       ).toBe('最新的标题'),
     );
-    expect(openDraft).toHaveBeenCalledWith({ draftId: 'draft-1' });
+    expect(readBatch).toHaveBeenLastCalledWith({ batchId: 'batch-1' });
   });
 
   it('载入最新版本被服务端拒绝时说明原因', async () => {
@@ -790,20 +745,27 @@ describe('确认、改分与保存', () => {
       message: '别处刚保存过',
       input: {},
     });
-    const openDraft = vi
+    const readBatch = vi
       .fn()
+      .mockImplementationOnce(() => ok(doneBatch))
       .mockResolvedValueOnce({ status: 'not_found', message: '这条记录已移除' })
       .mockResolvedValueOnce({
         status: 'validation_error',
         fieldErrors: {},
         input: {},
-      });
+      })
+      // 这件事已不在待确认里（别处已确认）：如实说明，指向回执
+      .mockImplementationOnce(() => ok(batch({ drafts: [], confirmed: 1 })));
     await toReview({
-      actions: { save: save as never, openDraft: openDraft as never },
+      actions: { save: save as never, readBatch: readBatch as never },
     });
     await click(copy.actions.save);
     await screen.findByRole('button', { name: copy.actions.loadLatest });
-    for (const expected of ['这条记录已移除', copy.banner.loadFailed]) {
+    for (const expected of [
+      '这条记录已移除',
+      copy.banner.loadFailed,
+      copy.conflict.draftGone,
+    ]) {
       await click(copy.actions.loadLatest);
       await userEvent.click(
         within(await screen.findByRole('dialog')).getByRole('button', {
@@ -837,15 +799,28 @@ describe('确认、改分与保存', () => {
   });
 
   it('草稿本身不合契约（版本号无效）时给整体提示，不发请求', async () => {
-    const { actions } = setup({ entry: { draft: { ...draft, revision: 0 } } });
+    const broken = {
+      ...doneBatch,
+      draftSet: { ...doneBatch.draftSet!, drafts: [{ ...draft, revision: 0 }] },
+    };
+    const { actions } = setup({
+      actions: { readBatch: vi.fn(() => ok(broken)) as never },
+    });
+    await typeAndSubmit();
+    await field(copy.sbi.title);
     await click(copy.actions.save);
     expect(await screen.findByText(copy.banner.problems)).toBeTruthy();
     expect(actions.save).not.toHaveBeenCalled();
   });
 
   it('多人记录：分别打分，一次保存全部进入决定', async () => {
-    const { readJob, actions } = setup();
-    readJob.mockResolvedValue({ ...doneJob, result: twoPeopleDraft });
+    const { actions } = setup({
+      actions: {
+        readBatch: vi.fn(() =>
+          ok(batch({ drafts: [twoPeopleDraft] })),
+        ) as never,
+      },
+    });
     await typeAndSubmit();
     await field(copy.sbi.title);
     expect(screen.getByRole('group', { name: '演示乙' })).toBeTruthy();
@@ -998,8 +973,8 @@ describe('进入方式', () => {
       }),
     );
     const { actions } = setup({ entry: { handoff: true } });
-    await waitFor(() => expect(actions.start).toHaveBeenCalled());
-    expect(actions.start.mock.calls[0]?.[0]).toMatchObject({
+    await waitFor(() => expect(actions.submit).toHaveBeenCalled());
+    expect(actions.submit.mock.calls[0]?.[0]).toMatchObject({
       text: '工作台带来的原话',
     });
     expect(window.sessionStorage.getItem(HANDOFF_KEY)).toBeNull();
@@ -1016,34 +991,31 @@ describe('进入方式', () => {
     );
     const { actions } = setup({ entry: { handoff: true } });
     await new Promise((resolve) => setTimeout(resolve, 400));
-    expect(actions.start).not.toHaveBeenCalled();
+    expect(actions.submit).not.toHaveBeenCalled();
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('');
     expect(window.sessionStorage.getItem(HANDOFF_KEY)).toBeNull();
   });
 
-  it('带草稿进入（长任务整理出的待确认事件）：直接待确认，不再订阅任务', async () => {
-    const { readJob } = setup({ entry: { draft } });
+  it('带批次 id 进入（刷新恢复）：继续读进度，原话从同一批次的暂存恢复；批次 id 未变不重复通知', async () => {
+    stashBatchInput('acc-1', 'batch-1', { text: TEXT, personId: 'p1' });
+    const { actions, onBatchChange, view } = setup({
+      entry: { batchId: 'batch-1' },
+    });
     expect(await field(copy.sbi.title)).toBeTruthy();
-    expect(readJob).not.toHaveBeenCalled();
+    expect(actions.readBatch).toHaveBeenCalledWith({ batchId: 'batch-1' });
+    expect(onBatchChange).not.toHaveBeenCalled();
+    expect(view.container.textContent).toContain(TEXT);
   });
 
-  it('带任务 id 进入（刷新恢复）：重新订阅，完成后待确认；任务 id 未变不重复通知', async () => {
-    const { readJob, onJobChange } = setup({ entry: { jobId: 'job-1' } });
-    expect(await field(copy.sbi.title)).toBeTruthy();
-    expect(readJob).toHaveBeenCalled();
-    expect(onJobChange).not.toHaveBeenCalled();
-  });
-
-  it('刷新恢复时没有原话来源：失败后只能改原话，不能重新整理', async () => {
+  it('刷新恢复时别的批次的暂存不认：失败后只能改原话', async () => {
+    stashBatchInput('acc-1', 'other', { text: '别的原话', personId: null });
     setup({
-      entry: { jobId: 'job-1' },
-      readJob: vi.fn(async () =>
-        job({
-          status: 'failed',
-          canRetry: false,
-          error: { code: 'processing_failed', message: 'x' },
-        }),
-      ),
+      entry: { batchId: 'batch-1' },
+      actions: {
+        readBatch: vi.fn(() =>
+          ok(batch({ status: 'failed', retryable: true })),
+        ) as never,
+      },
     });
     expect(
       await screen.findByText(copy.failure.processing_failed),
@@ -1055,17 +1027,29 @@ describe('进入方式', () => {
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('');
   });
 
-  it('回到输入或撤销后，URL 里的任务 id 随之清除', async () => {
-    const { onJobChange } = setup();
+  it('刷新恢复时这件事已确认：指向回执', async () => {
+    setup({
+      entry: { batchId: 'batch-1' },
+      actions: {
+        readBatch: vi.fn(() =>
+          ok(batch({ drafts: [], confirmed: 1 })),
+        ) as never,
+      },
+    });
+    expect(await screen.findByText(copy.handoff.confirmed.title)).toBeTruthy();
+  });
+
+  it('回到输入后，URL 里的批次 id 随之清除', async () => {
+    const { onBatchChange } = setup();
     await typeAndSubmit();
     await field(copy.sbi.title);
     await click(copy.actions.back);
-    await waitFor(() => expect(onJobChange).toHaveBeenLastCalledWith(null));
+    await waitFor(() => expect(onBatchChange).toHaveBeenLastCalledWith(null));
   });
 });
 
 describe('未保存内容的保护（输入暂存）', () => {
-  it('输入防抖写入会话暂存；开始整理后删除', async () => {
+  it('输入防抖写入会话暂存；提交后改记在这个批次下', async () => {
     setup();
     await userEvent.type(screen.getByRole('textbox'), '写到一半');
     await waitFor(() =>
@@ -1078,7 +1062,16 @@ describe('未保存内容的保护（输入暂存）', () => {
       text: '写到一半',
     });
     await click(copy.input.submit);
-    expect(window.sessionStorage.getItem(INPUT_STASH_KEY)).toBeNull();
+    await waitFor(() =>
+      expect(window.sessionStorage.getItem(INPUT_STASH_KEY)).toBeNull(),
+    );
+    expect(
+      JSON.parse(window.sessionStorage.getItem(BATCH_STASH_KEY)!),
+    ).toMatchObject({
+      accountId: 'acc-1',
+      batchId: 'batch-1',
+      text: '写到一半',
+    });
   });
 
   it('回到本页时恢复上次写到一半的原话和人员；换账号不恢复', async () => {
@@ -1116,6 +1109,7 @@ describe('未保存内容的保护（输入暂存）', () => {
     await click(copy.actions.save);
     await screen.findByText(/刚刚保存到/);
     expect(window.sessionStorage.getItem(INPUT_STASH_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(BATCH_STASH_KEY)).toBeNull();
   });
 
   it('有未保存内容时硬离开会提示，没有时不拦', async () => {
@@ -1186,12 +1180,20 @@ describe('锚点面板与引用', () => {
   });
 
   it('只有资料不足的草稿不读取锚点', async () => {
-    const { readJob, loadAnchors } = setup();
-    readJob.mockResolvedValue({
-      ...doneJob,
-      result: {
-        ...draft,
-        scores: draft.scores.filter((s) => s.state === 'unknown'),
+    const { loadAnchors } = setup({
+      actions: {
+        readBatch: vi.fn(() =>
+          ok(
+            batch({
+              drafts: [
+                {
+                  ...draft,
+                  scores: draft.scores.filter((s) => s.state === 'unknown'),
+                },
+              ],
+            }),
+          ),
+        ) as never,
       },
     });
     await typeAndSubmit();
@@ -1230,10 +1232,13 @@ describe('锚点面板与引用', () => {
   });
 
   it('演示数据带「演示」徽标；项目徽标取自选项', async () => {
-    const { readJob } = setup({ demo: true });
-    readJob.mockResolvedValue({
-      ...doneJob,
-      result: { ...draft, project: { state: 'resolved', id: 'proj-1' } },
+    setup({
+      demo: true,
+      actions: {
+        readBatch: vi.fn(() =>
+          ok(batch({ drafts: [{ ...draft, projectId: 'proj-1' }] })),
+        ) as never,
+      },
     });
     await typeAndSubmit();
     await field(copy.sbi.title);
@@ -1297,14 +1302,17 @@ describe('边界：失败、断网、冲突保留输入，撤销按回执', () =
 
   it('载入最新版本的响应迟到：读取期间写下的修改不被覆盖', async () => {
     let resolveOpen: (value: unknown) => void = () => undefined;
-    const openDraft = vi.fn(() => new Promise((r) => (resolveOpen = r)));
+    const readBatch = vi
+      .fn()
+      .mockImplementationOnce(() => ok(doneBatch))
+      .mockImplementation(() => new Promise((r) => (resolveOpen = r)));
     const save = vi.fn().mockResolvedValue({
       status: 'conflict',
       message: '别处刚保存过',
       input: {},
     });
     await toReview({
-      actions: { save: save as never, openDraft: openDraft as never },
+      actions: { save: save as never, readBatch: readBatch as never },
     });
     await click(copy.actions.save);
     await userEvent.click(
@@ -1322,7 +1330,12 @@ describe('边界：失败、断网、冲突保留输入，撤销按回执', () =
       resolveOpen({
         status: 'success',
         replayed: false,
-        result: { ...draft, revision: 2, sbi: { ...draft.sbi, title: '最新' } },
+        result: batch({
+          revision: 4,
+          drafts: [
+            { ...draft, revision: 2, sbi: { ...draft.sbi, title: '最新' } },
+          ],
+        }),
       }),
     );
     expect(behavior.textContent).toBe('读取期间新写的');
@@ -1335,55 +1348,13 @@ describe('边界：失败、断网、冲突保留输入，撤销按回执', () =
     ).toBeTruthy();
   });
 
-  it('选人时断网：提示里的重试再次提交选择（同一 operation_id），不重新整理', async () => {
-    const selectPeople = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('offline'))
-      .mockImplementation(() => ok(job({ jobId: 'job-2' })));
-    const { actions, readJob } = setup({
-      actions: { selectPeople: selectPeople as never },
-    });
-    readJob.mockImplementation(async () =>
-      job({
-        status: 'awaiting_manual',
-        result: {
-          state: 'selection_required',
-          draftId: 'draft-1',
-          inputVersion: 'v7',
-          originalInput: draft.originalInput,
-          people: [
-            {
-              state: 'needs_selection',
-              candidates: [
-                { id: 'p1', label: '演示甲' },
-                { id: 'p2', label: '演示乙' },
-              ],
-              reason: '这个名字对应两位同事',
-            },
-          ],
-          project: { state: 'none' },
-        },
-      }),
-    );
-    await typeAndSubmit();
-    await userEvent.click(await screen.findByLabelText('演示乙'));
-    await click(copy.selection.submit);
-    await screen.findByText(copy.offline.start);
-    await click(copy.banner.sendRetry);
-    await waitFor(() => expect(selectPeople).toHaveBeenCalledTimes(2));
-    expect(actions.start).toHaveBeenCalledTimes(1);
-    expect(selectPeople.mock.calls[1]?.[0]).toEqual(
-      selectPeople.mock.calls[0]?.[0],
-    );
-  });
-
   it('改原话后再整理同一段原话：换新的 operation_id，不重放旧整理', async () => {
     const { actions } = await toReview();
     await click(copy.actions.back);
     await click(copy.input.submit);
-    await waitFor(() => expect(actions.start).toHaveBeenCalledTimes(2));
-    expect(actions.start.mock.calls[1]?.[0].operation_id).not.toBe(
-      actions.start.mock.calls[0]?.[0].operation_id,
+    await waitFor(() => expect(actions.submit).toHaveBeenCalledTimes(2));
+    expect(actions.submit.mock.calls[1]?.[0].operationId).not.toBe(
+      actions.submit.mock.calls[0]?.[0].operationId,
     );
   });
 

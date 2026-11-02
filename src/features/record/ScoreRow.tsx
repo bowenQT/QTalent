@@ -22,6 +22,8 @@ export type ScoreRowProps = {
   pickDisabled: boolean;
   problem?: string;
   loadSource: LoadSource;
+  /** 批次文字材料的片段 id：引用它的就是本页的原话，按原型写成行内引文。 */
+  inputFragmentId?: string;
   onPick: (value: number) => void;
   onReason: (reason: string) => void;
   /** 悬停或聚焦某一分时右栏显示对应锚点；离开时传 null。 */
@@ -116,10 +118,14 @@ export function ScoreRow(props: ScoreRowProps) {
           // 确认前照原型写锚点和原话引用；确认后只写「已确认」，引文仍在「原话」里。
           <span>
             {copy.score.anchorNote(score.value)}
-            <InputQuotes citations={score.citations} />
+            <InputQuotes
+              citations={score.citations}
+              inputFragmentId={props.inputFragmentId}
+            />
           </span>
         )}
         <SourceMarks
+          inputFragmentId={props.inputFragmentId}
           citations={score.citations}
           loadSource={props.loadSource}
         />

@@ -4,9 +4,12 @@
  *    URL 只带 `draft=work`；本页读取后立即删除。
  * 2. 输入暂存（D19）：用户在本页输入的原话与所选人员，防抖写入，站内导航或刷新回来时恢复；
  *    开始整理或保存后删除，退出登录时由外壳调用 clearRecordInputStash 一并清掉。
+ * 3. 批次原话：提交后按批次记下原话和所选人员，整理中刷新（`?batch=`）时恢复；只认同一批次。
+ *    保存或回到输入后删除。原话不从服务端草稿里取，897 草稿不带原话。
  */
 export const HANDOFF_KEY = 'niu-talent:draft:record';
 export const INPUT_STASH_KEY = 'niu-talent:record-input';
+export const BATCH_STASH_KEY = 'niu-talent:record-batch';
 export const STASH_TTL_MS = 10 * 60 * 1000;
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -34,7 +37,7 @@ function read(
   key: string,
   accountId: string,
   now: number,
-): { text: string; personId: string | null } | null {
+): { text: string; personId: string | null; batchId: string | null } | null {
   let raw: string | null;
   try {
     raw = store.getItem(key);
@@ -59,6 +62,7 @@ function read(
     return {
       text: record.text,
       personId: typeof record.personId === 'string' ? record.personId : null,
+      batchId: typeof record.batchId === 'string' ? record.batchId : null,
     };
   } catch {
     return null;
@@ -120,10 +124,51 @@ export function restoreInput(
 ): { text: string; personId: string | null } | null {
   if (!store) return null;
   const found = read(store, INPUT_STASH_KEY, accountId, now);
-  if (!found) remove(store, INPUT_STASH_KEY);
-  return found;
+  if (!found) {
+    remove(store, INPUT_STASH_KEY);
+    return null;
+  }
+  return { text: found.text, personId: found.personId };
+}
+
+/** 提交成功后记下这个批次的原话。 */
+export function stashBatchInput(
+  accountId: string,
+  batchId: string,
+  input: { text: string; personId: string | null },
+  now: number = Date.now(),
+  store: Store | null = defaultStore(),
+) {
+  if (!store) return;
+  try {
+    store.setItem(
+      BATCH_STASH_KEY,
+      JSON.stringify({ accountId, batchId, ...input, savedAt: now }),
+    );
+  } catch {
+    // 写入失败时刷新后原话一栏写「原话只在提交的那一页」，整理结果不受影响
+  }
+}
+
+/** 整理中刷新回来时恢复同一批次的原话；别的批次、别的账号、超时都不认。 */
+export function restoreBatchInput(
+  accountId: string,
+  batchId: string,
+  now: number = Date.now(),
+  store: Store | null = defaultStore(),
+): { text: string; personId: string | null } | null {
+  if (!store) return null;
+  const found = read(store, BATCH_STASH_KEY, accountId, now);
+  if (!found || found.batchId !== batchId) return null;
+  return { text: found.text, personId: found.personId };
 }
 
 export function clearRecordInputStash(store: Store | null = defaultStore()) {
-  if (store) remove(store, INPUT_STASH_KEY);
+  if (!store) return;
+  remove(store, INPUT_STASH_KEY);
+  remove(store, BATCH_STASH_KEY);
+}
+
+export function clearBatchStash(store: Store | null = defaultStore()) {
+  if (store) remove(store, BATCH_STASH_KEY);
 }

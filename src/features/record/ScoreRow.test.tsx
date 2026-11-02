@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { copy } from './copy';
-import { draft } from './record.fixtures';
+import { draft, textRef } from './record.fixtures';
 import { ScoreRow, type ScoreRowProps } from './ScoreRow';
 
 beforeEach(() => {
@@ -31,6 +31,7 @@ function setup(over: Partial<ScoreRowProps> = {}) {
     readOnly: false,
     pickDisabled: false,
     loadSource: vi.fn(),
+    inputFragmentId: textRef.fragmentId,
     onPick: vi.fn(),
     onReason: vi.fn(),
     onPreview: vi.fn(),

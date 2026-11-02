@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { RecordDraft } from '@/contracts/record';
+import type { RecordBatchDraft } from '@/contracts/record';
 import { initEdit } from './build-save-input';
 import { copy } from './copy';
 import { dimensions, draft, people, twoPeopleDraft } from './record.fixtures';
@@ -12,7 +12,7 @@ import { scoreKey } from './types';
 afterEach(cleanup);
 
 function setup(
-  d: RecordDraft,
+  d: RecordBatchDraft,
   over: Partial<Parameters<typeof ScoreList>[0]> = {},
 ) {
   const handlers = {
@@ -52,7 +52,7 @@ describe('ScoreList', () => {
   });
 
   it('多人：按人分组，各自打分；一个人没有任何分数时写资料不足而不是 0', () => {
-    const lopsided: RecordDraft = {
+    const lopsided: RecordBatchDraft = {
       ...twoPeopleDraft,
       scores: twoPeopleDraft.scores.filter((s) => s.personId !== 'p2'),
     };

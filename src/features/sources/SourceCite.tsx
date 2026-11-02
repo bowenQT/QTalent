@@ -6,17 +6,25 @@ import {
   sourceReadResultSchema,
   type Source,
   type SourceReadInput,
+  type MaterialSourceReference,
   type SourceReadResult,
   type SourceReference,
 } from '@/contracts/sources';
-import { formatLocation, sourceTypeName } from './source-format';
+import {
+  formatLocation,
+  sourceTypeName,
+  type LocationKind,
+} from './source-format';
 import { sourceHref } from './source-href';
 
 /** 读取一条来源原文。由服务端页面把 Server Action 传下来，这里不引用 server/。 */
 export type LoadSource = (input: SourceReadInput) => Promise<SourceReadResult>;
 
+/** P0 来源引用，或 897 整理草稿里的材料来源引用；读取都只用两个标识。 */
+export type CiteReference = SourceReference | MaterialSourceReference;
+
 export type SourceCiteProps = {
-  source: SourceReference;
+  source: CiteReference;
   /** 角标上印的序号，或「原文」这样的短词。 */
   index: number | string;
   loadSource: LoadSource;
@@ -29,22 +37,27 @@ type Phase =
   | { status: 'forbidden' | 'not_found' | 'conflict' }
   | { status: 'error' };
 
-const CITE_KIND: Record<SourceReference['location']['kind'], CiteSourceKind> = {
+const CITE_KIND: Record<LocationKind, CiteSourceKind> = {
   document: 'paragraph',
+  pdf: 'page',
   spreadsheet: 'cell',
+  presentation: 'page',
   recording: 'timestamp',
+  video: 'timestamp',
+  image: 'page',
+  code: 'paragraph',
   snapshot_field: 'paragraph',
 };
 
 /** 唯一把引用转成读取入参的地方：只取两个标识，位置由服务端按标识解析，不信任客户端。 */
-function toSourceReadInput(source: SourceReference): SourceReadInput {
+function toSourceReadInput(source: CiteReference): SourceReadInput {
   return {
     fragmentId: source.fragmentId,
     originalVersionId: source.originalVersionId,
   };
 }
 
-function settle(requested: SourceReference, result: SourceReadResult): Phase {
+function settle(requested: CiteReference, result: SourceReadResult): Phase {
   const parsed = sourceReadResultSchema.safeParse(result);
   if (!parsed.success) return { status: 'error' };
   const value = parsed.data;

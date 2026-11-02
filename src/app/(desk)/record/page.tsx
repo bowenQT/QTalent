@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { State } from '@/components/ui/State';
 import { AccessDenied } from '@/features/shell/AccessDenied';
 import { ShellTitle } from '@/features/shell/ShellTitle';
+import { getRecordPageData } from '@/server/queries/record-page';
 import { getShellPage } from '@/server/queries/shell';
+import { LiveRecord } from './LiveRecord';
 
 export async function generateMetadata() {
   const shell = await getShellPage();
@@ -11,15 +13,25 @@ export async function generateMetadata() {
   };
 }
 
+type Params = { person?: string; draft?: string; batch?: string };
+
+const toWork = (
+  <Link className="n-btn n-btn--sm" href="/">
+    回到工作台
+  </Link>
+);
+
 /**
- * The record route (`/record`, with `?person=`, `?draft=work`, `?draftId=`, `?job=`).
- * Managers, HR and mentors record (spec 2026-10-26); whom each may record is the page
- * read's answer, on the server. That read and the arranging actions (BOW-845 #185) and
- * save and undo (BOW-846 #289) are not on main, so the page shows recording as not
- * connected and reads nothing; the page itself runs on the development sample
- * /dev/record. Once they land, this page binds them to `RecordPage` and nothing else.
+ * The record route (`/record`, with `?person=`, `?draft=work`, `?batch=`). Whom the
+ * account may record is BOW-845's page read on the server; the page never decides
+ * by role. Writing goes into a BOW-897 material batch; one arranged event is confirmed
+ * here and saved through BOW-846, more than one goes to the receipt page.
  */
-export default async function RecordRoute() {
+export default async function RecordRoute({
+  searchParams,
+}: {
+  searchParams?: Promise<Params>;
+} = {}) {
   const shell = await getShellPage();
   if (!shell) return <AccessDenied />;
   if (shell.isAdmin)
@@ -33,17 +45,46 @@ export default async function RecordRoute() {
         </a>
       </State>
     );
+  const data = await getRecordPageData();
+  if (data.status !== 'ok')
+    return (
+      <>
+        <ShellTitle title="记一件事" />
+        {data.status === 'forbidden' ? (
+          <State
+            title="加入评价节点后，就能在这里记一件事"
+            text="评价节点由 HR 在人才项目里安排；现在可以先回工作台。"
+          >
+            {toWork}
+          </State>
+        ) : (
+          <State title="记一件事暂时打不开" text="刷新页面再试。">
+            {toWork}
+          </State>
+        )}
+      </>
+    );
+  const params = (await searchParams) ?? {};
   return (
     <>
       <ShellTitle title="记一件事" />
-      <State
-        title="记一件事待接通"
-        text="接通后，在这里写原话，整理成关键事件，确认或改分后保存，5 秒内可以撤销。"
-      >
-        <Link className="n-btn n-btn--sm" href="/">
-          回到工作台
-        </Link>
-      </State>
+      <LiveRecord
+        key={shell.account.id}
+        accountId={shell.account.id}
+        accountName={shell.account.name}
+        roleLabel={shell.account.roleLabel}
+        people={data.people}
+        projects={data.projects.map((project) => ({
+          ...project,
+          kind: 'project' as const,
+        }))}
+        dimensions={data.dimensions}
+        entry={{
+          personId: params.person ?? null,
+          handoff: params.draft === 'work',
+          batchId: params.batch,
+        }}
+      />
     </>
   );
 }
