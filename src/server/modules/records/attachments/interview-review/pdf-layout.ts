@@ -206,6 +206,13 @@ export function readCircles(
     else if (key === 'ML' && n >= 1) state.miterLimit = n;
     else state.supported = false;
   };
+  // Line width on the page: the widest the current transform can stretch it.
+  const pageLineWidth = () => {
+    const m = multiply(viewport, state.matrix);
+    return (
+      state.lineWidth * Math.max(Math.hypot(m[0], m[1]), Math.hypot(m[2], m[3]))
+    );
+  };
   const strokes = new Set([
     OPS.stroke,
     OPS.closeStroke,
@@ -326,7 +333,7 @@ export function readCircles(
           state.lineCap === 2 ? Math.SQRT2 : 1,
         );
       if (
-        (!radio || state.lineWidth > 2) &&
+        (!radio || pageLineWidth() > 2) &&
         strokes.has(paintOp) &&
         state.strokeAlpha > 0 &&
         state.stroke !== 'transparent'
@@ -352,7 +359,7 @@ export function readCircles(
           )
             continue;
           // A dashed or thick ring may show less, or more, than the plain radio we can read.
-          const plainStroke = filled || (!state.dashed && state.lineWidth <= 2);
+          const plainStroke = filled || (!state.dashed && pageLineWidth() <= 2);
           result.push({
             box: pageBox,
             color: color(filled ? state.fill : state.stroke),

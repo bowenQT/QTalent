@@ -1197,6 +1197,13 @@ describe('BOW-900 parser hardening before upload wiring', () => {
       false,
     );
     expect(vectors(ring([OPS.setDash, [[], 0]]))[0]!.supported).toBe(true);
+    // A 1.5-unit ring scaled twice is a 3 pt ring on the page.
+    expect(
+      vectors([
+        [OPS.transform, [2, 0, 0, 2, 0, 0]],
+        ...ring([OPS.setLineWidth, [1.5]]),
+      ]).map((item) => item.supported),
+    ).toEqual([false]);
   });
 
   it('treats a rotated form bounding box as an unsupported clip', () => {
