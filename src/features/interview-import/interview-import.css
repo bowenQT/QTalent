@@ -1,0 +1,253 @@
+/* Rules prototype Y added after the shared style port (src/styles/components.css):
+   verbatim from prototype/y/assets/niu-components.css at 81e4fd4 (BOW-898 #250), the
+   batch state, summary, note and interview import blocks this page uses. Delete this
+   file once the shared port carries them; the request is in #248. */
+
+/* 沿用规则修订的 .n-rstate 底样式；这一页只用到「待确认」 */
+.n-rstate[data-s='confirm'] {
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink-2);
+}
+.n-rstate[data-s='confirm']::before {
+  border-radius: 2px;
+}
+.nt-head > .n-rstate {
+  align-self: start;
+  margin-top: 6px;
+}
+
+.n-rsum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  list-style: none;
+  margin: 0 0 var(--s-4);
+  padding: 0;
+}
+.n-rsum li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  min-width: 96px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-field);
+  background: var(--sheet);
+  box-shadow: var(--e-1);
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+.n-rsum b {
+  font-size: var(--t-lg);
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.n-rsum small {
+  flex-basis: 100%;
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+.n-rsum small.is-err {
+  color: var(--no);
+  font-weight: 600;
+}
+
+/* 页内提示：细框浅底，配图标；需要留意时换成琥珀细框 */
+.n-note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-4);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-field);
+  background: var(--light-soft);
+  box-shadow: inset 0 0 0 1px rgb(61 99 133 / 0.18);
+  font-size: var(--t-sm);
+  line-height: 1.6;
+  color: var(--ink);
+}
+.n-note > svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  color: var(--light);
+}
+.n-note ul {
+  margin: var(--s-1) 0;
+  padding-left: 1.2em;
+}
+.n-note.is-warn {
+  background: var(--conflict-soft);
+  box-shadow: inset 0 0 0 1px rgb(149 107 54 / 0.3);
+}
+.n-note.is-warn > svg {
+  color: var(--conflict);
+}
+
+/* 面评导入：一行一位候选人；原量表单独样式，标明「单独保存」，和维度分分开 */
+.n-scale__tag {
+  background: var(--sheet-sunk);
+  box-shadow: none !important;
+  color: var(--ink-2) !important;
+  font-weight: 600;
+}
+.n-scale span.is-na {
+  color: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.n-scale span.is-na small {
+  margin-left: 4px;
+  font-size: 11px;
+}
+.n-scale span.is-miss {
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink-2);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--sheet) 0 5px,
+    var(--sheet-sunk) 5px 6px
+  );
+}
+.n-ivrow {
+  display: grid;
+  gap: var(--s-2);
+}
+.n-ivrow[data-state='confirmed'] {
+  box-shadow:
+    inset 0 0 0 1.5px var(--yes),
+    var(--e-1);
+}
+.n-ivrow[data-state='imported'] {
+  opacity: 0.78;
+}
+.n-ivrow__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.n-ivrow__head .n-badge {
+  margin-left: auto;
+}
+.n-ivrow__page {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--sheet-sunk);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.n-ivrow__name {
+  font-size: var(--t-md);
+}
+.n-ivrow__match {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--t-sm);
+}
+.n-ivrow__match small {
+  display: block;
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+.n-ivrow__meta {
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+.n-ivrow__note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px var(--s-2);
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+.n-ivrow__note svg {
+  color: var(--ink-3);
+}
+.n-ivrow__note small {
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+.n-ivrow__acts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.n-ivscale {
+  margin-top: 0;
+}
+.n-ivunread {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: end;
+}
+.n-pdfcrop {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow:
+    inset 0 0 0 1px var(--line-strong),
+    0 1px 0 var(--line);
+  font-size: var(--t-xs);
+}
+.n-pdfcrop figcaption {
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+.n-pdfcrop__opts {
+  display: flex;
+  gap: var(--s-3);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.n-pdfcrop__opts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.n-pdfcrop__opts i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
+}
+.n-pdfcrop__opts .is-on i {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+.n-ivbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+  margin-top: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-card);
+  background: rgb(255 255 255 / 0.94);
+  box-shadow: var(--e-2);
+  font-size: var(--t-sm);
+  backdrop-filter: blur(6px);
+}
+
+@media (max-width: 760px) {
+  .n-ivunread {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .n-rsum li {
+    min-width: 0;
+    flex: 1 1 40%;
+  }
+}

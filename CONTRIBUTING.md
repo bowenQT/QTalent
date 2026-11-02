@@ -96,7 +96,9 @@ fix(prototype): 保留取消弹窗前的输入
 
 本机所有 worktree 共用同一个 `.git`，用 `refs/agent-claims/<名称>` 引用当锁：第一个建成功的会话持有，后来者失败。锁只在本机有效，不推送，不自动过期；Linear 的状态和负责人只作展示，不能证明有人在做。
 
-- 锁名：任务卡 `bow-<号>`；常驻职责 `role-x1`、`role-x2`；独占资源如企业微信测试机器人 `resource-wecom-test`；完整检查、集成、e2e、视觉等重测试先领 `resource-heavy-1`，失败再试 `resource-heavy-2`，跑完立即释放。
+- 锁名：任务卡 `bow-<号>`；常驻职责 `role-x1`、`role-x2`；独占资源如企业微信测试机器人 `resource-wecom-test`；完整检查、集成、e2e、视觉等重测试先领 `resource-heavy-1`，失败再试 `resource-heavy-2`、`resource-heavy-3`，跑完立即释放自己的槽。
+- 按[所有者 11/1 并发裁决](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6557274850)，用 `memory_pressure` 的系统空闲比例判断是否暂停扩并发：低于 20% 时暂停领取 `resource-heavy-3`，并停止新增开发会话；达到 20% 后可按并发上限继续。前两个重测槽仍按锁竞争领取，不抢占他人进程或回收他人槽。
+- Claude Code、Codex 各自同时开发的会话上限为 6 个，审查会话另算；Codex 的 X1 在写共享源码时计入开发并发。单测加 `--maxWorkers=2`，开发服务用完就停。
 - 令牌写明工具、会话别名、分支和领取时间。释放和交接都必须带自己的令牌：
 
 ```sh

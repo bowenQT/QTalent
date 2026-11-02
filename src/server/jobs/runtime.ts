@@ -6,7 +6,7 @@ import {
   createStaffingDemandRuntime,
   staffingDemandQueue,
 } from '../usecases/staffing-demand-runtime';
-import { createJobStore } from './repository';
+import { recordArrangeRequestsForServer } from '../usecases/record-arrange-runtime';
 import { createJobService } from './service';
 import { exampleJobPolicy } from './progress-example';
 export function jobService() {
@@ -17,9 +17,12 @@ export function jobService() {
     boss: () => getAppJobProducer(staffingDemandQueue),
     now: () => clock.now().toISOString(),
   });
+  const arrange = recordArrangeRequestsForServer();
   return createJobService(
-    createJobStore(db),
-    [exampleJobPolicy(), demand.policy],
+    // Use the native store so a retry retains the immutable batch metadata
+    // on the same locked job row while its policy enqueues in that transaction.
+    arrange.native.store,
+    [exampleJobPolicy(), demand.policy, arrange.policy],
     () => new Date().toISOString(),
   );
 }
