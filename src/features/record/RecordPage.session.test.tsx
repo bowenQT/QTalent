@@ -254,7 +254,7 @@ it('退出后同一账号重新登录，旧实例的保存回执才到：不删�
   await userEvent.type(screen.getByLabelText('邮箱'), 'mentor@qtalent.test');
   await userEvent.type(screen.getByLabelText('密码'), 'test-only-password');
   await userEvent.click(screen.getByRole('button', { name: '登录' }));
-  await waitFor(() => expect(replace).toHaveBeenCalledWith('/projects'));
+  await waitFor(() => expect(replace).toHaveBeenCalledWith('/work'));
   login.unmount();
   seedSameKeys('同一账号新会话的原话');
   window.sessionStorage.setItem(inputStashKey('acc-2'), '{"text":"乙"}');
