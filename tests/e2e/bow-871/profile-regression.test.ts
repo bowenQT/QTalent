@@ -114,7 +114,7 @@ describe('BOW-871 baseline C1/C2/C6: profile and original projection together', 
     const person = await personFromData(data, 'one');
     expect(person?.capabilityProfile).toEqual({
       status: 'insufficient_evidence',
-      reason: '近 12 个月暂无已确认的维度分',
+      reason: '待补已确认的事件',
     });
   });
 
