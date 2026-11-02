@@ -76,7 +76,11 @@ export type RecordActions = {
       }) => Promise<NodeResolution>)
     | null;
   submit(input: MaterialBatchInput): Promise<MaterialBatchSubmitResult>;
-  readBatch(input: { batchId: string }): Promise<MaterialBatchReadResult>;
+  /** signal 用来中止挂住或不再需要的读取。 */
+  readBatch(
+    input: { batchId: string },
+    options?: { signal?: AbortSignal },
+  ): Promise<MaterialBatchReadResult>;
   /** `unavailable`：服务端这次没完成保存（不是网络中断），如实告诉用户。 */
   save(
     input: RecordSaveInput,

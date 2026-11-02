@@ -1,4 +1,14 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { runStandardIterationImport } from './run';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -11,9 +21,17 @@ import {
   prepareStandardIterationDemo,
   type FactFiles,
 } from './input';
+import { generationFactRoot, releaseArtifact } from './fact-roots.test-support';
 let baseline: FactFiles;
+let v2Root: string;
+const roots: string[] = [];
 beforeAll(async () => {
   baseline = await readStandardIterationFactFiles(process.cwd());
+  v2Root = generationFactRoot('bow-923-v2');
+  roots.push(v2Root);
+});
+afterAll(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 function files() {
   return Object.fromEntries(
@@ -216,9 +234,99 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
       'review point grade state',
     );
   });
+  describe('packaged fact files (no .git, no database)', () => {
+    // The current generation comes from the same `git archive` mechanism as
+    // the release package (limited to the fixture directory), so an export
+    // rule dropping a fixture would fail here too.
+    const copy = () => {
+      const root = releaseArtifact('HEAD', process.cwd(), [FACT_DIRECTORY]);
+      roots.push(root);
+      return root;
+    };
+    it('reads the packaged files of a root without .git and checks their digests', async () => {
+      const root = copy();
+      expect(existsSync(join(root, '.git'))).toBe(false);
+      const read = await readStandardIterationFactFiles(root);
+      expect(Object.keys(read).sort()).toEqual([...FACT_FILES].sort());
+      for (const name of FACT_FILES) {
+        expect(Buffer.from(read[name])).toEqual(Buffer.from(baseline[name]));
+        expect(createHash('sha256').update(read[name]).digest('hex')).toBe(
+          FACT_GENERATIONS['bow-923-v3'].digests[name],
+        );
+      }
+    });
+    it('the pinned digests are those of the files at each source commit', () => {
+      for (const generation of ['bow-923-v2', 'bow-923-v3'] as const)
+        for (const name of FACT_FILES)
+          expect(
+            createHash('sha256')
+              .update(
+                execFileSync('git', [
+                  'show',
+                  `${FACT_GENERATIONS[generation].sourceCommit}:${FACT_DIRECTORY}/${name}`,
+                ]),
+              )
+              .digest('hex'),
+          ).toBe(FACT_GENERATIONS[generation].digests[name]);
+    });
+    it.each(FACT_FILES)('refuses a tampered %s', async (name) => {
+      const root = copy();
+      const path = join(root, FACT_DIRECTORY, name);
+      const bytes = Buffer.from(baseline[name]);
+      bytes[bytes.length - 1] ^= 1;
+      writeFileSync(path, bytes);
+      await expect(readStandardIterationFactFiles(root)).rejects.toMatchObject({
+        code: 'fixture_digest_mismatch',
+        file: name,
+      });
+    });
+    it('refuses an oversized file without reading past the limit', async () => {
+      const root = copy();
+      writeFileSync(
+        join(root, FACT_DIRECTORY, 'mapping.json'),
+        Buffer.alloc(2_000_001, 0x20),
+      );
+      // Its own code, raised by the bounded read before any digest is taken.
+      await expect(readStandardIterationFactFiles(root)).rejects.toMatchObject({
+        code: 'fixture_too_large',
+        file: 'mapping.json',
+      });
+    });
+    it('refuses before reading when the reader interpreter is not on PATH', async () => {
+      const root = copy();
+      rmSync(join(root, FACT_DIRECTORY, 'mapping.json'));
+      const path = process.env.PATH;
+      process.env.PATH = root;
+      try {
+        // python_unavailable, not fixture_missing: checked before any read.
+        await expect(
+          readStandardIterationFactFiles(root),
+        ).rejects.toMatchObject({ code: 'python_unavailable' });
+      } finally {
+        process.env.PATH = path;
+      }
+    });
+    it('refuses a missing file, naming only the fixture file', async () => {
+      const root = copy();
+      rmSync(join(root, FACT_DIRECTORY, 'mapping.json'));
+      const error = await readStandardIterationFactFiles(root).catch(
+        (e: unknown) => e,
+      );
+      expect(error).toMatchObject({
+        code: 'fixture_missing',
+        file: 'mapping.json',
+      });
+      expect(String(error)).not.toContain(root);
+    });
+    it('refuses the current generation read from a superseded root', async () => {
+      await expect(
+        readStandardIterationFactFiles(v2Root),
+      ).rejects.toMatchObject({ code: 'fixture_digest_mismatch' });
+    });
+  });
   it('still reads the superseded v2 generation under its own rules and identities', async () => {
     const v2 = await prepareStandardIterationDemo(
-      await readStandardIterationFactFiles(process.cwd(), 'bow-923-v2'),
+      await readStandardIterationFactFiles(v2Root, 'bow-923-v2'),
       'bow-923-v2',
     );
     expect(v2.canonical.batch.sourceCommit).toBe(
@@ -232,7 +340,7 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
     // A generation's files cannot be imported under another generation.
     await expect(
       prepareStandardIterationDemo(
-        await readStandardIterationFactFiles(process.cwd(), 'bow-923-v2'),
+        await readStandardIterationFactFiles(v2Root, 'bow-923-v2'),
       ),
     ).rejects.toThrow('fixture generation');
   });

@@ -26,6 +26,7 @@ import {
 } from '../../auth/entry/persistent';
 import { mcpCredentials } from '../../auth/entry/schema';
 import { auditEvents } from '../../platform/audit/schema';
+import { jobSnapshots } from '../../jobs/schema';
 import { createEntryIdentityService } from '../../auth/entry/identity';
 import type { EntryAudit } from '../entry/context';
 import type { Transaction } from '../../db/client';
@@ -225,6 +226,65 @@ it('runs all three real handlers through the HTTP composition and persists produ
     'mcp',
     'mcp',
     'mcp',
+  ]);
+});
+
+it('H3: carries each HTTP tool call to its exact queued job, bound intake and entry audit', async () => {
+  const f = await setup();
+  const call = async (name: string, args: unknown) => {
+    const response = await f.send(name, args);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.result.isError).toBe(false);
+    return body.result.structuredContent.payload;
+  };
+  const queued = async (queue: string, jobId: string) =>
+    (
+      await connection.db.execute<{ count: number }>(
+        sql`select count(*)::int as count from pgboss.job
+            where name = ${queue} and data->>'jobId' = ${jobId}`,
+      )
+    ).rows[0]!.count;
+
+  const receipt = await call('record_moment', f.input);
+  expect(receipt.jobId).toEqual(expect.any(String));
+  expect(receipt.personIds).toEqual(f.input.personIds);
+  const [intake] = await connection.db
+    .select()
+    .from(arrangeInputs)
+    .where(eq(arrangeInputs.batchId, receipt.batchId));
+  expect(intake).toMatchObject({
+    creatorAccountId: f.account,
+    jobId: receipt.jobId,
+    evaluationNodeId: f.input.evaluationNodeId,
+  });
+  expect(await queued(recordArrangeQueue, receipt.jobId)).toBe(1);
+
+  const snapshot = await call('draft_requirement', f.demand);
+  expect(snapshot.jobId).toEqual(expect.any(String));
+  const [job] = await connection.db
+    .select()
+    .from(jobSnapshots)
+    .where(eq(jobSnapshots.jobId, snapshot.jobId));
+  expect(job).toMatchObject({ kind: 'staffing_demand', status: 'queued' });
+  expect(await queued(staffingDemandQueue, snapshot.jobId)).toBe(1);
+
+  const brief = await call('person_brief', { id: f.target });
+  expect(brief.person.id).toBe(f.target);
+  expect(JSON.stringify(brief)).not.toContain('performance');
+
+  const audits = await connection.db
+    .select()
+    .from(auditEvents)
+    .where(eq(auditEvents.actorId, f.account));
+  expect(
+    audits
+      .filter((row) => row.action.startsWith('entry.tool.'))
+      .map((row) => [row.action, row.metadata?.channel]),
+  ).toEqual([
+    ['entry.tool.record_moment', 'mcp'],
+    ['entry.tool.draft_requirement', 'mcp'],
+    ['entry.tool.person_brief', 'mcp'],
   ]);
 });
 
