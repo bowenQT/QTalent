@@ -793,6 +793,16 @@ async function withDemands(f: Awaited<ReturnType<typeof setup>>) {
     from: '2026-01-01',
     to: '2026-12-31',
   });
+  // The project is a permission fact: issue this fixture conversation as if it
+  // had been opened after the project existed, not mid-way through its life.
+  const authority = sessionAuthority(
+    await f.identities.current(f.identity),
+    await loadEntryAuthorizationContext(c.db, f.account, businessAt),
+  );
+  await c.db
+    .update(agentApiConversations)
+    .set({ authorizationDigest: authority.authorizationDigest })
+    .where(eq(agentApiConversations.id, f.conversationId));
   const demands = createStaffingDemandRuntime({
     db: c.db,
     boss,
