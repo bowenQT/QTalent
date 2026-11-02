@@ -74,16 +74,19 @@ export function visible(people: readonly QuickView[], filter: Filter) {
   );
 }
 
-/** Consecutive people of one team, keeping the server's order inside and across. */
+/**
+ * Consecutive people of one team, keeping the server's order inside and across.
+ * Headed by the team's `orgPath` (parent / team), as the prototype's `st.orgPath`.
+ */
 export function groups(people: readonly QuickView[]) {
-  const out: { teamId: string; teamPath: string; people: QuickView[] }[] = [];
+  const out: { teamId: string; orgPath: string; people: QuickView[] }[] = [];
   for (const view of people) {
     const last = out.at(-1);
     if (last?.teamId === view.person.teamId) last.people.push(view);
     else
       out.push({
         teamId: view.person.teamId,
-        teamPath: view.person.teamPath,
+        orgPath: view.person.orgPath,
         people: [view],
       });
   }

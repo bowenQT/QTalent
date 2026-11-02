@@ -32,10 +32,11 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
       expect(await texts(page, '#plist .n-person__name')).toEqual(
         await texts(prototype, '#pp-list .n-person__name'),
       );
-      // Job title, level and the team's parent path have no columns yet (BOW-834
-      // S1 / S2): compare the facts the read does carry, and the group sizes.
-      // Project counts only include projects the caller may read (837): a mentor
-      // can see fewer than the prototype, which counts them all.
+      // Job title, level and the team path come from the directory profile, which
+      // only the seed CLI imports (BOW-834); this fixture's seed has none, so it
+      // reads 「职位未接入」 / 「组织层级未接入」: compare the facts it does carry. Project counts only
+      // include projects the caller may read (837): a mentor can see fewer than
+      // the prototype, which counts them all.
       const carried = (metas: string[]) =>
         metas.map((meta) =>
           meta

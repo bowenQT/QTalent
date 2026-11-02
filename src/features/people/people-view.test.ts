@@ -51,7 +51,7 @@ describe('people view', () => {
       'p4',
     ]);
     expect(
-      groups(hr.people).map((group) => [group.teamPath, ids(group.people)]),
+      groups(hr.people).map((group) => [group.orgPath, ids(group.people)]),
     ).toEqual([
       ['演示中心 / 平台组', ['p1', 'p2']],
       ['演示中心 / 数据组', ['p3', 'p4']],

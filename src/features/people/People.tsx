@@ -210,7 +210,7 @@ export function People({
           groups(shown).map((group) => (
             <div key={group.teamId}>
               <div className="nt-h2 nt-team">
-                {group.teamPath} · {group.people.length} 人
+                {group.orgPath} · {group.people.length} 人
               </div>
               <div className="n-card nt-rows">
                 {group.people.map((view) => (
