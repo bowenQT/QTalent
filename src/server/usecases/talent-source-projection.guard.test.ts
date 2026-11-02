@@ -182,6 +182,7 @@ describe('complete talent source projection', () => {
       'src/server/usecases/record-batch-arrange-requests.ts',
       'src/server/usecases/record-batch-arrange-store.ts',
       'src/server/usecases/record-confirmation-sources.ts',
+      'src/server/usecases/record-ledger.ts',
       'src/server/usecases/record-save.ts',
       'src/server/usecases/talent-export/policy.ts',
       'src/server/usecases/talent-export/postgres.ts',
