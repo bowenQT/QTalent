@@ -117,7 +117,8 @@ function visibleStatements(
 ): Statement[] {
   return data.statements.flatMap((statement) => {
     const event = data.events.find((row) => row.id === statement.eventId);
-    if (!event || event.personId !== personId) return [];
+    if (!event || event.withdrawnAt !== null || event.personId !== personId)
+      return [];
     const kind: TalentKind =
       statement.kind === 'management_observation'
         ? 'management-observation'
@@ -173,7 +174,9 @@ export async function collectEvidence(
     data.directory.people.find((row) => row.id === id)?.name;
   const keyEvents: KeyEvent[] = [];
   const effective: EffectiveScore[] = [];
-  for (const event of data.events.filter((row) => row.personId === personId)) {
+  for (const event of data.events.filter(
+    (row) => row.personId === personId && row.withdrawnAt === null,
+  )) {
     const references = data.eventSources.filter(
       (link) => link.eventId === event.id,
     );

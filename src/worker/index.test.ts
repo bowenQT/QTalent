@@ -10,6 +10,8 @@ const f = vi.hoisted(() => ({
   registerProgress: vi.fn(),
   registerDemand: vi.fn(),
   demandRuntime: vi.fn(),
+  arrangeRuntime: vi.fn(),
+  registerArrange: vi.fn(),
   access: vi.fn(),
   session: vi.fn(),
   env: {
@@ -35,6 +37,9 @@ vi.mock('../server/jobs/progress-worker', () => ({
 }));
 vi.mock('../server/usecases/staffing-demand-runtime', () => ({
   createStaffingDemandRuntime: f.demandRuntime,
+}));
+vi.mock('../server/usecases/record-arrange-worker', () => ({
+  createRecordArrangeWorker: f.arrangeRuntime,
 }));
 vi.mock('../server/db/client', () => ({ getDatabase: () => ({}) }));
 vi.mock('pg-boss', () => ({
@@ -95,6 +100,8 @@ beforeEach(() => {
   f.registerProgress.mockResolvedValue(undefined);
   f.registerDemand.mockResolvedValue(undefined);
   f.demandRuntime.mockReturnValue({ register: f.registerDemand });
+  f.registerArrange.mockResolvedValue(undefined);
+  f.arrangeRuntime.mockReturnValue({ register: f.registerArrange });
   f.access.mockResolvedValue(undefined);
   f.session.mockResolvedValue({
     user: { id: 'synthetic' },
@@ -106,6 +113,49 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('worker lifecycle with transport boundaries replaced', () => {
+  it.each(['demo', 'test', 'production', 'local'])(
+    'registers arrangement once with the shared boss and separate %s clocks',
+    async (environment) => {
+      f.env.APP_ENV = environment;
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-01T12:00:00.000Z'));
+      const worker = await startWorker();
+      try {
+        expect(f.registerArrange).toHaveBeenCalledOnce();
+        expect(f.arrangeRuntime).toHaveBeenCalledOnce();
+        const input = f.arrangeRuntime.mock.calls[0][0];
+        expect(input.boss).toBe(worker.boss);
+        expect(input.environment).toEqual({
+          MODELINK_API_KEY: f.env.MODELINK_API_KEY,
+          MODELINK_BASE_URL: f.env.MODELINK_BASE_URL,
+          MODELINK_MODEL: f.env.MODELINK_MODEL,
+        });
+        const fixed = environment === 'demo' || environment === 'test';
+        expect(input.businessNow()).toBe(
+          fixed ? '2026-09-04T00:00:00.000Z' : '2026-11-01T12:00:00.000Z',
+        );
+        expect(input.now().toISOString()).toBe('2026-11-01T12:00:00.000Z');
+        vi.setSystemTime(new Date('2026-11-01T12:00:01.000Z'));
+        expect(input.businessNow()).toBe(
+          fixed ? '2026-09-04T00:00:00.000Z' : '2026-11-01T12:00:01.000Z',
+        );
+        expect(input.now().toISOString()).toBe('2026-11-01T12:00:01.000Z');
+      } finally {
+        await worker.stop();
+      }
+    },
+  );
+  it('stops the shared boss if arrangement registration fails before transport opens', async () => {
+    f.registerArrange.mockRejectedValueOnce(
+      new Error('arrangement registration failed'),
+    );
+    await expect(startWorker()).rejects.toThrow(
+      'arrangement registration failed',
+    );
+    expect(f.stop).toHaveBeenCalledOnce();
+    expect(f.serverEvents.size).toBe(0);
+  });
+
   it.each(['demo', 'test', 'production', 'local'])(
     'passes a dynamic full %s demand instant into the registered worker',
     async (environment) => {
