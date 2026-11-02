@@ -188,6 +188,8 @@ describe('complete talent source projection', () => {
       'src/server/usecases/talent-export/policy.ts',
       'src/server/usecases/talent-export/postgres.ts',
       `${PROJECTION}.test-support.ts`,
+      // Takes the intake writer lock before locking a redelivered message's job.
+      'src/server/usecases/wecom/postgres.ts',
     ]);
   });
 

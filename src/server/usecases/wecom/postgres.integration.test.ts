@@ -512,6 +512,64 @@ it('actual runner completes once and permits a distinct current-state receipt, w
   });
   expect(h.sent).toHaveLength(2);
 });
+it('a redelivery queued ahead of the real runner on the job row takes intake first and neither side deadlocks', async () => {
+  const h = await fixture();
+  await h.receiver.receive(h.message, h.target);
+  const [message] = await c.db
+    .select()
+    .from(wecomMessages)
+    .where(eq(wecomMessages.credentialId, h.credentialId));
+  const jobId = message!.jobId!;
+  const [job] = await c.db
+    .select()
+    .from(jobSnapshots)
+    .where(eq(jobSnapshots.jobId, jobId));
+  const waiting = async () => {
+    const { rows } = await c.db.execute<{ n: number }>(
+      sql`select count(*)::int as n from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
+    );
+    return rows[0]!.n;
+  };
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let held!: () => void;
+  const holding = new Promise<void>((resolve) => {
+    held = resolve;
+  });
+  // Something else holds the job row, so the redelivery queues on it first.
+  const holder = c.db.transaction(async (tx) => {
+    await tx
+      .select({ id: jobSnapshots.jobId })
+      .from(jobSnapshots)
+      .where(eq(jobSnapshots.jobId, jobId))
+      .for('update');
+    held();
+    await released;
+  });
+  await holding;
+  const redelivery = h.make().receive(h.message, h.target);
+  await expect.poll(waiting, { timeout: 5000 }).toBe(1);
+  // The real runner: intake SHARE, then the job row.
+  const runner = h.app.runner.run(jobId, job!.attempt);
+  await expect.poll(waiting, { timeout: 5000 }).toBe(2);
+  release();
+  // Locking the job before intake would leave the redelivery holding the row
+  // and waiting on intake while the runner holds intake SHARE: 40P01.
+  const [held2, replayed, ran] = await Promise.allSettled([
+    holder,
+    redelivery,
+    runner,
+  ]);
+  expect(held2).toMatchObject({ status: 'fulfilled' });
+  expect(replayed).toMatchObject({
+    status: 'fulfilled',
+    value: { status: 'accepted', replayed: true },
+  });
+  expect(ran).toMatchObject({ status: 'fulfilled', value: 'awaiting_manual' });
+  expect(h.calls()).toBe(1);
+}, 20000);
 it('isolates the same message ID across real scope, bot and sender bindings', async () => {
   const h = await fixture();
   await h.receiver.receive(h.message, h.target);

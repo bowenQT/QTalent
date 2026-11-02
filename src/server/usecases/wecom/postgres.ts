@@ -33,6 +33,7 @@ import {
   type WecomReceiptFact,
 } from './message';
 import { prepareWecomTextBatch } from './receiver';
+import { lockIntakeTable } from '../talent-source-projection';
 
 type MessageRow = typeof wecomMessages.$inferSelect;
 type Actor = Awaited<ReturnType<EntryIdentityService['current']>>;
@@ -175,6 +176,10 @@ export function createWecomPostgresReceiver(deps: WecomPostgresDependencies) {
       const prepared = prepareWecomTextBatch(message, serverTarget);
       if (prepared.status !== 'ready') return prepared;
       return await deps.db.transaction(async (tx) => {
+        // Intake first, as every native batch transaction does: a redelivery
+        // re-reads the job row below and then submits, and the arrange runner
+        // holds intake SHARE while it waits on that row.
+        await lockIntakeTable(tx, 'locked-for-write');
         const old = await lockMessage(tx, descriptor.key);
         const actor = await lockedActor(tx, auth.identities, auth.identity);
         if (old) {
