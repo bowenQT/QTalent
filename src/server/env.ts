@@ -1,4 +1,13 @@
 import { z } from 'zod';
+/** Entry endpoints are HTTPS; plain HTTP only on loopback for local tests. */
+function entryUrl(value: string) {
+  const url = new URL(value);
+  return (
+    url.protocol === 'https:' ||
+    (url.protocol === 'http:' &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+  );
+}
 const environmentSchema = z
   .object({
     APP_ENV: z.enum(['local', 'test', 'demo', 'production']),
@@ -30,6 +39,25 @@ const environmentSchema = z
       .string()
       .regex(/^[^\s]+$/)
       .optional(),
+    // Unset MCP/AgentAPI settings keep those entry routes unavailable (503).
+    MCP_ENDPOINT: z.string().url().refine(entryUrl).optional(),
+    MCP_ALLOWED_ORIGINS: z
+      .string()
+      .transform((value) =>
+        value
+          .split(',')
+          .map((origin) => origin.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.string().url().refine(entryUrl)).min(1))
+      .optional(),
+    // Vendor settings are validated by the AgentAPI adapter only when used.
+    AGENTAPI_API_KEY: z.string().optional(),
+    AGENTAPI_REGION: z.string().optional(),
+    AGENTAPI_AGENT_ID: z.string().optional(),
+    AGENTAPI_AGENT_VERSION: z.string().optional(),
+    AGENTAPI_ENVIRONMENT_ID: z.string().optional(),
+    AGENTAPI_MODEL_ID: z.string().optional(),
   })
   .superRefine((value, context) => {
     if (

@@ -85,3 +85,9 @@
 真实 PostgreSQL 联验使用正式迁移，当前同仪表181项单测+9项PG共190/190通过，无skip；八个生产文件行99.17%、分支97.83%、语句98.13%、函数90.90%。首跑189/190暴露旧测试直接删除仍被历史grant引用的binding，不符合正式外键；修为保留历史授权并实际重绑人员，两个独立旧请求均被拒，独立的无grant绑定删除场景仍保留。这里只验证Web数据库适配和当前权限，不是外部三渠道生产验收。
 
 本 PR 按已交付的独立 Web 身份与工具边界片推进审查：现代码不依赖外部三渠道的新表，缺配置/reader/handler 时仍拒绝。MCP、企业微信、AgentAPI 原生身份、业务领域同事务接线与真实跨入口验收作为本卡持续余项列出，不将它们误写成当前片已完成，也不以尚未添加的新表阻挡此独立片的检查。
+
+## 生产路由（MCP / AgentAPI）
+
+- `POST|GET|DELETE /api/mcp`：`queries/mcp-http.ts` → `usecases/mcp-runtime.ts`。每个进程只构建一个 MCP 处理器，复用应用现有的 pg-boss 生产者，不另起实例。`MCP_ENDPOINT` 未配置时返回 503。`MCP_ALLOWED_ORIGINS` 留空时，只接受端点本身的 Origin。鉴权、Origin/Host 校验和错误映射都在 `integrations/mcp/http.ts`。
+- `POST /api/agentapi/conversations/{id}`：`queries/agentapi-http.ts` → `usecases/agentapi-runtime.ts`。只接同源 Web 请求，请求体是 `{action: 'submit', operationId, text}`、`{action: 'advance', operationId}` 或 `{action: 'cancel'}`，上限 64KiB，不接受调用方给出的账号、人员或会话。AgentAPI 的归属证明取自本请求的 Web 入口身份：先过 Access 断言，再过 Better Auth，再核当前绑定和会话代次；每次读 AgentAPI 凭据时都重新核验。六个 `AGENTAPI_*` 设置缺任何一个都返回 503。这里不提供会话创建入口，会话创建与确认工厂仍待实现。
+- 频率限制目前在进程内：MCP 全局最多 8 个 POST 同时处理，每个账号最多 2 个业务调用并发。只有演示机单实例部署时，这才等于部署级限制。多实例部署需要跨实例计数（见 PR 中的建议），在那之前不要横向扩容。

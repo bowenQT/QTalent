@@ -32,6 +32,42 @@ describe('runtime configuration', () => {
       }).APP_ENV,
     ).toBe('test');
   });
+  it('keeps MCP entry settings optional and accepts only HTTPS or loopback URLs', () => {
+    expect(parseEnv(local).MCP_ENDPOINT).toBeUndefined();
+    expect(
+      parseEnv({
+        ...local,
+        MCP_ENDPOINT: 'https://talent.example.invalid/api/mcp',
+        MCP_ALLOWED_ORIGINS:
+          'https://talent.example.invalid, https://client.example.invalid',
+      }),
+    ).toMatchObject({
+      MCP_ENDPOINT: 'https://talent.example.invalid/api/mcp',
+      MCP_ALLOWED_ORIGINS: [
+        'https://talent.example.invalid',
+        'https://client.example.invalid',
+      ],
+    });
+    expect(
+      parseEnv({ ...local, MCP_ENDPOINT: 'http://127.0.0.1:3000/api/mcp' })
+        .MCP_ENDPOINT,
+    ).toBe('http://127.0.0.1:3000/api/mcp');
+    for (const MCP_ENDPOINT of [
+      'http://talent.example.invalid/api/mcp',
+      'not a url',
+    ])
+      expect(() => parseEnv({ ...local, MCP_ENDPOINT })).toThrow();
+    for (const MCP_ALLOWED_ORIGINS of [
+      '',
+      ' , ',
+      'http://evil.example.invalid',
+    ])
+      expect(() => parseEnv({ ...local, MCP_ALLOWED_ORIGINS })).toThrow();
+  });
+  it('leaves AgentAPI vendor settings to the adapter', () =>
+    expect(
+      parseEnv({ ...local, AGENTAPI_REGION: 'unchecked-here' }).AGENTAPI_REGION,
+    ).toBe('unchecked-here'));
   it('accepts isolated test settings without optional external integrations', () =>
     expect(parseEnv(local).APP_ENV).toBe('test'));
   it('rejects missing database and short authentication secret', () => {
