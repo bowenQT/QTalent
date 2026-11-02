@@ -64,17 +64,18 @@ test('skipped, waiting to be identified and unread rows are told apart and handl
   const skipped = page.locator('details.nt-fold');
   await expect(skipped.locator('li').first()).toBeHidden();
   await skipped.locator('summary').click();
-  await expect(skipped.locator('li')).toHaveText([/谷嘉树.*08-20 已导入过/]);
-  await expect(page.locator('#iv-r6')).toHaveCount(0);
-  // Rejected and not yet joined: 906 asks who they are before skipping them; with
-  // nobody in the directory they wait to be identified and go to review.
-  for (const [id, status] of [
-    ['r3', '淘汰'],
-    ['r4', '已发 offer · 未入职'],
-  ])
-    await expect(page.locator(`#iv-${id}`)).toContainText(
-      `北森状态是${status}；确认是谁之前不入档`,
-    );
+  // Rejected and not yet joined, located in the recruiting record: skipped before
+  // anyone confirms who they are, next to the row an earlier import holds.
+  await expect(skipped.locator('summary')).toContainText(
+    '跳过的 3 行淘汰和未入职的候选人跳过，只导入已入职的人',
+  );
+  await expect(skipped.locator('li')).toHaveText([
+    /唐语桐.*北森状态：淘汰/,
+    /宋知意.*北森状态：已发 offer · 未入职/,
+    /谷嘉树.*08-20 已导入过/,
+  ]);
+  for (const id of ['r3', 'r4', 'r6'])
+    await expect(page.locator(`#iv-${id}`)).toHaveCount(0);
 
   await expect(page.locator('.n-ivscale .is-na').first()).toHaveText(
     '管理能力 · 非管理岗免评',
