@@ -218,6 +218,16 @@ it('projects actual pinned seed observations and ended project participation', a
         expect(item.category).toBe('evaluation');
         expect(item.sources.length).toBeGreaterThan(0);
       }
+      // Weekly reviews repeat these readable key events and are not listed.
+      const weekly = mapped.evidence.historicalEvaluations.filter(
+        (row) => row.personId === target && row.kind === '训练营周评',
+      );
+      expect(weekly.length).toBeGreaterThan(0);
+      for (const row of weekly)
+        expect(events.map((item) => item.id)).toContain(row.sourceRecordId);
+      expect(
+        profile.timeline.data.some((row) => row.title.startsWith('训练营周评')),
+      ).toBe(false);
       for (const item of profile.timeline.data.filter(
         (row) => row.kind === 'history',
       ))
@@ -249,6 +259,13 @@ it('projects actual pinned seed observations and ended project participation', a
     ).toEqual(targetEvents.map((event) => event.id).sort());
     expect(restricted.capabilityProfile.status).toBe('ready');
     expect(restricted).not.toHaveProperty('referencePosition');
+    // The mentor now reads those key events, so their weekly reviews are not
+    // listed again (BOW-837 dedupe applies to every caller).
+    expect(
+      restricted.timeline.data.some((row) =>
+        row.title.startsWith('训练营周评'),
+      ),
+    ).toBe(false);
     expect(JSON.stringify(restricted)).not.toContain('management-observation');
     expect(restricted).not.toHaveProperty('managementObservations');
     const quick = await quickViewFromData(mentorData, target);
@@ -280,6 +297,13 @@ it('projects actual pinned seed observations and ended project participation', a
       throw new Error('Missing timeline');
     expect(afterNote.timeline.data.map((row) => row.id)).not.toContain(
       hidden.id,
+    );
+    // With that key event hidden, its own weekly review is listed again.
+    const hiddenWeekly = mapped.evidence.historicalEvaluations.find(
+      (row) => row.sourceRecordId === hidden.id && row.kind === '训练营周评',
+    );
+    expect(afterNote.timeline.data.map((row) => row.id)).toContain(
+      hiddenWeekly!.id,
     );
     expect(JSON.stringify(afterNote)).not.toContain('Synthetic management');
     const managerView = await personFromData(
