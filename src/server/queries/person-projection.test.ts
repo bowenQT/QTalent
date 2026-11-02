@@ -591,6 +591,22 @@ describe('source detail', () => {
 });
 
 describe('strict projection', () => {
+  // DY-01: there is no employee view. An account reading its own person with
+  // no grant and no evaluation relation gets no profile and no quick view.
+  it.each(['hr', 'manager'] as const)(
+    'an account whose %s grant is gone cannot read itself',
+    async (role) => {
+      const data = fixture(role);
+      data.context.account.personId = 'one';
+      // Control: the same self-read with the grant is a normal business read.
+      expect(await personFromData(data, 'one')).not.toBeNull();
+      data.context.grants = [];
+      data.directory.grants = [];
+      data.context.assignments = [];
+      expect(await personFromData(data, 'one')).toBeNull();
+      expect(await quickViewFromData(data, 'one')).toBeNull();
+    },
+  );
   it('gives the mentor a hidden-record hint identical to no record at all', async () => {
     const data = fixture('mentor');
     data.statements[1].kind = 'management_observation';

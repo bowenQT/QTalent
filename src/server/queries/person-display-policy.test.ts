@@ -20,11 +20,11 @@ const catalogue = (): Dimension[] => [
 const ids = (rows: readonly Dimension[]) => rows.map((row) => row.id);
 
 describe('能力谱展示顺序', () => {
-  it('消费既有查询顺序，仅把核心维度改为内生动力、智慧力、坚毅力', () => {
+  it('读取接入点直接输出原型顺序：核心维度为内生动力、智慧力、坚毅力', () => {
     const data = nodeFixture();
-    data.dimensions = catalogue();
-    const existingOrder = orderedDimensions(data);
-    expect(ids(orderCapabilityDimensions(existingOrder))).toEqual([
+    // Catalogue rows arrive in ID order, the order the reader used to show.
+    data.dimensions = [...catalogue()].sort((a, b) => (a.id < b.id ? -1 : 1));
+    expect(ids(orderedDimensions(data))).toEqual([
       'prof',
       'mot',
       'wis',
