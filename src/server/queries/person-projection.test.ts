@@ -566,6 +566,50 @@ describe('quick view and list', () => {
     const quick = await quickViewFromData(data, 'one');
     expect(quick?.projectLoad).toEqual({ current: 1, ever: 2 });
   });
+  it('lists projects by start date, then name, then id', async () => {
+    const data = fixture('hr');
+    const join = (id: string, name: string, validFrom: string) => {
+      data.staffing.projects.push({
+        id,
+        name,
+        type: 'topic',
+        status: '进行中',
+        goal: 'Synthetic goal',
+        organizationId: 'org',
+        cohortId: 'cohort',
+        isTopic: true,
+        ownerId: 'two',
+        creatorId: 'two',
+        from: validFrom,
+        to: '2026-12-01',
+        sortOrder: 0,
+      });
+      data.staffing.members.push({
+        id: 'member-' + id,
+        projectId: id,
+        personId: 'one',
+        role: 'member',
+        mode: 'full',
+        validFrom,
+        validTo: null,
+        by: 'actor',
+      });
+    };
+    join('late', 'Alpha', '2026-03-01');
+    join('tie-b', 'Beta', '2026-02-01');
+    join('tie-a2', 'Alpha', '2026-02-01');
+    join('tie-a1', 'Alpha', '2026-02-01');
+    join('early', 'Zeta', '2026-01-01');
+    const person = await profileOf(data);
+    if (person.projects.status !== 'ready') throw new Error('no projects');
+    expect(person.projects.data.map((row) => row.id)).toEqual([
+      'early',
+      'tie-a1',
+      'tie-a2',
+      'tie-b',
+      'late',
+    ]);
+  });
   it('omits management content from the mentor variant, with sentinel text', async () => {
     const data = fixture('mentor');
     data.events[0].title = 'SENTINEL-title';
