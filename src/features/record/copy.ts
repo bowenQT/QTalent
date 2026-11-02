@@ -147,6 +147,7 @@ export const copy = {
     retry: '重试',
     reorganize: '重新整理',
     copyInput: '复制原话',
+    reread: '重新读取',
   },
   confirm: {
     discardTitle: '改原话会放弃当前的修改',
@@ -183,6 +184,13 @@ export const copy = {
     undoLate: '已超过撤销时间，这条记录已保存',
     undoRetry: '重试',
     peopleJoin: '、',
+  },
+  undo: {
+    pending:
+      '撤销结果待确认：这条记录可能已经撤回，也可能还在档案里。重新读取后就清楚了',
+    refresh: '已撤销，回到待确认。重新读取这件事之后就能再保存，你的修改都还在',
+    rereadFailed: '这次读取遇到问题，修改还在这里，稍后再读一次',
+    notApplied: '这条记录仍在档案里',
   },
   banner: {
     problems: '有几处内容需要调整，已在下方标出',

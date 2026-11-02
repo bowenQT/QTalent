@@ -38,6 +38,7 @@ import {
   initialState,
   inputKey,
   isDirty,
+  isUndoBanner,
   recordReducer,
   type Connection,
 } from './record-flow';
@@ -416,7 +417,8 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
   }, [autoStart, scope, setAutoStart]);
 
   async function save() {
-    if (!draft || !edit) return;
+    // 撤销之后还没读到这件事的现状：手里的版本可能已过时，先重新读取
+    if (!draft || !edit || isUndoBanner(state.banner)) return;
     const probe = buildSaveInput(draft, edit, state.saveOp?.id ?? 'pending');
     if (!probe.ok) {
       if (probe.reason === 'empty_title' || probe.reason === 'empty_behavior') {
@@ -506,21 +508,35 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
       return;
     }
     const undoOperation = newId();
+    const target =
+      draft && state.batchId
+        ? { draftId: draft.draftId, batchId: state.batchId }
+        : null;
+    // 撤销请求出过错之后，结果就不明了：首次可能已经生效，只是回应丢了
+    let uncertain = false;
     const close = toast.show(message, {
       undoneText: copy.saved.undone,
       failedText: copy.saved.undoFailed,
       retryLabel: copy.saved.undoRetry,
       onUndo: async () => {
-        if (Date.now() >= undoUntil) {
+        // 截止后只拦新发起的撤销；发起过的同一操作仍交给服务端重放，不由本页断定
+        if (!uncertain && Date.now() >= undoUntil) {
           close();
           toast.show(copy.saved.undoLate);
           return;
         }
-        // 网络失败时让它抛出，Toast 会显示失败并给重试（同一 operation_id）
-        const result = await actions.undo({
-          operation_id: undoOperation,
-          saveId: receipt.saveId,
-        });
+        let result;
+        try {
+          result = await actions.undo({
+            operation_id: undoOperation,
+            saveId: receipt.saveId,
+          });
+        } catch (error) {
+          // 让它抛出，Toast 显示失败并给重试（同一 operation_id）
+          uncertain = true;
+          dispatch({ type: 'undo_unknown' });
+          throw error;
+        }
         if (result.status === 'success') {
           const restored = result.result.draftRestoration;
           dispatch({
@@ -528,10 +544,17 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
             draftRevision:
               restored.status === 'available' ? restored.draftRevision : null,
           });
+          if (restored.status !== 'available' && target)
+            void rereadAfterUndo(target, 'refresh');
+          return;
+        }
+        close();
+        // 之前出过错时，拒绝或超时证明不了首次没有生效：重新读取现状再说
+        if (uncertain) {
+          if (target) void rereadAfterUndo(target, 'pending');
           return;
         }
         // 业务终局失败不是「可重试」：收起原提示，另发一条说明
-        close();
         toast.show(
           result.status === 'forbidden' || result.status === 'not_found'
             ? result.message
@@ -540,6 +563,46 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
       },
     });
     if (remaining < UNDO_MS) scope.timeout(close, remaining);
+  }
+
+  /**
+   * 撤销之后读这件事的现状：回到待确认就用读到的版本。仍在档案里时，结果不明的撤销
+   * （pending）说明没有生效；已确认撤销过（refresh）说明别处又确认了，交给回执页看。
+   */
+  async function rereadAfterUndo(
+    target: { draftId: string; batchId: string },
+    mode: 'pending' | 'refresh',
+  ) {
+    const seq = ++loadSeq.current;
+    const failed = () => dispatch({ type: 'undo_reread_failed' });
+    try {
+      const result = await actions.readBatch({ batchId: target.batchId });
+      if (seq !== loadSeq.current) return;
+      if (result.status !== 'success') return failed();
+      const latest = result.result.draftSet?.drafts.find(
+        (item) => item.draftId === target.draftId,
+      );
+      if (latest) {
+        dispatch({ type: 'undo_reread', draft: latest });
+        return;
+      }
+      if (
+        mode === 'pending' &&
+        result.result.confirmedDrafts.some(
+          (item) => item.draftId === target.draftId,
+        )
+      ) {
+        dispatch({ type: 'undo_not_applied' });
+        toast.show(copy.undo.notApplied);
+        return;
+      }
+      dispatch({
+        type: 'banner',
+        banner: { kind: 'conflict', message: copy.conflict.draftGone },
+      });
+    } catch {
+      if (seq === loadSeq.current) failed();
+    }
   }
 
   function backToWrite() {
@@ -639,7 +702,7 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
       ? copy.live.organizing
       : phase === 'review' && draft
         ? copy.live.ready(suggestedCount(draft))
-        : phase === 'saved'
+        : phase === 'saved' && !state.banner
           ? copy.live.saved
           : '';
   const hintText =
@@ -726,6 +789,18 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
                   onLoadLatest={() => setConfirm('load')}
                   onCopyOut={openCopyOut}
                   onBack={requestBack}
+                  onReread={() => {
+                    const kind = state.banner?.kind;
+                    if (
+                      draft &&
+                      state.batchId &&
+                      (kind === 'undoPending' || kind === 'undoRefresh')
+                    )
+                      void rereadAfterUndo(
+                        { draftId: draft.draftId, batchId: state.batchId },
+                        kind === 'undoPending' ? 'pending' : 'refresh',
+                      );
+                  }}
                 />
                 <OrganizeProgress
                   processing={phase === 'organizing'}
@@ -784,12 +859,15 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
                       onPreview={setFocus}
                     />
                     {phase === 'saved' && state.receipt ? (
-                      <SavedSign
-                        receipt={state.receipt}
-                        people={people}
-                        accountName={props.accountName}
-                        roleLabel={props.roleLabel}
-                      />
+                      // 撤销结果待确认时不写「已保存」，提示条里写明现状
+                      state.banner ? null : (
+                        <SavedSign
+                          receipt={state.receipt}
+                          people={people}
+                          accountName={props.accountName}
+                          roleLabel={props.roleLabel}
+                        />
+                      )
                     ) : (
                       <div
                         className="nt-row"
@@ -800,7 +878,9 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
                           type="button"
                           className="n-btn n-btn--sm n-btn--ink"
                           id="ev-save"
-                          disabled={phase === 'saving'}
+                          disabled={
+                            phase === 'saving' || isUndoBanner(state.banner)
+                          }
                           aria-busy={phase === 'saving' || undefined}
                           aria-describedby="score-hint"
                           onClick={() => void save()}

@@ -33,7 +33,11 @@ export type Banner =
   | { kind: 'conflict'; message: string }
   | { kind: 'forbidden'; message: string }
   | { kind: 'refused'; message: string }
-  | { kind: 'saveProblems' };
+  | { kind: 'saveProblems' }
+  /** 撤销请求出过错：这条记录可能已撤回，也可能仍在档案里，重新读取前不下结论。 */
+  | { kind: 'undoPending'; failed?: boolean }
+  /** 撤销已完成，但回执没给可用的草稿版本：重新读取到新版本前不能再保存。 */
+  | { kind: 'undoRefresh'; failed?: boolean };
 
 export type Connection = 'connected' | 'error' | 'gone';
 /** 评价节点为什么没法定下来：多个、没有，或推导入口待接通。 */
@@ -164,7 +168,15 @@ export type Action =
   | { type: 'save_forbidden'; message: string }
   | { type: 'back_to_write' }
   /** draftRevision: the version the undo receipt hands back for saving again; null to reload. */
-  | { type: 'undone'; draftRevision: number | null };
+  | { type: 'undone'; draftRevision: number | null }
+  /** 撤销请求出错，结果不明。 */
+  | { type: 'undo_unknown' }
+  /** 撤销后重新读到了这件事：用读到的版本，修改保留。 */
+  | { type: 'undo_reread'; draft: RecordBatchDraft }
+  /** 重新读取发现这条记录仍在档案里：撤销没有生效。 */
+  | { type: 'undo_not_applied' }
+  /** 撤销之后的重新读取没读到：保持原状态，写明可以再读。 */
+  | { type: 'undo_reread_failed' };
 
 export function recordReducer(state: RecordState, action: Action): RecordState {
   switch (action.type) {
@@ -319,6 +331,7 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
       // 846 的撤销回执不带原输入（originalInput 为 null），原话用本页 state 里的。
       // 保存用过的 operation_id 作废，再保存必须换新，否则服务端会重放撤销掉的那次。
       // 846 的撤销推进了草稿版本：再保存用回执给的新版本，不然会被当成冲突。
+      // 回执要求重读（refresh_required）时手里的版本已经过时：先重读，读到新版本再保存。
       if (!state.draft || !state.edit) return resetToWrite(state);
       return {
         ...state,
@@ -330,10 +343,40 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
         saveOp: null,
         receipt: null,
         replayed: false,
+        banner: action.draftRevision === null ? { kind: 'undoRefresh' } : null,
+        problems: null,
+      };
+    case 'undo_unknown':
+      if (state.phase !== 'saved') return state;
+      return { ...state, banner: { kind: 'undoPending' } };
+    case 'undo_reread':
+      if (!isUndoBanner(state.banner) || !state.edit) return state;
+      return {
+        ...state,
+        draft: action.draft,
+        phase: 'review',
+        saveOp: null,
+        receipt: null,
+        replayed: false,
         banner: null,
         problems: null,
       };
+    case 'undo_not_applied':
+      if (state.banner?.kind !== 'undoPending') return state;
+      return { ...state, banner: null };
+    case 'undo_reread_failed':
+      if (
+        state.banner?.kind !== 'undoPending' &&
+        state.banner?.kind !== 'undoRefresh'
+      )
+        return state;
+      return { ...state, banner: { kind: state.banner.kind, failed: true } };
   }
+}
+
+/** 撤销之后、还没读到这件事现状的两种状态。 */
+export function isUndoBanner(banner: Banner | null) {
+  return banner?.kind === 'undoPending' || banner?.kind === 'undoRefresh';
 }
 
 function clearInputBanner(state: RecordState): Banner | null {

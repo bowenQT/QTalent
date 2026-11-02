@@ -966,6 +966,107 @@ describe('5 秒撤销', () => {
     );
   });
 
+  const undoDone = (restoration: object) =>
+    ok({
+      saveId: 'save-1',
+      withdrawnEvents: [],
+      withdrawnConfirmationIds: [],
+      withdrawnReviewItemIds: [],
+      draftRestoration: restoration,
+      inputRestoration: 'unavailable',
+      originalInput: null,
+    });
+  const batchWith = (revision: number) =>
+    ok({
+      ...doneBatch,
+      draftSet: { ...doneBatch.draftSet!, drafts: [{ ...draft, revision }] },
+    });
+  const saveButton = () =>
+    screen.getByRole('button', {
+      name: copy.actions.save,
+    }) as HTMLButtonElement;
+
+  it('撤销回执要求重读：重新读到新版本前不能保存，读到后用新版本保存', async () => {
+    const { actions } = await saved({
+      actions: {
+        undo: vi.fn(() => undoDone({ status: 'refresh_required' })) as never,
+      },
+    });
+    // 撤销后的第一次重读没读到
+    actions.readBatch
+      .mockImplementationOnce(() => Promise.reject(new Error('offline')))
+      .mockImplementation(() => batchWith(7));
+    await click('撤销');
+    expect(await screen.findByText(copy.undo.rereadFailed)).toBeTruthy();
+    expect(screen.getByText(copy.undo.refresh)).toBeTruthy();
+    expect(saveButton().disabled).toBe(true);
+    await click(copy.actions.reread);
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    expect(screen.queryByText(copy.undo.refresh)).toBeNull();
+    await click(copy.actions.save);
+    await waitFor(() => expect(actions.save).toHaveBeenCalledTimes(2));
+    expect(actions.save.mock.calls[1]?.[0].expected_revision).toBe(7);
+  });
+
+  it('撤销结果不明后重试被拒：不写已保存，重新读取发现回到待确认就用读到的版本', async () => {
+    const undo = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ status: 'forbidden', message: '权限有变化' });
+    const { actions } = await saved({ actions: { undo: undo as never } });
+    actions.readBatch.mockImplementation(() => batchWith(9));
+    await click('撤销');
+    expect(await screen.findByText(copy.saved.undoFailed)).toBeTruthy();
+    // 首次撤销可能已经生效：不再写「已保存」
+    expect(screen.getByText(copy.undo.pending)).toBeTruthy();
+    expect(document.querySelector('.n-event__sign')).toBeNull();
+    await click(copy.saved.undoRetry);
+    // 拒绝证明不了首次没生效：重新读取，读到这件事回到了待确认
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    expect(screen.queryByText('权限有变化')).toBeNull();
+    await click(copy.actions.save);
+    await waitFor(() => expect(actions.save).toHaveBeenCalledTimes(2));
+    expect(actions.save.mock.calls[1]?.[0].expected_revision).toBe(9);
+  });
+
+  it('撤销结果不明、过了截止时间：重试仍交给服务端；读到仍在档案里才写已保存', async () => {
+    const undo = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ status: 'conflict', message: 'x', input: {} });
+    const { actions } = await saved({ actions: { undo: undo as never } });
+    actions.readBatch.mockImplementation(() =>
+      ok({
+        ...doneBatch,
+        draftSet: null,
+        confirmedDrafts: [
+          {
+            draftId: draft.draftId,
+            revision: draft.revision + 1,
+            events: [{ personId: 'p1', eventId: 'ev-1' }],
+          },
+        ],
+      }),
+    );
+    await click('撤销');
+    await screen.findByText(copy.saved.undoFailed);
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now + 6000);
+    try {
+      await click(copy.saved.undoRetry);
+      await waitFor(() => expect(undo).toHaveBeenCalledTimes(2));
+      expect(undo.mock.calls[1]?.[0].operation_id).toBe(
+        undo.mock.calls[0]?.[0].operation_id,
+      );
+      expect(screen.queryByText(copy.saved.undoLate)).toBeNull();
+      expect(await screen.findByText(copy.undo.notApplied)).toBeTruthy();
+      expect(screen.queryByText(copy.undo.pending)).toBeNull();
+      expect(screen.getByText(/刚刚保存到演示甲的档案/)).toBeTruthy();
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it('窗口已过：关闭原提示，另发说明，记录保持已保存，不显示已撤销', async () => {
     const undo = vi
       .fn()

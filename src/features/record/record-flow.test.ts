@@ -3,6 +3,7 @@ import {
   initialState,
   inputKey,
   isDirty,
+  isUndoBanner,
   recordReducer,
   type Action,
   type RecordState,
@@ -373,10 +374,57 @@ describe('回到输入与撤销', () => {
       draft: { ...saved.draft, revision: 9 },
       edit: saved.edit,
     });
-    // 回执要求重读时，草稿保持原样
-    expect(run(saved, { type: 'undone', draftRevision: null }).draft).toBe(
-      saved.draft,
+    expect(undone.banner).toBeNull();
+  });
+
+  it('撤销回执要求重读：进入待刷新，读到新版本前不能保存，修改都在', () => {
+    const saved = run(
+      review,
+      { type: 'edit_sbi', field: 'impact', value: '改过' },
+      { type: 'save_begin', op },
+      { type: 'save_saved', receipt, replayed: false },
     );
+    const stale = run(saved, { type: 'undone', draftRevision: null });
+    expect(stale).toMatchObject({
+      phase: 'review',
+      banner: { kind: 'undoRefresh' },
+      edit: saved.edit,
+    });
+    expect(isUndoBanner(stale.banner)).toBe(true);
+    // 重读没读到：仍待刷新，写明可以再读
+    expect(run(stale, { type: 'undo_reread_failed' }).banner).toEqual({
+      kind: 'undoRefresh',
+      failed: true,
+    });
+    const latest = { ...saved.draft!, revision: 7 };
+    const fresh = run(stale, { type: 'undo_reread', draft: latest });
+    expect(fresh).toMatchObject({
+      phase: 'review',
+      banner: null,
+      draft: latest,
+      edit: saved.edit,
+    });
+  });
+
+  it('撤销结果不明：不再算已保存；读到仍在档案里才恢复已保存', () => {
+    const saved = run(
+      review,
+      { type: 'save_begin', op },
+      { type: 'save_saved', receipt, replayed: false },
+    );
+    const pending = run(saved, { type: 'undo_unknown' });
+    expect(pending).toMatchObject({
+      phase: 'saved',
+      banner: { kind: 'undoPending' },
+    });
+    expect(run(pending, { type: 'undo_not_applied' }).banner).toBeNull();
+    // 只在待确认时生效：别的状态下迟到的结果不改动页面
+    expect(run(review, { type: 'undo_unknown' })).toBe(review);
+    expect(run(review, { type: 'undo_reread', draft: review.draft! })).toBe(
+      review,
+    );
+    expect(run(saved, { type: 'undo_not_applied' })).toBe(saved);
+    expect(run(saved, { type: 'undo_reread_failed' })).toBe(saved);
   });
 
   it('没有草稿时撤销回到输入', () => {

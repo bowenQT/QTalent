@@ -41,12 +41,15 @@ export function BannerNotice({
   onLoadLatest,
   onCopyOut,
   onBack,
+  onReread,
 }: {
   banner: Banner | null;
   onRetry: () => void;
   onLoadLatest: () => void;
   onCopyOut: () => void;
   onBack: () => void;
+  /** 撤销之后重新读取这件事的现状。 */
+  onReread?: () => void;
 }) {
   if (!banner) return null;
   switch (banner.kind) {
@@ -150,6 +153,30 @@ export function BannerNotice({
       return <Notice>{banner.message}</Notice>;
     case 'saveProblems':
       return <Notice>{copy.banner.problems}</Notice>;
+    case 'undoPending':
+    case 'undoRefresh':
+      return (
+        <Notice
+          actions={
+            onReread ? (
+              <button
+                type="button"
+                className="n-btn n-btn--sm n-btn--ghost"
+                onClick={onReread}
+              >
+                {copy.actions.reread}
+              </button>
+            ) : null
+          }
+        >
+          {banner.kind === 'undoPending'
+            ? copy.undo.pending
+            : copy.undo.refresh}
+          {banner.failed ? (
+            <div className="nt-muted">{copy.undo.rereadFailed}</div>
+          ) : null}
+        </Notice>
+      );
     case 'node': {
       const text =
         banner.reason === 'pending' || banner.reason === 'unavailable'
