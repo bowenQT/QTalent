@@ -107,6 +107,20 @@ export const copy = {
     undoLate: '撤销时间已过，这件事已确认',
     undoUnknown: '撤销结果待确认，可以在这件事上再试一次',
   },
+  read: {
+    stale: (time: string) => `这次刷新中断了，下面是 ${time} 读到的回执`,
+    staleFirst: '这次刷新中断了，下面是打开这一页时读到的回执',
+    retry: '再刷新',
+    forbidden: {
+      title: '查看权限已更新',
+      text: '这一页停在之前读到的内容，刷新已暂停。回到工作台，从「进行中的任务」进入。',
+    },
+    not_found: {
+      title: '回执链接失效',
+      text: '这一页停在之前读到的内容，刷新已暂停。回到工作台，从「进行中的任务」重新进入。',
+    },
+    toWork: '回到工作台',
+  },
   problem: {
     offline: '网络中断，改动还在，再试一次',
     unavailable: '这次保存中断了，改动还在，可以稍后再保存',

@@ -1225,8 +1225,8 @@ describe('本页状态和读取快照的优先规则', () => {
           view: snapshot([b], [['demo-event-draft-a', 'ev-1']]),
         })
         .mockRejectedValueOnce(new Error('offline'))
-        .mockResolvedValueOnce({ status: 'forbidden', message: '无权' })
-        .mockResolvedValueOnce({ status: 'unavailable' });
+        .mockResolvedValueOnce({ status: 'unavailable' })
+        .mockResolvedValueOnce({ status: 'forbidden', message: '无权' });
       const undo = vi
         .fn()
         .mockRejectedValueOnce(new Error('timeout'))
@@ -1250,8 +1250,8 @@ describe('本页状态和读取快照的优先规则', () => {
       expect(
         await within(card()).findByText(copy.confirm.undoVerify),
       ).toBeTruthy();
-      // 刷新读取抛错、forbidden、unavailable：都留在待核实，刷新入口还在
-      for (const calls of [2, 3, 4]) {
+      // 刷新读取抛错、unavailable：都留在待核实，刷新入口还在
+      for (const calls of [2, 3]) {
         await user.click(
           within(card()).getByRole('button', {
             name: copy.confirm.undoReread,
@@ -1272,6 +1272,16 @@ describe('本页状态和读取快照的优先规则', () => {
           ).toHaveProperty('disabled', false),
         );
       }
+      // forbidden：页面写明权限已更新、停止读取，这件事仍是待核实
+      await user.click(
+        within(card()).getByRole('button', { name: copy.confirm.undoReread }),
+      );
+      expect(await screen.findByText(copy.read.forbidden.title)).toBeTruthy();
+      expect(within(card()).queryByText(/已进入档案/)).toBeNull();
+      expect(within(card()).getByText(copy.confirm.undoVerify)).toBeTruthy();
+      window.dispatchEvent(new Event('online'));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(read).toHaveBeenCalledTimes(4);
     });
 
     it('本页 5 分保存，别处撤销、改 3 分重存：读到别处的确认时只显示摘要，不补回本页的 5 分', async () => {
@@ -1340,5 +1350,151 @@ describe('本页状态和读取快照的优先规则', () => {
       expect(within(card()).queryByText('5')).toBeNull();
       expect(within(card()).queryByText(/叶青/)).toBeNull();
     });
+  });
+});
+
+describe('读取没成功时（#357 F3）', () => {
+  const both = make({
+    confirmers: {
+      'demo-event-draft-a': { mine: true, name: '叶青' },
+      'demo-event-draft-b': { mine: true, name: '叶青' },
+    },
+  });
+  const editB = async (user: ReturnType<typeof userEvent.setup>) => {
+    const b = cardOf('demo-event-draft-b');
+    await user.click(within(b).getByRole('button', { name: '改分' }));
+    await user.selectOptions(within(b).getByRole('combobox'), '5');
+    await user.type(within(b).getByRole('textbox'), '没写完的理由');
+  };
+  const inputB = () => {
+    const b = cardOf('demo-event-draft-b');
+    return [
+      (within(b).getByRole('combobox') as HTMLSelectElement).value,
+      (within(b).getByRole('textbox') as HTMLTextAreaElement).value,
+    ];
+  };
+
+  it.each([
+    ['forbidden', copy.read.forbidden.title],
+    ['not_found', copy.read.not_found.title],
+  ] as const)(
+    '读取返回 %s：写明失效，停止之后的读取，没提交的输入留着',
+    async (status, title) => {
+      const user = userEvent.setup();
+      const read = vi.fn().mockResolvedValue({ status, message: '无权' });
+      mountWith(both, {
+        read,
+        save: vi.fn().mockResolvedValue(saved()),
+        undo: vi.fn(),
+      });
+      await editB(user);
+      await user.click(
+        within(cardOf('demo-event-draft-a')).getByRole('button', {
+          name: /确认这件事/,
+        }),
+      );
+      expect(await screen.findByRole('alert')).toHaveProperty(
+        'textContent',
+        expect.stringContaining(title),
+      );
+      expect(inputB()).toEqual(['5', '没写完的理由']);
+      // 失效后：断网恢复也不再读，卡片上的操作停下
+      window.dispatchEvent(new Event('online'));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(
+        within(cardOf('demo-event-draft-b')).getByRole('button', {
+          name: '保存并确认',
+        }),
+      ).toHaveProperty('disabled', true);
+    },
+  );
+
+  it('读取中断：写明下面是之前读到的内容；断网恢复后读成功，提示消失，输入留着', async () => {
+    const user = userEvent.setup();
+    const read = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ status: 'success', view: both });
+    mountWith(both, {
+      read,
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi.fn(),
+    });
+    await editB(user);
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    expect(await screen.findByText(copy.read.staleFirst)).toBeTruthy();
+    window.dispatchEvent(new Event('online'));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByText(copy.read.staleFirst)).toBeNull(),
+    );
+    expect(inputB()).toEqual(['5', '没写完的理由']);
+  });
+
+  it('更早发起的读取晚到、失败：不覆盖之后读成功的内容，也不提示中断', async () => {
+    const user = userEvent.setup();
+    let fail!: (reason: unknown) => void;
+    const read = vi
+      .fn()
+      .mockReturnValueOnce(new Promise((_, reject) => (fail = reject)))
+      .mockResolvedValue({ status: 'success', view: both });
+    mountWith(both, {
+      read,
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi.fn(),
+    });
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    window.dispatchEvent(new Event('online'));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    fail(new Error('timeout'));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByText(/这次刷新中断了/)).toBeNull();
+  });
+
+  it('页面卸载后才返回的读取：不再改页面，也不再响应断网恢复', async () => {
+    const user = userEvent.setup();
+    let release!: (value: unknown) => void;
+    const read = vi
+      .fn()
+      .mockReturnValueOnce(new Promise((resolve) => (release = resolve)))
+      .mockResolvedValue({ status: 'success', view: both });
+    const { unmount } = render(
+      <ToastProvider>
+        <ReceiptPage
+          batchId="demo-batch"
+          initial={make()}
+          actions={{
+            read,
+            save: vi.fn().mockResolvedValue(saved()),
+            undo: vi.fn(),
+          }}
+          viewerName="叶青"
+        />
+      </ToastProvider>,
+    );
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    unmount();
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    release({ status: 'forbidden', message: '无权' });
+    window.dispatchEvent(new Event('online'));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
   });
 });

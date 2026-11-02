@@ -34,7 +34,7 @@ import {
   type Op,
   type SavedRecord,
 } from './receipt-local';
-import type { ReceiptActions, ReceiptView } from './types';
+import type { ReceiptActions, ReceiptReadResult, ReceiptView } from './types';
 import './receipt.css';
 
 /** 有文件或整理还在跑时，按这个间隔重读回执。 */
@@ -109,6 +109,25 @@ export function ReceiptPage({
   // 发起过几次读取；当前快照是第几次读取带回来的，更早发起、更晚落定的读取不替换它
   const reads = useRef(0);
   const shown = useRef(0);
+  /*
+   * 读取没成功时页面怎么说：stale——这次读取中断了，下面是上次读到的内容，之后的读取照常；
+   * lost——读取被拒或回执已不存在，停在之前读到的内容，之后不再发起读取。
+   */
+  const [readIssue, setReadIssue] = useState<
+    | null
+    | { kind: 'stale'; since: string }
+    | { kind: 'lost'; status: 'forbidden' | 'not_found' }
+  >(null);
+  const lost = useRef(false);
+  // 上次读到回执的时间（ISO）；页面卸载后返回的读取不再改页面
+  const readAt = useRef<string | null>(null);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   // 撤销结果不知道时，卡片上的重试沿用同一次撤销
   const retries = useRef(new Map<string, () => void>());
   const ops = useRef(new Map<string, { key: string; id: string }>());
@@ -118,29 +137,51 @@ export function ReceiptPage({
 
   /** 重读回执；带回的快照被采用时返回 true。 */
   const reload = useCallback(async () => {
+    if (lost.current || !alive.current) return false;
     const started = ++reads.current;
+    let result: ReceiptReadResult;
     try {
-      const result = await actions.read(batchId);
-      if (result.status !== 'success' || started <= shown.current) return false;
+      result = await actions.read(batchId);
+    } catch {
+      result = { status: 'unavailable' };
+    }
+    // 卸载后才返回、失效之后才返回、比已显示的快照发起得早：都不改页面
+    if (!alive.current || lost.current || started <= shown.current)
+      return false;
+    if (result.status === 'success') {
       shown.current = started;
+      readAt.current = new Date().toISOString();
       setView(result.view);
       setOrder((prev) => draftOrder(prev, result.view));
       setLocal((all) => reconcile(all, started, result.view.receipt));
+      setReadIssue(null);
       return true;
-    } catch {
-      // 读不到时保留当前内容，下一次轮询或操作再读
+    }
+    if (result.status === 'forbidden' || result.status === 'not_found') {
+      lost.current = true;
+      setReadIssue({ kind: 'lost', status: result.status });
       return false;
     }
+    // 中断：保留当前内容并写明它是上次读到的，下一次轮询、联网或操作再读
+    setReadIssue({ kind: 'stale', since: readAt.current ?? '' });
+    return false;
   }, [actions, batchId]);
+
+  // 断网恢复后读一次
+  useEffect(() => {
+    const online = () => void reload();
+    window.addEventListener('online', online);
+    return () => window.removeEventListener('online', online);
+  }, [reload]);
 
   const running =
     receipt.jobId !== null ||
     receipt.files.some((f) => f.status === 'processing');
   useEffect(() => {
-    if (!running) return;
+    if (!running || readIssue?.kind === 'lost') return;
     const timer = setInterval(() => void reload(), RECEIPT_POLL_MS);
     return () => clearInterval(timer);
-  }, [running, reload]);
+  }, [running, reload, readIssue]);
 
   const drafts = receipt.draftSet?.drafts ?? [];
   const states = new Map(
@@ -415,7 +456,8 @@ export function ReceiptPage({
         draft={draft}
         mode={done ? 'confirmed' : mineOf(id) ? 'mine' : 'others'}
         confirmed={done}
-        busy={Boolean(busy[id])}
+        // 失效后停在之前读到的内容：输入留着，操作停下
+        busy={Boolean(busy[id]) || readIssue?.kind === 'lost'}
         problem={problems[id] ?? null}
         restore={st.kind === 'pending' ? edit : null}
         pendingUndo={
@@ -465,6 +507,38 @@ export function ReceiptPage({
           {copy.state[receipt.status]}
         </span>
       </header>
+      {readIssue?.kind === 'lost' ? (
+        <div className="n-notice is-deny" role="alert">
+          <Icon name="info" />
+          <div>
+            <b>{copy.read[readIssue.status].title}</b>
+            <p style={{ margin: 0 }}>{copy.read[readIssue.status].text}</p>
+            <div className="nt-row" style={{ marginTop: 'var(--s-2)' }}>
+              <Link className="n-btn n-btn--sm n-btn--ghost" href="/work">
+                {copy.read.toWork}
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : readIssue?.kind === 'stale' ? (
+        <div className="n-notice is-plain" role="status">
+          <Icon name="info" />
+          <div>
+            {readIssue.since
+              ? copy.read.stale(shanghai(readIssue.since, true))
+              : copy.read.staleFirst}
+            <div className="nt-row" style={{ marginTop: 'var(--s-2)' }}>
+              <button
+                type="button"
+                className="n-btn n-btn--sm n-btn--ghost"
+                onClick={() => void reload()}
+              >
+                {copy.read.retry}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <ul className="n-rsum" aria-label={copy.summary.label}>
         {/* 只写了原话、没有文件的批次：这一格写原话，不写「0 个文件」 */}
         {!files.total && receipt.textMaterial ? (
