@@ -14,6 +14,8 @@ import {
 import { accountBindings, people } from '../../directory';
 import { evaluationNodes } from '../../programs';
 import type { InterviewReviewResult } from '../attachments/interview-review/types';
+import type { MaterialReviewItem } from '../../../../contracts/material-review';
+import { auditEvents } from '../../../platform/audit/schema';
 import {
   originals,
   originalVersions,
@@ -152,6 +154,55 @@ export const interviewImportRows = pgTable(
     check(
       'records_interview_import_row_decision',
       sql`(${t.decision} is null and ${t.decisionRevision} is null) or (jsonb_typeof(${t.decision}) = 'object' and ${t.decision} ? 'status' and ${t.decisionRevision} is not null and ${t.decisionRevision} <= ${t.revision})`,
+    ),
+  ],
+);
+
+/**
+ * A question an import row waits on in 待核对 (BOW-906 PR-B). The question keeps the
+ * shared MaterialReviewItem contract, so readers map it like a media review item; it
+ * hangs on the import row because an interview PDF has no upload or intake chain. One
+ * item per row and kind makes sending a row to review idempotent.
+ */
+export const interviewImportReviewItems = pgTable(
+  'records_interview_import_review_items',
+  {
+    id: text('id').primaryKey(),
+    batchId: text('batch_id').notNull(),
+    rowId: text('row_id').notNull(),
+    kind: text('kind', {
+      enum: ['unknown_interview_candidate', 'unknown_interviewer'],
+    }).notNull(),
+    revision: integer('revision').notNull(),
+    state: text('state', {
+      enum: ['pending', 'deferred', 'resolved'],
+    }).notNull(),
+    question: jsonb('question').$type<MaterialReviewItem>().notNull(),
+    createdByAccountId: text('created_by_account_id')
+      .notNull()
+      .references(() => accountBindings.accountId),
+    createdAt: timestamp('created_at', {
+      withTimezone: true,
+      mode: 'string',
+    }).notNull(),
+    auditId: text('audit_id')
+      .notNull()
+      .references(() => auditEvents.id),
+  },
+  (t) => [
+    foreignKey({
+      name: 'records_interview_import_review_item_row',
+      columns: [t.batchId, t.rowId],
+      foreignColumns: [interviewImportRows.batchId, interviewImportRows.rowId],
+    }),
+    unique('records_interview_import_review_item_kind').on(
+      t.batchId,
+      t.rowId,
+      t.kind,
+    ),
+    check(
+      'records_interview_import_review_item',
+      sql`${t.kind} in ('unknown_interview_candidate','unknown_interviewer') and ${t.state} in ('pending','deferred','resolved') and ${t.revision} > 0 and jsonb_typeof(${t.question}) = 'object' and (${t.question}->'itemId') is not distinct from to_jsonb(${t.id}) and (${t.question}->'kind') is not distinct from to_jsonb(${t.kind}) and (${t.question}->'batchId') is not distinct from to_jsonb(${t.batchId}) and (${t.question}->'importRowId') is not distinct from to_jsonb(${t.rowId})`,
     ),
   ],
 );

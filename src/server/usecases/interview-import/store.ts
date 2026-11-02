@@ -10,10 +10,12 @@ import {
 import { employments } from '../../modules/directory';
 import { evaluationNodes } from '../../modules/programs';
 import { fragments } from '../../modules/records';
+import { recordAudit } from '../../platform/audit';
 import {
   interviewImportBatches,
   interviewImportCandidates,
   interviewImportRows,
+  interviewImportReviewItems,
   type InterviewImportDecision,
 } from '../../modules/records/interview-import/schema';
 import type {
@@ -77,7 +79,11 @@ async function loadBatch(db: DbExecutor, batchId: string) {
     )
     .where(eq(interviewImportRows.batchId, batchId))
     .orderBy(asc(interviewImportRows.ordinal));
-  return { ...batch, candidates, rows };
+  const reviewItems = await db
+    .select()
+    .from(interviewImportReviewItems)
+    .where(eq(interviewImportReviewItems.batchId, batchId));
+  return { ...batch, candidates, rows, reviewItems };
 }
 
 async function loadEmployments(db: DbExecutor, personIds: string[]) {
@@ -102,6 +108,10 @@ async function loadEmployments(db: DbExecutor, personIds: string[]) {
 export function shownName(person: { name: string; demo: boolean }) {
   return person.demo ? `${person.name}（演示）` : person.name;
 }
+
+/** Review items still open for a row; resolving them is not connected yet. */
+const openItems = (loaded: Loaded, rowId: string) =>
+  loaded.reviewItems.filter((i) => i.rowId === rowId && i.state !== 'resolved');
 
 const reviewOf = (row: Row): ParsedInterviewReview | null =>
   row.parsed.status === 'rejected'
@@ -201,11 +211,13 @@ function factsFor(
       access: hrCohortId === undefined ? 'forbidden' : 'allowed',
       subjectPersonIds: subjects,
       hasHiddenContent: false,
-      // No review items are stored by this slice; sending to review comes later.
-      blockingReviewItemIds: [],
+      blockingReviewItemIds: openItems(loaded, row.rowId).map((i) => i.id),
       import: { state: 'unimported' },
     },
-    pendingCandidate: null,
+    pendingCandidate:
+      openItems(loaded, row.rowId).find(
+        (i) => i.kind === 'unknown_interview_candidate',
+      )?.question ?? null,
     candidateResolution: null,
     resolvedCandidate: null,
     resolvedInterviewer: null,
@@ -341,7 +353,10 @@ function view(
     comment: review.metadata.overallComment?.value ?? null,
     redacted: 0,
     duplicate: null,
-    reviewItemId: null,
+    reviewItemId:
+      openItems(loaded, row.rowId).find(
+        (i) => i.kind === 'unknown_interview_candidate',
+      )?.id ?? null,
     confirmed,
     filled: {},
   };
@@ -569,6 +584,139 @@ export async function confirmInterviewImportRow(
         directory,
         employmentRows,
         plan,
+      ),
+      revision,
+    };
+  });
+}
+
+/**
+ * Sends a row nobody in the directory matches to 待核对: one transaction stores the
+ * plan's own unknown_interview_candidate question for the row, advances the row
+ * revision, stores the new decision and writes the audit. Sending a row that already
+ * has its question returns the stored row unchanged, so a retry is safe.
+ */
+export async function sendInterviewImportRowToReview(
+  db: Database,
+  accountId: string,
+  input: { batchId: string; rowId: string; expectedRevision: number },
+  { now, at }: { now: string; at: string },
+): Promise<InterviewImportRowResult> {
+  return db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select()
+      .from(interviewImportRows)
+      .where(
+        and(
+          eq(interviewImportRows.batchId, input.batchId),
+          eq(interviewImportRows.rowId, input.rowId),
+        ),
+      )
+      .for('update');
+    if (!locked)
+      return { status: 'not_found', message: '这一行已不在这份导入里' };
+    const read = await readAll(tx, accountId, input.batchId, now);
+    if (read.status !== 'ok')
+      return {
+        status: read.status,
+        message:
+          read.status === 'forbidden'
+            ? '你的查看权限已更新，请刷新后再看'
+            : '这一行已不在这份导入里',
+      };
+    const { context, directory, loaded, employmentRows } = read;
+    const entry = loaded.rows.find((e) => e.row.rowId === input.rowId)!;
+    if (!visible(context, loaded, entry, directory))
+      return {
+        status: 'forbidden',
+        message: '你的查看权限已更新，请刷新后再看',
+      };
+    const facts = () =>
+      factsFor(context, directory, loaded, entry, employmentRows, accountId);
+    const sent = openItems(loaded, input.rowId).some(
+      (i) => i.kind === 'unknown_interview_candidate',
+    );
+    if (sent)
+      return {
+        status: 'ok',
+        row: view(
+          loaded,
+          entry,
+          directory,
+          employmentRows,
+          planInterviewImport(facts()),
+        ),
+        revision: locked.revision,
+      };
+    if (locked.revision !== input.expectedRevision)
+      return { status: 'conflict', message: CONFLICT };
+    const plan = planInterviewImport(facts());
+    const current = view(loaded, entry, directory, employmentRows, plan);
+    // Only a row the directory has nobody for goes to review, as the preview offers.
+    if (
+      current.match !== null ||
+      current.confirmed ||
+      plan.status !== 'needs_review' ||
+      plan.item.kind !== 'unknown_interview_candidate'
+    )
+      return {
+        status: 'conflict',
+        message: '这一行已能确认是谁，不用放进待核对',
+      };
+    const revision = locked.revision + 1;
+    const auditId = await recordAudit(tx, {
+      actorId: accountId,
+      action: 'interview_import.review_item.create',
+      resourceId: plan.item.itemId,
+      metadata: { channel: 'web', revision },
+    });
+    await tx.insert(interviewImportReviewItems).values({
+      id: plan.item.itemId,
+      batchId: input.batchId,
+      rowId: input.rowId,
+      kind: 'unknown_interview_candidate',
+      revision: plan.item.revision,
+      state: 'pending',
+      question: plan.item,
+      createdByAccountId: accountId,
+      createdAt: at,
+      auditId,
+    });
+    const [stored] = await tx
+      .update(interviewImportRows)
+      .set({
+        revision,
+        decision: decisionOf(plan, null, at, accountId),
+        decisionRevision: revision,
+      })
+      .where(
+        and(
+          eq(interviewImportRows.batchId, input.batchId),
+          eq(interviewImportRows.rowId, input.rowId),
+          eq(interviewImportRows.revision, input.expectedRevision),
+        ),
+      )
+      .returning();
+    if (!stored) throw new Error('interview import row changed under its lock');
+    const after = (await loadBatch(tx, input.batchId))!;
+    const storedEntry = after.rows.find((e) => e.row.rowId === input.rowId)!;
+    return {
+      status: 'ok',
+      row: view(
+        after,
+        storedEntry,
+        directory,
+        employmentRows,
+        planInterviewImport(
+          factsFor(
+            context,
+            directory,
+            after,
+            storedEntry,
+            employmentRows,
+            accountId,
+          ),
+        ),
       ),
       revision,
     };

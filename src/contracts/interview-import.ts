@@ -98,6 +98,11 @@ export const interviewImportConfirmInputSchema = z.strictObject({
 export type InterviewImportConfirmInput = z.infer<
   typeof interviewImportConfirmInputSchema
 >;
+export const interviewImportSendInputSchema = z.strictObject({
+  batchId: text.max(200),
+  rowId: text.max(200),
+  expectedRevision: z.number().int().positive(),
+});
 export type InterviewImportRowResult =
   | { status: 'ok'; row: InterviewImportRow; revision: number }
   | {
