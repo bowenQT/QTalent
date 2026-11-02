@@ -25,6 +25,33 @@ BACK_HEADERS = [
     "人员ID", "学员（演示）", "期次（演示）", "结营原档位", "评价人ID", "评价人（演示）",
     "评价时间（UTC）", "结营原量表ID", "记录状态", "重建评语（演示）",
 ]
+ITEM_GRADES = ("A", "B", "C")
+
+
+def prototype_team_label(facts):
+    team = facts["front"]["team"]
+    require(isinstance(team, str) and team, "team row without a prototype team")
+    return f"{team}（演示）"
+
+
+def derive_outcome(mapping, case, mark):
+    """Independent restatement of the frozen comparison rule for fixture QA."""
+    front, back = case["front"], case["back"]
+    if front["state"] == "missing" or back["state"] == "missing":
+        both = front["state"] == back["state"] == "missing"
+        return {"state": "missing", "missing": "both" if both else "front" if front["state"] == "missing" else "back"}
+    if mark is not None:
+        return {"state": "not_comparable", **{key: mark[key] for key in ("reason", "markedBy", "markedAt")}}
+    row = next(item for item in mapping["rows"] if item["frontGrade"] == front["judgment"]["grade"])
+    if row["frontPosition"] == "middle":
+        return {"state": "middle_distribution", "backGrade": back["judgment"]["grade"]}
+    order = ["不建议", "继续观察", "建议留用"]
+    difference = order.index(row["backGrade"]) - order.index(back["judgment"]["grade"])
+    if difference == 0:
+        return {"state": "consistent"}
+    return {"state": "front_higher" if difference > 0 else "front_lower", "bands": abs(difference)}
+
+
 ALLOWED_ENTRIES = {
     "xl/workbook.xml", "xl/styles.xml", "xl/theme/theme1.xml", "xl/sharedStrings.xml",
     "xl/worksheets/sheet1.xml", "xl/tables/table1.xml", "_rels/.rels",
@@ -106,7 +133,7 @@ def validate(root):
     source = read_json(root, MARK_FILE)
     marks = validate_manual_marks(inputs, source, roster)
     require(manifest["fixtureVersion"] == FIXTURE_VERSION, "manifest input version mismatch")
-    require(manifest["inputFacts"] == {"file": MARK_FILE, "nature": "demo_human_mark", "records": 4, "sha256": hashlib.sha256((root / MARK_FILE).read_bytes()).hexdigest()}, "manual fact source manifest mismatch")
+    require(manifest["inputFacts"] == {"file": MARK_FILE, "nature": "demo_human_mark", "records": len(source["marks"]), "sha256": hashlib.sha256((root / MARK_FILE).read_bytes()).hexdigest()}, "manual fact source manifest mismatch")
     outcomes, locators = read_json(root, "expected-cases.json"), read_json(root, "source-rows.json")
     require(all("outcome" not in unit for unit in inputs["cases"]), "seed input contains a computed result")
     expected_by_id = {entry["caseId"]: entry for entry in outcomes}
@@ -129,6 +156,21 @@ def validate(root):
     standard = read_json(root, "selection-standard.json")
     require(len(inputs["selectionReviews"]) == 93, "missing original review-point grades")
     require(all(person["name"].endswith("（演示）") for person in roster["students"] + roster["directory"]), "unmarked demo identity")
+    prototype = read_json(root, "prototype-judgments.json")
+    require(prototype["provenance"]["commit"] == roster["provenance"]["commit"], "prototype extraction and roster pinned to different commits")
+    prototype_rows = {row["personId"]: row for row in prototype["judgments"]}
+    require(sorted(mark["personId"] for mark in marks.values()) == sorted(mark["personId"] for mark in prototype["marks"]), "manual marks differ from the prototype's HR marks")
+    require(list(prototype_rows) == [person["id"] for person in roster["students"]], "prototype judgments out of roster order")
+    for case in inputs["cases"]:
+        facts = prototype_rows[case["person"]["id"]]
+        for side in ("front", "back"):
+            stage, fact = case[side], facts[side]
+            require((stage["state"] == "present") == (fact is not None), "stage presence differs from prototype")
+            if fact is not None:
+                judgment = stage["judgment"]
+                require(judgment["grade"] == fact["grade"] and judgment["evaluator"]["id"] == fact["evaluatorId"], "grade or reviewer differs from prototype")
+        if case["front"]["state"] == "present" and case["back"]["state"] == "present":
+            require(case["front"]["judgment"]["evaluator"]["id"] != case["back"]["judgment"]["evaluator"]["id"], "one reviewer judged both stages")
     fragments = []
     reports = []
     for side, headers in (("front", FRONT_HEADERS), ("back", BACK_HEADERS)):
@@ -161,7 +203,7 @@ def validate(root):
                 require([item["reviewPointId"] for item in review["originalGrades"]] == [point["id"] for point in standard["reviewPoints"]], "criterion references changed")
                 work = case["work"]
                 values.update({"D": work["workId"], "E": "组队作品" if work["kind"] == "team" else "个人作品",
-                               "F": "轨道队（演示）" if work["kind"] == "team" else None,
+                               "F": prototype_team_label(prototype_rows[person["id"]]) if work["kind"] == "team" else None,
                                "N": case["selectionStandardVersionId"], "P": citation["excerpt"]})
                 values.update({column: item["grade"] for column, item in zip("GHI", review["originalGrades"], strict=True)})
                 grade_column, rater_id, rater_name, status_column = "J", "K", "L", "O"
@@ -178,7 +220,7 @@ def validate(root):
                 present += 1
                 if side == "front":
                     for column in "GHI":
-                        require(book["cells"].get(f"{column}{row}") in ("高分档", "中间档", "刚过线档"), "invalid original criterion band")
+                        require(book["cells"].get(f"{column}{row}") in ITEM_GRADES, "invalid original criterion band")
                         allowed_text.add(book["cells"][f"{column}{row}"])
             else:
                 values.update({grade_column: None, rater_id: None, rater_name: None, status_column: "缺段", date_column: None})
@@ -195,10 +237,16 @@ def validate(root):
                         "formulas": 0, "hiddenMetadata": 0, "sourceRowsVerified": 93})
     require(len(set(fragments)) == 186, "duplicate source fragment across originals")
     require(manifest["originals"]["front"]["originalVersionId"] != manifest["originals"]["back"]["originalVersionId"], "shared original version")
-    counts = Counter(case["outcome"]["state"] for case in cases)
-    require(dict(counts) == {"front_higher": 5, "front_lower": 3, "middle_distribution": 54, "consistent": 16, "missing": 11, "not_comparable": 4}, "authored case controls changed")
+    mapping = expected["mapping"]
+    for case in cases:
+        require(case["outcome"] == derive_outcome(mapping, case, marks.get(case["id"])), "expected label differs from the mapping rule")
     require(summarize_declared_outcomes(cases) == expected["counts"], "declared summary differs from expected-case labels")
-    require(expected["controls"] == {"people": 93, "frontPresent": 87, "backPresent": 86, "comparable": 78, "sameTeamPeople": 2}, "fixed scenario controls changed")
+    present = lambda side: sum(case[side]["state"] == "present" for case in cases)
+    require(expected["controls"] == {
+        "people": 93, "frontPresent": present("front"), "backPresent": present("back"),
+        "comparable": sum(case["outcome"]["state"] not in ("missing", "not_comparable") for case in cases),
+        "sameTeamPeople": sum(case["work"]["kind"] == "team" for case in cases),
+    }, "scenario controls differ from cases")
     require(expected["middleBand"] == {"countsForMismatch": False, "countsForComparableThreshold": True}, "middle-band definitions conflated")
     for entry in expected["raters"]:
         evaluator, sample = entry["evaluator"], entry["sample"]

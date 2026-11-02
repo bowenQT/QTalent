@@ -4,24 +4,21 @@
   "backScaleId": "demo-xe-graduation-three-bands-v1",
   "rows": [
     {
-      "frontGrade": "高分档",
+      "frontGrade": "优先录取",
       "frontPosition": "highest",
       "backGrade": "建议留用"
     },
     {
-      "frontGrade": "中间档",
+      "frontGrade": "通过",
       "frontPosition": "middle",
       "backGrade": "继续观察"
     },
     {
-      "frontGrade": "刚过线档",
+      "frontGrade": "刚过线",
       "frontPosition": "just_passed",
       "backGrade": "不建议"
     }
   ],
-  "confirmedBy": {
-    "id": "p-suwan",
-    "name": "苏晚（演示）"
-  },
-  "confirmedAt": "2026-02-26T01:00:00.000Z"
+  "confirmedBy": { "id": "p-suwan", "name": "苏晚（演示）" },
+  "confirmedAt": "2026-06-20T01:00:00.000Z"
 }

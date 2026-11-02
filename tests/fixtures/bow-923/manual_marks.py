@@ -3,12 +3,12 @@
 import re
 from datetime import datetime
 
-FIXTURE_VERSION = "bow-923-v2"
+FIXTURE_VERSION = "bow-923-v3"
 MARK_FILE = "manual-comparability-marks.json"
 ROLE_PROVENANCE = {
-    "commit": "451ecec0106344cac2e4225a363b5fd3cae92584",
+    "commit": "81e4fd448f11d6c515bf447a81e85606d7b239ff",
     "path": "prototype/y/app/js/data.js",
-    "blob": "48cacc14105d496159e633dd392128629f03e3f9",
+    "blob": "3768bbcae5081c4267adfce0f9ccad8ac7d93f87",
     "roleKey": "ROLES.hrbp",
 }
 FORBIDDEN_RESULTS = {"outcome", "expectedOutcome", "expectedResults", "counts", "distribution", "comparableCaseCount", "bands"}
@@ -55,7 +55,7 @@ def validate_manual_marks(inputs, source, roster):
     cases = {case["id"]: case for case in inputs["cases"]}
     require(len(cases) == len(inputs["cases"]), "duplicate input case")
     marks = source["marks"]
-    require(isinstance(marks, list) and len(marks) == 4, "expected four authored manual facts")
+    require(isinstance(marks, list) and marks, "expected the prototype's HR marks")
     require(inputs["manualComparabilityMarks"] == marks, "seed marks differ from independent authored facts")
     by_case, seen_ids = {}, set()
     for mark in marks:

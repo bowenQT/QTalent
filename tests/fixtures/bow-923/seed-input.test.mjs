@@ -24,8 +24,8 @@ test('regenerates exact seed facts while refusing to read any expected/computed 
     await fs.readFile(new URL('./seed-input.json', import.meta.url), 'utf8'),
   );
   assert.deepEqual(result, committed);
-  assert.equal(result.fixtureVersion, 'bow-923-v2');
-  assert.equal(result.manualComparabilityMarks.length, 4);
+  assert.equal(result.fixtureVersion, 'bow-923-v3');
+  assert.equal(result.manualComparabilityMarks.length, 1);
   assert(result.cases.every((unit) => !('outcome' in unit)));
   assert(!('counts' in result));
   assert(!('distribution' in result));

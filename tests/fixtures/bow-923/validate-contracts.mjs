@@ -46,12 +46,12 @@ assert(
   inputs.cases.every((unit) => !('outcome' in unit)),
   'seed input must not contain computed comparison results',
 );
-assert.equal(inputs.fixtureVersion, 'bow-923-v2');
-assert.equal(inputs.manualComparabilityMarks.length, 4);
+assert.equal(inputs.fixtureVersion, 'bow-923-v3');
+assert(inputs.manualComparabilityMarks.length > 0);
 const marksById = new Map(
   inputs.manualComparabilityMarks.map((mark) => [mark.caseId, mark]),
 );
-assert.equal(marksById.size, 4);
+assert.equal(marksById.size, inputs.manualComparabilityMarks.length);
 const expectedById = new Map(outcomes.map((entry) => [entry.caseId, entry]));
 assert.equal(expectedById.size, inputs.cases.length);
 const cases = inputs.cases.map((unit) => {
@@ -102,6 +102,7 @@ const mutate = (value, change) => {
   change(copy);
   return copy;
 };
+const byState = (state) => cases.find((unit) => unit.outcome.state === state);
 const rejects = [
   mutate(cases[0], (unit) => {
     unit.back.judgment.row.source.originalVersionId =
@@ -113,10 +114,10 @@ const rejects = [
   mutate(cases[0], (unit) => {
     unit.front.judgment.row.source.location.cell = 'A2:P3';
   }),
-  mutate(cases[3], (unit) => {
+  mutate(byState('middle_distribution'), (unit) => {
     unit.outcome = { state: 'front_higher', bands: 1 };
   }),
-  mutate(cases[5], (unit) => {
+  mutate(byState('missing'), (unit) => {
     unit.outcome = { state: 'consistent' };
   }),
   mutate(cases[0], (unit) => {
@@ -147,16 +148,21 @@ assert.equal(
   ]).success,
   false,
 );
+// Page-level mutations need a rater whose distribution is disclosed.
+const disclosed = page.raters.findIndex(
+  (entry) => 'distribution' in entry.sample,
+);
+assert(disclosed >= 0);
 const pageRejects = [
   mutate(page, (copy) => {
-    copy.raters[0].sample.distribution = structuredClone(copy.counts);
+    copy.raters[disclosed].sample.distribution = structuredClone(copy.counts);
   }),
   mutate(page, (copy) => {
-    copy.raters[0].sample.distribution.excluded.notComparable = 1;
+    copy.raters[disclosed].sample.distribution.excluded.notComparable = 1;
   }),
   mutate(page, (copy) => {
-    copy.raters[0].sample.distribution.clear.consistent -= 1;
-    copy.raters[0].sample.distribution.clear.frontHigher += 1;
+    copy.raters[disclosed].sample.distribution.clear.consistent -= 1;
+    copy.raters[disclosed].sample.distribution.clear.frontHigher += 1;
   }),
 ];
 for (const invalid of pageRejects) {
@@ -167,7 +173,7 @@ for (const invalid of pageRejects) {
   );
 }
 const sameName = ['demo-rater-a', 'demo-rater-b'].map((id) => ({
-  ...expected.raters[0],
+  ...expected.raters[disclosed],
   evaluator: { id, name: '同名评价人（演示）' },
 }));
 comparison.comparisonRatersSchema.parse(sameName);

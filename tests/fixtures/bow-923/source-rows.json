@@ -6,13 +6,13 @@
       "row": 2,
       "source": {
         "fragmentId": "bow-923-front-row-001",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A2:P2"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -23,13 +23,13 @@
       "row": 2,
       "source": {
         "fragmentId": "bow-923-back-row-001",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A2:J2"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -43,13 +43,13 @@
       "row": 3,
       "source": {
         "fragmentId": "bow-923-front-row-002",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A3:P3"
         },
-        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -60,13 +60,13 @@
       "row": 3,
       "source": {
         "fragmentId": "bow-923-back-row-002",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A3:J3"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -80,7 +80,7 @@
       "row": 4,
       "source": {
         "fragmentId": "bow-923-front-row-003",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -97,13 +97,13 @@
       "row": 4,
       "source": {
         "fragmentId": "bow-923-back-row-003",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A4:J4"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -117,7 +117,7 @@
       "row": 5,
       "source": {
         "fragmentId": "bow-923-front-row-004",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -134,7 +134,7 @@
       "row": 5,
       "source": {
         "fragmentId": "bow-923-back-row-004",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -154,7 +154,7 @@
       "row": 6,
       "source": {
         "fragmentId": "bow-923-front-row-005",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -171,7 +171,7 @@
       "row": 6,
       "source": {
         "fragmentId": "bow-923-back-row-005",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -191,7 +191,7 @@
       "row": 7,
       "source": {
         "fragmentId": "bow-923-front-row-006",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -208,13 +208,13 @@
       "row": 7,
       "source": {
         "fragmentId": "bow-923-back-row-006",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A7:J7"
         },
-        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -228,13 +228,13 @@
       "row": 8,
       "source": {
         "fragmentId": "bow-923-front-row-007",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A8:P8"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -245,13 +245,13 @@
       "row": 8,
       "source": {
         "fragmentId": "bow-923-back-row-007",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A8:J8"
         },
-        "excerpt": "演示重建：本次仅记录替代课题的演示配合，未评价入营作品所涉任务。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -265,13 +265,13 @@
       "row": 9,
       "source": {
         "fragmentId": "bow-923-front-row-008",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A9:P9"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -282,13 +282,13 @@
       "row": 9,
       "source": {
         "fragmentId": "bow-923-back-row-008",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A9:J9"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -302,7 +302,7 @@
       "row": 10,
       "source": {
         "fragmentId": "bow-923-front-row-009",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -319,13 +319,13 @@
       "row": 10,
       "source": {
         "fragmentId": "bow-923-back-row-009",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A10:J10"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -339,7 +339,7 @@
       "row": 11,
       "source": {
         "fragmentId": "bow-923-front-row-010",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -356,13 +356,13 @@
       "row": 11,
       "source": {
         "fragmentId": "bow-923-back-row-010",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A11:J11"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -376,13 +376,13 @@
       "row": 12,
       "source": {
         "fragmentId": "bow-923-front-row-011",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A12:P12"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -393,7 +393,7 @@
       "row": 12,
       "source": {
         "fragmentId": "bow-923-back-row-011",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -413,13 +413,13 @@
       "row": 13,
       "source": {
         "fragmentId": "bow-923-front-row-012",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A13:P13"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：组队作品，三人分工完成整套流程，演示由队长主讲；按同队各自一行记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -430,13 +430,13 @@
       "row": 13,
       "source": {
         "fragmentId": "bow-923-back-row-012",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A13:J13"
         },
-        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -450,13 +450,13 @@
       "row": 14,
       "source": {
         "fragmentId": "bow-923-front-row-013",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A14:P14"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：组队作品，三人分工完成整套流程，演示由队长主讲；按同队各自一行记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -467,13 +467,13 @@
       "row": 14,
       "source": {
         "fragmentId": "bow-923-back-row-013",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A14:J14"
         },
-        "excerpt": "演示重建：本次仅记录替代课题的演示配合，未评价入营作品所涉任务。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -487,13 +487,13 @@
       "row": 15,
       "source": {
         "fragmentId": "bow-923-front-row-014",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A15:P15"
         },
-        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -504,13 +504,13 @@
       "row": 15,
       "source": {
         "fragmentId": "bow-923-back-row-014",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A15:J15"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -524,13 +524,13 @@
       "row": 16,
       "source": {
         "fragmentId": "bow-923-front-row-015",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A16:P16"
         },
-        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：组队作品，三人分工完成整套流程，演示由队长主讲；按同队各自一行记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -541,13 +541,13 @@
       "row": 16,
       "source": {
         "fragmentId": "bow-923-back-row-015",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A16:J16"
         },
-        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -561,13 +561,13 @@
       "row": 17,
       "source": {
         "fragmentId": "bow-923-front-row-016",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A17:P17"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -578,13 +578,13 @@
       "row": 17,
       "source": {
         "fragmentId": "bow-923-back-row-016",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A17:J17"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -598,7 +598,7 @@
       "row": 18,
       "source": {
         "fragmentId": "bow-923-front-row-017",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -615,13 +615,13 @@
       "row": 18,
       "source": {
         "fragmentId": "bow-923-back-row-017",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A18:J18"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -635,7 +635,7 @@
       "row": 19,
       "source": {
         "fragmentId": "bow-923-front-row-018",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -652,13 +652,13 @@
       "row": 19,
       "source": {
         "fragmentId": "bow-923-back-row-018",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A19:J19"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -672,13 +672,13 @@
       "row": 20,
       "source": {
         "fragmentId": "bow-923-front-row-019",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A20:P20"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -689,7 +689,7 @@
       "row": 20,
       "source": {
         "fragmentId": "bow-923-back-row-019",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -709,7 +709,7 @@
       "row": 21,
       "source": {
         "fragmentId": "bow-923-front-row-020",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -726,13 +726,13 @@
       "row": 21,
       "source": {
         "fragmentId": "bow-923-back-row-020",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A21:J21"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -746,7 +746,7 @@
       "row": 22,
       "source": {
         "fragmentId": "bow-923-front-row-021",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -763,13 +763,13 @@
       "row": 22,
       "source": {
         "fragmentId": "bow-923-back-row-021",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A22:J22"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -783,7 +783,7 @@
       "row": 23,
       "source": {
         "fragmentId": "bow-923-front-row-022",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -800,13 +800,13 @@
       "row": 23,
       "source": {
         "fragmentId": "bow-923-back-row-022",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A23:J23"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -820,13 +820,13 @@
       "row": 24,
       "source": {
         "fragmentId": "bow-923-front-row-023",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A24:P24"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -837,13 +837,13 @@
       "row": 24,
       "source": {
         "fragmentId": "bow-923-back-row-023",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A24:J24"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -857,13 +857,13 @@
       "row": 25,
       "source": {
         "fragmentId": "bow-923-front-row-024",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A25:P25"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -874,13 +874,13 @@
       "row": 25,
       "source": {
         "fragmentId": "bow-923-back-row-024",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A25:J25"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -894,13 +894,13 @@
       "row": 26,
       "source": {
         "fragmentId": "bow-923-front-row-025",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A26:P26"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -911,13 +911,13 @@
       "row": 26,
       "source": {
         "fragmentId": "bow-923-back-row-025",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A26:J26"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -931,7 +931,7 @@
       "row": 27,
       "source": {
         "fragmentId": "bow-923-front-row-026",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -948,7 +948,7 @@
       "row": 27,
       "source": {
         "fragmentId": "bow-923-back-row-026",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -968,13 +968,13 @@
       "row": 28,
       "source": {
         "fragmentId": "bow-923-front-row-027",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A28:P28"
         },
-        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -985,13 +985,13 @@
       "row": 28,
       "source": {
         "fragmentId": "bow-923-back-row-027",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A28:J28"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1005,13 +1005,13 @@
       "row": 29,
       "source": {
         "fragmentId": "bow-923-front-row-028",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A29:P29"
         },
-        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1022,13 +1022,13 @@
       "row": 29,
       "source": {
         "fragmentId": "bow-923-back-row-028",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A29:J29"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1042,13 +1042,13 @@
       "row": 30,
       "source": {
         "fragmentId": "bow-923-front-row-029",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A30:P30"
         },
-        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1059,13 +1059,13 @@
       "row": 30,
       "source": {
         "fragmentId": "bow-923-back-row-029",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A30:J30"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1079,13 +1079,13 @@
       "row": 31,
       "source": {
         "fragmentId": "bow-923-front-row-030",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A31:P31"
         },
-        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1096,7 +1096,7 @@
       "row": 31,
       "source": {
         "fragmentId": "bow-923-back-row-030",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -1116,13 +1116,13 @@
       "row": 32,
       "source": {
         "fragmentId": "bow-923-front-row-031",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A32:P32"
         },
-        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1133,13 +1133,13 @@
       "row": 32,
       "source": {
         "fragmentId": "bow-923-back-row-031",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A32:J32"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1153,13 +1153,13 @@
       "row": 33,
       "source": {
         "fragmentId": "bow-923-front-row-032",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A33:P33"
         },
-        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1170,13 +1170,13 @@
       "row": 33,
       "source": {
         "fragmentId": "bow-923-back-row-032",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A33:J33"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1190,13 +1190,13 @@
       "row": 34,
       "source": {
         "fragmentId": "bow-923-front-row-033",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A34:P34"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1207,13 +1207,13 @@
       "row": 34,
       "source": {
         "fragmentId": "bow-923-back-row-033",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A34:J34"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1227,7 +1227,7 @@
       "row": 35,
       "source": {
         "fragmentId": "bow-923-front-row-034",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -1244,13 +1244,13 @@
       "row": 35,
       "source": {
         "fragmentId": "bow-923-back-row-034",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A35:J35"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1264,13 +1264,13 @@
       "row": 36,
       "source": {
         "fragmentId": "bow-923-front-row-035",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A36:P36"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1281,7 +1281,7 @@
       "row": 36,
       "source": {
         "fragmentId": "bow-923-back-row-035",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -1301,13 +1301,13 @@
       "row": 37,
       "source": {
         "fragmentId": "bow-923-front-row-036",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A37:P37"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1318,13 +1318,13 @@
       "row": 37,
       "source": {
         "fragmentId": "bow-923-back-row-036",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A37:J37"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1338,7 +1338,7 @@
       "row": 38,
       "source": {
         "fragmentId": "bow-923-front-row-037",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -1355,7 +1355,7 @@
       "row": 38,
       "source": {
         "fragmentId": "bow-923-back-row-037",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -1375,13 +1375,13 @@
       "row": 39,
       "source": {
         "fragmentId": "bow-923-front-row-038",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A39:P39"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1392,13 +1392,13 @@
       "row": 39,
       "source": {
         "fragmentId": "bow-923-back-row-038",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A39:J39"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1412,13 +1412,13 @@
       "row": 40,
       "source": {
         "fragmentId": "bow-923-front-row-039",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A40:P40"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1429,7 +1429,7 @@
       "row": 40,
       "source": {
         "fragmentId": "bow-923-back-row-039",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -1449,7 +1449,7 @@
       "row": 41,
       "source": {
         "fragmentId": "bow-923-front-row-040",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -1466,7 +1466,7 @@
       "row": 41,
       "source": {
         "fragmentId": "bow-923-back-row-040",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -1486,13 +1486,13 @@
       "row": 42,
       "source": {
         "fragmentId": "bow-923-front-row-041",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A42:P42"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1503,7 +1503,7 @@
       "row": 42,
       "source": {
         "fragmentId": "bow-923-back-row-041",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -1523,7 +1523,7 @@
       "row": 43,
       "source": {
         "fragmentId": "bow-923-front-row-042",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -1540,13 +1540,13 @@
       "row": 43,
       "source": {
         "fragmentId": "bow-923-back-row-042",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A43:J43"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：营内转到另一方向的课题，结营评审针对新方向的任务。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1560,7 +1560,7 @@
       "row": 44,
       "source": {
         "fragmentId": "bow-923-front-row-043",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -1577,7 +1577,7 @@
       "row": 44,
       "source": {
         "fragmentId": "bow-923-back-row-043",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -1597,13 +1597,13 @@
       "row": 45,
       "source": {
         "fragmentId": "bow-923-front-row-044",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A45:P45"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1614,7 +1614,7 @@
       "row": 45,
       "source": {
         "fragmentId": "bow-923-back-row-044",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -1634,13 +1634,13 @@
       "row": 46,
       "source": {
         "fragmentId": "bow-923-front-row-045",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A46:P46"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1651,7 +1651,7 @@
       "row": 46,
       "source": {
         "fragmentId": "bow-923-back-row-045",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -1671,7 +1671,7 @@
       "row": 47,
       "source": {
         "fragmentId": "bow-923-front-row-046",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -1688,13 +1688,13 @@
       "row": 47,
       "source": {
         "fragmentId": "bow-923-back-row-046",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A47:J47"
         },
-        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1708,13 +1708,13 @@
       "row": 48,
       "source": {
         "fragmentId": "bow-923-front-row-047",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A48:P48"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1725,7 +1725,7 @@
       "row": 48,
       "source": {
         "fragmentId": "bow-923-back-row-047",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -1745,13 +1745,13 @@
       "row": 49,
       "source": {
         "fragmentId": "bow-923-front-row-048",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A49:P49"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1762,13 +1762,13 @@
       "row": 49,
       "source": {
         "fragmentId": "bow-923-back-row-048",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A49:J49"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1782,13 +1782,13 @@
       "row": 50,
       "source": {
         "fragmentId": "bow-923-front-row-049",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A50:P50"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1799,13 +1799,13 @@
       "row": 50,
       "source": {
         "fragmentId": "bow-923-back-row-049",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A50:J50"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1819,13 +1819,13 @@
       "row": 51,
       "source": {
         "fragmentId": "bow-923-front-row-050",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A51:P51"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1836,13 +1836,13 @@
       "row": 51,
       "source": {
         "fragmentId": "bow-923-back-row-050",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A51:J51"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1856,13 +1856,13 @@
       "row": 52,
       "source": {
         "fragmentId": "bow-923-front-row-051",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A52:P52"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1873,13 +1873,13 @@
       "row": 52,
       "source": {
         "fragmentId": "bow-923-back-row-051",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A52:J52"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1893,13 +1893,13 @@
       "row": 53,
       "source": {
         "fragmentId": "bow-923-front-row-052",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A53:P53"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1910,13 +1910,13 @@
       "row": 53,
       "source": {
         "fragmentId": "bow-923-back-row-052",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A53:J53"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1930,13 +1930,13 @@
       "row": 54,
       "source": {
         "fragmentId": "bow-923-front-row-053",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A54:P54"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1947,13 +1947,13 @@
       "row": 54,
       "source": {
         "fragmentId": "bow-923-back-row-053",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A54:J54"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1967,13 +1967,13 @@
       "row": 55,
       "source": {
         "fragmentId": "bow-923-front-row-054",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A55:P55"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -1984,13 +1984,13 @@
       "row": 55,
       "source": {
         "fragmentId": "bow-923-back-row-054",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A55:J55"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2004,13 +2004,13 @@
       "row": 56,
       "source": {
         "fragmentId": "bow-923-front-row-055",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A56:P56"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2021,7 +2021,7 @@
       "row": 56,
       "source": {
         "fragmentId": "bow-923-back-row-055",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -2041,13 +2041,13 @@
       "row": 57,
       "source": {
         "fragmentId": "bow-923-front-row-056",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A57:P57"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2058,13 +2058,13 @@
       "row": 57,
       "source": {
         "fragmentId": "bow-923-back-row-056",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A57:J57"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2078,13 +2078,13 @@
       "row": 58,
       "source": {
         "fragmentId": "bow-923-front-row-057",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A58:P58"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2095,13 +2095,13 @@
       "row": 58,
       "source": {
         "fragmentId": "bow-923-back-row-057",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A58:J58"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2115,13 +2115,13 @@
       "row": 59,
       "source": {
         "fragmentId": "bow-923-front-row-058",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A59:P59"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2132,13 +2132,13 @@
       "row": 59,
       "source": {
         "fragmentId": "bow-923-back-row-058",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A59:J59"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2152,7 +2152,7 @@
       "row": 60,
       "source": {
         "fragmentId": "bow-923-front-row-059",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2169,13 +2169,13 @@
       "row": 60,
       "source": {
         "fragmentId": "bow-923-back-row-059",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A60:J60"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2189,7 +2189,7 @@
       "row": 61,
       "source": {
         "fragmentId": "bow-923-front-row-060",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2206,7 +2206,7 @@
       "row": 61,
       "source": {
         "fragmentId": "bow-923-back-row-060",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -2226,13 +2226,13 @@
       "row": 62,
       "source": {
         "fragmentId": "bow-923-front-row-061",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A62:P62"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2243,13 +2243,13 @@
       "row": 62,
       "source": {
         "fragmentId": "bow-923-back-row-061",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A62:J62"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2263,7 +2263,7 @@
       "row": 63,
       "source": {
         "fragmentId": "bow-923-front-row-062",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2280,13 +2280,13 @@
       "row": 63,
       "source": {
         "fragmentId": "bow-923-back-row-062",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A63:J63"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2300,13 +2300,13 @@
       "row": 64,
       "source": {
         "fragmentId": "bow-923-front-row-063",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A64:P64"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2317,13 +2317,13 @@
       "row": 64,
       "source": {
         "fragmentId": "bow-923-back-row-063",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A64:J64"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2337,7 +2337,7 @@
       "row": 65,
       "source": {
         "fragmentId": "bow-923-front-row-064",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2354,7 +2354,7 @@
       "row": 65,
       "source": {
         "fragmentId": "bow-923-back-row-064",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -2374,7 +2374,7 @@
       "row": 66,
       "source": {
         "fragmentId": "bow-923-front-row-065",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2391,13 +2391,13 @@
       "row": 66,
       "source": {
         "fragmentId": "bow-923-back-row-065",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A66:J66"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2411,13 +2411,13 @@
       "row": 67,
       "source": {
         "fragmentId": "bow-923-front-row-066",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A67:P67"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2428,13 +2428,13 @@
       "row": 67,
       "source": {
         "fragmentId": "bow-923-back-row-066",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A67:J67"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2448,13 +2448,13 @@
       "row": 68,
       "source": {
         "fragmentId": "bow-923-front-row-067",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A68:P68"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2465,13 +2465,13 @@
       "row": 68,
       "source": {
         "fragmentId": "bow-923-back-row-067",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A68:J68"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2485,7 +2485,7 @@
       "row": 69,
       "source": {
         "fragmentId": "bow-923-front-row-068",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2502,13 +2502,13 @@
       "row": 69,
       "source": {
         "fragmentId": "bow-923-back-row-068",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A69:J69"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2522,7 +2522,7 @@
       "row": 70,
       "source": {
         "fragmentId": "bow-923-front-row-069",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2539,13 +2539,13 @@
       "row": 70,
       "source": {
         "fragmentId": "bow-923-back-row-069",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A70:J70"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2559,13 +2559,13 @@
       "row": 71,
       "source": {
         "fragmentId": "bow-923-front-row-070",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A71:P71"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2576,13 +2576,13 @@
       "row": 71,
       "source": {
         "fragmentId": "bow-923-back-row-070",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A71:J71"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2596,7 +2596,7 @@
       "row": 72,
       "source": {
         "fragmentId": "bow-923-front-row-071",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2613,7 +2613,7 @@
       "row": 72,
       "source": {
         "fragmentId": "bow-923-back-row-071",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -2633,13 +2633,13 @@
       "row": 73,
       "source": {
         "fragmentId": "bow-923-front-row-072",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A73:P73"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2650,13 +2650,13 @@
       "row": 73,
       "source": {
         "fragmentId": "bow-923-back-row-072",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A73:J73"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2670,13 +2670,13 @@
       "row": 74,
       "source": {
         "fragmentId": "bow-923-front-row-073",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A74:P74"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2687,13 +2687,13 @@
       "row": 74,
       "source": {
         "fragmentId": "bow-923-back-row-073",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A74:J74"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2707,13 +2707,13 @@
       "row": 75,
       "source": {
         "fragmentId": "bow-923-front-row-074",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A75:P75"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2724,7 +2724,7 @@
       "row": 75,
       "source": {
         "fragmentId": "bow-923-back-row-074",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -2744,13 +2744,13 @@
       "row": 76,
       "source": {
         "fragmentId": "bow-923-front-row-075",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A76:P76"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2761,7 +2761,7 @@
       "row": 76,
       "source": {
         "fragmentId": "bow-923-back-row-075",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -2781,13 +2781,13 @@
       "row": 77,
       "source": {
         "fragmentId": "bow-923-front-row-076",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A77:P77"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2798,13 +2798,13 @@
       "row": 77,
       "source": {
         "fragmentId": "bow-923-back-row-076",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A77:J77"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2818,7 +2818,7 @@
       "row": 78,
       "source": {
         "fragmentId": "bow-923-front-row-077",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2835,7 +2835,7 @@
       "row": 78,
       "source": {
         "fragmentId": "bow-923-back-row-077",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -2855,13 +2855,13 @@
       "row": 79,
       "source": {
         "fragmentId": "bow-923-front-row-078",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A79:P79"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2872,13 +2872,13 @@
       "row": 79,
       "source": {
         "fragmentId": "bow-923-back-row-078",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A79:J79"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2892,7 +2892,7 @@
       "row": 80,
       "source": {
         "fragmentId": "bow-923-front-row-079",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2909,13 +2909,13 @@
       "row": 80,
       "source": {
         "fragmentId": "bow-923-back-row-079",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A80:J80"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2929,7 +2929,7 @@
       "row": 81,
       "source": {
         "fragmentId": "bow-923-front-row-080",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -2946,7 +2946,7 @@
       "row": 81,
       "source": {
         "fragmentId": "bow-923-back-row-080",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -2966,13 +2966,13 @@
       "row": 82,
       "source": {
         "fragmentId": "bow-923-front-row-081",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A82:P82"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -2983,13 +2983,13 @@
       "row": 82,
       "source": {
         "fragmentId": "bow-923-back-row-081",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A82:J82"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3003,13 +3003,13 @@
       "row": 83,
       "source": {
         "fragmentId": "bow-923-front-row-082",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A83:P83"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3020,7 +3020,7 @@
       "row": 83,
       "source": {
         "fragmentId": "bow-923-back-row-082",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -3040,7 +3040,7 @@
       "row": 84,
       "source": {
         "fragmentId": "bow-923-front-row-083",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -3057,13 +3057,13 @@
       "row": 84,
       "source": {
         "fragmentId": "bow-923-back-row-083",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A84:J84"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3077,13 +3077,13 @@
       "row": 85,
       "source": {
         "fragmentId": "bow-923-front-row-084",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A85:P85"
         },
-        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3094,13 +3094,13 @@
       "row": 85,
       "source": {
         "fragmentId": "bow-923-back-row-084",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A85:J85"
         },
-        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
+        "excerpt": "演示重建：营内独立交付多次未闭合，复盘未给出可复现的改进证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3114,13 +3114,13 @@
       "row": 86,
       "source": {
         "fragmentId": "bow-923-front-row-085",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A86:P86"
         },
-        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3131,13 +3131,13 @@
       "row": 86,
       "source": {
         "fragmentId": "bow-923-back-row-085",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A86:J86"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3151,13 +3151,13 @@
       "row": 87,
       "source": {
         "fragmentId": "bow-923-front-row-086",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A87:P87"
         },
-        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3168,13 +3168,13 @@
       "row": 87,
       "source": {
         "fragmentId": "bow-923-back-row-086",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A87:J87"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3188,13 +3188,13 @@
       "row": 88,
       "source": {
         "fragmentId": "bow-923-front-row-087",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A88:P88"
         },
-        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：完成了最小主流程；评审时未充分展示边界场景，按原档位记录。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3205,13 +3205,13 @@
       "row": 88,
       "source": {
         "fragmentId": "bow-923-back-row-087",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A88:J88"
         },
-        "excerpt": "演示重建：能在明确任务下交付，独立拆解与跨环节协作仍需继续观察。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3225,7 +3225,7 @@
       "row": 89,
       "source": {
         "fragmentId": "bow-923-front-row-088",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -3242,13 +3242,13 @@
       "row": 89,
       "source": {
         "fragmentId": "bow-923-back-row-088",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A89:J89"
         },
-        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3262,13 +3262,13 @@
       "row": 90,
       "source": {
         "fragmentId": "bow-923-front-row-089",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A90:P90"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3279,13 +3279,13 @@
       "row": 90,
       "source": {
         "fragmentId": "bow-923-back-row-089",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A90:J90"
         },
-        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3299,13 +3299,13 @@
       "row": 91,
       "source": {
         "fragmentId": "bow-923-front-row-090",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A91:P91"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3316,7 +3316,7 @@
       "row": 91,
       "source": {
         "fragmentId": "bow-923-back-row-090",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
@@ -3336,13 +3336,13 @@
       "row": 92,
       "source": {
         "fragmentId": "bow-923-front-row-091",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A92:P92"
         },
-        "excerpt": "演示重建：缺少入营选拔评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3353,13 +3353,13 @@
       "row": 92,
       "source": {
         "fragmentId": "bow-923-back-row-091",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A92:J92"
         },
-        "excerpt": "演示重建：缺少结营评审记录，未补造评价或评价人。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3373,13 +3373,13 @@
       "row": 93,
       "source": {
         "fragmentId": "bow-923-front-row-092",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
           "cell": "A93:P93"
         },
-        "excerpt": "演示重建：作品主流程完整，能说明一次方案取舍，并现场复现失败后的恢复步骤。",
+        "excerpt": "演示重建：作品可运行，说明了基本实现；异常场景的取舍仍需补充证据。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3390,13 +3390,13 @@
       "row": 93,
       "source": {
         "fragmentId": "bow-923-back-row-092",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A93:J93"
         },
-        "excerpt": "演示重建：本次仅记录替代课题的演示配合，未评价入营作品所涉任务。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
@@ -3410,7 +3410,7 @@
       "row": 94,
       "source": {
         "fragmentId": "bow-923-front-row-093",
-        "originalVersionId": "bow-923-xe6-selection-original-v1",
+        "originalVersionId": "bow-923-xe6-selection-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "作品评审（演示）",
@@ -3427,13 +3427,13 @@
       "row": 94,
       "source": {
         "fragmentId": "bow-923-back-row-093",
-        "originalVersionId": "bow-923-xe6-graduation-original-v1",
+        "originalVersionId": "bow-923-xe6-graduation-original-v2",
         "location": {
           "kind": "spreadsheet",
           "sheet": "结营评审（演示）",
           "cell": "A94:J94"
         },
-        "excerpt": "演示重建：本次仅记录替代课题的演示配合，未评价入营作品所涉任务。",
+        "excerpt": "演示重建：能独立闭合任务，复盘给出可复现步骤，并帮助同伴定位一次故障。",
         "sourceType": "spreadsheet",
         "sourceCategory": "original",
         "demo": true
