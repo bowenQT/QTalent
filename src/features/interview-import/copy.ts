@@ -20,6 +20,7 @@ export const candidateStatusLabel: Record<CandidateStatus, string> = {
   rejected: '淘汰',
   offer_pending: '已发 offer · 未入职',
   offer_declined: '放弃录用',
+  unknown: '没有对应的招聘记录',
 };
 
 /** What the page image shows for an unread item. */

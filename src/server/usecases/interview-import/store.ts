@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { DbExecutor, Database } from '../../db/client';
 import { activeGrants } from '../../authz';
@@ -14,9 +14,11 @@ import { recordAudit } from '../../platform/audit';
 import {
   interviewImportBatches,
   interviewImportCandidates,
+  interviewImportOperations,
   interviewImportRows,
   interviewImportReviewItems,
   type InterviewImportDecision,
+  type InterviewImportRowState,
 } from '../../modules/records/interview-import/schema';
 import type {
   ParsedInterviewReview,
@@ -146,14 +148,42 @@ function subjectsFor(row: Row, candidates: Candidate[], directory: Directory) {
     : [];
 }
 
-/** The HR grant whose cohort covers every subject of the row, or none. */
-function hrCohortFor(context: Context, nodeId: string, subjects: string[]) {
+/**
+ * The batch's own scope: a current HR grant, for a cohort, covering every current
+ * subject of the batch's node. A node without subjects gives nobody this scope.
+ */
+function batchCohortFor(context: Context, node: Loaded['node']) {
+  const subjects = context.evaluationNodeSubjects
+    .filter((s) => s.evaluationNodeId === node.id)
+    .map((s) => s.personId);
+  if (!subjects.length) return undefined;
   return activeGrants(context).find(
     (grant) =>
       grant.role === 'hr' &&
       grant.cohortId !== null &&
       subjects.every((personId) =>
-        cohortHrCanReadNodeSubject(context, grant.cohortId!, nodeId, personId),
+        cohortHrCanReadNodeSubject(context, grant.cohortId!, node.id, personId),
+      ),
+  )?.cohortId;
+}
+
+/**
+ * The HR grant cohort that covers the row, or none. A row about known people needs a
+ * grant covering each of them; a row about nobody known yet has no person to check,
+ * so only HR holding the batch's own scope may see it.
+ */
+function hrCohortFor(
+  context: Context,
+  node: Loaded['node'],
+  subjects: string[],
+) {
+  if (!subjects.length) return batchCohortFor(context, node);
+  return activeGrants(context).find(
+    (grant) =>
+      grant.role === 'hr' &&
+      grant.cohortId !== null &&
+      subjects.every((personId) =>
+        cohortHrCanReadNodeSubject(context, grant.cohortId!, node.id, personId),
       ),
   )?.cohortId;
 }
@@ -168,7 +198,7 @@ function factsFor(
 ): InterviewImportFacts {
   const { row, fragment } = entry;
   const subjects = subjectsFor(row, loaded.candidates, directory);
-  const hrCohortId = hrCohortFor(context, loaded.node.id, subjects);
+  const hrCohortId = hrCohortFor(context, loaded.node, subjects);
   const review = reviewOf(row);
   return {
     context,
@@ -338,8 +368,7 @@ function view(
     rowId: row.rowId,
     pages: { from: Math.min(...pages), to: Math.max(...pages) },
     observedName: review.identity.candidateName?.value ?? UNREAD,
-    // Without a record the row waits to be identified; the status is not read then.
-    candidateStatus: proposal?.status ?? 'hired',
+    candidateStatus: proposal?.status ?? 'unknown',
     // Name, position code and interview time locate a record: never on demo rows.
     located:
       !confirmed && plan.status === 'skipped' && plan.reason === 'not_hired',
@@ -393,12 +422,8 @@ function view(
   };
 }
 
-async function readAll(
-  db: DbExecutor,
-  accountId: string,
-  batchId: string,
-  now: string,
-) {
+/** The caller's current HR standing, decided before any import object is looked up. */
+async function hrActor(db: DbExecutor, accountId: string, now: string) {
   let loadedContext;
   try {
     loadedContext = await loadEvaluationContext(db, accountId, now);
@@ -407,11 +432,32 @@ async function readAll(
       return { status: 'forbidden' as const };
     throw error;
   }
-  const { context, directory } = loadedContext;
-  if (!activeGrants(context).some((g) => g.role === 'hr'))
-    return { status: 'forbidden' as const };
+  return activeGrants(loadedContext.context).some((g) => g.role === 'hr')
+    ? { status: 'ok' as const, ...loadedContext }
+    : { status: 'forbidden' as const };
+}
+
+/** The batch with its rows, only when the actor may see it. A batch the actor
+ * cannot see answers exactly as a batch that does not exist. */
+async function readAll(
+  db: DbExecutor,
+  actor: Extract<Awaited<ReturnType<typeof hrActor>>, { status: 'ok' }>,
+  batchId: string,
+) {
+  const { context, directory } = actor;
   const loaded = await loadBatch(db, batchId);
   if (!loaded || loaded.node.kind !== 'interview')
+    return { status: 'not_found' as const };
+  const rows = loaded.rows.filter((entry) =>
+    visible(context, loaded, entry, directory),
+  );
+  // An empty batch is shown only within the batch's own scope; a batch whose rows are all out of
+  // scope is not shown at all, never as a batch with every row skipped.
+  if (
+    rows.length === 0 &&
+    (loaded.rows.length > 0 ||
+      batchCohortFor(context, loaded.node) === undefined)
+  )
     return { status: 'not_found' as const };
   const employmentRows = await loadEmployments(
     db,
@@ -422,6 +468,7 @@ async function readAll(
     context,
     directory,
     loaded,
+    rows,
     employmentRows,
   };
 }
@@ -439,7 +486,7 @@ function visible(
     subjects.every((personId) =>
       canManageNodeAssignments(context, loaded.node.id, personId),
     ) &&
-    hrCohortFor(context, loaded.node.id, subjects) !== undefined
+    hrCohortFor(context, loaded.node, subjects) !== undefined
   );
 }
 
@@ -449,12 +496,11 @@ export async function readInterviewImportPreview(
   batchId: string,
   now: string,
 ): Promise<InterviewImportPreviewResult> {
-  const read = await readAll(db, accountId, batchId, now);
+  const actor = await hrActor(db, accountId, now);
+  if (actor.status !== 'ok') return actor;
+  const read = await readAll(db, actor, batchId);
   if (read.status !== 'ok') return read;
-  const { context, directory, loaded, employmentRows } = read;
-  const rows = loaded.rows.filter((entry) =>
-    visible(context, loaded, entry, directory),
-  );
+  const { context, directory, loaded, rows, employmentRows } = read;
   const uploader = directory.people.find(
     (p) => p.id === loaded.batch.uploadedByPersonId,
   );
@@ -495,6 +541,91 @@ export async function readInterviewImportPreview(
 }
 
 const CONFLICT = '这一行已变化，请刷新后再看';
+const GONE = '这一行已不在这份导入里';
+
+const stateOf = (row: Row): InterviewImportRowState => ({
+  confirmation:
+    row.confirmedCandidateId === null
+      ? null
+      : {
+          candidateId: row.confirmedCandidateId,
+          forRevision: row.confirmedForRevision!,
+          byAccountId: row.confirmedByAccountId!,
+          at: new Date(row.confirmedAt!).toISOString(),
+        },
+  decision: row.decision,
+  filled: row.filled,
+});
+
+/** Append HR's change to the row's history, linked to its audit event. */
+export async function recordInterviewImportOperation(
+  tx: DbExecutor,
+  operation: {
+    action: (typeof interviewImportOperations.$inferInsert)['action'];
+    actorAccountId: string;
+    at: string;
+    before: Row;
+    after: Row;
+  },
+) {
+  const { before, after } = operation;
+  const auditId = await recordAudit(tx, {
+    actorId: operation.actorAccountId,
+    action: `interview_import.row.${operation.action}`,
+    resourceId: `${after.batchId}:${after.rowId}`,
+    metadata: { channel: 'web', revision: after.revision },
+  });
+  await tx.insert(interviewImportOperations).values({
+    id: randomUUID(),
+    batchId: after.batchId,
+    rowId: after.rowId,
+    action: operation.action,
+    actorAccountId: operation.actorAccountId,
+    at: operation.at,
+    fromRevision: before.revision,
+    toRevision: after.revision,
+    before: stateOf(before),
+    after: stateOf(after),
+    auditId,
+  });
+}
+
+/**
+ * The row HR is about to change, locked, or the answer to give instead. Authorization
+ * comes first; a row out of the actor's scope answers exactly as a row that does not
+ * exist, and neither reveals whether the batch is there.
+ */
+async function lockVisibleRow(
+  tx: DbExecutor,
+  accountId: string,
+  input: { batchId: string; rowId: string },
+  now: string,
+) {
+  const actor = await hrActor(tx, accountId, now);
+  if (actor.status !== 'ok')
+    return {
+      status: 'forbidden',
+      message: '你的查看权限已更新，请刷新后再看',
+    } as const;
+  const [locked] = await tx
+    .select()
+    .from(interviewImportRows)
+    .where(
+      and(
+        eq(interviewImportRows.batchId, input.batchId),
+        eq(interviewImportRows.rowId, input.rowId),
+      ),
+    )
+    .for('update');
+  const read = locked ? await readAll(tx, actor, input.batchId) : null;
+  const entry =
+    read?.status === 'ok'
+      ? read.rows.find((e) => e.row.rowId === input.rowId)
+      : undefined;
+  if (!locked || read?.status !== 'ok' || !entry)
+    return { status: 'not_found', message: GONE } as const;
+  return { status: 'locked', locked, read, entry } as const;
+}
 
 /**
  * HR's answer to「这是谁」for one row, or taking it back. One transaction: the row is
@@ -510,34 +641,10 @@ export async function confirmInterviewImportRow(
   { now, at }: { now: string; at: string },
 ): Promise<InterviewImportRowResult> {
   return db.transaction(async (tx) => {
-    const [locked] = await tx
-      .select()
-      .from(interviewImportRows)
-      .where(
-        and(
-          eq(interviewImportRows.batchId, input.batchId),
-          eq(interviewImportRows.rowId, input.rowId),
-        ),
-      )
-      .for('update');
-    if (!locked)
-      return { status: 'not_found', message: '这一行已不在这份导入里' };
-    const read = await readAll(tx, accountId, input.batchId, now);
-    if (read.status !== 'ok')
-      return {
-        status: read.status,
-        message:
-          read.status === 'forbidden'
-            ? '你的查看权限已更新，请刷新后再看'
-            : '这一行已不在这份导入里',
-      };
+    const target = await lockVisibleRow(tx, accountId, input, now);
+    if (target.status !== 'locked') return target;
+    const { locked, read, entry } = target;
     const { context, directory, loaded, employmentRows } = read;
-    const entry = loaded.rows.find((e) => e.row.rowId === input.rowId)!;
-    if (!visible(context, loaded, entry, directory))
-      return {
-        status: 'forbidden',
-        message: '你的查看权限已更新，请刷新后再看',
-      };
     if (locked.revision !== input.expectedRevision)
       return { status: 'conflict', message: CONFLICT };
     const confirmedNow =
@@ -607,6 +714,13 @@ export async function confirmInterviewImportRow(
       )
       .returning();
     if (!stored) return { status: 'conflict', message: CONFLICT };
+    await recordInterviewImportOperation(tx, {
+      action: input.ok ? 'confirm' : 'revert',
+      actorAccountId: accountId,
+      at,
+      before: locked,
+      after: stored,
+    });
     return {
       status: 'ok',
       row: view(
@@ -634,34 +748,10 @@ export async function fillInterviewImportRow(
   { now, at }: { now: string; at: string },
 ): Promise<InterviewImportRowResult> {
   return db.transaction(async (tx) => {
-    const [locked] = await tx
-      .select()
-      .from(interviewImportRows)
-      .where(
-        and(
-          eq(interviewImportRows.batchId, input.batchId),
-          eq(interviewImportRows.rowId, input.rowId),
-        ),
-      )
-      .for('update');
-    if (!locked)
-      return { status: 'not_found', message: '这一行已不在这份导入里' };
-    const read = await readAll(tx, accountId, input.batchId, now);
-    if (read.status !== 'ok')
-      return {
-        status: read.status,
-        message:
-          read.status === 'forbidden'
-            ? '你的查看权限已更新，请刷新后再看'
-            : '这一行已不在这份导入里',
-      };
+    const target = await lockVisibleRow(tx, accountId, input, now);
+    if (target.status !== 'locked') return target;
+    const { locked, read, entry } = target;
     const { context, directory, loaded, employmentRows } = read;
-    const entry = loaded.rows.find((e) => e.row.rowId === input.rowId)!;
-    if (!visible(context, loaded, entry, directory))
-      return {
-        status: 'forbidden',
-        message: '你的查看权限已更新，请刷新后再看',
-      };
     if (locked.revision !== input.expectedRevision)
       return { status: 'conflict', message: CONFLICT };
     const review = reviewOf(locked);
@@ -718,6 +808,13 @@ export async function fillInterviewImportRow(
       )
       .returning();
     if (!stored) return { status: 'conflict', message: CONFLICT };
+    await recordInterviewImportOperation(tx, {
+      action: 'fill',
+      actorAccountId: accountId,
+      at,
+      before: locked,
+      after: stored,
+    });
     return {
       status: 'ok',
       row: view(
@@ -745,34 +842,10 @@ export async function sendInterviewImportRowToReview(
   { now, at }: { now: string; at: string },
 ): Promise<InterviewImportRowResult> {
   return db.transaction(async (tx) => {
-    const [locked] = await tx
-      .select()
-      .from(interviewImportRows)
-      .where(
-        and(
-          eq(interviewImportRows.batchId, input.batchId),
-          eq(interviewImportRows.rowId, input.rowId),
-        ),
-      )
-      .for('update');
-    if (!locked)
-      return { status: 'not_found', message: '这一行已不在这份导入里' };
-    const read = await readAll(tx, accountId, input.batchId, now);
-    if (read.status !== 'ok')
-      return {
-        status: read.status,
-        message:
-          read.status === 'forbidden'
-            ? '你的查看权限已更新，请刷新后再看'
-            : '这一行已不在这份导入里',
-      };
+    const target = await lockVisibleRow(tx, accountId, input, now);
+    if (target.status !== 'locked') return target;
+    const { locked, read, entry } = target;
     const { context, directory, loaded, employmentRows } = read;
-    const entry = loaded.rows.find((e) => e.row.rowId === input.rowId)!;
-    if (!visible(context, loaded, entry, directory))
-      return {
-        status: 'forbidden',
-        message: '你的查看权限已更新，请刷新后再看',
-      };
     const facts = () =>
       factsFor(context, directory, loaded, entry, employmentRows, accountId);
     const sent = openItems(loaded, input.rowId).some(
@@ -840,6 +913,13 @@ export async function sendInterviewImportRowToReview(
       )
       .returning();
     if (!stored) throw new Error('interview import row changed under its lock');
+    await recordInterviewImportOperation(tx, {
+      action: 'send_to_review',
+      actorAccountId: accountId,
+      at,
+      before: locked,
+      after: stored,
+    });
     const after = (await loadBatch(tx, input.batchId))!;
     const storedEntry = after.rows.find((e) => e.row.rowId === input.rowId)!;
     return {

@@ -158,7 +158,65 @@ export const interviewImportRows = pgTable(
     ),
     check(
       'records_interview_import_row_decision',
-      sql`(${t.decision} is null and ${t.decisionRevision} is null) or (jsonb_typeof(${t.decision}) = 'object' and ${t.decision} ? 'status' and ${t.decisionRevision} is not null and ${t.decisionRevision} <= ${t.revision})`,
+      sql`coalesce((${t.decision} is null and ${t.decisionRevision} is null) or (jsonb_typeof(${t.decision}) = 'object' and ${t.decision} ? 'status' and ${t.decisionRevision} is not null and ${t.decisionRevision} <= ${t.revision}), false)`,
+    ),
+  ],
+);
+
+/** What HR's change replaced and produced on one row: the confirmation, decision and
+ * HR's entries for unread items, as stored before and after it. */
+export type InterviewImportRowState = {
+  confirmation: {
+    candidateId: string;
+    forRevision: number;
+    byAccountId: string;
+    at: string;
+  } | null;
+  decision: InterviewImportDecision | null;
+  filled: Record<string, string>;
+};
+
+/**
+ * Every HR change to a row, appended in the same transaction that changes the row and
+ * never updated: the row holds only the latest state. Each operation moves the row one
+ * revision and is linked to its audit event.
+ */
+export const interviewImportOperations = pgTable(
+  'records_interview_import_operations',
+  {
+    id: text('id').primaryKey(),
+    batchId: text('batch_id').notNull(),
+    rowId: text('row_id').notNull(),
+    action: text('action', {
+      enum: ['confirm', 'revert', 'fill', 'send_to_review'],
+    }).notNull(),
+    actorAccountId: text('actor_account_id')
+      .notNull()
+      .references(() => accountBindings.accountId),
+    at: timestamp('at', { withTimezone: true, mode: 'string' }).notNull(),
+    fromRevision: integer('from_revision').notNull(),
+    toRevision: integer('to_revision').notNull(),
+    before: jsonb('before').$type<InterviewImportRowState>().notNull(),
+    after: jsonb('after').$type<InterviewImportRowState>().notNull(),
+    auditId: text('audit_id')
+      .notNull()
+      .references(() => auditEvents.id),
+  },
+  (t) => [
+    unique('records_interview_import_operation_revision').on(
+      t.batchId,
+      t.rowId,
+      t.toRevision,
+    ),
+    unique('records_interview_import_operation_audit').on(t.auditId),
+    foreignKey({
+      name: 'records_interview_import_operation_row',
+      columns: [t.batchId, t.rowId],
+      foreignColumns: [interviewImportRows.batchId, interviewImportRows.rowId],
+    }),
+    check(
+      'records_interview_import_operation',
+      sql`coalesce(${t.id} ~ '[^[:space:]]' and ${t.action} in ('confirm','revert','fill','send_to_review') and ${t.fromRevision} > 0 and ${t.toRevision} = ${t.fromRevision} + 1 and jsonb_typeof(${t.before}) = 'object' and jsonb_typeof(${t.after}) = 'object', false)`,
     ),
   ],
 );

@@ -63,14 +63,15 @@ export const INTERVIEW_IMPORT_DEMO = {
         'd883d08e2ff0563494e46427fe6fc4a84be42f2aa4505aa4be076386bea385fc',
     },
     {
-      key: 'score-missing',
-      sha256:
-        'cba08d955c22c7f68610723689152b2a1305ce4379cf9fc4c92a58c3669b2a1c',
-    },
-    {
       key: 'unknown-interviewer',
       sha256:
         '4936b677f5def37079a8aa0894fd230a1fa7923dbc5cb7c3b19cf352936f9c51',
+    },
+    // Appended last: a seeded database keeps every earlier row's ordinal.
+    {
+      key: 'score-missing',
+      sha256:
+        'cba08d955c22c7f68610723689152b2a1305ce4379cf9fc4c92a58c3669b2a1c',
     },
   ],
   candidatesSha256:

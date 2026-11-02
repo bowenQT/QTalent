@@ -33,11 +33,13 @@ export const interviewImportRowSchema = z.strictObject({
     to: z.number().int().positive(),
   }),
   observedName: text,
+  // `unknown`: no recruitment record matches the printed name yet.
   candidateStatus: z.enum([
     'hired',
     'rejected',
     'offer_pending',
     'offer_declined',
+    'unknown',
   ]),
   located: z.boolean(),
   template: z.strictObject({ name: text, scale: z.string() }),

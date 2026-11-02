@@ -12,7 +12,7 @@ import {
 } from '@testing-library/react';
 import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { createElement } from 'react';
 import { ToastProvider } from '@/components/ui/Toast';
 import { createDatabase, getDatabase } from '@/server/db/client';
@@ -20,9 +20,12 @@ import { importDemo } from '@/server/db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '@/server/db/seed';
 import {
   interviewImportCandidates,
+  interviewImportOperations,
   interviewImportReviewItems,
   interviewImportRows,
 } from '@/server/modules/records/interview-import/schema';
+import { accountBindings, grants, people } from '@/server/modules/directory';
+import { cohorts } from '@/server/modules/programs';
 import { auditEvents } from '@/server/platform/audit/schema';
 import { readInterviewImportReviewInbox } from '@/server/usecases/interview-import/store';
 import { INTERVIEW_IMPORT_DEMO } from '@/server/db/seed/interview-import-demo/import';
@@ -142,6 +145,35 @@ afterAll(async () => {
   }
 });
 
+/** The row's appended operations, oldest first, with their audit actions. */
+async function historyOf(rowId: string) {
+  const ops = await db()
+    .select()
+    .from(interviewImportOperations)
+    .where(
+      and(
+        eq(interviewImportOperations.batchId, batchId),
+        eq(interviewImportOperations.rowId, rowId),
+      ),
+    )
+    .orderBy(asc(interviewImportOperations.toRevision));
+  const audits = ops.length
+    ? await db()
+        .select()
+        .from(auditEvents)
+        .where(
+          inArray(
+            auditEvents.id,
+            ops.map((op) => op.auditId),
+          ),
+        )
+    : [];
+  return ops.map((op) => ({
+    ...op,
+    auditAction: audits.find((a) => a.id === op.auditId)?.action,
+  }));
+}
+
 it('seeds the demo batch through the real command and replays unchanged', async () => {
   expect(await seed()).toEqual({ status: 'created', batchId, rows: 4 });
   expect(await seed()).toEqual({ status: 'unchanged', batchId, rows: 4 });
@@ -204,6 +236,55 @@ it('goes from /import through HR confirmation to the stored import decision', as
       reviewItemKind: 'unknown_interview_candidate',
     },
   });
+
+  // Both changes stay in the row's history, each with its own audit event.
+  const history = await db()
+    .select()
+    .from(interviewImportOperations)
+    .where(
+      and(
+        eq(interviewImportOperations.batchId, batchId),
+        eq(interviewImportOperations.rowId, 'campus-1'),
+      ),
+    )
+    .orderBy(asc(interviewImportOperations.toRevision));
+  expect(history).toMatchObject([
+    {
+      action: 'confirm',
+      actorAccountId: 'demo-hrbp',
+      fromRevision: 1,
+      toRevision: 2,
+      before: { confirmation: null, decision: null },
+      after: {
+        confirmation: {
+          candidateId: 'demo-candidate-01',
+          forRevision: 2,
+          byAccountId: 'demo-hrbp',
+        },
+        decision: { status: 'planned' },
+      },
+    },
+    {
+      action: 'revert',
+      fromRevision: 2,
+      toRevision: 3,
+      before: { confirmation: { candidateId: 'demo-candidate-01' } },
+      after: { confirmation: null, decision: { status: 'needs_review' } },
+    },
+  ]);
+  const audits = await db()
+    .select()
+    .from(auditEvents)
+    .where(
+      inArray(
+        auditEvents.id,
+        history.map((op) => op.auditId),
+      ),
+    );
+  expect(audits.map((a) => a.action).sort()).toEqual([
+    'interview_import.row.confirm',
+    'interview_import.row.revert',
+  ]);
 });
 
 it('refuses a stale revision and a row the plan cannot use, writing nothing', async () => {
@@ -323,6 +404,22 @@ it("takes HR's entry for an unread score beside the parsed review, then plans th
     confirmedCandidateId: 'demo-candidate-01',
     decision: { status: 'planned', personId: 'p-x08' },
   });
+  expect(await historyOf(rowId)).toMatchObject([
+    {
+      action: 'fill',
+      auditAction: 'interview_import.row.fill',
+      actorAccountId: 'demo-hrbp',
+      fromRevision: before.revision,
+      toRevision: before.revision + 1,
+      before: { filled: {}, decision: null },
+      after: { filled: { [item]: '3' }, confirmation: null },
+    },
+    {
+      action: 'confirm',
+      fromRevision: before.revision + 1,
+      after: { filled: { [item]: '3' }, decision: { status: 'planned' } },
+    },
+  ]);
 });
 
 it('sends a row nobody in the directory matches to 待核对 once, with its audit', async () => {
@@ -393,6 +490,20 @@ it('sends a row nobody in the directory matches to 待核对 once, with its audi
       .where(eq(interviewImportReviewItems.batchId, batchId)),
   ).toHaveLength(1);
 
+  expect((await historyOf('campus-1')).at(-1)).toMatchObject({
+    action: 'send_to_review',
+    auditAction: 'interview_import.row.send_to_review',
+    actorAccountId: 'demo-hrbp',
+    fromRevision: before.revision,
+    toRevision: before.revision + 1,
+    after: {
+      decision: {
+        status: 'needs_review',
+        reviewItemKind: 'unknown_interview_candidate',
+      },
+    },
+  });
+
   // 待核对's read sees it for HR, filtered by the current grant; a mentor sees nothing.
   const inbox = await readInterviewImportReviewInbox(
     db(),
@@ -415,4 +526,144 @@ it('sends a row nobody in the directory matches to 待核对 once, with its audi
   cleanup();
   await openPage();
   expect(screen.getAllByText('已放进待核对').length).toBeGreaterThan(0);
+});
+
+/** An HR whose current grant is for another cohort: none of this batch's people. */
+/** Idempotent: tests share one database. */
+async function otherCohortHr() {
+  const [person] = await db()
+    .select({ organizationId: people.organizationId })
+    .from(people)
+    .limit(1);
+  await db()
+    .insert(cohorts)
+    .values({ id: 'demo-other-cohort', name: '另一期次（演示）' })
+    .onConflictDoNothing();
+  await db()
+    .insert(people)
+    .values({
+      id: 'demo-other-hr',
+      name: '另一期次 HR（演示）',
+      organizationId: person.organizationId,
+      demo: true,
+    })
+    .onConflictDoNothing();
+  await db()
+    .insert(accountBindings)
+    .values({
+      accountId: 'demo-other-hr-account',
+      personId: 'demo-other-hr',
+      isSystemAdmin: false,
+    })
+    .onConflictDoNothing();
+  await db()
+    .insert(grants)
+    .values({
+      id: 'demo-other-hr-grant',
+      accountId: 'demo-other-hr-account',
+      role: 'hr',
+      scope: 'cohort',
+      cohortId: 'demo-other-cohort',
+      validFrom: '2026-01-01',
+    })
+    .onConflictDoNothing();
+  return 'demo-other-hr-account';
+}
+
+it('answers an HR outside the batch exactly as for a batch or row that does not exist', async () => {
+  session.accountId = await otherCohortHr();
+  expect(await getInterviewImportPreview(batchId)).toEqual(
+    await getInterviewImportPreview('demo-interview-import-missing'),
+  );
+  expect(await getInterviewImportPreview(batchId)).toEqual({
+    status: 'not_found',
+  });
+  const before = await stored('professional-1');
+  const existing = await confirmInterviewImportRowAction({
+    batchId,
+    rowId: 'professional-1',
+    expectedRevision: before.revision,
+    ok: true,
+  });
+  expect(existing).toEqual(
+    await confirmInterviewImportRowAction({
+      batchId,
+      rowId: 'no-such-row',
+      expectedRevision: 1,
+      ok: true,
+    }),
+  );
+  expect(existing).toMatchObject({ status: 'not_found' });
+  const unread = await stored('score-missing-1');
+  const fill = (rowId: string, expectedRevision: number) =>
+    fillInterviewImportRowAction({
+      batchId,
+      rowId,
+      expectedRevision,
+      // Authorization answers before the item is looked at.
+      item: '任一项',
+      value: '',
+    });
+  expect(await fill('score-missing-1', unread.revision)).toEqual(
+    await fill('no-such-row', 1),
+  );
+  const send = (rowId: string, expectedRevision: number) =>
+    sendInterviewImportRowToReviewAction({ batchId, rowId, expectedRevision });
+  const campus = await stored('campus-1');
+  expect(await send('campus-1', campus.revision)).toEqual(
+    await send('no-such-row', 1),
+  );
+  expect(await send('campus-1', campus.revision)).toMatchObject({
+    status: 'not_found',
+  });
+  expect(await stored('professional-1')).toEqual(before);
+  expect(await stored('score-missing-1')).toEqual(unread);
+  expect(await stored('campus-1')).toEqual(campus);
+});
+
+it('shows a row about nobody known yet only to HR covering every subject of the batch’s node', async () => {
+  // No recruitment record carries the printed name any more: the row is about nobody known.
+  await db()
+    .update(interviewImportCandidates)
+    .set({ name: '对不上的姓名（演示）' })
+    .where(
+      and(
+        eq(interviewImportCandidates.batchId, batchId),
+        eq(interviewImportCandidates.candidateId, 'demo-candidate-01'),
+      ),
+    );
+  const preview = await getInterviewImportPreview(batchId);
+  if (preview.status !== 'ok') throw new Error(preview.status);
+  expect(
+    preview.preview.batch.rows.find((r) => r.rowId === 'campus-1'),
+  ).toMatchObject({ candidateStatus: 'unknown', match: null });
+
+  session.accountId = await otherCohortHr();
+  expect(await getInterviewImportPreview(batchId)).toEqual({
+    status: 'not_found',
+  });
+  const before = await stored('campus-1');
+  expect(
+    await confirmInterviewImportRowAction({
+      batchId,
+      rowId: 'campus-1',
+      expectedRevision: before.revision,
+      ok: false,
+    }),
+  ).toMatchObject({ status: 'not_found' });
+  expect(await stored('campus-1')).toEqual(before);
+});
+
+it('stores a decision only together with its revision', async () => {
+  await expect(
+    db()
+      .update(interviewImportRows)
+      .set({ decision: null, decisionRevision: 1 })
+      .where(
+        and(
+          eq(interviewImportRows.batchId, batchId),
+          eq(interviewImportRows.rowId, 'professional-1'),
+        ),
+      ),
+  ).rejects.toThrow();
 });
