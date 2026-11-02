@@ -116,14 +116,12 @@ async function legacyPlan(connection: Connection) {
       'id',
       'cohortId',
     ]),
-    events: await connection.db
-      .select({
-        id: records.events.id,
-        personId: records.events.personId,
-        projectId: records.events.projectId,
-        occurredOn: records.events.occurredOn,
-      })
-      .from(records.events),
+    events: await readLegacyRows(connection, records.events, [
+      'id',
+      'personId',
+      'projectId',
+      'occurredOn',
+    ]),
   });
 }
 it('keeps all three published SQL migrations byte-identical and migrates an empty database with real node/subject constraints', async () => {

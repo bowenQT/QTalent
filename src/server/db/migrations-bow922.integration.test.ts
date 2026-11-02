@@ -17,6 +17,7 @@ import { importDemo } from './import';
 import { mapPrototypeSeed, readPrototypeSeed } from './seed';
 import {
   insertLegacyRows,
+  readLegacyRows,
   seedVerifiedLegacyBaseline,
   fingerprintMigrationFacts,
 } from '../../../tests/fixtures/legacy-migration-seed';
@@ -198,16 +199,19 @@ it('upgrades canonical old seeded facts through 899, classifies only the two kno
       undefined,
       false,
     );
-    const versions = await connection.db
-      .select()
-      .from(ruleVersions)
-      .orderBy(ruleVersions.id);
+    const versionColumns = ['id', 'provenance', 'sourceCommit'] as const;
+    const versions = await readLegacyRows(
+      connection,
+      ruleVersions,
+      versionColumns,
+      '0004',
+    );
     await migrate(connection.db, { migrationsFolder: folder });
     expect(await fingerprintMigrationFacts(connection, before, false)).toEqual(
       before,
     );
     expect(
-      await connection.db.select().from(ruleVersions).orderBy(ruleVersions.id),
+      await readLegacyRows(connection, ruleVersions, versionColumns, '0004'),
     ).toEqual(versions);
     const rows = await connection.db
       .select()
@@ -269,7 +273,7 @@ it('missing historical usage fails the full pending migration transaction, leavi
     expect(
       await fingerprintMigrationFacts(connection, Object.keys(before), false),
     ).toEqual(before);
-    await connection.db.delete(ruleVersions);
+    await connection.pool.query('DELETE FROM evaluation_rule_versions');
     await seedVerifiedLegacyBaseline(connection);
     await migrate(connection.db, { migrationsFolder: folder });
     expect(
@@ -337,17 +341,29 @@ it('preserves existing closed and restored intervals while backfilling only the 
       ],
       '0005',
     );
-    const before = await connection.db
-      .select()
-      .from(ruleVersionApplicability)
-      .orderBy(ruleVersionApplicability.periodId);
+    const intervalColumns = [
+      'periodId',
+      'versionId',
+      'category',
+      'effectiveFrom',
+      'effectiveUntil',
+    ] as const;
+    const before = await readLegacyRows(
+      connection,
+      ruleVersionApplicability,
+      intervalColumns,
+      '0005',
+    );
     await migrate(connection.db, { migrationsFolder: folder });
     expect(
-      await connection.db
-        .select()
-        .from(ruleVersionApplicability)
-        .where(eq(ruleVersionApplicability.category, 'dimension_anchors'))
-        .orderBy(ruleVersionApplicability.periodId),
+      (
+        await readLegacyRows(
+          connection,
+          ruleVersionApplicability,
+          intervalColumns,
+          '0005',
+        )
+      ).filter((row) => row.category === 'dimension_anchors'),
     ).toEqual(before);
     expect(
       await connection.db

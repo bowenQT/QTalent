@@ -16,8 +16,14 @@ import * as talent from '../../src/server/modules/talent/schema';
 type Connection = ReturnType<typeof createDatabase>;
 
 /** Physical columns pinned to a committed snapshot; 0002 is the last one before 899.
- * Later migrations only add columns, so these exist in every newer database;
- * columns added later take their defaults when an old database is upgraded. */
+ * Historical migration tests read and write an old database only through these
+ * columns, never through a current table object's full column list.
+ *
+ * Supported: later migrations that only ADD columns (nullable or with a default) or
+ * tables. Not covered, and must be handled in the migration test that introduces
+ * them: renaming, dropping or retyping a snapshot column, and a later NOT NULL
+ * column without a default on a table these helpers write (an old-schema insert
+ * cannot fill it). */
 const snapshotColumns = new Map<string, Map<string, Set<string>>>();
 function columnsAt(snapshot: string) {
   let tables = snapshotColumns.get(snapshot);
@@ -53,7 +59,9 @@ function legacyKeys(table: PgTable, snapshot = '0002') {
   return Object.keys(columns).filter((key) => known.has(columns[key].name));
 }
 
-/** Read named pre-899 columns from an old database; the result type is exactly those columns. */
+/** Read named columns of a committed snapshot (default 0002, before 899) from an old
+ * database, ordered by those columns; the result type is exactly those columns. Use the
+ * same keys before and after an upgrade to compare historical facts. */
 export async function readLegacyRows<
   T extends PgTable,
   K extends keyof T['$inferSelect'] & string,
@@ -61,19 +69,25 @@ export async function readLegacyRows<
   connection: Connection,
   table: T,
   keys: readonly K[],
+  snapshot = '0002',
 ): Promise<Pick<T['$inferSelect'], K>[]> {
-  const legacy = new Set(legacyKeys(table));
+  const legacy = new Set(legacyKeys(table, snapshot));
   const missing = keys.filter((key) => !legacy.has(key));
   if (missing.length)
     throw new Error(
-      'Not a pre-899 column of ' +
+      'Not a column of ' +
         getTableName(table) +
+        ' in snapshot ' +
+        snapshot +
         ': ' +
         missing.join(','),
     );
   const columns = getTableColumns(table);
   const selection = Object.fromEntries(keys.map((key) => [key, columns[key]]));
-  return (await connection.db.select(selection).from(table as PgTable)) as Pick<
+  return (await connection.db
+    .select(selection)
+    .from(table as PgTable)
+    .orderBy(...keys.map((key) => columns[key]))) as Pick<
     T['$inferSelect'],
     K
   >[];
