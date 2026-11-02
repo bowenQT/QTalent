@@ -44,6 +44,7 @@ import {
   type RecordCommand,
   type RecordSaveLock,
   type RecordConfirmationWorkFact,
+  type StoredArrangeInput,
 } from '../modules/records';
 import {
   confirmations,
@@ -61,7 +62,11 @@ import {
 } from '../modules/talent/record-confirmation';
 import { createConfirmRecordDraftUsecase } from './confirm-record-draft';
 import { loadEvaluationContext } from './evaluation-context';
-import { talentSources } from './talent-source-projection';
+import { talentSources, sourceKey } from './talent-source-projection';
+import {
+  confirmationSources,
+  lockConfirmationIntakes,
+} from './record-confirmation-sources';
 import { ForbiddenError } from './project-context';
 import { recordAudit } from '../platform/audit';
 import { cancelWithdrawnRecordConfirmationWork } from './record-undo-work';
@@ -317,6 +322,7 @@ async function readSources(
   draft: RecordBatchDraft,
   clock: RecordSaveClock,
   actorPersonId: string,
+  inputs: StoredArrangeInput[],
 ): Promise<ConfirmationSourceFact[]> {
   const data = await readEvidenceForTalent(tx);
   const current = await loadCurrent(
@@ -325,7 +331,14 @@ async function readSources(
     clock.businessNow(),
     actorPersonId,
   );
-  const projected = talentSources({ ...data, ...current });
+  const projected = confirmationSources({
+    ...data,
+    sources: talentSources({ ...data, ...current }),
+    inputs,
+    linkedSourceKeys: new Set(
+      [...data.eventSources, ...data.historical].map(sourceKey),
+    ),
+  });
   return resolveRecordSourceFacts(draft.sourceReferences, {
     ...data,
     sources: projected,
@@ -348,6 +361,7 @@ async function execute(
           .for('share');
         const initial = await loadCurrent(tx, accountId, clock.businessNow());
         const actorPersonId = initial.context.account.personId;
+        const sourceInputs = await lockConfirmationIntakes(tx);
         const lock = await lockRecordCommand(tx, accountId, command);
         await loadCurrent(
           tx,
@@ -428,7 +442,14 @@ async function execute(
             ).context,
           readRules: (versions) => readFrozenRules(tx, versions),
           readSources: (_account, retainedDraft) =>
-            readSources(tx, accountId, retainedDraft, clock, actorPersonId),
+            readSources(
+              tx,
+              accountId,
+              retainedDraft,
+              clock,
+              actorPersonId,
+              sourceInputs,
+            ),
         });
         const outcome =
           command.action === 'save'
