@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     # id-token 只用于向 Codecov 证明上传来自本仓库的 CI，不需要保存上传令牌。
     permissions:
@@ -79,6 +79,17 @@ jobs:
           '--test-coverage-exclude=deploy/*.test.mjs'
           --test-coverage-lines=85 --test-coverage-branches=85
           deploy/*.test.mjs
+      - name: Test official media source validation
+        run: PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-media-source.py
+      - name: Install and verify fixed official media tools
+        timeout-minutes: 5
+        run: bash scripts/install-official-media.sh
+      - name: Verify actual media adapters
+        timeout-minutes: 3
+        run: >-
+          pnpm exec vitest run --maxWorkers=2
+          src/server/usecases/recordings/audio-probe.test.ts
+          src/server/usecases/recordings/inspect-audio.test.ts
       - run: pnpm check
         id: quality
       # 覆盖率门槛由 pnpm check 把关；Codecov 只展示，上传失败不影响检查结论。

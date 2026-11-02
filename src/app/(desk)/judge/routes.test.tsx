@@ -5,8 +5,12 @@ import type { ShellData } from '@/contracts/shell';
 import JudgePage, { generateMetadata as judgeMetadata } from './page';
 import RulesPage, { generateMetadata as rulesMetadata } from '../rules/page';
 
-const { shellQuery } = vi.hoisted(() => ({ shellQuery: vi.fn() }));
+const { shellQuery, judgeQuery } = vi.hoisted(() => ({
+  shellQuery: vi.fn(),
+  judgeQuery: vi.fn(),
+}));
 vi.mock('@/server/queries/shell', () => ({ getShellPage: shellQuery }));
+vi.mock('@/server/queries/judge', () => ({ getJudgePage: judgeQuery }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
   notFound: () => {
@@ -33,22 +37,34 @@ const shell = (role: ShellData['role'], isAdmin = false): ShellData => ({
 });
 const standard = Promise.resolve({ r: 'front', line: 'xe-select' });
 
-beforeEach(() => shellQuery.mockReset());
+beforeEach(() => {
+  shellQuery.mockReset();
+  judgeQuery.mockReset();
+});
 afterEach(cleanup);
 
-describe('/judge before BOW-919/921 are connected', () => {
-  it('says 待接通 and renders no sample data', async () => {
-    shellQuery.mockResolvedValue(shell('hr'));
-    expect(await judgeMetadata()).toEqual({ title: '判断对照 · Niu-Talent' });
-    render(await JudgePage());
-    expect(
-      screen.getByRole('heading', { name: '判断对照待接通' }),
-    ).toBeTruthy();
-    expect(screen.queryByText(/许致远|XEngineer 第六期/)).toBeNull();
-  });
+describe('/judge before comparison batches are stored', () => {
+  it.each(['hr', 'manager'] as const)(
+    'says 待接通 to %s and renders no sample data',
+    async (audience) => {
+      judgeQuery.mockResolvedValue({ status: 'not_connected', audience });
+      expect(await judgeMetadata()).toEqual({
+        title: '判断对照 · Niu-Talent',
+      });
+      render(await JudgePage());
+      expect(
+        screen.getByRole('heading', { name: '判断对照待接通' }),
+      ).toBeTruthy();
+      expect(screen.queryByText(/许致远|XEngineer 第六期/)).toBeNull();
+      expect(shellQuery).not.toHaveBeenCalled();
+    },
+  );
 
-  it('names the mentor view as their own comparison', async () => {
-    shellQuery.mockResolvedValue(shell('mentor'));
+  it('names the rater view as their own comparison', async () => {
+    judgeQuery.mockResolvedValue({
+      status: 'not_connected',
+      audience: 'rater',
+    });
     expect(await judgeMetadata()).toEqual({
       title: '我的判断对照 · Niu-Talent',
     });
@@ -58,7 +74,7 @@ describe('/judge before BOW-919/921 are connected', () => {
   });
 
   it('keeps admins and lost grants out', async () => {
-    shellQuery.mockResolvedValue(shell('admin', true));
+    judgeQuery.mockResolvedValue({ status: 'admin' });
     expect(await judgeMetadata()).toEqual({
       title: '这一页属于业务视角 · Niu-Talent',
     });
@@ -67,7 +83,7 @@ describe('/judge before BOW-919/921 are connected', () => {
       screen.getByRole('heading', { name: '这一页属于业务视角' }),
     ).toBeTruthy();
     cleanup();
-    shellQuery.mockResolvedValue(null);
+    judgeQuery.mockResolvedValue({ status: 'forbidden' });
     expect(await judgeMetadata()).toEqual({
       title: '查看权限已更新 · Niu-Talent',
     });
