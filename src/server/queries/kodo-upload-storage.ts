@@ -1,29 +1,34 @@
 import 'server-only';
+import { getEnv } from '../env';
 import { createKodoClient } from '../integrations/kodo';
 import type { UploadStorage } from '../modules/records/uploads/types';
 
-const kodoEnvironment = {
-  endpoint: 'QINIU_KODO_ENDPOINT',
-  s3Region: 'QINIU_KODO_S3_REGION',
-  uploadEndpoint: 'QINIU_KODO_UPLOAD_ENDPOINT',
-  managementEndpoint: 'QINIU_KODO_MANAGEMENT_ENDPOINT',
-  accessKey: 'QINIU_KODO_ACCESS_KEY',
-  secretKey: 'QINIU_KODO_SECRET_KEY',
-  bucket: 'QINIU_KODO_BUCKET',
-} as const;
+type KodoEnvironment = Pick<
+  ReturnType<typeof getEnv>,
+  | 'QINIU_KODO_ENDPOINT'
+  | 'QINIU_KODO_S3_REGION'
+  | 'QINIU_KODO_UPLOAD_ENDPOINT'
+  | 'QINIU_KODO_MANAGEMENT_ENDPOINT'
+  | 'QINIU_KODO_ACCESS_KEY'
+  | 'QINIU_KODO_SECRET_KEY'
+  | 'QINIU_KODO_BUCKET'
+>;
 
-/** The deployed Kodo client, or null when the deployment has not configured it. */
+/** The deployed Kodo client, or null when the deployment has not configured it.
+ * The adapter validates the values only once all required keys are present.
+ */
 export function kodoUploadStorageFromEnv(
-  environment: Record<string, string | undefined> = process.env,
+  environment: KodoEnvironment = getEnv(),
 ): UploadStorage | null {
-  const value = (name: string) => environment[name]?.trim() || undefined;
-  const endpoint = value(kodoEnvironment.endpoint);
-  const uploadEndpoint = value(kodoEnvironment.uploadEndpoint);
-  const managementEndpoint = value(kodoEnvironment.managementEndpoint);
-  const accessKey = value(kodoEnvironment.accessKey);
-  const secretKey = value(kodoEnvironment.secretKey);
-  const bucket = value(kodoEnvironment.bucket);
-  const s3Region = value(kodoEnvironment.s3Region);
+  const value = (name: keyof KodoEnvironment) =>
+    environment[name]?.trim() || undefined;
+  const endpoint = value('QINIU_KODO_ENDPOINT');
+  const uploadEndpoint = value('QINIU_KODO_UPLOAD_ENDPOINT');
+  const managementEndpoint = value('QINIU_KODO_MANAGEMENT_ENDPOINT');
+  const accessKey = value('QINIU_KODO_ACCESS_KEY');
+  const secretKey = value('QINIU_KODO_SECRET_KEY');
+  const bucket = value('QINIU_KODO_BUCKET');
+  const s3Region = value('QINIU_KODO_S3_REGION');
   if (
     !endpoint ||
     !uploadEndpoint ||

@@ -10,16 +10,19 @@ export type UploadStorage = Pick<
   ReturnType<typeof createKodoClient>,
   'issueUploadGrant' | 'statObject' | 'openObject'
 >;
-export type UploadCompletion = {
+type CompletedFacts = {
   uploadId: string;
   recordCollectionId: string;
   originalId: string;
   originalVersionId: string;
-  jobId: string;
   revision: number;
   /** Parsing/transcription owns real fragments. Uploading cannot invent one. */
   source: null;
 };
+/** People/event uploads dispatch a job; unassigned materials are only staged. */
+export type UploadCompletion =
+  | (CompletedFacts & { jobId: string })
+  | (CompletedFacts & { status: 'staged' });
 export type UploadIntent = {
   id: string;
   /** Stored collection FK; quota labels and request JSON cannot supply identity. */
@@ -94,11 +97,13 @@ export interface UploadTransaction {
   findIntent(id: string): Promise<UploadIntent | null>;
   activeCount(quotaScope: string, now: number): Promise<number>;
   insertIntent(intent: UploadIntent): Promise<void>;
+  /** Returns the dispatched job, or null when an unassigned material is only
+   * archived for a later batch; the target alone decides which. */
   archiveAndDispatch(
     intent: UploadIntent,
     object: VerifiedObject,
     ids: { originalId: string; originalVersionId: string },
-  ): Promise<string>;
+  ): Promise<string | null>;
   saveCompletion(intent: UploadIntent): Promise<void>;
   saveRelease(intent: UploadIntent): Promise<void>;
   findObject(originalVersionId: string): Promise<UploadedObject | null>;

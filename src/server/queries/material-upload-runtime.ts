@@ -16,13 +16,11 @@ import { kodoUploadStorageFromEnv } from './kodo-upload-storage';
 import { createUploadRuntime } from './upload-runtime';
 
 /** Unassigned staging uploads are processed only after a material batch takes
- * them in; completion archives the verified original and starts no job. The
- * stable `staged:` identity tells the batch side nothing has been dispatched.
+ * them in, so the store archives them without dispatching. Reaching dispatch
+ * here means a non-staging target slipped past the collection policy.
  */
-export const stageMaterialUpload: UploadDispatch = async (_tx, input) => {
-  if (input.target.kind !== 'unassigned')
-    throw new Error('Material staging only archives unassigned uploads');
-  return { jobId: `staged:${input.uploadId}` };
+export const refuseMaterialDispatch: UploadDispatch = async () => {
+  throw new Error('Material staging never dispatches a job');
 };
 
 /** Material intake composition. Only unassigned staging collections are
@@ -33,7 +31,6 @@ export const stageMaterialUpload: UploadDispatch = async (_tx, input) => {
 export function createMaterialUploadRuntime(input: {
   db: Database;
   storage: UploadStorage;
-  dispatch: UploadDispatch;
   trustedOrigin: string;
   businessNow: () => string;
   securityNow?: () => number;
@@ -42,7 +39,7 @@ export function createMaterialUploadRuntime(input: {
   const runtime = createUploadRuntime({
     db: input.db,
     storage: input.storage,
-    dispatch: input.dispatch,
+    dispatch: refuseMaterialDispatch,
     trustedOrigin: input.trustedOrigin,
     securityNow: input.securityNow,
     adapterMaxBytes: input.adapterMaxBytes,
@@ -120,7 +117,6 @@ export function materialUploadHandlersForServer(): Record<
   return createMaterialUploadRuntime({
     db: getDatabase(),
     storage,
-    dispatch: stageMaterialUpload,
     trustedOrigin: env.BETTER_AUTH_URL,
     businessNow: () => clock.now().toISOString(),
   }).materialHttp;

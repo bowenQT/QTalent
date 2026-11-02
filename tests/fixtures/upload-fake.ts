@@ -10,9 +10,16 @@ import type {
   UploadStore,
   UploadTransaction,
   UploadCollection,
+  UploadCompletion,
 } from '../../src/server/modules/records/uploads/types';
 
 /** Synthetic protocol around the merged immutable Kodo fake; no signing key. */
+/** People/event completions always dispatch; narrows away the staged variant. */
+export function dispatched(completed: UploadCompletion) {
+  if (!('jobId' in completed)) throw new Error('Expected a dispatched upload');
+  return completed;
+}
+
 export function fixture(recordCollectionId = 'trusted-record-collection-1') {
   let now = Date.parse('2026-10-25T16:00:00Z');
   let allowed = true;
@@ -117,6 +124,7 @@ export function fixture(recordCollectionId = 'trusted-record-collection-1') {
         originalVersionId: ids.originalVersionId,
         uploadId: intent.id,
       });
+      if (intent.request.target.kind === 'unassigned') return null;
       const id = `job-${jobs.length + 1}`;
       jobs.push(id);
       return id;

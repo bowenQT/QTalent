@@ -21,7 +21,7 @@ import {
   uploadIntents,
   uploadObjects,
 } from '../../../../server/modules/records/uploads/schema';
-import { stageMaterialUpload } from '../../../../server/queries/material-upload-runtime';
+import { refuseMaterialDispatch } from '../../../../server/queries/material-upload-runtime';
 import { POST as createCollection } from './collections/route';
 import { POST as requestUpload } from './route';
 import { POST as completeUpload } from './complete/route';
@@ -41,6 +41,9 @@ vi.mock('../../../../server/queries/kodo-upload-storage', () => ({
 vi.mock('../../../../server/auth', () => ({
   getSession: async () => (h.account ? { user: { id: h.account } } : null),
 }));
+vi.mock('../../../../server/env', () => ({
+  getEnv: () => ({ APP_ENV: 'test', BETTER_AUTH_URL: 'https://app.test' }),
+}));
 vi.mock('../../../../server/access', () => ({
   verifyAccessRequest: async () => undefined,
 }));
@@ -48,7 +51,7 @@ vi.mock('../../../../server/access', () => ({
 let connection: Awaited<ReturnType<typeof nativeDatabase>>;
 let seeded: Awaited<ReturnType<typeof seedNativeCase>>;
 let kodo: ReturnType<typeof fixture>;
-const origin = new URL(process.env.BETTER_AUTH_URL ?? 'http://invalid').origin;
+const origin = 'https://app.test';
 
 beforeAll(async () => {
   connection = await nativeDatabase();
@@ -170,13 +173,14 @@ it('takes a material from grant through direct upload to a verified original', a
       throw new Error(delivered.body.status);
     const result = delivered.body.result;
     expect(result).toMatchObject({
+      status: 'staged',
       uploadId: delivered.grant.uploadId,
       recordCollectionId: collectionId,
-      jobId: `staged:${delivered.grant.uploadId}`,
       source: null,
     });
+    expect(result).not.toHaveProperty('jobId');
     const validated = await readValidatedUpload(
-      createPostgresUploadStore(connection.db, stageMaterialUpload),
+      createPostgresUploadStore(connection.db, refuseMaterialDispatch),
       {
         uploadId: result.uploadId,
         originalVersionId: result.originalVersionId,
@@ -186,6 +190,7 @@ it('takes a material from grant through direct upload to a verified original', a
       recordCollectionId: collectionId,
       target: { kind: 'unassigned', evaluationNodeId: seeded.node },
       accountId: seeded.account,
+      jobId: null,
     });
   }
   const [collection] = await connection.db
@@ -205,7 +210,7 @@ it('takes a material from grant through direct upload to a verified original', a
   ]);
 });
 
-it('replays a staging collection for the same operation and rejects another node payload', async () => {
+it('replays a staging collection and checks permission before comparing a changed payload', async () => {
   const operationId = randomUUID();
   const body = { operationId, evaluationNodeId: seeded.node };
   const first = await (
@@ -223,7 +228,8 @@ it('replays a staging collection for the same operation and rejects another node
       evaluationNodeId: seeded.otherNode,
     },
   );
-  expect(changed.status).toBe(409);
+  // The changed node is outside the account's scope; authorization answers first.
+  expect(changed.status).toBe(403);
 });
 
 it('decides the session and node write permission on the server', async () => {

@@ -91,8 +91,7 @@ export async function readUploadCollectionMembers(
           intent.completed.originalVersionId !== object.originalVersionId ||
           typeof intent.completed.originalId !== 'string' ||
           !intent.completed.originalId.trim() ||
-          typeof intent.completed.jobId !== 'string' ||
-          !intent.completed.jobId.trim()
+          !completionMatchesTarget(intent)
         : object !== null) ||
       (object !== null &&
         (object.uploadId !== intent.id ||
@@ -102,6 +101,15 @@ export async function readUploadCollectionMembers(
       throw new UploadError('unavailable', 'upload_collection_inconsistent');
   }
   return { recordCollectionId: collection.id, collection, members };
+}
+
+function completionMatchesTarget(intent: UploadIntent) {
+  const completed = intent.completed!;
+  return intent.request.target.kind === 'unassigned'
+    ? 'status' in completed && completed.status === 'staged'
+    : 'jobId' in completed &&
+        typeof completed.jobId === 'string' &&
+        completed.jobId.trim() !== '';
 }
 
 export type PostgresUploadStore = UploadStore & {
@@ -217,6 +225,7 @@ export function createPostgresUploadStore(
                 uploadId: intent.id,
                 originalVersionId: ids.originalVersionId,
               });
+              if (intent.request.target.kind === 'unassigned') return null;
               const { jobId } = await dispatch(executor, {
                 ...ids,
                 uploadId: intent.id,

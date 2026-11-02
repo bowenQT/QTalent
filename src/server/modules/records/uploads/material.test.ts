@@ -163,10 +163,14 @@ describe('material completion', () => {
       ],
     ] as const) {
       const f = fixture();
-      await expect(deliver(f, bytes, file)).resolves.toMatchObject({
+      const completed = await deliver(f, bytes, file);
+      expect(completed).toMatchObject({
+        status: 'staged',
         recordCollectionId: f.request.recordCollectionId,
         source: null,
       });
+      expect(completed).not.toHaveProperty('jobId');
+      expect(f.snapshot()).toMatchObject({ jobs: [] });
       expect(f.snapshot().objects).toHaveLength(1);
     }
   });

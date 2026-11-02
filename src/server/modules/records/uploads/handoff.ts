@@ -13,7 +13,8 @@ export type ValidatedUpload = {
   recordCollectionId: string;
   originalId: string;
   originalVersionId: string;
-  jobId: string;
+  /** Null while an unassigned material is staged for a batch to claim. */
+  jobId: string | null;
   purpose: MaterialUploadRequest['purpose'];
   filename: string;
   target: MaterialUploadRequest['target'];
@@ -53,7 +54,7 @@ export function validatedUploadFromFacts(
     recordCollectionId: intent.recordCollectionId,
     originalId: completed.originalId,
     originalVersionId: completed.originalVersionId,
-    jobId: completed.jobId,
+    jobId: 'jobId' in completed ? completed.jobId : null,
     purpose: intent.request.purpose,
     filename: intent.request.filename,
     accountId: intent.accountId,

@@ -10,7 +10,7 @@ vi.mock('./kodo-upload-storage', () => ({
 
 import {
   materialUploadHandlersForServer,
-  stageMaterialUpload,
+  refuseMaterialDispatch,
 } from './material-upload-runtime';
 import { kodoUploadStorageFromEnv } from './kodo-upload-storage';
 
@@ -25,17 +25,11 @@ const staging = {
 };
 
 describe('material upload runtime', () => {
-  it('stages unassigned uploads without dispatching a job', async () => {
+  it('never dispatches a job for staged materials', async () => {
     await expect(
-      stageMaterialUpload({} as never, {
+      refuseMaterialDispatch({} as never, {
         ...staging,
         target: { kind: 'unassigned', evaluationNodeId: 'demo-node' },
-      }),
-    ).resolves.toEqual({ jobId: 'staged:upload-1' });
-    await expect(
-      stageMaterialUpload({} as never, {
-        ...staging,
-        target: { kind: 'people', personIds: ['demo-person-1'] },
       }),
     ).rejects.toThrow();
   });

@@ -346,14 +346,20 @@ export function createUploadService(options: UploadOptions) {
             originalVersionId: randomUUID(),
           };
           const jobId = await tx.archiveAndDispatch(latest, object, ids);
-          const completed: UploadCompletion = {
+          const staged = latest.request.target.kind === 'unassigned';
+          if (staged !== (jobId === null))
+            throw new UploadError('unavailable', 'dispatch_missing_job');
+          const facts = {
             uploadId: latest.id,
             recordCollectionId: latest.recordCollectionId,
             ...ids,
-            jobId,
             revision: latest.revision + 1,
             source: null,
           };
+          const completed: UploadCompletion =
+            jobId === null
+              ? { status: 'staged', ...facts }
+              : { ...facts, jobId };
           uploadCompletedSchema.parse(completed);
           await tx.saveCompletion({
             ...latest,

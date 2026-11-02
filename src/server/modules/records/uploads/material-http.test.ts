@@ -48,6 +48,10 @@ describe('material upload HTTP boundary', () => {
     expect(await (await http.createCollection(post(body))).json()).toEqual(
       created,
     );
+    const changed = await http.createCollection(
+      post({ ...body, evaluationNodeId: 'demo-node-2' }),
+    );
+    expect(changed.status).toBe(409);
     expect(f.snapshot().collections).toEqual([
       expect.objectContaining({
         target: { kind: 'unassigned', evaluationNodeId: 'demo-node' },
@@ -106,7 +110,11 @@ describe('material upload HTTP boundary', () => {
     );
     expect(await completed.json()).toMatchObject({
       status: 'success',
-      result: { uploadId: grant.upload.uploadId, source: null },
+      result: {
+        status: 'staged',
+        uploadId: grant.upload.uploadId,
+        source: null,
+      },
     });
     const unsupported = await http.requestUpload(
       post({
