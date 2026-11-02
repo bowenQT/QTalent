@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { InputQuotes, SourceMarks } from './CitationMarks';
 import { copy } from './copy';
 import { OrganizeHeader } from './OrganizeHeader';
-import { BannerNotice, FailurePanel } from './RecordNotices';
+import { BannerNotice, FailurePanel, HandoffPanel } from './RecordNotices';
 import { RecordInput } from './RecordInput';
 import { people, receipt } from './record.fixtures';
 import { SavedSign } from './SavedSign';
@@ -30,7 +30,6 @@ describe('OrganizeHeader', () => {
         people={people}
         project={{ id: 'proj', name: '演示项目', kind: 'project' }}
         origin="text"
-        demo
         niu="confirm"
       />,
     );
@@ -56,7 +55,6 @@ describe('OrganizeHeader', () => {
         people={people}
         project={null}
         origin="recording"
-        demo={false}
         niu="thinking"
       />,
     );
@@ -69,7 +67,6 @@ describe('OrganizeHeader', () => {
         people={people}
         project={{ id: 't', name: '演示课题', kind: 'topic' }}
         origin="attachment"
-        demo={false}
         niu="done"
       />,
     );
@@ -78,6 +75,18 @@ describe('OrganizeHeader', () => {
       screen.getByText(copy.header.project('topic', '演示课题')),
     ).toBeTruthy();
     expect(screen.getByText(copy.header.unknownPerson)).toBeTruthy();
+    // 只有非演示人员时不标「演示」
+    expect(screen.queryByText(copy.header.demo)).toBeNull();
+    rerender(
+      <OrganizeHeader
+        personIds={['p2']}
+        people={people}
+        project={null}
+        origin="text"
+        niu="done"
+      />,
+    );
+    expect(screen.queryByText(copy.header.demo)).toBeNull();
   });
 });
 
@@ -229,13 +238,50 @@ describe('BannerNotice 与 FailurePanel', () => {
     onBack: vi.fn(),
   });
 
-  it('没有提示时什么都不渲染；识别提示不在这里显示', () => {
-    const { container, rerender } = render(
+  it('没有提示时什么都不渲染', () => {
+    const { container } = render(
       <BannerNotice banner={null} {...handlers()} />,
     );
     expect(container.textContent).toBe('');
-    rerender(<BannerNotice banner={{ kind: 'who' }} {...handlers()} />);
-    expect(container.textContent).toBe('');
+  });
+
+  it('评价节点：多个、没有、待接通各写原因；没选人时提示先选人', () => {
+    const { rerender } = render(
+      <BannerNotice
+        banner={{ kind: 'node', reason: 'multiple', picked: true }}
+        {...handlers()}
+      />,
+    );
+    expect(screen.getByText(copy.node.multiple.title)).toBeTruthy();
+    expect(screen.getByText(copy.node.multiple.text)).toBeTruthy();
+    rerender(
+      <BannerNotice
+        banner={{ kind: 'node', reason: 'none', picked: true }}
+        {...handlers()}
+      />,
+    );
+    expect(screen.getByText(copy.node.none.title)).toBeTruthy();
+    rerender(
+      <BannerNotice
+        banner={{ kind: 'node', reason: 'none', picked: false }}
+        {...handlers()}
+      />,
+    );
+    expect(screen.getByText(copy.node.pickPerson.title)).toBeTruthy();
+    rerender(
+      <BannerNotice
+        banner={{ kind: 'node', reason: 'pending', picked: false }}
+        {...handlers()}
+      />,
+    );
+    expect(screen.getByText(copy.node.pending.title)).toBeTruthy();
+    rerender(
+      <BannerNotice
+        banner={{ kind: 'node', reason: 'unavailable', picked: true }}
+        {...handlers()}
+      />,
+    );
+    expect(screen.getByText(copy.node.unavailable.title)).toBeTruthy();
   });
 
   it('断网：说明内容还在，并可重试（提交与保存各一句）', async () => {
@@ -252,6 +298,20 @@ describe('BannerNotice 与 FailurePanel', () => {
       <BannerNotice banner={{ kind: 'offline', scope: 'save' }} {...h} />,
     );
     expect(screen.getByText(copy.offline.save)).toBeTruthy();
+  });
+
+  it('服务端没完成保存：如实说明，可再保存或复制留存', async () => {
+    const h = handlers();
+    render(<BannerNotice banner={{ kind: 'saveUnavailable' }} {...h} />);
+    expect(screen.getByText(copy.saveUnavailable)).toBeTruthy();
+    await userEvent.click(
+      screen.getByRole('button', { name: copy.banner.sendRetry }),
+    );
+    expect(h.onRetry).toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole('button', { name: copy.actions.copyOut }),
+    );
+    expect(h.onCopyOut).toHaveBeenCalled();
   });
 
   it('冲突：保留输入，可载入最新版本或先复制出来', async () => {
@@ -307,21 +367,18 @@ describe('BannerNotice 与 FailurePanel', () => {
     expect(screen.getByText(copy.banner.problems)).toBeTruthy();
   });
 
-  it('失败面板：按失败类型给出口；命令失败的说明单独显示', async () => {
+  it('失败面板：可以重试时给重新整理和改原话，否则只能改原话', async () => {
     const onReorganize = vi.fn();
     const onEdit = vi.fn();
     const { rerender } = render(
       <FailurePanel
         failure="processing_failed"
         canReorganize
-        busy={false}
-        commandMessage={copy.failure.commandFailed}
         onReorganize={onReorganize}
         onEdit={onEdit}
       />,
     );
     expect(screen.getByText(copy.failure.processing_failed)).toBeTruthy();
-    expect(screen.getByText(copy.failure.commandFailed)).toBeTruthy();
     await userEvent.click(
       screen.getByRole('button', { name: copy.actions.reorganize }),
     );
@@ -331,57 +388,15 @@ describe('BannerNotice 与 FailurePanel', () => {
     expect(onReorganize).toHaveBeenCalled();
     expect(onEdit).toHaveBeenCalled();
 
-    // 原话已更新：只能重新整理
     rerender(
       <FailurePanel
-        failure="input_changed"
-        canReorganize
-        busy
-        onReorganize={onReorganize}
-        onEdit={onEdit}
-        commandMessage={null}
-      />,
-    );
-    expect(
-      screen.queryByRole('button', { name: copy.actions.back }),
-    ).toBeNull();
-    expect(
-      (
-        screen.getByRole('button', {
-          name: copy.actions.reorganize,
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-
-    // 已取消：只能改原话
-    rerender(
-      <FailurePanel
-        failure="cancelled"
-        canReorganize
-        busy={false}
-        onReorganize={onReorganize}
-        onEdit={onEdit}
-        commandMessage={null}
-      />,
-    );
-    expect(
-      screen.queryByRole('button', { name: copy.actions.reorganize }),
-    ).toBeNull();
-    expect(
-      screen.getByRole('button', { name: copy.actions.back }),
-    ).toBeTruthy();
-
-    // 没有原话可重提（刷新后恢复）：只剩改原话
-    rerender(
-      <FailurePanel
-        failure="processing_failed"
+        failure="all_materials_unusable"
         canReorganize={false}
-        busy={false}
         onReorganize={onReorganize}
         onEdit={onEdit}
-        commandMessage={null}
       />,
     );
+    expect(screen.getByText(copy.failure.all_materials_unusable)).toBeTruthy();
     expect(
       screen.queryByRole('button', { name: copy.actions.reorganize }),
     ).toBeNull();
@@ -391,9 +406,82 @@ describe('BannerNotice 与 FailurePanel', () => {
   });
 });
 
+describe('HandoffPanel', () => {
+  it('每种原因一句话，链接到这个批次的回执，并如实说回执确认待接通', () => {
+    const { rerender } = render(
+      <HandoffPanel
+        reason="many"
+        href="/receipt?id=b-1"
+        onEdit={vi.fn()}
+        onCopyOut={null}
+      />,
+    );
+    expect(
+      screen
+        .getByRole('link', { name: copy.handoff.open })
+        .getAttribute('href'),
+    ).toBe('/receipt?id=b-1');
+    for (const reason of ['many', 'review', 'none', 'confirmed'] as const) {
+      rerender(
+        <HandoffPanel
+          reason={reason}
+          href="/receipt?id=b-1"
+          onEdit={vi.fn()}
+          onCopyOut={null}
+        />,
+      );
+      expect(screen.getByText(copy.handoff[reason].title)).toBeTruthy();
+      expect(screen.getByText(copy.handoff.pending)).toBeTruthy();
+    }
+  });
+
+  it('回执接通前可以回去改原话或复制原话；已确认的事只给查看', async () => {
+    const onEdit = vi.fn();
+    const onCopyOut = vi.fn();
+    const { rerender } = render(
+      <HandoffPanel
+        reason="many"
+        href="/receipt?id=b-1"
+        onEdit={onEdit}
+        onCopyOut={onCopyOut}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: copy.actions.back }),
+    );
+    expect(onEdit).toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole('button', { name: copy.actions.copyOut }),
+    );
+    expect(onCopyOut).toHaveBeenCalled();
+    rerender(
+      <HandoffPanel
+        reason="confirmed"
+        href="/receipt?id=b-1"
+        onEdit={onEdit}
+        onCopyOut={null}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: copy.actions.back }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: copy.actions.copyOut }),
+    ).toBeNull();
+  });
+});
+
 describe('InputQuotes / SourceMarks', () => {
   const citations = [
-    { kind: 'input', quote: '独立完成', start: 5, end: 9 },
+    {
+      kind: 'source',
+      quote: '独立完成',
+      reference: {
+        fragmentId: 'frag-text',
+        originalVersionId: 'ver-text',
+        location: { kind: 'document', paragraph: '原话' },
+      },
+    },
     {
       kind: 'source',
       quote: '来源里的一句话',
@@ -405,11 +493,11 @@ describe('InputQuotes / SourceMarks', () => {
     },
   ] as const;
 
-  it('原话引用照原型行内写出，是普通文字', () => {
+  it('引用本页原话（批次文字材料）照原型行内写出，是普通文字', () => {
     const view = render(
       <span>
         锚点 3
-        <InputQuotes citations={[...citations]} />
+        <InputQuotes citations={[...citations]} inputFragmentId="frag-text" />
       </span>,
     );
     expect(view.container.textContent).toBe(
@@ -418,7 +506,7 @@ describe('InputQuotes / SourceMarks', () => {
     expect(screen.queryByRole('link')).toBeNull();
   });
 
-  it('来源引用用角标，从 1 编号，展开时才读取原文', async () => {
+  it('其他来源用角标，从 1 编号，展开时才读取原文', async () => {
     const loadSource = vi.fn().mockResolvedValue({
       status: 'success',
       source: {
@@ -433,7 +521,13 @@ describe('InputQuotes / SourceMarks', () => {
         demo: true,
       },
     });
-    render(<SourceMarks citations={[...citations]} loadSource={loadSource} />);
+    render(
+      <SourceMarks
+        citations={[...citations]}
+        inputFragmentId="frag-text"
+        loadSource={loadSource}
+      />,
+    );
     expect(screen.queryByText(/独立完成/)).toBeNull();
     expect(loadSource).not.toHaveBeenCalled();
     await userEvent.hover(screen.getByRole('button', { name: /^引用 1/ }));
