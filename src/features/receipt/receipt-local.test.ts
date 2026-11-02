@@ -142,13 +142,23 @@ describe('撤销结果到达时，快照是否已前进（复用 matchesSave）'
     expect(savedElsewhere(snapshot('pending'), save)).toBe(false);
     expect(savedElsewhere(snapshot('absent'), save)).toBe(false);
   });
-  it('别处又确认过：事件编号或版本对不上就算前进，撤销结果丢弃', () => {
-    expect(savedElsewhere(snapshot('settled', 'ev-2'), save)).toBe(true);
+  it('别处又确认过：快照版本比这次保存高才算前进，撤销结果丢弃', () => {
     expect(
-      savedElsewhere(snapshot('settled'), {
+      savedElsewhere(snapshot('settled', 'ev-2'), {
         ...save,
         receipt: { ...save.receipt, revision: 1 },
       }),
     ).toBe(true);
+  });
+  it('快照停在更早的保存（版本更低）：不算前进，这次撤销照常采用', () => {
+    expect(
+      savedElsewhere(snapshot('settled'), {
+        ...save,
+        receipt: {
+          revision: 4,
+          events: [{ personId: 'demo-person', eventId: 'ev-2' }],
+        },
+      }),
+    ).toBe(false);
   });
 });

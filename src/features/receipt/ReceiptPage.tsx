@@ -414,12 +414,15 @@ export function ReceiptPage({
           : item,
       );
     };
+    // cancelled：页面卸载时主动中止，结果不再改这页的状态，也不再提示
     async function attempt(): Promise<
-      'success' | 'refused' | 'unknown' | 'superseded' | 'lost'
+      'success' | 'refused' | 'unknown' | 'superseded' | 'lost' | 'cancelled'
     > {
       if (lost.current) return 'lost';
       const controller = new AbortController();
       writes.current.add(controller);
+      const stopped = () =>
+        !alive.current ? 'cancelled' : lost.current ? 'lost' : null;
       let result;
       try {
         const timed = await within(
@@ -428,14 +431,16 @@ export function ReceiptPage({
         );
         if (!timed.done) {
           controller.abort();
-          return 'unknown';
+          return stopped() ?? 'unknown';
         }
         result = timed.value;
       } catch {
-        return 'unknown';
+        return stopped() ?? 'unknown';
       } finally {
         writes.current.delete(controller);
       }
+      const halt = stopped();
+      if (halt) return halt;
       if (result.status === 'unauthenticated') {
         loseAccess('unauthenticated');
         return 'lost';
@@ -477,7 +482,7 @@ export function ReceiptPage({
     function retry() {
       markUnknown(true);
       void attempt().then((outcome) => {
-        if (outcome === 'success') return;
+        if (outcome === 'success' || outcome === 'cancelled') return;
         if (outcome === 'superseded') {
           toast.show(copy.toast.undoSuperseded);
           return;
@@ -499,6 +504,10 @@ export function ReceiptPage({
           return;
         }
         const outcome = await attempt();
+        if (outcome === 'cancelled') {
+          close();
+          return;
+        }
         if (outcome === 'refused') {
           // 只说被拒，这件事现在的状态以重读到的回执为准
           void reload();

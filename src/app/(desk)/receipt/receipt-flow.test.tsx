@@ -168,6 +168,7 @@ const saved = (
   saveId: string,
   eventId: string,
   draftId = 'demo-event-draft-a',
+  revision = 2,
 ) => {
   const at = Date.now();
   return {
@@ -176,7 +177,7 @@ const saved = (
     result: {
       saveId,
       events: [{ personId: 'demo-person', eventId }],
-      revision: 2,
+      revision,
       confirmationIds: ['c-' + saveId + draftId],
       reviewItemIds: [],
       savedBy: 'acct',
@@ -185,12 +186,17 @@ const saved = (
     },
   };
 };
-const undone = (saveId: string, draftRevision: number, replayed = false) => ({
+const undone = (
+  saveId: string,
+  draftRevision: number,
+  replayed = false,
+  eventId = 'ev-1',
+) => ({
   status: 'success' as const,
   replayed,
   result: {
     saveId,
-    withdrawnEvents: [{ personId: 'demo-person', eventId: 'ev-1' }],
+    withdrawnEvents: [{ personId: 'demo-person', eventId }],
     withdrawnConfirmationIds: ['c-' + saveId],
     withdrawnReviewItemIds: [],
     draftRestoration: {
@@ -478,5 +484,56 @@ describe('第二次裁决：撤销走路由、撤销结果按快照比对', () =
       within(card()).queryByRole('button', { name: /确认这件事/ }),
     ).toBeNull();
     expect(await screen.findByText(copy.toast.undoSuperseded)).toBeTruthy();
+  });
+
+  it('快照落后：撤销 S1、重存 S2 再撤销 S2，读取停在 S1 的版本：S2 的撤销照常采用，后续读取失败也不回到 S1', async () => {
+    const user = userEvent.setup();
+    const route = stubRoute();
+    mocks.save
+      .mockResolvedValueOnce(saved('save-1', 'ev-1'))
+      .mockResolvedValueOnce(saved('save-2', 'ev-2', undefined, 4));
+    mocks.undo
+      .mockResolvedValueOnce(undone('save-1', 3))
+      .mockResolvedValueOnce(undone('save-2', 5, false, 'ev-2'));
+    await mount();
+    await user.click(
+      within(card()).getByRole('button', { name: /确认这件事/ }),
+    );
+    // S1 保存后的读取：已确认，版本 2
+    await waitFor(() => expect(route.reads()).toHaveLength(1));
+    route.reply(0, {
+      status: 'success',
+      view: view([other], [['demo-event-draft-a', 'ev-1']], 2),
+    });
+    await waitFor(() => expect(card().dataset.state).toBe('confirmed'));
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    // 撤销 S1 成功，草稿到版本 3；撤销后的读取一直没回
+    await waitFor(() => expect(route.reads()).toHaveLength(2));
+    await waitFor(() => expect(card().dataset.state).toBe('ai'));
+    // 按撤销回执的版本重存，得到 S2、版本 4；保存后的读取也没回
+    await user.click(
+      within(card()).getByRole('button', { name: /确认这件事/ }),
+    );
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
+    expect(mocks.save.mock.calls[1]![0].expected_revision).toBe(3);
+    await waitFor(() => expect(route.reads()).toHaveLength(3));
+    // S1 的提示已换成「已撤销」、没有按钮：只剩 S2 的撤销
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    await waitFor(() => expect(mocks.undo).toHaveBeenCalledTimes(2));
+    expect(mocks.undo.mock.calls[1]![0]).toMatchObject({ saveId: 'save-2' });
+    // 已显示的快照还停在 S1 的版本 2：比 S2 旧，不能否决 S2 的撤销
+    await waitFor(() => expect(card().dataset.state).toBe('ai'));
+    expect(screen.queryByText(copy.toast.undoSuperseded)).toBeNull();
+    // 之后的读取都失败：仍是撤销后的待确认，不回到已撤回的 S1
+    await waitFor(() => expect(route.reads()).toHaveLength(4));
+    route.reply(1, { status: 'unavailable' }, 503);
+    route.reply(2, { status: 'unavailable' }, 503);
+    route.reply(3, { status: 'unavailable' }, 503);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(card().dataset.state).toBe('ai');
+    expect(screen.queryByText(copy.toast.undoSuperseded)).toBeNull();
+    expect(
+      within(card()).getByRole('button', { name: /确认这件事/ }),
+    ).toBeTruthy();
   });
 });

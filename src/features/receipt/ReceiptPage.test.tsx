@@ -2052,4 +2052,43 @@ describe('撤销走路由后的两种回应（第二次裁决）', () => {
       undo.mock.calls[0]![0].operation_id,
     );
   });
+
+  it('撤销进行中离开页面：请求被中止，跨页面保留的提示区不再出现旧页面的待核实提示', async () => {
+    const user = userEvent.setup();
+    const undo = vi.fn(
+      (_input: unknown, signal?: AbortSignal) =>
+        new Promise<never>((_, fail) =>
+          signal?.addEventListener('abort', () =>
+            fail(new DOMException('aborted', 'AbortError')),
+          ),
+        ),
+    );
+    const page = (
+      <ReceiptPage
+        batchId="demo-batch"
+        initial={make()}
+        actions={{
+          read: vi.fn(() => new Promise(() => {})) as never,
+          save: vi.fn().mockResolvedValue(saved()),
+          undo,
+        }}
+        viewerName="叶青"
+      />
+    );
+    const { rerender } = render(<ToastProvider>{page}</ToastProvider>);
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    await waitFor(() => expect(undo).toHaveBeenCalledTimes(1));
+    // 页面换走，提示区（桌面外壳里跨页面保留）还在
+    rerender(<ToastProvider>{null}</ToastProvider>);
+    expect(undo.mock.calls[0]![1]?.aborted).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByText(copy.toast.undoUnknown)).toBeNull();
+    expect(screen.queryByText(copy.toast.undoFailed)).toBeNull();
+    expect(screen.queryByRole('button', { name: '撤销' })).toBeNull();
+  });
 });
