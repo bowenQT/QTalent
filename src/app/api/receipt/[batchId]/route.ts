@@ -1,7 +1,6 @@
-import { jobAccount } from '../../../../server/jobs/request';
 import {
-  readReceiptForCurrentUser,
-  type ReceiptPageResult,
+  readReceiptForRequest,
+  type ReceiptRouteResult,
 } from '../../../../server/queries/receipt-page';
 
 /*
@@ -16,11 +15,10 @@ const statusCodes = {
   unavailable: 503,
 } as const;
 type Body =
-  | Exclude<ReceiptPageResult, { status: 'success' }>
-  | { status: 'unauthenticated' }
+  | Exclude<ReceiptRouteResult, { status: 'success' }>
   | {
       status: 'success';
-      view: Extract<ReceiptPageResult, { status: 'success' }>['view'];
+      view: Extract<ReceiptRouteResult, { status: 'success' }>['view'];
     };
 const respond = (body: Body) =>
   Response.json(body, {
@@ -34,11 +32,9 @@ const respond = (body: Body) =>
 type Context = { params: Promise<{ batchId: string }> };
 export async function GET(request: Request, context: Context) {
   try {
-    // 没有会话时直接答 401，不跳转登录页：页面据此写明失效，而不是当成读取中断
-    if (!(await jobAccount(request.headers)))
-      return respond({ status: 'unauthenticated' });
+    // 没有会话时答 401，不跳转登录页：页面据此写明失效，而不是当成读取中断
     const { batchId } = await context.params;
-    const result = await readReceiptForCurrentUser({ batchId });
+    const result = await readReceiptForRequest(request.headers, { batchId });
     return respond(
       result.status === 'success'
         ? { status: 'success', view: result.view }

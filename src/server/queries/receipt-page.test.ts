@@ -1,12 +1,17 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { redirect } from 'next/navigation';
-import { readReceiptForCurrentUser } from './receipt-page';
+import {
+  readReceiptForCurrentUser,
+  readReceiptForRequest,
+} from './receipt-page';
 
 const runtime = vi.hoisted(() => ({
   readBatch: vi.fn(),
   session: vi.fn(),
   transaction: vi.fn(),
+  account: vi.fn(),
 }));
+vi.mock('../jobs/request', () => ({ jobAccount: runtime.account }));
 vi.mock('./record-arrange', () => ({
   readRecordMaterialBatchForCurrentUser: runtime.readBatch,
 }));
@@ -75,4 +80,24 @@ it('lets the sign-in redirect through', async () => {
   ).rejects.toMatchObject({
     digest: expect.stringContaining('NEXT_REDIRECT'),
   });
+});
+
+it('GET 路由的读取：没有有效会话时答 unauthenticated，不读批次也不跳转', async () => {
+  runtime.account.mockResolvedValue(null);
+  expect(await readReceiptForRequest(new Headers(), { batchId: 'b' })).toEqual({
+    status: 'unauthenticated',
+  });
+  expect(runtime.readBatch).not.toHaveBeenCalled();
+});
+
+it('GET 路由的读取：会话有效时就是页面的同一个读取', async () => {
+  runtime.account.mockResolvedValue('acc-1');
+  runtime.readBatch.mockResolvedValue({ status: 'forbidden', message: '无权' });
+  const headers = new Headers({ cookie: 'x' });
+  expect(await readReceiptForRequest(headers, { batchId: 'b' })).toEqual({
+    status: 'forbidden',
+    message: '无权',
+  });
+  expect(runtime.account).toHaveBeenCalledWith(headers);
+  expect(runtime.readBatch).toHaveBeenCalledWith({ batchId: 'b' });
 });

@@ -1,12 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { GET } from './route';
 
-const mocks = vi.hoisted(() => ({ account: vi.fn(), read: vi.fn() }));
-vi.mock('../../../../server/jobs/request', () => ({
-  jobAccount: mocks.account,
-}));
+const mocks = vi.hoisted(() => ({ read: vi.fn() }));
 vi.mock('../../../../server/queries/receipt-page', () => ({
-  readReceiptForCurrentUser: mocks.read,
+  readReceiptForRequest: mocks.read,
 }));
 
 const context = { params: Promise.resolve({ batchId: 'demo-batch' }) };
@@ -15,10 +12,9 @@ const get = () =>
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.account.mockResolvedValue('acct');
 });
 
-it('读同一个回执用例，按编号读；不放进共享缓存，viewerName 不随轮询下发', async () => {
+it('读 queries 层的回执读取，按编号读；不放进共享缓存，viewerName 不随轮询下发', async () => {
   mocks.read.mockResolvedValue({
     status: 'success',
     view: { title: '演示' },
@@ -30,17 +26,18 @@ it('读同一个回执用例，按编号读；不放进共享缓存，viewerName
     status: 'success',
     view: { title: '演示' },
   });
-  expect(mocks.read).toHaveBeenCalledWith({ batchId: 'demo-batch' });
+  expect(mocks.read).toHaveBeenCalledWith(expect.any(Headers), {
+    batchId: 'demo-batch',
+  });
   expect(result.headers.get('cache-control')).toContain('no-store');
   expect(result.headers.get('vary')).toContain('Cookie');
 });
 
-it('没有会话：401，不读回执，也不跳转登录页', async () => {
-  mocks.account.mockResolvedValue(null);
+it('没有会话：401，不跳转登录页', async () => {
+  mocks.read.mockResolvedValue({ status: 'unauthenticated' });
   const result = await get();
   expect(result.status).toBe(401);
   expect(await result.json()).toEqual({ status: 'unauthenticated' });
-  expect(mocks.read).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -55,8 +52,6 @@ it.each([
 });
 
 it('读取抛错（含会话校验的依赖故障）：503', async () => {
-  mocks.read.mockRejectedValue(new Error('db'));
-  expect((await get()).status).toBe(503);
-  mocks.account.mockRejectedValue(new Error('jwks'));
+  mocks.read.mockRejectedValue(new Error('jwks'));
   expect((await get()).status).toBe(503);
 });
