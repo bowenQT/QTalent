@@ -1,6 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { comparisonTableRowSchema } from '../../../contracts/judgment-comparison';
 import {
   confirmedStandardAttributionSchema,
   standardAttributionHypothesisSchema,
@@ -23,6 +22,8 @@ import {
 } from './hypotheses';
 import {
   createAttributionReadAdapter,
+  referencesMatch,
+  same,
   type AttributionReadServices,
 } from './read-adapter';
 import type {
@@ -72,19 +73,6 @@ const operationSchema = z
     )
       ctx.addIssue({ code: 'custom', message: '操作状态和回执不一致' });
   });
-const same = (a: unknown, b: unknown): boolean => {
-  if (Array.isArray(a) && Array.isArray(b))
-    return a.length === b.length && a.every((v, i) => same(v, b[i]));
-  if (a && b && typeof a === 'object' && typeof b === 'object') {
-    const x = a as Record<string, unknown>,
-      y = b as Record<string, unknown>;
-    return (
-      Object.keys(x).length === Object.keys(y).length &&
-      Object.keys(x).every((k) => Object.hasOwn(y, k) && same(x[k], y[k]))
-    );
-  }
-  return Object.is(a, b);
-};
 type Effect = {
   action: 'hypotheses' | 'confirm' | 'draft';
   batchId: string;
@@ -104,33 +92,6 @@ type State = {
 const conflict = (): never => {
   throw new AttributionPersistenceError('conflict');
 };
-function referencesMatch(
-  batch: HrAttributionBatch,
-  citations: {
-    caseId: string;
-    side: 'front' | 'back';
-    nodeId: string;
-    standardVersionId: string;
-    row: unknown;
-  }[],
-) {
-  return citations.every((c) => {
-    const unit = batch.candidates.find(
-      (v) => v.id === c.caseId && batch.authorizedCaseIds.includes(v.id),
-    );
-    const stage = unit?.[c.side];
-    return (
-      stage?.state === 'present' &&
-      c.nodeId === stage.judgment.nodeId &&
-      c.standardVersionId === stage.judgment.standardVersionId &&
-      same(
-        comparisonTableRowSchema.parse(c.row),
-        comparisonTableRowSchema.parse(stage.judgment.row),
-      )
-    );
-  });
-}
-
 /** Every private citation group a finished success receipt carries. */
 function receiptCitations(result: unknown) {
   const confirmed = confirmStandardAttributionResultSchema.safeParse(result);
