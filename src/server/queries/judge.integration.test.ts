@@ -165,7 +165,7 @@ it('derives each audience scope from persisted node relations and grants', async
   ).toMatchObject({ audience: 'rater', grants: [] });
 });
 
-it('reads no batch while comparison batches, mappings and selection judgments are not stored', async () => {
+it('reads no batch for an id that is not stored', async () => {
   const ports = comparisonReadPorts(connection!.db, 'manager', clock);
   const access = await ports.loadCurrentAccess();
   expect(access).not.toBeNull();

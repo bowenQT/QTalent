@@ -15,6 +15,19 @@ function normalized(row: typeof jobSnapshots.$inferSelect): JobRecord {
         : new Date(row.cancelRequestedAt).toISOString(),
   };
 }
+/** Reads on the caller's transaction; locking uses the same job-first order as workers. */
+export async function readJobInTransaction(
+  tx: Transaction,
+  jobId: string,
+  lock = false,
+): Promise<JobRecord | null> {
+  const query = tx
+    .select()
+    .from(jobSnapshots)
+    .where(eq(jobSnapshots.jobId, jobId));
+  const [row] = lock ? await query.for('update') : await query;
+  return row ? normalized(row) : null;
+}
 /** `db` may be an open transaction: the row lock then nests in a savepoint after the
  * caller's earlier locks (see the native batch store's intake-first order). */
 export function createJobStore(

@@ -1,4 +1,12 @@
-import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import {
   createLocalJWKSet,
   errors,
@@ -6,7 +14,7 @@ import {
   generateKeyPair,
   SignJWT,
 } from 'jose';
-import { jobAccount } from './request';
+import { jobAccount, sessionLost } from './request';
 import { createAccessVerifier } from '../access';
 import { GET, POST } from '../../app/api/jobs/[jobId]/route';
 const mocks = vi.hoisted(() => ({
@@ -180,4 +188,37 @@ it.each(dependencyErrors)(
 it('does not turn auth database failure into a successful anonymous read', async () => {
   mocks.session.mockRejectedValue(new Error('database'));
   await expect(jobAccount(assertion())).rejects.toThrow('database');
+});
+
+describe('sessionLost', () => {
+  beforeEach(() => {
+    mocks.access.mockImplementation(verify);
+  });
+  it('treats the sign-in redirect as a lost session without asking again', async () => {
+    const error = Object.assign(new Error('NEXT_REDIRECT'), {
+      digest: 'NEXT_REDIRECT;replace;/login;307;',
+    });
+    expect(await sessionLost(assertion(await token()), error)).toBe(true);
+    expect(mocks.session).not.toHaveBeenCalled();
+  });
+  it('asks again: an ended session or an expired access token is lost, a valid one is not', async () => {
+    const valid = assertion(await token());
+    expect(await sessionLost(valid, new Error('db down'))).toBe(false);
+    mocks.session.mockResolvedValue(null);
+    expect(await sessionLost(valid, new Error('db down'))).toBe(true);
+    mocks.session.mockResolvedValue({ user: { id: 'account' } });
+    expect(
+      await sessionLost(
+        assertion(await token({ expires: new Date(Date.now() - 60_000) })),
+      ),
+    ).toBe(true);
+  });
+  it('a redirect elsewhere or a failed check is not a lost session', async () => {
+    const elsewhere = Object.assign(new Error('NEXT_REDIRECT'), {
+      digest: 'NEXT_REDIRECT;replace;/work;307;',
+    });
+    expect(await sessionLost(assertion(await token()), elsewhere)).toBe(false);
+    mocks.access.mockRejectedValue(new Error('jwks unavailable'));
+    expect(await sessionLost(assertion('x'))).toBe(false);
+  });
 });

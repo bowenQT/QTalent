@@ -21,7 +21,7 @@ export type ReceiptPerson = {
 /**
  * 回执页读到的一份内容。`receipt` 是 897 冻结的批次快照，原样使用；其余是页面读取在服务端
  * 按当前权限补齐的展示信息（批次标题、入口、提交人、人名、维度名，以及每件事由谁确认）。
- * 这些字段由页面读取（BOW-845）提供，接通前只在开发样张里出现。
+ * 真实路由由 `server/queries/receipt-page.ts` 补齐，开发样张由替身给出。
  */
 export type ReceiptView = {
   receipt: MaterialBatchReceipt;
@@ -29,6 +29,8 @@ export type ReceiptView = {
   entry: ReceiptEntry;
   /** MCP 入口调用的工具名，其他入口为 null。 */
   tool: string | null;
+  /** 这次随批次写下的原话（提交人本人查看时才有），没有就是 null。 */
+  original: string | null;
   submittedBy: string;
   /** ISO 时间。 */
   submittedAt: string;
@@ -43,11 +45,28 @@ export type ReceiptView = {
 
 export type ReceiptReadResult =
   | { status: 'success'; view: ReceiptView }
-  | { status: 'forbidden' | 'not_found'; message: string };
+  | { status: 'forbidden' | 'not_found'; message: string }
+  /** 登录已失效。 */
+  | { status: 'unauthenticated' }
+  /** 这次没读到（不是没有权限）：页面保留当前内容。 */
+  | { status: 'unavailable' };
 
 /** 回执页的服务端动作：读回执、按 844 逐件保存确认、5 秒内撤销。 */
 export type ReceiptActions = {
-  read: (batchId: string) => Promise<ReceiptReadResult>;
-  save: (input: RecordSaveInput) => Promise<RecordSaveResult>;
-  undo: (input: RecordUndoInput) => Promise<RecordUndoResult>;
+  /** signal：页面超时或卸载时中止这次读取。 */
+  read: (batchId: string, signal?: AbortSignal) => Promise<ReceiptReadResult>;
+  /** `unavailable`：保存这次中断了（例如读不全来源），改动留在页面上。 */
+  save: (
+    input: RecordSaveInput,
+  ) => Promise<RecordSaveResult | { status: 'unavailable' }>;
+  /**
+   * 撤销走 POST 路由，不排在其他保存后面；signal：超时或卸载时中止。
+   * `unauthenticated`：登录已失效；`unavailable`：这次没送到或看不懂回应，结果待核实。
+   */
+  undo: (
+    input: RecordUndoInput,
+    signal?: AbortSignal,
+  ) => Promise<
+    RecordUndoResult | { status: 'unauthenticated' } | { status: 'unavailable' }
+  >;
 };

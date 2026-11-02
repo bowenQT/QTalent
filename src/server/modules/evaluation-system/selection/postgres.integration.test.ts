@@ -721,10 +721,20 @@ describe('918 原生事务持久适配（真实PG）', () => {
       status: 'success',
     });
     const before = await snapshot();
+    // The next cohort is a future descriptor, not a visible scope.
     await db()
       .update(grants)
       .set({ revokedAt: '2026-10-31' })
       .where(eq(grants.id, 'selection-demo-hr-' + iterationDemoNextCohort.id));
+    expect(await execute(hr, 'create', input)).toMatchObject({
+      status: 'success',
+      replayed: true,
+    });
+    expect(await snapshot()).toEqual(before);
+    await db()
+      .update(grants)
+      .set({ revokedAt: '2026-10-31' })
+      .where(eq(grants.id, 'selection-demo-hr-' + iterationDemoCohort.id));
     const result = await execute(hr, 'create', input);
     expect(result).toMatchObject({ status: 'forbidden' });
     expect(result).not.toHaveProperty('result');

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import type { Database } from '../../db/client';
+import type { Database, DbExecutor, Transaction } from '../../db/client';
 import { accountBindings } from '../../modules/directory';
 import { session } from '../schema';
 import { agentApiBindings, mcpCredentials, wecomBindings } from './schema';
@@ -195,11 +195,56 @@ export function createAgentApiEntryAuthenticator(
   verifiedOwner: () => Promise<VerifiedAgentOwner | null>,
   now: () => Date = () => new Date(),
 ): EntryAuthenticator {
-  async function read(id?: string) {
+  async function read(id?: string, tx?: Transaction) {
     const parsed = agentSchema.safeParse(await verifiedOwner());
     if (!parsed.success) reject();
     const proof = parsed.data;
-    const [row] = await db
+    if (tx) {
+      if (id === undefined) reject();
+      const { rows } = await tx.execute<{ isolation: string }>(
+        sql`select current_setting('transaction_isolation') as isolation`,
+      );
+      if (rows[0]?.isolation !== 'read committed')
+        throw new EntryIdentityError('unavailable');
+      // Share-lock exact authoritative rows, then read in a NEW RC statement.
+      // A joined locking select can otherwise retain an earlier join snapshot
+      // while waiting for a concurrent revocation/rebind. Shared locks still
+      // wait for and then hold off writers, without serializing readers.
+      // Session first also follows logout's session -> cascading AgentAPI
+      // deletion order.
+      const [lockedSession] = await tx
+        .select({ id: session.id })
+        .from(session)
+        .where(
+          and(
+            eq(session.id, proof.sessionId),
+            eq(session.userId, proof.accountId),
+          ),
+        )
+        .for('share');
+      if (!lockedSession) reject();
+      const [lockedAccount] = await tx
+        .select({ id: accountBindings.accountId })
+        .from(accountBindings)
+        .where(eq(accountBindings.accountId, proof.accountId))
+        .for('share');
+      if (!lockedAccount) reject();
+      const [lockedAgent] = await tx
+        .select({ id: agentApiBindings.id })
+        .from(agentApiBindings)
+        .where(
+          and(
+            eq(agentApiBindings.id, id),
+            eq(agentApiBindings.agentId, proof.agentId),
+            eq(agentApiBindings.sessionId, proof.sessionId),
+            eq(agentApiBindings.accountId, proof.accountId),
+          ),
+        )
+        .for('share');
+      if (!lockedAgent) reject();
+    }
+    const executor: DbExecutor = tx ?? db;
+    const [row] = await executor
       .select({
         ...common,
         id: agentApiBindings.id,
@@ -208,6 +253,7 @@ export function createAgentApiEntryAuthenticator(
         expiresAt: agentApiBindings.expiresAt,
         revokedAt: agentApiBindings.revokedAt,
         sessionExpiresAt: session.expiresAt,
+        sessionGeneration: session.bindingGeneration,
       })
       .from(agentApiBindings)
       .innerJoin(
@@ -230,7 +276,18 @@ export function createAgentApiEntryAuthenticator(
         ),
       )
       .limit(1);
+    // The Web session this agent rides on must have been issued under the
+    // binding's current generation: after A→B→A the old session stays invalid
+    // even though the AgentAPI binding digest matches again. Null fails closed.
+    if (row && row.sessionGeneration !== row.generation) reject();
     return descriptor(row, now, row?.sessionExpiresAt);
   }
-  return { verify: () => read(), current: (id) => read(id) };
+  return {
+    verify: () => read(),
+    current: (id) => read(id),
+    currentInTransaction: (tx, id) => {
+      if (!tx) throw new EntryIdentityError('unavailable');
+      return read(id, tx);
+    },
+  };
 }
