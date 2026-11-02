@@ -141,6 +141,13 @@
       "when": 1793627773444,
       "tag": "0019_bow_904_management_observations",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793630102318,
+      "tag": "0021_bow_915_agentapi_conversations",
+      "breakpoints": true
     }
   ]
 }
