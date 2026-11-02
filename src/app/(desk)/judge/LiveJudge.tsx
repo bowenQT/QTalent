@@ -1,13 +1,20 @@
 'use client';
 import { useRouter } from 'next/navigation';
+import type { ComparisonHrPage } from '@/contracts/judgment-comparison';
+import type {
+  ConfirmedStandardAttribution,
+  StandardAttributionHypothesis,
+} from '@/contracts/standard-attribution';
 import { JudgeBatch } from '@/features/standard-iteration/judge/JudgeBatch';
-import type { AttributionPorts } from '@/features/standard-iteration/ports';
+import type {
+  AttributionPorts,
+  SelectionStandardContent,
+} from '@/features/standard-iteration/ports';
 import {
   confirmStandardAttributionAction,
   createSelectionRevisionAction,
   generateStandardHypothesesAction,
 } from '@/server/actions/standard-attribution';
-import type { JudgePage } from '@/server/queries/judge';
 
 const ports: AttributionPorts = {
   generate: generateStandardHypothesesAction,
@@ -19,7 +26,12 @@ const ports: AttributionPorts = {
 export function LiveJudge({
   page,
 }: {
-  page: Extract<JudgePage, { status: 'hr' }>;
+  page: {
+    page: ComparisonHrPage;
+    standard: { versionId: string; content: SelectionStandardContent } | null;
+    hypotheses: StandardAttributionHypothesis[];
+    attributions: ConfirmedStandardAttribution[];
+  };
 }) {
   const router = useRouter();
   return (
