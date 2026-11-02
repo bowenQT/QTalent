@@ -14,8 +14,10 @@ import { startPrototypeServer } from './prototype-server';
  *   (greyed, saying so); the hint beside them says only what works today;
  * - tags and the tagging step of the trail: the record contract (BOW-844/897) has no
  *   tags, so the trail has three steps and no tag row;
- * - arranging itself: the prototype writes the draft in place as it goes, the job
+ * - arranging itself: the prototype writes the draft in place as it goes, the batch
  *   here hands the draft over when it is done; only the outcome is compared;
+ * - who: the prototype finds the person in the sentence; here the person is chosen
+ *   first, since the server derives the evaluation node from them;
  * - the undo toast, which is fixed to the viewport.
  */
 const SENTENCE =
@@ -169,6 +171,9 @@ for (const [viewportName, viewport] of viewports)
       await same(prototype, actual, writing, testInfo, `${viewportName}-write`);
 
       await arrange(prototype);
+      // The node is derived from the chosen person (owner ruling #248 6564917769);
+      // the prototype finds the same person in the sentence.
+      await actual.locator('#ev-person').selectOption('p-x11');
       await arrange(actual);
       await same(prototype, actual, waiting, testInfo, `${viewportName}-wait`);
       // Arranging is compared by outcome: the same first steps, in the same order.

@@ -9,7 +9,10 @@ const scenes: readonly SampleScene[] = [
   'fail',
   'offline',
   'conflict',
-  'selection',
+  'many',
+  'review',
+  'node-multiple',
+  'node-none',
 ];
 
 export const metadata = { title: '记一件事 · Niu-Talent' };
@@ -17,7 +20,7 @@ export const metadata = { title: '记一件事 · Niu-Talent' };
 /**
  * Development-only sample of the record page on a stand-in server; production serves
  * 404. `?role=` picks the viewer, `?scene=` a failure path; `?person=`, `?draft=work`
- * and `?job=` enter the page the way the real route will.
+ * and `?batch=` enter the page the way the real route will.
  */
 export default async function RecordSample({
   searchParams,
@@ -27,7 +30,7 @@ export default async function RecordSample({
     scene?: string;
     person?: string;
     draft?: string;
-    job?: string;
+    batch?: string;
   }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -43,7 +46,7 @@ export default async function RecordSample({
         scene={scene}
         personId={params.person ?? null}
         handoff={params.draft === 'work'}
-        jobId={params.job ?? null}
+        batchId={params.batch ?? null}
       />
     </Shell>
   );

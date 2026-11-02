@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Database, Transaction } from '../../db/client';
 import { loadEvaluationContext } from '../evaluation-context';
 import { readEvidenceForTalent } from '../../modules/records';
+import { readIntakeTable } from '../talent-source-projection';
 import {
   readTalentEvaluationRules,
   ruleVersions,
@@ -31,6 +32,9 @@ export function createPostgresTalentExportStore(
         directory: base.directory,
         staffing: base.staffing,
         ...(await readEvidenceForTalent(tx)),
+        // Complete intake table, unfiltered: its subjects and requiredKinds
+        // restrict exported quotes exactly as on the profile read path.
+        intake: await readIntakeTable(tx, 'snapshot'),
         ...(await readTalentEvaluationRules(tx)),
         confirmations: await readActiveConfirmations(tx),
         reviews: await tx.select().from(scoreReviews),

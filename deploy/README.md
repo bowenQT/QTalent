@@ -150,6 +150,8 @@ deploy/deploy.sh migrate --target "$TARGET_FILE" --target-id "$TARGET_ID" --sha 
 # seed 前再运行一次 backup，并将新输出路径记为 SEED_BACKUP_FILE
 deploy/deploy.sh backup --target "$TARGET_FILE" --target-id "$TARGET_ID"
 deploy/deploy.sh seed --target "$TARGET_FILE" --target-id "$TARGET_ID" --sha "$SHA" --backup "$SEED_BACKUP_FILE"
+# 一次性演示库步骤只能这样打开：seed 加且只加一个显式参数，同样消耗一份新备份
+deploy/deploy.sh seed --target "$TARGET_FILE" --target-id "$TARGET_ID" --sha "$SHA" --backup "$SEED_BACKUP_FILE" --upgrade-statement-kinds
 
 # 显式确认当前版本及数据库与应用回退兼容性，首次部署 expected-current 为 none
 deploy/deploy.sh "$SHA" --target "$TARGET_FILE" --target-id "$TARGET_ID" --expected-current "$PREVIOUS_SHA" --rollback-compatible
@@ -161,6 +163,8 @@ deploy/deploy.sh status --target "$TARGET_FILE" --target-id "$TARGET_ID"
 ```
 
 `--rollback-compatible` 表示操作者已依据 X1 的迁移与恢复证据核对代码/数据库兼容性，它不是脚本自动推导出的保证。没有这项前提不切版本；单纯代码回退不等于数据库恢复。
+
+BOW-837 演示库陈述类别（`--upgrade-statement-kinds` / `--revert-statement-kinds`）：只能作为 `seed` 的可选步骤，复用同一套目标核验、备份绑定与一次性消耗、部署锁和操作记录（记录写 `seedStep`）。发布把清单里 worker 数据库的 host/port/name/username 传给 `pnpm db:seed <步骤>`，子命令先核对自己的连接与清单一致、`APP_ENV=demo`，不一致就在连接前拒绝；没有手工命令入口。升级在一个事务里精确校验 446 条固定陈述及其单元格后改为 `original_fact`，并重放完整导入；反向只把这 446 行的类别改回，不是全库恢复，全库恢复靠升级前的备份。
 
 ### 实际执行与记录语义
 

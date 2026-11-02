@@ -3,11 +3,23 @@
  * 1. 工作台交接（841 定的接口）：`sessionStorage['niu-talent:draft:record'] = { accountId, text, savedAt }`，
  *    URL 只带 `draft=work`；本页读取后立即删除。
  * 2. 输入暂存（D19）：用户在本页输入的原话与所选人员，防抖写入，站内导航或刷新回来时恢复；
- *    开始整理或保存后删除，退出登录时由外壳调用 clearRecordInputStash 一并清掉。
+ *    开始整理或保存后删除。
+ * 3. 批次原话：提交后按批次记下原话和所选人员，整理中刷新（`?batch=`）时恢复；只认同一批次。
+ *    保存或回到输入后删除。原话不从服务端草稿里取，897 草稿不带原话。
+ * 2、3 按账号分键（`…:<accountId>`），值里也带账号；工作台交接的键由 841 定，读后即删，值里带账号。
+ * 退出登录或换账号登录时，`lib/session-drafts` 清掉全部 `niu-talent:` 暂存；页面只经
+ * `session-scope` 读写这些暂存，会话一变就不再读写。
  */
 export const HANDOFF_KEY = 'niu-talent:draft:record';
 export const INPUT_STASH_KEY = 'niu-talent:record-input';
+export const BATCH_STASH_KEY = 'niu-talent:record-batch';
 export const STASH_TTL_MS = 10 * 60 * 1000;
+
+/** 本页的两份暂存按账号分键：一个账号的写入或删除碰不到另一个账号的暂存。 */
+export const inputStashKey = (accountId: string) =>
+  `${INPUT_STASH_KEY}:${accountId}`;
+export const batchStashKey = (accountId: string) =>
+  `${BATCH_STASH_KEY}:${accountId}`;
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
@@ -34,7 +46,7 @@ function read(
   key: string,
   accountId: string,
   now: number,
-): { text: string; personId: string | null } | null {
+): { text: string; personId: string | null; batchId: string | null } | null {
   let raw: string | null;
   try {
     raw = store.getItem(key);
@@ -59,6 +71,7 @@ function read(
     return {
       text: record.text,
       personId: typeof record.personId === 'string' ? record.personId : null,
+      batchId: typeof record.batchId === 'string' ? record.batchId : null,
     };
   } catch {
     return null;
@@ -85,7 +98,7 @@ export function takeHandoff(
   return found?.text ?? null;
 }
 
-/** 防抖写入的输入暂存。空内容等于删除。 */
+/** 防抖写入的输入暂存（本账号的键）。空内容等于删除。 */
 export function stashInput(
   accountId: string,
   input: { text: string; personId: string | null },
@@ -93,13 +106,14 @@ export function stashInput(
   store: Store | null = defaultStore(),
 ) {
   if (!store) return;
+  const key = inputStashKey(accountId);
   if (input.text.trim() === '') {
-    remove(store, INPUT_STASH_KEY);
+    remove(store, key);
     return;
   }
   try {
     store.setItem(
-      INPUT_STASH_KEY,
+      key,
       JSON.stringify({
         accountId,
         text: input.text,
@@ -119,11 +133,63 @@ export function restoreInput(
   store: Store | null = defaultStore(),
 ): { text: string; personId: string | null } | null {
   if (!store) return null;
-  const found = read(store, INPUT_STASH_KEY, accountId, now);
-  if (!found) remove(store, INPUT_STASH_KEY);
-  return found;
+  const key = inputStashKey(accountId);
+  const found = read(store, key, accountId, now);
+  if (!found) {
+    remove(store, key);
+    return null;
+  }
+  return { text: found.text, personId: found.personId };
 }
 
-export function clearRecordInputStash(store: Store | null = defaultStore()) {
-  if (store) remove(store, INPUT_STASH_KEY);
+/** 提交成功后记下这个批次的原话（本账号的键）。 */
+export function stashBatchInput(
+  accountId: string,
+  batchId: string,
+  input: { text: string; personId: string | null },
+  now: number = Date.now(),
+  store: Store | null = defaultStore(),
+) {
+  if (!store) return;
+  try {
+    store.setItem(
+      batchStashKey(accountId),
+      JSON.stringify({ accountId, batchId, ...input, savedAt: now }),
+    );
+  } catch {
+    // 写入失败时刷新后原话一栏写「原话只在提交的那一页」，整理结果不受影响
+  }
+}
+
+/** 整理中刷新回来时恢复同一批次的原话；别的批次、超时都不认。 */
+export function restoreBatchInput(
+  accountId: string,
+  batchId: string,
+  now: number = Date.now(),
+  store: Store | null = defaultStore(),
+): { text: string; personId: string | null } | null {
+  if (!store) return null;
+  const key = batchStashKey(accountId);
+  const found = read(store, key, accountId, now);
+  // 超时或损坏的暂存不再有用，读到就删；同账号的别的批次留给它自己。
+  if (!found) remove(store, key);
+  if (!found || found.batchId !== batchId) return null;
+  return { text: found.text, personId: found.personId };
+}
+
+/** 只删这个账号的两份暂存。 */
+export function clearRecordInputStash(
+  accountId: string,
+  store: Store | null = defaultStore(),
+) {
+  if (!store) return;
+  remove(store, inputStashKey(accountId));
+  remove(store, batchStashKey(accountId));
+}
+
+export function clearBatchStash(
+  accountId: string,
+  store: Store | null = defaultStore(),
+) {
+  if (store) remove(store, batchStashKey(accountId));
 }
