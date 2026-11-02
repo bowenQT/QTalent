@@ -14,7 +14,7 @@
 | 同上 | `/dev/design-system/sources`、`/dev/design-system/sources/view` | 原件查看器样张（六种定位、代码快照、基线、待接入） | `sources.ts` 校验后的合成样张 | 路由中的生产环境门禁 | — | 仅开发环境；生产返回 404 |
 | `404.html`           | 全局 `not-found.tsx` | `components/ui/State`                                  | —                    | Next.js 404                                     | —                                    | 通用返回入口                               |
 
-`/` 仅重定向 `/projects`；登录后的导航「工作台」指向 `/work`，仍返回 404，不借参考切片冒充已完成的工作台。
+`/` 仅重定向 `/projects`（登录落点改到 `/work` 归 BOW-874）；导航「工作台」指向 `/work`，见下文「工作台（BOW-841）」。
 
 ## 全量原型页面规划
 
@@ -22,11 +22,12 @@
 
 | 原型页（`prototype/y/` 相对路径） | 工程路由                          | 后续 feature / contract             | 后续读取、动作 / 领域                        | 当前状态       |
 | --------------------------------- | --------------------------------- | ----------------------------------- | -------------------------------------------- | -------------- |
-| `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
+| `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 部分接入，见「工作台（BOW-841）」 |
+| `app/reassign.html`               | `/work/reassign`                  | workbench/reassign / programs 改派  | evaluation-reassignments / programs          | 已接入 BOW-899 读取与改派 |
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
 | `app/record.html`                 | `/record`                         | record / materials.ts、record.ts | record / records、talent | 页面读取与评价节点推导（845）、897 批次提交与读取、846 保存与撤销已接；撤销后重存待 #317；样张 `/dev/record` |
-| `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
+| `app/inbox.html`                  | `/inbox`                          | inbox / material-review.ts          | inbox / records（860、905、906 读写待合入）   | 页面已建，读写待接通（BOW-862）；样例 `/dev/inbox` |
 | `app/receipt.html`                | `/receipt?id=…`                   | receipt / materials.ts、record.ts   | receipt / records、talent                    | 页面与样张已做（BOW-847），读取与保存待接通 |
 | `app/import.html`                 | `/import?id=…`                    | interview-import / （BOW-906 读取） | 面评导入预览 / records、directory            | 角色门禁已实现；预览读取待接通，样张 `/dev/import`；视觉参照待同步 |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
@@ -43,7 +44,7 @@
 | `app/rules.html`                  | `/rules`；入营选拔标准 `/rules?r=front&line=xe-select` | standard-iteration / selection-standard.ts | 待 BOW-918 读取与动作 / evaluation-system | 入营选拔标准：UI 已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-920）；其余 404 |
 | `app/judge.html`                  | `/judge`、`/judge?rater=me`       | standard-iteration / judgment-comparison.ts、standard-attribution.ts | 待 BOW-919、BOW-921 读取与动作 / evaluation-system | UI 已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-920） |
 | `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
-| `app/admin.html`                  | `/admin`                          | admin / admin                       | admin / directory、平台                      | 后续 / 404     |
+| `app/admin.html`                  | `/admin?tab=…`                    | admin / admin-connections.ts        | `queries/admin.ts` / directory、平台          | 接入状态页签已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-916）；其余页签待接通 |
 | `m/index.html`                    | `/m`                              | mobile-workbench / mobile-workbench | mobile-workbench / 多领域聚合                | 后续 / 404     |
 | `m/mentor.html`                   | `/m/mentor`                       | mobile-mentor / mobile-mentor       | mobile-mentor / programs                     | 后续 / 404     |
 | `m/quick.html`                    | `/m/quick`                        | mobile-quick / mobile-quick         | mobile-quick / records                       | 后续 / 404     |
@@ -262,6 +263,114 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 
 本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
 
+## BOW-862 待核对
+
+`/inbox` 用 `features/inbox/Inbox` 渲染四类条目：说话人、未知人员、图片范围、未知面试官。卡片沿用原型「问一处、选一项」的核对卡（`.n-verify`、`.n-choices`、`.n-choice`）。动作与回执按 BOW-897 的 `material-review.ts`：选完即生效，撤销走合同的 `undo`。「已核对」里按 `undo.status` 显示撤销，或显示锁定原因（已随导入写进档案 / 建议分已确认）。未知面试官只能关联到人员目录里已有的人；目录里没有的，留在待核对，不入档。
+
+正式路由目前显示「待核对待接通」，因为跨批次读取与命令还没有合入（BOW-860 #279、BOW-905 #281、BOW-906 #277）。开发样例 `/dev/inbox?role=hr|mentor` 用内存端口（`src/app/dev/inbox/sample-ports.ts`）按合同跑通处理、稍后、撤销，生产环境返回 404。`InboxPorts.read` 是本页对跨批次读取的假设，接通时以后端实际读取为准。
+
+| 原型有、合同暂无 | 页面现状 | 接通条件 |
+| --- | --- | --- |
+| 跨批次的待核对列表、材料标题与提交人 | 正式路由显示待接通；样例按材料位置显示 | 860 / 905 / 906 的读取 |
+| 「会归到这些人」停靠区与事件计数、飞入动效 | 不渲染 | 人员事件计数读取 |
+| 引用段播放 | 不渲染播放按钮 | BOW-873 播放地址 |
+| 图片框选（`confirm_scope` 需要 personIds） | 选项可见、禁用，标「框选范围待接通」 | 框选与人员选择的读写 |
+| 按姓名查找 | 输入框可见、禁用，标签写「在名单里找 · 待接通」 | 目录检索读取 |
+| 「稍后处理」的撤销 | 只在本页把条目带回卡片列（继续核对），不发命令 | 合同提供 defer 的撤销 |
+| 待确认事件草稿（原型 `draft`） | 不渲染 | 回执带草稿信息 |
+| 图片范围卡的截图（原型 `figure.n-shot`：范围内的几行、已遮挡的几处） | 只有问题和选项 | 合同给出范围内容；或 BOW-908 原件查看器合入后，用 `sourceHref(item.source)` 加「查看原件」入口 |
+| 未知人员、未知面试官的原文引用（`.n-cite__quote`） | 不渲染（合同只给说话人的 `quote`） | 合同给这两类加引用 |
+| 说话人的标签与句数（原型「说话人 2 · 16:30」「14 句」） | 引用块只有原句；说明写「这位说话人在这段录像里说的话」 | 合同给说话人标签和句数 |
+| 面包屑「工作台 / 待核对」与导航高亮 | 未加，需要在 `route-nav.ts` 加别名（共享文件） | #248 共享文件请求 |
+
+`mark_irrelevant` / `unbind` 原型没有入口，不渲染；`unknown_project`、`unknown_interview_candidate` 归其他卡，本页过滤掉。
+
+视觉对比的范围受参照提交限制：`prototype-reference.json`（91b297a）里的 `inbox.html` 只有人名 / 课题两类，四类条目没有像素基线。`tests/visual/inbox.spec.ts` 只比较参照里有的部分：
+
+- HR、导师两种视角下，页面标题、两栏布局、卡片列和侧栏卡的计算样式与位置，对照 `inbox.html?as=hrbp|mentor`；
+- 四类卡片的卡框、来源标签、问题、选项网格与选项样式，对照设计系统页 `#c-verify` 的核对卡；
+- 「都不是，稍后处理」选项逐像素对比；
+- 不可选的选项（「整理框出的范围」）计算出的 `opacity` 小于 1、`cursor` 为 `not-allowed`。`.n-choice:disabled` 来自 X1 的共享提交 `6556249`（#248 评论 6556863087），本分支已合入该提交，没有另写全局样式。
+
+条目内容、按类型筛选（量位置前在工程侧移出版面）、导语文案（参照为「…哪个项目，选完即生效，随时可以撤销」）、停靠区和播放按钮不在对比范围内。这些部分的状态是「参照待同步」，不算视觉通过。页面按 main 上 `81e4fd4`（#250）的原型实现；参照同步到 `81e4fd4` 的请求见 #248，同步后补跑四类条目的像素对比。
+
+## 工作台（BOW-841）
+
+本节只记录 BOW-841 的路由、区块与截图对比登记。
+
+**路由**：`/work` 用 BOW-838 的 `getWorkbenchForCurrentUser()` 渲染管理者、HR、导师三种工作台；系统管理员看到「这一页属于业务视角」；同时有 HR 与导师身份的账号抛 `WorkbenchNotConnectedError`，页面写「工作台待开通」，不转成成功或空名单。HR 另读 BOW-899 的 `readEvaluationReassignmentsForCurrentUser()`。`/work/reassign` 是重新分派页（原型 `reassign.html`），没有 HR 权限的账号看到「重新分派由 HR 处理」。
+
+**区块**：每个区块一个组件，放在 `src/features/workbench/sections/<区块>/`，唯一登记点是 `Workbench.tsx` 的 `layouts`；区块只读 `view.ts` 的视图模型，读取变化只改 `toWorkbenchView`。
+
+| 区块 | 目录 | 视角 | 数据 | 在 `/work` |
+| --- | --- | --- | --- | --- |
+| 问候与日期行 | `sections/head` | 三种 | 838 `greeting`、`asOf` | 已接通 |
+| 找人框 | `sections/find` | 管理者 | 838 `entries` | 已接通 |
+| 一句话输入与斜杠命令 | `sections/composer` | HR、导师 | 838 `entries` | 已接通 |
+| 我带的学员 | `sections/students` | 导师 | 838 `trainees`（`activity` 为 unknown 时只显示课题） | 已接通 |
+| 待办 · 待重新分派 | `sections/todos` | HR | 899 改派读取，按原评价人汇总一行，链到 `/work/reassign` | 已接通；没有待分派的事时整组不出 |
+| 待办 · 待核对（说话人、未知人员、图片范围、未知面试官） | `sections/todos` | HR | 视图模型 `VerifyItem`，等 897 下游读取 | `not_connected`，不渲染 |
+| 待办 · 节点结论 | `sections/todos` | HR | 视图模型 `ConclusionItem`，等 BOW-902 读取 | `not_connected`，不渲染 |
+| 导出已确认内容 | `sections/export` | 管理者、HR | 视图模型 `ExportView` 加 `ExportPort.generate`，等 BOW-912 | `not_connected`，不渲染 |
+
+待办卡只在至少一组已接通且有事项，或全部组已接通时出现；有任何一组未接通时标题不出总数，组内计数照常。开发样张 `/dev/workbench?role=manager|hr|mentor` 用固定演示视图展示全部区块（含未接通的三块，导出用脚本化的 `SampleExport`，`&export=fail` 第一次生成失败），生产构建返回 404；样张不是 `/work` 的兜底数据。
+
+**截图对比**：`tests/visual/workbench.spec.ts` 在种子库上以三种演示账号登录 `/work`，与固定参照的原型 `?as=ceo|hrbp|mentor` 同次渲染比较，三视角 × 桌面 1366×900 / 窄屏 375×812：先比文本，再比 DOM 顺序、无横向溢出、位置，最后逐元素比像素。新区块（待办分组、导出、重新分派页）来自 #250 / #260，当前参照提交 `prototype-reference.json` 不含它们，只做了与工作区原型的人工并排对照；参照指针更新后补进自动对比。登记见 `tests/visual/workbench-masks.ts`：
+
+| 原型选择器 | 视角 | 处置 | 原因 | 取消条件 |
+| --- | --- | --- | --- | --- |
+| `#jsig` | 管理者 | 不渲染；标题只比 `.nt-head > div:first-child` | 判断提醒 `judgmentReminders` 为 `not_connected` | 判断对照链路接入 |
+| `.nt-ceo`（`#watch`、`#progs`、`#follows`） | 管理者 | 不渲染 | 值得关注、我的关注未接入 | 对应链路接入 |
+| `.n-find__tpls` 及标签「或从角色模板开始」 | 管理者 | 不渲染；弹出面板只比 `.n-find__asks` | 角色模板属找人契约（BOW-851） | 找人契约接入 |
+| `#changes` | HR | 不渲染 | 有变化的人未接入 | 盘点冻结链路 |
+| `.nt-cols`（`#todo`、判断对照、进行中的任务、`#upload`） | HR | 种子库没有待分派的事，整块不渲染 | 待核对、节点结论未接通；判断对照、材料任务未接入 | 对应读取接入 |
+| `#todo`、`#recos`、`details#fold` | 导师 | 不渲染；右列留空列 | 待办、推荐、材料与任务未接入 | 对应链路、BOW-861 |
+| `.nt-head p`（HR、导师） | HR、导师 | 只比 `h1` | 日期后的人才项目状态句没有契约字段（D6） | 契约补状态句或人才项目接入 |
+| `.n-asks .n-ask:nth-child(2)` | HR | 只比第一句 | 「发起结营盘点」，盘点留在原型演示 | 盘点链路 |
+| `#composer-mic` | 三视角 | 元素内遮罩 | 语音输入是脚本演示；实时录音由 BOW-869 做 | BOW-869 |
+| `a[href="#upload"]` | HR、导师 | 元素内遮罩 | 上传区未接入，锚点无目标 | BOW-861 |
+| `#students` 学员行 | 导师 | 按姓名逐行比，第二行（`small`）遮罩；窄屏只比姓名 | 读取按组名、姓名拼音排序；`activity` 为 unknown，第二行只有课题，原型还有本周记录 | 838 接通近期记录 |
+| `#students` 整卡 | 导师 | 只比标题、说明和逐行 | 同上，加上原型多一个「推荐」按钮 | 推荐链路、近期记录 |
+
+**行为差异**（不做像素遮罩）：
+
+1. 输入原文不进 URL：发送时写入 `sessionStorage['niu-talent:draft:record' | 'niu-talent:draft:staffing'] = { accountId, text, savedAt }`，URL 只带 `draft=work`；写入失败不跳转，保留输入并提示「转交失败，请再点一次发送」。接收页（BOW-847、BOW-853）进入时读取并删除，账号不符或超过 10 分钟即丢弃。约定写在 `src/features/workbench/send.ts`。
+2. 斜杠命令只有「记一件事」和（`entries` 含 `find_people` 时）「为项目找人」；「发起盘点」「打开会议人才纪要」不渲染。
+3. HR、导师示例句含演示人名，只在 `APP_ENV` 不是 `production` 时渲染。
+4. 学员姓名先链接到档案页 `/person?id=`，速览在 `PersonPeek` 合入后接上。
+5. 问候时段按浏览器本地小时；服务端首屏是「你好，{姓名}」，水合后换成时段问候。
+6. 输入框补 `aria-controls`、`aria-activedescendant` 关联命令面板，外观不变；textarea 不支持 `aria-expanded`，面板显隐由 `hidden` 表达。
+7. 重新分派页按 899 的真实数据：按原评价人和节点分组，原型的「评价关系 起–止，已到期」写成「评价关系已结束」（读取没有关系日期，事项也可能因撤销或失去 HR 资格出现）；行尾截止日、「演示」徽标、按人着色的头像不显示（读取没有这些字段）；接手人只列读取给出的有效关系，原型的「HR · 我自己」和置灰的已到期评价人不出现；能接手所选全部事项的人才可选，只能接手部分的写「可接手其中 N 件，先取消勾选其余的」。改派是逐件请求：已有变化的件单独列出，未收到应答的件按原提交编号重试；899 没有撤销分派，所以没有原型的撤销按钮，也没有跨访问的「处理记录」。确认弹窗只写「{接手人}接手后，这 N 件事由 TA 处理。」，不写原型里「获得评价关系」的句子（899 不新建关系）。
+8. 面包屑：`/work/reassign` 显示「工作台 / 重新分派」，别名由 X1 的共享提交 `6556249` 加进 `route-nav.ts`。
+9. 导出：按钮、下载链接和确认弹窗的「生成表格」都用共享图标表的 download 图标（`6556249`）。失败说明用读取返回的原因，原型固定写「导出服务超时」。
+10. 原型 #250 / #260 新增的样式（`.n-export*`、`.n-exst`、`.n-note`、`.n-ra*`、`.n-choice:disabled`）已由 `6556249` 逐字移进共享样式，工作台不再有私有样式文件。
+
+**上传材料、进行中的任务**归 BOW-861（改 `layouts` 的 HR、导师侧栏与 Composer 的 `uploadAnchor` 一行）。
+
+## BOW-916 系统管理 · 接入状态
+
+`/admin` 只给系统管理员：`queries/admin.ts` 按目录里的 `isSystemAdmin` 放行，业务账号得到「这一页只给系统管理员」，授权失效走通用的「查看权限已更新」。管理员的落点闭环由此解开：业务视角页的「打开系统管理」和外壳品牌链接（已指向 `/admin`）都能打开这一页。
+
+`src/contracts/admin-connections.ts` 定义接入状态的读取形状：企业微信机器人（已连接 / 已断开 / 待首次连接）、MCP 与 AgentAPI 的近 24 小时调用摘要、最近调用（账号、动作、结果，不含查询内容）、绑定失败（服务端遮蔽到后四位的发送人账号与原因代码）、任务失败（复用 jobs 的 `jobId`、`revision` 与 retry 命令）。每块在读取接通前是 `not_connected`，页面写「待接通」，不写 0 或空列表；对象都是严格对象，正文、文件内容、原始账号和密钥加不进去。企业微信、MCP、AgentAPI 的读取由 BOW-909、BOW-910、BOW-915 接入，接入后在查询里替换对应块；任务重试在 jobs 命令接通后由页面传入。
+
+开发样张 `/dev/admin-connections`（`?wecom=on|down|never`、`?empty=1`、`?pending=1`、`?retry=conflict`、`?tab=`）用化名与原型数据经合同解析后渲染，生产返回 404。
+
+与原型 Y（`81e4fd4`）的差异：
+
+| 原型 | 工程 | 原因 / 后续 |
+| --- | --- | --- |
+| 默认打开「账号与权限」 | 默认打开「接入状态」，`?tab=` 保留 | 本卡只交付接入状态；其余四个页签显示「待接通」，由后续卡实现 |
+| 标题旁「演示」徽标 | 只在开发样张显示 | 真实页面读的是真实状态 |
+| 重新排队后 5 秒内可撤销 | 不提供撤销 | jobs 只有 retry / resume / cancel，取消不会把任务退回「失败」 |
+| 绑定失败「对上了两个人」 | 「对上了多个人」 | 服务端只给原因代码，不给人数 |
+| 拒绝页正文「切换到系统管理员视角查看。」 | 「需要查看时请联系系统管理员。」 | 工程没有视角切换，权限由服务端判断 |
+| 重试成功后焦点回到页面 | 焦点移到已重新排队的任务卡 | 卡片原位重绘后「重试」按钮消失，键盘用户留在原处 |
+| 面包屑「系统管理」 | 管理员面包屑仍显示「这一页属于业务视角」 | `ShellCrumbs` / `route-nav` 是共享文件，已在 #248 请求 |
+
+视觉参照：`91b297a` 的系统管理页只有四个页签、没有接入状态。页头可与 `91b297a` 对比；页签栏与接入状态面板登记为「参照待同步」，未做像素对比，不算视觉通过，参照前移（#292）后补跑。
+
+待共享文件处理（#248 登记）：管理员命中「系统管理」导航项时面包屑显示该项名称；BOW-925 新增的 `.n-conn*`、`.n-tfail*` 和 `.n-tabs--scroll` 移入 `components.css` 后删除 `src/features/admin/admin.css`；`tests/e2e/dev-routes.spec.ts` 清单加 `/dev/admin-connections`。
+
 ## BOW-839 人才列表与速览（`/people`）
 
 **参照**：原型 `prototype/y/app/people.html`（「人员」页签）、`js/pages/people.js`、`ui.js` 的 `peekPerson`。
@@ -333,12 +442,18 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
   - 原话只在本标签页暂存：`sessionStorage['niu-talent:staffing:sentence:<projectId>']` 存 `{ accountId, text }`，刷新后还在、关掉标签页即清除，不进地址、不上服务端；清空输入框或确认需求后删除，别的项目或账号读不到。
   - `?project=<id>&demand=<id>`：用 `readStaffingDemand` 读当前版本；读不到或不属于这个项目时显示「需求链接失效」（缺失与无权同一结果）。编辑、确认走 `editStaffingDemandAction` / `confirmStaffingDemandAction`，冲突提示刷新、保留输入；被拒时显示本页的肯定式文案，不透出服务端原文。
   - 没有 `project`（含 `?new=1`）：显示「选一个项目再找人」，引到项目与课题。一句话建项目不在 BOW-852 范围内。
+  - 没有 `project` 且带 `draft=work`（工作台交接，BOW-841）：先选项目。原型 Y 没有这个状态：`workbench.js` 发出后跳到 `staffing.html?new=1&q=…`，`staffing.js` 用这句话直接建项目，并在标题下显示原话（第 152 行）；工程里一句话建项目不在 BOW-852 范围内，所以加这一步，等一句话建项目接入后去掉。
+    - 有交接原话时：标题「这句话为哪个项目找人」，说明「找人需求按项目保存。选一个项目，这句话会一起带过去。」，下面用来源引用块（`.n-cite__quote`）原样显示原话；只读不删，进入项目页时才取走，从项目页后退再选别的项目也还在（本次页面加载内缓存）。
+    - 原话过期（超过 10 分钟）或不属于当前账号：标题「选一个项目再找人」，不显示原话。
+    - 项目列表：只列可读的「筹备中 / 进行中」项目，卡片（`.n-card`）里放分隔列表（`.nt-list`），每行项目名链接（`.nt-plink`）加目标（`.nt-muted`）；链接是 `?project=<id>&draft=work`。
+    - 没有开放项目：空状态（`State`）「先建一个项目」，按钮去 `/projects?draft=work`；项目与课题页带着这个标记时，项目卡片「发起找 owner」和页头「为项目找人」的链接都加 `draft=work`，新建项目后从卡片进入找人，原话照样带过去。
+    - 项目读取被拒（`forbidden`）：显示「查看权限已更新」（`AccessDenied`），不引去新建项目。
   - 确认后的候选人核对：BOW-854 未合入，`openMatching` 返回 `null`，显示「候选人核对待接通」，不拿样张冒充。
 - 开发样张 `/dev/staffing?role=manager|hr&scene=ts|agent|new`：原型 Y 种子数据经找人契约渲染，来源都标为原型基线；动作是内存假实现。生产构建返回 404。
 - 排序只用契约的 `orderStaffingCandidates`（必须项支持了几条），同数保持读取顺序；必须项至少两条资料不足、没有一条支持、且没有还在处理或待人工判断的要求的人，放进「条件待确认」。不出总分、胜任率或百分比。
 - 匹配入口：契约没有「取确认后的匹配任务」的读取，`StaffingPorts.openMatching` 是对 BOW-854 的接口假设，返回任务标识或 `null`（这时显示「候选人核对待接通」）。
 - 新项目入口（`?new=1`）：契约的起草需要 `projectId`，一句话建项目不在找人契约里；真实路由先引到项目，开发样张在起草完成后由 `onDemandReady` 绑定演示项目。
-- 工作台交接：读取并删除 `sessionStorage['niu-talent:draft:staffing']`（约定见 BOW-841 `send.ts`），账号不符或超过 10 分钟丢弃。
+- 工作台交接：项目页读取并删除 `sessionStorage['niu-talent:draft:staffing']`（约定见 BOW-841 `send.ts`），账号不符或超过 10 分钟丢弃；选项目这一步只读不删（见上）。
 
 **同次渲染截图对比**（`tests/visual/staffing.spec.ts`，遮罩与说明在 `tests/visual/staffing-masks.ts`）：管理者 `pr-agent`、HR `pr-ts` 项目页与管理者入口，桌面 1366×900 与窄屏 375×812。先比文字（标题、状态、要求、候选人姓名、逐条状态与证据句），再比位置与间距，最后逐元素比像素。页头和需求卡另在真实路由上比（同一份需求写入隔离测试库，管理者 `ceo`、HR `hrbp` 登录）；候选人部分在 BOW-854 合入前仍用开发样张比。
 
