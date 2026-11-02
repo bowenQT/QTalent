@@ -28,3 +28,4 @@ export {
   grants,
   employments,
 } from './schema';
+export { projectDirectoryProfile } from './profile';

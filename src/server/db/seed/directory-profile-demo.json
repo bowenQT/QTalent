@@ -1,0 +1,909 @@
+{
+  "kind": "directory_demo_profile",
+  "peopleProvenance": "synthetic_demo",
+  "version": 1,
+  "people": [
+    {
+      "id": "p-x01",
+      "name": "苏少卿",
+      "organizationId": "t-leida",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x02",
+      "name": "余景行",
+      "organizationId": "t-leida",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x03",
+      "name": "谢怀瑾",
+      "organizationId": "t-leida",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x04",
+      "name": "陆晚晴",
+      "organizationId": "t-leida",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x05",
+      "name": "夏书禾",
+      "organizationId": "t-leida",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x06",
+      "name": "季思齐",
+      "organizationId": "t-talk-a",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x07",
+      "name": "孟映雪",
+      "organizationId": "t-talk-a",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x08",
+      "name": "谷嘉树",
+      "organizationId": "t-talk-a",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x09",
+      "name": "沈承宇",
+      "organizationId": "t-talk-a",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x10",
+      "name": "云致远",
+      "organizationId": "t-talk-a",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x11",
+      "name": "孟逸尘",
+      "organizationId": "t-scene-b",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x12",
+      "name": "沈亦初",
+      "organizationId": "t-scene-b",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x13",
+      "name": "季叙白",
+      "organizationId": "t-scene-b",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x14",
+      "name": "方景深",
+      "organizationId": "t-scene-b",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x15",
+      "name": "周初晴",
+      "organizationId": "t-scene-b",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x16",
+      "name": "林一诺",
+      "organizationId": "t-oncall-b",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x17",
+      "name": "韩知远",
+      "organizationId": "t-oncall-b",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x18",
+      "name": "苏照临",
+      "organizationId": "t-oncall-b",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x19",
+      "name": "罗星野",
+      "organizationId": "t-oncall-b",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x20",
+      "name": "杜一舟",
+      "organizationId": "t-oncall-b",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x21",
+      "name": "罗慕白",
+      "organizationId": "t-oncall-b",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x22",
+      "name": "谷时雨",
+      "organizationId": "t-metric-a",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x23",
+      "name": "沈见山",
+      "organizationId": "t-metric-a",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x24",
+      "name": "魏明川",
+      "organizationId": "t-metric-a",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x25",
+      "name": "魏子衿",
+      "organizationId": "t-metric-a",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x26",
+      "name": "傅砚秋",
+      "organizationId": "t-metric-a",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x27",
+      "name": "任修远",
+      "organizationId": "t-host",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x28",
+      "name": "白见山",
+      "organizationId": "t-host",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x29",
+      "name": "杜澄之",
+      "organizationId": "t-host",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x30",
+      "name": "谷行之",
+      "organizationId": "t-host",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x31",
+      "name": "乔映雪",
+      "organizationId": "t-host",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x32",
+      "name": "邵照临",
+      "organizationId": "t-host",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x33",
+      "name": "严行之",
+      "organizationId": "t-metric-b",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x34",
+      "name": "池致远",
+      "organizationId": "t-metric-b",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x35",
+      "name": "云书禾",
+      "organizationId": "t-metric-b",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x36",
+      "name": "易慕白",
+      "organizationId": "t-metric-b",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x37",
+      "name": "宁其琛",
+      "organizationId": "t-metric-b",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x38",
+      "name": "余砚秋",
+      "organizationId": "t-pixel-a",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x39",
+      "name": "彭时雨",
+      "organizationId": "t-pixel-a",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x40",
+      "name": "孟清和",
+      "organizationId": "t-pixel-a",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x41",
+      "name": "云朝夕",
+      "organizationId": "t-pixel-a",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x42",
+      "name": "池一舟",
+      "organizationId": "t-pixel-b",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x43",
+      "name": "贺一舟",
+      "organizationId": "t-pixel-b",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x44",
+      "name": "秦映雪",
+      "organizationId": "t-pixel-b",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x45",
+      "name": "唐沐阳",
+      "organizationId": "t-pixel-b",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x46",
+      "name": "杜昭阳",
+      "organizationId": "t-pixel-b",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x47",
+      "name": "任子衿",
+      "organizationId": "t-talk-b",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x48",
+      "name": "韩朝夕",
+      "organizationId": "t-talk-b",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x49",
+      "name": "邱思齐",
+      "organizationId": "t-talk-b",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x50",
+      "name": "贺澄之",
+      "organizationId": "t-talk-b",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x51",
+      "name": "叶思齐",
+      "organizationId": "t-talk-b",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x52",
+      "name": "邱清和",
+      "organizationId": "t-dialect",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x53",
+      "name": "许承宇",
+      "organizationId": "t-dialect",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x54",
+      "name": "钟鹤年",
+      "organizationId": "t-dialect",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x55",
+      "name": "许时雨",
+      "organizationId": "t-dialect",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x56",
+      "name": "卢闻笛",
+      "organizationId": "t-dialect",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x57",
+      "name": "许行之",
+      "organizationId": "t-oncall-a",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x58",
+      "name": "谢砚秋",
+      "organizationId": "t-oncall-a",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x59",
+      "name": "许清和",
+      "organizationId": "t-oncall-a",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x60",
+      "name": "萧闻笛",
+      "organizationId": "t-oncall-a",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x61",
+      "name": "季一诺",
+      "organizationId": "t-oncall-a",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x62",
+      "name": "池望舒",
+      "organizationId": "t-maker-a",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x63",
+      "name": "谢云舒",
+      "organizationId": "t-maker-a",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x64",
+      "name": "丁知远",
+      "organizationId": "t-maker-a",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x65",
+      "name": "池映雪",
+      "organizationId": "t-maker-a",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x66",
+      "name": "邵知远",
+      "organizationId": "t-maker-a",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x67",
+      "name": "庄安歌",
+      "organizationId": "t-base",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x68",
+      "name": "陆映雪",
+      "organizationId": "t-base",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x69",
+      "name": "许静姝",
+      "organizationId": "t-base",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x70",
+      "name": "邱叙白",
+      "organizationId": "t-base",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x71",
+      "name": "郑鹤年",
+      "organizationId": "t-base",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x72",
+      "name": "宋逸尘",
+      "organizationId": "t-scene-a",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x73",
+      "name": "乔修远",
+      "organizationId": "t-scene-a",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x74",
+      "name": "易凌川",
+      "organizationId": "t-scene-a",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x75",
+      "name": "秦晚晴",
+      "organizationId": "t-scene-a",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x76",
+      "name": "池朝夕",
+      "organizationId": "t-scene-a",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x77",
+      "name": "乔子衿",
+      "organizationId": "t-plan-b",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x78",
+      "name": "梁嘉树",
+      "organizationId": "t-plan-b",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x79",
+      "name": "苏见山",
+      "organizationId": "t-plan-b",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x80",
+      "name": "白一诺",
+      "organizationId": "t-plan-b",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x81",
+      "name": "黎静姝",
+      "organizationId": "t-plan-b",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x82",
+      "name": "乔书禾",
+      "organizationId": "t-plan-a",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x83",
+      "name": "任清和",
+      "organizationId": "t-plan-a",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x84",
+      "name": "姜行之",
+      "organizationId": "t-plan-a",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x85",
+      "name": "邱晚晴",
+      "organizationId": "t-plan-a",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x86",
+      "name": "魏予安",
+      "organizationId": "t-maker-b",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x87",
+      "name": "易景深",
+      "organizationId": "t-maker-b",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x88",
+      "name": "周照临",
+      "organizationId": "t-maker-b",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x89",
+      "name": "萧听澜",
+      "organizationId": "t-maker-b",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x90",
+      "name": "唐时雨",
+      "organizationId": "t-edge",
+      "demo": true,
+      "jobTitle": "测试开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    },
+    {
+      "id": "p-x91",
+      "name": "江昭阳",
+      "organizationId": "t-edge",
+      "demo": true,
+      "jobTitle": "解决方案工程师（演示）",
+      "jobLevel": "N1（演示）"
+    },
+    {
+      "id": "p-x92",
+      "name": "乔辞远",
+      "organizationId": "t-edge",
+      "demo": true,
+      "jobTitle": "产品工程师（演示）",
+      "jobLevel": "N2（演示）"
+    },
+    {
+      "id": "p-x93",
+      "name": "夏听澜",
+      "organizationId": "t-edge",
+      "demo": true,
+      "jobTitle": "软件开发工程师（演示）",
+      "jobLevel": "N3（演示）"
+    }
+  ],
+  "organizations": [
+    {
+      "id": "camp",
+      "name": "人才项目",
+      "parentId": null,
+      "isGroup": true
+    },
+    {
+      "id": "xe6",
+      "name": "XEngineer 第六期",
+      "parentId": "camp",
+      "isGroup": false
+    },
+    {
+      "id": "t-leida",
+      "name": "线索雷达",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-pixel-a",
+      "name": "像素工坊 · 角色组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-pixel-b",
+      "name": "像素工坊 · 全套组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-scene-a",
+      "name": "分镜工厂 · 一组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-scene-b",
+      "name": "分镜工厂 · 二组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-talk-a",
+      "name": "口语搭子 · 一组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-talk-b",
+      "name": "口语搭子 · 二组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-dialect",
+      "name": "乡音同传",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-plan-a",
+      "name": "日程罗盘 · 一组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-plan-b",
+      "name": "日程罗盘 · 二组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-maker-a",
+      "name": "造物台 · 一组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-base",
+      "name": "基座平台",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-maker-b",
+      "name": "造物台 · 二组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-edge",
+      "name": "云边硬件",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-host",
+      "name": "夜谈主持人",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-oncall-a",
+      "name": "值班助手 · 一组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-oncall-b",
+      "name": "值班助手 · 二组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-metric-a",
+      "name": "指标问答台 · 一组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "t-metric-b",
+      "name": "指标问答台 · 二组",
+      "parentId": "xe6",
+      "isGroup": false
+    },
+    {
+      "id": "tdc",
+      "name": "导师与助教",
+      "parentId": "camp",
+      "isGroup": false
+    },
+    {
+      "id": "fn",
+      "name": "职能",
+      "parentId": null,
+      "isGroup": true
+    },
+    {
+      "id": "hr",
+      "name": "人力资源部",
+      "parentId": "fn",
+      "isGroup": false
+    },
+    {
+      "id": "strategy",
+      "name": "战略管理中心",
+      "parentId": "fn",
+      "isGroup": false
+    },
+    {
+      "id": "it",
+      "name": "信息技术部",
+      "parentId": "fn",
+      "isGroup": false
+    }
+  ]
+}

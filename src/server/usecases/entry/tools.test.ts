@@ -82,6 +82,7 @@ const brief = {
     teamId: 'demo-team',
     teamName: '演示组',
     teamPath: '演示组织 / 演示组',
+    orgPath: '演示组织 / 演示组',
     jobTitle: '演示岗位',
     level: null,
     batch: null,
