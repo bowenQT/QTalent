@@ -174,7 +174,9 @@ describe('attachment media policy and isolated worker registration', () => {
     };
     const run = vi.fn(async () => {});
     await registerAttachmentParseJob(boss as unknown as PgBoss, run);
-    expect(boss.createQueue).toHaveBeenCalledWith(attachmentParseQueue);
+    expect(boss.createQueue).toHaveBeenCalledWith(attachmentParseQueue, {
+      retryLimit: 0,
+    });
     expect(boss.work).toHaveBeenCalledWith(
       attachmentParseQueue,
       expect.any(Function),
