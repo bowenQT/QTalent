@@ -116,8 +116,12 @@ it('runs changes, timers and toasts only while live; clears timers when the sess
     scope.timeout(fired, 100);
     const cancelled = vi.fn();
     scope.timeout(cancelled, 100)();
-    const show = vi.fn((_message: string) => () => 'closed');
-    expect(scope.toast(show)('提示')()).toBe('closed');
+    const dismiss = vi.fn();
+    const show = vi.fn((_message: string) => dismiss);
+    scope.toast(show)('提示')();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    const open = vi.fn();
+    scope.toast(vi.fn((_message: string) => open))('还开着');
     vi.advanceTimersByTime(100);
     expect(fired).toHaveBeenCalledTimes(1);
     expect(cancelled).not.toHaveBeenCalled();
@@ -127,11 +131,13 @@ it('runs changes, timers and toasts only while live; clears timers when the sess
     clearSessionDrafts();
     vi.advanceTimersByTime(100);
     expect(late).not.toHaveBeenCalled();
+    // 会话结束时，还开着的提示一并收起
+    expect(open).toHaveBeenCalledTimes(1);
     scope.wrap(change)('b');
     expect(change).toHaveBeenCalledTimes(1);
     expect(scope.run(() => 'ran')).toBeUndefined();
     show.mockClear();
-    expect(scope.toast(show)('提示')()).toBeUndefined();
+    scope.toast(show)('提示')();
     expect(show).not.toHaveBeenCalled();
     detach();
 
@@ -145,4 +151,22 @@ it('runs changes, timers and toasts only while live; clears timers when the sess
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('becomes invalid when the page unmounts, and valid again when it re-attaches (dev double mount)', () => {
+  const scope = createSessionScope(
+    'acc-1',
+    sessionDraftEpoch(),
+    actions(),
+    vi.fn(),
+  );
+  const detach = scope.attach();
+  expect(scope.live()).toBe(true);
+  detach();
+  expect(scope.live()).toBe(false);
+  scope.drafts.stashInput({ text: '卸载后', personId: null });
+  expect(window.sessionStorage.length).toBe(0);
+  const again = scope.attach();
+  expect(scope.live()).toBe(true);
+  again();
 });

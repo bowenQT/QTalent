@@ -22,8 +22,10 @@ type Input = { text: string; personId: string | null };
  * - 改动的出口都经 `wrap` / `run`：页面的 dispatch、本地状态、提示、暂存读写删；
  *   请求落定后、页面续体执行前退出的，续体里的改动照样被拦下；
  * - 服务端动作：失效后不再发起；失效前发起的请求，落定时若已失效就不再交给页面；
- * - 计时器经 `timeout` 登记，失效（或页面卸载）时统一清除，到点回调同样经 `run`。
- * 页面只经这里调用动作与暂存、改状态，不在各条路径上各自检查。
+ * - 计时器经 `timeout` 登记，失效（或页面卸载）时统一清除，到点回调同样经 `run`；
+ * - 提示经 `toast` 弹出并登记：失效（或页面卸载）时一并收起，撤销续体随之作废；
+ * - 页面卸载时（`attach` 返回的函数）这个实例也失效：同账号离开页面后迟到的回执同样被拦下。
+ * 子组件自己的状态和计时器不经这里：会话一结束，`RecordPage` 把整棵子树卸掉（见那里）。
  */
 export function createSessionScope(
   accountId: string,
@@ -31,7 +33,8 @@ export function createSessionScope(
   actions: RecordActions,
   loadAnchors: LoadAnchors,
 ) {
-  const live = () => epoch === sessionDraftEpoch();
+  let disposed = false;
+  const live = () => !disposed && epoch === sessionDraftEpoch();
   /** 只在会话仍有效时执行；所有改动的唯一出口。 */
   const run = <R>(fn: () => R): R | undefined => (live() ? fn() : undefined);
   const wrap =
@@ -56,13 +59,27 @@ export function createSessionScope(
       timers.delete(timer);
     };
   }
-  /** 页面挂载时调用：会话一结束就清掉计时器；返回的函数在卸载时调用。 */
+  const toasts = new Set<() => void>();
+  const closeToasts = () => {
+    for (const close of [...toasts]) close();
+    toasts.clear();
+  };
+  const end = () => {
+    clearTimers();
+    closeToasts();
+  };
+  /**
+   * 页面挂载时调用：会话一结束就清掉计时器、收起提示；返回的函数在卸载时调用，
+   * 卸载后实例失效。开发模式下 effect 会先卸再挂一次，重新挂上时恢复有效。
+   */
   function attach() {
-    const off = onSessionDraftsCleared(clearTimers);
-    if (!live()) clearTimers();
+    disposed = false;
+    const off = onSessionDraftsCleared(end);
+    if (!live()) end();
     return () => {
       off();
-      clearTimers();
+      disposed = true;
+      end();
     };
   }
   function gate<A extends unknown[], R>(fn: (...args: A) => Promise<R>) {
@@ -97,11 +114,19 @@ export function createSessionScope(
     wrap,
     timeout,
     attach,
-    /** 提示经门闸：失效后不弹，返回的关闭函数是空操作。 */
+    /** 提示经门闸：失效后不弹；弹出的登记下来，失效或卸载时收起。 */
     toast:
       <A extends unknown[]>(show: (...args: A) => () => void) =>
-      (...args: A): (() => void) =>
-        live() ? show(...args) : () => undefined,
+      (...args: A): (() => void) => {
+        if (!live()) return () => undefined;
+        const dismiss = show(...args);
+        const close = () => {
+          if (!toasts.delete(close)) return;
+          dismiss();
+        };
+        toasts.add(close);
+        return close;
+      },
     actions: {
       resolveNode: actions.resolveNode ? gate(actions.resolveNode) : null,
       submit: gate(actions.submit),

@@ -7,6 +7,7 @@ import {
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
   type Dispatch,
   type ReactNode,
   type SetStateAction,
@@ -40,7 +41,10 @@ import {
   recordReducer,
   type Connection,
 } from './record-flow';
-import { sessionDraftEpoch } from '@/lib/session-drafts';
+import {
+  onSessionDraftsCleared,
+  sessionDraftEpoch,
+} from '@/lib/session-drafts';
 import { createSessionScope, type SessionScope } from './session-scope';
 import { SavedSign } from './SavedSign';
 import { SbiEditor } from './SbiEditor';
@@ -96,7 +100,24 @@ function defaultNewId() {
  * 按账号重新挂载：换账号后上一个账号的原话、任务和计时都不会带到新账号下（含输入暂存）。
  */
 export function RecordPage(props: RecordPageProps) {
-  return <RecordFlow key={props.accountId} {...props} />;
+  return <RecordSession key={props.accountId} {...props} />;
+}
+
+/**
+ * 会话代纪的边界：挂载时记下代纪；退出或换账号登录后代纪一变，整棵子树卸掉。
+ * 子组件（批次轮询、来源卡、可编辑文本、引用角标……）自己的状态和计时器随卸载作废，
+ * React 也不再接受已卸载组件的状态更新。不以新代纪重建：那会给已退出的账号开一个有效页面；
+ * 此时退出流程正在跳转登录页。
+ */
+function RecordSession(props: RecordPageProps) {
+  const [epoch] = useState(sessionDraftEpoch);
+  const current = useSyncExternalStore(
+    onSessionDraftsCleared,
+    sessionDraftEpoch,
+    () => epoch,
+  );
+  if (current !== epoch) return null;
+  return <RecordFlow {...props} epoch={epoch} />;
 }
 
 /** 本地状态的设置函数也经门闸：会话结束后的任何回调都改不动它。 */
@@ -106,7 +127,7 @@ function useScopedState<T>(scope: SessionScope, initial: T) {
   return [value, scoped as Dispatch<SetStateAction<T>>] as const;
 }
 
-function RecordFlow(props: RecordPageProps) {
+function RecordFlow(props: RecordPageProps & { epoch: number }) {
   const {
     accountId,
     people,
@@ -118,7 +139,7 @@ function RecordFlow(props: RecordPageProps) {
   } = props;
   // 会话代纪门闸：挂载时记下代纪，动作和暂存都只经它（session-scope）。退出或换账号后，
   // 这个实例发起过的请求不再改状态，也不再读写暂存。
-  const [epoch] = useState(sessionDraftEpoch);
+  const { epoch } = props;
   const scope = useMemo(
     () =>
       createSessionScope(accountId, epoch, props.actions, props.loadAnchors),
@@ -181,8 +202,9 @@ function RecordFlow(props: RecordPageProps) {
 
   // 批次 id 变化时通知页面换 URL
   const reportedBatch = useRef<string | null>(entry?.batchId ?? null);
+  // URL 更新也经门闸
   const onBatchChange = useEffectEvent((id: string | null) =>
-    props.onBatchChange?.(id),
+    scope.run(() => props.onBatchChange?.(id)),
   );
   useEffect(() => {
     if (reportedBatch.current === state.batchId) return;
