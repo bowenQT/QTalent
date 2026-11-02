@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { createDatabase, type Database } from '../client';
 import {
@@ -310,7 +310,7 @@ it('imports all 93 fixed synthetic profiles against the real approved demo ident
   );
   expect(await importDirectoryProfileDemo(db(), process.cwd())).toEqual({
     peopleUpdated: 93,
-    organizationsUpdated: 0,
+    organizationsUpdated: 26,
   });
   for (const row of await db().select().from(people)) {
     const original = before.find((person) => person.id === row.id)!;
@@ -325,9 +325,22 @@ it('imports all 93 fixed synthetic profiles against the real approved demo ident
     peopleUpdated: 0,
     organizationsUpdated: 0,
   });
-  expect(
-    (await db().select().from(organizations)).every(
-      (row) => !row.hierarchyKnown && row.parentId === null,
-    ),
-  ).toBe(true);
+  // The fixed hierarchy is the prototype's own tree, not a guessed one.
+  const tree = new Map(mapped.organizations.map((row) => [row.id, row]));
+  const after = await db()
+    .select()
+    .from(organizations)
+    .where(inArray(organizations.id, [...tree.keys()]));
+  expect(after).toHaveLength(tree.size);
+  for (const row of after)
+    expect(row).toMatchObject({
+      hierarchyKnown: true,
+      parentId: tree.get(row.id)!.parentId,
+    });
+  const data = await loadPersonData(db(), 'demo-hrbp', '2026-11-01');
+  expect((await personFromData(data, 'p-x01'))?.person).toMatchObject({
+    jobTitle: facts.people.find((row) => row.id === 'p-x01')!.jobTitle,
+    teamPath: '人才项目 / XEngineer 第六期 / 线索雷达',
+    demo: true,
+  });
 }, 30_000);

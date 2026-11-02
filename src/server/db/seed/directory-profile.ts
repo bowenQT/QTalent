@@ -249,7 +249,7 @@ export async function importDirectoryProfileSeed(
 /** Reviewed synthetic facts live in JSON, not in application display code. */
 export const DIRECTORY_PROFILE_DEMO_SOURCE = Object.freeze({
   relativeFile: 'src/server/db/seed/directory-profile-demo.json',
-  sha256: '2bd3b36c7b217acd51df05f28be06686b7be419221f51fe629620754a342136d',
+  sha256: '3fe131c07407341bfe69058480292d1015da4c98c1c7d7f27c53e3171793b2ff',
 });
 export function importDirectoryProfileDemo(db: Database, root: string) {
   return importDirectoryProfileSeed(db, root, DIRECTORY_PROFILE_DEMO_SOURCE);

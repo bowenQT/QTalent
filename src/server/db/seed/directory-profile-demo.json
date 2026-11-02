@@ -748,5 +748,136 @@
       "jobLevel": "N3（演示）"
     }
   ],
-  "organizations": []
+  "organizations": [
+    {
+      "id": "camp",
+      "name": "人才项目",
+      "parentId": null
+    },
+    {
+      "id": "xe6",
+      "name": "XEngineer 第六期",
+      "parentId": "camp"
+    },
+    {
+      "id": "t-leida",
+      "name": "线索雷达",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-pixel-a",
+      "name": "像素工坊 · 角色组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-pixel-b",
+      "name": "像素工坊 · 全套组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-scene-a",
+      "name": "分镜工厂 · 一组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-scene-b",
+      "name": "分镜工厂 · 二组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-talk-a",
+      "name": "口语搭子 · 一组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-talk-b",
+      "name": "口语搭子 · 二组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-dialect",
+      "name": "乡音同传",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-plan-a",
+      "name": "日程罗盘 · 一组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-plan-b",
+      "name": "日程罗盘 · 二组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-maker-a",
+      "name": "造物台 · 一组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-base",
+      "name": "基座平台",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-maker-b",
+      "name": "造物台 · 二组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-edge",
+      "name": "云边硬件",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-host",
+      "name": "夜谈主持人",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-oncall-a",
+      "name": "值班助手 · 一组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-oncall-b",
+      "name": "值班助手 · 二组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-metric-a",
+      "name": "指标问答台 · 一组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "t-metric-b",
+      "name": "指标问答台 · 二组",
+      "parentId": "xe6"
+    },
+    {
+      "id": "tdc",
+      "name": "导师与助教",
+      "parentId": "camp"
+    },
+    {
+      "id": "fn",
+      "name": "职能",
+      "parentId": null
+    },
+    {
+      "id": "hr",
+      "name": "人力资源部",
+      "parentId": "fn"
+    },
+    {
+      "id": "strategy",
+      "name": "战略管理中心",
+      "parentId": "fn"
+    },
+    {
+      "id": "it",
+      "name": "信息技术部",
+      "parentId": "fn"
+    }
+  ]
 }

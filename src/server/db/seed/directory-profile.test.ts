@@ -1,6 +1,6 @@
 import { readPrototypeSeed } from './index';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -76,6 +76,17 @@ it('requires the reviewed digest and refuses changed bytes or private paths', ()
       expect(() =>
         readDirectoryProfileSeed(root, { ...source, relativeFile }),
       ).toThrow();
+    // Private folders are refused by path even when the bytes match the digest.
+    for (const folder of ['docs/sources', 'docs/design-refs']) {
+      mkdirSync(join(root, folder), { recursive: true });
+      writeFileSync(join(root, folder, 'table.json'), bytes);
+      expect(() =>
+        readDirectoryProfileSeed(root, {
+          ...source,
+          relativeFile: `${folder}/table.json`,
+        }),
+      ).toThrow(/non-private/);
+    }
     expect(() =>
       readDirectoryProfileSeed(root, { ...source, sha256: '' }),
     ).toThrow();
@@ -212,7 +223,14 @@ it('pins the 93 explicit synthetic profiles to existing pseudonymous identities,
   );
   expect(demo.peopleProvenance).toBe('synthetic_demo');
   expect(demo.people).toHaveLength(93);
-  expect(demo.organizations).toEqual([]);
+  // Hierarchy is copied from the reviewed prototype tree, names verbatim.
+  expect(demo.organizations).toEqual(
+    readPrototypeSeed(process.cwd()).ORGS.map((org) => ({
+      id: org.id,
+      name: org.name,
+      parentId: org.parent,
+    })),
+  );
   expect(new Set(demo.people.map((row) => row.id))).toEqual(
     new Set(existing.map((row) => row.id)),
   );
