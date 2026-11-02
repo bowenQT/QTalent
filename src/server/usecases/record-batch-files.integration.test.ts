@@ -287,10 +287,15 @@ it('refuses another account’s upload, files of two nodes, a node other than th
     'demo-other-node',
   );
   signIn(f.outsiderAccount);
-  expect(await startRecordArrangeAction(filesOnly([upload.file]))).toEqual(
-    await startRecordArrangeAction(
-      filesOnly([{ clientFileId: randomUUID(), uploadId: randomUUID() }]),
-    ),
+  // Someone else's upload answers exactly as an upload that does not exist.
+  const answer = async (file: { clientFileId: string; uploadId: string }) => {
+    const result = await startRecordArrangeAction(filesOnly([file]));
+    return 'fieldErrors' in result
+      ? { status: result.status, fieldErrors: result.fieldErrors }
+      : result;
+  };
+  expect(await answer(upload.file)).toEqual(
+    await answer({ clientFileId: randomUUID(), uploadId: randomUUID() }),
   );
   expect(
     await startRecordArrangeAction(filesOnly([upload.file])),
