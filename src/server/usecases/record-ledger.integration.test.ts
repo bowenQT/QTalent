@@ -107,9 +107,10 @@ function holdAudit() {
     release = gate();
   const real = audit.recordAudit;
   vi.spyOn(audit, 'recordAudit').mockImplementationOnce(async (...args) => {
-    await real(...args);
+    const id = await real(...args);
     reached.resolve();
     await release.promise;
+    return id;
   });
   return { reached, release };
 }
