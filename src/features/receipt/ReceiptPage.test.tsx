@@ -2053,6 +2053,60 @@ describe('撤销走路由后的两种回应（第二次裁决）', () => {
     );
   });
 
+  describe('撤销送出后截止时间才到（视觉复审 B1）', () => {
+    async function undoAtDeadline(
+      reply: Awaited<ReturnType<ReceiptActions['undo']>>,
+    ) {
+      const user = userEvent.setup();
+      let release!: (
+        value: Awaited<ReturnType<ReceiptActions['undo']>>,
+      ) => void;
+      const undo = vi.fn<ReceiptActions['undo']>(
+        () => new Promise((resolve) => (release = resolve)),
+      );
+      mountWith(make(), {
+        read: vi.fn(() => new Promise(() => {})) as never,
+        // 回执上的截止时间只剩 300ms
+        save: vi.fn().mockResolvedValue(saved({ savedAt: Date.now() - 4700 })),
+        undo,
+      });
+      await user.click(
+        within(cardOf('demo-event-draft-a')).getByRole('button', {
+          name: /确认这件事/,
+        }),
+      );
+      await user.click(await screen.findByRole('button', { name: '撤销' }));
+      await waitFor(() => expect(undo).toHaveBeenCalledTimes(1));
+      // 截止时间过了，结果还没回：提示留着
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(
+        screen.getByText(copy.toast.confirmed('谷嘉树', false)),
+      ).toBeTruthy();
+      release(reply);
+    }
+
+    it('结果晚到、撤销成功：提示已撤销，卡片回到待确认', async () => {
+      await undoAtDeadline(undoneResult(3));
+      expect(await screen.findByText(copy.toast.undone)).toBeTruthy();
+      expect(
+        within(cardOf('demo-event-draft-a')).getByRole('button', {
+          name: /确认这件事/,
+        }),
+      ).toBeTruthy();
+    });
+
+    it('结果晚到、撤销被拒（已过撤销时间）：提示这件事已确认', async () => {
+      await undoAtDeadline({
+        status: 'conflict',
+        message: '保存状态已变化或已超过撤销时间',
+        input: { operation_id: 'op-1', saveId: 'save-1' },
+      });
+      expect(await screen.findByText(copy.toast.undoLate)).toBeTruthy();
+      expect(screen.queryByText(copy.toast.undoFailed)).toBeNull();
+      expect(cardOf('demo-event-draft-a').dataset.state).toBe('confirmed');
+    });
+  });
+
   it('撤销进行中离开页面：请求被中止，跨页面保留的提示区不再出现旧页面的待核实提示', async () => {
     const user = userEvent.setup();
     const undo = vi.fn(

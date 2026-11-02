@@ -493,6 +493,8 @@ export function ReceiptPage({
       });
     }
     retries.current.set(id, retry);
+    // 撤销送出后截止时间才到：提示留着，等结果到了再说已撤销或撤销时间已过
+    let undoing = false;
     const close = toast.show(message, {
       undoneText: copy.toast.undone,
       failedText: copy.toast.undoFailed,
@@ -503,14 +505,20 @@ export function ReceiptPage({
           void reload();
           return;
         }
-        const outcome = await attempt();
+        undoing = true;
+        const outcome = await attempt().finally(() => (undoing = false));
         if (outcome === 'cancelled') {
           close();
           return;
         }
         if (outcome === 'refused') {
-          // 只说被拒，这件事现在的状态以重读到的回执为准
+          // 只说被拒，这件事现在的状态以重读到的回执为准；截止后才被拒，按撤销时间已过说
           void reload();
+          if (msUntil(until) <= 0) {
+            close();
+            toast.show(copy.toast.undoLate);
+            return;
+          }
           throw new Error('undo refused');
         }
         if (outcome === 'superseded') {
@@ -525,7 +533,10 @@ export function ReceiptPage({
         }
       },
     });
-    if (remaining < UNDO_MS) setTimeout(close, remaining);
+    if (remaining < UNDO_MS)
+      setTimeout(() => {
+        if (!undoing) close();
+      }, remaining);
   }
 
   /** 核实撤销结果：重读回执；读到这件事就以快照为准，读不到就留在待核实。 */
