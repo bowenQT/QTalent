@@ -11,7 +11,10 @@ const aliases: readonly {
   parent: NavigationId;
   /** Shown until the page supplies its own title (see ShellTitle). */
   title: string;
-}[] = [{ path: '/person', parent: 'people', title: '人员档案' }];
+}[] = [
+  { path: '/person', parent: 'people', title: '人员档案' },
+  { path: '/work/reassign', parent: 'work', title: '重新分派' },
+];
 
 /** Admin sessions never see business titles: the shell shows one fixed line. */
 export const adminTitle = '这一页属于业务视角';

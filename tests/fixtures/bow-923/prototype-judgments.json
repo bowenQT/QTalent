@@ -1,0 +1,926 @@
+{
+  "demo": true,
+  "provenance": {
+    "commit": "81e4fd448f11d6c515bf447a81e85606d7b239ff",
+    "files": [
+      {
+        "path": "prototype/y/app/js/data-xe6.js",
+        "blob": "54b8c41229fa220a79e20eef48afafa71af81c79",
+        "sha256": "e091963074607e3d844d2b89b2cdf2cc74105afb8141aca0dcd334f09402197b"
+      },
+      {
+        "path": "prototype/y/app/js/data.js",
+        "blob": "3768bbcae5081c4267adfce0f9ccad8ac7d93f87",
+        "sha256": "5fd3879da3f59fd8420a13cd91c95520cefdd88a777033ff7ea639abcd167c5a"
+      }
+    ],
+    "source": "NT.SEED.JUDGE（jr-xe6）与 NT.SEED.RULES.front",
+    "fieldsCopied": [
+      "front.by/grade/items/team",
+      "back.by/grade",
+      "marks.reason/by/at",
+      "chain grades",
+      "map/std dates"
+    ],
+    "excluded": "未复制原型的前后段评语；夹具另写「演示重建」摘录。"
+  },
+  "scale": {
+    "front": ["刚过线", "通过", "优先录取"],
+    "back": ["不建议", "继续观察", "建议留用"],
+    "items": ["作品完整度与创新性", "开发过程与质量", "演示与表达"]
+  },
+  "dates": {
+    "standardEffective": "2026-06-15",
+    "standard": "2026-06-15",
+    "mapping": "2026-06-20",
+    "mappingConfirmedBy": "p-suwan",
+    "front": "2026-06-30",
+    "back": "2026-08-31"
+  },
+  "judgments": [
+    {
+      "personId": "p-x01",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-01", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x02",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-01", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x03",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-01", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x04",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-01", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x05",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-01", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x06",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x07",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x08",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x09",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x10",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x11",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x12",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "优先录取",
+        "items": ["A", "A", "A"],
+        "team": "七号队"
+      },
+      "back": { "evaluatorId": "s-29", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x13",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "优先录取",
+        "items": ["A", "A", "A"],
+        "team": "七号队"
+      },
+      "back": { "evaluatorId": "s-29", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x14",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x15",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "优先录取",
+        "items": ["A", "A", "A"],
+        "team": "七号队"
+      },
+      "back": { "evaluatorId": "s-29", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x16",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-24", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x17",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-24", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x18",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-24", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x19",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-24", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x20",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-24", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x21",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-24", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x22",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-27", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x23",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-27", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x24",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": null
+    },
+    {
+      "personId": "p-x25",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-27", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x26",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-27", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x27",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x28",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x29",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x30",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x31",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x32",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x33",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x34",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x35",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x36",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x37",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-22", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x38",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-04", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x39",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-04", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x40",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-04", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x41",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-04", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x42",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-04", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x43",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-04", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x44",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-04", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x45",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-04", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x46",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-04", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x47",
+      "front": null,
+      "back": { "evaluatorId": "s-10", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x48",
+      "front": null,
+      "back": { "evaluatorId": "s-10", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x49",
+      "front": null,
+      "back": { "evaluatorId": "s-10", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x50",
+      "front": null,
+      "back": { "evaluatorId": "s-10", "grade": "不建议" }
+    },
+    { "personId": "p-x51", "front": null, "back": null },
+    {
+      "personId": "p-x52",
+      "front": null,
+      "back": { "evaluatorId": "s-10", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x53",
+      "front": null,
+      "back": { "evaluatorId": "s-10", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x54",
+      "front": null,
+      "back": { "evaluatorId": "s-10", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x55",
+      "front": null,
+      "back": { "evaluatorId": "s-10", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x56",
+      "front": null,
+      "back": { "evaluatorId": "s-10", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x57",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-15", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x58",
+      "front": {
+        "evaluatorId": "p-yeqing",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-15", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x59",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-15", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x60",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-15", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x61",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-15", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x62",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-15", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x63",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-15", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x64",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-15", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x65",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-15", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x66",
+      "front": {
+        "evaluatorId": "s-28",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-15", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x67",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x68",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x69",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": null
+    },
+    {
+      "personId": "p-x70",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x71",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x72",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-06", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x73",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-06", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x74",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-06", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x75",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-06", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x76",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-06", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x77",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-06", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x78",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-06", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x79",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-06", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x80",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-06", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x81",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-06", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x82",
+      "front": {
+        "evaluatorId": "s-12",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x83",
+      "front": {
+        "evaluatorId": "s-12",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "继续观察" }
+    },
+    {
+      "personId": "p-x84",
+      "front": {
+        "evaluatorId": "s-12",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "不建议" }
+    },
+    {
+      "personId": "p-x85",
+      "front": {
+        "evaluatorId": "s-12",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-29", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x86",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-19", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x87",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "刚过线",
+        "items": ["B", "C", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-19", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x88",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-19", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x89",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-19", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x90",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": null
+    },
+    {
+      "personId": "p-x91",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-19", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x92",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "通过",
+        "items": ["B", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-19", "grade": "建议留用" }
+    },
+    {
+      "personId": "p-x93",
+      "front": {
+        "evaluatorId": "s-17",
+        "grade": "优先录取",
+        "items": ["A", "A", "B"],
+        "team": null
+      },
+      "back": { "evaluatorId": "s-19", "grade": "建议留用" }
+    }
+  ],
+  "marks": [
+    {
+      "personId": "p-x42",
+      "reason": "入营后从全套组转到前端方向，选拔作品和营内课题考的是不同方向",
+      "markedBy": "p-suwan",
+      "date": "2026-09-02"
+    }
+  ]
+}

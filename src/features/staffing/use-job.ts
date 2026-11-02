@@ -15,7 +15,11 @@ import {
 export type JobState<S> = Omit<JobSubscriptionState<unknown>, 'snapshot'> & {
   snapshot: S | null;
   signedOut: boolean;
+  /** The last read failed with {@link notConnectedStatus}; reads keep retrying. */
+  notConnected: boolean;
 };
+/** A reader's "not connected yet": transient, so the subscription retries it. */
+export const notConnectedStatus = 503;
 
 /**
  * Follows one job until it settles. A null id means nothing to follow. The result lives
@@ -51,6 +55,8 @@ export function useJob<S extends JobSnapshot<unknown>>(
           value: {
             ...(value as Omit<JobState<S>, 'signedOut'>),
             signedOut: value.connection === 'forbidden' && lastStatus === 401,
+            notConnected:
+              value.connection === 'error' && lastStatus === notConnectedStatus,
           },
         }),
       lifecycle: { online: window, visibility: document },

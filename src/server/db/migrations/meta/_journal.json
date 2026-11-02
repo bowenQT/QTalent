@@ -89,8 +89,64 @@
     {
       "idx": 12,
       "version": "7",
-      "when": 1793593037649,
-      "tag": "0012_entry_credentials_audit_channel",
+      "when": 1793590080050,
+      "tag": "0012_bow_918_919_921_selection_comparison_attribution",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793593880459,
+      "tag": "0013_bow_854_staffing_match",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793596944482,
+      "tag": "0014_bow_834_directory_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793599967790,
+      "tag": "0015_bow_926_material_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793612539131,
+      "tag": "0016_entry_credentials_audit_channel",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793615684821,
+      "tag": "0017_bow_902_node_conclusions",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793626415310,
+      "tag": "0018_bow_849_score_review_calibration",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793627773444,
+      "tag": "0019_bow_904_management_observations",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793628815021,
+      "tag": "0020_media_native_review",
       "breakpoints": true
     }
   ]
