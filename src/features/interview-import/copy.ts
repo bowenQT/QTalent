@@ -38,8 +38,7 @@ export const sentToast = '已放进待核对，北森同步后再确认是谁';
 export const sentToastNotHired = '已放进待核对，确认是谁之前不入档';
 export const unknownHired = '同步后再核对一次';
 export const unknownNotHired = '确认是谁之前不入档';
-export const skippedNote =
-  '确认是谁以后，淘汰和未入职的候选人跳过，只导入已入职的人';
+export const skippedNote = '淘汰和未入职的候选人跳过，只导入已入职的人';
 export const importPending = '导入待接通';
 export const actionFailed = '保存失败，已保留当前内容，请稍后再试';
 /** A fill-in HR chose that did not reach the server; it stays in the field. */
