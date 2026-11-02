@@ -17,6 +17,7 @@ const devRoutes = [
   '/dev/design-system/talent',
   '/dev/design-system/sources',
   '/dev/design-system/sources/view',
+  '/dev/inbox?role=hr',
   '/dev/staffing?role=hr&scene=ts',
 ];
 
