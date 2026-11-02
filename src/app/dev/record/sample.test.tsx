@@ -159,13 +159,27 @@ describe('sample server', () => {
       operation_id: 'op-undo',
       saveId: saved.result.saveId,
     });
-    expect(undone.status === 'success' && undone.result).toMatchObject({
-      inputRestoration: 'unavailable',
-      originalInput: null,
+    expect(undone).toMatchObject({
+      status: 'success',
+      result: {
+        draftRestoration: {
+          status: 'available',
+          draftId: draft!.draftId,
+          draftRevision: draft!.revision,
+        },
+        inputRestoration: 'unavailable',
+        originalInput: null,
+      },
     });
     expect((await s.read(batchId)).draftSet?.drafts[0]?.draftId).toBe(
       draft!.draftId,
     );
+    expect(
+      await s.actions.save({
+        ...saveInput(draft!.draftId, draft!.revision),
+        operation_id: 'op-again',
+      }),
+    ).toMatchObject({ status: 'success' });
   });
 
   it('rejects a stale revision, a missing draft and a missing batch', async () => {

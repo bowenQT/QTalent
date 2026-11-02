@@ -349,6 +349,15 @@ export function sampleServer({
           withdrawnEvents: [],
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
+          // 照 846（#317）：回执给出撤销后再保存要用的草稿版本。样张保存不推进版本，
+          // 所以就是草稿当前的版本；真实服务端保存、撤销各加一
+          draftRestoration: task
+            ? {
+                status: 'available',
+                draftId: saved.draft.draftId,
+                draftRevision: saved.draft.revision,
+              }
+            : { status: 'refresh_required' },
           // 照 846（#289）：撤销回执不带原输入，页面用自己保存时的原话回到待确认
           inputRestoration: 'unavailable',
           originalInput: null,

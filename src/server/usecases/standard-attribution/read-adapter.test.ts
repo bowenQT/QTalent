@@ -52,6 +52,8 @@ function setup() {
     id: 'hr',
     name: '苏晚（演示）',
     organizationId: 'org',
+    jobTitle: null,
+    jobLevel: null,
     photo: null,
     hue: 220,
     noReview: false,
