@@ -16,7 +16,7 @@ export default defineConfig({
       'tests/e2e/**/*.test.ts',
       'tests/visual/**/*.test.ts',
     ],
-    exclude: ['src/**/*.integration.test.ts'],
+    exclude: ['**/*.integration.test.ts'],
     pool: 'forks',
     coverage: {
       provider: 'v8',
