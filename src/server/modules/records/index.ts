@@ -28,6 +28,11 @@ export type {
 
 // Batch preparation and persisted input facts; the native usecase owns authorization.
 export { arrangeInputs } from './arrange/input-state/schema';
+export {
+  managementObservations,
+  managementObservationSources,
+  managementObservationOperations,
+} from './management-observations/schema';
 export type {
   ArrangeSourceContext,
   StoredArrangeInput,
