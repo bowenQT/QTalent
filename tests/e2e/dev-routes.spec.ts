@@ -86,6 +86,17 @@ test('production build serves no design-system sample routes', async () => {
         (await fetch(`${baseURL}${route}`)).status,
         `${route} must not exist in production`,
       ).toBe(404);
+    // The test-only Kodo v2 upload double answers POST/PUT; GET would be 405.
+    for (const method of ['POST', 'PUT'])
+      expect(
+        (
+          await fetch(
+            `${baseURL}/api/test/kodo/buckets/test-bucket/objects/a/uploads`,
+            { method },
+          )
+        ).status,
+        `${method} /api/test/kodo must not exist in production`,
+      ).toBe(404);
   } finally {
     await stop();
   }

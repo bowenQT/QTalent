@@ -20,7 +20,7 @@ import { createValidatedAttachmentInput } from '../attachments/upload-input';
 import type { Transaction } from '../../../db/client';
 import { newJob } from '../../../jobs/state';
 import { createRecordCollectionService } from './collections';
-import { fixture } from '../../../../../tests/fixtures/upload-fake';
+import { dispatched, fixture } from '../../../../../tests/fixtures/upload-fake';
 
 let admin: Pool | undefined;
 let connection: ReturnType<typeof createDatabase> | undefined;
@@ -183,7 +183,7 @@ it('persists one original/version/mapping and one dispatch under concurrent comp
   const handoff = await readValidatedUpload(f.store, result);
   expect(version.contentDigest).toBe(handoff!.object.sha256);
   expect(handoff).toMatchObject({
-    jobId: result.jobId,
+    jobId: dispatched(result).jobId,
     purpose: 'attachment',
     recordCollectionId: f.request.recordCollectionId,
     object: { objectKey: f.grant.objectKey, byteLength: 7 },
@@ -494,7 +494,7 @@ it('keeps the actual873 collection binding through866 context load and separate 
   });
   const job = newJob(
     {
-      jobId: completed.jobId,
+      jobId: dispatched(completed).jobId,
       kind: 'media',
       resourceId: completed.uploadId,
       inputVersion: completed.originalVersionId,
@@ -505,7 +505,7 @@ it('keeps the actual873 collection binding through866 context load and separate 
     async (tx) => {
       expect(await input.loadAuthorizedAttachment(tx, job)).toMatchObject({
         recordCollectionId: f.request.recordCollectionId,
-        completedJobId: completed.jobId,
+        completedJobId: dispatched(completed).jobId,
         version: { originalVersionId: completed.originalVersionId },
       });
       expect(authorizedContext).toBe(tx);

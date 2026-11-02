@@ -1,0 +1,2 @@
+ALTER TABLE "records_upload_collections" DROP CONSTRAINT "records_upload_collection_target";--> statement-breakpoint
+ALTER TABLE "records_upload_collections" ADD CONSTRAINT "records_upload_collection_target" CHECK (coalesce(jsonb_typeof("records_upload_collections"."target") = 'object' and "records_upload_collections"."target"->>'kind' in ('people','event','unassigned'), false));
