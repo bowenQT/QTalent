@@ -74,7 +74,7 @@ export const copy = {
     waitFor: (name: string) => `等${name}确认`,
     confirmedOn: (date: string) => `${date} 确认，已进入档案`,
     confirmedShort: '已确认，已进入档案',
-    undoPending: '撤销结果待确认，可以重试',
+    undoPending: '撤销结果待核实，可以再试一次撤销',
     undoRetry: '再试一次撤销',
     undoVerify: '撤销结果待核实：刷新回执，看这件事现在的状态',
     undoReread: '刷新回执',
@@ -105,7 +105,7 @@ export const copy = {
     undone: '已撤销，回到待确认',
     undoFailed: '撤销被拒绝，以回执里的状态为准',
     undoLate: '撤销时间已过，以回执里的状态为准',
-    undoUnknown: '撤销结果待确认，可以在这件事上再试一次',
+    undoUnknown: '撤销结果待核实，可以在这件事上再试一次',
   },
   read: {
     stale: (time: string) => `这次刷新中断了，下面是 ${time} 读到的回执`,

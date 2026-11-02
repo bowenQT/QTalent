@@ -430,8 +430,8 @@ export function ReceiptPage({
             }
           : item,
       );
-      await reload();
-      focusCard(id);
+      // 不等重读：提示马上换成「已撤销」，卡片随重读更新
+      void reload().then(() => focusCard(id));
       return 'success';
     }
     function retry() {
@@ -603,7 +603,11 @@ export function ReceiptPage({
         </span>
       </header>
       {readIssue?.kind === 'lost' ? (
-        <div className="n-notice is-deny" role="alert">
+        <div
+          className="n-notice is-deny"
+          role="alert"
+          style={{ margin: '0 0 var(--s-5)' }}
+        >
           <Icon name="info" />
           <div>
             <b>{copy.read[readIssue.status].title}</b>
@@ -616,7 +620,11 @@ export function ReceiptPage({
           </div>
         </div>
       ) : readIssue?.kind === 'stale' ? (
-        <div className="n-notice is-plain" role="status">
+        <div
+          className="n-notice is-plain"
+          role="status"
+          style={{ margin: '0 0 var(--s-5)' }}
+        >
           <Icon name="info" />
           <div>
             {readIssue.since

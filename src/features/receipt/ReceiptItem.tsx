@@ -11,7 +11,7 @@ import type { MaterialSourceReference } from '@/contracts/sources';
 import { copy } from './copy';
 import {
   draftScoreKey,
-  formatLocation,
+  locationFor,
   isEdited,
   leadQuote,
   materialCount,
@@ -378,7 +378,7 @@ export function ReceiptItem({
             source={{
               kind: citeKind[ref.location.kind],
               title: materialLabel(receipt, ref.originalVersionId),
-              location: formatLocation(ref),
+              location: locationFor(receipt, ref),
             }}
           />
         ))}

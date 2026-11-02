@@ -1805,3 +1805,83 @@ describe('请求的时限、失败和归属（续作第 2 轮）', () => {
     });
   });
 });
+
+describe('视觉续作第 1 轮', () => {
+  it('撤销结果不知道的那一态叫「待核实」，不和「待确认」撞词', () => {
+    expect(copy.confirm.undoPending).toContain('待核实');
+    expect(copy.confirm.undoPending).not.toContain('待确认');
+    expect(copy.toast.undoUnknown).toContain('待核实');
+    expect(copy.toast.undoUnknown).not.toContain('待确认');
+  });
+
+  it('撤销成功：提示马上换成「已撤销」，不等撤销后的重读', async () => {
+    const user = userEvent.setup();
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 'success', view: make() })
+      .mockReturnValue(new Promise(() => undefined));
+    mountWith(make(), {
+      read,
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi.fn().mockResolvedValue(undoneResult(3)),
+    });
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    // 撤销后的重读一直不回：提示照样已经换了
+    expect(await screen.findByText(copy.toast.undone)).toBeTruthy();
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it('只写原话的批次：事件卡的出处写「原话」，不出现段落编号', () => {
+    const view = make(
+      {},
+      {
+        files: [],
+        textMaterial: { materialId: 'm-text', originalVersionId: 'ver-text' },
+        draftSet: {
+          batchId: 'demo-batch',
+          revision: 1,
+          drafts: [
+            {
+              ...draft,
+              sourceReferences: [
+                {
+                  fragmentId: 'f-text',
+                  originalVersionId: 'ver-text',
+                  location: { kind: 'document', paragraph: 'input' },
+                },
+              ],
+              scores: draft.scores.map((score) =>
+                score.state === 'suggested'
+                  ? {
+                      ...score,
+                      citations: score.citations.map((c) => ({
+                        ...c,
+                        reference: {
+                          fragmentId: 'f-text',
+                          originalVersionId: 'ver-text',
+                          location: { kind: 'document', paragraph: 'input' },
+                        },
+                      })),
+                    }
+                  : score,
+              ),
+            },
+          ],
+          duplicateCandidates: [],
+        },
+      },
+    );
+    mountWith(view, { read: vi.fn(), save: vi.fn(), undo: vi.fn() });
+    const card = cardOf('demo-event-draft-a');
+    expect(card.textContent).not.toMatch(/第 input 段|input/);
+    expect(card.querySelector('.n-rcpt__quote small')?.textContent).toBe(
+      '原话',
+    );
+  });
+});
