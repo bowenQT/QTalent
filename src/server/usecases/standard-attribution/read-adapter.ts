@@ -1,4 +1,7 @@
-import { comparisonActorSchema } from '../../../contracts/judgment-comparison';
+import {
+  comparisonActorSchema,
+  comparisonTableRowSchema,
+} from '../../../contracts/judgment-comparison';
 import { selectionStandardReadResultSchema } from '../../../contracts/selection-standard';
 import { activeGrants } from '../../authz';
 import {
@@ -32,6 +35,49 @@ export class AttributionReadUnavailableError extends Error {
   }
 }
 type Identity = Awaited<ReturnType<typeof loadEvaluationContext>>;
+
+export const same = (a: unknown, b: unknown): boolean => {
+  if (Array.isArray(a) && Array.isArray(b))
+    return a.length === b.length && a.every((v, i) => same(v, b[i]));
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    const x = a as Record<string, unknown>,
+      y = b as Record<string, unknown>;
+    return (
+      Object.keys(x).length === Object.keys(y).length &&
+      Object.keys(x).every((k) => Object.hasOwn(y, k) && same(x[k], y[k]))
+    );
+  }
+  return Object.is(a, b);
+};
+
+/** Every citation must be a case of the current authorized batch, on the same
+ * stage, node, standard version and source row. */
+export function referencesMatch(
+  batch: HrAttributionBatch,
+  citations: {
+    caseId: string;
+    side: 'front' | 'back';
+    nodeId: string;
+    standardVersionId: string;
+    row: unknown;
+  }[],
+) {
+  return citations.every((c) => {
+    const unit = batch.candidates.find(
+      (v) => v.id === c.caseId && batch.authorizedCaseIds.includes(v.id),
+    );
+    const stage = unit?.[c.side];
+    return (
+      stage?.state === 'present' &&
+      c.nodeId === stage.judgment.nodeId &&
+      c.standardVersionId === stage.judgment.standardVersionId &&
+      same(
+        comparisonTableRowSchema.parse(c.row),
+        comparisonTableRowSchema.parse(stage.judgment.row),
+      )
+    );
+  });
+}
 
 /** Consumes canonical 919 facts; callers cannot supply grants or precomputed outcomes.
  * Source byte/row identity remains the canonical reader's responsibility.

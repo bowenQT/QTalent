@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database, Transaction } from '../db/client';
 import {
   recordBatchDraftSetSchema,
@@ -11,7 +11,12 @@ import {
 import {
   materialBatchReceiptSchema,
   type MaterialBatchReceipt,
+  type MaterialFileReceipt,
 } from '../../contracts/materials';
+import { jobSnapshots } from '../jobs/schema';
+import { uploadIntents } from '../modules/records/uploads/schema';
+import { mediaMaterials } from '../modules/records/material-review/schema';
+import { attachmentJobResultSchema } from '../modules/records/attachments/flow';
 import { createJobStore } from '../jobs/repository';
 import type { JobStore, JobPolicy } from '../jobs/service';
 import type { JobRecord } from '../jobs/state';
@@ -27,6 +32,7 @@ import {
   storeTrustedRecordDraftBatch,
   reviseTrustedRecordDraftBatch,
   batchDigest,
+  materialParses,
 } from '../modules/records';
 import { readBatchArrangeRules } from '../modules/records/arrange/batch-rules';
 import { projectBatchReceipt } from '../modules/records/arrange/batch-receipt';
@@ -35,6 +41,8 @@ import {
   loadArrangeActor,
   canWriteArrange,
   requireNativeInput,
+  requireNativeMediaInput,
+  isNativeMediaInput,
   loadRecordBatchSnapshot,
   NativeArrangeUnavailable,
 } from './record-arrange-context';
@@ -55,6 +63,8 @@ export interface NativeBatchDependencies {
   db: Database;
   businessNow(): string;
   now(): Date;
+  /** Persists the job's queue message in `tx`: a `record_organize` job goes to the
+   * arrange worker, a `media` job (one file's parse) to the attachment worker. */
   enqueue(tx: Transaction, job: JobRecord): Promise<void>;
   newId?(): string;
 }
@@ -142,6 +152,64 @@ function nativeJobStore(db: Database): JobStore<Transaction> {
       }),
   };
 }
+const unsupportedMessage = {
+  format: '这种文件格式暂不能解析，原文件已保存',
+  scanned: '扫描件暂不能识别文字，原文件已保存',
+  no_usable_content: '文件里没有可整理的文字，原文件已保存',
+} as const;
+/** One file's state, read from its own upload parse job. */
+function mediaFileReceipt(
+  file: {
+    materialId: string;
+    clientFileId: string;
+    filename: string;
+    originalVersionId: string;
+  },
+  parseJobId: string,
+  parseJob: typeof jobSnapshots.$inferSelect | undefined,
+  parseVersionId: string | undefined,
+): MaterialFileReceipt {
+  const result = attachmentJobResultSchema.safeParse(parseJob?.result);
+  const stage = result.success ? result.data.stage : null;
+  if (
+    !parseJob ||
+    ['queued', 'running', 'partial'].includes(parseJob.status) ||
+    stage === 'parsing'
+  )
+    return { ...file, status: 'processing', jobId: parseJobId };
+  if (parseJob.status === 'completed' && stage === 'parsed' && parseVersionId)
+    return { ...file, status: 'parsed', parseVersionId };
+  const reason = result.success ? result.data.failureReason : undefined;
+  if (reason === 'format' || reason === 'scanned')
+    return {
+      ...file,
+      status: 'unsupported',
+      reason,
+      message: unsupportedMessage[reason],
+    };
+  if (reason === 'empty')
+    return {
+      ...file,
+      status: 'unsupported',
+      reason: 'no_usable_content',
+      message: unsupportedMessage.no_usable_content,
+    };
+  if (reason === 'invalid_content' || reason === 'integrity')
+    return {
+      ...file,
+      status: 'failed',
+      code: 'invalid_content',
+      message: '文件内容无法读取，请检查后重新上传',
+      retryable: false,
+    };
+  return {
+    ...file,
+    status: 'failed',
+    code: 'processing_failed',
+    message: '解析没有完成，原文件已保存',
+    retryable: reason !== 'resource_limit',
+  };
+}
 export function createNativeBatchStore(deps: NativeBatchDependencies) {
   const store = nativeJobStore(deps.db);
   const now = () => deps.now().toISOString();
@@ -171,6 +239,24 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
     )
       return false;
     try {
+      // A files-only batch has no people or drafts yet: its creator keeps
+      // read/control access while they can still write on the node.
+      if (isNativeMediaInput(value)) {
+        const actor = await loadArrangeActor(
+          tx,
+          value.creatorAccountId,
+          deps.businessNow(),
+        );
+        return (
+          actor.context.account.personId === metadata.actorPersonId &&
+          canWriteArrange(
+            actor,
+            [],
+            null,
+            requireNativeMediaInput(value).evaluationNodeId,
+          )
+        );
+      }
       const draftSet = await readNativeDraftSet(
         tx,
         requireNativeInput(value).batchId,
@@ -243,12 +329,105 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
       throw error;
     }
   }
+  async function mediaReceipt(
+    tx: Transaction,
+    job: JobRecord,
+    input: StoredArrangeInput,
+  ): Promise<MaterialBatchReceipt> {
+    const native = requireNativeMediaInput(input);
+    const rows = await tx
+      .select({
+        material: mediaMaterials,
+        request: uploadIntents.request,
+      })
+      .from(mediaMaterials)
+      .innerJoin(uploadIntents, eq(uploadIntents.id, mediaMaterials.uploadId))
+      .where(
+        and(
+          eq(mediaMaterials.inputId, input.id),
+          eq(mediaMaterials.inputVersion, input.inputVersion),
+        ),
+      );
+    const byId = new Map(rows.map((row) => [row.material.id, row]));
+    const ordered = native.originalInput.materialIds.map((materialId) => {
+      const row = byId.get(materialId);
+      if (!row)
+        throw new NativeArrangeUnavailable('native_media_material_missing');
+      return row;
+    });
+    // Unlocked reads: the attachment worker owns its job row's lock.
+    const parseJobs = new Map(
+      (
+        await tx
+          .select()
+          .from(jobSnapshots)
+          .where(
+            inArray(
+              jobSnapshots.jobId,
+              ordered.map((row) => row.material.parseJobId),
+            ),
+          )
+      ).map((row) => [row.jobId, row]),
+    );
+    const parseJobFor = (material: typeof mediaMaterials.$inferSelect) =>
+      parseJobs.get(material.parseJobId);
+    const parses = await tx
+      .select({
+        id: materialParses.id,
+        jobId: materialParses.jobId,
+        originalVersionId: materialParses.originalVersionId,
+      })
+      .from(materialParses)
+      .where(
+        inArray(
+          materialParses.jobId,
+          ordered.map(({ material }) => material.parseJobId),
+        ),
+      );
+    const files = ordered.map(({ material, request }) => {
+      const parseJob = parseJobFor(material);
+      return mediaFileReceipt(
+        {
+          materialId: material.id,
+          clientFileId: material.clientFileId,
+          filename: request.filename,
+          originalVersionId: material.originalVersionId,
+        },
+        material.parseJobId,
+        parseJob,
+        parses.find(
+          (row) =>
+            row.jobId === material.parseJobId &&
+            row.originalVersionId === material.originalVersionId,
+        )?.id,
+      );
+    });
+    return projectBatchReceipt({
+      batchId: native.batchId,
+      revision: 1,
+      evaluationNodeId: native.evaluationNodeId,
+      personIds: [],
+      projectId: null,
+      hasHiddenContent: false,
+      files,
+      textMaterial: null,
+      jobId: ['queued', 'running', 'partial'].includes(job.status)
+        ? job.jobId
+        : null,
+      items: [],
+      resolvedItems: [],
+      draftSet: null,
+      confirmedDrafts: [],
+      error: null,
+    });
+  }
   async function receipt(
     tx: Transaction,
     job: JobRecord,
     input: StoredArrangeInput,
     metadata: BatchJobMetadata,
   ): Promise<MaterialBatchReceipt> {
+    if (isNativeMediaInput(input)) return mediaReceipt(tx, job, input);
     const native = requireNativeInput(input);
     const all = await readNativeDraftSet(tx, native.batchId, input);
     const active = await tx

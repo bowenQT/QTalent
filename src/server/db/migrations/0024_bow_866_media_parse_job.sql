@@ -1,0 +1,3 @@
+ALTER TABLE "records_media_materials" ADD COLUMN "parse_job_id" text NOT NULL;--> statement-breakpoint
+ALTER TABLE "records_media_materials" ADD CONSTRAINT "records_media_materials_parse_job_id_job_snapshots_job_id_fk" FOREIGN KEY ("parse_job_id") REFERENCES "public"."job_snapshots"("job_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "records_media_materials" ADD CONSTRAINT "records_media_material_parse_job" UNIQUE("parse_job_id");
