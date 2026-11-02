@@ -17,6 +17,7 @@ import { importDemo } from './import';
 import { mapPrototypeSeed, readPrototypeSeed } from './seed';
 import {
   seedVerifiedLegacyBaseline as legacySeed,
+  insertLegacyRows,
   readLegacyRows,
   fingerprintMigrationFacts as legacyFingerprint,
 } from '../../../tests/fixtures/legacy-migration-seed';
@@ -91,11 +92,30 @@ async function previous(connection: Connection) {
 }
 async function legacyPlan(connection: Connection) {
   return planLegacyEvaluationNodes({
-    cohorts: await readLegacyRows(connection, programs.cohorts),
-    people: await readLegacyRows(connection, directory.people),
-    enrollments: await readLegacyRows(connection, programs.enrollments),
-    assignments: await readLegacyRows(connection, programs.assignments),
-    projects: await readLegacyRows(connection, staffing.projects),
+    cohorts: await readLegacyRows(connection, programs.cohorts, ['id', 'name']),
+    people: await readLegacyRows(connection, directory.people, ['id']),
+    enrollments: await readLegacyRows(connection, programs.enrollments, [
+      'cohortId',
+      'personId',
+      'confirmed',
+      'validFrom',
+      'validTo',
+      'revokedAt',
+    ]),
+    assignments: await readLegacyRows(connection, programs.assignments, [
+      'id',
+      'cohortId',
+      'personId',
+      'studentId',
+      'kind',
+      'validFrom',
+      'validTo',
+      'revokedAt',
+    ]),
+    projects: await readLegacyRows(connection, staffing.projects, [
+      'id',
+      'cohortId',
+    ]),
     events: await connection.db
       .select({
         id: records.events.id,
@@ -171,16 +191,18 @@ it('upgrades a genuinely pre-899 seeded database using only unique historical fa
     await previous(connection);
     const seed = await legacySeed(connection);
     const first = seed.evidence.events[0];
-    await connection.db
-      .insert(programs.cohorts)
-      .values({ id: 'synthetic-overlap', name: '演示重叠期次' });
-    await connection.db.insert(programs.enrollments).values({
-      id: 'synthetic-overlap-membership',
-      cohortId: 'synthetic-overlap',
-      personId: first.personId,
-      confirmed: true,
-      validFrom: '2020-01-01',
-    });
+    await insertLegacyRows(connection, programs.cohorts, [
+      { id: 'synthetic-overlap', name: '演示重叠期次' },
+    ]);
+    await insertLegacyRows(connection, programs.enrollments, [
+      {
+        id: 'synthetic-overlap-membership',
+        cohortId: 'synthetic-overlap',
+        personId: first.personId,
+        confirmed: true,
+        validFrom: '2020-01-01',
+      },
+    ]);
     // Old schema has no evaluation_node_id: use its physical columns deliberately.
     await connection.pool.query(
       'INSERT INTO records_events (id, person_id, recorder_id, occurred_on, title, situation, behavior, impact, project_id, rule_version_id, demo) SELECT $1, person_id, recorder_id, occurred_on, title, situation, behavior, impact, NULL, rule_version_id, demo FROM records_events WHERE id = $2',
@@ -190,10 +212,10 @@ it('upgrades a genuinely pre-899 seeded database using only unique historical fa
       'INSERT INTO records_events (id, person_id, recorder_id, occurred_on, title, situation, behavior, impact, project_id, rule_version_id, demo) SELECT $1, person_id, recorder_id, $3::date, title, situation, behavior, impact, NULL, rule_version_id, demo FROM records_events WHERE id = $2',
       ['synthetic-no-history', first.id, '1900-01-01'],
     );
-    await connection.db
-      .update(programs.assignments)
-      .set({ revokedAt: '2026-06-01' })
-      .where(eq(programs.assignments.id, 'demo-assignment-0'));
+    await connection.pool.query(
+      'UPDATE programs_assignments SET revoked_at = $1 WHERE id = $2',
+      ['2026-06-01', 'demo-assignment-0'],
+    );
     const before = await legacyFingerprint(connection);
     const plan = await legacyPlan(connection);
     await migrate(connection.db, { migrationsFolder: folder });

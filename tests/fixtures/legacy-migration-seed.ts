@@ -15,41 +15,109 @@ import * as records from '../../src/server/modules/records/schema';
 import * as talent from '../../src/server/modules/talent/schema';
 type Connection = ReturnType<typeof createDatabase>;
 
-/** The pre-899 physical columns, pinned to the last snapshot before 899.
+/** Physical columns pinned to a committed snapshot; 0002 is the last one before 899.
  * Later migrations only add columns, so these exist in every newer database;
  * columns added later take their defaults when an old database is upgraded. */
-const legacyColumns = new Map(
-  Object.values(
-    JSON.parse(
-      readFileSync(
-        join(process.cwd(), 'src/server/db/migrations/meta/0002_snapshot.json'),
-        'utf8',
-      ),
-    ).tables as Record<
-      string,
-      { name: string; columns: Record<string, unknown> }
-    >,
-  ).map((table) => [table.name, new Set(Object.keys(table.columns))]),
-);
-function legacyKeys(table: PgTable) {
+const snapshotColumns = new Map<string, Map<string, Set<string>>>();
+function columnsAt(snapshot: string) {
+  let tables = snapshotColumns.get(snapshot);
+  if (!tables) {
+    tables = new Map(
+      Object.values(
+        JSON.parse(
+          readFileSync(
+            join(
+              process.cwd(),
+              'src/server/db/migrations/meta',
+              snapshot + '_snapshot.json',
+            ),
+            'utf8',
+          ),
+        ).tables as Record<
+          string,
+          { name: string; columns: Record<string, unknown> }
+        >,
+      ).map((table) => [table.name, new Set(Object.keys(table.columns))]),
+    );
+    snapshotColumns.set(snapshot, tables);
+  }
+  return tables;
+}
+function legacyKeys(table: PgTable, snapshot = '0002') {
   const columns = getTableColumns(table);
-  const known = legacyColumns.get(getTableName(table));
-  if (!known) throw new Error('Not a pre-899 table: ' + getTableName(table));
+  const known = columnsAt(snapshot).get(getTableName(table));
+  if (!known)
+    throw new Error(
+      'Not a table in snapshot ' + snapshot + ': ' + getTableName(table),
+    );
   return Object.keys(columns).filter((key) => known.has(columns[key].name));
 }
 
-/** Read an old database through its pre-899 columns only. */
-export async function readLegacyRows<T extends PgTable>(
+/** Read named pre-899 columns from an old database; the result type is exactly those columns. */
+export async function readLegacyRows<
+  T extends PgTable,
+  K extends keyof T['$inferSelect'] & string,
+>(
   connection: Connection,
   table: T,
-): Promise<T['$inferSelect'][]> {
+  keys: readonly K[],
+): Promise<Pick<T['$inferSelect'], K>[]> {
+  const legacy = new Set(legacyKeys(table));
+  const missing = keys.filter((key) => !legacy.has(key));
+  if (missing.length)
+    throw new Error(
+      'Not a pre-899 column of ' +
+        getTableName(table) +
+        ': ' +
+        missing.join(','),
+    );
   const columns = getTableColumns(table);
-  const selection = Object.fromEntries(
-    legacyKeys(table).map((key) => [key, columns[key]]),
+  const selection = Object.fromEntries(keys.map((key) => [key, columns[key]]));
+  return (await connection.db.select(selection).from(table as PgTable)) as Pick<
+    T['$inferSelect'],
+    K
+  >[];
+}
+
+/** Insert rows into an OLD physical table through the columns of a committed snapshot
+ * (default 0002, before 899). Seed keys outside it are dropped; omitted columns take database defaults. */
+export async function insertLegacyRows(
+  connection: Connection,
+  table: PgTable,
+  input: readonly object[],
+  snapshot = '0002',
+) {
+  if (!input.length) return;
+  const columns = getTableColumns(table);
+  const rows = input as Record<string, unknown>[];
+  const legacy = new Set(legacyKeys(table, snapshot));
+  const keys = [...new Set(rows.flatMap(Object.keys))].filter((key) =>
+    legacy.has(key),
   );
-  return (await connection.db
-    .select(selection)
-    .from(table as PgTable)) as T['$inferSelect'][];
+  for (let start = 0; start < rows.length; start += 100) {
+    const values: unknown[] = [];
+    const placeholders = rows.slice(start, start + 100).map(
+      (row) =>
+        '(' +
+        keys
+          .map((key) => {
+            const value = row[key];
+            if (value === undefined) return 'DEFAULT';
+            values.push(
+              columns[key].dataType === 'json' && value !== null
+                ? JSON.stringify(value)
+                : value,
+            );
+            return '$' + values.length;
+          })
+          .join(',') +
+        ')',
+    );
+    await connection.pool.query(
+      `INSERT INTO "${getTableName(table)}" (${keys.map((key) => '"' + columns[key].name + '"').join(',')}) VALUES ${placeholders.join(',')}`,
+      values,
+    );
+  }
 }
 
 /** Insert the verified baseline into the OLD physical schema, without calling the new seed importer. */
@@ -58,39 +126,8 @@ export async function seedVerifiedLegacyBaseline(
   password?: string,
 ) {
   const seed = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
-  async function insert(table: PgTable, input: readonly object[]) {
-    if (!input.length) return;
-    const columns = getTableColumns(table);
-    const rows = input as Record<string, unknown>[];
-    const legacy = new Set(legacyKeys(table));
-    const keys = [...new Set(rows.flatMap(Object.keys))].filter((key) =>
-      legacy.has(key),
-    );
-    for (let start = 0; start < rows.length; start += 100) {
-      const values: unknown[] = [];
-      const placeholders = rows.slice(start, start + 100).map(
-        (row) =>
-          '(' +
-          keys
-            .map((key) => {
-              const value = row[key];
-              if (value === undefined) return 'DEFAULT';
-              values.push(
-                columns[key].dataType === 'json' && value !== null
-                  ? JSON.stringify(value)
-                  : value,
-              );
-              return '$' + values.length;
-            })
-            .join(',') +
-          ')',
-      );
-      await connection.pool.query(
-        `INSERT INTO "${getTableName(table)}" (${keys.map((key) => '"' + columns[key].name + '"').join(',')}) VALUES ${placeholders.join(',')}`,
-        values,
-      );
-    }
-  }
+  const insert = (table: PgTable, rows: readonly object[]) =>
+    insertLegacyRows(connection, table, rows);
   await insert(
     directory.organizations,
     seed.organizations.map((row) => ({ ...row, shortName: row.name })),

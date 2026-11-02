@@ -16,6 +16,7 @@ import { createDatabase } from './client';
 import { importDemo } from './import';
 import { mapPrototypeSeed, readPrototypeSeed } from './seed';
 import {
+  insertLegacyRows,
   seedVerifiedLegacyBaseline,
   fingerprintMigrationFacts,
 } from '../../../tests/fixtures/legacy-migration-seed';
@@ -186,9 +187,12 @@ it('keeps published 0000–0004 SQL/meta identical and applies the default migra
 it('upgrades canonical old seeded facts through 899, classifies only the two known rules from real usage, and changes no source/score/node facts', async () => {
   await isolated(async (connection) => {
     await seededPrevious(connection);
-    await connection.db
-      .insert(ruleVersions)
-      .values({ id: 'unmapped-existing-v1', provenance: 'published' });
+    await insertLegacyRows(
+      connection,
+      ruleVersions,
+      [{ id: 'unmapped-existing-v1', provenance: 'published' }],
+      '0004',
+    );
     const before = await fingerprintMigrationFacts(
       connection,
       undefined,
@@ -246,9 +250,12 @@ it('upgrades canonical old seeded facts through 899, classifies only the two kno
 it('missing historical usage fails the full pending migration transaction, leaving old rows and journal unchanged; a corrected batch can retry', async () => {
   await isolated(async (connection) => {
     await stage(connection, 5);
-    await connection.db
-      .insert(ruleVersions)
-      .values({ id: 'rubric-v1', provenance: 'published' });
+    await insertLegacyRows(
+      connection,
+      ruleVersions,
+      [{ id: 'rubric-v1', provenance: 'published' }],
+      '0004',
+    );
     const before = await fingerprintMigrationFacts(
       connection,
       undefined,
@@ -297,31 +304,39 @@ it('preserves existing closed and restored intervals while backfilling only the 
   await isolated(async (connection) => {
     await seededPrevious(connection);
     await stage(connection, 6); // committed BOW-922 structure, before its explicit data step
-    await connection.db
-      .insert(ruleVersions)
-      .values({ id: 'rubric-v2', provenance: 'published' });
-    await connection.db.insert(ruleVersionApplicability).values([
-      {
-        periodId: 'retained:v1:first',
-        versionId: 'rubric-v1',
-        category: 'dimension_anchors',
-        effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
-        effectiveUntil: new Date('2026-06-01T00:00:00.000Z'),
-      },
-      {
-        periodId: 'retained:v2',
-        versionId: 'rubric-v2',
-        category: 'dimension_anchors',
-        effectiveFrom: new Date('2026-06-01T00:00:00.000Z'),
-        effectiveUntil: new Date('2026-09-01T00:00:00.000Z'),
-      },
-      {
-        periodId: 'retained:v1:restored',
-        versionId: 'rubric-v1',
-        category: 'dimension_anchors',
-        effectiveFrom: new Date('2026-09-01T00:00:00.000Z'),
-      },
-    ]);
+    await insertLegacyRows(
+      connection,
+      ruleVersions,
+      [{ id: 'rubric-v2', provenance: 'published' }],
+      '0005',
+    );
+    await insertLegacyRows(
+      connection,
+      ruleVersionApplicability,
+      [
+        {
+          periodId: 'retained:v1:first',
+          versionId: 'rubric-v1',
+          category: 'dimension_anchors',
+          effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
+          effectiveUntil: new Date('2026-06-01T00:00:00.000Z'),
+        },
+        {
+          periodId: 'retained:v2',
+          versionId: 'rubric-v2',
+          category: 'dimension_anchors',
+          effectiveFrom: new Date('2026-06-01T00:00:00.000Z'),
+          effectiveUntil: new Date('2026-09-01T00:00:00.000Z'),
+        },
+        {
+          periodId: 'retained:v1:restored',
+          versionId: 'rubric-v1',
+          category: 'dimension_anchors',
+          effectiveFrom: new Date('2026-09-01T00:00:00.000Z'),
+        },
+      ],
+      '0005',
+    );
     const before = await connection.db
       .select()
       .from(ruleVersionApplicability)
