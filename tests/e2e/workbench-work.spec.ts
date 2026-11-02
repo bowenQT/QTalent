@@ -300,3 +300,32 @@ test('a manager finds people from /work: the sentence reaches the chosen project
   await page.goBack();
   await expect(page.getByLabel('刚才写的那句话')).toHaveText(sentence);
 });
+
+test('HR finds people from the /work「/找」command: choose a project, then describe the need', async ({
+  context,
+  page,
+  referenceApp,
+}) => {
+  await login(context, 'hrbp', referenceApp.baseURL);
+  await page.goto('/work');
+  const field = page.getByRole('textbox', { name: '描述你要做的事' });
+  await field.fill('/找');
+  await expect(
+    page.getByRole('listbox', { name: '命令' }).getByRole('option'),
+  ).toHaveText(['为项目找人/找']);
+  await field.press('Enter');
+  await expect(page).toHaveURL(/\/staffing\?new=1$/);
+  await expect(
+    page.getByRole('heading', { name: '选一个项目再找人' }),
+  ).toBeVisible();
+  const choice = page
+    .getByRole('list', { name: '可以找人的项目' })
+    .getByRole('link')
+    .first();
+  await expect(choice).toHaveAttribute('href', /^\/staffing\?project=[^&]+$/);
+  await choice.click();
+  await expect(page).toHaveURL(/\/staffing\?project=[^&]+$/);
+  await expect(
+    page.getByRole('textbox', { name: '描述项目和要找的人' }),
+  ).toHaveValue('');
+});
