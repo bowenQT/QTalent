@@ -16,11 +16,16 @@ const ids = z
  * model disclosure; unassigned personIds:[] never means "all people". A project
  * is intake context, not a substitute for node/source permission. Same actor,
  * operationId and semantic payload replay; changed payload conflicts.
+ *
+ * Files are completed 873 uploads staged with an unassigned target; their node is
+ * the one chosen when they were uploaded, so evaluationNodeId may be left out and,
+ * when given, must be that node. Text names its node. A batch carries either text
+ * or files, not both; files go in with no people or project.
  */
 export const materialBatchInputSchema = z
   .strictObject({
     operationId: id,
-    evaluationNodeId: id,
+    evaluationNodeId: id.optional(),
     personIds: ids,
     projectId: id.nullable(),
     text: z.string(),
@@ -34,6 +39,18 @@ export const materialBatchInputSchema = z
       new Set(input.files.map((file) => file.uploadId)).size ===
         input.files.length,
   );
+
+/** The node a batch was written under answers the one asked for. A files-only
+ * batch that names none takes its uploads' node, which the server resolved and
+ * authorized; any other batch names its node and must get exactly that one. */
+export function batchNodeMatchesInput(
+  input: Pick<MaterialBatchInput, 'evaluationNodeId' | 'text' | 'files'>,
+  nodeId: string,
+): boolean {
+  return input.evaluationNodeId === undefined
+    ? input.files.length > 0 && input.text.trim().length === 0
+    : input.evaluationNodeId === nodeId;
+}
 
 const file = {
   materialId: id,

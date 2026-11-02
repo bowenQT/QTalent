@@ -11,6 +11,7 @@ import {
   evaluationNodeSubjects,
   enrollments,
 } from '../../modules/programs';
+import type { DbExecutor } from '../../db/client';
 import { jobSnapshots } from '../../jobs/schema';
 import { originals, originalVersions } from '../../modules/records/schema';
 import {
@@ -179,6 +180,26 @@ async function addCoSubject(f: F) {
   return relation;
 }
 
+/** A queued media parse job, the one a batch creates for each file. */
+async function parseJob(
+  db: DbExecutor,
+  uploadId: string,
+  originalVersionId: string,
+) {
+  const jobId = randomUUID();
+  await db.insert(jobSnapshots).values({
+    jobId,
+    kind: 'media',
+    resourceId: uploadId,
+    inputVersion: originalVersionId,
+    status: 'queued',
+    attempt: 1,
+    revision: 1,
+    updatedAt: new Date().toISOString(),
+  });
+  return jobId;
+}
+
 it('wires the real SQL reader to real Sharp and sends only the approved pixels, preserving null canonical source', async () => {
   const f = await seedImageCase(c.db),
     h = harness(f);
@@ -337,6 +358,7 @@ it('includes another batch capture of the same original instead of treating this
     id: otherMaterial,
     inputId: otherInput,
     clientFileId: randomUUID(),
+    parseJobId: await parseJob(c.db, f.row.uploadId, f.row.originalVersionId),
     scopeAuditId,
     intakeScope: {
       subjects: [
@@ -515,6 +537,7 @@ it('accepts the complete same-batch media set but refuses an omitted persisted m
     uploadId: nextUpload,
     originalVersionId: nextVersion,
     clientFileId: randomUUID(),
+    parseJobId: await parseJob(c.db, nextUpload, nextVersion),
     scopeAuditId,
   });
   await c.db
