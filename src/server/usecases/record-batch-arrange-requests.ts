@@ -97,6 +97,8 @@ export function createRecordBatchArrangeRequests(
   const id = deps.newId ?? randomUUID;
   // The caller owns rollback: encoded-budget failures occur after staging facts
   // and must escape the whole transaction before being mapped to validation.
+  // Its first lock is the intake writer lock (SHARE ROW EXCLUSIVE): callers
+  // must not take other table or row locks before calling it.
   async function createInTransaction(
     tx: Transaction,
     accountId: string,
