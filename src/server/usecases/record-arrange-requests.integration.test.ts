@@ -296,6 +296,42 @@ it('unknown people remain a real pending intake; old node-less or stale selectio
   ).toEqual([]);
   expect(h.calls()).toBe(0);
 });
+it('text naming no directory person, submitted with no people, stays a pending intake without a model call', async () => {
+  const h = await setup();
+  const text = '  演示：某位同学补齐了回滚步骤，并记录了边界触发条件。\n ';
+  const pending = await h.app.requests.create(h.account, {
+    ...h.input,
+    personIds: [],
+    text,
+  });
+  expect(pending).toMatchObject({
+    status: 'success',
+    result: { status: 'needs_review', jobId: null, draftSet: null },
+  });
+  if (pending.status !== 'success') throw new Error('fixture');
+  expect(pending.result.items[0]).toMatchObject({
+    kind: 'unknown_person',
+    state: 'pending',
+  });
+  const [input] = await connection.db
+    .select()
+    .from(arrangeInputs)
+    .where(eq(arrangeInputs.batchId, pending.result.batchId));
+  expect(input!.personIds).toEqual([]);
+  expect(input!.originalInput.text).toBe(text.trim());
+  const [fragment] = await connection.db
+    .select()
+    .from(fragments)
+    .where(eq(fragments.id, input!.inputSource!.fragmentId));
+  expect(fragment!.excerpt).toBe(text);
+  expect(
+    await h.app.requests.readBatch(h.account, {
+      batchId: pending.result.batchId,
+    }),
+  ).toMatchObject({ status: 'success', result: { status: 'needs_review' } });
+  expect(await h.app.runner.run(input!.jobId, 1)).toBe('ignored');
+  expect(h.calls()).toBe(0);
+});
 it('keeps explicit project choice and denies a missing/inaccessible one instead of writing a fake null', async () => {
   const h = await setup();
   const projectId = h.prefix + '-project';
