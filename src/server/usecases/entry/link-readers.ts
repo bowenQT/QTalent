@@ -11,10 +11,12 @@ type BatchReader = Pick<
 >;
 
 /** Real object readers for ordinary deep links, bound to the account the
- * request already verified. Read-only: nothing here creates or enqueues.
+ * request already verified. No business data changes (nothing is created,
+ * updated or enqueued), though row locks are still taken:
  * - staffing_demand: the root row under FOR SHARE, so its revision holds until
  *   commit; the demand worker locks job → root and this holds no job lock.
- * - material_batch: readBatchInTransaction (intake SHARE, then the job row).
+ * - material_batch: readBatchInTransaction (intake SHARE, then the job row
+ *   FOR UPDATE).
  *   This transaction never calls createInTransaction, so no SHARE is upgraded
  *   to the intake writer lock and it cannot cycle with the arrange runner.
  */

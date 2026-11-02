@@ -32,6 +32,16 @@ type BoundSession = z.infer<typeof rowSchema> & { deadline: number };
 function reject(): never {
   throw new EntryIdentityError('unauthenticated');
 }
+/** A live, current session whose account may not enter the business view (a
+ * system administrator). Every existing caller still sees 'unauthenticated';
+ * a Web page that would send the person to sign in can answer 404 instead,
+ * because signing in again cannot change the outcome. */
+export class WebBusinessViewDenied extends EntryIdentityError {
+  constructor() {
+    super('unauthenticated');
+    this.name = 'WebBusinessViewDenied';
+  }
+}
 function unavailable(): never {
   throw new EntryIdentityError('unavailable');
 }
@@ -120,12 +130,12 @@ export function createWebEntryAuthenticator(
       row.sessionId !== authenticated.session.id ||
       row.userId !== authenticated.user.id ||
       row.accountId !== row.userId ||
-      row.isSystemAdmin ||
       // Issued under an earlier binding (or before generations were recorded):
       // a rebind, even back to the same person, never revives the session.
       row.sessionGeneration !== row.bindingGeneration
     )
       reject();
+    if (row.isSystemAdmin) throw new WebBusinessViewDenied();
     const deadline = Math.min(
       row.expiresAt.getTime(),
       authenticated.session.expiresAt.getTime(),

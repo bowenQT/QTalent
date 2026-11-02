@@ -56,7 +56,7 @@ export async function handleEntryLinkOpen(request: Request): Promise<Response> {
       db,
       headers: request.headers,
       href: url.pathname + url.search,
-      // Read-only: opening a link never creates a batch or enqueues work.
+      // Opening a link never creates a batch or enqueues work.
       records: createRecordBatchArrangeRequests({
         db,
         businessNow,

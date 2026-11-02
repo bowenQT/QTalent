@@ -1,5 +1,8 @@
 import type { Database, Transaction } from '../../db/client';
-import { createWebEntryAuthenticator } from '../../auth/entry/web';
+import {
+  createWebEntryAuthenticator,
+  WebBusinessViewDenied,
+} from '../../auth/entry/web';
 import {
   createEntryIdentityService,
   type EntryIdentity,
@@ -14,8 +17,8 @@ import { createEntryDeepLinkUsecase, type EntryLinkResult } from './deep-links';
 import { createEntryLinkReaders } from './link-readers';
 
 /** One Web request opening an ordinary deep link. The Web identity (Access,
- * Better Auth session, current account binding) is verified once on the pool
- * BEFORE the transaction; inside it only the transaction's own connection is
+ * Better Auth session, current account binding) is verified on the pool BEFORE
+ * the transaction, twice (authenticate, then current); inside it only the transaction's own connection is
  * used, so a full pool cannot leave an open transaction waiting on a second
  * connection. The 899 context is loaded in the transaction for the frozen
  * account, with the loader's usual shape checks. A logout landing between that
@@ -41,6 +44,9 @@ export async function openEntryLinkRequest(input: {
     identity = await identities.authenticate('web', input.headers);
     actor = await identities.current(identity);
   } catch (error) {
+    // Signed in, but not for the business view: the same 404 as any object
+    // this account cannot open, never a login redirect it would loop through.
+    if (error instanceof WebBusinessViewDenied) return { status: 'forbidden' };
     const failure = entryFailure(error);
     if (failure.status !== 'unauthenticated') return failure;
     identity = null;

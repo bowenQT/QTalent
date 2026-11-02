@@ -88,14 +88,14 @@
 ## 深链打开（Web）
 
 - 路由 `src/app/entry/open/route.ts`（GET）→ `queries/entry-link-http.ts` → `openEntryLinkRequest`。每次请求新建 Web 认证器；URL 不带任何身份。
-- 身份在事务**之前**用连接池核验一次（Access、Better Auth 会话、当前账号绑定和会话代次）。事务内只用事务自己的连接，按冻结的账号加载 899 上下文，并保留 loader 原有的形状检查（账号、人员一致，非系统管理员，九组事实齐全）。核验之后、跳转之前发生的登出仍会放行这一次跳转，落点页读取前会再核验自己的会话。系统管理员打开深链一律 404：深链只服务业务视角。
+- 身份在事务**之前**用连接池核验两轮（authenticate 一轮、current 一轮，每轮都查 Access、Better Auth 会话、当前账号绑定和会话代次）。事务内只用事务自己的连接，按冻结的账号加载 899 上下文，并保留 loader 原有的形状检查（账号、人员一致，非系统管理员，九组事实齐全）。核验之后、跳转之前发生的登出仍会放行这一次跳转，落点页读取前会再核验自己的会话。系统管理员打开深链一律 404：深链只服务业务视角。Web 认证器对管理员抛 `WebBusinessViewDenied`（对其他调用方仍是 `unauthenticated`），深链据此直接返回与其他 404 相同的结果，不写审计，也不跳登录（重新登录结果不变，否则会循环）。
 - 结果：
   - 未登录：302 到 `/login?returnTo=<规范深链>`。登录页只接受本目录生成的规范深链；其他任何值（外站、`//host`、反斜线、fragment、多余或重复参数）都回到 `/`。
   - 通过：302 到落点页。需求落到 `/staffing?project=&demand=`，材料批次落到 `/receipt?id=`。落点由 reader 在同一事务、两次授权都通过后读取，只接受站内路径。
   - 版本不是当前版本：302 到当前版本的规范链接。
   - 无权限或对象不存在：一律 404，正文相同。
   - 链接格式错误：400；冲突：409；其他：503。
-- reader（`link-readers.ts`）都是纯读，绑定已核验的账号：
+- reader（`link-readers.ts`）不改业务数据（不建、不改、不入队），绑定已核验的账号；但内部仍会加行锁，材料读取对 job 行是 `FOR UPDATE`：
   - 需求：对 `staffing_demands` 行加 `FOR SHARE` 读当前 revision，按 `canReadDemand` 授权；revision 0（仍在生成）不可寻址。需求 worker 的顺序是 job → root，本事务不持 job 锁，不成环。
   - 材料：复用 `readBatchInTransaction`（intake SHARE → job 行锁，只认本人当前未被替代的批次，并做原生授权）。本事务不调 `createInTransaction`，不会把 SHARE 升级为写锁，因此与 arrange runner 不成环（见 `entry-transaction-readers.md` 的「先建后读」）。
 - 每次 ready 或 stale 写一条 `entry.link.open` 审计；被拒时不写。

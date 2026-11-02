@@ -1,24 +1,30 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
+import { PgBoss } from 'pg-boss';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import {
   nativeDatabase,
   seedNativeCase,
   seedNativeRules,
+  syntheticBatchClient,
   businessAt,
   wallAt,
 } from '../../../../tests/fixtures/bow-845/native';
 import { buildEntryDeepLink } from '../../../contracts/entry-links';
 import { user, session } from '../../auth/schema';
-import { grants } from '../../modules/directory';
+import { accountBindings, grants } from '../../modules/directory';
 import { evaluationRelations } from '../../modules/programs';
 import { projects } from '../../modules/staffing/schema';
 import { demandRoots } from '../../modules/staffing/demand/schema';
 import { auditEvents } from '../../platform/audit/schema';
+import type { Database } from '../../db/client';
 import { createRecordBatchArrangeRequests } from '../record-batch-arrange-requests';
+import { createRecordArrangeApplication } from '../record-arrange-application';
+import { recordArrangeQueue } from '../../jobs/record-arrange';
+import { recordDraftBatches } from '../../modules/records/save-state/schema';
 import { openEntryLinkRequest } from './open-link';
 
 const mocks = vi.hoisted(() => ({ session: vi.fn() }));
@@ -37,7 +43,10 @@ beforeAll(async () => {
     });
   await seedNativeRules(c.db);
 }, 30000);
+let boss: PgBoss | undefined;
+let started = false;
 afterAll(async () => {
+  if (started) await boss?.stop();
   await c?.close();
 });
 beforeEach(() => {
@@ -70,13 +79,15 @@ async function setup() {
     });
     sessions.set(account, id);
   }
-  const records = createRecordBatchArrangeRequests({
-    db: c.db,
-    now: wallNow,
-    businessNow: () => businessAt,
-    // Creating the fixture batch only; opening a link never enqueues.
-    enqueue: async () => undefined,
-  });
+  const recordsOn = (db: Database) =>
+    createRecordBatchArrangeRequests({
+      db,
+      now: wallNow,
+      businessNow: () => businessAt,
+      // Creating the fixture batch only; opening a link never enqueues.
+      enqueue: async () => undefined,
+    });
+  const records = recordsOn(c.db);
   const created = await records.create(facts.account, facts.input);
   if (created.status !== 'success') throw new Error('native batch required');
   const batch = created.result;
@@ -117,12 +128,14 @@ async function setup() {
             },
           },
     );
-  const open = (href: string, db = c.db) =>
+  // The readers are built on the same database as the request, so a reader
+  // that left the transaction for the pool would hit that pool too.
+  const open = (href: string, db: Database = c.db) =>
     openEntryLinkRequest({
       db,
       headers: new Headers({ cookie: 'synthetic=1' }),
       href,
-      records,
+      records: recordsOn(db),
       wallNow,
       businessNow: () => businessAt,
     });
@@ -206,10 +219,56 @@ it('a link whose revision is no longer current returns the refresh link, not the
     status: 'stale',
     refreshHref: f.demandLink(2),
   });
-  expect(await f.open(f.batchLink(f.batch.revision + 1))).toEqual({
-    status: 'stale',
-    refreshHref: f.batchLink(),
+});
+it('a batch link minted before the batch moved on returns the current refresh link', async () => {
+  const f = await setup();
+  f.as(f.account);
+  const old = f.batchLink();
+  expect(await f.open(old)).toMatchObject({ status: 'ready' });
+  // The real runner produces the native draft set (revision 1); a later human
+  // revision of the set is stood in for by advancing that set and its drafts.
+  boss ??= new PgBoss({ connectionString: c.testUrl });
+  if (!started) {
+    boss.on('error', () => undefined);
+    await boss.start();
+    await boss.createQueue(recordArrangeQueue, { retryLimit: 0 });
+    started = true;
+  }
+  const app = createRecordArrangeApplication({
+    db: c.db,
+    boss,
+    client: syntheticBatchClient({ twoEvents: true }).client,
+    businessNow: () => businessAt,
+    now: wallNow,
   });
+  expect(await app.runner.run(f.batch.jobId!, 1)).toBe('awaiting_manual');
+  await c.db
+    .update(recordDraftBatches)
+    .set({ revision: 2 })
+    .where(eq(recordDraftBatches.batchId, f.batch.batchId));
+  await c.db.execute(
+    sql`update records_drafts set revision = 2, draft = jsonb_set(draft, '{revision}', '2') where batch_id = ${f.batch.batchId}`,
+  );
+  const now = await app.requests.readBatch(f.account, {
+    batchId: f.batch.batchId,
+  });
+  expect(now).toMatchObject({ status: 'success', result: { revision: 2 } });
+  expect(await f.open(old)).toEqual({
+    status: 'stale',
+    refreshHref: f.batchLink(2),
+  });
+  expect(await f.open(f.batchLink(2))).toMatchObject({ status: 'ready' });
+});
+it('a system administrator gets the same 404 answer, never a login loop, and no audit', async () => {
+  const f = await setup();
+  f.as(f.account);
+  await c.db
+    .update(accountBindings)
+    .set({ isSystemAdmin: true })
+    .where(eq(accountBindings.accountId, f.account));
+  expect(await f.open(f.batchLink())).toEqual({ status: 'forbidden' });
+  expect(await f.open(f.demandLink())).toEqual({ status: 'forbidden' });
+  expect(await f.opens()).toEqual([]);
 });
 it('a forwarded link and a switched account see the same answer as a missing object', async () => {
   const f = await setup();
