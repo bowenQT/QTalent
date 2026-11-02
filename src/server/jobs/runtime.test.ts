@@ -1,9 +1,11 @@
 import { afterEach, expect, it, vi } from 'vitest';
 const f = vi.hoisted(() => ({
   db: {},
-  store: {},
   example: { kind: 'example' },
   demand: { kind: 'staffing_demand' },
+  arrange: { kind: 'record_organize' },
+  arrangeStore: {},
+  arrangeRuntime: vi.fn(),
   create: vi.fn(),
   demandRuntime: vi.fn(),
   producer: vi.fn(),
@@ -11,7 +13,6 @@ const f = vi.hoisted(() => ({
 }));
 vi.mock('../db/client', () => ({ getDatabase: () => f.db }));
 vi.mock('../env', () => ({ getEnv: () => f.env }));
-vi.mock('./repository', () => ({ createJobStore: () => f.store }));
 vi.mock('./service', () => ({ createJobService: f.create }));
 vi.mock('./progress-example', () => ({ exampleJobPolicy: () => f.example }));
 vi.mock('../platform/jobs/app-runtime', () => ({
@@ -20,6 +21,9 @@ vi.mock('../platform/jobs/app-runtime', () => ({
 vi.mock('../usecases/staffing-demand-runtime', () => ({
   staffingDemandQueue: 'staffing-demand',
   createStaffingDemandRuntime: f.demandRuntime,
+}));
+vi.mock('../usecases/record-arrange-runtime', () => ({
+  recordArrangeRequestsForServer: f.arrangeRuntime,
 }));
 import { jobService } from './runtime';
 afterEach(() => {
@@ -33,10 +37,14 @@ it.each(['demo', 'test', 'production', 'local'])(
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-10-25T12:00:00.000Z'));
     f.demandRuntime.mockReturnValue({ policy: f.demand });
+    f.arrangeRuntime.mockReturnValue({
+      policy: f.arrange,
+      native: { store: f.arrangeStore },
+    });
     jobService();
     expect(f.create).toHaveBeenCalledWith(
-      f.store,
-      expect.arrayContaining([f.example, f.demand]),
+      f.arrangeStore,
+      [f.example, f.demand, f.arrange],
       expect.any(Function),
     );
     expect(f.producer).not.toHaveBeenCalled();

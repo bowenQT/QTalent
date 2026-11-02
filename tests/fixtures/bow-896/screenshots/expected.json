@@ -1,0 +1,32 @@
+{
+  "demo": true,
+  "sizePixels": [1080, 1280],
+  "coordinateSystem": "top-left x0,y0,x1,y1 pixels",
+  "regions": [
+    {
+      "id": "chat-public",
+      "bboxPixels": [38, 205, 1042, 440],
+      "allowedRoles": ["manager", "hr", "mentor"],
+      "eventId": "demo-event-retry",
+      "text": "片段重试：我先复现失败片段，再逐段保留请求键，\n把失败项隔离到重试队列；重复提交只生成一份输出。"
+    },
+    {
+      "id": "chat-private",
+      "bboxPixels": [38, 500, 1042, 730],
+      "allowedRoles": ["manager", "hr"],
+      "eventId": null,
+      "text": "这是虚构的岗位去向沟通材料，待授权人员核对。\n这条消息不能交给无权查看的导师或其模型输入。"
+    },
+    {
+      "id": "chat-second-event",
+      "bboxPixels": [38, 790, 1042, 1020],
+      "allowedRoles": ["manager", "hr", "mentor"],
+      "eventId": "demo-event-cache",
+      "text": "缓存回收：另一次任务已增加到期清理开关，\n也补了回滚说明；这与前面的片段重试是两件事。"
+    }
+  ],
+  "mentorModelInput": "mentor-filtered.png",
+  "rawMixedImagePolicy": "do_not_send_whole_image_to_unauthorized_model; authorize_and_redact_first",
+  "expectedMentorVisibleMessages": ["chat-public", "chat-second-event"],
+  "expectedMentorHiddenMessages": ["chat-private"]
+}
