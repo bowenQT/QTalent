@@ -122,3 +122,9 @@ export type {
   StoredRecordOriginalInput,
   MediaRecordOriginalInput,
 } from './arrange/input-state/original-input';
+export { wecomMessages, wecomReceiptAttempts } from './wecom/schema';
+export {
+  wecomArchivedMediaSchema,
+  wecomArchivedMediaListSchema,
+} from './wecom/facts';
+export type { WecomArchivedMedia } from './wecom/facts';
