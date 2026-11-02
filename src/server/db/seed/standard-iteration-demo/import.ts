@@ -30,8 +30,10 @@ export class StandardIterationImportError extends Error {
       | 'node_mismatch'
       | 'selection_binding_unavailable'
       | 'selection_binding_mismatch',
+    /** Column names only (never values) of a mismatching existing row. */
+    readonly fields?: readonly string[],
   ) {
-    super(code);
+    super(fields?.length ? `${code}: ${fields.join(', ')}` : code);
     this.name = 'StandardIterationImportError';
   }
 }

@@ -762,6 +762,23 @@ describe('923 generations coexist and demo initialization is idempotent', () => 
     // CLI must not leave any of its own behind.
     expect(await activeConnections()).toBeLessThanOrEqual(before);
   }, 30_000);
+  it('actual CLI init names the differing s-29 columns, never their values', async () => {
+    await managerAccount();
+    await db()
+      .update(people)
+      .set({ hue: 220, name: '另一人' })
+      .where(eq(people.id, DEMO_GRADUATION_REVIEWER.id));
+    expect(await runCli(['--init', '--as', MANAGER])).toEqual({
+      code: 1,
+      stdout: '',
+      stderr:
+        JSON.stringify({
+          status: 'failed',
+          code: 'directory_mismatch',
+          fields: ['name', 'hue'],
+        }) + '\n',
+    });
+  }, 30_000);
   it('init registers the missing graduation reviewer once, then keeps it', async () => {
     await managerAccount();
     await db().delete(people).where(eq(people.id, DEMO_GRADUATION_REVIEWER.id));
@@ -796,12 +813,12 @@ describe('923 generations coexist and demo initialization is idempotent', () => 
   });
   it.each([
     ['name', { name: '另一人' }],
-    ['organization', { organizationId: 'iteration-test-org' }],
+    ['organizationId', { organizationId: 'iteration-test-org' }],
     ['hue', { hue: 220 }],
     ['noReview', { noReview: false }],
   ] as const)(
     'init refuses an existing s-29 with a different %s and changes nothing',
-    async (_field, change) => {
+    async (field, change) => {
       await managerAccount();
       await db()
         .update(people)
@@ -818,7 +835,10 @@ describe('923 generations coexist and demo initialization is idempotent', () => 
           MANAGER,
           TEST_ONLY_CLOCK,
         ),
-      ).rejects.toMatchObject({ code: 'directory_mismatch' });
+      ).rejects.toMatchObject({
+        code: 'directory_mismatch',
+        fields: [field],
+      });
       expect(
         await db()
           .select()

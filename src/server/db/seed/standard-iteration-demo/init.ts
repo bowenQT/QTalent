@@ -107,12 +107,14 @@ export async function initializeStandardIterationDemo(
         .for('update');
       if (existing) {
         // Compare every column; an existing different person is never patched.
-        if (
-          (Object.keys(person) as (keyof typeof person)[]).some(
-            (key) => existing[key] !== person[key],
-          )
-        )
-          throw new StandardIterationImportError('directory_mismatch');
+        const differing = (
+          Object.keys(person) as (keyof typeof person)[]
+        ).filter((key) => existing[key] !== person[key]);
+        if (differing.length)
+          throw new StandardIterationImportError(
+            'directory_mismatch',
+            differing,
+          );
         return 'unchanged';
       }
       const [organization] = await tx

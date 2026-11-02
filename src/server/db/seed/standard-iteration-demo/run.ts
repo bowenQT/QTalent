@@ -54,7 +54,11 @@ if (
         : error instanceof SelectionLifecycleError
           ? `selection_${error.status}`
           : 'import_failed';
-    console.error(JSON.stringify({ status: 'failed', code }));
+    const fields =
+      error instanceof StandardIterationImportError ? error.fields : undefined;
+    console.error(
+      JSON.stringify({ status: 'failed', code, ...(fields && { fields }) }),
+    );
     process.exitCode = 1;
   }
 }
