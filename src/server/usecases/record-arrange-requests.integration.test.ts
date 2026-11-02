@@ -319,7 +319,9 @@ it('text naming no directory person, submitted with no people, stays a pending i
     .from(arrangeInputs)
     .where(eq(arrangeInputs.batchId, pending.result.batchId));
   expect(input!.personIds).toEqual([]);
-  expect(input!.originalInput.text).toBe(text.trim());
+  const original = input!.originalInput;
+  if ('kind' in original) throw new Error('expected a text input');
+  expect(original.text).toBe(text.trim());
   const [fragment] = await connection.db
     .select()
     .from(fragments)
