@@ -614,14 +614,16 @@ it('a logout racing a locked conversation waits behind it instead of deadlocking
   await locked.promise;
   // B: real logout. The session delete cascades to the AgentAPI binding and
   // nulls this conversation's binding, so it must queue behind A's locks.
-  const logout = c.db.delete(session).where(eq(session.id, f.sessionId));
+  // Drizzle builders are lazy; start the statement now on its own connection.
+  const logout = (async () =>
+    c.db.delete(session).where(eq(session.id, f.sessionId)))();
   await expect.poll(lockWaiters, { timeout: 5000 }).toBeGreaterThan(0);
   release.resolve();
   const [current, out] = await Promise.allSettled([conversation, logout]);
   // Neither side is chosen as a deadlock victim: A finished before logout
   // committed, and logout then completes with its cascade.
-  expect(current.status).toBe('fulfilled');
-  expect(out.status).toBe('fulfilled');
+  expect(current).toMatchObject({ status: 'fulfilled' });
+  expect(out).toMatchObject({ status: 'fulfilled' });
   const [row] = await c.db
     .select()
     .from(agentApiConversations)
