@@ -1,12 +1,23 @@
 import { z } from 'zod';
-/** Entry endpoints are HTTPS; plain HTTP only on loopback for local tests. */
+/** Entry endpoints are HTTPS; plain HTTP only on loopback for local tests.
+ * No credentials, query or fragment, matching the MCP handler's own rules. */
 function entryUrl(value: string) {
   const url = new URL(value);
   return (
-    url.protocol === 'https:' ||
-    (url.protocol === 'http:' &&
-      ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+    !url.username &&
+    !url.password &&
+    !url.search &&
+    !url.hash &&
+    !url.hostname.includes('*') &&
+    (url.protocol === 'https:' ||
+      (url.protocol === 'http:' &&
+        ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
   );
+}
+/** An allowed Origin is exactly a canonical origin: no path, trailing slash
+ * or mixed case that the handler would later refuse as a 503. */
+function entryOrigin(value: string) {
+  return entryUrl(value) && new URL(value).origin === value;
 }
 const environmentSchema = z
   .object({
@@ -43,13 +54,9 @@ const environmentSchema = z
     MCP_ENDPOINT: z.string().url().refine(entryUrl).optional(),
     MCP_ALLOWED_ORIGINS: z
       .string()
-      .transform((value) =>
-        value
-          .split(',')
-          .map((origin) => origin.trim())
-          .filter(Boolean),
-      )
-      .pipe(z.array(z.string().url().refine(entryUrl)).min(1))
+      // Empty items are a configuration error, never silently dropped.
+      .transform((value) => value.split(',').map((origin) => origin.trim()))
+      .pipe(z.array(z.string().url().refine(entryOrigin)).min(1))
       .optional(),
     // Vendor settings are validated by the AgentAPI adapter only when used.
     AGENTAPI_API_KEY: z.string().optional(),

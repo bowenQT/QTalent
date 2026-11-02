@@ -1,12 +1,16 @@
 import 'server-only';
 import { fromDrizzle } from 'pg-boss';
 import { sql } from 'drizzle-orm';
-import { getDatabase } from '../db/client';
+import { getDatabase, type Database } from '../db/client';
 import { getEnv } from '../env';
 import { createClock } from '../../lib/clock';
 import { getAppJobProducer } from '../platform/jobs/app-runtime';
 import { recordArrangeQueue } from '../jobs/record-arrange';
-import { createEntryIdentityService } from '../auth/entry/identity';
+import {
+  createEntryIdentityService,
+  type EntryIdentity,
+  type EntryIdentityService,
+} from '../auth/entry/identity';
 import { createWebEntryAuthenticator } from '../auth/entry/web';
 import { createAgentApiEntryAuthenticator } from '../auth/entry/persistent';
 import {
@@ -47,12 +51,64 @@ function agentApiConfig(): AgentApiConfig | null {
   };
 }
 
+type Provider = Pick<AgentApiClient, 'send' | 'events' | 'archive'>;
+
+/** Composition for one request whose Web entry identity is already issued.
+ * The Web check (Access assertion → Better Auth → current binding and session
+ * generation) runs ONCE here, on the pool, before any conversation transaction
+ * holds a connection: re-running it inside the transaction would borrow a
+ * second pool connection per transaction and can exhaust the pool. Inside each
+ * transaction the AgentAPI reader then re-reads, on the transaction's own
+ * connection under share locks, the session row (still present, unexpired,
+ * same account) and its issue-time binding generation against the account's
+ * current one, so logout, expiry, rebind and revocation after this check are
+ * still refused. */
+export async function composeAgentConversation(input: {
+  db: Database;
+  web: EntryIdentityService;
+  owner: EntryIdentity;
+  agentId: string;
+  provider: Provider;
+  domains: Parameters<
+    typeof createAgentConversationPostgresPorts
+  >[0]['domains'];
+  businessNow: () => string;
+  wallNow?: () => Date;
+}) {
+  const wallNow = input.wallNow ?? (() => new Date());
+  const verified = await input.web.current(input.owner);
+  const proof = Object.freeze({
+    accountId: verified.accountId,
+    sessionId: verified.credentialId,
+    agentId: input.agentId,
+  });
+  const identities = createEntryIdentityService(
+    {
+      agentapi: createAgentApiEntryAuthenticator(
+        input.db,
+        async () => proof,
+        wallNow,
+      ),
+    },
+    wallNow,
+  );
+  const identity = await identities.authenticate('agentapi', true);
+  const service = createAgentConversationService(
+    createAgentConversationPostgresPorts({
+      db: input.db,
+      identities,
+      domains: input.domains,
+      now: input.businessNow,
+    }),
+    input.provider,
+  );
+  return { identity, service };
+}
+
 /** Request-scoped conversation service for an existing, already bound
- * conversation. The owner proof is this request's Web entry identity (Access
- * assertion → Better Auth → current binding and session generation), re-read on
- * every AgentAPI credential check; no caller-supplied account or session ID is
- * trusted. Conversation creation is not offered here. Returns null while the
- * AgentAPI settings are absent so the route answers 503. */
+ * conversation. No caller-supplied account or session ID is trusted.
+ * Conversation creation is not offered here. Returns null while the AgentAPI
+ * settings are absent so the route answers 503. */
 export async function agentConversationForRequest(headers: Headers) {
   const config = agentApiConfig();
   if (!config) return null;
@@ -69,54 +125,35 @@ export async function agentConversationForRequest(headers: Headers) {
     wallNow,
   );
   const owner = await web.authenticate('web', headers);
-  const identities = createEntryIdentityService(
-    {
-      agentapi: createAgentApiEntryAuthenticator(
-        db,
-        async () => {
-          const current = await web.current(owner);
-          return {
-            accountId: current.accountId,
-            sessionId: current.credentialId,
-            agentId: config.agentId,
-          };
-        },
-        wallNow,
-      ),
-    },
-    wallNow,
-  );
-  const identity = await identities.authenticate('agentapi', true);
-  const domains = {
-    demands: createStaffingDemandRuntime({
-      db,
-      boss: () => getAppJobProducer(staffingDemandQueue),
-      now: businessNow,
-    }).service,
-    records: createRecordBatchArrangeRequests({
-      db,
-      now: wallNow,
-      businessNow,
-      async enqueue(tx, job) {
-        const boss = await getAppJobProducer(recordArrangeQueue);
-        const sent = await boss.send(
-          recordArrangeQueue,
-          { jobId: job.jobId, attempt: job.attempt },
-          { db: fromDrizzle(tx, sql), retryLimit: 0 },
-        );
-        if (!sent)
-          throw new Error('Record arrangement enqueue was not committed');
-      },
-    }),
-  };
-  const service = createAgentConversationService(
-    createAgentConversationPostgresPorts({
-      db,
-      identities,
-      domains,
-      now: businessNow,
-    }),
+  return composeAgentConversation({
+    db,
+    web,
+    owner,
+    agentId: config.agentId,
     provider,
-  );
-  return { identity, service };
+    businessNow,
+    wallNow,
+    domains: {
+      demands: createStaffingDemandRuntime({
+        db,
+        boss: () => getAppJobProducer(staffingDemandQueue),
+        now: businessNow,
+      }).service,
+      records: createRecordBatchArrangeRequests({
+        db,
+        now: wallNow,
+        businessNow,
+        async enqueue(tx, job) {
+          const boss = await getAppJobProducer(recordArrangeQueue);
+          const sent = await boss.send(
+            recordArrangeQueue,
+            { jobId: job.jobId, attempt: job.attempt },
+            { db: fromDrizzle(tx, sql), retryLimit: 0 },
+          );
+          if (!sent)
+            throw new Error('Record arrangement enqueue was not committed');
+        },
+      }),
+    },
+  });
 }

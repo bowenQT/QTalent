@@ -91,7 +91,7 @@ it.each(Object.keys(config))(
     expect(m.client).not.toHaveBeenCalled();
   },
 );
-it('proves the owner from the current Web entry identity on every AgentAPI read', async () => {
+it('verifies the Web entry identity once, outside any transaction, and reuses that proof', async () => {
   const agentConversationForRequest = await load();
   const headers = new Headers({ cookie: 'synthetic' });
   const result = await agentConversationForRequest(headers);
@@ -104,13 +104,15 @@ it('proves the owner from the current Web entry identity on every AgentAPI read'
     environmentId: 'env_demo',
     modelId: 'demo-model',
   });
+  expect(m.web.current).toHaveBeenCalledTimes(1);
+  // In-transaction AgentAPI reads get the frozen proof without pool I/O; the
+  // persistent reader re-reads session and generation on the tx connection.
   expect(await owner!()).toEqual({
     accountId: 'demo-account',
     sessionId: 'demo-web-session',
     agentId: 'agt_demo',
   });
-  // Authentication plus the explicit owner read each re-check the Web session.
-  expect(m.web.current).toHaveBeenCalledTimes(2);
+  expect(m.web.current).toHaveBeenCalledTimes(1);
   expect(m.ports).toHaveBeenCalledWith(
     expect.objectContaining({
       db: { db: 'demo' },

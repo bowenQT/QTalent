@@ -6,6 +6,7 @@ import { AgentSessionError } from '../usecases/agentapi/session-policy';
 import { agentConversationForRequest } from '../usecases/agentapi-runtime';
 
 const maxBody = 65536;
+const bodyTimeoutMs = 5000;
 const commandSchema = z.discriminatedUnion('action', [
   z.strictObject({
     action: z.literal('submit'),
@@ -17,6 +18,8 @@ const commandSchema = z.discriminatedUnion('action', [
 ]);
 const statusCodes: Record<string, number> = {
   validation_error: 400,
+  request_timeout: 408,
+  request_too_large: 413,
   protocol: 400,
   unauthenticated: 401,
   forbidden: 403,
@@ -39,6 +42,57 @@ function reply(body: object, status = 200) {
 }
 const failure = (kind: string) =>
   reply({ status: kind }, statusCodes[kind] ?? 503);
+class BodyFailure extends Error {
+  constructor(
+    readonly kind: 'validation_error' | 'request_too_large' | 'request_timeout',
+  ) {
+    super(kind);
+  }
+}
+/** Read raw bytes chunk by chunk: stop and cancel as soon as the cap is
+ * exceeded or the deadline passes, whatever Content-Length claimed. */
+async function readBody(request: Request): Promise<unknown> {
+  const declared = request.headers.get('content-length');
+  if (declared !== null) {
+    if (!/^\d+$/.test(declared)) throw new BodyFailure('validation_error');
+    if (Number(declared) > maxBody) throw new BodyFailure('request_too_large');
+  }
+  const reader = request.body?.getReader();
+  if (!reader) throw new BodyFailure('validation_error');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new BodyFailure('request_timeout')),
+      bodyTimeoutMs,
+    );
+  });
+  try {
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+      const next = await Promise.race([reader.read(), deadline]);
+      if (next.done) break;
+      size += next.value.byteLength;
+      if (size > maxBody) throw new BodyFailure('request_too_large');
+      chunks.push(next.value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  } catch (error) {
+    throw error instanceof BodyFailure
+      ? error
+      : new BodyFailure('validation_error');
+  } finally {
+    clearTimeout(timer);
+    void reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+}
 /** Only typed domain failures keep their kind; anything else is unavailable
  * and never echoes provider, database or input detail. */
 function kindOf(error: unknown): string {
@@ -62,18 +116,15 @@ export async function handleAgentConversationCommand(
 ): Promise<Response> {
   if (request.headers.get('origin') !== new URL(request.url).origin)
     return failure('forbidden');
-  const length = Number(request.headers.get('content-length'));
-  if (!Number.isSafeInteger(length) || length <= 0 || length > maxBody)
-    return failure('validation_error');
   let command: z.infer<typeof commandSchema>;
   try {
-    const text = await request.text();
-    if (Buffer.byteLength(text) > maxBody) return failure('validation_error');
-    const parsed = commandSchema.safeParse(JSON.parse(text));
+    const parsed = commandSchema.safeParse(await readBody(request));
     if (!parsed.success) return failure('validation_error');
     command = parsed.data;
-  } catch {
-    return failure('validation_error');
+  } catch (error) {
+    return failure(
+      error instanceof BodyFailure ? error.kind : 'validation_error',
+    );
   }
   try {
     const conversation = await agentConversationForRequest(request.headers);

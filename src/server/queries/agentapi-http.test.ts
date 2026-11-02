@@ -20,6 +20,17 @@ function post(body: unknown, headers: Record<string, string> = {}) {
     },
   });
 }
+function streamed(
+  body: ReadableStream<Uint8Array>,
+  headers: Record<string, string> = {},
+) {
+  return new Request(origin + '/api/agentapi/conversations/demo-conversation', {
+    method: 'POST',
+    body,
+    duplex: 'half',
+    headers: { origin, 'content-type': 'application/json', ...headers },
+  } as RequestInit);
+}
 const service = {
   submit: vi.fn(),
   advance: vi.fn(),
@@ -60,26 +71,87 @@ describe('request gate', () => {
     expect(await response.json()).toEqual({ status: 'validation_error' });
     expect(runtime.agentConversationForRequest).not.toHaveBeenCalled();
   });
-  it('rejects missing or oversized declared bodies without reading them', async () => {
-    for (const length of ['', '0', '65537', 'abc']) {
-      const response = await handleAgentConversationCommand(
-        post({ action: 'cancel' }, { 'content-length': length }),
-        'demo-conversation',
-      );
-      expect(response.status).toBe(400);
-    }
+  it('rejects a malformed declared length before reading', async () => {
+    for (const length of ['', 'abc', '-1'])
+      expect(
+        (
+          await handleAgentConversationCommand(
+            post({ action: 'cancel' }, { 'content-length': length }),
+            'demo-conversation',
+          )
+        ).status,
+      ).toBe(400);
   });
-  it('rejects an actual body larger than its declared limit', async () => {
-    const big = JSON.stringify({
-      action: 'submit',
-      operationId: 'op',
-      text: '演'.repeat(30000),
-    });
+  it('answers 413 for a declared length above 64KiB without pulling the body', async () => {
+    const pull = vi.fn();
     const response = await handleAgentConversationCommand(
-      post(big, { 'content-length': '100' }),
+      streamed(new ReadableStream({ pull }, { highWaterMark: 0 }), {
+        'content-length': '65537',
+      }),
       'demo-conversation',
     );
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(413);
+    expect(pull).not.toHaveBeenCalled();
+  });
+  it('stops and cancels an understated, never-ending body once it passes 64KiB', async () => {
+    let sent = 0;
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        sent += 16384;
+        controller.enqueue(new Uint8Array(16384).fill(0x20));
+      },
+      cancel,
+    });
+    const response = await handleAgentConversationCommand(
+      streamed(body, { 'content-length': '1' }),
+      'demo-conversation',
+    );
+    expect(response.status).toBe(413);
+    expect(cancel).toHaveBeenCalled();
+    // Rejected within a chunk or two of the cap, not after buffering it all.
+    expect(sent).toBeLessThanOrEqual(65536 + 3 * 16384);
+    expect(runtime.agentConversationForRequest).not.toHaveBeenCalled();
+  });
+  it('answers 408 for a body that stalls past the read deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const cancel = vi.fn();
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"action":'));
+        },
+        cancel,
+      });
+      const pending = handleAgentConversationCommand(
+        streamed(body),
+        'demo-conversation',
+      );
+      await vi.advanceTimersByTimeAsync(5001);
+      expect((await pending).status).toBe(408);
+      expect(cancel).toHaveBeenCalled();
+      expect(runtime.agentConversationForRequest).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('accepts a normal chunked body without a declared length', async () => {
+    service.cancel.mockResolvedValue({ status: 'cancelled', cleanup: 'none' });
+    const encoded = new TextEncoder().encode(
+      JSON.stringify({ action: 'cancel' }),
+    );
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoded.slice(0, 5));
+        controller.enqueue(encoded.slice(5));
+        controller.close();
+      },
+    });
+    const response = await handleAgentConversationCommand(
+      streamed(body),
+      'demo-conversation',
+    );
+    expect(response.status).toBe(200);
   });
 });
 

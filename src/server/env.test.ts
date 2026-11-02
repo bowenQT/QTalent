@@ -55,6 +55,9 @@ describe('runtime configuration', () => {
     for (const MCP_ENDPOINT of [
       'http://talent.example.invalid/api/mcp',
       'not a url',
+      'https://user:secret@talent.example.invalid/api/mcp',
+      'https://talent.example.invalid/api/mcp?token=x',
+      'https://talent.example.invalid/api/mcp#x',
     ])
       expect(() => parseEnv({ ...local, MCP_ENDPOINT })).toThrow();
     for (const MCP_ALLOWED_ORIGINS of [

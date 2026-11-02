@@ -10,11 +10,12 @@ import { createMcpPostgresHttp } from './mcp/postgres';
 type McpHandler = (request: Request) => Promise<Response>;
 let pending: Promise<McpHandler> | undefined;
 
-/** The single MCP handler for this process. Its global request cap and
+/** One MCP handler per loaded module instance. Its global request cap and
  * per-account concurrency live in memory, so it must not be rebuilt per
- * request; this holds only for one app instance (the demo deployment). The
- * app's lazy pg-boss producer is shared, never a second instance. Returns null
- * while MCP_ENDPOINT is unset so the route answers 503. */
+ * request. That is a deployment-level limit only for a single production
+ * worker (the demo deployment); development hot reload or several workers each
+ * get their own counters. The app's lazy pg-boss producer is shared, never a
+ * second instance. Returns null while MCP_ENDPOINT is unset (route: 503). */
 export function mcpHttpForServer(): Promise<McpHandler> | null {
   const env = getEnv();
   if (!env.MCP_ENDPOINT) return null;
