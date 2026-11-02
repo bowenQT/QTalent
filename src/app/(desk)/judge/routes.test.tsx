@@ -205,6 +205,9 @@ describe('/rules?r=front&line=xe-select', () => {
     rulesQuery.mockResolvedValue({ status: 'none' });
     render(await RulesPage({ searchParams: standard }));
     expect(
+      screen.getByRole('heading', { name: 'XEngineer 入营选拔标准', level: 1 }),
+    ).toBeTruthy();
+    expect(
       screen.getByRole('heading', { name: '还没有生效的入营选拔标准' }),
     ).toBeTruthy();
     cleanup();
