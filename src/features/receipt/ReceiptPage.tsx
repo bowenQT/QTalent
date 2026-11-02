@@ -96,13 +96,22 @@ export function ReceiptPage({
   const [view, setView] = useState(initial);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [problems, setProblems] = useState<Record<string, ItemProblem>>({});
-  const [confirmed, setConfirmed] = useState<Record<string, ConfirmedDraft>>(
-    {},
-  );
+  /*
+   * 本页状态和读取快照的优先规则：本页刚做的确认或撤销先于快照显示（重读失败或还没跟上时，
+   * 卡片也不回到旧状态）；但在这次操作之后才发起的读取成功了，就以它为准——读到这件事在
+   * 待确认，本地的「已确认」作废（分和理由照保存时的留着）；读到它已确认，本地的撤销记录作废。
+   * `at` 记下操作发生时已经发起过几次读取，只有更晚发起的读取才能纠正它。
+   */
+  const reads = useRef(0);
+  const [confirmed, setConfirmed] = useState<
+    Record<string, ConfirmedDraft & { reason: string; at: number }>
+  >({});
   // 本页刚撤销的事：重读还没带回它时，照撤销前的内容留在待确认，并记下保存时的分和理由
   const [undone, setUndone] = useState<
-    Record<string, RestoredEdit & { draft: RecordBatchDraft }>
+    Record<string, RestoredEdit & { draft: RecordBatchDraft; at: number }>
   >({});
+  // 当前快照是第几次发起的读取带回来的
+  const [viewRead, setViewRead] = useState(0);
   // 撤销发出去了、结果不知道的事：重试沿用同一次撤销。
   // verify：之前那次结果未知、重试又被拒，说明不了撤销有没有生效，只能刷新回执核实
   const [undoUnknown, setUndoUnknown] = useState<
@@ -114,10 +123,12 @@ export function ReceiptPage({
   const { receipt } = view;
 
   const reload = useCallback(async () => {
+    const started = ++reads.current;
     try {
       const result = await actions.read(batchId);
       if (result.status === 'success') {
         setView(result.view);
+        setViewRead(started);
         setOrder((prev) => draftOrder(prev, result.view));
       }
     } catch {
@@ -135,6 +146,25 @@ export function ReceiptPage({
   }, [running, reload]);
 
   const drafts = receipt.draftSet?.drafts ?? [];
+  // 按上面的优先规则，把本页记录和当前快照合成卡片该显示的确认与撤销状态
+  const settled = new Set(receipt.confirmedDrafts.map((d) => d.draftId));
+  const confirmedNow: typeof confirmed = {};
+  const undoneNow: typeof undone = Object.fromEntries(
+    Object.entries(undone).filter(
+      ([id, entry]) => !(entry.at < viewRead && settled.has(id)),
+    ),
+  );
+  for (const [id, entry] of Object.entries(confirmed)) {
+    const pending = drafts.find((d) => d.draftId === id);
+    if (pending && entry.at < viewRead)
+      undoneNow[id] = {
+        draft: pending,
+        values: entry.values,
+        reason: entry.reason,
+        at: entry.at,
+      };
+    else confirmedNow[id] = entry;
+  }
 
   const mineDrafts = drafts.filter((d) => view.confirmers[d.draftId]?.mine);
   const others = drafts.filter((d) => !view.confirmers[d.draftId]?.mine);
@@ -143,7 +173,7 @@ export function ReceiptPage({
       others.map((d) => view.confirmers[d.draftId]?.name).filter(Boolean),
     ),
   ].join('、');
-  const mineConfirmed = Object.keys(confirmed).length;
+  const mineConfirmed = Object.keys(confirmedNow).length;
   const awaiting = receipt.counts.events.awaiting_confirmation;
   const held = heldEntries(receipt);
   const skipped = skippedEntries(receipt);
@@ -172,20 +202,27 @@ export function ReceiptPage({
       if (result.status === 'success') {
         ops.current.delete(draft.draftId);
         const { saveId, savedAt, undoUntil } = result.result;
+        // 在 updater 外取值：updater 到渲染时才执行，那时紧接着的重读已经发起了
+        const at = reads.current;
         setConfirmed((all) => ({
           ...all,
           [draft.draftId]: {
             draft,
             values,
+            reason,
             by: viewerName,
             on: shanghai(savedAt, false),
+            at,
           },
         }));
-        setUndone((all) => {
+        const without = <T,>(all: Record<string, T>) => {
           const next = { ...all };
           delete next[draft.draftId];
           return next;
-        });
+        };
+        // 再次保存后，上一次的撤销记录和撤销结果都不再适用
+        setUndone(without);
+        setUndoUnknown(without);
         // 撤销窗口按服务端的 undoUntil 算，保存成功就给出，不等重读
         offerUndo(draft, values, reason, saveId, Date.parse(undoUntil));
         await reload();
@@ -258,6 +295,7 @@ export function ReceiptPage({
       });
       // 撤销推进了草稿版本：重读没跟上时按回执给的版本再保存；分和理由照保存时的留着
       const restored = result.result.draftRestoration;
+      const at = reads.current;
       setUndone((all) => ({
         ...all,
         [id]: {
@@ -267,6 +305,7 @@ export function ReceiptPage({
               : draft,
           values,
           reason,
+          at,
         },
       }));
       await reload();
@@ -321,16 +360,16 @@ export function ReceiptPage({
    * 没有确认人信息）：本人刚确认过它，确认入口留着，能否保存仍由保存动作判断。
    */
   const mineOf = (id: string) =>
-    Boolean(confirmed[id]) ||
-    (view.confirmers[id]?.mine ?? undone[id] !== undefined);
+    Boolean(confirmedNow[id]) ||
+    (view.confirmers[id]?.mine ?? undoneNow[id] !== undefined);
 
   const card = (id: string) => {
-    const done = confirmed[id];
+    const done = confirmedNow[id];
     // 本页的确认和撤销结果先于读取快照：重读失败或还没跟上时，卡片也不回到旧状态。
     // 撤销回来的事一直带着保存时的分和理由，直到再次保存；版本号只用来选保存时对照的版本，
     // 不用来推断撤销状态（更高的版本不一定是新的整理结果）
     const found = drafts.find((d) => d.draftId === id);
-    const back = done ? undefined : undone[id];
+    const back = done ? undefined : undoneNow[id];
     const draft = back
       ? found && found.revision > back.draft.revision
         ? found
@@ -403,7 +442,7 @@ export function ReceiptPage({
   const visible = order.filter(
     (id) =>
       drafts.some((d) => d.draftId === id) ||
-      confirmed[id] ||
+      confirmedNow[id] ||
       receipt.confirmedDrafts.some((d) => d.draftId === id),
   );
   const isMine = mineOf;

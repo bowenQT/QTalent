@@ -853,3 +853,230 @@ describe('撤销回来的卡片重新挂载时', () => {
     expect(screen.queryByText(copy.edit.refreshed)).toBeNull();
   });
 });
+
+describe('本页状态和读取快照的优先规则', () => {
+  const bothMine = {
+    'demo-event-draft-a': { mine: true, name: '叶青' },
+    'demo-event-draft-b': { mine: true, name: '叶青' },
+  };
+  const counts = (awaiting: number, done: number) => ({
+    files: {
+      total: 1,
+      processing: 0,
+      parsed: 1,
+      needs_review: 0,
+      unsupported: 0,
+      failed: 0,
+      original_only: 0,
+      attachment_only: 0,
+    },
+    events: { total: 2, awaiting_confirmation: awaiting, confirmed: done },
+    reviewItems: 0,
+  });
+  const snapshot = (
+    pending: object[],
+    confirmedIds: string[],
+    confirmers: ReceiptView['confirmers'] = bothMine,
+  ) =>
+    make(
+      { confirmers },
+      {
+        draftSet: pending.length
+          ? {
+              batchId: 'demo-batch',
+              revision: 3,
+              drafts: pending,
+              duplicateCandidates: [],
+            }
+          : null,
+        confirmedDrafts: confirmedIds.map((draftId, i) => ({
+          draftId,
+          revision: 2,
+          events: [{ personId: 'demo-person', eventId: `ev-${i}` }],
+        })),
+        counts: counts(pending.length, confirmedIds.length),
+      },
+    );
+  const b = { ...other, draftId: 'demo-event-draft-b' };
+
+  it('确认之后才发起的读取读到这件事在待确认：本地「已确认」作废，回到待确认', async () => {
+    const user = userEvent.setup();
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 'success',
+        view: snapshot([b], ['demo-event-draft-a']),
+      })
+      // 确认第二件事后的读取：第一件事在别处被撤销，回到了待确认
+      .mockResolvedValue({
+        status: 'success',
+        view: snapshot([{ ...draft, revision: 3 }], ['demo-event-draft-b']),
+      });
+    mountWith(make({ confirmers: bothMine }), {
+      read,
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi.fn(),
+    });
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    expect(cardOf('demo-event-draft-a').dataset.state).toBe('confirmed');
+    await user.click(
+      within(cardOf('demo-event-draft-b')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    expect(
+      await within(cardOf('demo-event-draft-a')).findByRole('button', {
+        name: /确认这件事/,
+      }),
+    ).toBeTruthy();
+  });
+
+  it('确认之前就发起、之后才落定的读取：旧快照纠正不了本地的「已确认」', async () => {
+    const user = userEvent.setup();
+    let release!: (value: unknown) => void;
+    const slow = new Promise((resolve) => (release = resolve));
+    const read = vi
+      .fn()
+      // 确认第二件事后的读取一直不回
+      .mockReturnValueOnce(slow)
+      .mockResolvedValue({
+        status: 'success',
+        view: snapshot([], ['demo-event-draft-a', 'demo-event-draft-b']),
+      });
+    mountWith(make({ confirmers: bothMine }), {
+      read,
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi.fn(),
+    });
+    await user.click(
+      within(cardOf('demo-event-draft-b')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    // 第一次读取现在才回来，带着确认第一件事之前的样子
+    release({
+      status: 'success',
+      view: snapshot([draft], ['demo-event-draft-b']),
+    });
+    await waitFor(() =>
+      expect(cardOf('demo-event-draft-a').dataset.state).toBe('confirmed'),
+    );
+    expect(
+      within(cardOf('demo-event-draft-a')).queryByRole('button', {
+        name: /确认这件事/,
+      }),
+    ).toBeNull();
+  });
+
+  it('撤销之后才发起的读取读到这件事已确认：撤销记录作废，照快照显示已确认', async () => {
+    const user = userEvent.setup();
+    const read = vi.fn().mockResolvedValue({
+      status: 'success',
+      view: snapshot([b], ['demo-event-draft-a']),
+    });
+    mountWith(make({ confirmers: bothMine }), {
+      read,
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi.fn().mockResolvedValue(undoneResult(3)),
+    });
+    const card = () => cardOf('demo-event-draft-a');
+    await user.click(
+      within(card()).getByRole('button', { name: /确认这件事/ }),
+    );
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        within(card()).getByText(copy.confirm.confirmedShort),
+      ).toBeTruthy(),
+    );
+    expect(
+      within(card()).queryByRole('button', { name: /确认这件事/ }),
+    ).toBeNull();
+  });
+
+  it('快照明确写了不是本人确认：撤销记录不覆盖它', async () => {
+    const user = userEvent.setup();
+    const read = vi.fn().mockResolvedValue({
+      status: 'success',
+      view: snapshot([{ ...draft, revision: 3 }, b], [], {
+        'demo-event-draft-a': { mine: false, name: '苏晚' },
+        'demo-event-draft-b': { mine: true, name: '叶青' },
+      }),
+    });
+    mountWith(make({ confirmers: bothMine }), {
+      read: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockImplementation(read),
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi.fn().mockResolvedValue(undoneResult(3)),
+    });
+    const card = () => cardOf('demo-event-draft-a');
+    await user.click(
+      within(card()).getByRole('button', { name: /确认这件事/ }),
+    );
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    expect(
+      await within(card()).findByText(copy.confirm.waitFor('苏晚')),
+    ).toBeTruthy();
+    expect(
+      within(card()).queryByRole('button', { name: /确认这件事/ }),
+    ).toBeNull();
+  });
+
+  it('只有版本号变了、建议分没变：正在改的分和理由留着，不提示有新版本', async () => {
+    const user = userEvent.setup();
+    const same = make(
+      {},
+      {
+        draftSet: {
+          batchId: 'demo-batch',
+          revision: 2,
+          drafts: [{ ...draft, revision: 2 }, other],
+          duplicateCandidates: [],
+        },
+      },
+    );
+    mountWith(make(), {
+      read: vi.fn().mockResolvedValue({ status: 'success', view: same }),
+      save: vi.fn().mockResolvedValue({
+        status: 'conflict',
+        message: '这件事刚有新的版本，载入后再确认',
+        input: {},
+      }),
+      undo: vi.fn(),
+    });
+    const card = () => cardOf('demo-event-draft-a');
+    await user.click(within(card()).getByRole('button', { name: '改分' }));
+    await user.selectOptions(within(card()).getByRole('combobox'), '5');
+    await user.type(within(card()).getByRole('textbox'), '两人合作');
+    await user.click(
+      within(card()).getByRole('button', { name: '保存并确认' }),
+    );
+    await user.click(
+      await within(card()).findByRole('button', { name: copy.problem.reload }),
+    );
+    await waitFor(() => expect(within(card()).queryByRole('alert')).toBeNull());
+    expect(
+      (within(card()).getByRole('combobox') as HTMLSelectElement).value,
+    ).toBe('5');
+    expect(
+      (within(card()).getByRole('textbox') as HTMLTextAreaElement).value,
+    ).toBe('两人合作');
+    expect(within(card()).queryByText(copy.edit.refreshed)).toBeNull();
+  });
+});

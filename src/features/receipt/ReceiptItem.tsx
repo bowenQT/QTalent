@@ -114,21 +114,15 @@ export function ReceiptItem({
   );
   const [reason, setReason] = useState(() => restore?.reason ?? '');
   const [whyMissing, setWhyMissing] = useState(false);
-  // 草稿有了新版本（轮询或载入最新版本）：分值换成新的建议；正在改的分作废并说明。
-  // 本页撤销推进的版本不是新的整理结果：恢复保存时的分和理由，改过分就回到改分
-  const [revision, setRevision] = useState(draft.revision);
+  // 建议分变了（轮询或载入最新版本带回新的整理结果）：分值换成新的建议，正在改的分作废并说明。
+  // 只比建议分本身，不看版本号：撤销会推进版本，建议分没变，改过的分和理由照旧留着
+  const suggestion = JSON.stringify(suggestedValues(draft));
+  const [seen, setSeen] = useState(suggestion);
   const [refreshed, setRefreshed] = useState(false);
-  if (revision !== draft.revision) {
-    setRevision(draft.revision);
-    if (restore) {
-      setValues(restore.values);
-      setReason(restore.reason);
-      setEditing(isEdited(draft, restore.values));
-      setRefreshed(false);
-    } else {
-      setValues(suggestedValues(draft));
-      setRefreshed(editing);
-    }
+  if (seen !== suggestion) {
+    setSeen(suggestion);
+    setValues(suggestedValues(draft));
+    setRefreshed(editing);
   }
   // 一件事涉及多人时，每个分数写明是谁的
   const label = (personId: string, dim: string) => {
