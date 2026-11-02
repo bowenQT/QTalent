@@ -1,5 +1,5 @@
 {
-  "id": "112ba6d0-00b8-4026-add0-7536b8a92697",
+  "id": "e5606d28-fffa-4a34-ad58-6ce7a6fb4010",
   "prevId": "1c945dc1-8a71-4886-b0bc-5beca1df000c",
   "version": "7",
   "dialect": "postgresql",
@@ -849,6 +849,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "generation": {
+          "name": "generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         }
       },
       "indexes": {},
@@ -870,7 +877,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "directory_account_generation": {
+          "name": "directory_account_generation",
+          "value": "\"directory_account_bindings\".\"generation\" > 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.directory_employments": {
