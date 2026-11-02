@@ -26,6 +26,7 @@ import {
   EntryUsecaseError,
 } from '../entry/context';
 import { createMcpDomainHandlers } from '../mcp/handlers';
+import type { createStaffingDemandRuntime } from '../staffing-demand-runtime';
 import { AgentSessionError, sessionAuthority } from './session-policy';
 import {
   conversationTools,
@@ -405,18 +406,40 @@ export function createAgentConversationStore(db: Database) {
   };
 }
 
+const handlerFor = {
+  person_brief: 'person_brief',
+  draft_requirement: 'draft_requirement',
+  submit_material_batch: 'record_moment',
+} as const satisfies Record<ToolSuccess['name'], string>;
+function resourceOf(name: ToolSuccess['name'], payload: unknown): string {
+  const value = payload as Record<string, unknown>;
+  if (name === 'person_brief') return (value.person as { id: string }).id;
+  if (name === 'draft_requirement') return value.jobId as string;
+  return value.batchId as string;
+}
+/** Read-only history reader for an earlier demand creation; see
+ * readDemandCreationSnapshotInTransaction. Never a create replay. */
+export type DemandCreationSnapshots = Pick<
+  ReturnType<typeof createStaffingDemandRuntime>,
+  'readCreationSnapshotInTransaction'
+>;
 /** Private concrete composition, not an HTTP registration. Caller supplies the
  * real domain factories already used by MCP, never alternate allow-all handlers.
- * Material/demand historical readers are not yet available: refuse BEFORE writes.
+ * A tool whose read-only history reader is absent is refused BEFORE writes:
+ * an earlier result could not be revalidated without replaying a create.
  */
 export function createAgentConversationPostgresPorts(options: {
   db: Database;
   identities: EntryIdentityService;
   domains: Parameters<typeof createMcpDomainHandlers>[0];
+  demandSnapshots?: DemandCreationSnapshots;
   now?: () => string;
 }): ConversationPorts<Transaction> {
   const store = createAgentConversationStore(options.db);
   const handlers = createMcpDomainHandlers(options.domains);
+  const historyReadable = (name: ToolSuccess['name']) =>
+    name === 'person_brief' ||
+    (name === 'draft_requirement' && options.demandSnapshots !== undefined);
   // Both the explicit identity check and the 899 context loader re-read the
   // 903 credential on this conversation's transaction, never on the pool.
   const inTransaction = (tx: Transaction): EntryIdentityService => ({
@@ -443,47 +466,83 @@ export function createAgentConversationPostgresPorts(options: {
     save: store.save,
     current,
     async execute(tx, identity, name, args) {
-      // Native create/replay is not a read-only historical source reader. Do not
-      // call it to bless old context; missing operation rows could create anew.
-      if (name !== 'person_brief') throw new EntryUsecaseError('unavailable');
+      // Native create/replay is not a read-only historical source reader, so a
+      // tool executes only when its history can later be re-read without it.
+      if (!historyReadable(name)) throw new EntryUsecaseError('unavailable');
       await current(tx, identity);
-      const handler = handlers.person_brief;
+      const handler = handlers[handlerFor[name]];
       let ctx = await context(tx, identity);
       if (!(await handler.authorize(tx, ctx, args)))
         throw new EntryUsecaseError('forbidden');
       const raw = await handler.execute(tx, args, () => context(tx, identity));
       await current(tx, identity);
       ctx = await context(tx, identity);
-      const payload = parse(entryToolSuccessSchemas.person_brief, raw);
+      const payload = parse(entryToolSuccessSchemas[name], raw);
       if (
         !(await handler.authorize(tx, ctx, args)) ||
+        // Same-transaction replay right after the write: the operation exists,
+        // so this re-reads it and cannot create anything new.
         !(await handler.authorizeOutput(tx, ctx, args, payload))
       )
         throw new EntryUsecaseError('forbidden');
       await recordEntryAudit(tx, {
         actorId: ctx.account.id,
         channel: 'agentapi',
-        action: 'entry.tool.person_brief',
-        resourceId: payload.person.id,
+        action: 'entry.tool.' + name,
+        resourceId: resourceOf(name, payload),
         revision: null,
       });
-      return { name, payload };
+      return { name, payload } as ToolSuccess;
     },
     async revalidate(tx, identity, tool) {
-      if (tool.success.name !== 'person_brief')
-        throw new EntryUsecaseError('unavailable');
+      const name = tool.success.name;
+      if (!historyReadable(name)) throw new EntryUsecaseError('unavailable');
       await current(tx, identity);
-      const ctx = await context(tx, identity),
-        handler = handlers.person_brief;
-      return (
-        (await handler.authorize(tx, ctx, tool.args)) &&
-        (await handler.authorizeOutput(
-          tx,
-          ctx,
-          tool.args,
+      const ctx = await context(tx, identity);
+      if (name === 'person_brief') {
+        const handler = handlers.person_brief;
+        return (
+          (await handler.authorize(tx, ctx, tool.args)) &&
+          (await handler.authorizeOutput(
+            tx,
+            ctx,
+            tool.args,
+            tool.success.payload,
+          ))
+        );
+      }
+      if (name === 'draft_requirement') {
+        const args = entryToolInputSchemas.draft_requirement.parse(tool.args);
+        const disclosed = entryToolSuccessSchemas.draft_requirement.parse(
           tool.success.payload,
-        ))
-      );
+        );
+        // The server-derived business operation, not the model's key, names
+        // the creation. Locks job → root, re-reads authority, never creates.
+        const snapshot =
+          await options.demandSnapshots!.readCreationSnapshotInTransaction(
+            tx,
+            ctx.account.id,
+            { operationId: tool.businessOperationId, jobId: disclosed.jobId },
+          );
+        if (!snapshot) return false;
+        const latest =
+          entryToolSuccessSchemas.draft_requirement.safeParse(snapshot);
+        if (!latest.success || latest.data.jobId !== disclosed.jobId)
+          return false;
+        if (
+          latest.data.result !== null &&
+          (latest.data.result.projectId !== args.projectId ||
+            latest.data.result.inputText !== args.inputText)
+        )
+          return false;
+        // A disclosed generation result is immutable; a queued disclosure had
+        // none, so later progress does not withdraw anything already sent.
+        return (
+          disclosed.result === null ||
+          isDeepStrictEqual(latest.data.result, disclosed.result)
+        );
+      }
+      return false;
     },
   };
 }

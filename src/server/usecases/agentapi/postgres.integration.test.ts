@@ -26,7 +26,13 @@ import { grants, rebindDirectoryAccount } from '../../modules/directory';
 import { auditEvents } from '../../platform/audit/schema';
 import { loadEntryAuthorizationContext } from '../entry/context';
 import { recordEntryAudit } from '../entry/audit';
-import { createStaffingDemandRuntime } from '../staffing-demand-runtime';
+import { PgBoss } from 'pg-boss';
+import {
+  createStaffingDemandRuntime,
+  staffingDemandQueue,
+} from '../staffing-demand-runtime';
+import { projects } from '../../modules/staffing/schema';
+import { demandOperations } from '../../modules/staffing/demand/schema';
 import { createRecordBatchArrangeRequests } from '../record-batch-arrange-requests';
 import { entryToolSuccessSchemas } from '../../../contracts/entry-tools';
 import {
@@ -761,3 +767,163 @@ it('two conversations on the same Web session re-read 903 concurrently without s
     { status: 'fulfilled' },
   ]);
 }, 15000);
+
+let boss: PgBoss | undefined;
+afterAll(async () => {
+  await boss?.stop();
+});
+/** The same conversation wired to a real demand producer, its pg-boss queue
+ * and the read-only creation snapshot reader. Only the provider is offline. */
+async function withDemands(f: Awaited<ReturnType<typeof setup>>) {
+  if (!boss) {
+    boss = new PgBoss({ connectionString: c.testUrl });
+    await boss.start();
+    await boss.createQueue(staffingDemandQueue);
+  }
+  const projectId = f.prefix + '-project';
+  await c.db.insert(projects).values({
+    id: projectId,
+    name: '演示项目',
+    type: '业务项目',
+    status: '筹备中',
+    goal: '演示',
+    organizationId: f.prefix,
+    cohortId: f.cohort,
+    creatorId: f.evaluator,
+    from: '2026-01-01',
+    to: '2026-12-31',
+  });
+  const demands = createStaffingDemandRuntime({
+    db: c.db,
+    boss,
+    now: () => businessAt,
+  });
+  const ports = createAgentConversationPostgresPorts({
+    db: c.db,
+    identities: f.identities,
+    domains: {
+      demands: demands.service,
+      records: createRecordBatchArrangeRequests({
+        db: c.db,
+        now: at,
+        businessNow: () => businessAt,
+        enqueue: async () => {
+          throw new Error('queue not configured in this fixture');
+        },
+      }),
+    },
+    demandSnapshots: demands,
+    now: () => businessAt,
+  });
+  f.events[1] = {
+    id: 'evt-tool',
+    type: 'agent.custom_tool_use',
+    name: 'draft_requirement',
+    input: {
+      operationId: 'model-chosen-key',
+      projectId,
+      inputText: '演示：需要工程负责人',
+    },
+  };
+  const service = createAgentConversationService(ports, f.provider);
+  return {
+    projectId,
+    submit: () =>
+      service.submit(f.identity, f.conversationId, 'op-one', '起草演示需求'),
+    advance: () => service.advance(f.identity, f.conversationId, 'op-one'),
+  };
+}
+it('draft_requirement creates once under the server operation and revalidates from the creation snapshot', async () => {
+  const f = await setup();
+  const d = await withDemands(f);
+  await d.submit();
+  await Promise.all([d.advance(), d.advance()]);
+  const [tool] = await c.db
+    .select()
+    .from(agentApiToolEvents)
+    .where(eq(agentApiToolEvents.conversationId, f.conversationId));
+  expect(tool).toMatchObject({ name: 'draft_requirement', state: 'sent' });
+  // The model's idempotency key is replaced by the server-derived one.
+  const operations = await c.db
+    .select()
+    .from(demandOperations)
+    .where(eq(demandOperations.accountId, f.account));
+  expect(operations.map((row) => row.operationId)).toEqual([
+    tool!.businessOperationId,
+  ]);
+  const payload = entryToolSuccessSchemas.draft_requirement.parse(
+    tool!.successPayload,
+  );
+  expect(payload).toMatchObject({ status: 'queued', result: null });
+  const queued = await c.db.execute<{ n: number }>(
+    sql`select count(*)::int as n from pgboss.job where name = ${staffingDemandQueue} and data->>'jobId' = ${payload.jobId}`,
+  );
+  expect(queued.rows[0]!.n).toBe(1);
+  expect(
+    await c.db
+      .select({
+        action: auditEvents.action,
+        resourceId: auditEvents.resourceId,
+      })
+      .from(auditEvents)
+      .where(eq(auditEvents.actorId, f.account)),
+  ).toEqual([
+    { action: 'entry.tool.draft_requirement', resourceId: payload.jobId },
+  ]);
+  // A later turn re-reads that creation without creating or enqueueing again.
+  f.events.push(
+    {
+      id: 'evt-answer',
+      type: 'agent.message',
+      content: [{ type: 'text', text: '演示建议' }],
+    },
+    {
+      id: 'evt-end',
+      type: 'session.status_idle',
+      stop_reason: { type: 'end_turn' },
+    },
+  );
+  await expect(d.advance()).resolves.toMatchObject({ status: 'complete' });
+  expect(
+    await c.db
+      .select()
+      .from(demandOperations)
+      .where(eq(demandOperations.accountId, f.account)),
+  ).toHaveLength(1);
+  const after = await c.db.execute<{ n: number }>(
+    sql`select count(*)::int as n from pgboss.job where name = ${staffingDemandQueue} and data->>'jobId' = ${payload.jobId}`,
+  );
+  expect(after.rows[0]!.n).toBe(1);
+});
+it('a revoked demand grant invalidates the conversation before another provider request', async () => {
+  const f = await setup();
+  const d = await withDemands(f);
+  await d.submit();
+  await d.advance();
+  const polls = vi.mocked(f.provider.events).mock.calls.length;
+  await c.db.delete(grants).where(eq(grants.accountId, f.account));
+  await expect(d.advance()).rejects.toMatchObject({
+    kind: 'permission_changed',
+  });
+  expect(f.provider.events).toHaveBeenCalledTimes(polls);
+  const [row] = await c.db
+    .select({ state: agentApiConversations.state })
+    .from(agentApiConversations)
+    .where(eq(agentApiConversations.id, f.conversationId));
+  expect(row!.state).toBe('invalidated');
+});
+it('a creation the reader no longer resolves to the disclosed job fails revalidation', async () => {
+  const f = await setup();
+  const d = await withDemands(f);
+  await d.submit();
+  await d.advance();
+  // Re-point the server operation at another root: the snapshot reader must
+  // refuse the mismatched operation→root→job relation rather than trust IDs.
+  await c.db
+    .update(demandOperations)
+    .set({ fingerprint: JSON.stringify(['create', d.projectId, '演示：改写']) })
+    .where(eq(demandOperations.accountId, f.account));
+  await expect(d.advance()).rejects.toMatchObject({
+    kind: 'permission_changed',
+  });
+});
