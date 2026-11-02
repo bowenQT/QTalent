@@ -4,7 +4,7 @@ import type {
   EvaluationAuthzContext,
   EvaluationRelation,
 } from '../authz/evaluation-node';
-import { comparisonAccess, comparisonCohortIds } from './judge-access';
+import { comparisonAccess } from './judge-access';
 
 const now = '2026-10-31T12:00:00.000Z';
 const validity: Validity = {
@@ -186,28 +186,5 @@ describe('comparisonAccess', () => {
       now,
       grants: [],
     });
-  });
-});
-
-describe('comparisonCohortIds', () => {
-  it('lists the cohorts of granted nodes only, once each', () => {
-    const manager = context({ grants: [grant('manager')] });
-    expect(comparisonCohortIds(manager, comparisonAccess(manager)!)).toEqual([
-      cohortId,
-      'demo-cohort-b',
-    ]);
-    // A confirmed enrollment reaches the person's nodes in other cohorts too;
-    // an unconfirmed one only its own cohort's nodes.
-    const hr = context({
-      grants: [grant('hr')],
-      enrollments: [
-        { cohortId, personId: talent, confirmed: false, ...validity },
-      ],
-    });
-    expect(comparisonCohortIds(hr, comparisonAccess(hr)!)).toEqual([cohortId]);
-    const unrelated = context({ grants: [grant('mentor')] });
-    expect(
-      comparisonCohortIds(unrelated, comparisonAccess(unrelated)!),
-    ).toEqual([]);
   });
 });

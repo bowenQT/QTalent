@@ -5,6 +5,7 @@ import { getDatabase, type DbExecutor } from '../db/client';
 import { getEnv } from '../env';
 import { readDirectory } from '../modules/directory';
 import type { ComparisonReadPorts } from '../modules/evaluation-system/judgment-comparison/ports';
+import { holdsCaseGrant } from '../modules/evaluation-system/judgment-comparison/projection';
 import { loadEvaluationContext } from '../usecases/evaluation-context';
 import { readComparisonDataset } from '../usecases/judgment-comparison-dataset';
 import { ForbiddenError } from '../usecases/project-context';
@@ -40,16 +41,8 @@ export function comparisonReadPorts(
         { isolationLevel: 'repeatable read', accessMode: 'read only' },
       );
       if (!data) return null;
-      const now = Date.parse(access.now);
       const inScope = data.cases.some((unit) =>
-        access.grants.some(
-          (grant) =>
-            grant.personId === unit.person.id &&
-            (grant.nodeId === unit.frontNodeId ||
-              grant.nodeId === unit.backNodeId) &&
-            Date.parse(grant.validFrom) <= now &&
-            (grant.validUntil === null || now < Date.parse(grant.validUntil)),
-        ),
+        holdsCaseGrant(access, { ...unit, personId: unit.person.id }),
       );
       return inScope ? data : null;
     },

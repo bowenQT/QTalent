@@ -11,6 +11,7 @@ import { cohorts } from '../modules/programs';
 import { fragments, originals, originalVersions } from '../modules/records';
 import {
   comparisonBatches,
+  comparisonCases,
   standardAttributions,
   type CanonicalComparisonSnapshot,
   type CanonicalComparisonStage,
@@ -19,7 +20,9 @@ import type {
   ComparisonBatch,
   ComparisonDataset,
   ComparisonFacts,
+  CurrentComparisonAccess,
 } from '../modules/evaluation-system/judgment-comparison/ports';
+import { holdsCaseGrant } from '../modules/evaluation-system/judgment-comparison/projection';
 import {
   SelectionPersistenceUnavailableError,
   readStoredSelectionCohortBinding,
@@ -233,14 +236,32 @@ export async function readComparisonDataset(
   return snapshot && comparisonDatasetFromSnapshot(tx, snapshot);
 }
 
-/** Batch metadata of the given cohorts, newest import first. The caller passes
- * the cohorts its current access may see (`comparisonCohortIds`); a batch's
- * cohort is always bound, so a missing binding is a broken store, not "none". */
+/** Metadata of the batches the viewer may open, newest import first: those with
+ * at least one case on which `access` holds a current grant, the same rule as
+ * reading the batch. A batch's cohort is always bound, so a missing binding is a
+ * broken store, not "none". */
 export async function listComparisonBatches(
   tx: Transaction,
-  cohortIds: readonly string[],
+  access: CurrentComparisonAccess,
 ): Promise<ComparisonBatch[]> {
-  const ids = [...new Set(cohortIds)];
+  const personIds = [...new Set(access.grants.map((grant) => grant.personId))];
+  if (!personIds.length) return [];
+  const units = await tx
+    .select({
+      batchId: comparisonCases.batchId,
+      personId: comparisonCases.personId,
+      frontNodeId: comparisonCases.frontNodeId,
+      backNodeId: comparisonCases.backNodeId,
+    })
+    .from(comparisonCases)
+    .where(inArray(comparisonCases.personId, personIds));
+  const ids = [
+    ...new Set(
+      units
+        .filter((unit) => holdsCaseGrant(access, unit))
+        .map((unit) => unit.batchId),
+    ),
+  ];
   if (!ids.length) return [];
   const rows = await tx
     .select({
@@ -252,7 +273,7 @@ export async function listComparisonBatches(
     })
     .from(comparisonBatches)
     .innerJoin(cohorts, eq(cohorts.id, comparisonBatches.cohortId))
-    .where(inArray(comparisonBatches.cohortId, ids))
+    .where(inArray(comparisonBatches.id, ids))
     .orderBy(
       sql`${comparisonBatches.importedAt} desc`,
       asc(comparisonBatches.id),
