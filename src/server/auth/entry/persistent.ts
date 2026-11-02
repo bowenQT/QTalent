@@ -192,10 +192,12 @@ export function createAgentApiEntryAuthenticator(
       );
       if (rows[0]?.isolation !== 'read committed')
         throw new EntryIdentityError('unavailable');
-      // Lock exact authoritative rows, then read in a NEW RC statement. A
-      // joined locking select can otherwise retain an earlier join snapshot
-      // while waiting for a concurrent revocation/rebind. Session first also
-      // follows logout's session -> cascading AgentAPI deletion order.
+      // Share-lock exact authoritative rows, then read in a NEW RC statement.
+      // A joined locking select can otherwise retain an earlier join snapshot
+      // while waiting for a concurrent revocation/rebind. Shared locks still
+      // wait for and then hold off writers, without serializing readers.
+      // Session first also follows logout's session -> cascading AgentAPI
+      // deletion order.
       const [lockedSession] = await tx
         .select({ id: session.id })
         .from(session)
@@ -205,13 +207,13 @@ export function createAgentApiEntryAuthenticator(
             eq(session.userId, proof.accountId),
           ),
         )
-        .for('update');
+        .for('share');
       if (!lockedSession) reject();
       const [lockedAccount] = await tx
         .select({ id: accountBindings.accountId })
         .from(accountBindings)
         .where(eq(accountBindings.accountId, proof.accountId))
-        .for('update');
+        .for('share');
       if (!lockedAccount) reject();
       const [lockedAgent] = await tx
         .select({ id: agentApiBindings.id })
@@ -224,7 +226,7 @@ export function createAgentApiEntryAuthenticator(
             eq(agentApiBindings.accountId, proof.accountId),
           ),
         )
-        .for('update');
+        .for('share');
       if (!lockedAgent) reject();
     }
     const executor: DbExecutor = tx ?? db;

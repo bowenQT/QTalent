@@ -14,7 +14,6 @@ import {
 } from '../../auth/entry/agentapi/schema';
 import { agentApiBindings } from '../../auth/entry/schema';
 import { session } from '../../auth/schema';
-import { accountBindings } from '../../modules/directory';
 import type {
   EntryIdentity,
   EntryIdentityService,
@@ -208,13 +207,13 @@ export function createAgentConversationStore(db: Database) {
   ): Promise<T> {
     if (scopes.has(tx)) fail();
     // Logout deletes the auth session, cascading to the AgentAPI binding and
-    // then nulling this row's binding. The same-transaction 903 re-read locks
-    // session -> account -> binding, so take that chain BEFORE the conversation
-    // lock: a racing logout then waits for us instead of deadlocking.
+    // then nulling this row's binding. Key-share both rows BEFORE the
+    // conversation lock so a racing logout waits for this turn instead of
+    // deadlocking with the same-transaction 903 re-read; ordinary revision or
+    // expiry updates are not blocked and are re-read after the waits below.
     const [link] = await tx
       .select({
         bindingId: agentApiBindings.id,
-        accountId: agentApiBindings.accountId,
         sessionId: agentApiBindings.sessionId,
       })
       .from(agentApiConversations)
@@ -228,17 +227,12 @@ export function createAgentConversationStore(db: Database) {
         .select({ id: session.id })
         .from(session)
         .where(eq(session.id, link.sessionId))
-        .for('update');
-      await tx
-        .select({ id: accountBindings.accountId })
-        .from(accountBindings)
-        .where(eq(accountBindings.accountId, link.accountId))
-        .for('update');
+        .for('key share');
       await tx
         .select({ id: agentApiBindings.id })
         .from(agentApiBindings)
         .where(eq(agentApiBindings.id, link.bindingId))
-        .for('update');
+        .for('key share');
     }
     const [row] = await tx
       .select()

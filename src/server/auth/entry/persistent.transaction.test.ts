@@ -181,15 +181,15 @@ describe('AgentAPI transaction reader query boundary', () => {
       params: [],
     });
     expect(tx[2]).toMatchObject({
-      text: 'select "id" from "auth_session" where ("auth_session"."id" = $1 and "auth_session"."user_id" = $2) for update',
+      text: 'select "id" from "auth_session" where ("auth_session"."id" = $1 and "auth_session"."user_id" = $2) for share',
       params: [owner.sessionId, owner.accountId],
     });
     expect(tx[3]).toMatchObject({
-      text: 'select "account_id" from "directory_account_bindings" where "directory_account_bindings"."account_id" = $1 for update',
+      text: 'select "account_id" from "directory_account_bindings" where "directory_account_bindings"."account_id" = $1 for share',
       params: [owner.accountId],
     });
     expect(tx[4]).toMatchObject({
-      text: 'select "id" from "entry_agent_api_bindings" where ("entry_agent_api_bindings"."id" = $1 and "entry_agent_api_bindings"."agent_id" = $2 and "entry_agent_api_bindings"."session_id" = $3 and "entry_agent_api_bindings"."account_id" = $4) for update',
+      text: 'select "id" from "entry_agent_api_bindings" where ("entry_agent_api_bindings"."id" = $1 and "entry_agent_api_bindings"."agent_id" = $2 and "entry_agent_api_bindings"."session_id" = $3 and "entry_agent_api_bindings"."account_id" = $4) for share',
       params: [credentialId, owner.agentId, owner.sessionId, owner.accountId],
     });
     expect(tx[5].text).toContain(
@@ -255,7 +255,7 @@ describe('AgentAPI transaction reader query boundary', () => {
     ]);
     expect(
       d.queries.every(
-        (query) => !/for update|current_setting/u.test(query.text),
+        (query) => !/for share|current_setting/u.test(query.text),
       ),
     ).toBe(true);
   });
@@ -292,7 +292,7 @@ describe('AgentAPI transaction reader query boundary', () => {
         d.db.transaction((tx) => d.service.currentInTransaction(tx, cap)),
       ).rejects.toMatchObject({ kind: 'unauthenticated' });
       const lastRead = d.queries
-        .filter((query) => query.text.endsWith('for update'))
+        .filter((query) => query.text.endsWith('for share'))
         .at(-1)!;
       expect(lastRead.params).toContain('demo-wrong');
       expect(
