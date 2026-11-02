@@ -11,24 +11,35 @@ import type {
 import { uploadToKodo } from './kodo-upload';
 import type {
   MaterialsPort,
+  PrepareOutcome,
   SubmitOutcome,
+  UploadCollection,
   UploadOutcome,
 } from './materials-port';
 
-/** What the browser knows about a file; the server resolves owner, node and collection. */
-export type UploadDeclaration = Pick<
-  MaterialUploadRequest,
-  'purpose' | 'filename' | 'declaredBytes' | 'declaredMediaType' | 'operationId'
->;
+/** A file's upload declaration, staged unassigned in the batch's collection. */
+export type UploadDeclaration = Omit<MaterialUploadRequest, 'target'> & {
+  target: { kind: 'unassigned'; evaluationNodeId: string };
+};
+
+/**
+ * Opening a batch's upload collection. The server picks the uploader's evaluation
+ * node in progress; `node_missing` is none, `node_ambiguous` several at once.
+ */
+export type CollectionResult =
+  | { status: 'ready'; collection: UploadCollection }
+  | { status: 'node_missing' }
+  | { status: 'node_ambiguous' }
+  | { status: 'failed'; message: string };
 
 /**
  * Batch submission answer from /work: the batch receipt, or why the server
- * declined it. `no_active_node` means the uploader has no evaluation node in
- * progress to attach the batch to.
+ * declined it. `node_unresolved` is the server finding no single evaluation node
+ * in progress to attach the batch to.
  */
 export type BatchSubmitResult =
   | { status: 'success'; receipt: MaterialBatchReceipt }
-  | { status: 'no_active_node' }
+  | { status: 'node_unresolved' }
   | { status: 'declined'; message: string };
 
 /**
@@ -44,6 +55,7 @@ export type CompleteResult =
  * A rejected promise is a transport failure (offline, timeout, signed out).
  */
 export type MaterialsTransport = {
+  openCollection: (input: { operationId: string }) => Promise<CollectionResult>;
   requestUpload: (
     input: UploadDeclaration,
     signal: AbortSignal,
@@ -66,7 +78,11 @@ export type MaterialsTransport = {
 
 const INTERRUPTED = '上传中断，可以重试';
 const SUBMIT_INTERRUPTED = '提交中断，可以重新提交';
-export const NO_ACTIVE_NODE = '评价节点开始后，再把这批材料交上来';
+export const NODE_MISSING = '评价节点开始后，再把这批材料交上来';
+export const NODE_AMBIGUOUS =
+  '有几个评价节点同时进行中，请联系 HR 确认这批材料归哪一个';
+export const NODE_UNRESOLVED =
+  '这批材料要归到一个进行中的评价节点，请联系 HR 确认';
 
 /** The declared type the server accepts for this file name, or null for an unknown format. */
 export function declare(file: File) {
@@ -84,17 +100,37 @@ export function declare(file: File) {
 }
 
 /**
- * The materials port over the real backend: upload grant, direct transfer to
- * Kodo, completion check; batch submission and receipt reads. Each step's
- * operationId is new per attempt, except the batch's, which the caller keeps
- * across retries so the server replays it.
+ * The materials port over the real backend: the batch's upload collection, then
+ * per file the upload grant, direct transfer to Kodo and completion check; batch
+ * submission and receipt reads. A file's grant and completion get a new
+ * operationId per attempt; the collection's and the batch's come from the caller,
+ * which keeps them across retries so the server replays them.
  */
 export function createLiveMaterialsPort(
   transport: MaterialsTransport,
   fetcher: typeof fetch = fetch,
 ): MaterialsPort {
+  async function prepare(operationId: string): Promise<PrepareOutcome> {
+    try {
+      const result = await transport.openCollection({ operationId });
+      switch (result.status) {
+        case 'ready':
+          return result;
+        case 'node_missing':
+          return { status: 'refused', message: NODE_MISSING };
+        case 'node_ambiguous':
+          return { status: 'refused', message: NODE_AMBIGUOUS };
+        case 'failed':
+          return { status: 'interrupted', message: result.message };
+      }
+    } catch {
+      return { status: 'interrupted', message: INTERRUPTED };
+    }
+  }
+
   async function upload(
     file: File,
+    collection: UploadCollection,
     onProgress: (percent: number) => void,
     signal: AbortSignal,
   ): Promise<UploadOutcome> {
@@ -108,6 +144,11 @@ export function createLiveMaterialsPort(
       const granted = await transport.requestUpload(
         {
           ...declared,
+          recordCollectionId: collection.recordCollectionId,
+          target: {
+            kind: 'unassigned',
+            evaluationNodeId: collection.evaluationNodeId,
+          },
           filename: file.name,
           declaredBytes: file.size,
           operationId: crypto.randomUUID(),
@@ -164,8 +205,8 @@ export function createLiveMaterialsPort(
       switch (result.status) {
         case 'success':
           return { status: 'accepted', receipt: result.receipt };
-        case 'no_active_node':
-          return { status: 'refused', message: NO_ACTIVE_NODE };
+        case 'node_unresolved':
+          return { status: 'refused', message: NODE_UNRESOLVED };
         case 'declined':
           return { status: 'refused', message: result.message };
       }
@@ -183,5 +224,5 @@ export function createLiveMaterialsPort(
     }
   }
 
-  return { upload, submit, read };
+  return { prepare, upload, submit, read };
 }

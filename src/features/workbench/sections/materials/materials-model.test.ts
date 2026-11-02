@@ -8,6 +8,7 @@ import {
   inProgress,
   openBatches,
   localLine,
+  localParts,
   receiptLine,
   settled,
   uploadHint,
@@ -27,6 +28,7 @@ const file = (state: LocalFile['state'], id: string = state): LocalFile => {
     case 'rejected':
       return { ...base, state, message: '原因' };
     case 'canceled':
+    case 'held':
       return { ...base, state };
   }
 };
@@ -117,7 +119,13 @@ describe('batch state', () => {
     // Nothing uploaded: nothing goes, and it never says completed.
     expect(
       batchState(batch([file('rejected'), file('canceled')], waiting)),
-    ).toEqual(['done', '已结束']);
+    ).toEqual(['done', '已结束']); // Refused before anything went: that wins over the files still waiting.
+    const refused = batch([file('held'), file('rejected')], {
+      state: 'refused',
+      message: '评价节点开始后，再把这批材料交上来',
+    });
+    expect(batchState(refused)).toEqual(['failed', '已退回']);
+    expect(localParts(refused)).toContain('1 个未上传');
   });
 
   it('counts a batch as in progress only while it is moving', () => {
@@ -160,6 +168,7 @@ describe('file lines', () => {
       tone: 'err',
     });
     expect(localLine(file('canceled')).label).toBe('已取消');
+    expect(localLine(file('held')).label).toBe('未上传');
   });
 
   it('give every receipt status its own words', () => {

@@ -4,9 +4,16 @@ import type { MaterialBatchReceipt } from '@/contracts/materials';
 import { bucketOf, PART_BYTES, uploadToKodo } from './kodo-upload';
 import {
   createLiveMaterialsPort,
-  NO_ACTIVE_NODE,
+  NODE_AMBIGUOUS,
+  NODE_MISSING,
+  NODE_UNRESOLVED,
   type MaterialsTransport,
 } from './live-port';
+
+const COLLECTION = {
+  recordCollectionId: 'collection-1',
+  evaluationNodeId: 'node-1',
+};
 
 const urlSafe = (value: string) =>
   btoa(value).replace(/\+/g, '-').replace(/\//g, '_');
@@ -53,6 +60,10 @@ function transport(
   overrides: Partial<MaterialsTransport> = {},
 ): MaterialsTransport {
   return {
+    openCollection: vi.fn(async () => ({
+      status: 'ready' as const,
+      collection: COLLECTION,
+    })),
     requestUpload: vi.fn(async () => ({
       status: 'success' as const,
       upload: grant(),
@@ -159,12 +170,15 @@ describe('createLiveMaterialsPort', () => {
     const port = createLiveMaterialsPort(api, fetcher);
     const outcome = await port.upload(
       audio(),
+      COLLECTION,
       () => {},
       new AbortController().signal,
     );
     expect(outcome).toEqual({ status: 'uploaded', uploadId: 'upload-1' });
     expect(vi.mocked(api.requestUpload).mock.calls[0]![0]).toMatchObject({
       purpose: 'audio',
+      recordCollectionId: 'collection-1',
+      target: { kind: 'unassigned', evaluationNodeId: 'node-1' },
       filename: '演示访谈.m4a',
       declaredBytes: 10,
       declaredMediaType: 'audio/mp4',
@@ -189,12 +203,19 @@ describe('createLiveMaterialsPort', () => {
       fetcher,
     );
     const signal = new AbortController().signal;
-    expect(await port.upload(audio(), () => {}, signal)).toEqual({
+    expect(await port.upload(audio(), COLLECTION, () => {}, signal)).toEqual({
       status: 'rejected',
       message: '文件超过 2 GB',
     });
     expect(
-      (await port.upload(new File(['x'], 'a.exe'), () => {}, signal)).status,
+      (
+        await port.upload(
+          new File(['x'], 'a.exe'),
+          COLLECTION,
+          () => {},
+          signal,
+        )
+      ).status,
     ).toBe('rejected');
     expect(calls).toHaveLength(0);
   });
@@ -207,6 +228,7 @@ describe('createLiveMaterialsPort', () => {
       (
         await createLiveMaterialsPort(api, kodo().fetcher).upload(
           audio(),
+          COLLECTION,
           () => {},
           abort.signal,
         )
@@ -219,7 +241,7 @@ describe('createLiveMaterialsPort', () => {
         await createLiveMaterialsPort(
           transport(),
           kodo({ failPart: 1 }).fetcher,
-        ).upload(audio(), () => {}, signal)
+        ).upload(audio(), COLLECTION, () => {}, signal)
       ).status,
     ).toBe('interrupted');
     expect(
@@ -227,7 +249,30 @@ describe('createLiveMaterialsPort', () => {
         transport({
           requestUpload: () => Promise.reject(new TypeError('offline')),
         }),
-      ).upload(audio(), () => {}, signal),
+      ).upload(audio(), COLLECTION, () => {}, signal),
+    ).toEqual({ status: 'interrupted', message: '上传中断，可以重试' });
+  });
+
+  it('opens the collection, refusing when no single node is in progress', async () => {
+    const prepare = (openCollection: MaterialsTransport['openCollection']) =>
+      createLiveMaterialsPort(transport({ openCollection })).prepare('op-0');
+    expect(await createLiveMaterialsPort(transport()).prepare('op-0')).toEqual({
+      status: 'ready',
+      collection: COLLECTION,
+    });
+    expect(await prepare(async () => ({ status: 'node_missing' }))).toEqual({
+      status: 'refused',
+      message: NODE_MISSING,
+    });
+    expect(await prepare(async () => ({ status: 'node_ambiguous' }))).toEqual({
+      status: 'refused',
+      message: NODE_AMBIGUOUS,
+    });
+    expect(
+      await prepare(async () => ({ status: 'failed', message: '服务繁忙' })),
+    ).toEqual({ status: 'interrupted', message: '服务繁忙' });
+    expect(
+      await prepare(() => Promise.reject(new TypeError('offline'))),
     ).toEqual({ status: 'interrupted', message: '上传中断，可以重试' });
   });
 
@@ -242,9 +287,9 @@ describe('createLiveMaterialsPort', () => {
       status: 'accepted',
       receipt,
     });
-    expect(await submit(async () => ({ status: 'no_active_node' }))).toEqual({
+    expect(await submit(async () => ({ status: 'node_unresolved' }))).toEqual({
       status: 'refused',
-      message: NO_ACTIVE_NODE,
+      message: NODE_UNRESOLVED,
     });
     expect(
       await submit(async () => ({ status: 'declined', message: '没有权限' })),

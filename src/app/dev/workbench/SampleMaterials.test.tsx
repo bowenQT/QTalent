@@ -27,14 +27,33 @@ function portOf(failFirst: boolean) {
   return port as MaterialsPort;
 }
 const file = (name: string) => new File(['x'], name);
+const COLLECTION = {
+  recordCollectionId: 'collection-1',
+  evaluationNodeId: 'demo-node',
+};
 
 describe('development materials sample', () => {
+  it('opens a collection for each batch', async () => {
+    vi.useFakeTimers();
+    const port = portOf(false);
+    const opened = port.prepare('op-1');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await opened).toEqual({
+      status: 'ready',
+      collection: {
+        recordCollectionId: 'c-op-1',
+        evaluationNodeId: 'demo-node',
+      },
+    });
+  });
+
   it('uploads in ten steps, submits a processing batch and settles on the first read', async () => {
     vi.useFakeTimers();
     const port = portOf(false);
     const progress: number[] = [];
     const upload = port.upload(
       file('纪要.docx'),
+      COLLECTION,
       (percent) => progress.push(percent),
       new AbortController().signal,
     );
@@ -69,6 +88,7 @@ describe('development materials sample', () => {
     const progress: number[] = [];
     const first = port.upload(
       file('a.docx'),
+      COLLECTION,
       (percent) => progress.push(percent),
       new AbortController().signal,
     );
@@ -80,6 +100,7 @@ describe('development materials sample', () => {
     expect(progress).toEqual([10, 20, 30, 40, 50]);
     const second = port.upload(
       file('a.docx'),
+      COLLECTION,
       () => undefined,
       new AbortController().signal,
     );
@@ -93,6 +114,7 @@ describe('development materials sample', () => {
     const controller = new AbortController();
     const upload = port.upload(
       file('a.docx'),
+      COLLECTION,
       () => undefined,
       controller.signal,
     );

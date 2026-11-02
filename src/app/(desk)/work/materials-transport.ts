@@ -3,38 +3,56 @@ import {
   completeUploadResultSchema,
   materialRequestUploadResultSchema,
 } from '@/contracts/media';
-import { materialBatchReceiptSchema } from '@/contracts/materials';
+import type { MaterialBatchSubmitResult } from '@/contracts/materials';
+import { startRecordArrangeAction } from '@/server/actions/record-arrange';
 import type {
   BatchSubmitResult,
+  CollectionResult,
   CompleteResult,
   MaterialsTransport,
 } from '@/features/workbench/sections/materials/live-port';
 import { readBatch } from '../record/reads';
 
-/** Same-origin entries for workbench material intake. */
+/** Same-origin entries for workbench material uploads. */
 export const MATERIAL_ROUTES = {
+  collections: '/api/record/uploads/collections',
   uploads: '/api/record/uploads',
   complete: '/api/record/uploads/complete',
-  batches: '/api/materials/batches',
 };
 
 const text = z.string().min(1);
-const batchSubmitResponseSchema = z.discriminatedUnion('status', [
+const collectionResponseSchema = z.union([
   z.object({
     status: z.literal('success'),
-    replayed: z.boolean(),
-    result: materialBatchReceiptSchema,
-  }),
-  z.object({ status: z.literal('no_active_node'), message: text }),
-  z.object({
-    status: z.literal('validation_error'),
-    fieldErrors: z.record(z.string(), z.array(z.string())),
+    recordCollectionId: text,
+    evaluationNodeId: text,
   }),
   z.object({
-    status: z.enum(['conflict', 'forbidden', 'not_found']),
-    message: text,
+    status: z.enum(['default_node_missing', 'default_node_ambiguous']),
   }),
+  z.object({ status: text, message: text }),
 ]);
+
+function toCollectionResult(
+  result: z.infer<typeof collectionResponseSchema>,
+): CollectionResult {
+  if ('recordCollectionId' in result)
+    return {
+      status: 'ready',
+      collection: {
+        recordCollectionId: result.recordCollectionId,
+        evaluationNodeId: result.evaluationNodeId,
+      },
+    };
+  if (result.status === 'default_node_missing')
+    return { status: 'node_missing' };
+  if (result.status === 'default_node_ambiguous')
+    return { status: 'node_ambiguous' };
+  return {
+    status: 'failed',
+    message: 'message' in result ? result.message : '',
+  };
+}
 
 const completeResponseSchema = z.union([
   z.object({ status: z.literal('staged'), uploadId: text }),
@@ -75,25 +93,25 @@ async function post<S extends z.ZodType>(
   return schema.parse(await response.json()) as z.infer<S>;
 }
 
-function toSubmitResult(
-  result: z.infer<typeof batchSubmitResponseSchema>,
-): BatchSubmitResult {
+/** A files-only batch: no text, people or project; the server picks the node. */
+function toSubmitResult(result: MaterialBatchSubmitResult): BatchSubmitResult {
   switch (result.status) {
     case 'success':
       return { status: 'success', receipt: result.result };
-    case 'no_active_node':
-      return { status: 'no_active_node' };
     case 'validation_error':
-      return {
-        status: 'declined',
-        message: '这批文件需要重新选择，再交一次',
-      };
+      return result.fieldErrors.evaluationNodeId
+        ? { status: 'node_unresolved' }
+        : { status: 'declined', message: '这批文件需要重新选择，再交一次' };
     default:
       return { status: 'declined', message: result.message };
   }
 }
 
 export const materialsTransport: MaterialsTransport = {
+  openCollection: async (input) =>
+    toCollectionResult(
+      await post(MATERIAL_ROUTES.collections, input, collectionResponseSchema),
+    ),
   requestUpload: (input, signal) =>
     post(
       MATERIAL_ROUTES.uploads,
@@ -110,9 +128,15 @@ export const materialsTransport: MaterialsTransport = {
         signal,
       ),
     ),
-  submitBatch: async (input) =>
+  submitBatch: async ({ operationId, files }) =>
     toSubmitResult(
-      await post(MATERIAL_ROUTES.batches, input, batchSubmitResponseSchema),
+      await startRecordArrangeAction({
+        operationId,
+        personIds: [],
+        projectId: null,
+        text: '',
+        files,
+      }),
     ),
   readBatch: (batchId) => readBatch({ batchId }),
 };
