@@ -102,9 +102,13 @@ function toSubmitResult(result: MaterialBatchSubmitResult): BatchSubmitResult {
     case 'success':
       return { status: 'success', receipt: result.result };
     case 'validation_error':
-      return result.fieldErrors.evaluationNodeId
-        ? { status: 'node_unresolved' }
-        : { status: 'declined', message: '这批文件需要重新选择，再交一次' };
+      if (result.fieldErrors.evaluationNodeId)
+        return { status: 'node_unresolved' };
+      return {
+        status: 'declined',
+        message:
+          result.fieldErrors.files?.[0] ?? '这批文件需要重新选择，再交一次',
+      };
     default:
       return { status: 'declined', message: result.message };
   }

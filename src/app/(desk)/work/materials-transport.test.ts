@@ -155,7 +155,16 @@ describe('materialsTransport', () => {
     });
     arrange.mockResolvedValueOnce({
       status: 'validation_error',
-      fieldErrors: { files: ['文件已失效'] },
+      fieldErrors: { files: ['这些文件属于不同的评价节点，请按节点分开投递'] },
+      input: {},
+    });
+    expect(await materialsTransport.submitBatch(input)).toEqual({
+      status: 'declined',
+      message: '这些文件属于不同的评价节点，请按节点分开投递',
+    });
+    arrange.mockResolvedValueOnce({
+      status: 'validation_error',
+      fieldErrors: {},
       input: {},
     });
     expect((await materialsTransport.submitBatch(input)).status).toBe(
