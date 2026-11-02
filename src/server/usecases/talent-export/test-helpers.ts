@@ -79,7 +79,9 @@ export function memoryFixture() {
     },
     async readSnapshot(_tx, _account, now) {
       f.change(++f.reads);
-      const data = structuredClone(f.data);
+      // The issued intake table is frozen and cannot be cloned into a plain object.
+      const { intake, ...rest } = f.data;
+      const data = { ...structuredClone(rest), intake };
       data.context.now = now;
       return data;
     },

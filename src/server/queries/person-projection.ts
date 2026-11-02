@@ -11,7 +11,7 @@ import { deriveReferencePosition } from '../modules/talent';
 import type { PositionScore } from '../modules/talent';
 import {
   type PersonData,
-  talentSources,
+  completeTalentSources,
   personBusinessDay,
 } from './person-data';
 import { byCodePoint, identityOf, landingOf } from './person-identity';
@@ -22,6 +22,7 @@ import {
   type EffectiveScore,
   type Evidence,
 } from './person-evidence';
+import { missingVisibleCapabilityEvidence } from './person-display-policy';
 
 export function personRole(data: PersonData) {
   const roles = activeRoles(data.context);
@@ -155,9 +156,15 @@ function spectrum(data: PersonData, evidence: Evidence) {
   if (!scores.length)
     return {
       status: 'insufficient_evidence' as const,
-      reason: '近 12 个月暂无已确认的维度分',
+      reason: missingVisibleCapabilityEvidence(),
     };
   const scored = new Set(scores.map((row) => row.dimensionId));
+  // Only dimensions on event cards this viewer can already read.
+  const visible = new Set(
+    evidence.keyEvents.flatMap((row) =>
+      row.scores.map((score) => score.dimensionId),
+    ),
+  );
   return {
     status: 'ready' as const,
     data: {
@@ -169,7 +176,9 @@ function spectrum(data: PersonData, evidence: Evidence) {
         state: scored.has(row.id)
           ? ('scored' as const)
           : ('insufficient' as const),
-        ...(scored.has(row.id) ? {} : { missing: '近 12 个月没有已确认的分' }),
+        ...(scored.has(row.id)
+          ? {}
+          : { missing: missingVisibleCapabilityEvidence(row.id, visible) }),
       })),
       scores,
     },
@@ -178,7 +187,7 @@ function spectrum(data: PersonData, evidence: Evidence) {
 export async function personFromData(
   data: PersonData,
   id: string,
-  sources: TalentSource[] = talentSources(data),
+  sources: TalentSource[] = completeTalentSources(data),
 ): Promise<Person | null> {
   const gate = profileGate(data, id);
   if (!gate) return null;

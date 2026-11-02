@@ -1,18 +1,8 @@
 import { createHash } from 'node:crypto';
-import { sql } from 'drizzle-orm';
-import type { Transaction } from '../db/client';
 import type { TalentKind, TalentSource } from '../authz/talent';
-import { arrangeInputs, type StoredArrangeInput } from '../modules/records';
+import type { StoredArrangeInput } from '../modules/records';
 import { sourceKey } from './source-key';
-
-/** JSON source references have no FK to a fragment. Take this before the batch
- * and fragment locks: a row scan alone cannot exclude a newly shared intake.
- * SHARE permits concurrent confirmations/readers, but fences intake DML for
- * this short transaction. Never acquire input row locks after a batch lock. */
-export async function lockConfirmationIntakes(tx: Transaction) {
-  await tx.execute(sql`lock table ${arrangeInputs} in share mode`);
-  return tx.select().from(arrangeInputs);
-}
+import { intakeRows, type IntakeTable } from './talent-source-projection';
 
 const kinds = new Set<TalentKind>([
   'person',
@@ -30,19 +20,22 @@ interface ConfirmationProvenance {
   linkedSourceKeys: ReadonlySet<string>;
   versions: { id: string; originalId: string; contentDigest: string }[];
   originals: { id: string; kind: string }[];
-  inputs: StoredArrangeInput[];
+  /** The whole intake table as read by readIntakeTable, never a subset. */
+  intake: IntakeTable;
 }
 
-/** Supplement the complete formal graph with immutable intake provenance.
+/** Internal to talent-source-projection: callers use completeTalentSources.
+ * Supplement the complete formal graph with immutable intake provenance.
  * No actor/AI draft/attribution list is an authority or a substitute subject.
  * Keep superseded intake restrictions: rebinding cannot erase shared facts.
  * The caller applies current source permissions to the resulting full union. */
 export function confirmationSources(
   data: ConfirmationProvenance,
 ): TalentSource[] {
+  const inputs: readonly StoredArrangeInput[] = intakeRows(data.intake);
   return data.sources.map((source) => {
     const key = sourceKey(source);
-    const matches = data.inputs.filter(
+    const matches = inputs.filter(
       (input) =>
         (input.inputSource && sourceKey(input.inputSource) === key) ||
         input.sourceContexts.some((context) => sourceKey(context) === key),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fixture } from './person-test-helpers';
 import { buildAuthorizedModelInput } from '../authz/talent';
-import { talentSources } from './person-data';
+import { completeTalentSources } from './person-data';
 import { personFromData } from './person-projection';
 import { sourceFromData } from './sources';
 import { historicalEvaluationRequiredKind } from './historical-evaluation-policy';
@@ -90,7 +90,7 @@ describe('BOW-837 restricted graduation source access on main', () => {
       const data = historical(role);
       const input = await buildAuthorizedModelInput(async () => ({
         context: data.context,
-        sources: talentSources(data),
+        sources: completeTalentSources(data),
         records: [
           {
             id: 'demo-graduation-text',

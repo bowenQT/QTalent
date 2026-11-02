@@ -15,7 +15,7 @@ import {
   loadPersonData,
   eventSubject,
   historicalSubject,
-  talentSources,
+  completeTalentSources,
 } from './person-data';
 import { sourceFromData } from './sources';
 import { personFromData } from './person-projection';
@@ -127,7 +127,7 @@ async function model(
 ) {
   return buildAuthorizedModelInput(async () => ({
     context: data.context,
-    sources: talentSources(data),
+    sources: completeTalentSources(data),
     records: [
       {
         id: 'derived',
