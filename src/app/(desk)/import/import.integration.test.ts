@@ -12,13 +12,20 @@ import {
 } from '@testing-library/react';
 import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { createElement } from 'react';
 import { ToastProvider } from '@/components/ui/Toast';
 import { createDatabase, getDatabase } from '@/server/db/client';
 import { importDemo } from '@/server/db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '@/server/db/seed';
-import { interviewImportRows } from '@/server/modules/records/interview-import/schema';
+import {
+  interviewImportCandidates,
+  interviewImportOperations,
+  interviewImportRows,
+} from '@/server/modules/records/interview-import/schema';
+import { accountBindings, grants, people } from '@/server/modules/directory';
+import { cohorts } from '@/server/modules/programs';
+import { auditEvents } from '@/server/platform/audit/schema';
 import { INTERVIEW_IMPORT_DEMO } from '@/server/db/seed/interview-import-demo/import';
 import { confirmInterviewImportRowAction } from '@/server/actions/interview-import';
 import { getInterviewImportPreview } from '@/server/queries/interview-import';
@@ -194,6 +201,55 @@ it('goes from /import through HR confirmation to the stored import decision', as
       reviewItemKind: 'unknown_interview_candidate',
     },
   });
+
+  // Both changes stay in the row's history, each with its own audit event.
+  const history = await db()
+    .select()
+    .from(interviewImportOperations)
+    .where(
+      and(
+        eq(interviewImportOperations.batchId, batchId),
+        eq(interviewImportOperations.rowId, 'campus-1'),
+      ),
+    )
+    .orderBy(asc(interviewImportOperations.toRevision));
+  expect(history).toMatchObject([
+    {
+      action: 'confirm',
+      actorAccountId: 'demo-hrbp',
+      fromRevision: 1,
+      toRevision: 2,
+      before: { confirmation: null, decision: null },
+      after: {
+        confirmation: {
+          candidateId: 'demo-candidate-01',
+          forRevision: 2,
+          byAccountId: 'demo-hrbp',
+        },
+        decision: { status: 'planned' },
+      },
+    },
+    {
+      action: 'revert',
+      fromRevision: 2,
+      toRevision: 3,
+      before: { confirmation: { candidateId: 'demo-candidate-01' } },
+      after: { confirmation: null, decision: { status: 'needs_review' } },
+    },
+  ]);
+  const audits = await db()
+    .select()
+    .from(auditEvents)
+    .where(
+      inArray(
+        auditEvents.id,
+        history.map((op) => op.auditId),
+      ),
+    );
+  expect(audits.map((a) => a.action).sort()).toEqual([
+    'interview_import.row.confirm',
+    'interview_import.row.revert',
+  ]);
 });
 
 it('refuses a stale revision and a row the plan cannot use, writing nothing', async () => {
@@ -249,4 +305,103 @@ it('reads and changes rows only for a current HR grant', async () => {
     }),
   ).toMatchObject({ status: 'forbidden' });
   expect(await stored('professional-1')).toEqual(before);
+});
+
+/** An HR whose current grant is for another cohort: none of this batch's people. */
+async function otherCohortHr() {
+  const [person] = await db()
+    .select({ organizationId: people.organizationId })
+    .from(people)
+    .limit(1);
+  await db()
+    .insert(cohorts)
+    .values({ id: 'demo-other-cohort', name: '另一期次（演示）' });
+  await db().insert(people).values({
+    id: 'demo-other-hr',
+    name: '另一期次 HR（演示）',
+    organizationId: person.organizationId,
+    demo: true,
+  });
+  await db().insert(accountBindings).values({
+    accountId: 'demo-other-hr-account',
+    personId: 'demo-other-hr',
+    isSystemAdmin: false,
+  });
+  await db().insert(grants).values({
+    id: 'demo-other-hr-grant',
+    accountId: 'demo-other-hr-account',
+    role: 'hr',
+    scope: 'cohort',
+    cohortId: 'demo-other-cohort',
+    validFrom: '2026-01-01',
+  });
+  return 'demo-other-hr-account';
+}
+
+it('answers an HR outside the batch exactly as for a batch or row that does not exist', async () => {
+  session.accountId = await otherCohortHr();
+  expect(await getInterviewImportPreview(batchId)).toEqual(
+    await getInterviewImportPreview('demo-interview-import-missing'),
+  );
+  expect(await getInterviewImportPreview(batchId)).toEqual({
+    status: 'not_found',
+  });
+  const before = await stored('professional-1');
+  const existing = await confirmInterviewImportRowAction({
+    batchId,
+    rowId: 'professional-1',
+    expectedRevision: before.revision,
+    ok: true,
+  });
+  expect(existing).toEqual(
+    await confirmInterviewImportRowAction({
+      batchId,
+      rowId: 'no-such-row',
+      expectedRevision: 1,
+      ok: true,
+    }),
+  );
+  expect(existing).toMatchObject({ status: 'not_found' });
+  expect(await stored('professional-1')).toEqual(before);
+});
+
+it('keeps a row about nobody known yet from any HR without the batch’s own scope', async () => {
+  // No recruitment record carries the printed name any more: the row is about nobody known.
+  await db()
+    .update(interviewImportCandidates)
+    .set({ name: '对不上的姓名（演示）' })
+    .where(
+      and(
+        eq(interviewImportCandidates.batchId, batchId),
+        eq(interviewImportCandidates.candidateId, 'demo-candidate-01'),
+      ),
+    );
+  // Every row of the demo PDF prints this name, so no row is left to show.
+  expect(await getInterviewImportPreview(batchId)).toEqual({
+    status: 'not_found',
+  });
+  const before = await stored('campus-1');
+  expect(
+    await confirmInterviewImportRowAction({
+      batchId,
+      rowId: 'campus-1',
+      expectedRevision: before.revision,
+      ok: false,
+    }),
+  ).toMatchObject({ status: 'not_found' });
+  expect(await stored('campus-1')).toEqual(before);
+});
+
+it('stores a decision only together with its revision', async () => {
+  await expect(
+    db()
+      .update(interviewImportRows)
+      .set({ decision: null, decisionRevision: 1 })
+      .where(
+        and(
+          eq(interviewImportRows.batchId, batchId),
+          eq(interviewImportRows.rowId, 'professional-1'),
+        ),
+      ),
+  ).rejects.toThrow();
 });
