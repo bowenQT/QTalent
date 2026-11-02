@@ -81,9 +81,11 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
             await expect(
               page.locator('#spectrum .n-spectrum__row'),
             ).toHaveCount(0);
-            await expect(page.locator('#spectrum .nt-empty')).toHaveText(
-              '确认后的事件分会出现在这里',
+            // 可见的已确认分为零时，服务端给空状态或资料不足（带原因），都不出分。
+            await expect(page.locator('#spectrum')).toContainText(
+              /确认后的事件分会出现在这里|资料不足\s*\S/,
             );
+            await expect(page.locator('#spectrum')).not.toContainText('均值');
             omitted.push('#spectrum');
             appHidden.push('#spectrum');
           }

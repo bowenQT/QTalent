@@ -180,6 +180,15 @@ export async function trimToVisible(
   right: Facts,
 ) {
   await prototype.evaluate(collect, right);
+  // 时间线标题里的关键事件数按裁剪后留下的关键事件重算，和原型对同一组事件的写法一致。
+  await prototype.evaluate(() => {
+    const count = document.querySelector('#timeline .n-section-title small');
+    if (count)
+      count.textContent = (count.textContent ?? '').replace(
+        /^\d+/,
+        String(document.querySelectorAll('#timeline .nt-tl-open').length),
+      );
+  });
   return {
     facts: right.facts.length === 0 && left.facts.length > 0,
     spectrum: right.spectrum.length === 0 && left.spectrum.length > 0,
