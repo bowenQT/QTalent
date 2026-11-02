@@ -31,10 +31,12 @@ describe('demo interview import preparation', () => {
     const records = interviewImportDemoRecords(
       await prepareInterviewImportDemo(await releaseRoot()),
     );
-    expect(records.rows.map((r) => r.rowId)).toEqual([
-      'campus-1',
-      'professional-1',
-      'unknown-interviewer-1',
+    // Rows seeded before score-missing was added keep their ordinals on replay.
+    expect(records.rows.map((r) => [r.rowId, r.ordinal])).toEqual([
+      ['campus-1', 1],
+      ['professional-1', 2],
+      ['unknown-interviewer-1', 3],
+      ['score-missing-1', 4],
     ]);
     for (const fragment of records.fragments) {
       expect(fragment).toMatchObject({

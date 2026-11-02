@@ -1,11 +1,12 @@
 export type InterviewTemplate = {
   name: string;
   dimensions: readonly string[];
-  /** The options every dimension row offers, in order. */
-  scale: readonly string[];
   rating: { label: string; options: readonly string[] };
   level: { label: string; options: readonly string[] };
 };
+
+/** Every template scores its dimensions on this five-point scale. */
+export const INTERVIEW_DIMENSION_OPTIONS = ['1', '2', '3', '4', '5'] as const;
 
 /** These are BOW-896 synthetic fixtures, not certified Beisen export fingerprints. */
 export const INTERVIEW_TEMPLATES: readonly InterviewTemplate[] = [
@@ -15,7 +16,6 @@ export const INTERVIEW_TEMPLATES: readonly InterviewTemplate[] = [
 ].map((name) => ({
   name,
   dimensions: ['专业能力', '潜力', '沟通协作', '管理能力'],
-  scale: ['1', '2', '3', '4', '5'],
   rating: { label: '面试评级', options: ['S', 'A', 'B', 'C', 'D'] },
   level: { label: '建议职级', options: ['N1', 'N2', 'N3', 'N4', 'N5'] },
 }));

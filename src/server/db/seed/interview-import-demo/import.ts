@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Database } from '../../client';
 import { insertChecked } from '../../import';
@@ -34,8 +34,9 @@ const FIXTURE_DIRECTORY = 'tests/fixtures/bow-896';
  * - hr.pdf is left out: its comment carries fictional origin and education labels meant
  *   for a comment filter that does not exist yet.
  * - professional-duplicate.pdf is left out: duplicate detection needs filed imports.
- * - score-missing / score-multiple / flat-scores wait for HR to fill an item, which is
- *   not connected yet; unknown-template is rejected by the parser.
+ * - score-missing is the row HR fills in on /import (one dimension left unread);
+ *   score-multiple / flat-scores add nothing that row does not already show, and
+ *   unknown-template is rejected by the parser.
  * - The rejected / offer candidates have no PDF, so the automatic skip never runs here.
  */
 export const INTERVIEW_IMPORT_DEMO = {
@@ -65,6 +66,12 @@ export const INTERVIEW_IMPORT_DEMO = {
       key: 'unknown-interviewer',
       sha256:
         '4936b677f5def37079a8aa0894fd230a1fa7923dbc5cb7c3b19cf352936f9c51',
+    },
+    // Appended last: a seeded database keeps every earlier row's ordinal.
+    {
+      key: 'score-missing',
+      sha256:
+        'cba08d955c22c7f68610723689152b2a1305ce4379cf9fc4c92a58c3669b2a1c',
     },
   ],
   candidatesSha256:
@@ -160,7 +167,8 @@ export async function prepareInterviewImportDemo(cwd: string) {
         maxDurationMs: 15000,
       },
     });
-    if (outcome.status !== 'parsed' || outcome.result.status !== 'parsed')
+    // A review with an unread item is stored as parsed; HR fills the item on /import.
+    if (outcome.status !== 'parsed' || outcome.result.status === 'rejected')
       throw new InterviewImportDemoError('parse_failed');
     files.push({ ...file, result: outcome.result });
   }
@@ -274,6 +282,10 @@ export async function importInterviewImportDemo(db: Database, cwd: string) {
   const prepared = await prepareInterviewImportDemo(cwd);
   const records = interviewImportDemoRecords(prepared);
   const demo = INTERVIEW_IMPORT_DEMO;
+  const pageCount = prepared.files.reduce(
+    (sum, file) => sum + file.result.pageTexts.length,
+    0,
+  );
   return db.transaction(async (tx) => {
     const needed = [
       demo.uploadedByPersonId,
@@ -318,18 +330,27 @@ export async function importInterviewImportDemo(db: Database, cwd: string) {
             id: demo.batchId,
             evaluationNodeId: demo.node.id,
             fileName: demo.fileName,
-            pageCount: prepared.files.reduce(
-              (sum, file) => sum + file.result.pageTexts.length,
-              0,
-            ),
+            pageCount,
             uploadedByPersonId: demo.uploadedByPersonId,
             uploadedAt: demo.uploadedAt,
             demo: true,
           },
         ],
         ['id'],
-        ['id', 'evaluationNodeId', 'fileName', 'pageCount', 'demo'],
+        ['id', 'evaluationNodeId', 'fileName', 'demo'],
       ),
+      // A batch seeded before files were appended grows to the new page count; a
+      // batch with more pages than these files is a collision.
+      await tx
+        .update(interviewImportBatches)
+        .set({ pageCount })
+        .where(
+          and(
+            eq(interviewImportBatches.id, demo.batchId),
+            lt(interviewImportBatches.pageCount, pageCount),
+          ),
+        )
+        .returning(),
       await insertChecked(
         tx,
         interviewImportCandidates,
@@ -353,6 +374,12 @@ export async function importInterviewImportDemo(db: Database, cwd: string) {
         ROW_IMMUTABLE,
       ),
     ];
+    const [batch] = await tx
+      .select({ pageCount: interviewImportBatches.pageCount })
+      .from(interviewImportBatches)
+      .where(eq(interviewImportBatches.id, demo.batchId));
+    if (batch!.pageCount !== pageCount)
+      throw new Error('Import identity collision: ' + demo.batchId);
     return {
       status: inserted.some((rows) => rows.length)
         ? ('created' as const)

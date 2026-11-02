@@ -16,6 +16,7 @@ import {
   interviewImportCandidates,
   interviewImportOperations,
   interviewImportRows,
+  interviewImportReviewItems,
   type InterviewImportDecision,
   type InterviewImportRowState,
 } from '../../modules/records/interview-import/schema';
@@ -23,17 +24,26 @@ import type {
   ParsedInterviewReview,
   Selection as ParsedSelection,
 } from '../../modules/records/attachments/interview-review/types';
+import {
+  materialReviewItemSchema,
+  type MaterialReviewItem,
+} from '../../../contracts/material-review';
 import type {
   InterviewImportConfirmInput,
+  InterviewImportFillInput,
   InterviewImportPreviewResult,
   InterviewImportRow,
   InterviewImportRowResult,
 } from '../../../contracts/interview-import';
-import { INTERVIEW_TEMPLATES } from '../../modules/records/attachments/interview-review/templates';
 import { loadEvaluationContext } from '../evaluation-context';
 import { ForbiddenError } from '../project-context';
 import {
+  INTERVIEW_DIMENSION_OPTIONS,
+  INTERVIEW_TEMPLATES,
+} from '../../modules/records/attachments/interview-review/templates';
+import {
   planInterviewImport,
+  unreadInterviewItems,
   type InterviewImportFacts,
   type InterviewImportPlan,
 } from './plan';
@@ -46,12 +56,12 @@ type Directory = Awaited<ReturnType<typeof loadEvaluationContext>>['directory'];
 
 /** The template's own scale as the preview shows it, read from the template the
  * parser matched; empty for a template it does not know. */
-function scaleOf(name: string) {
+function scaleLabelOf(name: string) {
   const template = INTERVIEW_TEMPLATES.find((t) => t.name === name);
   if (!template) return '';
   const span = (options: readonly string[]) =>
     `${options[0]}–${options[options.length - 1]}`;
-  return `${span(template.scale)} 分 · ${template.rating.label} ${span(template.rating.options)}`;
+  return `${span(INTERVIEW_DIMENSION_OPTIONS)} 分 · ${template.rating.label} ${span(template.rating.options)}`;
 }
 const UNREAD = '（未识别）';
 
@@ -84,7 +94,11 @@ async function loadBatch(db: DbExecutor, batchId: string) {
     )
     .where(eq(interviewImportRows.batchId, batchId))
     .orderBy(asc(interviewImportRows.ordinal));
-  return { ...batch, candidates, rows };
+  const reviewItems = await db
+    .select()
+    .from(interviewImportReviewItems)
+    .where(eq(interviewImportReviewItems.batchId, batchId));
+  return { ...batch, candidates, rows, reviewItems };
 }
 
 async function loadEmployments(db: DbExecutor, personIds: string[]) {
@@ -110,6 +124,10 @@ export function shownName(person: { name: string; demo: boolean }) {
   return person.demo ? `${person.name}（演示）` : person.name;
 }
 
+/** Review items still open for a row; resolving them is not connected yet. */
+const openItems = (loaded: Loaded, rowId: string) =>
+  loaded.reviewItems.filter((i) => i.rowId === rowId && i.state !== 'resolved');
+
 const reviewOf = (row: Row): ParsedInterviewReview | null =>
   row.parsed.status === 'rejected'
     ? null
@@ -125,12 +143,26 @@ function proposalFor(row: Row, candidates: Candidate[]) {
   return named.length === 1 ? named[0] : null;
 }
 
-/** Whose row this is, as far as the stored facts say; empty when nobody is known. */
+/**
+ * Whose row this could be, as far as the stored facts say: the confirmed or only
+ * matching record's person, or, while the printed name matches several records, every
+ * known person among them. Empty when nobody is known.
+ */
 function subjectsFor(row: Row, candidates: Candidate[], directory: Directory) {
-  const personId = proposalFor(row, candidates)?.personId;
-  return personId && directory.people.some((p) => p.id === personId)
-    ? [personId]
-    : [];
+  const proposal = proposalFor(row, candidates);
+  const name = reviewOf(row)?.identity.candidateName?.value;
+  const possible = proposal
+    ? [proposal]
+    : candidates.filter((c) => c.name === name);
+  return [
+    ...new Set(
+      possible.flatMap((c) =>
+        c.personId && directory.people.some((p) => p.id === c.personId)
+          ? [c.personId]
+          : [],
+      ),
+    ),
+  ];
 }
 
 /**
@@ -236,16 +268,19 @@ function factsFor(
       access: hrCohortId === undefined ? 'forbidden' : 'allowed',
       subjectPersonIds: subjects,
       hasHiddenContent: false,
-      // No review items are stored by this slice; sending to review comes later.
-      blockingReviewItemIds: [],
+      blockingReviewItemIds: openItems(loaded, row.rowId).map((i) => i.id),
       import: { state: 'unimported' },
     },
-    pendingCandidate: null,
+    pendingCandidate:
+      openItems(loaded, row.rowId).find(
+        (i) => i.kind === 'unknown_interview_candidate',
+      )?.question ?? null,
     candidateResolution: null,
     resolvedCandidate: null,
     resolvedInterviewer: null,
     pendingInterviewer: null,
     resolution: null,
+    manualInput: { forRowRevision: row.revision, values: row.filled },
   };
 }
 
@@ -278,7 +313,7 @@ function decisionOf(
   }
 }
 
-const selection = (value: ParsedSelection) =>
+const selection = (value: ParsedSelection, options: readonly string[]) =>
   value.status === 'recognized'
     ? { status: 'recognized' as const, value: value.value }
     : value.status === 'not_applicable'
@@ -287,9 +322,35 @@ const selection = (value: ParsedSelection) =>
           status: 'unrecognized' as const,
           reason: value.reason,
           page: value.source.page,
-          options: [],
+          options: [...options],
+          // The parser keeps no per-option marks, so none are shown as marked.
           marked: [],
         };
+
+/** The scale items with the names and options HR fills in by (906 `unreadInterviewItems`). */
+function scaleOf(review: ParsedInterviewReview) {
+  const template = INTERVIEW_TEMPLATES.find((t) => t.name === review.template);
+  return [
+    ...review.dimensions.map((d) => ({
+      item: d.name,
+      selection: selection(d.selection, INTERVIEW_DIMENSION_OPTIONS),
+    })),
+    {
+      item: template?.rating.label ?? '面试评级',
+      selection: selection(
+        review.interviewRating,
+        template?.rating.options ?? [],
+      ),
+    },
+    {
+      item: template?.level.label ?? '建议职级',
+      selection: selection(
+        review.suggestedLevel,
+        template?.level.options ?? [],
+      ),
+    },
+  ];
+}
 
 /** The row as the preview shows it; every value comes from the stored row and facts. */
 function view(
@@ -328,7 +389,7 @@ function view(
     // Name, position code and interview time locate a record: never on demo rows.
     located:
       !confirmed && plan.status === 'skipped' && plan.reason === 'not_hired',
-    template: { name: review.template, scale: scaleOf(review.template) },
+    template: { name: review.template, scale: scaleLabelOf(review.template) },
     interviewedOn:
       review.metadata.interviewTime?.value.match(/\d{4}-\d{2}-\d{2}/)?.[0] ??
       '',
@@ -364,20 +425,17 @@ function view(
                 )
                 .digest('hex'),
           },
-    scale: [
-      ...review.dimensions.map((d) => ({
-        item: d.name,
-        selection: selection(d.selection),
-      })),
-      { item: '面试评级', selection: selection(review.interviewRating) },
-    ],
+    scale: scaleOf(review),
     result: review.metadata.interviewResult?.value ?? '',
     comment: review.metadata.overallComment?.value ?? null,
     redacted: 0,
     duplicate: null,
-    reviewItemId: null,
+    reviewItemId:
+      openItems(loaded, row.rowId).find(
+        (i) => i.kind === 'unknown_interview_candidate',
+      )?.id ?? null,
     confirmed,
-    filled: {},
+    filled: row.filled,
   };
 }
 
@@ -513,6 +571,7 @@ const stateOf = (row: Row): InterviewImportRowState => ({
           at: new Date(row.confirmedAt!).toISOString(),
         },
   decision: row.decision,
+  filled: row.filled,
 });
 
 /** Append HR's change to the row's history, linked to its audit event. */
@@ -549,6 +608,43 @@ export async function recordInterviewImportOperation(
 }
 
 /**
+ * The row HR is about to change, locked, or the answer to give instead. Authorization
+ * comes first; a row out of the actor's scope answers exactly as a row that does not
+ * exist, and neither reveals whether the batch is there.
+ */
+async function lockVisibleRow(
+  tx: DbExecutor,
+  accountId: string,
+  input: { batchId: string; rowId: string },
+  now: string,
+) {
+  const actor = await hrActor(tx, accountId, now);
+  if (actor.status !== 'ok')
+    return {
+      status: 'forbidden',
+      message: '你的查看权限已更新，请刷新后再看',
+    } as const;
+  const [locked] = await tx
+    .select()
+    .from(interviewImportRows)
+    .where(
+      and(
+        eq(interviewImportRows.batchId, input.batchId),
+        eq(interviewImportRows.rowId, input.rowId),
+      ),
+    )
+    .for('update');
+  const read = locked ? await readAll(tx, actor, input.batchId) : null;
+  const entry =
+    read?.status === 'ok'
+      ? read.rows.find((e) => e.row.rowId === input.rowId)
+      : undefined;
+  if (!locked || read?.status !== 'ok' || !entry)
+    return { status: 'not_found', message: GONE } as const;
+  return { status: 'locked', locked, read, entry } as const;
+}
+
+/**
  * HR's answer to「这是谁」for one row, or taking it back. One transaction: the row is
  * locked, the expected revision compared, the revision advanced, and the 906 plan for
  * the new revision stored as the row's decision. A confirmation the plan cannot use
@@ -562,30 +658,9 @@ export async function confirmInterviewImportRow(
   { now, at }: { now: string; at: string },
 ): Promise<InterviewImportRowResult> {
   return db.transaction(async (tx) => {
-    const actor = await hrActor(tx, accountId, now);
-    if (actor.status !== 'ok')
-      return {
-        status: 'forbidden',
-        message: '你的查看权限已更新，请刷新后再看',
-      };
-    const [locked] = await tx
-      .select()
-      .from(interviewImportRows)
-      .where(
-        and(
-          eq(interviewImportRows.batchId, input.batchId),
-          eq(interviewImportRows.rowId, input.rowId),
-        ),
-      )
-      .for('update');
-    const read = locked ? await readAll(tx, actor, input.batchId) : null;
-    // A row out of the actor's scope answers exactly as a row that does not exist.
-    const entry =
-      read?.status === 'ok'
-        ? read.rows.find((e) => e.row.rowId === input.rowId)
-        : undefined;
-    if (!locked || read?.status !== 'ok' || !entry)
-      return { status: 'not_found', message: GONE };
+    const target = await lockVisibleRow(tx, accountId, input, now);
+    if (target.status !== 'locked') return target;
+    const { locked, read, entry } = target;
     const { context, directory, loaded, employmentRows } = read;
     if (locked.revision !== input.expectedRevision)
       return { status: 'conflict', message: CONFLICT };
@@ -675,4 +750,263 @@ export async function confirmInterviewImportRow(
       revision,
     };
   });
+}
+
+/**
+ * HR fills in, or clears, one item the parser could not read. The entry is stored on
+ * the row beside the parsed review, never inside it; the row revision advances and the
+ * plan for the new revision is stored as the decision. Any confirmation is taken back,
+ * because it was made on the row as it read before the entry.
+ */
+export async function fillInterviewImportRow(
+  db: Database,
+  accountId: string,
+  input: InterviewImportFillInput,
+  { now, at }: { now: string; at: string },
+): Promise<InterviewImportRowResult> {
+  return db.transaction(async (tx) => {
+    const target = await lockVisibleRow(tx, accountId, input, now);
+    if (target.status !== 'locked') return target;
+    const { locked, read, entry } = target;
+    const { context, directory, loaded, employmentRows } = read;
+    if (locked.revision !== input.expectedRevision)
+      return { status: 'conflict', message: CONFLICT };
+    const review = reviewOf(locked);
+    const unread = review
+      ? unreadInterviewItems(review).find((u) => u.item === input.item)
+      : undefined;
+    if (
+      !unread ||
+      (input.value !== '' && !unread.options.includes(input.value))
+    )
+      return { status: 'conflict', message: '这一项不用补录，请刷新后再看' };
+    const filled = { ...locked.filled };
+    if (input.value) filled[input.item] = input.value;
+    else delete filled[input.item];
+    const revision = locked.revision + 1;
+    const next: Row = {
+      ...locked,
+      revision,
+      filled,
+      confirmedCandidateId: null,
+      confirmedForRevision: null,
+      confirmedByAccountId: null,
+      confirmedAt: null,
+    };
+    const nextEntry = { ...entry, row: next };
+    const plan = planInterviewImport(
+      factsFor(
+        context,
+        directory,
+        loaded,
+        nextEntry,
+        employmentRows,
+        accountId,
+      ),
+    );
+    const [stored] = await tx
+      .update(interviewImportRows)
+      .set({
+        revision,
+        filled,
+        confirmedCandidateId: null,
+        confirmedForRevision: null,
+        confirmedByAccountId: null,
+        confirmedAt: null,
+        decision: decisionOf(plan, null, at, accountId),
+        decisionRevision: revision,
+      })
+      .where(
+        and(
+          eq(interviewImportRows.batchId, input.batchId),
+          eq(interviewImportRows.rowId, input.rowId),
+          eq(interviewImportRows.revision, input.expectedRevision),
+        ),
+      )
+      .returning();
+    if (!stored) return { status: 'conflict', message: CONFLICT };
+    await recordInterviewImportOperation(tx, {
+      action: 'fill',
+      actorAccountId: accountId,
+      at,
+      before: locked,
+      after: stored,
+    });
+    return {
+      status: 'ok',
+      row: view(
+        loaded,
+        { ...entry, row: stored },
+        directory,
+        employmentRows,
+        plan,
+      ),
+      revision,
+    };
+  });
+}
+
+/**
+ * Sends a row nobody in the directory matches to 待核对: one transaction stores the
+ * plan's own unknown_interview_candidate question for the row, advances the row
+ * revision, stores the new decision and writes the audit. Sending a row that already
+ * has its question returns the stored row unchanged, so a retry is safe.
+ */
+export async function sendInterviewImportRowToReview(
+  db: Database,
+  accountId: string,
+  input: { batchId: string; rowId: string; expectedRevision: number },
+  { now, at }: { now: string; at: string },
+): Promise<InterviewImportRowResult> {
+  return db.transaction(async (tx) => {
+    const target = await lockVisibleRow(tx, accountId, input, now);
+    if (target.status !== 'locked') return target;
+    const { locked, read, entry } = target;
+    const { context, directory, loaded, employmentRows } = read;
+    const facts = () =>
+      factsFor(context, directory, loaded, entry, employmentRows, accountId);
+    const sent = openItems(loaded, input.rowId).some(
+      (i) => i.kind === 'unknown_interview_candidate',
+    );
+    if (sent)
+      return {
+        status: 'ok',
+        row: view(
+          loaded,
+          entry,
+          directory,
+          employmentRows,
+          planInterviewImport(facts()),
+        ),
+        revision: locked.revision,
+      };
+    if (locked.revision !== input.expectedRevision)
+      return { status: 'conflict', message: CONFLICT };
+    const plan = planInterviewImport(facts());
+    const current = view(loaded, entry, directory, employmentRows, plan);
+    // Only a row the directory has nobody for goes to review, as the preview offers.
+    if (
+      current.match !== null ||
+      current.confirmed ||
+      plan.status !== 'needs_review' ||
+      plan.item.kind !== 'unknown_interview_candidate'
+    )
+      return {
+        status: 'conflict',
+        message: '这一行已能确认是谁，不用放进待核对',
+      };
+    const revision = locked.revision + 1;
+    const auditId = await recordAudit(tx, {
+      actorId: accountId,
+      action: 'interview_import.review_item.create',
+      resourceId: plan.item.itemId,
+      metadata: { channel: 'web', revision },
+    });
+    await tx.insert(interviewImportReviewItems).values({
+      id: plan.item.itemId,
+      batchId: input.batchId,
+      rowId: input.rowId,
+      kind: 'unknown_interview_candidate',
+      revision: plan.item.revision,
+      state: 'pending',
+      question: plan.item,
+      createdByAccountId: accountId,
+      createdAt: at,
+      auditId,
+    });
+    const [stored] = await tx
+      .update(interviewImportRows)
+      .set({
+        revision,
+        decision: decisionOf(plan, null, at, accountId),
+        decisionRevision: revision,
+      })
+      .where(
+        and(
+          eq(interviewImportRows.batchId, input.batchId),
+          eq(interviewImportRows.rowId, input.rowId),
+          eq(interviewImportRows.revision, input.expectedRevision),
+        ),
+      )
+      .returning();
+    if (!stored) throw new Error('interview import row changed under its lock');
+    await recordInterviewImportOperation(tx, {
+      action: 'send_to_review',
+      actorAccountId: accountId,
+      at,
+      before: locked,
+      after: stored,
+    });
+    const after = (await loadBatch(tx, input.batchId))!;
+    const storedEntry = after.rows.find((e) => e.row.rowId === input.rowId)!;
+    return {
+      status: 'ok',
+      row: view(
+        after,
+        storedEntry,
+        directory,
+        employmentRows,
+        planInterviewImport(
+          factsFor(
+            context,
+            directory,
+            after,
+            storedEntry,
+            employmentRows,
+            accountId,
+          ),
+        ),
+      ),
+      revision,
+    };
+  });
+}
+
+/**
+ * The import rows' open questions for 待核对, filtered first by the current HR grant the
+ * same way the preview is. Each keeps the shared MaterialReviewItem contract with its
+ * current revision and state; newest first, never by score.
+ */
+export async function readInterviewImportReviewInbox(
+  db: DbExecutor,
+  accountId: string,
+  now: string,
+): Promise<
+  | { status: 'ok'; items: (MaterialReviewItem & { createdAt: string })[] }
+  | { status: 'forbidden' }
+> {
+  let loadedContext;
+  try {
+    loadedContext = await loadEvaluationContext(db, accountId, now);
+  } catch (error) {
+    if (error instanceof ForbiddenError) return { status: 'forbidden' };
+    throw error;
+  }
+  const { context, directory } = loadedContext;
+  if (!activeGrants(context).some((g) => g.role === 'hr'))
+    return { status: 'ok', items: [] };
+  const open = await db
+    .selectDistinct({ batchId: interviewImportReviewItems.batchId })
+    .from(interviewImportReviewItems)
+    .where(inArray(interviewImportReviewItems.state, ['pending', 'deferred']));
+  const items = [];
+  for (const { batchId } of open) {
+    const loaded = await loadBatch(db, batchId);
+    if (!loaded || loaded.node.kind !== 'interview') continue;
+    for (const entry of loaded.rows) {
+      if (!visible(context, loaded, entry, directory)) continue;
+      for (const item of openItems(loaded, entry.row.rowId))
+        items.push({
+          // Current revision and state come from the row, never the stored question.
+          ...materialReviewItemSchema.parse({
+            ...item.question,
+            revision: item.revision,
+            state: item.state === 'deferred' ? 'deferred' : 'pending',
+          }),
+          createdAt: new Date(item.createdAt).toISOString(),
+        });
+    }
+  }
+  items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { status: 'ok', items };
 }

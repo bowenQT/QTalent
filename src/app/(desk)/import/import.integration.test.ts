@@ -19,15 +19,22 @@ import { createDatabase, getDatabase } from '@/server/db/client';
 import { importDemo } from '@/server/db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '@/server/db/seed';
 import {
+  interviewImportBatches,
   interviewImportCandidates,
   interviewImportOperations,
+  interviewImportReviewItems,
   interviewImportRows,
 } from '@/server/modules/records/interview-import/schema';
 import { accountBindings, grants, people } from '@/server/modules/directory';
 import { cohorts } from '@/server/modules/programs';
 import { auditEvents } from '@/server/platform/audit/schema';
+import { readInterviewImportReviewInbox } from '@/server/usecases/interview-import/store';
 import { INTERVIEW_IMPORT_DEMO } from '@/server/db/seed/interview-import-demo/import';
-import { confirmInterviewImportRowAction } from '@/server/actions/interview-import';
+import {
+  confirmInterviewImportRowAction,
+  fillInterviewImportRowAction,
+  sendInterviewImportRowToReviewAction,
+} from '@/server/actions/interview-import';
 import { getInterviewImportPreview } from '@/server/queries/interview-import';
 import ImportPage from './page';
 
@@ -139,15 +146,126 @@ afterAll(async () => {
   }
 });
 
+/** The row's appended operations, oldest first, with their audit actions. */
+async function historyOf(rowId: string) {
+  const ops = await db()
+    .select()
+    .from(interviewImportOperations)
+    .where(
+      and(
+        eq(interviewImportOperations.batchId, batchId),
+        eq(interviewImportOperations.rowId, rowId),
+      ),
+    )
+    .orderBy(asc(interviewImportOperations.toRevision));
+  const audits = ops.length
+    ? await db()
+        .select()
+        .from(auditEvents)
+        .where(
+          inArray(
+            auditEvents.id,
+            ops.map((op) => op.auditId),
+          ),
+        )
+    : [];
+  return ops.map((op) => ({
+    ...op,
+    auditAction: audits.find((a) => a.id === op.auditId)?.action,
+  }));
+}
+
 it('seeds the demo batch through the real command and replays unchanged', async () => {
-  expect(await seed()).toEqual({ status: 'created', batchId, rows: 3 });
-  expect(await seed()).toEqual({ status: 'unchanged', batchId, rows: 3 });
+  expect(await seed()).toEqual({ status: 'created', batchId, rows: 4 });
+  expect(await seed()).toEqual({ status: 'unchanged', batchId, rows: 4 });
   const row = await stored('campus-1');
   expect(row).toMatchObject({
     revision: 1,
     confirmedCandidateId: null,
     decision: null,
   });
+});
+
+it('upgrades a batch seeded before score-missing was added, keeping its earlier rows', async () => {
+  // What the earlier seed left: three rows and their pages.
+  const [{ pageCount }] = await db()
+    .select({ pageCount: interviewImportBatches.pageCount })
+    .from(interviewImportBatches)
+    .where(eq(interviewImportBatches.id, batchId));
+  const missing = await stored('score-missing-1');
+  await db()
+    .delete(interviewImportRows)
+    .where(
+      and(
+        eq(interviewImportRows.batchId, batchId),
+        eq(interviewImportRows.rowId, 'score-missing-1'),
+      ),
+    );
+  await db()
+    .update(interviewImportBatches)
+    .set({ pageCount: pageCount - 2 })
+    .where(eq(interviewImportBatches.id, batchId));
+  const earlier = await stored('campus-1');
+
+  expect(await seed()).toEqual({ status: 'created', batchId, rows: 4 });
+  expect(await seed()).toEqual({ status: 'unchanged', batchId, rows: 4 });
+  expect(await stored('score-missing-1')).toEqual(missing);
+  expect(await stored('campus-1')).toEqual(earlier);
+  expect(
+    (
+      await db()
+        .select({ pageCount: interviewImportBatches.pageCount })
+        .from(interviewImportBatches)
+        .where(eq(interviewImportBatches.id, batchId))
+    )[0],
+  ).toEqual({ pageCount });
+});
+
+it('checks every person a printed name could be while it matches several records', async () => {
+  const [{ name }] = await db()
+    .select({ name: interviewImportCandidates.name })
+    .from(interviewImportCandidates)
+    .where(
+      and(
+        eq(interviewImportCandidates.batchId, batchId),
+        eq(interviewImportCandidates.candidateId, 'demo-candidate-01'),
+      ),
+    );
+  // A second record by the same name, about a person outside the batch's node.
+  await db().insert(interviewImportCandidates).values({
+    batchId,
+    candidateId: 'demo-candidate-same-name',
+    name,
+    personId: 'p-suwan',
+    status: 'hired',
+    demo: true,
+  });
+  const before = await stored('campus-1');
+  // Every demo PDF prints this name, so no row is shown and neither is the batch.
+  expect(await getInterviewImportPreview(batchId)).toEqual({
+    status: 'not_found',
+  });
+  expect(
+    await confirmInterviewImportRowAction({
+      batchId,
+      rowId: 'campus-1',
+      expectedRevision: before.revision,
+      ok: true,
+    }),
+  ).toMatchObject({ status: 'not_found' });
+  expect(await stored('campus-1')).toEqual(before);
+
+  await db()
+    .delete(interviewImportCandidates)
+    .where(
+      and(
+        eq(interviewImportCandidates.batchId, batchId),
+        eq(interviewImportCandidates.candidateId, 'demo-candidate-same-name'),
+      ),
+    );
+  const restored = await getInterviewImportPreview(batchId);
+  if (restored.status !== 'ok') throw new Error(restored.status);
+  expect(restored.preview.batch.rows.map((r) => r.rowId)).toContain('campus-1');
 });
 
 it('goes from /import through HR confirmation to the stored import decision', async () => {
@@ -315,6 +433,192 @@ it('reads and changes rows only for a current HR grant', async () => {
   expect(await stored('professional-1')).toEqual(before);
 });
 
+it("takes HR's entry for an unread score beside the parsed review, then plans the row", async () => {
+  const rowId = 'score-missing-1';
+  const before = await stored(rowId);
+  expect(before.decision).toBeNull();
+  // HR has not filled the unread score yet: the row cannot be confirmed.
+  expect(
+    await confirmInterviewImportRowAction({
+      batchId,
+      rowId,
+      expectedRevision: before.revision,
+      ok: true,
+    }),
+  ).toMatchObject({ status: 'conflict' });
+
+  await openPage();
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: '3' } });
+  await waitFor(async () =>
+    expect((await stored(rowId)).revision).toBe(before.revision + 1),
+  );
+  const filled = await stored(rowId);
+  const [item] = Object.keys(filled.filled);
+  expect(filled.filled).toEqual({ [item]: '3' });
+  // The parsed review is stored exactly as the parser read it.
+  expect(filled.parsed).toEqual(before.parsed);
+  expect(screen.getByText(`${item} 3 · HR 补录`)).toBeTruthy();
+
+  // An entry made on an older revision is refused and writes nothing.
+  expect(
+    await fillInterviewImportRowAction({
+      batchId,
+      rowId,
+      expectedRevision: before.revision,
+      item,
+      value: '4',
+    }),
+  ).toMatchObject({ status: 'conflict' });
+  expect(await stored(rowId)).toEqual(filled);
+
+  // The preview keeps the parsed item unread and shows HR's value apart from it.
+  const preview = await getInterviewImportPreview(batchId);
+  if (preview.status !== 'ok') throw new Error(preview.status);
+  const row = preview.preview.batch.rows.find((r) => r.rowId === rowId)!;
+  expect(row.filled).toEqual({ [item]: '3' });
+  expect(row.scale.find((s) => s.item === item)?.selection).toMatchObject({
+    status: 'unrecognized',
+    options: ['1', '2', '3', '4', '5'],
+  });
+
+  expect(
+    await confirmInterviewImportRowAction({
+      batchId,
+      rowId,
+      expectedRevision: filled.revision,
+      ok: true,
+    }),
+  ).toMatchObject({ status: 'ok' });
+  expect(await stored(rowId)).toMatchObject({
+    parsed: before.parsed,
+    filled: { [item]: '3' },
+    confirmedCandidateId: 'demo-candidate-01',
+    decision: { status: 'planned', personId: 'p-x08' },
+  });
+  expect(await historyOf(rowId)).toMatchObject([
+    {
+      action: 'fill',
+      auditAction: 'interview_import.row.fill',
+      actorAccountId: 'demo-hrbp',
+      fromRevision: before.revision,
+      toRevision: before.revision + 1,
+      before: { filled: {}, decision: null },
+      after: { filled: { [item]: '3' }, confirmation: null },
+    },
+    {
+      action: 'confirm',
+      fromRevision: before.revision + 1,
+      after: { filled: { [item]: '3' }, decision: { status: 'planned' } },
+    },
+  ]);
+});
+
+it('sends a row nobody in the directory matches to 待核对 once, with its audit', async () => {
+  // Test-only fact in this isolated database: the hired record loses its directory
+  // person, so every row waits to be identified. The demo batch never gets here.
+  await db()
+    .update(interviewImportCandidates)
+    .set({ personId: null })
+    .where(
+      and(
+        eq(interviewImportCandidates.batchId, batchId),
+        eq(interviewImportCandidates.candidateId, 'demo-candidate-01'),
+      ),
+    );
+  const before = await stored('campus-1');
+  await openPage();
+  fireEvent.click(screen.getAllByRole('button', { name: '放进待核对' })[0]);
+  await waitFor(() =>
+    expect(screen.getAllByText('已放进待核对').length).toBeGreaterThan(0),
+  );
+  const items = await db()
+    .select()
+    .from(interviewImportReviewItems)
+    .where(eq(interviewImportReviewItems.batchId, batchId));
+  expect(items).toHaveLength(1);
+  expect(items[0]).toMatchObject({
+    rowId: 'campus-1',
+    kind: 'unknown_interview_candidate',
+    state: 'pending',
+    revision: 1,
+    createdByAccountId: 'demo-hrbp',
+    question: {
+      kind: 'unknown_interview_candidate',
+      importRowId: 'campus-1',
+      observedName: '谷嘉树（演示）',
+      candidates: [],
+    },
+  });
+  const [audit] = await db()
+    .select()
+    .from(auditEvents)
+    .where(eq(auditEvents.id, items[0].auditId));
+  expect(audit).toMatchObject({
+    actorId: 'demo-hrbp',
+    action: 'interview_import.review_item.create',
+    resourceId: items[0].id,
+  });
+  expect(await stored('campus-1')).toMatchObject({
+    revision: before.revision + 1,
+    decision: {
+      status: 'needs_review',
+      reviewItemKind: 'unknown_interview_candidate',
+    },
+  });
+
+  // A retry with the revision the page sent before stores nothing new.
+  expect(
+    await sendInterviewImportRowToReviewAction({
+      batchId,
+      rowId: 'campus-1',
+      expectedRevision: before.revision,
+    }),
+  ).toMatchObject({ status: 'ok', revision: before.revision + 1 });
+  expect(
+    await db()
+      .select()
+      .from(interviewImportReviewItems)
+      .where(eq(interviewImportReviewItems.batchId, batchId)),
+  ).toHaveLength(1);
+
+  expect((await historyOf('campus-1')).at(-1)).toMatchObject({
+    action: 'send_to_review',
+    auditAction: 'interview_import.row.send_to_review',
+    actorAccountId: 'demo-hrbp',
+    fromRevision: before.revision,
+    toRevision: before.revision + 1,
+    after: {
+      decision: {
+        status: 'needs_review',
+        reviewItemKind: 'unknown_interview_candidate',
+      },
+    },
+  });
+
+  // 待核对's read sees it for HR, filtered by the current grant; a mentor sees nothing.
+  const inbox = await readInterviewImportReviewInbox(
+    db(),
+    'demo-hrbp',
+    '2026-11-01T00:00:00.000Z',
+  );
+  expect(inbox).toMatchObject({
+    status: 'ok',
+    items: [{ itemId: items[0].id, kind: 'unknown_interview_candidate' }],
+  });
+  expect(
+    await readInterviewImportReviewInbox(
+      db(),
+      'demo-mentor',
+      '2026-11-01T00:00:00.000Z',
+    ),
+  ).toEqual({ status: 'ok', items: [] });
+
+  // Coming back to /import shows the row as sent.
+  cleanup();
+  await openPage();
+  expect(screen.getAllByText('已放进待核对').length).toBeGreaterThan(0);
+});
+
 /** An HR whose current grant is for another cohort: none of this batch's people. */
 /** Idempotent: tests share one database. */
 async function otherCohortHr() {
@@ -381,7 +685,31 @@ it('answers an HR outside the batch exactly as for a batch or row that does not 
     }),
   );
   expect(existing).toMatchObject({ status: 'not_found' });
+  const unread = await stored('score-missing-1');
+  const fill = (rowId: string, expectedRevision: number) =>
+    fillInterviewImportRowAction({
+      batchId,
+      rowId,
+      expectedRevision,
+      // Authorization answers before the item is looked at.
+      item: '任一项',
+      value: '',
+    });
+  expect(await fill('score-missing-1', unread.revision)).toEqual(
+    await fill('no-such-row', 1),
+  );
+  const send = (rowId: string, expectedRevision: number) =>
+    sendInterviewImportRowToReviewAction({ batchId, rowId, expectedRevision });
+  const campus = await stored('campus-1');
+  expect(await send('campus-1', campus.revision)).toEqual(
+    await send('no-such-row', 1),
+  );
+  expect(await send('campus-1', campus.revision)).toMatchObject({
+    status: 'not_found',
+  });
   expect(await stored('professional-1')).toEqual(before);
+  expect(await stored('score-missing-1')).toEqual(unread);
+  expect(await stored('campus-1')).toEqual(campus);
 });
 
 it('shows a row about nobody known yet only to HR covering every subject of the batch’s node', async () => {
