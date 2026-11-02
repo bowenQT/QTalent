@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Transaction } from '../../db/client';
 export type EntryChannel = 'web' | 'wecom' | 'mcp' | 'agentapi';
 export type CredentialBinding = {
   credentialId: string;
@@ -16,6 +17,10 @@ export type EntryIdentity = Readonly<{
 export type EntryAuthenticator = {
   verify(presented: unknown): Promise<unknown>;
   current(credentialId: string): Promise<unknown>;
+  currentInTransaction?(
+    tx: Transaction,
+    credentialId: string,
+  ): Promise<unknown>;
 };
 export class EntryIdentityError extends Error {
   constructor(readonly kind: 'unauthenticated' | 'unavailable') {
@@ -71,6 +76,57 @@ export function createEntryIdentityService(
     if (!Number.isFinite(value)) throw new EntryIdentityError('unavailable');
     return value;
   }
+  async function current(
+    identity: EntryIdentity,
+    read: (
+      reader: EntryAuthenticator,
+      credentialId: string,
+    ) => Promise<unknown>,
+  ): Promise<{
+    accountId: string;
+    personId: string;
+    channel: EntryChannel;
+    credentialId: string;
+    credentialRevision: number;
+  }> {
+    try {
+      const state =
+        typeof identity === 'object' && identity !== null
+          ? issued.get(identity)
+          : undefined;
+      if (!state || !active(state.binding, clock()))
+        throw new EntryIdentityError('unauthenticated');
+      // Retain the issuing channel's reader: equal row IDs in another issuer
+      // cannot renew a revoked credential. Renewal does not extend this cap.
+      const refreshed = await read(state.reader, state.binding.credentialId);
+      // Recheck the issued deadline after the await: a slow lookup that
+      // returns a renewed row must not outlive the original capability.
+      const now = clock();
+      const current = active(refreshed, now);
+      if (
+        !current ||
+        !active(state.binding, now) ||
+        current.accountId !== state.binding.accountId ||
+        current.personId !== state.binding.personId ||
+        current.credentialId !== state.binding.credentialId ||
+        current.revision !== state.binding.revision ||
+        issued.get(identity) !== state
+      )
+        throw new EntryIdentityError('unauthenticated');
+      return {
+        channel: state.channel,
+        accountId: current.accountId,
+        personId: current.personId,
+        credentialId: current.credentialId,
+        credentialRevision: current.revision,
+      };
+    } catch (error) {
+      // Retire this capability even if the backing row is later restored.
+      // A concurrent refresh must observe the same live issuance before return.
+      issued.delete(identity);
+      throw safeFailure(error);
+    }
+  }
   return {
     async authenticate(
       channel: EntryChannel,
@@ -95,51 +151,18 @@ export function createEntryIdentityService(
         throw safeFailure(error);
       }
     },
-    async current(identity: EntryIdentity): Promise<{
-      accountId: string;
-      personId: string;
-      channel: EntryChannel;
-      credentialId: string;
-    }> {
-      try {
-        const state =
-          typeof identity === 'object' && identity !== null
-            ? issued.get(identity)
-            : undefined;
-        if (!state || !active(state.binding, clock()))
-          throw new EntryIdentityError('unauthenticated');
-        // Retain the issuing channel's reader: equal row IDs in another issuer
-        // cannot renew a revoked credential. Renewal does not extend this cap.
-        const refreshed = await state.reader.current(
-          state.binding.credentialId,
-        );
-        // Recheck the issued deadline after the await: a slow lookup that
-        // returns a renewed row must not outlive the original capability.
-        const now = clock();
-        const current = active(refreshed, now);
-        if (
-          !current ||
-          !active(state.binding, now) ||
-          current.accountId !== state.binding.accountId ||
-          current.personId !== state.binding.personId ||
-          current.credentialId !== state.binding.credentialId ||
-          current.revision !== state.binding.revision ||
-          issued.get(identity) !== state
-        )
-          throw new EntryIdentityError('unauthenticated');
-        return {
-          channel: state.channel,
-          accountId: current.accountId,
-          personId: current.personId,
-          credentialId: current.credentialId,
-        };
-      } catch (error) {
-        // Retire this capability even if the backing row is later restored.
-        // A concurrent refresh must observe the same live issuance before return.
-        issued.delete(identity);
-        throw safeFailure(error);
-      }
-    },
+    current: (identity: EntryIdentity) =>
+      current(identity, (reader, id) => reader.current(id)),
+    /** The caller owns a Read Committed transaction. Channels without a
+     * transactional reader fail closed instead of refreshing on the pool,
+     * outside the caller's authorization and write boundary.
+     */
+    currentInTransaction: (tx: Transaction, identity: EntryIdentity) =>
+      current(identity, (reader, id) => {
+        if (!tx || !reader.currentInTransaction)
+          throw new EntryIdentityError('unavailable');
+        return reader.currentInTransaction(tx, id);
+      }),
   };
 }
 export type EntryIdentityService = ReturnType<
