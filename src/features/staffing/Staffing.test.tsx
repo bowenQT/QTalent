@@ -606,10 +606,13 @@ describe('demand card', () => {
       demandId: draft.id,
       expectedRevision: 3,
     });
-    expect(p.openMatching).toHaveBeenCalledWith({
-      demandId: confirmed.id,
-      revision: confirmed.revision,
-    });
+    // Matching opens in an effect after the confirmed demand renders: wait for it.
+    await waitFor(() =>
+      expect(p.openMatching).toHaveBeenCalledWith({
+        demandId: confirmed.id,
+        revision: confirmed.revision,
+      }),
+    );
     await screen.findByText('2 人进入候选 · 按必须项的证据排列');
   });
 
@@ -1172,10 +1175,10 @@ describe('first-round review fixes', () => {
 
     screen.getByRole('button', { name: '确认需求' }).focus();
     fireEvent.click(screen.getByRole('button', { name: '确认需求' }));
-    const line = await screen.findByText(
-      '演示审核人 09-04 确认 · 按这版要求核对候选人',
-    );
-    expect(document.activeElement).toBe(line);
+    // Focus moves in an effect after the confirmed line renders: wait for it there.
+    const confirmedLine = () =>
+      screen.getByText('演示审核人 09-04 确认 · 按这版要求核对候选人');
+    await waitFor(() => expect(document.activeElement).toBe(confirmedLine()));
     expect(
       screen.getByText('改了要求，候选人会按新要求重新核对。'),
     ).toBeTruthy();
