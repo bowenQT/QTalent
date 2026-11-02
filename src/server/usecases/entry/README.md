@@ -99,3 +99,9 @@
   - 需求：对 `staffing_demands` 行加 `FOR SHARE` 读当前 revision，按 `canReadDemand` 授权；revision 0（仍在生成）不可寻址。需求 worker 的顺序是 job → root，本事务不持 job 锁，不成环。
   - 材料：复用 `readBatchInTransaction`（intake SHARE → job 行锁，只认本人当前未被替代的批次，并做原生授权）。本事务不调 `createInTransaction`，不会把 SHARE 升级为写锁，因此与 arrange runner 不成环（见 `entry-transaction-readers.md` 的「先建后读」）。
 - 每次 ready 或 stale 写一条 `entry.link.open` 审计；被拒时不写。
+
+## 生产路由（MCP / AgentAPI）
+
+- `POST|GET|DELETE /api/mcp`：`queries/mcp-http.ts` → `usecases/mcp-runtime.ts`。每个已加载的模块实例只构建一个 MCP 处理器（生产单 worker 下即每个进程一个；开发热重载或多 worker 各有一份计数），复用应用现有的 pg-boss 生产者，不另起实例。`MCP_ENDPOINT` 未配置时返回 503。`MCP_ALLOWED_ORIGINS` 留空时，只接受端点本身的 Origin。鉴权、Origin/Host 校验和错误映射都在 `integrations/mcp/http.ts`。
+- `POST /api/agentapi/conversations/{id}`：`queries/agentapi-http.ts` → `usecases/agentapi-runtime.ts`。只接同源 Web 请求，请求体是 `{action: 'submit', operationId, text}`、`{action: 'advance', operationId}` 或 `{action: 'cancel'}`，上限 64KiB，不接受调用方给出的账号、人员或会话。AgentAPI 的归属证明取自本请求的 Web 入口身份：先过 Access 断言，再过 Better Auth，再核当前绑定和会话代次。这一步在拿到会话事务连接之前、用连接池做一次；之后每个事务里，AgentAPI 读取只用事务自己的连接，在共享锁下重读会话行（存在、未过期、属同一账号）以及会话签发代次与账号当前代次，因此核验之后的登出、过期、换绑和撤销仍被拒绝，事务里也不会再从连接池借第二条连接。请求体逐块读取，超过 64KiB 立即取消并返回 413，5 秒读不完返回 408。六个 `AGENTAPI_*` 设置缺任何一个都返回 503。这里不提供会话创建入口，会话创建与确认工厂仍待实现。
+- 频率限制目前在模块实例内：MCP 全局最多 8 个 POST 同时处理，每个账号最多 2 个业务调用并发。只有演示机单实例部署时，这才等于部署级限制。多实例部署需要跨实例计数（见 PR 中的建议），在那之前不要横向扩容。
