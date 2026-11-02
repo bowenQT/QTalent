@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect, login, type DemoRole } from '../e2e/fixtures';
 import { referenceConfig } from './reference-config';
 import { startPrototypeServer } from './prototype-server';
@@ -26,6 +27,19 @@ import {
 } from './person-regions';
 
 const SAMPLE = 'p-x07';
+
+/**
+ * The comparison edits server-rendered nodes on the engineering page (registered text,
+ * hidden extras, masks). Done before hydration, React reports a mismatch, re-renders the
+ * tree over the edits and the dev overlay adds its issue badge (same as people.spec.ts).
+ */
+async function waitForHydration(page: Page) {
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('main, main *')].every((node) =>
+      Object.keys(node).some((key) => key.startsWith('__reactProps')),
+    ),
+  );
+}
 
 for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
   for (const [viewportName, viewport] of [
@@ -56,6 +70,7 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
         await page.goto(`/person?id=${SAMPLE}`);
         await expect(prototype.locator('#timeline')).toBeVisible();
         await expect(page.locator('#timeline')).toBeVisible();
+        await waitForHydration(page);
         await hideGroupHistory(prototype);
         const [left, right] = [
           await personFacts(prototype),
@@ -194,6 +209,7 @@ test('manager expanded event card matches the prototype', async ({
       `${server.url}/prototype/y/app/person.html?id=${SAMPLE}&as=ceo`,
     );
     await page.goto(`/person?id=${SAMPLE}`);
+    await waitForHydration(page);
     const open = (target: typeof page) =>
       target.locator('.nt-tl-open').first().click();
     await open(prototype);
