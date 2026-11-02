@@ -62,13 +62,21 @@ export const people = pgTable(
     ),
   ],
 );
-export const accountBindings = pgTable('directory_account_bindings', {
-  accountId: text('account_id').primaryKey(),
-  personId: text('person_id')
-    .notNull()
-    .references(() => people.id),
-  isSystemAdmin: boolean('is_system_admin').notNull().default(false),
-});
+/** `generation` only increases: every rebind goes through
+ * `rebindDirectoryAccount`, so a credential issued under an earlier binding
+ * never matches again, even after the account returns to the same person. */
+export const accountBindings = pgTable(
+  'directory_account_bindings',
+  {
+    accountId: text('account_id').primaryKey(),
+    personId: text('person_id')
+      .notNull()
+      .references(() => people.id),
+    isSystemAdmin: boolean('is_system_admin').notNull().default(false),
+    generation: integer('generation').notNull().default(1),
+  },
+  (t) => [check('directory_account_generation', sql`${t.generation} > 0`)],
+);
 export const grants = pgTable(
   'directory_grants',
   {

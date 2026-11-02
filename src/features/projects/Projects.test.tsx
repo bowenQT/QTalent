@@ -74,6 +74,15 @@ describe('project reference interactions', () => {
     await user.click(screen.getByRole('button', { name: '全部' }));
     expect(screen.getByRole('link', { name: '测试项目' })).toBeTruthy();
   });
+  it('keeps a workbench sentence waiting when finding people from here', () => {
+    render(<Projects data={data} mentor={false} handoff />);
+    expect(
+      screen.getByRole('link', { name: '发起找 owner' }).getAttribute('href'),
+    ).toBe('/staffing?project=test-project&draft=work');
+    expect(
+      screen.getByRole('link', { name: '为项目找人' }).getAttribute('href'),
+    ).toBe('/staffing?new=1&draft=work');
+  });
   it('hides privileged controls for mentors', () => {
     render(<Projects data={{ ...data, canCreate: false }} mentor />);
     expect(screen.queryByRole('button', { name: '新建项目' })).toBeNull();
