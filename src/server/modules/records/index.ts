@@ -93,3 +93,14 @@ export type {
   RecordResaveState,
   RecordCancellationHistory,
 } from './write';
+
+// Internal upload facts require current authorization in the consuming usecase.
+export {
+  createPostgresUploadStore,
+  lockUploadCollection,
+  readUploadCollectionMembers,
+} from './uploads/store';
+export type { UploadDispatch, PostgresUploadStore } from './uploads/store';
+export { readValidatedUpload } from './uploads/handoff';
+export type { ValidatedUpload } from './uploads/handoff';
+export type { UploadCollectionMembers } from './uploads/types';
