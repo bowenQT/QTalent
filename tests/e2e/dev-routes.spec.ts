@@ -19,6 +19,8 @@ const devRoutes = [
   '/dev/design-system/sources/view',
   '/dev/inbox?role=hr',
   '/dev/staffing?role=hr&scene=ts',
+  '/dev/person-print?role=hr',
+  '/dev/person-nodes',
   // A valid role, so only the production gate can answer 404.
   '/dev/workbench?role=mentor',
 ];
@@ -84,6 +86,17 @@ test('production build serves no design-system sample routes', async () => {
       expect(
         (await fetch(`${baseURL}${route}`)).status,
         `${route} must not exist in production`,
+      ).toBe(404);
+    // The test-only Kodo v2 upload double answers POST/PUT; GET would be 405.
+    for (const method of ['POST', 'PUT'])
+      expect(
+        (
+          await fetch(
+            `${baseURL}/api/test/kodo/buckets/test-bucket/objects/a/uploads`,
+            { method },
+          )
+        ).status,
+        `${method} /api/test/kodo must not exist in production`,
       ).toBe(404);
   } finally {
     await stop();

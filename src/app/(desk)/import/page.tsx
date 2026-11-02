@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { State } from '@/components/ui/State';
 import { AccessDenied } from '@/features/shell/AccessDenied';
 import { ShellTitle } from '@/features/shell/ShellTitle';
+import { getInterviewImportPreview } from '@/server/queries/interview-import';
 import { getShellPage } from '@/server/queries/shell';
+import { LiveImport } from './LiveImport';
 
 type Shell = NonNullable<Awaited<ReturnType<typeof getShellPage>>>;
 
@@ -25,9 +27,8 @@ const toWork = (
 
 /**
  * The interview import preview route (`/import?id=…`). Viewers other than HR stop here,
- * on the server, before anything about the import is read. The preview read and the row
- * changes behind it (BOW-906) are not on main, so HR sees the preview as not connected;
- * the page itself runs on the development sample /dev/import.
+ * on the server, before anything about the import is read. HR sees the stored batch,
+ * rows filtered by the current HR grant, and confirms who each row is (BOW-906).
  */
 export default async function ImportPage({
   searchParams,
@@ -54,13 +55,28 @@ export default async function ImportPage({
       </State>
     );
   const { id } = (await searchParams) ?? {};
+  const read = id ? await getInterviewImportPreview(id) : null;
+  if (read?.status === 'ok')
+    return (
+      <>
+        <ShellTitle title="面评导入" />
+        <LiveImport preview={read.preview} />
+      </>
+    );
   return (
     <>
       <ShellTitle title="面评导入" />
-      {id ? (
+      {read?.status === 'forbidden' ? (
         <State
-          title="面评预览待接通"
-          text="接通后，这份面评按候选人逐行列在这里，逐行确认是谁以后导入。"
+          title="查看权限已更新"
+          text="这份面评已不在你的处理范围内。回到工作台，继续处理你的事。"
+        >
+          {toWork}
+        </State>
+      ) : read?.status === 'unavailable' ? (
+        <State
+          title="面评暂时打不开"
+          text="读取没有成功，内容没有变化。稍后刷新再试。"
         >
           {toWork}
         </State>

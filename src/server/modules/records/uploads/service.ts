@@ -3,10 +3,14 @@ import {
   completeUploadSchema,
   uploadCompletedSchema,
   MAX_ATTACHMENTS,
+  MAX_UPLOAD_BYTES,
+  materialUploadRequestSchema,
   uploadGrantSchema,
   uploadRequestSchema,
+  type MaterialUploadRequest,
 } from '../../../../contracts/media';
 import { verifyUploadObject } from './content';
+import { isSupportedMaterial } from './material-formats';
 import { hasExplicitCollectionIdentity } from './collection-identity';
 import {
   UploadError,
@@ -21,12 +25,42 @@ const TOKEN_TTL = 5 * 60 * 1000;
 const INTENT_TTL = 24 * 60 * 60 * 1000;
 const fingerprint = (input: unknown) =>
   createHash('sha256').update(JSON.stringify(input)).digest('hex');
-function requestFingerprint(input: unknown): string {
-  const request = uploadRequestSchema.parse(input);
-  request.declaredMediaType = request.declaredMediaType.toLowerCase();
-  if (request.target.kind === 'people') request.target.personIds.sort();
-  return fingerprint(request);
+function normalizedRequest(request: MaterialUploadRequest) {
+  return {
+    ...request,
+    declaredMediaType: request.declaredMediaType.toLowerCase(),
+    target:
+      request.target.kind === 'people'
+        ? {
+            kind: 'people' as const,
+            personIds: [...request.target.personIds].sort(),
+          }
+        : request.target,
+  };
 }
+/** Record attachment requests keep their own gate; anything else must be a
+ * material request. Both serialize identically, so stored digests are stable.
+ */
+function requestFingerprint(input: unknown): string {
+  const legacy = uploadRequestSchema.safeParse(input);
+  return fingerprint(
+    normalizedRequest(
+      legacy.success ? legacy.data : materialUploadRequestSchema.parse(input),
+    ),
+  );
+}
+const unsupportedMessages = {
+  format:
+    '暂不支持这种文件，请上传 MP3、M4A、WAV、AAC、MP4、TXT、DOCX、文字型 PDF、PNG 或 JPG',
+  size: '文件超过当前上传上限，请压缩或拆分后再上传',
+} as const;
+const unsupported = (reason: keyof typeof unsupportedMessages) => ({
+  status: 'unsupported' as const,
+  reason,
+  message: unsupportedMessages[reason],
+});
+export type MaterialGrantResult =
+  { status: 'success'; upload: RequestGrant } | ReturnType<typeof unsupported>;
 export async function safeUpload<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
@@ -75,6 +109,116 @@ export function createUploadService(options: UploadOptions) {
       );
     return target;
   }
+  async function grant(
+    accountId: string,
+    request: MaterialUploadRequest,
+  ): Promise<RequestGrant> {
+    const target = await options.policy.resolveWriteTarget(accountId, {
+      recordCollectionId: request.recordCollectionId,
+      target: request.target,
+    });
+    if (!target || target.recordCollectionId !== request.recordCollectionId)
+      throw new UploadError('forbidden', 'record_write_required');
+    if (
+      target.quotaScope !== target.recordCollectionId ||
+      !target.quotaScope.trim()
+    )
+      throw new UploadError('unavailable', 'record_collection_unresolved');
+    if (request.declaredBytes > (options.adapterMaxBytes ?? 1024 ** 3))
+      throw new UploadError('unavailable', 'adapter_limit');
+    return options.store.transaction(
+      [
+        `operation:${accountId}:${request.operationId}`,
+        `quota:${target.recordCollectionId}`,
+      ],
+      async (tx) => {
+        const currentTarget = await authorize(
+          accountId,
+          {
+            request,
+            recordCollectionId: target.recordCollectionId,
+            quotaScope: target.quotaScope,
+          },
+          tx,
+        );
+        const digest = requestFingerprint(request);
+        let intent = await tx.findOperation(accountId, request.operationId);
+        if (
+          intent &&
+          (!hasExplicitCollectionIdentity(intent) ||
+            intent.recordCollectionId !== target.recordCollectionId ||
+            intent.fingerprint !== digest ||
+            intent.quotaScope !== target.quotaScope)
+        )
+          throw new UploadError('conflict', 'operation_payload_changed');
+        if (
+          intent &&
+          (intent.completed ||
+            intent.releasedAt !== null ||
+            intent.expiresAt <= now())
+        )
+          throw new UploadError('conflict', 'upload_closed');
+        const expiresAt = Math.min(
+          now() + INTENT_TTL,
+          currentTarget.collectionExpiresAt ?? Infinity,
+        );
+        if (expiresAt <= now())
+          throw new UploadError('conflict', 'record_collection_expired');
+        if (!intent) {
+          if (
+            currentTarget.externalAttachmentCount +
+              (await tx.activeCount(target.quotaScope, now())) >=
+            MAX_ATTACHMENTS
+          )
+            throw new UploadError('validation_error', 'attachment_limit');
+          const id = randomUUID();
+          intent = {
+            id,
+            recordCollectionId: currentTarget.recordCollectionId,
+            accountId,
+            request,
+            operationId: request.operationId,
+            fingerprint: digest,
+            quotaScope: target.quotaScope,
+            objectKey: `uploads/${id}/original`,
+            expiresAt,
+            revision: 1,
+            completionOperationId: null,
+            completionFingerprint: null,
+            completed: null,
+            releasedAt: null,
+            releaseOperationId: null,
+            releaseFingerprint: null,
+          };
+          await tx.insertIntent(intent);
+        }
+        const expiry = Math.min(now() + TOKEN_TTL, intent.expiresAt, expiresAt);
+        const grant = options.storage.issueUploadGrant({
+          objectKey: intent.objectKey,
+          byteLimit: request.declaredBytes,
+          contentType: request.declaredMediaType,
+          expiresAt: expiry,
+        });
+        if (
+          grant.objectKey !== intent.objectKey ||
+          grant.expiresAt <= now() ||
+          grant.expiresAt > expiry
+        )
+          throw new UploadError('unavailable', 'invalid_storage_grant');
+        return uploadGrantSchema.parse({
+          uploadId: intent.id,
+          recordCollectionId: currentTarget.recordCollectionId,
+          revision: intent.revision,
+          expiresAt: new Date(grant.expiresAt).toISOString(),
+          method: 'resumable_v2',
+          uploadEndpoint: grant.uploadEndpoint,
+          uploadToken: grant.token,
+          objectKey: intent.objectKey,
+          maxBytes: request.declaredBytes,
+        });
+      },
+    );
+  }
   return {
     request(accountId: string | null, input: unknown): Promise<RequestGrant> {
       return safeUpload(async () => {
@@ -82,126 +226,41 @@ export function createUploadService(options: UploadOptions) {
         const parsed = uploadRequestSchema.safeParse(input);
         if (!parsed.success)
           throw new UploadError('validation_error', 'invalid_input');
-        const request = {
-          ...parsed.data,
-          declaredMediaType: parsed.data.declaredMediaType.toLowerCase(),
-          target:
-            parsed.data.target.kind === 'people'
-              ? {
-                  kind: 'people' as const,
-                  personIds: [...parsed.data.target.personIds].sort(),
-                }
-              : parsed.data.target,
+        return grant(accountId, normalizedRequest(parsed.data));
+      });
+    },
+    /** Material intake into a private unassigned staging collection. Format and
+     * size answers are results, not errors; the same file is not worth retrying.
+     */
+    requestMaterial(
+      accountId: string | null,
+      input: unknown,
+    ): Promise<MaterialGrantResult> {
+      return safeUpload(async () => {
+        requireUploadAccount(accountId);
+        const declared =
+          typeof input === 'object' &&
+          input !== null &&
+          'declaredBytes' in input
+            ? input.declaredBytes
+            : undefined;
+        if (typeof declared === 'number' && declared > MAX_UPLOAD_BYTES)
+          return unsupported('size');
+        const parsed = materialUploadRequestSchema.safeParse(input);
+        if (!parsed.success)
+          throw new UploadError('validation_error', 'invalid_input');
+        if (parsed.data.target.kind !== 'unassigned')
+          throw new UploadError(
+            'validation_error',
+            'material_target_unsupported',
+          );
+        if (!isSupportedMaterial(parsed.data)) return unsupported('format');
+        if (parsed.data.declaredBytes > (options.adapterMaxBytes ?? 1024 ** 3))
+          return unsupported('size');
+        return {
+          status: 'success' as const,
+          upload: await grant(accountId, normalizedRequest(parsed.data)),
         };
-        const target = await options.policy.resolveWriteTarget(accountId, {
-          recordCollectionId: request.recordCollectionId,
-          target: request.target,
-        });
-        if (!target || target.recordCollectionId !== request.recordCollectionId)
-          throw new UploadError('forbidden', 'record_write_required');
-        if (
-          target.quotaScope !== target.recordCollectionId ||
-          !target.quotaScope.trim()
-        )
-          throw new UploadError('unavailable', 'record_collection_unresolved');
-        if (request.declaredBytes > (options.adapterMaxBytes ?? 1024 ** 3))
-          throw new UploadError('unavailable', 'adapter_limit');
-        return options.store.transaction(
-          [
-            `operation:${accountId}:${request.operationId}`,
-            `quota:${target.recordCollectionId}`,
-          ],
-          async (tx) => {
-            const currentTarget = await authorize(
-              accountId,
-              {
-                request,
-                recordCollectionId: target.recordCollectionId,
-                quotaScope: target.quotaScope,
-              },
-              tx,
-            );
-            const digest = requestFingerprint(request);
-            let intent = await tx.findOperation(accountId, request.operationId);
-            if (
-              intent &&
-              (!hasExplicitCollectionIdentity(intent) ||
-                intent.recordCollectionId !== target.recordCollectionId ||
-                intent.fingerprint !== digest ||
-                intent.quotaScope !== target.quotaScope)
-            )
-              throw new UploadError('conflict', 'operation_payload_changed');
-            if (
-              intent &&
-              (intent.completed ||
-                intent.releasedAt !== null ||
-                intent.expiresAt <= now())
-            )
-              throw new UploadError('conflict', 'upload_closed');
-            const expiresAt = Math.min(
-              now() + INTENT_TTL,
-              currentTarget.collectionExpiresAt ?? Infinity,
-            );
-            if (expiresAt <= now())
-              throw new UploadError('conflict', 'record_collection_expired');
-            if (!intent) {
-              if (
-                currentTarget.externalAttachmentCount +
-                  (await tx.activeCount(target.quotaScope, now())) >=
-                MAX_ATTACHMENTS
-              )
-                throw new UploadError('validation_error', 'attachment_limit');
-              const id = randomUUID();
-              intent = {
-                id,
-                recordCollectionId: currentTarget.recordCollectionId,
-                accountId,
-                request,
-                operationId: request.operationId,
-                fingerprint: digest,
-                quotaScope: target.quotaScope,
-                objectKey: `uploads/${id}/original`,
-                expiresAt,
-                revision: 1,
-                completionOperationId: null,
-                completionFingerprint: null,
-                completed: null,
-                releasedAt: null,
-                releaseOperationId: null,
-                releaseFingerprint: null,
-              };
-              await tx.insertIntent(intent);
-            }
-            const expiry = Math.min(
-              now() + TOKEN_TTL,
-              intent.expiresAt,
-              expiresAt,
-            );
-            const grant = options.storage.issueUploadGrant({
-              objectKey: intent.objectKey,
-              byteLimit: request.declaredBytes,
-              contentType: request.declaredMediaType,
-              expiresAt: expiry,
-            });
-            if (
-              grant.objectKey !== intent.objectKey ||
-              grant.expiresAt <= now() ||
-              grant.expiresAt > expiry
-            )
-              throw new UploadError('unavailable', 'invalid_storage_grant');
-            return uploadGrantSchema.parse({
-              uploadId: intent.id,
-              recordCollectionId: currentTarget.recordCollectionId,
-              revision: intent.revision,
-              expiresAt: new Date(grant.expiresAt).toISOString(),
-              method: 'resumable_v2',
-              uploadEndpoint: grant.uploadEndpoint,
-              uploadToken: grant.token,
-              objectKey: intent.objectKey,
-              maxBytes: request.declaredBytes,
-            });
-          },
-        );
       });
     },
     complete(
@@ -287,14 +346,20 @@ export function createUploadService(options: UploadOptions) {
             originalVersionId: randomUUID(),
           };
           const jobId = await tx.archiveAndDispatch(latest, object, ids);
-          const completed: UploadCompletion = {
+          const staged = latest.request.target.kind === 'unassigned';
+          if (staged !== (jobId === null))
+            throw new UploadError('unavailable', 'dispatch_missing_job');
+          const facts = {
             uploadId: latest.id,
             recordCollectionId: latest.recordCollectionId,
             ...ids,
-            jobId,
             revision: latest.revision + 1,
             source: null,
           };
+          const completed: UploadCompletion =
+            jobId === null
+              ? { status: 'staged', ...facts }
+              : { ...facts, jobId };
           uploadCompletedSchema.parse(completed);
           await tx.saveCompletion({
             ...latest,

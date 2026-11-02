@@ -15,7 +15,11 @@ import {
 import { materialSourceSchema } from '../../../contracts/sources';
 import directoryFixture from '../../../../tests/fixtures/bow-896/directory.json';
 import candidateFixture from '../../../../tests/fixtures/bow-896/candidates.json';
-import { planInterviewImport, type InterviewImportFacts } from './plan';
+import {
+  planInterviewImport,
+  unreadInterviewItems,
+  type InterviewImportFacts,
+} from './plan';
 
 const parsed = new Map<string, InterviewReviewResult>();
 const files = [
@@ -358,8 +362,69 @@ describe('interview import planning with frozen 900 / 899 / 897 inputs', () => {
     const input = facts();
     input.observedIdentity = null;
     candidateHeld(input);
-    input.observedIdentity = { name: '谷嘉树（演示）', positionCode: null };
+    input.observedIdentity = { name: null, positionCode: 'DEMO-JOB-01' };
     candidateHeld(input);
+  });
+  describe('owner ruling: a row without a position code waits for HR to say who it is', () => {
+    function noPosition() {
+      const input = facts();
+      input.observedIdentity = { name: '谷嘉树（演示）', positionCode: null };
+      input.candidates[0].positionCode = null;
+      input.candidates[0].interviewTime = null;
+      return input;
+    }
+    it('plans from the current-revision HR confirmation without filling in a position code', () => {
+      const input = noPosition();
+      const before = structuredClone(input);
+      const value = planned(input);
+      expect(value.identity.candidateId).toBe(input.candidates[0].candidateId);
+      expect(input).toStrictEqual(before);
+      expect(input.observedIdentity!.positionCode).toBeNull();
+    });
+    it('stays pending without an HR confirmation', () => {
+      const input = noPosition();
+      input.confirmedCandidateId = null;
+      input.confirmedForRowRevision = null;
+      expect(candidateHeld(input).item).toMatchObject({ candidates: [] });
+    });
+    it('rejects a confirmation made for an earlier row revision', () => {
+      const input = noPosition();
+      input.rowSnapshot!.revision = 2;
+      expect(planInterviewImport(input)).toEqual({
+        status: 'not_ready',
+        reason: 'candidate_confirmation_stale',
+      });
+    });
+    it('does not let a confirmation name a record with another name', () => {
+      const input = noPosition();
+      input.candidates[0].name = '谷嘉林（演示）';
+      candidateHeld(input);
+    });
+    it('skips a confirmed non-hired record after HR says who it is', () => {
+      const input = noPosition();
+      input.candidates[0].status = 'rejected';
+      expect(planInterviewImport(input)).toEqual({
+        status: 'skipped',
+        reason: 'not_hired',
+      });
+      input.confirmedCandidateId = null;
+      input.confirmedForRowRevision = null;
+      candidateHeld(input);
+    });
+  });
+  it('matches a demo interviewer by the exact directory display name only', () => {
+    const input = facts();
+    input.confirmedInterviewerId = null;
+    expect(planned(input).signatures.interviewerId).toBe('p-yeqing');
+    const nearMiss = facts();
+    nearMiss.confirmedInterviewerId = null;
+    nearMiss.directory = nearMiss.directory.map((p) =>
+      p.id === 'p-yeqing' ? { ...p, name: '叶清（演示）' } : p,
+    );
+    expect(planInterviewImport(nearMiss)).toMatchObject({
+      status: 'needs_review',
+      item: { kind: 'unknown_interviewer' },
+    });
   });
   it.each(['name', 'positionCode', 'interviewTime'])(
     'requires the actual %s match and HR confirmation',
@@ -397,6 +462,71 @@ describe('interview import planning with frozen 900 / 899 / 897 inputs', () => {
       });
     },
   );
+  describe('HR entries for items the parser could not read', () => {
+    function filled(file = 'score-missing') {
+      const input = facts(file);
+      const unread = unreadInterviewItems(review(file));
+      expect(unread.length).toBeGreaterThan(0);
+      input.manualInput = {
+        forRowRevision: 1,
+        values: Object.fromEntries(
+          unread.map(({ item, options }) => [item, options[0]]),
+        ),
+      };
+      return { input, unread };
+    }
+    it('plans once every unread item has an entry, keeping the parsed review as read', () => {
+      const { input, unread } = filled();
+      const before = JSON.stringify(review('score-missing'));
+      const value = planned(input);
+      // Byte-for-byte the parsed review: HR's entries never become parsed values.
+      expect(JSON.stringify(value.originalReview)).toBe(before);
+      expect(value.manualEntries).toEqual(
+        unread.map(({ item, options, source }) => ({
+          item,
+          value: options[0],
+          source,
+          enteredBy: 'hr',
+        })),
+      );
+    });
+    it('refuses a partial fill, an option outside the template or an extra entry', () => {
+      const { input } = filled('score-multiple');
+      const [first, ...rest] = Object.keys(input.manualInput!.values);
+      if (rest.length) {
+        const partial = structuredClone(input);
+        delete (partial.manualInput!.values as Record<string, string>)[first];
+        expect(planInterviewImport(partial)).toMatchObject({
+          reason: 'parser_manual_input',
+        });
+      }
+      const missing = facts('score-missing');
+      missing.manualInput = { forRowRevision: 1, values: {} };
+      expect(planInterviewImport(missing)).toMatchObject({
+        reason: 'parser_manual_input',
+      });
+      const wrong = filled().input;
+      const key = Object.keys(wrong.manualInput!.values)[0];
+      wrong.manualInput = { forRowRevision: 1, values: { [key]: '9' } };
+      expect(planInterviewImport(wrong)).toMatchObject({
+        reason: 'parser_manual_input',
+      });
+      const extra = facts();
+      extra.manualInput = { forRowRevision: 1, values: { 潜力: '3' } };
+      expect(planInterviewImport(extra)).toMatchObject({
+        reason: 'parser_manual_input',
+      });
+    });
+    it('refuses entries made for an earlier row revision', () => {
+      const { input } = filled();
+      input.rowSnapshot!.revision = 2;
+      input.confirmedForRowRevision = 2;
+      expect(planInterviewImport(input)).toEqual({
+        status: 'not_ready',
+        reason: 'manual_input_stale',
+      });
+    });
+  });
   it('keeps an unknown template rejected', () => {
     expect(planInterviewImport(facts('unknown-template'))).toEqual({
       status: 'not_ready',
@@ -889,9 +1019,16 @@ describe('final 897 current snapshot, receipt, privacy and withdrawal boundary',
     if (input.parsed.status === 'rejected') throw new Error('fixture');
     expect(input.parsed.reviews[0].identity.positionNumber).toBeNull();
     input.observedIdentity!.positionCode = null;
+    input.candidates[0].positionCode = null;
+    const before = structuredClone(input);
+    // The committed link plus the current-revision HR confirmation name the
+    // record; neither the parser DTO nor the record gains a position code.
+    expect(planned(input).personId).toBe('p-x08');
+    expect(input).toStrictEqual(before);
+    input.confirmedForRowRevision = null;
     expect(planInterviewImport(input)).toEqual({
       status: 'not_ready',
-      reason: 'candidate_identity_missing',
+      reason: 'candidate_confirmation_stale',
     });
   });
   it.each([

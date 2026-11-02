@@ -673,3 +673,41 @@ describe('BOW-858 media contracts', () => {
     },
   );
 });
+
+describe('staged upload completion', () => {
+  const staged = {
+    status: 'staged',
+    uploadId: 'demo-upload',
+    recordCollectionId: 'demo-collection',
+    originalId: 'demo-original',
+    originalVersionId: 'demo-original-v1',
+    source: null,
+    revision: 2,
+  };
+  it('carries no job and no source until a batch claims it', () => {
+    expect(uploadCompletedSchema.parse(staged)).toEqual(staged);
+    expect(
+      uploadCompletedSchema.safeParse({ ...staged, jobId: 'demo-job' }).success,
+    ).toBe(false);
+    expect(
+      uploadCompletedSchema.safeParse({
+        ...staged,
+        source: { originalVersionId: 'demo-original-v1' },
+      }).success,
+    ).toBe(false);
+  });
+  it('keeps the dispatched variant free of a status field', () => {
+    const facts: Record<string, unknown> = { ...staged };
+    Reflect.deleteProperty(facts, 'status');
+    expect(
+      uploadCompletedSchema.safeParse({ ...facts, jobId: 'demo-job' }).success,
+    ).toBe(true);
+    expect(
+      uploadCompletedSchema.safeParse({
+        ...facts,
+        status: 'dispatched',
+        jobId: 'demo-job',
+      }).success,
+    ).toBe(false);
+  });
+});

@@ -42,7 +42,7 @@ export const uploadCollections = pgTable(
     ),
     check(
       'records_upload_collection_target',
-      sql`coalesce(jsonb_typeof(${t.target}) = 'object' and ${t.target}->>'kind' in ('people','event'), false)`,
+      sql`coalesce(jsonb_typeof(${t.target}) = 'object' and ${t.target}->>'kind' in ('people','event','unassigned'), false)`,
     ),
   ],
 );

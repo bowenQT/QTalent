@@ -8,7 +8,13 @@ import type { people, employments } from '../../modules/directory/schema';
 import type {
   InterviewReviewResult,
   ParsedInterviewReview,
+  PdfRegion,
+  Selection,
 } from '../../modules/records/attachments/interview-review/types';
+import {
+  INTERVIEW_DIMENSION_OPTIONS,
+  INTERVIEW_TEMPLATES,
+} from '../../modules/records/attachments/interview-review/templates';
 import {
   materialSourceSchema,
   type MaterialSource,
@@ -44,8 +50,9 @@ export interface InterviewImportFacts {
     candidateId: string;
     personId: string | null;
     name: string;
-    positionCode: string;
-    interviewTime: string;
+    /** Null when the recruitment record does not carry it; never inferred. */
+    positionCode: string | null;
+    interviewTime: string | null;
     status: 'hired' | 'rejected' | 'offer_pending' | 'offer_declined';
   }[];
   /** A stored HR preview confirmation, not a client-selected directory id. */
@@ -69,6 +76,12 @@ export interface InterviewImportFacts {
   resolvedInterviewer: CommittedInterviewResolution | null;
   pendingInterviewer: MaterialReviewItem | null;
   resolution: MaterialReviewCommand | null;
+  /** HR's entries for items the parser could not read, stored on the row for one row
+   * revision. They never replace the parsed review; absent means none were made. */
+  manualInput?: {
+    forRowRevision: number;
+    values: Readonly<Record<string, string>>;
+  } | null;
 }
 export interface InterviewImportIdentity {
   candidateId: string;
@@ -92,7 +105,8 @@ type NotReadyReason =
   | 'remaining_review_blockers'
   | 'candidate_confirmation_stale'
   | 'interviewer_confirmation_stale'
-  | 'review_revision_unavailable';
+  | 'review_revision_unavailable'
+  | 'manual_input_stale';
 export type InterviewImportPlan =
   | { status: 'forbidden' }
   | { status: 'not_ready'; reason: NotReadyReason }
@@ -120,6 +134,13 @@ export type InterviewImportPlan =
       identity: InterviewImportIdentity;
       duplicateKey: string;
       originalReview: ParsedInterviewReview;
+      /** HR's entries for the unread items, apart from the parsed review. */
+      manualEntries: {
+        item: string;
+        value: string;
+        source: PdfRegion;
+        enteredBy: 'hr';
+      }[];
       source: MaterialSource;
       signatures: {
         interviewerId: string;
@@ -305,14 +326,31 @@ export function planInterviewImport(
   if (
     Object.values(review.metadata).some(
       (field) => field === null || !field.value.trim(),
-    ) ||
-    [
-      ...review.dimensions.map((row) => row.selection),
-      review.interviewRating,
-      review.suggestedLevel,
-    ].some((selection) => selection.status === 'unrecognized')
+    )
   )
     return notReady('parser_manual_input');
+  // HR may fill the items the parser could not read, for this row revision only. Every
+  // unread item needs an entry from its own options; nothing else may be entered.
+  const unread = unreadInterviewItems(review);
+  const manual = facts.manualInput ?? null;
+  const entered = manual ? Object.keys(manual.values) : [];
+  if (unread.length || entered.length) {
+    if (manual && manual.forRowRevision !== row.revision)
+      return notReady('manual_input_stale');
+    if (
+      entered.length !== unread.length ||
+      unread.some(
+        ({ item, options }) => !options.includes(manual?.values[item] ?? ''),
+      )
+    )
+      return notReady('parser_manual_input');
+  }
+  const manualEntries = unread.map(({ item, source }) => ({
+    item,
+    value: manual!.values[item],
+    source,
+    enteredBy: 'hr' as const,
+  }));
   if (
     row.import.state === 'withdrawn' &&
     facts.confirmedForRowRevision !== row.revision
@@ -433,20 +471,36 @@ export function planInterviewImport(
       return { status: 'forbidden' };
     candidateResumed = committed.receipt.resume !== null;
   }
-  if (!observedName || !observed?.positionCode?.trim()) {
+  if (!observedName) {
     return selectedPersonId === null
       ? candidatePending()
       : notReady('candidate_identity_missing');
   }
+  const positionCode = observed?.positionCode?.trim()
+    ? observed.positionCode
+    : null;
+  // Owner ruling 6560666796 (1): a row whose position code is unavailable waits
+  // for HR to say who it is. The current-revision HR confirmation then names the
+  // recruitment record directly; the position code stays unknown, never inferred
+  // or filled in, and the automatic skip above still needs all three fields.
+  if (
+    positionCode === null &&
+    facts.confirmedCandidateId !== null &&
+    facts.confirmedForRowRevision !== row.revision
+  )
+    return notReady('candidate_confirmation_stale');
   // Automatic pre-confirmation skipping requires uniqueness above. A current
   // HR confirmation instead disambiguates the exact recruitment record below.
-  const matches = identityMatches.filter(
+  const matches = (
+    positionCode === null ? facts.candidates : identityMatches
+  ).filter(
     (candidate) =>
       facts.confirmedForRowRevision === row.revision &&
       candidate.candidateId === facts.confirmedCandidateId &&
       candidate.name === observedName &&
-      candidate.positionCode === observed.positionCode &&
-      candidate.interviewTime === interviewTime &&
+      (positionCode === null ||
+        (candidate.positionCode === positionCode &&
+          candidate.interviewTime === interviewTime)) &&
       (selectedPersonId === null || candidate.personId === selectedPersonId),
   );
   if (matches.length !== 1)
@@ -611,6 +665,7 @@ export function planInterviewImport(
       .update(identityKey(identity))
       .digest('hex'),
     originalReview: structuredClone(review),
+    manualEntries,
     source,
     signatures: {
       interviewerId,
@@ -627,4 +682,36 @@ export function planInterviewImport(
         }
       : null,
   };
+}
+
+/** The items of a review the parser could not read, with the options HR picks from.
+ * Item names are the dimension names and the template's rating and level labels. */
+export function unreadInterviewItems(review: ParsedInterviewReview) {
+  const template = INTERVIEW_TEMPLATES.find((t) => t.name === review.template);
+  const items: {
+    item: string;
+    selection: Selection;
+    options: readonly string[];
+  }[] = [
+    ...review.dimensions.map((d) => ({
+      item: d.name,
+      selection: d.selection,
+      options: INTERVIEW_DIMENSION_OPTIONS,
+    })),
+    {
+      item: template?.rating.label ?? '面试评级',
+      selection: review.interviewRating,
+      options: template?.rating.options ?? [],
+    },
+    {
+      item: template?.level.label ?? '建议职级',
+      selection: review.suggestedLevel,
+      options: template?.level.options ?? [],
+    },
+  ];
+  return items.flatMap(({ item, selection, options }) =>
+    selection.status === 'unrecognized'
+      ? [{ item, options, source: selection.source }]
+      : [],
+  );
 }
