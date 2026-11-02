@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { getDatabase } from '../db/client';
 import { requireSession } from '../auth/next';
@@ -38,15 +38,6 @@ let connection: Awaited<ReturnType<typeof nativeDatabase>>;
 beforeAll(async () => {
   connection = await nativeDatabase();
   await seedNativeRules(connection.db);
-  // Stand-in for the BOW-873 unassigned upload migration (be-sources) on this
-  // isolated database only; remove once that migration is on main.
-  await connection.db.execute(sql`
-    alter table records_upload_collections
-      drop constraint records_upload_collection_target,
-      add constraint records_upload_collection_target check (coalesce(
-        jsonb_typeof(target) = 'object'
-          and target->>'kind' in ('people','event','unassigned'),
-        false))`);
 }, 30000);
 const send = vi.fn(async () => 'synthetic-queue-message');
 beforeEach(() => {
@@ -97,7 +88,7 @@ async function unassignedUpload(
     id: collectionId,
     creatorAccountId: f.account,
     operationId: randomUUID(),
-    target: target as unknown as typeof uploadCollections.$inferInsert.target,
+    target,
     targetFingerprint: 'b'.repeat(64),
     createdAt: 100,
     expiresAt: 200,
@@ -110,8 +101,7 @@ async function unassignedUpload(
     fingerprint: 'c'.repeat(64),
     quotaScope: collectionId,
     recordCollectionId: collectionId,
-    // BOW-873 material request: the upload module's own type has no unassigned target yet.
-    request: request as unknown as typeof uploadIntents.$inferInsert.request,
+    request,
     declaredBytes: bytes.length,
     objectKey: originalId,
     expiresAt: 200,

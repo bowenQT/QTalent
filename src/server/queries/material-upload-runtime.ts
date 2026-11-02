@@ -1,4 +1,6 @@
 import 'server-only';
+import { and, eq } from 'drizzle-orm';
+import { MAX_UPLOAD_BYTES } from '../../contracts/media';
 import type { Database } from '../db/client';
 import { getDatabase } from '../db/client';
 import { getEnv } from '../env';
@@ -7,6 +9,7 @@ import { createClock } from '../../lib/clock';
 import { createMaterialUploadHttpHandlers } from '../modules/records/uploads/material-http';
 import type { UploadDispatch } from '../modules/records/uploads/store';
 import { resolveDefaultIntakeNode } from '../modules/records/uploads/default-node';
+import { uploadCollections } from '../modules/records/uploads/schema';
 import { UploadError } from '../modules/records/uploads/types';
 import type { UploadStorage } from '../modules/records/uploads/types';
 import {
@@ -64,8 +67,10 @@ export function createMaterialUploadRuntime(input: {
       // Staging collections never enter an 846 record save ledger.
       async loadBinding(collectionId, tx) {
         const collection = await tx.findCollection(collectionId);
+        // Any other collection is refused like a missing one, so its existence
+        // and kind never show through this entry.
         if (collection?.target.kind !== 'unassigned')
-          throw new Error('Only staging collections have a known binding');
+          throw new UploadError('forbidden', 'record_write_required');
         return { state: 'draft', externalAttachmentCount: 0 };
       },
       async collectionForEvent() {
@@ -97,6 +102,20 @@ export function createMaterialUploadRuntime(input: {
         return resolveDefaultIntakeNode(actor.context, (nodeId) =>
           canWriteArrange(actor, [], null, nodeId),
         );
+      },
+      async stagedNode(accountId, operationId) {
+        const [row] = await input.db
+          .select({ target: uploadCollections.target })
+          .from(uploadCollections)
+          .where(
+            and(
+              eq(uploadCollections.creatorAccountId, accountId),
+              eq(uploadCollections.operationId, operationId),
+            ),
+          );
+        return row?.target.kind === 'unassigned'
+          ? row.target.evaluationNodeId
+          : null;
       },
     }),
   };
@@ -140,5 +159,7 @@ export function materialUploadHandlersForServer(): Record<
     storage,
     trustedOrigin: env.BETTER_AUTH_URL,
     businessNow: () => clock.now().toISOString(),
+    // Material grants are multipart direct uploads, good for the full contract.
+    adapterMaxBytes: MAX_UPLOAD_BYTES,
   }).materialHttp;
 }

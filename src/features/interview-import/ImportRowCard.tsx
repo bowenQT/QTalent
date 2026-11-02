@@ -86,7 +86,9 @@ export function ImportRowCard({
           <span>
             人员目录里查到 0 人
             <small>
-              北森状态是{candidateStatusLabel[row.candidateStatus]}；
+              {row.candidateStatus === 'unknown'
+                ? `北森里${candidateStatusLabel.unknown}；`
+                : `北森状态是${candidateStatusLabel[row.candidateStatus]}；`}
               {row.candidateStatus === 'hired' ? unknownHired : unknownNotHired}
             </small>
           </span>

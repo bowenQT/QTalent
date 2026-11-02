@@ -9,9 +9,8 @@ const origin = 'https://app.test';
 function handlers(
   account: string | null = 'account',
   writable = true,
-  node: DefaultIntakeNode = {
-    status: 'resolved',
-    evaluationNodeId: 'demo-node',
+  defaults: { node: DefaultIntakeNode } = {
+    node: { status: 'resolved', evaluationNodeId: 'demo-node' },
   },
 ) {
   const f = fixture();
@@ -35,7 +34,16 @@ function handlers(
       service: createUploadService(f.options),
       trustedOrigin: `${origin}/`,
       authenticate: async () => account,
-      defaultNode: async () => node,
+      defaultNode: async () => defaults.node,
+      stagedNode: async (accountId, operationId) => {
+        const target = f
+          .snapshot()
+          .collections.find(
+            (c) =>
+              c.creatorAccountId === accountId && c.operationId === operationId,
+          )?.target;
+        return target?.kind === 'unassigned' ? target.evaluationNodeId : null;
+      },
     }),
   };
 }
@@ -65,6 +73,23 @@ describe('material upload HTTP boundary', () => {
         target: { kind: 'unassigned', evaluationNodeId: 'demo-node' },
       }),
     ]);
+  });
+
+  it('replays a created collection on its own node after the default node changes', async () => {
+    const defaults: { node: DefaultIntakeNode } = {
+      node: { status: 'resolved', evaluationNodeId: 'demo-node' },
+    };
+    const { http } = handlers('account', true, defaults);
+    const body = { operationId: 'stage-1' };
+    const created = await (await http.createCollection(post(body))).json();
+    defaults.node = { status: 'default_node_ambiguous' };
+    const replayed = await http.createCollection(post(body));
+    expect(replayed.status).toBe(200);
+    expect(await replayed.json()).toEqual(created);
+    defaults.node = { status: 'resolved', evaluationNodeId: 'demo-node-2' };
+    expect(await (await http.createCollection(post(body))).json()).toEqual(
+      created,
+    );
   });
 
   it('keeps method, origin, session and permission checks on the server', async () => {
@@ -102,7 +127,7 @@ describe('material upload HTTP boundary', () => {
       'default_node_missing',
       'default_node_ambiguous',
     ] as const) {
-      const { f, http } = handlers('account', true, { status });
+      const { f, http } = handlers('account', true, { node: { status } });
       const response = await http.createCollection(
         post({ operationId: 'stage-1' }),
       );
@@ -164,6 +189,7 @@ describe('material upload HTTP boundary', () => {
         trustedOrigin: 'ftp://app.test',
         authenticate: async () => 'account',
         defaultNode: async () => ({ status: 'default_node_missing' }),
+        stagedNode: async () => null,
       }),
     ).toThrow();
   });

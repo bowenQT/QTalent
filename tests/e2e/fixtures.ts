@@ -13,6 +13,7 @@ import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createDatabase } from '../../src/server/db/client';
 import { importDemo } from '../../src/server/db/import';
+import { importDirectoryProfileDemo } from '../../src/server/db/seed/directory-profile';
 import { readPrototypeSeed, mapPrototypeSeed } from '../../src/server/db/seed';
 export const demoPassword = 'isolated-test-password-only';
 export type DemoRole = 'ceo' | 'hrbp' | 'mentor' | 'admin';
@@ -82,6 +83,9 @@ export const test = base.extend<{ referenceApp: ReferenceApp }>({
           mapPrototypeSeed(readPrototypeSeed(process.cwd())),
           demoPassword,
         );
+        // Same two steps as `pnpm db:seed` (src/server/db/import.ts), so pages read the
+        // directory facts the demo deployment has.
+        await importDirectoryProfileDemo(connection.db, process.cwd());
         const port = await reservePort();
         const baseURL = `http://127.0.0.1:${port}`;
         app = spawn(

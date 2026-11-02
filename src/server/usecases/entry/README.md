@@ -43,7 +43,7 @@
 
 ## 普通深链
 
-保留路径 `/entry/open?kind=...&id=...&expectedRevision=...`，仅支持实际具有 revision 的 `material_batch` 和 `staffing_demand`。当前人员合同没有 revision，不能编造人员版本。该路径尚无 Next 页面或 API 接线，返回 ready 仅表示用例检查通过。
+保留路径 `/entry/open?kind=...&id=...&expectedRevision=...`，仅支持实际具有 revision 的 `material_batch` 和 `staffing_demand`。当前人员合同没有 revision，不能编造人员版本。Web 接线见下文「深链打开（Web）」。
 
 链接没有授权能力；URL 只带对象定位和期望版本，不含原文、分数或凭证。转发者和换账号者必须重新认证并按当前权限查询。当前版本只在授权后比较，旧版本返回刷新链接；无权限者不能借旧链接得知新版本。登录回跳只接受本目录生成的规范相对 URL，拒绝外站、协议相对路径、反斜线、控制字符、fragment、额外参数和重复参数。
 
@@ -56,7 +56,6 @@
 - 真实 Web 会话回查、企业微信映射、MCP 令牌、AgentAPI 账号绑定与撤销存储的 server composition；不创建实际 token 或新持久授权。
 - 使用当前节点、来源性质和业务权限的材料/人员/需求/匹配领域适配器；受控 person 读取与投影仍等 X1 窗口。
 - 917/919/921 固定输出 DTO 到位后的第三幕读取适配；不读取待裁决结论补齐字段。
-- 普通深链的 Web 页面、登录安全回跳、实际对象 reader 以及领域事务/审计适配。
 - 真实 PostgreSQL 下锁、回滚与并发撤权/版本改变；真实三入口同一身份等价结果；生产撤权/转发/切换账号/旧版本走查。
 - X1 为新 auth/usecase 目录追加 Next/传输依赖边界规则；必要公共出口统一由 X1 提供。作者未改共享边界脚本。
 - 897、899 已实际合入 main，早期固定组合的缺字段记录仅为历史。当前共享测试夹具若未跟上最终合同，由 X1 维护，不放宽合同。
@@ -85,3 +84,24 @@
 真实 PostgreSQL 联验使用正式迁移，当前同仪表181项单测+9项PG共190/190通过，无skip；八个生产文件行99.17%、分支97.83%、语句98.13%、函数90.90%。首跑189/190暴露旧测试直接删除仍被历史grant引用的binding，不符合正式外键；修为保留历史授权并实际重绑人员，两个独立旧请求均被拒，独立的无grant绑定删除场景仍保留。这里只验证Web数据库适配和当前权限，不是外部三渠道生产验收。
 
 本 PR 按已交付的独立 Web 身份与工具边界片推进审查：现代码不依赖外部三渠道的新表，缺配置/reader/handler 时仍拒绝。MCP、企业微信、AgentAPI 原生身份、业务领域同事务接线与真实跨入口验收作为本卡持续余项列出，不将它们误写成当前片已完成，也不以尚未添加的新表阻挡此独立片的检查。
+
+## 深链打开（Web）
+
+- 路由 `src/app/entry/open/route.ts`（GET）→ `queries/entry-link-http.ts` → `openEntryLinkRequest`。每次请求新建 Web 认证器；URL 不带任何身份。
+- 身份在事务**之前**用连接池核验两轮（authenticate 一轮、current 一轮，每轮都查 Access、Better Auth 会话、当前账号绑定和会话代次）。事务内只用事务自己的连接，按冻结的账号加载 899 上下文，并保留 loader 原有的形状检查（账号、人员一致，非系统管理员，九组事实齐全）。核验之后、跳转之前发生的登出仍会放行这一次跳转，落点页读取前会再核验自己的会话。系统管理员打开深链一律 404：深链只服务业务视角。Web 认证器对管理员抛 `WebBusinessViewDenied`（对其他调用方仍是 `unauthenticated`），深链据此直接返回与其他 404 相同的结果，不写审计，也不跳登录（重新登录结果不变，否则会循环）。
+- 结果：
+  - 未登录：302 到 `/login?returnTo=<规范深链>`。登录页只接受本目录生成的规范深链；其他任何值（外站、`//host`、反斜线、fragment、多余或重复参数）都回到 `/`。
+  - 通过：302 到落点页。需求落到 `/staffing?project=&demand=`，材料批次落到 `/receipt?id=`。落点由 reader 在同一事务、两次授权都通过后读取，只接受站内路径。
+  - 版本不是当前版本：302 到当前版本的规范链接。
+  - 无权限或对象不存在：一律 404，正文相同。
+  - 链接格式错误：400；冲突：409；其他：503。
+- reader（`link-readers.ts`）不改业务数据（不建、不改、不入队），绑定已核验的账号；但内部仍会加行锁，材料读取对 job 行是 `FOR UPDATE`：
+  - 需求：对 `staffing_demands` 行加 `FOR SHARE` 读当前 revision，按 `canReadDemand` 授权；revision 0（仍在生成）不可寻址。需求 worker 的顺序是 job → root，本事务不持 job 锁，不成环。
+  - 材料：复用 `readBatchInTransaction`（intake SHARE → job 行锁，只认本人当前未被替代的批次，并做原生授权）。本事务不调 `createInTransaction`，不会把 SHARE 升级为写锁，因此与 arrange runner 不成环（见 `entry-transaction-readers.md` 的「先建后读」）。
+- 每次 ready 或 stale 写一条 `entry.link.open` 审计；被拒时不写。
+
+## 生产路由（MCP / AgentAPI）
+
+- `POST|GET|DELETE /api/mcp`：`queries/mcp-http.ts` → `usecases/mcp-runtime.ts`。每个已加载的模块实例只构建一个 MCP 处理器（生产单 worker 下即每个进程一个；开发热重载或多 worker 各有一份计数），复用应用现有的 pg-boss 生产者，不另起实例。`MCP_ENDPOINT` 未配置时返回 503。`MCP_ALLOWED_ORIGINS` 留空时，只接受端点本身的 Origin。鉴权、Origin/Host 校验和错误映射都在 `integrations/mcp/http.ts`。
+- `POST /api/agentapi/conversations/{id}`：`queries/agentapi-http.ts` → `usecases/agentapi-runtime.ts`。只接同源 Web 请求，请求体是 `{action: 'submit', operationId, text}`、`{action: 'advance', operationId}` 或 `{action: 'cancel'}`，上限 64KiB，不接受调用方给出的账号、人员或会话。AgentAPI 的归属证明取自本请求的 Web 入口身份：先过 Access 断言，再过 Better Auth，再核当前绑定和会话代次。这一步在拿到会话事务连接之前、用连接池做一次；之后每个事务里，AgentAPI 读取只用事务自己的连接，在共享锁下重读会话行（存在、未过期、属同一账号）以及会话签发代次与账号当前代次，因此核验之后的登出、过期、换绑和撤销仍被拒绝，事务里也不会再从连接池借第二条连接。请求体逐块读取，超过 64KiB 立即取消并返回 413，5 秒读不完返回 408。六个 `AGENTAPI_*` 设置缺任何一个都返回 503。这里不提供会话创建入口，会话创建与确认工厂仍待实现。
+- 频率限制目前在模块实例内：MCP 全局最多 8 个 POST 同时处理，每个账号最多 2 个业务调用并发。只有演示机单实例部署时，这才等于部署级限制。多实例部署需要跨实例计数（见 PR 中的建议），在那之前不要横向扩容。

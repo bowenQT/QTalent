@@ -27,10 +27,24 @@ export interface EntryLinkReader<C> {
     current: EvaluationAuthzContext,
     resource: EntryLinkResource,
   ): Promise<boolean>;
+  /** Site page that opens this object, read in the same transaction after both
+   * authorizations. A same-origin path only, never a URL from the link. */
+  landing(transaction: C, resource: EntryLinkResource): Promise<string>;
+}
+/** Same-origin absolute path: one leading slash, no scheme, host, backslash,
+ * control character or fragment. */
+export function isSitePath(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= 1000 &&
+    value.startsWith('/') &&
+    !value.startsWith('//') &&
+    !/[\\\x00-\x20\x7f#]/.test(value)
+  );
 }
 export type EntryLinkResult =
   | { status: 'authentication_required'; returnTo: string }
-  | { status: 'ready'; target: EntryLinkTarget }
+  | { status: 'ready'; target: EntryLinkTarget; href: string }
   | { status: 'stale'; refreshHref: string }
   | { status: EntryFailureKind };
 export function createEntryDeepLinkUsecase<C>(ports: {
@@ -82,12 +96,14 @@ export function createEntryDeepLinkUsecase<C>(ports: {
           id: resource.id,
           expectedRevision: resource.revision,
         };
-        return resource.revision === target.expectedRevision
-          ? { status: 'ready' as const, target: actual }
-          : {
-              status: 'stale' as const,
-              refreshHref: buildEntryDeepLink(actual),
-            };
+        if (resource.revision !== target.expectedRevision)
+          return {
+            status: 'stale' as const,
+            refreshHref: buildEntryDeepLink(actual),
+          };
+        const landing = await reader.landing(tx, resource);
+        if (!isSitePath(landing)) throw new EntryUsecaseError('unavailable');
+        return { status: 'ready' as const, target: actual, href: landing };
       });
     } catch (error) {
       if (entryFailure(error).status === 'unauthenticated') {

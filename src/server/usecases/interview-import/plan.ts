@@ -44,8 +44,9 @@ export interface InterviewImportFacts {
     candidateId: string;
     personId: string | null;
     name: string;
-    positionCode: string;
-    interviewTime: string;
+    /** Null when the recruitment record does not carry it; never inferred. */
+    positionCode: string | null;
+    interviewTime: string | null;
     status: 'hired' | 'rejected' | 'offer_pending' | 'offer_declined';
   }[];
   /** A stored HR preview confirmation, not a client-selected directory id. */
@@ -433,20 +434,36 @@ export function planInterviewImport(
       return { status: 'forbidden' };
     candidateResumed = committed.receipt.resume !== null;
   }
-  if (!observedName || !observed?.positionCode?.trim()) {
+  if (!observedName) {
     return selectedPersonId === null
       ? candidatePending()
       : notReady('candidate_identity_missing');
   }
+  const positionCode = observed?.positionCode?.trim()
+    ? observed.positionCode
+    : null;
+  // Owner ruling 6560666796 (1): a row whose position code is unavailable waits
+  // for HR to say who it is. The current-revision HR confirmation then names the
+  // recruitment record directly; the position code stays unknown, never inferred
+  // or filled in, and the automatic skip above still needs all three fields.
+  if (
+    positionCode === null &&
+    facts.confirmedCandidateId !== null &&
+    facts.confirmedForRowRevision !== row.revision
+  )
+    return notReady('candidate_confirmation_stale');
   // Automatic pre-confirmation skipping requires uniqueness above. A current
   // HR confirmation instead disambiguates the exact recruitment record below.
-  const matches = identityMatches.filter(
+  const matches = (
+    positionCode === null ? facts.candidates : identityMatches
+  ).filter(
     (candidate) =>
       facts.confirmedForRowRevision === row.revision &&
       candidate.candidateId === facts.confirmedCandidateId &&
       candidate.name === observedName &&
-      candidate.positionCode === observed.positionCode &&
-      candidate.interviewTime === interviewTime &&
+      (positionCode === null ||
+        (candidate.positionCode === positionCode &&
+          candidate.interviewTime === interviewTime)) &&
       (selectedPersonId === null || candidate.personId === selectedPersonId),
   );
   if (matches.length !== 1)
