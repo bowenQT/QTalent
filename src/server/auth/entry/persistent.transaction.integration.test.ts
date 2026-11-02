@@ -239,6 +239,11 @@ it('sees a transaction-local valid replacement directory binding but refuses to 
           revision: 2,
         })
         .where(eq(agentApiBindings.id, f.id));
+      // The replacement also needs a Web session issued under that generation.
+      await tx
+        .update(session)
+        .set({ bindingGeneration: rebound!.generation })
+        .where(eq(session.id, f.owner.sessionId));
       expect(await reader.currentInTransaction!(tx, f.id)).toMatchObject({
         personId: f.other,
         revision: 2,
