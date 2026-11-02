@@ -159,6 +159,8 @@ function syntheticReview(
     comment?: string[];
     twoLine?: string;
     cover?: string;
+    shift?: number;
+    wrap?: [string, string];
   } = {},
 ): Uint8Array {
   const rows = dimensionNames.map((label, index) =>
@@ -175,20 +177,31 @@ function syntheticReview(
               ),
           ),
         ].join('\n')
-      : radio(
-          label,
-          300 + index * 50,
-          ['1', '2', '3', '4', '5'],
-          index === 3
-            ? change.management
-              ? ['4']
-              : []
-            : index === 0 && change.missing
-              ? []
-              : index === 0 && change.multiple
-                ? ['2', '4']
-                : [['2'], ['4'], ['3']][index],
-        ),
+      : index === 0 && (change.shift || change.wrap)
+        ? [
+            change.wrap?.[0] ?? '',
+            text(label, 40, 303),
+            ...['1', '2', '3', '4', '5'].map(
+              (value, i) =>
+                text(value, 215 + i * 61, 303) +
+                circle(205 + i * 61 + (change.shift ?? 0), 300, value === '2'),
+            ),
+            change.wrap?.[1] ?? '',
+          ].join('\n')
+        : radio(
+            label,
+            300 + index * 50,
+            ['1', '2', '3', '4', '5'],
+            index === 3
+              ? change.management
+                ? ['4']
+                : []
+              : index === 0 && change.missing
+                ? []
+                : index === 0 && change.multiple
+                  ? ['2', '4']
+                  : [['2'], ['4'], ['3']][index],
+          ),
   );
   const detail = [
     change.marker === false
@@ -951,6 +964,132 @@ describe('BOW-900 structural boundaries (connector findings)', () => {
     expect(review(result).dimensions[0].selection).toMatchObject({
       status: 'unrecognized',
       reason: 'options_mismatch',
+    });
+  });
+});
+
+describe('BOW-900 uncertain layout fails closed (review round 1)', () => {
+  it.each([
+    '候选人：能复盘失败。',
+    '面试结果：建议复试。',
+    '面试官：另一位同事。',
+  ])(
+    'does not report a comment cut by a repeated field label %s as parsed',
+    async (line) => {
+      const result = await parseInterviewReviewPdf(
+        syntheticReview(templates[0], {
+          comment: ['综合评价：第一行。', line, '最后一行。'],
+        }),
+        demoOptions,
+      );
+      expect(result.status).toBe('needs_manual_input');
+      expect(review(result).metadata.overallComment).toBeNull();
+    },
+  );
+  it('treats a thick stroke over a selected circle as covering it', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        cover: `1 1 1 RG 22 w 255 ${842 - 300} m 277 ${842 - 300} l S`,
+      }),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'unsupported_graphics',
+    });
+    const thin = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        cover: `0.5 0.5 0.5 RG 1 w 40 ${842 - 780} m 500 ${842 - 780} l S`,
+      }),
+      demoOptions,
+    );
+    expect(thin.status).toBe('parsed');
+  });
+  it.each([61, 30, -61])(
+    'refuses circles shifted %s pt away from their labels',
+    async (shift) => {
+      const result = await parseInterviewReviewPdf(
+        syntheticReview(templates[0], { shift }),
+        demoOptions,
+      );
+      expect(result.status).toBe('needs_manual_input');
+      expect(review(result).dimensions[0].selection).toMatchObject({
+        status: 'unrecognized',
+        reason: 'options_mismatch',
+      });
+    },
+  );
+  it('refuses a shifted second row of two-row options', async () => {
+    const pages = await readPdfLayout(
+      syntheticReview(templates[0], { twoLine: '4' }),
+    );
+    for (const item of pages[0].circles)
+      if (center(item.box) === 320)
+        item.box = [
+          item.box[0] + 61,
+          item.box[1],
+          item.box[2] + 61,
+          item.box[3],
+        ];
+    const result = parseInterviewReviewLayout(pages, demoOptions);
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'options_mismatch',
+    });
+  });
+  it('does not read a circle outside a triangular clip but inside its bounding box', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        wrap: [
+          `q 200 ${842 - 285} m 470 ${842 - 285} l 470 ${842 - 305} l 200 ${842 - 285} l h W n`,
+          'Q',
+        ],
+      }),
+      demoOptions,
+    );
+    expect(result.status).not.toBe('parsed');
+    expect(review(result).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+    });
+    expect(review(result).dimensions[0].selection).not.toHaveProperty('value');
+  });
+  it('accepts only real axis-aligned rectangles as clip paths', () => {
+    const clip = (path: number[], m = [1, 0, 0, 1, 0, 0]): Op[] => [
+      [OPS.transform, m],
+      [OPS.clip, []],
+      [
+        OPS.constructPath,
+        [
+          OPS.endPath,
+          [new Float32Array(path)],
+          new Float32Array([-5, -5, 20, 20]),
+        ],
+      ],
+    ];
+    const triangle = [0, -5, -5, 1, 20, -5, 1, 20, 20, 1, -5, -5, 4];
+    expect(vectors([...clip(triangle), blue, paint])[0]).toMatchObject({
+      supported: false,
+    });
+    const square = [0, -5, -5, 1, 20, -5, 1, 20, 20, 1, -5, 20, 4];
+    expect(vectors([...clip(square), blue, paint])[0]).toMatchObject({
+      supported: true,
+    });
+    const rotated = [0.8, 0.6, -0.6, 0.8, 0, 0];
+    expect(vectors([...clip(square, rotated), blue, paint])[0]).toMatchObject({
+      supported: false,
+    });
+  });
+  it('treats text painted over a circle as unsupported', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], { cover: text('■', 263, 303) }),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'unsupported_graphics',
     });
   });
 });

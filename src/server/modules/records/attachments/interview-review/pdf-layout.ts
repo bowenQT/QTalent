@@ -18,6 +18,7 @@ type GraphicsState = {
   strokeAlpha: number;
   supported: boolean;
   clip: PdfBox | null;
+  lineWidth: number;
 };
 const identity: Matrix = [1, 0, 0, 1, 0, 0];
 
@@ -84,13 +85,16 @@ function pathKind(value: unknown): 'circle' | 'rectangle' | 'other' {
   let moves = 0,
     lines = 0,
     curves = 0;
+  const points: [number, number][] = [];
   for (let i = 0; i < n.length;) {
     const op = n[i++];
     if (op === 0) {
       moves++;
+      points.push([n[i]!, n[i + 1]!]);
       i += 2;
     } else if (op === 1) {
       lines++;
+      points.push([n[i]!, n[i + 1]!]);
       i += 2;
     } else if (op === 2) {
       curves++;
@@ -101,15 +105,32 @@ function pathKind(value: unknown): 'circle' | 'rectangle' | 'other' {
     if (i > n.length) return 'other';
   }
   if (moves === 1 && curves === 4 && lines === 0) return 'circle';
-  return moves === 1 && curves === 0 && lines >= 3 && lines <= 4
+  if (moves !== 1 || curves !== 0 || lines < 3 || lines > 4) return 'other';
+  // Only a real axis-aligned rectangle: four distinct corners, every edge
+  // horizontal or vertical. A triangle or other polygon is not one.
+  const corners = points.slice(0, 4);
+  if (lines === 4) {
+    const last = points[4]!;
+    if (last[0] !== points[0]![0] || last[1] !== points[0]![1]) return 'other';
+  }
+  const xs = new Set(corners.map((point) => point[0]));
+  const ys = new Set(corners.map((point) => point[1]));
+  const distinct = new Set(corners.map((point) => point.join(',')));
+  const axisEdges = corners.every((point, index) => {
+    const next = corners[(index + 1) % 4]!;
+    return (point[0] === next[0]) !== (point[1] === next[1]);
+  });
+  return xs.size === 2 && ys.size === 2 && distinct.size === 4 && axisEdges
     ? 'rectangle'
     : 'other';
 }
 
 /**
  * Extract painted radio circles, including q/Q, CTM, form transforms, clipping and opacity.
- * A later fill, image or shading that overlaps an earlier circle may hide it, so that circle is
- * marked unsupported and the row goes to manual review instead of reading a value.
+ * A later fill, stroke (with its line width), image or shading that overlaps an earlier circle
+ * may hide it, so that circle is marked unsupported and the row goes to manual review instead of
+ * reading a value. Only axis-aligned rectangular clips are understood; any other clip path
+ * marks the state unsupported. Layout we cannot interpret fails closed rather than guessing.
  */
 export function readCircles(
   operators: { fnArray: number[]; argsArray: unknown[] },
@@ -125,6 +146,7 @@ export function readCircles(
     strokeAlpha: 1,
     supported: true,
     clip: null,
+    lineWidth: 1,
   };
   let pendingClip = false;
   const fills = new Set([
@@ -205,7 +227,11 @@ export function readCircles(
     else if (op === OPS.setFillColorN) state.fill = '';
     else if (op === OPS.setStrokeColorN) state.stroke = '';
     else if (op === OPS.clip || op === OPS.eoClip) pendingClip = true;
-    else if (op === OPS.setGState && Array.isArray(args[0])) {
+    else if (op === OPS.setLineWidth) {
+      const width = typeof args[0] === 'number' ? args[0] : NaN;
+      if (Number.isFinite(width) && width >= 0) state.lineWidth = width;
+      else state.supported = false;
+    } else if (op === OPS.setGState && Array.isArray(args[0])) {
       for (const entry of args[0]) {
         if (!Array.isArray(entry)) {
           state.supported = false;
@@ -257,6 +283,25 @@ export function readCircles(
         state.fill !== 'transparent'
       )
         occlude(box);
+      // A stroke covers its path widened by half the line width on every side.
+      const half = state.lineWidth / 2;
+      if (
+        (!radio || state.lineWidth > 2) &&
+        strokes.has(paintOp) &&
+        state.strokeAlpha > 0 &&
+        state.stroke !== 'transparent'
+      )
+        occlude(
+          bounds(
+            [
+              rawBox[0] - half,
+              rawBox[1] - half,
+              rawBox[2] + half,
+              rawBox[3] + half,
+            ],
+            state.matrix,
+          ),
+        );
       if (radio && visible)
         for (const filled of [true, false]) {
           if (!(filled ? fills : strokes).has(paintOp)) continue;
@@ -274,7 +319,10 @@ export function readCircles(
           });
         }
       if (pendingClip) {
-        if (kind === 'rectangle')
+        const m = state.matrix;
+        const axisAligned =
+          (m[1] === 0 && m[2] === 0) || (m[0] === 0 && m[3] === 0);
+        if (kind === 'rectangle' && axisAligned)
           state.clip = state.clip ? intersect(state.clip, box) : box;
         else state.supported = false;
         pendingClip = false;

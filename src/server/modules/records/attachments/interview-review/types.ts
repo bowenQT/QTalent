@@ -3,6 +3,12 @@ export type PdfBox = readonly [number, number, number, number];
 export type PdfTextRange = { start: number; end: number };
 /** Box is internal graphics provenance; serialize only page/textRange to 897 location. */
 export type PdfRegion = { page: number; box: PdfBox; textRange: PdfTextRange };
+/**
+ * This parser's own versioned page text: lines sorted by position, items joined by a space.
+ * It is not the BOW-866 PDF page text (`pdf-page-text-v1`, PDF.js item order plus hasEOL), so
+ * the same UTF-16 range can cut different characters there. Consumers must keep and slice
+ * this snapshot (bound by `extractionVersion` and `sha256`), never another page text.
+ */
 export type InterviewPageText = {
   page: number;
   text: string;

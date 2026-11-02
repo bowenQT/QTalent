@@ -82,6 +82,17 @@ function starts(line: Line, label: string): boolean {
     .replace(/^[*＊•·\d.、]+/, '')
     .startsWith(compact(label));
 }
+/** Labels naming the same field; each field appears once in a supported form. */
+const fieldGroups = [
+  ['面试时间'],
+  ['面试类型'],
+  ['面试官姓名', '面试官'],
+  ['面试结果'],
+  ['综合评价'],
+  ['评价表名称'],
+  ['规则版本'],
+  ['候选人'],
+];
 const metadataLabels = [
   '面试时间',
   '面试类型',
@@ -322,12 +333,62 @@ function readSelection(
     found.join('|') !== options.join('|')
   )
     return fail('options_mismatch');
+  // Then pair each circle with the one option label printed just to its right on the same
+  // line. A circle with no such label, two candidates, or a label used twice is a layout we
+  // cannot read with certainty, so nothing is read.
+  const paired: string[] = [];
+  for (const [index, row] of circleRows.entries()) {
+    const labels: { token: string; box: PdfBox }[] = [];
+    for (const span of aligned[index]![0]!.spans) {
+      const text = starts(
+        { ...aligned[index]![0]!, text: span.text, spans: [span] },
+        anchor.name,
+      )
+        ? stripLabel(span.text, anchor.name)
+        : span.text;
+      const inSpan = [
+        ...text.matchAll(
+          new RegExp(`(?<![A-Za-z0-9])(${escaped})(?![A-Za-z0-9])`, 'g'),
+        ),
+      ].map((match) => match[1]!);
+      if (inSpan.length > 1) return fail('options_mismatch');
+      if (inSpan.length === 1)
+        labels.push({ token: inSpan[0]!, box: span.box });
+    }
+    const used = new Set<number>();
+    for (const group of [...row].sort((a, b) => a.box[0] - b.box[0])) {
+      const near = labels.flatMap((label, at) =>
+        label.box[0] >= group.box[2] - 2 && label.box[0] <= group.box[2] + 20
+          ? [at]
+          : [],
+      );
+      if (near.length !== 1 || used.has(near[0]!))
+        return fail('options_mismatch');
+      used.add(near[0]!);
+      paired.push(labels[near[0]!]!.token);
+    }
+  }
+  if (paired.join('|') !== options.join('|')) return fail('options_mismatch');
+  const page = pages.find((item) => item.page === anchor.line.page)!;
+  // Text painted over a circle can hide or fake a selection.
+  if (
+    groups.some((group) =>
+      page.text.some(
+        (span) =>
+          span.box[0] < group.box[2] &&
+          group.box[0] < span.box[2] &&
+          span.box[1] < group.box[3] &&
+          group.box[1] < span.box[3],
+      ),
+    )
+  )
+    return fail('unsupported_graphics');
   const selected = ordered.filter((group) => group.selected);
   if (selected.length === 0) return fail('missing_selection');
   if (selected.length !== 1) return fail('multiple_selections');
   return {
     status: 'recognized',
-    value: options[ordered.indexOf(selected[0])],
+    value: paired[ordered.indexOf(selected[0])]!,
     source: {
       page: anchor.line.page,
       box: selected[0].box,
@@ -350,6 +411,17 @@ function parseSection(
   ];
   const metadataLine = (line: Line) =>
     metadataLabels.some((label) => labelLine(line, label));
+  // A field label seen more than once (for example a comment line written as
+  // 「候选人：…」) leaves the field and the comment boundary uncertain: neither is read.
+  const repeated = new Set(
+    fieldGroups.filter(
+      (group) =>
+        lines.filter((line) => group.some((label) => labelLine(line, label)))
+          .length > 1,
+    ),
+  );
+  const uncertain = (label: string) =>
+    [...repeated].some((group) => group.includes(label));
   const choiceRow = (line: Line) =>
     [...line.text.matchAll(/(?<![A-Za-z0-9])([1-5])(?![A-Za-z0-9])/g)]
       .map((match) => match[1])
@@ -357,6 +429,7 @@ function parseSection(
   // The free-text comment runs until the next field label, standalone scale label, radio or
   // choice row, or heading. Its lines are never scale rows, whatever words they begin with.
   const comment = new Set<number>();
+  let commentUncertain = uncertain('综合评价');
   const commentStart = lines.findIndex((line) => labelLine(line, '综合评价'));
   if (commentStart >= 0)
     for (let index = commentStart + 1; index < lines.length; index++) {
@@ -369,8 +442,15 @@ function parseSection(
         line.spans.some((span) =>
           labels.some((label) => compact(span.text) === compact(label)),
         )
-      )
+      ) {
+        if (
+          metadataLabels.some(
+            (label) => labelLine(line, label) && uncertain(label),
+          )
+        )
+          commentUncertain = true;
         break;
+      }
       comment.add(index);
     }
   const anchors: Anchor[] = [];
@@ -431,11 +511,21 @@ function parseSection(
       positionNumber: null, // No verified PDF label/fixture exists; never substitute another identifier.
     },
     metadata: {
-      interviewTime: field(lines, ['面试时间'], fieldEnd),
-      interviewType: field(lines, ['面试类型'], fieldEnd),
-      interviewer: field(lines, ['面试官姓名', '面试官'], fieldEnd),
-      interviewResult: field(lines, ['面试结果'], fieldEnd),
-      overallComment: field(lines, ['综合评价'], commentEnd, true),
+      interviewTime: uncertain('面试时间')
+        ? null
+        : field(lines, ['面试时间'], fieldEnd),
+      interviewType: uncertain('面试类型')
+        ? null
+        : field(lines, ['面试类型'], fieldEnd),
+      interviewer: uncertain('面试官')
+        ? null
+        : field(lines, ['面试官姓名', '面试官'], fieldEnd),
+      interviewResult: uncertain('面试结果')
+        ? null
+        : field(lines, ['面试结果'], fieldEnd),
+      overallComment: commentUncertain
+        ? null
+        : field(lines, ['综合评价'], commentEnd, true),
     },
     dimensions: template.dimensions.map((name) => ({
       name,
