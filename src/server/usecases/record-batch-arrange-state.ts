@@ -94,6 +94,7 @@ export function batchOperationFromJob(
               ? 'needs_review'
               : 'done';
   return {
+    revision: job.revision,
     accountId: input.creatorAccountId,
     batchId: input.batchId,
     operationId: metadata.operationId,

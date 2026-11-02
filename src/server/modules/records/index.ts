@@ -73,11 +73,15 @@ export {
 
 export {
   storeTrustedRecordDraftBatch,
+  reviseTrustedRecordDraftBatch,
   lockRecordCommand,
   readRecordConfirmationState,
   commitRecordSave,
   commitRecordUndo,
   requireRecordUndoCommit,
+  recordUndoCancellationFacts,
+  readRecordResaveState,
+  readRecordCancellationHistory,
   RecordWriteError,
 } from './write';
 export type {
@@ -85,6 +89,9 @@ export type {
   RecordSaveLock,
   RecordUndoCommit,
   RecordConfirmationWorkFact,
+  RecordCancelledConfirmationWorkFact,
+  RecordResaveState,
+  RecordCancellationHistory,
 } from './write';
 
 // Internal upload facts require current authorization in the consuming usecase.
