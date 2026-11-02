@@ -143,13 +143,17 @@ export async function readLockedRecordLedger(
     : [];
   const ledgerEvents = targetEvents.map((event) => {
     const mapped = mappings.find((mapping) => mapping.eventId === event.id);
+    // A parsable receipt decides membership by its events. An earlier
+    // generation of the same draft (undo then re-save) names only its own
+    // events, so it is not part of a newer event's history. Only an
+    // unparsable receipt in the same draft is kept, so corruption fails closed.
     const history = saves.filter((save) => {
+      if (save.createdEventIds.includes(event.id)) return true;
       const receipt = recordSaveReceiptSchema.safeParse(save.receipt);
+      if (receipt.success)
+        return receipt.data.events.some((item) => item.eventId === event.id);
       return (
-        (receipt.success &&
-          receipt.data.events.some((item) => item.eventId === event.id)) ||
-        save.createdEventIds.includes(event.id) ||
-        (mapped?.batchId === save.batchId && mapped.draftId === save.draftId)
+        mapped?.batchId === save.batchId && mapped.draftId === save.draftId
       );
     });
     const saveFacts = history.map((save) => {
