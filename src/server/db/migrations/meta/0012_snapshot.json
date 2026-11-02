@@ -1,5 +1,5 @@
 {
-  "id": "e5606d28-fffa-4a34-ad58-6ce7a6fb4010",
+  "id": "ca82fcaf-7a99-4580-a861-8f176b860624",
   "prevId": "1c945dc1-8a71-4886-b0bc-5beca1df000c",
   "version": "7",
   "dialect": "postgresql",
@@ -480,6 +480,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "binding_generation": {
+          "name": "binding_generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
