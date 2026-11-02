@@ -15,6 +15,7 @@ import {
   type SelectionAuthority,
 } from '../modules/evaluation-system/selection-standard';
 import {
+  selectionCohortBindings,
   selectionRevisions,
   selectionVersionContents,
 } from '../modules/evaluation-system/selection/schema';
@@ -38,8 +39,10 @@ import {
 import { executeSelectionRevision } from './selection-standard';
 import {
   createSelectionRevisionInputSchema,
+  selectionCohortBindingSchema,
   selectionStandardContentSchema,
   type EffectiveRuleVersion,
+  type SelectionCohortBinding,
   type SelectionManagerRevision,
   type SelectionRevision,
 } from '../../contracts/selection-standard';
@@ -55,6 +58,10 @@ export type SelectionStandardPage =
       audience: 'hr' | 'manager';
       version: EffectiveRuleVersion;
       content: SelectionStandardContent;
+      /** Cohorts this viewer may see, with the version each was bound to. */
+      bindings: SelectionCohortBinding[];
+      /** The reviewed next cohort while it is still unbound (in preparation). */
+      preparing: { id: string; name: string } | null;
     }
   | {
       status: 'revision';
@@ -443,11 +450,29 @@ export function createNativeSelectionLifecycle(
             () => new Date(now),
           );
           if (!current) return { status: 'not_found' };
+          const bindings = (
+            await tx.db
+              .select({ binding: selectionCohortBindings.binding })
+              .from(selectionCohortBindings)
+              .orderBy(selectionCohortBindings.boundAt)
+          ).map((row) => selectionCohortBindingSchema.parse(row.binding));
+          const hrCohorts = new Set(
+            activeGrants(authority.context)
+              .filter((grant) => grant.role === 'hr')
+              .map((grant) => grant.cohortId),
+          );
           return {
             status: 'current',
             audience: purpose,
             version: current.version,
             content: current.content,
+            bindings: bindings.filter(
+              (binding) => manager || hrCohorts.has(binding.cohort.id),
+            ),
+            preparing:
+              next && !bindings.some((binding) => binding.cohort.id === next.id)
+                ? { id: next.id, name: next.name }
+                : null,
           };
         });
       } catch (error) {

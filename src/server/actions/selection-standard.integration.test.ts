@@ -262,6 +262,10 @@ it('the seven /rules actions run from the session through PG, and the undo windo
       // The version takes effect on the business date, not the wall clock.
       effectiveFrom: businessClock.now().toISOString(),
     },
+    // The sixth cohort keeps the version it was bound to; the seventh is
+    // still in preparation and binds the default when it is created.
+    bindings: [{ cohort: { id: 'b-xe6' }, standardVersionId: 'xe-select-v1' }],
+    preparing: { id: 'b-xe7-demo' },
   });
 
   const undoInput = {

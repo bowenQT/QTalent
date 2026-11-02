@@ -41,8 +41,8 @@
 | `app/projects.html`               | `/projects`                       | projects / projects                 | projects / staffing                          | 已实现参考切片 |
 | `app/project.html`                | `/project?id=…`                   | project / project                   | project / staffing                           | 后续 / 404     |
 | `app/staffing.html`               | `/staffing?new=1` 或 `?project=…` | staffing / staffing.ts | staffing / staffing                          | 路由已按角色拦截；活文档组件在开发样张 `/dev/staffing`，真实读取待 BOW-852、854 |
-| `app/rules.html`                  | `/rules`；入营选拔标准 `/rules?r=front&line=xe-select` | standard-iteration / selection-standard.ts | 待 BOW-918 读取与动作 / evaluation-system | 入营选拔标准：UI 已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-920）；其余 404 |
-| `app/judge.html`                  | `/judge`、`/judge?rater=me`       | standard-iteration / judgment-comparison.ts、standard-attribution.ts | 待 BOW-919、BOW-921 读取与动作 / evaluation-system | UI 已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-920） |
+| `app/rules.html`                  | `/rules`；入营选拔标准 `/rules?r=front&line=xe-select` | standard-iteration / selection-standard.ts | `queries/rules.ts`、`actions/selection-standard.ts`（BOW-918）/ evaluation-system | 入营选拔标准：读取、保存并预览、提交、撤回、退回、确认发布与 5 秒撤销已接通（BOW-920）；还没有生效版本时显示「还没有生效的入营选拔标准」；其余 404 |
+| `app/judge.html`                  | `/judge`、`/judge?rater=me`       | standard-iteration / judgment-comparison.ts、standard-attribution.ts | 待 BOW-919、BOW-921 读取与动作 / evaluation-system | UI 已实现，读取未接通时显示「待接通」，批次读取接通后改为读 `--init` 写入的批次（BOW-920 后续切片）；视觉参照待同步 |
 | `app/tags.html`                   | `/tags`                           | tags / tags                         | tags / talent                                | 后续 / 404     |
 | `app/admin.html`                  | `/admin?tab=…`                    | admin / admin-connections.ts        | `queries/admin.ts` / directory、平台          | 接入状态页签已实现，读取未接通时显示「待接通」，视觉参照待同步（BOW-916）；其余页签待接通 |
 | `m/index.html`                    | `/m`                              | mobile-workbench / mobile-workbench | mobile-workbench / 多领域聚合                | 后续 / 404     |
@@ -610,7 +610,7 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 
 `src/features/standard-iteration/` 按 BOW-917 合同实现三块界面：判断对照（HR 按批次、评价人本人、HR 看单个评价人、管理者摘要）、归因（AI 假设 → HR 选类别写理由署名 → 只有含「评价标准」的归因能起草）、入营选拔标准修订（HR 原处编辑要点 → 保存并预览影响 → 提交；管理者确认发布、5 秒撤销或写理由退回）。动作以 `ports.ts` 的端口传入，类型取自合同；feature 不引用 server。
 
-真实路由 `/judge` 与 `/rules?r=front&line=xe-select` 在 BOW-918、BOW-919、BOW-921 的查询与动作入口合入前只显示「待接通」，不渲染夹具；导师在 `/rules` 看到「由 HR 和管理者维护」，系统管理员看到业务视角提示。开发样张 `/dev/standard-iteration?role=hr|manager|rater`（可加 `view=standard`、`rater=gu|he|xu|ye`、`seed=fresh|pending|returned`、`ai=ok|fail|empty`）用化名、合成评语和合同 schema 解析的结果走通整条链路，状态存在本标签页的 sessionStorage；生产返回 404。
+真实路由 `/rules?r=front&line=xe-select` 经 `queries/rules.ts` 读取当前生效的入营选拔标准和本账号可见的草稿，七个修订动作（读取、保存并预览影响、提交、撤回、退回、确认发布、撤销）走 `actions/selection-standard.ts`：账号取自会话，权限由用例按期次判断；别的期次的 HR 读取或操作草稿时，与草稿不存在得到同样的回答。还没有生效版本时显示「还没有生效的入营选拔标准」，不显示空要点。5 秒撤销窗口按服务器墙钟计时，版本的生效时间按业务日期，演示环境的固定业务日期不会让窗口一直开着；撤销成功后的重放仍回同一结果，第一次撤销晚于窗口则失败。`/judge` 在 BOW-919、BOW-921 的查询与动作入口合入前只显示「待接通」，不渲染夹具；导师在 `/rules` 看到「由 HR 和管理者维护」，系统管理员看到业务视角提示。开发样张 `/dev/standard-iteration?role=hr|manager|rater`（可加 `view=standard`、`rater=gu|he|xu|ye`、`seed=fresh|pending|returned`、`ai=ok|fail|empty`）用化名、合成评语和合同 schema 解析的结果走通整条链路，状态存在本标签页的 sessionStorage；生产返回 404。
 
 与原型 Y（含 BOW-924 已评审修订）的已知差异，均来自合同当前没有对应字段或动作：
 
@@ -632,6 +632,9 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 | 案例后段只写「评审某某」 | 后段可见时写「后段标准版本 · 评审某某」，无权限时仍不显示 | AC-49 双阶段版本；合同 `standardVersionId` |
 | 删除草稿、增减关联依据、版本历史与对比、撤销退回 | 不提供 | 合同无对应动作 |
 | 规则总览页签 | 不显示 | `/rules` 总览未实现 |
+| 面包屑「人才评价规则 / 前段评价标准与对应表」 | 只显示「XEngineer 入营选拔标准」 | 上级是规则总览，未实现；面包屑别名属共享文件，随总览一起补 |
+| 生效行写一句标准概要 | 写编号的标准要点，生效行下列期次绑定（「…绑定这一版」「…还在筹备，建立时绑定当时的默认版本」） | 合同版本内容是 `reviewPoints`，没有概要字段；绑定读 `selection_cohort_bindings` |
+| 原型没有「无生效版本」状态 | 标题「还没有生效的入营选拔标准」，HR 与管理者同样显示 | 演示库未执行 `--init` 或生效日期未到时出现，不拿样张或空要点冒充 |
 | 手机 `m/judge.html` | 不在本卡；375 宽按桌面页响应式重排 | 另卡 |
 
 视觉参照：当前 `prototype-reference.json` 指向 `91b297a`，其中没有 #259（BOW-924）的判断对照与入营选拔标准修订。本节界面按 main 上 `81e4fd4` 的原型实现；判断对照（批次、评价人、管理者摘要）、归因、修订编辑与确认发布均登记为「参照待同步」，未做像素对比，不算视觉通过。参照前移后（#248 评论 6557468925）补跑 1366 与 375 的对比。

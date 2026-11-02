@@ -5,6 +5,7 @@ import {
 } from '@/features/standard-iteration/revision/SelectionStandard';
 import type {
   EffectiveRuleVersion,
+  SelectionCohortBinding,
   SelectionManagerRevision,
   SelectionRevision,
 } from '@/contracts/selection-standard';
@@ -43,6 +44,8 @@ type LivePage =
       audience: 'hr' | 'manager';
       version: EffectiveRuleVersion;
       content: SelectionStandardContent;
+      bindings: SelectionCohortBinding[];
+      preparing: { id: string; name: string } | null;
     }
   | {
       status: 'revision';
@@ -59,7 +62,14 @@ export function LiveRules({ page }: { page: LivePage }) {
       <SelectionStandardCurrent
         version={page.version}
         content={page.content}
+        bindings={page.bindings}
+        preparing={page.preparing}
         draftHref={page.audience === 'hr' ? judgeHref : null}
+        back={
+          page.audience === 'manager'
+            ? { href: '/work', label: '回到工作台' }
+            : null
+        }
       />
     );
   return (

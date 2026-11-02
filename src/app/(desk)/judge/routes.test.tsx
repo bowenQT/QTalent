@@ -152,6 +152,14 @@ describe('/rules?r=front&line=xe-select', () => {
             },
           ],
         },
+        bindings: [
+          {
+            cohort: { id: 'b-xe6', name: 'XEngineer 第六期' },
+            standardVersionId: 'xe-select-v1',
+            boundAt: '2026-06-30T00:00:00.000Z',
+          },
+        ],
+        preparing: { id: 'b-xe7-demo', name: 'XEngineer 第七期（演示）' },
       });
       expect(await rulesMetadata({ searchParams: standard })).toEqual({
         title: 'XEngineer 入营选拔标准 · Niu-Talent',
@@ -160,6 +168,16 @@ describe('/rules?r=front&line=xe-select', () => {
       expect(rulesQuery).toHaveBeenCalledWith(null);
       expect(screen.getByText(/生效中 xe-select-v1/)).toBeTruthy();
       expect(screen.getByText(/作品完成度/)).toBeTruthy();
+      expect(
+        screen.getByText(
+          '06-15 起生效 · 之后新建期次的默认版本 · XEngineer 第六期绑定这一版 · XEngineer 第七期（演示）还在筹备，建立时绑定当时的默认版本',
+        ),
+      ).toBeTruthy();
+      expect(
+        screen
+          .queryByRole('link', { name: '回到工作台' })
+          ?.getAttribute('href') ?? null,
+      ).toBe(role === 'manager' ? '/work' : null);
       expect(
         screen
           .queryByRole('link', { name: '去判断对照起草' })

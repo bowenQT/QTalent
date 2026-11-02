@@ -25,6 +25,7 @@ import {
   sampleRaters,
   sampleStandard,
   sampleStandardVersion,
+  samplePreview,
   type SampleRaterKey,
   type SampleRole,
 } from './samples';
@@ -103,7 +104,19 @@ export function SampleStandardIteration({ query }: { query: SampleQuery }) {
               }
             : sampleStandard
         }
+        bindings={
+          samplePreview(1, sampleStandardVersion.effectiveFrom)
+            .preservedBindings
+        }
+        preparing={
+          samplePreview(1, sampleStandardVersion.effectiveFrom).nextCohort
+        }
         draftHref={query.role === 'hr' ? `${judgeHref}#attrib` : null}
+        back={
+          query.role === 'manager'
+            ? { href: '/work', label: '回到工作台' }
+            : null
+        }
       />
     );
   }
