@@ -38,6 +38,7 @@ function driver() {
     accountId: owner.accountId,
     personId,
     isSystemAdmin: false,
+    generation: 1,
     id: credentialId,
     accountBindingDigest: entryAccountBindingDigest(
       owner.accountId,
@@ -73,6 +74,7 @@ function driver() {
                   row.accountId,
                   row.personId,
                   row.isSystemAdmin,
+                  row.generation,
                   row.id,
                   row.accountBindingDigest,
                   row.revision,
