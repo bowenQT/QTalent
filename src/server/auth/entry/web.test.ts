@@ -200,6 +200,7 @@ describe('request-owned production Web authenticator', () => {
         accountId: 'demo-account',
         personId: 'demo-person',
         credentialId: 'demo-session',
+        credentialRevision: 1,
       });
     expect(mocks.access).toHaveBeenCalledTimes(3);
     expect(mocks.session).toHaveBeenCalledTimes(3);
