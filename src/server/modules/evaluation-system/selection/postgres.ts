@@ -1555,6 +1555,21 @@ export async function readCurrentSelectionStandard(
   };
 }
 
+/** The stored points of one published version. Versions are immutable, so a
+ * superseded version still reads as it was; every bound version has content. */
+export async function readSelectionVersionContent(
+  tx: Transaction,
+  requestedVersionId: string,
+) {
+  const versionId = selectionVersionIdSchema.parse(requestedVersionId);
+  const [content] = await tx
+    .select()
+    .from(selectionVersionContents)
+    .where(eq(selectionVersionContents.versionId, versionId));
+  if (!content) throw new SelectionPersistenceUnavailableError();
+  return selectionStandardContentSchema.parse(content.content);
+}
+
 /** Internal native binding read; caller authorizes the cohort before disclosure. */
 export async function readStoredSelectionCohortBinding(
   tx: Transaction,
