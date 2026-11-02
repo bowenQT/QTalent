@@ -24,8 +24,14 @@ export function comparisonReadPorts(
   return {
     async loadCurrentAccess() {
       const now = clock.now().toISOString();
-      const { context } = await loadEvaluationContext(db, accountId, now);
-      return comparisonAccess(context);
+      try {
+        const { context } = await loadEvaluationContext(db, accountId, now);
+        return comparisonAccess(context);
+      } catch (error) {
+        // An admin, an unbound or a removed binding: no access, which the reader answers as forbidden.
+        if (error instanceof ForbiddenError) return null;
+        throw error;
+      }
     },
     async loadBatch() {
       return null;

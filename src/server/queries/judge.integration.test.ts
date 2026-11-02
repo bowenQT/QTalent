@@ -20,6 +20,7 @@ import {
   evaluationRelations,
 } from '../modules/programs';
 import { fixture, nodeFixture } from './person-test-helpers';
+import { readJudgmentComparison } from '../modules/evaluation-system/judgment-comparison/read';
 import { comparisonReadPorts, getJudgePage } from './judge';
 
 vi.mock('../auth/next', () => ({ requireSession: vi.fn() }));
@@ -169,4 +170,40 @@ it('reads no batch while comparison batches, mappings and selection judgments ar
   const access = await ports.loadCurrentAccess();
   expect(access).not.toBeNull();
   expect(await ports.loadBatch('demo-batch', access!)).toBeNull();
+});
+
+it('answers forbidden through the real ports for an admin, an unbound account and a removed binding', async () => {
+  const db = connection!.db;
+  const forbidden = { status: 'forbidden', message: '当前账号无法读取此范围' };
+  const read = (account: string) =>
+    readJudgmentComparison(
+      { batchId: 'demo-batch' },
+      comparisonReadPorts(db, account, clock),
+    );
+  expect(
+    await comparisonReadPorts(db, 'admin', clock).loadCurrentAccess(),
+  ).toBeNull();
+  expect(await read('admin')).toEqual(forbidden);
+  expect(await read('nobody')).toEqual(forbidden);
+
+  // A binding that existed when the session began and was removed since.
+  await db
+    .insert(accountBindings)
+    .values({ accountId: 'removed', personId: 'actor', isSystemAdmin: false });
+  await db.insert(grants).values({
+    ...fixture('manager').context.grants[0],
+    id: 'removed-manager',
+    accountId: 'removed',
+  });
+  expect(await read('removed')).toEqual({
+    status: 'not_found',
+    message: '未找到可读取的对照批次',
+  });
+  await db.delete(grants).where(eq(grants.id, 'removed-manager'));
+  await db
+    .delete(accountBindings)
+    .where(eq(accountBindings.accountId, 'removed'));
+  expect(await read('removed')).toEqual(forbidden);
+  signIn('removed');
+  expect(await getJudgePage()).toEqual({ status: 'forbidden' });
 });

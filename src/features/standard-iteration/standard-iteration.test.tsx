@@ -317,31 +317,46 @@ describe('Attribution failures', () => {
     expect(second.batchId).toBe(first.batchId);
   });
 
-  it('keeps the cited cases on a confirmed attribution', async () => {
+  it('keeps the cases the confirmed attribution itself cites, with or without its hypothesis', async () => {
     const user = userEvent.setup();
     const onCase = vi.fn();
-    wrap(
-      <Attribution
-        batchId={sampleBatch.id}
-        baseVersionId="xe-select-v1"
-        cases={sampleHrPage.cases}
-        initialHypotheses={{ status: 'ready', items: sampleHypotheses }}
-        initialAttributions={[sampleAttribution]}
-        ports={ports}
-        onCase={onCase}
-        onDrafted={vi.fn()}
-      />,
-    );
-    const done = document.querySelector(
-      `[data-attribution="${sampleAttribution.id}"]`,
-    ) as HTMLElement;
-    const caseIds = [
-      ...new Set(sampleAttribution.citations.map((c) => c.caseId)),
-    ];
-    const chips = within(done).getAllByRole('button', { name: / · / });
-    expect(chips).toHaveLength(caseIds.length);
-    await user.click(chips[0]);
-    expect(onCase).toHaveBeenCalledWith(caseIds[0]);
+    // The signed conclusion cites one case its AI hypothesis never cited.
+    const aiCases = new Set(sampleHypotheses[0].citations.map((c) => c.caseId));
+    const own = sampleHypotheses
+      .flatMap((h) => h.citations)
+      .find((c) => !aiCases.has(c.caseId))!;
+    expect(own).toBeTruthy();
+    const attribution = { ...sampleAttribution, citations: [own] };
+    const name = sampleHrPage.cases.find((unit) => unit.id === own.caseId)!
+      .person.name;
+    for (const initialHypotheses of [
+      { status: 'ready', items: sampleHypotheses },
+      { status: 'idle' },
+    ] as const) {
+      wrap(
+        <Attribution
+          batchId={sampleBatch.id}
+          baseVersionId="xe-select-v1"
+          cases={sampleHrPage.cases}
+          initialHypotheses={initialHypotheses}
+          initialAttributions={[attribution]}
+          ports={ports}
+          onCase={onCase}
+          onDrafted={vi.fn()}
+        />,
+      );
+      const done = document.querySelector(
+        `[data-attribution="${attribution.id}"]`,
+      ) as HTMLElement;
+      const chips = within(done).getAllByRole('button', { name: / · / });
+      expect(chips.map((chip) => chip.textContent)).toEqual([
+        expect.stringMatching(new RegExp(`^${name} · `)),
+      ]);
+      await user.click(chips[0]);
+      expect(onCase).toHaveBeenLastCalledWith(own.caseId);
+      cleanup();
+    }
+    expect(onCase).toHaveBeenCalledTimes(2);
   });
 
   it('says the batch has no hypothesis yet when AI returns none', async () => {
