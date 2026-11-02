@@ -1,36 +1,36 @@
-import type { z } from 'zod';
-import type { JobCommand, JobResponse } from '@/contracts/jobs';
 import type {
-  recordJobSchema,
-  recordOpenDraftResultSchema,
-  recordSelectionResultSchema,
-  recordStartResultSchema,
-  RecordArrangeResult,
-  RecordDraft,
-  RecordInput,
+  MaterialBatchInput,
+  MaterialBatchReadResult,
+  MaterialBatchReceipt,
+  MaterialBatchSubmitResult,
+} from '@/contracts/materials';
+import type {
+  RecordBatchDraft,
   RecordSaveInput,
   RecordSaveResult,
-  RecordSelectionInput,
   RecordUndoInput,
   RecordUndoResult,
 } from '@/contracts/record';
 import type { LoadSource } from '@/features/sources/SourceCite';
 
-export type RecordJob = z.infer<typeof recordJobSchema>;
-export type RecordStartResult = z.infer<typeof recordStartResultSchema>;
-export type RecordSelectionResult = z.infer<typeof recordSelectionResultSchema>;
-export type RecordOpenDraftResult = z.infer<typeof recordOpenDraftResultSchema>;
 export type RecordSaveReceipt = Extract<
   RecordSaveResult,
   { status: 'success' }
 >['result'];
-export type RecordScore = RecordDraft['scores'][number];
-export type RecordSelection = RecordDraft['project'];
-export type RecordSbi = RecordDraft['sbi'];
-export type RecordSelectionRequired = Extract<
-  RecordArrangeResult,
-  { state: 'selection_required' }
->;
+export type RecordScore = RecordBatchDraft['scores'][number];
+export type RecordSbi = RecordBatchDraft['sbi'];
+export type BatchReceipt = MaterialBatchReceipt;
+
+/**
+ * 服务端按「当前账号对所选人员唯一有效的评价节点」推导的结果（所有者裁决 #248 6564917769）。
+ * 页面不猜节点、不取第一个：只有 unique 才提交，其余写明原因。
+ */
+export type NodeResolution =
+  | { status: 'unique'; evaluationNodeId: string }
+  | { status: 'multiple' }
+  | { status: 'none' }
+  /** 服务端这次读不到关系（不说原因），稍后再试。 */
+  | { status: 'unavailable' };
 
 /** 页面读取给出的、当前账号有记录权限的人。草稿里只有 id，姓名和头像都从这里翻译。 */
 export type PersonOption = {
@@ -39,6 +39,8 @@ export type PersonOption = {
   hue: number;
   photo: string | null;
   orgShort: string;
+  /** 演示人员（化名）：头部按所记的人显示「演示」徽标。 */
+  demo: boolean;
 };
 export type ProjectOption = {
   id: string;
@@ -66,12 +68,20 @@ export type LoadAnchors = (input: {
  * 网络失败时这些函数应当 reject，页面据此保留输入并提供重试。
  */
 export type RecordActions = {
-  start(input: RecordInput): Promise<RecordStartResult>;
-  selectPeople(input: RecordSelectionInput): Promise<RecordSelectionResult>;
-  openDraft(input: { draftId: string }): Promise<RecordOpenDraftResult>;
-  save(input: RecordSaveInput): Promise<RecordSaveResult>;
+  /** null：服务端推导入口待接通（845），页面写明待接通，不提交。 */
+  resolveNode:
+    | ((input: {
+        personIds: string[];
+        projectId: string | null;
+      }) => Promise<NodeResolution>)
+    | null;
+  submit(input: MaterialBatchInput): Promise<MaterialBatchSubmitResult>;
+  readBatch(input: { batchId: string }): Promise<MaterialBatchReadResult>;
+  /** `unavailable`：服务端这次没完成保存（不是网络中断），如实告诉用户。 */
+  save(
+    input: RecordSaveInput,
+  ): Promise<RecordSaveResult | { status: 'unavailable' }>;
   undo(input: RecordUndoInput): Promise<RecordUndoResult>;
-  retryJob(command: JobCommand): Promise<JobResponse<RecordArrangeResult>>;
   loadSource: LoadSource;
 };
 
@@ -81,10 +91,8 @@ export type RecordEntry = {
   personId?: string | null;
   /** `?draft=work`：读取工作台交接的会话暂存。 */
   handoff?: boolean;
-  /** `?draftId=`：长任务整理出的待确认草稿，页面已读取好。 */
-  draft?: RecordDraft;
-  /** `?job=`：整理进行中刷新或返回，重新订阅这个任务。 */
-  jobId?: string;
+  /** `?batch=`：整理进行中刷新或返回，继续读这个批次。 */
+  batchId?: string;
 };
 
 export type EditScore = {

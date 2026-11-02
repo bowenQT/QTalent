@@ -19,24 +19,23 @@ export function SampleRecord({
   scene,
   personId,
   handoff,
-  jobId,
+  batchId,
 }: {
   role: SampleRole;
   scene: SampleScene;
   personId: string | null;
   handoff: boolean;
-  jobId: string | null;
+  batchId: string | null;
 }) {
   const router = useRouter();
   const account = sampleAccount(role);
   const [people] = useState(() => samplePeople(role));
-  // The server keeps jobs across reloads; sessionStorage exists only in the browser,
+  // The server keeps batches across reloads; sessionStorage exists only in the browser,
   // and nothing calls the server before hydration.
   const [server] = useState(() =>
     sampleServer({
       scene,
       accountId: account.id,
-      people,
       storage: typeof window === 'undefined' ? undefined : sessionStorage,
     }),
   );
@@ -51,17 +50,15 @@ export function SampleRecord({
         projects={sampleProjects}
         dimensions={sampleDimensions}
         actions={server.actions}
-        readJob={server.readJob}
         loadAnchors={server.loadAnchors}
         idleAnchor={{ dimensionId: 'mot', set: sampleAnchors('mot') }}
-        entry={{ personId, handoff, jobId: jobId ?? undefined }}
-        demo
+        entry={{ personId, handoff, batchId: batchId ?? undefined }}
         showExample
-        onJobChange={(id) => {
-          // `?job=` only: the typed text never goes into the URL.
+        onBatchChange={(id) => {
+          // `?batch=` only: the typed text never goes into the URL.
           const params = new URLSearchParams(window.location.search);
-          if (id) params.set('job', id);
-          else params.delete('job');
+          if (id) params.set('batch', id);
+          else params.delete('batch');
           params.delete('draft');
           router.replace(`?${params}`, { scroll: false });
         }}

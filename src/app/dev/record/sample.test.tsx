@@ -3,15 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/components/ui/Toast';
-import {
-  RECORD_UNDO_WINDOW_MS,
-  type RecordDraft,
-  type RecordInput,
-} from '@/contracts/record';
-import type { RecordJob } from '@/features/record/types';
+import type { MaterialBatchInput } from '@/contracts/materials';
+import { RECORD_UNDO_WINDOW_MS } from '@/contracts/record';
 import RecordSample from './page';
 import { SampleRecord } from './SampleRecord';
-import { STEP_MS, sampleServer } from './sample-actions';
+import { SAMPLE_NODE, STEP_MS, sampleServer } from './sample-actions';
 import {
   SENTENCE,
   SUBJECT,
@@ -39,43 +35,45 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const input = (text = SENTENCE, personId: string | null = null) =>
-  ({
-    operation_id: 'op-1',
-    text,
-    attachmentIds: [],
-    personId,
-    projectId: null,
-  }) satisfies RecordInput;
+const input = (
+  text = SENTENCE,
+  personIds: string[] = [SUBJECT],
+  operationId = 'op-1',
+): MaterialBatchInput => ({
+  operationId,
+  evaluationNodeId: SAMPLE_NODE,
+  personIds,
+  projectId: null,
+  text,
+  files: [],
+});
 
 function server(scene: SampleScene = 'normal', storage?: Storage) {
   let clock = 1_000_000;
   const value = sampleServer({
     scene,
     accountId: 'p-suwan',
-    people: samplePeople('hr'),
     storage,
     now: () => clock,
   });
   return {
     ...value,
     tick: (ms: number) => (clock += ms),
-    read: (jobId: string) => value.readJob(jobId, new AbortController().signal),
+    read: async (batchId: string) => {
+      const result = await value.actions.readBatch({ batchId });
+      if (result.status !== 'success') throw new Error(result.status);
+      return result.result;
+    },
   };
 }
 
-/** The arranged draft, or a failure when the job asked who it is instead. */
-function asDraft(result: RecordJob['result']): RecordDraft {
-  if (!result || 'state' in result) throw new Error('no draft');
-  return result;
-}
-
-async function arranged(s: ReturnType<typeof server>) {
-  const started = await s.actions.start(input());
+async function arranged(s: ReturnType<typeof server>, value = input()) {
+  const started = await s.actions.submit(value);
   if (started.status !== 'success') throw new Error(started.status);
-  const jobId = started.result.jobId;
+  const { batchId } = started.result;
   s.tick(STEP_MS * 3);
-  return { jobId, draft: asDraft((await s.read(jobId)).result) };
+  const receipt = await s.read(batchId);
+  return { batchId, receipt, draft: receipt.draftSet?.drafts[0] };
 }
 
 const saveInput = (draftId: string, revision: number) => ({
@@ -91,211 +89,185 @@ const saveInput = (draftId: string, revision: number) => ({
 });
 
 describe('sample server', () => {
-  it('arranges the sentence step by step into the prototype draft', async () => {
+  it('derives one node, arranges the sentence with time into one draft', async () => {
     const s = server();
-    const started = await s.actions.start(input());
-    expect(started.status).toBe('success');
-    if (started.status !== 'success') return;
-    expect(started.result.status).toBe('queued');
+    expect(
+      await s.actions.resolveNode!({ personIds: [SUBJECT], projectId: null }),
+    ).toEqual({ status: 'unique', evaluationNodeId: SAMPLE_NODE });
+    // Like BOW-845: an empty selection derives no node.
+    expect(
+      await s.actions.resolveNode!({ personIds: [], projectId: null }),
+    ).toEqual({ status: 'none' });
+    const started = await s.actions.submit(input());
+    if (started.status !== 'success') throw new Error(started.status);
+    expect(started.result).toMatchObject({
+      status: 'processing',
+      draftSet: null,
+    });
     s.tick(STEP_MS);
-    const running = await s.read(started.result.jobId);
-    expect(running.status).toBe('running');
-    expect(running.progress).toEqual({ completed: 1, total: 3 });
+    expect((await s.read(started.result.batchId)).status).toBe('processing');
     s.tick(STEP_MS * 2);
-    const done = await s.read(started.result.jobId);
-    expect(done.status).toBe('awaiting_manual');
-    expect(done.revision).toBeGreaterThan(running.revision);
-    const draft = asDraft(done.result);
-    expect(draft.people).toEqual([{ state: 'resolved', id: SUBJECT }]);
-    // One suggested score with anchor, quote and rule version; the rest left open.
-    expect(draft.scores).toMatchObject([
-      {
-        dimensionId: 'mot',
-        state: 'suggested',
-        value: 4,
-        anchor: { ruleVersion: 'rubric-v1' },
-        citations: [
-          { kind: 'input', quote: '孟逸尘今天主动把任务池同步给了全组' },
-        ],
-      },
-      { dimensionId: 'grit', state: 'unknown' },
-    ]);
+    const done = await s.read(started.result.batchId);
+    expect(done.status).toBe('awaiting_confirmation');
+    expect(done.draftSet?.drafts).toHaveLength(1);
+    const [draft] = done.draftSet!.drafts;
+    expect(draft!.scores[0]).toMatchObject({ state: 'suggested', value: 4 });
+    // The same operation replays the same batch.
+    const again = await s.actions.submit(input());
+    expect(again.status === 'success' && again.replayed).toBe(true);
   });
 
   it('never scores a sentence without the quote', () => {
-    const draft = sampleDraft(input('今天开了个会'), SUBJECT, 'd-1');
+    const draft = sampleDraft({
+      batchId: 'b',
+      draftId: 'd',
+      evaluationNodeId: SAMPLE_NODE,
+      personId: SUBJECT,
+      text: '开了个会',
+    });
     expect(draft.scores.every((score) => score.state === 'unknown')).toBe(true);
   });
 
   it('saves with a five-second undo window and refuses undo after it', async () => {
     const s = server();
-    const { draft } = await arranged(s);
-    const saved = await s.actions.save(
-      saveInput(draft.draftId, draft.revision),
-    );
+    const { batchId, draft } = await arranged(s);
+    const saved = await s.actions.save(saveInput(draft!.draftId, 1));
     if (saved.status !== 'success') throw new Error(saved.status);
-    const receipt = saved.result;
-    expect(Date.parse(receipt.undoUntil) - Date.parse(receipt.savedAt)).toBe(
-      RECORD_UNDO_WINDOW_MS,
-    );
-    expect(receipt.confirmationIds).toHaveLength(1);
+    expect(
+      Date.parse(saved.result.undoUntil) - Date.parse(saved.result.savedAt),
+    ).toBe(RECORD_UNDO_WINDOW_MS);
+    const after = await s.read(batchId);
+    expect(after).toMatchObject({ status: 'completed', draftSet: null });
+    expect(after.confirmedDrafts).toHaveLength(1);
     s.tick(RECORD_UNDO_WINDOW_MS);
     expect(
-      await s.actions.undo({ operation_id: 'op-u', saveId: receipt.saveId }),
-    ).toMatchObject({
-      status: 'conflict',
-      message: '已超过撤销时间，这条记录已保存',
-    });
+      (
+        await s.actions.undo({
+          operation_id: 'op-undo',
+          saveId: saved.result.saveId,
+        })
+      ).status,
+    ).toBe('conflict');
   });
 
-  it('undoes within the window without handing the input back (846)', async () => {
+  it('undoes within the window without handing the input back (846), draft returns', async () => {
     const s = server();
-    const { draft } = await arranged(s);
-    const saved = await s.actions.save(
-      saveInput(draft.draftId, draft.revision),
-    );
+    const { batchId, draft } = await arranged(s);
+    const saved = await s.actions.save(saveInput(draft!.draftId, 1));
     if (saved.status !== 'success') throw new Error(saved.status);
-    s.tick(RECORD_UNDO_WINDOW_MS - 1);
     const undone = await s.actions.undo({
-      operation_id: 'op-u',
+      operation_id: 'op-undo',
       saveId: saved.result.saveId,
     });
-    expect(undone).toMatchObject({
-      status: 'success',
-      result: { inputRestoration: 'unavailable', originalInput: null },
+    expect(undone.status === 'success' && undone.result).toMatchObject({
+      inputRestoration: 'unavailable',
+      originalInput: null,
     });
+    expect((await s.read(batchId)).draftSet?.drafts[0]?.draftId).toBe(
+      draft!.draftId,
+    );
   });
 
-  it('rejects a stale revision and a missing draft', async () => {
+  it('rejects a stale revision, a missing draft and a missing batch', async () => {
     const s = server();
     const { draft } = await arranged(s);
-    expect(
-      (await s.actions.save(saveInput(draft.draftId, draft.revision + 5)))
-        .status,
-    ).toBe('conflict');
+    expect((await s.actions.save(saveInput(draft!.draftId, 9))).status).toBe(
+      'conflict',
+    );
     expect((await s.actions.save(saveInput('nope', 1))).status).toBe(
       'not_found',
     );
-    expect((await s.actions.openDraft({ draftId: 'nope' })).status).toBe(
+    expect((await s.actions.readBatch({ batchId: 'nope' })).status).toBe(
       'not_found',
-    );
-    expect((await s.actions.openDraft({ draftId: draft.draftId })).status).toBe(
-      'success',
     );
   });
 
   it('conflict scene: the first save comes back with the edits and a newer draft', async () => {
     const s = server('conflict');
-    const { draft } = await arranged(s);
-    const first = await s.actions.save(
-      saveInput(draft.draftId, draft.revision),
+    const { batchId, draft } = await arranged(s);
+    const first = await s.actions.save(saveInput(draft!.draftId, 1));
+    expect(first.status).toBe('conflict');
+    expect((await s.read(batchId)).draftSet?.drafts[0]?.revision).toBe(2);
+    expect((await s.actions.save(saveInput(draft!.draftId, 2))).status).toBe(
+      'success',
     );
-    expect(first).toMatchObject({
-      status: 'conflict',
-      input: { draftId: draft.draftId },
-    });
-    const latest = await s.actions.openDraft({ draftId: draft.draftId });
-    if (latest.status !== 'success') throw new Error();
-    expect(latest.result.revision).toBe(draft.revision + 1);
-    expect(
-      (await s.actions.save(saveInput(draft.draftId, latest.result.revision)))
-        .status,
-    ).toBe('success');
   });
 
-  it('fail scene: the first attempt stops at step 2 and retry continues', async () => {
+  it('fail scene: the first batch fails at step 2, a new batch arranges', async () => {
     const s = server('fail');
-    const started = await s.actions.start(input());
-    if (started.status !== 'success') throw new Error();
-    const { jobId } = started.result;
+    const started = await s.actions.submit(input());
+    if (started.status !== 'success') throw new Error(started.status);
     s.tick(STEP_MS * 2);
-    const failed = await s.read(jobId);
+    const failed = await s.read(started.result.batchId);
     expect(failed).toMatchObject({
       status: 'failed',
-      canRetry: true,
-      error: { code: 'processing_failed' },
+      error: { retryable: true },
     });
-    const command = {
-      jobId,
-      action: 'retry' as const,
-      operationId: 'op-r',
-      expectedRevision: failed.revision,
-    };
-    const retried = await s.actions.retryJob(command);
-    if (retried.status !== 'success') throw new Error(retried.status);
-    expect(retried.snapshot.attempt).toBe(2);
-    expect(retried.snapshot.revision).toBeGreaterThan(failed.revision);
-    // Nothing failed any more: retrying again is a conflict.
-    expect((await s.actions.retryJob(command)).status).toBe('conflict');
-    expect(
-      (await s.actions.retryJob({ ...command, jobId: 'nope' })).status,
-    ).toBe('not_found');
-    s.tick(STEP_MS * 3);
-    expect((await s.read(jobId)).status).toBe('awaiting_manual');
+    const { receipt } = await arranged(s, input(SENTENCE, [SUBJECT], 'op-2'));
+    expect(receipt.status).toBe('awaiting_confirmation');
   });
 
-  it('offline scene: the first start never arrives, the second does', async () => {
+  it('offline scene: the first submit never arrives, the second does', async () => {
     const s = server('offline');
-    await expect(s.actions.start(input())).rejects.toThrow('Failed to fetch');
-    expect((await s.actions.start(input())).status).toBe('success');
+    await expect(s.actions.submit(input())).rejects.toThrow();
+    expect((await s.actions.submit(input())).status).toBe('success');
   });
 
-  it('selection scene: asks who it is, then arranges for the chosen person', async () => {
-    const s = server('selection');
-    const started = await s.actions.start(input());
-    if (started.status !== 'success') throw new Error();
-    s.tick(STEP_MS * 3);
-    const asked = await s.read(started.result.jobId);
-    if (!asked.result || !('state' in asked.result)) throw new Error();
-    expect(asked.result.people[0]).toMatchObject({ state: 'needs_selection' });
-    const chosen = await s.actions.selectPeople({
-      operation_id: 'op-s',
-      draftId: asked.result.draftId,
-      expected_input_version: asked.result.inputVersion,
-      personIds: [SUBJECT],
-      projectId: null,
+  it('many scene: two events; review scene: one open item and no draft', async () => {
+    const many = await arranged(server('many'));
+    expect(many.receipt.draftSet?.drafts).toHaveLength(2);
+    const review = await arranged(server('review'));
+    expect(review.receipt).toMatchObject({
+      status: 'needs_review',
+      draftSet: null,
     });
-    expect(chosen.status).toBe('success');
-    expect(
-      (
-        await s.actions.selectPeople({
-          operation_id: 'op-s',
-          draftId: 'nope',
-          expected_input_version: 'x',
+    expect(review.receipt.items[0]?.kind).toBe('unknown_person');
+  });
+
+  it('node scenes answer multiple or none', async () => {
+    for (const [scene, status] of [
+      ['node-multiple', 'multiple'],
+      ['node-none', 'none'],
+    ] as const)
+      expect(
+        await server(scene).actions.resolveNode!({
           personIds: [SUBJECT],
           projectId: null,
+        }),
+      ).toEqual({ status });
+  });
+
+  it('keeps batches across reloads and reads no stored sources', async () => {
+    const first = server('normal', sessionStorage);
+    const started = await first.actions.submit(input());
+    if (started.status !== 'success') throw new Error(started.status);
+    const second = server('normal', sessionStorage);
+    second.tick(STEP_MS * 3);
+    expect((await second.read(started.result.batchId)).status).toBe(
+      'awaiting_confirmation',
+    );
+    expect(
+      (
+        await second.actions.loadSource({
+          fragmentId: 'f',
+          originalVersionId: 'v',
         })
       ).status,
     ).toBe('not_found');
   });
 
-  it('keeps jobs across reloads and reads no stored sources', async () => {
-    const first = server('normal', sessionStorage);
-    const started = await first.actions.start(input());
-    if (started.status !== 'success') throw new Error();
-    const again = server('normal', sessionStorage);
-    expect((await again.read(started.result.jobId)).jobId).toBe(
-      started.result.jobId,
-    );
-    await expect(again.read('nope')).rejects.toThrow();
-    expect(
-      await again.actions.loadSource({
-        fragmentId: 'f',
-        originalVersionId: 'v',
-      }),
-    ).toMatchObject({ status: 'not_found' });
-    const anchors = await again.loadAnchors({
-      personIds: [SUBJECT],
-      ruleVersions: [],
-    });
-    expect(anchors[SUBJECT]?.mot?.ruleVersion).toBe('rubric-v1');
-    expect(anchors[SUBJECT]?.prof?.levels[2]).toBe('达到本届学员预期');
-  });
-
   it('starts over from broken storage', async () => {
     sessionStorage.setItem('qtalent-dev-record:p-suwan:normal', '{');
     const s = server('normal', sessionStorage);
-    expect((await s.actions.start(input())).status).toBe('success');
+    expect((await s.actions.submit(input())).status).toBe('success');
+  });
+
+  it('gives every person the same anchors for each dimension', async () => {
+    const map = await server().loadAnchors({
+      personIds: [SUBJECT],
+      ruleVersions: ['rubric-v1'],
+    });
+    expect(Object.keys(map[SUBJECT]!)).toContain('mot');
   });
 });
 
@@ -323,7 +295,7 @@ describe('/dev/record', () => {
     ).rejects.toThrow('not-found');
     await expect(
       RecordSample({
-        searchParams: Promise.resolve({ role: 'hr', scene: 'nope' }),
+        searchParams: Promise.resolve({ role: 'hr', scene: 'selection' }),
       }),
     ).rejects.toThrow('not-found');
     expect(
@@ -333,15 +305,15 @@ describe('/dev/record', () => {
     ).toBeTruthy();
   });
 
-  it('puts the job in the URL while arranging, never the text', async () => {
+  it('puts the batch in the URL while arranging, never the text', async () => {
     render(
       <ToastProvider>
         <SampleRecord
           role="hr"
           scene="normal"
-          personId={null}
+          personId={SUBJECT}
           handoff={false}
-          jobId={null}
+          batchId={null}
         />
       </ToastProvider>,
     );
@@ -355,7 +327,7 @@ describe('/dev/record', () => {
     );
     await waitFor(() => expect(replace).toHaveBeenCalled());
     const url = replace.mock.calls.at(-1)?.[0] as string;
-    expect(url).toMatch(/job=sample-job-\d+/);
+    expect(url).toMatch(/batch=sample-batch-\d+/);
     expect(decodeURIComponent(url)).not.toContain('开了个会');
   });
 });

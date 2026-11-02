@@ -7,7 +7,9 @@ import {
   useReducer,
   useRef,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from 'react';
 import { useReducedMotion } from 'motion/react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -15,27 +17,21 @@ import { Icon } from '@/components/ui/Icon';
 import { State } from '@/components/ui/State';
 import { UNDO_MS, useToast } from '@/components/ui/Toast';
 import { AnchorPanel, type AnchorLoad, type IdleAnchor } from './AnchorPanel';
+import { receiptHref } from './batch-route';
 import {
   buildSaveInput,
-  hasUnresolvedSelection,
-  resolvedPersonIds,
-  resolvedProjectId,
   reuseOperationId,
   saveKey,
   suggestedCount,
   untouchedCount,
-  type OperationId,
 } from './build-save-input';
 import { copy } from './copy';
-import {
-  commandFailureMessage,
-  saveProblems,
-  type FailureKind,
-} from './errors';
+import { saveProblems } from './errors';
 import { OrganizeHeader } from './OrganizeHeader';
 import { OrganizeProgress } from './OrganizeProgress';
 import { RawInput } from './RawInput';
-import { BannerNotice, FailurePanel } from './RecordNotices';
+import { BannerNotice, FailurePanel, HandoffPanel } from './RecordNotices';
+import { recognizePerson } from './recognize';
 import { RecordInput } from './RecordInput';
 import {
   initialState,
@@ -44,16 +40,11 @@ import {
   recordReducer,
   type Connection,
 } from './record-flow';
-import {
-  clearRecordInputStash,
-  restoreInput,
-  stashInput,
-  takeHandoff,
-} from './record-handoff';
+import { sessionDraftEpoch } from '@/lib/session-drafts';
+import { createSessionScope, type SessionScope } from './session-scope';
 import { SavedSign } from './SavedSign';
 import { SbiEditor } from './SbiEditor';
 import { ScoreList, type AnchorFocus } from './ScoreList';
-import { SelectionPanel } from './SelectionPanel';
 import {
   scoreKey,
   type DimensionOption,
@@ -62,9 +53,8 @@ import {
   type ProjectOption,
   type RecordActions,
   type RecordEntry,
-  type RecordJob,
 } from './types';
-import { useRecordJob, type ReadRecordJob } from './use-record-job';
+import { useRecordBatch } from './use-record-batch';
 import './record.css';
 
 export const DEFAULT_MAX_LENGTH = 2000;
@@ -85,17 +75,13 @@ export type RecordPageProps = {
   /** 还没有分可看时右栏显示的锚点（原型默认内生动力），由页面读取提供；缺省显示提示句。 */
   idleAnchor?: IdleAnchor;
   entry?: RecordEntry;
-  /** 演示数据：头部显示「演示」徽标。 */
-  demo?: boolean;
   /** 非生产环境显示带化名的示例占位。 */
   showExample?: boolean;
   maxLength?: number;
   /** 附件入口与列表（BOW-870 接入），本页只留位置。 */
   attachmentSlot?: ReactNode;
-  /** 测试替身；默认读 /api/jobs/{id}。 */
-  readJob?: ReadRecordJob;
-  /** 任务 id 变化时通知页面更新 URL（`?job=`），原话永远不进 URL。 */
-  onJobChange?: (jobId: string | null) => void;
+  /** 批次 id 变化时通知页面更新 URL（`?batch=`），原话永远不进 URL。 */
+  onBatchChange?: (batchId: string | null) => void;
   newId?: () => string;
 };
 
@@ -113,93 +99,117 @@ export function RecordPage(props: RecordPageProps) {
   return <RecordFlow key={props.accountId} {...props} />;
 }
 
+/** 本地状态的设置函数也经门闸：会话结束后的任何回调都改不动它。 */
+function useScopedState<T>(scope: SessionScope, initial: T) {
+  const [value, set] = useState<T>(initial);
+  const scoped = useMemo(() => scope.wrap(set), [scope]);
+  return [value, scoped as Dispatch<SetStateAction<T>>] as const;
+}
+
 function RecordFlow(props: RecordPageProps) {
   const {
     accountId,
     people,
     projects,
     dimensions,
-    actions,
     entry,
     maxLength = DEFAULT_MAX_LENGTH,
     newId = defaultNewId,
   } = props;
-  const toast = useToast();
+  // 会话代纪门闸：挂载时记下代纪，动作和暂存都只经它（session-scope）。退出或换账号后，
+  // 这个实例发起过的请求不再改状态，也不再读写暂存。
+  const [epoch] = useState(sessionDraftEpoch);
+  const scope = useMemo(
+    () =>
+      createSessionScope(accountId, epoch, props.actions, props.loadAnchors),
+    [accountId, epoch, props.actions, props.loadAnchors],
+  );
+  const { actions, drafts } = scope;
+  // 会话一结束就清掉登记过的计时器；卸载时同样清掉
+  useEffect(() => scope.attach(), [scope]);
+  const rawToast = useToast();
+  const toast = useMemo(
+    () => ({ show: scope.toast(rawToast.show) }),
+    [scope, rawToast],
+  );
   const reduced = Boolean(useReducedMotion());
-  const [state, dispatch] = useReducer(recordReducer, undefined, () =>
+  const [state, rawDispatch] = useReducer(recordReducer, undefined, () =>
     initialState({
       personId: people.some((p) => p.id === entry?.personId)
         ? (entry?.personId ?? null)
         : null,
-      draft: entry?.draft,
-      jobId: entry?.jobId,
+      batchId: entry?.batchId,
     }),
   );
+  // 所有状态改动都在改的那一刻核验会话：请求落定后才退出的，续体里的 dispatch 也被拦下
+  const dispatch = useMemo(() => scope.wrap(rawDispatch), [scope]);
   const { phase, draft, edit } = state;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const articleRef = useRef<HTMLElement>(null);
-  const selectionOp = useRef<OperationId | null>(null);
-  const retryOp = useRef<OperationId | null>(null);
-  const lastChoice = useRef<{
-    personIds: string[];
-    projectId: string | null;
-  } | null>(null);
   const loadSeq = useRef(0);
-  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [confirm, setConfirm] = useState<Confirm>(null);
-  const [copyOut, setCopyOut] = useState<string | null>(null);
-  const [retrying, setRetrying] = useState(false);
-  const [commandMessage, setCommandMessage] = useState<string | null>(null);
-  const [missing, setMissing] = useState<{
+  const settleTimer = useRef<(() => void) | null>(null);
+  const [confirm, setConfirm] = useScopedState<Confirm>(scope, null);
+  const [copyOut, setCopyOut] = useScopedState<string | null>(scope, null);
+  const [missing, setMissing] = useScopedState<{
     title?: boolean;
     behavior?: boolean;
-  }>({});
-  const [settling, setSettling] = useState(false);
-  const [focus, setFocus] = useState<AnchorFocus | null>(null);
-  const [anchorTry, setAnchorTry] = useState(0);
-  const [autoStart, setAutoStart] = useState(false);
+  }>(scope, {});
+  const [settling, setSettling] = useScopedState(scope, false);
+  const [focus, setFocus] = useScopedState<AnchorFocus | null>(scope, null);
+  const [anchorTry, setAnchorTry] = useScopedState(scope, 0);
+  const [autoStart, setAutoStart] = useScopedState(scope, false);
 
-  // ---------- 任务订阅 ----------
-  const listening = phase === 'organizing' || phase === 'selecting';
-  const job = useRecordJob(listening ? state.jobId : null, props.readJob);
-  const { snapshot, connection, refresh } = job;
+  // ---------- 批次进度 ----------
+  const listening = phase === 'organizing' && !state.failure;
+  const batch = useRecordBatch(
+    listening ? state.batchId : null,
+    actions.readBatch,
+  );
   useEffect(() => {
-    if (snapshot) dispatch({ type: 'job', job: snapshot });
-  }, [snapshot]);
+    if (batch.receipt) dispatch({ type: 'batch', batch: batch.receipt });
+  }, [batch.receipt]);
   useEffect(() => {
     if (!listening) return;
     const mapped: Connection =
-      connection === 'error'
+      batch.connection === 'error'
         ? 'error'
-        : connection === 'forbidden' || connection === 'not_found'
+        : batch.connection === 'gone'
           ? 'gone'
           : 'connected';
     dispatch({ type: 'connection', connection: mapped });
-  }, [connection, listening]);
+  }, [batch.connection, listening]);
 
-  // 任务 id 变化时通知页面换 URL
-  const reportedJob = useRef<string | null>(entry?.jobId ?? null);
-  const onJobChange = useEffectEvent((id: string | null) =>
-    props.onJobChange?.(id),
+  // 批次 id 变化时通知页面换 URL
+  const reportedBatch = useRef<string | null>(entry?.batchId ?? null);
+  const onBatchChange = useEffectEvent((id: string | null) =>
+    props.onBatchChange?.(id),
   );
   useEffect(() => {
-    if (reportedJob.current === state.jobId) return;
-    reportedJob.current = state.jobId;
-    onJobChange(state.jobId);
-  }, [state.jobId]);
+    if (reportedBatch.current === state.batchId) return;
+    reportedBatch.current = state.batchId;
+    onBatchChange(state.batchId);
+  }, [state.batchId]);
 
   // ---------- 进入：工作台交接 / 输入暂存 ----------
   const dispatchEntry = useEffectEvent(() => {
-    if (entry?.draft || entry?.jobId) return;
+    if (entry?.batchId) {
+      const kept = drafts.restoreBatchInput(entry.batchId);
+      if (kept) {
+        dispatch({ type: 'text', text: kept.text });
+        if (people.some((p) => p.id === kept.personId))
+          dispatch({ type: 'person', personId: kept.personId });
+      }
+      return;
+    }
     if (entry?.handoff) {
-      const text = takeHandoff(accountId);
+      const text = drafts.takeHandoff();
       if (text) {
         dispatch({ type: 'text', text });
         setAutoStart(true);
       }
       return;
     }
-    const restored = restoreInput(accountId);
+    const restored = drafts.restoreInput();
     if (restored) {
       dispatch({ type: 'text', text: restored.text });
       if (people.some((p) => p.id === restored.personId))
@@ -220,33 +230,26 @@ function RecordFlow(props: RecordPageProps) {
   // 输入态防抖写入会话暂存（D19）；开始整理或保存后删除
   useEffect(() => {
     if (phase !== 'write') return;
-    const timer = setTimeout(
-      () =>
-        stashInput(accountId, { text: state.text, personId: state.personId }),
+    // 登记在门闸上的计时器：退出或换账号后被清掉，到点也不写回
+    return scope.timeout(
+      () => drafts.stashInput({ text: state.text, personId: state.personId }),
       STASH_DEBOUNCE_MS,
     );
-    return () => clearTimeout(timer);
-  }, [accountId, phase, state.text, state.personId]);
+  }, [scope, drafts, phase, state.text, state.personId]);
 
   // 未保存内容：硬离开时提示
   const dirty = isDirty(state);
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => {
+      // 退出后的离开不再拦：那些内容已经不属于当前账号
+      if (!scope.live()) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
-
-  // 卸载时收起撤销之外的计时
-  useEffect(
-    () => () => {
-      if (settleTimer.current) clearTimeout(settleTimer.current);
-    },
-    [],
-  );
+  }, [dirty, scope]);
 
   // ---------- 锚点 ----------
   const anchorKey = useMemo(() => {
@@ -265,11 +268,11 @@ function RecordFlow(props: RecordPageProps) {
       anchorTry,
     ]);
   }, [draft, phase, anchorTry]);
-  const [anchorResult, setAnchorResult] = useState<{
+  const [anchorResult, setAnchorResult] = useScopedState<{
     key: string;
     load: AnchorLoad;
-  } | null>(null);
-  const loadAnchors = props.loadAnchors;
+  } | null>(scope, null);
+  const loadAnchors = scope.loadAnchors;
   useEffect(() => {
     if (!anchorKey) return;
     let live = true;
@@ -295,7 +298,7 @@ function RecordFlow(props: RecordPageProps) {
         ? { status: 'loading' }
         : { status: 'ready', map: {} };
 
-  // 阶段切换：待确认时把焦点交给标题；识别不到人时交给「谁」
+  // 阶段切换：待确认时把焦点交给标题；没选人、节点待定时交给「谁」
   useEffect(() => {
     if (phase === 'review')
       articleRef.current
@@ -303,7 +306,7 @@ function RecordFlow(props: RecordPageProps) {
         ?.focus({ preventScroll: true });
   }, [phase, draft?.draftId]);
   useEffect(() => {
-    if (state.banner?.kind === 'who')
+    if (state.banner?.kind === 'node' && !state.banner.picked)
       document.getElementById('ev-person')?.focus();
   }, [state.banner]);
 
@@ -321,28 +324,44 @@ function RecordFlow(props: RecordPageProps) {
       return;
     }
     if (state.text.length > maxLength) return;
-    const op = reuseOperationId(
-      fresh ? null : state.startOp,
-      inputKey(state),
-      newId,
-    );
-    dispatch({ type: 'submit_begin', op });
-    clearRecordInputStash();
+    // 「从原话里识别」：按候选姓名精确匹配，认出恰好一位就填进「谁」；认不出时下面的推导返回
+    // none，页面提示选人并把焦点交给「谁」。
+    const personId = state.personId ?? recognizePerson(state.text, people);
+    if (personId !== state.personId) dispatch({ type: 'person', personId });
+    const personIds = personId ? [personId] : [];
+    const input = { text: state.text, personId };
+    dispatch({ type: 'submit_begin' });
     try {
-      const result = await actions.start({
-        operation_id: op.id,
-        text,
-        attachmentIds: state.attachmentIds,
-        personId: state.personId,
+      // 评价节点由服务端按所选人员推导；不唯一时说明原因，不提交（#248 6564917769）。
+      if (!actions.resolveNode) {
+        dispatch({ type: 'node_unresolved', reason: 'pending' });
+        return;
+      }
+      const node = await actions.resolveNode({ personIds, projectId: null });
+      if (node.status !== 'unique') {
+        dispatch({ type: 'node_unresolved', reason: node.status });
+        return;
+      }
+      // 同样的原话、人员和节点复用同一个 operation_id：服务端按它重放，不会产生两个批次。
+      const op = reuseOperationId(
+        fresh ? null : state.startOp,
+        JSON.stringify([inputKey(input), node.evaluationNodeId]),
+        newId,
+      );
+      dispatch({ type: 'submit_begin', op });
+      drafts.clearInput();
+      const result = await actions.submit({
+        operationId: op.id,
+        evaluationNodeId: node.evaluationNodeId,
+        personIds,
         projectId: null,
+        text,
+        // 附件入口待接通（BOW-870）；897 入口目前只收文本
+        files: [],
       });
       if (result.status === 'success') {
-        retryOp.current = null;
-        dispatch({
-          type: 'job_begin',
-          jobId: result.result.jobId,
-          job: result.result,
-        });
+        drafts.stashBatchInput(result.result.batchId, input);
+        dispatch({ type: 'batch_begin', batch: result.result });
       } else {
         dispatch({
           type: 'submit_refused',
@@ -361,97 +380,11 @@ function RecordFlow(props: RecordPageProps) {
   const startFromEffect = useEffectEvent(() => void start());
   useEffect(() => {
     if (!autoStart) return;
-    const timer = setTimeout(() => {
+    return scope.timeout(() => {
       setAutoStart(false);
       startFromEffect();
     }, AUTO_START_MS);
-    return () => clearTimeout(timer);
-  }, [autoStart]);
-
-  async function chooseSelection(choice: {
-    personIds: string[];
-    projectId: string | null;
-  }) {
-    const selection = state.selection;
-    if (!selection) return;
-    const op = reuseOperationId(
-      selectionOp.current,
-      JSON.stringify([
-        selection.draftId,
-        selection.inputVersion,
-        choice.personIds,
-        choice.projectId,
-      ]),
-      newId,
-    );
-    selectionOp.current = op;
-    lastChoice.current = choice;
-    dispatch({ type: 'select_begin' });
-    try {
-      const result = await actions.selectPeople({
-        operation_id: op.id,
-        draftId: selection.draftId,
-        expected_input_version: selection.inputVersion,
-        personIds: choice.personIds,
-        projectId: choice.projectId,
-      });
-      if (result.status === 'success')
-        dispatch({
-          type: 'job_begin',
-          jobId: result.result.jobId,
-          job: result.result,
-        });
-      else
-        dispatch({
-          type: 'submit_refused',
-          message:
-            result.status === 'validation_error'
-              ? copy.banner.startRefused
-              : result.message,
-          forbidden:
-            result.status === 'forbidden' || result.status === 'not_found',
-        });
-    } catch {
-      dispatch({ type: 'submit_offline' });
-    }
-  }
-
-  async function reorganize() {
-    const current = state.job;
-    if (current?.canRetry) {
-      const op = reuseOperationId(
-        retryOp.current,
-        `${current.jobId}:${current.revision}`,
-        newId,
-      );
-      retryOp.current = op;
-      setRetrying(true);
-      setCommandMessage(null);
-      try {
-        const result = await actions.retryJob({
-          jobId: current.jobId,
-          action: 'retry',
-          operationId: op.id,
-          expectedRevision: current.revision,
-        });
-        if (result.status === 'success') {
-          retryOp.current = null;
-          dispatch({ type: 'job', job: result.snapshot as RecordJob });
-          // 失败态的订阅已停止读取，命令成功后必须唤醒
-          refresh();
-        } else {
-          setCommandMessage(commandFailureMessage(result.status));
-        }
-      } catch {
-        setCommandMessage(copy.failure.commandFailed);
-      } finally {
-        setRetrying(false);
-      }
-      return;
-    }
-    // 不能原任务重试时，用同一原话发起新整理（新 operation_id）
-    await start(true);
-  }
+  }, [autoStart, scope, setAutoStart]);
 
   async function save() {
     if (!draft || !edit) return;
@@ -486,8 +419,11 @@ function RecordFlow(props: RecordPageProps) {
     dispatch({ type: 'save_begin', op });
     try {
       const result = await actions.save(input);
+      // 回执带保存人：不是本页的账号就丢弃，不改状态、不动暂存
+      if (result.status === 'success' && result.result.savedBy !== accountId)
+        return;
       if (result.status === 'success') {
-        clearRecordInputStash();
+        drafts.clearInput();
         dispatch({
           type: 'save_saved',
           receipt: result.result,
@@ -502,6 +438,8 @@ function RecordFlow(props: RecordPageProps) {
         });
       } else if (result.status === 'conflict') {
         dispatch({ type: 'save_conflict', message: result.message });
+      } else if (result.status === 'unavailable') {
+        dispatch({ type: 'save_unavailable' });
       } else {
         dispatch({ type: 'save_forbidden', message: result.message });
       }
@@ -513,8 +451,8 @@ function RecordFlow(props: RecordPageProps) {
   function settle() {
     if (reduced) return;
     setSettling(true);
-    if (settleTimer.current) clearTimeout(settleTimer.current);
-    settleTimer.current = setTimeout(() => setSettling(false), 700);
+    settleTimer.current?.();
+    settleTimer.current = scope.timeout(() => setSettling(false), 700);
   }
 
   function announceSaved(
@@ -567,7 +505,7 @@ function RecordFlow(props: RecordPageProps) {
         );
       },
     });
-    if (remaining < UNDO_MS) setTimeout(close, remaining);
+    if (remaining < UNDO_MS) scope.timeout(close, remaining);
   }
 
   function requestBack() {
@@ -576,7 +514,7 @@ function RecordFlow(props: RecordPageProps) {
   }
 
   async function loadLatest() {
-    if (!draft) return;
+    if (!draft || !state.batchId) return;
     setConfirm(null);
     // 只认最后一次读取；读取期间又改过内容时不覆盖（reducer 按 basis 判断）
     const seq = ++loadSeq.current;
@@ -585,16 +523,22 @@ function RecordFlow(props: RecordPageProps) {
     const refused = (message: string) =>
       dispatch({ type: 'banner', banner: { kind: 'conflict', message } });
     try {
-      const result = await actions.openDraft({ draftId: draft.draftId });
+      const result = await actions.readBatch({ batchId: state.batchId });
       if (seq !== loadSeq.current) return;
-      if (result.status === 'success')
-        dispatch({ type: 'draft_loaded', draft: result.result, basis });
-      else
+      if (result.status !== 'success') {
         refused(
           result.status === 'validation_error'
             ? copy.banner.loadFailed
             : result.message,
         );
+        return;
+      }
+      const latest = result.result.draftSet?.drafts.find(
+        (item) => item.draftId === draft.draftId,
+      );
+      // 这件事已不在待确认里（别处已确认或撤回）：如实说明，交给回执页看，不在本页绕过。
+      if (latest) dispatch({ type: 'draft_loaded', draft: latest, basis });
+      else refused(copy.conflict.draftGone);
     } catch {
       if (seq === loadSeq.current) refused(copy.banner.loadFailed);
     }
@@ -616,8 +560,8 @@ function RecordFlow(props: RecordPageProps) {
   }
 
   // ---------- 派生视图 ----------
-  const personIds = draft ? resolvedPersonIds(draft) : [];
-  const projectId = draft ? resolvedProjectId(draft) : null;
+  const personIds = draft?.personIds ?? [];
+  const projectId = draft?.projectId ?? null;
   const project = projects.find((p) => p.id === projectId) ?? null;
   const firstSuggested = draft?.scores.find((s) => s.state === 'suggested');
   const anchorFocus: AnchorFocus | null =
@@ -640,18 +584,17 @@ function RecordFlow(props: RecordPageProps) {
   const step =
     phase === 'saved'
       ? 'done'
-      : phase === 'write' || (phase === 'submitting' && !state.selection)
+      : phase === 'write' || phase === 'submitting'
         ? 'write'
         : 'shaped';
   const niu = state.failure
     ? 'error'
     : phase === 'saved'
       ? 'done'
-      : phase === 'review' || phase === 'selecting'
+      : phase === 'review' || phase === 'handoff'
         ? 'confirm'
         : 'thinking';
   const pending = draft ? untouchedCount(draft, edit!) : 0;
-  const blocked = draft ? hasUnresolvedSelection(draft) : false;
   const live =
     phase === 'organizing' && !state.failure
       ? copy.live.organizing
@@ -666,7 +609,7 @@ function RecordFlow(props: RecordPageProps) {
       : pending > 0
         ? copy.hint.pending(pending)
         : copy.hint.allConfirmed;
-  const inputBusy = phase === 'submitting' && !state.selection;
+  const inputBusy = phase === 'submitting';
 
   return (
     <>
@@ -705,16 +648,6 @@ function RecordFlow(props: RecordPageProps) {
                 maxLength={maxLength}
                 submitting={inputBusy}
                 showExample={Boolean(props.showExample)}
-                hint={
-                  state.banner?.kind === 'who' ? (
-                    <>
-                      <span style={{ color: 'var(--conflict)' }}>
-                        {copy.input.whoMissingLead}
-                      </span>
-                      {copy.input.whoMissingRest}
-                    </>
-                  ) : undefined
-                }
                 attachmentSlot={props.attachmentSlot}
                 textareaRef={textareaRef}
                 onText={(text) => dispatch({ type: 'text', text })}
@@ -741,8 +674,7 @@ function RecordFlow(props: RecordPageProps) {
                 }
                 people={people}
                 project={project}
-                origin={draft?.origin ?? 'text'}
-                demo={Boolean(props.demo)}
+                origin="text"
                 niu={niu}
               />
               <div id="ev-body">
@@ -750,12 +682,6 @@ function RecordFlow(props: RecordPageProps) {
                   banner={state.banner}
                   onRetry={() => {
                     if (phase === 'review') void save();
-                    else if (
-                      state.banner?.kind === 'offline' &&
-                      state.banner.scope === 'select' &&
-                      lastChoice.current
-                    )
-                      void chooseSelection(lastChoice.current);
                     else void start();
                   }}
                   onLoadLatest={() => setConfirm('load')}
@@ -763,41 +689,29 @@ function RecordFlow(props: RecordPageProps) {
                   onBack={requestBack}
                 />
                 <OrganizeProgress
-                  job={state.job}
-                  failure={state.failure}
+                  processing={phase === 'organizing'}
+                  failure={state.failure?.kind ?? null}
                   connection={state.connection}
-                  complete={Boolean(draft)}
+                  complete={phase !== 'organizing'}
                 />
                 {state.failure ? (
                   <FailurePanel
-                    failure={state.failure as FailureKind}
+                    failure={state.failure.kind}
                     canReorganize={
-                      Boolean(state.job?.canRetry) || state.text.trim() !== ''
+                      state.failure.retryable && state.text.trim() !== ''
                     }
-                    busy={retrying}
-                    commandMessage={commandMessage}
-                    onReorganize={() => void reorganize()}
+                    onReorganize={() => void start(true)}
                     onEdit={() => dispatch({ type: 'back_to_write' })}
                   />
-                ) : state.selection &&
-                  (phase === 'selecting' || phase === 'submitting') ? (
-                  <SelectionPanel
-                    selection={state.selection}
-                    people={people}
-                    busy={phase === 'submitting'}
-                    onSubmit={(choice) => void chooseSelection(choice)}
+                ) : phase === 'handoff' && state.handoff && state.batchId ? (
+                  <HandoffPanel
+                    reason={state.handoff}
+                    href={receiptHref(state.batchId)}
                     onEdit={() => dispatch({ type: 'back_to_write' })}
+                    onCopyOut={state.text.trim() ? openCopyOut : null}
                   />
                 ) : draft && edit ? (
                   <>
-                    {state.selection && phase === 'review' ? (
-                      <SelectionPanel
-                        selection={state.selection}
-                        people={people}
-                        busy={false}
-                        onSubmit={(choice) => void chooseSelection(choice)}
-                      />
-                    ) : null}
                     <SbiEditor
                       sbi={edit.sbi}
                       editable={phase === 'review'}
@@ -808,7 +722,7 @@ function RecordFlow(props: RecordPageProps) {
                         dispatch({ type: 'edit_sbi', field, value });
                       }}
                     />
-                    <RawInput text={draft.originalInput.text} />
+                    <RawInput text={state.text} />
                     <div id="ev-att-slot">{props.attachmentSlot}</div>
                     <ScoreList
                       draft={draft}
@@ -821,6 +735,7 @@ function RecordFlow(props: RecordPageProps) {
                       }
                       problems={state.problems}
                       loadSource={actions.loadSource}
+                      inputFragmentId={state.batch?.textMaterial?.materialId}
                       onPick={(key, value) =>
                         dispatch({ type: 'edit_score', key, value })
                       }
@@ -846,7 +761,7 @@ function RecordFlow(props: RecordPageProps) {
                           type="button"
                           className="n-btn n-btn--sm n-btn--ink"
                           id="ev-save"
-                          disabled={phase === 'saving' || blocked}
+                          disabled={phase === 'saving'}
                           aria-busy={phase === 'saving' || undefined}
                           aria-describedby="score-hint"
                           onClick={() => void save()}
@@ -866,7 +781,7 @@ function RecordFlow(props: RecordPageProps) {
                           {copy.actions.back}
                         </button>
                         <span className="n-eventin__hint" id="score-hint">
-                          {blocked ? copy.selection.saveBlocked : hintText}
+                          {hintText}
                         </span>
                       </div>
                     )}

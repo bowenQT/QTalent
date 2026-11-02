@@ -1,7 +1,7 @@
 'use client';
-import type { RecordDraft } from '@/contracts/record';
+import type { RecordBatchDraft } from '@/contracts/record';
 import type { LoadSource } from '@/features/sources/SourceCite';
-import { resolvedPersonIds, type EditState } from './build-save-input';
+import type { EditState } from './build-save-input';
 import { copy } from './copy';
 import type { SaveProblems } from './errors';
 import { ScoreRow } from './ScoreRow';
@@ -29,11 +29,12 @@ export function ScoreList({
   pickDisabled,
   problems,
   loadSource,
+  inputFragmentId,
   onPick,
   onReason,
   onPreview,
 }: {
-  draft: RecordDraft;
+  draft: RecordBatchDraft;
   edit: EditState;
   people: readonly PersonOption[];
   dimensions: readonly DimensionOption[];
@@ -42,11 +43,12 @@ export function ScoreList({
   pickDisabled: boolean;
   problems?: SaveProblems | null;
   loadSource: LoadSource;
+  inputFragmentId?: string;
   onPick: (key: ScoreKey, value: number) => void;
   onReason: (key: ScoreKey, reason: string) => void;
   onPreview: (focus: AnchorFocus | null) => void;
 }) {
-  const personIds = resolvedPersonIds(draft);
+  const { personIds } = draft;
   const grouped = personIds.length > 1;
   const rowsOf = (personId: string) =>
     draft.scores
@@ -69,6 +71,7 @@ export function ScoreList({
             pickDisabled={pickDisabled}
             problem={problems?.scores[key]}
             loadSource={loadSource}
+            inputFragmentId={inputFragmentId}
             onPick={(value) => onPick(key, value)}
             onReason={(reason) => onReason(key, reason)}
             onPreview={(hit) =>

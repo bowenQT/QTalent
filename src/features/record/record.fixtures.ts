@@ -1,15 +1,29 @@
-import type { RecordDraft } from '@/contracts/record';
-import type {
-  DimensionOption,
-  PersonOption,
-  RecordJob,
-  RecordSaveReceipt,
-} from './types';
+import {
+  materialBatchReceiptSchema,
+  type MaterialBatchReceipt,
+} from '@/contracts/materials';
+import type { RecordBatchDraft } from '@/contracts/record';
+import type { MaterialSourceReference } from '@/contracts/sources';
+import type { DimensionOption, PersonOption, RecordSaveReceipt } from './types';
 
 // 全部为合成的演示数据，不取自任何真实材料。
 export const people: PersonOption[] = [
-  { id: 'p1', name: '演示甲', hue: 20, photo: null, orgShort: '演示一组' },
-  { id: 'p2', name: '演示乙', hue: 200, photo: null, orgShort: '演示二组' },
+  {
+    id: 'p1',
+    name: '演示甲',
+    hue: 20,
+    photo: null,
+    orgShort: '演示一组',
+    demo: true,
+  },
+  {
+    id: 'p2',
+    name: '演示乙',
+    hue: 200,
+    photo: null,
+    orgShort: '演示二组',
+    demo: false,
+  },
 ];
 export const dimensions: DimensionOption[] = [
   { id: 'prof', name: '专业度' },
@@ -18,25 +32,32 @@ export const dimensions: DimensionOption[] = [
 
 export const TEXT = '演示甲今天独立完成了合成任务，大家很满意。';
 
-export const draft: RecordDraft = {
+export const BATCH = 'batch-1';
+export const NODE = 'node-1';
+/** 本页写下的原话就是批次的文字材料；引用它的是行内引文。 */
+export const textRef: MaterialSourceReference = {
+  fragmentId: 'frag-text',
+  originalVersionId: 'ver-text',
+  location: { kind: 'document', paragraph: '原话' },
+};
+
+export const draft: RecordBatchDraft = {
+  batchId: BATCH,
+  evaluationNodeId: NODE,
   draftId: 'draft-1',
   revision: 1,
-  origin: 'text',
-  originalInput: {
-    operation_id: 'op-start',
-    text: TEXT,
-    attachmentIds: [],
-    personId: 'p1',
-    projectId: null,
-  },
+  origin: 'ai_suggestion',
+  personIds: ['p1'],
+  projectId: null,
+  sourceReferences: [textRef],
+  dimensionVersionId: 'v-test',
+  anchorVersionId: 'v-test',
   sbi: {
     title: '独立完成合成任务',
     situation: '',
     behavior: '演示甲独立完成了合成任务',
     impact: '大家很满意',
   },
-  people: [{ state: 'resolved', id: 'p1' }],
-  project: { state: 'none' },
   scores: [
     {
       personId: 'p1',
@@ -44,7 +65,7 @@ export const draft: RecordDraft = {
       state: 'suggested',
       value: 3,
       anchor: { id: 'a-prof-3', text: '独立完成', ruleVersion: 'v-test' },
-      citations: [{ kind: 'input', quote: '独立完成', start: 5, end: 9 }],
+      citations: [{ kind: 'source', quote: '独立完成', reference: textRef }],
     },
     {
       personId: 'p1',
@@ -55,13 +76,10 @@ export const draft: RecordDraft = {
   ],
 };
 
-export const twoPeopleDraft: RecordDraft = {
+export const twoPeopleDraft: RecordBatchDraft = {
   ...draft,
   draftId: 'draft-2',
-  people: [
-    { state: 'resolved', id: 'p1' },
-    { state: 'resolved', id: 'p2' },
-  ],
+  personIds: ['p1', 'p2'],
   scores: [
     ...draft.scores,
     {
@@ -70,35 +88,120 @@ export const twoPeopleDraft: RecordDraft = {
       state: 'suggested',
       value: 4,
       anchor: { id: 'a-prof-4', text: '带着大家做', ruleVersion: 'v-test' },
-      citations: [{ kind: 'input', quote: '大家很满意', start: 15, end: 20 }],
+      citations: [{ kind: 'source', quote: '大家很满意', reference: textRef }],
     },
   ],
 };
 
-export function job(overrides: Partial<RecordJob> = {}): RecordJob {
-  return {
-    schemaVersion: 1,
-    jobId: 'job-1',
-    kind: 'record_organize',
-    status: 'queued',
-    attempt: 1,
-    revision: 1,
-    updatedAt: '2026-10-26T08:00:00.000Z',
-    progress: null,
-    result: null,
-    error: null,
-    canRetry: false,
-    canCancel: false,
-    cancelRequestedAt: null,
-    ...overrides,
-  };
+type Shape = {
+  status?: 'processing' | 'failed';
+  drafts?: RecordBatchDraft[];
+  review?: boolean;
+  confirmed?: number;
+  revision?: number;
+  retryable?: boolean;
+  batchId?: string;
+};
+
+/**
+ * 一份合契约的 897 回执（经 materialBatchReceiptSchema 校验）。
+ * 默认处理中；给 drafts 即整理完成，review 加一处待认人。
+ */
+export function batch(shape: Shape = {}): MaterialBatchReceipt {
+  const batchId = shape.batchId ?? BATCH;
+  const drafts = (shape.status ? [] : (shape.drafts ?? [])).map((item) => ({
+    ...item,
+    batchId,
+  }));
+  const done = shape.status === undefined && shape.drafts !== undefined;
+  const processing = shape.status === 'processing' || (!done && !shape.status);
+  const revision = shape.revision ?? 1;
+  const personIds = [
+    ...new Set(drafts.flatMap((item) => item.personIds)),
+    ...(drafts.length ? [] : ['p1']),
+  ];
+  const items =
+    shape.review && done
+      ? [
+          {
+            itemId: 'item-1',
+            batchId,
+            evaluationNodeId: NODE,
+            materialId: textRef.fragmentId,
+            originalVersionId: textRef.originalVersionId,
+            revision: 1,
+            state: 'pending' as const,
+            source: null,
+            kind: 'unknown_person' as const,
+            observedName: null,
+            candidates: [],
+          },
+        ]
+      : [];
+  const confirmed = Array.from({ length: shape.confirmed ?? 0 }, (_, i) => ({
+    draftId: `done-${i + 1}`,
+    revision: 2,
+    events: [{ personId: personIds[0]!, eventId: `ev-done-${i + 1}` }],
+  }));
+  return materialBatchReceiptSchema.parse({
+    batchId,
+    revision,
+    evaluationNodeId: NODE,
+    personIds,
+    projectId: null,
+    hasHiddenContent: false,
+    status:
+      shape.status === 'failed'
+        ? 'failed'
+        : processing
+          ? 'processing'
+          : items.length
+            ? 'needs_review'
+            : drafts.length
+              ? 'awaiting_confirmation'
+              : 'completed',
+    jobId: processing ? 'job-1' : null,
+    files: [],
+    textMaterial: {
+      materialId: textRef.fragmentId,
+      originalVersionId: textRef.originalVersionId,
+    },
+    items,
+    resolvedItems: [],
+    draftSet: drafts.length
+      ? { batchId, revision, drafts, duplicateCandidates: [] }
+      : null,
+    confirmedDrafts: confirmed,
+    counts: {
+      files: {
+        total: 0,
+        processing: 0,
+        parsed: 0,
+        needs_review: 0,
+        unsupported: 0,
+        failed: 0,
+        original_only: 0,
+        attachment_only: 0,
+      },
+      events: {
+        total: drafts.length + confirmed.length,
+        awaiting_confirmation: drafts.length,
+        confirmed: confirmed.length,
+      },
+      reviewItems: items.length,
+    },
+    error:
+      shape.status === 'failed'
+        ? {
+            code: 'processing_failed',
+            message: '整理中断',
+            retryable: shape.retryable ?? true,
+          }
+        : null,
+  });
 }
 
-export const doneJob = job({
-  status: 'awaiting_manual',
-  revision: 3,
-  result: draft,
-});
+export const doneBatch = batch({ drafts: [draft], revision: 3 });
 
 export const receipt: RecordSaveReceipt = {
   saveId: 'save-1',
@@ -106,7 +209,7 @@ export const receipt: RecordSaveReceipt = {
   revision: 2,
   confirmationIds: ['c-1'],
   reviewItemIds: [],
-  savedBy: 'account-1',
+  savedBy: 'acc-1',
   savedAt: '2026-10-26T08:00:00.000Z',
   undoUntil: '2026-10-26T08:00:05.000Z',
 };

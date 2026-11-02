@@ -1,5 +1,6 @@
 import type { ShellData } from '@/contracts/shell';
-import type { RecordDraft, RecordInput } from '@/contracts/record';
+import type { RecordBatchDraft } from '@/contracts/record';
+import type { MaterialSourceReference } from '@/contracts/sources';
 import type {
   AnchorSet,
   DimensionOption,
@@ -9,15 +10,22 @@ import type {
 import { hrPeople, mentorPeople } from './sample-people';
 
 /**
- * Sample data for the record page while the page read (BOW-845 #185) and the save and
- * undo actions (BOW-846 #289) are not on main. Pseudonyms, dimensions, anchors and the
+ * Sample data for the record page on the stand-in server (the real route reads BOW-845
+ * and saves through BOW-846). Pseudonyms, dimensions, anchors and the
  * arranged result for the example sentence come from prototype Y (data.js DIMS and
  * ANCHORS, parse.js shape() on the placeholder sentence, at 81e4fd4); not real people
  * and not a fallback for the real page.
  */
 export type SampleRole = 'hr' | 'mentor' | 'manager';
 export type SampleScene =
-  'normal' | 'fail' | 'offline' | 'conflict' | 'selection';
+  | 'normal'
+  | 'fail'
+  | 'offline'
+  | 'conflict'
+  | 'many'
+  | 'review'
+  | 'node-multiple'
+  | 'node-none';
 
 const accounts: Record<
   SampleRole,
@@ -80,7 +88,14 @@ export function sampleShell(role: SampleRole): ShellData {
 
 export function samplePeople(role: SampleRole): PersonOption[] {
   return (role === 'mentor' ? mentorPeople : hrPeople).map(
-    ([id, name, hue, photo, orgShort]) => ({ id, name, hue, photo, orgShort }),
+    ([id, name, hue, photo, orgShort]) => ({
+      id,
+      name,
+      hue,
+      photo,
+      orgShort,
+      demo: true,
+    }),
   );
 }
 
@@ -125,23 +140,47 @@ export const SENTENCE =
 export const SUBJECT = 'p-x11';
 const QUOTE = '孟逸尘今天主动把任务池同步给了全组';
 
+/** The typed text is the batch's text material; citations into it are inline quotes. */
+export function textReference(batchId: string): MaterialSourceReference {
+  return {
+    fragmentId: `${batchId}-text`,
+    originalVersionId: `${batchId}-text-v1`,
+    location: { kind: 'document', paragraph: '原话' },
+  };
+}
+
 /**
  * What the prototype makes of the sentence: one suggested score with its anchor and
  * quote, and one dimension left open because the sentence shows nothing for it. Any
  * other sentence keeps both open: the sample never scores without a quote.
  */
-export function sampleDraft(
-  input: RecordInput,
-  personId: string,
-  draftId: string,
+export function sampleDraft({
+  batchId,
+  draftId,
+  evaluationNodeId,
+  personId,
+  text,
   revision = 1,
-): RecordDraft {
-  const at = input.text.indexOf(QUOTE);
+}: {
+  batchId: string;
+  draftId: string;
+  evaluationNodeId: string;
+  personId: string;
+  text: string;
+  revision?: number;
+}): RecordBatchDraft {
+  const reference = textReference(batchId);
   return {
+    batchId,
+    evaluationNodeId,
     draftId,
     revision,
-    origin: 'text',
-    originalInput: input,
+    origin: 'ai_suggestion',
+    personIds: [personId],
+    projectId: null,
+    sourceReferences: [reference],
+    dimensionVersionId: RULE_VERSION,
+    anchorVersionId: RULE_VERSION,
     sbi: {
       title: '主动把任务池同步给了全组，下午组员就接上了，分工…',
       situation: '',
@@ -149,10 +188,8 @@ export function sampleDraft(
         '主动把任务池同步给了全组，下午组员就接上了，分工比之前清楚多了',
       impact: '',
     },
-    people: [{ state: 'resolved', id: personId }],
-    project: { state: 'none' },
     scores: [
-      at >= 0
+      text.includes(QUOTE)
         ? {
             personId,
             dimensionId: 'mot',
@@ -163,14 +200,7 @@ export function sampleDraft(
               text: potential[3],
               ruleVersion: RULE_VERSION,
             },
-            citations: [
-              {
-                kind: 'input',
-                quote: QUOTE,
-                start: at,
-                end: at + QUOTE.length,
-              },
-            ],
+            citations: [{ kind: 'source', quote: QUOTE, reference }],
           }
         : {
             personId,
