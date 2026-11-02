@@ -25,6 +25,8 @@ const rowSchema = z.object({
   accountId: id,
   personId: id,
   isSystemAdmin: z.boolean(),
+  bindingGeneration: z.number().int().positive(),
+  sessionGeneration: z.number().int().positive().nullable(),
 });
 type BoundSession = z.infer<typeof rowSchema> & { deadline: number };
 function reject(): never {
@@ -98,6 +100,8 @@ export function createWebEntryAuthenticator(
         accountId: accountBindings.accountId,
         personId: accountBindings.personId,
         isSystemAdmin: accountBindings.isSystemAdmin,
+        bindingGeneration: accountBindings.generation,
+        sessionGeneration: session.bindingGeneration,
       })
       .from(session)
       .innerJoin(accountBindings, eq(accountBindings.accountId, session.userId))
@@ -116,7 +120,10 @@ export function createWebEntryAuthenticator(
       row.sessionId !== authenticated.session.id ||
       row.userId !== authenticated.user.id ||
       row.accountId !== row.userId ||
-      row.isSystemAdmin
+      row.isSystemAdmin ||
+      // Issued under an earlier binding (or before generations were recorded):
+      // a rebind, even back to the same person, never revives the session.
+      row.sessionGeneration !== row.bindingGeneration
     )
       reject();
     const deadline = Math.min(
