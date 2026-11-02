@@ -190,6 +190,12 @@ export const copy = {
       '撤销结果待确认：这条记录可能已经撤回，也可能还在档案里。重新读取后就清楚了',
     refresh: '已撤销，回到待确认。重新读取这件事之后就能再保存，你的修改都还在',
     rereadFailed: '这次读取遇到问题，修改还在这里，稍后再读一次',
+    rereadLimit:
+      '多次读取都遇到问题，修改还在这里，可以打开回执查看这件事的现状',
+    reading: '读取中…',
+    confirmedElsewhere: '这件事已经有人再次确认，打开回执查看结果',
+    missing: '这件事的现状待核实，打开回执查看',
+    openReceipt: '打开回执',
     notApplied: '这条记录仍在档案里',
   },
   banner: {

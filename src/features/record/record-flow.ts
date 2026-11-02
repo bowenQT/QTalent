@@ -33,11 +33,24 @@ export type Banner =
   | { kind: 'conflict'; message: string }
   | { kind: 'forbidden'; message: string }
   | { kind: 'refused'; message: string }
-  | { kind: 'saveProblems' }
-  /** 撤销请求出过错：这条记录可能已撤回，也可能仍在档案里，重新读取前不下结论。 */
-  | { kind: 'undoPending'; failed?: boolean }
-  /** 撤销已完成，但回执没给可用的草稿版本：重新读取到新版本前不能再保存。 */
-  | { kind: 'undoRefresh'; failed?: boolean };
+  | { kind: 'saveProblems' };
+
+/** 撤销后重新读取这件事的上限：读满还没读到，就只给回执入口。 */
+export const REREAD_LIMIT = 3;
+
+/**
+ * 撤销之后、读到这件事的现状之前，保存暂停。独立于提示条：提示条可以被别的提示替换，
+ * 保存的暂停只有读到对应的待确认草稿（或确认撤销没生效）才解除。
+ * - pending：撤销请求出过错，这条记录可能已撤回，也可能仍在档案里；
+ * - refresh：撤销已完成，但回执没给可用的草稿版本。
+ * read 是最近一次重新读取的结果：读到已在别处再次确认（confirmed），或读到了批次却
+ * 没有这件事（missing），都继续暂停，交给回执页看。
+ */
+export type Hold = {
+  kind: 'pending' | 'refresh';
+  read: 'reading' | 'failed' | 'confirmed' | 'missing' | null;
+  failures: number;
+};
 
 export type Connection = 'connected' | 'error' | 'gone';
 /** 评价节点为什么没法定下来：多个、没有，或推导入口待接通。 */
@@ -60,6 +73,7 @@ export type RecordState = {
   replayed: boolean;
   banner: Banner | null;
   problems: SaveProblems | null;
+  hold: Hold | null;
 };
 
 export type StartInit = {
@@ -85,6 +99,7 @@ const blank: RecordState = {
   replayed: false,
   banner: null,
   problems: null,
+  hold: null,
 };
 
 export function initialState(init: StartInit = {}): RecordState {
@@ -169,13 +184,16 @@ export type Action =
   | { type: 'back_to_write' }
   /** draftRevision: the version the undo receipt hands back for saving again; null to reload. */
   | { type: 'undone'; draftRevision: number | null }
-  /** 撤销请求出错，结果不明。 */
+  /** 撤销请求出错或超时，结果不明。 */
   | { type: 'undo_unknown' }
-  /** 撤销后重新读到了这件事：用读到的版本，修改保留。 */
+  | { type: 'undo_reread_begin' }
+  /** 撤销后重新读到了这件事、仍待确认：用读到的版本，修改保留，解除暂停。 */
   | { type: 'undo_reread'; draft: RecordBatchDraft }
-  /** 重新读取发现这条记录仍在档案里：撤销没有生效。 */
-  | { type: 'undo_not_applied' }
-  /** 撤销之后的重新读取没读到：保持原状态，写明可以再读。 */
+  /** 重新读取发现这件事在已确认里。 */
+  | { type: 'undo_reread_confirmed' }
+  /** 读到了批次，但待确认和已确认里都没有这件事。 */
+  | { type: 'undo_reread_missing' }
+  /** 重新读取失败或超时。 */
   | { type: 'undo_reread_failed' };
 
 export function recordReducer(state: RecordState, action: Action): RecordState {
@@ -343,14 +361,22 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
         saveOp: null,
         receipt: null,
         replayed: false,
-        banner: action.draftRevision === null ? { kind: 'undoRefresh' } : null,
+        banner: null,
         problems: null,
+        hold:
+          action.draftRevision === null
+            ? { kind: 'refresh', read: null, failures: 0 }
+            : null,
       };
     case 'undo_unknown':
-      if (state.phase !== 'saved') return state;
-      return { ...state, banner: { kind: 'undoPending' } };
+      if (state.phase !== 'saved' || state.hold) return state;
+      return { ...state, hold: { kind: 'pending', read: null, failures: 0 } };
+    case 'undo_reread_begin':
+      if (!state.hold) return state;
+      return { ...state, hold: { ...state.hold, read: 'reading' } };
     case 'undo_reread':
-      if (!isUndoBanner(state.banner) || !state.edit) return state;
+      // 只有读到对应的待确认草稿才解除暂停
+      if (!state.hold || !state.edit) return state;
       return {
         ...state,
         draft: action.draft,
@@ -360,23 +386,28 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
         replayed: false,
         banner: null,
         problems: null,
+        hold: null,
       };
-    case 'undo_not_applied':
-      if (state.banner?.kind !== 'undoPending') return state;
-      return { ...state, banner: null };
+    case 'undo_reread_confirmed':
+      if (!state.hold) return state;
+      // 结果不明的撤销其实没生效：仍是已保存，没有可保存的东西，解除暂停
+      if (state.hold.kind === 'pending') return { ...state, hold: null };
+      // 撤销过、又在别处确认了：本页的草稿已过时，继续暂停，交给回执页
+      return { ...state, hold: { ...state.hold, read: 'confirmed' } };
+    case 'undo_reread_missing':
+      if (!state.hold) return state;
+      return { ...state, hold: { ...state.hold, read: 'missing' } };
     case 'undo_reread_failed':
-      if (
-        state.banner?.kind !== 'undoPending' &&
-        state.banner?.kind !== 'undoRefresh'
-      )
-        return state;
-      return { ...state, banner: { kind: state.banner.kind, failed: true } };
+      if (!state.hold) return state;
+      return {
+        ...state,
+        hold: {
+          ...state.hold,
+          read: 'failed',
+          failures: state.hold.failures + 1,
+        },
+      };
   }
-}
-
-/** 撤销之后、还没读到这件事现状的两种状态。 */
-export function isUndoBanner(banner: Banner | null) {
-  return banner?.kind === 'undoPending' || banner?.kind === 'undoRefresh';
 }
 
 function clearInputBanner(state: RecordState): Banner | null {

@@ -24,6 +24,7 @@ import {
   textReference,
   type SampleScene,
 } from './samples';
+import { ledgerKey, requestKey } from './sample-ledger';
 
 /** One arranging step; the prototype's trail advances at about this pace. */
 export const STEP_MS = 700;
@@ -54,9 +55,9 @@ type Saved = {
   events: EventMapping[];
 };
 /**
- * Operation ledger, kept apart from the live saves as 846 does: the same operation_id
- * with the same request replays its first answer (even after the undo window, or after
- * the save it made was undone); with a different request it is a conflict.
+ * Operation ledger, kept apart from the live saves as 846 does: per account, action and
+ * operation_id, the same (normalized) request replays its first answer (even after the
+ * undo window, or after the save it made was undone); a different request conflicts.
  */
 type Operation = {
   request: string;
@@ -285,10 +286,11 @@ export function sampleServer({
         : { status: 'not_found', message: '批次不存在或当前不可见' };
     },
     async save(input) {
-      const { operation_id: operationId, ...request } = input;
-      const known = operations.get(operationId);
+      const ledger = ledgerKey(accountId, 'save', input.operation_id);
+      const request = requestKey('save', input);
+      const known = operations.get(ledger);
       if (known)
-        return known.request === JSON.stringify(['save', request])
+        return known.request === request
           ? { ...(known.result as RecordSaveResult), replayed: true }
           : { status: 'conflict', message: '同一次操作的内容变了', input };
       const found = findDraft(input.draftId);
@@ -351,17 +353,19 @@ export function sampleServer({
           undoUntil: iso(savedAt + RECORD_UNDO_WINDOW_MS),
         },
       };
-      operations.set(operationId, {
-        request: JSON.stringify(['save', request]),
+      operations.set(ledger, {
+        request,
         result: recordSaveResultSchema.parse(result),
       });
       return result;
     },
     async undo(input) {
-      const { operation_id: operationId, saveId } = input;
-      const known = operations.get(operationId);
+      const { saveId } = input;
+      const ledger = ledgerKey(accountId, 'undo', input.operation_id);
+      const request = requestKey('undo', input);
+      const known = operations.get(ledger);
       if (known)
-        return known.request === JSON.stringify(['undo', saveId])
+        return known.request === request
           ? { ...(known.result as RecordUndoResult), replayed: true }
           : { status: 'conflict', message: '同一次操作的内容变了', input };
       const saved = saves.get(saveId);
@@ -402,8 +406,8 @@ export function sampleServer({
           originalInput: null,
         },
       });
-      operations.set(operationId, {
-        request: JSON.stringify(['undo', saveId]),
+      operations.set(ledger, {
+        request,
         result,
       });
       return result;

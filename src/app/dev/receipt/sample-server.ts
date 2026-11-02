@@ -33,6 +33,7 @@ import {
   type SampleRole,
   type SampleScene,
 } from './sample-data';
+import { ledgerKey, requestKey } from '../record/sample-ledger';
 
 /** processing 样张：读到第几次时录音转写完。 */
 export const PROCESSING_READS = 2;
@@ -44,8 +45,8 @@ type Saved = {
   savedAt: number;
 };
 /**
- * 操作台账，和当前有效的保存分开（照 846）：同一个 operation_id、同样的请求重放第一次的
- * 结果，撤销之后、过了撤销时间也一样；请求变了就是冲突。
+ * 操作台账，和当前有效的保存分开（照 846）：按账号、动作、operation_id 分开记，同样的
+ * 请求（归一化后）重放第一次的结果，撤销之后、过了撤销时间也一样；请求变了就是冲突。
  */
 type Operation = {
   request: string;
@@ -144,9 +145,6 @@ export function createSampleServer(
     };
   }
 
-  const requestOf = (kind: 'save' | 'undo', input: object) =>
-    JSON.stringify([kind, { ...input, operation_id: undefined }]);
-
   return {
     async read(batchId): Promise<ReceiptReadResult> {
       reads += 1;
@@ -157,9 +155,10 @@ export function createSampleServer(
 
     async save(raw): Promise<RecordSaveResult> {
       const input = recordSaveInputSchema.parse(raw);
-      const known = operations.get(input.operation_id);
+      const ledger = ledgerKey(me.id, 'save', input.operation_id);
+      const known = operations.get(ledger);
       if (known) {
-        if (known.request === requestOf('save', input))
+        if (known.request === requestKey('save', input))
           return { ...known.result, replayed: true } as RecordSaveResult;
         return recordSaveResultSchema.parse({
           status: 'conflict',
@@ -223,8 +222,8 @@ export function createSampleServer(
         events,
         savedAt,
       });
-      operations.set(input.operation_id, {
-        request: requestOf('save', input),
+      operations.set(ledger, {
+        request: requestKey('save', input),
         result,
       });
       return result;
@@ -232,9 +231,10 @@ export function createSampleServer(
 
     async undo(raw: RecordUndoInput): Promise<RecordUndoResult> {
       const input = recordUndoInputSchema.parse(raw);
-      const known = operations.get(input.operation_id);
+      const ledger = ledgerKey(me.id, 'undo', input.operation_id);
+      const known = operations.get(ledger);
       if (known) {
-        if (known.request === requestOf('undo', input))
+        if (known.request === requestKey('undo', input))
           return { ...known.result, replayed: true } as RecordUndoResult;
         return recordUndoResultSchema.parse({
           status: 'conflict',
@@ -281,8 +281,8 @@ export function createSampleServer(
           originalInput: null,
         },
       });
-      operations.set(input.operation_id, {
-        request: requestOf('undo', input),
+      operations.set(ledger, {
+        request: requestKey('undo', input),
         result,
       });
       return result;

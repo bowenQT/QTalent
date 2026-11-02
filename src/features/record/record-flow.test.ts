@@ -3,7 +3,6 @@ import {
   initialState,
   inputKey,
   isDirty,
-  isUndoBanner,
   recordReducer,
   type Action,
   type RecordState,
@@ -377,7 +376,7 @@ describe('回到输入与撤销', () => {
     expect(undone.banner).toBeNull();
   });
 
-  it('撤销回执要求重读：进入待刷新，读到新版本前不能保存，修改都在', () => {
+  it('撤销回执要求重读：保存暂停，只有读到待确认草稿才解除，修改都在', () => {
     const saved = run(
       review,
       { type: 'edit_sbi', field: 'impact', value: '改过' },
@@ -387,26 +386,46 @@ describe('回到输入与撤销', () => {
     const stale = run(saved, { type: 'undone', draftRevision: null });
     expect(stale).toMatchObject({
       phase: 'review',
-      banner: { kind: 'undoRefresh' },
+      hold: { kind: 'refresh', read: null, failures: 0 },
       edit: saved.edit,
     });
-    expect(isUndoBanner(stale.banner)).toBe(true);
-    // 重读没读到：仍待刷新，写明可以再读
-    expect(run(stale, { type: 'undo_reread_failed' }).banner).toEqual({
-      kind: 'undoRefresh',
-      failed: true,
+    // 读取中、读取失败、读到已在别处确认、读到批次里没有这件事：都继续暂停
+    expect(run(stale, { type: 'undo_reread_begin' }).hold?.read).toBe(
+      'reading',
+    );
+    expect(run(stale, { type: 'undo_reread_failed' }).hold).toEqual({
+      kind: 'refresh',
+      read: 'failed',
+      failures: 1,
     });
+    expect(run(stale, { type: 'undo_reread_confirmed' }).hold?.read).toBe(
+      'confirmed',
+    );
+    expect(run(stale, { type: 'undo_reread_missing' }).hold?.read).toBe(
+      'missing',
+    );
+    // 别的提示替换不了暂停
+    expect(
+      run(stale, {
+        type: 'banner',
+        banner: { kind: 'conflict', message: 'x' },
+      }).hold,
+    ).toEqual(stale.hold);
     const latest = { ...saved.draft!, revision: 7 };
-    const fresh = run(stale, { type: 'undo_reread', draft: latest });
+    const fresh = run(
+      stale,
+      { type: 'undo_reread_failed' },
+      { type: 'undo_reread', draft: latest },
+    );
     expect(fresh).toMatchObject({
       phase: 'review',
-      banner: null,
+      hold: null,
       draft: latest,
       edit: saved.edit,
     });
   });
 
-  it('撤销结果不明：不再算已保存；读到仍在档案里才恢复已保存', () => {
+  it('撤销结果不明：保存暂停、不算已保存；读到仍在已确认里才解除', () => {
     const saved = run(
       review,
       { type: 'save_begin', op },
@@ -415,16 +434,28 @@ describe('回到输入与撤销', () => {
     const pending = run(saved, { type: 'undo_unknown' });
     expect(pending).toMatchObject({
       phase: 'saved',
-      banner: { kind: 'undoPending' },
+      hold: { kind: 'pending' },
     });
-    expect(run(pending, { type: 'undo_not_applied' }).banner).toBeNull();
-    // 只在待确认时生效：别的状态下迟到的结果不改动页面
+    expect(run(pending, { type: 'undo_reread_confirmed' }).hold).toBeNull();
+    expect(run(pending, { type: 'undo_reread_missing' }).hold?.read).toBe(
+      'missing',
+    );
+    // 再出错不重置已有的暂停
+    expect(
+      run(pending, { type: 'undo_reread_failed' }, { type: 'undo_unknown' })
+        .hold?.failures,
+    ).toBe(1);
+    // 只在暂停时生效：别的状态下迟到的结果不改动页面
     expect(run(review, { type: 'undo_unknown' })).toBe(review);
     expect(run(review, { type: 'undo_reread', draft: review.draft! })).toBe(
       review,
     );
-    expect(run(saved, { type: 'undo_not_applied' })).toBe(saved);
+    expect(run(saved, { type: 'undo_reread_confirmed' })).toBe(saved);
     expect(run(saved, { type: 'undo_reread_failed' })).toBe(saved);
+    expect(run(saved, { type: 'undo_reread_begin' })).toBe(saved);
+    expect(run(saved, { type: 'undo_reread_missing' })).toBe(saved);
+    // 回到输入就放下这次撤销
+    expect(run(pending, { type: 'back_to_write' }).hold).toBeNull();
   });
 
   it('没有草稿时撤销回到输入', () => {

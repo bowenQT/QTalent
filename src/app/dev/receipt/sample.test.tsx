@@ -458,11 +458,13 @@ describe('样张替身', () => {
     expect(
       await server.save({ ...input, operation_id: 'stale' }),
     ).toMatchObject({ status: 'conflict' });
+    // 再保存用了撤销用过的编号：动作不同，各记各的，不算冲突
     const again = await server.save({
       ...input,
-      operation_id: 'again',
+      operation_id: 'u-1',
       expected_revision: 3,
     });
+    expect(again).toMatchObject({ status: 'success', replayed: false });
     if (again.status !== 'success') throw new Error('save failed');
     // 撤销后再保存是新事件，编号不复用
     expect(again.result.events[0]!.eventId).not.toBe(

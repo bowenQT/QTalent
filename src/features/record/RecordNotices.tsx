@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { copy } from './copy';
 import type { HandoffReason } from './batch-route';
 import { failureView, type FailureKind } from './errors';
-import type { Banner } from './record-flow';
+import { REREAD_LIMIT, type Banner, type Hold } from './record-flow';
 
 /** 提示条：写发生了什么，输入都还在。操作按钮由调用方决定。 */
 export function Notice({
@@ -41,15 +41,12 @@ export function BannerNotice({
   onLoadLatest,
   onCopyOut,
   onBack,
-  onReread,
 }: {
   banner: Banner | null;
   onRetry: () => void;
   onLoadLatest: () => void;
   onCopyOut: () => void;
   onBack: () => void;
-  /** 撤销之后重新读取这件事的现状。 */
-  onReread?: () => void;
 }) {
   if (!banner) return null;
   switch (banner.kind) {
@@ -153,30 +150,6 @@ export function BannerNotice({
       return <Notice>{banner.message}</Notice>;
     case 'saveProblems':
       return <Notice>{copy.banner.problems}</Notice>;
-    case 'undoPending':
-    case 'undoRefresh':
-      return (
-        <Notice
-          actions={
-            onReread ? (
-              <button
-                type="button"
-                className="n-btn n-btn--sm n-btn--ghost"
-                onClick={onReread}
-              >
-                {copy.actions.reread}
-              </button>
-            ) : null
-          }
-        >
-          {banner.kind === 'undoPending'
-            ? copy.undo.pending
-            : copy.undo.refresh}
-          {banner.failed ? (
-            <div className="nt-muted">{copy.undo.rereadFailed}</div>
-          ) : null}
-        </Notice>
-      );
     case 'node': {
       const text =
         banner.reason === 'pending' || banner.reason === 'unavailable'
@@ -282,6 +255,60 @@ export function FailurePanel({
       }
     >
       {view.message}
+    </Notice>
+  );
+}
+
+/**
+ * 撤销之后、读到这件事现状之前：写明为什么暂不能保存，给「重新读取」和回执入口。
+ * 读取中按钮不可重复点；读满上限后只留回执入口。
+ */
+export function HoldNotice({
+  hold,
+  receiptHref,
+  onReread,
+}: {
+  hold: Hold;
+  receiptHref: string | null;
+  onReread: () => void;
+}) {
+  const reading = hold.read === 'reading';
+  const canReread = hold.failures < REREAD_LIMIT;
+  const detail =
+    hold.read === 'confirmed'
+      ? copy.undo.confirmedElsewhere
+      : hold.read === 'missing'
+        ? copy.undo.missing
+        : hold.read === 'failed'
+          ? canReread
+            ? copy.undo.rereadFailed
+            : copy.undo.rereadLimit
+          : null;
+  return (
+    <Notice
+      actions={
+        <>
+          {canReread ? (
+            <button
+              type="button"
+              className="n-btn n-btn--sm n-btn--ghost"
+              disabled={reading}
+              aria-busy={reading || undefined}
+              onClick={onReread}
+            >
+              {reading ? copy.undo.reading : copy.actions.reread}
+            </button>
+          ) : null}
+          {receiptHref ? (
+            <a className="n-btn n-btn--sm n-btn--ghost" href={receiptHref}>
+              {copy.undo.openReceipt}
+            </a>
+          ) : null}
+        </>
+      }
+    >
+      {hold.kind === 'pending' ? copy.undo.pending : copy.undo.refresh}
+      {detail ? <div className="nt-muted">{detail}</div> : null}
     </Notice>
   );
 }

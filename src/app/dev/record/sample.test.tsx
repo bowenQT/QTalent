@@ -307,6 +307,39 @@ describe('sample server', () => {
     });
   });
 
+  it('normalizes like 846: reordered people and decisions replay; save and undo ids are separate', async () => {
+    const s = server();
+    const both = [SUBJECT, 'p-x08'];
+    const { draft } = await arranged(s, input(SENTENCE, both));
+    const decisions = both.map((personId) => ({
+      personId,
+      dimensionId: 'mot',
+      action: 'confirm' as const,
+    }));
+    const request = {
+      ...saveInput(draft!.draftId, 1),
+      operation_id: 'op-same',
+      personIds: both,
+      decisions,
+    };
+    const first = await s.actions.save(request);
+    if (first.status !== 'success') throw new Error(first.status);
+    expect(
+      await s.actions.save({
+        ...request,
+        personIds: [...both].reverse(),
+        decisions: [...decisions].reverse(),
+      }),
+    ).toEqual({ ...first, replayed: true });
+    // 同一个编号用于撤销：动作不同，各记各的，不算冲突
+    expect(
+      await s.actions.undo({
+        operation_id: 'op-same',
+        saveId: first.result.saveId,
+      }),
+    ).toMatchObject({ status: 'success', replayed: false });
+  });
+
   it('offline scene: the first submit never arrives, the second does', async () => {
     const s = server('offline');
     await expect(s.actions.submit(input())).rejects.toThrow();

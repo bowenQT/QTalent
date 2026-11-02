@@ -30,7 +30,8 @@ import {
   TEXT,
   twoPeopleDraft,
 } from './record.fixtures';
-import { RecordPage, type RecordPageProps } from './RecordPage';
+import { REREAD_LIMIT } from './record-flow';
+import { RecordPage, UNDO_ATTEMPTS, type RecordPageProps } from './RecordPage';
 import type { AnchorMap, RecordActions } from './types';
 
 const anchors: AnchorMap = {
@@ -1065,6 +1066,107 @@ describe('5 秒撤销', () => {
     } finally {
       clock.mockRestore();
     }
+  });
+
+  const confirmedBatch = () =>
+    ok({
+      ...doneBatch,
+      draftSet: null,
+      confirmedDrafts: [
+        {
+          draftId: draft.draftId,
+          revision: draft.revision + 3,
+          events: [{ personId: 'p1', eventId: 'ev-9' }],
+        },
+      ],
+    });
+  const rereadButton = () =>
+    screen.queryByRole('button', { name: copy.actions.reread });
+
+  it('撤销要求重读、读到这件事已被再次确认：保存继续暂停，给回执入口', async () => {
+    const { actions } = await saved({
+      actions: {
+        undo: vi.fn(() => undoDone({ status: 'refresh_required' })) as never,
+      },
+    });
+    actions.readBatch.mockImplementation(confirmedBatch);
+    await click('撤销');
+    expect(await screen.findByText(copy.undo.confirmedElsewhere)).toBeTruthy();
+    expect(saveButton().disabled).toBe(true);
+    expect(
+      screen
+        .getByRole('link', { name: copy.undo.openReceipt })
+        .getAttribute('href'),
+    ).toContain('/receipt?id=');
+    await userEvent.click(saveButton());
+    expect(actions.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('撤销要求重读、读到了批次却没有这件事：仍待核实，保存继续暂停', async () => {
+    const { actions } = await saved({
+      actions: {
+        undo: vi.fn(() => undoDone({ status: 'refresh_required' })) as never,
+      },
+    });
+    actions.readBatch.mockImplementation(() =>
+      ok({ ...doneBatch, draftSet: null, confirmedDrafts: [] }),
+    );
+    await click('撤销');
+    expect(await screen.findByText(copy.undo.missing)).toBeTruthy();
+    expect(saveButton().disabled).toBe(true);
+    expect(screen.queryByText(copy.conflict.title)).toBeNull();
+  });
+
+  it('撤销请求挂住：超时算结果不明，不写已保存；重新读取挂住也按超时，读取中不能重复点', async () => {
+    const hang = () => new Promise<never>(() => {});
+    const { actions } = await saved({
+      requestTimeoutMs: 50,
+      actions: { undo: vi.fn(hang) as never },
+    });
+    await click('撤销');
+    expect(await screen.findByText(copy.saved.undoFailed)).toBeTruthy();
+    expect(screen.getByText(copy.undo.pending)).toBeTruthy();
+    expect(document.querySelector('.n-event__sign')).toBeNull();
+    actions.readBatch.mockImplementation(hang);
+    const before = actions.readBatch.mock.calls.length;
+    await click(copy.actions.reread);
+    const busy = screen.getByRole('button', { name: copy.undo.reading });
+    expect((busy as HTMLButtonElement).disabled).toBe(true);
+    expect(await screen.findByText(copy.undo.rereadFailed)).toBeTruthy();
+    expect(actions.readBatch).toHaveBeenCalledTimes(before + 1);
+  });
+
+  it('撤销重试有上限：到上限就收起提示改为重新读取；重新读取也有上限，之后只留回执入口', async () => {
+    const undo = vi.fn().mockRejectedValue(new Error('offline'));
+    const { actions } = await saved({ actions: { undo: undo as never } });
+    actions.readBatch.mockImplementation(() =>
+      Promise.reject(new Error('offline')),
+    );
+    const before = actions.readBatch.mock.calls.length;
+    await click('撤销');
+    for (let i = 1; i < UNDO_ATTEMPTS; i++) {
+      await screen.findByText(copy.saved.undoFailed);
+      await click(copy.saved.undoRetry);
+    }
+    await waitFor(() =>
+      expect(actions.readBatch).toHaveBeenCalledTimes(before + 1),
+    );
+    expect(undo).toHaveBeenCalledTimes(UNDO_ATTEMPTS);
+    expect(
+      screen.queryByRole('button', { name: copy.saved.undoRetry }),
+    ).toBeNull();
+    for (let i = 1; i < REREAD_LIMIT; i++) {
+      await waitFor(() =>
+        expect(rereadButton()?.hasAttribute('disabled')).toBe(false),
+      );
+      await click(copy.actions.reread);
+    }
+    expect(await screen.findByText(copy.undo.rereadLimit)).toBeTruthy();
+    expect(rereadButton()).toBeNull();
+    expect(actions.readBatch).toHaveBeenCalledTimes(before + REREAD_LIMIT);
+    expect(
+      screen.getByRole('link', { name: copy.undo.openReceipt }),
+    ).toBeTruthy();
   });
 
   it('窗口已过：关闭原提示，另发说明，记录保持已保存，不显示已撤销', async () => {
