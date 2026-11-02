@@ -117,6 +117,7 @@ export { readValidatedUploadInTransaction } from './uploads/handoff-transaction'
 export type { ValidatedUpload } from './uploads/handoff';
 export type { UploadCollectionMembers } from './uploads/types';
 
+export { readAuthorizedMaterialSource } from './material-sources/read';
 export type {
   StoredRecordOriginalInput,
   MediaRecordOriginalInput,

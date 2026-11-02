@@ -179,6 +179,7 @@ describe('complete talent source projection', () => {
       'src/server/queries/person-projection.ts',
       // Reads the whole issued intake table for the MCP person brief.
       'src/server/usecases/mcp/person-brief.ts',
+      'src/server/usecases/read-material-source.ts',
       'src/server/usecases/record-arrange-context.ts',
       'src/server/usecases/record-batch-arrange-requests.ts',
       'src/server/usecases/record-batch-arrange-store.ts',
