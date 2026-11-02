@@ -40,7 +40,6 @@ import {
   loadArrangeActor,
   buildRecordPageContext,
   canWriteArrange,
-  defaultIntakeNode,
   textSubjects,
   type ArrangeActor,
   NativeArrangeUnavailable,
@@ -110,9 +109,10 @@ export function createRecordBatchArrangeRequests(
   });
   /**
    * A files-only batch. Each file is the actor's own completed, unreleased upload
-   * with an unassigned target on this node and in no other current batch; its
-   * parse runs as the upload's own media job, so nothing is enqueued here. The
-   * batch job stays queued: arranging the parsed files is not connected yet.
+   * staged with an unassigned target, all on one node, and in no other current
+   * batch. The batch hands each file's parse to the attachment worker in this
+   * transaction (one media job per upload version). The batch job stays queued:
+   * arranging the parsed files is not connected yet.
    * Lock order after the intake writer lock: each upload collection's quota lock
    * in collection order, then the rows written here.
    */
@@ -120,14 +120,9 @@ export function createRecordBatchArrangeRequests(
     tx: Transaction,
     accountId: string,
     input: MaterialBatchInput,
-    facts: {
-      actor: ArrangeActor;
-      at: string;
-      nodeId: string;
-      fingerprint: string;
-    },
+    facts: { actor: ArrangeActor; at: string; fingerprint: string },
   ): Promise<MaterialBatchSubmitResult> {
-    const { actor, at, nodeId, fingerprint } = facts;
+    const { actor, at, fingerprint } = facts;
     const refused = (): MaterialBatchSubmitResult => ({
       status: 'validation_error',
       fieldErrors: {
@@ -155,18 +150,38 @@ export function createRecordBatchArrangeRequests(
       string,
       NonNullable<Awaited<ReturnType<typeof readValidatedUploadInTransaction>>>
     >();
+    const nodes = new Set<string>();
     for (const row of ordered) {
       const upload = await readValidatedUploadInTransaction(tx, row);
       const target = unassignedTarget.safeParse(upload?.target);
-      if (
-        !upload ||
-        upload.accountId !== accountId ||
-        !target.success ||
-        target.data.evaluationNodeId !== nodeId
-      )
+      if (!upload || upload.accountId !== accountId || !target.success)
         return refused();
+      nodes.add(target.data.evaluationNodeId);
       uploads.set(row.uploadId, upload);
     }
+    // The node was chosen when the files were uploaded; the batch never re-picks it.
+    if (nodes.size !== 1)
+      return {
+        status: 'validation_error',
+        fieldErrors: {
+          files: ['这些文件属于不同的评价节点，请按节点分开投递'],
+        },
+        input,
+      };
+    const [nodeId] = nodes;
+    if (input.evaluationNodeId && input.evaluationNodeId !== nodeId)
+      return {
+        status: 'validation_error',
+        fieldErrors: {
+          evaluationNodeId: ['和上传这些文件时的评价节点不一致，请重新选择'],
+        },
+        input,
+      };
+    if (!canWriteArrange(actor, [], null, nodeId))
+      return {
+        status: 'forbidden',
+        message: '当前账号没有此节点的记录权限',
+      };
     // Read under the quota locks: a release or another batch commits under them too.
     const [released] = await tx
       .select({ id: uploadIntents.id })
@@ -236,6 +251,19 @@ export function createRecordBatchArrangeRequests(
     };
     await insertJob(tx, job);
     await insertArrangeInput(tx, stored);
+    for (const { upload } of files) {
+      const parse = newJob(
+        {
+          jobId: id(),
+          kind: 'media',
+          resourceId: upload.uploadId,
+          inputVersion: upload.originalVersionId,
+        },
+        deps.now().toISOString(),
+      );
+      await insertJob(tx, parse);
+      await deps.enqueue(tx, parse);
+    }
     await tx.insert(mediaMaterials).values(
       files.map(({ file, upload }) => ({
         id: upload.originalId,
@@ -294,6 +322,12 @@ export function createRecordBatchArrangeRequests(
       return {
         status: 'validation_error',
         fieldErrors: { files: ['文字和文件请分两次投递'] },
+        input: raw,
+      };
+    if (!input.files.length && !input.evaluationNodeId)
+      return {
+        status: 'validation_error',
+        fieldErrors: { evaluationNodeId: ['请选择这段文字所属的评价节点'] },
         input: raw,
       };
     if (
@@ -364,37 +398,14 @@ export function createRecordBatchArrangeRequests(
     if (!z.iso.datetime().safeParse(at).success)
       throw new NativeArrangeUnavailable('business_clock_required');
     const actor = await loadArrangeActor(tx, accountId, at);
-    const resolved = input.evaluationNodeId
-      ? ({
-          status: 'resolved',
-          evaluationNodeId: input.evaluationNodeId,
-        } as const)
-      : defaultIntakeNode(actor);
-    if (resolved.status !== 'resolved')
-      return {
-        status: 'validation_error',
-        fieldErrors: {
-          evaluationNodeId: [
-            resolved.status === 'missing'
-              ? '当前没有进行中的评价节点，材料尚未提交'
-              : '有多个同时开始的评价节点，无法确定投到哪一个，材料尚未提交',
-          ],
-        },
-        input: raw,
-      };
-    const nodeId = resolved.evaluationNodeId;
+    if (input.files.length)
+      return createMedia(tx, accountId, input, { actor, at, fingerprint });
+    const nodeId = input.evaluationNodeId!;
     if (!canWriteArrange(actor, input.personIds, input.projectId, nodeId))
       return {
         status: 'forbidden',
         message: '当前账号没有此节点的记录权限',
       };
-    if (input.files.length)
-      return createMedia(tx, accountId, input, {
-        actor,
-        at,
-        nodeId,
-        fingerprint,
-      });
     const subjects = textSubjects(actor, input.text, input.personIds, nodeId);
     if (
       subjects.some(

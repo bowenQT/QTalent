@@ -63,6 +63,8 @@ export interface NativeBatchDependencies {
   db: Database;
   businessNow(): string;
   now(): Date;
+  /** Persists the job's queue message in `tx`: a `record_organize` job goes to the
+   * arrange worker, a `media` job (one file's parse) to the attachment worker. */
   enqueue(tx: Transaction, job: JobRecord): Promise<void>;
   newId?(): string;
 }
@@ -337,7 +339,6 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
       .select({
         material: mediaMaterials,
         request: uploadIntents.request,
-        completed: uploadIntents.completed,
       })
       .from(mediaMaterials)
       .innerJoin(uploadIntents, eq(uploadIntents.id, mediaMaterials.uploadId))
@@ -350,20 +351,34 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
     const byId = new Map(rows.map((row) => [row.material.id, row]));
     const ordered = native.originalInput.materialIds.map((materialId) => {
       const row = byId.get(materialId);
-      if (!row?.completed)
+      if (!row)
         throw new NativeArrangeUnavailable('native_media_material_missing');
-      return { ...row, completed: row.completed };
+      return row;
     });
-    const parseJobIds = ordered.map((row) => row.completed.jobId);
-    // Unlocked reads: the attachment worker owns its job row's lock.
-    const jobs = new Map(
-      (
-        await tx
-          .select()
-          .from(jobSnapshots)
-          .where(inArray(jobSnapshots.jobId, parseJobIds))
-      ).map((row) => [row.jobId, row]),
-    );
+    // Unlocked reads: the attachment worker owns its job row's lock. Each file's
+    // parse is the media job the batch created for that upload version.
+    const parseJobs = await tx
+      .select()
+      .from(jobSnapshots)
+      .where(
+        and(
+          eq(jobSnapshots.kind, 'media'),
+          inArray(
+            jobSnapshots.resourceId,
+            ordered.map((row) => row.material.uploadId),
+          ),
+        ),
+      );
+    const parseJobFor = (material: typeof mediaMaterials.$inferSelect) => {
+      const found = parseJobs.filter(
+        (row) =>
+          row.resourceId === material.uploadId &&
+          row.inputVersion === material.originalVersionId,
+      );
+      if (found.length !== 1)
+        throw new NativeArrangeUnavailable('native_media_parse_job_missing');
+      return found[0]!;
+    };
     const parses = await tx
       .select({
         id: materialParses.id,
@@ -371,24 +386,30 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
         originalVersionId: materialParses.originalVersionId,
       })
       .from(materialParses)
-      .where(inArray(materialParses.jobId, parseJobIds));
-    const files = ordered.map(({ material, request, completed }) =>
-      mediaFileReceipt(
+      .where(
+        inArray(
+          materialParses.jobId,
+          ordered.map(({ material }) => parseJobFor(material).jobId),
+        ),
+      );
+    const files = ordered.map(({ material, request }) => {
+      const parseJob = parseJobFor(material);
+      return mediaFileReceipt(
         {
           materialId: material.id,
           clientFileId: material.clientFileId,
           filename: request.filename,
           originalVersionId: material.originalVersionId,
         },
-        completed.jobId,
-        jobs.get(completed.jobId),
+        parseJob.jobId,
+        parseJob,
         parses.find(
           (row) =>
-            row.jobId === completed.jobId &&
+            row.jobId === parseJob.jobId &&
             row.originalVersionId === material.originalVersionId,
         )?.id,
-      ),
-    );
+      );
+    });
     return projectBatchReceipt({
       batchId: native.batchId,
       revision: 1,

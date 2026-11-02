@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { getDatabase } from '../db/client';
 import { requireSession } from '../auth/next';
@@ -48,19 +48,24 @@ beforeAll(async () => {
           and target->>'kind' in ('people','event','unassigned'),
         false))`);
 }, 30000);
+const send = vi.fn(async () => 'synthetic-queue-message');
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getDatabase).mockImplementation(() => connection.db);
+  vi.mocked(getAppJobProducer).mockResolvedValue({ send } as unknown as Awaited<
+    ReturnType<typeof getAppJobProducer>
+  >);
 });
 afterAll(async () => {
   await connection?.close();
 });
 
-/** A completed unassigned upload on the node with its media parse job queued,
- * as BOW-873 upload completion leaves it. */
+/** A completed upload staged on a node with no parse job, as BOW-873 completion
+ * of an unassigned upload leaves it. */
 async function unassignedUpload(
   f: Awaited<ReturnType<typeof seedNativeCase>>,
   filename: string,
+  evaluationNodeId = f.node,
 ) {
   const db = connection.db;
   const bytes = Buffer.from('演示材料：' + filename);
@@ -68,9 +73,8 @@ async function unassignedUpload(
   const originalId = randomUUID(),
     versionId = randomUUID(),
     collectionId = randomUUID(),
-    uploadId = randomUUID(),
-    parseJobId = randomUUID();
-  const target = { kind: 'unassigned' as const, evaluationNodeId: f.node };
+    uploadId = randomUUID();
+  const target = { kind: 'unassigned' as const, evaluationNodeId };
   const request = {
     recordCollectionId: collectionId,
     purpose: 'attachment' as const,
@@ -119,10 +123,10 @@ async function unassignedUpload(
       recordCollectionId: collectionId,
       originalId,
       originalVersionId: versionId,
-      jobId: parseJobId,
+      status: 'staged',
       revision: 1,
       source: null,
-    },
+    } as unknown as typeof uploadIntents.$inferInsert.completed,
   });
   await db.insert(uploadObjects).values({
     originalVersionId: versionId,
@@ -133,34 +137,35 @@ async function unassignedUpload(
     sha256: digest,
     etag: 'synthetic',
   });
-  await db.insert(jobSnapshots).values({
-    jobId: parseJobId,
-    kind: 'media',
-    resourceId: uploadId,
-    inputVersion: versionId,
-    status: 'queued',
-    result: {
-      stage: 'parsing',
-      mediaId: originalId,
-      source: null,
-      fragmentIds: [],
-    },
-    attempt: 1,
-    revision: 1,
-    updatedAt: '2026-11-01T12:00:00.000Z',
-  });
   return {
     file: { clientFileId: randomUUID(), uploadId },
     originalId,
     versionId,
-    parseJobId,
   };
+}
+/** The media job the batch created for this upload version. */
+async function parseJobOf(
+  upload: Awaited<ReturnType<typeof unassignedUpload>>,
+) {
+  const rows = await connection.db
+    .select()
+    .from(jobSnapshots)
+    .where(
+      and(
+        eq(jobSnapshots.kind, 'media'),
+        eq(jobSnapshots.resourceId, upload.file.uploadId),
+        eq(jobSnapshots.inputVersion, upload.versionId),
+      ),
+    );
+  expect(rows).toHaveLength(1);
+  return rows[0]!;
 }
 /** What the attachment worker commits when it finishes a file. */
 async function finishParse(
   upload: Awaited<ReturnType<typeof unassignedUpload>>,
   outcome: 'parsed' | 'format',
 ) {
+  const { jobId } = await parseJobOf(upload);
   await connection.db
     .update(jobSnapshots)
     .set({
@@ -174,7 +179,7 @@ async function finishParse(
         ...(outcome === 'format' ? { failureReason: 'format' } : {}),
       },
     })
-    .where(eq(jobSnapshots.jobId, upload.parseJobId));
+    .where(eq(jobSnapshots.jobId, jobId));
   if (outcome !== 'parsed') return null;
   const parseVersionId = randomUUID();
   await connection.db.insert(materialParses).values({
@@ -184,7 +189,7 @@ async function finishParse(
     parserVersion: 'demo-parser-1',
     projectionVersion: 'demo-projection-1',
     resultDigest: 'e'.repeat(64),
-    jobId: upload.parseJobId,
+    jobId,
     attempt: 1,
   });
   return parseVersionId;
@@ -202,7 +207,7 @@ const filesOnly = (files: { clientFileId: string; uploadId: string }[]) => ({
   files,
 });
 
-it('takes uploaded files on the default node and shows each file as its parse finishes', async () => {
+it('takes staged files on their upload node, hands each parse to the worker, and shows each file as it finishes', async () => {
   const f = await seedNativeCase(connection.db);
   const notes = await unassignedUpload(f, '演示周记.txt');
   const deck = await unassignedUpload(f, '演示汇报.key');
@@ -215,14 +220,27 @@ it('takes uploaded files on the default node and shows each file as its parse fi
   const receipt = created.result;
   expect(receipt.evaluationNodeId).toBe(f.node);
   expect(receipt.textMaterial).toBeNull();
+  const notesJob = await parseJobOf(notes);
+  const deckJob = await parseJobOf(deck);
+  expect(notesJob).toMatchObject({ status: 'queued', attempt: 1 });
   expect(receipt.files.map((file) => [file.filename, file.status])).toEqual([
     ['演示周记.txt', 'processing'],
     ['演示汇报.key', 'processing'],
   ]);
-  expect(receipt.files[0]).toMatchObject({ jobId: notes.parseJobId });
+  expect(receipt.files[0]).toMatchObject({ jobId: notesJob.jobId });
   expect(receipt.status).toBe('processing');
-  // The parse runs as each upload's own job: creating the batch enqueues nothing.
-  expect(getAppJobProducer).not.toHaveBeenCalled();
+  // Each file's parse goes to the attachment worker's queue in the batch's transaction.
+  expect(getAppJobProducer).toHaveBeenCalledWith('attachment-parse');
+  expect(send).toHaveBeenCalledWith(
+    'attachment-parse',
+    { jobId: notesJob.jobId, attempt: 1 },
+    expect.objectContaining({ retryLimit: 0 }),
+  );
+  expect(send).toHaveBeenCalledWith(
+    'attachment-parse',
+    { jobId: deckJob.jobId, attempt: 1 },
+    expect.anything(),
+  );
 
   const parseVersionId = await finishParse(notes, 'parsed');
   await finishParse(deck, 'format');
@@ -260,19 +278,62 @@ it('takes uploaded files on the default node and shows each file as its parse fi
   );
 });
 
-it('refuses another account’s upload and a delivery with no node in progress', async () => {
+it('refuses another account’s upload, files of two nodes, a node other than the upload’s, and text with no node', async () => {
   const f = await seedNativeCase(connection.db);
   const upload = await unassignedUpload(f, '演示周记.txt');
+  const elsewhere = await unassignedUpload(
+    f,
+    '演示汇报.txt',
+    'demo-other-node',
+  );
   signIn(f.outsiderAccount);
-  const foreign = await startRecordArrangeAction({
-    ...filesOnly([upload.file]),
-    evaluationNodeId: f.node,
-  });
-  expect(foreign.status).not.toBe('success');
+  expect(await startRecordArrangeAction(filesOnly([upload.file]))).toEqual(
+    await startRecordArrangeAction(
+      filesOnly([{ clientFileId: randomUUID(), uploadId: randomUUID() }]),
+    ),
+  );
   expect(
     await startRecordArrangeAction(filesOnly([upload.file])),
   ).toMatchObject({
     status: 'validation_error',
+    fieldErrors: { files: [expect.any(String)] },
+  });
+  signIn(f.account);
+  expect(
+    await startRecordArrangeAction(filesOnly([upload.file, elsewhere.file])),
+  ).toMatchObject({
+    status: 'validation_error',
+    fieldErrors: { files: [expect.stringContaining('不同的评价节点')] },
+  });
+  expect(
+    await startRecordArrangeAction({
+      ...filesOnly([upload.file]),
+      evaluationNodeId: 'demo-other-node',
+    }),
+  ).toMatchObject({
+    status: 'validation_error',
     fieldErrors: { evaluationNodeId: [expect.any(String)] },
   });
+  expect(
+    await startRecordArrangeAction({
+      ...filesOnly([]),
+      text: '演示文字',
+    }),
+  ).toMatchObject({
+    status: 'validation_error',
+    fieldErrors: { evaluationNodeId: [expect.any(String)] },
+  });
+  // Nothing was written for any refused delivery.
+  expect(
+    await connection.db
+      .select()
+      .from(jobSnapshots)
+      .where(
+        inArray(jobSnapshots.resourceId, [
+          upload.file.uploadId,
+          elsewhere.file.uploadId,
+        ]),
+      ),
+  ).toHaveLength(0);
+  expect(send).not.toHaveBeenCalled();
 });

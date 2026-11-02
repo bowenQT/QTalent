@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 import type { DbExecutor, Transaction } from '../db/client';
-import { canReadProject, isCurrent } from '../authz';
+import { canReadProject } from '../authz';
 import { canConfirmOwnNodeScore } from '../authz/evaluation-node';
 import { canReadTalent, type TalentSubject } from '../authz/talent';
 import { accountBindings, grants, people } from '../modules/directory';
@@ -103,37 +103,6 @@ export function canWriteArrange(
   if (projectId === null) return true;
   const project = actor.context.projects.find((item) => item.id === projectId);
   return project !== undefined && canReadProject(actor.context, project);
-}
-export type DefaultIntakeNode =
-  | { status: 'resolved'; evaluationNodeId: string }
-  | { status: 'missing' | 'ambiguous' };
-/**
- * The node a delivery without a chosen node goes to (owner ruling for /work: the
- * workbench drop has no node step). Nodes carry no schedule, so "in progress" is a
- * node the actor can currently write records on, and its start is the earliest
- * validFrom of the actor's current relations there. The latest start wins; none, or a
- * tie for the latest, is answered as such and never guessed.
- */
-export function defaultIntakeNode(actor: ArrangeActor): DefaultIntakeNode {
-  const { context } = actor;
-  const starts = context.evaluationNodes.flatMap((node) => {
-    if (!canWriteArrange(actor, [], null, node.id)) return [];
-    const from = context.evaluationRelations
-      .filter(
-        (relation) =>
-          relation.evaluationNodeId === node.id &&
-          relation.evaluatorId === context.account.personId &&
-          isCurrent(relation, context.now),
-      )
-      .map((relation) => Date.parse(relation.validFrom));
-    return from.length ? [{ id: node.id, start: Math.min(...from) }] : [];
-  });
-  if (!starts.length) return { status: 'missing' };
-  const latest = Math.max(...starts.map((node) => node.start));
-  const chosen = starts.filter((node) => node.start === latest);
-  return chosen.length === 1
-    ? { status: 'resolved', evaluationNodeId: chosen[0]!.id }
-    : { status: 'ambiguous' };
 }
 export interface RecordPageInput {
   personId: string | null;

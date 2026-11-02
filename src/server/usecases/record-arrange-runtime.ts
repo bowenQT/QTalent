@@ -6,6 +6,7 @@ import { getEnv } from '../env';
 import { createClock } from '../../lib/clock';
 import { getAppJobProducer } from '../platform/jobs/app-runtime';
 import { recordArrangeQueue } from '../jobs/record-arrange';
+import { attachmentParseQueue } from '../jobs/attachment-parse';
 import { createRecordArrangeRequests } from './record-arrange-requests';
 
 /** Request-local service;852 owns the only lazy producer and its lifecycle. */
@@ -17,9 +18,11 @@ export function recordArrangeRequestsForServer() {
     businessNow: () => clock.now().toISOString(),
     now: () => new Date(),
     enqueue: async (tx, job) => {
-      const boss = await getAppJobProducer(recordArrangeQueue);
+      const queue =
+        job.kind === 'media' ? attachmentParseQueue : recordArrangeQueue;
+      const boss = await getAppJobProducer(queue);
       const sent = await boss.send(
-        recordArrangeQueue,
+        queue,
         { jobId: job.jobId, attempt: job.attempt },
         { db: fromDrizzle(tx, sql), retryLimit: 0 },
       );
