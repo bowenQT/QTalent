@@ -10,6 +10,7 @@ import { sourceSchema } from '../../contracts/sources';
 import { ForbiddenError } from './project-context';
 import { DemandAccessError } from '../modules/staffing/demand/service';
 import { matchingFixture } from '../../../tests/fixtures/staffing-matching';
+import { createStaffingMatchUsecase } from './staffing-match';
 
 const input = {
   operationId: 'start-a',
@@ -140,11 +141,13 @@ describe('BOW-854 authorized matching', () => {
       /confidence|percentage|totalScore|rank/,
     );
   });
-  it('uses business date for authorization and real wall time for jobs', async () => {
+  it('uses the business instant for authorization and real wall time for jobs', async () => {
     const f = matchingFixture(),
       result = await start(f);
     expect(
-      f.loadEvidence.mock.calls.every((call) => call[1] === '2026-09-04'),
+      f.loadEvidence.mock.calls.every(
+        (call) => call[1] === '2026-09-04T00:00:00.000Z',
+      ),
     ).toBe(true);
     expect(f.store.state.jobs.get(result.runId)?.updatedAt).toBe(
       '2031-04-05T06:07:08.000Z',
@@ -227,6 +230,42 @@ describe('BOW-854 authorized matching', () => {
     expect(
       await f.service.judge('account-hr', result.runId, judgment),
     ).toMatchObject({ status: 'conflict', input: judgment });
+  });
+  it('authorizes evidence at the full instant: same-day grant, revocation and expiry', async () => {
+    const at = (f: ReturnType<typeof matchingFixture>) =>
+      createStaffingMatchUsecase({
+        ...f.dependencies,
+        environment: 'production',
+        wallNow: () => new Date('2026-09-04T04:00:00.000Z'),
+      });
+    const granted = matchingFixture();
+    granted.context.grants[0]!.validFrom = '2026-09-04T03:00:00.000Z';
+    expect(
+      await at(granted).start('account-hr', { ...input, operationId: 'a' }),
+    ).toMatchObject({ status: 'success' });
+    expect(granted.loadEvidence.mock.calls.at(-1)?.[1]).toBe(
+      '2026-09-04T04:00:00.000Z',
+    );
+    for (const field of ['revokedAt', 'validTo'] as const) {
+      const f = matchingFixture(),
+        service = at(f),
+        started = startedSchema.parse(
+          await service.start('account-hr', { ...input, operationId: field }),
+        );
+      f.context.grants[0]![field] = '2026-09-04T03:00:00.000Z';
+      expect(await service.read('account-hr', started.runId)).toMatchObject({
+        status: 'forbidden',
+      });
+      // Execution reauthorizes before any model call and before writing back.
+      await service.execute(started.runId, 1).catch(() => undefined);
+      expect(f.decide).not.toHaveBeenCalled();
+      expect(
+        await service.judge('account-hr', started.runId, judgment),
+      ).toMatchObject({ status: 'forbidden' });
+      expect(
+        await service.start('account-hr', { ...input, operationId: 'again' }),
+      ).toMatchObject({ status: 'forbidden' });
+    }
   });
   it('reauthorizes reads and idempotent replay after revocation', async () => {
     const f = matchingFixture(),
@@ -683,8 +722,8 @@ describe('BOW-854 authorized matching', () => {
   it('rejects a reused trusted snapshot bound to a different account or actor', async () => {
     const f = matchingFixture(),
       load = f.loadEvidence.getMockImplementation()!;
-    f.loadEvidence.mockImplementation(async (account, today) => {
-      const value = await load(account, today);
+    f.loadEvidence.mockImplementation(async (account, now) => {
+      const value = await load(account, now);
       value.snapshot.context.account.id = 'different-account';
       return value;
     });

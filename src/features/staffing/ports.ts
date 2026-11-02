@@ -38,8 +38,9 @@ export type StaffingPorts = {
     input: z.infer<typeof confirmStaffingDemandInputSchema>,
   ): Promise<StaffingDemandResult>;
   /**
-   * The matching job for a confirmed demand revision. Not in the contract yet (BOW-854
-   * exposes no read): returns the job id, or null while matching is unavailable.
+   * The matching run for a confirmed demand revision, started once and replayed after
+   * that. Not in the contract: returns the run (job) id, or null while matching is not
+   * connected; a refusal rejects with a `JobReadError` carrying 403, 404 or 409.
    */
   openMatching(demand: {
     demandId: string;
@@ -49,6 +50,10 @@ export type StaffingPorts = {
     jobId: string,
     signal: AbortSignal,
   ): Promise<StaffingJobSnapshot>;
-  judge(input: HumanStaffingJudgmentInput): Promise<StaffingJudgmentResult>;
+  /** Saved on the matching run (job) the judgment was made in. */
+  judge(
+    runId: string,
+    input: HumanStaffingJudgmentInput,
+  ): Promise<StaffingJudgmentResult>;
   loadSource: LoadSource;
 };
