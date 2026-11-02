@@ -33,6 +33,8 @@ export const unreadReasonText: Record<UnreadReason, string> = {
 
 export const notApplicableText = '非管理岗免评';
 export const scaleTag = '原量表 · 单独保存';
+/** Marks a value HR filled in, so it never reads as one the parser read. */
+export const filledTag = 'HR 补录';
 export const sentToast = '已放进待核对，北森同步后再确认是谁';
 /** Not hired: nothing is filed for the row until it is known who it is. */
 export const sentToastNotHired = '已放进待核对，确认是谁之前不入档';

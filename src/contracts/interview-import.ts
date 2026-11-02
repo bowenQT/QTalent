@@ -103,6 +103,17 @@ export const interviewImportSendInputSchema = z.strictObject({
   rowId: text.max(200),
   expectedRevision: z.number().int().positive(),
 });
+/** One unread item HR fills in; an empty value clears HR's entry. */
+export const interviewImportFillInputSchema = z.strictObject({
+  batchId: text.max(200),
+  rowId: text.max(200),
+  expectedRevision: z.number().int().positive(),
+  item: text.max(200),
+  value: z.string().max(20),
+});
+export type InterviewImportFillInput = z.infer<
+  typeof interviewImportFillInputSchema
+>;
 export type InterviewImportRowResult =
   | { status: 'ok'; row: InterviewImportRow; revision: number }
   | {

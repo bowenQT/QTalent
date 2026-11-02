@@ -5,13 +5,13 @@ import { InterviewImport } from '@/features/interview-import/InterviewImport';
 import type { InterviewImportPorts } from '@/features/interview-import/ports';
 import {
   confirmInterviewImportRowAction,
+  fillInterviewImportRowAction,
   sendInterviewImportRowToReviewAction,
 } from '@/server/actions/interview-import';
 
 /**
  * The stored preview with its row actions. Each change carries the revision of the row
  * as last read or saved, so a row changed elsewhere comes back as a conflict.
- * Filling in an unread item is not connected yet.
  */
 export function LiveImport({ preview }: { preview: InterviewImportPreview }) {
   const revisions = useRef(new Map(Object.entries(preview.revisions)));
@@ -29,10 +29,19 @@ export function LiveImport({ preview }: { preview: InterviewImportPreview }) {
         revisions.current.set(rowId, result.revision);
         return { status: 'ok', row: result.row };
       },
-      fill: async () => ({
-        status: 'not_connected',
-        message: '补录还没接通，这一行先保持原样',
-      }),
+      async fill(batchId, rowId, item, value) {
+        const result = await fillInterviewImportRowAction({
+          batchId,
+          rowId,
+          expectedRevision: revisions.current.get(rowId) ?? 0,
+          item,
+          value,
+        });
+        if (result.status !== 'ok')
+          return { status: 'conflict', message: result.message };
+        revisions.current.set(rowId, result.revision);
+        return { status: 'ok', row: result.row };
+      },
       async sendToReview(batchId, rowId) {
         const result = await sendInterviewImportRowToReviewAction({
           batchId,

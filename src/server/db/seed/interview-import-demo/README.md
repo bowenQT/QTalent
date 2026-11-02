@@ -22,7 +22,7 @@ pnpm exec tsx src/server/db/seed/interview-import-demo/run.ts --apply
 
 - `hr.pdf`：评语里故意有虚构籍贯、学历标签，要等评语过滤上线；
 - `professional-duplicate.pdf`：判重要有已入档的导入；
-- `score-missing` / `score-multiple` / `flat-scores`：要 HR 补录，补录还没接通；
+- `score-multiple` / `flat-scores`：和已写入的 `score-missing` 一样走 HR 补录，不再重复（`score-missing` 有一个维度没读出来，HR 在 `/import` 补录后才能确认）；
 - `unknown-template`：解析器拒收；
 - 淘汰、待入职、放弃录用的三条招聘记录没有 PDF，所以演示数据上不会触发三项自动跳过（只有单元测试覆盖）。
 

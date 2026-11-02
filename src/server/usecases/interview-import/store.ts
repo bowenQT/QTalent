@@ -28,6 +28,7 @@ import {
 } from '../../../contracts/material-review';
 import type {
   InterviewImportConfirmInput,
+  InterviewImportFillInput,
   InterviewImportPreviewResult,
   InterviewImportRow,
   InterviewImportRowResult,
@@ -35,7 +36,12 @@ import type {
 import { loadEvaluationContext } from '../evaluation-context';
 import { ForbiddenError } from '../project-context';
 import {
+  INTERVIEW_DIMENSION_OPTIONS,
+  INTERVIEW_TEMPLATES,
+} from '../../modules/records/attachments/interview-review/templates';
+import {
   planInterviewImport,
+  unreadInterviewItems,
   type InterviewImportFacts,
   type InterviewImportPlan,
 } from './plan';
@@ -227,6 +233,7 @@ function factsFor(
     resolvedInterviewer: null,
     pendingInterviewer: null,
     resolution: null,
+    manualInput: { forRowRevision: row.revision, values: row.filled },
   };
 }
 
@@ -259,7 +266,7 @@ function decisionOf(
   }
 }
 
-const selection = (value: ParsedSelection) =>
+const selection = (value: ParsedSelection, options: readonly string[]) =>
   value.status === 'recognized'
     ? { status: 'recognized' as const, value: value.value }
     : value.status === 'not_applicable'
@@ -268,9 +275,35 @@ const selection = (value: ParsedSelection) =>
           status: 'unrecognized' as const,
           reason: value.reason,
           page: value.source.page,
-          options: [],
+          options: [...options],
+          // The parser keeps no per-option marks, so none are shown as marked.
           marked: [],
         };
+
+/** The scale items with the names and options HR fills in by (906 `unreadInterviewItems`). */
+function scaleOf(review: ParsedInterviewReview) {
+  const template = INTERVIEW_TEMPLATES.find((t) => t.name === review.template);
+  return [
+    ...review.dimensions.map((d) => ({
+      item: d.name,
+      selection: selection(d.selection, INTERVIEW_DIMENSION_OPTIONS),
+    })),
+    {
+      item: template?.rating.label ?? '面试评级',
+      selection: selection(
+        review.interviewRating,
+        template?.rating.options ?? [],
+      ),
+    },
+    {
+      item: template?.level.label ?? '建议职级',
+      selection: selection(
+        review.suggestedLevel,
+        template?.level.options ?? [],
+      ),
+    },
+  ];
+}
 
 /** The row as the preview shows it; every value comes from the stored row and facts. */
 function view(
@@ -346,13 +379,7 @@ function view(
                 )
                 .digest('hex'),
           },
-    scale: [
-      ...review.dimensions.map((d) => ({
-        item: d.name,
-        selection: selection(d.selection),
-      })),
-      { item: '面试评级', selection: selection(review.interviewRating) },
-    ],
+    scale: scaleOf(review),
     result: review.metadata.interviewResult?.value ?? '',
     comment: review.metadata.overallComment?.value ?? null,
     redacted: 0,
@@ -362,7 +389,7 @@ function view(
         (i) => i.kind === 'unknown_interview_candidate',
       )?.id ?? null,
     confirmed,
-    filled: {},
+    filled: row.filled,
   };
 }
 
@@ -569,6 +596,117 @@ export async function confirmInterviewImportRow(
         confirmedByAccountId: next.confirmedByAccountId,
         confirmedAt: next.confirmedAt,
         decision,
+        decisionRevision: revision,
+      })
+      .where(
+        and(
+          eq(interviewImportRows.batchId, input.batchId),
+          eq(interviewImportRows.rowId, input.rowId),
+          eq(interviewImportRows.revision, input.expectedRevision),
+        ),
+      )
+      .returning();
+    if (!stored) return { status: 'conflict', message: CONFLICT };
+    return {
+      status: 'ok',
+      row: view(
+        loaded,
+        { ...entry, row: stored },
+        directory,
+        employmentRows,
+        plan,
+      ),
+      revision,
+    };
+  });
+}
+
+/**
+ * HR fills in, or clears, one item the parser could not read. The entry is stored on
+ * the row beside the parsed review, never inside it; the row revision advances and the
+ * plan for the new revision is stored as the decision. Any confirmation is taken back,
+ * because it was made on the row as it read before the entry.
+ */
+export async function fillInterviewImportRow(
+  db: Database,
+  accountId: string,
+  input: InterviewImportFillInput,
+  { now, at }: { now: string; at: string },
+): Promise<InterviewImportRowResult> {
+  return db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select()
+      .from(interviewImportRows)
+      .where(
+        and(
+          eq(interviewImportRows.batchId, input.batchId),
+          eq(interviewImportRows.rowId, input.rowId),
+        ),
+      )
+      .for('update');
+    if (!locked)
+      return { status: 'not_found', message: '这一行已不在这份导入里' };
+    const read = await readAll(tx, accountId, input.batchId, now);
+    if (read.status !== 'ok')
+      return {
+        status: read.status,
+        message:
+          read.status === 'forbidden'
+            ? '你的查看权限已更新，请刷新后再看'
+            : '这一行已不在这份导入里',
+      };
+    const { context, directory, loaded, employmentRows } = read;
+    const entry = loaded.rows.find((e) => e.row.rowId === input.rowId)!;
+    if (!visible(context, loaded, entry, directory))
+      return {
+        status: 'forbidden',
+        message: '你的查看权限已更新，请刷新后再看',
+      };
+    if (locked.revision !== input.expectedRevision)
+      return { status: 'conflict', message: CONFLICT };
+    const review = reviewOf(locked);
+    const unread = review
+      ? unreadInterviewItems(review).find((u) => u.item === input.item)
+      : undefined;
+    if (
+      !unread ||
+      (input.value !== '' && !unread.options.includes(input.value))
+    )
+      return { status: 'conflict', message: '这一项不用补录，请刷新后再看' };
+    const filled = { ...locked.filled };
+    if (input.value) filled[input.item] = input.value;
+    else delete filled[input.item];
+    const revision = locked.revision + 1;
+    const next: Row = {
+      ...locked,
+      revision,
+      filled,
+      confirmedCandidateId: null,
+      confirmedForRevision: null,
+      confirmedByAccountId: null,
+      confirmedAt: null,
+    };
+    const nextEntry = { ...entry, row: next };
+    const plan = planInterviewImport(
+      factsFor(
+        context,
+        directory,
+        loaded,
+        nextEntry,
+        employmentRows,
+        accountId,
+      ),
+    );
+    const [stored] = await tx
+      .update(interviewImportRows)
+      .set({
+        revision,
+        filled,
+        confirmedCandidateId: null,
+        confirmedForRevision: null,
+        confirmedByAccountId: null,
+        confirmedAt: null,
+        decision: decisionOf(plan, null, at, accountId),
         decisionRevision: revision,
       })
       .where(

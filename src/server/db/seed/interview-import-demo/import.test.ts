@@ -34,6 +34,7 @@ describe('demo interview import preparation', () => {
     expect(records.rows.map((r) => r.rowId)).toEqual([
       'campus-1',
       'professional-1',
+      'score-missing-1',
       'unknown-interviewer-1',
     ]);
     for (const fragment of records.fragments) {

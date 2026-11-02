@@ -34,8 +34,9 @@ const FIXTURE_DIRECTORY = 'tests/fixtures/bow-896';
  * - hr.pdf is left out: its comment carries fictional origin and education labels meant
  *   for a comment filter that does not exist yet.
  * - professional-duplicate.pdf is left out: duplicate detection needs filed imports.
- * - score-missing / score-multiple / flat-scores wait for HR to fill an item, which is
- *   not connected yet; unknown-template is rejected by the parser.
+ * - score-missing is the row HR fills in on /import (one dimension left unread);
+ *   score-multiple / flat-scores add nothing that row does not already show, and
+ *   unknown-template is rejected by the parser.
  * - The rejected / offer candidates have no PDF, so the automatic skip never runs here.
  */
 export const INTERVIEW_IMPORT_DEMO = {
@@ -60,6 +61,11 @@ export const INTERVIEW_IMPORT_DEMO = {
       key: 'professional',
       sha256:
         'd883d08e2ff0563494e46427fe6fc4a84be42f2aa4505aa4be076386bea385fc',
+    },
+    {
+      key: 'score-missing',
+      sha256:
+        'cba08d955c22c7f68610723689152b2a1305ce4379cf9fc4c92a58c3669b2a1c',
     },
     {
       key: 'unknown-interviewer',
@@ -160,7 +166,8 @@ export async function prepareInterviewImportDemo(cwd: string) {
         maxDurationMs: 15000,
       },
     });
-    if (outcome.status !== 'parsed' || outcome.result.status !== 'parsed')
+    // A review with an unread item is stored as parsed; HR fills the item on /import.
+    if (outcome.status !== 'parsed' || outcome.result.status === 'rejected')
       throw new InterviewImportDemoError('parse_failed');
     files.push({ ...file, result: outcome.result });
   }

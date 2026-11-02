@@ -118,6 +118,11 @@ export const interviewImportRows = pgTable(
       withTimezone: true,
       mode: 'string',
     }),
+    /** HR's entries for unread items by item name; never written into `parsed`. */
+    filled: jsonb('filled')
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
     decision: jsonb('decision').$type<InterviewImportDecision>(),
     decisionRevision: integer('decision_revision'),
   },
@@ -144,7 +149,7 @@ export const interviewImportRows = pgTable(
     }),
     check(
       'records_interview_import_row',
-      sql`${t.rowId} ~ '[^[:space:]]' and ${t.ordinal} > 0 and ${t.reviewIndex} >= 0 and ${t.revision} > 0 and jsonb_typeof(${t.parsed}) = 'object'`,
+      sql`${t.rowId} ~ '[^[:space:]]' and ${t.ordinal} > 0 and ${t.reviewIndex} >= 0 and ${t.revision} > 0 and jsonb_typeof(${t.parsed}) = 'object' and jsonb_typeof(${t.filled}) = 'object'`,
     ),
     // A confirmation is whole or absent, and never ahead of the row.
     check(
