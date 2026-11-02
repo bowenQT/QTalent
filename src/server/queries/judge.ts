@@ -6,15 +6,15 @@ import { getEnv } from '../env';
 import { readDirectory } from '../modules/directory';
 import type { ComparisonReadPorts } from '../modules/evaluation-system/judgment-comparison/ports';
 import { loadEvaluationContext } from '../usecases/evaluation-context';
+import { readComparisonDataset } from '../usecases/judgment-comparison-dataset';
 import { ForbiddenError } from '../usecases/project-context';
 import { comparisonAccess, type ComparisonAudience } from './judge-access';
 
 /**
  * The BOW-919 read ports. Access is real: audience and node grants are reloaded from
- * the authorization domain on every call. `loadBatch` returns null because nothing
- * to compare is stored yet: there is no batch table, no HR-confirmed mapping table
- * and no 入营选拔 judgment in the database (the BOW-923 sheets are test fixtures
- * only). Once they are imported, this is where a batch is read for the viewer.
+ * the authorization domain on every call. `loadBatch` reads the canonical batch and
+ * returns it only when the viewer holds a current grant on one of its cases;
+ * `projectComparison` then cuts it down to what that audience may see.
  */
 export function comparisonReadPorts(
   db: DbExecutor,
@@ -33,8 +33,25 @@ export function comparisonReadPorts(
         throw error;
       }
     },
-    async loadBatch() {
-      return null;
+    async loadBatch(batchId, access) {
+      // One snapshot for canonical rows, sources and attributions.
+      const data = await db.transaction(
+        (tx) => readComparisonDataset(tx, batchId),
+        { isolationLevel: 'repeatable read', accessMode: 'read only' },
+      );
+      if (!data) return null;
+      const now = Date.parse(access.now);
+      const inScope = data.cases.some((unit) =>
+        access.grants.some(
+          (grant) =>
+            grant.personId === unit.person.id &&
+            (grant.nodeId === unit.frontNodeId ||
+              grant.nodeId === unit.backNodeId) &&
+            Date.parse(grant.validFrom) <= now &&
+            (grant.validUntil === null || now < Date.parse(grant.validUntil)),
+        ),
+      );
+      return inScope ? data : null;
     },
   };
 }
