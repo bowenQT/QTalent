@@ -129,7 +129,8 @@ test('the third act runs on the real routes: compare, attribute, draft, publish 
     await expect(
       page.getByText('已提交 xe-select-v2，待管理者确认'),
     ).toBeVisible();
-    expect((await page.goto('/rules'))?.status()).toBe(404);
+    await page.goto('/rules');
+    await expect(page).toHaveURL(/\/rules\?r=front&line=xe-select$/);
   });
 
   await test.step('the manager publishes and undoes it, and sees no names or cases', async () => {

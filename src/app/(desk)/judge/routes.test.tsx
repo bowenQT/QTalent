@@ -47,6 +47,9 @@ vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('not-found');
   },
+  redirect: (url: string) => {
+    throw new Error(`redirect:${url}`);
+  },
 }));
 
 const shell = (role: ShellData['role'], isAdmin = false): ShellData => ({
@@ -190,10 +193,10 @@ describe('/judge reads the stored comparison batch', () => {
 });
 
 describe('/rules?r=front&line=xe-select', () => {
-  it('serves only the selection standard; anything else is the unified 404', async () => {
+  it('opens the selection standard from the bare sidebar entry; other families are the unified 404', async () => {
     await expect(
       RulesPage({ searchParams: Promise.resolve({}) }),
-    ).rejects.toThrow('not-found');
+    ).rejects.toThrow('redirect:/rules?r=front&line=xe-select');
     await expect(
       RulesPage({ searchParams: Promise.resolve({ r: 'perf' }) }),
     ).rejects.toThrow('not-found');
