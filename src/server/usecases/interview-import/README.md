@@ -132,4 +132,3 @@ B1 首轮修复：三项唯一仅约束认人之前的自动跳过，不再阻�
 - `records_interview_import_batches` / `_candidates` / `_rows`（`src/server/modules/records/interview-import/schema.ts`）存批次、演示招聘记录和逐行事实。行带 `revision` 做比较后写入（CAS）：HR 每次确认或撤回都加 1，确认只对做出它的那个修订有效。
 - `store.ts`：预览读取按当前 HR grant 过滤行（行涉及的人都在授权里才显示），在读取层把演示目录名统一成 displayName（「X（演示）」），不做模糊匹配；确认/撤回在一笔事务里锁行、比对修订、加修订号，并把这个修订上的 plan 结果作为导入决策存下。plan 不能用的确认（planned 和未录用跳过以外）直接拒绝，不写入。
 - 真正入档（历史评价、档案投影）、补录、放进待核对、面试官核对的通用处理都不在这一步。
-
