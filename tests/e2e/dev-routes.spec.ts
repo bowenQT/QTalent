@@ -20,6 +20,7 @@ const devRoutes = [
   '/dev/inbox?role=hr',
   '/dev/staffing?role=hr&scene=ts',
   '/dev/person-print?role=hr',
+  '/dev/person-nodes',
   // A valid role, so only the production gate can answer 404.
   '/dev/workbench?role=mentor',
 ];
