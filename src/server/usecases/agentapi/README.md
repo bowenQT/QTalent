@@ -49,7 +49,9 @@
 
 `createAgentConversationPostgresPorts` 是私有具体组合，复用903真实不透明身份服务，在锁等待后调用current，再在本事务读899上下文；没有凭据发行或管理员兜底。当前仅 `person_brief` 消费现910领域handler，实际读取完整person来源、重新构造投影、同事务写entry审计及tool回执。材料/需求两个工具在写入前返回unavailable，历史回执也不会默认验证通过：现 createInTransaction 的幂等重放在业务操作不存在时可能创建，不能拿它当只读历史验证。待X1给真实readBatchInTransaction与demand/job历史reader后再接这两项。
 
-进一步的共享身份接口请求：903当前authenticator参数仍是Database，身份issuer的current读取使用其既有连接；本增量没有声称凭据查询已加入同一个Transaction，也不复制其签名/owner/expiry算法。X1应将其真实只读reader提取为DbExecutor或等价最小入口，保持已签发opaque identity的同owner约束，供915锁后同tx重验。现PG已验证真实行锁等待后发生credential revision/授权撤销时零provider发送，以及真实session删除、换绑拒绝。
+同事务身份（BOW-915 重做）：`identities.currentInTransaction(tx, identity)` 与 AgentAPI 持久 reader 的 `currentInTransaction` 共享原不透明能力校验、绑定比较、await 后原截止复核与失败退休；只接受 Read Committed，按 session → account → binding 加共享锁后在新语句重读。其他渠道缺同事务 reader 时 unavailable，不退回 pool。本组合的显式身份检查和 899 上下文加载都走调用方事务。会话锁之前先对 session、binding 取 `FOR KEY SHARE`：登出（session 删除级联 binding、再置空本行 binding）会排在本轮之后，不再与同事务重读死锁；代次/有效期更新不被阻挡，锁等待后重读。真实 PG 覆盖两种登出交错（修复前登出一侧被选为 40P01 死锁牺牲者）。
+
+需求创建快照：`createStaffingDemandRuntime(...).readCreationSnapshotInTransaction(tx, accountId, { operationId, jobId })` 只读、要求 RC，按 worker 的 job → root 顺序加锁，锁后重读 create operation、root 与当前授权；queued 时 result 为 null，不把后续编辑版本冒充生成结果，不重放 create。`draft_requirement` 的执行与历史重验尚未接入它，仍 unavailable。
 
 本轮验收：新增21条原生PG + X1三表19PG + 903既有15PG + 本卡89unit = 144/144；统一五生产文件行96.91%、分支90.12%。manifest与schema blob已核匹配X1 bf058f9c，测试只加载test-db.env并显式使用其受控临时迁移；未改任何SQL/meta、未读取供应商凭据或发真实请求。测试provider为明确离线替身，存储/身份/权限/person投影/审计为真实代码与真实PG。缺失/creating会话拒绝，不把测试插入的绑定行说成已实现provider会话工厂。
 
