@@ -606,10 +606,13 @@ describe('demand card', () => {
       demandId: draft.id,
       expectedRevision: 3,
     });
-    expect(p.openMatching).toHaveBeenCalledWith({
-      demandId: confirmed.id,
-      revision: confirmed.revision,
-    });
+    // Matching opens in an effect after the confirmed demand renders: wait for it.
+    await waitFor(() =>
+      expect(p.openMatching).toHaveBeenCalledWith({
+        demandId: confirmed.id,
+        revision: confirmed.revision,
+      }),
+    );
     await screen.findByText('2 人进入候选 · 按必须项的证据排列');
   });
 
