@@ -21,9 +21,11 @@ afterEach(() => {
 it('signs out without needing a business account or role, then returns to login', async () => {
   const fetch = vi.fn().mockResolvedValue({ ok: true });
   vi.stubGlobal('fetch', fetch);
+  sessionStorage.setItem('niu-talent:draft:record', '{"text":"演示原话"}');
   render(<AccessDenied />);
   fireEvent.click(screen.getByRole('button', { name: '退出并切换账号' }));
   await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'));
+  expect(sessionStorage.getItem('niu-talent:draft:record')).toBeNull();
   expect(fetch).toHaveBeenCalledWith(
     '/api/auth/sign-out',
     expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
