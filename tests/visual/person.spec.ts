@@ -150,7 +150,13 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
         );
         await stabilize(prototype);
         await stabilize(page);
-        await matchingMasks(prototype, page, personMask);
+        await matchingMasks(prototype, page, [
+          ...personMask,
+          // At phone width the shell's side bar scrolls the current entry to the centre,
+          // and its offset follows the per-role entry counts; the shell is compared on its
+          // own pages (same as people.spec.ts).
+          ...(viewportName === 'mobile-width' ? ['.nt-side'] : []),
+        ]);
         await compare(
           await prototype.screenshot({
             animations: 'disabled',
