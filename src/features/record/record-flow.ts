@@ -62,6 +62,36 @@ export function currentSaveId(state: RecordState): string | null {
   return state.receipt?.saveId ?? state.hold?.saveId ?? null;
 }
 
+/** 批次读回的一条已确认：当前版本与人员到事件的映射。 */
+export type ConfirmedDraft = BatchReceipt['confirmedDrafts'][number];
+
+/**
+ * 结果不明的撤销读到这件事仍在已确认里时，只有读回的版本和事件映射都和这次保存的回执
+ * 一致，才能证明原保存仍然有效。别处撤销后又确认过同一份草稿，版本和事件都会变。
+ */
+export function confirmsSave(
+  state: RecordState,
+  saveId: string,
+  entry: ConfirmedDraft,
+): boolean {
+  const receipt = state.receipt;
+  if (
+    !receipt ||
+    receipt.saveId !== saveId ||
+    state.hold?.saveId !== saveId ||
+    state.hold.kind !== 'pending' ||
+    entry.revision !== receipt.revision ||
+    entry.events.length !== receipt.events.length
+  )
+    return false;
+  return receipt.events.every((saved) =>
+    entry.events.some(
+      (read) =>
+        read.personId === saved.personId && read.eventId === saved.eventId,
+    ),
+  );
+}
+
 export type Connection = 'connected' | 'error' | 'gone';
 /** 评价节点为什么没法定下来：多个、没有，或推导入口待接通。 */
 export type NodeIssue = 'multiple' | 'none' | 'pending' | 'unavailable';
@@ -199,8 +229,8 @@ export type Action =
   | { type: 'undo_reread_begin'; saveId: string }
   /** 撤销后重新读到了这件事、仍待确认：用读到的版本，修改保留，解除暂停。 */
   | { type: 'undo_reread'; saveId: string; draft: RecordBatchDraft }
-  /** 重新读取发现这件事在已确认里。 */
-  | { type: 'undo_reread_confirmed'; saveId: string }
+  /** 重新读取发现这件事在已确认里；entry 是读回的版本和事件映射。 */
+  | { type: 'undo_reread_confirmed'; saveId: string; entry: ConfirmedDraft }
   /** 读到了批次，但待确认和已确认里都没有这件事。 */
   | { type: 'undo_reread_missing'; saveId: string }
   /** 重新读取失败或超时。 */
@@ -381,7 +411,11 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
                 kind: 'refresh',
                 saveId: action.saveId,
                 read: null,
-                attempts: 0,
+                // 同一次保存从结果不明转为已撤销：已经读过的次数照算
+                attempts:
+                  state.hold?.saveId === action.saveId
+                    ? state.hold.attempts
+                    : 0,
               }
             : null,
       };
@@ -433,10 +467,21 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
       };
     case 'undo_reread_confirmed':
       if (state.hold?.saveId !== action.saveId) return state;
-      // 结果不明的撤销其实没生效：仍是已保存，没有可保存的东西，解除暂停
-      if (state.hold.kind === 'pending') return { ...state, hold: null };
-      // 撤销过、又在别处确认了：本页的草稿已过时，继续暂停，交给回执页
-      return { ...state, hold: { ...state.hold, read: 'confirmed' } };
+      // 读回的版本和事件就是这次保存：结果不明的撤销没生效，仍是已保存，解除暂停
+      if (confirmsSave(state, action.saveId, action.entry))
+        return { ...state, hold: null };
+      // 撤销生效后又被再次确认（版本或事件变了）：这次保存的回执已不是事实，
+      // 不再显示它的署名和事件；修改留在页面上，保存继续暂停，交给回执页
+      return {
+        ...state,
+        phase: state.edit ? 'review' : state.phase,
+        receipt: state.edit ? null : state.receipt,
+        saveOp: null,
+        replayed: false,
+        banner: null,
+        problems: null,
+        hold: { ...state.hold, kind: 'refresh', read: 'confirmed' },
+      };
     case 'undo_reread_missing':
       if (state.hold?.saveId !== action.saveId) return state;
       return { ...state, hold: { ...state.hold, read: 'missing' } };

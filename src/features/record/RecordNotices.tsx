@@ -281,18 +281,18 @@ export function HoldNotice({
       ? copy.undo.confirmedElsewhere
       : hold.read === 'missing'
         ? copy.undo.missing
-        : hold.read === 'failed'
-          ? canReread
+        : !canReread && !reading
+          ? copy.undo.rereadLimit
+          : hold.read === 'failed'
             ? copy.undo.rereadFailed
-            : copy.undo.rereadLimit
-          : hold.kind === 'pending'
-            ? copy.undo.pending
-            : copy.undo.refresh;
+            : hold.kind === 'pending'
+              ? copy.undo.pending
+              : copy.undo.refresh;
   return (
     <Notice
       actions={
         <>
-          {canReread ? (
+          {canReread || reading ? (
             <button
               type="button"
               className="n-btn n-btn--sm n-btn--ghost"

@@ -11,6 +11,7 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/components/ui/Toast';
+import { recordUndoReceiptSchema } from '@/contracts/record';
 import { copy } from './copy';
 import {
   batchStashKey,
@@ -1103,6 +1104,26 @@ describe('5 秒撤销', () => {
     expect(actions.save).toHaveBeenCalledTimes(1);
   });
 
+  it('撤销结果不明、读到同一份草稿已被别处再次确认：不当作原保存仍有效，保持暂停，不显示旧署名', async () => {
+    const undo = vi.fn().mockRejectedValue(new Error('offline'));
+    const { actions } = await saved({ actions: { undo: undo as never } });
+    // 版本和事件都和这次保存的回执不同：撤销生效后别处又确认了一次
+    actions.readBatch.mockImplementation(confirmedBatch);
+    await click('撤销');
+    await screen.findByText(copy.saved.undoFailed);
+    await click(copy.actions.reread);
+    expect(await screen.findByText(copy.undo.confirmedElsewhere)).toBeTruthy();
+    expect(screen.queryByText(copy.undo.notApplied)).toBeNull();
+    expect(document.querySelector('.n-event__sign')).toBeNull();
+    expect(screen.queryByText(/刚刚保存到演示甲的档案/)).toBeNull();
+    expect(saveButton().disabled).toBe(true);
+    expect(
+      screen.getByRole('link', { name: copy.undo.openReceipt }),
+    ).toBeTruthy();
+    await userEvent.click(saveButton());
+    expect(actions.save).toHaveBeenCalledTimes(1);
+  });
+
   it('撤销要求重读、读到了批次却没有这件事：仍待核实，保存继续暂停', async () => {
     const { actions } = await saved({
       actions: {
@@ -1175,7 +1196,16 @@ describe('5 秒撤销', () => {
     const save = vi
       .fn()
       .mockImplementationOnce(() => ok(liveReceipt()))
-      .mockImplementation(() => ok({ ...liveReceipt(), saveId: 'save-2' }));
+      // 第二次保存在撤销推进后的版本上：版本再 +1，事件是新建的
+      .mockImplementation(() =>
+        ok({
+          ...liveReceipt(),
+          saveId: 'save-2',
+          revision: draft.revision + 3,
+          events: [{ personId: 'p1', eventId: 'ev-2' }],
+          confirmationIds: ['c-2'],
+        }),
+      );
     const { actions } = await saved({
       actions: { undo: undo as never, save: save as never },
     });
@@ -1184,8 +1214,24 @@ describe('5 秒撤销', () => {
     await screen.findByText(copy.saved.undoFailed);
     return { actions, save };
   }
+  // 服务端按原 operation_id 重放第一次撤销的成功回执（合同字段齐全，标为重放）
   const lostUndoReplay = () =>
-    undoDone({ status: 'available', draftRevision: draft.revision + 2 });
+    ok(
+      recordUndoReceiptSchema.parse({
+        saveId: 'save-1',
+        withdrawnEvents: [{ personId: 'p1', eventId: 'ev-1' }],
+        withdrawnConfirmationIds: ['c-1'],
+        withdrawnReviewItemIds: [],
+        draftRestoration: {
+          status: 'available',
+          draftId: draft.draftId,
+          draftRevision: draft.revision + 2,
+        },
+        inputRestoration: 'unavailable',
+        originalInput: null,
+      }),
+      true,
+    );
 
   it('旧提示跨过第二次保存：重新读取出结果就收起旧提示，第二次保存不被旧撤销改动', async () => {
     const undo = vi
@@ -1201,6 +1247,7 @@ describe('5 秒撤销', () => {
     ).toBeNull();
     await click(copy.actions.save);
     await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save.mock.calls[1]?.[0].expected_revision).toBe(draft.revision + 2);
     await screen.findByRole('button', { name: '撤销' });
     expect(
       screen.queryByRole('button', { name: copy.saved.undoRetry }),

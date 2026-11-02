@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  confirmsSave,
   currentSaveId,
   initialState,
   inputKey,
@@ -20,6 +21,20 @@ import {
 import { scoreKey } from './types';
 
 const S = receipt.saveId;
+// 读回的已确认条目：same 就是这次保存，moved 是撤销后又被再次确认的
+const same = {
+  draftId: draft.draftId,
+  revision: receipt.revision,
+  events: receipt.events,
+};
+const moved = {
+  ...same,
+  revision: receipt.revision + 2,
+  events: receipt.events.map((event) => ({
+    ...event,
+    eventId: `${event.eventId}-again`,
+  })),
+};
 
 const run = (state: RecordState, ...actions: Action[]) =>
   actions.reduce(recordReducer, state);
@@ -408,7 +423,8 @@ describe('回到输入与撤销', () => {
       run(stale, { type: 'undo_reread_failed', saveId: S }).hold?.read,
     ).toBe('failed');
     expect(
-      run(stale, { type: 'undo_reread_confirmed', saveId: S }).hold?.read,
+      run(stale, { type: 'undo_reread_confirmed', saveId: S, entry: same }).hold
+        ?.read,
     ).toBe('confirmed');
     expect(
       run(stale, { type: 'undo_reread_missing', saveId: S }).hold?.read,
@@ -446,7 +462,8 @@ describe('回到输入与撤销', () => {
       hold: { kind: 'pending' },
     });
     expect(
-      run(pending, { type: 'undo_reread_confirmed', saveId: S }).hold,
+      run(pending, { type: 'undo_reread_confirmed', saveId: S, entry: same })
+        .hold,
     ).toBeNull();
     expect(
       run(pending, { type: 'undo_reread_missing', saveId: S }).hold?.read,
@@ -465,14 +482,73 @@ describe('回到输入与撤销', () => {
     expect(
       run(review, { type: 'undo_reread', saveId: S, draft: review.draft! }),
     ).toBe(review);
-    expect(run(saved, { type: 'undo_reread_confirmed', saveId: S })).toBe(
-      saved,
-    );
+    expect(
+      run(saved, { type: 'undo_reread_confirmed', saveId: S, entry: same }),
+    ).toBe(saved);
     expect(run(saved, { type: 'undo_reread_failed', saveId: S })).toBe(saved);
     expect(run(saved, { type: 'undo_reread_begin', saveId: S })).toBe(saved);
     expect(run(saved, { type: 'undo_reread_missing', saveId: S })).toBe(saved);
     // 回到输入就放下这次撤销
     expect(run(pending, { type: 'back_to_write' }).hold).toBeNull();
+  });
+
+  it('结果不明时读到同一份草稿被再次确认（版本或事件变了）：不当作原保存仍有效，保持暂停', () => {
+    const pending = run(
+      review,
+      { type: 'edit_sbi', field: 'impact', value: '改过' },
+      { type: 'save_begin', op },
+      { type: 'save_saved', receipt, replayed: false },
+      { type: 'undo_unknown', saveId: S },
+    );
+    for (const entry of [
+      moved,
+      { ...same, revision: receipt.revision + 2 },
+      { ...same, events: moved.events },
+    ]) {
+      const next = run(pending, {
+        type: 'undo_reread_confirmed',
+        saveId: S,
+        entry,
+      });
+      // 旧回执的署名和事件不再显示；修改留在页面上，保存继续暂停
+      expect(next).toMatchObject({
+        phase: 'review',
+        receipt: null,
+        edit: pending.edit,
+        hold: { kind: 'refresh', saveId: S, read: 'confirmed' },
+      });
+      expect(currentSaveId(next)).toBe(S);
+      expect(confirmsSave(pending, S, entry)).toBe(false);
+    }
+    expect(confirmsSave(pending, S, same)).toBe(true);
+    expect(confirmsSave(pending, 'save-2', same)).toBe(false);
+  });
+
+  it('同一次保存从结果不明转为已撤销：已读次数照算', () => {
+    let held = run(
+      review,
+      { type: 'save_begin', op },
+      { type: 'save_saved', receipt, replayed: false },
+      { type: 'undo_unknown', saveId: S },
+    );
+    for (let i = 0; i < REREAD_LIMIT; i += 1)
+      held = run(
+        held,
+        { type: 'undo_reread_begin', saveId: S },
+        { type: 'undo_reread_failed', saveId: S },
+      );
+    const refreshed = run(held, {
+      type: 'undone',
+      saveId: S,
+      draftRevision: null,
+    });
+    expect(refreshed.hold).toMatchObject({
+      kind: 'refresh',
+      attempts: REREAD_LIMIT,
+    });
+    expect(run(refreshed, { type: 'undo_reread_begin', saveId: S })).toBe(
+      refreshed,
+    );
   });
 
   it('重读按发起次数计，不论读到什么；读满后不再发起', () => {
@@ -488,7 +564,7 @@ describe('回到输入与撤销', () => {
         { type: 'undo_reread_begin', saveId: S },
         i % 2
           ? { type: 'undo_reread_missing', saveId: S }
-          : { type: 'undo_reread_confirmed', saveId: S },
+          : { type: 'undo_reread_confirmed', saveId: S, entry: same },
       );
     expect(held.hold?.attempts).toBe(REREAD_LIMIT);
     expect(run(held, { type: 'undo_reread_begin', saveId: S })).toBe(held);
@@ -528,7 +604,7 @@ describe('回到输入与撤销', () => {
       { type: 'undo_unknown', saveId: S },
       { type: 'undo_reread_begin', saveId: S },
       { type: 'undo_reread', saveId: S, draft: first.draft! },
-      { type: 'undo_reread_confirmed', saveId: S },
+      { type: 'undo_reread_confirmed', saveId: S, entry: same },
       { type: 'undo_reread_missing', saveId: S },
       { type: 'undo_reread_failed', saveId: S },
     ];

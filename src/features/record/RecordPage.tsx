@@ -40,6 +40,7 @@ import {
 import { recognizePerson } from './recognize';
 import { RecordInput } from './RecordInput';
 import {
+  confirmsSave,
   currentSaveId,
   initialState,
   inputKey,
@@ -168,14 +169,22 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
     () => ({ show: scope.toast(rawToast.show) }),
     [scope, rawToast],
   );
-  /** 请求挂住时按超时算失败；计时器经门闸登记，页面失效时一并清除。 */
-  const within = <T,>(request: Promise<T>) =>
+  /**
+   * 请求挂住时按超时算失败；计时器经门闸登记，页面失效时一并清除。传入函数的是可以中止的
+   * 读取：到点同时中止请求。
+   */
+  const within = <T,>(
+    request: Promise<T> | ((signal: AbortSignal) => Promise<T>),
+  ) =>
     new Promise<T>((resolve, reject) => {
-      const cancel = scope.timeout(
-        () => reject(new Error('timeout')),
-        requestTimeoutMs,
-      );
-      request.then(
+      const controller = new AbortController();
+      const pending =
+        typeof request === 'function' ? request(controller.signal) : request;
+      const cancel = scope.timeout(() => {
+        controller.abort(new Error('timeout'));
+        reject(new Error('timeout'));
+      }, requestTimeoutMs);
+      pending.then(
         (value) => {
           cancel();
           resolve(value);
@@ -664,8 +673,8 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
     const failed = () => dispatch({ type: 'undo_reread_failed', saveId });
     dispatch({ type: 'undo_reread_begin', saveId });
     try {
-      const result = await within(
-        actions.readBatch({ batchId: target.batchId }),
+      const result = await within((signal) =>
+        actions.readBatch({ batchId: target.batchId }, { signal }),
       );
       if (seq !== loadSeq.current) return;
       if (result.status !== 'success') return failed();
@@ -679,13 +688,14 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
         dispatch({ type: 'undo_reread', saveId, draft: latest });
         return;
       }
-      if (
-        result.result.confirmedDrafts.some(
-          (item) => item.draftId === target.draftId,
-        )
-      ) {
-        dispatch({ type: 'undo_reread_confirmed', saveId });
-        if (mode === 'pending') toast.show(copy.undo.notApplied);
+      const entry = result.result.confirmedDrafts.find(
+        (item) => item.draftId === target.draftId,
+      );
+      if (entry) {
+        // 和 reducer 用同一个判定：读回的版本和事件就是这次保存，才说记录仍在档案里
+        const holds = confirmsSave(committed.current, saveId, entry);
+        dispatch({ type: 'undo_reread_confirmed', saveId, entry });
+        if (holds) toast.show(copy.undo.notApplied);
         return;
       }
       // 读到了批次却没有这件事：仍待核实，保存继续暂停
