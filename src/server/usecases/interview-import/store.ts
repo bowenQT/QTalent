@@ -29,6 +29,7 @@ import type {
   InterviewImportRow,
   InterviewImportRowResult,
 } from '../../../contracts/interview-import';
+import { INTERVIEW_TEMPLATES } from '../../modules/records/attachments/interview-review/templates';
 import { loadEvaluationContext } from '../evaluation-context';
 import { ForbiddenError } from '../project-context';
 import {
@@ -43,12 +44,15 @@ type Loaded = NonNullable<Awaited<ReturnType<typeof loadBatch>>>;
 type Context = EvaluationAuthzContext;
 type Directory = Awaited<ReturnType<typeof loadEvaluationContext>>['directory'];
 
-/** Template scale labels as the preview shows them; the parser keeps only the value. */
-const SCALES: Record<string, string> = {
-  校招专业面试通用评价表: '1–5 分',
-  '七牛面试评价表-专业面试官': 'A–D',
-  '七牛面试评价表-HR': '优 / 良 / 中 / 差',
-};
+/** The template's own scale as the preview shows it, read from the template the
+ * parser matched; empty for a template it does not know. */
+function scaleOf(name: string) {
+  const template = INTERVIEW_TEMPLATES.find((t) => t.name === name);
+  if (!template) return '';
+  const span = (options: readonly string[]) =>
+    `${options[0]}–${options[options.length - 1]}`;
+  return `${span(template.scale)} 分 · ${template.rating.label} ${span(template.rating.options)}`;
+}
 const UNREAD = '（未识别）';
 
 async function loadBatch(db: DbExecutor, batchId: string) {
@@ -324,7 +328,7 @@ function view(
     // Name, position code and interview time locate a record: never on demo rows.
     located:
       !confirmed && plan.status === 'skipped' && plan.reason === 'not_hired',
-    template: { name: review.template, scale: SCALES[review.template] ?? '' },
+    template: { name: review.template, scale: scaleOf(review.template) },
     interviewedOn:
       review.metadata.interviewTime?.value.match(/\d{4}-\d{2}-\d{2}/)?.[0] ??
       '',
