@@ -226,7 +226,20 @@ describe('quadrants and projects', () => {
 
 describe('header lines', () => {
   it('joins the facts that exist and skips the missing ones', () => {
-    expect(headerFirstLine(manager)).toContain(manager.person.teamPath);
+    expect(headerFirstLine(manager)).toContain(manager.person.orgPath);
+    // 原型 store.orgPath：上级加本组织，跳过分组根，不写完整路径。
+    expect(
+      headerFirstLine({
+        ...manager,
+        person: {
+          ...manager.person,
+          teamPath: '人才项目 / 第六期 / 一组',
+          orgPath: '第六期 / 一组',
+          jobTitle: '后端工程师',
+          level: 'N1',
+        },
+      }),
+    ).toBe('第六期 / 一组 · 后端工程师 · N1');
     expect(headerSecondLine(manager)).toContain('课题「演示课题」');
     expect(headerSecondLine(manager)).toContain('导师 演示导师');
     expect(

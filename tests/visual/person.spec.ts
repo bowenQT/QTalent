@@ -12,6 +12,7 @@ import {
 import {
   alignRegisteredText,
   applyMentorRegistry,
+  directoryProfile,
   eventCardFacts,
   hideGroupHistory,
   personAppOnly,
@@ -92,7 +93,11 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
         // 映射表登记过、只差文字的几处：按登记写法断言后搬原型文字，其余不同留给截图。
         expect
           .soft(
-            await alignRegisteredText(prototype, page),
+            await alignRegisteredText(
+              prototype,
+              page,
+              directoryProfile(SAMPLE),
+            ),
             'text differs beyond the registered differences',
           )
           .toEqual([]);

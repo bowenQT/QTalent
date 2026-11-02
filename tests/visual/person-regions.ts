@@ -1,4 +1,17 @@
+import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
+
+type DirectoryProfile = { jobTitle: string; jobLevel: string };
+
+/** 演示目录种子（`pnpm db:seed` 第二步导入的文件）里这个人的职位、职级。 */
+export function directoryProfile(id: string): DirectoryProfile {
+  const seed = JSON.parse(
+    readFileSync('src/server/db/seed/directory-profile-demo.json', 'utf8'),
+  ) as { people: ({ id: string } & DirectoryProfile)[] };
+  const person = seed.people.find((row) => row.id === id);
+  if (!person) throw new Error(`directory seed has no ${id}`);
+  return { jobTitle: person.jobTitle, jobLevel: person.jobLevel };
+}
 
 /**
  * 人员档案与原型对比时的版面处理，登记在 docs/reference-route-map.md 的 BOW-840 一节。
@@ -389,7 +402,11 @@ function textSlots(): TextSlots {
  * `.n-badge`）逐条和原型比，不搬、不遮；时间线说明行只换来源类型以外的文字。不在登记
  * 范围里的不同不搬，留给截图报出来。返回不符合登记写法的条目。
  */
-export async function alignRegisteredText(prototype: Page, page: Page) {
+export async function alignRegisteredText(
+  prototype: Page,
+  page: Page,
+  profile: DirectoryProfile,
+) {
   const [left, right] = [
     await prototype.evaluate(textSlots),
     await page.evaluate(textSlots),
@@ -402,17 +419,14 @@ export async function alignRegisteredText(prototype: Page, page: Page) {
     texts: string[];
     cites: string[];
   } = { meta: [], group: false, dates: [], texts: [], cites: [] };
-  // 身份行：职位、职级、多级团队路径等 834 的字段接入（#315 之后的下一片）。工程侧第一行
-  // 的每一段都要出现在原型第一行里，或是占位「职位未接入」「组织层级未接入」。
-  const segments = (line: string) => line.split(' · ');
+  // 身份第一行：组织路径按原型 store.orgPath（上级 / 本组织，跳过分组根），逐字等于原型；
+  // 职位、职级是 #315 独立合成的演示值（directory/profile.md），按目录种子文件逐字核对。
+  // 原型这一行是「组织路径 · 方向 · 届次」，组织名本身可能带「 · 」，从右边去掉两段。
+  const orgPath = (left.meta[0] ?? '').split(' · ').slice(0, -2).join(' · ');
+  const identity = [orgPath, profile.jobTitle, profile.jobLevel].join(' · ');
   if (left.meta[0] !== right.meta[0]) {
-    const unknown = segments(right.meta[0] ?? '').filter(
-      (part) =>
-        !/^(职位|组织层级)未接入$/.test(part) &&
-        !segments(left.meta[0] ?? '').includes(part),
-    );
-    if (unknown.length) gaps.push(`identity: ${right.meta[0]}`);
-    else copy.meta.push(0);
+    if (right.meta[0] === identity) copy.meta.push(0);
+    else gaps.push(`identity: ${right.meta[0]}, expected ${identity}`);
   }
   // 第二行：导师栏只列导师，助教下一片接入。去掉「导师 …」后相等，工程列出的导师都在原型里。
   if (left.meta[1] !== right.meta[1]) {
@@ -429,11 +443,14 @@ export async function alignRegisteredText(prototype: Page, page: Page) {
       gaps.push(`mentors: ${right.meta[1]}`);
     else copy.meta.push(1);
   }
-  // 专业度分组标题：职级为空时不写「（对标 …）」。
+  // 专业度分组标题：对标的是同一个合成职级。
   if (left.group !== right.group) {
-    if (left.group?.replace(/（对标 [^）]+）$/, '') === right.group)
-      copy.group = true;
-    else gaps.push(`group: ${right.group}`);
+    const group = left.group?.replace(
+      /（对标 [^）]+）$/,
+      `（对标 ${profile.jobLevel}）`,
+    );
+    if (right.group === group) copy.group = true;
+    else gaps.push(`group: ${right.group}, expected ${group}`);
   }
   for (const [title, mine] of Object.entries(right.items)) {
     const theirs = left.items[title];
