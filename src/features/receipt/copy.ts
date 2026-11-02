@@ -103,14 +103,19 @@ export const copy = {
     confirmed: (name: string, edited: boolean) =>
       `已确认${name}的这件事${edited ? '（已改分）' : ''}，已进入档案`,
     undone: '已撤销，回到待确认',
-    undoFailed: '撤销被拒绝，这件事仍是已确认',
-    undoLate: '撤销时间已过，这件事已确认',
+    undoFailed: '撤销被拒绝，以回执里的状态为准',
+    undoLate: '撤销时间已过，以回执里的状态为准',
     undoUnknown: '撤销结果待确认，可以在这件事上再试一次',
   },
   read: {
     stale: (time: string) => `这次刷新中断了，下面是 ${time} 读到的回执`,
     staleFirst: '这次刷新中断了，下面是打开这一页时读到的回执',
     retry: '再刷新',
+    paused: '自动刷新已暂停，可以点「再刷新」',
+    unauthenticated: {
+      title: '登录已过期',
+      text: '这一页停在之前读到的内容，刷新已暂停。重新登录后再打开这份回执。',
+    },
     forbidden: {
       title: '查看权限已更新',
       text: '这一页停在之前读到的内容，刷新已暂停。回到工作台，从「进行中的任务」进入。',
@@ -124,6 +129,8 @@ export const copy = {
   problem: {
     offline: '网络中断，改动还在，再试一次',
     unavailable: '这次保存中断了，改动还在，可以稍后再保存',
+    timeout:
+      '保存结果待确认，以回执里的状态为准；需要时再保存一次，不会重复记录',
     invalid: '这件事有内容待修改，改动还在',
     reload: '载入最新版本',
   },

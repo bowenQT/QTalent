@@ -28,10 +28,10 @@ import {
   cardState,
   emptyLocal,
   eventKey,
+  isLatestSave,
   reconcile,
-  type EditInput,
+  type LocalItem,
   type LocalState,
-  type Op,
   type SavedRecord,
 } from './receipt-local';
 import type { ReceiptActions, ReceiptReadResult, ReceiptView } from './types';
@@ -39,6 +39,24 @@ import './receipt.css';
 
 /** 有文件或整理还在跑时，按这个间隔重读回执。 */
 export const RECEIPT_POLL_MS = 3000;
+/** 自动重读连续失败这么多次后暂停，等用户点「再刷新」（engineering.md：重试有次数上限）。 */
+export const RECEIPT_POLL_FAILURES = 5;
+/** 请求时限（毫秒）：读取超时中止并当作中断；保存、撤销超时当作结果待确认，以读取为准。 */
+export const RECEIPT_TIMEOUTS = { read: 10_000, write: 15_000 };
+
+/** 在时限内等结果；超时返回 { done: false }，请求本身的报错照常抛出。 */
+function within<T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<{ done: true; value: T } | { done: false }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise.then((value) => ({ done: true as const, value })),
+    new Promise<{ done: false }>((resolve) => {
+      timer = setTimeout(() => resolve({ done: false }), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
 
 const shanghai = (iso: string, withTime: boolean) => {
   const parts = Object.fromEntries(
@@ -83,6 +101,8 @@ type Props = {
   /** 当前查看人的姓名，用于确认后的署名。 */
   viewerName: string;
   newId?: () => string;
+  /** 请求时限，测试里可以调短。 */
+  timeouts?: { read: number; write: number };
 };
 
 /**
@@ -95,6 +115,7 @@ export function ReceiptPage({
   actions,
   viewerName,
   newId = () => crypto.randomUUID(),
+  timeouts = RECEIPT_TIMEOUTS,
 }: Props) {
   const toast = useToast();
   const [view, setView] = useState(initial);
@@ -115,17 +136,23 @@ export function ReceiptPage({
    */
   const [readIssue, setReadIssue] = useState<
     | null
-    | { kind: 'stale'; since: string }
-    | { kind: 'lost'; status: 'forbidden' | 'not_found' }
+    | { kind: 'stale'; since: string; paused: boolean }
+    | { kind: 'lost'; status: 'forbidden' | 'not_found' | 'unauthenticated' }
   >(null);
   const lost = useRef(false);
+  // 在途读取：失效、卸载时一起中止；轮询只在没有在途读取时发起
+  const inflight = useRef(new Set<AbortController>());
+  // 自动重读连续失败的次数，到上限暂停轮询
+  const failures = useRef(0);
   // 上次读到回执的时间（ISO）；页面卸载后返回的读取不再改页面
   const readAt = useRef<string | null>(null);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
+    const pending = inflight.current;
     return () => {
       alive.current = false;
+      for (const controller of pending) controller.abort();
     };
   }, []);
   // 撤销结果不知道时，卡片上的重试沿用同一次撤销
@@ -135,41 +162,72 @@ export function ReceiptPage({
   const [order, setOrder] = useState(() => draftOrder([], initial));
   const { receipt } = view;
 
-  /** 重读回执；带回的快照被采用时返回 true。 */
-  const reload = useCallback(async () => {
-    if (lost.current || !alive.current) return false;
-    const started = ++reads.current;
-    let result: ReceiptReadResult;
-    try {
-      result = await actions.read(batchId);
-    } catch {
-      result = { status: 'unavailable' };
-    }
-    // 卸载后才返回、失效之后才返回、比已显示的快照发起得早：都不改页面
-    if (!alive.current || lost.current || started <= shown.current)
+  /**
+   * 重读回执；带回的快照被采用时返回 true。poll：自动轮询，有在途读取或已到失败上限时不发起；
+   * 用户触发的重读会重置失败计数。
+   */
+  const reload = useCallback(
+    async (source: 'poll' | 'user' = 'user') => {
+      if (lost.current || !alive.current) return false;
+      if (source === 'poll') {
+        if (inflight.current.size || failures.current >= RECEIPT_POLL_FAILURES)
+          return false;
+      } else failures.current = 0;
+      const started = ++reads.current;
+      const controller = new AbortController();
+      inflight.current.add(controller);
+      let result: ReceiptReadResult;
+      try {
+        const timed = await within(
+          actions.read(batchId, controller.signal),
+          timeouts.read,
+        );
+        if (!timed.done) controller.abort();
+        result = timed.done ? timed.value : { status: 'unavailable' };
+      } catch {
+        result = { status: 'unavailable' };
+      } finally {
+        inflight.current.delete(controller);
+      }
+      // 卸载后才返回、失效之后才返回、比已显示的快照发起得早：都不改页面
+      if (!alive.current || lost.current || started <= shown.current)
+        return false;
+      if (result.status === 'success') {
+        shown.current = started;
+        failures.current = 0;
+        readAt.current = new Date().toISOString();
+        setView(result.view);
+        setOrder((prev) => draftOrder(prev, result.view));
+        setLocal((all) => reconcile(all, started, result.view.receipt));
+        setReadIssue(null);
+        return true;
+      }
+      if (
+        result.status === 'forbidden' ||
+        result.status === 'not_found' ||
+        result.status === 'unauthenticated'
+      ) {
+        // 失效屏障：之后不再发起读取，在途的读取一起中止，迟到的结果也不再采用
+        lost.current = true;
+        for (const other of inflight.current) other.abort();
+        setReadIssue({ kind: 'lost', status: result.status });
+        return false;
+      }
+      // 中断：保留当前内容并写明它是上次读到的，下一次轮询、联网或操作再读
+      failures.current += 1;
+      setReadIssue({
+        kind: 'stale',
+        since: readAt.current ?? '',
+        paused: failures.current >= RECEIPT_POLL_FAILURES,
+      });
       return false;
-    if (result.status === 'success') {
-      shown.current = started;
-      readAt.current = new Date().toISOString();
-      setView(result.view);
-      setOrder((prev) => draftOrder(prev, result.view));
-      setLocal((all) => reconcile(all, started, result.view.receipt));
-      setReadIssue(null);
-      return true;
-    }
-    if (result.status === 'forbidden' || result.status === 'not_found') {
-      lost.current = true;
-      setReadIssue({ kind: 'lost', status: result.status });
-      return false;
-    }
-    // 中断：保留当前内容并写明它是上次读到的，下一次轮询、联网或操作再读
-    setReadIssue({ kind: 'stale', since: readAt.current ?? '' });
-    return false;
-  }, [actions, batchId]);
+    },
+    [actions, batchId, timeouts.read],
+  );
 
   // 断网恢复后读一次
   useEffect(() => {
-    const online = () => void reload();
+    const online = () => void reload('user');
     window.addEventListener('online', online);
     return () => window.removeEventListener('online', online);
   }, [reload]);
@@ -179,7 +237,7 @@ export function ReceiptPage({
     receipt.files.some((f) => f.status === 'processing');
   useEffect(() => {
     if (!running || readIssue?.kind === 'lost') return;
-    const timer = setInterval(() => void reload(), RECEIPT_POLL_MS);
+    const timer = setInterval(() => void reload('poll'), RECEIPT_POLL_MS);
     return () => clearInterval(timer);
   }, [running, reload, readIssue]);
 
@@ -215,26 +273,19 @@ export function ReceiptPage({
       return next;
     });
 
-  /** 改一件事的进行中操作；edit 给出时一起换掉编辑输入。 */
-  const setOp = (
+  /** 改一件事的本地记录（进行中的操作和编辑输入）。 */
+  const setItem = (
     id: string,
-    next: (op: Op | undefined) => Op | undefined,
-    edit?: EditInput,
+    next: (item: LocalItem, all: LocalState) => LocalItem,
   ) =>
     setLocal((all) => {
-      const item = all.items[id] ?? {};
-      const op = next(item.op);
-      const value = edit ?? item.edit;
+      const { op, edit } = next(all.items[id] ?? {}, all);
       const items = { ...all.items };
-      if (op || value)
-        items[id] = {
-          ...(op ? { op } : {}),
-          ...(value ? { edit: value } : {}),
-        };
+      if (op || edit)
+        items[id] = { ...(op ? { op } : {}), ...(edit ? { edit } : {}) };
       else delete items[id];
       return { ...all, items };
     });
-
   async function confirm(
     draft: RecordBatchDraft,
     values: EditValues,
@@ -247,7 +298,21 @@ export function ReceiptPage({
     setBusy((b) => ({ ...b, [draft.draftId]: true }));
     setProblem(draft.draftId, null);
     try {
-      const result = await actions.save(saveInput(draft, values, reason, id));
+      const timed = await within(
+        actions.save(saveInput(draft, values, reason, id)),
+        timeouts.write,
+      );
+      if (!timed.done) {
+        // 结果不知道：留在待确认，输入和这次保存的编号都留着（再保存是同一次保存的重放），
+        // 以读取为准；迟到的结果不再采用
+        setProblem(draft.draftId, {
+          message: copy.problem.timeout,
+          reload: true,
+        });
+        void reload('user');
+        return;
+      }
+      const result = timed.value;
       if (result.status === 'success') {
         ops.current.delete(draft.draftId);
         const { saveId, savedAt, undoUntil, events } = result.result;
@@ -263,10 +328,14 @@ export function ReceiptPage({
         // 在 updater 外取值：updater 到渲染时才执行，那时紧接着的重读已经发起了
         const at = reads.current;
         // 再次保存：这次保存成为进行中的操作，上一次的撤销操作随之替换
-        setOp(draft.draftId, () => ({ kind: 'saved', at, save: record }));
+        setItem(draft.draftId, (item) => ({
+          op: { kind: 'saved', at, save: record },
+          edit: item.edit,
+        }));
         setLocal((all) => ({
           ...all,
           signed: { ...all.signed, [record.events]: record },
+          latest: { ...all.latest, [draft.draftId]: saveId },
         }));
         // 撤销窗口按服务端的 undoUntil 算，保存成功就给出，不等重读
         offerUndo(record, Date.parse(undoUntil));
@@ -313,19 +382,31 @@ export function ReceiptPage({
     const operation = newId();
     const markUnknown = (busy: boolean, verify = false) => {
       const at = reads.current;
-      setOp(id, () => ({
-        kind: 'unknown',
-        at,
-        save,
-        busy,
-        verify,
-        failed: false,
-      }));
+      setItem(id, (item, all) =>
+        isLatestSave(all, id, saveId)
+          ? {
+              op: {
+                kind: 'unknown',
+                at,
+                save,
+                busy,
+                verify,
+                failed: false,
+              },
+              edit: item.edit,
+            }
+          : item,
+      );
     };
     async function attempt(): Promise<'success' | 'refused' | 'unknown'> {
       let result;
       try {
-        result = await actions.undo({ operation_id: operation, saveId });
+        const timed = await within(
+          actions.undo({ operation_id: operation, saveId }),
+          timeouts.write,
+        );
+        if (!timed.done) return 'unknown';
+        result = timed.value;
       } catch {
         return 'unknown';
       }
@@ -333,17 +414,21 @@ export function ReceiptPage({
       // 撤销推进了草稿版本：重读没跟上时按回执给的版本再保存；分和理由照保存时的留着
       const restored = result.result.draftRestoration;
       const at = reads.current;
-      setOp(
-        id,
-        () => ({
-          kind: 'undone',
-          at,
-          draft:
-            restored.status === 'available' && restored.draftId === id
-              ? { ...draft, revision: restored.draftRevision }
-              : draft,
-        }),
-        { values, reason },
+      setItem(id, (item, all) =>
+        isLatestSave(all, id, saveId)
+          ? {
+              op: {
+                kind: 'undone',
+                at,
+                saveId,
+                draft:
+                  restored.status === 'available' && restored.draftId === id
+                    ? { ...draft, revision: restored.draftRevision }
+                    : draft,
+              },
+              edit: { values, reason },
+            }
+          : item,
       );
       await reload();
       focusCard(id);
@@ -365,10 +450,15 @@ export function ReceiptPage({
         if (msUntil(until) <= 0) {
           close();
           toast.show(copy.toast.undoLate);
+          void reload();
           return;
         }
         const outcome = await attempt();
-        if (outcome === 'refused') throw new Error('undo refused');
+        if (outcome === 'refused') {
+          // 只说被拒，这件事现在的状态以重读到的回执为准
+          void reload();
+          throw new Error('undo refused');
+        }
         if (outcome === 'unknown') {
           // 不说「已撤销」也不说「撤销失败」：收起提示，交给卡片上的重试
           close();
@@ -383,8 +473,10 @@ export function ReceiptPage({
   /** 核实撤销结果：重读回执；读到这件事就以快照为准，读不到就留在待核实。 */
   async function verifyUndo(id: string) {
     const mark = (busy: boolean, failed: boolean) =>
-      setOp(id, (op) =>
-        op?.kind === 'unknown' ? { ...op, busy, failed } : op,
+      setItem(id, (item) =>
+        item.op?.kind === 'unknown'
+          ? { op: { ...item.op, busy, failed }, edit: item.edit }
+          : item,
       );
     mark(true, false);
     const ok = await reload();
@@ -457,7 +549,8 @@ export function ReceiptPage({
         mode={done ? 'confirmed' : mineOf(id) ? 'mine' : 'others'}
         confirmed={done}
         // 失效后停在之前读到的内容：输入留着，操作停下
-        busy={Boolean(busy[id]) || readIssue?.kind === 'lost'}
+        busy={Boolean(busy[id])}
+        frozen={readIssue?.kind === 'lost'}
         problem={problems[id] ?? null}
         restore={st.kind === 'pending' ? edit : null}
         pendingUndo={
@@ -473,8 +566,10 @@ export function ReceiptPage({
         }
         onConfirm={(values, reason) => void confirm(draft, values, reason)}
         onReload={() => {
-          setProblem(id, null);
-          void reload();
+          // 读成功才收起提示；读不到时提示留着，页面顶部另写读取中断或失效
+          void reload().then((ok) => {
+            if (ok) setProblem(id, null);
+          });
         }}
       />
     );
@@ -514,7 +609,7 @@ export function ReceiptPage({
             <b>{copy.read[readIssue.status].title}</b>
             <p style={{ margin: 0 }}>{copy.read[readIssue.status].text}</p>
             <div className="nt-row" style={{ marginTop: 'var(--s-2)' }}>
-              <Link className="n-btn n-btn--sm n-btn--ghost" href="/work">
+              <Link className="n-btn n-btn--sm n-btn--ghost" href="/">
                 {copy.read.toWork}
               </Link>
             </div>
@@ -527,11 +622,12 @@ export function ReceiptPage({
             {readIssue.since
               ? copy.read.stale(shanghai(readIssue.since, true))
               : copy.read.staleFirst}
+            {readIssue.paused ? `。${copy.read.paused}` : null}
             <div className="nt-row" style={{ marginTop: 'var(--s-2)' }}>
               <button
                 type="button"
                 className="n-btn n-btn--sm n-btn--ghost"
-                onClick={() => void reload()}
+                onClick={() => void reload('user')}
               >
                 {copy.read.retry}
               </button>

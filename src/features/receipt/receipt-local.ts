@@ -27,8 +27,8 @@ export type SavedRecord = {
 export type Op =
   /** 保存成功，等读取说明。 */
   | { kind: 'saved'; at: number; save: SavedRecord }
-  /** 撤销成功，等读取说明；draft 带着撤销回执给的版本。 */
-  | { kind: 'undone'; at: number; draft: RecordBatchDraft }
+  /** 撤销成功，等读取说明；draft 带着撤销回执给的版本，saveId 是被撤销的那次保存。 */
+  | { kind: 'undone'; at: number; draft: RecordBatchDraft; saveId: string }
   /**
    * 撤销结果不知道。verify：之前不知道、重试又被拒，只能刷新回执核实；
    * failed：上一次刷新没读到结果。
@@ -51,9 +51,15 @@ export type LocalState = {
   items: Record<string, LocalItem>;
   /** 本页保存的显示信息，按事件编号对上快照里的确认后才用来补署名和分数。 */
   signed: Record<string, SavedRecord>;
+  /** 每件事本页最近一次保存的 saveId；读取对账不清它，用来丢弃旧保存的迟到结果。 */
+  latest: Record<string, string>;
 };
 
-export const emptyLocal: LocalState = { items: {}, signed: {} };
+export const emptyLocal: LocalState = { items: {}, signed: {}, latest: {} };
+
+/** 写操作的结果属于这件事最近一次保存时才采用；这件事已经重新保存过，旧结果丢弃。 */
+export const isLatestSave = (local: LocalState, id: string, saveId: string) =>
+  (local.latest[id] ?? saveId) === saveId;
 
 export const eventKey = (events: { personId: string; eventId: string }[]) =>
   events

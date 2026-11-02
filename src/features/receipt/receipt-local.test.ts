@@ -54,6 +54,7 @@ const signed = { [save.events]: save };
 const withOp = (op: NonNullable<LocalState['items'][string]['op']>) => ({
   items: { [id]: { op } },
   signed,
+  latest: {},
 });
 const unknown = withOp({
   kind: 'unknown',
@@ -86,11 +87,12 @@ describe('reconcile：只有能说明操作的成功读取才清掉它', () => {
     const local: LocalState = {
       items: {
         [id]: {
-          op: { kind: 'undone', at: 1, draft },
+          op: { kind: 'undone', at: 1, draft, saveId: 'save-1' },
           edit: { values: save.values, reason: save.reason },
         },
       },
       signed,
+      latest: {},
     };
     expect(reconcile(local, 2, snapshot('settled', 'ev-2')).items).toEqual({});
   });

@@ -70,6 +70,8 @@ type Props = {
   mode: 'mine' | 'others' | 'confirmed';
   confirmed?: ConfirmedDraft;
   busy: boolean;
+  /** 回执已失效：输入留着可以复制，操作停下。 */
+  frozen?: boolean;
   problem: ItemProblem | null;
   /** 回到待确认、要恢复的保存时的分和理由。 */
   restore?: RestoredEdit | null;
@@ -100,6 +102,7 @@ export function ReceiptItem({
   mode,
   confirmed,
   busy,
+  frozen = false,
   problem,
   restore = null,
   pendingUndo = null,
@@ -193,7 +196,7 @@ export function ReceiptItem({
         <button
           className="n-btn n-btn--sm n-btn--ghost"
           type="button"
-          disabled={pendingUndo.busy}
+          disabled={pendingUndo.busy || frozen}
           aria-busy={pendingUndo.busy || undefined}
           onClick={
             pendingUndo.verify ? pendingUndo.onVerify : pendingUndo.onRetry
@@ -256,7 +259,7 @@ export function ReceiptItem({
                 className="n-input"
                 aria-label={copy.edit.scoreLabel(dim)}
                 value={values[key]}
-                disabled={busy}
+                disabled={busy || frozen}
                 onChange={(e) =>
                   setValues((v) => ({
                     ...v,
@@ -284,6 +287,7 @@ export function ReceiptItem({
             rows={2}
             value={reason}
             disabled={busy}
+            readOnly={frozen}
             aria-invalid={whyMissing || undefined}
             placeholder={
               whyMissing ? copy.edit.whyRequired : copy.edit.whyPlaceholder
@@ -298,7 +302,7 @@ export function ReceiptItem({
           <button
             className="n-btn n-btn--sm n-btn--ink"
             type="button"
-            disabled={busy}
+            disabled={busy || frozen}
             onClick={save}
           >
             {copy.edit.save}
@@ -306,7 +310,7 @@ export function ReceiptItem({
           <button
             className="n-btn n-btn--sm n-btn--ghost"
             type="button"
-            disabled={busy}
+            disabled={busy || frozen}
             onClick={() => {
               setEditing(false);
               setValues(suggestedValues(draft));
@@ -326,7 +330,7 @@ export function ReceiptItem({
         <button
           className="n-btn n-btn--sm n-btn--ink"
           type="button"
-          disabled={busy}
+          disabled={busy || frozen}
           onClick={() => onConfirm(suggestedValues(draft), '')}
         >
           <Icon name="check" />
@@ -335,7 +339,7 @@ export function ReceiptItem({
         <button
           className="n-btn n-btn--sm n-btn--ghost"
           type="button"
-          disabled={busy}
+          disabled={busy || frozen}
           onClick={() => {
             setEditing(true);
             requestAnimationFrame(() => firstSelect.current?.focus());

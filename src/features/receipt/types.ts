@@ -46,12 +46,15 @@ export type ReceiptView = {
 export type ReceiptReadResult =
   | { status: 'success'; view: ReceiptView }
   | { status: 'forbidden' | 'not_found'; message: string }
+  /** 登录已失效。 */
+  | { status: 'unauthenticated' }
   /** 这次没读到（不是没有权限）：页面保留当前内容。 */
   | { status: 'unavailable' };
 
 /** 回执页的服务端动作：读回执、按 844 逐件保存确认、5 秒内撤销。 */
 export type ReceiptActions = {
-  read: (batchId: string) => Promise<ReceiptReadResult>;
+  /** signal：页面超时或卸载时中止这次读取。 */
+  read: (batchId: string, signal?: AbortSignal) => Promise<ReceiptReadResult>;
   /** `unavailable`：保存这次中断了（例如读不全来源），改动留在页面上。 */
   save: (
     input: RecordSaveInput,
