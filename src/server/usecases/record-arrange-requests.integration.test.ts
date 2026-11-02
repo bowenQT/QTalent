@@ -205,6 +205,54 @@ it('concurrent distinct intakes by the same account commit without upgrading a s
   ).toHaveLength(2);
   expect(h.calls()).toBe(0);
 });
+async function waitingOnIntake() {
+  for (let i = 0; i < 200; i++) {
+    const { rows } = await connection.db.execute(
+      sql`select count(*)::int as n from pg_locks l join pg_class c on c.oid = l.relation where c.relname = 'records_arrange_inputs' and not l.granted`,
+    );
+    if ((rows[0] as { n: number }).n > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('runner never waited on the intake lock');
+}
+it('the runner takes intake SHARE before the job row, so a same-operation submit replay cannot deadlock it', async () => {
+  const h = await setup();
+  const created = await submitted(h);
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  let replayLockedJob = false;
+  let holding!: () => void;
+  const held = new Promise<void>((resolve) => (holding = resolve));
+  // A submit replay's first lock is the intake writer lock; it then locks the job row.
+  const replay = connection.db.transaction(async (tx) => {
+    await tx.execute(
+      sql`lock table ${arrangeInputs} in share row exclusive mode`,
+    );
+    holding();
+    await released;
+    await tx.execute(
+      sql`select job_id from ${jobSnapshots} where job_id = ${created.jobId} for update nowait`,
+    );
+    replayLockedJob = true;
+  });
+  await held;
+  const run = h.app.runner.run(created.jobId, 1);
+  await waitingOnIntake();
+  // The runner waits on intake without holding the job row: the replay's
+  // NOWAIT row lock succeeds instead of forming a cycle.
+  release();
+  await replay;
+  expect(replayLockedJob).toBe(true);
+  expect(await run).not.toBe('ignored');
+  expect(h.calls()).toBe(1);
+  // The real replay and a second delivery also finish together.
+  const [again, second] = await Promise.all([
+    h.app.requests.create(h.account, h.input),
+    h.app.runner.run(created.jobId, 1),
+  ]);
+  expect(again).toMatchObject({ status: 'success', replayed: true });
+  expect(second).toBeDefined();
+}, 30000);
 it('unknown people remain a real pending intake; old node-less or stale selection cannot dispatch or rewrite it', async () => {
   const h = await setup();
   const pending = await h.app.requests.create(h.account, {

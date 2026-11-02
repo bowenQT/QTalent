@@ -50,13 +50,19 @@ export async function readIntakeTable(
   tx: Transaction,
   mode: 'snapshot' | 'locked' | 'locked-for-write',
 ): Promise<IntakeTable> {
-  if (mode === 'locked')
-    await tx.execute(sql`lock table ${arrangeInputs} in share mode`);
-  if (mode === 'locked-for-write')
-    await tx.execute(
-      sql`lock table ${arrangeInputs} in share row exclusive mode`,
-    );
+  if (mode !== 'snapshot') await lockIntakeTable(tx, mode);
   return asIntakeTable(await tx.select().from(arrangeInputs));
+}
+/** Take the intake lock alone, as a transaction's first lock (see readIntakeTable). */
+export async function lockIntakeTable(
+  tx: Transaction,
+  mode: 'locked' | 'locked-for-write',
+): Promise<void> {
+  await tx.execute(
+    mode === 'locked'
+      ? sql`lock table ${arrangeInputs} in share mode`
+      : sql`lock table ${arrangeInputs} in share row exclusive mode`,
+  );
 }
 
 /** Unit-test fixtures only; production code must read the table. */
