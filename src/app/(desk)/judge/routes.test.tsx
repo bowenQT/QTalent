@@ -167,7 +167,7 @@ describe('/judge reads the stored comparison batch', () => {
     });
     render(await JudgePage(judge('me')));
     expect(
-      screen.getByRole('heading', { name: '还没有可对照的批次' }),
+      screen.getByRole('heading', { name: '可对照的批次会出现在这里' }),
     ).toBeTruthy();
   });
 

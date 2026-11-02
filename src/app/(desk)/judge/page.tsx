@@ -64,7 +64,7 @@ export default async function JudgePage({ searchParams }: Search) {
             </div>
           </header>
           <State
-            title="还没有可对照的批次"
+            title="可对照的批次会出现在这里"
             text={
               self
                 ? '你作为评价人给出的判断有了结营评审结论后，会放在一起出现在这里。'

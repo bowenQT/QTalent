@@ -163,6 +163,11 @@ test('the third act runs on the real routes: compare, attribute, draft, publish 
     await expect(
       page.getByRole('heading', { level: 1, name: '我的判断对照' }),
     ).toBeVisible();
+    // The mentor judged part of the sixth cohort's selection; those cases show.
+    await expect(
+      page.getByRole('heading', { level: 2, name: new RegExp(batchName) }),
+    ).toBeVisible();
+    await expect(page.getByTestId('judge-case').first()).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/准确率|%/);
     await page.goto('/rules?r=front&line=xe-select');
     await expect(
