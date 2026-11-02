@@ -303,6 +303,33 @@ describe('BOW-863 real registered-work read', () => {
       items: [{ revision: 2, action: 'handle' }],
     });
   });
+  it('a task completed before its owner expired never becomes an HR reassign reminder', async () => {
+    await db().transaction((tx) =>
+      completeEvaluationWorkItem(
+        tx,
+        task.id,
+        1,
+        async (tx) =>
+          (await loadEvaluationContext(tx, 'account-mentor', now)).context,
+      ),
+    );
+    await expireOwner();
+    expect(await registered('account-hr')).toMatchObject({
+      count: 0,
+      items: [],
+    });
+  });
+  it('a cancelled task of an expired owner is not offered for reassignment', async () => {
+    await expireOwner();
+    await db()
+      .update(evaluationWorkItems)
+      .set({ state: 'cancelled', revision: 2 })
+      .where(eq(evaluationWorkItems.id, task.id));
+    expect(await registered('account-hr')).toMatchObject({
+      count: 0,
+      items: [],
+    });
+  });
   it('HR never sees the outside-person expired item', async () => {
     await expireOwner();
     await db().transaction((tx) =>

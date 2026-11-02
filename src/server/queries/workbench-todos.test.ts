@@ -134,6 +134,16 @@ describe('BOW-863 registered work source', () => {
       /"(?:previousEvaluator|candidates|quote|source|scoreValue)":/,
     );
   });
+  it.each(['completed', 'cancelled'] as const)(
+    'HR does not get a reassign reminder for a %s task of an expired owner',
+    (state) => {
+      expect(
+        workbenchTodosFromFacts(context(), [
+          { ...evaluationWorkFixture(), state },
+        ]),
+      ).toMatchObject({ registeredWork: { count: 0, items: [] } });
+    },
+  );
   it('HR cannot claim a valid different owner or out-of-scope reassignment', () => {
     expect(items(context()).count).toBe(0);
     const ctx = context();
