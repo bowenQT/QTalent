@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { AccessDenied } from '@/features/shell/AccessDenied';
 import {
   AdminNotice,
@@ -8,8 +8,8 @@ import {
 import { getShellPage } from '@/server/queries/shell';
 
 type Search = Promise<Record<string, string | string[] | undefined>>;
-// Only the XEngineer selection standard is in this slice (BOW-920); the rules
-// overview and the other rule families keep the unified 404.
+// Only the XEngineer selection standard is in this slice (BOW-920): the sidebar's
+// bare /rules opens it, and the other rule families keep the unified 404.
 const isSelectionStandard = (params: Awaited<Search>) =>
   params.r === 'front' && params.line === 'xe-select';
 
@@ -34,7 +34,10 @@ export default async function RulesPage({
 }: {
   searchParams: Search;
 }) {
-  if (!isSelectionStandard(await searchParams)) notFound();
+  const params = await searchParams;
+  if (Object.keys(params).length === 0)
+    redirect('/rules?r=front&line=xe-select');
+  if (!isSelectionStandard(params)) notFound();
   const shell = await getShellPage();
   if (!shell) return <AccessDenied />;
   if (shell.isAdmin) return <AdminNotice />;
