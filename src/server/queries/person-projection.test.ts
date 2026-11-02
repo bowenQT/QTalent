@@ -3,7 +3,7 @@ import { personSchema } from '../../contracts/person';
 import { fixture } from './person-test-helpers';
 import { personFromData } from './person-projection';
 import { peopleFromData, quickViewFromData } from './people';
-import { sourceFromData } from './sources';
+import { projectReadableSources, sourceFromData } from './sources';
 import type { PersonData } from './person-data';
 
 // ---------- helpers ----------
@@ -423,6 +423,53 @@ describe('timeline entries', () => {
         hidden.timeline.data.some((row) => row.kind === 'history'),
     ).toBe(false);
   });
+  it('drops a history row repeating a key event the caller can read, and only then', async () => {
+    const weekly = (data: PersonData) => {
+      data.fragments.push({
+        id: 'fragment-w',
+        originalVersionId: 'version',
+        excerpt: 'Synthetic weekly',
+        location: { kind: 'snapshot_field', fieldPath: 'sum' },
+      });
+      data.historical.push({
+        id: 'weekly-event-0',
+        sourceRecordId: 'event-0',
+        evaluationNodeId: null,
+        personId: 'one',
+        recorderId: 'actor',
+        occurredOn: '2026-06-15',
+        kind: '训练营周评',
+        period: 'W1–W3',
+        scale: [['本周总结', '正常发挥']],
+        ruleVersionId: null,
+        originalVersionId: 'version',
+        fragmentId: 'fragment-w',
+        sourceCategory: 'prototype_baseline',
+      });
+      return data;
+    };
+    const ids = async (data: PersonData) => {
+      const person = await profileOf(data);
+      return person.timeline.status === 'ready'
+        ? person.timeline.data.map((row) => [row.kind, row.id])
+        : [];
+    };
+    const visible = weekly(fixture());
+    expect(await ids(visible)).toEqual([
+      ['key_event', 'event-0'],
+      ['key_event', 'event-1'],
+    ]);
+    const card = cards(await profileOf(visible)).find(
+      (row) => row.id === 'event-0',
+    )!;
+    expect(card.sources.length).toBeGreaterThan(0);
+    // The mentor cannot read event-0 as a management observation, so the
+    // weekly review is not a repeat for that caller and stays on the timeline.
+    const mentor = weekly(fixture('mentor'));
+    mentor.statements[0].kind = 'management_observation';
+    expect(await ids(mentor)).toContainEqual(['history', 'weekly-event-0']);
+    expect(await ids(mentor)).not.toContainEqual(['key_event', 'event-0']);
+  });
   it('keeps human conclusions out of the summary until they carry a date', async () => {
     const data = fixture();
     expect((await profileOf(data)).summary).toEqual({ status: 'empty' });
@@ -587,6 +634,32 @@ describe('source detail', () => {
         excerpt: 'Synthetic observation',
       },
     });
+  });
+});
+
+describe('shared source projection', () => {
+  it('keeps every relation and details only the sources the caller can read', async () => {
+    const data = fixture('mentor');
+    // event-1 becomes a management observation the mentor cannot read.
+    data.statements[1].kind = 'management_observation';
+    const { sources, details } = await projectReadableSources(data);
+    expect(sources.map((row) => row.fragmentId)).toEqual([
+      'fragment-0',
+      'fragment-1',
+    ]);
+    expect(details.map((row) => row.fragmentId)).toEqual(['fragment-0']);
+    const single = await sourceFromData(data, {
+      fragmentId: 'fragment-0',
+      originalVersionId: 'version',
+    });
+    if (single.status !== 'success')
+      throw new Error('Expected a readable source');
+    expect(details[0]).toEqual(single.source);
+    const manager = await projectReadableSources(fixture('manager'));
+    expect(manager.details.map((row) => row.fragmentId)).toEqual([
+      'fragment-0',
+      'fragment-1',
+    ]);
   });
 });
 
