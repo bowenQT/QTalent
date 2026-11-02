@@ -27,6 +27,7 @@ import {
 } from '../modules/records';
 import type { StoredArrangeInput } from '../modules/records/arrange/input-state/schema';
 import type { IntakeTable } from './talent-source-projection';
+import { sourceKey } from './source-key';
 import type { BatchSnapshot } from '../modules/records/arrange/batch';
 import { loadEvaluationContext } from './evaluation-context';
 import type { BatchJobMetadata } from './record-batch-arrange-state';
@@ -186,12 +187,20 @@ export function requireNativeInput(input: StoredArrangeInput) {
   };
 }
 /** Lock existing authorization rows and the FK-backed complete source graph.
- * The job row is locked by the caller first. No locks survive model dispatch. */
+ * The intake table and job row are locked by the caller first. Subjects merged
+ * from every other intake on the same fragment (superseded included) are part
+ * of the complete source, so their permission rows are locked here too and the
+ * caller rereads the actor after these waits. No locks survive model dispatch. */
 export async function lockNativeTextFacts(
   tx: Transaction,
   input: StoredArrangeInput,
+  intake: IntakeTable,
 ) {
   const native = requireNativeInput(input);
+  const key = sourceKey(input.inputSource!);
+  const sharedContexts = intake.rows.flatMap((row) =>
+    row.sourceContexts.filter((context) => sourceKey(context) === key),
+  );
   await tx
     .select()
     .from(accountBindings)
@@ -271,6 +280,9 @@ export async function lockNativeTextFacts(
       ...input.sourceContexts.flatMap((source) =>
         source.subjects.map((subject) => subject.personId),
       ),
+      ...sharedContexts.flatMap((source) =>
+        source.subjects.flatMap((subject) => subject.personId ?? []),
+      ),
       ...lockedGraph.events
         .filter((event) => linked.includes(event.id))
         .map((event) => event.personId),
@@ -325,10 +337,11 @@ export async function lockNativeTextFacts(
         [
           ...new Set([
             native.evaluationNodeId,
-            ...input.sourceContexts.flatMap((context) =>
-              context.subjects.flatMap(
-                (subject) => subject.evaluationNodeId ?? [],
-              ),
+            ...[...input.sourceContexts, ...sharedContexts].flatMap(
+              (context) =>
+                context.subjects.flatMap(
+                  (subject) => subject.evaluationNodeId ?? [],
+                ),
             ),
             ...lockedGraph.events
               .filter((event) => linked.includes(event.id))
@@ -389,7 +402,7 @@ export async function loadRecordBatchSnapshot(
       JSON.stringify([...input.personIds].sort())
   )
     throw new NativeArrangeUnavailable('native_intake_facts_inconsistent');
-  await lockNativeTextFacts(tx, input);
+  await lockNativeTextFacts(tx, input, intake);
   const actor = await loadArrangeActor(tx, input.creatorAccountId, at);
   if (
     actor.context.account.personId !== metadata.actorPersonId ||

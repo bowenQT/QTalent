@@ -734,6 +734,62 @@ it('a restriction held only by another (superseded) intake on the fragment block
   expect(await h.app.runner.run(created.jobId, 1)).toBe('failed');
   expect(h.calls()).toBe(0);
 });
+it('a subject merged only from another intake is locked, so revoking it mid-arrangement blocks the model call', async () => {
+  const h = await setup();
+  const created = await submitted(h);
+  // B appears only in another (superseded) intake on this fragment. The
+  // evaluator can currently read B through a relation on B's node.
+  const relationB = h.prefix + '-relation-b';
+  await connection.db.insert(evaluationRelations).values({
+    id: relationB,
+    evaluationNodeId: h.otherNode,
+    personId: h.other,
+    evaluatorId: h.evaluator,
+    kind: 'evaluator',
+    validFrom: '2026-01-01T00:00:00Z',
+  });
+  const job = await state(created.jobId);
+  const otherJob = randomUUID();
+  await connection.db.insert(jobSnapshots).values({ ...job, jobId: otherJob });
+  const contexts = structuredClone(created.input.sourceContexts);
+  contexts[0]!.subjects = [
+    { personId: h.other, evaluationNodeId: h.otherNode, cohortId: h.cohort },
+  ];
+  await connection.db.insert(arrangeInputs).values({
+    ...created.input,
+    id: randomUUID(),
+    jobId: otherJob,
+    sourceContexts: contexts,
+    supersededByInputId: created.input.id,
+  });
+  let commit!: () => void;
+  const committing = new Promise<void>((resolve) => (commit = resolve));
+  let revoking!: () => void;
+  const revoked = new Promise<void>((resolve) => (revoking = resolve));
+  // The revocation holds B's relation row while the runner builds its snapshot.
+  const revocation = connection.db.transaction(async (tx) => {
+    await tx
+      .update(evaluationRelations)
+      .set({ revokedAt: businessAt })
+      .where(eq(evaluationRelations.id, relationB));
+    revoking();
+    await committing;
+  });
+  await revoked;
+  const run = h.app.runner.run(created.jobId, 1);
+  for (let i = 0; ; i++) {
+    const { rows } = await connection.db.execute(
+      sql`select count(*)::int as n from pg_locks where locktype = 'transactionid' and not granted`,
+    );
+    if ((rows[0] as { n: number }).n > 0) break;
+    if (i > 200) throw new Error('runner never waited on B');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  commit();
+  await revocation;
+  expect(await run).toBe('failed');
+  expect(h.calls()).toBe(0);
+}, 30000);
 it('an account rebinding cannot transfer an accepted batch even with a new valid node relation', async () => {
   const h = await setup();
   const created = await submitted(h);
