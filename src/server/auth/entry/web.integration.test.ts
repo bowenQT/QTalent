@@ -18,6 +18,7 @@ import {
   organizations,
   accountBindings,
   grants,
+  rebindDirectoryAccount,
 } from '../../modules/directory';
 import { createWebEntryAuthenticator } from './web';
 import { createEntryIdentityService } from './identity';
@@ -94,6 +95,7 @@ async function fixture() {
     userId: accountId,
     token: 'synthetic-only-' + prefix,
     expiresAt: expiry,
+    bindingGeneration: 1,
   });
   const authenticated = {
     user: { id: accountId },
@@ -161,18 +163,63 @@ describe('Web current authentication sources in real PostgreSQL', () => {
   it('person reassignment rejects the old identity and restoring data cannot revive it', async () => {
     const f = await fixture();
     const cap = await f.identities.authenticate('web', f.headers);
-    await f.db
-      .update(accountBindings)
-      .set({ personId: f.otherPerson })
-      .where(eq(accountBindings.accountId, f.accountId));
+    await rebindDirectoryAccount(f.db, {
+      accountId: f.accountId,
+      personId: f.otherPerson,
+    });
     await expect(f.identities.current(cap)).rejects.toMatchObject({
       kind: 'unauthenticated',
     });
-    await f.db
-      .update(accountBindings)
-      .set({ personId: f.personId })
-      .where(eq(accountBindings.accountId, f.accountId));
+    await rebindDirectoryAccount(f.db, {
+      accountId: f.accountId,
+      personId: f.personId,
+    });
     await expect(f.identities.current(cap)).rejects.toMatchObject({
+      kind: 'unauthenticated',
+    });
+  });
+  it('after A→B→A a NEW request on the session issued under A is rejected; a session issued after it works', async () => {
+    const f = await fixture();
+    await rebindDirectoryAccount(f.db, {
+      accountId: f.accountId,
+      personId: f.otherPerson,
+    });
+    expect(
+      await rebindDirectoryAccount(f.db, {
+        accountId: f.accountId,
+        personId: f.personId,
+      }),
+    ).toEqual({ generation: 3 });
+    // Same session row, same Better Auth proof, fresh adapter and request.
+    await expect(
+      createWebEntryAuthenticator(f.db, () => new Date(now)).verify(f.headers),
+    ).rejects.toMatchObject({ kind: 'unauthenticated' });
+    // Better Auth stamps the current generation on a newly issued session.
+    const renewedId = f.sessionId + '-renewed';
+    await f.db.insert(session).values({
+      id: renewedId,
+      userId: f.accountId,
+      token: 'synthetic-only-renewed-' + f.sessionId,
+      expiresAt: expiry,
+      bindingGeneration: 3,
+    });
+    mocks.session.mockImplementation(async () => ({
+      user: { id: f.accountId },
+      session: { id: renewedId, userId: f.accountId, expiresAt: expiry },
+    }));
+    const cap = await f.identities.authenticate('web', f.headers);
+    expect(await f.identities.current(cap)).toMatchObject({
+      personId: f.personId,
+      credentialId: renewedId,
+    });
+  });
+  it('rejects a session without a recorded binding generation', async () => {
+    const f = await fixture();
+    await f.db
+      .update(session)
+      .set({ bindingGeneration: null })
+      .where(eq(session.id, f.sessionId));
+    await expect(f.reader.verify(f.headers)).rejects.toMatchObject({
       kind: 'unauthenticated',
     });
   });
@@ -261,10 +308,10 @@ it('composes independent requests with current database authority and reassigned
   );
   // Keep the historical grant row: the final schema forbids deleting its
   // referenced binding. A reassignment must retire both issued requests.
-  await f.db
-    .update(accountBindings)
-    .set({ personId: f.otherPerson })
-    .where(eq(accountBindings.accountId, f.accountId));
+  await rebindDirectoryAccount(f.db, {
+    accountId: f.accountId,
+    personId: f.otherPerson,
+  });
   await expect(first.loadContext(f.db, first.identity)).rejects.toMatchObject({
     kind: 'unauthenticated',
   });

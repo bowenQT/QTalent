@@ -19,9 +19,24 @@ export {
 } from './schema';
 export type { SourceLocation } from './schema';
 export { readEvidenceForTalent } from './read';
+export { parseOfficeBytes } from './office/parse';
+export { OfficeParseError } from './office/types';
+export type {
+  ParsedOffice,
+  OfficeFragment,
+  OfficeLocation,
+  OfficeCellContent,
+  OfficeScalar,
+  OfficeParseFailure,
+} from './office/types';
 
 // Batch preparation and persisted input facts; the native usecase owns authorization.
 export { arrangeInputs } from './arrange/input-state/schema';
+export {
+  managementObservations,
+  managementObservationSources,
+  managementObservationOperations,
+} from './management-observations/schema';
 export type {
   ArrangeSourceContext,
   StoredArrangeInput,
@@ -75,6 +90,9 @@ export {
   commitRecordSave,
   commitRecordUndo,
   requireRecordUndoCommit,
+  recordUndoCancellationFacts,
+  readRecordResaveState,
+  readRecordCancellationHistory,
   RecordWriteError,
 } from './write';
 export type {
@@ -82,6 +100,9 @@ export type {
   RecordSaveLock,
   RecordUndoCommit,
   RecordConfirmationWorkFact,
+  RecordCancelledConfirmationWorkFact,
+  RecordResaveState,
+  RecordCancellationHistory,
 } from './write';
 
 // Internal upload facts require current authorization in the consuming usecase.
@@ -96,10 +117,7 @@ export { readValidatedUploadInTransaction } from './uploads/handoff-transaction'
 export type { ValidatedUpload } from './uploads/handoff';
 export type { UploadCollectionMembers } from './uploads/types';
 
-export { readAuthorizedMaterialSource } from './material-sources/read';
-export { wecomMessages, wecomReceiptAttempts } from './wecom/schema';
-export {
-  wecomArchivedMediaSchema,
-  wecomArchivedMediaListSchema,
-} from './wecom/facts';
-export type { WecomArchivedMedia } from './wecom/facts';
+export type {
+  StoredRecordOriginalInput,
+  MediaRecordOriginalInput,
+} from './arrange/input-state/original-input';

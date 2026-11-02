@@ -4,28 +4,20 @@
   "evidenceStatus": "scenario_only_not_executed",
   "fixedBackground": [
     {
-      "cohort": {
-        "id": "b-xe6",
-        "name": "XEngineer 第六期（演示）"
-      },
+      "cohort": { "id": "b-xe6", "name": "XEngineer 第六期（演示）" },
       "boundSelectionVersionId": "xe-select-v1",
-      "mappingVersionId": "map-xe-select-v1"
+      "selectionStandardEffectiveFrom": "2026-06-14T16:00:00.000Z",
+      "mappingVersionId": "map-xe-select-v2",
+      "nodes": { "front": "xe6-select", "back": "xe6-end" }
     }
   ],
   "liveScenario": {
-    "cohort": {
-      "id": "b-xe7-demo",
-      "name": "XEngineer 第七期（演示）"
-    },
+    "cohort": { "id": "b-xe7-demo", "name": "XEngineer 第七期（演示）" },
     "prerequisite": "先经有权限的人确认并发布 xe-select-v2，再创建并绑定第七期。",
-    "beforeCreation": {
-      "cohortExists": false,
-      "boundVersionId": null
-    },
-    "expectedAtCreation": {
-      "boundSelectionVersionId": "xe-select-v2"
-    },
+    "schedule": "按真实时钟：创建后的下一个周一开营，时长与第六期相同；不固定为历史日期。",
+    "beforeCreation": { "cohortExists": false, "boundVersionId": null },
+    "expectedAtCreation": { "boundSelectionVersionId": "xe-select-v2" },
     "preservedSixthVersionId": "xe-select-v1",
-    "execution": "pending_bow_922_version_binding_and_published_contract_refresh"
+    "execution": "pending_demo_initialization"
   }
 }

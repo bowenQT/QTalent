@@ -10,6 +10,7 @@ import {
   within,
 } from '@testing-library/react';
 import type {
+  HumanStaffingJudgmentInput,
   StaffingCandidate,
   StaffingDemand,
   StaffingDemandJobSnapshot,
@@ -175,7 +176,7 @@ function ports(overrides: Partial<StaffingPorts> = {}): StaffingPorts {
     readMatchingJob: vi.fn(async (): Promise<StaffingJobSnapshot> =>
       job('staffing_match', 'awaiting_manual', pageOf(confirmed)),
     ),
-    judge: vi.fn(async (input) => ({
+    judge: vi.fn(async (_runId: string, input: HumanStaffingJudgmentInput) => ({
       status: 'success' as const,
       demandId: input.demandId,
       personId: input.personId,
@@ -281,7 +282,8 @@ describe('entry and drafting', () => {
     fireEvent.click(screen.getByRole('button', { name: '开始' }));
     await screen.findByText('来自：「演示：寻找服务端负责人」');
     expect(onJobStarted).toHaveBeenCalledWith('staffing_demand-job');
-    expect(onDemandReady).toHaveBeenCalledWith(draft);
+    // The drafted demand is reported in an effect after it renders: wait for it.
+    await waitFor(() => expect(onDemandReady).toHaveBeenCalledWith(draft));
   });
 
   it('follows a drafting job sent before the page loaded, without its sentence', async () => {
@@ -370,7 +372,7 @@ describe('entry and drafting', () => {
       />,
     );
     await screen.findByRole('button', { name: '确认需求' });
-    expect(onDemandReady).toHaveBeenCalledWith(draft);
+    await waitFor(() => expect(onDemandReady).toHaveBeenCalledWith(draft));
   });
 
   it('keeps the sentence in this tab for its project and account until the demand is confirmed', async () => {
@@ -606,10 +608,13 @@ describe('demand card', () => {
       demandId: draft.id,
       expectedRevision: 3,
     });
-    expect(p.openMatching).toHaveBeenCalledWith({
-      demandId: confirmed.id,
-      revision: confirmed.revision,
-    });
+    // Matching opens in an effect after the confirmed demand renders: wait for it.
+    await waitFor(() =>
+      expect(p.openMatching).toHaveBeenCalledWith({
+        demandId: confirmed.id,
+        revision: confirmed.revision,
+      }),
+    );
     await screen.findByText('2 人进入候选 · 按必须项的证据排列');
   });
 
@@ -708,7 +713,7 @@ describe('candidates', () => {
     expect(confirmButton).toHaveProperty('disabled', false);
     fireEvent.click(confirmButton);
     await screen.findByText('演示审核人 · 09-04');
-    expect(p.judge).toHaveBeenCalledWith({
+    expect(p.judge).toHaveBeenCalledWith('staffing_match-job', {
       operationId: expect.any(String),
       demandId: confirmed.id,
       expectedRevision: confirmed.revision,
@@ -755,7 +760,8 @@ describe('candidates', () => {
     expect((await within(form).findByRole('alert')).textContent).toBe(
       '需求已变化，请保留输入并刷新',
     );
-    expect(judge.mock.calls[0][0]).toMatchObject({
+    expect(judge.mock.calls[0][0]).toBe('staffing_match-job');
+    expect(judge.mock.calls[0][1]).toMatchObject({
       conclusion: 'insufficient',
       sources: [],
     });
@@ -828,7 +834,23 @@ describe('candidates', () => {
       [{ openMatching: vi.fn(async () => null) }, '候选人核对待接通'],
       [
         { openMatching: vi.fn(async () => Promise.reject(new Error('x'))) },
-        '候选人核对待接通',
+        '候选人核对中断',
+      ],
+      [
+        {
+          openMatching: vi.fn(async () =>
+            Promise.reject(new JobReadError(403)),
+          ),
+        },
+        '这次核对在你的查看范围之外',
+      ],
+      [
+        {
+          openMatching: vi.fn(async () =>
+            Promise.reject(new JobReadError(409)),
+          ),
+        },
+        '候选人核对中断',
       ],
       [
         {
@@ -849,6 +871,15 @@ describe('candidates', () => {
           ),
         },
         '这次核对在你的查看范围之外',
+      ],
+      // An opened run whose runtime went away is not a refusal.
+      [
+        {
+          readMatchingJob: vi.fn(async () =>
+            Promise.reject(new JobReadError(503)),
+          ),
+        },
+        '候选人核对待接通',
       ],
       [
         {
@@ -1172,10 +1203,10 @@ describe('first-round review fixes', () => {
 
     screen.getByRole('button', { name: '确认需求' }).focus();
     fireEvent.click(screen.getByRole('button', { name: '确认需求' }));
-    const line = await screen.findByText(
-      '演示审核人 09-04 确认 · 按这版要求核对候选人',
-    );
-    expect(document.activeElement).toBe(line);
+    // Focus moves in an effect after the confirmed line renders: wait for it there.
+    const confirmedLine = () =>
+      screen.getByText('演示审核人 09-04 确认 · 按这版要求核对候选人');
+    await waitFor(() => expect(document.activeElement).toBe(confirmedLine()));
     expect(
       screen.getByText('改了要求，候选人会按新要求重新核对。'),
     ).toBeTruthy();

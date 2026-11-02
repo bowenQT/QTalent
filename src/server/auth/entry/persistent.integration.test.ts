@@ -7,6 +7,7 @@ import {
   accountBindings,
   organizations,
   people,
+  rebindDirectoryAccount,
 } from '../../modules/directory';
 import { session, user } from '../schema';
 import { createEntryIdentityService, EntryIdentityError } from './identity';
@@ -68,7 +69,7 @@ async function setup() {
   const base = {
     id,
     accountId,
-    accountBindingDigest: entryAccountBindingDigest(accountId, personId),
+    accountBindingDigest: entryAccountBindingDigest(accountId, personId, 1),
     revision: 1,
     expiresAt,
     revokedAt: null,
@@ -122,7 +123,7 @@ it('joins the unique current directory binding for all channels without returnin
   expect(JSON.stringify(stored)).not.toContain(f.token);
   expect(JSON.stringify(stored)).not.toContain(f.personId);
   expect(mcpTokenDigest(f.token)).not.toBe(
-    entryAccountBindingDigest(f.accountId, f.personId),
+    entryAccountBindingDigest(f.accountId, f.personId, 1),
   );
 });
 it('rejects missing credentials and malformed or wrong bearer tokens', async () => {
@@ -154,10 +155,10 @@ it.each(['mcp', 'wecom', 'agentapi'] as const)(
       channel,
       channel === 'mcp' ? f.token : true,
     );
-    await c.db
-      .update(accountBindings)
-      .set({ personId: f.other })
-      .where(eq(accountBindings.accountId, f.accountId));
+    await rebindDirectoryAccount(c.db, {
+      accountId: f.accountId,
+      personId: f.other,
+    });
     await expect(identities.current(identity)).rejects.toBeInstanceOf(
       EntryIdentityError,
     );
@@ -165,15 +166,88 @@ it.each(['mcp', 'wecom', 'agentapi'] as const)(
       identities.authenticate(channel, channel === 'mcp' ? f.token : true),
     ).rejects.toBeInstanceOf(EntryIdentityError);
     // A failed capability stays retired even if an administrator restores mapping.
-    await c.db
-      .update(accountBindings)
-      .set({ personId: f.personId })
-      .where(eq(accountBindings.accountId, f.accountId));
+    await rebindDirectoryAccount(c.db, {
+      accountId: f.accountId,
+      personId: f.personId,
+    });
     await expect(identities.current(identity)).rejects.toBeInstanceOf(
       EntryIdentityError,
     );
   },
 );
+it.each(['mcp', 'wecom', 'agentapi'] as const)(
+  'keeps a %s credential issued before A→B→A rejected while a credential issued after it works',
+  async (channel) => {
+    const f = await setup();
+    const table = {
+      mcp: mcpCredentials,
+      wecom: wecomBindings,
+      agentapi: agentApiBindings,
+    }[channel];
+    const r = readers(f);
+    const proof = channel === 'mcp' ? f.token : true;
+    expect(await r[channel].verify(proof)).toHaveProperty('credentialId', f.id);
+    expect(
+      await rebindDirectoryAccount(c.db, {
+        accountId: f.accountId,
+        personId: f.other,
+      }),
+    ).toEqual({ generation: 2 });
+    await expect(r[channel].verify(proof)).rejects.toBeInstanceOf(
+      EntryIdentityError,
+    );
+    expect(
+      await rebindDirectoryAccount(c.db, {
+        accountId: f.accountId,
+        personId: f.personId,
+      }),
+    ).toEqual({ generation: 3 });
+    // Same account and person again: the old issue-time generation is 1.
+    await expect(r[channel].verify(proof)).rejects.toBeInstanceOf(
+      EntryIdentityError,
+    );
+    await expect(r[channel].current(f.id)).rejects.toBeInstanceOf(
+      EntryIdentityError,
+    );
+    // A trusted writer re-issues under the current generation.
+    await c.db
+      .update(table)
+      .set({
+        accountBindingDigest: entryAccountBindingDigest(
+          f.accountId,
+          f.personId,
+          3,
+        ),
+        revision: 2,
+      })
+      .where(eq(table.id, f.id));
+    expect(await r[channel].verify(proof)).toMatchObject({
+      credentialId: f.id,
+      personId: f.personId,
+      revision: 2,
+    });
+  },
+);
+it('advances the generation only through the rebind writer and keeps it positive', async () => {
+  const f = await setup();
+  expect(
+    await rebindDirectoryAccount(c.db, {
+      accountId: 'demo-missing-' + f.id,
+      personId: f.personId,
+    }),
+  ).toBeNull();
+  await expect(
+    c.db
+      .update(accountBindings)
+      .set({ generation: 0 })
+      .where(eq(accountBindings.accountId, f.accountId)),
+  ).rejects.toMatchObject({
+    cause: expect.objectContaining({
+      code: '23514',
+      constraint: 'directory_account_generation',
+    }),
+  });
+});
 it.each(['mcp', 'wecom', 'agentapi'] as const)(
   'enforces %s expiry, revocation, generation and system-admin exclusion',
   async (channel) => {
@@ -291,10 +365,10 @@ it('re-reads session and directory after an asynchronous verifier has waited', a
     () => at,
   );
   const result = reader.verify(true);
-  await c.db
-    .update(accountBindings)
-    .set({ personId: f.other })
-    .where(eq(accountBindings.accountId, f.accountId));
+  await rebindDirectoryAccount(c.db, {
+    accountId: f.accountId,
+    personId: f.other,
+  });
   resume();
   await expect(result).rejects.toBeInstanceOf(EntryIdentityError);
 });

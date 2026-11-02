@@ -22,11 +22,12 @@
 
 每个目标事件保留真实事件、当前 mapping、完整保存与撤回历史、确认和复核行。
 
+- 一次保存是否属于某事件的历史，只看它能解析的回执是否列出该事件，或 `createdEventIds` 是否包含它；撤销后重存时，旧一代保存的回执只列旧事件，不进入新事件的历史。只有回执无法解析、又在同一 batch/draft 的保存会被纳入，使损坏的账本失败关闭。
 - `saves[].proof` 核对真实 save / save operation / actor / accepted draft revision / receipt / 时间，并核对撤回 operation。历史签名人不会因当前账号换绑而被改写成新操作者。
 - `confirmations[].ownership` 只在精确保存回执包含该确认、评分人/修改人/确认时间相符、来源确属该事件且状态无矛盾时可用。保留 confirmation ID、evaluator ID、revision、confirmedAt、规则、锚点、active 与来源引用。`unknown` 仍是 unknown；后继 HR 校准记录没有相应原生证明时不会猜出归属。
 - `confirmations[].acceptedDecision` 只投影同次已接受 save.input 中该目标人员/维度的 action、value、reason；`confirm` 原本没有 reason 字段时保持没有，不拿确认行的撤销/重存谱系 reason 代替。`suggestion` 核对真实 suggestionId、event/dimension/rule/source 与已保存草稿建议的值、锚点、引用和原始 rationale，只返回该项原AI行及建议，不输出整份原输入。
 - `reviews[].ownership` 核对真实 save、确认与回执归属；保留 open/resolved/withdrawn 原状态。`resolved` 本身不代表已获 HR 签名，也不代表全员到齐。
-- `sources` 复用同一 `talentSources` 完整图与**所有 intake**，包括其他创建者、被 supersede 的输入、撤回事件和共同主体。缺证返回 unavailable。可用只表示来源事实完整，仍须对每个共同主体和 requiredKinds 做当前权限判断，再进入模型。
+- `sources` 复用唯一来源投影入口 `completeTalentSources`：完整图加上 `readIntakeTable(tx, 'locked')` 读到的**所有 intake**，包括其他创建者、被 supersede 的输入、撤回事件和共同主体。缺证返回 unavailable。可用只表示来源事实完整，仍须对每个共同主体和 requiredKinds 做当前权限判断，再进入模型。
 - `nature` 只返回实际保存的 statement kind 与署名事实。当前原生 846 保存不自动产生 statement；此时明确 `nature_not_recorded`。不能从 `sourceCategory=original`、AI 归因、任务完成或确认数量猜测 nature。
 - `revision` 是这些目标事实的 SHA-256 摘要，用于本次事务中的对比；不是数据库递增版本或权限。空事件集合不代表“全员已评价”。
 
