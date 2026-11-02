@@ -52,13 +52,51 @@ const authOf = (call: Parameters<typeof fetch>) =>
 
 describe('BOW-854 model ports from server env', () => {
   it.each([
-    {},
-    { QINIU_MAAS_API_KEY: env.QINIU_MAAS_API_KEY },
-    { MODELINK_API_KEY: env.MODELINK_API_KEY },
-    { ...env, MODELINK_API_KEY: 'has space' },
-  ])('reports not configured for %o', (environment) => {
+    ['no keys', {}],
+    ['no Modelink key', { QINIU_MAAS_API_KEY: env.QINIU_MAAS_API_KEY }],
+    ['no Jev key', { MODELINK_API_KEY: env.MODELINK_API_KEY }],
+  ])('reports not configured with %s', (_, environment) => {
     expect(createStaffingMatchModels(environment).configured).toBe(false);
   });
+  // Each case breaks exactly one port; `configured` must agree with that
+  // port actually failing closed, so readiness and the client share one check.
+  it.each([
+    ['Jev key outside printable ASCII', 'jev', { QINIU_MAAS_API_KEY: 'ключ' }],
+    ['Jev key with a space', 'jev', { QINIU_MAAS_API_KEY: 'has space' }],
+    [
+      'Jev base URL',
+      'jev',
+      { QINIU_JEV_BASE_URL: 'https://example.invalid/v1' },
+    ],
+    ['Jev model', 'jev', { QINIU_JEV_MODEL: 'typesafe/other' }],
+    ['Modelink key with a space', 'gemini', { MODELINK_API_KEY: 'has space' }],
+    [
+      'Modelink base URL',
+      'gemini',
+      { MODELINK_BASE_URL: 'https://example.invalid/v1' },
+    ],
+    ['Modelink model', 'gemini', { MODELINK_MODEL: 'google/other' }],
+  ] as const)(
+    'a bad %s is not configured and that port fails closed',
+    async (_, port, patch) => {
+      const send = route('not_supported', 'not_supported');
+      const models = createStaffingMatchModels(
+        { ...env, ...patch },
+        { fetch: send },
+      );
+      expect(models.configured).toBe(false);
+      if (port === 'jev')
+        await expect(models.jev.decide(input)).rejects.toMatchObject({
+          kind: 'configuration',
+        });
+      else
+        expect(await models.reviewUnsupported.review(input)).toMatchObject({
+          status: 'failed',
+          conclusion: null,
+        });
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
   it('without keys both ports fail closed and no provider is called', async () => {
     const send = route('supported', 'supported');
     const models = createStaffingMatchModels({}, { fetch: send });
