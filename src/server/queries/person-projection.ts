@@ -71,7 +71,7 @@ const shiftDays = (day: string, delta: number) =>
 
 /** Only projects the caller may read, one row per membership started by the
  * business day. A project owner without a membership row has no role, mode or
- * dates to show and is not listed.
+ * dates to show and is not listed. Listed by start date, earliest first.
  */
 export function projectsOf(data: PersonData, id: string) {
   return data.staffing.members
@@ -98,7 +98,7 @@ export function projectsOf(data: PersonData, id: string) {
     })
     .sort(
       (a, b) =>
-        byCodePoint(b.from, a.from) ||
+        byCodePoint(a.from, b.from) ||
         byCodePoint(a.name, b.name) ||
         byCodePoint(a.id, b.id),
     );
