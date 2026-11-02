@@ -1,4 +1,6 @@
 import 'server-only';
+import { and, eq } from 'drizzle-orm';
+import { MAX_UPLOAD_BYTES } from '../../contracts/media';
 import type { Database } from '../db/client';
 import { getDatabase } from '../db/client';
 import { getEnv } from '../env';
@@ -7,6 +9,7 @@ import { createClock } from '../../lib/clock';
 import { createMaterialUploadHttpHandlers } from '../modules/records/uploads/material-http';
 import type { UploadDispatch } from '../modules/records/uploads/store';
 import { resolveDefaultIntakeNode } from '../modules/records/uploads/default-node';
+import { uploadCollections } from '../modules/records/uploads/schema';
 import { UploadError } from '../modules/records/uploads/types';
 import type { UploadStorage } from '../modules/records/uploads/types';
 import {
@@ -98,6 +101,20 @@ export function createMaterialUploadRuntime(input: {
           canWriteArrange(actor, [], null, nodeId),
         );
       },
+      async stagedNode(accountId, operationId) {
+        const [row] = await input.db
+          .select({ target: uploadCollections.target })
+          .from(uploadCollections)
+          .where(
+            and(
+              eq(uploadCollections.creatorAccountId, accountId),
+              eq(uploadCollections.operationId, operationId),
+            ),
+          );
+        return row?.target.kind === 'unassigned'
+          ? row.target.evaluationNodeId
+          : null;
+      },
     }),
   };
 }
@@ -140,5 +157,7 @@ export function materialUploadHandlersForServer(): Record<
     storage,
     trustedOrigin: env.BETTER_AUTH_URL,
     businessNow: () => clock.now().toISOString(),
+    // Material grants are multipart direct uploads, good for the full contract.
+    adapterMaxBytes: MAX_UPLOAD_BYTES,
   }).materialHttp;
 }

@@ -309,7 +309,7 @@ it('decides the session and node write permission on the server', async () => {
   expect(crossSite.status).toBe(403);
 });
 
-it('answers unsupported formats and sizes before issuing a grant', async () => {
+it('answers unsupported formats and sizes before issuing a grant, and grants up to the contract size', async () => {
   const staged = await stage();
   if (staged.body.status !== 'success') throw new Error(staged.body.status);
   const id = staged.body.recordCollectionId;
@@ -346,6 +346,18 @@ it('answers unsupported formats and sizes before issuing a grant', async () => {
     .from(uploadIntents)
     .where(eq(uploadIntents.recordCollectionId, id));
   expect(intents).toEqual([]);
+  // Up to the 2 GiB contract a video gets a grant.
+  const large = await post(
+    requestUpload,
+    '/api/record/uploads',
+    materialRequest(id, {
+      purpose: 'video',
+      filename: 'demo.mp4',
+      mediaType: 'video/mp4',
+      bytes: 1.5 * 1024 ** 3,
+    }),
+  );
+  expect(await large.json()).toMatchObject({ status: 'success' });
 });
 
 it('refuses another account’s staging collection and an unfinished upload', async () => {
