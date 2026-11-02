@@ -188,6 +188,14 @@ it('seeds the demo batch through the real command and replays unchanged', async 
 it('goes from /import through HR confirmation to the stored import decision', async () => {
   await openPage();
   expect(screen.getByText(/面评导出-2026校招（演示）\.pdf/)).toBeTruthy();
+  // The scale is the template's own: dimensions 1–5, the rating S–D.
+  const opened = await getInterviewImportPreview(batchId);
+  if (opened.status !== 'ok') throw new Error(opened.status);
+  expect(
+    opened.preview.batch.rows.map((r) => [r.rowId, r.template.scale]),
+  ).toEqual(
+    opened.preview.batch.rows.map((r) => [r.rowId, '1–5 分 · 面试评级 S–D']),
+  );
   fireEvent.click(
     screen.getAllByRole('button', { name: '是谷嘉树（演示）' })[0],
   );
