@@ -223,6 +223,7 @@ function sampleTool(conversationId: string, name = '演示'): ToolRow {
       teamId: 'demo-team',
       teamName: '演示',
       teamPath: '演示',
+      orgPath: '演示',
       jobTitle: '演示',
       level: null,
       batch: null,

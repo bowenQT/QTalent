@@ -35,6 +35,7 @@ const success: ToolSuccess = {
       teamId: 'demo-team',
       teamName: '演示团队',
       teamPath: '演示',
+      orgPath: '演示',
       jobTitle: '工程师',
       level: null,
       batch: null,
