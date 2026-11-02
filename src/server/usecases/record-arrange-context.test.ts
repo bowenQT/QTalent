@@ -213,14 +213,14 @@ describe('default intake node', () => {
     });
   });
   it('takes the node whose current relations started most recently', () => {
-    expect(defaultIntakeNode(withSecondNode('2026-03-01T00:00:00.000Z'))).toEqual(
-      { status: 'resolved', evaluationNodeId: 'demo-node-2' },
-    );
+    expect(
+      defaultIntakeNode(withSecondNode('2026-03-01T00:00:00.000Z')),
+    ).toEqual({ status: 'resolved', evaluationNodeId: 'demo-node-2' });
   });
   it('refuses to pick between nodes that started together', () => {
-    expect(defaultIntakeNode(withSecondNode('2026-01-01T00:00:00.000Z'))).toEqual(
-      { status: 'ambiguous' },
-    );
+    expect(
+      defaultIntakeNode(withSecondNode('2026-01-01T00:00:00.000Z')),
+    ).toEqual({ status: 'ambiguous' });
   });
   it('reports no node once every relation is revoked', () => {
     const base = actor();

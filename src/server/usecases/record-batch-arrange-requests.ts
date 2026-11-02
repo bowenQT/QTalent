@@ -120,7 +120,12 @@ export function createRecordBatchArrangeRequests(
     tx: Transaction,
     accountId: string,
     input: MaterialBatchInput,
-    facts: { actor: ArrangeActor; at: string; nodeId: string; fingerprint: string },
+    facts: {
+      actor: ArrangeActor;
+      at: string;
+      nodeId: string;
+      fingerprint: string;
+    },
   ): Promise<MaterialBatchSubmitResult> {
     const { actor, at, nodeId, fingerprint } = facts;
     const refused = (): MaterialBatchSubmitResult => ({
@@ -360,7 +365,10 @@ export function createRecordBatchArrangeRequests(
       throw new NativeArrangeUnavailable('business_clock_required');
     const actor = await loadArrangeActor(tx, accountId, at);
     const resolved = input.evaluationNodeId
-      ? ({ status: 'resolved', evaluationNodeId: input.evaluationNodeId } as const)
+      ? ({
+          status: 'resolved',
+          evaluationNodeId: input.evaluationNodeId,
+        } as const)
       : defaultIntakeNode(actor);
     if (resolved.status !== 'resolved')
       return {
@@ -381,7 +389,12 @@ export function createRecordBatchArrangeRequests(
         message: '当前账号没有此节点的记录权限',
       };
     if (input.files.length)
-      return createMedia(tx, accountId, input, { actor, at, nodeId, fingerprint });
+      return createMedia(tx, accountId, input, {
+        actor,
+        at,
+        nodeId,
+        fingerprint,
+      });
     const subjects = textSubjects(actor, input.text, input.personIds, nodeId);
     if (
       subjects.some(
