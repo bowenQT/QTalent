@@ -1,18 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { RecordDraft } from '@/contracts/record';
+import type { RecordBatchDraft } from '@/contracts/record';
 import {
   buildSaveInput,
-  hasUnresolvedSelection,
   initEdit,
   isEdited,
-  resolvedPersonIds,
-  resolvedProjectId,
   reuseOperationId,
   saveKey,
   suggestedCount,
   untouchedCount,
 } from './build-save-input';
-import { draft, twoPeopleDraft } from './record.fixtures';
+import { draft, textRef, twoPeopleDraft } from './record.fixtures';
 import { scoreKey } from './types';
 
 const profKey = scoreKey('p1', 'prof');
@@ -27,48 +24,6 @@ describe('initEdit', () => {
       reason: '',
     });
     expect(edit.sbi).toEqual(draft.sbi);
-  });
-});
-
-describe('selection helpers', () => {
-  it('已确定的人去重并保持顺序', () => {
-    const dup: RecordDraft = {
-      ...draft,
-      people: [
-        { state: 'resolved', id: 'p2' },
-        { state: 'resolved', id: 'p1' },
-        { state: 'resolved', id: 'p2' },
-        { state: 'none' },
-      ],
-    };
-    expect(resolvedPersonIds(dup)).toEqual(['p2', 'p1']);
-  });
-
-  it('待选择、没有人、项目待选择都算未解决', () => {
-    expect(hasUnresolvedSelection(draft)).toBe(false);
-    expect(
-      hasUnresolvedSelection({
-        ...draft,
-        people: [{ state: 'needs_selection', candidates: [], reason: '重名' }],
-      }),
-    ).toBe(true);
-    expect(hasUnresolvedSelection({ ...draft, people: [] })).toBe(true);
-    expect(
-      hasUnresolvedSelection({
-        ...draft,
-        project: { state: 'needs_selection', candidates: [], reason: '多个' },
-      }),
-    ).toBe(true);
-    expect(
-      hasUnresolvedSelection({ ...draft, people: [{ state: 'none' }] }),
-    ).toBe(true);
-  });
-
-  it('项目 id 只在已确定时给出', () => {
-    expect(resolvedProjectId(draft)).toBeNull();
-    expect(
-      resolvedProjectId({ ...draft, project: { state: 'resolved', id: 'x' } }),
-    ).toBe('x');
   });
 });
 
@@ -138,19 +93,22 @@ describe('buildSaveInput', () => {
     });
   });
 
-  it('还有待选择时拒绝构造', () => {
-    const pending: RecordDraft = {
-      ...draft,
-      people: [{ state: 'needs_selection', candidates: [], reason: '重名' }],
-    };
-    expect(buildSaveInput(pending, initEdit(draft), 'op')).toEqual({
-      ok: false,
-      reason: 'unresolved_selection',
+  it('人和项目以批次草稿为准', () => {
+    const result = buildSaveInput(
+      { ...draft, projectId: 'proj-1' },
+      initEdit(draft),
+      'op',
+    );
+    expect(result.ok && result.input).toMatchObject({
+      personIds: ['p1'],
+      projectId: 'proj-1',
+      expected_revision: 1,
+      draftId: 'draft-1',
     });
   });
 
   it('多人记录各自一项决定，且不重复', () => {
-    const doubled: RecordDraft = {
+    const doubled: RecordBatchDraft = {
       ...twoPeopleDraft,
       scores: [...twoPeopleDraft.scores, ...twoPeopleDraft.scores],
     };
@@ -163,7 +121,7 @@ describe('buildSaveInput', () => {
   });
 
   it('不属于已确定人员的分数不进入决定', () => {
-    const stray: RecordDraft = {
+    const stray: RecordBatchDraft = {
       ...draft,
       scores: [
         ...draft.scores,
@@ -173,7 +131,7 @@ describe('buildSaveInput', () => {
           state: 'suggested',
           value: 2,
           anchor: { id: 'a', text: 't', ruleVersion: 'v' },
-          citations: [{ kind: 'input', quote: '独立', start: 5, end: 7 }],
+          citations: [{ kind: 'source', quote: '独立', reference: textRef }],
         },
       ],
     };
@@ -191,7 +149,7 @@ describe('buildSaveInput', () => {
   });
 
   it('没有建议分的草稿也能保存（只存文字）', () => {
-    const plain: RecordDraft = {
+    const plain: RecordBatchDraft = {
       ...draft,
       scores: draft.scores.filter((s) => s.state === 'unknown'),
     };

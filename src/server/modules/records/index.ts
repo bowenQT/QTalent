@@ -13,6 +13,16 @@ export {
 } from './schema';
 export type { SourceLocation } from './schema';
 export { readEvidenceForTalent } from './read';
+export { parseOfficeBytes } from './office/parse';
+export { OfficeParseError } from './office/types';
+export type {
+  ParsedOffice,
+  OfficeFragment,
+  OfficeLocation,
+  OfficeCellContent,
+  OfficeScalar,
+  OfficeParseFailure,
+} from './office/types';
 
 // Batch preparation and persisted input facts; the native usecase owns authorization.
 export { arrangeInputs } from './arrange/input-state/schema';
@@ -69,6 +79,9 @@ export {
   commitRecordSave,
   commitRecordUndo,
   requireRecordUndoCommit,
+  recordUndoCancellationFacts,
+  readRecordResaveState,
+  readRecordCancellationHistory,
   RecordWriteError,
 } from './write';
 export type {
@@ -76,4 +89,18 @@ export type {
   RecordSaveLock,
   RecordUndoCommit,
   RecordConfirmationWorkFact,
+  RecordCancelledConfirmationWorkFact,
+  RecordResaveState,
+  RecordCancellationHistory,
 } from './write';
+
+// Internal upload facts require current authorization in the consuming usecase.
+export {
+  createPostgresUploadStore,
+  lockUploadCollection,
+  readUploadCollectionMembers,
+} from './uploads/store';
+export type { UploadDispatch, PostgresUploadStore } from './uploads/store';
+export { readValidatedUpload } from './uploads/handoff';
+export type { ValidatedUpload } from './uploads/handoff';
+export type { UploadCollectionMembers } from './uploads/types';

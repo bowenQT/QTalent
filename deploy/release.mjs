@@ -30,6 +30,8 @@ import { createConnection } from 'node:net';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const SHA = /^[0-9a-f]{40}$/;
+// One-off demo seed steps, each an explicit flag on `seed` (BOW-837).
+const SEED_STEPS = ['upgrade-statement-kinds', 'revert-statement-kinds'];
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
 const services = ['qtalent-web.service', 'qtalent-worker.service'];
 export class DeploymentError extends Error {
@@ -950,8 +952,13 @@ export class ReleaseManager {
       }
     }
   }
-  async database(kind, sha, backupFile) {
+  async database(kind, sha, backupFile, seedStep) {
     if (!['migrate', 'seed'].includes(kind)) fail('invalid_operation');
+    if (
+      seedStep !== undefined &&
+      (kind !== 'seed' || !SEED_STEPS.includes(seedStep))
+    )
+      fail('invalid_seed_step');
     return this.operation(kind, sha, async (record, phase, id) => {
       phase('validate');
       await this.validateEnvironment();
@@ -985,12 +992,20 @@ export class ReleaseManager {
       this.writeJson(backupFile + '.json', metadata);
       record.backup = { file: metadata.file, sha256: metadata.sha256 };
       record.databaseChanged = 'outcome_unknown';
-      phase(kind);
+      if (seedStep) record.seedStep = seedStep;
+      phase(seedStep ?? kind);
+      // A seed step checks it is connected to this manifest database itself.
+      const { host, port, name, username } = this.target.database.worker;
       await this.app(
         'worker',
         'command',
         this.target.pnpmPath,
-        ['db:' + kind],
+        [
+          'db:' + kind,
+          ...(seedStep
+            ? [seedStep, JSON.stringify({ host, port, name, username })]
+            : []),
+        ],
         path,
       );
       record.migrations = await this.migrationState(path);
@@ -1025,6 +1040,11 @@ export async function main(args, managerOptions = {}) {
       const key = args.shift();
       if (key === '--rollback-compatible') options.rollbackCompatible = true;
       else if (
+        SEED_STEPS.includes(key.slice(2)) &&
+        options.seedStep === undefined
+      )
+        options.seedStep = key.slice(2);
+      else if (
         [
           '--target',
           '--target-id',
@@ -1041,6 +1061,8 @@ export async function main(args, managerOptions = {}) {
     }
     if (!options['--target'] || !options['--target-id'])
       fail('target_required');
+    if (options.seedStep !== undefined && action !== 'seed')
+      fail('invalid_arguments');
     if (
       ['deploy', 'rollback'].includes(action) &&
       !Object.hasOwn(options, '--expected-current')
@@ -1076,6 +1098,7 @@ export async function main(args, managerOptions = {}) {
         action,
         options['--sha'],
         options['--backup'],
+        options.seedStep,
       );
     else if (action === 'status') result = await manager.status();
     else fail('invalid_operation');

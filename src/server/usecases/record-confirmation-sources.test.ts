@@ -4,6 +4,10 @@ import type { StoredArrangeInput } from '../modules/records';
 import type { TalentSource } from '../authz/talent';
 import { confirmationSources } from './record-confirmation-sources';
 import { sourceKey } from './talent-source-projection';
+import { intakeTableOf } from './talent-source-projection.test-support';
+
+const merged = async (data: ReturnType<typeof fixture>) =>
+  confirmationSources({ ...data, intake: await intakeTableOf(data.inputs) });
 
 function fixture() {
   const source: TalentSource = {
@@ -68,14 +72,14 @@ function fixture() {
     originals: [{ id: 'original', kind: 'original' }],
   };
 }
-it('uses real text intake before the first event exists', () => {
+it('uses real text intake before the first event exists', async () => {
   const data = fixture();
-  expect(confirmationSources(data)[0]!.subjects).toEqual(
+  expect((await merged(data))[0]!.subjects).toEqual(
     data.inputs[0]!.sourceContexts[0]!.subjects,
   );
   expect(data.sources[0]!.subjects).toEqual([]);
 });
-it('unions every intake and current formal subject, including superseded restrictions', () => {
+it('unions every intake and current formal subject, including superseded restrictions', async () => {
   const data = fixture();
   const another = structuredClone(data.inputs[0]!);
   another.id = 'other-intake';
@@ -99,7 +103,7 @@ it('unions every intake and current formal subject, including superseded restric
     },
   ];
   data.linkedSourceKeys.add(sourceKey(data.sources[0]!));
-  const result = confirmationSources(data)[0]!;
+  const result = (await merged(data))[0]!;
   expect(result.subjects.map((s) => s.personId).sort()).toEqual([
     'other-person',
     'person',
@@ -110,25 +114,25 @@ it('unions every intake and current formal subject, including superseded restric
     'management-observation',
   ]);
 });
-it('does not repair an incomplete existing graph with an otherwise valid intake', () => {
+it('does not repair an incomplete existing graph with an otherwise valid intake', async () => {
   const data = fixture();
   data.linkedSourceKeys.add(sourceKey(data.sources[0]!));
-  expect(confirmationSources(data)[0]!.subjects).toEqual([]);
+  expect((await merged(data))[0]!.subjects).toEqual([]);
 });
-it('does not infer subjects from creator, selected people, or attribution', () => {
+it('does not infer subjects from creator, selected people, or attribution', async () => {
   const data = fixture();
   data.inputs[0]!.sourceContexts[0]!.subjects = [];
-  expect(confirmationSources(data)[0]!.subjects).toEqual([]);
+  expect((await merged(data))[0]!.subjects).toEqual([]);
 });
-it('keeps the existing complete formal source when there is no intake', () => {
+it('keeps the existing complete formal source when there is no intake', async () => {
   const data = fixture();
   data.inputs = [];
   data.sources[0]!.subjects = [
     { personId: 'person', evaluationNodeId: 'node', cohortId: null },
   ];
-  expect(confirmationSources(data)[0]).toEqual(data.sources[0]);
+  expect((await merged(data))[0]).toEqual(data.sources[0]);
 });
-it('deduplicates facts without dropping different node requirements', () => {
+it('deduplicates facts without dropping different node requirements', async () => {
   const data = fixture();
   const context = data.inputs[0]!.sourceContexts[0]!;
   context.subjects.push(...structuredClone(context.subjects), {
@@ -136,7 +140,7 @@ it('deduplicates facts without dropping different node requirements', () => {
     evaluationNodeId: 'other-node',
     cohortId: 'cohort',
   });
-  expect(confirmationSources(data)[0]!.subjects).toHaveLength(2);
+  expect((await merged(data))[0]!.subjects).toHaveLength(2);
 });
 it.each([
   'missing-context',
@@ -160,7 +164,7 @@ it.each([
   'duplicate-context',
 ] as const)(
   'keeps %s unavailable instead of manufacturing provenance',
-  (kind) => {
+  async (kind) => {
     const data = fixture(),
       input = data.inputs[0]!,
       source = data.sources[0]!;
@@ -223,25 +227,25 @@ it.each([
         input.sourceContexts.push(structuredClone(input.sourceContexts[0]!));
         break;
     }
-    expect(confirmationSources(data)[0]!.subjects).toEqual([]);
+    expect((await merged(data))[0]!.subjects).toEqual([]);
   },
 );
-it('an unrelated intake cannot affect this fragment', () => {
+it('an unrelated intake cannot affect this fragment', async () => {
   const data = fixture();
   const other = structuredClone(data.inputs[0]!);
   other.inputSource!.fragmentId = 'other';
   other.sourceContexts[0]!.fragmentId = 'other';
   other.sourceContexts[0]!.subjects = [];
   data.inputs.push(other);
-  expect(confirmationSources(data)[0]!.subjects).toHaveLength(1);
+  expect((await merged(data))[0]!.subjects).toHaveLength(1);
 });
 
-it('matches canonical RecordInput while retaining and hashing original whitespace', () => {
+it('matches canonical RecordInput while retaining and hashing original whitespace', async () => {
   const data = fixture();
   data.sources[0]!.excerpt = '  ' + data.sources[0]!.excerpt + '\n ';
   data.versions[0]!.contentDigest = createHash('sha256')
     .update(data.sources[0]!.excerpt)
     .digest('hex');
-  expect(confirmationSources(data)[0]!.subjects).toHaveLength(1);
-  expect(confirmationSources(data)[0]!.excerpt).toBe(data.sources[0]!.excerpt);
+  expect((await merged(data))[0]!.subjects).toHaveLength(1);
+  expect((await merged(data))[0]!.excerpt).toBe(data.sources[0]!.excerpt);
 });

@@ -11,20 +11,19 @@
  * | 906 plan (#277)                                         | row state         |
  * | -------------------------------------------------------- | ----------------- |
  * | duplicate                                                | dup               |
+ * | skipped / not_hired (record located, or HR confirmed)    | skip              |
  * | not_ready / parser_manual_input (unrecognized)           | unread            |
  * | needs_review (unknown_interview_candidate), in directory | confirm           |
  * | needs_review (unknown_interview_candidate), not found    | unknown → sent    |
  * | not_ready / candidate_match_unconfirmed                  | confirm           |
- * | skipped / not_hired (only once HR has confirmed)         | skip              |
  * | needs_review (unknown_interviewer)                       | verify            |
  * | planned (HR confirmation stored)                         | confirmed         |
  *
- * 906 asks who a row is before it looks at the application status: every row HR has not
- * confirmed is a candidate review item, and a rejected or not-yet-joined candidate is
- * skipped only after HR confirms the match. Nobody in the directory usually means such a
- * candidate, so those rows wait to be identified (sent to review, kept as the original
- * only there) instead of skipping by themselves. Whether they may skip before HR
- * confirms is open with the owner (#248); only `rowState` would change.
+ * A rejected, offer-pending or offer-declined candidate is skipped before HR confirms
+ * who it is, as long as name, position code and interview time locate exactly one
+ * recruiting record (owner ruling, #248 6560666796): nothing is filed, the original is
+ * kept and 906 lets the skip be taken back. A row those three cannot locate waits to be
+ * identified like any other.
  * `skipped / original_only` is decided in the review list and never reaches the preview.
  *
  * Import itself (906 has no persistence or profile projection yet) is not part of this
@@ -81,6 +80,8 @@ export type ImportRow = {
   /** The candidate's name as the PDF prints it. */
   observedName: string;
   candidateStatus: CandidateStatus;
+  /** Name, position code and interview time locate exactly one recruiting record. */
+  located: boolean;
   template: { name: string; scale: string };
   /** ISO date of the interview. */
   interviewedOn: string;
@@ -136,8 +137,10 @@ export function unreadItems(row: ImportRow) {
 /** The first thing a row waits for, in the prototype's order. */
 export function rowState(row: ImportRow): RowState {
   if (row.duplicate) return 'dup';
-  // Confirmed and not hired: skipped, even when the directory has someone by that name.
-  if (row.confirmed && row.candidateStatus !== 'hired') return 'skip';
+  // Not hired: skipped once the record is known, even when the directory has someone
+  // by that name; HR's confirmation also settles which record it is.
+  if (row.candidateStatus !== 'hired' && (row.located || row.confirmed))
+    return 'skip';
   if (!row.match) return row.reviewItemId ? 'sent' : 'unknown';
   if (row.interviewer.status === 'pending') return 'verify';
   if (unreadItems(row).length) return 'unread';
