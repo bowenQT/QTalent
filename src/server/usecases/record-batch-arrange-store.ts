@@ -200,6 +200,33 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
           ))
       )
         return false;
+      // An intake whose people are still unidentified has no complete source
+      // subjects yet, so it cannot pass the source projection. Its creator keeps
+      // read/control access to the pending text while they can still write on
+      // the node; nothing reaches the model until people are confirmed, because
+      // the runner still requires the complete source snapshot below.
+      if (
+        value.personIds.length === 0 &&
+        value.sourceContexts.every(
+          (context) => context.subjects.length === 0,
+        ) &&
+        metadata.pending.some((item) => item.kind === 'unknown_person')
+      ) {
+        const actor = await loadArrangeActor(
+          tx,
+          value.creatorAccountId,
+          deps.businessNow(),
+        );
+        return (
+          actor.context.account.personId === metadata.actorPersonId &&
+          canWriteArrange(
+            actor,
+            [],
+            value.projectId,
+            requireNativeInput(value).evaluationNodeId,
+          )
+        );
+      }
       // Read/control authorization only: a snapshot cannot widen access, and
       // the runner re-checks under SHARE before any model call.
       const snapshot = await loadRecordBatchSnapshot(
