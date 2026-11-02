@@ -22,6 +22,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('email-password login', () => {
+  it('returns to the server-chosen deep link after signing in', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    const user = userEvent.setup();
+    const link = '/entry/open?kind=material_batch&id=demo&expectedRevision=1';
+    render(<LoginForm returnTo={link} />);
+    await user.type(screen.getByLabelText('邮箱'), 'ceo@qtalent.test');
+    await user.type(screen.getByLabelText('密码'), 'test-only-password');
+    await user.click(screen.getByRole('button', { name: '登录' }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(link));
+  });
   it('sends one same-origin request and enters the workbench on success', async () => {
     const fetch = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', fetch);
