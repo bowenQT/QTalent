@@ -69,6 +69,8 @@ export const personIdentitySchema = personAvatarSchema.extend({
   teamId: str,
   teamName: str,
   teamPath: str,
+  // Display path in the prototype's orgPath form: parent / team, grouping nodes skipped.
+  orgPath: str,
   jobTitle: str,
   level: str.nullable(),
   batch: z.strictObject({ id: str, name: str }).nullable(),

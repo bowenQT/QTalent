@@ -11,6 +11,7 @@ import { registerProgressExample } from '../server/jobs/progress-worker';
 import { getDatabase } from '../server/db/client';
 import { createModelinkMaasClientFromEnv } from '../server/integrations/maas';
 import { createStaffingDemandRuntime } from '../server/usecases/staffing-demand-runtime';
+import { createRecordArrangeWorker } from '../server/usecases/record-arrange-worker';
 import { authenticateHandshake, heartbeatReply } from './handshake';
 export async function startWorker() {
   const env = getEnv();
@@ -32,6 +33,17 @@ export async function startWorker() {
         MODELINK_BASE_URL: env.MODELINK_BASE_URL,
         MODELINK_MODEL: env.MODELINK_MODEL,
       }),
+    }).register();
+    await createRecordArrangeWorker({
+      db: getDatabase(),
+      boss,
+      environment: {
+        MODELINK_API_KEY: env.MODELINK_API_KEY,
+        MODELINK_BASE_URL: env.MODELINK_BASE_URL,
+        MODELINK_MODEL: env.MODELINK_MODEL,
+      },
+      businessNow: () => clock.now().toISOString(),
+      now: () => new Date(),
     }).register();
   } catch (error) {
     await boss.stop();

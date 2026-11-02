@@ -42,6 +42,13 @@ projectSources(data: StaffingMatchEvidenceData): Promise<{ sources: TalentSource
 
 前者须由 records 的真实公共只读入口给事件/人员、原始人工接受事实、撤回和证据性质；后者复用共同来源投影，保留全部主体、来源类别、原件版本/位置、真实标题和可空记录人。均不能以客户端 IDs 或 fake 结果当许可。loadEvidence 在一个真实只读 repeatable-read 快照内读取；模型写回再次加载，未声称这个只读事务能锁住未来撤权。
 
+## 模型端口组装
+
+`usecases/staffing-match-models.ts::createStaffingMatchModels(env)` 从服务端已有环境名组装两个端口：Jev（`QINIU_MAAS_API_KEY`，可选 `QINIU_JEV_BASE_URL` / `QINIU_JEV_MODEL`）判每一格，Gemini 复核（`MODELINK_API_KEY`，可选 `MODELINK_BASE_URL` / `MODELINK_MODEL`）只接 Jev 的 not_supported。不读环境文件，构造时不发请求。
+
+- `configured` 直接调用两个客户端各自的环境校验（`jevEnvironmentReady` / `modelinkEnvironmentReady`，与 `create*FromEnv` 共用同一个 schema），覆盖密钥、模型和地址；任一端口不能成为真实客户端时为 false。这两个函数从各自模块文件直接引入，未改公共出口。入口须先检查 `configured`，未就绪时回答未接入，不启动会全部因配置失败的格子。
+- 重试：Jev 客户端单次尝试。Gemini 复核沿用 Modelink 客户端默认的 2 次尝试，但第二次只在可信传输抛出 `MaasRequestNotSentError`（请求确定没有发出）时，等 250ms 重发一次；请求没有到达供应商，不会重复计费，也没有副作用。超时、5xx、429、读流中断等结果未知的失败一律不重发（见 `integrations/maas/README.md`）。默认原生 fetch 不抛这个错误，所以生产默认路径实际只尝试一次。
+
 ## 精确公共接线请求
 
 本片不改任何 index、worker 注册、schema、package/lock 或迁移。
