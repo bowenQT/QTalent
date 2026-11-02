@@ -355,30 +355,22 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
         throw new NativeArrangeUnavailable('native_media_material_missing');
       return row;
     });
-    // Unlocked reads: the attachment worker owns its job row's lock. Each file's
-    // parse is the media job the batch created for that upload version.
-    const parseJobs = await tx
-      .select()
-      .from(jobSnapshots)
-      .where(
-        and(
-          eq(jobSnapshots.kind, 'media'),
-          inArray(
-            jobSnapshots.resourceId,
-            ordered.map((row) => row.material.uploadId),
-          ),
-        ),
-      );
-    const parseJobFor = (material: typeof mediaMaterials.$inferSelect) => {
-      const found = parseJobs.filter(
-        (row) =>
-          row.resourceId === material.uploadId &&
-          row.inputVersion === material.originalVersionId,
-      );
-      if (found.length !== 1)
-        throw new NativeArrangeUnavailable('native_media_parse_job_missing');
-      return found[0]!;
-    };
+    // Unlocked reads: the attachment worker owns its job row's lock.
+    const parseJobs = new Map(
+      (
+        await tx
+          .select()
+          .from(jobSnapshots)
+          .where(
+            inArray(
+              jobSnapshots.jobId,
+              ordered.map((row) => row.material.parseJobId),
+            ),
+          )
+      ).map((row) => [row.jobId, row]),
+    );
+    const parseJobFor = (material: typeof mediaMaterials.$inferSelect) =>
+      parseJobs.get(material.parseJobId);
     const parses = await tx
       .select({
         id: materialParses.id,
@@ -389,7 +381,7 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
       .where(
         inArray(
           materialParses.jobId,
-          ordered.map(({ material }) => parseJobFor(material).jobId),
+          ordered.map(({ material }) => material.parseJobId),
         ),
       );
     const files = ordered.map(({ material, request }) => {
@@ -401,11 +393,11 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
           filename: request.filename,
           originalVersionId: material.originalVersionId,
         },
-        parseJob.jobId,
+        material.parseJobId,
         parseJob,
         parses.find(
           (row) =>
-            row.jobId === parseJob.jobId &&
+            row.jobId === material.parseJobId &&
             row.originalVersionId === material.originalVersionId,
         )?.id,
       );

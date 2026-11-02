@@ -251,6 +251,7 @@ export function createRecordBatchArrangeRequests(
     };
     await insertJob(tx, job);
     await insertArrangeInput(tx, stored);
+    const parseJobIds = new Map<string, string>();
     for (const { upload } of files) {
       const parse = newJob(
         {
@@ -263,6 +264,7 @@ export function createRecordBatchArrangeRequests(
       );
       await insertJob(tx, parse);
       await deps.enqueue(tx, parse);
+      parseJobIds.set(upload.uploadId, parse.jobId);
     }
     await tx.insert(mediaMaterials).values(
       files.map(({ file, upload }) => ({
@@ -271,6 +273,7 @@ export function createRecordBatchArrangeRequests(
         inputVersion,
         clientFileId: file.clientFileId,
         uploadId: upload.uploadId,
+        parseJobId: parseJobIds.get(upload.uploadId)!,
         recordCollectionId: upload.recordCollectionId,
         originalVersionId: upload.originalVersionId,
         revision: 1,
