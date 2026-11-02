@@ -30,6 +30,11 @@ import { createConnection } from 'node:net';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const SHA = /^[0-9a-f]{40}$/;
+// The BOW-923 demo init decodes its pinned workbooks with `python3 -I` and
+// only these standard modules; prepare warns early when the service
+// environment cannot load them (the init entry itself is the gate).
+const PYTHON_CHECK =
+  'import io,json,sys,zipfile,xml.etree.ElementTree;print("python_ok")';
 // One-off demo seed steps, each an explicit flag on `seed` (BOW-837).
 const SEED_STEPS = ['upgrade-statement-kinds', 'revert-statement-kinds'];
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
@@ -620,9 +625,32 @@ export class ReleaseManager {
       rmSync(snapshot, { recursive: true, force: true });
     }
   }
+  /** Early warning only: the service environment can start `python3 -I` and
+   * load the demo init's workbook modules. The init entry checks again with
+   * its own PATH before reading or writing anything; this is not that gate. */
+  async requirePython(path) {
+    let output;
+    try {
+      output = await this.app(
+        'worker',
+        'command',
+        '/usr/bin/env',
+        ['python3', '-I', '-c', PYTHON_CHECK],
+        path,
+        { capture: true },
+      );
+    } catch {
+      fail('python_unavailable');
+    }
+    if (output !== 'python_ok') fail('python_unavailable');
+  }
   async prepare(sha, operationId) {
     const final = join(this.releases, sha);
-    if (existsSync(final)) return this.release(sha);
+    if (existsSync(final)) {
+      const existing = this.release(sha);
+      await this.requirePython(final);
+      return existing;
+    }
     const stage = join(this.releases, '.pending-' + operationId);
     mkdirSync(stage);
     try {
@@ -647,6 +675,7 @@ export class ReleaseManager {
         ['install', '--frozen-lockfile', '--prod=false', '--ignore-scripts'],
         stage,
       );
+      await this.requirePython(stage);
       const referenceCommit = await this.prepareReference(stage);
       await this.app('web', 'command', this.target.pnpmPath, ['build'], stage);
       if (!existsSync(join(stage, '.next', 'BUILD_ID'))) fail('missing_build');
