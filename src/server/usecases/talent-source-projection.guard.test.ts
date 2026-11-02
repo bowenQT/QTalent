@@ -177,6 +177,8 @@ describe('complete talent source projection', () => {
       'src/server/queries/people.ts',
       'src/server/queries/person-data.ts',
       'src/server/queries/person-projection.ts',
+      // Takes the intake writer lock before re-reading a batch and submitting.
+      'src/server/usecases/agentapi/postgres.ts',
       // Reads the whole issued intake table for the MCP person brief.
       'src/server/usecases/mcp/person-brief.ts',
       'src/server/usecases/read-material-source.ts',

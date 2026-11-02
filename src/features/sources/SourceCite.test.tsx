@@ -95,7 +95,8 @@ describe('SourceCite reading', () => {
     expect(popText(view)).toContain('读取原文中');
     expect(popText(view)).toContain('「观察表」C7');
     await act(async () => resolve(success(original)));
-    expect(popText(view)).toContain('表格 · 「观察表」C7');
+    // 读到原文后标题换成原件标题，记录人有值才显示。
+    expect(popText(view)).toContain('合成观察表 · 「观察表」C7 · 演示记录人');
     expect(popText(view)).toContain('联调时能独立定位问题');
     expect(popText(view)).not.toContain('读取原文中');
   });
@@ -139,7 +140,9 @@ describe('SourceCite reading', () => {
     await userEvent.setup().hover(mark());
     await waitFor(() => expect(popText(view)).toContain('原型基线 2e51b50'));
     expect(popText(view)).toContain('演示');
-    expect(popText(view)).toContain('原型基线 · 第 4 行');
+    expect(popText(view)).toContain('合成基线 · 第 4 行');
+    // 记录人未知（null）时不显示，也不拿别人代替。
+    expect(popText(view)).not.toMatch(/第 4 行 ·/);
     expect(popText(view)).toContain('评语按原意压缩后的一句话');
     expect(popText(view)).not.toContain('events.12.note');
     expect(
@@ -162,7 +165,7 @@ describe('SourceCite reading', () => {
     });
     await userEvent.setup().hover(mark());
     await waitFor(() => expect(popText(view)).toContain('原型基线 2e51b50'));
-    expect(popText(view)).toContain('原型基线 · 快照字段');
+    expect(popText(view)).toContain('合成基线 · 快照字段');
   });
 });
 

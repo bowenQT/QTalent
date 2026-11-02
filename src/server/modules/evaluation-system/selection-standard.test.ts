@@ -147,15 +147,18 @@ function published() {
       current: initial,
       currentPublicationId: null,
       publicationId: 'demo-pub-1',
+      wallAt: time,
       impact: impact(),
     },
   );
 }
+// The business clock stays at publication time, as on the fixed demo clock; only
+// the server wall clock (wallAt) moves, and it alone closes the undo window.
 function undo(at = '2026-10-31T10:00:04.999Z') {
   const publication = published();
   return {
     publication,
-    auth: authority('manager', at),
+    auth: authority('manager'),
     input: {
       operationId: 'demo-undo',
       publicationId: publication.receipt.publicationId,
@@ -167,16 +170,25 @@ function undo(at = '2026-10-31T10:00:04.999Z') {
       currentPublicationId: publication.receipt.publicationId,
       previous: initial,
       bindingsBefore: impact().preservedBindings,
+      wallAt: at,
     },
   };
 }
 describe('server-owned current authorization and scoped preview', () => {
-  it('revokes access to the entire saved preview before an HR action if its next-cohort scope is withdrawn', () => {
+  it('does not require an HR grant on the future next cohort, only on the cohorts the preview discloses', () => {
     const record = saved();
     const ctx = authority();
     ctx.context.grants[1].revokedAt = time;
     expect(() =>
       planSubmitSelectionRevision(ctx, record, {
+        ...command(record),
+        expectedPreviewId: record.revision.impactPreview.id,
+      }),
+    ).not.toThrow();
+    const withdrawn = authority();
+    withdrawn.context.grants[0].revokedAt = time;
+    expect(() =>
+      planSubmitSelectionRevision(withdrawn, record, {
         ...command(record),
         expectedPreviewId: record.revision.impactPreview.id,
       }),
@@ -246,15 +258,16 @@ describe('server-owned current authorization and scoped preview', () => {
         versionId: 'xe-select-v2',
       }),
     ).toThrow('权限');
+    // A future next cohort is a trusted descriptor: no grant on it exists yet.
     const target = impact();
-    target.nextCohort = { id: 'hidden-next-cohort', name: '不应泄露' };
-    expect(() =>
+    target.nextCohort = { id: 'future-next-cohort', name: '下一期（演示）' };
+    expect(
       prepareSelectionImpactPreview(authority(), fresh(), target, {
         id: 'p',
         contentRevision: 1,
         versionId: 'xe-select-v2',
-      }),
-    ).toThrow('权限');
+      }).nextCohort,
+    ).toEqual(target.nextCohort);
   });
   it('separates HR editing from manager confirmation and rejects malformed business time', () => {
     expect(() =>
@@ -524,6 +537,7 @@ describe('publication plans and the five-second paired undo', () => {
           current: initial,
           currentPublicationId: null,
           publicationId: 'demo-pub',
+          wallAt: time,
           impact: facts,
         },
       ),
@@ -575,6 +589,7 @@ describe('publication plans and the five-second paired undo', () => {
         current: initial,
         currentPublicationId: null,
         publicationId: 'pub',
+        wallAt: time,
         impact: impact(),
       };
       if (kind === 'base')

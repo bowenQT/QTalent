@@ -10,7 +10,7 @@ test('confirmed rows stay confirmed after leaving the preview and coming back', 
   context,
   referenceApp,
 }) => {
-  // 「去核对」落到真实的待核对页，它要登录；以 HR 进入，离开后才能留在 /inbox。
+  // 离开到真实的待核对页再回来，它要登录；以 HR 进入，离开后才能留在 /inbox。
   await login(context, 'hrbp', referenceApp.baseURL);
   await page.goto(`${referenceApp.baseURL}/dev/import`);
   const row = (id: string) => page.locator(`#iv-${id}`);
@@ -20,9 +20,9 @@ test('confirmed rows stay confirmed after leaving the preview and coming back', 
   await row('r2').getByRole('combobox').selectOption('B');
   await expect(row('r2').locator('.n-ivscale')).toContainText('系统设计 B');
 
-  // Leave through the interviewer review link, then come back.
-  await row('r2').getByRole('link', { name: '去核对' }).click();
-  await expect(page).toHaveURL(/\/inbox#i-int$/);
+  // Leave for the review list, then come back.
+  await page.goto(`${referenceApp.baseURL}/inbox`);
+  await expect(page).toHaveURL(/\/inbox$/);
   await page.goBack();
   await expect(row('r1')).toHaveAttribute('data-state', 'confirmed');
   await expect(row('r1')).toContainText('已确认是孟逸尘');
@@ -54,14 +54,13 @@ test('skipped, waiting to be identified and unread rows are told apart and handl
     page.getByText('已放进待核对，北森同步后再确认是谁'),
   ).toBeVisible();
   await expect(unknown).toHaveAttribute('data-state', 'sent');
-  await expect(
-    unknown.getByRole('link', { name: '查看待核对' }),
-  ).toHaveAttribute('href', '/inbox#i-iv-r7');
+  await expect(unknown.getByText('已提交，待核对')).toBeVisible();
+  await expect(unknown.getByRole('link')).toHaveCount(0);
 
   const unread = page.locator('#iv-r2');
   await expect(unread.locator('.is-miss')).toHaveText('系统设计 待补录');
   await expect(
-    page.getByRole('figure', { name: '第 3 页「系统设计」一栏的页面图' }),
+    page.getByRole('figure', { name: '「系统设计」的可选值' }),
   ).toBeVisible();
 
   const skipped = page.locator('details.nt-fold');
@@ -90,8 +89,10 @@ test('skipped, waiting to be identified and unread rows are told apart and handl
   await expect(page.locator('.n-ivbar')).toContainText('导入待接通');
 });
 
+// imp-1 is the sample batch; the stored /import has no such batch, so HR sees the link
+// as expired while every other role is refused before any batch is read.
 for (const [role, heading] of [
-  ['hrbp', '面评预览待接通'],
+  ['hrbp', '导入链接失效'],
   ['mentor', '面评导入由 HR 处理'],
   ['ceo', '面评导入由 HR 处理'],
   ['admin', '这一页属于业务视角'],

@@ -5,6 +5,9 @@ export type InterviewTemplate = {
   level: { label: string; options: readonly string[] };
 };
 
+/** Every template scores its dimensions on this five-point scale. */
+export const INTERVIEW_DIMENSION_OPTIONS = ['1', '2', '3', '4', '5'] as const;
+
 /** These are BOW-896 synthetic fixtures, not certified Beisen export fingerprints. */
 export const INTERVIEW_TEMPLATES: readonly InterviewTemplate[] = [
   '校招专业面试通用评价表',

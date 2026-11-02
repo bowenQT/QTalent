@@ -314,7 +314,7 @@ it('decides the session and node write permission on the server', async () => {
   expect(crossSite.status).toBe(403);
 });
 
-it('answers unsupported formats and sizes before issuing a grant', async () => {
+it('answers unsupported formats and sizes before issuing a grant, and grants up to the contract size', async () => {
   const staged = await stage();
   if (staged.body.status !== 'success') throw new Error(staged.body.status);
   const id = staged.body.recordCollectionId;
@@ -351,6 +351,18 @@ it('answers unsupported formats and sizes before issuing a grant', async () => {
     .from(uploadIntents)
     .where(eq(uploadIntents.recordCollectionId, id));
   expect(intents).toEqual([]);
+  // Up to the 2 GiB contract a video gets a grant.
+  const large = await post(
+    requestUpload,
+    '/api/record/uploads',
+    materialRequest(id, {
+      purpose: 'video',
+      filename: 'demo.mp4',
+      mediaType: 'video/mp4',
+      bytes: 1.5 * 1024 ** 3,
+    }),
+  );
+  expect(await large.json()).toMatchObject({ status: 'success' });
 });
 
 it('refuses another account’s staging collection and an unfinished upload', async () => {
@@ -363,9 +375,32 @@ it('refuses another account’s staging collection and an unfinished upload', as
     bytes: 12,
   });
   h.account = seeded.outsiderAccount;
-  expect(
-    (await post(requestUpload, '/api/record/uploads', request)).status,
-  ).toBe(403);
+  const outsider = await post(requestUpload, '/api/record/uploads', request);
+  expect(outsider.status).toBe(403);
+  const outsiderBody = await outsider.json();
+  // A missing collection and another account's record collection answer alike.
+  const peopleCollection = randomUUID();
+  await connection.db.insert(uploadCollections).values({
+    id: peopleCollection,
+    creatorAccountId: seeded.account,
+    operationId: randomUUID(),
+    target: { kind: 'people', personIds: [seeded.target] },
+    targetFingerprint: 'a'.repeat(64),
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 60_000,
+    revision: 1,
+  });
+  for (const recordCollectionId of [randomUUID(), peopleCollection]) {
+    const refused = await post(requestUpload, '/api/record/uploads', {
+      ...request,
+      recordCollectionId,
+      operationId: randomUUID(),
+    });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({
+      status: outsiderBody.status,
+    });
+  }
   h.account = seeded.account;
   const granted = materialRequestUploadResultSchema.parse(
     await (await post(requestUpload, '/api/record/uploads', request)).json(),

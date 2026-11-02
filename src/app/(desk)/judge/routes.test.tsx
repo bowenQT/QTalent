@@ -5,16 +5,36 @@ import type { ShellData } from '@/contracts/shell';
 import JudgePage, { generateMetadata as judgeMetadata } from './page';
 import RulesPage, { generateMetadata as rulesMetadata } from '../rules/page';
 
-const { shellQuery, judgeQuery } = vi.hoisted(() => ({
+const { shellQuery, judgeQuery, rulesQuery } = vi.hoisted(() => ({
   shellQuery: vi.fn(),
   judgeQuery: vi.fn(),
+  rulesQuery: vi.fn(),
 }));
 vi.mock('@/server/queries/shell', () => ({ getShellPage: shellQuery }));
+vi.mock('@/server/queries/rules', () => ({
+  getSelectionStandardPage: rulesQuery,
+}));
+vi.mock('@/server/actions/selection-standard', () =>
+  Object.fromEntries(
+    [
+      'saveSelectionRevisionAction',
+      'submitSelectionRevisionAction',
+      'withdrawSelectionRevisionAction',
+      'publishSelectionRevisionAction',
+      'undoSelectionPublicationAction',
+      'returnSelectionRevisionAction',
+      'readSelectionRevisionAction',
+    ].map((name) => [name, vi.fn()]),
+  ),
+);
 vi.mock('@/server/queries/judge', () => ({ getJudgePage: judgeQuery }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
   notFound: () => {
     throw new Error('not-found');
+  },
+  redirect: (url: string) => {
+    throw new Error(`redirect:${url}`);
   },
 }));
 
@@ -40,6 +60,7 @@ const standard = Promise.resolve({ r: 'front', line: 'xe-select' });
 beforeEach(() => {
   shellQuery.mockReset();
   judgeQuery.mockReset();
+  rulesQuery.mockReset();
 });
 afterEach(cleanup);
 
@@ -94,11 +115,11 @@ describe('/judge before comparison batches are stored', () => {
   });
 });
 
-describe('/rules?r=front&line=xe-select before BOW-918 is connected', () => {
-  it('serves only the selection standard; anything else is the unified 404', async () => {
+describe('/rules?r=front&line=xe-select', () => {
+  it('opens the selection standard from the bare sidebar entry; other families are the unified 404', async () => {
     await expect(
       RulesPage({ searchParams: Promise.resolve({}) }),
-    ).rejects.toThrow('not-found');
+    ).rejects.toThrow('redirect:/rules?r=front&line=xe-select');
     await expect(
       RulesPage({ searchParams: Promise.resolve({ r: 'perf' }) }),
     ).rejects.toThrow('not-found');
@@ -108,14 +129,92 @@ describe('/rules?r=front&line=xe-select before BOW-918 is connected', () => {
     expect(shellQuery).not.toHaveBeenCalled();
   });
 
-  it('says 待接通 to HR and managers', async () => {
-    shellQuery.mockResolvedValue(shell('manager'));
-    expect(await rulesMetadata({ searchParams: standard })).toEqual({
-      title: 'XEngineer 入营选拔标准 · Niu-Talent',
-    });
+  it.each([
+    ['hr', '/judge#attrib'],
+    ['manager', null],
+  ] as const)(
+    'shows %s the standard in force; only HR is pointed to drafting',
+    async (role, draftHref) => {
+      shellQuery.mockResolvedValue(shell(role));
+      rulesQuery.mockResolvedValue({
+        status: 'current',
+        audience: role,
+        version: {
+          category: 'xe_selection',
+          versionId: 'xe-select-v1',
+          effectiveFrom: '2026-06-14T16:00:00.000Z',
+          effectiveUntil: null,
+          provenance: 'demo_import_snapshot',
+        },
+        content: {
+          reviewPoints: [
+            {
+              id: 'p1',
+              title: '作品完成度',
+              description: '三档各写清要看到什么',
+            },
+          ],
+        },
+        bindings: [
+          {
+            cohort: { id: 'b-xe6', name: 'XEngineer 第六期' },
+            standardVersionId: 'xe-select-v1',
+            boundAt: '2026-06-30T00:00:00.000Z',
+          },
+        ],
+        preparing: { id: 'b-xe7-demo', name: 'XEngineer 第七期（演示）' },
+      });
+      expect(await rulesMetadata({ searchParams: standard })).toEqual({
+        title: 'XEngineer 入营选拔标准 · Niu-Talent',
+      });
+      render(await RulesPage({ searchParams: standard }));
+      expect(rulesQuery).toHaveBeenCalledWith(null);
+      expect(screen.getByText(/生效中 xe-select-v1/)).toBeTruthy();
+      expect(screen.getByText(/作品完成度/)).toBeTruthy();
+      expect(
+        screen.getByText(
+          '06-15 起生效 · 之后新建期次的默认版本 · XEngineer 第六期绑定这一版 · XEngineer 第七期（演示）还在筹备，建立时绑定当时的默认版本',
+        ),
+      ).toBeTruthy();
+      expect(
+        screen
+          .queryByRole('link', { name: '回到工作台' })
+          ?.getAttribute('href') ?? null,
+      ).toBe(role === 'manager' ? '/work' : null);
+      expect(
+        screen
+          .queryByRole('link', { name: '去判断对照起草' })
+          ?.getAttribute('href') ?? null,
+      ).toBe(draftHref);
+    },
+  );
+
+  it('passes the draft id to the server and keeps an unknown draft a 404', async () => {
+    shellQuery.mockResolvedValue(shell('hr'));
+    rulesQuery.mockResolvedValue({ status: 'not_found' });
+    await expect(
+      RulesPage({
+        searchParams: Promise.resolve({
+          r: 'front',
+          line: 'xe-select',
+          draft: 'rev-1',
+        }),
+      }),
+    ).rejects.toThrow('not-found');
+    expect(rulesQuery).toHaveBeenCalledWith('rev-1');
+    rulesQuery.mockResolvedValue({ status: 'none' });
     render(await RulesPage({ searchParams: standard }));
     expect(
-      screen.getByRole('heading', { name: '入营选拔标准待接通' }),
+      screen.getByRole('heading', { name: 'XEngineer 入营选拔标准', level: 1 }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('heading', { name: '还没有生效的入营选拔标准' }),
+    ).toBeTruthy();
+    cleanup();
+    rulesQuery.mockResolvedValue({ status: 'forbidden' });
+    render(await RulesPage({ searchParams: standard }));
+    expect(
+      screen.getByRole('heading', { name: '查看权限已更新' }),
     ).toBeTruthy();
   });
 

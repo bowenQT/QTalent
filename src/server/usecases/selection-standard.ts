@@ -219,11 +219,12 @@ function verifyAccount(
   )
     throw new SelectionLifecycleError('forbidden', '当前身份无法处理此请求');
 }
+/** Must equal the store's `scope`: the next cohort is a future descriptor, not
+ * a scope, until the impact reader finds it existing. */
 function visibleCohorts(record: SelectionRevisionRecord): string[] {
   return [
     ...new Set([
       record.scopeCohortId,
-      record.revision.impactPreview.nextCohort.id,
       ...record.revision.impactPreview.existingResults.map(
         (row) => row.cohortId,
       ),
@@ -256,6 +257,7 @@ export async function executeSelectionRevision<Tx>(
   accountId: string,
   raw: unknown,
   clock: () => Date = () => new Date(),
+  wallClock: () => Date = () => new Date(),
 ) {
   const parsed = selectionRevisionCommandSchema.safeParse(raw);
   if (!parsed.success)
@@ -276,6 +278,7 @@ export async function executeSelectionRevision<Tx>(
       async (tx) => {
         // Clock and current authorization are loaded AFTER waiting for all locks.
         const now = clock().toISOString();
+        const wallAt = wallClock().toISOString();
         const authority = await ports.loadAuthority(tx, accountId, now);
         verifyAccount(authority, accountId, now);
         authorizeSelectionAction(authority, requiredRole(command));
@@ -355,6 +358,7 @@ export async function executeSelectionRevision<Tx>(
               current: await currentSelection(ports, tx, now),
               currentPublicationId: await ports.readCurrentPublicationId(tx),
               bindingsBefore: await ports.readBindingsForUndo(tx),
+              wallAt,
             },
           );
           record = undo.record;
@@ -423,6 +427,7 @@ export async function executeSelectionRevision<Tx>(
                     await ports.readCurrentPublicationId(tx),
                   publicationId: await ports.allocateId(tx, 'publication'),
                   impact: await ports.readImpact(tx, authority, loaded),
+                  wallAt,
                 },
               );
               record = publication.record;

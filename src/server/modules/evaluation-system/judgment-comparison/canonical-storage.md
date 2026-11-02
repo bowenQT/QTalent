@@ -23,7 +23,7 @@ reader 默认加批次 advisory lock 和行级 `for share`。只读事务不能�
 
 生产调用路径为 `src/server/usecases/judgment-comparison-canonical.ts`；本域 `canonical-store.ts` 只做五表真实存取。跨域目录、节点和来源验证由 usecase 复用各域公开表出口，同一事务执行。路径调整已明确核准并登记于 [协调记录](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6560606327)。这些是 server-private 函数。923 在同一个真实事务中登记 records 原件/片段，再调用 write；函数不自建连接、不提交外层事务。异常必须传播至外层事务以完整回滚。导入按批次业务键加事务 advisory lock；相同事实重放为 unchanged，同 ID 异事实为 conflict，不静默吞冲突。reader 的 null 仅表示成功查询后该批次不存在，缺表、SQL 错误、缺段或不完整内容均为错误。
 
-`CanonicalComparisonSnapshot` 返回 `facts`、真实期次绑定的 `selectionStandardVersionId`、完整性 `factsDigest` 和首次导入 `importedAt`。不包含 outcome、分布、样本门槛结果或 confirmedAttributions；不能在 921 尚无真实归因读取时默认补空数组。
+`CanonicalComparisonSnapshot` 返回 `facts`、真实期次绑定的 `selectionStandardVersionId`、完整性 `factsDigest` 和首次导入 `importedAt`。不包含 outcome、分布、样本门槛结果或 confirmedAttributions。转换为 `ComparisonDataset` 只在 `src/server/usecases/judgment-comparison-dataset.ts` 的 `comparisonDatasetFromSnapshot` 一处完成：补目录姓名、期次、来源摘录，并从 921 的 `evaluation_standard_attributions` 读出 confirmedAttributions。
 
 ## 输入与来源
 
@@ -76,4 +76,4 @@ pnpm exec vitest run --config vitest.integration.config.ts \
 
 回归重点：并发相同批次只写一次；相同 ID 异事实冲突；原件登记及五表在外层事务整体回滚；后插 case 身份碰撞回滚；同人多判断保留；缺段只能显式写入；漏 stage/漏人工 mark/实际正文或行定位漂移失败关闭；目录、节点主体、期次版本、原件版本/摘要/路径、独立原件和合法 XLSX 行坐标均校验；数据库错误不包装为空批次。测试完成后自身数据库/连接已清理，heavy 槽已释放。
 
-本函数没有当前 account/grants 参数，目录存在和历史署名都不是当前授权证明。它不提供可直接外发的 ComparisonDataset；完整来源披露、当前节点有效关系、撤权、评价人投影和模型前过滤继续由授权读取方执行。
+本函数没有当前 account/grants 参数，目录存在和历史署名都不是当前授权证明。`readComparisonDataset` 同样是服务端全量，不能直接外发；完整来源披露、当前节点有效关系、撤权、评价人投影和模型前过滤继续由授权读取方执行（`/judge` 经 `comparisonReadPorts` 与 `projectComparison`，HR 归因经 `readBatchAttributionState`）。

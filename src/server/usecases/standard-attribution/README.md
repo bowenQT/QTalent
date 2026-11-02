@@ -70,7 +70,7 @@ pnpm lint
 
 读取适配由真实899 `loadEvaluationContext` 构造HR目录署名，先核批次期次HR，再逐人逐段核 `canManageNodeAssignments`、evaluation source-read/model-input；评价关系不补HR范围。以919 `projectComparison` 从原事实计算授权案例，不复制算法。canonical异步IO之后重读身份/范围；归因→batch先授权，再读私有归因及基准，基准等待后再核范围与精确引用。两个真实PG撤权反例先Red再修。读取中的未知存储错误继续抛出。
 
-**当前生产缺口**：919 canonical writer尚未交稳定生产reader，918#269未合且该精确基准读取组装未完成；本PR只在测试中明确提供合成canonical/918事实，权限、四表、锁、审计和回执走真实PG。两段节点使用合法合成类型，不表示923真实selection/graduation的kind裁决已完成。完整原件权限/实际原表打开仍须919及原件读取链保证，本适配的节点过滤不冒充原件字节访问验收。未接生产HTTP/query/模型组装，不宣称第三幕在线。
+生产读取由 `nativeAttributionReadServices(clock)`（`batch-state.ts`）组装：canonical 经 `readComparisonDataset`，基准经918 `readCurrentSelectionStandard`。HR 页初始列表用 `readBatchAttributionState(tx,batchId,accountId,at)`：先经同一读取适配核当前HR批次，范围外或批次不存在返回 null；已存假设与归因只在每条引用仍落在当前授权案例时返回，存量引用不当作当前授权。store 的测试仍显式提供合成canonical/918事实，权限、四表、锁、审计和回执走真实PG。两段节点使用合法合成类型，不表示923真实selection/graduation的kind裁决已完成。完整原件权限/实际原表打开仍须919及原件读取链保证，本适配的节点过滤不冒充原件字节访问验收。未接生产HTTP/query/模型组装，不宣称第三幕在线。
 
 ### 本轮验证
 

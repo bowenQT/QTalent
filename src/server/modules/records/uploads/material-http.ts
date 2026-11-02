@@ -28,6 +28,9 @@ export function createMaterialUploadHttpHandlers(deps: {
   trustedOrigin: string;
   authenticate(headers: Headers): Promise<string | null>;
   defaultNode(accountId: string): Promise<DefaultIntakeNode>;
+  /** The node of the staging collection this operation already created, so a
+   * replay returns that collection instead of re-resolving the default node. */
+  stagedNode(accountId: string, operationId: string): Promise<string | null>;
 }) {
   const origin = new URL(deps.trustedOrigin);
   if (
@@ -63,26 +66,31 @@ export function createMaterialUploadHttpHandlers(deps: {
         const parsed = materialStagingCollectionInputSchema.safeParse(input);
         if (!parsed.success)
           throw new UploadError('validation_error', 'invalid_input');
-        const node = await deps.defaultNode(accountId);
-        if (node.status !== 'resolved')
-          return json(
-            materialStagingCollectionResultSchema.parse({
-              status: node.status,
-              message: defaultNodeMessages[node.status],
-            }),
-            409,
-          );
+        let evaluationNodeId = await deps.stagedNode(
+          accountId,
+          parsed.data.operationId,
+        );
+        if (!evaluationNodeId) {
+          const node = await deps.defaultNode(accountId);
+          if (node.status !== 'resolved')
+            return json(
+              materialStagingCollectionResultSchema.parse({
+                status: node.status,
+                message: defaultNodeMessages[node.status],
+              }),
+              409,
+            );
+          evaluationNodeId = node.evaluationNodeId;
+        }
+        // create() rechecks write permission on the node before any replay.
         const collection = await deps.collections.create(accountId, {
           operationId: parsed.data.operationId,
-          target: {
-            kind: 'unassigned',
-            evaluationNodeId: node.evaluationNodeId,
-          },
+          target: { kind: 'unassigned', evaluationNodeId },
         });
         return materialStagingCollectionResultSchema.parse({
           status: 'success',
           recordCollectionId: collection.id,
-          evaluationNodeId: node.evaluationNodeId,
+          evaluationNodeId,
           expiresAt: new Date(collection.expiresAt).toISOString(),
         });
       }),

@@ -18,7 +18,7 @@ export const prototypeRole: Record<WorkbenchRole, 'ceo' | 'hrbp' | 'mentor'> = {
  * only to check the order of what is left.
  */
 export const notRendered: Record<WorkbenchRole, readonly string[]> = {
-  manager: ['#jsig', '.nt-ceo'],
+  manager: ['#jsig'],
   hr: ['#changes'],
   mentor: ['#recos', '#todo'],
 };

@@ -1,5 +1,5 @@
 {
-  "id": "564c3c7e-b7db-46f3-93af-84691e403245",
+  "id": "afb04249-849f-40af-bab6-989e7c702869",
   "prevId": "7835340a-0ec7-4a3a-81c5-f2fcc1f01722",
   "version": "7",
   "dialect": "postgresql",
@@ -4949,6 +4949,575 @@
       },
       "isRLSEnabled": false
     },
+    "public.records_interview_import_batches": {
+      "name": "records_interview_import_batches",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "evaluation_node_id": {
+          "name": "evaluation_node_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "page_count": {
+          "name": "page_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "uploaded_by_person_id": {
+          "name": "uploaded_by_person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uploaded_at": {
+          "name": "uploaded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "demo": {
+          "name": "demo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_interview_import_batches_evaluation_node_id_programs_evaluation_nodes_id_fk": {
+          "name": "records_interview_import_batches_evaluation_node_id_programs_evaluation_nodes_id_fk",
+          "tableFrom": "records_interview_import_batches",
+          "tableTo": "programs_evaluation_nodes",
+          "columnsFrom": [
+            "evaluation_node_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_interview_import_batches_uploaded_by_person_id_directory_people_id_fk": {
+          "name": "records_interview_import_batches_uploaded_by_person_id_directory_people_id_fk",
+          "tableFrom": "records_interview_import_batches",
+          "tableTo": "directory_people",
+          "columnsFrom": [
+            "uploaded_by_person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "records_interview_import_batch": {
+          "name": "records_interview_import_batch",
+          "value": "\"records_interview_import_batches\".\"id\" ~ '[^[:space:]]' and \"records_interview_import_batches\".\"file_name\" ~ '[^[:space:]]' and \"records_interview_import_batches\".\"page_count\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_interview_import_candidates": {
+      "name": "records_interview_import_candidates",
+      "schema": "",
+      "columns": {
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position_code": {
+          "name": "position_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interview_time": {
+          "name": "interview_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "demo": {
+          "name": "demo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_interview_import_candidates_batch_id_records_interview_import_batches_id_fk": {
+          "name": "records_interview_import_candidates_batch_id_records_interview_import_batches_id_fk",
+          "tableFrom": "records_interview_import_candidates",
+          "tableTo": "records_interview_import_batches",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_interview_import_candidates_person_id_directory_people_id_fk": {
+          "name": "records_interview_import_candidates_person_id_directory_people_id_fk",
+          "tableFrom": "records_interview_import_candidates",
+          "tableTo": "directory_people",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "records_interview_import_candidates_batch_id_candidate_id_pk": {
+          "name": "records_interview_import_candidates_batch_id_candidate_id_pk",
+          "columns": [
+            "batch_id",
+            "candidate_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "records_interview_import_candidate": {
+          "name": "records_interview_import_candidate",
+          "value": "\"records_interview_import_candidates\".\"candidate_id\" ~ '[^[:space:]]' and \"records_interview_import_candidates\".\"name\" ~ '[^[:space:]]' and \"records_interview_import_candidates\".\"status\" in ('hired','rejected','offer_pending','offer_declined') and (\"records_interview_import_candidates\".\"position_code\" is null or \"records_interview_import_candidates\".\"position_code\" ~ '[^[:space:]]') and (\"records_interview_import_candidates\".\"interview_time\" is null or \"records_interview_import_candidates\".\"interview_time\" ~ '[^[:space:]]')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_interview_import_operations": {
+      "name": "records_interview_import_operations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_id": {
+          "name": "row_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_account_id": {
+          "name": "actor_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "at": {
+          "name": "at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_revision": {
+          "name": "from_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_revision": {
+          "name": "to_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before": {
+          "name": "before",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "after": {
+          "name": "after",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "audit_id": {
+          "name": "audit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_interview_import_operations_actor_account_id_directory_account_bindings_account_id_fk": {
+          "name": "records_interview_import_operations_actor_account_id_directory_account_bindings_account_id_fk",
+          "tableFrom": "records_interview_import_operations",
+          "tableTo": "directory_account_bindings",
+          "columnsFrom": [
+            "actor_account_id"
+          ],
+          "columnsTo": [
+            "account_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_interview_import_operations_audit_id_audit_events_id_fk": {
+          "name": "records_interview_import_operations_audit_id_audit_events_id_fk",
+          "tableFrom": "records_interview_import_operations",
+          "tableTo": "audit_events",
+          "columnsFrom": [
+            "audit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_interview_import_operation_row": {
+          "name": "records_interview_import_operation_row",
+          "tableFrom": "records_interview_import_operations",
+          "tableTo": "records_interview_import_rows",
+          "columnsFrom": [
+            "batch_id",
+            "row_id"
+          ],
+          "columnsTo": [
+            "batch_id",
+            "row_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "records_interview_import_operation_revision": {
+          "name": "records_interview_import_operation_revision",
+          "nullsNotDistinct": false,
+          "columns": [
+            "batch_id",
+            "row_id",
+            "to_revision"
+          ]
+        },
+        "records_interview_import_operation_audit": {
+          "name": "records_interview_import_operation_audit",
+          "nullsNotDistinct": false,
+          "columns": [
+            "audit_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "records_interview_import_operation": {
+          "name": "records_interview_import_operation",
+          "value": "coalesce(\"records_interview_import_operations\".\"id\" ~ '[^[:space:]]' and \"records_interview_import_operations\".\"action\" in ('confirm','revert','fill','send_to_review') and \"records_interview_import_operations\".\"from_revision\" > 0 and \"records_interview_import_operations\".\"to_revision\" = \"records_interview_import_operations\".\"from_revision\" + 1 and jsonb_typeof(\"records_interview_import_operations\".\"before\") = 'object' and jsonb_typeof(\"records_interview_import_operations\".\"after\") = 'object', false)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_interview_import_rows": {
+      "name": "records_interview_import_rows",
+      "schema": "",
+      "columns": {
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_id": {
+          "name": "row_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordinal": {
+          "name": "ordinal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "original_version_id": {
+          "name": "original_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parse_version_id": {
+          "name": "parse_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fragment_id": {
+          "name": "fragment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "review_index": {
+          "name": "review_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parsed": {
+          "name": "parsed",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "confirmed_candidate_id": {
+          "name": "confirmed_candidate_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_for_revision": {
+          "name": "confirmed_for_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_by_account_id": {
+          "name": "confirmed_by_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision": {
+          "name": "decision",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_revision": {
+          "name": "decision_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_interview_import_rows_batch_id_records_interview_import_batches_id_fk": {
+          "name": "records_interview_import_rows_batch_id_records_interview_import_batches_id_fk",
+          "tableFrom": "records_interview_import_rows",
+          "tableTo": "records_interview_import_batches",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_interview_import_rows_material_id_records_originals_id_fk": {
+          "name": "records_interview_import_rows_material_id_records_originals_id_fk",
+          "tableFrom": "records_interview_import_rows",
+          "tableTo": "records_originals",
+          "columnsFrom": [
+            "material_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_interview_import_rows_original_version_id_records_original_versions_id_fk": {
+          "name": "records_interview_import_rows_original_version_id_records_original_versions_id_fk",
+          "tableFrom": "records_interview_import_rows",
+          "tableTo": "records_original_versions",
+          "columnsFrom": [
+            "original_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_interview_import_rows_confirmed_by_account_id_directory_account_bindings_account_id_fk": {
+          "name": "records_interview_import_rows_confirmed_by_account_id_directory_account_bindings_account_id_fk",
+          "tableFrom": "records_interview_import_rows",
+          "tableTo": "directory_account_bindings",
+          "columnsFrom": [
+            "confirmed_by_account_id"
+          ],
+          "columnsTo": [
+            "account_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_interview_import_row_parse": {
+          "name": "records_interview_import_row_parse",
+          "tableFrom": "records_interview_import_rows",
+          "tableTo": "records_material_parses",
+          "columnsFrom": [
+            "parse_version_id",
+            "original_version_id"
+          ],
+          "columnsTo": [
+            "id",
+            "original_version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_interview_import_row_fragment": {
+          "name": "records_interview_import_row_fragment",
+          "tableFrom": "records_interview_import_rows",
+          "tableTo": "records_fragments",
+          "columnsFrom": [
+            "fragment_id",
+            "original_version_id"
+          ],
+          "columnsTo": [
+            "id",
+            "original_version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_interview_import_row_candidate": {
+          "name": "records_interview_import_row_candidate",
+          "tableFrom": "records_interview_import_rows",
+          "tableTo": "records_interview_import_candidates",
+          "columnsFrom": [
+            "batch_id",
+            "confirmed_candidate_id"
+          ],
+          "columnsTo": [
+            "batch_id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "records_interview_import_rows_batch_id_row_id_pk": {
+          "name": "records_interview_import_rows_batch_id_row_id_pk",
+          "columns": [
+            "batch_id",
+            "row_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "records_interview_import_row_ordinal": {
+          "name": "records_interview_import_row_ordinal",
+          "nullsNotDistinct": false,
+          "columns": [
+            "batch_id",
+            "ordinal"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "records_interview_import_row": {
+          "name": "records_interview_import_row",
+          "value": "\"records_interview_import_rows\".\"row_id\" ~ '[^[:space:]]' and \"records_interview_import_rows\".\"ordinal\" > 0 and \"records_interview_import_rows\".\"review_index\" >= 0 and \"records_interview_import_rows\".\"revision\" > 0 and jsonb_typeof(\"records_interview_import_rows\".\"parsed\") = 'object'"
+        },
+        "records_interview_import_row_confirmation": {
+          "name": "records_interview_import_row_confirmation",
+          "value": "(\"records_interview_import_rows\".\"confirmed_candidate_id\" is null and \"records_interview_import_rows\".\"confirmed_for_revision\" is null and \"records_interview_import_rows\".\"confirmed_by_account_id\" is null and \"records_interview_import_rows\".\"confirmed_at\" is null) or (\"records_interview_import_rows\".\"confirmed_candidate_id\" is not null and \"records_interview_import_rows\".\"confirmed_for_revision\" is not null and \"records_interview_import_rows\".\"confirmed_by_account_id\" is not null and \"records_interview_import_rows\".\"confirmed_at\" is not null and \"records_interview_import_rows\".\"confirmed_for_revision\" <= \"records_interview_import_rows\".\"revision\")"
+        },
+        "records_interview_import_row_decision": {
+          "name": "records_interview_import_row_decision",
+          "value": "coalesce((\"records_interview_import_rows\".\"decision\" is null and \"records_interview_import_rows\".\"decision_revision\" is null) or (jsonb_typeof(\"records_interview_import_rows\".\"decision\") = 'object' and \"records_interview_import_rows\".\"decision\" ? 'status' and \"records_interview_import_rows\".\"decision_revision\" is not null and \"records_interview_import_rows\".\"decision_revision\" <= \"records_interview_import_rows\".\"revision\"), false)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.records_management_observation_operations": {
       "name": "records_management_observation_operations",
       "schema": "",
@@ -7616,7 +8185,7 @@
         },
         "records_upload_collection_target": {
           "name": "records_upload_collection_target",
-          "value": "coalesce(jsonb_typeof(\"records_upload_collections\".\"target\") = 'object' and \"records_upload_collections\".\"target\"->>'kind' in ('people','event','unassigned'), false)"
+          "value": "coalesce(jsonb_typeof(\"records_upload_collections\".\"target\") = 'object' and \"records_upload_collections\".\"target\"->>'kind' in ('people','event'), false)"
         }
       },
       "isRLSEnabled": false

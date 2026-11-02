@@ -100,7 +100,11 @@ async function fixture() {
         'source-read',
       ),
   );
-  const reader = { load: read, authorize };
+  const landing = vi.fn(async (_tx: Tx, resource: { id: string }) => {
+    void _tx;
+    return '/receipt?id=' + resource.id;
+  });
+  const reader = { load: read, authorize, landing };
   return {
     open: createEntryDeepLinkUsecase({ loadContext, transactions, reader }),
     withoutReader: createEntryDeepLinkUsecase({ loadContext, transactions }),
@@ -111,6 +115,7 @@ async function fixture() {
     read,
     load,
     authorize,
+    landing,
     audit,
     committed: () => committed,
     time: (value: string) => {
@@ -131,7 +136,11 @@ describe('receipt deep links carry no authority', () => {
   });
   it('uses the currently authenticated account and refuses an account switch', async () => {
     const f = await fixture();
-    expect(await f.open(f.identity, href)).toEqual({ status: 'ready', target });
+    expect(await f.open(f.identity, href)).toEqual({
+      status: 'ready',
+      target,
+      href: '/receipt?id=' + target.id,
+    });
     expect(await f.open(f.otherIdentity, href)).toEqual({
       status: 'forbidden',
     });
@@ -286,4 +295,24 @@ it('does not disclose object existence through different missing and unauthorize
   );
   expect(existing.committed()).toEqual([]);
   expect(missing.committed()).toEqual([]);
+});
+describe('landing', () => {
+  it.each(['https://evil.example/x', '//evil.example', '/\\evil', '/x#y', ''])(
+    'refuses a landing that is not a same-site path (%s)',
+    async (value) => {
+      const f = await fixture();
+      f.landing.mockResolvedValueOnce(value);
+      expect(await f.open(f.identity, href)).toEqual({ status: 'unavailable' });
+    },
+  );
+  it('does not resolve a landing for a stale link', async () => {
+    const f = await fixture();
+    f.read.mockResolvedValueOnce({
+      kind: target.kind,
+      id: target.id,
+      revision: 2,
+    });
+    expect(await f.open(f.identity, href)).toMatchObject({ status: 'stale' });
+    expect(f.landing).not.toHaveBeenCalled();
+  });
 });

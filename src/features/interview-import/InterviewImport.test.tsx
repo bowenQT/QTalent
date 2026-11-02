@@ -203,7 +203,7 @@ describe('InterviewImport', () => {
       '系统设计 待补录',
     );
     const crop = screen.getByRole('figure', {
-      name: '第 3 页「系统设计」一栏的页面图',
+      name: '「系统设计」的可选值',
     });
     expect(
       [...crop.querySelectorAll('.is-on')].map((s) => s.textContent),
@@ -219,19 +219,13 @@ describe('InterviewImport', () => {
     ]);
   });
 
-  it('links a row waiting for its interviewer to the review item', () => {
+  it('shows a row waiting for its interviewer as waiting, without an entry', () => {
     show();
     expect(card('D').dataset.state).toBe('verify');
-    expect(
-      within(card('D'))
-        .getByRole('link', { name: '去核对' })
-        .getAttribute('href'),
-    ).toBe('/inbox#i-int');
-    expect(
-      within(card('D'))
-        .getByRole('link', { name: '关联面试官' })
-        .getAttribute('href'),
-    ).toBe('/inbox#i-int');
+    expect(card('D').querySelector('.n-badge')?.textContent).toBe(
+      '面试官待核对',
+    );
+    expect(within(card('D')).queryByRole('link')).toBeNull();
   });
 
   it('confirms who a row is, counts it for import and takes it back', async () => {
@@ -267,7 +261,7 @@ describe('InterviewImport', () => {
     );
   });
 
-  it('sends a row nobody matches to review and links there', async () => {
+  it('sends a row nobody matches to review and shows it as submitted', async () => {
     const user = userEvent.setup();
     const using = show();
     await user.click(
@@ -278,11 +272,8 @@ describe('InterviewImport', () => {
       await screen.findByText('已放进待核对，北森同步后再确认是谁'),
     ).toBeTruthy();
     expect(card('C').dataset.state).toBe('sent');
-    expect(
-      within(card('C'))
-        .getByRole('link', { name: '查看待核对' })
-        .getAttribute('href'),
-    ).toBe('/inbox#i-iv-C');
+    expect(within(card('C')).getByText('已提交，待核对')).toBeTruthy();
+    expect(within(card('C')).queryByRole('link')).toBeNull();
   });
 
   it('asks who a not-hired candidate is when the record cannot be located, and says what review does with it', async () => {
