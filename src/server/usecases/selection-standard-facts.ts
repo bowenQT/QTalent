@@ -82,8 +82,8 @@ async function authorizedCanonical(
   if (!route)
     throw new SelectionLifecycleError('not_found', '对照批次不存在或不可见');
   authorizeScope(authority, route.cohortId);
-  // A read-only transaction cannot take row locks; the canonical reader's digest
-  // comparison is the snapshot check there.
+  // A read-only transaction cannot take row locks. The selection store runs it
+  // at Repeatable Read, so access facts and canonical rows share one snapshot.
   const mode = await tx.execute<{ readOnly: string }>(
     sql`select current_setting('transaction_read_only') as "readOnly"`,
   );

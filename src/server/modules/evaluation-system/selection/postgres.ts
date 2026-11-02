@@ -443,7 +443,10 @@ export function createSelectionPostgresStore(
           }
         },
         {
-          isolationLevel: 'read committed',
+          // Writers serialize on locks under Read Committed. A read-only call
+          // takes no row locks, so it reads one snapshot: access checks and
+          // canonical facts can never mix two moments.
+          isolationLevel: write ? 'read committed' : 'repeatable read',
           accessMode: write ? 'read write' : 'read only',
         },
       );

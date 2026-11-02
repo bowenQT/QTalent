@@ -23,7 +23,10 @@ import {
   selectionDraftProposals,
   type CanonicalComparisonImport,
 } from '../modules/evaluation-system';
-import { selectionRevisions } from '../modules/evaluation-system/selection/schema';
+import {
+  selectionOperations,
+  selectionRevisions,
+} from '../modules/evaluation-system/selection/schema';
 import { selectionRevisionSchema } from '../../contracts/selection-standard';
 import { writeCanonicalComparisonBatch } from './judgment-comparison-canonical';
 import {
@@ -35,8 +38,15 @@ import {
 import { createAttributionPostgresStore } from './standard-attribution/postgres';
 import { createStandardAttributionUsecases } from './standard-attribution/hypotheses';
 import { readSelectionCohortVersion } from './selection-standard';
-import { readNativeSelectionImpact } from './selection-standard-facts';
-import { readCurrentSelectionStandard } from '../modules/evaluation-system/selection/postgres';
+import {
+  readNativeSelectionCreationFacts,
+  readNativeSelectionImpact,
+  readNativeSelectionProposal,
+} from './selection-standard-facts';
+import {
+  readCurrentSelectionStandard,
+  SelectionPersistenceUnavailableError,
+} from '../modules/evaluation-system/selection/postgres';
 import type { AttributionModel } from './standard-attribution/ports';
 import type { ComparisonDataset } from '../modules/evaluation-system/judgment-comparison/ports';
 
@@ -62,7 +72,8 @@ const next = {
   sourceReference: 'synthetic:explicit-planning-fact',
 };
 let attributionId = '',
-  proposalId = '';
+  proposalId = '',
+  hypothesisId = '';
 let attribution: ReturnType<typeof createAttributionPostgresStore>;
 const command = () => ({
   operationId: 'create',
@@ -398,18 +409,30 @@ beforeEach(async () => {
       async generateStructured(request) {
         return {
           ok: true as const,
-          value: request.schema.parse({
-            changes: [
-              {
-                kind: 'add',
-                after: {
-                  id: 'ai-point',
-                  title: 'AI建议（演示）',
-                  description: '核对个人交付',
+          value: request.schema.parse(
+            request.promptVersion.includes('hypotheses')
+              ? {
+                  hypotheses: [
+                    {
+                      text: '演示假设：评审要点没有覆盖个人交付',
+                      categories: ['evaluation_standard'],
+                      citations: [{ caseId: 'case', side: 'front' }],
+                    },
+                  ],
+                }
+              : {
+                  changes: [
+                    {
+                      kind: 'add',
+                      after: {
+                        id: 'ai-point',
+                        title: 'AI建议（演示）',
+                        description: '核对个人交付',
+                      },
+                    },
+                  ],
                 },
-              },
-            ],
-          }),
+          ),
           metadata: {
             model: 'synthetic-gemini-model',
             promptVersion: request.promptVersion,
@@ -441,6 +464,13 @@ beforeEach(async () => {
   if (proposal.status !== 'success')
     throw new Error('Actual921 proposal failed: ' + proposal.status);
   proposalId = proposal.result.id;
+  const hypotheses = await sourceApp.generateHypotheses('hr', {
+    operationId: 'hypotheses',
+    batchId: 'batch',
+  });
+  if (hypotheses.status !== 'success' || hypotheses.result.length !== 1)
+    throw new Error('Actual921 hypotheses failed: ' + hypotheses.status);
+  hypothesisId = hypotheses.result[0].id;
 });
 
 describe('918 native canonical/attribution/lifecycle composition', () => {
@@ -888,32 +918,73 @@ describe('every private-basis exit refuses a caller whose access ended', () => {
   };
   for (const [label, revoke] of Object.entries(revocations))
     it(label, async () => {
+      // Adoption keeps a non-empty AI original next to the basis.
       const service = app();
-      const created = await service.execute('hr', {
-        action: 'create',
-        input: command(),
-      });
-      if (created.status !== 'success') throw new Error(created.status);
-      const draft = selectionRevisionSchema.parse(created.result);
+      const adopted = await service.adoptProposal('hr', proposalId, command());
+      if (adopted.status !== 'success') throw new Error(adopted.status);
+      const draft = selectionRevisionSchema.parse(adopted.result);
+      expect(draft.aiDraft?.basis).toEqual(draft.basis);
+      const [{ operationId }] = await db().select().from(selectionOperations);
       const ports = service.store.ports;
       const lock = {
         category: 'xe_selection' as const,
         accountId: 'hr',
-        operationId: 'create',
+        operationId,
       };
       type Tx = Parameters<typeof ports.readRevision>[0];
-      const selectionReads = [
-        (tx: Tx) => ports.readRevision(tx, draft.id, 'hr'),
-        (tx: Tx) => ports.readOperation(tx, 'hr', lock.operationId),
-      ];
-      const selectionRead = (read: (tx: Tx) => Promise<unknown>) =>
+      const inWrite = (read: (tx: Tx) => Promise<unknown>) =>
         ports.transact(lock, async (tx) => {
           await ports.loadAuthority(tx, 'hr', now);
           return read(tx);
         });
-      const receipt = (operationId: string) =>
-        attribution.transaction('hr', operationId, (tx) =>
-          attribution.readOperation(tx, 'hr', operationId),
+      const inReadOnly = (read: (tx: Tx) => Promise<unknown>) =>
+        ports.read(async (tx) => {
+          await ports.loadAuthority(tx, 'hr', now);
+          return read(tx);
+        });
+      const native = <R>(
+        read: (
+          tx: Parameters<
+            Parameters<ReturnType<typeof db>['transaction']>[0]
+          >[0],
+          who: Awaited<ReturnType<typeof loadSelectionAuthority>>,
+        ) => Promise<R>,
+      ) =>
+        db().transaction(async (tx) =>
+          read(tx, await loadSelectionAuthority(tx, 'hr', clock)),
+        );
+      const selectionExits = {
+        'readRevision(hr) in a write transaction': () =>
+          inWrite((tx) => ports.readRevision(tx, draft.id, 'hr')),
+        'readRevision(hr) in a read-only transaction': () =>
+          inReadOnly((tx) => ports.readRevision(tx, draft.id, 'hr')),
+        'readOperation (adoption receipt)': () =>
+          inWrite((tx) => ports.readOperation(tx, 'hr', operationId)),
+        'store creationFacts': () =>
+          ports.transact(lock, async (tx) =>
+            ports.creationFacts(
+              tx,
+              await ports.loadAuthority(tx, 'hr', now),
+              command(),
+            ),
+          ),
+        readNativeSelectionCreationFacts: () =>
+          native((tx, who) =>
+            readNativeSelectionCreationFacts(tx, who, command(), next),
+          ),
+        readNativeSelectionProposal: () =>
+          native((tx, who) =>
+            readNativeSelectionProposal(tx, who, proposalId, command(), next),
+          ),
+      };
+      const receipt = (id: string) =>
+        attribution.transaction('hr', id, (tx) =>
+          attribution.readOperation(tx, 'hr', id),
+        );
+      const receipts = ['confirm', 'model-draft', 'hypotheses'];
+      const batch = () =>
+        attribution.transaction('hr', 'batch-read', (tx) =>
+          attribution.loadHrBatch(tx, 'hr', 'batch', now),
         );
       const draftContext = () =>
         attribution.transaction('hr', 'draft-context', (tx) =>
@@ -925,40 +996,90 @@ describe('every private-basis exit refuses a caller whose access ended', () => {
             now,
           ),
         );
-      // Before: the legitimate HR reads every exit, including a read-only
-      // transaction that cannot take the canonical reader's row locks.
-      const readOnly = await ports.read(async (tx) => {
-        await ports.loadAuthority(tx, 'hr', now);
-        return ports.readRevision(tx, draft.id, 'hr');
-      });
-      expect(readOnly?.revision.basis).toEqual(draft.basis);
-      for (const read of selectionReads)
-        expect(await selectionRead(read)).not.toBeNull();
+      // A batch cached earlier in the same transaction must not carry the read.
+      const hypothesis = (between: () => Promise<unknown> = async () => {}) =>
+        attribution.transaction('hr', 'hypothesis-read', async (tx) => {
+          await attribution.loadHrBatch(tx, 'hr', 'batch', now);
+          await between();
+          return attribution.readHypothesis(tx, 'batch', hypothesisId);
+        });
+
+      // Before: the legitimate HR reads every exit with the full basis.
+      for (const read of Object.values(selectionExits))
+        expect(await read()).toBeTruthy();
       expect(await receipt('confirm')).toMatchObject({
-        state: 'finished',
         result: { status: 'success', result: { citations: expect.any(Array) } },
       });
       expect(await receipt('model-draft')).toMatchObject({
-        state: 'finished',
         result: {
           status: 'success',
           result: { aiDraft: { basis: { citations: expect.any(Array) } } },
         },
       });
+      expect(await receipt('hypotheses')).toMatchObject({
+        result: { status: 'success', result: [{ id: hypothesisId }] },
+      });
+      expect((await batch())?.authorizedCaseIds).toEqual(['case']);
       expect(await draftContext()).not.toBeNull();
+      expect((await hypothesis())?.id).toBe(hypothesisId);
 
-      await revoke();
-      for (const read of selectionReads)
-        await expect(selectionRead(read)).rejects.toMatchObject({
+      // Revoked between caching the batch and reading the hypothesis.
+      const late = await hypothesis(revoke).then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+      if ('value' in late) expect(late.value).toBeNull();
+      else expect(late.error).toMatchObject({ kind: 'forbidden' });
+
+      for (const [exit, read] of Object.entries(selectionExits))
+        await expect(read(), exit).rejects.toMatchObject({
           status: 'forbidden',
         });
-      for (const operationId of ['confirm', 'model-draft'])
-        await expect(receipt(operationId)).rejects.toMatchObject({
+      for (const id of receipts)
+        await expect(receipt(id), id).rejects.toMatchObject({
           kind: 'forbidden',
         });
-      // Exits already guarded by the current batch drop the basis instead.
+      // Exits that already filter by the current batch drop the basis instead.
+      expect((await batch())?.authorizedCaseIds ?? []).not.toContain('case');
       expect(await draftContext()).toBeNull();
     });
+  it('a stored AI original whose basis drifted from the basis is never disclosed', async () => {
+    const service = app();
+    const adopted = await service.adoptProposal('hr', proposalId, command());
+    if (adopted.status !== 'success') throw new Error(adopted.status);
+    const draft = selectionRevisionSchema.parse(adopted.result);
+    await db().execute(
+      sql`update evaluation_selection_revisions set record = jsonb_set(record, '{revision,aiDraft,basis,rationale}', '"被改动的理由（演示）"') where id = ${draft.id}`,
+    );
+    const ports = service.store.ports;
+    await expect(
+      ports.read(async (tx) => {
+        await ports.loadAuthority(tx, 'hr', now);
+        return ports.readRevision(tx, draft.id, 'hr');
+      }),
+    ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
+  });
+  it('a read-only disclosure check reads access and sources in one snapshot', async () => {
+    const service = app();
+    const adopted = await service.adoptProposal('hr', proposalId, command());
+    if (adopted.status !== 'success') throw new Error(adopted.status);
+    const draft = selectionRevisionSchema.parse(adopted.result);
+    const ports = service.store.ports;
+    // A change committed mid-read is not mixed into the open snapshot.
+    const read = await ports.read(async (tx) => {
+      await ports.loadAuthority(tx, 'hr', now);
+      await db().update(enrollments).set({ revokedAt: '2026-10-31' });
+      return ports.readRevision(tx, draft.id, 'hr');
+    });
+    expect(read?.revision.basis).toEqual(draft.basis);
+    // The next read sees the committed revocation as a whole.
+    await expect(
+      ports.read(async (tx) => {
+        await ports.loadAuthority(tx, 'hr', now);
+        return ports.readRevision(tx, draft.id, 'hr');
+      }),
+    ).rejects.toMatchObject({ status: 'forbidden' });
+  });
 });
 describe('current authority and binding assembly', () => {
   it('a changed account-to-person binding cannot reuse an earlier authority', async () => {

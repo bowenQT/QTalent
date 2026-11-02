@@ -287,7 +287,17 @@ export function createAttributionPostgresStore(
       return { batch: freshBatch, attribution, standard };
     },
     async readHypothesis(tx, batchId, hypothesisId) {
-      const b = batch(tx, batchId);
+      batch(tx, batchId);
+      // A batch cached earlier in this transaction is not current access: reload
+      // it at this read boundary before returning any citation.
+      const s = state(tx);
+      const b = await this.loadHrBatch(
+        tx,
+        s.accountId,
+        batchId,
+        now().toISOString(),
+      );
+      if (!b) throw new AttributionPersistenceError('forbidden');
       const [row] = await tx.db
         .select()
         .from(attributionHypotheses)
