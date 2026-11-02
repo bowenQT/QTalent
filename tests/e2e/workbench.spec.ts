@@ -31,19 +31,20 @@ const focused = (page: Page) =>
 const draft = (page: Page, key: string) =>
   page.evaluate((name) => sessionStorage.getItem(name), key);
 
-test('mentor reaches input, send, examples and every trainee by keyboard', async ({
+test('mentor reaches input, upload, send, examples and every trainee by keyboard', async ({
   page,
 }) => {
   await page.goto('/dev/workbench?role=mentor');
   await tabTo(page, '#composer-field');
   const order: string[] = [];
-  for (let step = 0; step < 5; step += 1) {
+  for (let step = 0; step < 6; step += 1) {
     await page.keyboard.press('Tab');
     const now = await focused(page);
     expect(now.ring, `${now.text} shows focus`).toBe(true);
     order.push(now.text ?? '');
   }
   expect(order).toEqual([
+    '上传材料',
     '发送',
     '孟逸尘今天主动把任务池同步给了全组，下午组员就接上了',
     '周初晴这周先画了接口图，再去找后端对齐',
