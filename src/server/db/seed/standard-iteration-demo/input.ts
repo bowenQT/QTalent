@@ -426,6 +426,11 @@ export async function prepareStandardIterationDemo(
     originalVersionId: string;
     location: { kind: 'spreadsheet'; sheet: string; cell: string };
     excerpt: string;
+    // Fixed workbook cells are not bound to a 926 material parse.
+    parseVersionId: null;
+    sourceCategory: null;
+    evaluationKind: null;
+    demo: null;
   }>;
   const refs = new Map<
     string,
@@ -600,6 +605,10 @@ export async function prepareStandardIterationDemo(
         originalVersionId: source.originalVersionId,
         location: source.location,
         excerpt: source.excerpt,
+        parseVersionId: null,
+        sourceCategory: null,
+        evaluationKind: null,
+        demo: null,
       });
       refs.set(`${c.id}:${side}`, {
         fragmentId: source.fragmentId,

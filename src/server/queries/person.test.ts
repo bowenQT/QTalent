@@ -373,6 +373,7 @@ it('counts an event by its statement materials; a score-only citation stays on t
   const data = fixture('hr');
   const cited = { fragmentId: 'fragment-act', originalVersionId: 'version' };
   data.fragments.push({
+    ...data.fragments[0]!,
     id: cited.fragmentId,
     originalVersionId: cited.originalVersionId,
     excerpt: 'Synthetic behavior',
@@ -393,6 +394,29 @@ it('counts an event by its statement materials; a score-only citation stays on t
   expect(score).toMatchObject({
     state: 'confirmed',
     sources: [expect.objectContaining(cited)],
+  });
+
+  // The hidden score citation is still checked before filtering: a locator
+  // the legacy contract cannot carry suppresses the whole card.
+  const act = data.fragments.find((row) => row.id === cited.fragmentId)!;
+  const legacyLocation = act.location;
+  Object.assign(act, {
+    location: { kind: 'pdf', page: 1, textRange: { start: 0, end: 2 } },
+    parseVersionId: 'demo-parse',
+    sourceCategory: 'original',
+    demo: true,
+  });
+  const unmigrated = await personFromData(data, 'one');
+  if (unmigrated?.timeline.status !== 'ready')
+    throw new Error('Missing timeline');
+  expect(unmigrated.timeline.data.map((row) => row.id)).not.toContain(
+    'event-0',
+  );
+  Object.assign(act, {
+    location: legacyLocation,
+    parseVersionId: null,
+    sourceCategory: null,
+    demo: null,
   });
 
   // Without statements (native saves write none) every linked source counts.
