@@ -25,8 +25,9 @@
 | `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
-| `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | 契约已定义，读写与 UI 待接入 / 404 |
+| `app/record.html`                 | `/record`                         | record / record.ts | record / records、talent | UI 已还原（BOW-847，样张 `/dev/record`）；页面读取与读写待 845 / 846 接入，路由显示「记一件事待接通」 |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
+| `app/receipt.html`                | `/receipt?id=…`                   | receipt / materials.ts、record.ts   | receipt / records、talent                    | 页面与样张已做（BOW-847），读取与保存待接通 |
 | `app/import.html`                 | `/import?id=…`                    | interview-import / （BOW-906 读取） | 面评导入预览 / records、directory            | 角色门禁已实现；预览读取待接通，样张 `/dev/import`；视觉参照待同步 |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
@@ -54,6 +55,24 @@
 | `design-system.html`              | `/dev/design-system`              | 已移植基础组件                      | —                                            | 已实现开发样张 |
 | `404.html`                        | 全局 404                          | State                               | —                                            | 已实现         |
 
+## BOW-847 记一件事
+
+原型 `app/record.html` 还原到 `src/features/record/`。BOW-845（页面读取与整理，#185）和 BOW-846（保存与五秒撤销，#289）不在 `main`，所以：
+
+- `/record` 在服务端按角色拦截：系统管理员看「这一页属于业务视角」，管理者、HR、导师看「记一件事待接通」。页面不读取任何人员或记录。
+- 写原话 → 整理 → 待确认 → 保存 → 5 秒内撤销，在开发样张 `/dev/record?role=hr|mentor|manager` 上运行，生产环境 404。`?scene=fail|offline|conflict|selection` 走失败、断网、保存冲突、待选人的路径。样张替身按 844 / 897 契约回应，任务快照经 `recordJobSchema` 校验；演示人员取自原型 Y 种子（化名，标「演示」）。
+- 845、846 合入后，`/record` 只做绑定：页面读取的人、项目、维度、署名和默认锚点传进 `RecordPage`，动作依次绑整理、选人、保存、撤销、草稿读取与重试，`onJobChange` 更新 `?job=`。原话永远不进 URL。
+- 待接通：语音输入和添加附件。两个按钮留在原型的位置，标「语音输入待接通」「添加附件待接通」；旁边的提示句写「写原话就行，一整段也可以；语音和附件待接通」，不写可以附上文件或拖进来。附件由 BOW-870 经 `attachmentSlot` 接入。
+- 和原型的差异：
+  - 标签：844 / 897 的记事契约没有标签，所以整理轨迹是 3 步（没有「从标签库里打标签」），也没有标签行。契约补上标签后再接。
+  - 整理中：原型在浏览器里边整理边写出人员和文字，工程等后台任务完成才拿到草稿，整理中只显示轨迹和「整理中」。
+  - 待确认时焦点交给标题，原型不移焦点。
+  - 「谁」的下拉按 `main` 上的原型种子，比固定参照多两位演示人员。
+- 照原型的部分：分数说明里的原话引用是普通文字（「锚点 4 · 引用「……」」），「原话」里不加标记；保存后 5 秒内撤销，回到待确认，整理结果和改过的文字、分数都在，再保存换新的 operation_id。
+- 工程补的状态（原型没有）：没写名字时「先选一下是谁」，候选人用设计系统的选择列表，一人一行。
+- 新增样式暂放 `src/features/record/record.css`（小犇容器的行盒），全局样式同步后并入。
+- 视觉对照：`tests/visual/record.spec.ts` 对固定参照 `91b297a`（这一页在 `91b297a` 与 `81e4fd4` 之间只改了撤销提示的文字，四个状态逐元素一致），在 1366 和 375 两个宽度逐块比较写原话、待确认、已保存三个状态：先比文字，再比像素。含小犇或多段文字的块逐个子元素比较，并检查子元素在块内的位置。上面列出的差异不在比较范围内；撤销提示固定在视口上，不比。
+
 ## BOW-907 面评导入预览
 
 原型 `app/import.html`（BOW-898，#250，`81e4fd4`）还原到 `src/features/interview-import/`。BOW-906（导入决策，#277）和 BOW-900（解析，#257）不在 `main`，所以：
@@ -65,20 +84,20 @@
 | 906（#277） | 行状态 |
 | --- | --- |
 | `duplicate` | 已导入过（折叠在「跳过的 N 行」，带「这份文件 … 导入过一次」提示） |
+| `skipped / not_hired`（姓名、职位编号、面试时间唯一定位到招聘记录，或 HR 已确认是谁） | 将跳过（折叠在「跳过的 N 行」） |
 | `not_ready / parser_manual_input`（`unrecognized`） | 有分待补录，显示页面图并补录 |
 | `needs_review(unknown_interview_candidate)`，目录里有这个人 | 待确认是谁（HR 在预览里确认，即 906 的 `confirmedCandidateId`） |
 | `needs_review(unknown_interview_candidate)`，目录里查不到 | 待认人 → 已放进待核对 |
 | `not_ready / candidate_match_unconfirmed` | 待确认是谁 |
-| `skipped / not_hired`（HR 确认是谁之后） | 将跳过（折叠在「跳过的 N 行」） |
 | `needs_review(unknown_interviewer)` | 面试官待核对 |
 | `planned` | 已确认 |
 
-- 淘汰和未入职：906 现在先认人、后看招聘状态，HR 确认是谁之前不跳过。目录里通常查不到这些人，所以原型种子里的唐语桐（淘汰）、宋知意（已发 offer · 未入职）在预览里是「待认人」，行内写「确认是谁之前不入档」，和原型「跳过的 3 行」不同。HR 确认之前能否直接跳过还在等所有者裁决（[#248 评论 6558715526](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6558715526)）；如果改为提前跳过，只改 `rowState` 的顺序。
+- 淘汰和未入职：北森状态是淘汰、已发 offer 未入职、放弃录用，且姓名、职位编号、面试时间能唯一定位到一条招聘记录的行，在 HR 确认是谁之前直接收进「跳过的 N 行」，和原型一致（[#248 评论 6560666796](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6560666796)）。三项定位不到唯一记录的行仍是「待认人」或「待确认是谁」。
 - `skipped / original_only` 在待核对里决定，不回到预览；`candidate_directory_missing` 在 #277 已不可达，从映射里删去。
 - 「返回后保留」：每次确认、补录、放进待核对都经端口 `ports.ts` 提交，端口返回存好的那一行；离开再回来，读取到的行已带上这些结果。样张端口把它们存在本标签页的 sessionStorage。
 - 待接通：导入已确认的行、撤销导入和导入记录（906 没有持久化和档案投影）。导入条上的按钮保持禁用，旁边写「导入待接通」。
 - 链接：「去核对」「关联面试官」「查看待核对」按原型链到 `/inbox#…`，待核对页上线前返回 404。
-- 和原型的差异：面包屑缺「工作台」上级（`route-nav` 别名属共享文件，已在 #248 登记）；导入条多一个「导入待接通」徽标；淘汰和未入职的两行见上；补录保存失败时选项留在框里，标「还没保存」并给「重试保存」。
+- 和原型的差异：面包屑缺「工作台」上级（`route-nav` 别名属共享文件，已在 #248 登记）；导入条多一个「导入待接通」徽标；补录保存失败时选项留在框里，标「还没保存」并给「重试保存」。
 - 新增样式暂放 `src/features/interview-import/interview-import.css`，逐字取自原型 `niu-components.css`（`81e4fd4`），全局样式同步后删除。
 - 视觉对照：**参照待同步**。固定参照 `91b297a` 早于 #250，没有 `app/import.html`；本页按 `main` 上 `81e4fd4` 的原型实现，`91b297a` 里没有可比的部分，所以不写成视觉通过。`tests/visual/interview-import.spec.ts` 在参照缺页时整体跳过；同步到 `81e4fd4` 的请求见 [#248 评论 6557468925](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6557468925)，参照更新后自动补跑。
 
@@ -231,6 +250,25 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 `src/contracts/record.ts` 定义整理草稿、确认、改分和五秒撤销的输入输出；`review-queue.ts` 定义两类评分复核与带理由校准。冻结位置复核保持 `not_connected`，不作为评分校准成功条目。
 
 本切片只交付契约与合成测试，不创建业务页面或写入服务。`/record` 的读写与 UI 由 BOW-845、BOW-846、BOW-847 接入；`/queue` 由 BOW-848、BOW-849 接入。两路当前继续返回 404；后台处理进度复用 jobs 契约。
+
+## BOW-847 回执页
+
+原型 `app/receipt.html`（BOW-898，#250 合入）；工程 `/receipt?id=…`，组件在 `src/features/receipt/`。回执快照用 897 冻结的 `materialBatchReceiptSchema`，逐件确认用 844 的 `recordSaveInput`，撤销用 `recordUndoInput`，5 秒窗口以服务端为准。
+
+- **待接通**：回执读取（BOW-845 #185）、逐件保存与撤销（BOW-846 #289）、企业微信深链核验（BOW-903 #271）都不在 main。`/receipt` 只写「回执待接通」，不读取材料；缺 `id` 写「回执链接失效」；系统管理员看「这一页属于业务视角」。页面跑在开发样张 `/dev/receipt?role=mentor|hr&scene=normal|processing|conflict|empty|hidden`（生产 404），替身每次返回都经契约 schema 校验。
+- **页面读取补的字段**：897 回执没有批次标题、入口、提交人、提交时间、人名、维度名，也没有「这件事由谁确认」。页面按 `ReceiptView` 读这些，由 845 的页面读取在服务端按当前权限给出；`confirmers[draftId].mine` 只决定显示确认按钮还是「等某人确认」，能否保存仍由保存动作判断。
+- **和原型的差异**：
+  - 「人」和「涉及的人」只算 897 的 `personIds`（已确定、当前可见的主体），所以样张是 3 人；原型把还在待核对的两个名字也算进去，是 5 人。
+  - 待认人卡：说话人没有显示名，写「说话人 · 16:30–17:45」；原型是「说话人 2」。未知人员的待核对项没有原文引文，只写名字和位置。
+  - 待核对的「去核对」和待认人卡的「去核对」写「核对待接通」：待办页 `/inbox` 还没有。
+  - 位置写法：表格位置带工作表名（「评审表 第 9 行」），原型只写「第 9 行」；录音和录像引文旁没有「播放这一段」，原件播放等 BOW-873 / 908 接通。
+  - 文件行只写状态（已解析、处理中、待核对、只保留原件、只作附件、待换文件、失败），不写时长、页数和说话人数：回执里没有这些。「转成 JPG 重传」属于投递（BOW-861），这里不做。
+  - 面评导入的回执（原型 `kind: 'interview'` 跳到导入页）不在 897 回执里，由面评导入页（BOW-907）负责。
+  - 刷新后已确认的事只有人员和事件映射（897 `confirmedDrafts`），卡片写「已确认，已进入档案」，不再显示分数；本页刚确认的事保留确认时的内容和署名。
+  - 整批失败（`error`）在概览下写原因，状态标签写「处理失败」；原型没有这个状态。
+- **手机**：本片做桌面页面在 375px 宽度下的确认（e2e 覆盖改分并保存、无横向滚动）。独立的手机回执页 `m/confirm.html` 需要手机外壳，路由映射里 `/m/*` 仍是后续，已在 #248 登记。
+- **样式**：`.n-rstate` 的批次四态、`.n-rsum`、`.n-rcpt*`、`.n-imcard`、`.n-term` 暂放 `src/features/receipt/receipt.css`（原样复制原型 898 的这一段），全局样式同步后并入。
+- **视觉**：`tests/visual/receipt.spec.ts` 在固定参照更新到 898 之后的提交前跳过；本 PR 另用工作树原型（main 上 #250 之后）同次逐元素比过标题、概览之外的区块和三张事件卡，桌面与 375 宽都一致。
 
 ## 找人（BOW-853）
 
