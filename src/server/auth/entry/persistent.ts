@@ -253,6 +253,7 @@ export function createAgentApiEntryAuthenticator(
         expiresAt: agentApiBindings.expiresAt,
         revokedAt: agentApiBindings.revokedAt,
         sessionExpiresAt: session.expiresAt,
+        sessionGeneration: session.bindingGeneration,
       })
       .from(agentApiBindings)
       .innerJoin(
@@ -275,6 +276,10 @@ export function createAgentApiEntryAuthenticator(
         ),
       )
       .limit(1);
+    // The Web session this agent rides on must have been issued under the
+    // binding's current generation: after A→B→A the old session stays invalid
+    // even though the AgentAPI binding digest matches again. Null fails closed.
+    if (row && row.sessionGeneration !== row.generation) reject();
     return descriptor(row, now, row?.sessionExpiresAt);
   }
   return {

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import type { Transaction } from '../../db/client';
 import { beforeAll, afterAll, expect, it, vi } from 'vitest';
 import {
   nativeDatabase,
@@ -83,6 +84,8 @@ async function setup() {
     userId: facts.account,
     token: 'synthetic-' + id,
     expiresAt: new Date('2026-12-01T00:00:00Z'),
+    // Issued under the fixture binding's first generation, as Better Auth stamps it.
+    bindingGeneration: 1,
   });
   await c.db.insert(agentApiBindings).values({
     id,
@@ -636,6 +639,8 @@ it('a logout racing a locked conversation waits behind it instead of deadlocking
     ),
   ).rejects.toThrow();
 }, 15000);
+// Behavioural only: the conversation row lock alone would also serialize this
+// order, so this case does not prove the pre-lock; the next one does.
 it('a conversation started after an uncommitted logout waits for it and then fails closed', async () => {
   const f = await setup();
   const deleted = gate(),
@@ -654,4 +659,105 @@ it('a conversation started after an uncommitted logout waits for it and then fai
   await logout;
   await expect(conversation).rejects.toThrow();
   expect(f.provider.send).not.toHaveBeenCalled();
+}, 15000);
+
+async function backendPid(tx: Transaction) {
+  const { rows } = await tx.execute<{ pid: number }>(
+    sql`select pg_backend_pid() as pid`,
+  );
+  return rows[0]!.pid;
+}
+async function blockers(pid: number) {
+  const { rows } = await c.db.execute<{ pids: number[] }>(
+    sql`select pg_blocking_pids(${pid}::integer) as pids`,
+  );
+  return rows[0]!.pids;
+}
+it('a conversation queued on its row lock already holds the credential chain, so logout waits on it rather than on the row holder', async () => {
+  const f = await setup();
+  const held = gate(),
+    release = gate();
+  let holder = 0;
+  // A third party holds the conversation row, so the turn below is parked
+  // between its credential pre-lock and the conversation lock.
+  const blocker = c.db.transaction(async (tx) => {
+    holder = await backendPid(tx);
+    await tx
+      .select({ id: agentApiConversations.id })
+      .from(agentApiConversations)
+      .where(eq(agentApiConversations.id, f.conversationId))
+      .for('update');
+    held.resolve();
+    await release.promise;
+  });
+  await held.promise;
+  const conversation = f.ports.transaction(f.conversationId, (tx) =>
+    f.ports.current(tx, f.identity),
+  );
+  await expect
+    .poll(
+      async () => {
+        const { rows } = await c.db.execute<{ n: number }>(
+          sql`select count(*)::int as n from pg_stat_activity where ${holder}::integer = any(pg_blocking_pids(pid))`,
+        );
+        return rows[0]!.n;
+      },
+      { timeout: 5000 },
+    )
+    .toBe(1);
+  const started = gate();
+  let logoutPid = 0;
+  const logout = c.db.transaction(async (tx) => {
+    logoutPid = await backendPid(tx);
+    started.resolve();
+    await tx.delete(session).where(eq(session.id, f.sessionId));
+  });
+  await started.promise;
+  await expect
+    .poll(() => blockers(logoutPid), { timeout: 5000 })
+    .not.toHaveLength(0);
+  // Without the pre-lock the logout would delete the session and wait only on
+  // the row holder (its cascade nulls the binding), then deadlock with the turn.
+  expect(await blockers(logoutPid)).not.toContain(holder);
+  release.resolve();
+  await blocker;
+  const [current, out] = await Promise.allSettled([conversation, logout]);
+  expect(current).toMatchObject({ status: 'fulfilled' });
+  expect(out).toMatchObject({ status: 'fulfilled' });
+  const [row] = await c.db
+    .select({ bindingId: agentApiConversations.bindingId })
+    .from(agentApiConversations)
+    .where(eq(agentApiConversations.id, f.conversationId));
+  expect(row!.bindingId).toBeNull();
+}, 15000);
+it('two conversations on the same Web session re-read 903 concurrently without serializing or deadlocking', async () => {
+  const f = await setup();
+  const [first] = await c.db
+    .select()
+    .from(agentApiConversations)
+    .where(eq(agentApiConversations.id, f.conversationId));
+  const secondId = f.conversationId + '-second';
+  await c.db.insert(agentApiConversations).values({
+    ...first!,
+    id: secondId,
+    providerSessionId: first!.providerSessionId + '_second',
+  });
+  let arrived = 0;
+  const both = gate();
+  // Each turn has taken its pre-lock and conversation lock before either
+  // re-reads; exclusive credential locks here would deadlock one of them.
+  const turn = (id: string) =>
+    f.ports.transaction(id, async (tx) => {
+      if (++arrived === 2) both.resolve();
+      await both.promise;
+      return f.ports.current(tx, f.identity);
+    });
+  const results = await Promise.allSettled([
+    turn(f.conversationId),
+    turn(secondId),
+  ]);
+  expect(results).toMatchObject([
+    { status: 'fulfilled' },
+    { status: 'fulfilled' },
+  ]);
 }, 15000);

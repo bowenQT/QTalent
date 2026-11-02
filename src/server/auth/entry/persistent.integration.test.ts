@@ -65,6 +65,8 @@ async function setup() {
     userId: accountId,
     token: 'synthetic-session-' + id,
     expiresAt,
+    // Issued under the fixture binding's first generation, as Better Auth stamps it.
+    bindingGeneration: 1,
   });
   const base = {
     id,

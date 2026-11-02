@@ -49,6 +49,7 @@ function driver() {
     expiresAt: expiry,
     revokedAt: null as string | null,
     sessionExpiresAt: expiry,
+    sessionGeneration: 1 as number | null,
   };
   async function respond(
     path: 'pool' | 'tx',
@@ -81,6 +82,7 @@ function driver() {
                   row.expiresAt,
                   row.revokedAt,
                   row.sessionExpiresAt,
+                  row.sessionGeneration,
                 ],
               ],
       };
@@ -266,6 +268,19 @@ describe('AgentAPI transaction reader query boundary', () => {
     ).toBe(true);
   });
 
+  it.each([2, null])(
+    'rejects a pool read whose Web session generation is %s instead of the binding’s',
+    async (generation) => {
+      const d = driver();
+      d.row.sessionGeneration = generation;
+      await expect(d.reader.verify({})).rejects.toMatchObject({
+        kind: 'unauthenticated',
+      });
+      await expect(d.reader.current(credentialId)).rejects.toMatchObject({
+        kind: 'unauthenticated',
+      });
+    },
+  );
   it('revalidates the trusted owner on every transaction call and rejects a lost proof before queries', async () => {
     const d = driver();
     const cap = await d.service.authenticate('agentapi', true);
@@ -363,7 +378,13 @@ describe('AgentAPI transaction reader query boundary', () => {
     },
   );
 
-  it.each(['revoke', 'rebind', 'session-expiry'] as const)(
+  it.each([
+    'revoke',
+    'rebind',
+    'session-expiry',
+    'session-generation',
+    'session-unstamped',
+  ] as const)(
     'reads the changed %s facts only after the awaited lock query completes',
     async (change) => {
       const d = driver();
@@ -390,6 +411,9 @@ describe('AgentAPI transaction reader query boundary', () => {
       if (change === 'rebind') d.row.personId = 'demo-rebound';
       if (change === 'session-expiry')
         d.row.sessionExpiresAt = at.toISOString();
+      // The Web session predates the binding's current generation (A→B→A).
+      if (change === 'session-generation') d.row.sessionGeneration = 2;
+      if (change === 'session-unstamped') d.row.sessionGeneration = null;
       unlock();
       await rejected;
       expect(

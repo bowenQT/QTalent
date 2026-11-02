@@ -71,6 +71,8 @@ async function setup() {
     userId: accountId,
     token: 'synthetic-session-' + id,
     expiresAt,
+    // Issued under the fixture binding's first generation, as Better Auth stamps it.
+    bindingGeneration: 1,
   });
   await c.db.insert(agentApiBindings).values({
     id,
@@ -457,4 +459,55 @@ it('observes same-tx Web logout while pool authentication remains isolated until
   await expect(issuer.current(cap)).rejects.toMatchObject({
     kind: 'unauthenticated',
   });
+});
+
+it('rejects an AgentAPI request riding a Web session issued before an A→B→A rebind, on both paths', async () => {
+  const f = await setup();
+  const issuer = identities(f);
+  const cap = await issuer.authenticate('agentapi', true);
+  await rebindDirectoryAccount(c.db, {
+    accountId: f.accountId,
+    personId: f.other,
+  });
+  const back = await rebindDirectoryAccount(c.db, {
+    accountId: f.accountId,
+    personId: f.personId,
+  });
+  expect(back!.generation).toBe(3);
+  // Re-issue the AgentAPI binding under the current generation so only the
+  // Web session's stale generation can be the reason for rejection.
+  await c.db
+    .update(agentApiBindings)
+    .set({
+      accountBindingDigest: entryAccountBindingDigest(
+        f.accountId,
+        f.personId,
+        back!.generation,
+      ),
+    })
+    .where(eq(agentApiBindings.id, f.id));
+  await expect(
+    c.db.transaction((tx) => issuer.currentInTransaction(tx, cap)),
+  ).rejects.toMatchObject({ kind: 'unauthenticated' });
+  await expect(
+    identities(f).authenticate('agentapi', true),
+  ).rejects.toMatchObject({ kind: 'unauthenticated' });
+  // A null stamp (account unbound at issue time) fails closed as well.
+  await c.db
+    .update(session)
+    .set({ bindingGeneration: null })
+    .where(eq(session.id, f.owner.sessionId));
+  await expect(
+    identities(f).authenticate('agentapi', true),
+  ).rejects.toMatchObject({ kind: 'unauthenticated' });
+  // A Web session issued under the current generation is accepted again.
+  await c.db
+    .update(session)
+    .set({ bindingGeneration: back!.generation })
+    .where(eq(session.id, f.owner.sessionId));
+  const reissued = identities(f);
+  const fresh = await reissued.authenticate('agentapi', true);
+  expect(
+    await c.db.transaction((tx) => reissued.currentInTransaction(tx, fresh)),
+  ).toMatchObject({ personId: f.personId });
 });
