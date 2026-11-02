@@ -102,7 +102,8 @@ test('/rules reads the standard from the database; /judge stays 待接通 until 
     page.getByRole('heading', { name: '还没有生效的入营选拔标准' }),
   ).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/许致远|第六期判断对照/);
-  expect((await page.goto('/rules'))?.status()).toBe(404);
+  await page.goto('/rules');
+  await expect(page).toHaveURL(/\/rules\?r=front&line=xe-select$/);
 
   await context.clearCookies();
   await login(context, 'ceo', referenceApp.baseURL);
