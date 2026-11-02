@@ -12,6 +12,7 @@ import {
   type InferInsertModel,
 } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
+import { z } from 'zod';
 import { createDatabase, type Database, type Transaction } from './client';
 import { readPrototypeSeed, mapPrototypeSeed, type DemoSeed } from './seed';
 import {
@@ -632,19 +633,38 @@ async function moveDemoStatementKinds(
     )
       fail(row.id);
   }
+  // Any other statement on the same event or cell still holding `from` means
+  // the database is not the seed this step was written for.
+  const eventIds = [...new Set(targets.map((row) => row.eventId))];
+  const fragmentIds = [...new Set(targets.map((row) => row.fragmentId))];
+  const stray = await tx
+    .select({ id: statements.id })
+    .from(statements)
+    .where(
+      and(
+        eq(statements.kind, from),
+        or(
+          inArray(statements.eventId, eventIds),
+          inArray(statements.fragmentId, fragmentIds),
+        ),
+      ),
+    )
+    .for('update');
+  const fixed = new Set(ids);
+  for (const row of stray) if (!fixed.has(row.id)) fail(row.id);
   const cells = new Map(
     seed.evidence.fragments.map((row) => [
       row.id,
       row as Record<string, unknown>,
     ]),
   );
-  const fragmentIds = [...new Set(targets.map((row) => row.fragmentId))];
   const actualCells = new Map(
     (
       await tx
         .select()
         .from(fragments)
         .where(inArray(fragments.id, fragmentIds))
+        .for('update')
     ).map((row) => [row.id, row as Record<string, unknown>]),
   );
   for (const id of fragmentIds) {
@@ -700,17 +720,60 @@ export async function revertDemoStatementKinds(db: Database, input: DemoSeed) {
   }));
 }
 
-export async function runImport(command = process.argv[2]) {
+const SEED_STEPS = ['upgrade-statement-kinds', 'revert-statement-kinds'];
+const manifestDatabase = z.strictObject({
+  host: z.string().min(1),
+  port: z.number().int().positive(),
+  name: z.string().min(1),
+  username: z.string().min(1),
+});
+
+/**
+ * A seed step has no operator command: only `deploy.sh seed
+ * --upgrade-statement-kinds` (or `--revert-statement-kinds`) runs it, after
+ * the deploy flow has checked the target, consumed a fresh backup and taken
+ * its lock. It passes the worker database from the verified target manifest;
+ * the step refuses unless this process is the demo app connected to exactly
+ * that database.
+ */
+export function boundSeedStep(
+  args: string[],
+  env: { APP_ENV: string; DATABASE_URL: string },
+) {
+  if (!args.length) return undefined;
+  const [step, manifest, ...rest] = args;
+  if (rest.length || !SEED_STEPS.includes(step) || manifest === undefined)
+    throw new Error('Unknown seed command');
+  if (env.APP_ENV !== 'demo')
+    throw new Error('Seed steps run only in the demo deployment');
+  let expected: z.infer<typeof manifestDatabase>;
+  try {
+    expected = manifestDatabase.parse(JSON.parse(manifest));
+  } catch {
+    throw new Error('Seed step requires the verified database identity');
+  }
+  const url = new URL(env.DATABASE_URL);
+  const actual = {
+    host: decodeURIComponent(url.hostname.replace(/^\[(.*)\]$/, '$1')),
+    port: Number(url.port || '5432'),
+    name: decodeURI(url.pathname.slice(1)),
+    username: decodeURIComponent(url.username),
+  };
+  if (
+    (Object.keys(expected) as (keyof typeof expected)[]).some(
+      (key) => actual[key] !== expected[key],
+    )
+  )
+    throw new Error('Seed step database identity mismatch');
+  return step;
+}
+
+export async function runImport(args: string[] = []) {
   const env = getEnv();
   if (env.APP_ENV === 'production')
     throw new Error('Demo import is forbidden in production');
   if (!env.DEMO_PASSWORD) throw new Error('DEMO_PASSWORD is required');
-  if (
-    command !== undefined &&
-    command !== 'upgrade-statement-kinds' &&
-    command !== 'revert-statement-kinds'
-  )
-    throw new Error('Unknown seed command');
+  const command = boundSeedStep(args, env);
   const connection = createDatabase(env.DATABASE_URL);
   try {
     const seed = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
@@ -730,4 +793,4 @@ export async function runImport(command = process.argv[2]) {
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
-  await runImport();
+  await runImport(process.argv.slice(2));

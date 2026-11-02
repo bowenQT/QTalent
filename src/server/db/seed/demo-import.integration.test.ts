@@ -53,6 +53,7 @@ import {
   historicalEvaluations,
   historicalParticipants,
   eventSources,
+  eventParticipants,
 } from '../../modules/records';
 import {
   confirmations,
@@ -135,6 +136,10 @@ async function fingerprints(db: Database) {
     historicalEvaluations,
     historicalParticipants,
     eventSources,
+    eventParticipants,
+    evaluationNodes,
+    evaluationNodeSubjects,
+    evaluationRelations,
     confirmations,
     aiSuggestions,
     scoreReviews,
@@ -633,6 +638,8 @@ async function kindsOf(db: Database) {
     {},
   );
 }
+// The old seed is simulated from the current one: same rows, every
+// statement set back to management_observation, which is all it differed in.
 const asOldSeed = (db: Database) =>
   db.update(statements).set({ kind: 'management_observation' });
 it('upgrades an older demo database in place, replays the seed and can revert', async () => {
@@ -691,6 +698,19 @@ it('refuses the upgrade unless every fixed row, kind and cell matches the seed',
       [setRow({ text: 'Synthetic edited text' }), setRow({ text: row.text })],
       // The cell the statement cites no longer matches the seed.
       [setCell('Synthetic edited cell'), setCell(cell.excerpt)],
+      // Another old-kind statement on the same event and cell.
+      [
+        () =>
+          db.insert(statements).values({
+            ...row,
+            id: 'synthetic-extra-statement',
+            kind: 'management_observation',
+          }),
+        () =>
+          db
+            .delete(statements)
+            .where(eq(statements.id, 'synthetic-extra-statement')),
+      ],
     ] as const;
     const old = await fingerprints(db);
     for (const [change, undo] of cases) {
