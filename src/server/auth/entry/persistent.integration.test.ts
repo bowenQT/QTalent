@@ -65,6 +65,8 @@ async function setup() {
     userId: accountId,
     token: 'synthetic-session-' + id,
     expiresAt,
+    // Issued under the fixture binding's first generation, as Better Auth stamps it.
+    bindingGeneration: 1,
   });
   const base = {
     id,
@@ -221,6 +223,13 @@ it.each(['mcp', 'wecom', 'agentapi'] as const)(
         revision: 2,
       })
       .where(eq(table.id, f.id));
+    // AgentAPI also rides a Web session, which must be re-issued under the
+    // current generation as well (Better Auth stamps it at sign-in).
+    if (channel === 'agentapi')
+      await c.db
+        .update(session)
+        .set({ bindingGeneration: 3 })
+        .where(eq(session.id, f.owner.sessionId));
     expect(await r[channel].verify(proof)).toMatchObject({
       credentialId: f.id,
       personId: f.personId,
