@@ -333,12 +333,18 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
   - 原话只在本标签页暂存：`sessionStorage['niu-talent:staffing:sentence:<projectId>']` 存 `{ accountId, text }`，刷新后还在、关掉标签页即清除，不进地址、不上服务端；清空输入框或确认需求后删除，别的项目或账号读不到。
   - `?project=<id>&demand=<id>`：用 `readStaffingDemand` 读当前版本；读不到或不属于这个项目时显示「需求链接失效」（缺失与无权同一结果）。编辑、确认走 `editStaffingDemandAction` / `confirmStaffingDemandAction`，冲突提示刷新、保留输入；被拒时显示本页的肯定式文案，不透出服务端原文。
   - 没有 `project`（含 `?new=1`）：显示「选一个项目再找人」，引到项目与课题。一句话建项目不在 BOW-852 范围内。
+  - 没有 `project` 且带 `draft=work`（工作台交接，BOW-841）：先选项目。原型 Y 没有这个状态：`workbench.js` 发出后跳到 `staffing.html?new=1&q=…`，`staffing.js` 用这句话直接建项目，并在标题下显示原话（第 152 行）；工程里一句话建项目不在 BOW-852 范围内，所以加这一步，等一句话建项目接入后去掉。
+    - 有交接原话时：标题「这句话为哪个项目找人」，说明「找人需求按项目保存。选一个项目，这句话会一起带过去。」，下面用来源引用块（`.n-cite__quote`）原样显示原话；只读不删，进入项目页时才取走，从项目页后退再选别的项目也还在（本次页面加载内缓存）。
+    - 原话过期（超过 10 分钟）或不属于当前账号：标题「选一个项目再找人」，不显示原话。
+    - 项目列表：只列可读的「筹备中 / 进行中」项目，卡片（`.n-card`）里放分隔列表（`.nt-list`），每行项目名链接（`.nt-plink`）加目标（`.nt-muted`）；链接是 `?project=<id>&draft=work`。
+    - 没有开放项目：空状态（`State`）「先建一个项目」，按钮去 `/projects?draft=work`；项目与课题页带着这个标记时，项目卡片「发起找 owner」和页头「为项目找人」的链接都加 `draft=work`，新建项目后从卡片进入找人，原话照样带过去。
+    - 项目读取被拒（`forbidden`）：显示「查看权限已更新」（`AccessDenied`），不引去新建项目。
   - 确认后的候选人核对：BOW-854 未合入，`openMatching` 返回 `null`，显示「候选人核对待接通」，不拿样张冒充。
 - 开发样张 `/dev/staffing?role=manager|hr&scene=ts|agent|new`：原型 Y 种子数据经找人契约渲染，来源都标为原型基线；动作是内存假实现。生产构建返回 404。
 - 排序只用契约的 `orderStaffingCandidates`（必须项支持了几条），同数保持读取顺序；必须项至少两条资料不足、没有一条支持、且没有还在处理或待人工判断的要求的人，放进「条件待确认」。不出总分、胜任率或百分比。
 - 匹配入口：契约没有「取确认后的匹配任务」的读取，`StaffingPorts.openMatching` 是对 BOW-854 的接口假设，返回任务标识或 `null`（这时显示「候选人核对待接通」）。
 - 新项目入口（`?new=1`）：契约的起草需要 `projectId`，一句话建项目不在找人契约里；真实路由先引到项目，开发样张在起草完成后由 `onDemandReady` 绑定演示项目。
-- 工作台交接：读取并删除 `sessionStorage['niu-talent:draft:staffing']`（约定见 BOW-841 `send.ts`），账号不符或超过 10 分钟丢弃。
+- 工作台交接：项目页读取并删除 `sessionStorage['niu-talent:draft:staffing']`（约定见 BOW-841 `send.ts`），账号不符或超过 10 分钟丢弃；选项目这一步只读不删（见上）。
 
 **同次渲染截图对比**（`tests/visual/staffing.spec.ts`，遮罩与说明在 `tests/visual/staffing-masks.ts`）：管理者 `pr-agent`、HR `pr-ts` 项目页与管理者入口，桌面 1366×900 与窄屏 375×812。先比文字（标题、状态、要求、候选人姓名、逐条状态与证据句），再比位置与间距，最后逐元素比像素。页头和需求卡另在真实路由上比（同一份需求写入隔离测试库，管理者 `ceo`、HR `hrbp` 登录）；候选人部分在 BOW-854 合入前仍用开发样张比。
 

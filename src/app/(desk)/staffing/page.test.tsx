@@ -31,6 +31,7 @@ import StaffingPage, { generateMetadata } from './page';
 
 afterEach(() => {
   cleanup();
+  sessionStorage.clear();
   for (const mock of [getShellPage, getProjectsPage, readStaffingDemand, live])
     mock.mockReset();
 });
@@ -134,6 +135,12 @@ describe('staffing route', () => {
         ],
       },
     });
+    const handed = JSON.stringify({
+      accountId: 'acct-hr',
+      text: '寻找一位能带新人的牵头人',
+      savedAt: Date.now(),
+    });
+    sessionStorage.setItem('niu-talent:draft:staffing', handed);
     render(await open({ new: '1', draft: 'work' }));
     expect(
       screen.getByRole('heading', { name: '这句话为哪个项目找人' }),
@@ -147,19 +154,55 @@ describe('staffing route', () => {
       ['演示项目', '/staffing?project=demo-project&draft=work'],
       ['进行中项目', '/staffing?project=demo-running&draft=work'],
     ]);
-    // The sentence is not in any address and nothing is drafted yet.
-    expect(document.body.innerHTML).not.toContain('寻找');
+    // The sentence is shown as written, kept for the project's page, and in no address.
+    expect(screen.getByLabelText('刚才写的那句话').textContent).toBe(
+      '寻找一位能带新人的牵头人',
+    );
+    expect(sessionStorage.getItem('niu-talent:draft:staffing')).toBe(handed);
+    expect([...links].some((link) => link.href.includes('寻找'))).toBe(false);
     expect(live).not.toHaveBeenCalled();
   });
+  it('asks for a project without quoting when the handed sentence has expired', async () => {
+    getShellPage.mockResolvedValue(shell(['manager']));
+    getProjectsPage.mockResolvedValue({
+      status: 'ok',
+      data: { projects: [project] },
+    });
+    sessionStorage.setItem(
+      'niu-talent:draft:staffing',
+      JSON.stringify({
+        accountId: 'acct-hr',
+        text: '寻找一位能带新人的牵头人',
+        savedAt: Date.now() - 11 * 60 * 1000,
+      }),
+    );
+    render(await open({ new: '1', draft: 'work' }));
+    expect(
+      screen.getByRole('heading', { name: '选一个项目再找人' }),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText('刚才写的那句话')).toBeNull();
+    expect(screen.getByRole('list', { name: '可以找人的项目' })).toBeTruthy();
+  });
 
-  it('points to creating a project when none is open to find people for', async () => {
+  it('points to creating a project when none is open, keeping the handoff', async () => {
+    getShellPage.mockResolvedValue(shell(['hr']));
+    getProjectsPage.mockResolvedValue({
+      status: 'ok',
+      data: { projects: [{ ...project, status: '已结束' }] },
+    });
+    render(await open({ draft: 'work' }));
+    expect(screen.getByText('先建一个项目')).toBeTruthy();
+    expect(
+      screen.getByRole('link', { name: '打开项目与课题' }).getAttribute('href'),
+    ).toBe('/projects?draft=work');
+    expect(live).not.toHaveBeenCalled();
+  });
+  it('treats a projects read refused on the choose step as changed access', async () => {
     getShellPage.mockResolvedValue(shell(['hr']));
     getProjectsPage.mockResolvedValue({ status: 'forbidden' });
     render(await open({ draft: 'work' }));
-    expect(screen.getByText('选一个项目再找人')).toBeTruthy();
-    expect(
-      screen.getByRole('link', { name: '打开项目与课题' }).getAttribute('href'),
-    ).toBe('/projects');
+    expect(screen.getByText('access-denied')).toBeTruthy();
+    expect(screen.queryByText('先建一个项目')).toBeNull();
     expect(live).not.toHaveBeenCalled();
   });
 

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { State } from '@/components/ui/State';
 import { AccessDenied } from '@/features/shell/AccessDenied';
 import { ShellTitle } from '@/features/shell/ShellTitle';
+import { HandedSentence } from '@/features/staffing/HandedSentence';
 import { LiveStaffing } from '@/features/staffing/LiveStaffing';
 import type { ProjectHead } from '@/features/staffing/view';
 import { getProjectsPage } from '@/server/queries/projects';
@@ -40,46 +41,47 @@ const toProjects = (
 );
 
 /** Open projects the viewer may read, to take a workbench sentence into one of them. */
-async function chooseProject() {
+async function chooseProject(accountId: string) {
   const page = await getProjectsPage();
-  const open =
-    page.status === 'ok'
-      ? page.data.projects.filter(
-          (project) =>
-            project.status === '筹备中' || project.status === '进行中',
-        )
-      : [];
+  if (page.status === 'forbidden') return <AccessDenied />;
+  const open = page.data.projects.filter(
+    (project) => project.status === '筹备中' || project.status === '进行中',
+  );
   return (
     <>
       <ShellTitle title="找人" />
-      <header className="nt-head">
-        <div>
-          <h1>这句话为哪个项目找人</h1>
-          <p>找人需求按项目保存。选一个项目，刚才写的那句话会一起带过去。</p>
-        </div>
-      </header>
+      <HandedSentence accountId={accountId} />
       {open.length ? (
-        <ul className="n-card nt-list" aria-label="可以找人的项目">
-          {open.map((project) => (
-            <li key={project.id} className="nt-row">
-              <Link
-                className="nt-plink"
-                href={`/staffing?${new URLSearchParams({ project: project.id, draft: 'work' })}`}
-              >
-                <b>{project.name}</b>
-              </Link>
-              {project.goal ? (
-                <span className="nt-muted">{project.goal}</span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        <div className="n-card">
+          <ul className="nt-list" aria-label="可以找人的项目">
+            {open.map((project) => (
+              <li key={project.id} className="nt-row">
+                <Link
+                  className="nt-plink"
+                  href={`/staffing?${new URLSearchParams({ project: project.id, draft: 'work' })}`}
+                >
+                  <b>{project.name}</b>
+                </Link>
+                {project.goal ? (
+                  <span className="nt-muted">{project.goal}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : (
         <State
-          title="选一个项目再找人"
-          text="找人需求按项目保存。在项目与课题里新建项目后再来找人。"
+          title="先建一个项目"
+          text="找人需求按项目保存。在项目与课题里新建项目，再从项目卡片点「发起找 owner」接着找人。"
         >
-          {toProjects}
+          <div className="nt-row" style={{ justifyContent: 'center' }}>
+            <a
+              className="n-btn n-btn--sm"
+              href={`/projects?${new URLSearchParams({ draft: 'work' })}`}
+            >
+              打开项目与课题
+            </a>
+          </div>
         </State>
       )}
     </>
@@ -138,7 +140,8 @@ export default async function StaffingPage({
   const params = (await searchParams) ?? {};
   // A sentence sent from the workbench waits in session storage until a project is
   // chosen: each choice keeps `draft=work`, so the demand page picks it up.
-  if (!params.project && params.draft === 'work') return chooseProject();
+  if (!params.project && params.draft === 'work')
+    return chooseProject(shell.account.id);
   if (!params.project)
     return (
       <>

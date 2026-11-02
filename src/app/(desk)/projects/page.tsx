@@ -9,7 +9,11 @@ export async function generateMetadata() {
     title: `${!shell ? '查看权限已更新' : shell.isAdmin ? '这一页属于业务视角' : '项目与课题'} · Niu-Talent`,
   };
 }
-export default async function ProjectsPage() {
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ draft?: string }>;
+} = {}) {
   const shell = await getShellPage();
   if (!shell) return <AccessDenied />;
   const result = await getProjectsPage();
@@ -24,5 +28,14 @@ export default async function ProjectsPage() {
         </a>
       </State>
     );
-  return <Projects data={result.data} mentor={shell.role === 'mentor'} />;
+  // Arriving from find-people with a workbench sentence waiting: finding people from
+  // here keeps `draft=work`, so the sentence reaches the project's demand page.
+  const handoff = (await searchParams)?.draft === 'work';
+  return (
+    <Projects
+      data={result.data}
+      mentor={shell.role === 'mentor'}
+      handoff={handoff}
+    />
+  );
 }

@@ -275,6 +275,7 @@ test('a manager finds people from /work: the sentence reaches the chosen project
     page.getByRole('heading', { name: '这句话为哪个项目找人' }),
   ).toBeVisible();
   expect(page.url()).toMatch(/\/staffing\?new=1&draft=work$/);
+  await expect(page.getByLabel('刚才写的那句话')).toHaveText(sentence);
   const choice = page
     .getByRole('list', { name: '可以找人的项目' })
     .getByRole('link')
@@ -285,4 +286,7 @@ test('a manager finds people from /work: the sentence reaches the chosen project
   await expect(
     page.getByRole('textbox', { name: '描述项目和要找的人' }),
   ).toHaveValue(sentence);
+  // Back on the choose step, the sentence is still there for another project.
+  await page.goBack();
+  await expect(page.getByLabel('刚才写的那句话')).toHaveText(sentence);
 });
