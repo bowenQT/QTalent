@@ -11,7 +11,7 @@
 
 两代的差别集中在 `FACT_GENERATIONS`：固定提交、三项原档位的取值（v3 只能是 A / B / C，v2 用前段档位名）、manifest 是否带 `prototypeCommit`。一代的文件不能按另一代的规则导入。
 
-每一代的持久化身份互不重复：批次、原件版本、案例、行出处、判断、对应表版本都由夹具按代派生；原件 ID 由导入器按代派生为 `<代>-original-front` / `<代>-original-back`。每一代是一份独立演示原件的第 1 版；同一原件重新渲染时才会升 version。节点 ID 也随代更换（v2 是 `bow-923-xe6-*`，v3 是 `xe6-select` / `xe6-end`）。目录人员、期次 `b-xe6`、`xe-select-v1` 和量表是多代共用的事实。
+每一代的持久化身份互不重复：批次、原件版本、案例、行出处、判断、对应表版本都由夹具按代派生；原件 ID 由导入器按代派生为 `<代>-original-front` / `<代>-original-back`。每一代是一份独立演示原件的第 1 版，所以数字列 `version` 固定为 1，不会撞键；「不写死」指的是原件 ID 按代派生。同一原件重新渲染时才会升 version。节点 ID 也随代更换（v2 是 `bow-923-xe6-*`，v3 是 `xe6-select` / `xe6-end`）。目录人员、期次 `b-xe6`、`xe-select-v1` 和量表是多代共用的事实。
 
 ## 输入校验
 
@@ -26,7 +26,7 @@ pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --init --as <账
 pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --apply
 ```
 
-两个命令都使用服务端 `getEnv()`，production 环境拒绝；不自动加入 `db:seed`。成功时只输出回执，失败只输出稳定的错误分类，不打印 SQL 原错、连接串或原文。
+两个命令都使用服务端 `getEnv()`，只拒绝 `APP_ENV=production`，不核验连接的到底是哪个库（后续改走部署受控入口）；不自动加入 `db:seed`。成功时只输出回执，失败只输出稳定的错误分类，不打印 SQL 原错、连接串或原文。
 
 ### `--init --as <账号ID>`：幂等的演示初始化
 
@@ -35,8 +35,18 @@ pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --apply
 1. **结营评委 `s-29`**：在目录里登记这一位演示人员（孟砚舟，组织 `tdc`，`noReview`、`demo` 为真，hue 318），字段取自原型 81e4fd4 的 `data.js`。不存在就插入；已存在就逐项比对，任一字段不同即失败（`directory_mismatch`，回执的 `fields` 列出不同的列名，不输出取值），不覆盖，此时后续步骤都不执行。只登记这一个人。
 2. **节点**：在 `b-xe6` 下建 `xe6-select`（入营选拔（演示））和 `xe6-end`（结营评审（演示）），kind 为 `review`，并补齐 93 位学员的节点主体。节点已存在时逐项比对，不同即失败（`node_mismatch`），不覆盖。旧代的 `bow-923-xe6-*` 节点保持原样。
 3. **基线**：还没有选拔标准 head 时，经 918 的 `initializeReviewedSelectionBaseline` 建立 `xe-select-v1`，生效时间 `2026-06-14T16:00:00.000Z`，内容取当前代的 `selection-standard.json`。已有 head 就保留，因为现场发布 v2 以后再初始化不能回退。
-4. **第六期绑定**：经 918 的 `bindExistingSelectionCohort` 绑定 `b-xe6`，已绑定则沿用。
+4. **第六期绑定**：经 918 的 `bindExistingSelectionCohort` 绑定 `b-xe6`，已绑定则沿用。在同一事务、同一把标准类别锁下，核对绑定的版本和内容与当前代的 `selection-standard.json` 一致，不一致就整笔回滚（`selection_binding_mismatch`），不留绑定和审计。
 5. **导入**：调用 `importStandardIterationDemo`。
+
+初始化分五个独立事务（s-29、节点、基线、第六期绑定、导入），某一步失败时，前面已提交的步骤不回滚（例如已新增的 s-29、节点）。可以靠重跑恢复的情况：
+
+- 普通中断，或缺少前提（期次、目录人员、管理者授权）修好之后：已提交的步骤重跑返回 `unchanged`，从断点继续；
+- 基线不相容（已有 head 的版本不是 `xe-select-v1`，或版本相同、内容不同）：第六期绑定和对内容的核对在同一事务、同一把标准类别锁下完成，不一致就整笔回滚，不留绑定和审计；修正基线后重跑即可；
+- 并发两个初始化同时首次创建 s-29 或节点：其中一方可能因唯一键冲突失败，重跑即可。
+
+不能靠重跑恢复、需要人工处理的情况：已存在但字段不一致的 s-29 或节点（`directory_mismatch` / `node_mismatch`），以及本修复之前就已写入的错误第六期绑定（原生绑定看到已有绑定会直接沿用，重跑仍报 `selection_binding_mismatch`）。
+
+第六期已正确绑定 v1、之后 head 升级到 v2 的情况，重跑仍然成功：这时只比对第六期绑定本身，不比对当前 head。
 
 回执逐步给出 `created` 或 `unchanged`，以及第七期 `b-xe7-demo` 当前是否存在。第七期不由初始化创建：现场先发布 v2，再经原生期次入口创建并绑定第七期。期次表没有日期列，「创建后的下一个周一开营、时长与第六期相同」只是现场说法。`DEMO_NEXT_COHORT` 导出下一期的固定描述，供生命周期装配使用。
 

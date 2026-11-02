@@ -893,6 +893,72 @@ describe('923 generations coexist and demo initialization is idempotent', () => 
       await db().execute(sql`select 1 from evaluation_selection_category_head`),
     ).toMatchObject({ rows: [] });
   });
+  it.each(['version', 'content'] as const)(
+    'init refuses an existing incompatible baseline (%s) and leaves no binding or audit',
+    async (mode) => {
+      await managerAccount();
+      const content = structuredClone(plan.selectionStandard.content);
+      if (mode === 'content')
+        content.reviewPoints[0].description += '（测试差异）';
+      await initializeReviewedSelectionBaseline(
+        db(),
+        MANAGER,
+        {
+          versionId: mode === 'version' ? 'xe-select-v2' : 'xe-select-v1',
+          periodId: 'iteration-test-only-period',
+          effectiveFrom: TEST_ONLY_EFFECTIVE_FROM,
+          nextVersionOrdinal: 3,
+          sourceCommit: plan.canonical.batch.sourceCommit,
+          sourceReference:
+            'synthetic-test-only:923-transaction-not-approved-demo-history',
+          content,
+        },
+        TEST_ONLY_CLOCK,
+      );
+      const bindAudits = async () =>
+        (
+          await db().execute<{ n: number }>(
+            sql`select count(*)::integer n from audit_events where action = 'selection_standard.bind_cohort'`,
+          )
+        ).rows[0].n;
+      const auditsBefore = await bindAudits();
+      await expect(
+        initializeStandardIterationDemo(
+          db(),
+          process.cwd(),
+          MANAGER,
+          TEST_ONLY_CLOCK,
+        ),
+      ).rejects.toMatchObject({ code: 'selection_binding_mismatch' });
+      expect(
+        await db().execute(
+          sql`select 1 from evaluation_selection_cohort_bindings`,
+        ),
+      ).toMatchObject({ rows: [] });
+      expect(await bindAudits()).toBe(auditsBefore);
+      expect((await countFacts()).canonical).toBe(0);
+      // Once the baseline is the reviewed one, the same command recovers.
+      await db().execute(sql`delete from evaluation_selection_category_head`);
+      await db().execute(sql`delete from evaluation_selection_version_content`);
+      await db().execute(
+        sql`delete from evaluation_rule_version_applicability`,
+      );
+      await db().execute(sql`delete from evaluation_rule_versions`);
+      await expect(
+        initializeStandardIterationDemo(
+          db(),
+          process.cwd(),
+          MANAGER,
+          TEST_ONLY_CLOCK,
+        ),
+      ).resolves.toMatchObject({
+        baseline: 'created',
+        binding: 'created',
+        import: { status: 'inserted' },
+      });
+      expect(await bindAudits()).toBe(auditsBefore + 1);
+    },
+  );
   it('init refuses an account without a current manager grant before any baseline', async () => {
     await managerAccount();
     await db().delete(grants);

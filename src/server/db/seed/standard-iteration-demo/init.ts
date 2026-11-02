@@ -10,6 +10,10 @@ import { readStoredSelectionCohortBinding } from '../../../modules/evaluation-sy
 import { selectionCategoryHeads } from '../../../modules/evaluation-system/selection/schema';
 import { authorizeSelectionAction } from '../../../modules/evaluation-system/selection-standard';
 import {
+  canonicalComparisonJson,
+  readSelectionCohortFacts,
+} from '../../../modules/evaluation-system';
+import {
   bindExistingSelectionCohort,
   initializeReviewedSelectionBaseline,
   loadSelectionAuthority,
@@ -203,7 +207,37 @@ export async function initializeStandardIterationDemo(
   const bound = await db.transaction((tx) =>
     readStoredSelectionCohortBinding(tx, plan.cohort.id),
   );
-  await bindExistingSelectionCohort(db, accountId, plan.cohort.id, clock);
+  // An existing head may be an incompatible baseline. The bound version and
+  // content are checked inside the binding transaction, so a mismatch leaves no
+  // binding or audit. A sixth cohort already bound to v1 still passes after the
+  // head has moved on, since only the binding itself is compared.
+  let mismatch = false;
+  try {
+    await bindExistingSelectionCohort(
+      db,
+      accountId,
+      plan.cohort.id,
+      clock,
+      async (tx) => {
+        const selection = await readSelectionCohortFacts(tx, plan.cohort.id);
+        if (
+          !selection ||
+          selection.binding.standardVersionId !==
+            plan.selectionStandard.versionId ||
+          canonicalComparisonJson(selection.content) !==
+            canonicalComparisonJson(plan.selectionStandard.content)
+        ) {
+          mismatch = true;
+          throw new StandardIterationImportError('selection_binding_mismatch');
+        }
+      },
+    );
+  } catch (error) {
+    // The 918 entry maps foreign errors to its own storage failure.
+    if (mismatch)
+      throw new StandardIterationImportError('selection_binding_mismatch');
+    throw error;
+  }
   const binding: Step = bound ? 'unchanged' : 'created';
 
   const imported = await importStandardIterationDemo(
