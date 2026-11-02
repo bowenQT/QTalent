@@ -142,9 +142,11 @@ it('derives each audience scope from persisted node relations and grants', async
     'mentor',
     clock,
   ).loadCurrentAccess();
-  // Only the mentor's own relation counts; another evaluator's node does not.
+  // Only the mentor's own relation counts: on the cohort node it covers the
+  // cohort's stages, while another evaluator's relation adds nothing.
   expect(rater?.grants).toEqual([
     { personId: 'one', nodeId: 'node-current', ...open },
+    { personId: 'one', nodeId: 'node-other', ...open },
   ]);
   const manager = await comparisonReadPorts(
     db,

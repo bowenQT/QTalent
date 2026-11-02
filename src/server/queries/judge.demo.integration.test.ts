@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { Pool } from 'pg';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createClock } from '../../lib/clock';
 import { selectionRevisionSchema } from '../../contracts/selection-standard';
@@ -10,11 +10,17 @@ import { createDatabase, getDatabase } from '../db/client';
 import { importDemo } from '../db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '../db/seed';
 import { initializeStandardIterationDemo } from '../db/seed/standard-iteration-demo/init';
+import { canReadNodeTalent } from '../authz/evaluation-node';
 import { comparisonBatches } from '../modules/evaluation-system';
+import { evaluationRelations } from '../modules/programs';
 import { readComparisonDataset } from '../usecases/judgment-comparison-dataset';
 import { nativeAttributionReadServices } from '../usecases/standard-attribution/batch-state';
 import { createStandardAttributionUsecases } from '../usecases/standard-attribution/hypotheses';
 import { createAttributionPostgresStore } from '../usecases/standard-attribution/postgres';
+import {
+  loadArrangeActor,
+  writableSubject,
+} from '../usecases/record-arrange-context';
 import {
   publishSelectionRevisionAction,
   saveSelectionRevisionAction,
@@ -203,4 +209,94 @@ it('assembles each audience from the stored batch, and HR keeps reading the vers
   // A new revision starts from the version in force.
   expect(after.currentVersionId).toBe('xe-select-v2');
   expect(after.attributions.map((a) => a.id)).toEqual([signed.result.id]);
+});
+
+it('lets a mentor compare only their own judgments through the cohort relation, without new rights on the stage nodes, and not after it ends', async () => {
+  const db = connection!.db;
+  const mentor = 'p-yeqing';
+  signIn('demo-mentor');
+  const page = await getJudgePage('me');
+  if (page.status !== 'rater') throw new Error('Expected the rater page');
+  const cases = page.page.cases;
+  expect(cases.length).toBeGreaterThan(0);
+  // Exactly the mentor's own front-stage judgments, nobody else's.
+  const stored = await db.transaction((tx) =>
+    readComparisonDataset(tx, batchId),
+  );
+  expect(cases.map((unit) => unit.id).sort()).toEqual(
+    stored!.cases
+      .filter(
+        (unit) =>
+          unit.front.state === 'present' &&
+          unit.front.judgment.evaluator.id === mentor,
+      )
+      .map((unit) => unit.id)
+      .sort(),
+  );
+  // A mentored student's stages are compared; an own judgment of a student the
+  // mentor holds no current relation with keeps both stages withheld.
+  expect(cases.some((unit) => unit.outcome.state !== 'withheld')).toBe(true);
+  const relations = await db
+    .select()
+    .from(evaluationRelations)
+    .where(eq(evaluationRelations.evaluatorId, mentor));
+  const related = new Set(relations.map((r) => r.personId));
+  for (const unit of cases)
+    if (!related.has(unit.person.id))
+      expect(unit).toMatchObject({
+        front: { state: 'withheld' },
+        back: { state: 'withheld' },
+      });
+  // No relation is written on the stage nodes themselves.
+  const stages = new Set(cases.flatMap((u) => [u.frontNodeId, u.backNodeId]));
+  expect(relations.filter((r) => stages.has(r.evaluationNodeId))).toEqual([]);
+
+  // Profile evidence, recording and own score confirmation keep the node rules.
+  const actor = await loadArrangeActor(
+    db,
+    'demo-mentor',
+    businessClock.now().toISOString(),
+  );
+  for (const unit of cases)
+    for (const nodeId of [unit.frontNodeId, unit.backNodeId]) {
+      expect(
+        canReadNodeTalent(
+          actor.context,
+          {
+            evaluationNodeId: nodeId,
+            personId: unit.person.id,
+            kind: 'restricted-evaluation',
+          },
+          'person-profile',
+        ),
+      ).toBe(false);
+      expect(writableSubject(actor, unit.person.id, nodeId)).toBeUndefined();
+    }
+
+  const revokedAt = businessClock.now().toISOString();
+  await db
+    .update(evaluationRelations)
+    .set({ revokedAt })
+    .where(
+      and(
+        eq(evaluationRelations.evaluatorId, mentor),
+        isNull(evaluationRelations.revokedAt),
+      ),
+    );
+  try {
+    expect(await getJudgePage('me')).toEqual({
+      status: 'empty',
+      audience: 'rater',
+    });
+  } finally {
+    await db
+      .update(evaluationRelations)
+      .set({ revokedAt: null })
+      .where(
+        and(
+          eq(evaluationRelations.evaluatorId, mentor),
+          eq(evaluationRelations.revokedAt, revokedAt),
+        ),
+      );
+  }
 });

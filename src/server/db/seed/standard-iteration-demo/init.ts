@@ -5,7 +5,6 @@ import {
   cohorts,
   evaluationNodes,
   evaluationNodeSubjects,
-  evaluationRelations,
 } from '../../../modules/programs';
 import { readStoredSelectionCohortBinding } from '../../../modules/evaluation-system/selection/postgres';
 import { selectionCategoryHeads } from '../../../modules/evaluation-system/selection/schema';
@@ -176,35 +175,7 @@ export async function initializeStandardIterationDemo(
         .values(subjects)
         .onConflictDoNothing()
         .returning();
-      // Each recorded judgment's evaluator judged that person at that node, so
-      // a rater reads their own cases through the ordinary node relation.
-      const judged = plan.canonical.cases.flatMap((c) =>
-        (
-          [
-            [c.frontNodeId, c.front],
-            [c.backNodeId, c.back],
-          ] as const
-        ).flatMap(([nodeId, stage]) =>
-          stage.state === 'present'
-            ? [
-                {
-                  id: `${nodeId}:${c.personId}:${stage.evaluatorId}`,
-                  evaluationNodeId: nodeId,
-                  personId: c.personId,
-                  evaluatorId: stage.evaluatorId,
-                  kind: 'judge' as const,
-                  validFrom: stage.evaluatedAt,
-                },
-              ]
-            : [],
-        ),
-      );
-      const related = await tx
-        .insert(evaluationRelations)
-        .values(judged)
-        .onConflictDoNothing()
-        .returning();
-      return inserted.length || related.length ? 'created' : step;
+      return inserted.length ? 'created' : step;
     },
     { isolationLevel: 'read committed' },
   );

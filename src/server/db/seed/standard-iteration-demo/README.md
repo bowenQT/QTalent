@@ -43,7 +43,7 @@ pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --apply
 `--as` 必须是当前有效的管理者账号；不满足时什么都不写。之后按顺序执行，每步一笔原生事务，重复执行安全：
 
 1. **结营评委 `s-29`**：在目录里登记这一位演示人员（孟砚舟，组织 `tdc`，`noReview`、`demo` 为真，hue 318），字段取自原型 81e4fd4 的 `data.js`。不存在就插入；已存在就逐项比对，任一字段不同即失败（`directory_mismatch`，回执的 `fields` 列出不同的列名，不输出取值），不覆盖，此时后续步骤都不执行。只登记这一个人。
-2. **节点**：在 `b-xe6` 下建 `xe6-select`（入营选拔（演示））和 `xe6-end`（结营评审（演示）），kind 为 `review`，并补齐 93 位学员的节点主体；每条已记录的判断，按「节点 · 学员 · 评价人」补一条 `judge` 评价关系，自判断时间起生效，评价人凭这条关系读自己的对照案例。关系 ID 由三者拼成，重跑不重复写入。节点已存在时逐项比对，不同即失败（`node_mismatch`），不覆盖。旧代的 `bow-923-xe6-*` 节点保持原样。
+2. **节点**：在 `b-xe6` 下建 `xe6-select`（入营选拔（演示））和 `xe6-end`（结营评审（演示）），kind 为 `review`，并补齐 93 位学员的节点主体。节点已存在时逐项比对，不同即失败（`node_mismatch`），不覆盖。旧代的 `bow-923-xe6-*` 节点保持原样。
 3. **基线**：还没有选拔标准 head 时，经 918 的 `initializeReviewedSelectionBaseline` 建立 `xe-select-v1`，生效时间 `2026-06-14T16:00:00.000Z`，内容取当前代的 `selection-standard.json`。已有 head 就保留，因为现场发布 v2 以后再初始化不能回退。
 4. **第六期绑定**：经 918 的 `bindExistingSelectionCohort` 绑定 `b-xe6`，已绑定则沿用。在同一事务、同一把标准类别锁下，核对绑定的版本和内容与当前代的 `selection-standard.json` 一致，不一致就整笔回滚（`selection_binding_mismatch`），不留绑定和审计。
 5. **导入**：调用 `importStandardIterationDemo`。

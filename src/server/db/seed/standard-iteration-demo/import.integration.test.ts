@@ -35,7 +35,6 @@ import {
   cohorts,
   evaluationNodes,
   evaluationNodeSubjects,
-  evaluationRelations,
 } from '../../../modules/programs';
 import {
   comparisonMappings,
@@ -153,7 +152,6 @@ beforeEach(async () => {
   await db().execute(sql`delete from evaluation_comparison_cases`);
   await db().execute(sql`delete from evaluation_comparison_batches`);
   await db().execute(sql`delete from evaluation_comparison_mappings`);
-  await db().delete(evaluationRelations);
   await db().delete(evaluationNodeSubjects);
   await db().delete(evaluationNodes);
   await db().execute(sql`delete from evaluation_selection_cohort_bindings`);
@@ -900,38 +898,6 @@ describe('923 generations coexist and demo initialization is idempotent', () => 
     expect(after.map((n) => n.id)).toEqual(
       expect.arrayContaining(DEMO_NODES.map((n) => n.id)),
     );
-    // One judge relation per recorded judgment, the same after a re-run.
-    const judgments = plan.canonical.cases.flatMap((c) =>
-      (
-        [
-          [c.frontNodeId, c.front],
-          [c.backNodeId, c.back],
-        ] as const
-      ).flatMap(([nodeId, stage]) =>
-        stage.state === 'present'
-          ? [[nodeId, c.personId, stage.evaluatorId].join(' ')]
-          : [],
-      ),
-    );
-    const relations = async () =>
-      (await db().select().from(evaluationRelations))
-        .map((r) => {
-          expect(r).toMatchObject({
-            kind: 'judge',
-            validTo: null,
-            revokedAt: null,
-          });
-          return [r.evaluationNodeId, r.personId, r.evaluatorId].join(' ');
-        })
-        .sort();
-    expect(await relations()).toEqual(judgments.sort());
-    await initializeStandardIterationDemo(
-      db(),
-      process.cwd(),
-      MANAGER,
-      TEST_ONLY_CLOCK,
-    );
-    expect(await relations()).toEqual(judgments.sort());
   });
   it('init refuses an existing demo node with a different kind and creates nothing else', async () => {
     await managerAccount();
