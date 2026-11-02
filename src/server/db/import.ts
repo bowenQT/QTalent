@@ -73,7 +73,7 @@ function canonical(value: unknown): string {
 }
 
 /** Verify after ON CONFLICT, including a concurrent winner; never attach seed data to an incompatible row. */
-async function insertChecked<T extends PgTable>(
+export async function insertChecked<T extends PgTable>(
   tx: Transaction,
   table: T,
   rows: InferInsertModel<T>[],

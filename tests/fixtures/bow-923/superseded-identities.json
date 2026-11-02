@@ -1,11 +1,23 @@
 {
-  "notice": "上一代夹具（bow-923-v2，#313 当前导入的版本）的持久化身份，只用来检查新一代不复用主键；由 identities.mjs 从下列来源提取。",
+  "notice": "上一代夹具（bow-923-v2）的持久化身份，只用来检查新一代不复用主键；由 identities.mjs 从下列三个来源联合提取（缺段的行出处也计入）。",
   "fixtureVersion": "bow-923-v2",
-  "provenance": {
-    "commit": "6dff525b42f812423d981d12fd40aff8999cf00f",
-    "path": "tests/fixtures/bow-923/seed-input.json",
-    "blob": "00730ef3e960bdc89a81939174ecd9bdc6b8f363"
-  },
+  "provenance": [
+    {
+      "commit": "6dff525b42f812423d981d12fd40aff8999cf00f",
+      "path": "tests/fixtures/bow-923/seed-input.json",
+      "blob": "00730ef3e960bdc89a81939174ecd9bdc6b8f363"
+    },
+    {
+      "commit": "6dff525b42f812423d981d12fd40aff8999cf00f",
+      "path": "tests/fixtures/bow-923/source-rows.json",
+      "blob": "0cdb1880c18a77e2602d01284f36bec0e0c96e4e"
+    },
+    {
+      "commit": "6dff525b42f812423d981d12fd40aff8999cf00f",
+      "path": "tests/fixtures/bow-923/manifest.json",
+      "blob": "f86bddb0589992cccb4dd6fab759a4793161a23b"
+    }
+  ],
   "owned": {
     "batch": ["bow-923-xe6-selection-graduation-v1"],
     "mapping": ["map-xe-select-v1"],
@@ -114,13 +126,16 @@
       "bow-923-back-row-003",
       "bow-923-back-row-004",
       "bow-923-back-row-005",
+      "bow-923-back-row-006",
       "bow-923-back-row-007",
       "bow-923-back-row-008",
       "bow-923-back-row-009",
       "bow-923-back-row-010",
       "bow-923-back-row-011",
+      "bow-923-back-row-012",
       "bow-923-back-row-013",
       "bow-923-back-row-014",
+      "bow-923-back-row-015",
       "bow-923-back-row-016",
       "bow-923-back-row-017",
       "bow-923-back-row-018",
@@ -193,6 +208,10 @@
       "bow-923-back-row-085",
       "bow-923-back-row-086",
       "bow-923-back-row-087",
+      "bow-923-back-row-088",
+      "bow-923-back-row-089",
+      "bow-923-back-row-090",
+      "bow-923-back-row-091",
       "bow-923-back-row-092",
       "bow-923-back-row-093",
       "bow-923-front-row-001",
@@ -208,6 +227,8 @@
       "bow-923-front-row-011",
       "bow-923-front-row-012",
       "bow-923-front-row-013",
+      "bow-923-front-row-014",
+      "bow-923-front-row-015",
       "bow-923-front-row-016",
       "bow-923-front-row-017",
       "bow-923-front-row-018",
@@ -277,9 +298,13 @@
       "bow-923-front-row-082",
       "bow-923-front-row-083",
       "bow-923-front-row-084",
+      "bow-923-front-row-085",
+      "bow-923-front-row-086",
+      "bow-923-front-row-087",
       "bow-923-front-row-088",
       "bow-923-front-row-089",
       "bow-923-front-row-090",
+      "bow-923-front-row-091",
       "bow-923-front-row-092",
       "bow-923-front-row-093"
     ],
