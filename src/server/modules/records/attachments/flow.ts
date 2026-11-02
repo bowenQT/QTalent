@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { JobCommand } from '../../../../contracts/jobs';
 import {
-  uploadRequestSchema,
-  type UploadRequest,
+  materialUploadRequestSchema,
+  type MaterialUploadRequest,
 } from '../../../../contracts/media';
 import { sourceReadInputSchema } from '../../../../contracts/sources';
 import { attachmentVersionSchema } from './parse';
@@ -20,12 +20,14 @@ export const attachmentJobPayloadSchema = z.strictObject({
 });
 export const attachmentBindingSchema = z
   .strictObject({
-    purpose: z.literal('attachment'),
+    // Images and videos staged with a material batch have no parser here and
+    // end as unsupported formats without their bytes being read.
+    purpose: z.enum(['attachment', 'image', 'video']),
     completedJobId: id,
     recordCollectionId: id,
     accountId: id,
     quotaScope: id,
-    target: uploadRequestSchema.shape.target,
+    target: materialUploadRequestSchema.shape.target,
     version: attachmentVersionSchema,
   })
   .refine((binding) => binding.recordCollectionId === binding.quotaScope);
@@ -50,12 +52,12 @@ export const attachmentJobResultSchema = z.strictObject({
 });
 
 export interface AttachmentBinding {
-  purpose: 'attachment';
+  purpose: 'attachment' | 'image' | 'video';
   completedJobId: string;
   recordCollectionId: string;
   accountId: string;
   quotaScope: string;
-  target: UploadRequest['target'];
+  target: MaterialUploadRequest['target'];
   version: AttachmentVersion;
 }
 export interface ArrangeAttachmentRequest {
@@ -64,7 +66,7 @@ export interface ArrangeAttachmentRequest {
   parseVersionId: string;
   originalVersionId: string;
   accountId: string;
-  target: UploadRequest['target'];
+  target: MaterialUploadRequest['target'];
   sources: SourceReference[];
 }
 export interface AttachmentParsePorts<C> {
