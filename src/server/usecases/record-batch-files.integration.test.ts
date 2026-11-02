@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { getDatabase } from '../db/client';
@@ -12,16 +12,8 @@ import {
 } from '../../../tests/fixtures/bow-845/native';
 import { jobSnapshots } from '../jobs/schema';
 import { getAppJobProducer } from '../platform/jobs/app-runtime';
-import {
-  materialParses,
-  originals,
-  originalVersions,
-} from '../modules/records/schema';
-import {
-  uploadCollections,
-  uploadIntents,
-  uploadObjects,
-} from '../modules/records/uploads/schema';
+import { materialParses } from '../modules/records/schema';
+import { unassignedUpload } from '../../../tests/fixtures/bow-897/staged-upload';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('../auth/next', () => ({ requireSession: vi.fn() }));
@@ -51,88 +43,6 @@ afterAll(async () => {
   await connection?.close();
 });
 
-/** A completed upload staged on a node with no parse job, as BOW-873 completion
- * of an unassigned upload leaves it. */
-async function unassignedUpload(
-  f: Awaited<ReturnType<typeof seedNativeCase>>,
-  filename: string,
-  evaluationNodeId = f.node,
-) {
-  const db = connection.db;
-  const bytes = Buffer.from('演示材料：' + filename);
-  const digest = createHash('sha256').update(bytes).digest('hex');
-  const originalId = randomUUID(),
-    versionId = randomUUID(),
-    collectionId = randomUUID(),
-    uploadId = randomUUID();
-  const target = { kind: 'unassigned' as const, evaluationNodeId };
-  const request = {
-    recordCollectionId: collectionId,
-    purpose: 'attachment' as const,
-    filename,
-    declaredBytes: bytes.length,
-    declaredMediaType: 'text/plain',
-    target,
-    operationId: randomUUID(),
-  };
-  await db
-    .insert(originals)
-    .values({ id: originalId, title: '演示原件', kind: 'original' });
-  await db.insert(originalVersions).values({
-    id: versionId,
-    originalId,
-    version: 1,
-    contentDigest: digest,
-  });
-  await db.insert(uploadCollections).values({
-    id: collectionId,
-    creatorAccountId: f.account,
-    operationId: randomUUID(),
-    target,
-    targetFingerprint: 'b'.repeat(64),
-    createdAt: 100,
-    expiresAt: 200,
-    revision: 1,
-  });
-  await db.insert(uploadIntents).values({
-    id: uploadId,
-    accountId: f.account,
-    operationId: request.operationId,
-    fingerprint: 'c'.repeat(64),
-    quotaScope: collectionId,
-    recordCollectionId: collectionId,
-    request,
-    declaredBytes: bytes.length,
-    objectKey: originalId,
-    expiresAt: 200,
-    revision: 1,
-    completionOperationId: randomUUID(),
-    completionFingerprint: 'f'.repeat(64),
-    completed: {
-      uploadId,
-      recordCollectionId: collectionId,
-      originalId,
-      originalVersionId: versionId,
-      status: 'staged',
-      revision: 1,
-      source: null,
-    } as unknown as typeof uploadIntents.$inferInsert.completed,
-  });
-  await db.insert(uploadObjects).values({
-    originalVersionId: versionId,
-    uploadId,
-    objectKey: originalId,
-    byteLength: bytes.length,
-    mediaType: 'text/plain',
-    sha256: digest,
-    etag: 'synthetic',
-  });
-  return {
-    file: { clientFileId: randomUUID(), uploadId },
-    originalId,
-    versionId,
-  };
-}
 /** The media job the batch created for this upload version. */
 async function parseJobOf(
   upload: Awaited<ReturnType<typeof unassignedUpload>>,
@@ -153,17 +63,31 @@ async function parseJobOf(
 /** What the attachment worker commits when it finishes a file. */
 async function finishParse(
   upload: Awaited<ReturnType<typeof unassignedUpload>>,
-  outcome: 'parsed' | 'format',
+  outcome: 'parsed' | 'format' | 'cancelled',
 ) {
   const { jobId } = await parseJobOf(upload);
   await connection.db
     .update(jobSnapshots)
     .set({
-      status: outcome === 'parsed' ? 'completed' : 'failed',
+      status: (
+        {
+          parsed: 'completed',
+          format: 'failed',
+          cancelled: 'cancelled',
+        } as const
+      )[outcome],
       revision: 2,
+      ...(outcome === 'cancelled'
+        ? { cancelRequestedAt: new Date().toISOString() }
+        : {}),
+      // A cancelled job keeps the stage it stopped in.
       result: {
-        stage: outcome === 'parsed' ? 'parsed' : 'unsupported',
-        mediaId: upload.originalId,
+        stage: {
+          parsed: 'parsed',
+          format: 'unsupported',
+          cancelled: 'parsing',
+        }[outcome],
+        mediaId: upload.file.uploadId,
         source: null,
         fragmentIds: [],
         ...(outcome === 'format' ? { failureReason: 'format' } : {}),
@@ -199,8 +123,8 @@ const filesOnly = (files: { clientFileId: string; uploadId: string }[]) => ({
 
 it('takes staged files on their upload node, hands each parse to the worker, and shows each file as it finishes', async () => {
   const f = await seedNativeCase(connection.db);
-  const notes = await unassignedUpload(f, '演示周记.txt');
-  const deck = await unassignedUpload(f, '演示汇报.key');
+  const notes = await unassignedUpload(connection.db, f, '演示周记.txt');
+  const deck = await unassignedUpload(connection.db, f, '演示汇报.key');
   signIn(f.account);
   const created = await startRecordArrangeAction(
     filesOnly([notes.file, deck.file]),
@@ -219,6 +143,8 @@ it('takes staged files on their upload node, hands each parse to the worker, and
   ]);
   expect(receipt.files[0]).toMatchObject({ jobId: notesJob.jobId });
   expect(receipt.status).toBe('processing');
+  // Only the file parses run; no arrangement job is reported as active.
+  expect(receipt.jobId).toBeNull();
   // Each file's parse goes to the attachment worker's queue in the batch's transaction.
   expect(getAppJobProducer).toHaveBeenCalledWith('attachment-parse');
   expect(send).toHaveBeenCalledWith(
@@ -258,6 +184,8 @@ it('takes staged files on their upload node, hands each parse to the worker, and
     unsupported: 1,
     processing: 0,
   });
+  // Every file has settled, so the batch has stopped and nothing polls it.
+  expect(read.result).toMatchObject({ status: 'completed', jobId: null });
 
   // The same upload cannot go into a second current batch.
   expect(await startRecordArrangeAction(filesOnly([notes.file]))).toMatchObject(
@@ -268,10 +196,30 @@ it('takes staged files on their upload node, hands each parse to the worker, and
   );
 });
 
+it('shows a cancelled parse as stopped, not as still parsing', async () => {
+  const f = await seedNativeCase(connection.db);
+  const notes = await unassignedUpload(connection.db, f, '演示周记.txt');
+  signIn(f.account);
+  const created = await startRecordArrangeAction(filesOnly([notes.file]));
+  expect(created.status).toBe('success');
+  if (created.status !== 'success') return;
+  await finishParse(notes, 'cancelled');
+  const read = await readRecordBatchAction({ batchId: created.result.batchId });
+  expect(read).toMatchObject({
+    status: 'success',
+    result: {
+      status: 'completed',
+      jobId: null,
+      files: [{ status: 'failed', code: 'processing_failed' }],
+    },
+  });
+});
+
 it('refuses another account’s upload, files of two nodes, a node other than the upload’s, and text with no node', async () => {
   const f = await seedNativeCase(connection.db);
-  const upload = await unassignedUpload(f, '演示周记.txt');
+  const upload = await unassignedUpload(connection.db, f, '演示周记.txt');
   const elsewhere = await unassignedUpload(
+    connection.db,
     f,
     '演示汇报.txt',
     'demo-other-node',

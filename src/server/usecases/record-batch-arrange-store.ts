@@ -171,11 +171,9 @@ function mediaFileReceipt(
 ): MaterialFileReceipt {
   const result = attachmentJobResultSchema.safeParse(parseJob?.result);
   const stage = result.success ? result.data.stage : null;
-  if (
-    !parseJob ||
-    ['queued', 'running', 'partial'].includes(parseJob.status) ||
-    stage === 'parsing'
-  )
+  // A job's own status says whether it still runs; a cancelled or failed job can
+  // keep the stage it stopped in.
+  if (!parseJob || ['queued', 'running', 'partial'].includes(parseJob.status))
     return { ...file, status: 'processing', jobId: parseJobId };
   if (parseJob.status === 'completed' && stage === 'parsed' && parseVersionId)
     return { ...file, status: 'parsed', parseVersionId };
@@ -331,7 +329,6 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
   }
   async function mediaReceipt(
     tx: Transaction,
-    job: JobRecord,
     input: StoredArrangeInput,
   ): Promise<MaterialBatchReceipt> {
     const native = requireNativeMediaInput(input);
@@ -411,9 +408,9 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
       hasHiddenContent: false,
       files,
       textMaterial: null,
-      jobId: ['queued', 'running', 'partial'].includes(job.status)
-        ? job.jobId
-        : null,
+      // Only the file parses run for a files-only batch; its arrangement job is
+      // not started yet, so once every file settles the batch has stopped.
+      jobId: null,
       items: [],
       resolvedItems: [],
       draftSet: null,
@@ -427,7 +424,7 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
     input: StoredArrangeInput,
     metadata: BatchJobMetadata,
   ): Promise<MaterialBatchReceipt> {
-    if (isNativeMediaInput(input)) return mediaReceipt(tx, job, input);
+    if (isNativeMediaInput(input)) return mediaReceipt(tx, input);
     const native = requireNativeInput(input);
     const all = await readNativeDraftSet(tx, native.batchId, input);
     const active = await tx

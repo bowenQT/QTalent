@@ -40,6 +40,18 @@ export const materialBatchInputSchema = z
         input.files.length,
   );
 
+/** The node a batch was written under answers the one asked for. A files-only
+ * batch that names none takes its uploads' node, which the server resolved and
+ * authorized; any other batch names its node and must get exactly that one. */
+export function batchNodeMatchesInput(
+  input: Pick<MaterialBatchInput, 'evaluationNodeId' | 'text' | 'files'>,
+  nodeId: string,
+): boolean {
+  return input.evaluationNodeId === undefined
+    ? input.files.length > 0 && input.text.trim().length === 0
+    : input.evaluationNodeId === nodeId;
+}
+
 const file = {
   materialId: id,
   clientFileId: id,
