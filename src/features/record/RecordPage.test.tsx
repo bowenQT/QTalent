@@ -222,8 +222,11 @@ describe('输入与整理', () => {
       projectId: null,
     });
     expect(await screen.findByText(copy.node.pickPerson.title)).toBeTruthy();
-    expect(document.activeElement).toBe(
-      screen.getByRole('combobox', { name: copy.input.whoLabel }),
+    // 焦点在提醒出现后的 effect 里交给「谁」：等它到位再断言
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('combobox', { name: copy.input.whoLabel }),
+      ),
     );
     expect(actions.submit).not.toHaveBeenCalled();
   });
@@ -405,8 +408,11 @@ describe('评价节点由服务端推导', () => {
     });
     await typeAndSubmit('今天大家都很积极，进度同步得很清楚。');
     expect(await screen.findByText(copy.node.pickPerson.title)).toBeTruthy();
-    expect(document.activeElement).toBe(
-      screen.getByRole('combobox', { name: copy.input.whoLabel }),
+    // 焦点在提醒出现后的 effect 里交给「谁」：等它到位再断言
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('combobox', { name: copy.input.whoLabel }),
+      ),
     );
     expect(actions.submit).not.toHaveBeenCalled();
   });
