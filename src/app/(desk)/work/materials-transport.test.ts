@@ -3,9 +3,13 @@ import { sampleReceipt } from '@/app/dev/workbench/SampleMaterials';
 import { MATERIAL_ROUTES, materialsTransport } from './materials-transport';
 
 const respond = (body: unknown, init: { redirected?: boolean } = {}) => {
-  const fetcher = vi.fn(async () =>
-    Object.assign(new Response(JSON.stringify(body)), init),
-  );
+  const fetcher = vi.fn<typeof fetch>(async () => {
+    const response = new Response(JSON.stringify(body));
+    Object.defineProperty(response, 'redirected', {
+      value: init.redirected ?? false,
+    });
+    return response;
+  });
   vi.stubGlobal('fetch', fetcher);
   return fetcher;
 };
@@ -30,17 +34,14 @@ describe('materialsTransport', () => {
     expect(await materialsTransport.requestUpload(declaration, signal)).toEqual(
       { status: 'unsupported', reason: 'format', message: '请上传文字型 PDF' },
     );
-    const [url, init] = fetcher.mock.calls[0] as unknown as [
-      string,
-      RequestInit,
-    ];
+    const [url, init] = fetcher.mock.calls[0]!;
     expect(url).toBe(MATERIAL_ROUTES.uploads);
     expect(init).toMatchObject({ method: 'POST', signal });
-    expect(JSON.parse(String(init.body))).toEqual(declaration);
+    expect(JSON.parse(String(init!.body))).toEqual(declaration);
   });
 
-  it('completes an upload at its own entry', async () => {
-    const fetcher = respond({ status: 'not_found', message: '上传已过期' });
+  it('posts the completion with the upload it completes', async () => {
+    const fetcher = respond({ status: 'staged', uploadId: 'u/1' });
     const input = {
       uploadId: 'u/1',
       receiptRef: 'hash',
@@ -52,10 +53,17 @@ describe('materialsTransport', () => {
         input,
         new AbortController().signal,
       ),
-    ).toEqual({ status: 'not_found', message: '上传已过期' });
-    expect(fetcher.mock.calls[0]![0]).toBe(
-      '/api/materials/uploads/u%2F1/complete',
-    );
+    ).toEqual({ status: 'staged', uploadId: 'u/1' });
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(url).toBe('/api/record/uploads/complete');
+    expect(JSON.parse(String(init!.body))).toEqual(input);
+    respond({ status: 'not_found', message: '上传已过期' });
+    expect(
+      await materialsTransport.completeUpload(
+        input,
+        new AbortController().signal,
+      ),
+    ).toEqual({ status: 'failed', message: '上传已过期' });
   });
 
   it('maps batch answers, including no evaluation node in progress', async () => {

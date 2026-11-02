@@ -58,16 +58,8 @@ function transport(
       upload: grant(),
     })),
     completeUpload: vi.fn(async (input) => ({
-      status: 'success' as const,
-      result: {
-        uploadId: input.uploadId,
-        recordCollectionId: 'collection-1',
-        originalId: 'original-1',
-        originalVersionId: 'version-1',
-        source: null,
-        jobId: 'job-1',
-        revision: 4,
-      },
+      status: 'staged' as const,
+      uploadId: input.uploadId,
     })),
     submitBatch: vi.fn(async () => ({
       status: 'success' as const,

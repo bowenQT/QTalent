@@ -6,15 +6,15 @@ import {
 import { materialBatchReceiptSchema } from '@/contracts/materials';
 import type {
   BatchSubmitResult,
+  CompleteResult,
   MaterialsTransport,
 } from '@/features/workbench/sections/materials/live-port';
 import { readBatch } from '../record/reads';
 
 /** Same-origin entries for workbench material intake. */
 export const MATERIAL_ROUTES = {
-  uploads: '/api/materials/uploads',
-  complete: (uploadId: string) =>
-    `/api/materials/uploads/${encodeURIComponent(uploadId)}/complete`,
+  uploads: '/api/record/uploads',
+  complete: '/api/record/uploads/complete',
   batches: '/api/materials/batches',
 };
 
@@ -35,6 +35,26 @@ const batchSubmitResponseSchema = z.discriminatedUnion('status', [
     message: text,
   }),
 ]);
+
+const completeResponseSchema = z.union([
+  z.object({ status: z.literal('staged'), uploadId: text }),
+  completeUploadResultSchema,
+]);
+
+function toCompleteResult(
+  result: z.infer<typeof completeResponseSchema>,
+): CompleteResult {
+  switch (result.status) {
+    case 'staged':
+      return { status: 'staged', uploadId: result.uploadId };
+    case 'success':
+      return { status: 'staged', uploadId: result.result.uploadId };
+    case 'validation_error':
+      return { status: 'failed', message: '上传中断，可以重试' };
+    default:
+      return { status: 'failed', message: result.message };
+  }
+}
 
 /** POSTs JSON and parses the answer; a sign-in redirect or unknown body is a transport failure. */
 async function post<S extends z.ZodType>(
@@ -81,12 +101,14 @@ export const materialsTransport: MaterialsTransport = {
       materialRequestUploadResultSchema,
       signal,
     ),
-  completeUpload: ({ uploadId, ...input }, signal) =>
-    post(
-      MATERIAL_ROUTES.complete(uploadId),
-      { uploadId, ...input },
-      completeUploadResultSchema,
-      signal,
+  completeUpload: async (input, signal) =>
+    toCompleteResult(
+      await post(
+        MATERIAL_ROUTES.complete,
+        input,
+        completeResponseSchema,
+        signal,
+      ),
     ),
   submitBatch: async (input) =>
     toSubmitResult(

@@ -1,7 +1,5 @@
-import type { z } from 'zod';
 import {
   MEDIA_FORMATS,
-  type completeUploadResultSchema,
   type MaterialFileInput,
   type MaterialRequestUploadResult,
   type MaterialUploadRequest,
@@ -34,6 +32,14 @@ export type BatchSubmitResult =
   | { status: 'declined'; message: string };
 
 /**
+ * Completion of an unassigned upload: the file is staged under `uploadId`, which
+ * the batch then names. Staging starts no processing job of its own.
+ */
+export type CompleteResult =
+  | { status: 'staged'; uploadId: string }
+  | { status: 'failed'; message: string };
+
+/**
  * Server calls behind the live port, already parsed at the network boundary.
  * A rejected promise is a transport failure (offline, timeout, signed out).
  */
@@ -50,7 +56,7 @@ export type MaterialsTransport = {
       expectedRevision: number;
     },
     signal: AbortSignal,
-  ) => Promise<z.infer<typeof completeUploadResultSchema>>;
+  ) => Promise<CompleteResult>;
   submitBatch: (input: {
     operationId: string;
     files: MaterialFileInput[];
@@ -141,15 +147,9 @@ export function createLiveMaterialsPort(
         },
         signal,
       );
-      if (completed.status === 'success')
-        return { status: 'uploaded', uploadId: completed.result.uploadId };
-      return {
-        status: 'interrupted',
-        message:
-          completed.status === 'validation_error'
-            ? INTERRUPTED
-            : completed.message,
-      };
+      return completed.status === 'staged'
+        ? { status: 'uploaded', uploadId: completed.uploadId }
+        : { status: 'interrupted', message: completed.message };
     } catch {
       return { status: 'interrupted', message: INTERRUPTED };
     }
