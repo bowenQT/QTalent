@@ -45,10 +45,8 @@ export const todosDone = {
 
 /** Manager home blocks whose reads are not on main yet (版本 Y DY-04). */
 export const managerPending = {
-  watch:
-    '接通后，按写明的规则入选的人会出现在这里，按入选时间排列，不显示分数。',
-  programs:
-    '接通后，刚过关键节点、还有留用或落位没定的期次会出现在这里，一期一行。',
+  watch: '接通后，近期值得关注的人会出现在这里，最新的在前。',
+  programs: '接通后，刚过关键节点、留用或落位还没定的期次会出现在这里。',
   follows: '接通后，你关注的人和他们的新进展会出现在这里，只有你自己看得到。',
 } as const;
 
