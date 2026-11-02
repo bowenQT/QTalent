@@ -1,4 +1,7 @@
 import type { PersonData } from './person-data';
+import { intakeTableOf } from '../usecases/talent-source-projection.test-support';
+
+const emptyIntake = await intakeTableOf([]);
 export function fixture(
   role: 'manager' | 'hr' | 'mentor' | 'admin' = 'manager',
 ): PersonData {
@@ -11,6 +14,8 @@ export function fixture(
     id,
     name: 'Synthetic ' + id,
     organizationId: 'org',
+    jobTitle: null,
+    jobLevel: null,
     photo: null,
     hue: 220,
     noReview: false,
@@ -63,7 +68,16 @@ export function fixture(
       account,
       grants: grants.map((grant) => ({ ...grant, id: 'grant' })),
       people,
-      organizations: [{ id: 'org', name: 'Synthetic org', shortName: 'Test' }],
+      organizations: [
+        {
+          id: 'org',
+          name: 'Synthetic org',
+          shortName: 'Test',
+          parentId: null,
+          hierarchyKnown: false,
+          isGroup: false,
+        },
+      ],
     },
     staffing: { projects: [], members: [] },
     events: [],
@@ -99,7 +113,7 @@ export function fixture(
       { id: 'grit', name: '坚毅力', axis: 'pot', core: true },
     ],
     confirmations: [],
-    intakeInputs: [],
+    intake: emptyIntake,
     cohorts: [{ id: 'cohort', name: 'Synthetic cohort' }],
     employments: [
       {
@@ -132,6 +146,10 @@ export function fixture(
       withdrawnAt: null,
     });
     data.fragments.push({
+      parseVersionId: null,
+      sourceCategory: null,
+      evaluationKind: null,
+      demo: null,
       id: fragmentId,
       originalVersionId: 'version',
       excerpt: 'Synthetic observation',

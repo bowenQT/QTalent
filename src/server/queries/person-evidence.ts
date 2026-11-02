@@ -1,3 +1,4 @@
+import { sourceLocationSchema } from '../../contracts/sources';
 import type { Person } from '../../contracts/person';
 import { canReadProject } from '../authz';
 import {
@@ -5,6 +6,7 @@ import {
   projectTalentRecord,
   type TalentKind,
   type TalentSource,
+  type VisibleTalentSource,
 } from '../authz/talent';
 import {
   type PersonData,
@@ -15,6 +17,7 @@ import {
 import { byCodePoint, byPinyin } from './person-identity';
 import { sourceFromData } from './sources';
 import { historicalEvaluationRequiredKind } from './historical-evaluation-policy';
+import { orderCapabilityDimensions } from './person-display-policy';
 
 type Ready<T> = T extends { status: 'ready'; data: infer D } ? D : never;
 type Variant = Extract<Person, { role: 'manager' | 'hr' }>;
@@ -53,12 +56,16 @@ export const dimensionGroup = (dimension: Dimension) =>
       ? ('potential_core' as const)
       : ('potential_bonus' as const);
 const groupRank = { professional: 0, potential_core: 1, potential_bonus: 2 };
-/** There is no catalogue-order column yet: group, then id (never by score). */
+/** There is no catalogue-order column yet: group, then id (never by score),
+ * with the potential core in the fixed prototype order.
+ */
 export function orderedDimensions(data: PersonData): Dimension[] {
-  return [...data.dimensions].sort(
-    (a, b) =>
-      groupRank[dimensionGroup(a)] - groupRank[dimensionGroup(b)] ||
-      byCodePoint(a.id, b.id),
+  return orderCapabilityDimensions(
+    [...data.dimensions].sort(
+      (a, b) =>
+        groupRank[dimensionGroup(a)] - groupRank[dimensionGroup(b)] ||
+        byCodePoint(a.id, b.id),
+    ),
   );
 }
 const refOf = (reference: {
@@ -73,6 +80,20 @@ const pluck = (reference: {
   originalVersionId: string;
   location: KeyEvent['sources'][number]['location'];
 }) => ({ ...refOf(reference), location: reference.location });
+// The legacy profile contract cannot represent the five new material locators.
+// Suppress the whole dependent item until its reader migrates, never invent an
+// old locator or drop its citation while retaining the derived statement.
+function legacyReferences(
+  sources: VisibleTalentSource[],
+): ReturnType<typeof pluck>[] | null {
+  const result: ReturnType<typeof pluck>[] = [];
+  for (const source of sources) {
+    const location = sourceLocationSchema.safeParse(source.location);
+    if (!location.success) return null;
+    result.push({ ...refOf(source), location: location.data });
+  }
+  return result;
+}
 const restricts = (
   sources: TalentSource[],
   reference: object,
@@ -145,6 +166,8 @@ function visibleStatements(
       'person-profile',
     );
     if (!projected || typeof projected.fields.text !== 'string') return [];
+    const references = legacyReferences(projected.sources);
+    if (!references) return [];
     return [
       {
         id: statement.id,
@@ -156,7 +179,7 @@ function visibleStatements(
           [statement],
           kind === 'management-observation',
         ),
-        sources: projected.sources.map(pluck),
+        sources: references,
       },
     ];
   });
@@ -227,7 +250,17 @@ export async function collectEvidence(
     const project = data.staffing.projects.find(
       (row) => row.id === event.projectId,
     );
-    const cardSources = projected.sources.map(pluck);
+    // Every linked source is authorized and must have a legacy locator before
+    // anything is shown. A score must cite an event source (FK), so the demo
+    // seed links score citations of the event's own text as sources too. When
+    // the event has statements, its materials are exactly their sources; score
+    // citations stay on the scores.
+    const linked = legacyReferences(projected.sources);
+    if (!linked) continue;
+    const materials = new Set(statements.map(sourceKey));
+    const cardSources = linked.filter(
+      (source) => !statements.length || materials.has(sourceKey(source)),
+    );
     // Scores: every row passes its own gate (kind, source, provenance) and is
     // grouped by dimension on this event.
     const scorable = canReadTalent(
@@ -378,6 +411,9 @@ export async function collectEvidence(
       category: row.category,
       sources: row.sources,
     }));
+  // A history row taken from a key event the caller can read (the weekly review
+  // of that event) repeats it on the timeline; the key event keeps its sources.
+  const shownEvents = new Set(keyEvents.map((row) => row.id));
   const history: TimelineEntry[] = data.historical.flatMap((row) => {
     const members = data.historicalParticipants
       .filter((item) => item.evaluationId === row.id)
@@ -407,7 +443,10 @@ export async function collectEvidence(
       sources,
       'person-profile',
     );
-    if (!projected || !row.scale.length) return [];
+    if (!projected || !row.scale.length || shownEvents.has(row.sourceRecordId))
+      return [];
+    const references = legacyReferences(projected.sources);
+    if (!references) return [];
     return [
       {
         kind: 'history' as const,
@@ -416,7 +455,7 @@ export async function collectEvidence(
         occurredOn: row.occurredOn,
         label: 'history' as const,
         category,
-        sources: projected.sources.map(pluck),
+        sources: references,
         scale: row.scale,
       },
     ];

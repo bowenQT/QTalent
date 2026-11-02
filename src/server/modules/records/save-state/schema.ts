@@ -11,8 +11,8 @@ import {
 } from 'drizzle-orm/pg-core';
 import { accountBindings, people } from '../../directory';
 import { events } from '../schema';
+import type { StoredRecordOriginalInput } from '../arrange/input-state/original-input';
 import type {
-  RecordInput,
   RecordBatchDraft,
   RecordBatchDraftSet,
   RecordSaveInput,
@@ -22,6 +22,17 @@ import type {
 
 type SaveReceipt = Extract<RecordSaveResult, { status: 'success' }>['result'];
 type UndoReceipt = Extract<RecordUndoResult, { status: 'success' }>['result'];
+// Stored only by the fresh native undo transaction; never part of a public DTO.
+type StoredUndoReceipt = UndoReceipt & {
+  cancelledConfirmationWork?: {
+    id: string;
+    personId: string;
+    evaluationNodeId: string;
+    assignedRelationId: string;
+    assignedEvaluatorId: string;
+    cancelledRevision: number;
+  }[];
+};
 
 /** Trusted producer facts have no synthetic production defaults. No full draft set is duplicated here. */
 export const recordDraftBatches = pgTable(
@@ -32,7 +43,9 @@ export const recordDraftBatches = pgTable(
     duplicateCandidates: jsonb('duplicate_candidates')
       .$type<RecordBatchDraftSet['duplicateCandidates']>()
       .notNull(),
-    originalInput: jsonb('original_input').$type<RecordInput>().notNull(),
+    originalInput: jsonb('original_input')
+      .$type<StoredRecordOriginalInput>()
+      .notNull(),
     occurredOn: date('occurred_on').notNull(),
     modelVersion: text('model_version').notNull(),
     createdByAccountId: text('created_by_account_id')
@@ -107,7 +120,9 @@ export const recordSaves = pgTable('records_saves', {
     .references(() => people.id),
   draftSnapshot: jsonb('draft_snapshot').$type<RecordBatchDraft>().notNull(),
   input: jsonb('input').$type<RecordSaveInput>().notNull(),
-  originalInput: jsonb('original_input').$type<RecordInput>().notNull(),
+  originalInput: jsonb('original_input')
+    .$type<StoredRecordOriginalInput>()
+    .notNull(),
   receipt: jsonb('receipt').$type<SaveReceipt>().notNull(),
   confirmationWork: jsonb('confirmation_work')
     .$type<
@@ -138,7 +153,9 @@ export const recordOperations = pgTable(
       .notNull()
       .references(() => recordSaves.saveId),
     draftSnapshot: jsonb('draft_snapshot').$type<RecordBatchDraft>().notNull(),
-    receipt: jsonb('receipt').$type<SaveReceipt | UndoReceipt>().notNull(),
+    receipt: jsonb('receipt')
+      .$type<SaveReceipt | StoredUndoReceipt>()
+      .notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
   },
   (t) => [

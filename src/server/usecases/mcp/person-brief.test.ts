@@ -2,10 +2,23 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { nodeFixture } from '../../queries/person-test-helpers';
 import { quickViewFromData } from '../../queries/people';
+import type { StoredArrangeInput } from '../../modules/records';
+import type { IntakeTable } from '../talent-source-projection';
+import { intakeTableOf } from '../talent-source-projection.test-support';
 import { mcpPersonBriefFromData, type McpPersonData } from './person-brief';
 
-function fixture(): McpPersonData {
-  const data: McpPersonData = { ...nodeFixture(), intakeInputs: [] };
+/** Intake rows stay editable until the call; sealed() issues the whole table. */
+type Fixture = McpPersonData & { intakeInputs: StoredArrangeInput[] };
+
+async function sealed({
+  intakeInputs,
+  ...data
+}: Fixture): Promise<McpPersonData> {
+  return { ...data, intake: await intakeTableOf(intakeInputs) };
+}
+
+function fixture(): Fixture {
+  const data: Fixture = { ...nodeFixture(), intakeInputs: [] };
   data.context.account.isSystemAdmin = false;
   data.context.grants = [
     {
@@ -77,8 +90,8 @@ function fixture(): McpPersonData {
 describe('MCP brief over the canonical full provenance snapshot', () => {
   it('uses the existing role projection and keeps authorized source positions', async () => {
     const data = fixture();
-    const result = await mcpPersonBriefFromData(data, 'one');
-    expect(result).toEqual(await quickViewFromData(data, 'one'));
+    const result = await mcpPersonBriefFromData(await sealed(data), 'one');
+    expect(result).toEqual(await quickViewFromData(await sealed(data), 'one'));
     expect(result?.recentFacts.status).toBe('ready');
     if (result?.recentFacts.status !== 'ready')
       throw new Error('missing facts');
@@ -97,7 +110,7 @@ describe('MCP brief over the canonical full provenance snapshot', () => {
         if (field === 'kind') input.sourceContexts[0]!.kind = 'performance';
         else input.sourceContexts[0]!.requiredKinds = ['performance'];
       }
-      const result = await mcpPersonBriefFromData(data, 'one');
+      const result = await mcpPersonBriefFromData(await sealed(data), 'one');
       expect(result?.recentFacts).toEqual({ status: 'empty' });
       expect(result?.capabilityLines.status).toBe('insufficient_evidence');
       expect(JSON.stringify(result)).not.toContain('Synthetic event');
@@ -106,16 +119,18 @@ describe('MCP brief over the canonical full provenance snapshot', () => {
   );
 
   it('preserves authorized pinned prototype evidence through the existing demo checks', async () => {
-    const data: McpPersonData = { ...nodeFixture(), intakeInputs: [] };
-    const result = await mcpPersonBriefFromData(data, 'one');
-    expect(result).toEqual(await quickViewFromData(data, 'one'));
+    const data: Fixture = { ...nodeFixture(), intakeInputs: [] };
+    const result = await mcpPersonBriefFromData(await sealed(data), 'one');
+    expect(result).toEqual(await quickViewFromData(await sealed(data), 'one'));
     expect(result?.recentFacts.status).toBe('ready');
   });
 
   it('does not return a fragment whose original version cannot be resolved', async () => {
     const data = fixture();
     data.versions = [];
-    expect((await mcpPersonBriefFromData(data, 'one'))?.recentFacts).toEqual({
+    expect(
+      (await mcpPersonBriefFromData(await sealed(data), 'one'))?.recentFacts,
+    ).toEqual({
       status: 'empty',
     });
   });
@@ -123,20 +138,22 @@ describe('MCP brief over the canonical full provenance snapshot', () => {
   it('keeps an unknown original out without guessing from a benign title', async () => {
     const data = fixture();
     data.intakeInputs = [];
-    expect((await quickViewFromData(data, 'one'))?.recentFacts.status).toBe(
-      'ready',
-    );
-    expect((await mcpPersonBriefFromData(data, 'one'))?.recentFacts).toEqual({
+    expect(
+      (await quickViewFromData(await sealed(data), 'one'))?.recentFacts.status,
+    ).toBe('ready');
+    expect(
+      (await mcpPersonBriefFromData(await sealed(data), 'one'))?.recentFacts,
+    ).toEqual({
       status: 'empty',
     });
   });
 
-  it('rejects a missing complete intake inventory rather than treating it as empty', async () => {
-    const data = fixture();
-    Reflect.deleteProperty(data, 'intakeInputs');
-    await expect(mcpPersonBriefFromData(data, 'one')).rejects.toMatchObject({
-      kind: 'unavailable',
-    });
+  it('rejects an intake inventory not issued by the whole-table reader', async () => {
+    const { intakeInputs, ...data } = fixture();
+    const forged = { rows: intakeInputs } as unknown as IntakeTable;
+    await expect(
+      mcpPersonBriefFromData({ ...data, intake: forged }, 'one'),
+    ).rejects.toThrow('intake table was not read by readIntakeTable');
   });
 
   it('honors an out-of-scope subject in a superseded shared intake', async () => {
@@ -151,7 +168,7 @@ describe('MCP brief over the canonical full provenance snapshot', () => {
       cohortId: 'other-cohort',
     });
     data.intakeInputs.push(shared);
-    const result = await mcpPersonBriefFromData(data, 'one');
+    const result = await mcpPersonBriefFromData(await sealed(data), 'one');
     expect(result?.recentFacts.status).toBe('ready');
     if (result?.recentFacts.status !== 'ready')
       throw new Error('missing allowed event');
@@ -168,7 +185,9 @@ describe('MCP brief over the canonical full provenance snapshot', () => {
       fragmentId: 'fragment-1',
       originalVersionId: 'version',
     });
-    expect((await mcpPersonBriefFromData(data, 'one'))?.recentFacts).toEqual({
+    expect(
+      (await mcpPersonBriefFromData(await sealed(data), 'one'))?.recentFacts,
+    ).toEqual({
       status: 'empty',
     });
   });
@@ -176,11 +195,11 @@ describe('MCP brief over the canonical full provenance snapshot', () => {
   it('rechecks current permissions and does not give a mentor any quadrant', async () => {
     const data = fixture();
     data.context.grants[0]!.role = 'mentor';
-    const result = await mcpPersonBriefFromData(data, 'one');
+    const result = await mcpPersonBriefFromData(await sealed(data), 'one');
     expect(result?.role).toBe('mentor');
     expect(result).not.toHaveProperty('referencePosition');
     data.context.grants = [];
     data.context.evaluationRelations = [];
-    expect(await mcpPersonBriefFromData(data, 'one')).toBeNull();
+    expect(await mcpPersonBriefFromData(await sealed(data), 'one')).toBeNull();
   });
 });
