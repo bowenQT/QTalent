@@ -1,0 +1,107 @@
+/*
+ * Profile print, copied from prototype Y (prototype/y/assets/niu-components.css, #260).
+ * Kept here until the global styles sync with a reference that has it (shared file,
+ * registered on #248); then `.n-print` moves there and this file goes.
+ * Off screen; when printing only this sheet prints, and a plain browser print shows
+ * a single line pointing to 「打印档案」.
+ */
+.print {
+  display: none;
+  color: #000;
+  font-size: 11pt;
+  line-height: 1.55;
+}
+.print :global(h1) {
+  margin: 0;
+  font-size: 18pt;
+}
+.print :global(h1 small),
+.print :global(h2 small) {
+  font-size: 9pt;
+  font-weight: 400;
+  color: #555;
+}
+.print :global(.n-print__head p) {
+  margin: 2pt 0 0;
+  color: #333;
+}
+.print :global(.n-print__meta) {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2pt 10pt;
+  margin: 10pt 0;
+  padding: 6pt 8pt;
+  border: 0.75pt solid #999;
+  font-size: 9.5pt;
+}
+.print :global(.n-print__meta dt) {
+  color: #555;
+}
+.print :global(.n-print__meta dd) {
+  margin: 0;
+}
+.print :global(section) {
+  margin-top: 12pt;
+}
+.print :global(h2) {
+  margin: 0 0 4pt;
+  padding-bottom: 2pt;
+  border-bottom: 0.75pt solid #999;
+  font-size: 12pt;
+}
+.print :global(.n-print__evs) {
+  margin: 0;
+  padding-left: 14pt;
+}
+.print :global(.n-print__evs > li) {
+  margin-bottom: 7pt;
+  break-inside: avoid;
+}
+.print :global(.n-print__ev) {
+  margin: 0;
+}
+.print :global(.n-print__evs ul) {
+  margin: 2pt 0;
+  padding-left: 12pt;
+  font-size: 10pt;
+}
+.print :global(.n-print__evs ul span),
+.print :global(.n-print__src),
+.print :global(.n-print__by) {
+  color: #444;
+  font-size: 9.5pt;
+}
+.print :global(.n-print__src),
+.print :global(.n-print__by) {
+  margin: 0;
+}
+.print :global(.n-print__foot) {
+  margin-top: 14pt;
+  padding-top: 4pt;
+  border-top: 0.75pt solid #999;
+  font-size: 9pt;
+  color: #555;
+}
+.print :global(.n-print__idle) {
+  margin: 0;
+  font-size: 12pt;
+}
+@media print {
+  :global(body):has(> .print) > :not(.print) {
+    display: none !important;
+  }
+  :global(body):has(> .print) > .print {
+    display: block;
+  }
+}
+
+/*
+ * Not part of the print: the lost-print line inside the confirm dialog. `.n-dialog p`
+ * outranks `.nt-field-error`, so it would read as body text; this takes the values of
+ * the prototype's `.n-dialog__hint`. Stays when `.n-print` moves to the global styles.
+ */
+:global(.n-dialog) .dialogError {
+  margin-top: var(--s-3);
+  line-height: 1.6;
+  color: var(--no);
+}
