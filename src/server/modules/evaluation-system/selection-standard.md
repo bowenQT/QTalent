@@ -63,7 +63,7 @@
 
 - `initializeReviewedSelectionBaseline(db, accountId, reviewed, clock)`：当前真实管理者授权后，在同一事务导入 `demo_import_snapshot` 目录、实际922开放区段、不可变基线内容、918 head与审计。`reviewed` 必须明确包含 `versionId/content/sourceCommit/sourceReference/effectiveFrom/periodId/nextVersionOrdinal`。无默认生效时间、无伪造publisher；这不是接受客户端角色/任意基线的Web动作。
 - 同基线并发重复调用不重写事实、不重复审计；不同内容/来源/区段拒绝。审计失败整体回滚。现有发布目录不可被重标为导入快照，已关闭区段不可被重开。
-- `bindExistingSelectionCohort(db, accountId, cohortId, clock)`：真实当前manager或该期HR，核实际cohort存在后，仅在generation1、无发布修订的显式基线初始化阶段一次性采用基线。发布或撤销后不得给旧期次补绑当前版本。它不创建目录期次、不接受指定版本，也不伪造历史绑定时间。
+- `bindExistingSelectionCohort(db, accountId, cohortId, clock, verify?)`：可选的 `verify` 在同一事务、同一类别锁下核对结果绑定，抛错即整笔回滚、不留绑定与审计。真实当前manager或该期HR，核实际cohort存在后，仅在generation1、无发布修订的显式基线初始化阶段一次性采用基线。发布或撤销后不得给旧期次补绑当前版本。它不创建目录期次、不接受指定版本，也不伪造历史绑定时间。
 - `createSelectionCohort(db, accountId, {id,name}, clock)`：当前manager在同一事务创建实际cohort并首次绑定。缺基线/审计失败整体回滚；相同id不同名称拒绝；已有但未绑定期次也拒绝，不能借创建入口补写历史。仅最小创建/绑定能力，不实现完整选拔流程。
 - `readNativeSelectionCohortVersion(db, accountId, cohortId, clock)`：当前实际身份/期次范围授权后读已保存绑定及校验不可变内容，缺绑定返回null，不用当前默认补历史。原有store也复用同一绑定primitive。
 - `loadSelectionAuthority` 针对这些读写事务锁定真实账号绑定/授权/人员，再取业务clock；不能直接当作原store只读事务的FOR SHARE回调。完整store装配必须明确只读/写事务边界。
