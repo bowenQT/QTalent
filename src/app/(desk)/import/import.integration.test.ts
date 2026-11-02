@@ -28,6 +28,7 @@ import { readInterviewImportReviewInbox } from '@/server/usecases/interview-impo
 import { INTERVIEW_IMPORT_DEMO } from '@/server/db/seed/interview-import-demo/import';
 import {
   confirmInterviewImportRowAction,
+  fillInterviewImportRowAction,
   sendInterviewImportRowToReviewAction,
 } from '@/server/actions/interview-import';
 import { getInterviewImportPreview } from '@/server/queries/interview-import';
@@ -142,8 +143,8 @@ afterAll(async () => {
 });
 
 it('seeds the demo batch through the real command and replays unchanged', async () => {
-  expect(await seed()).toEqual({ status: 'created', batchId, rows: 3 });
-  expect(await seed()).toEqual({ status: 'unchanged', batchId, rows: 3 });
+  expect(await seed()).toEqual({ status: 'created', batchId, rows: 4 });
+  expect(await seed()).toEqual({ status: 'unchanged', batchId, rows: 4 });
   const row = await stored('campus-1');
   expect(row).toMatchObject({
     revision: 1,
@@ -258,6 +259,70 @@ it('reads and changes rows only for a current HR grant', async () => {
     }),
   ).toMatchObject({ status: 'forbidden' });
   expect(await stored('professional-1')).toEqual(before);
+});
+
+it("takes HR's entry for an unread score beside the parsed review, then plans the row", async () => {
+  const rowId = 'score-missing-1';
+  const before = await stored(rowId);
+  expect(before.decision).toBeNull();
+  // HR has not filled the unread score yet: the row cannot be confirmed.
+  expect(
+    await confirmInterviewImportRowAction({
+      batchId,
+      rowId,
+      expectedRevision: before.revision,
+      ok: true,
+    }),
+  ).toMatchObject({ status: 'conflict' });
+
+  await openPage();
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: '3' } });
+  await waitFor(async () =>
+    expect((await stored(rowId)).revision).toBe(before.revision + 1),
+  );
+  const filled = await stored(rowId);
+  const [item] = Object.keys(filled.filled);
+  expect(filled.filled).toEqual({ [item]: '3' });
+  // The parsed review is stored exactly as the parser read it.
+  expect(filled.parsed).toEqual(before.parsed);
+  expect(screen.getByText(`${item} 3 · HR 补录`)).toBeTruthy();
+
+  // An entry made on an older revision is refused and writes nothing.
+  expect(
+    await fillInterviewImportRowAction({
+      batchId,
+      rowId,
+      expectedRevision: before.revision,
+      item,
+      value: '4',
+    }),
+  ).toMatchObject({ status: 'conflict' });
+  expect(await stored(rowId)).toEqual(filled);
+
+  // The preview keeps the parsed item unread and shows HR's value apart from it.
+  const preview = await getInterviewImportPreview(batchId);
+  if (preview.status !== 'ok') throw new Error(preview.status);
+  const row = preview.preview.batch.rows.find((r) => r.rowId === rowId)!;
+  expect(row.filled).toEqual({ [item]: '3' });
+  expect(row.scale.find((s) => s.item === item)?.selection).toMatchObject({
+    status: 'unrecognized',
+    options: ['1', '2', '3', '4', '5'],
+  });
+
+  expect(
+    await confirmInterviewImportRowAction({
+      batchId,
+      rowId,
+      expectedRevision: filled.revision,
+      ok: true,
+    }),
+  ).toMatchObject({ status: 'ok' });
+  expect(await stored(rowId)).toMatchObject({
+    parsed: before.parsed,
+    filled: { [item]: '3' },
+    confirmedCandidateId: 'demo-candidate-01',
+    decision: { status: 'planned', personId: 'p-x08' },
+  });
 });
 
 it('sends a row nobody in the directory matches to 待核对 once, with its audit', async () => {
