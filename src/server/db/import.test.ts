@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { Database } from './client';
-import { importDemo, importEvidence, runImport } from './import';
+import { boundSeedStep, importDemo, importEvidence, runImport } from './import';
 import { mapPrototypeSeed, readPrototypeSeed } from './seed';
 import { people, organizations } from '../modules/directory';
 import { projects } from '../modules/staffing';
@@ -257,6 +257,74 @@ it('CLI closes its pool even when import fails', async () => {
   expect(end).toHaveBeenCalledOnce();
 });
 
+const demoDatabase = {
+  host: 'session.synthetic.test',
+  port: 5432,
+  name: 'postgres',
+  username: 'postgres.synthetic',
+};
+const demoEnv = {
+  APP_ENV: 'demo',
+  DATABASE_URL:
+    'postgres://postgres.synthetic:pw@session.synthetic.test:5432/postgres?sslmode=require',
+};
+it('runs a seed step only for the demo app on the manifest database', () => {
+  const manifest = JSON.stringify(demoDatabase);
+  expect(boundSeedStep([], demoEnv)).toBeUndefined();
+  expect(boundSeedStep(['upgrade-statement-kinds', manifest], demoEnv)).toBe(
+    'upgrade-statement-kinds',
+  );
+  expect(boundSeedStep(['revert-statement-kinds', manifest], demoEnv)).toBe(
+    'revert-statement-kinds',
+  );
+  // A hand-typed step without the manifest identity is not a path.
+  expect(() => boundSeedStep(['upgrade-statement-kinds'], demoEnv)).toThrow(
+    'Unknown seed command',
+  );
+  expect(() => boundSeedStep(['drop', manifest], demoEnv)).toThrow(
+    'Unknown seed command',
+  );
+  expect(() =>
+    boundSeedStep(['upgrade-statement-kinds', manifest, 'extra'], demoEnv),
+  ).toThrow('Unknown seed command');
+  expect(() =>
+    boundSeedStep(['upgrade-statement-kinds', manifest], {
+      ...demoEnv,
+      APP_ENV: 'test',
+    }),
+  ).toThrow('demo deployment');
+  expect(() =>
+    boundSeedStep(['upgrade-statement-kinds', '{"host":"x"}'], demoEnv),
+  ).toThrow('verified database identity');
+  // APP_ENV=demo but DATABASE_URL points at another database with the same seed.
+  for (const other of [
+    'postgres://postgres.synthetic:pw@formal.synthetic.test:5432/postgres',
+    'postgres://postgres.synthetic:pw@session.synthetic.test:6543/postgres',
+    'postgres://postgres.synthetic:pw@session.synthetic.test:5432/formal',
+    'postgres://postgres.other:pw@session.synthetic.test:5432/postgres',
+  ])
+    expect(() =>
+      boundSeedStep(['upgrade-statement-kinds', manifest], {
+        ...demoEnv,
+        DATABASE_URL: other,
+      }),
+    ).toThrow('identity mismatch');
+});
+it('CLI refuses an unbound seed step before opening the database', async () => {
+  mocks.env.mockReturnValue({
+    ...demoEnv,
+    DEMO_PASSWORD: 'Test-password-123',
+    DATABASE_URL:
+      'postgres://postgres.synthetic:pw@formal.synthetic.test:5432/postgres',
+  });
+  await expect(
+    runImport(['upgrade-statement-kinds', JSON.stringify(demoDatabase)]),
+  ).rejects.toThrow('identity mismatch');
+  await expect(runImport(['upgrade-statement-kinds'])).rejects.toThrow(
+    'Unknown seed command',
+  );
+  expect(mocks.connection).not.toHaveBeenCalled();
+});
 it('explicit CLI imports the reviewed directory profile only after the base import has committed', async () => {
   const end = vi.fn();
   const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
