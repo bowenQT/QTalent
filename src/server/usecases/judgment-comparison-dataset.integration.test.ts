@@ -14,6 +14,8 @@ import {
 import { cohorts, enrollments, evaluationRelations } from '../modules/programs';
 import {
   attributionHypotheses,
+  comparisonBatches,
+  comparisonCases,
   standardAttributions,
 } from '../modules/evaluation-system';
 import { readJudgmentComparison } from '../modules/evaluation-system/judgment-comparison/read';
@@ -33,7 +35,7 @@ import {
 } from '../db/seed/standard-iteration-demo/init';
 import { loadEvaluationContext } from './evaluation-context';
 import { comparisonReadPorts } from '../queries/judge';
-import { comparisonAccess, comparisonCohortIds } from '../queries/judge-access';
+import { comparisonAccess } from '../queries/judge-access';
 import {
   listComparisonBatches,
   readComparisonDataset,
@@ -95,9 +97,7 @@ const page = (accountId: string, evaluatorId?: string) =>
 async function visibleBatches(accountId: string) {
   const { context } = await loadEvaluationContext(db(), accountId, at);
   const access = comparisonAccess(context)!;
-  return db().transaction((tx) =>
-    listComparisonBatches(tx, comparisonCohortIds(context, access)),
-  );
+  return db().transaction((tx) => listComparisonBatches(tx, access));
 }
 function citation(caseId: string) {
   const unit = data.cases.find((c) => c.id === caseId)!;
@@ -438,5 +438,88 @@ describe('readBatchAttributionState and confirmedAttributions', () => {
       'evaluation_standard',
       'evaluator',
     ]);
+  });
+});
+
+describe('listComparisonBatches within one cohort', () => {
+  // Two more batches of the same cohort with one case each, granted to
+  // different viewers: the hidden student's case the rater judged (rater, not
+  // HR), and a case of an enrolled student the rater has no relation on (HR,
+  // not rater). Only the list reads them, so case rows suffice.
+  const RATER_ONLY = 'comparison-test-rater-batch';
+  const HR_ONLY = 'comparison-test-hr-batch';
+  beforeAll(async () => {
+    const [stored] = await db()
+      .select()
+      .from(comparisonBatches)
+      .where(eq(comparisonBatches.id, plan.canonical.batch.id));
+    const rated = (c: (typeof plan.canonical.cases)[number]) =>
+      c.front.state === 'present' && c.front.evaluatorId === raterId;
+    const related = new Set(
+      plan.canonical.cases
+        .filter(rated)
+        .flatMap((c) =>
+          [c.frontNodeId, c.backNodeId].map((n) => n + c.personId),
+        ),
+    );
+    const raterCase = plan.canonical.cases.find(
+      (c) => c.personId === hiddenPersonId && rated(c),
+    );
+    const hrCase = plan.canonical.cases.find(
+      (c) =>
+        c.personId !== hiddenPersonId &&
+        !related.has(c.frontNodeId + c.personId) &&
+        !related.has(c.backNodeId + c.personId),
+    );
+    if (!raterCase || !hrCase) throw new Error('fixture cases expected');
+    const later = (days: number) =>
+      new Date(Date.parse(stored.importedAt) + days * 86_400_000).toISOString();
+    await db()
+      .insert(comparisonBatches)
+      .values([
+        {
+          ...stored,
+          id: HR_ONLY,
+          name: '对照批次二（演示）',
+          importedAt: later(1),
+        },
+        {
+          ...stored,
+          id: RATER_ONLY,
+          name: '对照批次三（演示）',
+          importedAt: later(2),
+        },
+      ]);
+    const row = (batchId: string, unit: typeof hrCase) => ({
+      id: batchId + '-case',
+      batchId,
+      personId: unit.personId,
+      judgmentId: unit.judgment.id,
+      judgmentName: unit.judgment.name,
+      frontNodeId: unit.frontNodeId,
+      backNodeId: unit.backNodeId,
+      workKind: unit.work.kind,
+      workId: unit.work.workId,
+      teamId: unit.work.kind === 'team' ? unit.work.teamId : null,
+    });
+    await db()
+      .insert(comparisonCases)
+      .values([row(HR_ONLY, hrCase), row(RATER_ONLY, raterCase)]);
+  });
+
+  it('lists only batches with a case in the current grant, newest first', async () => {
+    const ids = async (accountId: string) =>
+      (await visibleBatches(accountId)).map((b) => b.id);
+    expect(await ids(MANAGER)).toEqual([RATER_ONLY, HR_ONLY, data.batch.id]);
+    expect(await ids(HR)).toEqual([HR_ONLY, data.batch.id]);
+    expect(await ids(RATER)).toEqual([RATER_ONLY, data.batch.id]);
+    expect(await ids(OUTSIDER)).toEqual([]);
+    // A withheld batch's metadata is not in the narrower list either.
+    expect(JSON.stringify(await visibleBatches(HR))).not.toContain(
+      '对照批次三',
+    );
+    expect(JSON.stringify(await visibleBatches(RATER))).not.toContain(
+      '对照批次二',
+    );
   });
 });

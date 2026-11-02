@@ -101,20 +101,3 @@ export function comparisonAccess(
     grants: comparisonGrants(ctx, audience),
   };
 }
-
-/** The cohorts whose comparison batches this access may list: those holding a
- * node the viewer currently has a grant on. */
-export function comparisonCohortIds(
-  ctx: EvaluationAuthzContext,
-  access: CurrentComparisonAccess,
-): string[] {
-  const nodeIds = new Set(access.grants.map((grant) => grant.nodeId));
-  return [
-    ...new Set(
-      ctx.evaluationNodes
-        .filter((node) => nodeIds.has(node.id))
-        .map((node) => node.cohortId)
-        .filter((id): id is string => id !== null),
-    ),
-  ].sort();
-}
