@@ -117,8 +117,8 @@ describe('thin reference routes', () => {
       screen.getByRole('link', { name: '回到项目列表' }).getAttribute('href'),
     ).toBe('/projects');
   });
-  it('renders login and the document language with the approved sprite', () => {
-    render(<Login />);
+  it('renders login and the document language with the approved sprite', async () => {
+    render(await Login({ searchParams: Promise.resolve({}) }));
     expect(
       screen.getByRole('heading', { name: '登录 Niu-Talent' }),
     ).toBeTruthy();
