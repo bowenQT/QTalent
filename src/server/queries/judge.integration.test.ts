@@ -122,9 +122,9 @@ function signIn(accountId: string) {
 
 it.each([
   ['admin', { status: 'admin' }],
-  ['manager', { status: 'not_connected', audience: 'manager' }],
-  ['hr', { status: 'not_connected', audience: 'hr' }],
-  ['mentor', { status: 'not_connected', audience: 'rater' }],
+  ['manager', { status: 'empty', audience: 'manager' }],
+  ['hr', { status: 'empty', audience: 'hr' }],
+  ['mentor', { status: 'empty', audience: 'rater' }],
   ['nobody', { status: 'forbidden' }],
 ] as const)(
   'resolves the /judge view of %s from persisted grants',

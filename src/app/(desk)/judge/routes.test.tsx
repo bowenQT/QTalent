@@ -1,9 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import { ToastProvider } from '@/components/ui/Toast';
 import type { ShellData } from '@/contracts/shell';
 import JudgePage, { generateMetadata as judgeMetadata } from './page';
 import RulesPage, { generateMetadata as rulesMetadata } from '../rules/page';
+import {
+  sampleBatch,
+  sampleHrPage,
+  sampleManagerPage,
+  sampleRaterPage,
+  sampleRaters,
+  sampleStandard,
+} from '@/app/dev/standard-iteration/samples';
 
 const { shellQuery, judgeQuery, rulesQuery } = vi.hoisted(() => ({
   shellQuery: vi.fn(),
@@ -28,8 +37,13 @@ vi.mock('@/server/actions/selection-standard', () =>
   ),
 );
 vi.mock('@/server/queries/judge', () => ({ getJudgePage: judgeQuery }));
+vi.mock('@/server/actions/standard-attribution', () => ({
+  generateStandardHypothesesAction: vi.fn(),
+  confirmStandardAttributionAction: vi.fn(),
+  createSelectionRevisionAction: vi.fn(),
+}));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
   notFound: () => {
     throw new Error('not-found');
   },
@@ -61,54 +75,117 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('/judge before comparison batches are stored', () => {
-  it.each(['hr', 'manager'] as const)(
-    'says 待接通 to %s and renders no sample data',
-    async (audience) => {
-      judgeQuery.mockResolvedValue({ status: 'not_connected', audience });
-      expect(await judgeMetadata()).toEqual({
-        title: '判断对照 · Niu-Talent',
-      });
-      render(await JudgePage());
-      expect(
-        screen.getByRole('heading', { name: '判断对照待接通' }),
-      ).toBeTruthy();
-      expect(screen.queryByText(/许致远|XEngineer 第六期/)).toBeNull();
-      expect(shellQuery).not.toHaveBeenCalled();
-    },
-  );
+const judge = (rater?: string) =>
+  ({ searchParams: Promise.resolve(rater ? { rater } : {}) }) as const;
 
-  it('names the rater view as their own comparison', async () => {
+describe('/judge reads the stored comparison batch', () => {
+  it('shows HR the batch with its raters and the attribution entry', async () => {
     judgeQuery.mockResolvedValue({
-      status: 'not_connected',
-      audience: 'rater',
+      status: 'hr',
+      page: sampleHrPage,
+      standard: { versionId: 'xe-select-v1', content: sampleStandard },
+      hypotheses: [],
+      attributions: [],
     });
-    expect(await judgeMetadata()).toEqual({
+    expect(await judgeMetadata(judge())).toEqual({
+      title: `${sampleBatch.name} · Niu-Talent`,
+    });
+    render(<ToastProvider>{await JudgePage(judge())}</ToastProvider>);
+    expect(judgeQuery).toHaveBeenCalledWith(null);
+    expect(
+      screen.getByRole('heading', { level: 1, name: sampleBatch.name }),
+    ).toBeTruthy();
+    const rater = sampleRaters.ye;
+    expect(
+      screen
+        .getAllByRole('link')
+        .some((a) => a.getAttribute('href') === `/judge?rater=${rater.id}`),
+    ).toBe(true);
+    expect(document.body.textContent).not.toMatch(/%|准确率/);
+  });
+
+  it('opens one rater for HR, and 404s an unknown one', async () => {
+    const rater = sampleRaters.ye;
+    judgeQuery.mockResolvedValue({
+      status: 'hr_rater',
+      page: sampleHrPage,
+      evaluatorId: rater.id,
+      batchNames: { [sampleBatch.id]: sampleBatch.name },
+    });
+    expect(await judgeMetadata(judge(rater.id))).toEqual({
+      title: `${rater.name}的判断 · Niu-Talent`,
+    });
+    render(await JudgePage(judge(rater.id)));
+    expect(judgeQuery).toHaveBeenCalledWith(rater.id);
+    expect(
+      screen.getByRole('heading', { level: 1, name: `${rater.name}的判断` }),
+    ).toBeTruthy();
+    cleanup();
+    judgeQuery.mockResolvedValue({ status: 'not_found' });
+    await expect(JudgePage(judge('nobody'))).rejects.toThrow('not-found');
+  });
+
+  it('shows a mentor only their own judgments', async () => {
+    const rater = sampleRaters.ye;
+    judgeQuery.mockResolvedValue({
+      status: 'rater',
+      page: sampleRaterPage('ye'),
+      raterName: rater.name,
+      batchNames: { [sampleBatch.id]: sampleBatch.name },
+    });
+    expect(await judgeMetadata(judge('me'))).toEqual({
       title: '我的判断对照 · Niu-Talent',
     });
-    render(await JudgePage());
-    expect(screen.getByRole('heading', { name: '我的判断对照' })).toBeTruthy();
-    expect(screen.getByText(/你作为评价人给出的判断/)).toBeTruthy();
+    render(await JudgePage(judge('me')));
+    expect(judgeQuery).toHaveBeenCalledWith('me');
+    expect(
+      screen.getByRole('heading', { level: 1, name: '我的判断对照' }),
+    ).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/%|准确率/);
+  });
+
+  it('shows the manager the batch without names or cases', async () => {
+    judgeQuery.mockResolvedValue({
+      status: 'manager',
+      page: sampleManagerPage([]),
+    });
+    render(await JudgePage(judge()));
+    const text = document.body.textContent ?? '';
+    for (const rater of Object.values(sampleRaters))
+      expect(text).not.toContain(rater.name);
+    expect(text).not.toMatch(/%|准确率/);
+  });
+
+  it('says so when no batch is stored for the viewer', async () => {
+    judgeQuery.mockResolvedValue({ status: 'empty', audience: 'rater' });
+    expect(await judgeMetadata(judge('me'))).toEqual({
+      title: '我的判断对照 · Niu-Talent',
+    });
+    render(await JudgePage(judge('me')));
+    expect(
+      screen.getByRole('heading', { name: '还没有可对照的批次' }),
+    ).toBeTruthy();
   });
 
   it('keeps admins and lost grants out', async () => {
     judgeQuery.mockResolvedValue({ status: 'admin' });
-    expect(await judgeMetadata()).toEqual({
+    expect(await judgeMetadata(judge())).toEqual({
       title: '这一页属于业务视角 · Niu-Talent',
     });
-    render(await JudgePage());
+    render(await JudgePage(judge()));
     expect(
       screen.getByRole('heading', { name: '这一页属于业务视角' }),
     ).toBeTruthy();
     cleanup();
     judgeQuery.mockResolvedValue({ status: 'forbidden' });
-    expect(await judgeMetadata()).toEqual({
+    expect(await judgeMetadata(judge())).toEqual({
       title: '查看权限已更新 · Niu-Talent',
     });
-    render(await JudgePage());
+    render(await JudgePage(judge()));
     expect(
       screen.getByRole('heading', { name: '查看权限已更新' }),
     ).toBeTruthy();
+    expect(shellQuery).not.toHaveBeenCalled();
   });
 });
 
