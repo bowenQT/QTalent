@@ -299,6 +299,57 @@ describe('Reassign page', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('names who actually took each item when one retry carries two evaluators', async () => {
+    action
+      .mockRejectedValueOnce(new Error('network'))
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(success('w-1'))
+      .mockResolvedValueOnce(success('w-2'));
+    setup(items.slice(0, 2));
+    // A to the new mentor, then B to HR: neither gets an answer.
+    uncheck('演示乙');
+    fireEvent.click(choice('演示新导师'));
+    await confirm('交给演示新导师');
+    uncheck('演示甲');
+    uncheck('演示乙');
+    fireEvent.click(choice('演示 HR'));
+    await confirm('交给演示 HR');
+    const failed = screen.getByRole('alert');
+    expect(failed.textContent).toContain('提交中断：2 件待重新提交。');
+    await act(async () =>
+      fireEvent.click(within(failed).getByRole('button', { name: '重试' })),
+    );
+    expect(
+      screen.getByText('已交给演示新导师 1 件、演示 HR 1 件'),
+    ).toBeTruthy();
+    expect(screen.queryByText('已交给演示新导师 2 件')).toBeNull();
+  });
+
+  it('credits only the evaluator whose request went through', async () => {
+    action
+      .mockRejectedValueOnce(new Error('network'))
+      .mockRejectedValueOnce(new Error('network'))
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(success('w-2'));
+    setup(items.slice(0, 2));
+    uncheck('演示乙');
+    fireEvent.click(choice('演示新导师'));
+    await confirm('交给演示新导师');
+    uncheck('演示甲');
+    uncheck('演示乙');
+    fireEvent.click(choice('演示 HR'));
+    await confirm('交给演示 HR');
+    await act(async () =>
+      fireEvent.click(
+        within(screen.getByRole('alert')).getByRole('button', { name: '重试' }),
+      ),
+    );
+    expect(screen.getByText('已交给演示 HR 1 件')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain(
+      '提交中断：1 件待重新提交。',
+    );
+  });
+
   it('says the list is done when nothing waits, with a way back', () => {
     setup([]);
     expect(screen.getByText('需要重新分派的事都处理完了')).toBeTruthy();

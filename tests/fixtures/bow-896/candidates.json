@@ -1,0 +1,47 @@
+{
+  "demo": true,
+  "purpose": "candidate gate fixture; not an Excel interview-score import",
+  "rows": [
+    {
+      "candidateId": "demo-candidate-01",
+      "name": "谷嘉树（演示）",
+      "directoryPersonId": "p-x08",
+      "status": "hired",
+      "expectedAction": "import",
+      "reason": "已入职且目录身份匹配",
+      "reviewFiles": [
+        "interview/campus.pdf",
+        "interview/hr.pdf",
+        "interview/professional.pdf"
+      ]
+    },
+    {
+      "candidateId": "demo-candidate-02",
+      "name": "余景行（演示）",
+      "directoryPersonId": "p-x02",
+      "status": "rejected",
+      "expectedAction": "skip",
+      "reason": "淘汰；同名在目录中也不能导入"
+    },
+    {
+      "candidateId": "demo-candidate-03",
+      "name": "谢怀瑾（演示）",
+      "directoryPersonId": null,
+      "status": "offer_pending",
+      "expectedAction": "skip",
+      "reason": "尚未入职"
+    },
+    {
+      "candidateId": "demo-candidate-04",
+      "name": "陆晚晴（演示）",
+      "directoryPersonId": null,
+      "status": "offer_declined",
+      "expectedAction": "skip",
+      "reason": "未入职；已放弃录用"
+    }
+  ],
+  "expectedCounts": {
+    "import": 1,
+    "skip": 3
+  }
+}

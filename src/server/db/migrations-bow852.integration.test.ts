@@ -14,7 +14,10 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createDatabase } from './client';
 import { importDemo } from './import';
 import { mapPrototypeSeed, readPrototypeSeed } from './seed';
-import { fingerprintMigrationFacts } from '../../../tests/fixtures/legacy-migration-seed';
+import {
+  fingerprintMigrationFacts,
+  seedVerifiedLegacyBaseline,
+} from '../../../tests/fixtures/legacy-migration-seed';
 import {
   demandRoots,
   demandVersions,
@@ -97,14 +100,14 @@ async function isolated(run: (connection: Connection) => Promise<void>) {
   }
 }
 /** Only copy the published pre-852 stage; all ordinary verification uses the committed full directory. */
-async function previous(connection: Connection) {
+async function previous(connection: Connection, count: 3 | 7 = 7) {
   const temporary = mkdtempSync(
     join(tmpdir(), 'qtalent-b852-published-stage-'),
   );
   try {
     const old = journal();
-    old.entries = old.entries.filter((row: { idx: number }) => row.idx < 7);
-    expect(old.entries).toHaveLength(7);
+    old.entries = old.entries.filter((row: { idx: number }) => row.idx < count);
+    expect(old.entries).toHaveLength(count);
     cpSync(join(folder, 'meta'), join(temporary, 'meta'), { recursive: true });
     writeFileSync(join(temporary, 'meta/_journal.json'), JSON.stringify(old));
     for (const row of old.entries)
@@ -147,21 +150,23 @@ it('keeps published 0000–0006 SQL/meta unchanged and creates the real demand t
 });
 it('upgrades the actual pre-852 canonical seeded schema without changing any rule, score, source, identity or node fact, and reruns idempotently', async () => {
   await isolated(async (connection) => {
-    await previous(connection);
-    await importDemo(
-      connection.db,
-      mapPrototypeSeed(readPrototypeSeed(process.cwd())),
+    // Seed the verified immutable facts through the actual historical schema.
+    // The current importer is only used again after all current migrations exist.
+    await previous(connection, 3);
+    await seedVerifiedLegacyBaseline(
+      connection,
       'Synthetic-test-password-only',
     );
+    await previous(connection);
     const before = await fingerprintMigrationFacts(
       connection,
       undefined,
       false,
     );
     await migrate(connection.db, { migrationsFolder: folder });
-    expect(
-      await fingerprintMigrationFacts(connection, Object.keys(before), false),
-    ).toEqual(before);
+    expect(await fingerprintMigrationFacts(connection, before, false)).toEqual(
+      before,
+    );
     await emptyDemands(connection);
     const after = await fingerprintMigrationFacts(connection, undefined, false);
     await migrate(connection.db, { migrationsFolder: folder });

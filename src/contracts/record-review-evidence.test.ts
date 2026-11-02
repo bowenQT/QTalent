@@ -125,10 +125,16 @@ describe('record evidence and actions', () => {
     expect(saved.events).toEqual(events);
     const undo = {
       saveId: saved.saveId,
+      draftRestoration: {
+        status: 'available',
+        draftId: 'demo-draft',
+        draftRevision: 2,
+      },
       withdrawnEvents: saved.events,
       withdrawnConfirmationIds: saved.confirmationIds,
       withdrawnReviewItemIds: saved.reviewItemIds,
       originalInput: recordDraftFixture.originalInput,
+      inputRestoration: 'available' as const,
     };
     const withdrawn = recordUndoReceiptSchema.parse(undo);
     expect(withdrawn.saveId).toBe(saved.saveId);
@@ -264,5 +270,81 @@ describe('review thresholds and calibration', () => {
     expect(reviewQueueActionSchema.safeParse(blank).success).toBe(false);
     const invalid = { ...action, kind: 'rater_gap' };
     expect(reviewQueueActionSchema.safeParse(invalid).success).toBe(false);
+  });
+});
+
+describe('undo input restoration authorization', () => {
+  const base = {
+    saveId: 'demo-save',
+    draftRestoration: { status: 'refresh_required' },
+    withdrawnEvents: [],
+    withdrawnConfirmationIds: [],
+    withdrawnReviewItemIds: [],
+  };
+  it('allows unavailable original input without preventing an undo receipt', () => {
+    expect(
+      recordUndoReceiptSchema.parse({
+        ...base,
+        inputRestoration: 'unavailable',
+        originalInput: null,
+      }),
+    ).toMatchObject({ inputRestoration: 'unavailable', originalInput: null });
+  });
+  it('requires the current authorization discriminator and its matching input', () => {
+    for (const receipt of [
+      { ...base, originalInput: recordDraftFixture.originalInput },
+      { ...base, inputRestoration: 'available', originalInput: null },
+      {
+        ...base,
+        inputRestoration: 'unavailable',
+        originalInput: recordDraftFixture.originalInput,
+      },
+      { ...base, inputRestoration: 'available' },
+      { ...base, inputRestoration: 'unavailable' },
+    ])
+      expect(recordUndoReceiptSchema.safeParse(receipt).success).toBe(false);
+    expect(
+      recordUndoReceiptSchema.safeParse({
+        ...base,
+        inputRestoration: 'available',
+        originalInput: recordDraftFixture.originalInput,
+      }).success,
+    ).toBe(true);
+  });
+});
+
+describe('undo draft restoration', () => {
+  const base = {
+    saveId: 'demo-save',
+    withdrawnEvents: [],
+    withdrawnConfirmationIds: [],
+    withdrawnReviewItemIds: [],
+    inputRestoration: 'unavailable',
+    originalInput: null,
+  };
+  it('requires an exact available revision or explicit refresh without defaulting legacy', () => {
+    for (const draftRestoration of [
+      { status: 'available', draftId: 'demo-draft', draftRevision: 3 },
+      { status: 'refresh_required' },
+    ])
+      expect(
+        recordUndoReceiptSchema.safeParse({ ...base, draftRestoration })
+          .success,
+      ).toBe(true);
+    for (const draftRestoration of [
+      undefined,
+      null,
+      {},
+      { status: 'available', draftId: 'demo-draft', draftRevision: 0 },
+      { status: 'available', draftId: 'demo-draft', draftRevision: 1.5 },
+      { status: 'available', draftId: '', draftRevision: 3 },
+      { status: 'available', draftId: 'demo-draft' },
+      { status: 'refresh_required', draftRevision: 3 },
+      { status: 'refresh_required', draftId: 'demo-draft' },
+    ])
+      expect(
+        recordUndoReceiptSchema.safeParse({ ...base, draftRestoration })
+          .success,
+      ).toBe(false);
   });
 });

@@ -35,8 +35,11 @@ import {
 import { confirmations, aiSuggestions } from '../modules/talent';
 import { loadPersonData } from './person-data';
 import { personFromData } from './person-projection';
-import { peopleFromData } from './people';
-import { sourceFromData } from './sources';
+import { peopleFromData, quickViewFromData } from './people';
+import { projectReadableSources, sourceFromData } from './sources';
+import { loadEvaluationContext } from '../usecases/evaluation-context';
+import { readEvidenceForTalent } from '../modules/records';
+import { readIntakeTable } from '../usecases/talent-source-projection';
 import { fixture, nodeFixture } from './person-test-helpers';
 import { expectDirectoryOrder } from '../../../tests/fixtures/p0-contracts';
 import { importDemo } from '../db/import';
@@ -213,10 +216,21 @@ it('projects actual pinned seed observations and ended project participation', a
         (item) => item.kind === 'key_event',
       );
       expect(events.length).toBeGreaterThan(0);
+      // Sheet-cell statements are original facts, read as evaluation.
       for (const item of events) {
-        expect(item.category).toBe('management-observation');
+        expect(item.category).toBe('evaluation');
         expect(item.sources.length).toBeGreaterThan(0);
       }
+      // Weekly reviews repeat these readable key events and are not listed.
+      const weekly = mapped.evidence.historicalEvaluations.filter(
+        (row) => row.personId === target && row.kind === '训练营周评',
+      );
+      expect(weekly.length).toBeGreaterThan(0);
+      for (const row of weekly)
+        expect(events.map((item) => item.id)).toContain(row.sourceRecordId);
+      expect(
+        profile.timeline.data.some((row) => row.title.startsWith('训练营周评')),
+      ).toBe(false);
       for (const item of profile.timeline.data.filter(
         (row) => row.kind === 'history',
       ))
@@ -232,15 +246,122 @@ it('projects actual pinned seed observations and ended project participation', a
       '2026-10-25',
     );
     const restricted = await personFromData(mentorData, target);
-    // The mentor keeps ordinary history reviews, but no management observation.
+    // The mentor reads the student's key events and confirmed scores, but no
+    // quadrant and no management observation.
     expect(restricted?.timeline.status).toBe('ready');
     if (restricted?.timeline.status !== 'ready')
       throw new Error('Missing timeline');
+    const targetEvents = mapped.evidence.events.filter(
+      (event) => event.personId === target,
+    );
     expect(
-      restricted.timeline.data.every((row) => row.kind === 'history'),
-    ).toBe(true);
+      restricted.timeline.data
+        .filter((row) => row.kind === 'key_event')
+        .map((row) => row.id)
+        .sort(),
+    ).toEqual(targetEvents.map((event) => event.id).sort());
+    expect(restricted.capabilityProfile.status).toBe('ready');
+    expect(restricted).not.toHaveProperty('referencePosition');
+    // The mentor now reads those key events, so their weekly reviews are not
+    // listed again (BOW-837 dedupe applies to every caller).
+    expect(
+      restricted.timeline.data.some((row) =>
+        row.title.startsWith('训练营周评'),
+      ),
+    ).toBe(false);
     expect(JSON.stringify(restricted)).not.toContain('management-observation');
     expect(restricted).not.toHaveProperty('managementObservations');
+    const quick = await quickViewFromData(mentorData, target);
+    expect(quick?.recentFacts.status).toBe('ready');
+    expect(quick?.capabilityLines.status).toBe('ready');
+    expect(quick).not.toHaveProperty('referencePosition');
+    // The seed has no management observation left, so add one here: the mentor
+    // still cannot read that event, while the manager reads it as one.
+    const hidden = targetEvents[0]!;
+    const link = mapped.evidence.eventSources.find(
+      (row) => row.eventId === hidden.id,
+    )!;
+    // Its own cell, so no original fact makes that source readable.
+    await seeded.db.insert(fragments).values({
+      id: 'synthetic-management-cell',
+      originalVersionId: link.originalVersionId,
+      location: { kind: 'snapshot_field', fieldPath: 'synthetic.note' },
+      excerpt: 'Synthetic management note',
+    });
+    await seeded.db.insert(eventSources).values({
+      eventId: hidden.id,
+      fragmentId: 'synthetic-management-cell',
+      originalVersionId: link.originalVersionId,
+    });
+    await seeded.db.insert(statements).values({
+      id: 'synthetic-management-note',
+      eventId: hidden.id,
+      kind: 'management_observation',
+      text: 'Synthetic management note',
+      authorId: mentor.personId,
+      modelVersion: null,
+      uncertainty: null,
+      fragmentId: 'synthetic-management-cell',
+      originalVersionId: link.originalVersionId,
+    });
+    const afterNote = await personFromData(
+      await loadPersonData(seeded.db, 'demo-mentor', '2026-10-25'),
+      target,
+    );
+    if (afterNote?.timeline.status !== 'ready')
+      throw new Error('Missing timeline');
+    expect(afterNote.timeline.data.map((row) => row.id)).not.toContain(
+      hidden.id,
+    );
+    // With that key event hidden, its own weekly review is listed again.
+    const hiddenWeekly = mapped.evidence.historicalEvaluations.find(
+      (row) => row.sourceRecordId === hidden.id && row.kind === '训练营周评',
+    );
+    expect(afterNote.timeline.data.map((row) => row.id)).toContain(
+      hiddenWeekly!.id,
+    );
+    expect(JSON.stringify(afterNote)).not.toContain('Synthetic management');
+    const managerView = await personFromData(
+      await loadPersonData(seeded.db, 'demo-ceo', '2026-10-25'),
+      target,
+    );
+    if (managerView?.timeline.status !== 'ready')
+      throw new Error('Missing timeline');
+    expect(
+      managerView.timeline.data.find((row) => row.id === hidden.id),
+    ).toMatchObject({ category: 'management-observation' });
+    // The matching loader's snapshot shape: every relation is kept for later
+    // authorization; details cover only what each account can read.
+    const projected = async (account: string) => {
+      const data = {
+        ...(await loadEvaluationContext(seeded.db, account, '2026-10-25')),
+        ...(await readEvidenceForTalent(seeded.db)),
+        intake: await seeded.db.transaction((tx) =>
+          readIntakeTable(tx, 'snapshot'),
+        ),
+      };
+      return { data, ...(await projectReadableSources(data)) };
+    };
+    const hr = await projected('demo-hrbp');
+    const mentorSources = await projected('demo-mentor');
+    expect(hr.sources).toHaveLength(hr.data.fragments.length);
+    expect(mentorSources.sources).toHaveLength(hr.sources.length);
+    expect(hr.details.length).toBeGreaterThan(mentorSources.details.length);
+    const observed = new Set(
+      hr.data.statements
+        .filter((row) => row.kind === 'management_observation')
+        .map((row) => row.fragmentId + ':' + row.originalVersionId),
+    );
+    expect(
+      hr.details.some((row) =>
+        observed.has(row.fragmentId + ':' + row.originalVersionId),
+      ),
+    ).toBe(true);
+    expect(
+      mentorSources.details.some((row) =>
+        observed.has(row.fragmentId + ':' + row.originalVersionId),
+      ),
+    ).toBe(false);
     const managerData = await loadPersonData(
       seeded.db,
       'demo-ceo',

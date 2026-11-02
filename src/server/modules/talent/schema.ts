@@ -12,7 +12,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { people } from '../directory';
-import { events, eventSources } from '../records';
+import { events, eventSources, recordSaves } from '../records';
 import { dimensions, anchors } from '../evaluation-system';
 export const aiSuggestions = pgTable(
   'talent_ai_suggestions',
@@ -198,6 +198,13 @@ export const scoreReviews = pgTable(
       .references(() => dimensions.id),
     reason: text('reason').notNull(),
     status: text('status').notNull().default('open'),
+    // Legacy reviews remain unlinked; never infer historical confirmation IDs.
+    saveId: text('save_id').references(() => recordSaves.saveId),
+    confirmationId: text('confirmation_id').references(() => confirmations.id),
+    counterpartConfirmationId: text('counterpart_confirmation_id').references(
+      () => confirmations.id,
+    ),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
   },
   (t) => [
     check(
@@ -205,5 +212,27 @@ export const scoreReviews = pgTable(
       sql`${t.reason} in ('score_gap','ai_changed_without_reason','post_freeze_position_change')`,
     ),
     check('talent_review_status', sql`${t.status} in ('open','resolved')`),
+    check(
+      'talent_review_save_provenance',
+      sql`${t.saveId} is null or (${t.confirmationId} is not null and (${t.reason} <> 'score_gap' or ${t.counterpartConfirmationId} is not null))`,
+    ),
+    check(
+      'talent_review_distinct_confirmations',
+      sql`${t.counterpartConfirmationId} is null or (${t.confirmationId} is not null and ${t.confirmationId} <> ${t.counterpartConfirmationId})`,
+    ),
+    uniqueIndex('talent_review_ai_confirmation')
+      .on(t.reason, t.confirmationId)
+      .where(
+        sql`${t.reason} = 'ai_changed_without_reason' and ${t.confirmationId} is not null`,
+      ),
+    uniqueIndex('talent_review_rater_pair')
+      .on(
+        t.reason,
+        sql`least(${t.confirmationId}, ${t.counterpartConfirmationId})`,
+        sql`greatest(${t.confirmationId}, ${t.counterpartConfirmationId})`,
+      )
+      .where(
+        sql`${t.reason} = 'score_gap' and ${t.confirmationId} is not null and ${t.counterpartConfirmationId} is not null`,
+      ),
   ],
 );
