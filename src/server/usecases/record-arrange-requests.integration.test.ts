@@ -1,3 +1,4 @@
+import { recordInputSchema } from '../../contracts/record';
 import { randomUUID } from 'node:crypto';
 import { PgBoss, fromDrizzle } from 'pg-boss';
 import { eq, sql } from 'drizzle-orm';
@@ -166,7 +167,7 @@ it('persists trusted four facts, original bytes and one real queue message under
   expect(input.boundAt?.toISOString()).toBe(businessAt);
   expect(input.occurredOn).toBe('2026-09-04');
   expect(input.createdAt.toISOString()).toBe(wallAt);
-  expect(input.originalInput.text).toBe(h.text.trim());
+  expect(recordInputSchema.parse(input.originalInput).text).toBe(h.text.trim());
   const [fragment] = await connection.db
     .select()
     .from(fragments)
@@ -318,7 +319,9 @@ it('text naming no directory person, submitted with no people, stays a pending i
     .from(arrangeInputs)
     .where(eq(arrangeInputs.batchId, pending.result.batchId));
   expect(input!.personIds).toEqual([]);
-  expect(input!.originalInput.text).toBe(text.trim());
+  const original = input!.originalInput;
+  if ('kind' in original) throw new Error('expected a text input');
+  expect(original.text).toBe(text.trim());
   const [fragment] = await connection.db
     .select()
     .from(fragments)
@@ -708,7 +711,7 @@ it('native846 insertion and the job result roll back together on an actual uniqu
   await connection.db.transaction((tx) =>
     storeTrustedRecordDraftBatch(tx, {
       draftSet: foreign,
-      originalInput: created.input.originalInput,
+      originalInput: recordInputSchema.parse(created.input.originalInput),
       occurredOn: created.input.occurredOn!,
       modelVersion: 'google/gemini-3.8-flash',
       createdByAccountId: h.account,
@@ -1273,7 +1276,7 @@ it.each([
         .update(recordDraftBatches)
         .set({
           originalInput: {
-            ...created.input.originalInput,
+            ...recordInputSchema.parse(created.input.originalInput),
             text: '演示：其他来源',
           },
         })

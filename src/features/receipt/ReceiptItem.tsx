@@ -148,9 +148,23 @@ export function ReceiptItem({
     }
   }
   // 一件事涉及多人时，每个分数写明是谁的
+  const who = (personId: string) =>
+    draft.personIds.length > 1 ? view.people[personId]?.name : undefined;
   const label = (personId: string, dim: string) => {
-    const name = view.people[personId]?.name;
-    return draft.personIds.length > 1 && name ? `${name} · ${dim}` : dim;
+    const name = who(personId);
+    return name ? `${name} · ${dim}` : dim;
+  };
+  // 窄屏只在「 · 」处换行：人名一行、维度一行，不把维度名折断
+  const shownLabel = (personId: string, dim: string) => {
+    const name = who(personId);
+    return name ? (
+      <>
+        <span className="n-rcpt__who">{name} ·</span>{' '}
+        <span className="n-rcpt__who">{dim}</span>
+      </>
+    ) : (
+      dim
+    );
   };
   const why = useRef<HTMLTextAreaElement>(null);
   const firstSelect = useRef<HTMLSelectElement>(null);
@@ -233,19 +247,19 @@ export function ReceiptItem({
     foot = (
       <div className="n-rcpt__edit">
         {refreshed ? (
-          <p className="n-field__err" role="status">
+          <p className="n-field__hint" role="status" style={{ margin: 0 }}>
             {copy.edit.refreshed}
           </p>
         ) : null}
         {draft.scores.map((score, i) => {
-          const dim = label(
-            score.personId,
-            view.dimensions[score.dimensionId] ?? score.dimensionId,
-          );
+          const dimName =
+            view.dimensions[score.dimensionId] ?? score.dimensionId;
+          const dim = label(score.personId, dimName);
+          const text = shownLabel(score.personId, dimName);
           if (score.state === 'unknown')
             return (
               <div className="n-rcpt__editrow" key={draftScoreKey(score)}>
-                <span>{dim}</span>
+                <span>{text}</span>
                 <b>{copy.confirm.insufficient}</b>
                 <small>{score.reason}</small>
               </div>
@@ -253,7 +267,7 @@ export function ReceiptItem({
           const key = draftScoreKey(score);
           return (
             <label className="n-rcpt__editrow" key={key}>
-              <span>{dim}</span>
+              <span>{text}</span>
               <select
                 ref={i === 0 ? firstSelect : undefined}
                 className="n-input"
@@ -391,14 +405,14 @@ export function ReceiptItem({
       ) : null}
       <div className="n-rcpt__scores">
         {draft.scores.map((score) => {
-          const dim = label(
-            score.personId,
-            view.dimensions[score.dimensionId] ?? score.dimensionId,
-          );
+          const dimName =
+            view.dimensions[score.dimensionId] ?? score.dimensionId;
+          const dim = label(score.personId, dimName);
+          const text = shownLabel(score.personId, dimName);
           if (score.state === 'unknown')
             return (
               <div className="n-rcpt__score" key={draftScoreKey(score)}>
-                <span className="n-score__dim">{dim}</span>
+                <span className="n-score__dim">{text}</span>
                 <Badge className="n-badge--unknown" icon="dash">
                   {copy.confirm.insufficient}
                 </Badge>
@@ -410,7 +424,7 @@ export function ReceiptItem({
           const note = copy.confirm.anchorNote(ai, score.anchor.text);
           return (
             <div className="n-rcpt__score" key={draftScoreKey(score)}>
-              <span className="n-score__dim">{dim}</span>
+              <span className="n-score__dim">{text}</span>
               {shown ? (
                 <Score
                   inline

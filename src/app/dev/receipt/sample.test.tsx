@@ -433,18 +433,47 @@ describe('样张替身', () => {
     ).toMatchObject({
       status: 'not_found',
     });
-    expect(
-      await server.save({
-        ...input,
-        operation_id: 'stale',
-        draftId: 'e-d2',
-        expected_revision: 1,
-      }),
-    ).toMatchObject({ status: 'conflict' });
+    // 确认一件事不让别的事变成新版本
+    const live = await server.read(BATCH_ID);
+    if (live.status !== 'success') throw new Error('read failed');
+    expect(live.view.receipt.draftSet?.drafts.map((d) => d.revision)).toEqual([
+      1, 1,
+    ]);
     if (first.status !== 'success') throw new Error('save failed');
+    // 撤销按 operation_id 幂等；撤销后这件事是新版本，旧版本再保存是冲突
+    const undo = { operation_id: 'u-1', saveId: first.result.saveId };
+    expect(await server.undo(undo)).toMatchObject({
+      status: 'success',
+      replayed: false,
+    });
+    expect(await server.undo(undo)).toMatchObject({
+      status: 'success',
+      replayed: true,
+    });
+    // 同一个编号换了要撤销的保存：是另一次请求，拒绝
+    expect(await server.undo({ ...undo, saveId: 'save-other' })).toMatchObject({
+      status: 'conflict',
+    });
+    // 撤销之后，原保存的同一次操作仍重放原结果
+    expect(await server.save(input)).toEqual({ ...first, replayed: true });
+    expect(
+      await server.save({ ...input, operation_id: 'stale' }),
+    ).toMatchObject({ status: 'conflict' });
+    // 再保存用了撤销用过的编号：动作不同，各记各的，不算冲突
+    const again = await server.save({
+      ...input,
+      operation_id: 'u-1',
+      expected_revision: 3,
+    });
+    expect(again).toMatchObject({ status: 'success', replayed: false });
+    if (again.status !== 'success') throw new Error('save failed');
+    // 撤销后再保存是新事件，编号不复用
+    expect(again.result.events[0]!.eventId).not.toBe(
+      first.result.events[0]!.eventId,
+    );
     now += RECORD_UNDO_WINDOW_MS;
     expect(
-      await server.undo({ operation_id: 'u', saveId: first.result.saveId }),
+      await server.undo({ operation_id: 'u', saveId: again.result.saveId }),
     ).toMatchObject({
       status: 'conflict',
       message: '已超过撤销时间，这条记录已保存',

@@ -210,7 +210,9 @@ export async function readReceiptView(
           // The words the submitter wrote, only for the submitter: 897 lets only the
           // creator open a batch today, and nobody else's input is handed out here.
           original:
-            receipt.textMaterial && input?.creator === accountId
+            receipt.textMaterial &&
+            input?.creator === accountId &&
+            'text' in input.originalInput
               ? input.originalInput.text
               : null,
           submittedBy: nameOf(input && personOf.get(input.creator)) || '提交人',
