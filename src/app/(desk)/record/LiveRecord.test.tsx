@@ -2,11 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 
-const { page, replace, anchors, resolveNode } = vi.hoisted(() => ({
+const { page, replace, resolveNode } = vi.hoisted(() => ({
   resolveNode: vi.fn(),
   page: vi.fn(),
   replace: vi.fn(),
-  anchors: vi.fn(),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
 vi.mock('@/features/record/RecordPage', () => ({
@@ -23,9 +22,6 @@ vi.mock('@/server/actions/record', () => ({
   undoRecordAction: vi.fn(),
 }));
 vi.mock('@/server/actions/record-batch', () => ({
-  readRecordAnchorsAction: anchors,
-  readRecordBatchAction: vi.fn(),
-  readRecordSourceAction: vi.fn(),
   resolveRecordNodeAction: resolveNode,
   saveRecordBatchAction: vi.fn(),
 }));
@@ -43,12 +39,28 @@ const levels = (
     text: `${dimensionId}-${value}`,
   }));
 
+// 锚点走 GET /api/record/anchors（reads.ts）
+const anchors = vi.fn();
 beforeEach(() => {
   page.mockReset();
   replace.mockReset();
   anchors.mockReset();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      const params = new URL(url, 'http://app.test').searchParams;
+      return new Response(
+        JSON.stringify(
+          await anchors({ ruleVersions: params.getAll('ruleVersion') }),
+        ),
+      );
+    }),
+  );
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('loadAnchors', () => {
   it('gives each person the five levels of each dimension in the asked version', async () => {
