@@ -268,6 +268,11 @@ export interface SelectionPostgresServices {
       SelectionStandardPorts<SelectionPostgresTransaction>['creationFacts']
     >[2],
   ): Promise<Omit<CreateFacts, 'baseContent'>>;
+  verifyBasisDisclosure(
+    tx: Transaction,
+    authority: SelectionAuthority,
+    basis: SelectionRevisionRecord['revision']['basis'],
+  ): Promise<void>;
   readImpact(
     tx: Transaction,
     authority: SelectionAuthority,
@@ -328,6 +333,7 @@ export function createSelectionPostgresStore(
   for (const name of [
     'loadAuthority',
     'creationFacts',
+    'verifyBasisDisclosure',
     'readImpact',
     'readCohort',
   ] as const)
@@ -1072,6 +1078,12 @@ export function createSelectionPostgresStore(
       return { ...facts, baseContent };
     },
     readRevision: record,
+    async verifyBasisDisclosure(tx, current, basis) {
+      state(tx);
+      if (current !== authority(tx))
+        throw new SelectionPersistenceUnavailableError();
+      return services.verifyBasisDisclosure(tx.db, current, basis);
+    },
     async readImpact(tx, current, revision) {
       const native = state(tx, true);
       if (current !== authority(tx))

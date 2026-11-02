@@ -658,23 +658,84 @@ describe('native reader and stale input boundaries', () => {
         { cohortId: 'cohort', standardVersionId: 'xe-select-v1', count: 1 },
       ]);
   });
-  it('current front-node visibility governs HR impact; company manager gets only counts', async () => {
-    await db().update(enrollments).set({ revokedAt: '2026-10-31' });
+  it('HR and company manager count the same judgments under the cohort HR rule', async () => {
     const read = (account: string) =>
       db().transaction(async (tx) => {
         const who = await loadSelectionAuthority(tx, account, clock);
         return readNativeSelectionImpact(tx, who, next, ['cohort']);
       });
+    const counted = [
+      { cohortId: 'cohort', standardVersionId: 'xe-select-v1', count: 1 },
+    ];
+    expect((await read('hr')).existingResults).toEqual(counted);
+    expect((await read('manager')).existingResults).toEqual(counted);
+    // Leaving the cohort removes the judgment for both callers alike, so a
+    // manager's publish check cannot disagree with the HR's saved preview.
+    await db().update(enrollments).set({ revokedAt: '2026-10-31' });
     expect((await read('hr')).existingResults[0].count).toBe(0);
     const manager = await read('manager');
-    expect(manager.existingResults).toEqual([
-      { cohortId: 'cohort', standardVersionId: 'xe-select-v1', count: 1 },
-    ]);
+    expect(manager.existingResults[0].count).toBe(0);
     expect(Object.keys(manager).sort()).toEqual([
       'existingResults',
       'nextCohort',
       'preservedBindings',
     ]);
+  });
+  it('a stored HR receipt or a new action cannot reveal citations after access ends', async () => {
+    const service = app();
+    const created = await service.execute('hr', {
+      action: 'create',
+      input: command(),
+    });
+    if (created.status !== 'success') throw new Error(created.status);
+    const draft = selectionRevisionSchema.parse(created.result);
+    const save = {
+      action: 'save' as const,
+      input: {
+        operationId: 'save-before-revoke',
+        draftId: draft.id,
+        expectedRevision: draft.revision,
+        reason: 'HR核对（演示）',
+        changes: [
+          {
+            kind: 'add' as const,
+            after: {
+              id: 'hr-point',
+              title: 'HR修改（演示）',
+              description: '使用本人实际交付',
+            },
+          },
+        ],
+      },
+    };
+    const saved = await service.execute('hr', save);
+    if (saved.status !== 'success') throw new Error(saved.status);
+    const revision = selectionRevisionSchema.parse(saved.result);
+    expect((await service.execute('hr', save)).status).toBe('success');
+    await db().update(enrollments).set({ revokedAt: '2026-10-31' });
+    // Same operation id: the stored receipt is not a current grant.
+    expect(await service.execute('hr', save)).toEqual({
+      status: 'forbidden',
+      message: '归因引用不在当前授权范围或来源已变化',
+    });
+    // New operation id on the same draft is refused the same way.
+    expect(
+      await service.execute('hr', {
+        action: 'submit',
+        input: {
+          operationId: 'submit-after-revoke',
+          draftId: revision.id,
+          expectedRevision: revision.revision,
+          expectedPreviewId: revision.impactPreview.id,
+        },
+      }),
+    ).toEqual({
+      status: 'forbidden',
+      message: '归因引用不在当前授权范围或来源已变化',
+    });
+    expect((await db().select().from(selectionRevisions))[0].state).toBe(
+      'draft',
+    );
   });
   it('trusted next-cohort change invalidates the saved preview before HR save', async () => {
     const created = await app().execute('hr', {

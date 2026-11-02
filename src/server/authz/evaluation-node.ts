@@ -85,6 +85,20 @@ function currentNodeRelations(
   );
 }
 
+function hrCohortAllowsSubject(
+  ctx: EvaluationAuthzContext,
+  cohortId: string | null,
+  node: EvaluationNode,
+  personId: string,
+): boolean {
+  return ctx.enrollments.some(
+    (entry) =>
+      entry.personId === personId &&
+      entry.cohortId === cohortId &&
+      isCurrent(entry, ctx.now) &&
+      (entry.confirmed || node.cohortId === entry.cohortId),
+  );
+}
 function hrGrantAllowsSubject(
   ctx: EvaluationAuthzContext,
   grant: Grant,
@@ -93,13 +107,23 @@ function hrGrantAllowsSubject(
 ): boolean {
   return (
     grant.role === 'hr' &&
-    ctx.enrollments.some(
-      (entry) =>
-        entry.personId === personId &&
-        entry.cohortId === grant.cohortId &&
-        isCurrent(entry, ctx.now) &&
-        (entry.confirmed || node.cohortId === entry.cohortId),
-    )
+    hrCohortAllowsSubject(ctx, grant.cohortId, node, personId)
+  );
+}
+
+/** Whether the HR of `cohortId` currently has source access to this node subject.
+ * Viewer-independent, so a figure computed under the HR rule (for example the
+ * selection impact preview) is the same whoever recomputes it.
+ */
+export function cohortHrCanReadNodeSubject(
+  ctx: EvaluationAuthzContext,
+  cohortId: string,
+  evaluationNodeId: string,
+  personId: string,
+): boolean {
+  const node = nodeForSubject(ctx, evaluationNodeId, personId);
+  return (
+    node !== undefined && hrCohortAllowsSubject(ctx, cohortId, node, personId)
   );
 }
 

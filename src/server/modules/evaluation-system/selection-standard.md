@@ -6,7 +6,7 @@
 
 `selection-standard.ts` 提供无数据库副作用的领域计划，`server/usecases/selection-standard.ts` 编排可信账号、当前服务端权限、领域计划、审计和操作回执。`selection/postgres.ts` 新增六表的原生事务适配，复用 922 类别锁、按时读取和区段切换。公共出口与最终迁移仍只由 X1 修改。
 
-适配要求调用方提供同一原生事务内的 `loadAuthority`、`creationFacts`、`readImpact`、`readCohort`；缺一个就拒绝构造，没有管理员或内存事实兜底。`createNativeSelectionLifecycle` 已用同事务的真实目录授权、919 canonical、921已确认归因/提案及922/918标准绑定装配这些端口，详见下节。Web action/query 尚未接线；显式基线导入及最小期次创建/绑定/读取仍在同一 native 用例文件。原postgres协议测试的合成端口与新增真实装配测试分别记录，不相互冒充。
+适配要求调用方提供同一原生事务内的 `loadAuthority`、`creationFacts`、`verifyBasisDisclosure`、`readImpact`、`readCohort`；缺一个就拒绝构造，没有管理员或内存事实兜底。`createNativeSelectionLifecycle` 已用同事务的真实目录授权、919 canonical、921已确认归因/提案及922/918标准绑定装配这些端口，详见下节。Web action/query 尚未接线；显式基线导入及最小期次创建/绑定/读取仍在同一 native 用例文件。原postgres协议测试的合成端口与新增真实装配测试分别记录，不相互冒充。
 
 最终迁移在846 → 845 → 873主链之后按X1游标生成；当前不提交 SQL、journal 或 snapshot。917/922已合入；919/921实际代码依赖与正式迁移未齐，默认CI仍不能通过，本卡保持Draft+blocked。补齐必要门禁后转Ready for review，处理当前head审查与connector，不把Draft交接当整卡完成。
 
@@ -43,7 +43,7 @@
 
 922 保存每次生效的独立区段：v1 `[t0,t1)`、v2 `[t1,t2)`、恢复 v1 的新段 `[t2,∞)`。不伸展旧 v1 区段抹去历史。同毫秒的空段保留操作留痕但不作为有效版本返回；反向、未来、重叠、旧 period 冲突保留真实失败语义。全局只读门面若不含 conflict，须在接线前协调，不能伪装 not_found。
 
-同账号操作键重放先重新核当前可见范围，再返回 ledger；相同键异语义 conflict，不重复写状态或审计。事务结束前核持久计划、审计及 ledger 已配套，未完成协议则回滚。固定账号操作键与类别锁使用 PostgreSQL 既有事务 advisory 锁，没有新扩展或服务。
+同账号操作键重放先重新核当前可见范围，再返回 ledger。带 HR 私有依据的结果（create/save/submit/withdraw），无论新操作还是重放，返回前都按当前节点关系重核每条归因引用，撤权后返回 forbidden；相同键异语义 conflict，不重复写状态或审计。事务结束前核持久计划、审计及 ledger 已配套，未完成协议则回滚。固定账号操作键与类别锁使用 PostgreSQL 既有事务 advisory 锁，没有新扩展或服务。
 
 ## 期次绑定
 
@@ -80,7 +80,7 @@
 
 - `selection-standard-facts.ts` 先读取归因/批次的路由元数据、核当前HR范围，再读真实签名归因；行锁保留归因/提案直到事务提交。每个引用重核当前两节点权限与真实source版本、位置和全文，历史署名不产生当前权限。归因修订或基准版变化即冲突。
 - 管理者摘要仅在服务器内把真实canonical送现有919算法，计偏差人数并保留归因类别；不向管理者返回人名、原文、评价人数字，不另建页面loadBatch或复制算法。
-- 影响预览读取真实已绑定期次和canonical前段判断。按人、前段节点、判断稳定ID去重；缺前段不计，HR无当前前段可见权限不计。保存的scope在刷新/发布时保持，管理者不会扩大成全库范围。持有comparison批次表SHARE锁和既有逐行读取锁，防止确认预览与发布之间新导入批次改变计数。最终仍使用原918发布事务及922区段切换。
+- 影响预览读取真实已绑定期次和canonical前段判断。按人、前段节点、判断稳定ID去重；缺前段不计；按该期次 HR 的当前来源规则计数（人员在该期次有当前在营记录、非不参与评价、属于前段节点），与调用者身份无关，所以 HR 保存的预览与管理者发布时的重算口径一致。保存的scope在刷新/发布时保持，管理者不会扩大成全库范围。持有comparison批次表SHARE锁和既有逐行读取锁，防止确认预览与发布之间新导入批次改变计数。最终仍使用原918发布事务及922区段切换。
 - `adoptProposal` 只读取921已保存且归因/基准版完全匹配的提案，新建draft时保留AI原稿，humanVersion仍null。真实HR save才产生hr_edited。重放返回原回执，迟到提案没有修改既有人工作品的入口；相同操作号不同提案使用不同内部操作键，不混淆幂等事实。
 - `selection-standard-facts.integration.test.ts` 实跑真实初始化→绑定→canonical持久化→921确认/提案持久化→918采用→HR修改→提交→管理者发布，以及撤权、引用漂移、旧归因/标准、去重、预览变化和只读查询。唯一模型为明确离线替身；上游921仍注入显式化名ComparisonDataset，仅证明实际921存储/权限和918读端，不证明尚未交接的共享canonical到921页面DTO转换。没有供应商调用。
 

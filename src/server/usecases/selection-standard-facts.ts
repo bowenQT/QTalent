@@ -13,6 +13,7 @@ import { activeGrants } from '../authz';
 import {
   canReadNodeTalent,
   canManageNodeAssignments,
+  cohortHrCanReadNodeSubject,
 } from '../authz/evaluation-node';
 import { people } from '../modules/directory';
 import { cohorts } from '../modules/programs';
@@ -269,9 +270,6 @@ export async function readNativeSelectionImpact(
   );
   if (currentIdentity.context.account.personId !== authority.actor.id)
     throw new SelectionLifecycleError('forbidden', '当前账号绑定已变化');
-  const manager = activeGrants(currentIdentity.context).some(
-    (grant) => grant.role === 'manager' && grant.scope === 'company',
-  );
   const results = new Map<
     string,
     { cohortId: string; standardVersionId: string; identities: Set<string> }
@@ -287,18 +285,16 @@ export async function readNativeSelectionImpact(
       identities: new Set<string>(),
     };
     for (const unit of snapshot.facts.cases)
+      // Counted under the cohort HR's current source rule, not the caller's own
+      // reach: HR's saved preview and the manager's publish check must agree.
       if (
         unit.front.state === 'present' &&
-        (manager ||
-          canReadNodeTalent(
-            currentIdentity.context,
-            {
-              evaluationNodeId: unit.frontNodeId,
-              personId: unit.personId,
-              kind: 'evaluation',
-            },
-            'source-read',
-          ))
+        cohortHrCanReadNodeSubject(
+          currentIdentity.context,
+          cohortId,
+          unit.frontNodeId,
+          unit.personId,
+        )
       )
         group.identities.add(
           JSON.stringify([
@@ -320,6 +316,70 @@ export async function readNativeSelectionImpact(
 }
 
 /** Only routing metadata is loaded before current scope authorization. */
+/** The signed basis must still be entirely disclosed to the current caller.
+ * Historical signature does not create a current grant; full row identity is
+ * compared, not just ids.
+ */
+async function disclosedBasisCases(
+  tx: Transaction,
+  authority: SelectionAuthority,
+  snapshot: CanonicalComparisonSnapshot,
+  basis: z.infer<typeof revisionEligibleAttributionSchema>,
+) {
+  const identity = await loadEvaluationContext(
+    tx,
+    authority.context.account.id,
+    authority.context.now,
+  );
+  if (identity.context.account.personId !== authority.actor.id)
+    throw new SelectionLifecycleError('forbidden', '当前账号绑定已变化');
+  const facts = await summaryFacts(tx, snapshot);
+  const allowed = facts.cases.filter((unit) =>
+    [unit.frontNodeId, unit.backNodeId].every(
+      (evaluationNodeId) =>
+        canManageNodeAssignments(
+          identity.context,
+          evaluationNodeId,
+          unit.person.id,
+        ) &&
+        canReadNodeTalent(
+          identity.context,
+          { evaluationNodeId, personId: unit.person.id, kind: 'evaluation' },
+          'source-read',
+        ),
+    ),
+  );
+  for (const citation of basis.citations) {
+    const unit = allowed.find((c) => c.id === citation.caseId);
+    const stage = unit?.[citation.side];
+    if (
+      !stage ||
+      stage.state !== 'present' ||
+      citation.nodeId !== stage.judgment.nodeId ||
+      citation.standardVersionId !== stage.judgment.standardVersionId ||
+      !same(comparisonTableRowSchema.parse(citation.row), stage.judgment.row)
+    )
+      throw new SelectionLifecycleError(
+        'forbidden',
+        '归因引用不在当前授权范围或来源已变化',
+      );
+  }
+  return { identity, facts, allowed };
+}
+
+/** Re-checks a stored private basis before any HR revision (new or replayed)
+ * returns its citations. */
+export async function assertSelectionBasisDisclosed(
+  tx: Transaction,
+  authority: SelectionAuthority,
+  raw: unknown,
+) {
+  const basis = revisionEligibleAttributionSchema.parse(raw);
+  const snapshot = await authorizedCanonical(tx, authority, basis.batchId);
+  authorizeSelectionAction(authority, 'hr', snapshot.facts.batch.cohortId);
+  await disclosedBasisCases(tx, authority, snapshot, basis);
+}
+
 export async function readNativeSelectionCreationFacts(
   tx: Transaction,
   authority: SelectionAuthority,
@@ -355,46 +415,12 @@ export async function readNativeSelectionCreationFacts(
     Date.parse(row.confirmedAt) !== Date.parse(basis.confirmedAt)
   )
     conflict();
-  const identity = await loadEvaluationContext(
+  const { identity, facts, allowed } = await disclosedBasisCases(
     tx,
-    authority.context.account.id,
-    authority.context.now,
+    authority,
+    snapshot,
+    basis,
   );
-  if (identity.context.account.personId !== authority.actor.id)
-    throw new SelectionLifecycleError('forbidden', '当前账号绑定已变化');
-  const facts = await summaryFacts(tx, snapshot);
-  const allowed = facts.cases.filter((unit) =>
-    [unit.frontNodeId, unit.backNodeId].every(
-      (evaluationNodeId) =>
-        canManageNodeAssignments(
-          identity.context,
-          evaluationNodeId,
-          unit.person.id,
-        ) &&
-        canReadNodeTalent(
-          identity.context,
-          { evaluationNodeId, personId: unit.person.id, kind: 'evaluation' },
-          'source-read',
-        ),
-    ),
-  );
-  // The signed basis must still be entirely disclosed now. Historical signature
-  // does not create a current grant; full row identity is compared, not just ids.
-  for (const citation of basis.citations) {
-    const unit = allowed.find((c) => c.id === citation.caseId);
-    const stage = unit?.[citation.side];
-    if (
-      !stage ||
-      stage.state !== 'present' ||
-      citation.nodeId !== stage.judgment.nodeId ||
-      citation.standardVersionId !== stage.judgment.standardVersionId ||
-      !same(comparisonTableRowSchema.parse(citation.row), stage.judgment.row)
-    )
-      throw new SelectionLifecycleError(
-        'forbidden',
-        '归因引用不在当前授权范围或来源已变化',
-      );
-  }
   const standard = await readCurrentSelectionStandard(
     tx,
     input.baseVersionId,

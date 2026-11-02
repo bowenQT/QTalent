@@ -13,6 +13,7 @@ import {
   type SelectionOperation,
 } from './selection-standard';
 import {
+  SelectionLifecycleError,
   type SelectionRevisionRecord,
   type SelectionAuthority,
 } from '../modules/evaluation-system/selection-standard';
@@ -151,6 +152,7 @@ function harness() {
       },
     })),
     readRevision: vi.fn(async (tx, id) => tx.records.get(id) ?? null),
+    verifyBasisDisclosure: vi.fn(async () => {}),
     readImpact: vi.fn(async () => ({
       nextCohort: iterationDemoNextCohort,
       existingResults: selectionImpactPreviewFixture().existingResults,
@@ -303,6 +305,42 @@ it('replays an identical request once, preserves input for semantic conflicts, a
   expect(denied.status).toBe('forbidden');
   expect(denied).not.toHaveProperty('result');
   expect(h.state().audits).toHaveLength(1);
+});
+it('rechecks citation disclosure before any HR receipt, replayed or new, but not for manager results', async () => {
+  const h = harness();
+  const revision = await pending(h);
+  const verify = vi.mocked(h.ports.verifyBasisDisclosure);
+  // create, save and submit each checked their basis once on the way in.
+  expect(verify).toHaveBeenCalledTimes(2);
+  expect(verify.mock.calls[0][2]).toEqual(revision.basis);
+  verify.mockClear();
+  const returned = await h.execute(managerAccount, 'return', {
+    operationId: 'return-checked',
+    draftId: revision.id,
+    expectedRevision: revision.revision,
+    reason: '演示：补充说明',
+  });
+  expect(returned.status).toBe('success');
+  expect(verify).not.toHaveBeenCalled();
+  verify.mockRejectedValue(
+    new SelectionLifecycleError('forbidden', '归因引用不在当前授权范围'),
+  );
+  const stored = h.state().records.get(revision.id)!.revision;
+  const audits = h.state().audits.length;
+  expect(await h.execute(hrAccount, 'create', create)).toEqual({
+    status: 'forbidden',
+    message: '归因引用不在当前授权范围',
+  });
+  expect(
+    await h.execute(hrAccount, 'submit', {
+      operationId: 'submit-after-revoke',
+      draftId: stored.id,
+      expectedRevision: stored.revision,
+      expectedPreviewId: stored.impactPreview.id,
+    }),
+  ).toMatchObject({ status: 'forbidden' });
+  expect(verify).toHaveBeenCalledTimes(2);
+  expect(h.state().audits).toHaveLength(audits);
 });
 it('uses the saved preview for return/withdraw flows and keeps private attribution out of manager responses', async () => {
   const h = harness();
@@ -569,6 +607,9 @@ function nativeReadBoundary() {
       return value;
     }),
     creationFacts: vi.fn(async () => {
+      throw new Error('not installed in this unit harness');
+    }),
+    verifyBasisDisclosure: vi.fn(async () => {
       throw new Error('not installed in this unit harness');
     }),
     readImpact: vi.fn(async () => {

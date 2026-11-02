@@ -22,6 +22,7 @@ import {
 } from '../modules/evaluation-system/selection/postgres';
 
 import {
+  assertSelectionBasisDisclosed,
   readNativeSelectionCreationFacts,
   readNativeSelectionImpact,
   readNativeSelectionProposal,
@@ -274,6 +275,7 @@ export function createNativeSelectionLifecycle(
         }
         return readNativeSelectionCreationFacts(tx, authority, input, next);
       },
+      verifyBasisDisclosure: assertSelectionBasisDisclosed,
       async readImpact(tx, authority, record) {
         const saved = record.revision.impactPreview;
         if (

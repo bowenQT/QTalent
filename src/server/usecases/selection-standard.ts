@@ -143,6 +143,13 @@ export interface SelectionStandardPorts<Tx> {
     tx: Tx,
     draftId: string,
   ): Promise<SelectionRevisionRecord | null>;
+  /** Before any HR revision (new or replayed) returns its private basis, re-check
+   * that every citation is still disclosed to this caller now. */
+  verifyBasisDisclosure(
+    tx: Tx,
+    authority: SelectionAuthority,
+    basis: SelectionRevisionRecord['revision']['basis'],
+  ): Promise<void>;
   /** Current facts for the SAME saved preview scope, not a new manager-global preview. */
   readImpact(
     tx: Tx,
@@ -244,6 +251,13 @@ async function currentSelection<Tx>(
   return result.version;
 }
 
+/** HR results carry the case-level basis; manager results and receipts do not. */
+const revealsPrivateBasis = (action: SelectionRevisionCommand['action']) =>
+  action === 'create' ||
+  action === 'save' ||
+  action === 'submit' ||
+  action === 'withdraw';
+
 /** accountId comes from requireSession/verified server identity, never browser roles. */
 export async function executeSelectionRevision<Tx>(
   ports: SelectionStandardPorts<Tx>,
@@ -291,6 +305,13 @@ export async function executeSelectionRevision<Tx>(
             throw new SelectionLifecycleError(
               'conflict',
               '同一提交编号不能用于不同内容',
+            );
+          // A stored receipt is not a current grant to its citations.
+          if (revealsPrivateBasis(command.action))
+            await ports.verifyBasisDisclosure(
+              tx,
+              authority,
+              selectionRevisionSchema.parse(previous.result).basis,
             );
           return schema.parse({
             status: 'success',
@@ -369,6 +390,12 @@ export async function executeSelectionRevision<Tx>(
           );
           for (const cohort of visibleCohorts(loaded))
             authorizeSelectionAction(authority, requiredRole(command), cohort);
+          if (revealsPrivateBasis(command.action))
+            await ports.verifyBasisDisclosure(
+              tx,
+              authority,
+              loaded.revision.basis,
+            );
           switch (command.action) {
             case 'save':
               record = planSaveSelectionRevision(

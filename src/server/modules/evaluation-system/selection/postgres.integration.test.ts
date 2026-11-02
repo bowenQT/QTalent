@@ -229,6 +229,9 @@ function readers(): SelectionPostgresServices {
         impact: await impact(tx),
       };
     },
+    // Synthetic sources here carry no node relations; disclosure rechecks
+    // run against real 919/921 facts in selection-standard-facts tests.
+    verifyBasisDisclosure: async () => {},
     readImpact: async (tx, _authority, record) => {
       void _authority;
       const saved = record.revision.impactPreview;
