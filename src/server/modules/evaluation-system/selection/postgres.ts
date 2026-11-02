@@ -1124,12 +1124,23 @@ export function createSelectionPostgresStore(
         authorizeSelectionAction(authority(tx), 'manager');
       else if (purpose !== 'hr')
         throw new SelectionPersistenceUnavailableError();
-      const found = await record(tx, draftId);
-      if (found && purpose === 'hr') {
-        for (const cohortId of scope(found))
-          authorizeSelectionAction(authority(tx), 'hr', cohortId);
-        await assertDisclosed(tx, found.revision);
+      let found: SelectionRevisionRecord | null;
+      try {
+        found = await record(tx, draftId);
+        if (found && purpose === 'hr')
+          for (const cohortId of scope(found))
+            authorizeSelectionAction(authority(tx), 'hr', cohortId);
+      } catch (error) {
+        // A draft outside this account's cohorts reads as a missing one, so an
+        // HR of another cohort cannot learn that it exists.
+        if (
+          error instanceof SelectionLifecycleError &&
+          error.status === 'forbidden'
+        )
+          return null;
+        throw error;
       }
+      if (found && purpose === 'hr') await assertDisclosed(tx, found.revision);
       return found;
     },
     async readImpact(tx, current, revision) {
