@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ShellData } from '@/contracts/shell';
+import { ToastProvider } from '@/components/ui/Toast';
 import { fixtures } from '../../../../tests/fixtures/p0-contracts';
 import PersonPage, { generateMetadata } from './page';
 import { loadPersonPage, personIdOf } from './person-page';
@@ -47,7 +48,7 @@ const shell: ShellData = {
   isAdmin: false,
   role: 'manager',
 };
-const [manager] = fixtures.person;
+const [manager, mentor] = fixtures.person;
 const params = (value: Record<string, string | string[] | undefined>) => ({
   searchParams: Promise.resolve(value),
 });
@@ -70,14 +71,34 @@ afterEach(() => {
 
 describe('person route', () => {
   it('renders the profile and titles it with the name', async () => {
-    render(await PersonPage(params({ id: 'test-person-001' })));
+    // The desk shell provides the toasts the print entry uses.
+    render(
+      <ToastProvider>
+        {await PersonPage(params({ id: 'test-person-001' }))}
+      </ToastProvider>,
+    );
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain(
       NAME,
     );
+    expect(screen.getByRole('button', { name: '打印档案' })).toBeTruthy();
     expect(personQuery).toHaveBeenCalledWith({ id: 'test-person-001' });
     expect(await generateMetadata(params({ id: 'test-person-001' }))).toEqual({
       title: `${NAME} · Niu-Talent`,
     });
+  });
+
+  it('gives the mentor no print entry, only the line a plain browser print shows', async () => {
+    personQuery.mockResolvedValue({ status: 'success', person: mentor });
+    const { container } = render(
+      <ToastProvider>
+        {await PersonPage(params({ id: mentor.person.id }))}
+      </ToastProvider>,
+    );
+    expect(screen.queryByRole('button', { name: '打印档案' })).toBeNull();
+    expect(container.querySelector('.nt-head__acts')).toBeNull();
+    expect(document.getElementById('print-sheet')?.textContent).toContain(
+      '档案打印只对管理者和这个人的归属 HR 开放',
+    );
   });
 
   it('treats missing, repeated or out-of-scope ids as not found, without the name', async () => {
