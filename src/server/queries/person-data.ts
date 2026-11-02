@@ -2,6 +2,7 @@ import 'server-only';
 import type { Database } from '../db/client';
 import { loadEvaluationContext } from '../usecases/evaluation-context';
 import { readEvidenceForTalent } from '../modules/records';
+import { readIntakeTable } from '../usecases/talent-source-projection';
 import { readTalentEvaluationRules } from '../modules/evaluation-system';
 import { readActiveConfirmations } from '../modules/talent';
 import { employments } from '../modules/directory';
@@ -27,6 +28,9 @@ export async function loadPersonData(
         ...(await readEvidenceForTalent(tx)),
         ...(await readTalentEvaluationRules(tx)),
         confirmations: await readActiveConfirmations(tx),
+        // Same repeatable-read snapshot, before any person/source filtering.
+        // Superseded inputs and other creators remain provenance restrictions.
+        intake: await readIntakeTable(tx, 'snapshot'),
         // Batch names and hire dates for the identity header.
         cohorts: await tx.select().from(cohorts),
         employments: await tx.select().from(employments),
@@ -40,7 +44,7 @@ export {
   eventSubject,
   historicalSubject,
   sourceKey,
-  talentSources,
+  completeTalentSources,
 } from '../usecases/talent-source-projection';
 /** Public date fields use the business day; authorization keeps the complete instant. */
 export const personBusinessDay = (data: PersonData) =>

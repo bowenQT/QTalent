@@ -1,20 +1,93 @@
+import { sql } from 'drizzle-orm';
+import type { Transaction } from '../db/client';
 import type {
   TalentSource,
   TalentSubject,
   TalentKind,
   TalentAuthorizationContext,
 } from '../authz/talent';
-import type { readEvidenceForTalent } from '../modules/records';
+import {
+  arrangeInputs,
+  type readEvidenceForTalent,
+  type StoredArrangeInput,
+} from '../modules/records';
+import { confirmationSources } from './record-confirmation-sources';
+import { sourceKey } from './source-key';
+export { sourceKey } from './source-key';
 
 /** Complete raw provenance, including withdrawn events and every shared subject.
  * This graph is not a permission grant or an immutable-version/locator check.
  * Callers still apply current authorization and validate the actual original.
  */
-export type TalentSourceProjectionData = Awaited<
+export type RawTalentSourceData = Awaited<
   ReturnType<typeof readEvidenceForTalent>
 > & {
   context: TalentAuthorizationContext;
   staffing: { projects: { id: string; cohortId: string | null }[] };
+};
+
+/** The whole arrange_inputs table, unfiltered. Only readIntakeTable creates one;
+ * it is registered in a module-private WeakSet, its rows are a frozen private
+ * copy, and intakeRows refuses anything not issued here. A spread copy or a
+ * hand-built `{ rows }` is not registered, so no caller can swap in a subset. */
+class IssuedIntakeTable {
+  readonly #rows: readonly StoredArrangeInput[];
+  constructor(rows: StoredArrangeInput[]) {
+    this.#rows = deepFreeze(structuredClone(rows));
+  }
+  get rows(): readonly StoredArrangeInput[] {
+    return this.#rows;
+  }
+}
+export type IntakeTable = IssuedIntakeTable;
+const issued = new WeakSet<object>();
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const item of Object.values(value)) deepFreeze(item);
+  }
+  return value;
+}
+/** The rows of a table issued by readIntakeTable; throws for anything else. */
+export function intakeRows(table: IntakeTable): readonly StoredArrangeInput[] {
+  if (!issued.has(table))
+    throw new Error('intake table was not read by readIntakeTable');
+  return table.rows;
+}
+
+/** Read every intake row: no creator, person, batch or superseded filter.
+ * - 'snapshot': read-only paths inside the caller's own snapshot, no lock. Safe
+ *   under READ COMMITTED as well, because intake rows only ever add subjects and
+ *   requiredKinds to a fragment; a concurrent intake can only narrow access.
+ * - 'locked': paths that write other tables or hand sources to the model. SHARE
+ *   fences intake DML until commit. Take it before batch / draft locks.
+ * - 'locked-for-write': the transaction itself inserts or updates intake rows.
+ *   SHARE ROW EXCLUSIVE is self-exclusive, so two writers cannot both hold SHARE
+ *   and then deadlock upgrading to write. Take it as the first lock.
+ * Calling it again in the same transaction re-reads, including own inserts. */
+export async function readIntakeTable(
+  tx: Transaction,
+  mode: 'snapshot' | 'locked' | 'locked-for-write',
+): Promise<IntakeTable> {
+  if (mode !== 'snapshot') await lockIntakeTable(tx, mode);
+  const table = new IssuedIntakeTable(await tx.select().from(arrangeInputs));
+  issued.add(table);
+  return table;
+}
+/** Take the intake lock alone, as a transaction's first lock (see readIntakeTable). */
+export async function lockIntakeTable(
+  tx: Transaction,
+  mode: 'locked' | 'locked-for-write',
+): Promise<void> {
+  await tx.execute(
+    mode === 'locked'
+      ? sql`lock table ${arrangeInputs} in share mode`
+      : sql`lock table ${arrangeInputs} in share row exclusive mode`,
+  );
+}
+
+export type TalentSourceProjectionData = RawTalentSourceData & {
+  intake: IntakeTable;
 };
 
 /** Permission requirement for the four approved, pinned prototype history kinds.
@@ -41,8 +114,8 @@ export function historicalEvaluationRequiredKind(row: {
 }
 
 export function eventSubject(
-  data: TalentSourceProjectionData,
-  event: TalentSourceProjectionData['events'][number],
+  data: RawTalentSourceData,
+  event: RawTalentSourceData['events'][number],
 ): TalentSubject {
   return {
     personId: event.personId,
@@ -57,8 +130,8 @@ export function eventSubject(
   };
 }
 export function historicalSubject(
-  data: TalentSourceProjectionData,
-  row: TalentSourceProjectionData['historical'][number],
+  data: RawTalentSourceData,
+  row: RawTalentSourceData['historical'][number],
   personId: string,
 ): TalentSubject {
   return {
@@ -70,12 +143,6 @@ export function historicalSubject(
       )?.cohortId ?? null,
   };
 }
-export function sourceKey(reference: {
-  fragmentId: string;
-  originalVersionId: string;
-}): string {
-  return JSON.stringify([reference.fragmentId, reference.originalVersionId]);
-}
 function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   const groups = new Map<string, T[]>();
   for (const row of rows) {
@@ -86,12 +153,32 @@ function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   }
   return groups;
 }
-/** Relations are indexed once per call: the full demo snapshot has ~1k
- * fragments, and per-fragment scans of every relation cost seconds per read.
- */
-export function talentSources(
+/** The only source projection: the formal graph plus every matching intake,
+ * superseded ones included. A fragment with no formal links (new text before
+ * its first save) takes its subjects from the matching intake contexts alone.
+ * Any matching intake that fails integrity checks, or a linked fragment with no
+ * formal subjects, yields no subjects, so every reader refuses it. Callers still
+ * apply current permissions to each subject of the result. */
+export function completeTalentSources(
   data: TalentSourceProjectionData,
 ): TalentSource[] {
+  return confirmationSources({
+    sources: rawTalentSourceGraph(data),
+    versions: data.versions,
+    originals: data.originals,
+    intake: data.intake,
+    linkedSourceKeys: new Set(
+      [...data.eventSources, ...data.historical].map(sourceKey),
+    ),
+  });
+}
+
+/** Formal events and history only, before any intake restriction. Private:
+ * every caller goes through completeTalentSources.
+ * Relations are indexed once per call: the full demo snapshot has ~1k
+ * fragments, and per-fragment scans of every relation cost seconds per read.
+ */
+function rawTalentSourceGraph(data: RawTalentSourceData): TalentSource[] {
   const linksBySource = groupBy(data.eventSources, sourceKey);
   const eventOrder = new Map(
     data.events.map((event, index) => [event.id, index]),
@@ -107,7 +194,7 @@ export function talentSources(
       .filter((row) => row.kind === 'management_observation')
       .map(sourceKey),
   );
-  return data.fragments.map((fragment) => {
+  const sources: TalentSource[] = data.fragments.map((fragment) => {
     const reference = {
       fragmentId: fragment.id,
       originalVersionId: fragment.originalVersionId,
@@ -162,4 +249,5 @@ export function talentSources(
       location: fragment.location,
     };
   });
+  return sources;
 }
