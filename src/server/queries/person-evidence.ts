@@ -383,6 +383,9 @@ export async function collectEvidence(
       category: row.category,
       sources: row.sources,
     }));
+  // A history row taken from a key event the caller can read (the weekly review
+  // of that event) repeats it on the timeline; the key event keeps its sources.
+  const shownEvents = new Set(keyEvents.map((row) => row.id));
   const history: TimelineEntry[] = data.historical.flatMap((row) => {
     const members = data.historicalParticipants
       .filter((item) => item.evaluationId === row.id)
@@ -412,7 +415,8 @@ export async function collectEvidence(
       sources,
       'person-profile',
     );
-    if (!projected || !row.scale.length) return [];
+    if (!projected || !row.scale.length || shownEvents.has(row.sourceRecordId))
+      return [];
     return [
       {
         kind: 'history' as const,

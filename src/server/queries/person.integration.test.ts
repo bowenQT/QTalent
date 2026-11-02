@@ -217,6 +217,16 @@ it('projects actual pinned seed observations and ended project participation', a
         expect(item.category).toBe('management-observation');
         expect(item.sources.length).toBeGreaterThan(0);
       }
+      // Weekly reviews repeat these readable key events and are not listed.
+      const weekly = mapped.evidence.historicalEvaluations.filter(
+        (row) => row.personId === target && row.kind === '训练营周评',
+      );
+      expect(weekly.length).toBeGreaterThan(0);
+      for (const row of weekly)
+        expect(events.map((item) => item.id)).toContain(row.sourceRecordId);
+      expect(
+        profile.timeline.data.some((row) => row.title.startsWith('训练营周评')),
+      ).toBe(false);
       for (const item of profile.timeline.data.filter(
         (row) => row.kind === 'history',
       ))
@@ -238,6 +248,12 @@ it('projects actual pinned seed observations and ended project participation', a
       throw new Error('Missing timeline');
     expect(
       restricted.timeline.data.every((row) => row.kind === 'history'),
+    ).toBe(true);
+    // Their key events are hidden from the mentor, so the weekly reviews stay.
+    expect(
+      restricted.timeline.data.some((row) =>
+        row.title.startsWith('训练营周评'),
+      ),
     ).toBe(true);
     expect(JSON.stringify(restricted)).not.toContain('management-observation');
     expect(restricted).not.toHaveProperty('managementObservations');
