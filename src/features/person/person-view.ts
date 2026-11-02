@@ -186,8 +186,8 @@ export function headerSecondLine(person: Person): string {
 }
 
 export function headerFirstLine(person: Person): string {
-  const { teamPath, jobTitle, level } = person.person;
-  return [teamPath, jobTitle, level].filter(Boolean).join(' · ');
+  const { orgPath, jobTitle, level } = person.person;
+  return [orgPath, jobTitle, level].filter(Boolean).join(' · ');
 }
 
 /** 事件卡标题上的引用与某个分自己的引用是同一组时，分数行不再重复画角标。 */
