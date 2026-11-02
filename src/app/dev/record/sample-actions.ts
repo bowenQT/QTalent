@@ -6,7 +6,11 @@ import {
 import { materialReviewItemSchema } from '@/contracts/material-review';
 import {
   RECORD_UNDO_WINDOW_MS,
+  recordSaveResultSchema,
+  recordUndoResultSchema,
   type RecordBatchDraft,
+  type RecordSaveResult,
+  type RecordUndoResult,
 } from '@/contracts/record';
 import type {
   AnchorMap,
@@ -32,8 +36,10 @@ type Task = {
   startedAt: number;
   /** Drafts still awaiting confirmation, in batch order. */
   drafts: RecordBatchDraft[];
-  confirmed: { draftId: string; revision: number; eventId: string }[];
+  /** One event per person, as the server creates them. */
+  confirmed: { draftId: string; revision: number; events: EventMapping[] }[];
 };
+type EventMapping = { personId: string; eventId: string };
 
 /**
  * Stands in for the server behind the record page: material batches (BOW-897 receipts)
@@ -45,10 +51,21 @@ type Saved = {
   undoUntil: number;
   batchId: string;
   draft: RecordBatchDraft;
+  events: EventMapping[];
+};
+/**
+ * Operation ledger, kept apart from the live saves as 846 does: the same operation_id
+ * with the same request replays its first answer (even after the undo window, or after
+ * the save it made was undone); with a different request it is a conflict.
+ */
+type Operation = {
+  request: string;
+  result: RecordSaveResult | RecordUndoResult;
 };
 type Stored = {
   tasks: [string, Task][];
   saves: [string, Saved][];
+  operations: [string, Operation][];
   serial: number;
   offline: boolean;
   conflict: boolean;
@@ -70,10 +87,11 @@ export function sampleServer({
   actions: RecordActions;
   loadAnchors: LoadAnchors;
 } {
-  const key = `qtalent-dev-record:${accountId}:${scene}`;
+  const key = `qtalent-dev-record:v2:${accountId}:${scene}`;
   const loaded = load();
   const tasks = new Map<string, Task>(loaded?.tasks);
   const saves = new Map<string, Saved>(loaded?.saves);
+  const operations = new Map<string, Operation>(loaded?.operations);
   let serial = loaded?.serial ?? 0;
   let offline = loaded?.offline ?? scene === 'offline';
   let conflict = loaded?.conflict ?? scene === 'conflict';
@@ -93,6 +111,7 @@ export function sampleServer({
     const value: Stored = {
       tasks: [...tasks],
       saves: [...saves],
+      operations: [...operations],
       serial,
       offline,
       conflict,
@@ -188,10 +207,7 @@ export function sampleServer({
       confirmedDrafts: task.confirmed.map((entry) => ({
         draftId: entry.draftId,
         revision: entry.revision,
-        events: task.input.personIds.map((personId) => ({
-          personId,
-          eventId: entry.eventId,
-        })),
+        events: entry.events,
       })),
       counts: {
         files: {
@@ -269,6 +285,12 @@ export function sampleServer({
         : { status: 'not_found', message: '批次不存在或当前不可见' };
     },
     async save(input) {
+      const { operation_id: operationId, ...request } = input;
+      const known = operations.get(operationId);
+      if (known)
+        return known.request === JSON.stringify(['save', request])
+          ? { ...(known.result as RecordSaveResult), replayed: true }
+          : { status: 'conflict', message: '同一次操作的内容变了', input };
       const found = findDraft(input.draftId);
       if (!found)
         return { status: 'not_found', message: '这条记录已失效，请重新整理' };
@@ -295,26 +317,30 @@ export function sampleServer({
         };
       const savedAt = now();
       const saveId = id('sample-save');
-      const eventId = id('sample-event');
+      const events = input.personIds.map((personId) => ({
+        personId,
+        eventId: id('sample-event'),
+      }));
       task.drafts = task.drafts.filter(
         (item) => item.draftId !== draft.draftId,
       );
       task.confirmed.push({
         draftId: draft.draftId,
         revision: draft.revision + 1,
-        eventId,
+        events,
       });
       saves.set(saveId, {
         undoUntil: savedAt + RECORD_UNDO_WINDOW_MS,
         batchId,
         draft,
+        events,
       });
-      return {
+      const result: RecordSaveResult = {
         status: 'success',
         replayed: false,
         result: {
           saveId,
-          events: input.personIds.map((personId) => ({ personId, eventId })),
+          events,
           revision: draft.revision + 1,
           confirmationIds: input.decisions
             .filter((d) => d.action !== 'unknown')
@@ -325,14 +351,25 @@ export function sampleServer({
           undoUntil: iso(savedAt + RECORD_UNDO_WINDOW_MS),
         },
       };
+      operations.set(operationId, {
+        request: JSON.stringify(['save', request]),
+        result: recordSaveResultSchema.parse(result),
+      });
+      return result;
     },
-    async undo({ saveId }) {
+    async undo(input) {
+      const { operation_id: operationId, saveId } = input;
+      const known = operations.get(operationId);
+      if (known)
+        return known.request === JSON.stringify(['undo', saveId])
+          ? { ...(known.result as RecordUndoResult), replayed: true }
+          : { status: 'conflict', message: '同一次操作的内容变了', input };
       const saved = saves.get(saveId);
       if (!saved || now() >= saved.undoUntil)
         return {
           status: 'conflict',
           message: '已超过撤销时间，这条记录已保存',
-          input: { operation_id: 'sample', saveId },
+          input,
         };
       saves.delete(saveId);
       const task = tasks.get(saved.batchId);
@@ -344,12 +381,12 @@ export function sampleServer({
         );
         task.drafts = [...task.drafts, restored];
       }
-      return {
+      const result: RecordUndoResult = recordUndoResultSchema.parse({
         status: 'success',
         replayed: false,
         result: {
           saveId,
-          withdrawnEvents: [],
+          withdrawnEvents: saved.events,
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
           // 回执给出撤销后再保存要用的草稿版本
@@ -364,7 +401,12 @@ export function sampleServer({
           inputRestoration: 'unavailable',
           originalInput: null,
         },
-      };
+      });
+      operations.set(operationId, {
+        request: JSON.stringify(['undo', saveId]),
+        result,
+      });
+      return result;
     },
     // Citations here quote the typed sentence only; nothing points at a stored source.
     loadSource: async () => ({

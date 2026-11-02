@@ -9,7 +9,6 @@ import {
   recordUndoInputSchema,
   recordUndoResultSchema,
   type RecordBatchDraft,
-  type RecordSaveInput,
   type RecordSaveResult,
   type RecordUndoInput,
   type RecordUndoResult,
@@ -43,9 +42,14 @@ type Saved = {
   draft: RecordBatchDraft;
   events: { personId: string; eventId: string }[];
   savedAt: number;
-  operationId: string;
-  key: string;
-  result: RecordSaveResult;
+};
+/**
+ * 操作台账，和当前有效的保存分开（照 846）：同一个 operation_id、同样的请求重放第一次的
+ * 结果，撤销之后、过了撤销时间也一样；请求变了就是冲突。
+ */
+type Operation = {
+  request: string;
+  result: RecordSaveResult | RecordUndoResult;
 };
 
 /**
@@ -62,8 +66,8 @@ export function createSampleServer(
   let conflictPending = scene === 'conflict';
   let drafts = scene === 'empty' ? [] : sampleDrafts.map((d) => ({ ...d }));
   const saved = new Map<string, Saved>();
-  // 撤销按 operation_id 幂等：同一次撤销重发，返回原结果
-  const undone = new Map<string, RecordUndoResult>();
+  const operations = new Map<string, Operation>();
+  let serial = 0;
   const items = scene === 'empty' ? [] : sampleItems;
   const me = sampleAccount(role);
 
@@ -140,9 +144,8 @@ export function createSampleServer(
     };
   }
 
-  const keyOf = (input: RecordSaveInput) => {
-    return JSON.stringify({ ...input, operation_id: undefined });
-  };
+  const requestOf = (kind: 'save' | 'undo', input: object) =>
+    JSON.stringify([kind, { ...input, operation_id: undefined }]);
 
   return {
     async read(batchId): Promise<ReceiptReadResult> {
@@ -154,12 +157,10 @@ export function createSampleServer(
 
     async save(raw): Promise<RecordSaveResult> {
       const input = recordSaveInputSchema.parse(raw);
-      const replay = [...saved.values()].find(
-        (s) => s.operationId === input.operation_id,
-      );
-      if (replay) {
-        if (replay.key === keyOf(input))
-          return { ...replay.result, replayed: true } as RecordSaveResult;
+      const known = operations.get(input.operation_id);
+      if (known) {
+        if (known.request === requestOf('save', input))
+          return { ...known.result, replayed: true } as RecordSaveResult;
         return recordSaveResultSchema.parse({
           status: 'conflict',
           message: '同一次操作的内容变了，请重新确认',
@@ -189,10 +190,12 @@ export function createSampleServer(
         });
       }
       const savedAt = now();
-      const saveId = `save-${draft.draftId}-${saved.size + undone.size + 1}`;
+      serial += 1;
+      const saveId = `save-${draft.draftId}-${serial}`;
+      // 每次保存逐人新建事件：撤销后再保存是新事件，编号不复用
       const events = draft.personIds.map((personId, i) => ({
         personId,
-        eventId: `ev-${draft.draftId}-${i + 1}`,
+        eventId: `ev-${draft.draftId}-${serial}-${i + 1}`,
       }));
       // 照 846：保存推进这件事的 revision，回执给出保存后的版本
       const savedDraft = { ...draft, revision: draft.revision + 1 };
@@ -219,8 +222,9 @@ export function createSampleServer(
         draft: savedDraft,
         events,
         savedAt,
-        operationId: input.operation_id,
-        key: keyOf(input),
+      });
+      operations.set(input.operation_id, {
+        request: requestOf('save', input),
         result,
       });
       return result;
@@ -228,8 +232,16 @@ export function createSampleServer(
 
     async undo(raw: RecordUndoInput): Promise<RecordUndoResult> {
       const input = recordUndoInputSchema.parse(raw);
-      const replay = undone.get(input.operation_id);
-      if (replay) return { ...replay, replayed: true } as RecordUndoResult;
+      const known = operations.get(input.operation_id);
+      if (known) {
+        if (known.request === requestOf('undo', input))
+          return { ...known.result, replayed: true } as RecordUndoResult;
+        return recordUndoResultSchema.parse({
+          status: 'conflict',
+          message: '同一次操作的内容变了',
+          input,
+        });
+      }
       const entry = saved.get(input.saveId);
       if (!entry)
         return recordUndoResultSchema.parse({
@@ -269,7 +281,10 @@ export function createSampleServer(
           originalInput: null,
         },
       });
-      undone.set(input.operation_id, result);
+      operations.set(input.operation_id, {
+        request: requestOf('undo', input),
+        result,
+      });
       return result;
     },
   };

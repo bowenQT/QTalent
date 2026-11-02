@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/components/ui/Toast';
 import type { MaterialBatchInput } from '@/contracts/materials';
 import { RECORD_UNDO_WINDOW_MS } from '@/contracts/record';
+import { buildSaveInput, initEdit } from '@/features/record/build-save-input';
+import { scoreKey } from '@/features/record/types';
 import RecordSample from './page';
 import { SampleRecord } from './SampleRecord';
 import { SAMPLE_NODE, STEP_MS, sampleServer } from './sample-actions';
@@ -231,20 +233,78 @@ describe('sample server', () => {
     expect(receipt.status).toBe('awaiting_confirmation');
   });
 
-  it('keeps everyone chosen: each person gets scores and an event on save', async () => {
+  it("keeps everyone chosen: both people's scores are submitted, each gets an event", async () => {
     const s = server();
     const both = [SUBJECT, 'p-x08'];
-    const { draft } = await arranged(s, input(SENTENCE, both));
+    const { batchId, draft } = await arranged(s, input(SENTENCE, both));
     expect(draft?.personIds).toEqual(both);
-    expect([...new Set(draft?.scores.map((score) => score.personId))]).toEqual(
-      both,
-    );
-    const saved = await s.actions.save({
-      ...saveInput(draft!.draftId, 1),
-      personIds: both,
-    });
+    // 页面真实的保存入参：第二个人改了分并写理由
+    const edit = initEdit(draft!);
+    const key = scoreKey('p-x08', 'mot');
+    edit.scores[key] = {
+      ...edit.scores[key]!,
+      value: 2,
+      touched: true,
+      reason: '演示理由',
+    };
+    const built = buildSaveInput(draft!, edit, 'op-both');
+    if (!built.ok) throw new Error(built.reason);
+    expect(built.input.personIds).toEqual(both);
+    expect(built.input.expected_revision).toBe(draft!.revision);
+    expect(
+      built.input.decisions
+        .filter((d) => d.dimensionId === 'mot')
+        .map((d) => [d.personId, d.action]),
+    ).toEqual([
+      [SUBJECT, 'confirm'],
+      ['p-x08', 'edit'],
+    ]);
+    expect(
+      built.input.decisions.find(
+        (d) => d.personId === 'p-x08' && d.action === 'edit',
+      ),
+    ).toMatchObject({ value: 2, reason: '演示理由' });
+    const saved = await s.actions.save(built.input);
     if (saved.status !== 'success') throw new Error(saved.status);
+    // 每人一个事件，编号互不相同，读回执时还是这两个
     expect(saved.result.events.map((event) => event.personId)).toEqual(both);
+    expect(new Set(saved.result.events.map((e) => e.eventId)).size).toBe(2);
+    expect((await s.read(batchId)).confirmedDrafts[0]?.events).toEqual(
+      saved.result.events,
+    );
+  });
+
+  it('replays operations like 846: same id and request replays, a changed request conflicts', async () => {
+    const s = server();
+    const { draft } = await arranged(s);
+    const first = await s.actions.save(saveInput(draft!.draftId, 1));
+    if (first.status !== 'success') throw new Error(first.status);
+    expect(await s.actions.save(saveInput(draft!.draftId, 1))).toEqual({
+      ...first,
+      replayed: true,
+    });
+    expect(
+      (
+        await s.actions.save({
+          ...saveInput(draft!.draftId, 1),
+          projectId: 'x',
+        })
+      ).status,
+    ).toBe('conflict');
+    const undo = { operation_id: 'op-u', saveId: first.result.saveId };
+    const undone = await s.actions.undo(undo);
+    expect(undone).toMatchObject({ status: 'success', replayed: false });
+    // 响应丢了再发同一次撤销：过了撤销时间也重放原结果
+    s.tick(RECORD_UNDO_WINDOW_MS + 1);
+    expect(await s.actions.undo(undo)).toEqual({ ...undone, replayed: true });
+    expect(
+      (await s.actions.undo({ ...undo, saveId: 'other-save' })).status,
+    ).toBe('conflict');
+    // 撤销之后，原保存的同一次操作仍重放原结果
+    expect(await s.actions.save(saveInput(draft!.draftId, 1))).toEqual({
+      ...first,
+      replayed: true,
+    });
   });
 
   it('offline scene: the first submit never arrives, the second does', async () => {
@@ -297,7 +357,7 @@ describe('sample server', () => {
   });
 
   it('starts over from broken storage', async () => {
-    sessionStorage.setItem('qtalent-dev-record:p-suwan:normal', '{');
+    sessionStorage.setItem('qtalent-dev-record:v2:p-suwan:normal', '{');
     const s = server('normal', sessionStorage);
     expect((await s.actions.submit(input())).status).toBe('success');
   });

@@ -449,6 +449,12 @@ describe('样张替身', () => {
       status: 'success',
       replayed: true,
     });
+    // 同一个编号换了要撤销的保存：是另一次请求，拒绝
+    expect(await server.undo({ ...undo, saveId: 'save-other' })).toMatchObject({
+      status: 'conflict',
+    });
+    // 撤销之后，原保存的同一次操作仍重放原结果
+    expect(await server.save(input)).toEqual({ ...first, replayed: true });
     expect(
       await server.save({ ...input, operation_id: 'stale' }),
     ).toMatchObject({ status: 'conflict' });
@@ -458,6 +464,10 @@ describe('样张替身', () => {
       expected_revision: 3,
     });
     if (again.status !== 'success') throw new Error('save failed');
+    // 撤销后再保存是新事件，编号不复用
+    expect(again.result.events[0]!.eventId).not.toBe(
+      first.result.events[0]!.eventId,
+    );
     now += RECORD_UNDO_WINDOW_MS;
     expect(
       await server.undo({ operation_id: 'u', saveId: again.result.saveId }),
