@@ -77,6 +77,7 @@ const undo = (body: unknown) =>
       headers: {
         'content-type': 'application/json',
         origin: 'https://app.test',
+        host: 'app.test',
       },
     }),
   );

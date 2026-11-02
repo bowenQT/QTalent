@@ -6,13 +6,19 @@ vi.mock('../../../../server/actions/record-undo-request', () => ({
   undoRecordForRequest: mocks.undo,
 }));
 
-const post = (body: string, origin: string | null = 'https://app.test') =>
+const post = (
+  body: string,
+  origin: string | null = 'https://app.test',
+  host: Record<string, string> = { host: 'app.test' },
+) =>
   POST(
-    new Request('https://app.test/api/record/undo', {
+    // TLS 在代理处终止：路由看到的是 http，浏览器送的 Origin 是 https
+    new Request('http://app.test/api/record/undo', {
       method: 'POST',
       body,
       headers: {
         'content-type': 'application/json',
+        ...host,
         ...(origin ? { origin } : {}),
       },
     }),
@@ -62,4 +68,18 @@ it('不是本站页面发来的撤销：拒绝，不调用撤销', async () => {
     expect(result.status).toBe(403);
   }
   expect(mocks.undo).not.toHaveBeenCalled();
+});
+
+it('经代理时按 x-forwarded-host 比对来源', async () => {
+  mocks.undo.mockResolvedValue({ status: 'success', replayed: false });
+  const ok = await post(JSON.stringify(input), 'https://niu.test', {
+    host: 'internal:3000',
+    'x-forwarded-host': 'niu.test',
+  });
+  expect(ok.status).toBe(200);
+  const spoof = await post(JSON.stringify(input), 'https://evil.test', {
+    host: 'internal:3000',
+    'x-forwarded-host': 'niu.test',
+  });
+  expect(spoof.status).toBe(403);
 });

@@ -25,9 +25,23 @@ const respond = (body: RecordUndoRequestResult | { status: 'unavailable' }) =>
     },
   });
 
+/**
+ * 只接受本站页面发来的撤销。和 Next 对 Server Action 的来源检查一样，比较 Origin 的主机和
+ * 请求的主机（经代理时取 x-forwarded-host），不比协议：TLS 在代理处终止时，请求 URL 是 http。
+ */
+function sameSite(headers: Headers) {
+  const origin = headers.get('origin');
+  const host = headers.get('x-forwarded-host') ?? headers.get('host');
+  if (!origin || !host) return false;
+  try {
+    return new URL(origin).host === host.split(',')[0]!.trim();
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
-  // 只接受本站页面发来的撤销
-  if (request.headers.get('origin') !== new URL(request.url).origin)
+  if (!sameSite(request.headers))
     return respond({ status: 'forbidden', message: '请求来源不对' });
   let body: unknown;
   try {

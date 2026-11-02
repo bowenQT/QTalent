@@ -415,9 +415,7 @@ describe('第二次裁决：撤销走路由、撤销结果按快照比对', () =
     );
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
     await user.click(undo);
-    await waitFor(() => expect(mocks.undo).toHaveBeenCalledTimes(1), {
-      timeout: 500,
-    });
+    await waitFor(() => expect(mocks.undo).toHaveBeenCalledTimes(1));
     expect(mocks.undo.mock.calls[0]![0]).toMatchObject({ saveId: 'save-1' });
     expect(await screen.findByText(copy.toast.undone)).toBeTruthy();
     releaseB(saved('save-2', 'ev-2', 'demo-event-draft-b'));
@@ -466,6 +464,7 @@ describe('第二次裁决：撤销走路由、撤销结果按快照比对', () =
     undos[1]!.ok(undone('save-1', 3, true));
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(card().dataset.state).toBe('confirmed');
+    expect(screen.queryByText(copy.toast.undone)).toBeNull();
     expect(
       within(card()).queryByRole('button', { name: /确认这件事/ }),
     ).toBeNull();
