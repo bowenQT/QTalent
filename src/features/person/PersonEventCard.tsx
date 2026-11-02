@@ -39,7 +39,16 @@ function ScoreRow({
           证据冲突 {score.ratings.map((rating) => rating.value).join(' / ')}
         </Badge>
         <span className="n-score__note">
-          {score.ratings.map((rating) => rating.scoredByName).join('、')}
+          {score.ratings.map((rating, index) => (
+            // 各自的锚点与规则版本放进 title，与确认分同一入口。
+            <span
+              key={rating.scoreId}
+              title={`${rating.anchor} · ${rating.ruleVersionId}`}
+            >
+              {index > 0 ? '、' : null}
+              {rating.scoredByName}
+            </span>
+          ))}
           分差 ≥ 2 · 待 HR 复核
           {score.ratings.map((rating, index) => (
             <SourceCite

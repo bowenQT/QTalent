@@ -223,6 +223,16 @@ describe('timeline', () => {
     expect(note?.getAttribute('title')).toMatch(/ · test-rule-version-001$/);
   });
 
+  it('keeps the anchor and rule version with each conflicting rating', () => {
+    const { container } = show(manager);
+    const names = container.querySelectorAll(
+      '#ev-test-event-002 .n-score .n-score__note > [title]',
+    );
+    expect(names).toHaveLength(2);
+    for (const name of names)
+      expect(name.getAttribute('title')).toMatch(/^.+ · .+$/);
+  });
+
   it('marks restricted history and keeps the original scale', () => {
     const { container } = show(manager);
     const history = container.querySelector('#ev-test-history-performance')!;
