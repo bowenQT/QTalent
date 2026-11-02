@@ -1,7 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { resolve } from 'node:path';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { eq, sql } from 'drizzle-orm';
@@ -34,26 +42,32 @@ import {
 import {
   prepareStandardIterationDemo,
   readStandardIterationFactFiles,
+  type FactGeneration,
   type PreparedStandardIterationDemo,
 } from './input';
 import { importStandardIterationDemo } from './import';
+import { DEMO_NODES, initializeStandardIterationDemo } from './init';
 
 // Native PG rollback tests use the actual pinned 923 inputs, not injected plans.
 // Positive tests use explicitly synthetic legal node/time facts in this isolated
 // database, authorized for verification only. They are NOT approval of real 923
 // mapping/history and never enter production defaults. 918 state is created only
 // through its real authorized initialize/bind functions, never direct inserts.
+// A full 93-case import with source checks can exceed the 5s default under load.
+vi.setConfig({ testTimeout: 20_000 });
 let admin: Pool | undefined;
 let connection: ReturnType<typeof createDatabase> | undefined;
 let created = false;
 let isolatedUrl: string;
 let plan: PreparedStandardIterationDemo;
+let previous: PreparedStandardIterationDemo;
 const databaseName = `qtalent_iteration_${randomUUID().replaceAll('-', '')}_test`;
 function db() {
   if (!connection) throw new Error('Isolated test database unavailable');
   return connection.db;
 }
-const apply = () => importStandardIterationDemo(db(), process.cwd());
+const apply = (generation?: FactGeneration) =>
+  importStandardIterationDemo(db(), process.cwd(), generation);
 async function countFacts() {
   return (
     await db().execute<{
@@ -77,6 +91,10 @@ beforeAll(async () => {
   plan = await prepareStandardIterationDemo(
     await readStandardIterationFactFiles(process.cwd()),
   );
+  previous = await prepareStandardIterationDemo(
+    await readStandardIterationFactFiles(process.cwd(), 'bow-923-v2'),
+    'bow-923-v2',
+  );
   const source = process.env.TEST_DATABASE_URL;
   if (!source) throw new Error('TEST_DATABASE_URL required; no skip or fake');
   const url = new URL(source);
@@ -91,11 +109,7 @@ beforeAll(async () => {
   url.pathname = '/' + databaseName;
   isolatedUrl = url.toString();
   connection = createDatabase(isolatedUrl);
-  await migrate(db(), {
-    migrationsFolder:
-      process.env.QTALENT_COMPARISON_TEST_MIGRATIONS ??
-      'src/server/db/migrations',
-  });
+  await migrate(db(), { migrationsFolder: 'src/server/db/migrations' });
   await countFacts();
 }, 30_000);
 afterAll(async () => {
@@ -134,10 +148,14 @@ beforeEach(async () => {
     name: '测试组织（演示）',
     shortName: '测试',
   });
+  // Both generations name the same directory; a shared ID keeps one name.
+  const directory = new Map(
+    [...previous.requiredPeople, ...plan.requiredPeople].map((p) => [p.id, p]),
+  );
   await db()
     .insert(people)
     .values(
-      plan.requiredPeople.map((p) => ({
+      [...directory.values()].map((p) => ({
         ...p,
         organizationId: 'iteration-test-org',
         demo: true,
@@ -145,7 +163,7 @@ beforeEach(async () => {
     );
   await db().insert(cohorts).values(plan.cohort);
 });
-async function runCli() {
+async function runCli(args = ['--apply']) {
   return new Promise<{ code: number; stdout: string; stderr: string }>(
     (done) => {
       execFile(
@@ -155,7 +173,7 @@ async function runCli() {
           '--import',
           'tsx',
           resolve('src/server/db/seed/standard-iteration-demo/run.ts'),
-          '--apply',
+          ...args,
         ],
         {
           timeout: 10_000,
@@ -338,23 +356,58 @@ describe('923 native fixed-source import rollback', () => {
 
 const TEST_ONLY_EFFECTIVE_FROM = '2026-01-01T00:00:00.000Z';
 const TEST_ONLY_CLOCK = () => new Date('2026-11-01T00:00:00.000Z');
-async function nativeFixture(
-  versionId = plan.selectionStandard.versionId,
-  content = plan.selectionStandard.content,
-) {
-  const accountId = 'iteration-test-manager';
+const MANAGER = 'iteration-test-manager';
+async function managerAccount() {
   await db().insert(accountBindings).values({
-    accountId,
+    accountId: MANAGER,
     personId: plan.requiredPeople[0].id,
     isSystemAdmin: false,
   });
   await db().insert(grants).values({
     id: 'iteration-test-manager-grant',
-    accountId,
+    accountId: MANAGER,
     role: 'manager',
     scope: 'company',
     validFrom: '2026-01-01',
   });
+}
+async function nodesFor(target: PreparedStandardIterationDemo) {
+  const nodeIds = [
+    ...new Set(
+      target.canonical.cases.flatMap((c) => [c.frontNodeId, c.backNodeId]),
+    ),
+  ];
+  await db()
+    .insert(evaluationNodes)
+    .values(
+      nodeIds.map((id) => ({
+        id,
+        name: '独立事务测试节点（非演示映射裁决）',
+        kind: 'review' as const,
+        cohortId: target.cohort.id,
+      })),
+    );
+  const subjects = new Map(
+    target.canonical.cases.flatMap((c) =>
+      [c.frontNodeId, c.backNodeId].map(
+        (evaluationNodeId) =>
+          [
+            evaluationNodeId + ':' + c.personId,
+            { evaluationNodeId, personId: c.personId },
+          ] as const,
+      ),
+    ),
+  );
+  await db()
+    .insert(evaluationNodeSubjects)
+    .values([...subjects.values()]);
+}
+async function nativeFixture(
+  versionId = plan.selectionStandard.versionId,
+  content = plan.selectionStandard.content,
+) {
+  const accountId = MANAGER;
+  await managerAccount();
   await initializeReviewedSelectionBaseline(
     db(),
     accountId,
@@ -376,35 +429,7 @@ async function nativeFixture(
     plan.cohort.id,
     TEST_ONLY_CLOCK,
   );
-  const nodeIds = [
-    ...new Set(
-      plan.canonical.cases.flatMap((c) => [c.frontNodeId, c.backNodeId]),
-    ),
-  ];
-  await db()
-    .insert(evaluationNodes)
-    .values(
-      nodeIds.map((id) => ({
-        id,
-        name: '独立事务测试节点（非演示映射裁决）',
-        kind: 'defense' as const,
-        cohortId: plan.cohort.id,
-      })),
-    );
-  const subjects = new Map(
-    plan.canonical.cases.flatMap((c) =>
-      [c.frontNodeId, c.backNodeId].map(
-        (evaluationNodeId) =>
-          [
-            evaluationNodeId + ':' + c.personId,
-            { evaluationNodeId, personId: c.personId },
-          ] as const,
-      ),
-    ),
-  );
-  await db()
-    .insert(evaluationNodeSubjects)
-    .values([...subjects.values()]);
+  await nodesFor(plan);
 }
 const readBatch = () =>
   db().transaction((tx) =>
@@ -435,7 +460,7 @@ describe('923 native success with explicitly synthetic test-only prerequisites',
     });
     expect(await countFacts()).toEqual({
       records: 190,
-      canonical: 285,
+      canonical: 282,
       grants: 1,
     });
     const reader = createDatabase(isolatedUrl);
@@ -448,11 +473,11 @@ describe('923 native success with explicitly synthetic test-only prerequisites',
       expect(saved?.selectionStandardVersionId).toBe('xe-select-v1');
       expect(
         saved?.facts.cases.filter((c) => c.front.state === 'present'),
-      ).toHaveLength(87);
+      ).toHaveLength(83);
       expect(
         saved?.facts.cases.filter((c) => c.back.state === 'present'),
-      ).toHaveLength(86);
-      expect(saved?.facts.manualMarks).toHaveLength(4);
+      ).toHaveLength(89);
+      expect(saved?.facts.manualMarks).toHaveLength(1);
     } finally {
       await reader.pool.end();
     }
@@ -501,7 +526,7 @@ describe('923 native success with explicitly synthetic test-only prerequisites',
     expect(results[0].factsDigest).toBe(results[1].factsDigest);
     expect(await countFacts()).toEqual({
       records: 190,
-      canonical: 285,
+      canonical: 282,
       grants: 1,
     });
     expect((await readBatch())?.facts).toEqual(plan.canonical);
@@ -558,7 +583,7 @@ describe('923 native success with explicitly synthetic test-only prerequisites',
     await expect(apply()).rejects.toThrow('Import identity collision');
     expect(await countFacts()).toEqual({
       records: 190,
-      canonical: 285,
+      canonical: 282,
       grants: 1,
     });
     expect(
@@ -590,8 +615,200 @@ describe('923 native success with explicitly synthetic test-only prerequisites',
     expect(await activeConnections()).toBe(before);
     expect(await countFacts()).toEqual({
       records: 190,
-      canonical: 285,
+      canonical: 282,
       grants: 1,
     });
   }, 15_000);
+});
+
+describe('923 generations coexist and demo initialization is idempotent', () => {
+  async function batchSnapshot(target: PreparedStandardIterationDemo) {
+    return db().transaction((tx) =>
+      readCanonicalComparisonBatch(tx, target.canonical.batch.id),
+    );
+  }
+  async function recordRows() {
+    return {
+      originals: await db().select().from(originals).orderBy(originals.id),
+      versions: await db()
+        .select()
+        .from(originalVersions)
+        .orderBy(originalVersions.id),
+      fragments: await db().select().from(fragments).orderBy(fragments.id),
+    };
+  }
+  it('imports the superseded generation, then the current one beside it, then replays the current one', async () => {
+    await nativeFixture();
+    await nodesFor(previous);
+    const old = await apply('bow-923-v2');
+    expect(old).toMatchObject({
+      status: 'inserted',
+      batchId: previous.canonical.batch.id,
+    });
+    const oldBatch = await batchSnapshot(previous);
+    const oldRecords = await recordRows();
+    const current = await apply();
+    expect(current).toMatchObject({
+      status: 'inserted',
+      batchId: plan.canonical.batch.id,
+    });
+    expect(await apply()).toEqual({ ...current, status: 'unchanged' });
+    // The older generation's rows are byte-for-byte what it imported.
+    expect(await batchSnapshot(previous)).toEqual(oldBatch);
+    const both = await recordRows();
+    for (const kind of ['originals', 'versions', 'fragments'] as const)
+      for (const row of oldRecords[kind])
+        expect(both[kind]).toContainEqual(row);
+    expect((await batchSnapshot(plan))?.facts).toEqual(plan.canonical);
+    expect(await countFacts()).toEqual({
+      records: 380,
+      canonical: 285 + 282,
+      grants: 1,
+    });
+  });
+  it('init establishes nodes, baseline, binding and import once; a re-run changes nothing', async () => {
+    await managerAccount();
+    const first = await initializeStandardIterationDemo(
+      db(),
+      process.cwd(),
+      MANAGER,
+      TEST_ONLY_CLOCK,
+    );
+    expect(first).toMatchObject({
+      generation: 'bow-923-v3',
+      nodes: 'created',
+      baseline: 'created',
+      binding: 'created',
+      import: { status: 'inserted', batchId: plan.canonical.batch.id },
+      nextCohortExists: false,
+    });
+    const nodes = await db()
+      .select()
+      .from(evaluationNodes)
+      .orderBy(evaluationNodes.id);
+    expect(nodes.map((n) => [n.id, n.kind, n.cohortId])).toEqual(
+      [...DEMO_NODES]
+        .map((n) => [n.id, 'review', plan.cohort.id])
+        .sort(([a], [b]) => String(a).localeCompare(String(b))),
+    );
+    const counts = await countFacts();
+    const subjects = await db().select().from(evaluationNodeSubjects);
+    expect(subjects).toHaveLength(2 * 93);
+    const second = await initializeStandardIterationDemo(
+      db(),
+      process.cwd(),
+      MANAGER,
+      TEST_ONLY_CLOCK,
+    );
+    expect(second).toEqual({
+      ...first,
+      nodes: 'unchanged',
+      baseline: 'unchanged',
+      binding: 'unchanged',
+      import: { ...first.import, status: 'unchanged' },
+    });
+    expect(await countFacts()).toEqual(counts);
+    expect(await db().select().from(evaluationNodeSubjects)).toHaveLength(
+      2 * 93,
+    );
+    expect(
+      (
+        await db().execute<{ n: number }>(
+          sql`select count(*)::integer n from evaluation_rule_version_applicability`,
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  });
+  it('actual CLI init runs as the named manager, then a re-run reports every step unchanged', async () => {
+    await managerAccount();
+    const before = await activeConnections();
+    const first = await runCli(['--init', '--as', MANAGER]);
+    expect(first.stderr).toBe('');
+    expect(first.code).toBe(0);
+    expect(JSON.parse(first.stdout)).toMatchObject({
+      nodes: 'created',
+      baseline: 'created',
+      binding: 'created',
+      import: { status: 'inserted' },
+    });
+    const again = await runCli(['--init', '--as', MANAGER]);
+    expect(again.code).toBe(0);
+    expect(JSON.parse(again.stdout)).toMatchObject({
+      nodes: 'unchanged',
+      baseline: 'unchanged',
+      binding: 'unchanged',
+      import: { status: 'unchanged' },
+    });
+    const denied = await runCli(['--init', '--as', 'no-such-account']);
+    expect(denied).toEqual({
+      code: 1,
+      stdout: '',
+      stderr:
+        JSON.stringify({ status: 'failed', code: 'selection_forbidden' }) +
+        '\n',
+    });
+    // Idle pool connections of this test process may close meanwhile; the
+    // CLI must not leave any of its own behind.
+    expect(await activeConnections()).toBeLessThanOrEqual(before);
+  }, 30_000);
+  it('init keeps the previous generation nodes and adds the current ones', async () => {
+    await managerAccount();
+    await nodesFor(previous);
+    const before = await db()
+      .select()
+      .from(evaluationNodes)
+      .orderBy(evaluationNodes.id);
+    await initializeStandardIterationDemo(
+      db(),
+      process.cwd(),
+      MANAGER,
+      TEST_ONLY_CLOCK,
+    );
+    const after = await db()
+      .select()
+      .from(evaluationNodes)
+      .orderBy(evaluationNodes.id);
+    for (const node of before) expect(after).toContainEqual(node);
+    expect(after.map((n) => n.id)).toEqual(
+      expect.arrayContaining(DEMO_NODES.map((n) => n.id)),
+    );
+  });
+  it('init refuses an existing demo node with a different kind and creates nothing else', async () => {
+    await managerAccount();
+    await db().insert(evaluationNodes).values({
+      id: DEMO_NODES[0].id,
+      name: DEMO_NODES[0].name,
+      kind: 'interview',
+      cohortId: plan.cohort.id,
+    });
+    await expect(
+      initializeStandardIterationDemo(
+        db(),
+        process.cwd(),
+        MANAGER,
+        TEST_ONLY_CLOCK,
+      ),
+    ).rejects.toMatchObject({ code: 'node_mismatch' });
+    expect(await db().select().from(evaluationNodes)).toHaveLength(1);
+    expect(await countFacts()).toEqual({ records: 0, canonical: 0, grants: 1 });
+    expect(
+      await db().execute(sql`select 1 from evaluation_selection_category_head`),
+    ).toMatchObject({ rows: [] });
+  });
+  it('init refuses an account without a current manager grant before any baseline', async () => {
+    await managerAccount();
+    await db().delete(grants);
+    await expect(
+      initializeStandardIterationDemo(
+        db(),
+        process.cwd(),
+        MANAGER,
+        TEST_ONLY_CLOCK,
+      ),
+    ).rejects.toMatchObject({ status: 'forbidden' });
+    expect(
+      await db().execute(sql`select 1 from evaluation_selection_category_head`),
+    ).toMatchObject({ rows: [] });
+    expect(await db().select().from(evaluationNodes)).toEqual([]);
+  });
 });

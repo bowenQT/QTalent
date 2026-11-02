@@ -15,8 +15,10 @@ import {
 } from '../../../modules/evaluation-system';
 import { writeCanonicalComparisonBatch } from '../../../usecases/judgment-comparison-canonical';
 import {
+  CURRENT_FACT_GENERATION,
   prepareStandardIterationDemo,
   readStandardIterationFactFiles,
+  type FactGeneration,
   type PreparedStandardIterationDemo,
 } from './input';
 
@@ -25,6 +27,7 @@ export class StandardIterationImportError extends Error {
     readonly code:
       | 'directory_mismatch'
       | 'cohort_mismatch'
+      | 'node_mismatch'
       | 'selection_binding_unavailable'
       | 'selection_binding_mismatch',
   ) {
@@ -73,9 +76,11 @@ async function verifyDirectory(
 export async function importStandardIterationDemo(
   db: Database,
   repositoryDirectory: string,
+  generation: FactGeneration = CURRENT_FACT_GENERATION,
 ) {
   const plan = await prepareStandardIterationDemo(
-    await readStandardIterationFactFiles(repositoryDirectory),
+    await readStandardIterationFactFiles(repositoryDirectory, generation),
+    generation,
   );
   return db.transaction(
     async (tx) => {

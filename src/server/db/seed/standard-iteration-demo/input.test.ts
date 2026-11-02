@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import {
   FACT_FILES,
   FACT_DIRECTORY,
+  FACT_GENERATIONS,
   FACT_SOURCE_COMMIT,
   readStandardIterationFactFiles,
   prepareStandardIterationDemo,
@@ -96,12 +97,16 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
     expect(p.records.fragments).toHaveLength(186);
     expect(
       p.canonical.cases.filter((c) => c.front.state === 'present'),
-    ).toHaveLength(87);
+    ).toHaveLength(83);
     expect(
       p.canonical.cases.filter((c) => c.back.state === 'present'),
-    ).toHaveLength(86);
-    expect(p.canonical.manualMarks).toHaveLength(4);
-    expect(p.records.originals).toHaveLength(2);
+    ).toHaveLength(89);
+    expect(p.canonical.manualMarks).toHaveLength(1);
+    expect(p.canonical.batch.fixtureVersion).toBe('bow-923-v3');
+    expect(p.records.originals.map((o) => o.id)).toEqual([
+      'bow-923-v3-original-front',
+      'bow-923-v3-original-back',
+    ]);
     expect(
       new Set(p.records.originalVersions.map((v) => v.contentDigest)).size,
     ).toBe(2);
@@ -111,24 +116,24 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
     const present = p.canonical.cases[0].front;
     expect(present).toMatchObject({
       state: 'present',
-      grade: '高分档',
+      grade: '通过',
       source: {
         rowPersonId: 'p-x01',
         row: 2,
-        fragmentId: 'bow-923-front-row-001',
+        fragmentId: 'bow-923-v3-front-row-001',
       },
     });
     const missing = p.canonical.cases.find(
-      (c) => c.id === 'bow-923-case-014',
+      (c) => c.id === 'bow-923-v3-case-047',
     )!.front;
     expect(missing).toEqual({
       state: 'missing',
-      reason: '缺少入营选拔评审记录（演示）',
+      reason: '第二批次补录，没有入营选拔评审记录（演示）',
       source: {
-        rowPersonId: 'p-x14',
-        row: 15,
-        fragmentId: 'bow-923-front-row-014',
-        originalVersionId: 'bow-923-xe6-selection-original-v1',
+        rowPersonId: 'p-x47',
+        row: 48,
+        fragmentId: 'bow-923-v3-front-row-047',
+        originalVersionId: 'bow-923-v3-xe6-selection-original',
       },
     });
     expect(p.canonical.cases.every((c) => !('outcome' in c))).toBe(true);
@@ -171,13 +176,13 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
     ['A2', 'p-other', 'str', 'workbook person'],
     ['B2', '另一人（演示）', 'str', 'workbook person'],
     ['P2', '不是已登记原文', 'str', 'actual excerpt'],
-    ['J2', '刚过线档', 'str', 'workbook judgment'],
+    ['J2', '刚过线', 'str', 'workbook judgment'],
     ['K2', 'p-other', 'str', 'workbook judgment'],
     ['M2', '46084', 'n', 'numeric UTC date'],
     ['M2', '46083.04166666667', 'str', 'numeric UTC date'],
-    ['G2', '刚过线档', 'str', 'review-point grade'],
+    ['G2', '刚过线', 'str', 'review-point grade'],
     ['D2', 'other-work', 'str', 'work/team'],
-    ['J15', '高分档', 'str', 'missing row'],
+    ['J48', '通过', 'str', 'missing row'],
   ])(
     'verifies actual cell %s even with a matching byte digest',
     async (address, value, kind, reason) => {
@@ -201,6 +206,36 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
       await expect(prepareStandardIterationDemo(f)).rejects.toThrow(reason);
     },
   );
+  it('accepts only A/B/C for v3 review points, even when seed and workbook agree', async () => {
+    const f = files(),
+      s = seed(f);
+    s.selectionReviews[0].originalGrades[0].grade = '通过';
+    put(f, 'seed-input.json', s);
+    patchWorkbook(f, 'G2', '通过');
+    await expect(prepareStandardIterationDemo(f)).rejects.toThrow(
+      'review point grade state',
+    );
+  });
+  it('still reads the superseded v2 generation under its own rules and identities', async () => {
+    const v2 = await prepareStandardIterationDemo(
+      await readStandardIterationFactFiles(process.cwd(), 'bow-923-v2'),
+      'bow-923-v2',
+    );
+    expect(v2.canonical.batch.sourceCommit).toBe(
+      FACT_GENERATIONS['bow-923-v2'].sourceCommit,
+    );
+    expect(v2.canonical.manualMarks).toHaveLength(4);
+    expect(v2.records.originals.map((o) => o.id)).toEqual([
+      'bow-923-v2-original-front',
+      'bow-923-v2-original-back',
+    ]);
+    // A generation's files cannot be imported under another generation.
+    await expect(
+      prepareStandardIterationDemo(
+        await readStandardIterationFactFiles(process.cwd(), 'bow-923-v2'),
+      ),
+    ).rejects.toThrow('fixture generation');
+  });
   it('refuses a cross-person source row and duplicated case identities', async () => {
     const f = files();
     const rows = data<Array<{ personId: string; front: { personId: string } }>>(
@@ -267,11 +302,19 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
 
 describe('923 explicit operator command', () => {
   afterEach(() => vi.unstubAllEnvs());
-  it.each([[], ['--dry-run'], ['--apply', '--force']])(
+  it.each([
+    [],
+    ['--dry-run'],
+    ['--apply', '--force'],
+    ['--init'],
+    ['--init', '--as'],
+    ['--init', '--as', ' '],
+    ['--init', '--apply', 'manager'],
+  ])(
     'refuses ambiguous invocation %j before opening a connection',
     async (...args) => {
       await expect(runStandardIterationImport(args)).rejects.toThrow(
-        'Explicit --apply required',
+        'Explicit --apply or --init --as <accountId> required',
       );
     },
   );

@@ -1,46 +1,63 @@
-# BOW-923 真实演示事实导入
+# BOW-923 演示事实导入与演示初始化
 
-本目录接续已合 #267 的 bow-923-v2 输入。固定事实提交 `6dff525b42f812423d981d12fd40aff8999cf00f`；只从 Git 对象读取 seed-input、mapping、selection-standard、manual-comparability-marks、source-rows、manifest 和两份 XLSX。既不导入 scene/expected/expectedAtCreation，也不依赖工作树中可能改过的原表。
+把 `tests/fixtures/bow-923` 的第六期判断对照事实导入正式工程的数据库：两份化名演示原表登记为原件、版本与逐行片段，93 个案例、两段判断和 HR 不可比标记写入 919 的 canonical 五张表。导入只读固定 Git 提交里的文件，不读工作树、`scene.mjs`、预期 JSON 或任何计算结果。
 
-## 已实现输入入口
+## 夹具代与固定来源
 
-`readStandardIterationFactFiles(cwd)` 有界读取上述八文件；`prepareStandardIterationDemo(files)` 校验 JSON 结构/内部事实一致性、两份 XLSX 和独立人工标记的 manifest 字节摘要及真实表格后返回（其他 JSON 的来源完整性由生产入口的固定 Git 提交保证，prepare 本身不证明调用者字节来自该提交）：
+| 代                     | 固定提交                                   | 用途                                      |
+| ---------------------- | ------------------------------------------ | ----------------------------------------- |
+| `bow-923-v3`（当前）   | `47870d6fc902fd810b608591d4f6709e46d34148` | 命令导入的唯一一代，按原型 Y 逐人数据重做 |
+| `bow-923-v2`（已淘汰） | `6dff525b42f812423d981d12fd40aff8999cf00f` | 只供测试证明两代可以共存，命令不会导入    |
 
-- `canonical`：直接通过919固定 `f20fc48277dca9825ef80fdabec2a7ba30accc0f` 的 `validateCanonicalComparisonImport`，保留人×判断、原量表、两段状态、独立人工标记与来源血缘，没有计算结果或样本统计。
-- `records`：两份独立演示原件、版本及唯一单行 fragment。原件 kind 为 original，显式标注化名重建；不替换既有 prototype_snapshot，不插维度分或原型历史评价副本。两段缺失事实仍引用原表实际存在的缺段说明行，不捏造评价人或时间。
-- `selectionStandard`：实际原始三要点内容与版本，供918真实初始化入口核对；这不是发布命令或已建立的head。
-- `requiredPeople` / `cohort`：导入前必须在已有目录核对的真实 ID/演示名称，不是创建人员、账号或grant的授权。
+两代的差别集中在 `FACT_GENERATIONS`：固定提交、三项原档位的取值（v3 只能是 A / B / C，v2 用前段档位名）、manifest 是否带 `prototypeCommit`。一代的文件不能按另一代的规则导入。
 
-XLSX 读取只针对这两份经摘要核对的固定合成文件，使用现有CI已使用的 Python3 标准库 `zipfile` / `ElementTree`，不新增包。子进程只接收原表字节，设时间/输出/解压体积上限，不评估公式，不访问外链、不落临时原表；只接受实际固定文件的单工作表、显式字符串/数字/空单元格格式。核对两张表整行表头、所有非日期列的文字/空值类型，再校验 A/B 人员、C 期次、作品/同队、三项原档位、最终原档位、评价人、数字UTC日期、状态与引用原文。所有行和完整性基数均从输入/manifest核对，93/186及87/86只是当前固定输入的测试事实，不是网页统计答案。
+每一代的持久化身份互不重复：批次、原件版本、案例、行出处、判断、对应表版本都由夹具按代派生；原件 ID 由导入器按代派生为 `<代>-original-front` / `<代>-original-back`。每一代是一份独立演示原件的第 1 版；同一原件重新渲染时才会升 version。节点 ID 也随代更换（v2 是 `bow-923-xe6-*`，v3 是 `xe6-select` / `xe6-end`）。目录人员、期次 `b-xe6`、`xe-select-v1` 和量表是多代共用的事实。
 
-## 原生事务与显式命令
+## 输入校验
 
-`importStandardIterationDemo(db, repositoryDirectory)` 自己读取固定 Git 输入，不接受外部构造的 prepared plan。它在 Read Committed 单事务内先取得919同batch锁，锁后核已有目录 ID/演示名与期次，再用 X1 导出的原有 `insertChecked` 登记 originals / originalVersions / fragments。随后重读918实际期次绑定和不可变标准内容，调用919真实 `writeCanonicalComparisonBatch` 完成五表写入与完整读回。重复导入使用同一批次身份；已有ID逐字段比较，原件字节摘要、定位或原文不同即冲突，所有失败回滚。目录、节点、918 head/period/binding和当前grant一律不由923创建。
+`readStandardIterationFactFiles(cwd, generation)` 从固定提交有界读取八个文件；`prepareStandardIterationDemo(files, generation)` 校验 JSON 结构和内部一致性、两份 XLSX 与人工标记的 manifest 摘要，再逐格核对真实表格：整行表头、非日期列的文字类型、人员与期次、作品与同队、三项原档位、最终档位、评价人、UTC 数值日期、记录状态和引用原文。缺段的行仍登记片段，但不能有档位、评价人或日期。
 
-命令是 `pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --apply`。它使用现有服务端 `getEnv()` 配置，不加载凭据文件、不自动加入 `db:seed`，production 环境拒绝。只输出批次、源提交、输入基数和完整性摘要，失败只输出稳定分类，不打印 SQL 原错、连接串或原文。运行此显式命令仍须先满足下列事实前置，并另按环境授权操作；本PR没有执行演示库导入。
+XLSX 只用 Python3 标准库读取这两份经摘要核对的固定文件，设时间、输出和解压体积上限，不求值公式、不访问外链、不落临时文件。
 
-## 固定组合与验证
+## 命令
 
-代码已接X1 `7dfbae71e672f6ef4cc6626e4668f98d2b395e6d`：包含919 `7770b9730a676e58bd44ba4276698e5a133e7a07`（原生store/usecase）、918 `92db986c73dd6042c53b7c1b47d546cf03bc438f`（真实初始化/绑定/标准读取）与现有insertChecked出口 `edbce681363f46449f7e2e361366c93b7332c380`。共享index冲突已由X1解决，本卡未改共享schema/出口/最终迁移。
+```sh
+pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --init --as <账号ID>
+pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --apply
+```
 
-**52项通过：29离线 + 23真实PG，0skip。** 原生测试覆盖：
+两个命令都使用服务端 `getEnv()`，production 环境拒绝；不自动加入 `db:seed`。成功时只输出回执，失败只输出稳定的错误分类，不打印 SQL 原错、连接串或原文。
 
-- 固定93案例、186出处与4条独立人工标记首导成功，独立新连接读回完整canonical事实；前后实际present分别87/86，只作为输入完整性验证。
-- 成功重放返回unchanged，事实摘要、原导入时刻、行数和当前grant不变。
-- 外部测试事务先持同一实际batch锁，查询真实pg_locks确认两个导入者均在等待，释放后只有一份inserted、另一份unchanged，最终只一批完整事实。
-- 缺绑定、错误绑定版本/内容、缺当前节点主体、原件/摘要/片段/映射冲突整体回滚；不从cohort推定节点主体，不覆盖已变更的原事实。
-- 真CLI子进程首导和重放成功；缺绑定/原件冲突只有一行稳定错误JSON，连接关闭且无半批残留。
-- 首轮输入审查N1/N2的6项实际XLSX反例旧实现6红→绿：完整表头和文字/空单元格类型。N3按实际manifest摘要与固定Git来源边界更正文档。
+### `--init --as <账号ID>`：幂等的演示初始化
 
-正向测试经授权仅在独立_test库建立**明确测试用途的**合法节点与合成reviewed时间；baseline/head/绑定全部通过918的 `initializeReviewedSelectionBaseline` / `bindExistingSelectionCohort` 原生入口、真实当前账号/grant和事务创建，没有直接插入918状态表。测试值只在integration测试中，不是实际923节点/历史时间裁决，不进入生产导入器或CLI默认值。初始化与绑定是918各自的前置事务；923comparison批次内部仍是一笔原生事务，没有假称三者共同提交。
+`--as` 必须是当前有效的管理者账号；不满足时什么都不写。之后按顺序执行，每步一笔原生事务，重复执行安全：
 
-验证命令：`pnpm exec vitest run --config vitest.integration.config.ts src/server/db/seed/standard-iteration-demo/input.test.ts src/server/db/seed/standard-iteration-demo/import.integration.test.ts --maxWorkers=2 --coverage --coverage.include='src/server/db/seed/standard-iteration-demo/{input,import,run}.ts'`。PG仅用test-db.env白名单、隔离_test库及X1受控原生升级迁移（通过 `QTALENT_COMPARISON_TEST_MIGRATIONS` 指定）。没有手写DDL或skip；测试库/所有连接/本人heavy槽在结束后清理。
+1. **节点**：在 `b-xe6` 下建 `xe6-select`（入营选拔（演示））和 `xe6-end`（结营评审（演示）），kind 为 `review`，并补齐 93 位学员的节点主体。节点已存在时逐项比对，不同即失败（`node_mismatch`），不覆盖。旧代的 `bow-923-xe6-*` 节点保持原样。
+2. **基线**：还没有选拔标准 head 时，经 918 的 `initializeReviewedSelectionBaseline` 建立 `xe-select-v1`，生效时间 `2026-06-14T16:00:00.000Z`，内容取当前代的 `selection-standard.json`。已有 head 就保留，因为现场发布 v2 以后再初始化不能回退。
+3. **第六期绑定**：经 918 的 `bindExistingSelectionCohort` 绑定 `b-xe6`，已绑定则沿用。
+4. **导入**：调用 `importStandardIterationDemo`。
 
-三执行文件统一TypeScript覆盖行92.79%、分支95.45%；import.ts行/分支100%。实际CLI子进程不纳入该进程的V8计量，run.ts仪表值仍37.5%行/60%分支，但成功、重放、两类失败脱敏与退出/关连接已真实执行并断言；不能把子进程结果伪加进覆盖率。内嵌Python字符串也不受V8计量，真实XLSX正例、畸形ZIP和更新摘要后篡改单元格反例实际执行Python。
+回执逐步给出 `created` 或 `unchanged`，以及第七期 `b-xe7-demo` 当前是否存在。第七期不由初始化创建：现场先发布 v2，再经原生期次入口创建并绑定第七期。期次表没有日期列，「创建后的下一个周一开营、时长与第六期相同」只是现场说法。`DEMO_NEXT_COHORT` 导出下一期的固定描述，供生命周期装配使用。
 
-## 仍待正式依赖与实际场景验收
+### `--apply`：只导入
 
-- 正式918/919迁移仍由X1在既定游标交付；上述临时升级结构的PG成功不是默认CI绿。默认CI已核当前缺表失败，不靠改测试目录默认值或跳过PG放行。
-- 实际923 `xe-select-v1` baseline effectiveFrom 尚待批准事实；真实前后节点kind/cohort映射尚待裁决。它们只由真实918/899入口建立，本卡不拿测试时间、导入时间或首场日期当历史事实，不猜真实interview/defense，不空cohort绕过。
-- 生产CLI目前仅消费、核验已经建立的真实binding，不自动初始化或绑定，避免两笔前置事务之间的版本竞态。CLI运行仍需要对应环境授权；本PR没有实际演示库执行、部署或供应商调用。
-- 待前置PR/正式结构齐后跑默认正式检查，推进Ready/connector及X1门禁；真实三幕场景查询/来源打开另据批准事实验收，不以隔离测试当现场完成。
+要求节点、基线和第六期绑定已经存在。导入在一笔 Read Committed 事务里完成：先取得 919 同一批次锁，核对目录人员（ID、演示标记、名称）和期次，登记原件、版本和片段，核对 918 的期次绑定与标准内容，再调用 919 的 `writeCanonicalComparisonBatch` 写入并完整读回。相同事实重放返回 `unchanged`；同一 ID 的事实不同即冲突，全部回滚。目录人员、账号和 grant 不由这里创建。
+
+## 验证
+
+```sh
+pnpm exec vitest run src/server/db/seed/standard-iteration-demo/input.test.ts
+pnpm exec vitest run --config vitest.integration.config.ts src/server/db/seed/standard-iteration-demo/import.integration.test.ts
+```
+
+PG 测试在隔离的 `_test` 库上使用正式迁移。正向用例里的节点、时间和账号是测试专用事实，不是演示环境的事实。覆盖：
+
+- 当前代首导、重放、两个导入者等待同一批次锁、真实 CLI 首导与重放；
+- 先导 v2、再导 v3、再重放 v3，三步都成功，v2 的行逐字节不变；
+- `--init` 首次全部 `created`、再次全部 `unchanged`，行数和生效区间不变；真实 CLI 初始化与拒绝非管理者；旧代节点保留；已有节点 kind 不同时拒绝且不建基线；
+- 目录、期次、绑定、原件、片段、对应表冲突时整体回滚，不覆盖已有事实。
+
+## 演示库执行前提
+
+- 目录里要有当前代用到的全部演示人员。结营评委 `s-29` 是原型 81e4fd4 才加入的，工程种子读取的原型基线里还没有这个人，处理方式待裁决。
+- 本 PR 没有在演示库执行初始化或导入，也没有部署。

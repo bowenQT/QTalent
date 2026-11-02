@@ -11,8 +11,30 @@ import {
 import { selectionStandardContentSchema } from '../../../../contracts/selection-standard';
 
 const exec = promisify(execFile);
-export const FACT_SOURCE_COMMIT = '6dff525b42f812423d981d12fd40aff8999cf00f';
+/** Each fixture generation is a pinned Git commit with its own persisted
+ * identities. Only the current one is imported by the operator commands; the
+ * superseded one stays readable so tests can prove both coexist. */
+export const FACT_GENERATIONS = {
+  'bow-923-v2': {
+    sourceCommit: '6dff525b42f812423d981d12fd40aff8999cf00f',
+    // v2 recorded each review point with the overall front band names.
+    reviewPointGrades: null,
+    prototypeCommit: false,
+  },
+  'bow-923-v3': {
+    sourceCommit: '47870d6fc902fd810b608591d4f6709e46d34148',
+    reviewPointGrades: ['A', 'B', 'C'],
+    prototypeCommit: true,
+  },
+} as const;
+export type FactGeneration = keyof typeof FACT_GENERATIONS;
+export const CURRENT_FACT_GENERATION: FactGeneration = 'bow-923-v3';
+export const FACT_SOURCE_COMMIT =
+  FACT_GENERATIONS[CURRENT_FACT_GENERATION].sourceCommit;
 export const FACT_DIRECTORY = 'tests/fixtures/bow-923';
+const generationSchema = z.enum(
+  Object.keys(FACT_GENERATIONS) as [FactGeneration, ...FactGeneration[]],
+);
 export const FACT_FILES = [
   'seed-input.json',
   'mapping.json',
@@ -87,7 +109,7 @@ const markSchema = z.strictObject({
   markedAt: z.iso.datetime(),
 });
 const seedSchema = z.strictObject({
-  fixtureVersion: z.literal('bow-923-v2'),
+  fixtureVersion: generationSchema,
   demo: z.literal(true),
   contractSha: sha,
   notice: id,
@@ -117,7 +139,7 @@ const rowsSchema = z.array(
   }),
 );
 const marksSchema = z.strictObject({
-  fixtureVersion: z.literal('bow-923-v2'),
+  fixtureVersion: generationSchema,
   demo: z.literal(true),
   notice: id,
   scenarioProvenance: z.strictObject({ commit: sha, path: id, meaning: id }),
@@ -152,11 +174,12 @@ const originalSchema = z.strictObject({
   presentEvaluations: z.number().int().nonnegative(),
 });
 const manifestSchema = z.strictObject({
-  fixtureVersion: z.literal('bow-923-v2'),
+  fixtureVersion: generationSchema,
   demo: z.literal(true),
   notice: id,
   contractSha: sha,
   rosterCommit: sha,
+  prototypeCommit: sha.optional(),
   evidenceStatus: z.literal('expected_only_actual_query_not_run'),
   originals: z.strictObject({ front: originalSchema, back: originalSchema }),
   inputFacts: z.strictObject({
@@ -284,12 +307,14 @@ async function workbook(bytes: Uint8Array) {
 /** Read only fixed input facts, never scene, expected outputs or the working tree. */
 export async function readStandardIterationFactFiles(
   cwd: string,
+  generation: FactGeneration = CURRENT_FACT_GENERATION,
 ): Promise<FactFiles> {
+  const { sourceCommit } = FACT_GENERATIONS[generation];
   const entries = await Promise.all(
     FACT_FILES.map(async (name) => {
       const { stdout } = await exec(
         'git',
-        ['show', `${FACT_SOURCE_COMMIT}:${FACT_DIRECTORY}/${name}`],
+        ['show', `${sourceCommit}:${FACT_DIRECTORY}/${name}`],
         { cwd, encoding: 'buffer', maxBuffer: 2_000_000, timeout: 10000 },
       );
       return [name, new Uint8Array(stdout)] as const;
@@ -298,7 +323,11 @@ export async function readStandardIterationFactFiles(
   return Object.fromEntries(entries) as FactFiles;
 }
 
-export async function prepareStandardIterationDemo(files: FactFiles) {
+export async function prepareStandardIterationDemo(
+  files: FactFiles,
+  generation: FactGeneration = CURRENT_FACT_GENERATION,
+) {
+  const rules = FACT_GENERATIONS[generation];
   requireFact(
     Object.keys(files).length === FACT_FILES.length &&
       FACT_FILES.every(
@@ -329,6 +358,13 @@ export async function prepareStandardIterationDemo(files: FactFiles) {
   const manifest = read('manifest.json', manifestSchema);
   const inputFileHashes = Object.fromEntries(
     FACT_FILES.map((name) => [name, digest(files[name])]),
+  );
+  requireFact(
+    seed.fixtureVersion === generation &&
+      manual.fixtureVersion === generation &&
+      manifest.fixtureVersion === generation &&
+      (manifest.prototypeCommit !== undefined) === rules.prototypeCommit,
+    'fixture generation',
   );
   requireFact(
     seed.contractSha === manifest.contractSha &&
@@ -495,7 +531,9 @@ export async function prepareStandardIterationDemo(files: FactFiles) {
         );
       }
     }
-    const originalId = `bow-923-original-${side}`;
+    // One independent demo original per generation, at its first version; a
+    // re-render of the same original would add a version instead.
+    const originalId = `${generation}-original-${side}`;
     originals.push({
       id: originalId,
       title: descriptor.file,
@@ -507,7 +545,7 @@ export async function prepareStandardIterationDemo(files: FactFiles) {
       originalId,
       version: 1,
       contentDigest: descriptor.sha256,
-      sourceCommit: FACT_SOURCE_COMMIT,
+      sourceCommit: rules.sourceCommit,
       sourceBlob: createHash('sha1')
         .update(`blob ${files[descriptor.file].length}\0`)
         .update(files[descriptor.file])
@@ -602,12 +640,13 @@ export async function prepareStandardIterationDemo(files: FactFiles) {
             'original review-point grade',
           ),
         );
+        const allowed: readonly string[] =
+          rules.reviewPointGrades ?? mapping.rows.map((r) => r.frontGrade);
         requireFact(
           review.originalGrades.every((g) =>
             stage.state === 'missing'
               ? g.grade === null
-              : g.grade !== null &&
-                mapping.rows.some((r) => r.frontGrade === g.grade),
+              : g.grade !== null && allowed.includes(g.grade),
           ),
           'review point grade state',
         );
@@ -749,7 +788,7 @@ export async function prepareStandardIterationDemo(files: FactFiles) {
         name: seed.batch.name,
         cohortId: seed.batch.cohort.id,
         mappingVersionId: mapping.versionId,
-        sourceCommit: FACT_SOURCE_COMMIT,
+        sourceCommit: rules.sourceCommit,
         contractSha: seed.contractSha,
         fixtureVersion: seed.fixtureVersion,
         inputFileHashes: Object.fromEntries(
@@ -768,7 +807,7 @@ export async function prepareStandardIterationDemo(files: FactFiles) {
         rows: mapping.rows,
         confirmedById: mapping.confirmedBy.id,
         confirmedAt: mapping.confirmedAt,
-        sourceCommit: FACT_SOURCE_COMMIT,
+        sourceCommit: rules.sourceCommit,
         sourceFileSha256: inputFileHashes['mapping.json'],
         nature: 'demo_human_confirmation' as const,
       },
