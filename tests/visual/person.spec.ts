@@ -155,13 +155,19 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
             : [...personOmit, ...omitted, 'div:has(> #summary)', '#summary'],
           replace: summary ? personReplace : [],
         });
+        // 页头动作区：原型 91b297a 的动作（记一件事、关注等）还没接，原型侧整块 omit；工程侧
+        // 只有 BOW-911 的「打印档案」，参照同步到含打印的原型前不比截图，这里先断言它的有无。
+        const acts = page.locator('header.nt-head .nt-head__acts');
+        if (role === 'mentor') await expect(acts).toHaveCount(0);
+        else
+          await expect(acts.getByRole('button')).toHaveText(['打印档案']);
         await page.evaluate(
           (queries) => {
             for (const query of queries)
               for (const node of document.querySelectorAll<HTMLElement>(query))
                 node.style.setProperty('display', 'none', 'important');
           },
-          [...personAppOnly, ...appHidden],
+          [...personAppOnly, ...appHidden, '.nt-head__acts'],
         );
         await stabilize(prototype);
         await stabilize(page);
