@@ -139,12 +139,25 @@ test('a save conflict keeps the edits until the latest version is loaded', async
   await expect(page.getByText('刚刚保存到孟逸尘的档案')).toBeVisible();
 });
 
-test('the node is derived by the server: no person or several nodes stop before submitting', async ({
+test('「从原话里识别」 by default: a full candidate name is picked into 「谁」', async ({
   page,
   referenceApp,
 }) => {
   await page.goto(`${referenceApp.baseURL}/dev/record?role=hr`);
+  await expect(page.getByRole('combobox', { name: '记录给谁' })).toHaveValue(
+    '',
+  );
   await arrange(page, SENTENCE, '');
+  await expect(page.getByRole('button', { name: '确认并保存' })).toBeVisible();
+  await expect(page.locator('.n-event__who')).toHaveText('孟逸尘');
+});
+
+test('the node is derived by the server: no person found or several nodes stop before submitting', async ({
+  page,
+  referenceApp,
+}) => {
+  await page.goto(`${referenceApp.baseURL}/dev/record?role=hr`);
+  await arrange(page, '今天大家都很积极，进度同步得很清楚。', '');
   await expect(page.getByText('在「谁」里选一位同事，再整理')).toBeVisible();
   await expect(page.getByRole('combobox', { name: '记录给谁' })).toBeFocused();
   await expect(page).not.toHaveURL(/batch=/);

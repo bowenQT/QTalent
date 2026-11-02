@@ -70,7 +70,13 @@ beforeAll(async () => {
   await db()
     .insert(people)
     .values([
-      { id: 'p-a', name: '演示甲', organizationId: 'org-demo', hue: 30 },
+      {
+        id: 'p-a',
+        name: '演示甲',
+        organizationId: 'org-demo',
+        hue: 30,
+        demo: false,
+      },
       {
         id: 'p-b',
         name: '演示乙',
@@ -150,8 +156,17 @@ it('adds display fields only to the people the 845 page read returned', async ()
         hue: 200,
         photo: '/demo/b.png',
         orgShort: '演示部',
+        demo: true,
       },
-      { id: 'p-a', name: '演示p-a', hue: 30, photo: null, orgShort: '演示部' },
+      {
+        id: 'p-a',
+        name: '演示p-a',
+        hue: 30,
+        photo: null,
+        orgShort: '演示部',
+        // The directory flag is carried as stored, not assumed.
+        demo: false,
+      },
     ],
     projects: [{ id: 'proj-1', name: '演示项目' }],
     dimensions: [

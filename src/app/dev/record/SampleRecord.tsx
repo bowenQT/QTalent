@@ -53,7 +53,6 @@ export function SampleRecord({
         loadAnchors={server.loadAnchors}
         idleAnchor={{ dimensionId: 'mot', set: sampleAnchors('mot') }}
         entry={{ personId, handoff, batchId: batchId ?? undefined }}
-        demo
         showExample
         onBatchChange={(id) => {
           // `?batch=` only: the typed text never goes into the URL.

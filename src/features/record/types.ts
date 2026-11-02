@@ -39,6 +39,8 @@ export type PersonOption = {
   hue: number;
   photo: string | null;
   orgShort: string;
+  /** 演示人员（化名）：头部按所记的人显示「演示」徽标。 */
+  demo: boolean;
 };
 export type ProjectOption = {
   id: string;

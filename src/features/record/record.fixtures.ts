@@ -8,8 +8,22 @@ import type { DimensionOption, PersonOption, RecordSaveReceipt } from './types';
 
 // 全部为合成的演示数据，不取自任何真实材料。
 export const people: PersonOption[] = [
-  { id: 'p1', name: '演示甲', hue: 20, photo: null, orgShort: '演示一组' },
-  { id: 'p2', name: '演示乙', hue: 200, photo: null, orgShort: '演示二组' },
+  {
+    id: 'p1',
+    name: '演示甲',
+    hue: 20,
+    photo: null,
+    orgShort: '演示一组',
+    demo: true,
+  },
+  {
+    id: 'p2',
+    name: '演示乙',
+    hue: 200,
+    photo: null,
+    orgShort: '演示二组',
+    demo: false,
+  },
 ];
 export const dimensions: DimensionOption[] = [
   { id: 'prof', name: '专业度' },

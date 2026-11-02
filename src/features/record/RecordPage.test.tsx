@@ -196,18 +196,36 @@ describe('输入与整理', () => {
     expect(screen.queryByRole('radio')).toBeNull();
   });
 
-  it('「从原话里识别」：按空的人员推导，节点唯一时照常提交', async () => {
+  it('「从原话里识别」：原话里完整出现候选姓名，填进「谁」再推导并提交', async () => {
     const { actions } = setup();
     await typeAndSubmit();
     expect(actions.resolveNode).toHaveBeenCalledWith({
-      personIds: [],
+      personIds: ['p1'],
       projectId: null,
     });
     await waitFor(() =>
       expect(actions.submit.mock.calls[0]?.[0]).toMatchObject({
-        personIds: [],
+        personIds: ['p1'],
       }),
     );
+  });
+
+  it('「从原话里识别」认不出人：按空的人员推导，提示选人，焦点交给「谁」', async () => {
+    const { actions } = setup({
+      actions: {
+        resolveNode: vi.fn(async () => ({ status: 'none' })) as never,
+      },
+    });
+    await typeAndSubmit('今天大家都很积极，进度同步得很清楚。');
+    expect(actions.resolveNode).toHaveBeenCalledWith({
+      personIds: [],
+      projectId: null,
+    });
+    expect(await screen.findByText(copy.node.pickPerson.title)).toBeTruthy();
+    expect(document.activeElement).toBe(
+      screen.getByRole('combobox', { name: copy.input.whoLabel }),
+    );
+    expect(actions.submit).not.toHaveBeenCalled();
   });
 
   it('整理完成：SBI 可改，建议分始终是 AI 建议（未确认），资料不足不出数字', async () => {
@@ -385,7 +403,7 @@ describe('评价节点由服务端推导', () => {
         resolveNode: vi.fn(async () => ({ status: 'multiple' })) as never,
       },
     });
-    await typeAndSubmit();
+    await typeAndSubmit('今天大家都很积极，进度同步得很清楚。');
     expect(await screen.findByText(copy.node.pickPerson.title)).toBeTruthy();
     expect(document.activeElement).toBe(
       screen.getByRole('combobox', { name: copy.input.whoLabel }),
@@ -1264,9 +1282,8 @@ describe('锚点面板与引用', () => {
     expect(screen.getByRole('button', { name: '附件入口' })).toBeTruthy();
   });
 
-  it('演示数据带「演示」徽标；项目徽标取自选项', async () => {
+  it('所记的人是演示人员时带「演示」徽标；项目徽标取自选项', async () => {
     setup({
-      demo: true,
       actions: {
         readBatch: vi.fn(() =>
           ok(batch({ drafts: [{ ...draft, projectId: 'proj-1' }] })),

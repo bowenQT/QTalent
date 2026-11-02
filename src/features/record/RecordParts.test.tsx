@@ -30,7 +30,6 @@ describe('OrganizeHeader', () => {
         people={people}
         project={{ id: 'proj', name: '演示项目', kind: 'project' }}
         origin="text"
-        demo
         niu="confirm"
       />,
     );
@@ -56,7 +55,6 @@ describe('OrganizeHeader', () => {
         people={people}
         project={null}
         origin="recording"
-        demo={false}
         niu="thinking"
       />,
     );
@@ -69,7 +67,6 @@ describe('OrganizeHeader', () => {
         people={people}
         project={{ id: 't', name: '演示课题', kind: 'topic' }}
         origin="attachment"
-        demo={false}
         niu="done"
       />,
     );
@@ -78,6 +75,18 @@ describe('OrganizeHeader', () => {
       screen.getByText(copy.header.project('topic', '演示课题')),
     ).toBeTruthy();
     expect(screen.getByText(copy.header.unknownPerson)).toBeTruthy();
+    // 只有非演示人员时不标「演示」
+    expect(screen.queryByText(copy.header.demo)).toBeNull();
+    rerender(
+      <OrganizeHeader
+        personIds={['p2']}
+        people={people}
+        project={null}
+        origin="text"
+        niu="done"
+      />,
+    );
+    expect(screen.queryByText(copy.header.demo)).toBeNull();
   });
 });
 

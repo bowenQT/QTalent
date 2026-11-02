@@ -45,7 +45,14 @@ const shell = (role: ShellData['role']): ShellData => ({
 const data = {
   status: 'ok' as const,
   people: [
-    { id: 'p1', name: '演示甲', hue: 20, photo: null, orgShort: '演示组' },
+    {
+      id: 'p1',
+      name: '演示甲',
+      hue: 20,
+      photo: null,
+      orgShort: '演示组',
+      demo: true,
+    },
   ],
   projects: [{ id: 'proj-1', name: '演示项目' }],
   dimensions: [{ id: 'mot', name: '内生动力' }],

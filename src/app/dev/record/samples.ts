@@ -88,7 +88,14 @@ export function sampleShell(role: SampleRole): ShellData {
 
 export function samplePeople(role: SampleRole): PersonOption[] {
   return (role === 'mentor' ? mentorPeople : hrPeople).map(
-    ([id, name, hue, photo, orgShort]) => ({ id, name, hue, photo, orgShort }),
+    ([id, name, hue, photo, orgShort]) => ({
+      id,
+      name,
+      hue,
+      photo,
+      orgShort,
+      demo: true,
+    }),
   );
 }
 

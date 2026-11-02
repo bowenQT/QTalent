@@ -17,6 +17,7 @@ export type RecordPagePerson = {
   hue: number;
   photo: string | null;
   orgShort: string;
+  demo: boolean;
 };
 export type RecordPageData =
   | {
@@ -59,6 +60,7 @@ async function readPageData(): Promise<RecordPageData> {
           hue: people.hue,
           photo: people.photo,
           orgShort: organizations.shortName,
+          demo: people.demo,
         })
         .from(people)
         .innerJoin(organizations, eq(organizations.id, people.organizationId))
@@ -77,6 +79,7 @@ async function readPageData(): Promise<RecordPageData> {
               hue: row.hue,
               photo: row.photo,
               orgShort: row.orgShort,
+              demo: row.demo,
             },
           ]
         : [];

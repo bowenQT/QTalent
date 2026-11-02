@@ -29,6 +29,7 @@ import { OrganizeHeader } from './OrganizeHeader';
 import { OrganizeProgress } from './OrganizeProgress';
 import { RawInput } from './RawInput';
 import { BannerNotice, FailurePanel, HandoffPanel } from './RecordNotices';
+import { recognizePerson } from './recognize';
 import { RecordInput } from './RecordInput';
 import {
   initialState,
@@ -80,8 +81,6 @@ export type RecordPageProps = {
   /** 还没有分可看时右栏显示的锚点（原型默认内生动力），由页面读取提供；缺省显示提示句。 */
   idleAnchor?: IdleAnchor;
   entry?: RecordEntry;
-  /** 演示数据：头部显示「演示」徽标。 */
-  demo?: boolean;
   /** 非生产环境显示带化名的示例占位。 */
   showExample?: boolean;
   maxLength?: number;
@@ -315,8 +314,12 @@ function RecordFlow(props: RecordPageProps) {
       return;
     }
     if (state.text.length > maxLength) return;
-    const personIds = state.personId ? [state.personId] : [];
-    const input = { text: state.text, personId: state.personId };
+    // 「从原话里识别」：按候选姓名精确匹配，认出恰好一位就填进「谁」；认不出时下面的推导返回
+    // none，页面提示选人并把焦点交给「谁」。
+    const personId = state.personId ?? recognizePerson(state.text, people);
+    if (personId !== state.personId) dispatch({ type: 'person', personId });
+    const personIds = personId ? [personId] : [];
+    const input = { text: state.text, personId };
     dispatch({ type: 'submit_begin' });
     try {
       // 评价节点由服务端按所选人员推导；不唯一时说明原因，不提交（#248 6564917769）。
@@ -332,7 +335,7 @@ function RecordFlow(props: RecordPageProps) {
       // 同样的原话、人员和节点复用同一个 operation_id：服务端按它重放，不会产生两个批次。
       const op = reuseOperationId(
         fresh ? null : state.startOp,
-        JSON.stringify([inputKey(state), node.evaluationNodeId]),
+        JSON.stringify([inputKey(input), node.evaluationNodeId]),
         newId,
       );
       dispatch({ type: 'submit_begin', op });
@@ -664,7 +667,6 @@ function RecordFlow(props: RecordPageProps) {
                 people={people}
                 project={project}
                 origin="text"
-                demo={Boolean(props.demo)}
                 niu={niu}
               />
               <div id="ev-body">
