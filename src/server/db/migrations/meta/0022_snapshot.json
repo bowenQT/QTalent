@@ -1,5 +1,5 @@
 {
-  "id": "19230cac-ee70-4133-a9c1-629aad6d30fb",
+  "id": "a2096d43-d44b-463b-aa34-dc5eff831afc",
   "prevId": "d2d93da7-6bb1-47f7-b19c-6fed9e134c4a",
   "version": "7",
   "dialect": "postgresql",
@@ -4940,6 +4940,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "filled": {
+          "name": "filled",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
         "decision": {
           "name": "decision",
           "type": "jsonb",
@@ -5076,7 +5083,7 @@
       "checkConstraints": {
         "records_interview_import_row": {
           "name": "records_interview_import_row",
-          "value": "\"records_interview_import_rows\".\"row_id\" ~ '[^[:space:]]' and \"records_interview_import_rows\".\"ordinal\" > 0 and \"records_interview_import_rows\".\"review_index\" >= 0 and \"records_interview_import_rows\".\"revision\" > 0 and jsonb_typeof(\"records_interview_import_rows\".\"parsed\") = 'object'"
+          "value": "\"records_interview_import_rows\".\"row_id\" ~ '[^[:space:]]' and \"records_interview_import_rows\".\"ordinal\" > 0 and \"records_interview_import_rows\".\"review_index\" >= 0 and \"records_interview_import_rows\".\"revision\" > 0 and jsonb_typeof(\"records_interview_import_rows\".\"parsed\") = 'object' and jsonb_typeof(\"records_interview_import_rows\".\"filled\") = 'object'"
         },
         "records_interview_import_row_confirmation": {
           "name": "records_interview_import_row_confirmation",
