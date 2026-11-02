@@ -4,15 +4,22 @@ import { recordAudit } from '../platform/audit';
 import {
   sourceReadInputSchema,
   sourceSchema,
+  type Source,
   type SourceReadResult,
 } from '../../contracts/sources';
 import { readTalentSource, type TalentSource } from '../authz/talent';
 import { ForbiddenError } from '../usecases/project-context';
-import { type PersonData, talentSources, sourceKey } from './person-data';
+import { talentSources, sourceKey } from './person-data';
+import type { TalentSourceProjectionData } from '../usecases/talent-source-projection';
 import { loadCurrentPersonData } from './person-session';
 
+/** The evidence snapshot plus the directory: what a source read needs. */
+export type SourceData = TalentSourceProjectionData & {
+  directory: { people: readonly { id: string; demo: boolean }[] };
+};
+
 export async function sourceFromData(
-  data: PersonData,
+  data: SourceData,
   reference: { fragmentId: string; originalVersionId: string },
   // Callers that read many sources pass the already resolved relations.
   resolved: TalentSource[] = talentSources(data),
@@ -80,6 +87,21 @@ export async function sourceFromData(
   }
   const parsed = sourceSchema.safeParse(source);
   return parsed.success ? { status: 'success', source: parsed.data } : missing;
+}
+/** Shared source projection for a server-side reader that already loaded one
+ * snapshot (BOW-854 matching): every relation for later authorization, and the
+ * details of only those sources the current account can read.
+ */
+export async function projectReadableSources(
+  data: SourceData,
+): Promise<{ sources: TalentSource[]; details: Source[] }> {
+  const sources = talentSources(data);
+  const details: Source[] = [];
+  for (const source of sources) {
+    const read = await sourceFromData(data, source, sources);
+    if (read.status === 'success') details.push(read.source);
+  }
+  return { sources, details };
 }
 export async function readSourceForCurrentUser(
   input: unknown,
