@@ -158,14 +158,15 @@ export function sampleDraft({
   batchId,
   draftId,
   evaluationNodeId,
-  personId,
+  personIds,
   text,
   revision = 1,
 }: {
   batchId: string;
   draftId: string;
   evaluationNodeId: string;
-  personId: string;
+  /** Everyone the sentence is about; each gets the same pair of scores. */
+  personIds: readonly string[];
   text: string;
   revision?: number;
 }): RecordBatchDraft {
@@ -176,7 +177,7 @@ export function sampleDraft({
     draftId,
     revision,
     origin: 'ai_suggestion',
-    personIds: [personId],
+    personIds: [...personIds],
     projectId: null,
     sourceReferences: [reference],
     dimensionVersionId: RULE_VERSION,
@@ -188,7 +189,7 @@ export function sampleDraft({
         '主动把任务池同步给了全组，下午组员就接上了，分工比之前清楚多了',
       impact: '',
     },
-    scores: [
+    scores: personIds.flatMap((personId): RecordBatchDraft['scores'] => [
       text.includes(QUOTE)
         ? {
             personId,
@@ -214,6 +215,6 @@ export function sampleDraft({
         state: 'unknown',
         reason: '受挫后的反应待补充',
       },
-    ],
+    ]),
   };
 }

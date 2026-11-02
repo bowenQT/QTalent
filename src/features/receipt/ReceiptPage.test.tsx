@@ -307,6 +307,11 @@ describe('确认之后', () => {
           withdrawnEvents: [{ personId: 'demo-person', eventId: 'ev-1' }],
           withdrawnConfirmationIds: ['c-1'],
           withdrawnReviewItemIds: [],
+          draftRestoration: {
+            status: 'available',
+            draftId: 'demo-event-draft-a',
+            draftRevision: 3,
+          },
           inputRestoration: 'unavailable',
           originalInput: null,
         },
@@ -331,6 +336,93 @@ describe('确认之后', () => {
         name: /确认这件事/,
       }),
     ).toBeTruthy();
+  });
+
+  it('撤销失败后重试沿用同一个操作；重读失败时，撤销的事仍归自己确认', async () => {
+    const user = userEvent.setup();
+    const undoOk = {
+      status: 'success' as const,
+      replayed: true,
+      result: {
+        saveId: 'save-1',
+        withdrawnEvents: [{ personId: 'demo-person', eventId: 'ev-1' }],
+        withdrawnConfirmationIds: ['c-1'],
+        withdrawnReviewItemIds: [],
+        draftRestoration: {
+          status: 'available' as const,
+          draftId: 'demo-event-draft-a',
+          draftRevision: 3,
+        },
+        inputRestoration: 'unavailable' as const,
+        originalInput: null,
+      },
+    };
+    // 保存后重读成功：这件事进了已确认，快照里不再有它的确认人
+    const after = make(
+      {
+        confirmers: {
+          'demo-event-draft-b': { mine: false, name: '苏晚' },
+        },
+      },
+      {
+        draftSet: {
+          batchId: 'demo-batch',
+          revision: 2,
+          drafts: [other],
+          duplicateCandidates: [],
+        },
+        confirmedDrafts: [
+          {
+            draftId: 'demo-event-draft-a',
+            events: [{ personId: 'demo-person', eventId: 'ev-1' }],
+          },
+        ],
+      },
+    );
+    let ids = 0;
+    const using: ReceiptActions = {
+      read: vi
+        .fn()
+        .mockResolvedValueOnce({ status: 'success', view: after })
+        .mockRejectedValue(new Error('offline')),
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce(undoOk),
+    };
+    render(
+      <ToastProvider>
+        <ReceiptPage
+          batchId="demo-batch"
+          initial={make()}
+          actions={using}
+          viewerName="叶青"
+          newId={() => `op-${++ids}`}
+        />
+      </ToastProvider>,
+    );
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    await user.click(await screen.findByRole('button', { name: '重试' }));
+    expect(await screen.findByText(copy.toast.undone)).toBeTruthy();
+    const [first, second] = vi
+      .mocked(using.undo)
+      .mock.calls.map(([input]) => input.operation_id);
+    expect(second).toBe(first);
+    const card = cardOf('demo-event-draft-a');
+    expect(
+      within(card).getByRole('button', { name: /确认这件事/ }),
+    ).toBeTruthy();
+    expect(within(card).queryByText(/等.*确认/)).toBeNull();
+    // 重读失败时，再确认用撤销回执给的新版本
+    await user.click(within(card).getByRole('button', { name: /确认这件事/ }));
+    await waitFor(() => expect(using.save).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(using.save).mock.calls[1]![0].expected_revision).toBe(3);
   });
 
   it('重读一直不回也有撤销入口；保存回执的撤销时间已过就只提示已确认', async () => {
