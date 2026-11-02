@@ -147,15 +147,18 @@ function published() {
       current: initial,
       currentPublicationId: null,
       publicationId: 'demo-pub-1',
+      wallAt: time,
       impact: impact(),
     },
   );
 }
+// The business clock stays at publication time, as on the fixed demo clock; only
+// the server wall clock (wallAt) moves, and it alone closes the undo window.
 function undo(at = '2026-10-31T10:00:04.999Z') {
   const publication = published();
   return {
     publication,
-    auth: authority('manager', at),
+    auth: authority('manager'),
     input: {
       operationId: 'demo-undo',
       publicationId: publication.receipt.publicationId,
@@ -167,6 +170,7 @@ function undo(at = '2026-10-31T10:00:04.999Z') {
       currentPublicationId: publication.receipt.publicationId,
       previous: initial,
       bindingsBefore: impact().preservedBindings,
+      wallAt: at,
     },
   };
 }
@@ -533,6 +537,7 @@ describe('publication plans and the five-second paired undo', () => {
           current: initial,
           currentPublicationId: null,
           publicationId: 'demo-pub',
+          wallAt: time,
           impact: facts,
         },
       ),
@@ -584,6 +589,7 @@ describe('publication plans and the five-second paired undo', () => {
         current: initial,
         currentPublicationId: null,
         publicationId: 'pub',
+        wallAt: time,
         impact: impact(),
       };
       if (kind === 'base')

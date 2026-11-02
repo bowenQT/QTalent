@@ -39,7 +39,21 @@ export function JudgeNotConnected({ role }: { role: ShellData['role'] }) {
   );
 }
 
-export function StandardNotConnected() {
+export function RulesDenied() {
+  return (
+    <State
+      title="人才评价规则由 HR 和管理者维护"
+      text="修订由 HR 起草、管理者确认发布。你作为评价人的判断在「我的判断对照」里。"
+    >
+      <a className="n-btn n-btn--sm" href="/judge?rater=me">
+        打开我的判断对照
+      </a>
+    </State>
+  );
+}
+
+/** No XEngineer selection standard is in force yet, so there is nothing to show or revise. */
+export function StandardNone() {
   return (
     <>
       <header className="nt-head">
@@ -51,22 +65,9 @@ export function StandardNotConnected() {
         </div>
       </header>
       <State
-        title="入营选拔标准待接通"
-        text="接通后，这里显示生效中的标准、修订草稿、影响预览和确认发布。"
+        title="还没有生效的入营选拔标准"
+        text="第一版入营选拔标准发布后，这里会显示正在生效的版本和要点。"
       />
     </>
-  );
-}
-
-export function RulesDenied() {
-  return (
-    <State
-      title="人才评价规则由 HR 和管理者维护"
-      text="修订由 HR 起草、管理者确认发布。你作为评价人的判断在「我的判断对照」里。"
-    >
-      <a className="n-btn n-btn--sm" href="/judge?rater=me">
-        打开我的判断对照
-      </a>
-    </State>
   );
 }
