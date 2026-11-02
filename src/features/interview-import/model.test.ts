@@ -23,6 +23,7 @@ const base: ImportRow = {
   pages: { from: 1, to: 1 },
   observedName: '测试候选人',
   candidateStatus: 'hired',
+  located: true,
   template: { name: '测试评价表', scale: 'A–D' },
   interviewedOn: '2026-05-08',
   match: {
@@ -59,22 +60,40 @@ const withUnread: ImportRow = {
 };
 
 describe('rowState', () => {
-  it('skips an application that did not end in a hire once HR has confirmed who it is (906)', () => {
+  it('skips an application that did not end in a hire before HR confirms who it is, once its record is located (#248)', () => {
     for (const status of [
       'rejected',
       'offer_pending',
       'offer_declined',
     ] as const) {
-      // Not yet confirmed: 906 asks who the row is first.
-      expect(rowState({ ...base, candidateStatus: status })).toBe('confirm');
-      expect(rowState({ ...base, candidateStatus: status, match: null })).toBe(
-        'unknown',
-      );
-      // Confirmed: skipped, even with someone by that name in the directory.
+      const notHired = { ...base, candidateStatus: status };
+      // Located: skipped before anyone confirms, with or without a directory match.
+      expect(rowState(notHired)).toBe('skip');
+      expect(rowState({ ...notHired, match: null })).toBe('skip');
+      // Skipping comes before what the row would otherwise wait for.
       expect(
-        rowState({ ...base, candidateStatus: status, confirmed: true }),
+        rowState({
+          ...notHired,
+          interviewer: {
+            status: 'pending',
+            observedName: 'Kevin',
+            reviewItemId: 'i-int',
+          },
+          scale: withUnread.scale,
+        }),
       ).toBe('skip');
+      // Not located: it waits to be identified like any other row.
+      const unlocated = { ...notHired, located: false };
+      expect(rowState(unlocated)).toBe('confirm');
+      expect(rowState({ ...unlocated, match: null })).toBe('unknown');
+      expect(rowState({ ...unlocated, match: null, reviewItemId: 'i-1' })).toBe(
+        'sent',
+      );
+      // HR's confirmation settles which record it is.
+      expect(rowState({ ...unlocated, confirmed: true })).toBe('skip');
     }
+    // A hired candidate is never skipped for its status.
+    expect(rowState(base)).toBe('confirm');
   });
 
   it('marks an interview an earlier import already holds', () => {
@@ -132,7 +151,7 @@ describe('summarize and batchState', () => {
     },
     { ...base, rowId: 'r5', match: null },
     { ...base, rowId: 'r6', match: null, reviewItemId: 'i-6' },
-    { ...base, rowId: 'r7', candidateStatus: 'rejected', confirmed: true },
+    { ...base, rowId: 'r7', candidateStatus: 'rejected' },
     { ...base, rowId: 'r8', duplicate: { importedOn: '2026-08-20' } },
   ];
 
@@ -165,12 +184,19 @@ describe('row changes', () => {
     expect(confirmRow(confirmed, false).confirmed).toBe(false);
     expect(confirmRow(base, false)).toBe(base);
     expect(confirmRow(withUnread, true)).toBe(withUnread);
-    // Confirming who a rejected candidate is skips the row; it stays skipped.
-    const rejected = { ...base, candidateStatus: 'rejected' } as const;
+    // Confirming who an unlocated rejected candidate is skips the row; it stays skipped.
+    const rejected = {
+      ...base,
+      candidateStatus: 'rejected',
+      located: false,
+    } as const;
     const skippedRow = confirmRow(rejected, true);
     expect(rowState(skippedRow)).toBe('skip');
     expect(confirmRow(skippedRow, true)).toBe(skippedRow);
     expect(confirmRow(skippedRow, false)).toBe(skippedRow);
+    // A located one is already skipped: there is nothing to confirm.
+    const located = { ...rejected, located: true };
+    expect(confirmRow(located, true)).toBe(located);
   });
 
   it('fills an unread item with one of its options; clearing it takes back the confirmation', () => {

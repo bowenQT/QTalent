@@ -30,9 +30,9 @@ describe('sample ports', () => {
     expect(restore(sampleBatch, null).rows.map(rowState)).toEqual([
       'confirm',
       'verify',
-      // Rejected and not yet joined: 906 asks who they are before it skips them.
-      'unknown',
-      'unknown',
+      // Rejected and not yet joined, located in the recruiting record: skipped.
+      'skip',
+      'skip',
       'confirm',
       'dup',
       'unknown',

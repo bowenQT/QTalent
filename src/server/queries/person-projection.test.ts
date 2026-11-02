@@ -3,7 +3,7 @@ import { personSchema } from '../../contracts/person';
 import { fixture } from './person-test-helpers';
 import { personFromData } from './person-projection';
 import { peopleFromData, quickViewFromData } from './people';
-import { sourceFromData } from './sources';
+import { projectReadableSources, sourceFromData } from './sources';
 import type { PersonData } from './person-data';
 
 // ---------- helpers ----------
@@ -284,14 +284,16 @@ describe('effective scores and conflicts', () => {
     const profile = spectrum(person);
     expect(profile.windowFrom).toBe('2025-07-01');
     expect(profile.scores.every((row) => row.eventId === 'event-0')).toBe(true);
+    // The old card is still readable, so the hint asks for concrete behavior.
     expect(profile.dimensions.find((row) => row.id === 'grit')).toMatchObject({
       state: 'insufficient',
-      missing: expect.any(String),
+      missing: '有记录，待补具体行为',
     });
+    // Potential core follows the prototype order, not the ID order.
     expect(profile.dimensions.map((row) => [row.id, row.group])).toEqual([
       ['prof', 'professional'],
-      ['grit', 'potential_core'],
       ['mot', 'potential_core'],
+      ['grit', 'potential_core'],
     ]);
     // Old scores stay on the cards.
     expect(
@@ -366,7 +368,10 @@ describe('timeline entries', () => {
     data.events[0].recorderId = 'ghost';
     const person = await profileOf(data);
     expect(person.timeline.status).toBe('empty');
-    expect(person.capabilityProfile.status).toBe('insufficient_evidence');
+    expect(person.capabilityProfile).toEqual({
+      status: 'insufficient_evidence',
+      reason: '待补已确认的事件',
+    });
   });
   it('adds self reports and classified history, orders newest first', async () => {
     const data = fixture();
@@ -417,6 +422,53 @@ describe('timeline entries', () => {
       hidden.timeline.status === 'ready' &&
         hidden.timeline.data.some((row) => row.kind === 'history'),
     ).toBe(false);
+  });
+  it('drops a history row repeating a key event the caller can read, and only then', async () => {
+    const weekly = (data: PersonData) => {
+      data.fragments.push({
+        id: 'fragment-w',
+        originalVersionId: 'version',
+        excerpt: 'Synthetic weekly',
+        location: { kind: 'snapshot_field', fieldPath: 'sum' },
+      });
+      data.historical.push({
+        id: 'weekly-event-0',
+        sourceRecordId: 'event-0',
+        evaluationNodeId: null,
+        personId: 'one',
+        recorderId: 'actor',
+        occurredOn: '2026-06-15',
+        kind: '训练营周评',
+        period: 'W1–W3',
+        scale: [['本周总结', '正常发挥']],
+        ruleVersionId: null,
+        originalVersionId: 'version',
+        fragmentId: 'fragment-w',
+        sourceCategory: 'prototype_baseline',
+      });
+      return data;
+    };
+    const ids = async (data: PersonData) => {
+      const person = await profileOf(data);
+      return person.timeline.status === 'ready'
+        ? person.timeline.data.map((row) => [row.kind, row.id])
+        : [];
+    };
+    const visible = weekly(fixture());
+    expect(await ids(visible)).toEqual([
+      ['key_event', 'event-0'],
+      ['key_event', 'event-1'],
+    ]);
+    const card = cards(await profileOf(visible)).find(
+      (row) => row.id === 'event-0',
+    )!;
+    expect(card.sources.length).toBeGreaterThan(0);
+    // The mentor cannot read event-0 as a management observation, so the
+    // weekly review is not a repeat for that caller and stays on the timeline.
+    const mentor = weekly(fixture('mentor'));
+    mentor.statements[0].kind = 'management_observation';
+    expect(await ids(mentor)).toContainEqual(['history', 'weekly-event-0']);
+    expect(await ids(mentor)).not.toContainEqual(['key_event', 'event-0']);
   });
   it('keeps human conclusions out of the summary until they carry a date', async () => {
     const data = fixture();
@@ -585,7 +637,71 @@ describe('source detail', () => {
   });
 });
 
+describe('shared source projection', () => {
+  it('keeps every relation and details only the sources the caller can read', async () => {
+    const data = fixture('mentor');
+    // event-1 becomes a management observation the mentor cannot read.
+    data.statements[1].kind = 'management_observation';
+    const { sources, details } = await projectReadableSources(data);
+    expect(sources.map((row) => row.fragmentId)).toEqual([
+      'fragment-0',
+      'fragment-1',
+    ]);
+    expect(details.map((row) => row.fragmentId)).toEqual(['fragment-0']);
+    const single = await sourceFromData(data, {
+      fragmentId: 'fragment-0',
+      originalVersionId: 'version',
+    });
+    if (single.status !== 'success')
+      throw new Error('Expected a readable source');
+    expect(details[0]).toEqual(single.source);
+    const manager = await projectReadableSources(fixture('manager'));
+    expect(manager.details.map((row) => row.fragmentId)).toEqual([
+      'fragment-0',
+      'fragment-1',
+    ]);
+  });
+});
+
 describe('strict projection', () => {
+  // DY-01: there is no employee view. An account reading its own person with
+  // no grant and no evaluation relation gets no profile and no quick view.
+  it.each(['hr', 'manager'] as const)(
+    'an account whose %s grant is gone cannot read itself',
+    async (role) => {
+      const data = fixture(role);
+      data.context.account.personId = 'one';
+      // Control: the same self-read with the grant is a normal business read.
+      expect(await personFromData(data, 'one')).not.toBeNull();
+      data.context.grants = [];
+      data.directory.grants = [];
+      data.context.assignments = [];
+      expect(await personFromData(data, 'one')).toBeNull();
+      expect(await quickViewFromData(data, 'one')).toBeNull();
+    },
+  );
+  it('gives the mentor a hidden-record hint identical to no record at all', async () => {
+    const data = fixture('mentor');
+    data.statements[1].kind = 'management_observation';
+    const person = await profileOf(data);
+    expect(person.role).toBe('mentor');
+    expect(spectrum(person).dimensions.map((row) => row.id)).toEqual([
+      'prof',
+      'mot',
+      'grit',
+    ]);
+    // event-1 carries the only grit score and is hidden from the mentor.
+    expect(
+      spectrum(person).dimensions.find((row) => row.id === 'grit'),
+    ).toEqual({
+      id: 'grit',
+      label: expect.any(String),
+      group: 'potential_core',
+      state: 'insufficient',
+      missing: '待补受挫后如何反应的事件',
+    });
+    expect(JSON.stringify(person)).not.toContain('有记录');
+  });
   it('rejects a mentor response that carries management category content', async () => {
     const data = fixture('hr');
     data.statements[0].kind = 'management_observation';
