@@ -162,20 +162,6 @@
       "when": 1793637084367,
       "tag": "0022_bow_915_agentapi_conversations",
       "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "7",
-      "when": 1793639153709,
-      "tag": "0023_bow_906_interview_import",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1793639233769,
-      "tag": "0024_bow_906_import_review_items",
-      "breakpoints": true
     }
   ]
 }
