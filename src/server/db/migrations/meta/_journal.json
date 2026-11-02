@@ -71,6 +71,13 @@
       "when": 1793551189357,
       "tag": "0009_record_arrange_native",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793585482724,
+      "tag": "0010_entry_credentials_audit_channel",
+      "breakpoints": true
     }
   ]
 }
