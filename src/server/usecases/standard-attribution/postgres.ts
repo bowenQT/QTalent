@@ -131,6 +131,20 @@ function referencesMatch(
   });
 }
 
+/** Every private citation group a finished success receipt carries. */
+function receiptCitations(result: unknown) {
+  const confirmed = confirmStandardAttributionResultSchema.safeParse(result);
+  if (confirmed.success)
+    return confirmed.data.status === 'success' ? [confirmed.data.result] : [];
+  const proposal = draftSelectionProposalResultSchema.safeParse(result);
+  if (proposal.success)
+    return proposal.data.status === 'success'
+      ? [proposal.data.result.aiDraft.basis]
+      : [];
+  const hypotheses = generateStandardHypothesesResultSchema.parse(result);
+  return hypotheses.status === 'success' ? hypotheses.result : [];
+}
+
 /** Concrete four-table persistence. Canonical facts/selection content have no default reader. */
 export function createAttributionPostgresStore(
   db: Database,
@@ -291,6 +305,19 @@ export function createAttributionPostgresStore(
       state(tx, accountId, operationId);
       const row = await operationRow(tx);
       if (!row) return null;
+      // A stored receipt is not a current grant: every citation it carries must
+      // still be in the caller's current HR batch, or nothing is returned.
+      if (row.state === 'finished')
+        for (const group of receiptCitations(row.result)) {
+          const current = await this.loadHrBatch(
+            tx,
+            accountId,
+            group.batchId,
+            now().toISOString(),
+          );
+          if (!current || !referencesMatch(current, group.citations))
+            throw new AttributionPersistenceError('forbidden');
+        }
       return operationSchema.parse({
         fingerprint: row.fingerprint,
         evidenceFingerprint: row.evidenceFingerprint,

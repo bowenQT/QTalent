@@ -30,14 +30,15 @@ export async function lockCanonicalComparisonBatch(
   );
 }
 
-async function mappingRow(tx: Transaction, versionId: string) {
+const share = (lock: boolean) => (lock ? sql`for share` : sql``);
+async function mappingRow(tx: Transaction, versionId: string, lock = true) {
   return jsonRows(
     tx,
     sql`select jsonb_build_object('versionId', version_id,
     'frontScaleId', front_scale_id,'backScaleId',back_scale_id,'rows',rows,
     'confirmedById',confirmed_by,'confirmedAt',confirmed_at,'sourceCommit',source_commit,
     'sourceFileSha256',source_file_sha256,'nature',nature) as data
-    from evaluation_comparison_mappings where version_id=${versionId} for share`,
+    from evaluation_comparison_mappings where version_id=${versionId} ${share(lock)}`,
   );
 }
 const batchEnvelope = z.strictObject({
@@ -68,11 +69,14 @@ const stageEnvelope = z.strictObject({
   evaluatedAt: z.string().nullable(),
   confirmation: z.string().nullable(),
 });
+/** `lock: false` is for read-only transactions, which cannot take row locks.
+ * Callers then rely on the stored facts digest to detect a torn read. */
 export async function readCanonicalComparisonRows(
   tx: Transaction,
   batchId: string,
+  { lock = true }: { lock?: boolean } = {},
 ) {
-  await lockCanonicalComparisonBatch(tx, batchId);
+  if (lock) await lockCanonicalComparisonBatch(tx, batchId);
   const batches = await jsonRows(
     tx,
     sql`select jsonb_build_object('facts',jsonb_build_object(
@@ -80,7 +84,7 @@ export async function readCanonicalComparisonRows(
     'sourceCommit',source_commit,'contractSha',contract_sha,'fixtureVersion',fixture_version,
     'inputFileHashes',input_file_hashes,'inputCaseCount',input_case_count,'nature',nature),
     'factsDigest',facts_digest,'importedAt',imported_at) as data
-    from evaluation_comparison_batches where id=${batchId} for share`,
+    from evaluation_comparison_batches where id=${batchId} ${share(lock)}`,
   );
   if (batches.length === 0) return null;
   const envelope = batchEnvelope.safeParse(batches[0]);
@@ -89,7 +93,7 @@ export async function readCanonicalComparisonRows(
     .object({ mappingVersionId: z.string() })
     .safeParse(envelope.data.facts);
   if (!batch.success) return fail('incomplete');
-  const mappings = await mappingRow(tx, batch.data.mappingVersionId);
+  const mappings = await mappingRow(tx, batch.data.mappingVersionId, lock);
   if (mappings.length !== 1) return fail('incomplete');
   const caseData = await jsonRows(
     tx,
@@ -98,7 +102,7 @@ export async function readCanonicalComparisonRows(
     'frontNodeId',front_node_id,'backNodeId',back_node_id,
     'work',case when work_kind='individual' and team_id is null then jsonb_build_object('kind',work_kind,'workId',work_id)
       else jsonb_build_object('kind',work_kind,'workId',work_id,'teamId',team_id) end) as data
-    from evaluation_comparison_cases where batch_id=${batchId} order by id for share`,
+    from evaluation_comparison_cases where batch_id=${batchId} order by id ${share(lock)}`,
   );
   const stageData = await jsonRows(
     tx,
@@ -106,7 +110,7 @@ export async function readCanonicalComparisonRows(
     'missingReason',missing_reason,'fragmentId',fragment_id,'originalVersionId',original_version_id,
     'judgmentId',judgment_id,'sourceStandardReference',source_standard_reference,'scaleId',scale_id,
     'grade',grade,'evaluatorId',evaluator_id,'evaluatedAt',evaluated_at,'confirmation',confirmation) as data
-    from evaluation_comparison_stages where batch_id=${batchId} order by case_id,side for share`,
+    from evaluation_comparison_stages where batch_id=${batchId} order by case_id,side ${share(lock)}`,
   );
   const cases = z.array(caseEnvelope).safeParse(caseData);
   const stages = z.array(stageEnvelope).safeParse(stageData);
@@ -123,7 +127,7 @@ export async function readCanonicalComparisonRows(
     'reason',m.reason,'markedById',m.marked_by,'markedAt',m.marked_at,
     'sourceFileSha256',m.source_file_sha256,'nature',m.nature) as data
     from evaluation_comparison_manual_marks m join evaluation_comparison_cases c on c.id=m.case_id
-    where c.batch_id=${batchId} order by m.id for share of m,c`,
+    where c.batch_id=${batchId} order by m.id ${lock ? sql`for share of m,c` : sql``}`,
   );
   return {
     batch: envelope.data.facts,

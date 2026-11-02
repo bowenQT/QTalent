@@ -469,8 +469,12 @@ export function createSelectionPostgresStore(
    * malformed or empty verifier result is an installation fault, not consent. */
   async function assertDisclosed(
     tx: SelectionPostgresTransaction,
-    basis: SelectionRevisionRecord['revision']['basis'],
+    revision: SelectionRevisionRecord['revision'],
   ) {
+    const { basis } = revision;
+    // The AI original is bound to the same basis at creation; one check covers both.
+    if (revision.aiDraft && !same(revision.aiDraft.basis, basis))
+      throw new SelectionPersistenceUnavailableError();
     const result = basisDisclosureSchema.safeParse(
       await services.verifyBasisDisclosure(tx.db, authority(tx), basis),
     );
@@ -1039,10 +1043,7 @@ export function createSelectionPostgresStore(
         throw new SelectionPersistenceUnavailableError();
       // HR receipts carry the case-level basis; manager receipts do not.
       if (role(action) === 'hr')
-        await assertDisclosed(
-          tx,
-          selectionRevisionSchema.parse(parsed.result).basis,
-        );
+        await assertDisclosed(tx, selectionRevisionSchema.parse(parsed.result));
       return {
         fingerprint: row.fingerprint,
         scopeCohortId: row.scopeCohortId,
@@ -1123,7 +1124,7 @@ export function createSelectionPostgresStore(
       if (found && purpose === 'hr') {
         for (const cohortId of scope(found))
           authorizeSelectionAction(authority(tx), 'hr', cohortId);
-        await assertDisclosed(tx, found.revision.basis);
+        await assertDisclosed(tx, found.revision);
       }
       return found;
     },

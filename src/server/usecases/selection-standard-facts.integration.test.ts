@@ -63,6 +63,7 @@ const next = {
 };
 let attributionId = '',
   proposalId = '';
+let attribution: ReturnType<typeof createAttributionPostgresStore>;
 const command = () => ({
   operationId: 'create',
   attributionId,
@@ -381,11 +382,16 @@ beforeEach(async () => {
     ],
     confirmedAttributions: [],
   };
-  const upstream = createAttributionPostgresStore(db(), {
-    readCanonicalComparisonBatch: async () => data,
-    readSelectionStandard: (tx, id) =>
-      readCurrentSelectionStandard(tx, id, clock),
-  });
+  attribution = createAttributionPostgresStore(
+    db(),
+    {
+      readCanonicalComparisonBatch: async () => data,
+      readSelectionStandard: (tx, id) =>
+        readCurrentSelectionStandard(tx, id, clock),
+    },
+    { now: clock },
+  );
+  const upstream = attribution;
   const model: AttributionModel = {
     expectedModel: 'synthetic-gemini-model',
     client: {
@@ -865,6 +871,95 @@ describe('native reader and stale input boundaries', () => {
   });
 });
 
+describe('every private-basis exit refuses a caller whose access ended', () => {
+  const revocations = {
+    'HR grant revoked': () =>
+      db()
+        .update(grants)
+        .set({ revokedAt: '2026-10-31' })
+        .where(eq(grants.id, 'hr-cohort')),
+    'enrollment revoked': () =>
+      db().update(enrollments).set({ revokedAt: '2026-10-31' }),
+    'person set to noReview': () =>
+      db()
+        .update(people)
+        .set({ noReview: true })
+        .where(eq(people.id, 'person')),
+  };
+  for (const [label, revoke] of Object.entries(revocations))
+    it(label, async () => {
+      const service = app();
+      const created = await service.execute('hr', {
+        action: 'create',
+        input: command(),
+      });
+      if (created.status !== 'success') throw new Error(created.status);
+      const draft = selectionRevisionSchema.parse(created.result);
+      const ports = service.store.ports;
+      const lock = {
+        category: 'xe_selection' as const,
+        accountId: 'hr',
+        operationId: 'create',
+      };
+      type Tx = Parameters<typeof ports.readRevision>[0];
+      const selectionReads = [
+        (tx: Tx) => ports.readRevision(tx, draft.id, 'hr'),
+        (tx: Tx) => ports.readOperation(tx, 'hr', lock.operationId),
+      ];
+      const selectionRead = (read: (tx: Tx) => Promise<unknown>) =>
+        ports.transact(lock, async (tx) => {
+          await ports.loadAuthority(tx, 'hr', now);
+          return read(tx);
+        });
+      const receipt = (operationId: string) =>
+        attribution.transaction('hr', operationId, (tx) =>
+          attribution.readOperation(tx, 'hr', operationId),
+        );
+      const draftContext = () =>
+        attribution.transaction('hr', 'draft-context', (tx) =>
+          attribution.loadDraftContext(
+            tx,
+            'hr',
+            attributionId,
+            'xe-select-v1',
+            now,
+          ),
+        );
+      // Before: the legitimate HR reads every exit, including a read-only
+      // transaction that cannot take the canonical reader's row locks.
+      const readOnly = await ports.read(async (tx) => {
+        await ports.loadAuthority(tx, 'hr', now);
+        return ports.readRevision(tx, draft.id, 'hr');
+      });
+      expect(readOnly?.revision.basis).toEqual(draft.basis);
+      for (const read of selectionReads)
+        expect(await selectionRead(read)).not.toBeNull();
+      expect(await receipt('confirm')).toMatchObject({
+        state: 'finished',
+        result: { status: 'success', result: { citations: expect.any(Array) } },
+      });
+      expect(await receipt('model-draft')).toMatchObject({
+        state: 'finished',
+        result: {
+          status: 'success',
+          result: { aiDraft: { basis: { citations: expect.any(Array) } } },
+        },
+      });
+      expect(await draftContext()).not.toBeNull();
+
+      await revoke();
+      for (const read of selectionReads)
+        await expect(selectionRead(read)).rejects.toMatchObject({
+          status: 'forbidden',
+        });
+      for (const operationId of ['confirm', 'model-draft'])
+        await expect(receipt(operationId)).rejects.toMatchObject({
+          kind: 'forbidden',
+        });
+      // Exits already guarded by the current batch drop the basis instead.
+      expect(await draftContext()).toBeNull();
+    });
+});
 describe('current authority and binding assembly', () => {
   it('a changed account-to-person binding cannot reuse an earlier authority', async () => {
     await expect(

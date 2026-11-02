@@ -82,7 +82,14 @@ async function authorizedCanonical(
   if (!route)
     throw new SelectionLifecycleError('not_found', '对照批次不存在或不可见');
   authorizeScope(authority, route.cohortId);
-  const value = await readCanonicalComparisonBatch(tx, batchId);
+  // A read-only transaction cannot take row locks; the canonical reader's digest
+  // comparison is the snapshot check there.
+  const mode = await tx.execute<{ readOnly: string }>(
+    sql`select current_setting('transaction_read_only') as "readOnly"`,
+  );
+  const value = await readCanonicalComparisonBatch(tx, batchId, {
+    lock: mode.rows[0]?.readOnly !== 'on',
+  });
   if (!value) return unavailable();
   return value;
 }

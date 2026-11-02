@@ -51,9 +51,9 @@ function sourceRow(location: unknown): number {
     return fail('invalid_reference');
   return row;
 }
-async function sources(tx: Transaction, ids: string[]) {
+async function sources(tx: Transaction, ids: string[], lock: boolean) {
   if (ids.length === 0) return [];
-  return tx
+  const query = tx
     .select({
       fragmentId: fragments.id,
       originalVersionId: fragments.originalVersionId,
@@ -76,12 +76,18 @@ async function sources(tx: Transaction, ids: string[]) {
     )
     .innerJoin(originals, eq(originals.id, originalVersions.originalId))
     .where(inArray(fragments.id, [...new Set(ids)].sort()))
-    .orderBy(fragments.id)
-    .for('share');
+    .orderBy(fragments.id);
+  return lock ? query.for('share') : query;
 }
 type Source = Awaited<ReturnType<typeof sources>>[number];
-async function references(tx: Transaction, facts: CanonicalComparisonImport) {
-  const bound = await readSelectionCohortFacts(tx, facts.batch.cohortId);
+async function references(
+  tx: Transaction,
+  facts: CanonicalComparisonImport,
+  lock = true,
+) {
+  const bound = await readSelectionCohortFacts(tx, facts.batch.cohortId, {
+    lock,
+  });
   if (!bound) return fail('invalid_reference');
   const ids = facts.cases
     .flatMap((unit) => [
@@ -89,7 +95,7 @@ async function references(tx: Transaction, facts: CanonicalComparisonImport) {
       unit.back.source?.fragmentId,
     ])
     .filter((id): id is string => id !== undefined);
-  const rows = await sources(tx, ids);
+  const rows = await sources(tx, ids, lock);
   const byId = new Map(rows.map((row) => [row.fragmentId, row]));
   if (byId.size !== new Set(ids).size) return fail('invalid_reference');
   const personIds = [
@@ -103,30 +109,30 @@ async function references(tx: Transaction, facts: CanonicalComparisonImport) {
       ]),
     ]),
   ].sort();
-  const persons = await tx
+  const personQuery = tx
     .select({ id: people.id })
     .from(people)
     .where(inArray(people.id, personIds))
-    .orderBy(people.id)
-    .for('share');
+    .orderBy(people.id);
+  const persons = await (lock ? personQuery.for('share') : personQuery);
   if (persons.length !== personIds.length) return fail('invalid_reference');
   const nodeIds = [
     ...new Set(
       facts.cases.flatMap((unit) => [unit.frontNodeId, unit.backNodeId]),
     ),
   ].sort();
-  const nodes = await tx
+  const nodeQuery = tx
     .select()
     .from(evaluationNodes)
     .where(inArray(evaluationNodes.id, nodeIds))
-    .orderBy(evaluationNodes.id)
-    .for('share');
+    .orderBy(evaluationNodes.id);
+  const nodes = await (lock ? nodeQuery.for('share') : nodeQuery);
   if (
     nodes.length !== nodeIds.length ||
     nodes.some((node) => node.cohortId !== facts.batch.cohortId)
   )
     return fail('invalid_reference');
-  const subjects = await tx
+  const subjectQuery = tx
     .select()
     .from(evaluationNodeSubjects)
     .where(
@@ -138,8 +144,8 @@ async function references(tx: Transaction, facts: CanonicalComparisonImport) {
     .orderBy(
       evaluationNodeSubjects.evaluationNodeId,
       evaluationNodeSubjects.personId,
-    )
-    .for('share');
+    );
+  const subjects = await (lock ? subjectQuery.for('share') : subjectQuery);
   for (const unit of facts.cases) {
     for (const side of ['front', 'back'] as const) {
       const stage = unit[side];
@@ -249,17 +255,21 @@ function unpackStage(
 }
 
 /** Server-private complete facts. Never pass directly to a Web or model caller. */
+/** `lock: false` reads without row locks for read-only transactions; the
+ * recomputed facts digest below still rejects a torn or changed snapshot. */
 export async function readCanonicalComparisonBatch(
   tx: Transaction,
   batchId: string,
+  { lock = true }: { lock?: boolean } = {},
 ): Promise<CanonicalComparisonSnapshot | null> {
-  const stored = await readCanonicalComparisonRows(tx, batchId);
+  const stored = await readCanonicalComparisonRows(tx, batchId, { lock });
   if (!stored) return null;
   const sourceRows = await sources(
     tx,
     stored.stages
       .map((stage) => stage.fragmentId)
       .filter((id): id is string => id !== null),
+    lock,
   );
   const sourceMap = new Map(sourceRows.map((row) => [row.fragmentId, row]));
   const units = stored.cases.map((unit) => {
@@ -285,7 +295,7 @@ export async function readCanonicalComparisonBatch(
     if (error instanceof CanonicalComparisonError) return fail('incomplete');
     throw error;
   }
-  const refs = await references(tx, facts);
+  const refs = await references(tx, facts, lock);
   const factsDigest = digest({
     facts,
     sources: refs.rows,

@@ -15,14 +15,13 @@ import { SelectionPersistenceUnavailableError } from './postgres';
 export async function readSelectionCohortFacts(
   tx: Transaction,
   cohortId: string,
+  { lock = true }: { lock?: boolean } = {},
 ) {
-  const row = (
-    await tx
-      .select()
-      .from(selectionCohortBindings)
-      .where(eq(selectionCohortBindings.cohortId, cohortId))
-      .for('share')
-  )[0];
+  const bindingQuery = tx
+    .select()
+    .from(selectionCohortBindings)
+    .where(eq(selectionCohortBindings.cohortId, cohortId));
+  const row = (await (lock ? bindingQuery.for('share') : bindingQuery))[0];
   if (!row) return null;
   const binding = selectionCohortBindingSchema.parse(row.binding);
   if (
@@ -31,13 +30,11 @@ export async function readSelectionCohortFacts(
     Date.parse(binding.boundAt) !== row.boundAt.getTime()
   )
     throw new SelectionPersistenceUnavailableError();
-  const version = (
-    await tx
-      .select()
-      .from(selectionVersionContents)
-      .where(eq(selectionVersionContents.versionId, row.versionId))
-      .for('share')
-  )[0];
+  const versionQuery = tx
+    .select()
+    .from(selectionVersionContents)
+    .where(eq(selectionVersionContents.versionId, row.versionId));
+  const version = (await (lock ? versionQuery.for('share') : versionQuery))[0];
   if (!version) throw new SelectionPersistenceUnavailableError();
   return {
     binding,

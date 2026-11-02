@@ -15,9 +15,11 @@ validateCanonicalComparisonImport(input: unknown): CanonicalComparisonImport;
 writeCanonicalComparisonBatch(tx: Transaction, input: unknown): Promise<{
   status: 'inserted' | 'unchanged'; batchId: string; factsDigest: string;
 }>;
-readCanonicalComparisonBatch(tx: Transaction, batchId: string):
+readCanonicalComparisonBatch(tx: Transaction, batchId: string, options?: { lock?: boolean }):
   Promise<CanonicalComparisonSnapshot | null>;
 ```
+
+reader 默认加批次 advisory lock 和行级 `for share`。只读事务不能加行锁，调用方传 `{ lock: false }` 时不加任何锁，靠读完后重算 `factsDigest` 与存储值比对来发现撕裂或变化的快照，不一致按 incomplete 失败。目前只有 918 的引用重核在只读事务中这样调用。
 
 生产调用路径为 `src/server/usecases/judgment-comparison-canonical.ts`；本域 `canonical-store.ts` 只做五表真实存取。跨域目录、节点和来源验证由 usecase 复用各域公开表出口，同一事务执行。路径调整已明确核准并登记于 [协调记录](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6560606327)。这些是 server-private 函数。923 在同一个真实事务中登记 records 原件/片段，再调用 write；函数不自建连接、不提交外层事务。异常必须传播至外层事务以完整回滚。导入按批次业务键加事务 advisory lock；相同事实重放为 unchanged，同 ID 异事实为 conflict，不静默吞冲突。reader 的 null 仅表示成功查询后该批次不存在，缺表、SQL 错误、缺段或不完整内容均为错误。
 
