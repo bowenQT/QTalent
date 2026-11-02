@@ -232,7 +232,16 @@ export async function collectEvidence(
     const project = data.staffing.projects.find(
       (row) => row.id === event.projectId,
     );
-    const cardSources = projected.sources.map(pluck);
+    // A score must cite an event source (FK), so the demo seed links score
+    // citations of the event's own text as sources too. When the event has
+    // statements, its materials are exactly their sources; score citations
+    // stay on the scores. Authorization above still covers every link.
+    const materials = new Set(statements.map(sourceKey));
+    const cardSources = projected.sources
+      .filter(
+        (source) => !statements.length || materials.has(sourceKey(source)),
+      )
+      .map(pluck);
     // Scores: every row passes its own gate (kind, source, provenance) and is
     // grouped by dimension on this event.
     const scorable = canReadTalent(
