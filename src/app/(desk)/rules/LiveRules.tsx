@@ -4,8 +4,14 @@ import {
   SelectionStandardCurrent,
 } from '@/features/standard-iteration/revision/SelectionStandard';
 import type {
+  EffectiveRuleVersion,
+  SelectionManagerRevision,
+  SelectionRevision,
+} from '@/contracts/selection-standard';
+import type {
   HrRevisionPorts,
   ManagerRevisionPorts,
+  SelectionStandardContent,
 } from '@/features/standard-iteration/ports';
 import {
   publishSelectionRevisionAction,
@@ -16,7 +22,6 @@ import {
   undoSelectionPublicationAction,
   withdrawSelectionRevisionAction,
 } from '@/server/actions/selection-standard';
-import type { SelectionStandardPage } from '@/server/usecases/selection-standard-native';
 
 const hrPorts: HrRevisionPorts = {
   save: saveSelectionRevisionAction,
@@ -31,12 +36,24 @@ const managerPorts: ManagerRevisionPorts = {
 };
 const judgeHref = '/judge#attrib';
 
+/** What the server read for this viewer: the standard in force or one revision. */
+type LivePage =
+  | {
+      status: 'current';
+      audience: 'hr' | 'manager';
+      version: EffectiveRuleVersion;
+      content: SelectionStandardContent;
+    }
+  | {
+      status: 'revision';
+      base: SelectionStandardContent;
+      view:
+        | { audience: 'hr'; revision: SelectionRevision }
+        | { audience: 'manager'; revision: SelectionManagerRevision };
+    };
+
 /** The XEngineer selection standard as read on the server for this viewer. */
-export function LiveRules({
-  page,
-}: {
-  page: Extract<SelectionStandardPage, { status: 'current' | 'revision' }>;
-}) {
+export function LiveRules({ page }: { page: LivePage }) {
   if (page.status === 'current')
     return (
       <SelectionStandardCurrent
