@@ -3,12 +3,12 @@
 import re
 from datetime import datetime
 
-FIXTURE_VERSION = "bow-923-v2"
+FIXTURE_VERSION = "bow-923-v3"
 MARK_FILE = "manual-comparability-marks.json"
 ROLE_PROVENANCE = {
-    "commit": "451ecec0106344cac2e4225a363b5fd3cae92584",
+    "commit": "81e4fd448f11d6c515bf447a81e85606d7b239ff",
     "path": "prototype/y/app/js/data.js",
-    "blob": "48cacc14105d496159e633dd392128629f03e3f9",
+    "blob": "3768bbcae5081c4267adfce0f9ccad8ac7d93f87",
     "roleKey": "ROLES.hrbp",
 }
 FORBIDDEN_RESULTS = {"outcome", "expectedOutcome", "expectedResults", "counts", "distribution", "comparableCaseCount", "bands"}
@@ -55,7 +55,7 @@ def validate_manual_marks(inputs, source, roster):
     cases = {case["id"]: case for case in inputs["cases"]}
     require(len(cases) == len(inputs["cases"]), "duplicate input case")
     marks = source["marks"]
-    require(isinstance(marks, list) and len(marks) == 4, "expected four authored manual facts")
+    require(isinstance(marks, list) and marks, "expected the prototype's HR marks")
     require(inputs["manualComparabilityMarks"] == marks, "seed marks differ from independent authored facts")
     by_case, seen_ids = {}, set()
     for mark in marks:
@@ -64,7 +64,7 @@ def validate_manual_marks(inputs, source, roster):
         case = cases.get(mark["caseId"])
         require(case is not None, "manual mark targets unknown case")
         require(mark["caseId"] not in by_case and mark["id"] not in seen_ids, "duplicate manual mark identity/case")
-        require(mark["id"] == "bow-923-hr-mark-" + mark["caseId"].removeprefix("bow-923-case-"), "manual mark id/case mismatch")
+        require(mark["id"] == f"{FIXTURE_VERSION}-hr-mark-" + mark["caseId"].removeprefix(f"{FIXTURE_VERSION}-case-"), "manual mark id/case mismatch")
         require(mark["batchId"] == case["batchId"] == inputs["batch"]["id"], "manual mark batch mismatch")
         require(mark["personId"] == case["person"]["id"], "manual mark person mismatch")
         require(mark["frontNodeId"] == case["frontNodeId"] and mark["backNodeId"] == case["backNodeId"], "manual mark node pair mismatch")

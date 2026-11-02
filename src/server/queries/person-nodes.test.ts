@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { nodeFixture as currentNode } from './person-test-helpers';
-import { eventSubject, talentSources } from './person-data';
+import { eventSubject, completeTalentSources } from './person-data';
 import { personFromData } from './person-projection';
 import { sourceFromData } from './sources';
 import { buildAuthorizedModelInput, type TalentRecord } from '../authz/talent';
@@ -28,7 +28,7 @@ function model(data: ReturnType<typeof currentNode>, ref = reference) {
   return buildAuthorizedModelInput(async () => ({
     context: data.context,
     records: [record],
-    sources: talentSources(data),
+    sources: completeTalentSources(data),
   }));
 }
 
@@ -39,7 +39,7 @@ describe('BOW-899 actual person/source/model node propagation', () => {
     expect(eventSubject(data, data.events[0])).toMatchObject({
       evaluationNodeId: 'node-current',
     });
-    expect(talentSources(data)[0].subjects).toEqual([
+    expect(completeTalentSources(data)[0].subjects).toEqual([
       { personId: 'one', cohortId: 'cohort', evaluationNodeId: 'node-current' },
     ]);
     expect(await sourceFromData(data, reference)).toHaveProperty(

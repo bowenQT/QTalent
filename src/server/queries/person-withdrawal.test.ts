@@ -3,7 +3,7 @@ import { nodeFixture } from './person-test-helpers';
 import { personFromData } from './person-projection';
 import { quickViewFromData, peopleFromData } from './people';
 import { sourceFromData } from './sources';
-import { talentSources } from './person-data';
+import { completeTalentSources } from './person-data';
 
 it('removes withdrawn events and their active-looking scores from every current projection without deleting provenance', async () => {
   const data = nodeFixture();
@@ -34,7 +34,7 @@ it('removes withdrawn events and their active-looking scores from every current 
     list.people.find((row) => row.person.id === 'one')?.recentFacts,
   ).toEqual({ status: 'empty' });
   expect(data.events).toHaveLength(2);
-  expect(talentSources(data)[0]!.subjects).toContainEqual({
+  expect(completeTalentSources(data)[0]!.subjects).toContainEqual({
     personId: 'one',
     cohortId: 'cohort',
     evaluationNodeId: 'node-current',
@@ -96,7 +96,7 @@ it('keeps every withdrawn shared subject in the source guard instead of launderi
     withdrawnAt: new Date('2026-07-01T00:00:00Z'),
   });
   data.eventSources[1]!.fragmentId = 'fragment-0';
-  const sources = talentSources(data);
+  const sources = completeTalentSources(data);
   expect(sources[0]!.subjects.map((row) => row.personId)).toContain('two');
   expect(
     (

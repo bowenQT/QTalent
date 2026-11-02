@@ -8,14 +8,18 @@ import {
 } from '../../contracts/sources';
 import { readTalentSource, type TalentSource } from '../authz/talent';
 import { ForbiddenError } from '../usecases/project-context';
-import { type PersonData, talentSources, sourceKey } from './person-data';
+import {
+  type PersonData,
+  completeTalentSources,
+  sourceKey,
+} from './person-data';
 import { loadCurrentPersonData } from './person-session';
 
 export async function sourceFromData(
   data: PersonData,
   reference: { fragmentId: string; originalVersionId: string },
   // Callers that read many sources pass the already resolved relations.
-  resolved: TalentSource[] = talentSources(data),
+  resolved: TalentSource[] = completeTalentSources(data),
 ): Promise<SourceReadResult> {
   const visible = await readTalentSource(
     async () => ({

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
+import { readIntakeTable } from './talent-source-projection';
 import {
   materialBatchInputSchema,
   materialBatchReadInputSchema,
@@ -129,6 +130,8 @@ export function createRecordBatchArrangeRequests(
       ...input,
       personIds: [...input.personIds].sort(),
     });
+    // This transaction inserts an intake row: take the writer lock first.
+    await readIntakeTable(tx, 'locked-for-write');
     await lockArrangeOperation(tx, accountId, 'create', input.operationId);
     const old = await readArrangeOperation(
       tx,
@@ -324,6 +327,8 @@ export function createRecordBatchArrangeRequests(
       // encoding. A rejection rolls back all intake rows before any enqueue.
       const snapshot = await loadRecordBatchSnapshot(
         tx,
+        // Re-read under the held lock, now including the row just inserted.
+        await readIntakeTable(tx, 'locked-for-write'),
         stored,
         metadata,
         at,

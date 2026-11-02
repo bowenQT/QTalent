@@ -4,7 +4,7 @@
 
 ## 节点与权限
 
-- 节点类型为 `program_cohort / interview / defense`。人才项目期次一对一映射节点，团队项目继续使用 staffing 的期次。事件直接保存 `evaluationNodeId`，与 `projectId` 是否存在独立。
+- 节点类型为 `program_cohort / interview / defense / review`。`review` 是人才项目内部的评审节点（如入营选拔、结营评审），不是答辩结论节点（`defense`），也不由面评导入消费（`interview`）；同类评审节点之间靠节点 id 和对照批次配置区分。人才项目期次一对一映射节点，团队项目继续使用 staffing 的期次。事件直接保存 `evaluationNodeId`，与 `projectId` 是否存在独立。
 - `evaluationNodeSubjects` 记录节点涉及的被评价人；`evaluationRelations` 明确评价人、被评价人、节点、关系标签和有效期。旧 assignments 不在新授权函数中充当节点授权。
 - 有效期为左闭右开，撤权在 `revokedAt` 时生效；应用入口使用业务时钟的 ISO instant，不能用页面缓存或仅日期截断替代。
 - 评价人只在当前有效的精确节点关系内读取人员、评价和已确认维度分；象限、管理观察、绩效不随评价关系开放。管理者和 HR 保持既有范围。系统管理员、未知或不参与评价的主体拒绝。
