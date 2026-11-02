@@ -7,6 +7,14 @@ const mocks = vi.hoisted(() => ({
   start: vi.fn(),
   read: vi.fn(),
   judge: vi.fn(),
+  env: vi.fn(),
+  database: vi.fn(() => ({})),
+  producer: vi.fn(),
+}));
+vi.mock('../env', () => ({ getEnv: mocks.env }));
+vi.mock('../db/client', () => ({ getDatabase: mocks.database }));
+vi.mock('../platform/jobs/app-runtime', () => ({
+  getAppJobProducer: mocks.producer,
 }));
 vi.mock('../auth/next', () => ({ requireSession: mocks.session }));
 vi.mock('../queries/staffing-match-runtime', () => ({
@@ -92,13 +100,27 @@ it('answers not connected while the server composes no matching runtime', async 
   expect(mocks.session).toHaveBeenCalledTimes(3);
 });
 
-it('the composition point has no runtime yet', async () => {
+it('the composition point is not connected until both model ports are configured', async () => {
   const actual = await vi.importActual<
     typeof import('../queries/staffing-match-runtime')
   >('../queries/staffing-match-runtime');
+  mocks.env.mockReturnValue({ APP_ENV: 'test' });
   expect(await actual.staffingMatchService()).toBeNull();
+  mocks.env.mockReturnValue({
+    APP_ENV: 'test',
+    QINIU_MAAS_API_KEY: 'synthetic-jev-key',
+    MODELINK_API_KEY: 'synthetic-modelink-key',
+  });
+  const service = await actual.staffingMatchService();
+  expect(service).toMatchObject({
+    start: expect.any(Function),
+    read: expect.any(Function),
+    judge: expect.any(Function),
+  });
+  // Composing reaches no queue, and the stub database ({}) is never queried.
+  expect(mocks.producer).not.toHaveBeenCalled();
   expect(staffingMatchService).toBe(mocks.service);
-});
+}, 30_000);
 
 it('opens one run per demand revision for the session account, replaying it after', async () => {
   mocks.start.mockResolvedValue({
