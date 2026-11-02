@@ -182,3 +182,62 @@ describe('PDF diagnostics and original item positions', () => {
     });
   });
 });
+
+const decodeWithText = () =>
+  decodeDocumentMessage({
+    format: 'pdf',
+    bytes: new Uint8Array([1]),
+    limits: { maxBytes: 100, maxFragments: 10, maxFragmentChars: 100 },
+    budget: documentBudgetSchema.parse({}),
+    capturePdfText: true,
+  });
+describe('page text and retained evidence mapping', () => {
+  it('maps trimming, repeated excerpts, EOL and filtered text without conflating item indexes', async () => {
+    state.items = [
+      item('  演😀示  '),
+      item('演😀示', false),
+      item('斜置', false, [8, 8, -8, 8, 40, 700]),
+      item('北森'),
+      item(' 演😀示 '),
+    ];
+    expect(await decodeWithText()).toMatchObject({
+      status: 'decoded',
+      pdfText: {
+        version: 'pdf-page-text-v1',
+        pages: [{ page: 1, text: '  演😀示  \n演😀示斜置北森\n 演😀示 \n' }],
+        ranges: [
+          { segmentIndex: 0, page: 1, textRange: { start: 2, end: 6 } },
+          { segmentIndex: 1, page: 1, textRange: { start: 9, end: 13 } },
+          { segmentIndex: 2, page: 1, textRange: { start: 19, end: 23 } },
+        ],
+      },
+    });
+  });
+  it('joins a real surrogate pair split across adjacent retained items', async () => {
+    state.items = [item('演\ud83d', false), item('\ude00示')];
+    expect(await decodeWithText()).toMatchObject({
+      status: 'decoded',
+      pdfText: {
+        pages: [{ page: 1, text: '演😀示\n' }],
+        ranges: [{ textRange: { start: 0, end: 4 } }],
+      },
+    });
+  });
+  it('fails closed if filtering would split a surrogate pair', async () => {
+    state.items = [
+      item('演\ud83d', false),
+      item('\ude00', false, [8, 8, -8, 8, 40, 700]),
+    ];
+    expect(await decodeWithText()).toEqual({
+      status: 'failed',
+      reason: 'invalid_content',
+    });
+  });
+  it('does not return partial page text after an actual extraction error', async () => {
+    state.failure = 'text';
+    expect(await decodeWithText()).toEqual({
+      status: 'failed',
+      reason: 'invalid_content',
+    });
+  });
+});

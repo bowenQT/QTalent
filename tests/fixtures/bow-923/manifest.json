@@ -1,48 +1,49 @@
 {
-  "fixtureVersion": "bow-923-v2",
+  "fixtureVersion": "bow-923-v3",
   "demo": true,
   "notice": "两份表均为化名重建的演示原表，不是历史原件；既有 prototype_snapshot 未修改。",
   "contractSha": "832209d177944b5ce18577794acb88314a6460da",
-  "rosterCommit": "451ecec0106344cac2e4225a363b5fd3cae92584",
+  "rosterCommit": "81e4fd448f11d6c515bf447a81e85606d7b239ff",
+  "prototypeCommit": "81e4fd448f11d6c515bf447a81e85606d7b239ff",
   "evidenceStatus": "expected_only_actual_query_not_run",
   "originals": {
     "front": {
       "file": "作品评审表.xlsx",
-      "originalVersionId": "bow-923-xe6-selection-original-v1",
+      "originalVersionId": "bow-923-v3-xe6-selection-original",
       "sheet": "作品评审（演示）",
       "lastColumn": "P",
       "excerptColumn": "P",
       "dateColumn": "M",
-      "sha256": "cb32e39ae6e84ef7c5d6efbf1e183150cf8df9f1844f92dc1c592efc88e7e280",
+      "sha256": "e5f48dd01f9b1b343840d0e9f23a029d6865eedf31c609d1b8213a09a7d6c4a8",
       "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "firstDataRow": 2,
       "lastDataRow": 94,
       "personRows": 93,
       "identityColumns": ["A", "B"],
       "dateEncoding": "Excel numeric date, displayed in UTC",
-      "presentEvaluations": 87
+      "presentEvaluations": 83
     },
     "back": {
       "file": "结营评审表.xlsx",
-      "originalVersionId": "bow-923-xe6-graduation-original-v1",
+      "originalVersionId": "bow-923-v3-xe6-graduation-original",
       "sheet": "结营评审（演示）",
       "lastColumn": "J",
       "excerptColumn": "J",
       "dateColumn": "G",
-      "sha256": "8f7039cf3f56a4c0157a1bfe5a39dec7102b5572643630e93fd4591c9b90bdfa",
+      "sha256": "153b0c1b1a293124783956607f84d80ebc05f55f4fe95c53004e15e028acf5c8",
       "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "firstDataRow": 2,
       "lastDataRow": 94,
       "personRows": 93,
       "identityColumns": ["A", "B"],
       "dateEncoding": "Excel numeric date, displayed in UTC",
-      "presentEvaluations": 86
+      "presentEvaluations": 89
     }
   },
   "inputFacts": {
     "file": "manual-comparability-marks.json",
     "nature": "demo_human_mark",
-    "records": 4,
-    "sha256": "6f64501962db0167256601ba7d88f69cda088a31b1551fca06e31d7791e9414a"
+    "records": 1,
+    "sha256": "7e464d25beb0cc92df0d7e953b3c77d0b0ca59f6e4f4c7a27ae085b9627ef897"
   }
 }
