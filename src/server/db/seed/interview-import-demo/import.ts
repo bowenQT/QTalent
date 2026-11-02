@@ -76,7 +76,10 @@ export const INTERVIEW_IMPORT_DEMO = {
 export class InterviewImportDemoError extends Error {
   constructor(
     readonly code:
-      'fixture_digest_mismatch' | 'parse_failed' | 'directory_missing',
+      | 'fixture_missing'
+      | 'fixture_digest_mismatch'
+      | 'parse_failed'
+      | 'directory_missing',
   ) {
     super(code);
     this.name = 'InterviewImportDemoError';
@@ -113,7 +116,15 @@ function canonical(value: unknown): string {
 }
 
 async function readPinned(cwd: string, path: string, digest: string) {
-  const bytes = new Uint8Array(await readFile(join(cwd, path)));
+  // Run from the release root: the fixtures ship in the archive, `.git` does not.
+  const bytes = await readFile(join(cwd, path)).then(
+    (buffer) => new Uint8Array(buffer),
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT')
+        throw new InterviewImportDemoError('fixture_missing');
+      throw error;
+    },
+  );
   if (sha256(bytes) !== digest)
     throw new InterviewImportDemoError('fixture_digest_mismatch');
   return bytes;
