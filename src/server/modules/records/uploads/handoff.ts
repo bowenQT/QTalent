@@ -1,9 +1,11 @@
 import type { UploadRequest } from '../../../../contracts/media';
 import type { UploadStore, VerifiedObject } from './types';
 import { safeUpload } from './service';
+import { hasExplicitCollectionIdentity } from './collection-identity';
 
 export type ValidatedUpload = {
   uploadId: string;
+  recordCollectionId: string;
   originalId: string;
   originalVersionId: string;
   jobId: string;
@@ -27,6 +29,7 @@ export async function readValidatedUpload(
       const completed = intent?.completed;
       if (
         !intent ||
+        !hasExplicitCollectionIdentity(intent) ||
         !completed ||
         completed.uploadId !== reference.uploadId ||
         completed.originalVersionId !== reference.originalVersionId ||
@@ -36,6 +39,7 @@ export async function readValidatedUpload(
         return null;
       return {
         uploadId: intent.id,
+        recordCollectionId: intent.recordCollectionId,
         originalId: completed.originalId,
         originalVersionId: completed.originalVersionId,
         jobId: completed.jobId,

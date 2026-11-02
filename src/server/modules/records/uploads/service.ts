@@ -7,6 +7,7 @@ import {
   uploadRequestSchema,
 } from '../../../../contracts/media';
 import { verifyUploadObject } from './content';
+import { hasExplicitCollectionIdentity } from './collection-identity';
 import {
   UploadError,
   type RequestGrant,
@@ -44,9 +45,11 @@ export function createUploadService(options: UploadOptions) {
   const now = options.now ?? Date.now;
   async function authorize(
     accountId: string,
-    intent: Pick<UploadIntent, 'request' | 'quotaScope'>,
+    intent: Pick<UploadIntent, 'recordCollectionId' | 'request' | 'quotaScope'>,
     tx?: UploadTransaction,
   ) {
+    if (!hasExplicitCollectionIdentity(intent))
+      throw new UploadError('conflict', 'record_collection_changed');
     const target = await options.policy.resolveWriteTarget(
       accountId,
       {
@@ -96,26 +99,35 @@ export function createUploadService(options: UploadOptions) {
         });
         if (!target || target.recordCollectionId !== request.recordCollectionId)
           throw new UploadError('forbidden', 'record_write_required');
-        if (!target.quotaScope.trim())
+        if (
+          target.quotaScope !== target.recordCollectionId ||
+          !target.quotaScope.trim()
+        )
           throw new UploadError('unavailable', 'record_collection_unresolved');
         if (request.declaredBytes > (options.adapterMaxBytes ?? 1024 ** 3))
           throw new UploadError('unavailable', 'adapter_limit');
         return options.store.transaction(
           [
             `operation:${accountId}:${request.operationId}`,
-            `quota:${target.quotaScope}`,
+            `quota:${target.recordCollectionId}`,
           ],
           async (tx) => {
             const currentTarget = await authorize(
               accountId,
-              { request, quotaScope: target.quotaScope },
+              {
+                request,
+                recordCollectionId: target.recordCollectionId,
+                quotaScope: target.quotaScope,
+              },
               tx,
             );
             const digest = requestFingerprint(request);
             let intent = await tx.findOperation(accountId, request.operationId);
             if (
               intent &&
-              (intent.fingerprint !== digest ||
+              (!hasExplicitCollectionIdentity(intent) ||
+                intent.recordCollectionId !== target.recordCollectionId ||
+                intent.fingerprint !== digest ||
                 intent.quotaScope !== target.quotaScope)
             )
               throw new UploadError('conflict', 'operation_payload_changed');
@@ -142,6 +154,7 @@ export function createUploadService(options: UploadOptions) {
               const id = randomUUID();
               intent = {
                 id,
+                recordCollectionId: currentTarget.recordCollectionId,
                 accountId,
                 request,
                 operationId: request.operationId,
@@ -211,10 +224,15 @@ export function createUploadService(options: UploadOptions) {
           initial.id !== command.uploadId
         )
           throw new UploadError('not_found', 'upload_not_found');
-        const lockedScope = initial.quotaScope;
-        // Match 846 save/undo and membership release: scope is trusted storage,
+        if (!hasExplicitCollectionIdentity(initial))
+          throw new UploadError('conflict', 'record_collection_changed');
+        const lockedCollectionId = initial.recordCollectionId;
+        // Match 846 save/undo and membership release using the stored FK,
         // never a client-selected quota key. Re-resolve authority AFTER waiting.
-        const locks = [`quota:${lockedScope}`, `upload:${command.uploadId}`];
+        const locks = [
+          `quota:${lockedCollectionId}`,
+          `upload:${command.uploadId}`,
+        ];
         async function current(tx: UploadTransaction) {
           const intent = await tx.findIntent(command.uploadId);
           if (
@@ -224,9 +242,11 @@ export function createUploadService(options: UploadOptions) {
           )
             throw new UploadError('not_found', 'upload_not_found');
           if (
-            intent.quotaScope !== lockedScope ||
-            requestFingerprint(intent.request) !== intent.fingerprint
+            !hasExplicitCollectionIdentity(intent) ||
+            intent.recordCollectionId !== lockedCollectionId
           )
+            throw new UploadError('conflict', 'record_collection_changed');
+          if (requestFingerprint(intent.request) !== intent.fingerprint)
             throw new UploadError('conflict', 'upload_changed');
           const scope = await authorize(accountId!, intent, tx);
           if (intent.releasedAt !== null)
@@ -269,7 +289,7 @@ export function createUploadService(options: UploadOptions) {
           const jobId = await tx.archiveAndDispatch(latest, object, ids);
           const completed: UploadCompletion = {
             uploadId: latest.id,
-            recordCollectionId: latest.request.recordCollectionId,
+            recordCollectionId: latest.recordCollectionId,
             ...ids,
             jobId,
             revision: latest.revision + 1,

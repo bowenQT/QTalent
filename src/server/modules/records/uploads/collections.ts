@@ -12,6 +12,7 @@ import {
   type UploadTransaction,
 } from './types';
 import { requireUploadAccount, safeUpload } from './service';
+import { hasExplicitCollectionIdentity } from './collection-identity';
 export type CollectionBinding =
   | { state: 'draft'; externalAttachmentCount: number }
   | { state: 'saved'; eventIds: string[]; externalAttachmentCount: number };
@@ -96,7 +97,9 @@ export function createRecordCollectionService(deps: CollectionDependencies) {
           tx.findIntent(command.uploadId),
         );
         if (!initial) throw new UploadError('not_found', 'upload_not_found');
-        const recordCollectionId = initial.request.recordCollectionId;
+        if (!hasExplicitCollectionIdentity(initial))
+          throw new UploadError('conflict', 'record_collection_changed');
+        const recordCollectionId = initial.recordCollectionId;
         return deps.store.transaction(
           [`quota:${recordCollectionId}`, `upload:${command.uploadId}`],
           async (tx) => {
@@ -109,7 +112,10 @@ export function createRecordCollectionService(deps: CollectionDependencies) {
               !(await deps.canWriteTarget(accountId, collection.target, tx))
             )
               throw new UploadError('not_found', 'upload_not_found');
-            if (intent.request.recordCollectionId !== recordCollectionId)
+            if (
+              !hasExplicitCollectionIdentity(intent) ||
+              intent.recordCollectionId !== recordCollectionId
+            )
               throw new UploadError('conflict', 'record_collection_changed');
             const binding = await deps.loadBinding(recordCollectionId, tx);
             if (

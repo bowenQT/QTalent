@@ -22,6 +22,8 @@ export type UploadCompletion = {
 };
 export type UploadIntent = {
   id: string;
+  /** Stored collection FK; quota labels and request JSON cannot supply identity. */
+  recordCollectionId: string;
   accountId: string;
   operationId: string;
   fingerprint: string;
@@ -57,6 +59,14 @@ export type VerifiedObject = {
 export type UploadedObject = VerifiedObject & {
   uploadId: string;
   originalVersionId: string;
+};
+/** Historical membership facts, including expired and released intents. These
+ * facts grant no record-write, processing, or original-read permission.
+ */
+export type UploadCollectionMembers = {
+  recordCollectionId: string;
+  collection: UploadCollection;
+  members: { intent: UploadIntent; object: UploadedObject | null }[];
 };
 export type ReadTicket = {
   digest: string;

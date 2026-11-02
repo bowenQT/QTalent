@@ -7,7 +7,11 @@ import { createDatabase } from '../../../db/client';
 import { jobSnapshots } from '../../../jobs/schema';
 import { originals, originalVersions, fragments } from '../schema';
 import { uploadIntents } from './schema';
-import { createPostgresUploadStore, type UploadDispatch } from './store';
+import {
+  createPostgresUploadStore,
+  readUploadCollectionMembers,
+  type UploadDispatch,
+} from './store';
 import { createUploadService } from './service';
 import { createOriginalReader } from './read';
 import { readValidatedUpload } from './handoff';
@@ -43,7 +47,7 @@ beforeAll(async () => {
   );
   if (!rows[0].ready)
     throw new Error(
-      'Upload migrations are not published yet; parent serializes 852 -> 846 -> 873. Do not generate a competing migration or push test schema.',
+      'Upload migrations are not published yet; parent serializes 846 -> 845 -> 873. Do not generate a competing migration or push test schema.',
     );
 }, 30000);
 afterAll(async () => {
@@ -162,6 +166,9 @@ it('persists one original/version/mapping and one dispatch under concurrent comp
     ),
   ).toBe(true);
   expect(f.dispatches).toHaveLength(1);
+  expect(f.dispatches[0]).toMatchObject({
+    recordCollectionId: f.request.recordCollectionId,
+  });
   const result = results[0];
   const [version] = await connection!.db
     .select()
@@ -172,6 +179,7 @@ it('persists one original/version/mapping and one dispatch under concurrent comp
   expect(handoff).toMatchObject({
     jobId: result.jobId,
     purpose: 'attachment',
+    recordCollectionId: f.request.recordCollectionId,
     object: { objectKey: f.grant.objectKey, byteLength: 7 },
   });
   f.deny();
@@ -335,5 +343,91 @@ it('persists membership release, frees the SQL quota count, and preserves the or
   await expect(f.service.complete('account', f.command)).rejects.toMatchObject({
     status: 'conflict',
     reason: 'upload_removed',
+  });
+});
+
+it('reads all historical members from the actual collection FK without a ten-row or lifecycle filter', async () => {
+  const f = await databaseFixture(true);
+  const ids: string[] = [];
+  let archivedVersion: string | undefined;
+  for (let i = 0; i < 12; i++) {
+    const grant = await f.service.request('account', {
+      ...f.request,
+      operationId: `history-${i}`,
+    });
+    ids.push(grant.uploadId);
+    let revision = 1;
+    if (i === 0) {
+      await f.put(grant.objectKey);
+      const completed = await f.service.complete('account', {
+        uploadId: grant.uploadId,
+        receiptRef: 'synthetic notice',
+        operationId: 'complete',
+        expectedRevision: 1,
+      });
+      archivedVersion = completed.originalVersionId;
+      revision = completed.revision;
+    }
+    if (i % 2 === 0)
+      await f.collections.release('account', {
+        uploadId: grant.uploadId,
+        operationId: `release-${i}`,
+        expectedRevision: revision,
+      });
+  }
+  await connection!.db
+    .update(uploadIntents)
+    .set({ expiresAt: f.now() - 1 })
+    .where(eq(uploadIntents.id, ids[1]));
+  const snapshot = await f.store.readCollectionMembers(
+    f.request.recordCollectionId,
+  );
+  expect(snapshot?.members).toHaveLength(12);
+  expect(snapshot?.members.map((member) => member.intent.id).sort()).toEqual(
+    [...ids].sort(),
+  );
+  expect(
+    snapshot?.members.filter((member) => member.intent.releasedAt !== null),
+  ).toHaveLength(6);
+  expect(
+    snapshot?.members.find((member) => member.intent.id === ids[1])?.intent
+      .expiresAt,
+  ).toBe(f.now() - 1);
+  expect(
+    snapshot?.members.find((member) => member.object !== null)?.object
+      ?.originalVersionId,
+  ).toBe(archivedVersion);
+  expect(await f.store.readCollectionMembers(randomUUID())).toBeNull();
+});
+it('keeps the real quota lock throughout the caller native transaction and refuses stale isolation', async () => {
+  const f = await databaseFixture();
+  const id = f.request.recordCollectionId;
+  const key = `quota:${id}`;
+  await connection!.db.transaction(
+    async (tx) => {
+      const snapshot = await readUploadCollectionMembers(tx, id);
+      expect(snapshot?.members).toEqual([]);
+      const waiting = await connection!.db.transaction((other) =>
+        other.execute<{ locked: boolean }>(
+          sql`select pg_try_advisory_xact_lock(hashtextextended(${key}, 0)) as locked`,
+        ),
+      );
+      expect(waiting.rows[0].locked).toBe(false);
+    },
+    { isolationLevel: 'read committed' },
+  );
+  const available = await connection!.db.transaction((tx) =>
+    tx.execute<{ locked: boolean }>(
+      sql`select pg_try_advisory_xact_lock(hashtextextended(${key}, 0)) as locked`,
+    ),
+  );
+  expect(available.rows[0].locked).toBe(true);
+  await expect(
+    connection!.db.transaction((tx) => readUploadCollectionMembers(tx, id), {
+      isolationLevel: 'repeatable read',
+    }),
+  ).rejects.toMatchObject({
+    status: 'unavailable',
+    reason: 'upload_read_committed_required',
   });
 });
