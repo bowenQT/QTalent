@@ -135,7 +135,6 @@ export function createWebEntryAuthenticator(
       row.sessionGeneration !== row.bindingGeneration
     )
       reject();
-    if (row.isSystemAdmin) throw new WebBusinessViewDenied();
     const deadline = Math.min(
       row.expiresAt.getTime(),
       authenticated.session.expiresAt.getTime(),
@@ -143,6 +142,9 @@ export function createWebEntryAuthenticator(
     // Read security time after the final awaited operation, not before it.
     if (!Number.isFinite(deadline)) unavailable();
     if (deadline <= instant() || invalidated) reject();
+    // Only a session that is otherwise live and current: an expired one must
+    // still go to sign-in, not to the business-view 404.
+    if (row.isSystemAdmin) throw new WebBusinessViewDenied();
     return { ...row, deadline };
   }
   function descriptor(row: BoundSession): CredentialBinding {

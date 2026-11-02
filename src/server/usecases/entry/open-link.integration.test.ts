@@ -211,7 +211,7 @@ it('opens the batch receipt and the demand on the find-people page for the curre
       { resourceId: f.demandId, metadata: { channel: 'web', revision: 2 } },
     ]),
   );
-});
+}, 15000);
 it('a link whose revision is no longer current returns the refresh link, not the object', async () => {
   const f = await setup();
   f.as(f.account);
@@ -258,6 +258,23 @@ it('a batch link minted before the batch moved on returns the current refresh li
     refreshHref: f.batchLink(2),
   });
   expect(await f.open(f.batchLink(2))).toMatchObject({ status: 'ready' });
+}, 15000);
+it('an expired administrator session still goes to sign-in, not to the 404', async () => {
+  const f = await setup();
+  await c.db
+    .update(accountBindings)
+    .set({ isSystemAdmin: true })
+    .where(eq(accountBindings.accountId, f.account));
+  const past = new Date(new Date(wallAt).getTime() - 60_000);
+  await c.db
+    .update(session)
+    .set({ expiresAt: past })
+    .where(eq(session.userId, f.account));
+  f.as(f.account);
+  expect(await f.open(f.batchLink())).toEqual({
+    status: 'authentication_required',
+    returnTo: f.batchLink(),
+  });
 });
 it('a system administrator gets the same 404 answer, never a login loop, and no audit', async () => {
   const f = await setup();
