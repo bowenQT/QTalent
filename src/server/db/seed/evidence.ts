@@ -340,12 +340,18 @@ export function mapEvidenceSeed(input: unknown): EvidenceSeed {
       ruleVersionId: DEMO_RULE_VERSION,
       demo: true,
     });
-    for (const f of srcs) {
+    for (const [i, f] of srcs.entries()) {
       link(event.id, f);
       records.statements.push({
         id: stableId('statement', f.id),
         eventId: event.id,
-        kind: 'management_observation',
+        // A statement quoted from an original sheet cell is that cell's fact,
+        // whoever recorded it; only a note with no original stays a management
+        // observation (owner ruling on #248 after 6569099359).
+        kind:
+          event.srcs[i]!.type === 'sheet'
+            ? 'original_fact'
+            : 'management_observation',
         text: f.excerpt,
         authorId: event.recorder,
         modelVersion: null,
