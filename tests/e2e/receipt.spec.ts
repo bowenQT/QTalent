@@ -158,13 +158,18 @@ test('mentor: a batch handed in on /record opens on the real receipt route, for 
   // 企业微信回执还没接通：不写「回执也会发到」
   await expect(page.getByText('回执也会发到')).toHaveCount(0);
   await expect(page.locator('.n-state__title')).toHaveCount(0);
+  // Only the words were handed in: they show as the original, not as 0 files.
+  await expect(
+    page.locator('.n-cite__quote', { hasText: '演示：今天主动同步了进度。' }),
+  ).toBeVisible();
+  await expect(page.locator('.n-rsum')).not.toContainText('个文件');
 
   // Another business account does not see this batch.
   await context.clearCookies();
   await login(context, 'ceo', referenceApp.baseURL);
   await page.goto(`${referenceApp.baseURL}/receipt?id=${batch}`);
   await expect(page.locator('.n-state__title')).toHaveText(
-    /回执链接失效|这份回执不在你的查看范围里/,
+    /回执链接失效|查看权限已更新/,
   );
   await expect(page.locator('.n-rcpt')).toHaveCount(0);
 });

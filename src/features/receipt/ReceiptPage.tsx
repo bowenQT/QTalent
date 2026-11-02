@@ -390,7 +390,12 @@ export function ReceiptPage({
   const anyMine = mineDrafts.length > 0 || mineConfirmed > 0;
   const files = receipt.counts.files;
   const verifyOpen = receipt.counts.reviewItems;
-  const summaryLine = `读完了「${view.title}」：${files.total} 个文件，涉及 ${receipt.personIds.length} 人，整理出 ${receipt.counts.events.total} 件事。${verifyOpen ? `${verifyOpen} 处等你核对，` : ''}${awaiting ? `${awaiting} 件事的建议分等你确认。` : ''}${receipt.hasHiddenContent ? copy.confirm.hidden : ''}`;
+  const material = files.total
+    ? `${files.total} ${copy.summary.files}，`
+    : receipt.textMaterial
+      ? `1 ${copy.summary.original}，`
+      : '';
+  const summaryLine = `读完了「${view.title}」：${material}涉及 ${receipt.personIds.length} 人，整理出 ${receipt.counts.events.total} 件事。${verifyOpen ? `${verifyOpen} 处等你核对，` : ''}${awaiting ? `${awaiting} 件事的建议分等你确认。` : ''}${receipt.hasHiddenContent ? copy.confirm.hidden : ''}`;
 
   return (
     <>
@@ -409,18 +414,26 @@ export function ReceiptPage({
         </span>
       </header>
       <ul className="n-rsum" aria-label={copy.summary.label}>
-        <li>
-          <b>{files.total}</b>
-          {copy.summary.files}
-          {files.processing ? (
-            <small>{copy.summary.processing(files.processing)}</small>
-          ) : null}
-          {files.failed ? (
-            <small className="is-err">
-              {copy.summary.failed(files.failed)}
-            </small>
-          ) : null}
-        </li>
+        {/* 只写了原话、没有文件的批次：这一格写原话，不写「0 个文件」 */}
+        {!files.total && receipt.textMaterial ? (
+          <li>
+            <b>1</b>
+            {copy.summary.original}
+          </li>
+        ) : (
+          <li>
+            <b>{files.total}</b>
+            {copy.summary.files}
+            {files.processing ? (
+              <small>{copy.summary.processing(files.processing)}</small>
+            ) : null}
+            {files.failed ? (
+              <small className="is-err">
+                {copy.summary.failed(files.failed)}
+              </small>
+            ) : null}
+          </li>
+        )}
         <li>
           <b>{receipt.personIds.length}</b>
           {copy.summary.people}
@@ -450,41 +463,55 @@ export function ReceiptPage({
       ) : null}
       <div className="nt-split">
         <div className="nt-grid">
-          <article className="n-card">
-            <h3 className="n-section-title">{copy.files.title}</h3>
-            <ul className="n-files" style={{ margin: 0 }}>
-              {receipt.files.map((file) => {
-                const state = fileState(file);
-                return (
-                  <li
-                    className="n-file"
-                    data-state={file.status}
-                    key={file.materialId}
-                  >
-                    <span className="n-file__ext">
-                      {extLabel(file.filename)}
-                    </span>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="n-file__name">{file.filename}</div>
-                      <div className="n-file__state">
-                        <span className={state.tone ?? undefined}>
-                          <Icon name={state.icon} size={12} /> {state.label}
-                        </span>
-                        {state.message ? ` · ${state.message}` : null}
+          {receipt.files.length ? (
+            <article className="n-card">
+              <h3 className="n-section-title">{copy.files.title}</h3>
+              <ul className="n-files" style={{ margin: 0 }}>
+                {receipt.files.map((file) => {
+                  const state = fileState(file);
+                  return (
+                    <li
+                      className="n-file"
+                      data-state={file.status}
+                      key={file.materialId}
+                    >
+                      <span className="n-file__ext">
+                        {extLabel(file.filename)}
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="n-file__name">{file.filename}</div>
+                        <div className="n-file__state">
+                          <span className={state.tone ?? undefined}>
+                            <Icon name={state.icon} size={12} /> {state.label}
+                          </span>
+                          {state.message ? ` · ${state.message}` : null}
+                        </div>
+                        {state.busy ? (
+                          <Progress label={`${file.filename} 处理进度`} />
+                        ) : null}
                       </div>
-                      {state.busy ? (
-                        <Progress label={`${file.filename} 处理进度`} />
-                      ) : null}
-                    </div>
-                    <span />
-                  </li>
-                );
-              })}
-            </ul>
-            {running ? (
-              <p className="nt-caption">{copy.files.stillProcessing}</p>
-            ) : null}
-          </article>
+                      <span />
+                    </li>
+                  );
+                })}
+              </ul>
+              {running ? (
+                <p className="nt-caption">{copy.files.stillProcessing}</p>
+              ) : null}
+            </article>
+          ) : receipt.textMaterial ? (
+            <article className="n-card">
+              <h3 className="n-section-title">{copy.files.originalTitle}</h3>
+              {view.original ? (
+                <blockquote className="n-cite__quote">
+                  {view.original}
+                </blockquote>
+              ) : null}
+              {running ? (
+                <p className="nt-caption">{copy.files.arranging}</p>
+              ) : null}
+            </article>
+          ) : null}
           {receipt.items.length || receipt.resolvedItems.length ? (
             <article className="n-card">
               <h3 className="n-section-title">

@@ -69,9 +69,9 @@ describe('/receipt', () => {
   );
 
   it.each([
-    ['forbidden', '这份回执不在你的查看范围里'],
+    ['forbidden', '查看权限已更新'],
     ['not_found', '回执链接失效'],
-    ['unavailable', '回执暂时打不开'],
+    ['unavailable', '回执读取中断'],
   ] as const)(
     '读取结果 %s：写明原因，给回工作台的入口',
     async (status, title) => {

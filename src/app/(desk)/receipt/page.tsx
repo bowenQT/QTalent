@@ -56,15 +56,15 @@ export default async function ReceiptRoute({
         />
       ) : read?.status === 'unavailable' ? (
         <State
-          title="回执暂时打不开"
-          text="这次没读到回执，材料和已确认的事都还在。稍后刷新再看。"
+          title="回执读取中断"
+          text="这次读取中断了，材料和已确认的事都还在。稍后刷新再看。"
         >
           {toWork}
         </State>
       ) : read?.status === 'forbidden' ? (
         <State
-          title="这份回执不在你的查看范围里"
-          text="可能是查看范围调整过了。回到工作台，从「进行中的任务」进入。"
+          title="查看权限已更新"
+          text="查看范围可能调整过了。回到工作台，从「进行中的任务」进入。"
         >
           {toWork}
         </State>

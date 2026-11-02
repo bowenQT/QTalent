@@ -31,6 +31,7 @@ export type ReceiptPageView = {
   title: string;
   entry: 'web';
   tool: null;
+  original: string | null;
   submittedBy: string;
   submittedAt: string;
   people: Record<string, ReceiptPagePerson>;
@@ -95,6 +96,7 @@ export async function readReceiptView(
         .select({
           creator: arrangeInputs.creatorAccountId,
           createdAt: arrangeInputs.createdAt,
+          originalInput: arrangeInputs.originalInput,
         })
         .from(arrangeInputs)
         .where(eq(arrangeInputs.batchId, receipt.batchId))
@@ -187,6 +189,12 @@ export async function readReceiptView(
           // metadata arrive with their entries (#282, #280, #330).
           entry: 'web',
           tool: null,
+          // The words the submitter wrote, only for the submitter: 897 lets only the
+          // creator open a batch today, and nobody else's input is handed out here.
+          original:
+            receipt.textMaterial && input?.creator === accountId
+              ? input.originalInput.text
+              : null,
           submittedBy: nameOf(input && personOf.get(input.creator)) || '提交人',
           submittedAt: new Date(input?.createdAt ?? now).toISOString(),
           people: Object.fromEntries(

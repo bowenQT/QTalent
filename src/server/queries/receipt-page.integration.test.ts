@@ -74,6 +74,8 @@ it('names the batch, its submitter and people, and lets the evaluator confirm', 
     entry: 'web',
     tool: null,
     submittedBy: evaluator!.name,
+    // The submitter sees the words handed in with the batch, as stored (trimmed).
+    original: h.text.trim(),
   });
   expect(Date.parse(view.submittedAt)).not.toBeNaN();
   expect(Object.keys(view.people)).toEqual(h.receipt.personIds);
@@ -118,6 +120,8 @@ it('shows HR whose confirmation each draft waits for, without letting HR confirm
     h.receipt,
   );
   expect(viewerName).toBe('演示人力' + h.prefix);
+  // HR did not write these words; the receipt does not hand them out.
+  expect(view.original).toBeNull();
   for (const draft of h.receipt.draftSet?.drafts ?? [])
     expect(view.confirmers[draft.draftId]).toEqual({
       mine: false,
@@ -134,6 +138,8 @@ it('falls back to plain words when the batch has no recorded intake or visible e
     { ...h.receipt, batchId: 'no-such-batch', projectId: null },
   );
   expect(view.submittedBy).toBe('提交人');
+  // Nobody else's input is handed out.
+  expect(view.original).toBeNull();
   expect(view.submittedAt).toBe(new Date(businessAt).toISOString());
   for (const draft of h.receipt.draftSet?.drafts ?? [])
     expect(view.confirmers[draft.draftId]).toEqual({

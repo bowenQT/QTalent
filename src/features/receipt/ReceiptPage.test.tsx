@@ -91,6 +91,7 @@ function make(
     title: 'PR 评审时记的一件事',
     entry: 'mcp',
     tool: 'record_moment',
+    original: null,
     submittedBy: '叶青',
     submittedAt: '2026-09-03T08:20:00.000Z',
     people: {
@@ -686,5 +687,63 @@ describe('撤销链路', () => {
     await user.click(again);
     await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
     expect(save.mock.calls[1]![0].expected_revision).toBe(3);
+  });
+});
+
+describe('只写了原话的批次', () => {
+  const textOnly = (original: string | null) =>
+    make(
+      { entry: 'web', tool: null, original },
+      {
+        status: 'processing',
+        jobId: 'job-1',
+        files: [],
+        textMaterial: {
+          materialId: 'frag-text',
+          originalVersionId: 'ver-text',
+        },
+        draftSet: null,
+        counts: {
+          files: {
+            total: 0,
+            processing: 0,
+            parsed: 0,
+            needs_review: 0,
+            unsupported: 0,
+            failed: 0,
+            original_only: 0,
+            attachment_only: 0,
+          },
+          events: { total: 0, awaiting_confirmation: 0, confirmed: 0 },
+          reviewItems: 0,
+        },
+      },
+    );
+
+  it('原话放在「原话」卡里，计数写一段原话，没有「0 个文件」和空的文件卡', () => {
+    mount(textOnly('演示：今天主动同步了进度。'));
+    const card = screen.getByRole('heading', {
+      name: copy.files.originalTitle,
+    }).parentElement!;
+    expect(within(card).getByText('演示：今天主动同步了进度。')).toBeTruthy();
+    expect(within(card).getByText(copy.files.arranging)).toBeTruthy();
+    expect(
+      screen.queryByRole('heading', { name: copy.files.title }),
+    ).toBeNull();
+    expect(screen.queryByText(copy.files.stillProcessing)).toBeNull();
+    const summary = screen.getByRole('list', { name: copy.summary.label });
+    expect(summary.textContent).toContain(`1${copy.summary.original}`);
+    expect(summary.textContent).not.toContain(copy.summary.files);
+  });
+
+  it('读不到原话时只留标题和整理说明，也不出文件卡', () => {
+    mount(textOnly(null));
+    expect(
+      screen.getByRole('heading', { name: copy.files.originalTitle }),
+    ).toBeTruthy();
+    expect(document.querySelector('.n-cite__quote')).toBeNull();
+    expect(
+      screen.queryByRole('heading', { name: copy.files.title }),
+    ).toBeNull();
   });
 });

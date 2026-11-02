@@ -22,6 +22,7 @@ export const copy = {
   summary: {
     label: '这次读到了什么',
     files: '个文件',
+    original: '段原话',
     processing: (n: number) => `${n} 个处理中`,
     failed: (n: number) => `${n} 个失败`,
     people: '人',
@@ -33,6 +34,9 @@ export const copy = {
   files: {
     title: '文件',
     stillProcessing: '还在处理的文件读完后，这份回执会更新；可以先离开。',
+    /** 只写了原话、没有文件的批次（原型没有这个形态，见映射表）。 */
+    originalTitle: '原话',
+    arranging: '整理完后，这份回执会更新；可以先离开。',
     processing: '处理中',
     parsed: '已解析',
     needsReview: '待核对',
@@ -70,7 +74,7 @@ export const copy = {
     waitFor: (name: string) => `等${name}确认`,
     confirmedOn: (date: string) => `${date} 确认，已进入档案`,
     confirmedShort: '已确认，已进入档案',
-    undoPending: '撤销结果待确认：网络中断，还不知道撤销有没有生效',
+    undoPending: '撤销结果待确认：网络中断了，再试一次就能确认',
     undoRetry: '再试一次撤销',
     aiOriginal: (v: number) => `AI 原为 ${v}`,
     anchorNote: (v: number, anchor: string) => `锚点 ${v} · ${anchor}`,
@@ -98,8 +102,8 @@ export const copy = {
     undone: '已撤销，回到待确认',
     undoFailed: '撤销失败：这件事的分已有新的处理，已保留当前结果',
     undoLate: '撤销时间已过，这件事已确认',
-    undoUnknown: '撤销结果还不知道，可以在这件事上再试一次',
-    undoRefused: '没有撤销成功，这件事仍是已确认',
+    undoUnknown: '撤销结果待确认，可以在这件事上再试一次',
+    undoRefused: '这次撤销被拒绝了，这件事仍是已确认',
   },
   problem: {
     offline: '网络中断，改动还在，再试一次',

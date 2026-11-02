@@ -29,6 +29,8 @@ export type ReceiptView = {
   entry: ReceiptEntry;
   /** MCP 入口调用的工具名，其他入口为 null。 */
   tool: string | null;
+  /** 这次随批次写下的原话（提交人本人查看时才有），没有就是 null。 */
+  original: string | null;
   submittedBy: string;
   /** ISO 时间。 */
   submittedAt: string;
