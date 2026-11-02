@@ -22,6 +22,31 @@ export function takeDraft(
   } catch {
     return null;
   }
+  return parseDraft(raw, accountId, now);
+}
+
+/** The handed-over sentence, read without taking it (the project's page takes it). */
+export function peekDraft(
+  storage: Pick<Storage, 'getItem'> | null,
+  accountId: string,
+  now: number,
+): string | null {
+  try {
+    return parseDraft(
+      storage?.getItem(STAFFING_DRAFT_KEY) ?? null,
+      accountId,
+      now,
+    );
+  } catch {
+    return null;
+  }
+}
+
+function parseDraft(
+  raw: string | null,
+  accountId: string,
+  now: number,
+): string | null {
   if (!raw) return null;
   try {
     const value: unknown = JSON.parse(raw);
@@ -42,6 +67,32 @@ export function takeDraft(
   } catch {
     return null;
   }
+}
+
+// The handoff is taken once and kept for this page load, so moving back to choose another
+// project still finds it; a new sentence handed over later (or another account) replaces it.
+let handoff: { accountId: string; text: string | null } | undefined;
+
+/** Takes the handed-over sentence for the find-people page, keeping it for this page load. */
+export function readHandoff(
+  storage: DraftStorage | null,
+  accountId: string,
+  now: number,
+): string | null {
+  if (handoff?.accountId !== accountId || hasDraft(storage))
+    handoff = { accountId, text: takeDraft(storage, accountId, now) };
+  return handoff.text;
+}
+
+/** The sentence the find-people page would take, without taking it. */
+export function peekHandoff(
+  storage: DraftStorage | null,
+  accountId: string,
+  now: number,
+): string | null {
+  if (handoff?.accountId === accountId && !hasDraft(storage))
+    return handoff.text;
+  return peekDraft(storage, accountId, now);
 }
 
 /** Whether a handed-over sentence is waiting, without taking it. */

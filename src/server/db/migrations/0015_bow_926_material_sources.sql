@@ -1,0 +1,51 @@
+CREATE TABLE "records_material_parses" (
+	"id" text PRIMARY KEY NOT NULL,
+	"original_version_id" text NOT NULL,
+	"content_digest" text NOT NULL,
+	"parser_version" text NOT NULL,
+	"projection_version" text NOT NULL,
+	"result_digest" text NOT NULL,
+	"job_id" text NOT NULL,
+	"attempt" integer NOT NULL,
+	CONSTRAINT "records_material_parse_version" UNIQUE("id","original_version_id"),
+	CONSTRAINT "records_material_parse_digests" CHECK ("records_material_parses"."content_digest" ~ '^[a-f0-9]{64}$' and "records_material_parses"."result_digest" ~ '^[a-f0-9]{64}$'),
+	CONSTRAINT "records_material_parse_identity" CHECK ("records_material_parses"."id" ~ '[^[:space:]]' and "records_material_parses"."parser_version" ~ '[^[:space:]]' and "records_material_parses"."projection_version" ~ '[^[:space:]]' and "records_material_parses"."attempt">0)
+);
+--> statement-breakpoint
+CREATE TABLE "records_material_pdf_pages" (
+	"parse_version_id" text NOT NULL,
+	"page" integer NOT NULL,
+	"text" text NOT NULL,
+	"text_digest" text NOT NULL,
+	CONSTRAINT "records_material_pdf_pages_parse_version_id_page_pk" PRIMARY KEY("parse_version_id","page"),
+	CONSTRAINT "records_material_pdf_page" CHECK ("records_material_pdf_pages"."page">0 and "records_material_pdf_pages"."text_digest" ~ '^[a-f0-9]{64}$')
+);
+--> statement-breakpoint
+ALTER TABLE "records_fragments" DROP CONSTRAINT "records_location";--> statement-breakpoint
+ALTER TABLE "records_fragments" ADD COLUMN "parse_version_id" text;--> statement-breakpoint
+ALTER TABLE "records_fragments" ADD COLUMN "source_category" text;--> statement-breakpoint
+ALTER TABLE "records_fragments" ADD COLUMN "evaluation_kind" text;--> statement-breakpoint
+ALTER TABLE "records_fragments" ADD COLUMN "demo" boolean;--> statement-breakpoint
+ALTER TABLE "records_material_parses" ADD CONSTRAINT "records_material_parses_original_version_id_records_original_versions_id_fk" FOREIGN KEY ("original_version_id") REFERENCES "public"."records_original_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "records_material_parses" ADD CONSTRAINT "records_material_parses_job_id_job_snapshots_job_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."job_snapshots"("job_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "records_material_pdf_pages" ADD CONSTRAINT "records_material_pdf_pages_parse_version_id_records_material_parses_id_fk" FOREIGN KEY ("parse_version_id") REFERENCES "public"."records_material_parses"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "records_fragments" ADD CONSTRAINT "records_fragment_parse_version_fk" FOREIGN KEY ("parse_version_id","original_version_id") REFERENCES "public"."records_material_parses"("id","original_version_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "records_fragments" ADD CONSTRAINT "records_material_fragment_binding" CHECK (coalesce(
+      ("records_fragments"."parse_version_id" is null and "records_fragments"."source_category" is null and "records_fragments"."evaluation_kind" is null and "records_fragments"."demo" is null and "records_fragments"."location"->>'kind' in ('document','spreadsheet','recording','snapshot_field')) or
+      ("records_fragments"."parse_version_id" is not null and "records_fragments"."demo" is not null and (
+        ("records_fragments"."source_category"='original' and "records_fragments"."evaluation_kind" is null and "records_fragments"."location"->>'kind' not in ('code','snapshot_field')) or
+        ("records_fragments"."source_category"='historical_evaluation' and "records_fragments"."evaluation_kind"='interview' and "records_fragments"."location"->>'kind'='pdf') or
+        ("records_fragments"."source_category"='submitted_code_snapshot' and "records_fragments"."evaluation_kind" is null and "records_fragments"."location"->>'kind'='code')
+      )),false));--> statement-breakpoint
+ALTER TABLE "records_fragments" ADD CONSTRAINT "records_location" CHECK (coalesce(jsonb_typeof("records_fragments"."location") = 'object' and case "records_fragments"."location"->>'kind'
+ when 'document' then jsonb_typeof("records_fragments"."location"->'paragraph') = 'string' and length(trim("records_fragments"."location"->>'paragraph')) > 0 and (not ("records_fragments"."location" ? 'page') or (jsonb_typeof("records_fragments"."location"->'page') = 'number' and ("records_fragments"."location"->>'page')::numeric > 0 and ("records_fragments"."location"->>'page')::numeric = trunc(("records_fragments"."location"->>'page')::numeric)))
+ when 'spreadsheet' then jsonb_typeof("records_fragments"."location"->'sheet') = 'string' and length(trim("records_fragments"."location"->>'sheet')) > 0 and jsonb_typeof("records_fragments"."location"->'cell') = 'string' and length(trim("records_fragments"."location"->>'cell')) > 0
+ when 'snapshot_field' then jsonb_typeof("records_fragments"."location"->'fieldPath') = 'string' and length(trim("records_fragments"."location"->>'fieldPath')) > 0 and (not ("records_fragments"."location" ? 'originalLocation') or jsonb_typeof("records_fragments"."location"->'originalLocation') = 'string')
+ when 'recording' then jsonb_typeof("records_fragments"."location"->'startMs') = 'number' and jsonb_typeof("records_fragments"."location"->'endMs') = 'number' and ("records_fragments"."location"->>'startMs')::numeric >= 0 and ("records_fragments"."location"->>'endMs')::numeric > ("records_fragments"."location"->>'startMs')::numeric and ("records_fragments"."location"->>'startMs')::numeric = trunc(("records_fragments"."location"->>'startMs')::numeric) and ("records_fragments"."location"->>'endMs')::numeric = trunc(("records_fragments"."location"->>'endMs')::numeric)
+
+ when 'pdf' then ("records_fragments"."location" - ARRAY['kind','page','textRange'])='{}'::jsonb and jsonb_typeof("records_fragments"."location"->'page')='number' and ("records_fragments"."location"->>'page')::numeric>0 and ("records_fragments"."location"->>'page')::numeric=trunc(("records_fragments"."location"->>'page')::numeric) and jsonb_typeof("records_fragments"."location"->'textRange')='object' and (("records_fragments"."location"->'textRange') - ARRAY['start','end'])='{}'::jsonb and jsonb_typeof("records_fragments"."location"->'textRange'->'start')='number' and jsonb_typeof("records_fragments"."location"->'textRange'->'end')='number' and ("records_fragments"."location"->'textRange'->>'start')::numeric>=0 and ("records_fragments"."location"->'textRange'->>'end')::numeric>("records_fragments"."location"->'textRange'->>'start')::numeric and ("records_fragments"."location"->'textRange'->>'start')::numeric=trunc(("records_fragments"."location"->'textRange'->>'start')::numeric) and ("records_fragments"."location"->'textRange'->>'end')::numeric=trunc(("records_fragments"."location"->'textRange'->>'end')::numeric)
+ when 'presentation' then ("records_fragments"."location" - ARRAY['kind','slide'])='{}'::jsonb and jsonb_typeof("records_fragments"."location"->'slide')='number' and ("records_fragments"."location"->>'slide')::numeric>0 and ("records_fragments"."location"->>'slide')::numeric=trunc(("records_fragments"."location"->>'slide')::numeric)
+ when 'video' then ("records_fragments"."location" - ARRAY['kind','startMs','endMs'])='{}'::jsonb and jsonb_typeof("records_fragments"."location"->'startMs')='number' and jsonb_typeof("records_fragments"."location"->'endMs')='number' and ("records_fragments"."location"->>'startMs')::numeric>=0 and ("records_fragments"."location"->>'endMs')::numeric>("records_fragments"."location"->>'startMs')::numeric and ("records_fragments"."location"->>'startMs')::numeric=trunc(("records_fragments"."location"->>'startMs')::numeric) and ("records_fragments"."location"->>'endMs')::numeric=trunc(("records_fragments"."location"->>'endMs')::numeric)
+ when 'image' then ("records_fragments"."location" - ARRAY['kind','region'])='{}'::jsonb and jsonb_typeof("records_fragments"."location"->'region')='object' and (("records_fragments"."location"->'region') - ARRAY['left','top','right','bottom'])='{}'::jsonb and jsonb_typeof("records_fragments"."location"->'region'->'left')='number' and jsonb_typeof("records_fragments"."location"->'region'->'top')='number' and jsonb_typeof("records_fragments"."location"->'region'->'right')='number' and jsonb_typeof("records_fragments"."location"->'region'->'bottom')='number' and ("records_fragments"."location"->'region'->>'left')::numeric>=0 and ("records_fragments"."location"->'region'->>'top')::numeric>=0 and ("records_fragments"."location"->'region'->>'right')::numeric<=1 and ("records_fragments"."location"->'region'->>'bottom')::numeric<=1 and ("records_fragments"."location"->'region'->>'right')::numeric>("records_fragments"."location"->'region'->>'left')::numeric and ("records_fragments"."location"->'region'->>'bottom')::numeric>("records_fragments"."location"->'region'->>'top')::numeric
+ when 'code' then ("records_fragments"."location" - ARRAY['kind','repository','commit','path','startLine','endLine'])='{}'::jsonb and jsonb_typeof("records_fragments"."location"->'repository')='string' and "records_fragments"."location"->>'repository' ~ '[^[:space:]]' and jsonb_typeof("records_fragments"."location"->'commit')='string' and "records_fragments"."location"->>'commit' ~ '^[a-f0-9]{40}$' and jsonb_typeof("records_fragments"."location"->'path')='string' and "records_fragments"."location"->>'path' ~ '[^[:space:]]' and "records_fragments"."location"->>'path' !~ '(^/|(^|/)[.]{1,2}(/|$)|//|/$)' and position(chr(92) in "records_fragments"."location"->>'path')=0 and jsonb_typeof("records_fragments"."location"->'startLine')='number' and jsonb_typeof("records_fragments"."location"->'endLine')='number' and ("records_fragments"."location"->>'startLine')::numeric>0 and ("records_fragments"."location"->>'endLine')::numeric>=("records_fragments"."location"->>'startLine')::numeric and ("records_fragments"."location"->>'startLine')::numeric=trunc(("records_fragments"."location"->>'startLine')::numeric) and ("records_fragments"."location"->>'endLine')::numeric=trunc(("records_fragments"."location"->>'endLine')::numeric)
+ else false end, false));
