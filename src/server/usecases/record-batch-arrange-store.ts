@@ -18,6 +18,7 @@ import type { JobRecord } from '../jobs/state';
 import { arrangeInputs } from '../modules/records/arrange/input-state/schema';
 import type { StoredArrangeInput } from '../modules/records/arrange/input-state/schema';
 import { lockArrangeInput } from '../modules/records/arrange/input-state/store';
+import { lockIntakeTable, readIntakeTable } from './talent-source-projection';
 import {
   recordDraftBatches,
   recordDrafts,
@@ -104,31 +105,38 @@ export async function readNativeDraftSet(
   return raw;
 }
 /** Preserve immutable producer metadata when842 clears a public result on retry.
- * This modifies the same locked job row, not a second status or operation store. */
+ * This modifies the same locked job row, not a second status or operation store.
+ * Every native batch job transaction takes the intake SHARE lock before the job
+ * row lock: the global order is intake first, then batch/draft, sources and
+ * permissions. Submit replays already hold the intake writer lock before they
+ * lock the job row, so the runner must not hold the job row and then wait on
+ * intake. */
 function nativeJobStore(db: Database): JobStore<Transaction> {
-  const base = createJobStore(db);
   return {
     locked: (jobId, run) =>
-      base.locked(jobId, async (tx) => {
-        let current = tx.record;
-        return run({
-          ...tx,
-          save: async (next) => {
-            const old = current && parseBatchMetadata(current.result);
-            if (
-              old &&
-              next.status === 'queued' &&
-              current?.status === 'failed' &&
-              next.result === null
-            )
-              next.result = {
-                ...old,
-                trace: null,
-                manifest: old.manifest,
-              } satisfies BatchJobMetadata;
-            await tx.save(next);
-            current = next;
-          },
+      db.transaction(async (outer) => {
+        await lockIntakeTable(outer, 'locked');
+        return createJobStore(outer).locked(jobId, async (tx) => {
+          let current = tx.record;
+          return run({
+            ...tx,
+            save: async (next) => {
+              const old = current && parseBatchMetadata(current.result);
+              if (
+                old &&
+                next.status === 'queued' &&
+                current?.status === 'failed' &&
+                next.result === null
+              )
+                next.result = {
+                  ...old,
+                  trace: null,
+                  manifest: old.manifest,
+                } satisfies BatchJobMetadata;
+              await tx.save(next);
+              current = next;
+            },
+          });
         });
       }),
   };
@@ -191,8 +199,11 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
           ))
       )
         return false;
+      // Read/control authorization only: a snapshot cannot widen access, and
+      // the runner re-checks under SHARE before any model call.
       const snapshot = await loadRecordBatchSnapshot(
         tx,
+        await readIntakeTable(tx, 'snapshot'),
         value,
         metadata,
         deps.businessNow(),
@@ -412,6 +423,8 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
             }
             return loadRecordBatchSnapshot(
               locked.context,
+              // Before the model call: fence intake DML until this commits.
+              await readIntakeTable(locked.context, 'locked'),
               input,
               metadata!,
               deps.businessNow(),

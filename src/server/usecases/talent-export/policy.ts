@@ -7,7 +7,7 @@ import {
 import {
   eventSubject,
   sourceKey,
-  talentSources,
+  completeTalentSources,
 } from '../talent-source-projection';
 import {
   TalentExportError,
@@ -152,7 +152,7 @@ async function catalog(data: ExportSnapshot) {
     (p) => p.id === context.account.personId,
   );
   if (!actor?.name.trim()) fail();
-  const sources = talentSources({ ...data, context });
+  const sources = completeTalentSources({ ...data, context });
   const load = async () => ({ context, records: [], sources });
   const visible = new Map<
     string,

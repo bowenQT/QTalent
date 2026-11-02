@@ -28,7 +28,11 @@ export async function readJobInTransaction(
   const [row] = lock ? await query.for('update') : await query;
   return row ? normalized(row) : null;
 }
-export function createJobStore(db: Database): JobStore<Transaction> {
+/** `db` may be an open transaction: the row lock then nests in a savepoint after the
+ * caller's earlier locks (see the native batch store's intake-first order). */
+export function createJobStore(
+  db: Database | Transaction,
+): JobStore<Transaction> {
   return {
     locked: (jobId, run) =>
       db.transaction(async (context) => {

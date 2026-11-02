@@ -15,6 +15,7 @@ import {
 import { byCodePoint, byPinyin } from './person-identity';
 import { sourceFromData } from './sources';
 import { historicalEvaluationRequiredKind } from './historical-evaluation-policy';
+import { orderCapabilityDimensions } from './person-display-policy';
 
 type Ready<T> = T extends { status: 'ready'; data: infer D } ? D : never;
 type Variant = Extract<Person, { role: 'manager' | 'hr' }>;
@@ -53,12 +54,16 @@ export const dimensionGroup = (dimension: Dimension) =>
       ? ('potential_core' as const)
       : ('potential_bonus' as const);
 const groupRank = { professional: 0, potential_core: 1, potential_bonus: 2 };
-/** There is no catalogue-order column yet: group, then id (never by score). */
+/** There is no catalogue-order column yet: group, then id (never by score),
+ * with the potential core in the fixed prototype order.
+ */
 export function orderedDimensions(data: PersonData): Dimension[] {
-  return [...data.dimensions].sort(
-    (a, b) =>
-      groupRank[dimensionGroup(a)] - groupRank[dimensionGroup(b)] ||
-      byCodePoint(a.id, b.id),
+  return orderCapabilityDimensions(
+    [...data.dimensions].sort(
+      (a, b) =>
+        groupRank[dimensionGroup(a)] - groupRank[dimensionGroup(b)] ||
+        byCodePoint(a.id, b.id),
+    ),
   );
 }
 const refOf = (reference: {
