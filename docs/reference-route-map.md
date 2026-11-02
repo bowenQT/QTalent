@@ -14,7 +14,7 @@
 | 同上 | `/dev/design-system/sources`、`/dev/design-system/sources/view` | 原件查看器样张（六种定位、代码快照、基线、待接入） | `sources.ts` 校验后的合成样张 | 路由中的生产环境门禁 | — | 仅开发环境；生产返回 404 |
 | `404.html`           | 全局 `not-found.tsx` | `components/ui/State`                                  | —                    | Next.js 404                                     | —                                    | 通用返回入口                               |
 
-`/` 仅重定向 `/projects`（登录落点改到 `/work` 归 BOW-874）；导航「工作台」指向 `/work`，见下文「工作台（BOW-841）」。
+`/` 重定向到 `/work`，登录后也落到 `/work`，404 页的返回入口是「回到工作台」（BOW-874）；导航「工作台」指向 `/work`，见下文「工作台（BOW-841）」。
 
 ## 全量原型页面规划
 

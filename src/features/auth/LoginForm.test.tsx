@@ -22,7 +22,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('email-password login', () => {
-  it('sends one same-origin request and enters projects on success', async () => {
+  it('sends one same-origin request and enters the workbench on success', async () => {
     const fetch = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', fetch);
     const user = userEvent.setup();
@@ -32,7 +32,7 @@ describe('email-password login', () => {
     const form = screen.getByRole('button', { name: '登录' }).closest('form')!;
     fireEvent.submit(form);
     fireEvent.submit(form);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/projects'));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/work'));
     expect(refresh).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith(
