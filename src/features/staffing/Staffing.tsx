@@ -87,6 +87,9 @@ export function withRequirement(
 }
 
 const noSubscribe = () => () => {};
+/** A 409 means the demand changed: drop the stale candidates. Outages and
+ * not-connected reads retry a bounded number of times, paused while hidden. */
+const matchingReads = { stopOnConflict: true, retryLimit: 6 } as const;
 
 function ProjectHeader({ project }: { project: ProjectHead }) {
   return (
@@ -210,7 +213,7 @@ export function Staffing(props: StaffingProps) {
     confirmed && matching?.revision === confirmed.revision ? matching : null;
   const matchingJobId =
     current?.opened.kind === 'job' ? current.opened.jobId : null;
-  const matchJob = useJob(matchingJobId, ports.readMatchingJob);
+  const matchJob = useJob(matchingJobId, ports.readMatchingJob, matchingReads);
   const [judged, setJudged] = useState<
     ReadonlyMap<string, StaffingCandidate['requirements'][number]>
   >(new Map());

@@ -8,6 +8,9 @@ import {
   matchingLoading,
   outOfScope,
   matchingFailed,
+  matchingReload,
+  matchingRetry,
+  matchingStale,
   matchingUnavailable,
   noCandidates,
 } from '../../copy';
@@ -90,10 +93,32 @@ export function Candidates({
   onCancelJudgment: () => void;
 }) {
   const job = matching.kind === 'job' ? matching.job : null;
+  // Automatic reads stopped at their limit: offer reading again by hand.
+  const retry = job?.gaveUp ? (
+    <button type="button" className="n-btn n-btn--sm" onClick={job.retry}>
+      {matchingRetry}
+    </button>
+  ) : null;
   if (matching.kind === 'unavailable' || (!candidates && job?.notConnected))
     return (
       <Section>
-        <State {...matchingUnavailable} />
+        <State {...matchingUnavailable}>{retry}</State>
+      </Section>
+    );
+  // The server said these results belong to an older demand version: they are
+  // already cleared, so no judgment can be made on them.
+  if (job?.connection === 'conflict')
+    return (
+      <Section>
+        <State kind="failed" {...matchingStale}>
+          <button
+            type="button"
+            className="n-btn n-btn--sm"
+            onClick={() => window.location.reload()}
+          >
+            {matchingReload}
+          </button>
+        </State>
       </Section>
     );
   if (!candidates) {
@@ -113,7 +138,9 @@ export function Candidates({
     if (settled || matching.kind === 'failed' || job?.connection === 'error')
       return (
         <Section>
-          <State kind="failed" {...matchingFailed} />
+          <State kind="failed" {...matchingFailed}>
+            {retry}
+          </State>
         </Section>
       );
     return (

@@ -45,6 +45,14 @@ export const matchingFailed = {
   title: '候选人核对中断',
   text: '需求和已核对的结果都已保留，可以稍后刷新再看。',
 };
+/** The server says the demand changed after these candidates were checked. */
+export const matchingStale = {
+  title: '需求已更新',
+  text: '这些候选人是按旧版本要求核对的，已收起。重新读取需求后，按最新版本核对。',
+};
+export const matchingReload = '重新读取需求';
+/** Automatic reads stopped at their limit; reading again is the reader's call. */
+export const matchingRetry = '重新连接';
 export const draftFailed = '需求卡生成失败，回到输入框再发一次。';
 export const draftSignedOut = '登录已失效，重新登录后回到输入框再发一次。';
 export const draftOutOfScope =
