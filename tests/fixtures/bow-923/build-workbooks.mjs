@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as prettier from 'prettier';
 import {
   CONTRACT_SHA,
@@ -15,16 +15,17 @@ import {
 } from './scene.mjs';
 import { createSeedInput } from './seed-input.mjs';
 
-const [outputDir, qaDir, templateArg] = process.argv.slice(2);
+const [extractDir, outputDir, qaDir, templateArg] = process.argv.slice(2);
 assert(
-  outputDir && qaDir,
-  'usage: node build-workbooks.mjs <new-output-dir> <qa-dir> [template-dir]',
+  extractDir && outputDir && qaDir,
+  'usage: node build-workbooks.mjs <extract-dir> <new-output-dir> <qa-dir> [template-dir]',
 );
 const here = path.dirname(fileURLToPath(import.meta.url));
 const templateDir = templateArg ?? here;
 await fs.mkdir(outputDir, { recursive: true });
 await fs.mkdir(qaDir, { recursive: true });
-const data = await buildScene();
+// Step two consumes step one's output only, never the committed copies.
+const data = await buildScene(pathToFileURL(path.resolve(extractDir) + '/'));
 // Committed fixtures follow the repository Prettier style; format on write so a
 // rerun reproduces the committed bytes.
 const prettierOptions = await prettier.resolveConfig(

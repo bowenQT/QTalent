@@ -121,7 +121,7 @@ const rejects = [
     unit.outcome = { state: 'consistent' };
   }),
   mutate(cases[0], (unit) => {
-    unit.mappingVersionId = 'map-xe-select-v2';
+    unit.mappingVersionId = 'map-xe-select-v3';
   }),
 ];
 for (const unit of rejects)

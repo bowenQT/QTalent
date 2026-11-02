@@ -7,7 +7,7 @@
       "cohort": { "id": "b-xe6", "name": "XEngineer 第六期（演示）" },
       "boundSelectionVersionId": "xe-select-v1",
       "selectionStandardEffectiveFrom": "2026-06-14T16:00:00.000Z",
-      "mappingVersionId": "map-xe-select-v1",
+      "mappingVersionId": "map-xe-select-v2",
       "nodes": { "front": "xe6-select", "back": "xe6-end" }
     }
   ],

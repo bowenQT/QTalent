@@ -15,17 +15,22 @@ export const BACK_SCALE = 'demo-xe-graduation-three-bands-v1';
 export const FRONT_NODE = 'xe6-select';
 export const BACK_NODE = 'xe6-end';
 export const cohort = { id: 'b-xe6', name: 'XEngineer 第六期（演示）' };
+// Every identity this generation owns carries its version, so it can be imported
+// beside an earlier generation without reusing a primary key for new content.
+// Directory people, the cohort, nodes and rule versions stay shared.
+const OWN = FIXTURE_VERSION;
+export const MAPPING_VERSION = 'map-xe-select-v2';
 export const batch = {
-  id: 'bow-923-xe6-selection-graduation-v2',
+  id: `${OWN}-xe6-selection-graduation`,
   name: '第六期选拔与结营对照（演示）',
   cohort,
   selectionStandardVersionId: 'xe-select-v1',
-  mappingVersionId: 'map-xe-select-v1',
+  mappingVersionId: MAPPING_VERSION,
 };
 export const originals = {
   front: {
     file: '作品评审表.xlsx',
-    originalVersionId: 'bow-923-xe6-selection-original-v2',
+    originalVersionId: `${OWN}-xe6-selection-original`,
     sheet: '作品评审（演示）',
     lastColumn: 'P',
     excerptColumn: 'P',
@@ -33,7 +38,7 @@ export const originals = {
   },
   back: {
     file: '结营评审表.xlsx',
-    originalVersionId: 'bow-923-xe6-graduation-original-v2',
+    originalVersionId: `${OWN}-xe6-graduation-original`,
     sheet: '结营评审（演示）',
     lastColumn: 'J',
     excerptColumn: 'J',
@@ -95,8 +100,8 @@ const missingFrontComment =
   '演示重建：第二批次补录入营，没有参加作品评审，未补造评价或评价人。';
 const missingBackComment = '演示重建：缺少结营评审记录，未补造评价或评价人。';
 
-const readJson = async (name) =>
-  JSON.parse(await fs.readFile(new URL(`./${name}`, import.meta.url), 'utf8'));
+const readJson = async (dir, name) =>
+  JSON.parse(await fs.readFile(new URL(name, dir), 'utf8'));
 
 /** Same rule as the contract: only the highest/just-passed front band is clear. */
 export function outcomeOf(mapping, front, back, mark) {
@@ -159,9 +164,11 @@ function tally(target, outcome) {
   return target;
 }
 
-export async function buildScene() {
-  const roster = await readJson('roster.json');
-  const prototype = await readJson('prototype-judgments.json');
+/** Builds from the first step's output in `extractDir` (a directory URL). Only
+ * the committed-fixture checks default to this directory. */
+export async function buildScene(extractDir = new URL('./', import.meta.url)) {
+  const roster = await readJson(extractDir, 'roster.json');
+  const prototype = await readJson(extractDir, 'prototype-judgments.json');
   assert.equal(roster.provenance.commit, prototype.provenance.commit);
   const actor = (id) => {
     const person = roster.directory.find((entry) => entry.id === id);
@@ -172,7 +179,7 @@ export async function buildScene() {
   const [justPassed, middle, highest] = prototype.scale.front;
   const [notRecommended, observe, recommended] = prototype.scale.back;
   const mapping = {
-    versionId: 'map-xe-select-v1',
+    versionId: MAPPING_VERSION,
     frontScaleId: FRONT_SCALE,
     backScaleId: BACK_SCALE,
     rows: [
@@ -223,9 +230,9 @@ export async function buildScene() {
   const marks = prototype.marks.map((mark) => {
     const sequence = sequenceOf(mark.personId);
     return {
-      id: `bow-923-hr-mark-${sequence}`,
+      id: `${OWN}-hr-mark-${sequence}`,
       nature: 'demo_human_mark',
-      caseId: `bow-923-case-${sequence}`,
+      caseId: `${OWN}-case-${sequence}`,
       batchId: batch.id,
       personId: mark.personId,
       frontNodeId: FRONT_NODE,
@@ -274,16 +281,16 @@ export async function buildScene() {
     assert.equal(facts.personId, person.id);
     const row = index + 2;
     const sequence = String(index + 1).padStart(3, '0');
-    const caseId = `bow-923-case-${sequence}`;
+    const caseId = `${OWN}-case-${sequence}`;
     const mark = marks.find((entry) => entry.personId === person.id);
     const team = facts.front?.team ? facts.front.team : null;
     const work = team
       ? {
           kind: 'team',
-          workId: 'bow-923-team-work-seven',
-          teamId: 'bow-923-team-seven',
+          workId: `${OWN}-team-work-seven`,
+          teamId: `${OWN}-team-seven`,
         }
-      : { kind: 'individual', workId: `bow-923-work-${sequence}` };
+      : { kind: 'individual', workId: `${OWN}-work-${sequence}` };
     const frontGrade = facts.front?.grade ?? null;
     const backGrade = facts.back?.grade ?? null;
     const frontComment = !frontGrade
@@ -341,7 +348,7 @@ export async function buildScene() {
         personId: person.id,
         row,
         source: {
-          fragmentId: `bow-923-${side}-row-${sequence}`,
+          fragmentId: `${OWN}-${side}-row-${sequence}`,
           originalVersionId: original.originalVersionId,
           location: {
             kind: 'spreadsheet',
@@ -373,7 +380,7 @@ export async function buildScene() {
       return {
         state: 'present',
         judgment: {
-          judgmentId: `bow-923-${side}-judgment-${sequence}`,
+          judgmentId: `${OWN}-${side}-judgment-${sequence}`,
           nodeId: side === 'front' ? FRONT_NODE : BACK_NODE,
           cohortId: cohort.id,
           standardVersionId:

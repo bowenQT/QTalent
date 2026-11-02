@@ -19,10 +19,10 @@
   },
   "marks": [
     {
-      "id": "bow-923-hr-mark-042",
+      "id": "bow-923-v3-hr-mark-042",
       "nature": "demo_human_mark",
-      "caseId": "bow-923-case-042",
-      "batchId": "bow-923-xe6-selection-graduation-v2",
+      "caseId": "bow-923-v3-case-042",
+      "batchId": "bow-923-v3-xe6-selection-graduation",
       "personId": "p-x42",
       "frontNodeId": "xe6-select",
       "backNodeId": "xe6-end",
