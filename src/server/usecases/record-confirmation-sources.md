@@ -12,7 +12,9 @@
 
 ## 唯一入口
 
-所有来源读取只经过 `talent-source-projection.ts` 的两个函数：`readIntakeTable(tx, mode)` 读完整的 arrange_inputs（不按创建人、人员、批次或 superseded 过滤），`completeTalentSources(data)` 把正式来源图与所有匹配 intake 合并。`IntakeTable` 只能由 `readIntakeTable` 产生，调用方无法传入过滤过的子集；原始来源图和本文件的合并步骤都不对外使用，`talent-source-projection.guard.test.ts` 列出全部调用方。
+所有来源读取只经过 `talent-source-projection.ts` 的两个函数：`readIntakeTable(tx, mode)` 读完整的 arrange_inputs（不按创建人、人员、批次或 superseded 过滤），`completeTalentSources(data)` 把正式来源图与所有匹配 intake 合并。`IntakeTable` 只能由 `readIntakeTable` 产生：它是模块私有类的实例，登记在模块私有的 WeakSet 里，行数据是深度冻结的私有副本；`intakeRows` 和合并步骤只接受登记过的表，展开复制（`{ ...table, rows }`）或手工构造的对象都会被拒绝，所以调用方无法传入过滤过的子集。生产代码没有测试用的构造函数；单测经 `talent-source-projection.test-support.ts` 用真实 `readIntakeTable` 入口从内存行构造。原始来源图和本文件的合并步骤都不对外使用，`talent-source-projection.guard.test.ts` 用 TypeScript AST 解析全部导入写法（含命名空间、再导出、动态 import、require），列出全部调用方。
+
+锁顺序：所有原生批次任务事务（runner、取消、重试）在锁任务行之前先取 intake SHARE；提交请求先取 intake 写锁再锁任务行。整理时，同一片段其他 intake（含已作废）并入的主体，与当前 intake 的主体一起锁定人员、节点、关系等权限行，等待后重读权限。
 
 | 调用方                                                     | 读法                                                                                                                                                    |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
