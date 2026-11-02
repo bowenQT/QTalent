@@ -43,6 +43,7 @@ const blocks: Record<WorkbenchRole, Block[]> = {
   manager: [
     head,
     { name: 'find', selector: 'section.n-find', afterPrevious: true },
+    { name: 'columns', selector: '.nt-ceo', afterPrevious: true },
   ],
   hr: [
     head,

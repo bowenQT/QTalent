@@ -175,12 +175,20 @@ function undo(at = '2026-10-31T10:00:04.999Z') {
   };
 }
 describe('server-owned current authorization and scoped preview', () => {
-  it('revokes access to the entire saved preview before an HR action if its next-cohort scope is withdrawn', () => {
+  it('does not require an HR grant on the future next cohort, only on the cohorts the preview discloses', () => {
     const record = saved();
     const ctx = authority();
     ctx.context.grants[1].revokedAt = time;
     expect(() =>
       planSubmitSelectionRevision(ctx, record, {
+        ...command(record),
+        expectedPreviewId: record.revision.impactPreview.id,
+      }),
+    ).not.toThrow();
+    const withdrawn = authority();
+    withdrawn.context.grants[0].revokedAt = time;
+    expect(() =>
+      planSubmitSelectionRevision(withdrawn, record, {
         ...command(record),
         expectedPreviewId: record.revision.impactPreview.id,
       }),
@@ -250,15 +258,16 @@ describe('server-owned current authorization and scoped preview', () => {
         versionId: 'xe-select-v2',
       }),
     ).toThrow('权限');
+    // A future next cohort is a trusted descriptor: no grant on it exists yet.
     const target = impact();
-    target.nextCohort = { id: 'hidden-next-cohort', name: '不应泄露' };
-    expect(() =>
+    target.nextCohort = { id: 'future-next-cohort', name: '下一期（演示）' };
+    expect(
       prepareSelectionImpactPreview(authority(), fresh(), target, {
         id: 'p',
         contentRevision: 1,
         versionId: 'xe-select-v2',
-      }),
-    ).toThrow('权限');
+      }).nextCohort,
+    ).toEqual(target.nextCohort);
   });
   it('separates HR editing from manager confirmation and rejects malformed business time', () => {
     expect(() =>

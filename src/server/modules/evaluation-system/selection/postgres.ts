@@ -168,11 +168,12 @@ function canonical(value: unknown): string {
 function same(left: unknown, right: unknown) {
   return canonical(left) === canonical(right);
 }
+/** Existing cohorts the record discloses. The next cohort is a trusted future
+ * descriptor; its scope is checked by the impact reader only once it exists. */
 function scope(record: SelectionRevisionRecord) {
   return [
     ...new Set([
       record.scopeCohortId,
-      record.revision.impactPreview.nextCohort.id,
       ...record.revision.impactPreview.existingResults.map(
         (item) => item.cohortId,
       ),

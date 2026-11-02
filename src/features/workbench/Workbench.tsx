@@ -8,6 +8,9 @@ import { Students } from './sections/students/Students';
 import { Todos } from './sections/todos/Todos';
 import { MaterialsCards, MaterialsFold } from './sections/materials/Materials';
 import { showsTodos } from './sections/todos/todo-groups';
+import { WatchPeople } from './sections/watch/WatchPeople';
+import { Programs } from './sections/programs/Programs';
+import { Follows } from './sections/follows/Follows';
 
 /**
  * The only place sections are registered. A later card adds its own
@@ -16,7 +19,10 @@ import { showsTodos } from './sections/todos/todo-groups';
  */
 type Section = {
   id: string;
-  /** Whether the section has anything to show; `not_connected` blocks never do. */
+  /**
+   * Whether the section has anything to show. A `not_connected` block shows nothing,
+   * except the manager home cards, which keep their place and say 待接通.
+   */
   shows: (view: WorkbenchView) => boolean;
   render: (view: WorkbenchView) => ReactNode;
 };
@@ -63,6 +69,21 @@ const materials: Section = {
   render: (view) =>
     view.role === 'mentor' ? <MaterialsFold /> : <MaterialsCards />,
 };
+const watch: Section = {
+  id: 'watch',
+  shows: (view) => view.manager !== undefined,
+  render: (view) => <WatchPeople view={view} />,
+};
+const programs: Section = {
+  id: 'programs',
+  shows: (view) => view.manager !== undefined,
+  render: (view) => <Programs view={view} />,
+};
+const follows: Section = {
+  id: 'follows',
+  shows: (view) => view.manager !== undefined,
+  render: (view) => <Follows view={view} />,
+};
 const students: Section = {
   id: 'students',
   shows: (view) => view.trainees !== undefined,
@@ -75,8 +96,8 @@ type Block =
   | Section
   | { id: string; className: 'nt-ceo' | 'nt-cols'; main: Slot; side: Slot };
 
-// Order and containers follow prototype/y/app/js/pages/workbench.js per role.
-// Empty slots are where sections not connected yet will go.
+// Order and containers follow prototype/y/app/js/pages/workbench.js per role (the
+// manager per 版本 Y DY-04). Empty slots are where sections not connected yet will go.
 const layouts: Record<WorkbenchRole, Block[]> = {
   manager: [
     greeting,
@@ -84,8 +105,8 @@ const layouts: Record<WorkbenchRole, Block[]> = {
     {
       id: 'columns',
       className: 'nt-ceo',
-      main: { grid: false, sections: [] },
-      side: { grid: true, sections: [] },
+      main: { grid: false, sections: [watch] },
+      side: { grid: true, sections: [programs, follows] },
     },
   ],
   hr: [

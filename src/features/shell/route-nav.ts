@@ -11,8 +11,12 @@ const aliases: readonly {
   parent: NavigationId;
   /** Shown until the page supplies its own title (see ShellTitle). */
   title: string;
+  /** Breadcrumb text for the parent; the prototype keeps it fixed when the entry is renamed. */
+  parentLabel?: string;
 }[] = [
-  { path: '/person', parent: 'people', title: '人员档案' },
+  // prototype/y/app/js/pages/person.js: the crumb reads 人才 for every role, including the
+  // mentor whose entry is labelled 所带学员.
+  { path: '/person', parent: 'people', title: '人员档案', parentLabel: '人才' },
   { path: '/work/reassign', parent: 'work', title: '重新分派' },
 ];
 
@@ -64,7 +68,10 @@ export function resolveRouteNav(
       title: isAdmin ? adminTitle : alias.title,
       parent:
         parent && !isAdmin
-          ? { label: parent.label, href: hrefPath(parent.href) }
+          ? {
+              label: alias.parentLabel ?? parent.label,
+              href: hrefPath(parent.href),
+            }
           : null,
     };
   }

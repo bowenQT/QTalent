@@ -219,11 +219,12 @@ function verifyAccount(
   )
     throw new SelectionLifecycleError('forbidden', '当前身份无法处理此请求');
 }
+/** Must equal the store's `scope`: the next cohort is a future descriptor, not
+ * a scope, until the impact reader finds it existing. */
 function visibleCohorts(record: SelectionRevisionRecord): string[] {
   return [
     ...new Set([
       record.scopeCohortId,
-      record.revision.impactPreview.nextCohort.id,
       ...record.revision.impactPreview.existingResults.map(
         (row) => row.cohortId,
       ),
