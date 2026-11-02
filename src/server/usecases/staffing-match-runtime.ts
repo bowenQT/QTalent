@@ -19,7 +19,10 @@ type Env = ReturnType<typeof getEnv>;
  * interface frozen on #305. Constructing it touches no database, queue or
  * provider; `register()` only creates the queue and its handler.
  * `configured` is false unless both model ports are live; the entry answers
- * not_connected then instead of starting cells that would all fail.
+ * not_connected then instead of starting cells that would all fail. A worker
+ * that is not configured creates the queue but takes no jobs: queued runs wait
+ * for a worker with both ports instead of settling as awaiting_manual, which
+ * the job policy can neither retry nor resume.
  */
 export function createStaffingMatchServerRuntime(input: {
   db: Database;
@@ -61,7 +64,9 @@ export function createStaffingMatchServerRuntime(input: {
     service: runtime.service,
     policy: runtime.policy,
     async register() {
-      await runtime.registerWorker(await input.boss(staffingMatchQueue));
+      const boss = await input.boss(staffingMatchQueue);
+      if (models.configured) await runtime.registerWorker(boss);
+      else await boss.createQueue(staffingMatchQueue);
     },
   };
 }

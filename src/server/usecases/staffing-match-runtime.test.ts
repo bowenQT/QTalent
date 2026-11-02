@@ -65,6 +65,24 @@ describe('BOW-854 matching server runtime', () => {
     expect(queue.work).toHaveBeenCalledOnce();
     expect(queue.work.mock.calls[0]![0]).toBe('staffing-match');
   });
+  it.each([
+    ['no keys', {}],
+    ['only the Jev key', { QINIU_MAAS_API_KEY: keys.QINIU_MAAS_API_KEY }],
+    ['only the Modelink key', { MODELINK_API_KEY: keys.MODELINK_API_KEY }],
+  ])(
+    'with %s, register keeps the queue but takes no jobs until both ports are configured',
+    async (_, over) => {
+      const missing = compose(env(over));
+      await missing.runtime.register();
+      expect(missing.queue.createQueue).toHaveBeenCalledWith('staffing-match');
+      expect(missing.queue.work).not.toHaveBeenCalled();
+      // After the configuration is restored, a restarted worker consumes the
+      // same queue.
+      const restored = compose(env(keys));
+      await restored.runtime.register();
+      expect(restored.queue.work).toHaveBeenCalledOnce();
+    },
+  );
 });
 
 // Deferred from #340: the real model ports, over a fake transport, keep an
