@@ -796,7 +796,11 @@ describe('923 generations coexist and demo initialization is idempotent', () => 
       .select()
       .from(people)
       .where(eq(people.id, DEMO_GRADUATION_REVIEWER.id));
-    expect(stored).toEqual([DEMO_GRADUATION_REVIEWER]);
+    // Init writes only the reviewed fields; the nullable profile columns
+    // (job title/level) stay unknown, like the other demo staff.
+    expect(stored).toEqual([
+      { ...DEMO_GRADUATION_REVIEWER, jobTitle: null, jobLevel: null },
+    ]);
     const again = await initializeStandardIterationDemo(
       db(),
       process.cwd(),
