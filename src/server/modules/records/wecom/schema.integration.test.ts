@@ -43,7 +43,7 @@ async function fixture() {
   await c.db.insert(wecomBindings).values({
     id,
     accountId,
-    accountBindingDigest: entryAccountBindingDigest(accountId, personId),
+    accountBindingDigest: entryAccountBindingDigest(accountId, personId, 1),
     revision: 1,
     expiresAt: new Date('2026-11-02'),
     scope: identity.scope,

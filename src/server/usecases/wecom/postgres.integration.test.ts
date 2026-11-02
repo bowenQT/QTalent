@@ -18,7 +18,7 @@ import { createDatabase } from '../../db/client';
 import { createRecordArrangeApplication } from '../record-arrange-application';
 import { recordArrangeQueue } from '../../jobs/record-arrange';
 import { wecomMessages, wecomReceiptAttempts } from '../../modules/records';
-import { accountBindings, people } from '../../modules/directory';
+import { people, rebindDirectoryAccount } from '../../modules/directory';
 import { evaluationRelations } from '../../modules/programs';
 import { jobSnapshots } from '../../jobs/schema';
 import { arrangeInputs } from '../../modules/records/arrange/input-state/schema';
@@ -64,6 +64,7 @@ async function fixture(chatType: 'single' | 'group' = 'single') {
     accountBindingDigest: entryAccountBindingDigest(
       facts.account,
       facts.evaluator,
+      1,
     ),
     revision: 1,
     expiresAt: new Date('2026-11-02'),
@@ -332,17 +333,17 @@ it('rejects directory rebind and expiry, and never reuses the old credential rev
   expect(await h.receiver.receive(h.message, h.target)).toEqual({
     status: 'not_found',
   });
-  await c.db
-    .update(accountBindings)
-    .set({ personId: h.other })
-    .where(eq(accountBindings.accountId, h.account));
+  await rebindDirectoryAccount(c.db, {
+    accountId: h.account,
+    personId: h.other,
+  });
   expect(await h.receiver.receive(h.message, h.target)).toEqual({
     status: 'unauthenticated',
   });
-  await c.db
-    .update(accountBindings)
-    .set({ personId: h.evaluator })
-    .where(eq(accountBindings.accountId, h.account));
+  await rebindDirectoryAccount(c.db, {
+    accountId: h.account,
+    personId: h.evaluator,
+  });
   await c.db
     .update(wecomBindings)
     .set({ expiresAt: new Date(wallAt) })
@@ -525,7 +526,11 @@ it('isolates the same message ID across real scope, bot and sender bindings', as
       id: randomUUID(),
       ...source,
       accountId: h.account,
-      accountBindingDigest: entryAccountBindingDigest(h.account, h.evaluator),
+      accountBindingDigest: entryAccountBindingDigest(
+        h.account,
+        h.evaluator,
+        1,
+      ),
       revision: 1,
       expiresAt: new Date('2026-11-02'),
     });
@@ -1062,10 +1067,10 @@ it.each(['revoked', 'revision', 'rebind', 'expired', 'domain'] as const)(
         .set({ validTo: businessAt })
         .where(eq(evaluationRelations.id, h.relation));
     if (kind === 'rebind')
-      await c.db
-        .update(accountBindings)
-        .set({ personId: h.target.personIds[0]! })
-        .where(eq(accountBindings.accountId, h.account));
+      await rebindDirectoryAccount(c.db, {
+        accountId: h.account,
+        personId: h.target.personIds[0]!,
+      });
     const resumed = await wireFixture(true, h);
     try {
       expect(await resumed.socketClient.notifyPending()).toEqual({
