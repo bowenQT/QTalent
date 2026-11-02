@@ -1,6 +1,6 @@
 # BOW-905 初始图片的原生读取组合
 
-本片在独立后继分支消费 X1 `d44c88ad97480124c31e558f6085a78f7407843b` 与组件 #281 `2d2fd9e81d353fd153c98993347dec783ad1a518`。不修改 #281 的 Ready 头、不复制权限算法或更改公共结构。
+本片组合 main 上已有的两部分：X1 媒体原生共享层（#350）提供的初始图片读取端口，以及 #281 的裁剪外发门禁（`policy.ts`、`crop.ts`）。本片不复制权限算法，也不改公共结构。
 
 `createNativeInitialImageGate(db, dependencies)` 将真实 `createInitialImageDisclosureReader(db)` 固定为 `loadCurrent`。调用方不能替换为许可快照；每次读取均使用真实 PostgreSQL 事务和当前目录/节点关系，读取结束即提交，再进行对象字节获取、实际裁剪或模型 I/O。沿用现有门禁在读后、裁后及模型返回后的重核，不跨网络持锁。
 
@@ -12,7 +12,7 @@
 
 ## 真实 PG 联验
 
-`native.integration.test.ts` 使用现有 `nativeDatabase()` 创建隔离 `_test` 库和正式迁移，再显式消费与固定 X1 头匹配的临时原生迁移。`native.fixture.ts` 只写合成上传/输入/原件/人工操作与真实审计行，不是生产种子或核对 writer。所有授权由真实 reader 重算，未注入 true 授权回调。
+`native.integration.test.ts` 使用现有 `nativeDatabase()` 创建隔离 `_test` 库，并只执行正式迁移。`nativeDatabase` 保留的 `QTALENT_MEDIA_TEST_MIGRATIONS` 可选覆盖来自共用夹具，本片不使用，CI 也不设置。`native.fixture.ts` 只写合成上传/输入/原件/人工操作与真实审计行，不是生产种子或核对 writer。所有授权由真实 reader 重算，未注入 true 授权回调。
 
 外部边界如下：
 
@@ -26,7 +26,7 @@
 显式运行：
 
 ```sh
-# 只从 test-db.env 加载测试库；先领 heavy 槽，固定迁移目录需核 manifest。
+# 只从 test-db.env 加载测试库；先领 heavy 槽。
 pnpm exec vitest run --config vitest.integration.config.ts src/server/usecases/material-images --maxWorkers=2
 ```
 
@@ -34,8 +34,8 @@ pnpm exec vitest run --config vitest.integration.config.ts src/server/usecases/m
 
 ## 未完成的生产接线与门禁
 
-- **本 PR 代码前置**：X1 d44c88ad 的真实 reader/媒体结构及依赖组合、#281 裁剪组件。当前主干尚未全部包含，临时迁移不是正式交付，不能以组合 PG 通过转 Ready。
-- **需要 X1 的准确后续**：正式迁移游标与公共组合；同当前材料/上传/版本绑定的有界原件字节适配；真实 capture/review/undo writer。数据库读取已可联验，不因这些缺口停掉本片。
+- **依赖**：X1 读取端口与媒体结构（#350）和 #281 裁剪组件都已在 main 上，正式迁移已覆盖本片所需结构。
+- **仍需 X1 或后续卡补齐**：同当前材料/上传/版本绑定的有界原件字节适配；真实 capture/review/undo writer。数据库读取已可联验，不因这些缺口停掉本片。
 - **整卡后续**：成功 OCR 的真实 job fence→926 canonical 发布→845 唯一恢复 producer、幂等/取消持久化、worker/用户入口与有限化名供应商验收。未在这里新增状态表、原件副本、正式事件或人工结论。
 
-当前只能返回候选或明确失败/附件终态。后继 PR 要等实际代码/正式结构、当前 CI 等非审查门禁齐备才转 Ready；原 #281 独立片的 Ready 状态不受影响。Codex 不合并。
+当前只能返回候选或明确失败/附件终态。本组合本身没有生产调用方；接入 worker 或用户入口的后续 PR 须从真实入口走到目标动作再转 Ready。
