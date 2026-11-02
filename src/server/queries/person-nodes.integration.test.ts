@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { eq, sql } from 'drizzle-orm';
@@ -8,12 +8,14 @@ import * as directory from '../modules/directory/schema';
 import * as programs from '../modules/programs/schema';
 import * as rules from '../modules/evaluation-system/schema';
 import * as records from '../modules/records/schema';
+import { arrangeInputs, type ArrangeSourceContext } from '../modules/records';
+import { jobSnapshots } from '../jobs/schema';
 import * as talent from '../modules/talent/schema';
 import {
   loadPersonData,
   eventSubject,
   historicalSubject,
-  talentSources,
+  completeTalentSources,
 } from './person-data';
 import { sourceFromData } from './sources';
 import { personFromData } from './person-projection';
@@ -125,7 +127,7 @@ async function model(
 ) {
   return buildAuthorizedModelInput(async () => ({
     context: data.context,
-    sources: talentSources(data),
+    sources: completeTalentSources(data),
     records: [
       {
         id: 'derived',
@@ -319,4 +321,154 @@ it('keeps unknown history closed and permits an explicit restricted review only 
     ),
   ).toEqual({ items: [] });
   expect(revoked.historical[0].scale).toEqual([['结论', '演示：原值不改']]);
+});
+
+async function nativeTextIntake(
+  subjects: ArrangeSourceContext['subjects'],
+  requiredKinds: ArrangeSourceContext['requiredKinds'] = [],
+) {
+  const id = 'demo-intake-' + randomUUID();
+  const excerpt = '演示：多人共同完成的不可拆分原文';
+  await db()
+    .update(records.originals)
+    .set({ kind: 'original', displayNotice: null })
+    .where(eq(records.originals.id, 'original'));
+  await db()
+    .update(records.originalVersions)
+    .set({ contentDigest: createHash('sha256').update(excerpt).digest('hex') })
+    .where(eq(records.originalVersions.id, ref.originalVersionId));
+  await db()
+    .update(records.fragments)
+    .set({ excerpt, location: { kind: 'document', paragraph: 'input' } })
+    .where(eq(records.fragments.id, ref.fragmentId));
+  // A different intake creator must not disappear from the reader's provenance.
+  await db()
+    .insert(directory.accountBindings)
+    .values({
+      accountId: id + '-creator',
+      personId: 'two',
+      isSystemAdmin: false,
+    });
+  await db().insert(jobSnapshots).values({
+    jobId: id,
+    kind: 'record-arrange',
+    resourceId: id,
+    inputVersion: 'v1',
+    status: 'completed',
+    attempt: 1,
+    revision: 1,
+    updatedAt: time,
+    result: null,
+    errorCode: null,
+    cancelRequestedAt: null,
+  });
+  const input = {
+    id,
+    creatorAccountId: id + '-creator',
+    jobId: id,
+    inputVersion: 'v1',
+    batchId: id + '-batch',
+    evaluationNodeId: 'node-current',
+    boundAt: new Date(time),
+    occurredOn: '2026-07-01',
+    origin: 'text' as const,
+    originalInput: {
+      operation_id: id,
+      text: excerpt,
+      attachmentIds: [],
+      personId: 'one',
+      projectId: null,
+    },
+    sourceContexts: [
+      {
+        ...ref,
+        subjects,
+        attributedPersonIds: ['one'],
+        kind: 'evaluation' as const,
+        requiredKinds,
+      },
+    ],
+    inputSource: ref,
+    personIds: ['one'],
+    projectMode: 'none' as const,
+    projectId: null,
+    projectCandidateIds: [],
+    supersededByInputId: null,
+    createdAt: new Date(time),
+  };
+  await db().insert(arrangeInputs).values(input);
+  return input;
+}
+const ownSubject = {
+  personId: 'one',
+  evaluationNodeId: 'node-current',
+  cohortId: 'cohort',
+};
+const otherSubject = {
+  personId: 'two',
+  evaluationNodeId: 'node-other',
+  cohortId: 'cohort',
+};
+async function expectIntakeHidden() {
+  const data = await read();
+  expect(await sourceFromData(data, ref)).toHaveProperty('status', 'not_found');
+  expect(JSON.stringify(await personFromData(data, 'one'))).not.toContain(
+    ref.fragmentId,
+  );
+  expect(await model(data, ownSubject)).toEqual({ items: [] });
+}
+it('intake provenance P1: source/profile/model cannot drop an un-attributed second subject', async () => {
+  await nativeTextIntake([ownSubject, otherSubject]);
+  await expectIntakeHidden();
+});
+it('intake provenance P1: current permissions apply to the intake requiredKinds union', async () => {
+  await nativeTextIntake([ownSubject], ['management-observation']);
+  await expectIntakeHidden();
+});
+it("intake provenance P1: superseding an intake cannot erase another creator's source restrictions", async () => {
+  const old = await nativeTextIntake([ownSubject, otherSubject]);
+  const current = await nativeTextIntake([ownSubject]);
+  await db()
+    .update(arrangeInputs)
+    .set({ supersededByInputId: current.id })
+    .where(eq(arrangeInputs.id, old.id));
+  await expectIntakeHidden();
+});
+it('intake provenance P1: missing trusted binding facts fail closed instead of falling back to visible event subjects', async () => {
+  const input = await nativeTextIntake([ownSubject]);
+  await db()
+    .update(arrangeInputs)
+    .set({ batchId: null })
+    .where(eq(arrangeInputs.id, input.id));
+  await expectIntakeHidden();
+});
+it('intake provenance P1: complete current authority permits reading and later revocation closes it', async () => {
+  await nativeTextIntake([ownSubject, otherSubject]);
+  await db()
+    .insert(programs.evaluationNodeSubjects)
+    .values({ evaluationNodeId: 'node-other', personId: 'two' });
+  await db().insert(programs.evaluationRelations).values({
+    id: 'demo-other-authorized',
+    evaluationNodeId: 'node-other',
+    personId: 'two',
+    evaluatorId: 'actor',
+    kind: 'judge',
+    validFrom: '2026-01-01T00:00:00.000Z',
+    validTo: null,
+    revokedAt: null,
+  });
+  const allowed = await read();
+  expect(await sourceFromData(allowed, ref)).toHaveProperty(
+    'status',
+    'success',
+  );
+  expect(JSON.stringify(await personFromData(allowed, 'one'))).toContain(
+    ref.fragmentId,
+  );
+  expect(await model(allowed, ownSubject)).toHaveProperty('items.length', 1);
+  await db()
+    .update(programs.evaluationRelations)
+    .set({ revokedAt: time })
+    .where(eq(programs.evaluationRelations.id, 'demo-other-authorized'));
+  await expectIntakeHidden();
 });
