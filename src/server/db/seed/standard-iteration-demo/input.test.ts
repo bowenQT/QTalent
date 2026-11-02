@@ -21,7 +21,7 @@ import {
   prepareStandardIterationDemo,
   type FactFiles,
 } from './input';
-import { generationFactRoot } from './fact-roots.test-support';
+import { generationFactRoot, releaseArtifact } from './fact-roots.test-support';
 let baseline: FactFiles;
 let v2Root: string;
 const roots: string[] = [];
@@ -235,8 +235,11 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
     );
   });
   describe('packaged fact files (no .git, no database)', () => {
+    // The current generation comes from the same `git archive` mechanism as
+    // the release package (limited to the fixture directory), so an export
+    // rule dropping a fixture would fail here too.
     const copy = () => {
-      const root = generationFactRoot('bow-923-v3');
+      const root = releaseArtifact('HEAD', process.cwd(), [FACT_DIRECTORY]);
       roots.push(root);
       return root;
     };
@@ -275,6 +278,17 @@ describe('BOW-923 fixed input facts and real workbooks', () => {
       await expect(readStandardIterationFactFiles(root)).rejects.toMatchObject({
         code: 'fixture_digest_mismatch',
         file: name,
+      });
+    });
+    it('refuses an oversized file without reading past the limit', async () => {
+      const root = copy();
+      writeFileSync(
+        join(root, FACT_DIRECTORY, 'mapping.json'),
+        Buffer.alloc(2_000_001, 0x20),
+      );
+      await expect(readStandardIterationFactFiles(root)).rejects.toMatchObject({
+        code: 'fixture_digest_mismatch',
+        file: 'mapping.json',
       });
     });
     it('refuses a missing file, naming only the fixture file', async () => {

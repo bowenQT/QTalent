@@ -30,6 +30,10 @@ import { createConnection } from 'node:net';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const SHA = /^[0-9a-f]{40}$/;
+// The BOW-923 demo init decodes its pinned workbooks with `python3 -I` and
+// only these standard modules; prepare proves they load for the service user.
+const PYTHON_CHECK =
+  'import io,json,sys,zipfile,xml.etree.ElementTree;print("python_ok")';
 // One-off demo seed steps, each an explicit flag on `seed` (BOW-837).
 const SEED_STEPS = ['upgrade-statement-kinds', 'revert-statement-kinds'];
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
@@ -620,6 +624,24 @@ export class ReleaseManager {
       rmSync(snapshot, { recursive: true, force: true });
     }
   }
+  /** Same user and PATH as the app commands that run the demo init: resolve
+   * `python3` through that environment, in isolated mode as init does. */
+  async requirePython(path) {
+    let output;
+    try {
+      output = await this.app(
+        'worker',
+        'command',
+        '/usr/bin/env',
+        ['python3', '-I', '-c', PYTHON_CHECK],
+        path,
+        { capture: true },
+      );
+    } catch {
+      fail('python_unavailable');
+    }
+    if (output !== 'python_ok') fail('python_unavailable');
+  }
   async prepare(sha, operationId) {
     const final = join(this.releases, sha);
     if (existsSync(final)) return this.release(sha);
@@ -647,6 +669,7 @@ export class ReleaseManager {
         ['install', '--frozen-lockfile', '--prod=false', '--ignore-scripts'],
         stage,
       );
+      await this.requirePython(stage);
       const referenceCommit = await this.prepareReference(stage);
       await this.app('web', 'command', this.target.pnpmPath, ['build'], stage);
       if (!existsSync(join(stage, '.next', 'BUILD_ID'))) fail('missing_build');

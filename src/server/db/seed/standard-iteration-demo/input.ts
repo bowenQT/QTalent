@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
 import {
@@ -352,6 +352,9 @@ async function workbook(bytes: Uint8Array) {
   });
 }
 
+/** Upper bound of one fixture file, in bytes. */
+const FACT_LIMIT = 2_000_000;
+
 export class StandardIterationFactError extends Error {
   constructor(
     readonly code: 'fixture_missing' | 'fixture_digest_mismatch',
@@ -373,16 +376,38 @@ export async function readStandardIterationFactFiles(
   const { digests } = FACT_GENERATIONS[generation];
   const entries = await Promise.all(
     FACT_FILES.map(async (name) => {
-      const path = join(root, FACT_DIRECTORY, name);
-      const info = await stat(path).catch(() => null);
-      if (!info?.isFile())
-        throw new StandardIterationFactError('fixture_missing', name);
-      if (info.size > 2_000_000)
-        throw new StandardIterationFactError('fixture_digest_mismatch', name);
-      const bytes = new Uint8Array(await readFile(path));
-      if (createHash('sha256').update(bytes).digest('hex') !== digests[name])
-        throw new StandardIterationFactError('fixture_digest_mismatch', name);
-      return [name, bytes] as const;
+      const file = await open(join(root, FACT_DIRECTORY, name)).catch(
+        () => null,
+      );
+      if (!file) throw new StandardIterationFactError('fixture_missing', name);
+      try {
+        // One bounded read through the same handle: at most the limit plus one
+        // byte, so a file that grows past the limit cannot be read whole.
+        if (!(await file.stat()).isFile())
+          throw new StandardIterationFactError('fixture_missing', name);
+        const buffer = new Uint8Array(FACT_LIMIT + 1);
+        let length = 0;
+        for (;;) {
+          const { bytesRead } = await file.read(
+            buffer,
+            length,
+            buffer.length - length,
+          );
+          if (!bytesRead) break;
+          length += bytesRead;
+          if (length > FACT_LIMIT)
+            throw new StandardIterationFactError(
+              'fixture_digest_mismatch',
+              name,
+            );
+        }
+        const bytes = buffer.slice(0, length);
+        if (createHash('sha256').update(bytes).digest('hex') !== digests[name])
+          throw new StandardIterationFactError('fixture_digest_mismatch', name);
+        return [name, bytes] as const;
+      } finally {
+        await file.close();
+      }
     }),
   );
   return Object.fromEntries(entries) as FactFiles;
@@ -397,7 +422,7 @@ export async function prepareStandardIterationDemo(
     Object.keys(files).length === FACT_FILES.length &&
       FACT_FILES.every(
         (name) =>
-          files[name] instanceof Uint8Array && files[name].length <= 2_000_000,
+          files[name] instanceof Uint8Array && files[name].length <= FACT_LIMIT,
       ),
     'file whitelist or size',
   );

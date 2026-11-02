@@ -234,6 +234,10 @@ function fixture() {
           '?sslmode=verify-full';
         return JSON.stringify(databaseIdentity(parseDatabaseConnection(raw)));
       }
+      if (executable === '/usr/bin/env' && flags[0] === 'python3') {
+        if (state.pythonMissing) throw new Error('synthetic-missing-python');
+        return state.pythonOutput ?? 'python_ok';
+      }
       if (executable === target.nodePath && flags[0] === '--import')
         return nativeRun(
           process.execPath,
@@ -1408,6 +1412,36 @@ test('reference manifest cannot escape the fixed prototype subtree', async () =>
   );
   assert.deepEqual(readdirSync(join(f.root, 'releases')), []);
   assert.equal(f.latest().databaseChanged, false);
+});
+
+test('prepare requires python3 with the init standard modules as the service user', async () => {
+  const f = fixture();
+  await f.manager().prepareRelease(f.first);
+  const check = f.state.events.find(
+    (e) => e.file === 'runuser' && e.args.includes('/usr/bin/env'),
+  );
+  // Same runuser + app-command path (and so the same PATH) as the init.
+  assert.deepEqual(check.args.slice(0, 3), ['-u', 'qtalent', '--']);
+  assert.deepEqual(check.args.slice(check.args.indexOf('/usr/bin/env')), [
+    '/usr/bin/env',
+    'python3',
+    '-I',
+    '-c',
+    'import io,json,sys,zipfile,xml.etree.ElementTree;print("python_ok")',
+  ]);
+  for (const broken of [{ pythonMissing: true }, { pythonOutput: '' }]) {
+    const g = fixture();
+    Object.assign(g.state, broken);
+    await assert.rejects(g.manager().prepareRelease(g.first), {
+      code: 'python_unavailable',
+    });
+    assert.deepEqual(readdirSync(join(g.root, 'releases')), []);
+    assert.equal(g.latest().databaseChanged, false);
+    assert.equal(
+      g.state.events.some((e) => e.args.some((a) => a.startsWith?.('db:'))),
+      false,
+    );
+  }
 });
 
 test('incomplete legacy release metadata cannot be reused for seed', async () => {

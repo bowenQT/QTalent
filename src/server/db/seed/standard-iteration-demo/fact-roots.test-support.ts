@@ -40,15 +40,26 @@ export function generationFactRoot(
 }
 
 /** The same artifact `deploy/release.mjs` prepares: `git archive` of a commit,
- * extracted without .git. */
-export function releaseArtifact(commit = 'HEAD', repository = process.cwd()) {
+ * extracted without .git. `paths` limits the archive, as a smaller test root. */
+export function releaseArtifact(
+  commit = 'HEAD',
+  repository = process.cwd(),
+  paths: string[] = [],
+) {
   // Real path: the CLI's entry guard compares argv[1] with import.meta.url,
   // and macOS tmpdir() is a symlink.
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'release-artifact-')));
   const archive = join(root, '.release.tar');
   execFileSync(
     'git',
-    ['archive', '--format=tar', '--output', archive, commit],
+    [
+      'archive',
+      '--format=tar',
+      '--output',
+      archive,
+      commit,
+      ...(paths.length ? ['--', ...paths] : []),
+    ],
     {
       cwd: repository,
     },

@@ -169,7 +169,7 @@ BOW-837 演示库陈述类别（`--upgrade-statement-kinds` / `--revert-statemen
 BOW-923 第六期演示初始化（`src/server/db/seed/standard-iteration-demo/run.ts --init --as <管理者账号>`）的前提条件：
 
 - 在发布包根目录 `releases/<SHA>` 执行。命令从包内 `tests/fixtures/bow-923` 读取八个固定夹具，并按代码里写死的 SHA-256 摘要校验，不需要也不使用 `.git`；在别处执行会报 `fixture_missing`，不写库。
-- 执行前先确认部署机上有 `python3`（`command -v python3`），解两份 XLSX 只用它的标准库。缺失时会在任何事务之前以 `import_failed` 失败。preflight 不检查这一项。
+- 需要 `python3`，解两份 XLSX 只用它的标准库（`io`、`json`、`sys`、`zipfile`、`xml.etree.ElementTree`）。`prepare` 会以 qtalent 账号、经同一个 app-command 环境（因此是同一个 PATH）执行 `/usr/bin/env python3 -I -c …`，导入这些模块；失败时以 `python_unavailable` 拒绝发布，不生成发布包，也不写库。init 运行时如果仍缺 `python3`，会在任何事务之前以 `import_failed` 失败。
 - 夹具缺失或被改动时，回执分别是 `fixture_missing` / `fixture_digest_mismatch`，并带固定文件名 `file`，都发生在任何数据库事务之前。
 
 ### 实际执行与记录语义
