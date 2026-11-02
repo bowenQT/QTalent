@@ -36,7 +36,7 @@ pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --init --as <账
 pnpm exec tsx src/server/db/seed/standard-iteration-demo/run.ts --apply
 ```
 
-两个命令都使用服务端 `getEnv()`，只拒绝 `APP_ENV=production`，不核验连接的到底是哪个库（后续改走部署受控入口）；不自动加入 `db:seed`。成功时只输出回执，失败只输出稳定的错误分类，不打印 SQL 原错、连接串或原文。
+两个命令都使用服务端 `getEnv()`，只拒绝 `APP_ENV=production`，不核验连接的到底是哪个库（后续改走部署受控入口）；不自动加入 `db:seed`。成功时只输出回执，失败只输出稳定的错误分类，不打印 SQL 原错、连接串或原文。两个命令都必须在发布包（或 checkout）根目录执行；在别处执行会报 `fixture_missing`，不写库。解两份 XLSX 需要 `python3`（只用标准库）。
 
 ### `--init --as <账号ID>`：幂等的演示初始化
 
