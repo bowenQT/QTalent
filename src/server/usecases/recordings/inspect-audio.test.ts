@@ -60,6 +60,7 @@ function fixture() {
   };
   const upload: ArchivedUpload = {
     uploadId: reference.uploadId,
+    recordCollectionId: 'demo-collection',
     jobId: reference.uploadJobId,
     originalId: reference.originalId,
     originalVersionId: reference.originalVersionId,

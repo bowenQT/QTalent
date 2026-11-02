@@ -64,6 +64,7 @@ function harness() {
   };
   const upload: ArchivedUpload = {
     uploadId: run.uploadId,
+    recordCollectionId: 'demo-collection',
     originalId: run.originalId,
     originalVersionId: run.originalVersionId,
     jobId: run.jobId,

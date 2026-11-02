@@ -92,6 +92,7 @@ describe('recording job factories without worker registration', () => {
     const input: Parameters<UploadDispatch>[1] = {
       purpose: 'audio',
       uploadId: 'demo-upload',
+      recordCollectionId: 'demo-collection',
       originalId: 'demo-original',
       originalVersionId: 'demo-version',
       accountId: 'demo-account',
@@ -120,6 +121,7 @@ describe('recording job factories without worker registration', () => {
     const input: Parameters<UploadDispatch>[1] = {
       purpose: 'attachment',
       uploadId: 'demo-upload',
+      recordCollectionId: 'demo-collection',
       originalId: 'demo-original',
       originalVersionId: 'demo-version',
       accountId: 'demo-account',
