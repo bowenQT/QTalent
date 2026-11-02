@@ -126,3 +126,10 @@ node node_modules/vitest/vitest.mjs run src/server/usecases/interview-import/pdf
 本次验证使用实际原分支（X1已在2fc17f5普通整合main325de93），不再用临时合同解析映射：Node24.21.0、pnpm11.25.0。30项新裁决用例中，最初21项在旧生产实现下10失败/11通过；另3项证明未识别评分/面试官/评语缺失仍阻挡跳过，修复前3失败。最终本目录177/177通过（145决策/回执＋32实际隔离线程），统一行96.27%、分支94.35%。命令为 `pnpm exec vitest run src/server/usecases/interview-import --maxWorkers=2 --testTimeout=20000 --coverage '--coverage.include=src/server/usecases/interview-import/*.ts' '--coverage.exclude=**/*.test.ts'`，框架20秒不改变生产预算。实际线程结束仍断言threadId=-1。全仓typecheck、format:check、本目录ESLint、架构边界与diff检查通过；未跑完整check/PG/e2e/visual或供应商调用，无heavy槽/服务。新head的远端CI与Claude增量审查另以PR回执为准。
 
 B1 首轮修复：三项唯一仅约束认人之前的自动跳过，不再阻断 HR 已确认的重复三元组。确认仍要当前行 revision、精确 candidateId，以及已提交核对选择的 personId 一致；同一 candidateId 仍有多条结果、旧确认或缺真实回执均不能入档。对应907出口：未确认重复行为 needs_review；合法确认后 hired 可 planned、非录用为 skipped/not_hired；candidate_match_unconfirmed 只留给已选人却无法匹配当前合法申请的失败情形。
+
+## 存储与 /import 接通（PR-A）
+
+- `records_interview_import_batches` / `_candidates` / `_rows`（`src/server/modules/records/interview-import/schema.ts`）存批次、演示招聘记录和逐行事实。行带 `revision` 做比较后写入（CAS）：HR 每次确认或撤回都加 1，确认只对做出它的那个修订有效。
+- `store.ts`：预览读取按当前 HR grant 过滤行（行涉及的人都在授权里才显示），在读取层把演示目录名统一成 displayName（「X（演示）」），不做模糊匹配；确认/撤回在一笔事务里锁行、比对修订、加修订号，并把这个修订上的 plan 结果作为导入决策存下。plan 不能用的确认（planned 和未录用跳过以外）直接拒绝，不写入。
+- 真正入档（历史评价、档案投影）、补录、放进待核对、面试官核对的通用处理都不在这一步。
+
