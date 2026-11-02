@@ -4,6 +4,10 @@ import { getDatabase } from '../db/client';
 import { getEnv } from '../env';
 import { recordAudit } from '../platform/audit';
 import * as schema from './schema';
+import {
+  sessionBindingFields,
+  stampSessionBindingGeneration,
+} from './session-binding';
 function createAuth() {
   const env = getEnv();
   return betterAuth({
@@ -15,10 +19,15 @@ function createAuth() {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     emailAndPassword: { enabled: true, disableSignUp: true },
-    session: { cookieCache: { enabled: false } },
+    session: {
+      cookieCache: { enabled: false },
+      additionalFields: sessionBindingFields,
+    },
     databaseHooks: {
       session: {
         create: {
+          before: (session) =>
+            stampSessionBindingGeneration(getDatabase(), session),
           after: async (session) => {
             await recordAudit(getDatabase(), {
               actorId: session.userId,

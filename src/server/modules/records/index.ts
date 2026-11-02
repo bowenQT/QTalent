@@ -73,6 +73,7 @@ export {
 
 export {
   storeTrustedRecordDraftBatch,
+  reviseTrustedRecordDraftBatch,
   lockRecordCommand,
   readRecordConfirmationState,
   commitRecordSave,
@@ -86,6 +87,12 @@ export type {
   RecordUndoCommit,
   RecordConfirmationWorkFact,
 } from './write';
+export { wecomMessages, wecomReceiptAttempts } from './wecom/schema';
+export {
+  wecomArchivedMediaSchema,
+  wecomArchivedMediaListSchema,
+} from './wecom/facts';
+export type { WecomArchivedMedia } from './wecom/facts';
 
 // Internal upload facts require current authorization in the consuming usecase.
 export {
