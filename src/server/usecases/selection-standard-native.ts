@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { eq, sql } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Database, Transaction } from '../db/client';
 import { accountBindings, grants, people } from '../modules/directory';
@@ -7,17 +7,24 @@ import { cohorts } from '../modules/programs';
 import { recordAudit } from '../platform/audit';
 import { ForbiddenError, loadProjectContext } from './project-context';
 import { lockRuleCategory } from '../modules/evaluation-system/applicability';
+import { activeGrants } from '../authz';
 import {
   authorizeSelectionAction,
+  projectSelectionManagerRevision,
   SelectionLifecycleError,
   type SelectionAuthority,
 } from '../modules/evaluation-system/selection-standard';
+import {
+  selectionRevisions,
+  selectionVersionContents,
+} from '../modules/evaluation-system/selection/schema';
 import {
   importSelectionBaselineSnapshot,
   createSelectionPostgresStore,
   selectionStorageFailure,
   bindSelectionCohortFacts,
   readStoredSelectionCohortBinding,
+  readCurrentSelectionStandard,
   type SelectionBaselineSnapshot,
 } from '../modules/evaluation-system/selection/postgres';
 
@@ -29,7 +36,32 @@ import {
   type ReviewedNextSelectionCohort,
 } from './selection-standard-facts';
 import { executeSelectionRevision } from './selection-standard';
-import { createSelectionRevisionInputSchema } from '../../contracts/selection-standard';
+import {
+  createSelectionRevisionInputSchema,
+  selectionStandardContentSchema,
+  type EffectiveRuleVersion,
+  type SelectionManagerRevision,
+  type SelectionRevision,
+} from '../../contracts/selection-standard';
+
+type SelectionStandardContent = z.infer<typeof selectionStandardContentSchema>;
+/** What /rules shows: the standard in force, or the revision this viewer works on. */
+export type SelectionStandardPage =
+  | { status: 'forbidden' }
+  | { status: 'not_found' }
+  | {
+      status: 'current';
+      audience: 'hr' | 'manager';
+      version: EffectiveRuleVersion;
+      content: SelectionStandardContent;
+    }
+  | {
+      status: 'revision';
+      base: SelectionStandardContent;
+      view:
+        | { audience: 'hr'; revision: SelectionRevision }
+        | { audience: 'manager'; revision: SelectionManagerRevision };
+    };
 
 const identifier = z.string().trim().min(1).max(200);
 const cohortInput = z.strictObject({
@@ -307,8 +339,119 @@ export function createNativeSelectionLifecycle(
     });
   }
   const store = compose();
+  /** HR works on an open draft or a submitted one (to withdraw it); the manager
+   * only sees a revision once it waits for confirmation. */
+  function shown(
+    record: Awaited<ReturnType<typeof store.ports.readRevision>>,
+    manager: boolean,
+  ) {
+    if (!record) return false;
+    return manager
+      ? record.revision.state === 'pending_confirmation'
+      : ['draft', 'pending_confirmation'].includes(record.revision.state);
+  }
   return {
     store,
+    /**
+     * /rules?r=front&line=xe-select[&draft=]. Identity and scope are the server's;
+     * without a draft id the open revision of the category is found here, the
+     * way the prototype shows it on the standard page.
+     */
+    async readPage(
+      accountId: string,
+      draftId: string | null,
+    ): Promise<SelectionStandardPage> {
+      try {
+        return await store.ports.read(async (tx) => {
+          const now = clock().toISOString();
+          const authority = await store.ports.loadAuthority(tx, accountId, now);
+          const roles = activeGrants(authority.context).map((g) => g.role);
+          const manager = roles.includes('manager');
+          if (!manager && !roles.includes('hr')) return { status: 'forbidden' };
+          const purpose = manager ? 'manager' : 'hr';
+          let id = draftId === null ? null : identifier.parse(draftId);
+          if (id === null) {
+            const [open] = await tx.db
+              .select({ id: selectionRevisions.id })
+              .from(selectionRevisions)
+              .where(
+                inArray(
+                  selectionRevisions.state,
+                  manager
+                    ? ['pending_confirmation']
+                    : ['draft', 'pending_confirmation'],
+                ),
+              )
+              .orderBy(desc(selectionRevisions.updatedAt))
+              .limit(1);
+            id = open?.id ?? null;
+          }
+          if (id !== null) {
+            let record: Awaited<ReturnType<typeof store.ports.readRevision>>;
+            try {
+              record = await store.ports.readRevision(tx, id, purpose);
+            } catch (error) {
+              // An open revision outside this HR's cohorts is not theirs to open.
+              if (
+                !(error instanceof SelectionLifecycleError) ||
+                draftId !== null
+              )
+                throw error;
+              record = null;
+            }
+            if (!record && draftId !== null) return { status: 'not_found' };
+            if (record && shown(record, manager)) {
+              const [base] = await tx.db
+                .select({ content: selectionVersionContents.content })
+                .from(selectionVersionContents)
+                .where(
+                  eq(
+                    selectionVersionContents.versionId,
+                    record.revision.baseVersionId,
+                  ),
+                );
+              if (!base)
+                throw new SelectionLifecycleError('conflict', '基准版本不存在');
+              return {
+                status: 'revision',
+                base: selectionStandardContentSchema.parse(base.content),
+                view: manager
+                  ? {
+                      audience: 'manager',
+                      revision: projectSelectionManagerRevision(record),
+                    }
+                  : { audience: 'hr', revision: record.revision },
+              };
+            }
+          }
+          const effective = await store.ports.readEffectiveRuleVersion(
+            tx,
+            { category: 'xe_selection', at: now },
+            () => new Date(now),
+          );
+          if (effective.status !== 'success') return { status: 'not_found' };
+          const current = await readCurrentSelectionStandard(
+            tx.db,
+            effective.version.versionId,
+            () => new Date(now),
+          );
+          if (!current) return { status: 'not_found' };
+          return {
+            status: 'current',
+            audience: purpose,
+            version: current.version,
+            content: current.content,
+          };
+        });
+      } catch (error) {
+        if (
+          error instanceof SelectionLifecycleError &&
+          error.status === 'forbidden'
+        )
+          return { status: 'forbidden' };
+        throw error;
+      }
+    },
     execute: (accountId: string, command: unknown) =>
       executeSelectionRevision(store.ports, accountId, command, clock),
     async adoptProposal(accountId: string, proposalId: string, raw: unknown) {

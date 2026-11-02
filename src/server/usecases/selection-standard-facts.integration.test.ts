@@ -635,6 +635,105 @@ describe('918 native canonical/attribution/lifecycle composition', () => {
   });
 });
 
+describe('/rules page read', () => {
+  it('shows HR the open draft, the manager only once submitted, then the published standard', async () => {
+    const service = app();
+    const before = await service.readPage('manager', null);
+    expect(before).toMatchObject({
+      status: 'current',
+      audience: 'manager',
+      version: { versionId: 'xe-select-v1' },
+    });
+    const created = await service.execute('hr', {
+      action: 'create',
+      input: command(),
+    });
+    if (created.status !== 'success') throw new Error(created.status);
+    let revision = selectionRevisionSchema.parse(created.result);
+    expect(await service.readPage('hr', null)).toMatchObject({
+      status: 'revision',
+      view: { audience: 'hr', revision: { id: revision.id, state: 'draft' } },
+    });
+    // A draft is HR's work; the manager keeps reading the standard in force.
+    expect(await service.readPage('manager', null)).toMatchObject({
+      status: 'current',
+    });
+    expect(await service.readPage('manager', revision.id)).toMatchObject({
+      status: 'current',
+    });
+    const saved = await service.execute('hr', {
+      action: 'save',
+      input: {
+        operationId: 'save',
+        draftId: revision.id,
+        expectedRevision: revision.revision,
+        reason: 'HR核对（演示）',
+        changes: [
+          {
+            kind: 'add',
+            after: {
+              id: 'hr-point',
+              title: 'HR修改（演示）',
+              description: '使用本人实际交付',
+            },
+          },
+        ],
+      },
+    });
+    if (saved.status !== 'success') throw new Error(saved.status);
+    revision = selectionRevisionSchema.parse(saved.result);
+    const submitted = await service.execute('hr', {
+      action: 'submit',
+      input: {
+        operationId: 'submit',
+        draftId: revision.id,
+        expectedRevision: revision.revision,
+        expectedPreviewId: revision.impactPreview.id,
+      },
+    });
+    if (submitted.status !== 'success') throw new Error(submitted.status);
+    revision = selectionRevisionSchema.parse(submitted.result);
+    const pending = await service.readPage('manager', null);
+    expect(pending).toMatchObject({
+      status: 'revision',
+      base: { reviewPoints: expect.any(Array) },
+      view: {
+        audience: 'manager',
+        revision: { id: revision.id, state: 'pending_confirmation' },
+      },
+    });
+    // The manager projection carries the aggregate basis, never case citations.
+    expect(JSON.stringify(pending)).not.toMatch(/caseIds|fragmentId|excerpt/);
+    const published = await service.execute('manager', {
+      action: 'publish',
+      input: {
+        operationId: 'publish',
+        draftId: revision.id,
+        expectedRevision: revision.revision,
+        expectedPreviewId: revision.impactPreview.id,
+      },
+    });
+    expect(published.status).toBe('success');
+    for (const viewer of ['hr', 'manager'])
+      expect(await service.readPage(viewer, null)).toMatchObject({
+        status: 'current',
+        version: { versionId: revision.versionId },
+      });
+  });
+  it('a viewer without an HR or manager grant reads nothing', async () => {
+    await db()
+      .insert(accountBindings)
+      .values({ accountId: 'outsider', personId: 'person' });
+    expect(await app().readPage('outsider', null)).toEqual({
+      status: 'forbidden',
+    });
+  });
+  it('an unknown draft is not found rather than the standard in force', async () => {
+    expect(await app().readPage('hr', 'absent')).toEqual({
+      status: 'not_found',
+    });
+  });
+});
 describe('native reader and stale input boundaries', () => {
   it('readonly lifecycle store reads the stored cohort without write locks', async () => {
     const result = await readSelectionCohortVersion(
