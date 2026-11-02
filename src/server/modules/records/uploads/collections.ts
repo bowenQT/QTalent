@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
-  uploadRequestSchema,
+  materialUploadRequestSchema,
   completeUploadSchema,
 } from '../../../../contracts/media';
-import type { UploadRequest } from '../../../../contracts/media';
+import type { MaterialUploadRequest } from '../../../../contracts/media';
 import {
   UploadError,
   type UploadCollection,
@@ -22,7 +22,7 @@ export type CollectionDependencies = {
   /** Reuse 835/846's CURRENT write policy, never talent-read permission. */
   canWriteTarget(
     accountId: string,
-    target: UploadRequest['target'],
+    target: MaterialUploadRequest['target'],
     tx: UploadTransaction,
   ): Promise<boolean>;
   /** Trusted 846 save ledger. Throws on unavailable storage; no inferred saved state. */
@@ -38,14 +38,14 @@ export type CollectionDependencies = {
 export function createRecordCollectionService(deps: CollectionDependencies) {
   const now = deps.now ?? Date.now;
   const inputSchema = z.strictObject({
-    target: uploadRequestSchema.shape.target,
-    operationId: uploadRequestSchema.shape.operationId,
+    target: materialUploadRequestSchema.shape.target,
+    operationId: materialUploadRequestSchema.shape.operationId,
   });
-  const normalized = (target: UploadRequest['target']) =>
+  const normalized = (target: MaterialUploadRequest['target']) =>
     target.kind === 'people'
       ? { kind: 'people' as const, personIds: [...target.personIds].sort() }
       : target;
-  const fingerprint = (target: UploadRequest['target']) =>
+  const fingerprint = (target: MaterialUploadRequest['target']) =>
     createHash('sha256')
       .update(JSON.stringify(normalized(target)))
       .digest('hex');
@@ -217,7 +217,7 @@ export function createRecordCollectionService(deps: CollectionDependencies) {
     },
     resolveWriteTarget(
       accountId: string,
-      input: Pick<UploadRequest, 'recordCollectionId' | 'target'>,
+      input: Pick<MaterialUploadRequest, 'recordCollectionId' | 'target'>,
       tx?: UploadTransaction,
     ): Promise<{
       recordCollectionId: string;

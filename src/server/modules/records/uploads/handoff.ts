@@ -1,4 +1,4 @@
-import type { UploadRequest } from '../../../../contracts/media';
+import type { MaterialUploadRequest } from '../../../../contracts/media';
 import type {
   UploadStore,
   UploadIntent,
@@ -14,9 +14,9 @@ export type ValidatedUpload = {
   originalId: string;
   originalVersionId: string;
   jobId: string;
-  purpose: UploadRequest['purpose'];
+  purpose: MaterialUploadRequest['purpose'];
   filename: string;
-  target: UploadRequest['target'];
+  target: MaterialUploadRequest['target'];
   accountId: string;
   quotaScope: string;
   /** Server-worker metadata only; never serialize the private object key to UI. */

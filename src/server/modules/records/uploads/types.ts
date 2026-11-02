@@ -1,5 +1,5 @@
 import type {
-  UploadRequest,
+  MaterialUploadRequest,
   UploadGrant,
   ReadOriginalInput,
 } from '../../../../contracts/media';
@@ -28,7 +28,8 @@ export type UploadIntent = {
   operationId: string;
   fingerprint: string;
   quotaScope: string;
-  request: UploadRequest;
+  /** A record attachment request or a material request; both share this shape. */
+  request: MaterialUploadRequest;
   objectKey: string;
   expiresAt: number;
   revision: number;
@@ -43,7 +44,7 @@ export type UploadCollection = {
   id: string;
   creatorAccountId: string;
   operationId: string;
-  target: UploadRequest['target'];
+  target: MaterialUploadRequest['target'];
   targetFingerprint: string;
   createdAt: number;
   expiresAt: number;
@@ -117,7 +118,7 @@ export interface UploadPolicy {
    */
   resolveWriteTarget(
     accountId: string,
-    input: Pick<UploadRequest, 'recordCollectionId' | 'target'>,
+    input: Pick<MaterialUploadRequest, 'recordCollectionId' | 'target'>,
     transaction?: UploadTransaction,
   ): Promise<{
     recordCollectionId: string;
