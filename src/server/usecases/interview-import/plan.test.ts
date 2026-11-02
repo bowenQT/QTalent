@@ -358,8 +358,69 @@ describe('interview import planning with frozen 900 / 899 / 897 inputs', () => {
     const input = facts();
     input.observedIdentity = null;
     candidateHeld(input);
-    input.observedIdentity = { name: '谷嘉树（演示）', positionCode: null };
+    input.observedIdentity = { name: null, positionCode: 'DEMO-JOB-01' };
     candidateHeld(input);
+  });
+  describe('owner ruling: a row without a position code waits for HR to say who it is', () => {
+    function noPosition() {
+      const input = facts();
+      input.observedIdentity = { name: '谷嘉树（演示）', positionCode: null };
+      input.candidates[0].positionCode = null;
+      input.candidates[0].interviewTime = null;
+      return input;
+    }
+    it('plans from the current-revision HR confirmation without filling in a position code', () => {
+      const input = noPosition();
+      const before = structuredClone(input);
+      const value = planned(input);
+      expect(value.identity.candidateId).toBe(input.candidates[0].candidateId);
+      expect(input).toStrictEqual(before);
+      expect(input.observedIdentity!.positionCode).toBeNull();
+    });
+    it('stays pending without an HR confirmation', () => {
+      const input = noPosition();
+      input.confirmedCandidateId = null;
+      input.confirmedForRowRevision = null;
+      expect(candidateHeld(input).item).toMatchObject({ candidates: [] });
+    });
+    it('rejects a confirmation made for an earlier row revision', () => {
+      const input = noPosition();
+      input.rowSnapshot!.revision = 2;
+      expect(planInterviewImport(input)).toEqual({
+        status: 'not_ready',
+        reason: 'candidate_confirmation_stale',
+      });
+    });
+    it('does not let a confirmation name a record with another name', () => {
+      const input = noPosition();
+      input.candidates[0].name = '谷嘉林（演示）';
+      candidateHeld(input);
+    });
+    it('skips a confirmed non-hired record after HR says who it is', () => {
+      const input = noPosition();
+      input.candidates[0].status = 'rejected';
+      expect(planInterviewImport(input)).toEqual({
+        status: 'skipped',
+        reason: 'not_hired',
+      });
+      input.confirmedCandidateId = null;
+      input.confirmedForRowRevision = null;
+      candidateHeld(input);
+    });
+  });
+  it('matches a demo interviewer by the exact directory display name only', () => {
+    const input = facts();
+    input.confirmedInterviewerId = null;
+    expect(planned(input).signatures.interviewerId).toBe('p-yeqing');
+    const nearMiss = facts();
+    nearMiss.confirmedInterviewerId = null;
+    nearMiss.directory = nearMiss.directory.map((p) =>
+      p.id === 'p-yeqing' ? { ...p, name: '叶清（演示）' } : p,
+    );
+    expect(planInterviewImport(nearMiss)).toMatchObject({
+      status: 'needs_review',
+      item: { kind: 'unknown_interviewer' },
+    });
   });
   it.each(['name', 'positionCode', 'interviewTime'])(
     'requires the actual %s match and HR confirmation',
@@ -889,9 +950,16 @@ describe('final 897 current snapshot, receipt, privacy and withdrawal boundary',
     if (input.parsed.status === 'rejected') throw new Error('fixture');
     expect(input.parsed.reviews[0].identity.positionNumber).toBeNull();
     input.observedIdentity!.positionCode = null;
+    input.candidates[0].positionCode = null;
+    const before = structuredClone(input);
+    // The committed link plus the current-revision HR confirmation name the
+    // record; neither the parser DTO nor the record gains a position code.
+    expect(planned(input).personId).toBe('p-x08');
+    expect(input).toStrictEqual(before);
+    input.confirmedForRowRevision = null;
     expect(planInterviewImport(input)).toEqual({
       status: 'not_ready',
-      reason: 'candidate_identity_missing',
+      reason: 'candidate_confirmation_stale',
     });
   });
   it.each([
