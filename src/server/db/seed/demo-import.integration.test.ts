@@ -7,7 +7,7 @@ import { createDatabase, type Database } from '../client';
 import { importDemo, importEvidence } from '../import';
 import {
   loadPersonData,
-  talentSources,
+  completeTalentSources,
   eventSubject,
 } from '../../queries/person-data';
 import { sourceFromData } from '../../queries/sources';
@@ -660,7 +660,7 @@ it('keeps an explicit formal event node through current source, profile and mode
     const model = (snapshot: typeof data) =>
       buildAuthorizedModelInput(async () => ({
         context: snapshot.context,
-        sources: talentSources(snapshot),
+        sources: completeTalentSources(snapshot),
         records: [
           {
             id: 'formal-model-input',

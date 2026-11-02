@@ -9,7 +9,7 @@ import {
 } from '../../contracts/sources';
 import { readTalentSource, type TalentSource } from '../authz/talent';
 import { ForbiddenError } from '../usecases/project-context';
-import { talentSources, sourceKey } from './person-data';
+import { completeTalentSources, sourceKey } from './person-data';
 import type { TalentSourceProjectionData } from '../usecases/talent-source-projection';
 import { loadCurrentPersonData } from './person-session';
 
@@ -22,7 +22,7 @@ export async function sourceFromData(
   data: SourceData,
   reference: { fragmentId: string; originalVersionId: string },
   // Callers that read many sources pass the already resolved relations.
-  resolved: TalentSource[] = talentSources(data),
+  resolved: TalentSource[] = completeTalentSources(data),
 ): Promise<SourceReadResult> {
   const visible = await readTalentSource(
     async () => ({
@@ -95,7 +95,7 @@ export async function sourceFromData(
 export async function projectReadableSources(
   data: SourceData,
 ): Promise<{ sources: TalentSource[]; details: Source[] }> {
-  const sources = talentSources(data);
+  const sources = completeTalentSources(data);
   const details: Source[] = [];
   for (const source of sources) {
     const read = await sourceFromData(data, source, sources);

@@ -39,6 +39,7 @@ import { peopleFromData } from './people';
 import { projectReadableSources, sourceFromData } from './sources';
 import { loadEvaluationContext } from '../usecases/evaluation-context';
 import { readEvidenceForTalent } from '../modules/records';
+import { readIntakeTable } from '../usecases/talent-source-projection';
 import { fixture, nodeFixture } from './person-test-helpers';
 import { expectDirectoryOrder } from '../../../tests/fixtures/p0-contracts';
 import { importDemo } from '../db/import';
@@ -265,6 +266,9 @@ it('projects actual pinned seed observations and ended project participation', a
       const data = {
         ...(await loadEvaluationContext(seeded.db, account, '2026-10-25')),
         ...(await readEvidenceForTalent(seeded.db)),
+        intake: await seeded.db.transaction((tx) =>
+          readIntakeTable(tx, 'snapshot'),
+        ),
       };
       return { data, ...(await projectReadableSources(data)) };
     };

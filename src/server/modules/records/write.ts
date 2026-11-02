@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Transaction } from '../../db/client';
 import {
@@ -140,6 +141,125 @@ export async function storeTrustedRecordDraftBatch(
       draft,
     })),
   );
+}
+
+/** Internal generation=revise persistence only. The caller revalidates current
+ * source authority and the job attempt/revision/cancellation in this transaction.
+ * This is not a user action or an authorization grant. */
+export async function reviseTrustedRecordDraftBatch(
+  tx: Transaction,
+  value: {
+    expectedBatchRevision: number;
+    expectedDrafts: { draftId: string; revision: number }[];
+    draftSet: RecordBatchDraftSet;
+  },
+) {
+  const set = recordBatchDraftSetSchema.parse(value.draftSet);
+  const conflict = (reason: string): never => {
+    throw new RecordWriteError('conflict', reason);
+  };
+  const expected = new Map(
+    value.expectedDrafts.map((row) => [row.draftId, row.revision]),
+  );
+  if (
+    !Number.isSafeInteger(value.expectedBatchRevision) ||
+    value.expectedBatchRevision < 1 ||
+    expected.size !== value.expectedDrafts.length ||
+    value.expectedDrafts.some(
+      (row) => !Number.isSafeInteger(row.revision) || row.revision < 1,
+    ) ||
+    set.revision !== value.expectedBatchRevision + 1
+  )
+    conflict('batch_revision_changed');
+  // Match save/undo's batch -> all draft rows lock order.
+  const [batch] = await tx
+    .select()
+    .from(recordDraftBatches)
+    .where(eq(recordDraftBatches.batchId, set.batchId))
+    .for('update');
+  if (!batch) throw new RecordWriteError('not_found', 'draft_batch_missing');
+  if (batch.revision !== value.expectedBatchRevision)
+    conflict('batch_revision_changed');
+  const rows = await tx
+    .select()
+    .from(recordDrafts)
+    .where(eq(recordDrafts.batchId, set.batchId))
+    .orderBy(recordDrafts.draftId)
+    .for('update');
+  if (
+    rows.length !== expected.size ||
+    rows.length !== set.drafts.length ||
+    rows.some(
+      (row) =>
+        expected.get(row.draftId) !== row.revision ||
+        !set.drafts.some((next) => next.draftId === row.draftId),
+    )
+  )
+    conflict('draft_revision_changed');
+  const saved = await tx
+    .select({ id: recordSaves.saveId })
+    .from(recordSaves)
+    .where(eq(recordSaves.batchId, set.batchId))
+    .limit(1);
+  const mapped = await tx
+    .select({ id: recordDraftEvents.eventId })
+    .from(recordDraftEvents)
+    .where(eq(recordDraftEvents.batchId, set.batchId))
+    .limit(1);
+  if (saved.length || mapped.length) conflict('human_confirmation_exists');
+  const current = recordBatchDraftSetSchema.parse({
+    batchId: batch.batchId,
+    revision: batch.revision,
+    duplicateCandidates: batch.duplicateCandidates,
+    drafts: rows.map((row) => row.draft),
+  });
+  for (const next of set.drafts) {
+    const previous = current.drafts.find(
+      (draft) => draft.draftId === next.draftId,
+    )!;
+    if (previous.revision !== expected.get(previous.draftId))
+      conflict('draft_revision_changed');
+    if (
+      previous.evaluationNodeId !== next.evaluationNodeId ||
+      previous.projectId !== next.projectId ||
+      previous.origin !== next.origin ||
+      previous.dimensionVersionId !== next.dimensionVersionId ||
+      previous.anchorVersionId !== next.anchorVersionId ||
+      previous.sourceReferences.some(
+        (reference) =>
+          !next.sourceReferences.some((candidate) =>
+            isDeepStrictEqual(reference, candidate),
+          ),
+      )
+    )
+      conflict('draft_identity_changed');
+    const { revision: previousRevision, ...previousBody } = previous;
+    const { revision: nextRevision, ...nextBody } = next;
+    const changed = !isDeepStrictEqual(previousBody, nextBody);
+    if (nextRevision !== previousRevision + (changed ? 1 : 0))
+      conflict('draft_revision_changed');
+  }
+  // Validate the whole set before any mutation. Never update original input,
+  // creation binding, source date, model identity or confirmation history.
+  for (const next of set.drafts) {
+    await tx
+      .update(recordDrafts)
+      .set({ draft: next, revision: next.revision })
+      .where(
+        and(
+          eq(recordDrafts.draftId, next.draftId),
+          eq(recordDrafts.batchId, set.batchId),
+        ),
+      );
+  }
+  await tx
+    .update(recordDraftBatches)
+    .set({
+      revision: set.revision,
+      duplicateCandidates: set.duplicateCandidates,
+    })
+    .where(eq(recordDraftBatches.batchId, set.batchId));
+  return set;
 }
 
 /** Account/operation, batch, then all draft rows. All evaluators and undo use
