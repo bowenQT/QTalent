@@ -27,7 +27,7 @@ const f = vi.hoisted(() => ({
     DATABASE_URL: 'test',
     BETTER_AUTH_URL: 'https://test.local',
     WORKER_PORT: 3001,
-  },
+  } as Record<string, string | number | undefined>,
   failListen: false,
   clientClose: vi.fn(),
   closeSockets: vi.fn(),
@@ -104,6 +104,8 @@ beforeEach(() => {
   f.env.MODELINK_API_KEY = undefined;
   f.env.MODELINK_BASE_URL = undefined;
   f.env.MODELINK_MODEL = undefined;
+  for (const key of Object.keys(f.env))
+    if (key.startsWith('QINIU_KODO_')) delete f.env[key];
   f.start.mockResolvedValue(undefined);
   f.stop.mockResolvedValue(undefined);
   f.register.mockResolvedValue(undefined);
@@ -198,6 +200,38 @@ describe('worker lifecycle with transport boundaries replaced', () => {
       }
     },
   );
+  it('starts every queue and the socket when the Kodo configuration is malformed', async () => {
+    f.env.APP_ENV = 'production';
+    Object.assign(f.env, {
+      QINIU_KODO_ENDPOINT: 'not a url',
+      QINIU_KODO_UPLOAD_ENDPOINT: 'not a url',
+      QINIU_KODO_MANAGEMENT_ENDPOINT: 'not a url',
+      QINIU_KODO_ACCESS_KEY: 'synthetic-access',
+      QINIU_KODO_SECRET_KEY: 'synthetic-secret',
+      QINIU_KODO_BUCKET: 'synthetic-bucket',
+    });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const worker = await startWorker();
+    try {
+      expect(f.registerArrange).toHaveBeenCalledOnce();
+      expect(f.registerAttachment).toHaveBeenCalledOnce();
+      expect(f.registerMatch).toHaveBeenCalledOnce();
+      expect(f.serverEvents.size).toBeGreaterThan(0);
+      const input = f.attachmentRuntime.mock.calls[0][0];
+      await expect(
+        input.storage.openObject({ objectKey: 'demo/missing' }),
+      ).rejects.toMatchObject({ code: 'unavailable' });
+      // Only the safe category is logged, never a configured value.
+      expect(errors).toHaveBeenCalledWith(
+        'Attachment storage unavailable',
+        'kodo_config_invalid',
+      );
+      expect(JSON.stringify(errors.mock.calls)).not.toContain('synthetic');
+    } finally {
+      errors.mockRestore();
+      await worker.stop();
+    }
+  });
   it('stops the shared boss if matching registration fails before transport opens', async () => {
     f.registerMatch.mockRejectedValueOnce(
       new Error('matching registration failed'),

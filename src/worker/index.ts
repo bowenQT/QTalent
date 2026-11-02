@@ -20,6 +20,26 @@ import {
 import { testKodoFor } from '../server/integrations/kodo/test-kodo';
 import { createStaffingMatchServerRuntime } from '../server/usecases/staffing-match-runtime';
 import { authenticateHandshake, heartbeatReply } from './handshake';
+const unavailableStorage = {
+  openObject: async (): Promise<never> => {
+    throw new KodoError('unavailable');
+  },
+};
+/** Attachment bytes come from Kodo; without it every parse fails as a
+ * dependency outage instead of waiting unclaimed. A malformed deployment value
+ * disables attachment reads only, never the other queues or the socket. */
+function attachmentStorage(env: ReturnType<typeof getEnv>) {
+  try {
+    return (
+      createKodoClientFromEnv(env) ??
+      testKodoFor({ ...env, NODE_ENV: process.env.NODE_ENV })?.storage ??
+      unavailableStorage
+    );
+  } catch {
+    console.error('Attachment storage unavailable', 'kodo_config_invalid');
+    return unavailableStorage;
+  }
+}
 export async function startWorker() {
   const env = getEnv();
   const clock = createClock(env.APP_ENV);
@@ -55,14 +75,7 @@ export async function startWorker() {
     await createAttachmentParseWorker({
       db: getDatabase(),
       boss,
-      // Without deployed Kodo every parse fails as a dependency outage
-      // instead of waiting unclaimed.
-      storage: createKodoClientFromEnv(env) ??
-        testKodoFor({ ...env, NODE_ENV: process.env.NODE_ENV })?.storage ?? {
-          openObject: async () => {
-            throw new KodoError('unavailable');
-          },
-        },
+      storage: attachmentStorage(env),
       demo: env.APP_ENV !== 'production',
       businessNow: () => clock.now().toISOString(),
       now: () => new Date(),

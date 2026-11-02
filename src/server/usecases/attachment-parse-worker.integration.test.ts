@@ -19,6 +19,8 @@ import { fragments, materialParses } from '../modules/records';
 import { createRecordCollectionService } from '../modules/records/uploads/collections';
 import { createUploadService } from '../modules/records/uploads/service';
 import { createPostgresUploadStore } from '../modules/records/uploads/store';
+import type { UploadStorage } from '../modules/records/uploads/types';
+import { createAttachmentParseWorker } from './attachment-parse-worker';
 
 const authUrl = 'http://127.0.0.1:3000';
 let connection: Awaited<ReturnType<typeof nativeDatabase>>;
@@ -37,12 +39,8 @@ async function freePort() {
   return address.port;
 }
 
-beforeAll(async () => {
-  connection = await nativeDatabase();
-  seeded = await seedNativeCase(connection.db);
-  boss = new PgBoss({ connectionString: connection.testUrl });
-  await boss.start();
-  await boss.createQueue(attachmentParseQueue, { retryLimit: 0 });
+async function startWorker() {
+  logs = '';
   // The deployed command: `pnpm start:worker` runs this same source entry.
   worker = spawn(process.execPath, ['--import', 'tsx', 'src/worker/index.ts'], {
     env: {
@@ -59,19 +57,46 @@ beforeAll(async () => {
   });
   worker.stdout?.on('data', (chunk) => (logs += String(chunk)));
   worker.stderr?.on('data', (chunk) => (logs += String(chunk)));
-}, 60_000);
-afterAll(async () => {
+}
+async function stopWorker() {
   if (worker && worker.exitCode === null) {
     worker.kill('SIGTERM');
     await once(worker, 'exit');
   }
+}
+
+beforeAll(async () => {
+  connection = await nativeDatabase();
+  seeded = await seedNativeCase(connection.db);
+  boss = new PgBoss({ connectionString: connection.testUrl });
+  await boss.start();
+  await boss.createQueue(attachmentParseQueue, { retryLimit: 0 });
+  await startWorker();
+}, 60_000);
+afterAll(async () => {
+  await stopWorker();
   await boss?.stop();
   await connection?.close();
 }, 60_000);
 
-/** An attachment upload whose completion creates its media job and sends it
- * in the archive transaction, as the record attachment dispatch does. */
-async function deliver(filename: string, mediaType: string, bytes: Buffer) {
+function testStorage() {
+  return testKodoFor({
+    NODE_ENV: 'test',
+    APP_ENV: 'test',
+    BETTER_AUTH_URL: authUrl,
+    DATABASE_URL: connection.testUrl,
+  })!;
+}
+
+/** An attachment upload whose completion creates its media job and, unless a
+ * case holds it back, sends it in the archive transaction, as the record
+ * attachment dispatch does. */
+async function deliver(
+  filename: string,
+  mediaType: string,
+  bytes: Buffer,
+  { send = true, personId = seeded.target } = {},
+) {
   const db = connection.db;
   const now = new Date().toISOString();
   const store = createPostgresUploadStore(db, async (tx, input) => {
@@ -85,6 +110,7 @@ async function deliver(filename: string, mediaType: string, bytes: Buffer) {
       now,
     );
     await tx.insert(jobSnapshots).values(job);
+    if (!send) return { jobId: job.jobId };
     const sent = await boss.send(
       attachmentParseQueue,
       { jobId: job.jobId, attempt: job.attempt },
@@ -93,21 +119,20 @@ async function deliver(filename: string, mediaType: string, bytes: Buffer) {
     if (!sent) throw new Error('Attachment parse enqueue was not committed');
     return { jobId: job.jobId };
   });
-  const target = { kind: 'people' as const, personIds: [seeded.target] };
+  const target = { kind: 'people' as const, personIds: [personId] };
   // Upload-side write policy is a boundary double; the worker decides
   // processing on the account's current record write permission.
-  const collection = await createRecordCollectionService({
+  const collections = createRecordCollectionService({
     store,
     canWriteTarget: async () => true,
     loadBinding: async () => ({ state: 'draft', externalAttachmentCount: 0 }),
     collectionForEvent: async () => null,
-  }).create(seeded.account, { operationId: randomUUID(), target });
-  const kodo = testKodoFor({
-    NODE_ENV: 'test',
-    APP_ENV: 'test',
-    BETTER_AUTH_URL: authUrl,
-    DATABASE_URL: connection.testUrl,
-  })!;
+  });
+  const collection = await collections.create(seeded.account, {
+    operationId: randomUUID(),
+    target,
+  });
+  const kodo = testStorage();
   const fake = fixture(collection.id);
   const service = createUploadService({
     ...fake.options,
@@ -167,23 +192,34 @@ async function deliver(filename: string, mediaType: string, bytes: Buffer) {
     receiptRef: 'synthetic-receipt',
     expectedRevision: grant.revision,
   });
-  return dispatched(completed).jobId;
+  const { jobId, revision } = dispatched(completed);
+  return {
+    jobId,
+    /** Removes the upload from its collection, as the composer's remove does. */
+    release: () =>
+      collections.release(seeded.account, {
+        uploadId: grant.uploadId,
+        operationId: randomUUID(),
+        expectedRevision: revision,
+      }),
+    send: () => boss.send(attachmentParseQueue, { jobId, attempt: 1 }),
+  };
 }
 
-async function settled(jobId: string) {
-  await expect
-    .poll(
-      async () => {
-        if (worker.exitCode !== null) throw new Error(logs);
-        const [job] = await connection.db
-          .select({ status: jobSnapshots.status })
-          .from(jobSnapshots)
-          .where(eq(jobSnapshots.jobId, jobId));
-        return job?.status;
-      },
-      { timeout: 60_000, interval: 200 },
-    )
-    .toMatch(/^(completed|failed|cancelled)$/);
+/** A runner in this process against the same database and objects, for the
+ * cases that must act while a parse is between its claim and its completion. */
+function inProcessWorker(openObject: UploadStorage['openObject']) {
+  return createAttachmentParseWorker({
+    db: connection.db,
+    boss,
+    storage: { openObject },
+    demo: true,
+    businessNow: () => new Date().toISOString(),
+    now: () => new Date(),
+  });
+}
+
+async function snapshot(jobId: string) {
   const [job] = await connection.db
     .select()
     .from(jobSnapshots)
@@ -191,16 +227,38 @@ async function settled(jobId: string) {
   return job!;
 }
 
-it('a real worker process claims a PDF parse from the queue and saves its page text', async () => {
-  const bytes = await readFile('tests/fixtures/attachments/chinese-pages.pdf');
-  const jobId = await deliver('演示材料.pdf', 'application/pdf', bytes);
-  const job = await settled(jobId);
-  expect(job.status).toBe('completed');
-  expect(job.result).toMatchObject({ stage: 'parsed' });
-  const [parse] = await connection.db
+async function parsesOf(jobId: string) {
+  return connection.db
     .select()
     .from(materialParses)
     .where(eq(materialParses.jobId, jobId));
+}
+
+const pdf = () => readFile('tests/fixtures/attachments/chinese-pages.pdf');
+
+async function settled(jobId: string) {
+  await expect
+    .poll(
+      async () => {
+        if (worker.exitCode !== null) throw new Error(logs);
+        return (await snapshot(jobId)).status;
+      },
+      { timeout: 60_000, interval: 200 },
+    )
+    .toMatch(/^(completed|failed|cancelled)$/);
+  return snapshot(jobId);
+}
+
+it('a real worker process claims a PDF parse from the queue and saves its page text', async () => {
+  const { jobId } = await deliver(
+    '演示材料.pdf',
+    'application/pdf',
+    await pdf(),
+  );
+  const job = await settled(jobId);
+  expect(job.status).toBe('completed');
+  expect(job.result).toMatchObject({ stage: 'parsed' });
+  const [parse] = await parsesOf(jobId);
   expect(parse).toBeDefined();
   const saved = await connection.db
     .select()
@@ -213,22 +271,105 @@ it('a real worker process claims a PDF parse from the queue and saves its page t
   );
 }, 90_000);
 
-it('ends a format without a canonical store as unsupported, never parsing', async () => {
-  const jobId = await deliver(
+it.each([
+  [
     '演示说明.txt',
     'text/plain',
-    Buffer.from('演示材料：补齐回滚步骤。\n'),
+    async () => Buffer.from('演示材料：补齐回滚步骤。\n'),
+  ],
+  [
+    '演示说明.docx',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    () => readFile('tests/fixtures/attachments/chinese-pages.docx'),
+  ],
+])(
+  'ends %s, a format without a canonical store, as unsupported without parsing',
+  async (filename, mediaType, bytes) => {
+    const { jobId } = await deliver(filename, mediaType, await bytes());
+    const job = await settled(jobId);
+    expect(job.status).toBe('failed');
+    expect(job.errorCode).toBe('processing_failed');
+    expect(job.result).toMatchObject({
+      stage: 'unsupported',
+      failureReason: 'format',
+      fragmentIds: [],
+    });
+    expect(await parsesOf(jobId)).toEqual([]);
+  },
+  90_000,
+);
+
+it('ends a parse the account may no longer write as changed input, without saving', async () => {
+  // The account's grant covers the target's cohort, not this person.
+  const { jobId } = await deliver(
+    '演示材料.pdf',
+    'application/pdf',
+    await pdf(),
+    {
+      personId: seeded.other,
+    },
   );
   const job = await settled(jobId);
-  expect(job.status).toBe('failed');
+  expect(job).toMatchObject({ status: 'failed', errorCode: 'input_changed' });
   expect(job.result).toMatchObject({
-    stage: 'unsupported',
-    failureReason: 'format',
+    stage: 'failed',
+    failureReason: 'processing_failed',
     fragmentIds: [],
   });
-  const parses = await connection.db
-    .select()
-    .from(materialParses)
-    .where(eq(materialParses.jobId, jobId));
-  expect(parses).toEqual([]);
+  expect(await parsesOf(jobId)).toEqual([]);
 }, 90_000);
+
+it('ends a parse whose upload was removed before the message was consumed', async () => {
+  const upload = await deliver('演示材料.pdf', 'application/pdf', await pdf(), {
+    send: false,
+  });
+  await upload.release();
+  await upload.send();
+  const job = await settled(upload.jobId);
+  expect(job).toMatchObject({ status: 'failed', errorCode: 'input_changed' });
+  expect(await parsesOf(upload.jobId)).toEqual([]);
+}, 90_000);
+
+it('discards a parse whose upload was removed while its bytes were read', async () => {
+  const upload = await deliver('演示材料.pdf', 'application/pdf', await pdf(), {
+    send: false,
+  });
+  const storage = testStorage().storage;
+  const runner = inProcessWorker(async (input) => {
+    await upload.release();
+    return storage.openObject(input);
+  });
+  await runner.run({ jobId: upload.jobId, attempt: 1 });
+  const job = await snapshot(upload.jobId);
+  expect(job).toMatchObject({ status: 'failed', errorCode: 'input_changed' });
+  expect(await parsesOf(upload.jobId)).toEqual([]);
+}, 90_000);
+
+it('a fresh worker finishes a parse whose runner died after claiming it', async () => {
+  const upload = await deliver('演示材料.pdf', 'application/pdf', await pdf(), {
+    send: false,
+  });
+  // The claim commits, then the runner never returns: what a killed process
+  // leaves behind.
+  let reading!: () => void;
+  const read = new Promise<void>((resolve) => (reading = resolve));
+  void inProcessWorker(async () => {
+    reading();
+    return new Promise<never>(() => {});
+  }).run({ jobId: upload.jobId, attempt: 1 });
+  await read;
+  expect(await snapshot(upload.jobId)).toMatchObject({
+    status: 'running',
+    result: { stage: 'parsing' },
+  });
+  await stopWorker();
+  await connection.db
+    .update(jobSnapshots)
+    .set({ updatedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString() })
+    .where(eq(jobSnapshots.jobId, upload.jobId));
+  await startWorker();
+  const job = await settled(upload.jobId);
+  expect(job.status).toBe('completed');
+  expect(job.result).toMatchObject({ stage: 'parsed' });
+  expect(await parsesOf(upload.jobId)).toHaveLength(1);
+}, 120_000);
