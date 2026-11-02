@@ -15,6 +15,7 @@ import {
 import { byCodePoint, byPinyin } from './person-identity';
 import { sourceFromData } from './sources';
 import { historicalEvaluationRequiredKind } from './historical-evaluation-policy';
+import { orderCapabilityDimensions } from './person-display-policy';
 
 type Ready<T> = T extends { status: 'ready'; data: infer D } ? D : never;
 type Variant = Extract<Person, { role: 'manager' | 'hr' }>;
@@ -53,12 +54,16 @@ export const dimensionGroup = (dimension: Dimension) =>
       ? ('potential_core' as const)
       : ('potential_bonus' as const);
 const groupRank = { professional: 0, potential_core: 1, potential_bonus: 2 };
-/** There is no catalogue-order column yet: group, then id (never by score). */
+/** There is no catalogue-order column yet: group, then id (never by score),
+ * with the potential core in the fixed prototype order.
+ */
 export function orderedDimensions(data: PersonData): Dimension[] {
-  return [...data.dimensions].sort(
-    (a, b) =>
-      groupRank[dimensionGroup(a)] - groupRank[dimensionGroup(b)] ||
-      byCodePoint(a.id, b.id),
+  return orderCapabilityDimensions(
+    [...data.dimensions].sort(
+      (a, b) =>
+        groupRank[dimensionGroup(a)] - groupRank[dimensionGroup(b)] ||
+        byCodePoint(a.id, b.id),
+    ),
   );
 }
 const refOf = (reference: {
@@ -378,6 +383,9 @@ export async function collectEvidence(
       category: row.category,
       sources: row.sources,
     }));
+  // A history row taken from a key event the caller can read (the weekly review
+  // of that event) repeats it on the timeline; the key event keeps its sources.
+  const shownEvents = new Set(keyEvents.map((row) => row.id));
   const history: TimelineEntry[] = data.historical.flatMap((row) => {
     const members = data.historicalParticipants
       .filter((item) => item.evaluationId === row.id)
@@ -407,7 +415,8 @@ export async function collectEvidence(
       sources,
       'person-profile',
     );
-    if (!projected || !row.scale.length) return [];
+    if (!projected || !row.scale.length || shownEvents.has(row.sourceRecordId))
+      return [];
     return [
       {
         kind: 'history' as const,
