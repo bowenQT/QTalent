@@ -1,0 +1,31 @@
+{
+  "demo": true,
+  "contractSha": "832209d177944b5ce18577794acb88314a6460da",
+  "evidenceStatus": "scenario_only_not_executed",
+  "fixedBackground": [
+    {
+      "cohort": {
+        "id": "b-xe6",
+        "name": "XEngineer 第六期（演示）"
+      },
+      "boundSelectionVersionId": "xe-select-v1",
+      "mappingVersionId": "map-xe-select-v1"
+    }
+  ],
+  "liveScenario": {
+    "cohort": {
+      "id": "b-xe7-demo",
+      "name": "XEngineer 第七期（演示）"
+    },
+    "prerequisite": "先经有权限的人确认并发布 xe-select-v2，再创建并绑定第七期。",
+    "beforeCreation": {
+      "cohortExists": false,
+      "boundVersionId": null
+    },
+    "expectedAtCreation": {
+      "boundSelectionVersionId": "xe-select-v2"
+    },
+    "preservedSixthVersionId": "xe-select-v1",
+    "execution": "pending_bow_922_version_binding_and_published_contract_refresh"
+  }
+}

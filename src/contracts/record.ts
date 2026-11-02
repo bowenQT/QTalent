@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { createJobSnapshotSchema } from './jobs';
-import { sourceReferenceSchema } from './sources';
+import {
+  materialSourceReferenceSchema,
+  sourceReferenceSchema,
+} from './sources';
 
 const text = z.string().trim().min(1);
 const revision = z.number().int().positive();
@@ -169,14 +172,30 @@ export const recordUndoInputSchema = z.strictObject({
   operation_id: text,
   saveId: text,
 });
-export const recordUndoReceiptSchema = z.strictObject({
+const recordUndoReceiptBase = {
   saveId: text,
   // Only events created by this batch; a second rater may create none.
   withdrawnEvents: eventMappingsSchema,
   withdrawnConfirmationIds: z.array(text),
   withdrawnReviewItemIds: z.array(text),
-  originalInput: recordInputSchema,
-});
+};
+// Undo eligibility never implies access to the entire original input. The server
+// reprojects this pair under current complete-input authorization on every replay.
+export const recordUndoReceiptSchema = z.discriminatedUnion(
+  'inputRestoration',
+  [
+    z.strictObject({
+      ...recordUndoReceiptBase,
+      inputRestoration: z.literal('available'),
+      originalInput: recordInputSchema,
+    }),
+    z.strictObject({
+      ...recordUndoReceiptBase,
+      inputRestoration: z.literal('unavailable'),
+      originalInput: z.null(),
+    }),
+  ],
+);
 
 // Typed input is returned on conflicts so callers can retain edits.
 export function recordActionResultSchema<
@@ -233,3 +252,176 @@ export type RecordSaveResult = z.infer<typeof recordSaveResultSchema>;
 export type RecordUndoResult = z.infer<typeof recordUndoResultSchema>;
 export type RecordArrangeResult = z.infer<typeof recordArrangeResultSchema>;
 export type RecordSelectionInput = z.infer<typeof recordSelectionInputSchema>;
+
+const batchIds = z
+  .array(text)
+  .refine((ids) => new Set(ids).size === ids.length);
+const batchCitationSchema = z.strictObject({
+  kind: z.literal('source'),
+  quote: text,
+  reference: materialSourceReferenceSchema,
+});
+const batchScoreSchema = z.discriminatedUnion('state', [
+  recordEvidenceScoreSchema.extend({
+    personId: text,
+    dimensionId: text,
+    state: z.literal('suggested'),
+    citations: z.array(batchCitationSchema).min(1),
+  }),
+  recordScoreSchema.options[1],
+]);
+/**
+ * One draft is one event, not one person. Two events for one person keep two IDs.
+ * Retry/reopen returns persisted IDs and revisions. Any semantic change,
+ * including rebinding/regeneration, advances the revision without replacing IDs.
+ * Sources are the authorized union of all materials supporting this event.
+ * BOW-845 still verifies verbatim quotes and frozen dimension/anchor versions.
+ */
+export const recordBatchDraftSchema = z
+  .strictObject({
+    batchId: text,
+    evaluationNodeId: text,
+    draftId: text,
+    revision,
+    origin: z.literal('ai_suggestion'),
+    personIds: batchIds.min(1),
+    // Explicit per-event topic lookup; null is resolved no-topic, never a grant.
+    projectId: text.nullable(),
+    sourceReferences: z
+      .array(materialSourceReferenceSchema)
+      .min(1)
+      .refine(
+        (sources) =>
+          new Set(
+            sources.map((source) =>
+              JSON.stringify([source.fragmentId, source.originalVersionId]),
+            ),
+          ).size === sources.length,
+        '草稿来源集合不得重复',
+      ),
+    dimensionVersionId: text,
+    anchorVersionId: text,
+    sbi: recordSbiSchema,
+    scores: z.array(batchScoreSchema),
+  })
+  .refine(
+    (draft) =>
+      draft.scores.every((score) => draft.personIds.includes(score.personId)),
+    '建议仅属于草稿所涉及人员',
+  )
+  .refine(
+    (draft) =>
+      new Set(
+        draft.scores.map((score) =>
+          JSON.stringify([score.personId, score.dimensionId]),
+        ),
+      ).size === draft.scores.length,
+    '同一人员维度只保留一个建议',
+  )
+  .refine(
+    (draft) =>
+      draft.scores.every(
+        (score) =>
+          score.state === 'unknown' ||
+          score.anchor.ruleVersion === draft.anchorVersionId,
+      ),
+    '建议锚点须来自草稿冻结的锚点版本',
+  )
+  .refine(
+    (draft) =>
+      draft.scores.every(
+        (score) =>
+          score.state === 'unknown' ||
+          score.citations.every((citation) =>
+            draft.sourceReferences.some(
+              (source) =>
+                JSON.stringify(source) === JSON.stringify(citation.reference),
+            ),
+          ),
+      ),
+    '建议引用须在草稿来源集合内',
+  );
+const duplicateCandidateSchema = z.strictObject({
+  candidateId: text,
+  // Similarity is a review hint, never an automatic cross-batch merge.
+  draftIds: batchIds.min(2),
+  reason: text,
+});
+/**
+ * Exact, verified same-event material may share a canonical draft and source
+ * union inside this batch. Person identity alone is never a deduplication key.
+ * Uncertain similarity keeps both drafts until a versioned human decision.
+ * No global automatic merging, discarded sources, or silent event loss.
+ */
+export const recordBatchDraftSetSchema = z
+  .strictObject({
+    batchId: text,
+    revision,
+    drafts: z.array(recordBatchDraftSchema).min(1),
+    duplicateCandidates: z.array(duplicateCandidateSchema),
+  })
+  .refine(
+    (set) =>
+      set.drafts.every((draft) => draft.batchId === set.batchId) &&
+      new Set(set.drafts.map((draft) => draft.draftId)).size ===
+        set.drafts.length,
+  )
+  .refine((set) => {
+    const ids = new Set(set.drafts.map((draft) => draft.draftId));
+    const candidates = set.duplicateCandidates;
+    const members = candidates.flatMap((candidate) => candidate.draftIds);
+    return (
+      new Set(candidates.map((candidate) => candidate.candidateId)).size ===
+        candidates.length &&
+      new Set(members).size === members.length &&
+      members.every((draftId) => ids.has(draftId))
+    );
+  });
+const draftVersionSchema = z.strictObject({
+  draftId: text,
+  expectedRevision: revision,
+});
+export const recordBatchDuplicateDecisionInputSchema = z
+  .strictObject({
+    batchId: text,
+    operationId: text,
+    expectedRevision: revision,
+    candidateId: text,
+    drafts: z.array(draftVersionSchema).min(2),
+    decision: z.discriminatedUnion('action', [
+      z.strictObject({ action: z.literal('keep_separate') }),
+      z.strictObject({ action: z.literal('merge'), canonicalDraftId: text }),
+    ]),
+  })
+  .refine(
+    (input) =>
+      new Set(input.drafts.map((draft) => draft.draftId)).size ===
+      input.drafts.length,
+  )
+  .refine((input) => {
+    const decision = input.decision;
+    return (
+      decision.action !== 'merge' ||
+      input.drafts.some((draft) => draft.draftId === decision.canonicalDraftId)
+    );
+  });
+/**
+ * Server transaction checks the candidate membership and every expected revision.
+ * Merge preserves the chosen canonical ID, unions sources and invalidates old
+ * suggestions for recheck. Pending duplicate candidates cannot be confirmed.
+ * Same actor + operationId + semantic payload replays the original result after
+ * CURRENT authorization; changed payload or stale revision returns conflict.
+ */
+export const recordBatchDuplicateDecisionResultSchema =
+  recordActionResultSchema(
+    recordBatchDuplicateDecisionInputSchema,
+    recordBatchDraftSetSchema,
+  );
+export type RecordBatchDraft = z.infer<typeof recordBatchDraftSchema>;
+export type RecordBatchDraftSet = z.infer<typeof recordBatchDraftSetSchema>;
+export type RecordBatchDuplicateDecisionInput = z.infer<
+  typeof recordBatchDuplicateDecisionInputSchema
+>;
+export type RecordBatchDuplicateDecisionResult = z.infer<
+  typeof recordBatchDuplicateDecisionResultSchema
+>;
