@@ -17,6 +17,8 @@ import { importDemo } from './import';
 import { mapPrototypeSeed, readPrototypeSeed } from './seed';
 import {
   seedVerifiedLegacyBaseline as legacySeed,
+  insertLegacyRows,
+  readLegacyRows,
   fingerprintMigrationFacts as legacyFingerprint,
 } from '../../../tests/fixtures/legacy-migration-seed';
 import * as directory from '../modules/directory/schema';
@@ -90,19 +92,36 @@ async function previous(connection: Connection) {
 }
 async function legacyPlan(connection: Connection) {
   return planLegacyEvaluationNodes({
-    cohorts: await connection.db.select().from(programs.cohorts),
-    people: await connection.db.select().from(directory.people),
-    enrollments: await connection.db.select().from(programs.enrollments),
-    assignments: await connection.db.select().from(programs.assignments),
-    projects: await connection.db.select().from(staffing.projects),
-    events: await connection.db
-      .select({
-        id: records.events.id,
-        personId: records.events.personId,
-        projectId: records.events.projectId,
-        occurredOn: records.events.occurredOn,
-      })
-      .from(records.events),
+    cohorts: await readLegacyRows(connection, programs.cohorts, ['id', 'name']),
+    people: await readLegacyRows(connection, directory.people, ['id']),
+    enrollments: await readLegacyRows(connection, programs.enrollments, [
+      'cohortId',
+      'personId',
+      'confirmed',
+      'validFrom',
+      'validTo',
+      'revokedAt',
+    ]),
+    assignments: await readLegacyRows(connection, programs.assignments, [
+      'id',
+      'cohortId',
+      'personId',
+      'studentId',
+      'kind',
+      'validFrom',
+      'validTo',
+      'revokedAt',
+    ]),
+    projects: await readLegacyRows(connection, staffing.projects, [
+      'id',
+      'cohortId',
+    ]),
+    events: await readLegacyRows(connection, records.events, [
+      'id',
+      'personId',
+      'projectId',
+      'occurredOn',
+    ]),
   });
 }
 it('keeps all three published SQL migrations byte-identical and migrates an empty database with real node/subject constraints', async () => {
@@ -170,16 +189,18 @@ it('upgrades a genuinely pre-899 seeded database using only unique historical fa
     await previous(connection);
     const seed = await legacySeed(connection);
     const first = seed.evidence.events[0];
-    await connection.db
-      .insert(programs.cohorts)
-      .values({ id: 'synthetic-overlap', name: '演示重叠期次' });
-    await connection.db.insert(programs.enrollments).values({
-      id: 'synthetic-overlap-membership',
-      cohortId: 'synthetic-overlap',
-      personId: first.personId,
-      confirmed: true,
-      validFrom: '2020-01-01',
-    });
+    await insertLegacyRows(connection, programs.cohorts, [
+      { id: 'synthetic-overlap', name: '演示重叠期次' },
+    ]);
+    await insertLegacyRows(connection, programs.enrollments, [
+      {
+        id: 'synthetic-overlap-membership',
+        cohortId: 'synthetic-overlap',
+        personId: first.personId,
+        confirmed: true,
+        validFrom: '2020-01-01',
+      },
+    ]);
     // Old schema has no evaluation_node_id: use its physical columns deliberately.
     await connection.pool.query(
       'INSERT INTO records_events (id, person_id, recorder_id, occurred_on, title, situation, behavior, impact, project_id, rule_version_id, demo) SELECT $1, person_id, recorder_id, occurred_on, title, situation, behavior, impact, NULL, rule_version_id, demo FROM records_events WHERE id = $2',
@@ -189,16 +210,21 @@ it('upgrades a genuinely pre-899 seeded database using only unique historical fa
       'INSERT INTO records_events (id, person_id, recorder_id, occurred_on, title, situation, behavior, impact, project_id, rule_version_id, demo) SELECT $1, person_id, recorder_id, $3::date, title, situation, behavior, impact, NULL, rule_version_id, demo FROM records_events WHERE id = $2',
       ['synthetic-no-history', first.id, '1900-01-01'],
     );
-    await connection.db
-      .update(programs.assignments)
-      .set({ revokedAt: '2026-06-01' })
-      .where(eq(programs.assignments.id, 'demo-assignment-0'));
+    await connection.pool.query(
+      'UPDATE programs_assignments SET revoked_at = $1 WHERE id = $2',
+      ['2026-06-01', 'demo-assignment-0'],
+    );
     const before = await legacyFingerprint(connection);
     const plan = await legacyPlan(connection);
     await migrate(connection.db, { migrationsFolder: folder });
-    expect(await legacyFingerprint(connection, Object.keys(before))).toEqual(
-      before,
-    );
+    expect(await legacyFingerprint(connection, before)).toEqual(before);
+    expect(
+      (
+        await connection.pool.query(
+          'SELECT (SELECT count(*)::int FROM records_events WHERE withdrawn_at IS NOT NULL) AS events, (SELECT count(*)::int FROM talent_score_reviews WHERE save_id IS NOT NULL OR confirmation_id IS NOT NULL OR counterpart_confirmation_id IS NOT NULL OR withdrawn_at IS NOT NULL) AS reviews',
+        )
+      ).rows[0],
+    ).toEqual({ events: 0, reviews: 0 });
     expect(await connection.db.select().from(programs.evaluationNodes)).toEqual(
       expect.arrayContaining(plan.nodes),
     );
@@ -256,6 +282,17 @@ it('upgrades a genuinely pre-899 seeded database using only unique historical fa
         )
       ).rows[0].n,
     ).toBe(committedMigrationCount);
+    // A changed old score must still fail preservation at exactly the same row count.
+    const preserved = await legacyFingerprint(connection, before);
+    const changed = await connection.pool.query(
+      'WITH replacement AS (SELECT c.id, a.id AS anchor_id, a.value FROM talent_confirmations AS c JOIN evaluation_anchors AS a ON a.dimension_id = c.dimension_id AND a.rule_version_id = c.rule_version_id AND a.value <> c.value WHERE c.value IS NOT NULL ORDER BY c.id, a.value LIMIT 1) UPDATE talent_confirmations AS c SET anchor_id = replacement.anchor_id, value = replacement.value FROM replacement WHERE c.id = replacement.id RETURNING c.id',
+    );
+    expect(changed.rowCount).toBe(1);
+    const altered = await legacyFingerprint(connection, before);
+    expect(altered.talent_confirmations.count).toBe(
+      preserved.talent_confirmations.count,
+    );
+    expect(altered).not.toEqual(preserved);
   });
 }, 30_000);
 it('rolls back the complete schema and journal transition if backfilling an existing event fails', async () => {

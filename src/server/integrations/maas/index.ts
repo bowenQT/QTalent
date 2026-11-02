@@ -11,6 +11,7 @@ export {
   createModelinkMaasClient,
   createModelinkMaasClientFromEnv,
   createFakeModelinkMaas,
+  validModelinkInput,
   MODELINK_ENDPOINT,
   MODELINK_MODEL,
   type ModelinkMaasClient,

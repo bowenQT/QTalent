@@ -73,7 +73,7 @@ export type ModelinkMaasClient = StructuredMaasClient<
   ModelinkMessage
 >;
 
-function validModelinkInput(
+export function validModelinkInput(
   input: ModelinkStructuredInput<Record<string, unknown>>,
 ): boolean {
   const checked = requestSchema.safeParse(input);

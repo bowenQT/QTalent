@@ -3,3 +3,5 @@ export { aiSuggestions, confirmations, scoreReviews } from './schema';
 export { readActiveConfirmations } from './read';
 export { deriveReferencePosition } from './derive';
 export type { PositionScore } from './derive';
+export { writeRecordConfirmations, withdrawRecordConfirmations } from './write';
+export { resolveRecordSourceFacts } from './write-policy';

@@ -44,11 +44,56 @@ describe('formatLocation', () => {
   });
 });
 
+describe('formatLocation for collected materials', () => {
+  it('writes PDF pages and slides by page, leaving the text range to the viewer', () => {
+    expect(
+      formatLocation({
+        kind: 'pdf',
+        page: 3,
+        textRange: { start: 10, end: 20 },
+      }),
+    ).toBe('第 3 页');
+    expect(formatLocation({ kind: 'presentation', slide: 4 })).toBe('第 4 页');
+  });
+  it('writes video ranges like recordings', () => {
+    expect(
+      formatLocation({ kind: 'video', startMs: 725_000, endMs: 740_400 }),
+    ).toBe('12:05–12:21');
+  });
+  it('names an image region without coordinates', () => {
+    expect(
+      formatLocation({
+        kind: 'image',
+        region: { left: 0.1, top: 0.2, right: 0.5, bottom: 0.6 },
+      }),
+    ).toBe('框选区域');
+  });
+  it('writes the code path with a line or a line range', () => {
+    const code = {
+      kind: 'code' as const,
+      repository: 'git.example.com/demo/repo',
+      commit: 'a'.repeat(40),
+      path: 'src/a.ts',
+    };
+    expect(formatLocation({ ...code, startLine: 12, endLine: 18 })).toBe(
+      'src/a.ts 第 12–18 行',
+    );
+    expect(formatLocation({ ...code, startLine: 7, endLine: 7 })).toBe(
+      'src/a.ts 第 7 行',
+    );
+  });
+});
+
 describe('sourceTypeName', () => {
   it('names every location kind', () => {
     expect(sourceTypeName('document')).toBe('文档');
     expect(sourceTypeName('spreadsheet')).toBe('表格');
     expect(sourceTypeName('recording')).toBe('录音');
     expect(sourceTypeName('snapshot_field')).toBe('原型基线');
+    expect(sourceTypeName('pdf')).toBe('PDF');
+    expect(sourceTypeName('presentation')).toBe('演示文稿');
+    expect(sourceTypeName('video')).toBe('视频');
+    expect(sourceTypeName('image')).toBe('图片');
+    expect(sourceTypeName('code')).toBe('代码');
   });
 });

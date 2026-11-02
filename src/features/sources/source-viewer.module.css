@@ -1,0 +1,333 @@
+/*
+ * 原件查看器。原型 Y 没有单独的原件页，这里按设计系统已有的零件组合：引用浮层的原文块
+ * （.n-cite__quote）、待核对里截图的蓝框（.n-shot__row.is-in）、面评行的页面图
+ * （.n-pdfcrop）、纪要的播放条与转写（.n-player、.n-transcript）。.n-shot 和 .n-pdfcrop
+ * 只在原型的 niu-components.css 里，全局样式是共享文件，所以对应的几条规则写在这里。
+ */
+
+/* 引用到的那一处：和截图里「要整理的部分」同一个蓝框，再加浅底。 */
+.located {
+  box-shadow: inset 0 0 0 1.5px var(--light);
+  background: var(--light-soft);
+  scroll-margin: 96px;
+}
+.located:focus {
+  outline: none;
+}
+
+/* 单列时栅格列是 1fr，代码与宽表格会按最小内容把卡片撑出视口；让它们在卡内横向滚动。 */
+.column {
+  min-width: 0;
+}
+
+.extract {
+  display: grid;
+  gap: var(--s-3);
+}
+.extract > h2 {
+  margin: 0;
+}
+.extract > button {
+  justify-self: start;
+}
+.extractLoc {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+.extractLoc svg {
+  width: 14px;
+  height: 14px;
+}
+.quote {
+  overflow-wrap: anywhere;
+}
+.meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px var(--s-3);
+  margin: 0;
+  font-size: var(--t-xs);
+}
+.meta dt {
+  color: var(--ink-3);
+}
+.meta dd {
+  margin: 0;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.mono {
+  font:
+    12px/1.7 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+
+.original {
+  display: grid;
+  gap: var(--s-3);
+}
+.pending {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-5);
+  border-radius: var(--r-card);
+  background: var(--sheet-sunk);
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+  text-align: center;
+}
+.pending small {
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+
+/* 文档：一段一行，左边写段号，和转写的时间列同宽。 */
+.paras {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  font-size: var(--t-sm);
+  line-height: 1.7;
+}
+.paras li {
+  display: grid;
+  grid-template-columns: 4.6em minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: 6px var(--s-2);
+  border-radius: 6px;
+}
+.gutter {
+  padding-top: 2px;
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.pageMark {
+  margin: var(--s-3) 0 2px;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.pageMark:first-child {
+  margin-top: 0;
+}
+.paras mark,
+.page mark,
+.code mark {
+  background: #fff1bf;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* PDF 页与演示文稿：白底页面图，和面评行的页面图同一种外观。 */
+.pages {
+  display: grid;
+  gap: var(--s-3);
+}
+.page {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: 6px;
+  background: var(--sheet);
+  box-shadow:
+    inset 0 0 0 1px var(--line-strong),
+    0 1px 0 var(--line);
+  font-size: var(--t-sm);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.page figcaption {
+  margin-bottom: 6px;
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+  white-space: normal;
+}
+.page.located {
+  box-shadow:
+    inset 0 0 0 1.5px var(--light),
+    0 1px 0 var(--line);
+  background: var(--sheet);
+}
+/* 演示文稿按缩略页排成网格，引用的那一页加蓝框。 */
+.slides {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.slide {
+  aspect-ratio: 16 / 9;
+  overflow: auto;
+}
+
+/* 表格：保留原表的行列号，引用的单元格用蓝框。 */
+.sheetWrap {
+  overflow-x: auto;
+  border-radius: var(--r-field);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.sheet {
+  border-collapse: collapse;
+  font-size: var(--t-sm);
+  min-width: 100%;
+}
+.sheet caption {
+  padding: var(--s-2) var(--s-3);
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+  text-align: left;
+}
+.sheet th,
+.sheet td {
+  padding: 6px var(--s-2);
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  min-width: 4em;
+}
+.sheet th {
+  background: var(--sheet-sunk);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.sheet td.located {
+  box-shadow: inset 0 0 0 2px var(--light);
+}
+
+/* 录音与视频：纪要顶部的播放条，下面是转写。 */
+.player {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.player button:disabled {
+  background: var(--ink-4);
+  cursor: not-allowed;
+}
+.track {
+  min-width: 0;
+}
+/* 刻度再窄也留 1px，引用的时间段在任何宽度下都看得见。 */
+.track i {
+  min-width: 1px;
+}
+.time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.video {
+  display: block;
+  width: 100%;
+  border-radius: var(--r-field);
+  background: #20262c;
+}
+.transcript li {
+  padding: 4px var(--s-2);
+  border-radius: 6px;
+}
+
+/* 图片：按原图比例画框，框选区域用蓝框，框外略压暗。 */
+.shot {
+  margin: 0;
+  padding: var(--s-2);
+  border-radius: var(--r-field);
+  background: var(--sheet-sunk);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+.frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--sheet);
+}
+.frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.frameEmpty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+  background: repeating-linear-gradient(-45deg, #e9ecef 0 6px, #e1e5e9 6px 7px);
+}
+.region {
+  position: absolute;
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 1.5px var(--light),
+    0 0 0 9999px rgb(36 42 48 / 0.18);
+  background: rgb(239 244 248 / 0.35);
+}
+.region:focus {
+  outline: none;
+}
+.shot figcaption {
+  padding: 2px var(--s-1) 0;
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+
+/* 代码：提交的摘录按原行号排，凹陷底色。 */
+.code {
+  margin: 0;
+  padding: var(--s-2) 0;
+  border-radius: var(--r-field);
+  background: var(--sheet-sunk);
+  overflow-x: auto;
+}
+.code ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: max-content;
+}
+.code li {
+  display: grid;
+  grid-template-columns: 3.5em minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: 0 var(--s-3) 0 0;
+  white-space: pre;
+}
+.code .gutter {
+  padding: 0;
+  text-align: right;
+  font: inherit;
+  color: var(--ink-3);
+  user-select: none;
+}
+.code.located {
+  background: var(--light-soft);
+}
+
+@media (max-width: 760px) {
+  /* 手机宽：时间文字换到轨道下一行，轨道占满按钮右侧，刻度间距收到 1px。 */
+  .player {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: var(--s-1);
+  }
+  .player .track {
+    gap: 1px;
+  }
+  .time {
+    grid-column: 2;
+    white-space: normal;
+  }
+  .paras li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}

@@ -1,0 +1,2 @@
+ALTER TABLE "programs_evaluation_nodes" DROP CONSTRAINT "programs_node_kind";--> statement-breakpoint
+ALTER TABLE "programs_evaluation_nodes" ADD CONSTRAINT "programs_node_kind" CHECK ("programs_evaluation_nodes"."kind" in ('program_cohort','interview','defense','review'));

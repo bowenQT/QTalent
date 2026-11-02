@@ -402,3 +402,48 @@ describe('SourceCite recordings', () => {
     expect(screen.queryByRole('button', { name: '播放这一段' })).toBeNull();
   });
 });
+
+describe('SourceCite original viewer link', () => {
+  const link = () => screen.queryByRole('link', { name: '查看原件' });
+
+  it('offers 查看原件 only after the read succeeds, built from the two identifiers', async () => {
+    let resolve!: (value: SourceReadResult) => void;
+    const load = vi.fn<LoadSource>(
+      () => new Promise<SourceReadResult>((r) => (resolve = r)),
+    );
+    setup(load);
+    await userEvent.setup().hover(mark());
+    expect(link()).toBeNull();
+    await act(async () => resolve(success(original)));
+    expect(link()?.getAttribute('href')).toBe(
+      '/sources?fragment=frag-test-1&version=ver-test-1',
+    );
+  });
+
+  it('links a baseline source to the same viewer', async () => {
+    const load = vi.fn<LoadSource>().mockResolvedValue(success(baseline));
+    setup(load, {
+      fragmentId: baseline.fragmentId,
+      originalVersionId: baseline.originalVersionId,
+      location: baseline.location,
+    });
+    await userEvent.setup().hover(mark());
+    await waitFor(() => expect(link()).not.toBeNull());
+  });
+
+  it.each([
+    ['forbidden', '原文在你的查看范围之外'],
+    ['not_found', '原文已移除或链接失效'],
+  ] as const)(
+    'gives no way into the original when %s',
+    async (status, text) => {
+      const load = vi
+        .fn<LoadSource>()
+        .mockResolvedValue({ status, message: '服务端消息' });
+      const view = setup(load);
+      await userEvent.setup().hover(mark());
+      await waitFor(() => expect(popText(view)).toContain(text));
+      expect(link()).toBeNull();
+    },
+  );
+});
