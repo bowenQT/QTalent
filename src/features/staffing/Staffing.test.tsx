@@ -281,7 +281,8 @@ describe('entry and drafting', () => {
     fireEvent.click(screen.getByRole('button', { name: '开始' }));
     await screen.findByText('来自：「演示：寻找服务端负责人」');
     expect(onJobStarted).toHaveBeenCalledWith('staffing_demand-job');
-    expect(onDemandReady).toHaveBeenCalledWith(draft);
+    // The drafted demand is reported in an effect after it renders: wait for it.
+    await waitFor(() => expect(onDemandReady).toHaveBeenCalledWith(draft));
   });
 
   it('follows a drafting job sent before the page loaded, without its sentence', async () => {
@@ -370,7 +371,7 @@ describe('entry and drafting', () => {
       />,
     );
     await screen.findByRole('button', { name: '确认需求' });
-    expect(onDemandReady).toHaveBeenCalledWith(draft);
+    await waitFor(() => expect(onDemandReady).toHaveBeenCalledWith(draft));
   });
 
   it('keeps the sentence in this tab for its project and account until the demand is confirmed', async () => {
