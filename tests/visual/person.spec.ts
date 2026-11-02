@@ -9,8 +9,12 @@ import {
   stabilize,
 } from './compare';
 import {
+  alignRegisteredText,
+  applyMentorExtras,
   eventCardFacts,
   hideGroupHistory,
+  mentorExtraEvents,
+  mentorExtras,
   mentorSubsetGaps,
   personAppOnly,
   personEventCardMask,
@@ -62,13 +66,38 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
         const appHidden: string[] = [];
         const omitted: string[] = [];
         if (role === 'mentor') {
+          // 已登记差异（#341）：导师多看到的事件要真的在，且关键事实、时间线各一条。
+          for (const title of mentorExtraEvents) {
+            expect(right.facts, 'registered mentor extra').toContain(title);
+            expect(
+              right.timeline.filter((item) => item.endsWith(` ${title}`)),
+              'registered mentor extra',
+            ).toHaveLength(1);
+          }
+          const manager = await referenceContext.newPage();
+          await manager.goto(
+            `${server.url}/prototype/y/app/person.html?id=${SAMPLE}&as=ceo`,
+          );
+          await expect(manager.locator('#timeline')).toBeVisible();
+          await hideGroupHistory(manager);
+          const { expected, visible, swapped } = mentorExtras(
+            left,
+            await personFacts(manager),
+            right,
+          );
           // 导师只能读到授权后的子集（项目、事件、能力谱、时间线），逐条、按原型顺序。
           expect(
-            mentorSubsetGaps(left, right),
+            mentorSubsetGaps(expected, visible),
             'data/order mismatch, screenshot comparison intentionally stopped',
           ).toEqual([]);
+          await applyMentorExtras(prototype, manager, page, swapped);
           // 原型侧裁到导师可见的条目再比截图；整张卡都看不到的，比空状态的语义。
-          const emptied = await trimToVisible(prototype, left, right);
+          const emptied = await trimToVisible(
+            prototype,
+            expected,
+            visible,
+            mentorExtraEvents.length,
+          );
           if (emptied.facts) {
             await expect(page.locator('#facts a.nt-plink')).toHaveCount(0);
             await expect(page.locator('#facts .nt-empty')).toHaveText(
@@ -96,6 +125,13 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
           ).toEqual(leftRest);
           expect(rightProjects, 'project mismatch').toEqual(leftProjects);
         }
+        // 映射表登记过、只差文字的几处：按登记写法断言后搬原型文字，其余不同留给截图。
+        expect
+          .soft(
+            await alignRegisteredText(prototype, page),
+            'text differs beyond the registered differences',
+          )
+          .toEqual([]);
         // 工程侧没有摘要（人工结论与 AI 推断都为空）时，原型摘要按 omit 处理。
         const summary = (await page.locator('#summary').count()) > 0;
         await normalizeRegions(prototype, page, {
