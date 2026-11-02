@@ -26,7 +26,7 @@ describe('email-password login', () => {
     const fetch = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', fetch);
     // 同一标签页换账号登录：先清掉上一个账号的暂存
-    sessionStorage.setItem('niu-talent:record-batch', '{"text":"演示原话"}');
+    sessionStorage.setItem('niu-talent:record-batch:acc-1', '{"text":"演示原话"}');
     const user = userEvent.setup();
     render(<LoginForm />);
     await user.type(screen.getByLabelText('邮箱'), 'ceo@qtalent.test');
@@ -35,7 +35,7 @@ describe('email-password login', () => {
     fireEvent.submit(form);
     fireEvent.submit(form);
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/projects'));
-    expect(sessionStorage.getItem('niu-talent:record-batch')).toBeNull();
+    expect(sessionStorage.getItem('niu-talent:record-batch:acc-1')).toBeNull();
     expect(refresh).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith(

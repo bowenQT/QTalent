@@ -170,7 +170,7 @@ describe('authorized shell', () => {
       const fetch = vi.fn().mockResolvedValue({ ok: true });
       vi.stubGlobal('fetch', fetch);
       const user = userEvent.setup();
-      sessionStorage.setItem('niu-talent:record-batch', '{"text":"演示原话"}');
+      sessionStorage.setItem('niu-talent:record-batch:acc-1', '{"text":"演示原话"}');
       sessionStorage.setItem('other-app', 'kept');
       render(<Shell data={data}>内容</Shell>);
       await user.click(
@@ -179,7 +179,7 @@ describe('authorized shell', () => {
       await user.click(screen.getByRole('menuitem', { name: label }));
       await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'));
       // 上一个账号的原话暂存随退出清掉，别的键不动
-      expect(sessionStorage.getItem('niu-talent:record-batch')).toBeNull();
+      expect(sessionStorage.getItem('niu-talent:record-batch:acc-1')).toBeNull();
       expect(sessionStorage.getItem('other-app')).toBe('kept');
       sessionStorage.clear();
       expect(fetch).toHaveBeenCalledWith(
@@ -201,12 +201,12 @@ describe('authorized shell', () => {
       await user.click(
         screen.getByRole('button', { name: '账号：测试账号，管理者' }),
       );
-      sessionStorage.setItem('niu-talent:record-input', '{"text":"演示"}');
+      sessionStorage.setItem('niu-talent:record-input:acc-1', '{"text":"演示"}');
       await user.click(screen.getByRole('menuitem', { name: '退出登录' }));
       expect(await screen.findByRole('alert')).toBeTruthy();
       expect(replace).not.toHaveBeenCalled();
       // 没退出成功，账号还在：暂存留着
-      expect(sessionStorage.getItem('niu-talent:record-input')).not.toBeNull();
+      expect(sessionStorage.getItem('niu-talent:record-input:acc-1')).not.toBeNull();
       sessionStorage.clear();
     },
   );

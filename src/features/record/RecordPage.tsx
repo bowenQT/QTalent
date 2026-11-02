@@ -38,16 +38,8 @@ import {
   recordReducer,
   type Connection,
 } from './record-flow';
-import {
-  clearBatchStash,
-  clearRecordInputStash,
-  restoreBatchInput,
-  restoreInput,
-  stashBatchInput,
-  stashInput,
-  takeHandoff,
-} from './record-handoff';
 import { sessionDraftEpoch } from '@/lib/session-drafts';
+import { createSessionScope } from './session-scope';
 import { SavedSign } from './SavedSign';
 import { SbiEditor } from './SbiEditor';
 import { ScoreList, type AnchorFocus } from './ScoreList';
@@ -111,11 +103,19 @@ function RecordFlow(props: RecordPageProps) {
     people,
     projects,
     dimensions,
-    actions,
     entry,
     maxLength = DEFAULT_MAX_LENGTH,
     newId = defaultNewId,
   } = props;
+  // 会话代纪门闸：挂载时记下代纪，动作和暂存都只经它（session-scope）。退出或换账号后，
+  // 这个实例发起过的请求不再改状态，也不再读写暂存。
+  const [epoch] = useState(sessionDraftEpoch);
+  const scope = useMemo(
+    () =>
+      createSessionScope(accountId, epoch, props.actions, props.loadAnchors),
+    [accountId, epoch, props.actions, props.loadAnchors],
+  );
+  const { actions, drafts } = scope;
   const toast = useToast();
   const reduced = Boolean(useReducedMotion());
   const [state, dispatch] = useReducer(recordReducer, undefined, () =>
@@ -176,7 +176,7 @@ function RecordFlow(props: RecordPageProps) {
   // ---------- 进入：工作台交接 / 输入暂存 ----------
   const dispatchEntry = useEffectEvent(() => {
     if (entry?.batchId) {
-      const kept = restoreBatchInput(accountId, entry.batchId);
+      const kept = drafts.restoreBatchInput(entry.batchId);
       if (kept) {
         dispatch({ type: 'text', text: kept.text });
         if (people.some((p) => p.id === kept.personId))
@@ -185,14 +185,14 @@ function RecordFlow(props: RecordPageProps) {
       return;
     }
     if (entry?.handoff) {
-      const text = takeHandoff(accountId);
+      const text = drafts.takeHandoff();
       if (text) {
         dispatch({ type: 'text', text });
         setAutoStart(true);
       }
       return;
     }
-    const restored = restoreInput(accountId);
+    const restored = drafts.restoreInput();
     if (restored) {
       dispatch({ type: 'text', text: restored.text });
       if (people.some((p) => p.id === restored.personId))
@@ -213,14 +213,13 @@ function RecordFlow(props: RecordPageProps) {
   // 输入态防抖写入会话暂存（D19）；开始整理或保存后删除
   useEffect(() => {
     if (phase !== 'write') return;
-    // 安排时记下会话版本：其间退出或换了账号，到点也不写回旧账号的原话
-    const epoch = sessionDraftEpoch();
-    const timer = setTimeout(() => {
-      if (epoch !== sessionDraftEpoch()) return;
-      stashInput(accountId, { text: state.text, personId: state.personId });
-    }, STASH_DEBOUNCE_MS);
+    // 经门闸写入：退出或换账号后到点也不写回
+    const timer = setTimeout(
+      () => drafts.stashInput({ text: state.text, personId: state.personId }),
+      STASH_DEBOUNCE_MS,
+    );
     return () => clearTimeout(timer);
-  }, [accountId, phase, state.text, state.personId]);
+  }, [drafts, phase, state.text, state.personId]);
 
   // 未保存内容：硬离开时提示
   const dirty = isDirty(state);
@@ -263,7 +262,7 @@ function RecordFlow(props: RecordPageProps) {
     key: string;
     load: AnchorLoad;
   } | null>(null);
-  const loadAnchors = props.loadAnchors;
+  const loadAnchors = scope.loadAnchors;
   useEffect(() => {
     if (!anchorKey) return;
     let live = true;
@@ -315,9 +314,6 @@ function RecordFlow(props: RecordPageProps) {
       return;
     }
     if (state.text.length > maxLength) return;
-    // 整理开始前记下会话版本；每次等待回来先核对，退出或换了账号就不再推导、提交或写暂存
-    const epoch = sessionDraftEpoch();
-    const ended = () => epoch !== sessionDraftEpoch();
     // 「从原话里识别」：按候选姓名精确匹配，认出恰好一位就填进「谁」；认不出时下面的推导返回
     // none，页面提示选人并把焦点交给「谁」。
     const personId = state.personId ?? recognizePerson(state.text, people);
@@ -332,7 +328,6 @@ function RecordFlow(props: RecordPageProps) {
         return;
       }
       const node = await actions.resolveNode({ personIds, projectId: null });
-      if (ended()) return;
       if (node.status !== 'unique') {
         dispatch({ type: 'node_unresolved', reason: node.status });
         return;
@@ -344,7 +339,7 @@ function RecordFlow(props: RecordPageProps) {
         newId,
       );
       dispatch({ type: 'submit_begin', op });
-      clearRecordInputStash();
+      drafts.clearInput();
       const result = await actions.submit({
         operationId: op.id,
         evaluationNodeId: node.evaluationNodeId,
@@ -355,8 +350,7 @@ function RecordFlow(props: RecordPageProps) {
         files: [],
       });
       if (result.status === 'success') {
-        // 提交期间退出或换了账号：不把原话写回会话暂存
-        if (!ended()) stashBatchInput(accountId, result.result.batchId, input);
+        drafts.stashBatchInput(result.result.batchId, input);
         dispatch({ type: 'batch_begin', batch: result.result });
       } else {
         dispatch({
@@ -417,8 +411,7 @@ function RecordFlow(props: RecordPageProps) {
     try {
       const result = await actions.save(input);
       if (result.status === 'success') {
-        clearRecordInputStash();
-        clearBatchStash();
+        drafts.clearInput();
         dispatch({
           type: 'save_saved',
           receipt: result.result,

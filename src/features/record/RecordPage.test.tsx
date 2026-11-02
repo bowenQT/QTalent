@@ -11,12 +11,11 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/components/ui/Toast';
-import { clearSessionDrafts } from '@/lib/session-drafts';
 import { copy } from './copy';
 import {
-  BATCH_STASH_KEY,
+  batchStashKey,
   HANDOFF_KEY,
-  INPUT_STASH_KEY,
+  inputStashKey,
   stashBatchInput,
   stashInput,
 } from './record-handoff';
@@ -1089,69 +1088,27 @@ describe('进入方式', () => {
 });
 
 describe('未保存内容的保护（输入暂存）', () => {
-  it('退出后页面还没卸载：到点的防抖不把旧账号的原话写回', async () => {
-    setup();
-    await userEvent.type(screen.getByRole('textbox'), '写到一半');
-    // 退出成功、清掉暂存，跳转前页面还在
-    clearSessionDrafts();
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    expect(window.sessionStorage.getItem(INPUT_STASH_KEY)).toBeNull();
-  });
-
-  it('推导节点期间退出登录：回来后不提交，也不写暂存', async () => {
-    let resolveNode: (value: unknown) => void = () => undefined;
-    const { actions } = setup({
-      actions: {
-        resolveNode: vi.fn(
-          () => new Promise((resolve) => (resolveNode = resolve)),
-        ) as never,
-      },
-    });
-    await typeAndSubmit();
-    await waitFor(() => expect(actions.resolveNode).toHaveBeenCalled());
-    clearSessionDrafts();
-    resolveNode({ status: 'unique', evaluationNodeId: NODE });
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(actions.submit).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(BATCH_STASH_KEY)).toBeNull();
-    expect(window.sessionStorage.getItem(INPUT_STASH_KEY)).toBeNull();
-  });
-
-  it('提交期间退出登录：晚到的回执不把原话写回会话暂存', async () => {
-    let resolveSubmit: (value: unknown) => void = () => undefined;
-    const { actions } = setup({
-      actions: {
-        submit: vi.fn(
-          () => new Promise((resolve) => (resolveSubmit = resolve)),
-        ) as never,
-      },
-    });
-    await typeAndSubmit();
-    await waitFor(() => expect(actions.submit).toHaveBeenCalled());
-    clearSessionDrafts();
-    resolveSubmit({ status: 'success', replayed: false, result: batch() });
-    await waitFor(() => expect(actions.readBatch).toHaveBeenCalled());
-    expect(window.sessionStorage.getItem(BATCH_STASH_KEY)).toBeNull();
-  });
-
+  // 退出、换账号后的会话隔离经真实退出入口测，见 RecordPage.session.test.tsx。
   it('输入防抖写入会话暂存；提交后改记在这个批次下', async () => {
     setup();
     await userEvent.type(screen.getByRole('textbox'), '写到一半');
     await waitFor(() =>
-      expect(window.sessionStorage.getItem(INPUT_STASH_KEY)).not.toBeNull(),
+      expect(
+        window.sessionStorage.getItem(inputStashKey('acc-1')),
+      ).not.toBeNull(),
     );
     expect(
-      JSON.parse(window.sessionStorage.getItem(INPUT_STASH_KEY)!),
+      JSON.parse(window.sessionStorage.getItem(inputStashKey('acc-1'))!),
     ).toMatchObject({
       accountId: 'acc-1',
       text: '写到一半',
     });
     await click(copy.input.submit);
     await waitFor(() =>
-      expect(window.sessionStorage.getItem(INPUT_STASH_KEY)).toBeNull(),
+      expect(window.sessionStorage.getItem(inputStashKey('acc-1'))).toBeNull(),
     );
     expect(
-      JSON.parse(window.sessionStorage.getItem(BATCH_STASH_KEY)!),
+      JSON.parse(window.sessionStorage.getItem(batchStashKey('acc-1'))!),
     ).toMatchObject({
       accountId: 'acc-1',
       batchId: 'batch-1',
@@ -1193,8 +1150,8 @@ describe('未保存内容的保护（输入暂存）', () => {
     await field(copy.sbi.title);
     await click(copy.actions.save);
     await screen.findByText(/刚刚保存到/);
-    expect(window.sessionStorage.getItem(INPUT_STASH_KEY)).toBeNull();
-    expect(window.sessionStorage.getItem(BATCH_STASH_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(inputStashKey('acc-1'))).toBeNull();
+    expect(window.sessionStorage.getItem(batchStashKey('acc-1'))).toBeNull();
   });
 
   it('有未保存内容时硬离开会提示，没有时不拦', async () => {
@@ -1380,7 +1337,7 @@ describe('边界：失败、断网、冲突保留输入，撤销按回执', () =
     );
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('');
     await new Promise((resolve) => setTimeout(resolve, 500));
-    const stash = window.sessionStorage.getItem(INPUT_STASH_KEY);
+    const stash = window.sessionStorage.getItem(inputStashKey('acc-1'));
     expect(stash === null || !stash.includes('"acc-2"')).toBe(true);
   });
 

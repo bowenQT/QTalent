@@ -53,6 +53,16 @@ describe('recognizePerson', () => {
     expect(recognizePerson('王一鸣今天补了测试', twins)).toBeNull();
   });
 
+  it('单字姓名不参与自动选中，也不挡住别人', () => {
+    const withSingle = [...people, person('one', '一')];
+    expect(recognizePerson('今天一起完成了测试', withSingle)).toBeNull();
+    expect(recognizePerson('苏少卿今天一起补了测试', withSingle)).toBe('a');
+  });
+
+  it('同一位的姓名出现多次：仍是这一位', () => {
+    expect(recognizePerson('苏少卿先改，苏少卿再测', people)).toBe('a');
+  });
+
   it('候选为空或姓名为空：认不出', () => {
     expect(recognizePerson('苏少卿', [])).toBeNull();
     expect(recognizePerson('任何话', [person('x', ' ')])).toBeNull();

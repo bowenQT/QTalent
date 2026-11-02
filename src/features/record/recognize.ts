@@ -8,6 +8,7 @@ import type { PersonOption } from './types';
  * - 重名（两位「王一鸣」）；
  * - 姓名互相包含（候选有「王一」和「王一鸣」，原话写「王一鸣」时两个姓名都算出现）；
  * - 原话里出现了多位候选的姓名。
+ * - 不到 2 个字的姓名不参与自动选中（单字「一」会命中「今天一起」）。
  * 赛后可以由 845 在整理时识别（两阶段授权）替代。
  */
 export function recognizePerson(
@@ -17,7 +18,7 @@ export function recognizePerson(
   const byName = new Map<string, PersonOption[]>();
   for (const person of people) {
     const name = person.name.trim();
-    if (!name) continue;
+    if ([...name].length < 2) continue;
     byName.set(name, [...(byName.get(name) ?? []), person]);
   }
   const hits = [...byName].filter(([name]) => text.includes(name));
