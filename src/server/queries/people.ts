@@ -8,7 +8,7 @@ import {
 } from '../../contracts/people';
 import type { TalentSource } from '../authz/talent';
 import { ForbiddenError } from '../usecases/project-context';
-import { type PersonData, talentSources } from './person-data';
+import { type PersonData, completeTalentSources } from './person-data';
 import { byCodePoint, byPinyin, identityOf } from './person-identity';
 import {
   collectEvidence,
@@ -61,7 +61,7 @@ function capabilityLines(data: PersonData, evidence: Evidence) {
 export async function quickViewFromData(
   data: PersonData,
   id: string,
-  sources: TalentSource[] = talentSources(data),
+  sources: TalentSource[] = completeTalentSources(data),
 ): Promise<QuickView | null> {
   const gate = profileGate(data, id);
   if (!gate) return null;
@@ -117,7 +117,7 @@ export async function peopleFromData(
   const filter = peopleInputSchema.parse(input);
   const role = personRole(data);
   if (!role) throw new ForbiddenError();
-  const sources = talentSources(data);
+  const sources = completeTalentSources(data);
   const people: QuickView[] = [];
   for (const row of data.directory.people) {
     if (filter.teamId && row.organizationId !== filter.teamId) continue;

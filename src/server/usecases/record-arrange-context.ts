@@ -26,6 +26,8 @@ import {
   statements,
 } from '../modules/records';
 import type { StoredArrangeInput } from '../modules/records/arrange/input-state/schema';
+import { intakeRows, type IntakeTable } from './talent-source-projection';
+import { sourceKey } from './source-key';
 import type { BatchSnapshot } from '../modules/records/arrange/batch';
 import { loadEvaluationContext } from './evaluation-context';
 import type { BatchJobMetadata } from './record-batch-arrange-state';
@@ -185,12 +187,20 @@ export function requireNativeInput(input: StoredArrangeInput) {
   };
 }
 /** Lock existing authorization rows and the FK-backed complete source graph.
- * The job row is locked by the caller first. No locks survive model dispatch. */
+ * The intake table and job row are locked by the caller first. Subjects merged
+ * from every other intake on the same fragment (superseded included) are part
+ * of the complete source, so their permission rows are locked here too and the
+ * caller rereads the actor after these waits. No locks survive model dispatch. */
 export async function lockNativeTextFacts(
   tx: Transaction,
   input: StoredArrangeInput,
+  intake: IntakeTable,
 ) {
   const native = requireNativeInput(input);
+  const key = sourceKey(input.inputSource!);
+  const sharedContexts = intakeRows(intake).flatMap((row) =>
+    row.sourceContexts.filter((context) => sourceKey(context) === key),
+  );
   await tx
     .select()
     .from(accountBindings)
@@ -270,6 +280,9 @@ export async function lockNativeTextFacts(
       ...input.sourceContexts.flatMap((source) =>
         source.subjects.map((subject) => subject.personId),
       ),
+      ...sharedContexts.flatMap((source) =>
+        source.subjects.flatMap((subject) => subject.personId ?? []),
+      ),
       ...lockedGraph.events
         .filter((event) => linked.includes(event.id))
         .map((event) => event.personId),
@@ -324,7 +337,7 @@ export async function lockNativeTextFacts(
         [
           ...new Set([
             native.evaluationNodeId,
-            ...input.sourceContexts.flatMap((context) =>
+            ...[...input.sourceContexts, ...sharedContexts].flatMap((context) =>
               context.subjects.flatMap(
                 (subject) => subject.evaluationNodeId ?? [],
               ),
@@ -366,10 +379,13 @@ export async function lockNativeTextFacts(
 }
 export async function loadRecordBatchSnapshot(
   tx: Transaction,
+  // The whole intake table, read by the caller in the mode its transaction needs.
+  intake: IntakeTable,
   input: StoredArrangeInput,
   metadata: BatchJobMetadata,
   at: string,
   batchRevision: number,
+  generation: BatchSnapshot['generation'] = { kind: 'initial' },
 ): Promise<BatchSnapshot | null> {
   const native = requireNativeInput(input);
   if (input.supersededByInputId !== null) return null;
@@ -385,7 +401,7 @@ export async function loadRecordBatchSnapshot(
       JSON.stringify([...input.personIds].sort())
   )
     throw new NativeArrangeUnavailable('native_intake_facts_inconsistent');
-  await lockNativeTextFacts(tx, input);
+  await lockNativeTextFacts(tx, input, intake);
   const actor = await loadArrangeActor(tx, input.creatorAccountId, at);
   if (
     actor.context.account.personId !== metadata.actorPersonId ||
@@ -423,35 +439,21 @@ export async function loadRecordBatchSnapshot(
     fragment.excerpt.trim() !== input.originalInput.text.trim()
   )
     throw new NativeArrangeUnavailable('immutable_text_source_changed');
-  // Consume the current846 projection instead of reviving its removed sourcesForDraft.
-  const { talentSources } = await import('./talent-source-projection');
-  const graph = talentSources({ ...actor, ...data }).find(
+  // The same complete projection every reader uses: formal links plus every
+  // intake on this fragment (superseded included). This input is one of them.
+  if (!intakeRows(intake).some((row) => row.id === input.id))
+    throw new NativeArrangeUnavailable('complete_source_graph_missing');
+  const { completeTalentSources } = await import('./talent-source-projection');
+  const graph = completeTalentSources({ ...actor, ...data, intake }).find(
     (source) =>
       source.fragmentId === fragment.id &&
       source.originalVersionId === version.id,
   );
-  const hasRelatedFacts =
-    data.eventSources.some(
-      (row) =>
-        row.fragmentId === fragment.id && row.originalVersionId === version.id,
-    ) ||
-    data.historical.some(
-      (row) =>
-        row.fragmentId === fragment.id && row.originalVersionId === version.id,
-    );
-  if (!graph || (hasRelatedFacts && graph.subjects.length === 0))
+  if (!graph || graph.subjects.length === 0)
     throw new NativeArrangeUnavailable('complete_source_graph_missing');
-  const allSubjects = [
-    ...new Map(
-      [...stored.subjects, ...graph.subjects].map((subject) => [
-        JSON.stringify(subject),
-        subject,
-      ]),
-    ).values(),
-  ];
+  const allSubjects = graph.subjects;
   const requiredKinds = [
     ...new Set([
-      ...stored.requiredKinds,
       ...(graph.requiredKinds ?? []),
       ...(graph.kind === stored.kind ? [] : [graph.kind]),
     ]),
@@ -484,7 +486,7 @@ export async function loadRecordBatchSnapshot(
     identities: input.personIds.length ? 'resolved' : 'unresolved',
     personIds: [...input.personIds],
     context: actor.context,
-    generation: { kind: 'initial' },
+    generation: structuredClone(generation),
     requestedSources: [
       {
         fragmentId: fragment.id,

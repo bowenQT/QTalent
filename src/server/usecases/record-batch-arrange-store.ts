@@ -4,6 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { Database, Transaction } from '../db/client';
 import {
   recordBatchDraftSetSchema,
+  recordBatchDraftSchema,
   recordSaveReceiptSchema,
   type RecordBatchDraftSet,
 } from '../../contracts/record';
@@ -17,11 +18,15 @@ import type { JobRecord } from '../jobs/state';
 import { arrangeInputs } from '../modules/records/arrange/input-state/schema';
 import type { StoredArrangeInput } from '../modules/records/arrange/input-state/schema';
 import { lockArrangeInput } from '../modules/records/arrange/input-state/store';
+import { lockIntakeTable, readIntakeTable } from './talent-source-projection';
 import {
   recordDraftBatches,
   recordDrafts,
   recordSaves,
+  recordDraftEvents,
   storeTrustedRecordDraftBatch,
+  reviseTrustedRecordDraftBatch,
+  batchDigest,
 } from '../modules/records';
 import { readBatchArrangeRules } from '../modules/records/arrange/batch-rules';
 import { projectBatchReceipt } from '../modules/records/arrange/batch-receipt';
@@ -100,31 +105,38 @@ export async function readNativeDraftSet(
   return raw;
 }
 /** Preserve immutable producer metadata when842 clears a public result on retry.
- * This modifies the same locked job row, not a second status or operation store. */
+ * This modifies the same locked job row, not a second status or operation store.
+ * Every native batch job transaction takes the intake SHARE lock before the job
+ * row lock: the global order is intake first, then batch/draft, sources and
+ * permissions. Submit replays already hold the intake writer lock before they
+ * lock the job row, so the runner must not hold the job row and then wait on
+ * intake. */
 function nativeJobStore(db: Database): JobStore<Transaction> {
-  const base = createJobStore(db);
   return {
     locked: (jobId, run) =>
-      base.locked(jobId, async (tx) => {
-        let current = tx.record;
-        return run({
-          ...tx,
-          save: async (next) => {
-            const old = current && parseBatchMetadata(current.result);
-            if (
-              old &&
-              next.status === 'queued' &&
-              current?.status === 'failed' &&
-              next.result === null
-            )
-              next.result = {
-                ...old,
-                trace: null,
-                manifest: [],
-              } satisfies BatchJobMetadata;
-            await tx.save(next);
-            current = next;
-          },
+      db.transaction(async (outer) => {
+        await lockIntakeTable(outer, 'locked');
+        return createJobStore(outer).locked(jobId, async (tx) => {
+          let current = tx.record;
+          return run({
+            ...tx,
+            save: async (next) => {
+              const old = current && parseBatchMetadata(current.result);
+              if (
+                old &&
+                next.status === 'queued' &&
+                current?.status === 'failed' &&
+                next.result === null
+              )
+                next.result = {
+                  ...old,
+                  trace: null,
+                  manifest: old.manifest,
+                } satisfies BatchJobMetadata;
+              await tx.save(next);
+              current = next;
+            },
+          });
         });
       }),
   };
@@ -187,8 +199,11 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
           ))
       )
         return false;
+      // Read/control authorization only: a snapshot cannot widen access, and
+      // the runner re-checks under SHARE before any model call.
       const snapshot = await loadRecordBatchSnapshot(
         tx,
+        await readIntakeTable(tx, 'snapshot'),
         value,
         metadata,
         deps.businessNow(),
@@ -224,7 +239,15 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
     for (const saved of active) {
       const value = recordSaveReceiptSchema.parse(saved.receipt);
       const draft = all?.drafts.find((row) => row.draftId === saved.draftId);
-      if (!draft || saved.draftSnapshot.revision !== draft.revision)
+      const snapshot = recordBatchDraftSchema.parse(saved.draftSnapshot);
+      // Human save/undo advances the current ledger revision, never the retained
+      // AI draft body. Validate that transition instead of equating old/current.
+      if (
+        !draft ||
+        value.revision !== snapshot.revision + 1 ||
+        value.revision > draft.revision ||
+        !isDeepStrictEqual({ ...snapshot, revision: draft.revision }, draft)
+      )
         throw new NativeArrangeUnavailable('confirmation_snapshot_changed');
       const next = {
         draftId: saved.draftId,
@@ -382,23 +405,106 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
         const operation = batchOperationFromJob(job, input, metadata, set);
         const tx: BatchArrangeTransaction = {
           operation,
-          loadSnapshot: () =>
-            loadRecordBatchSnapshot(
+          loadSnapshot: async () => {
+            const revising =
+              set !== null && ['queued', 'running'].includes(operation.phase);
+            if (revising) {
+              const saved = await locked.context
+                .select({ id: recordSaves.saveId })
+                .from(recordSaves)
+                .where(eq(recordSaves.batchId, request.batchId))
+                .limit(1);
+              const mapped = await locked.context
+                .select({ id: recordDraftEvents.eventId })
+                .from(recordDraftEvents)
+                .where(eq(recordDraftEvents.batchId, request.batchId))
+                .limit(1);
+              if (saved.length || mapped.length) return null;
+            }
+            return loadRecordBatchSnapshot(
               locked.context,
+              // Before the model call: fence intake DML until this commits.
+              await readIntakeTable(locked.context, 'locked'),
               input,
               metadata!,
               deps.businessNow(),
               set?.revision ?? 1,
-            ),
+              revising
+                ? { kind: 'revise', events: metadata!.manifest }
+                : { kind: 'initial' },
+            );
+          },
           readRules: (value) =>
             value.category === 'dimension_anchors' &&
             value.at === requireNativeInput(input).boundAt
               ? readBatchArrangeRules(locked.context, value.at)
               : Promise.resolve(null),
           async reserveIdentities(plan) {
-            if (set || metadata!.manifest.length)
+            if (set) {
+              const manifest = metadata!.manifest;
+              if (
+                manifest.length !== set.drafts.length ||
+                plan.events.length !== manifest.length ||
+                new Set(manifest.map((event) => event.eventKey)).size !==
+                  manifest.length ||
+                new Set(manifest.map((event) => event.draftId)).size !==
+                  manifest.length ||
+                new Set(plan.events.map((event) => event.eventKey)).size !==
+                  manifest.length ||
+                manifest.some(
+                  (event) =>
+                    !set!.drafts.some(
+                      (draft) => draft.draftId === event.draftId,
+                    ),
+                ) ||
+                plan.events.some(
+                  (event) =>
+                    !manifest.some(
+                      (prior) => prior.eventKey === event.eventKey,
+                    ),
+                )
+              )
+                throw new NativeArrangeUnavailable(
+                  'native_revision_identity_changed',
+                );
+              return {
+                expectedBatchRevision: set.revision,
+                drafts: plan.events.map((event) => {
+                  const prior = manifest.find(
+                    (entry) => entry.eventKey === event.eventKey,
+                  )!;
+                  return {
+                    eventKey: event.eventKey,
+                    draftId: prior.draftId,
+                    previous: structuredClone(
+                      set!.drafts.find(
+                        (draft) => draft.draftId === prior.draftId,
+                      )!,
+                    ),
+                  };
+                }),
+                candidates: plan.groups.map((group) => {
+                  const prior = set!.duplicateCandidates.find((candidate) => {
+                    const keys = candidate.draftIds.map(
+                      (id) =>
+                        manifest.find((event) => event.draftId === id)
+                          ?.eventKey,
+                    );
+                    return (
+                      keys.every((key) => key !== undefined) &&
+                      batchDigest(keys.sort()) === group.key
+                    );
+                  });
+                  return {
+                    key: group.key,
+                    candidateId: prior?.candidateId ?? newId(),
+                  };
+                }),
+              };
+            }
+            if (metadata!.manifest.length)
               throw new NativeArrangeUnavailable(
-                'batch_revision_writer_not_connected',
+                'native_revision_batch_missing',
               );
             return {
               expectedBatchRevision: 1,
@@ -414,24 +520,48 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
             };
           },
           async persistDraftSet(value, trace) {
+            const { events, expectedJobRevision, ...producerTrace } = trace;
             if (
-              set ||
-              trace.fingerprint !== metadata!.trace?.fingerprint ||
+              expectedJobRevision !== job!.revision ||
+              job!.attempt !== request.attempt ||
+              !['running', 'partial'].includes(job!.status) ||
+              job!.cancelRequestedAt !== null ||
+              !isDeepStrictEqual(producerTrace, metadata!.trace) ||
+              events.length !== value.drafts.length ||
+              new Set(events.map((event) => event.eventKey)).size !==
+                events.length ||
+              new Set(events.map((event) => event.draftId)).size !==
+                events.length ||
+              events.some(
+                (event) =>
+                  !value.drafts.some(
+                    (draft) => draft.draftId === event.draftId,
+                  ),
+              ) ||
               trace.inputVersion !== input.inputVersion ||
               trace.boundAt !== requireNativeInput(input).boundAt ||
               trace.occurredOn !== input.occurredOn
             )
-              throw new NativeArrangeUnavailable(
-                'native_initial_commit_changed',
-              );
-            await storeTrustedRecordDraftBatch(locked.context, {
-              draftSet: value,
-              originalInput: input.originalInput,
-              occurredOn: input.occurredOn!,
-              modelVersion: MODELINK_MODEL,
-              createdByAccountId: input.creatorAccountId,
-              createdAt: deps.now(),
-            });
+              throw new NativeArrangeUnavailable('native_commit_changed');
+            if (set) {
+              await reviseTrustedRecordDraftBatch(locked.context, {
+                expectedBatchRevision: set.revision,
+                expectedDrafts: set.drafts.map((draft) => ({
+                  draftId: draft.draftId,
+                  revision: draft.revision,
+                })),
+                draftSet: value,
+              });
+            } else {
+              await storeTrustedRecordDraftBatch(locked.context, {
+                draftSet: value,
+                originalInput: input.originalInput,
+                occurredOn: input.occurredOn!,
+                modelVersion: MODELINK_MODEL,
+                createdByAccountId: input.creatorAccountId,
+                createdAt: deps.now(),
+              });
+            }
             set = await readNativeDraftSet(
               locked.context,
               request.batchId,
@@ -458,7 +588,9 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
               next.accountId !== input.creatorAccountId ||
               next.batchId !== input.batchId ||
               next.operationId !== metadata!.operationId ||
-              next.attempt !== job!.attempt
+              next.attempt !== job!.attempt ||
+              next.revision !== job!.revision ||
+              next.inputVersion !== job!.inputVersion
             )
               throw new NativeArrangeUnavailable('native_operation_changed');
             metadata = batchMetadataSchema.parse({
@@ -469,6 +601,7 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
             });
             job = updateBatchJob(job!, next.phase, metadata, now());
             await locked.save(job);
+            return job.revision;
           },
         };
         return callback(tx);
