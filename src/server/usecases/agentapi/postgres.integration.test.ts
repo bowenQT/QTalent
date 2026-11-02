@@ -42,6 +42,11 @@ import { recordArrangeQueue } from '../../jobs/record-arrange';
 import { jobSnapshots } from '../../jobs/schema';
 import { arrangeInputs } from '../../modules/records/arrange/input-state/schema';
 import { lockIntakeTable } from '../talent-source-projection';
+import {
+  enrollments,
+  evaluationNodeSubjects,
+  evaluationRelations,
+} from '../../modules/programs';
 import { entryToolSuccessSchemas } from '../../../contracts/entry-tools';
 import {
   AgentApiError,
@@ -1272,3 +1277,92 @@ it('re-reading a batch then submitting another follows intake → job order and 
   expect(advanced).toMatchObject({ status: 'fulfilled' });
   expect(await r.tools()).toHaveLength(2);
 }, 15000);
+/** A second subject in the same node, with the same evaluator relation, issued
+ * into the conversation's authority before the turn starts. */
+async function withSecondSubject(f: Awaited<ReturnType<typeof setup>>) {
+  await c.db.insert(enrollments).values({
+    id: f.prefix + '-enrollment-other',
+    personId: f.other,
+    cohortId: f.cohort,
+    confirmed: true,
+    validFrom: '2026-01-01',
+  });
+  await c.db
+    .insert(evaluationNodeSubjects)
+    .values({ evaluationNodeId: f.node, personId: f.other });
+  await c.db.insert(evaluationRelations).values({
+    id: f.prefix + '-relation-other',
+    evaluationNodeId: f.node,
+    personId: f.other,
+    evaluatorId: f.evaluator,
+    kind: 'evaluator',
+    validFrom: '2026-01-01T00:00:00Z',
+  });
+  const authority = sessionAuthority(
+    await f.identities.current(f.identity),
+    await loadEntryAuthorizationContext(c.db, f.account, businessAt),
+  );
+  await c.db
+    .update(agentApiConversations)
+    .set({ authorizationDigest: authority.authorizationDigest })
+    .where(eq(agentApiConversations.id, f.conversationId));
+}
+it.each([
+  ['reverse', (f: { target: string; other: string }) => [f.target, f.other]],
+  ['sorted', (f: { target: string; other: string }) => [f.other, f.target]],
+])(
+  'several people submitted in %s order create and revalidate as one set',
+  async (_order, order) => {
+    const f = await setup();
+    await withSecondSubject(f);
+    const r = await withRecords(f);
+    const personIds = order(f);
+    f.events[1] = {
+      ...r.tool('evt-tool'),
+      input: { ...f.input, personIds, operationId: 'model-chosen-key' },
+    };
+    await r.submit();
+    await r.advance();
+    const [tool] = await r.tools();
+    expect(tool).toMatchObject({ state: 'sent', args: { personIds } });
+    const payload = entryToolSuccessSchemas.submit_material_batch.parse(
+      tool!.successPayload,
+    );
+    expect(payload.personIds).toEqual([f.other, f.target]);
+    f.events.push(...endTurn);
+    await expect(r.advance()).resolves.toMatchObject({ status: 'complete' });
+  },
+);
+it('a batch whose people really changed still fails revalidation', async () => {
+  const f = await setup();
+  await withSecondSubject(f);
+  const r = await withRecords(f);
+  f.events[1] = {
+    ...r.tool('evt-tool'),
+    input: {
+      ...f.input,
+      personIds: [f.other, f.target],
+      operationId: 'model-chosen-key',
+    },
+  };
+  await r.submit();
+  await r.advance();
+  const [tool] = await r.tools();
+  await c.db
+    .update(agentApiToolEvents)
+    .set({
+      successPayload: {
+        ...(tool!.successPayload as Record<string, unknown>),
+        personIds: [f.target],
+      } as never,
+    })
+    .where(
+      and(
+        eq(agentApiToolEvents.conversationId, f.conversationId),
+        eq(agentApiToolEvents.eventId, tool!.eventId),
+      ),
+    );
+  await expect(r.advance()).rejects.toMatchObject({
+    kind: 'permission_changed',
+  });
+});

@@ -569,9 +569,11 @@ export function createAgentConversationPostgresPorts(options: {
       );
       if (!latest.success) return false;
       const now = latest.data;
+      // Native create stores personIds sorted; the recorded args keep the
+      // model's order. Compare the set, the same way create normalizes it.
       const subject = (value: typeof now | typeof args) => [
         value.evaluationNodeId,
-        value.personIds,
+        [...value.personIds].sort(),
         value.projectId,
       ];
       if (
