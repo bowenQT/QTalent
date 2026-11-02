@@ -262,10 +262,14 @@ export function createNativeSelectionLifecycle(
   db: Database,
   options: {
     nextCohort: ReviewedNextSelectionCohort | null;
+    /** Business clock: dates rule versions and checks grants. */
     clock?: () => Date;
+    /** Server wall clock: times the publication undo window. */
+    wallClock?: () => Date;
   },
 ) {
   const clock = options.clock ?? (() => new Date());
+  const wallClock = options.wallClock ?? (() => new Date());
   // Freeze server configuration so a retained browser/request object cannot
   // mutate a preview source between calls. No fallback future cohort exists.
   const next = options.nextCohort
@@ -456,7 +460,13 @@ export function createNativeSelectionLifecycle(
       }
     },
     execute: (accountId: string, command: unknown) =>
-      executeSelectionRevision(store.ports, accountId, command, clock),
+      executeSelectionRevision(
+        store.ports,
+        accountId,
+        command,
+        clock,
+        wallClock,
+      ),
     async adoptProposal(accountId: string, proposalId: string, raw: unknown) {
       const proposal = identifier.parse(proposalId);
       const input = createSelectionRevisionInputSchema.parse(raw);
@@ -470,6 +480,7 @@ export function createNativeSelectionLifecycle(
         accountId,
         { action: 'create', input: { ...input, operationId } },
         clock,
+        wallClock,
       );
     },
   };

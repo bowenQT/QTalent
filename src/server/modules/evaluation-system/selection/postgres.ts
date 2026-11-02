@@ -736,7 +736,7 @@ export function createSelectionPostgresStore(
         next.revision.publicationId !== receipt.publicationId ||
         next.revision.revision !== loaded.revision.revision + 1 ||
         publication.categorySwitch.activate.versionId !== receipt.versionId ||
-        Date.parse(receipt.publishedAt) !==
+        Date.parse(publication.categorySwitch.activate.effectiveFrom) !==
           Date.parse(publication.categorySwitch.at)
       )
         conflict();
@@ -890,8 +890,8 @@ export function createSelectionPostgresStore(
           selectionPublicationReceiptSchema.parse(stored.receipt),
           transaction.boundary.receipt,
         ) ||
-        Date.parse(transaction.boundary.requestedAt) !==
-          Date.parse(authority(tx).context.now) ||
+        Date.parse(undo.categorySwitch.activate.effectiveFrom) !==
+          Date.parse(undo.categorySwitch.at) ||
         transaction.boundary.currentRevision !==
           currentRecord.revision.revision ||
         transaction.boundary.currentPublicationId !== stored.id
