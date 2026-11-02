@@ -129,20 +129,29 @@ function subjectsFor(row: Row, candidates: Candidate[], directory: Directory) {
     : [];
 }
 
-/** The batch's own scope: a current HR grant for the cohort of the batch's node. */
+/**
+ * The batch's own scope: a current HR grant, for a cohort, covering every current
+ * subject of the batch's node. A node without subjects gives nobody this scope.
+ */
 function batchCohortFor(context: Context, node: Loaded['node']) {
-  return node.cohortId !== null &&
-    activeGrants(context).some(
-      (grant) => grant.role === 'hr' && grant.cohortId === node.cohortId,
-    )
-    ? node.cohortId
-    : undefined;
+  const subjects = context.evaluationNodeSubjects
+    .filter((s) => s.evaluationNodeId === node.id)
+    .map((s) => s.personId);
+  if (!subjects.length) return undefined;
+  return activeGrants(context).find(
+    (grant) =>
+      grant.role === 'hr' &&
+      grant.cohortId !== null &&
+      subjects.every((personId) =>
+        cohortHrCanReadNodeSubject(context, grant.cohortId!, node.id, personId),
+      ),
+  )?.cohortId;
 }
 
 /**
  * The HR grant cohort that covers the row, or none. A row about known people needs a
  * grant covering each of them; a row about nobody known yet has no person to check,
- * so only HR of the batch's own cohort may see it.
+ * so only HR holding the batch's own scope may see it.
  */
 function hrCohortFor(
   context: Context,
@@ -397,7 +406,7 @@ async function readAll(
   const rows = loaded.rows.filter((entry) =>
     visible(context, loaded, entry, directory),
   );
-  // An empty batch is the batch's own cohort's; a batch whose rows are all out of
+  // An empty batch is shown only within the batch's own scope; a batch whose rows are all out of
   // scope is not shown at all, never as a batch with every row skipped.
   if (
     rows.length === 0 &&

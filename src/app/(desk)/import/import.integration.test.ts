@@ -308,6 +308,7 @@ it('reads and changes rows only for a current HR grant', async () => {
 });
 
 /** An HR whose current grant is for another cohort: none of this batch's people. */
+/** Idempotent: tests share one database. */
 async function otherCohortHr() {
   const [person] = await db()
     .select({ organizationId: people.organizationId })
@@ -315,26 +316,36 @@ async function otherCohortHr() {
     .limit(1);
   await db()
     .insert(cohorts)
-    .values({ id: 'demo-other-cohort', name: '另一期次（演示）' });
-  await db().insert(people).values({
-    id: 'demo-other-hr',
-    name: '另一期次 HR（演示）',
-    organizationId: person.organizationId,
-    demo: true,
-  });
-  await db().insert(accountBindings).values({
-    accountId: 'demo-other-hr-account',
-    personId: 'demo-other-hr',
-    isSystemAdmin: false,
-  });
-  await db().insert(grants).values({
-    id: 'demo-other-hr-grant',
-    accountId: 'demo-other-hr-account',
-    role: 'hr',
-    scope: 'cohort',
-    cohortId: 'demo-other-cohort',
-    validFrom: '2026-01-01',
-  });
+    .values({ id: 'demo-other-cohort', name: '另一期次（演示）' })
+    .onConflictDoNothing();
+  await db()
+    .insert(people)
+    .values({
+      id: 'demo-other-hr',
+      name: '另一期次 HR（演示）',
+      organizationId: person.organizationId,
+      demo: true,
+    })
+    .onConflictDoNothing();
+  await db()
+    .insert(accountBindings)
+    .values({
+      accountId: 'demo-other-hr-account',
+      personId: 'demo-other-hr',
+      isSystemAdmin: false,
+    })
+    .onConflictDoNothing();
+  await db()
+    .insert(grants)
+    .values({
+      id: 'demo-other-hr-grant',
+      accountId: 'demo-other-hr-account',
+      role: 'hr',
+      scope: 'cohort',
+      cohortId: 'demo-other-cohort',
+      validFrom: '2026-01-01',
+    })
+    .onConflictDoNothing();
   return 'demo-other-hr-account';
 }
 
@@ -365,7 +376,7 @@ it('answers an HR outside the batch exactly as for a batch or row that does not 
   expect(await stored('professional-1')).toEqual(before);
 });
 
-it('keeps a row about nobody known yet from any HR without the batch’s own scope', async () => {
+it('shows a row about nobody known yet only to HR covering every subject of the batch’s node', async () => {
   // No recruitment record carries the printed name any more: the row is about nobody known.
   await db()
     .update(interviewImportCandidates)
@@ -376,7 +387,13 @@ it('keeps a row about nobody known yet from any HR without the batch’s own sco
         eq(interviewImportCandidates.candidateId, 'demo-candidate-01'),
       ),
     );
-  // Every row of the demo PDF prints this name, so no row is left to show.
+  const preview = await getInterviewImportPreview(batchId);
+  if (preview.status !== 'ok') throw new Error(preview.status);
+  expect(
+    preview.preview.batch.rows.find((r) => r.rowId === 'campus-1'),
+  ).toMatchObject({ candidateStatus: 'unknown', match: null });
+
+  session.accountId = await otherCohortHr();
   expect(await getInterviewImportPreview(batchId)).toEqual({
     status: 'not_found',
   });
