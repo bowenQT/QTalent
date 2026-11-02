@@ -1,16 +1,11 @@
 import { createHash } from 'node:crypto';
-import { MEDIA_FORMATS, type UploadRequest } from '../../../../contracts/media';
+import type { MaterialUploadRequest } from '../../../../contracts/media';
 import { KodoError } from '../../../integrations/kodo';
+import { materialFormatFor } from './material-formats';
 import { UploadError, type UploadStorage, type VerifiedObject } from './types';
 
 const WINDOW = 128 * 1024;
-export function formatFor(request: UploadRequest) {
-  return MEDIA_FORMATS.find(
-    (f) =>
-      request.purpose === f.purpose &&
-      request.filename.toLowerCase().endsWith(`.${f.extension}`),
-  );
-}
+export const formatFor = materialFormatFor;
 function frame(bytes: Uint8Array, offset: number) {
   return (
     bytes[offset] === 0xff &&
@@ -100,6 +95,44 @@ function matches(
         head.readUInt32BE(0) <= head.length &&
         head.toString('ascii', 8, head.readUInt32BE(0)).includes('M4A ')
       );
+    case 'mp4':
+      // ISO BMFF: a leading ftyp box whose brands are not the audio-only M4A brand.
+      return (
+        head.length >= 16 &&
+        head.toString('ascii', 4, 8) === 'ftyp' &&
+        head.readUInt32BE(0) >= 16 &&
+        head.readUInt32BE(0) <= head.length &&
+        head.readUInt32BE(0) % 4 === 0 &&
+        !head.toString('ascii', 8, head.readUInt32BE(0)).includes('M4A ')
+      );
+    case 'png':
+      return (
+        head.length >= 8 &&
+        head
+          .subarray(0, 8)
+          .equals(
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+          ) &&
+        tail.length >= 12 &&
+        tail
+          .subarray(-12)
+          .equals(
+            Buffer.from([
+              0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+            ]),
+          )
+      );
+    case 'jpg':
+    case 'jpeg':
+      return (
+        head.length >= 3 &&
+        head[0] === 0xff &&
+        head[1] === 0xd8 &&
+        head[2] === 0xff &&
+        tail.length >= 2 &&
+        tail[tail.length - 2] === 0xff &&
+        tail[tail.length - 1] === 0xd9
+      );
     case 'aac':
       return (
         head.length >= 7 &&
@@ -131,7 +164,7 @@ function matches(
 export async function verifyUploadObject(
   storage: UploadStorage,
   key: string,
-  request: UploadRequest,
+  request: MaterialUploadRequest,
 ): Promise<VerifiedObject> {
   try {
     const format = formatFor(request);

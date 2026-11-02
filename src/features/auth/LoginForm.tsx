@@ -4,7 +4,8 @@ import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { authRequest } from './auth-request';
-export function LoginForm() {
+/** `returnTo` is decided on the server (login page); never read from the URL here. */
+export function LoginForm({ returnTo = '/work' }: { returnTo?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -22,7 +23,7 @@ export function LoginForm() {
         password: String(form.get('password')),
       });
       if (ok) {
-        router.replace('/work');
+        router.replace(returnTo);
         router.refresh();
       } else setError('邮箱或密码有误，请核对后重试。');
     } catch {

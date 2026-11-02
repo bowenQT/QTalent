@@ -37,8 +37,9 @@ const reasons: Record<string, string> = {
   record_collection_expired: '这次记录的上传窗口已过期，请刷新上传信息',
   upload_removed: '附件已从这条记录移除，请刷新记录',
   collection_saved: '这条记录已保存，请先按记录流程修改附件',
+  material_target_unsupported: '这个入口只接收未分配到记录的材料',
 };
-const json = (value: unknown, status = 200) =>
+export const json = (value: unknown, status = 200) =>
   Response.json(value, {
     status,
     headers: {
@@ -46,7 +47,7 @@ const json = (value: unknown, status = 200) =>
       'x-content-type-options': 'nosniff',
     },
   });
-async function commandBody(request: Request): Promise<unknown> {
+export async function commandBody(request: Request): Promise<unknown> {
   if (
     request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !==
       'application/json' ||
@@ -75,7 +76,7 @@ async function commandBody(request: Request): Promise<unknown> {
     reader.releaseLock();
   }
 }
-function failure(error: unknown, input: unknown) {
+export function failure(error: unknown, input: unknown) {
   const safe =
     error instanceof UploadError
       ? error

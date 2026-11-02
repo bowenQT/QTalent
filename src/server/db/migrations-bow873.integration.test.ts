@@ -115,3 +115,22 @@ it('upgrades the real seeded 0000–0009 database without changing historical fa
     await emptyUploads(connection);
   });
 });
+it('accepts unassigned staging collections and still refuses any other target kind', async () => {
+  await isolated(async (connection) => {
+    await migrate(connection.db, { migrationsFolder: folder });
+    const insert = (target: unknown) =>
+      connection.pool.query(
+        `INSERT INTO "records_upload_collections"
+          ("id", "creator_account_id", "operation_id", "target", "target_fingerprint", "created_at", "expires_at", "revision")
+          VALUES ($1, 'demo-account', $1, $2::jsonb, repeat('a', 64), 1, 2, 1)`,
+        [randomUUID(), JSON.stringify(target)],
+      );
+    await insert({ kind: 'unassigned', evaluationNodeId: 'demo-node' });
+    await expect(insert({ kind: 'batch' })).rejects.toThrow(
+      /records_upload_collection_target/,
+    );
+    await expect(insert(['unassigned'])).rejects.toThrow(
+      /records_upload_collection_target/,
+    );
+  });
+});

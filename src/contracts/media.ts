@@ -93,7 +93,16 @@ export const uploadGrantSchema = z.strictObject({
   revision,
   expiresAt: z.iso.datetime(),
   method: z.enum(['form', 'resumable_v2']),
-  uploadEndpoint: z.url().startsWith('https://'),
+  /** Kodo v2 multipart upload origin; `method` names the protocol. Plain HTTP
+   * is accepted only for the loopback test double. */
+  uploadEndpoint: z.url().refine((value) => {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' ||
+      (url.protocol === 'http:' &&
+        ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname))
+    );
+  }),
   uploadToken: text,
   objectKey: id,
   maxBytes: bytes,
@@ -103,7 +112,7 @@ export const completeUploadSchema = z.strictObject({
   receiptRef: id,
   ...operation,
 });
-export const uploadCompletedSchema = z
+const dispatchedUploadSchema = z
   .strictObject({
     uploadId: id,
     recordCollectionId: id,
@@ -117,6 +126,22 @@ export const uploadCompletedSchema = z
     (x) =>
       x.source === null || x.originalVersionId === x.source.originalVersionId,
   );
+/** An unassigned material is archived and waits for a batch to claim it by
+ * uploadId; no processing job exists yet, so the result carries no jobId.
+ */
+const stagedUploadSchema = z.strictObject({
+  status: z.literal('staged'),
+  uploadId: id,
+  recordCollectionId: id,
+  originalId: id,
+  originalVersionId: id,
+  source: z.null(),
+  revision,
+});
+export const uploadCompletedSchema = z.union([
+  dispatchedUploadSchema,
+  stagedUploadSchema,
+]);
 const failureSchema = z.strictObject({
   status: z.enum([
     'unauthenticated',
