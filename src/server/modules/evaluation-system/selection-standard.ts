@@ -128,9 +128,10 @@ function guard(
   state: SelectionRevision['state'],
 ) {
   authorizeSelectionAction(authority, role, record.scopeCohortId);
+  // The next cohort is a trusted future descriptor with no grant to hold yet;
+  // the impact reader checks its scope once it exists.
   if (role === 'hr') {
     for (const cohort of [
-      record.revision.impactPreview.nextCohort.id,
       ...record.revision.impactPreview.existingResults.map(
         (row) => row.cohortId,
       ),
@@ -189,7 +190,6 @@ export function prepareSelectionImpactPreview(
   authorizeSelectionAction(authority, 'hr', record.scopeCohortId);
   // The preview is a scoped aggregate, never a dump of server-global bindings.
   for (const cohort of [
-    facts.nextCohort.id,
     ...facts.existingResults.map((row) => row.cohortId),
     ...facts.preservedBindings.map((row) => row.cohort.id),
   ])

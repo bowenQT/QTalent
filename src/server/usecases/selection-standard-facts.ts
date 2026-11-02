@@ -106,9 +106,10 @@ export async function readNativeSelectionImpact(
   const next = nextFactSchema.parse(reviewedNext);
   const ids = [...new Set(scopeCohortIds)].sort();
   if (!ids.length) unavailable();
-  for (const id of [...ids, next.id]) authorizeScope(authority, id);
+  for (const id of ids) authorizeScope(authority, id);
   // A descriptor is not a pre-created cohort. Existing/bound next IDs need a new
-  // reviewed plan; they cannot be relabelled as a future cohort.
+  // reviewed plan; they cannot be relabelled as a future cohort. A future cohort
+  // has no grant to hold yet, so only an existing one is checked for scope.
   if (
     (
       await tx
@@ -116,8 +117,10 @@ export async function readNativeSelectionImpact(
         .from(cohorts)
         .where(eq(cohorts.id, next.id))
     ).length
-  )
+  ) {
+    authorizeScope(authority, next.id);
     conflict();
+  }
   // Prevent a newly imported result batch appearing between preview comparison
   // and publication commit. Existing rows use919's batch/row locks below.
   await tx.execute(sql`lock table evaluation_comparison_batches in share mode`);
