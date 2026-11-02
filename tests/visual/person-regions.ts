@@ -92,30 +92,38 @@ export async function hideGroupHistory(prototype: Page) {
   });
 }
 
-type Lists = Record<'facts' | 'spectrum' | 'timeline' | 'projects', string[]>;
-type Facts = Lists & { name: string[] };
-const LISTS = ['facts', 'spectrum', 'timeline', 'projects'] as const;
+type Facts = Record<
+  'name' | 'heads' | 'facts' | 'spectrum' | 'timeline' | 'projects',
+  string[]
+>;
 
-/**
- * 在页面里取各列表的条目文字；给了 keep 时，同时把不在 keep 里的条目从页面删掉。取文字和
- * 裁剪用同一套规则，裁剪不会和比较对不上。
- */
-function collect(keep: Lists | null): Facts {
+/** 两侧按同一规则取各列表的条目文字（数据相等闸）。 */
+function collect(): Facts {
   const text = (node: Element | null) =>
     (node?.textContent ?? '').replace(/\s+/g, ' ').trim();
-  const lists: Record<
-    keyof Lists,
-    [string, (node: Element) => string, (node: Element) => Element]
-  > = {
-    facts: ['#facts a.nt-plink', text, (node) => node.closest('li') ?? node],
-    spectrum: [
+  const all = (selector: string, key: (node: Element) => string) =>
+    [...document.querySelectorAll(selector)].map(key);
+  return {
+    name: all('.n-person__name', text),
+    // 能力谱「已确认 N 条事件分」和时间线标题的关键事件数。
+    heads: [
+      /已确认 \d+ 条事件分/.exec(
+        text(document.querySelector('#spectrum')),
+      )?.[0] ?? '',
+      text(document.querySelector('#timeline .n-section-title small')),
+    ],
+    // 关键事实：链到的事件 ID 和标题。
+    facts: all(
+      '#facts a.nt-plink',
+      (link) => `${link.getAttribute('href')} ${text(link)}`,
+    ),
+    spectrum: all(
       '.n-spectrum__row',
       (row) => row.getAttribute('aria-label') ?? text(row),
-      (row) => row,
-    ],
+    ),
     // 日期和标题；受限历史资料的日期写法是已登记差异（原型写半年度），记作「受限」，
-    // 「管理受限」徽标本身仍要两侧都有。
-    timeline: [
+    // 「管理受限」徽标由 alignRegisteredText 的来源类型比较核对。
+    timeline: all(
       '.n-tl__item:not(:has(.n-tl__dot.is-change))',
       (item) =>
         `${
@@ -123,184 +131,194 @@ function collect(keep: Lists | null): Facts {
             ? '受限'
             : text(item.querySelector('.n-tl__date'))
         } ${text(item.querySelector('.n-tl__title'))}`,
-      (item) => item,
-    ],
-    projects: ['.n-members b', text, (node) => node.closest('li') ?? node],
-  };
-  const facts = {
-    name: [...document.querySelectorAll('.n-person__name')].map(text),
-  } as Facts;
-  for (const [list, [selector, key, host]] of Object.entries(lists) as [
-    keyof Lists,
-    (typeof lists)[keyof Lists],
-  ][]) {
-    facts[list] = [];
-    for (const node of document.querySelectorAll(selector)) {
-      const value = key(node);
-      if (keep && !keep[list].includes(value)) host(node).remove();
-      else facts[list].push(value);
-    }
-  }
-  return facts;
-}
-
-/**
- * 导师视角（所有者裁决，#248 评论 6559810703 ②）：团队记录按现行权限逐条判断，不整体
- * 放权，导师看到的可以少于原型。只放过「因权限少了条目」这一种差异：工程侧每一项（整条
- * 文字，能力谱含维度名、均值和条数）都要在原型侧逐字存在，不重复，顺序与原型一致。
- * 姓名严格相等。
- */
-export function mentorSubsetGaps(left: Facts, right: Facts): string[] {
-  const gaps: string[] = [];
-  if (JSON.stringify(left.name) !== JSON.stringify(right.name))
-    gaps.push(`name: ${right.name.join('、')}`);
-  // 逐条按原型顺序往后找：找得到才算保留下来的条目；重复、乱序、改了字的都找不到。
-  for (const key of LISTS) {
-    let next = 0;
-    for (const item of right[key]) {
-      const at = left[key].indexOf(item, next);
-      if (at >= 0) next = at + 1;
-      else
-        gaps.push(
-          `${key} ${left[key].includes(item) ? 'out of order or duplicated' : 'not in prototype'}: ${item}`,
-        );
-    }
-  }
-  return gaps;
-}
-
-/**
- * 导师视角截图前，把原型侧裁到工程侧可见的条目（只删条目，不改剩下的内容）。原型有条目、
- * 工程一条都看不到的卡片，工程画的是空状态，没法比截图：返回这些卡片，由调用方两侧隐藏，
- * 并对工程侧的空状态补语义断言。
- */
-export async function trimToVisible(
-  prototype: Page,
-  left: Facts,
-  right: Facts,
-  hiddenKeyEvents = 0,
-) {
-  await prototype.evaluate(collect, right);
-  // 时间线标题里的关键事件数按裁剪后留下的关键事件重算，和原型对同一组事件的写法一致；
-  // 工程侧为已登记差异隐藏的关键事件仍计在工程的标题里，这里一并加上。
-  await prototype.evaluate((hidden) => {
-    const count = document.querySelector('#timeline .n-section-title small');
-    if (count)
-      count.textContent = (count.textContent ?? '').replace(
-        /^\d+/,
-        String(
-          document.querySelectorAll('#timeline .nt-tl-open').length + hidden,
-        ),
-      );
-  }, hiddenKeyEvents);
-  return {
-    facts: right.facts.length === 0 && left.facts.length > 0,
-    spectrum: right.spectrum.length === 0 && left.spectrum.length > 0,
+    ),
+    projects: all('.n-members b', text),
   };
 }
 
-/**
- * 导师可见范围的已登记差异（#341「影响」）：服务端按评价关系授权，没有按记录人过滤，
- * demo-mentor 因此多看到这条黑客松评委记录，原型导师视角看不到。
- */
-export const mentorExtraEvents = ['负责语音唤醒与打断，现场演示一次跑通'];
-
-const dimensionOf = (row: string) => row.split('，')[0];
+/** 数据相等闸：像素比较前先比这些文字，不相等就报数据差异，不再比截图。 */
+export async function personFacts(page: Page) {
+  return page.evaluate(collect);
+}
 
 /**
- * 把已登记的多出事件从比较里拿出来，并把它带来的能力谱变化换成原型在这条事件可见时的
- * 写法（原型管理者视角同一维度的整行）。工程侧这一行必须逐字等于管理者视角那一行，才
- * 换；其余规则不变。返回比较用的两侧，以及换过的维度。
+ * 导师不可见登记表（#252 评论 6580683682 ①）：原型导师视角有、工程导师按现行权限看不到的
+ * 条目，逐条写明依据的权限规则。原型侧先按这张表删掉，再和工程逐条全等比较；工程漏画或
+ * 多画任何未登记的条目，比较都会失败。key：projects 为项目名，facts、timeline 为事件 ID。
  */
-export function mentorExtras(left: Facts, manager: Facts, right: Facts) {
-  const isExtra = (item: string) =>
-    mentorExtraEvents.some(
-      (title) => item === title || item.endsWith(` ${title}`),
+export const mentorHidden: readonly {
+  list: 'projects' | 'facts' | 'timeline';
+  key: string;
+  rule: string;
+}[] = [
+  {
+    list: 'projects',
+    key: '夏季黑客松 · 语音助手赛道（演示）',
+    rule: '档案只列调用者可读的项目（person-projection.ts projectsOf → authz canReadProject，projects.read）；demo-mentor 不在这个项目的读取范围。原型 projectsOf(pid, true) 不按视角过滤',
+  },
+];
+
+/**
+ * 导师多看到的已登记事件（#341「影响」）：服务端按评价关系授权，没有按记录人过滤，
+ * demo-mentor 看得到这条黑客松评委记录，原型导师视角看不到。预期写法取原型管理者视角对
+ * 同一事件的渲染；能力谱只放过这条事件打分的维度（原型 91b297a `data.js:108`：prof、mot），
+ * 其余维度仍按原型导师视角全等比较。
+ */
+export const mentorExtra = {
+  id: 'e-hack-2',
+  dimensions: ['专业度', '内生动力'],
+};
+
+/**
+ * 按登记表把原型导师视角改成预期：删掉登记的不可见条目；把 mentorExtra 按原型管理者视角的
+ * 渲染插进关键事实（再按原型规则只留前 3 条，`person.js:42`）和时间线，同位置；能力谱换上
+ * 管理者视角里这条事件涉及的维度行，「已确认 N 条事件分」和时间线关键事件数随之加上。
+ * 只动原型侧，工程侧不改；返回登记表和原型对不上的地方。
+ */
+export async function applyMentorRegistry(prototype: Page, manager: Page) {
+  const extra = await manager.evaluate(({ id, dimensions }) => {
+    const dim = (row: Element) =>
+      (row.getAttribute('aria-label') ?? '').split('，')[0];
+    const facts = [...document.querySelectorAll('#facts a.nt-plink')];
+    const fact = facts.find(
+      (link) => link.getAttribute('href') === `#ev-${id}`,
     );
-  const swapped = right.spectrum
-    .filter(
-      (row) => !left.spectrum.includes(row) && manager.spectrum.includes(row),
-    )
-    .map(dimensionOf);
-  return {
-    expected: {
-      ...left,
-      spectrum: left.spectrum.map(
-        (row) =>
-          (swapped.includes(dimensionOf(row)) &&
-            manager.spectrum.find(
-              (other) => dimensionOf(other) === dimensionOf(row),
-            )) ||
-          row,
+    return {
+      fact: fact?.closest('li')?.outerHTML ?? null,
+      factOrder: facts.map((link) => link.getAttribute('href') ?? ''),
+      item: document.getElementById(`ev-${id}`)?.outerHTML ?? null,
+      itemOrder: [...document.querySelectorAll('.n-tl__item[id]')].map(
+        (item) => item.id,
       ),
-    },
-    visible: {
-      ...right,
-      facts: right.facts.filter((item) => !isExtra(item)),
-      timeline: right.timeline.filter((item) => !isExtra(item)),
-    },
-    swapped,
-  };
-}
-
-/**
- * 截图前落实 mentorExtras：工程侧隐藏多出的事件（关键事实和时间线各一条），原型侧把换过
- * 的维度行换成管理者视角渲染的那一行。
- */
-export async function applyMentorExtras(
-  prototype: Page,
-  manager: Page,
-  page: Page,
-  swapped: string[],
-) {
-  await page.evaluate((titles) => {
-    const text = (node: Element | null) =>
-      (node?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    for (const link of document.querySelectorAll('#facts a.nt-plink'))
-      if (titles.includes(text(link))) (link.closest('li') ?? link).remove();
-    for (const item of document.querySelectorAll('.n-tl__item'))
-      if (titles.includes(text(item.querySelector('.n-tl__title'))))
-        item.remove();
-  }, mentorExtraEvents);
-  const rows = await manager.evaluate(
-    (dims) =>
-      [...document.querySelectorAll('.n-spectrum__row')]
-        .filter((row) =>
-          dims.includes((row.getAttribute('aria-label') ?? '').split('，')[0]),
-        )
+      rows: [...document.querySelectorAll('.n-spectrum__row')]
+        .filter((row) => dimensions.includes(dim(row)))
         .map((row) => row.outerHTML),
-    swapped,
-  );
-  await prototype.evaluate((html) => {
-    const count = (label: string | null) =>
-      Number(/，(\d+) 条事件/.exec(label ?? '')?.[1] ?? 0);
-    let added = 0;
-    for (const markup of html) {
-      const holder = document.createElement('div');
-      holder.innerHTML = markup;
-      const next = holder.firstElementChild!;
-      const dim = (next.getAttribute('aria-label') ?? '').split('，')[0];
-      const current = [...document.querySelectorAll('.n-spectrum__row')].find(
-        (row) => (row.getAttribute('aria-label') ?? '').split('，')[0] === dim,
+    };
+  }, mentorExtra);
+  return prototype.evaluate(
+    ({ hidden, id, dimensions, extra }) => {
+      const gaps: string[] = [];
+      const text = (node: Element | null) =>
+        (node?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const parse = (markup: string) => {
+        const holder = document.createElement('template');
+        holder.innerHTML = markup;
+        return holder.content.firstElementChild!;
+      };
+      const factOf = (href: string) =>
+        document
+          .querySelector(`#facts a.nt-plink[href="${href}"]`)
+          ?.closest('li') ?? null;
+      // 插到管理者视角里它后面第一条、导师视角也有的条目之前。
+      const place = (
+        markup: string | null,
+        order: string[],
+        key: string,
+        find: (key: string) => Element | null,
+        label: string,
+      ) => {
+        if (!markup)
+          return gaps.push(`extra ${label}: not in the manager view`);
+        if (find(key))
+          return gaps.push(
+            `extra ${label}: already in the prototype mentor view`,
+          );
+        const next = order
+          .slice(order.indexOf(key) + 1)
+          .map(find)
+          .find((node) => node !== null);
+        if (!next)
+          return gaps.push(
+            `extra ${label}: no anchor in the prototype mentor view`,
+          );
+        next.before(parse(markup));
+      };
+      place(extra.fact, extra.factOrder, `#ev-${id}`, factOf, 'fact');
+      for (const li of [...document.querySelectorAll('#facts li')].slice(3))
+        li.remove();
+      place(
+        extra.item,
+        extra.itemOrder,
+        `ev-${id}`,
+        (key) => document.getElementById(key),
+        'timeline',
       );
-      if (!current) continue;
-      added +=
-        count(next.getAttribute('aria-label')) -
-        count(current.getAttribute('aria-label'));
-      current.replaceWith(next);
-    }
-    // 能力谱标题的「已确认 N 条事件分」同样加上这条事件带来的分。
-    const spectrum = document.querySelector('#spectrum');
-    const walker = spectrum
-      ? document.createTreeWalker(spectrum, NodeFilter.SHOW_TEXT)
-      : null;
-    for (let node = walker?.nextNode(); node; node = walker!.nextNode())
-      if (/已确认 \d+ 条事件分/.test(node.textContent ?? ''))
-        node.textContent = (node.textContent ?? '').replace(
-          /已确认 (\d+) 条事件分/,
-          (_, n: string) => `已确认 ${Number(n) + added} 条事件分`,
+      const count = document.querySelector('#timeline .n-section-title small');
+      if (count)
+        count.textContent = (count.textContent ?? '').replace(/^\d+/, (n) =>
+          String(Number(n) + 1),
         );
-  }, rows);
+      const dim = (label: string | null) => (label ?? '').split('，')[0];
+      const events = (label: string | null) =>
+        Number(/，(\d+) 条事件/.exec(label ?? '')?.[1] ?? 0);
+      let added = 0;
+      for (const dimension of dimensions) {
+        const markup = extra.rows.find((row) =>
+          dim(parse(row).getAttribute('aria-label')).startsWith(dimension),
+        );
+        const current = [...document.querySelectorAll('.n-spectrum__row')].find(
+          (row) => dim(row.getAttribute('aria-label')) === dimension,
+        );
+        if (!markup || !current) {
+          gaps.push(`extra spectrum ${dimension}: row missing`);
+          continue;
+        }
+        const next = parse(markup);
+        if (dim(next.getAttribute('aria-label')) !== dimension) {
+          gaps.push(`extra spectrum ${dimension}: row missing`);
+          continue;
+        }
+        added +=
+          events(next.getAttribute('aria-label')) -
+          events(current.getAttribute('aria-label'));
+        current.replaceWith(next);
+      }
+      const spectrum = document.querySelector('#spectrum');
+      const walker = spectrum
+        ? document.createTreeWalker(spectrum, NodeFilter.SHOW_TEXT)
+        : null;
+      for (let node = walker?.nextNode(); node; node = walker!.nextNode())
+        if (/已确认 \d+ 条事件分/.test(node.textContent ?? ''))
+          node.textContent = (node.textContent ?? '').replace(
+            /已确认 (\d+) 条事件分/,
+            (_, n: string) => `已确认 ${Number(n) + added} 条事件分`,
+          );
+      // 登记表在补上多看到的事件之后再删，补进来的条目同样按登记表处理。
+      for (const entry of hidden) {
+        const nodes =
+          entry.list === 'projects'
+            ? [...document.querySelectorAll('.n-members li')].filter(
+                (li) => text(li.querySelector('b')) === entry.key,
+              )
+            : entry.list === 'facts'
+              ? [factOf(`#ev-${entry.key}`)]
+              : [document.getElementById(`ev-${entry.key}`)];
+        const found = nodes.filter((node) => node !== null);
+        if (found.length !== 1)
+          gaps.push(
+            `hidden ${entry.list} ${entry.key}: ${found.length} in the prototype mentor view`,
+          );
+        for (const node of found) node.remove();
+        // 同一条规则：不可读项目的名称也不出现在关键事实和时间线的说明里（person-evidence.ts
+        // 只给可读项目）。
+        if (entry.list === 'projects')
+          for (const root of document.querySelectorAll('#facts, #timeline')) {
+            const walker = document.createTreeWalker(
+              root,
+              NodeFilter.SHOW_TEXT,
+            );
+            for (let node = walker.nextNode(); node; node = walker.nextNode())
+              node.textContent = (node.textContent ?? '')
+                .split(` · ${entry.key}`)
+                .join('')
+                .split(`${entry.key} · `)
+                .join('');
+          }
+      }
+      return gaps;
+    },
+    { hidden: mentorHidden, ...mentorExtra, extra },
+  );
 }
 
 type TextSlots = {
@@ -308,32 +326,54 @@ type TextSlots = {
   meta: string[];
   /** 能力谱第一个分组标题（专业度） */
   group: string | null;
-  /** 时间线条目：标题 → 日期、去掉来源徽标后的说明行、是否管理受限 */
+  /** 时间线条目：标题 → 日期、来源类型、说明行文字、是否带原文角标 */
   items: Record<
     string,
-    { date: string; meta: string; restricted: boolean; sourceCite: boolean }
+    {
+      date: string;
+      hist: boolean;
+      /** 说明行里的来源类型与标注（`.n-src`、`.n-badge`），按出现顺序，含样式类 */
+      kinds: string[];
+      /** 去掉来源类型、标注和原文角标后的说明文字 */
+      meta: string;
+      cite: boolean;
+    }
   >;
 };
 
 /** 两侧都按同一规则取：映射表登记过、只差文字的几处。 */
 function textSlots(): TextSlots {
-  const text = (node: Element | null) =>
+  const text = (node: Node | null) =>
     (node?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const isCite = (node: Node) =>
+    node instanceof Element &&
+    (node.matches('.n-cite') || !!node.querySelector('.n-cite'));
+  const isKind = (node: Node) =>
+    node instanceof Element && node.matches('.n-src, .n-badge');
   const items: TextSlots['items'] = {};
   for (const item of document.querySelectorAll('.n-tl__item')) {
-    const meta = item.querySelector('.n-tl__meta');
-    const copy = meta?.cloneNode(true) as Element | undefined;
-    for (const node of copy?.querySelectorAll('.n-src, .n-badge, .n-cite') ??
-      [])
-      node.remove();
+    const nodes = [...(item.querySelector('.n-tl__meta')?.childNodes ?? [])];
     items[text(item.querySelector('.n-tl__title'))] = {
       date: text(item.querySelector('.n-tl__date')),
-      meta: text(copy ?? null),
-      restricted: !!meta?.querySelector('.n-badge:has(use[href="#i-lock"])'),
-      // 自述与历史资料（含受限）在位置后加的原文角标；管理观察不在登记范围里。
-      sourceCite:
-        !!item.querySelector('.n-tl__dot.is-hist, .n-tl__dot.is-self') &&
-        !!meta?.querySelector('.n-cite'),
+      hist: !!item.querySelector('.n-tl__dot.is-hist, .n-tl__dot.is-self'),
+      kinds: nodes
+        .filter(isKind)
+        .map(
+          (node) =>
+            `${[...(node as Element).classList].join('.')} ${text(node)}`,
+        ),
+      meta: nodes
+        .filter(
+          (node) =>
+            node.nodeType !== Node.COMMENT_NODE &&
+            !isKind(node) &&
+            !isCite(node),
+        )
+        .map((node) => node.textContent ?? '')
+        .join('')
+        .replace(/\s+/g, ' ')
+        .trim(),
+      cite: nodes.some(isCite),
     };
   }
   return {
@@ -345,8 +385,9 @@ function textSlots(): TextSlots {
 
 /**
  * 映射表 BOW-840「与原型的已知差异」里只差文字的几处：先按登记的写法断言工程侧，再把原型
- * 的文字搬到工程侧同一位置，让截图继续比版面和其余内容。不在登记范围里的不同不搬，留给
- * 截图报出来。返回不符合登记写法的条目。
+ * 的文字搬到工程侧同一位置，让截图继续比版面和其余内容。来源类型与标注（`.n-src`、
+ * `.n-badge`）逐条和原型比，不搬、不遮；时间线说明行只换来源类型以外的文字。不在登记
+ * 范围里的不同不搬，留给截图报出来。返回不符合登记写法的条目。
  */
 export async function alignRegisteredText(prototype: Page, page: Page) {
   const [left, right] = [
@@ -358,8 +399,9 @@ export async function alignRegisteredText(prototype: Page, page: Page) {
     meta: number[];
     group: boolean;
     dates: string[];
-    metas: string[];
-  } = { meta: [], group: false, dates: [], metas: [] };
+    texts: string[];
+    cites: string[];
+  } = { meta: [], group: false, dates: [], texts: [], cites: [] };
   // 身份行：职位、职级、多级团队路径等 834 的字段接入（#315 之后的下一片）。工程侧第一行
   // 的每一段都要出现在原型第一行里，或是占位「职位未接入」「组织层级未接入」。
   const segments = (line: string) => line.split(' · ');
@@ -395,32 +437,45 @@ export async function alignRegisteredText(prototype: Page, page: Page) {
   }
   for (const [title, mine] of Object.entries(right.items)) {
     const theirs = left.items[title];
-    if (!theirs) continue;
+    if (!theirs) {
+      gaps.push(`item not in prototype: ${title}`);
+      continue;
+    }
+    // 来源类型（原始事实、本人自述、管理观察、AI 推断、人工结论）和「管理受限」等标注：
+    // 逐条全等，不在登记范围里。
+    if (mine.kinds.join('|') !== theirs.kinds.join('|'))
+      gaps.push(`source kind: ${title}: ${mine.kinds.join('、')}`);
     // 受限历史资料：原型写半年度，工程写 MM-DD；两侧都要标管理受限。
     if (theirs.date !== mine.date) {
+      const restricted = (kinds: string[]) =>
+        kinds.some((kind) => kind.endsWith(' 管理受限'));
       if (
-        theirs.restricted &&
-        mine.restricted &&
+        restricted(theirs.kinds) &&
+        restricted(mine.kinds) &&
         /^H[12]$/.test(theirs.date) &&
         /^\d\d-\d\d$/.test(mine.date)
       )
         copy.dates.push(title);
       else gaps.push(`date: ${mine.date} ${title}`);
     }
-    // 单一来源的关键事件不写来源名称：去掉原型说明行里的「来源名 · 」后相等。
-    // 自述与历史资料在位置后另加原文角标：去掉徽标和角标后说明相等，就搬原型那一行。
+    // 单一来源的关键事件不写来源名称：去掉原型说明文字里的「来源名 · 」后相等。
     if (theirs.meta !== mine.meta) {
       const [who, , ...rest] = theirs.meta.split(' · ');
       if (
         !theirs.meta.includes('个来源') &&
         [who, ...rest].join(' · ') === mine.meta
       )
-        copy.metas.push(title);
+        copy.texts.push(title);
       else gaps.push(`meta: ${title}: ${mine.meta}`);
-    } else if (mine.sourceCite && !theirs.sourceCite) copy.metas.push(title);
+    }
+    // 自述与历史资料在说明后另加原文角标（工程独有）；别的条目多出角标不放过。
+    if (mine.cite && !theirs.cite) {
+      if (mine.hist) copy.cites.push(title);
+      else gaps.push(`cite: ${title}`);
+    }
   }
   const nodes = await prototype.evaluate((plan) => {
-    const text = (node: Element | null) =>
+    const text = (node: Node | null) =>
       (node?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const item = (title: string) =>
       [...document.querySelectorAll('.n-tl__item')].find(
@@ -435,21 +490,37 @@ export async function alignRegisteredText(prototype: Page, page: Page) {
         ? document.querySelector('.n-spectrum__group')!.innerHTML
         : null,
       dates: plan.dates.map(
-        (title) => item(title)!.querySelector('.n-tl__date')!.innerHTML,
+        (title) => item(title)!.querySelector('.n-tl__date')!.textContent ?? '',
       ),
-      metas: plan.metas.map(
-        (title) => item(title)!.querySelector('.n-tl__meta')!.innerHTML,
+      // 只取来源类型、标注以外的节点（文字和 `<b>`），来源类型留工程自己的。
+      texts: plan.texts.map((title) =>
+        [...item(title)!.querySelector('.n-tl__meta')!.childNodes]
+          .filter(
+            (node) =>
+              !(node instanceof Element && node.matches('.n-src, .n-badge')),
+          )
+          .map((node) =>
+            node instanceof Element
+              ? node.outerHTML
+              : (node.textContent ?? '')
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;'),
+          )
+          .join(''),
       ),
     };
   }, copy);
   await page.evaluate(
     ({ plan, html }) => {
-      const text = (node: Element | null) =>
+      const text = (node: Node | null) =>
         (node?.textContent ?? '').replace(/\s+/g, ' ').trim();
       const item = (title: string) =>
         [...document.querySelectorAll('.n-tl__item')].find(
           (node) => text(node.querySelector('.n-tl__title')) === title,
-        );
+        )!;
+      const isCite = (node: Node) =>
+        node instanceof Element &&
+        (node.matches('.n-cite') || !!node.querySelector('.n-cite'));
       plan.meta.forEach((index, at) => {
         document.querySelectorAll('.n-person__meta')[index].innerHTML =
           html.meta[at];
@@ -457,18 +528,31 @@ export async function alignRegisteredText(prototype: Page, page: Page) {
       if (html.group)
         document.querySelector('.n-spectrum__group')!.innerHTML = html.group;
       plan.dates.forEach((title, at) => {
-        item(title)!.querySelector('.n-tl__date')!.innerHTML = html.dates[at];
+        item(title).querySelector('.n-tl__date')!.textContent = html.dates[at];
       });
-      plan.metas.forEach((title, at) => {
-        item(title)!.querySelector('.n-tl__meta')!.innerHTML = html.metas[at];
+      for (const title of plan.cites)
+        for (const node of [
+          ...item(title).querySelector('.n-tl__meta')!.childNodes,
+        ])
+          if (isCite(node)) node.remove();
+      plan.texts.forEach((title, at) => {
+        const meta = item(title).querySelector('.n-tl__meta')!;
+        const keep = [...meta.childNodes].filter(
+          (node) =>
+            node instanceof Element &&
+            (node.matches('.n-src, .n-badge') || isCite(node)),
+        );
+        const holder = document.createElement('template');
+        holder.innerHTML = html.texts[at];
+        const kinds = keep.filter((node) => !isCite(node));
+        meta.replaceChildren(
+          ...kinds,
+          ...holder.content.childNodes,
+          ...keep.filter(isCite),
+        );
       });
     },
     { plan: copy, html: nodes },
   );
   return gaps;
-}
-
-/** 数据相等闸：像素比较前先比这些文字，不相等就报数据差异，不再比截图。 */
-export async function personFacts(page: Page) {
-  return page.evaluate(collect, null);
 }

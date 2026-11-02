@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
+import { open } from 'node:fs/promises';
+import { join } from 'node:path';
 import { z } from 'zod';
 import {
   comparisonActorSchema,
@@ -10,23 +11,71 @@ import {
 } from '../../../../contracts/judgment-comparison';
 import { selectionStandardContentSchema } from '../../../../contracts/selection-standard';
 
-const exec = promisify(execFile);
 /** Each fixture generation is a pinned Git commit with its own persisted
  * identities. Only the current one is imported by the operator commands; the
- * superseded one stays readable so tests can prove both coexist. */
+ * superseded one stays readable so tests can prove both coexist.
+ *
+ * The release package has no .git, so the runtime never reads Git: it reads
+ * the packaged files and requires each to match the SHA-256 of that file at
+ * `sourceCommit` (recompute with `git show <commit>:<path> | shasum -a 256`).
+ * `sourceCommit` stays the persisted provenance of the facts. */
 export const FACT_GENERATIONS = {
   'bow-923-v2': {
     sourceCommit: '6dff525b42f812423d981d12fd40aff8999cf00f',
     // v2 recorded each review point with the overall front band names.
     reviewPointGrades: null,
     prototypeCommit: false,
+    digests: {
+      'seed-input.json':
+        'eca4787ad3ad8fd808503c66e7bb89cccc73d57d8b28625be3f54c22a95e9b3f',
+      'mapping.json':
+        '9b07f8285f739b98fb5aee015ed0ea5cc731e95f45779f638ed535de3649f5e8',
+      'selection-standard.json':
+        '0f497e62f1e9745555a82048cff9d856fe3844f03e538636a58816f19594fba7',
+      'manual-comparability-marks.json':
+        '6f64501962db0167256601ba7d88f69cda088a31b1551fca06e31d7791e9414a',
+      'source-rows.json':
+        '0099ef7466a5e77538b98e9a70b2a71ec32955abd7e6d941d3532b3368e77327',
+      'manifest.json':
+        '667e03e3adbe5065f587e4f2de43d0251f90854a4e70fc2ce4ae3b7b2c23f4ac',
+      '作品评审表.xlsx':
+        'cb32e39ae6e84ef7c5d6efbf1e183150cf8df9f1844f92dc1c592efc88e7e280',
+      '结营评审表.xlsx':
+        '8f7039cf3f56a4c0157a1bfe5a39dec7102b5572643630e93fd4591c9b90bdfa',
+    },
   },
   'bow-923-v3': {
     sourceCommit: '47870d6fc902fd810b608591d4f6709e46d34148',
     reviewPointGrades: ['A', 'B', 'C'],
     prototypeCommit: true,
+    digests: {
+      'seed-input.json':
+        '8e346b06447e6f3a13f005b4d02efff42556599dca8d0ce464736bfac3e54ecf',
+      'mapping.json':
+        'fb73a1d1641394f1c017c9d6ba9a012869e5f4583fe7b34797ea8d4e285ec06a',
+      'selection-standard.json':
+        '0f497e62f1e9745555a82048cff9d856fe3844f03e538636a58816f19594fba7',
+      'manual-comparability-marks.json':
+        '7e464d25beb0cc92df0d7e953b3c77d0b0ca59f6e4f4c7a27ae085b9627ef897',
+      'source-rows.json':
+        'd62938f719e0d6ba13c854cf22d3332f3dcde100d9643d8d6065179ec7b43f7c',
+      'manifest.json':
+        '98787ec2efe6e5f0aa6b70683472c3622b51f970cf748a2221e05bccf58d9575',
+      '作品评审表.xlsx':
+        'e5f48dd01f9b1b343840d0e9f23a029d6865eedf31c609d1b8213a09a7d6c4a8',
+      '结营评审表.xlsx':
+        '153b0c1b1a293124783956607f84d80ebc05f55f4fe95c53004e15e028acf5c8',
+    },
   },
-} as const;
+} as const satisfies Record<
+  string,
+  {
+    sourceCommit: string;
+    reviewPointGrades: readonly string[] | null;
+    prototypeCommit: boolean;
+    digests: Record<(typeof FACT_FILES)[number], string>;
+  }
+>;
 export type FactGeneration = keyof typeof FACT_GENERATIONS;
 export const CURRENT_FACT_GENERATION: FactGeneration = 'bow-923-v3';
 export const FACT_SOURCE_COMMIT =
@@ -224,8 +273,10 @@ function unique<T>(rows: T[], key: (v: T) => string, name: string) {
 // Restricted to the two pinned, digest-checked synthetic OOXML files. This is
 // not a general upload parser. Python3 stdlib already validates these fixtures
 // in CI; no third-party package, formula evaluation, external link or file write.
+const WORKBOOK_IMPORTS =
+  'import io,json,sys,zipfile,xml.etree.ElementTree as E';
 const WORKBOOK_READER = String.raw`
-import io,json,sys,zipfile,xml.etree.ElementTree as E
+${WORKBOOK_IMPORTS}
 b=sys.stdin.buffer.read(2000001)
 if len(b)>2000000: raise ValueError('size')
 with zipfile.ZipFile(io.BytesIO(b)) as z:
@@ -253,18 +304,53 @@ with zipfile.ZipFile(io.BytesIO(b)) as z:
    cells[addr]={'type':typ,'value':val}
  print(json.dumps({'sheet':sheets[0].get('name'),'cells':cells},ensure_ascii=False))
 `;
+/** The one interpreter resolution (executable name, PATH, isolated mode)
+ * shared by the workbook reader and its entry check. */
+function spawnWorkbookPython(script: string) {
+  return spawn('python3', ['-I', '-c', script], {
+    env: {
+      NODE_ENV: 'test',
+      PATH: process.env.PATH,
+      PYTHONDONTWRITEBYTECODE: '1',
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+}
+
+/** Entry check run before any fact read or transaction: the interpreter the
+ * reader will spawn starts and loads the reader's own standard modules. */
+export async function requireWorkbookReader() {
+  const ready = await new Promise<boolean>((resolve) => {
+    const child = spawnWorkbookPython(
+      `${WORKBOOK_IMPORTS}\nprint("python_ok")`,
+    );
+    let output = '';
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve(false);
+    }, 10000);
+    child.stderr.resume();
+    child.stdout.on('data', (chunk: Buffer) => {
+      if (output.length < 64) output += chunk.toString();
+    });
+    child.on('error', () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve(code === 0 && output.trim() === 'python_ok');
+    });
+    child.stdin.on('error', () => undefined);
+    child.stdin.end();
+  });
+  if (!ready) throw new StandardIterationFactError('python_unavailable');
+}
+
 async function workbook(bytes: Uint8Array) {
   // execFile has no stdin option; use the bounded process stream explicitly.
-  const { spawn } = await import('node:child_process');
   return new Promise<z.infer<typeof workbookSchema>>((resolve, reject) => {
-    const child = spawn('python3', ['-I', '-c', WORKBOOK_READER], {
-      env: {
-        NODE_ENV: 'test',
-        PATH: process.env.PATH,
-        PYTHONDONTWRITEBYTECODE: '1',
-      },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const child = spawnWorkbookPython(WORKBOOK_READER);
     const chunks: Buffer[] = [];
     let length = 0;
     let invalid = false;
@@ -304,20 +390,65 @@ async function workbook(bytes: Uint8Array) {
   });
 }
 
-/** Read only fixed input facts, never scene, expected outputs or the working tree. */
+/** Upper bound of one fixture file, in bytes. */
+const FACT_LIMIT = 2_000_000;
+
+export class StandardIterationFactError extends Error {
+  constructor(
+    readonly code:
+      | 'python_unavailable'
+      | 'fixture_missing'
+      | 'fixture_too_large'
+      | 'fixture_digest_mismatch',
+    /** A constant fixture file name, never a filesystem path. */
+    readonly file?: (typeof FACT_FILES)[number],
+  ) {
+    super(file ? `${code}: ${file}` : code);
+    this.name = 'StandardIterationFactError';
+  }
+}
+
+/** Read only the eight fixed input facts from `root` (the release package or
+ * checkout), never scene or expected outputs, and accept each only if its
+ * bytes match the pinned digest. Runs before any database transaction. */
 export async function readStandardIterationFactFiles(
-  cwd: string,
+  root: string,
   generation: FactGeneration = CURRENT_FACT_GENERATION,
 ): Promise<FactFiles> {
-  const { sourceCommit } = FACT_GENERATIONS[generation];
+  // The decoder is required to use these facts at all; check it first.
+  await requireWorkbookReader();
+  const { digests } = FACT_GENERATIONS[generation];
   const entries = await Promise.all(
     FACT_FILES.map(async (name) => {
-      const { stdout } = await exec(
-        'git',
-        ['show', `${sourceCommit}:${FACT_DIRECTORY}/${name}`],
-        { cwd, encoding: 'buffer', maxBuffer: 2_000_000, timeout: 10000 },
+      const file = await open(join(root, FACT_DIRECTORY, name)).catch(
+        () => null,
       );
-      return [name, new Uint8Array(stdout)] as const;
+      if (!file) throw new StandardIterationFactError('fixture_missing', name);
+      try {
+        // One bounded read through the same handle: at most the limit plus one
+        // byte, so a file that grows past the limit cannot be read whole.
+        if (!(await file.stat()).isFile())
+          throw new StandardIterationFactError('fixture_missing', name);
+        const buffer = new Uint8Array(FACT_LIMIT + 1);
+        let length = 0;
+        for (;;) {
+          const { bytesRead } = await file.read(
+            buffer,
+            length,
+            buffer.length - length,
+          );
+          if (!bytesRead) break;
+          length += bytesRead;
+          if (length > FACT_LIMIT)
+            throw new StandardIterationFactError('fixture_too_large', name);
+        }
+        const bytes = buffer.slice(0, length);
+        if (createHash('sha256').update(bytes).digest('hex') !== digests[name])
+          throw new StandardIterationFactError('fixture_digest_mismatch', name);
+        return [name, bytes] as const;
+      } finally {
+        await file.close();
+      }
     }),
   );
   return Object.fromEntries(entries) as FactFiles;
@@ -332,7 +463,7 @@ export async function prepareStandardIterationDemo(
     Object.keys(files).length === FACT_FILES.length &&
       FACT_FILES.every(
         (name) =>
-          files[name] instanceof Uint8Array && files[name].length <= 2_000_000,
+          files[name] instanceof Uint8Array && files[name].length <= FACT_LIMIT,
       ),
     'file whitelist or size',
   );

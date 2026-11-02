@@ -1,6 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { execFile } from 'node:child_process';
-import { resolve } from 'node:path';
+import { execFile, execFileSync } from 'node:child_process';
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import {
   afterAll,
   beforeAll,
@@ -45,6 +56,7 @@ import {
   type FactGeneration,
   type PreparedStandardIterationDemo,
 } from './input';
+import { generationFactRoot, releaseArtifact } from './fact-roots.test-support';
 import { importStandardIterationDemo } from './import';
 import {
   DEMO_GRADUATION_REVIEWER,
@@ -65,13 +77,20 @@ let created = false;
 let isolatedUrl: string;
 let plan: PreparedStandardIterationDemo;
 let previous: PreparedStandardIterationDemo;
+// The superseded generation is not in the tree; it is read from a root
+// extracted from its pinned commit, like any packaged root without .git.
+const v2Root = generationFactRoot('bow-923-v2');
 const databaseName = `qtalent_iteration_${randomUUID().replaceAll('-', '')}_test`;
 function db() {
   if (!connection) throw new Error('Isolated test database unavailable');
   return connection.db;
 }
 const apply = (generation?: FactGeneration) =>
-  importStandardIterationDemo(db(), process.cwd(), generation);
+  importStandardIterationDemo(
+    db(),
+    generation === 'bow-923-v2' ? v2Root : process.cwd(),
+    generation,
+  );
 async function countFacts() {
   return (
     await db().execute<{
@@ -96,7 +115,7 @@ beforeAll(async () => {
     await readStandardIterationFactFiles(process.cwd()),
   );
   previous = await prepareStandardIterationDemo(
-    await readStandardIterationFactFiles(process.cwd(), 'bow-923-v2'),
+    await readStandardIterationFactFiles(v2Root, 'bow-923-v2'),
     'bow-923-v2',
   );
   const source = process.env.TEST_DATABASE_URL;
@@ -117,6 +136,7 @@ beforeAll(async () => {
   await countFacts();
 }, 30_000);
 afterAll(async () => {
+  rmSync(v2Root, { recursive: true, force: true });
   await connection?.pool.end();
   if (admin) {
     try {
@@ -173,7 +193,10 @@ beforeEach(async () => {
     ]);
   await db().insert(cohorts).values(plan.cohort);
 });
-async function runCli(args = ['--apply']) {
+async function runCli(
+  args = ['--apply'],
+  { root = process.cwd(), path = process.env.PATH, timeout = 10_000 } = {},
+) {
   return new Promise<{ code: number; stdout: string; stderr: string }>(
     (done) => {
       execFile(
@@ -182,14 +205,15 @@ async function runCli(args = ['--apply']) {
           '--conditions=react-server',
           '--import',
           'tsx',
-          resolve('src/server/db/seed/standard-iteration-demo/run.ts'),
+          resolve(root, 'src/server/db/seed/standard-iteration-demo/run.ts'),
           ...args,
         ],
         {
-          timeout: 10_000,
+          cwd: root,
+          timeout,
           maxBuffer: 20_000,
           env: {
-            PATH: process.env.PATH,
+            PATH: path,
             NODE_ENV: 'test',
             APP_ENV: 'test',
             DATABASE_URL: isolatedUrl,
@@ -979,4 +1003,130 @@ describe('923 generations coexist and demo initialization is idempotent', () => 
     ).toMatchObject({ rows: [] });
     expect(await db().select().from(evaluationNodes)).toEqual([]);
   });
+});
+describe('923 init from the release artifact (no .git, no git on PATH)', () => {
+  // Same mechanism as deploy/release.mjs prepare: `git archive` of the
+  // commit, extracted without .git. This PR leaves the facts unchanged, so the
+  // committed HEAD carries the pinned files. Dependencies are installed by
+  // prepare; here the artifact links this checkout's node_modules.
+  let artifact: string;
+  let bin: string;
+  const facts = () => join(artifact, 'tests/fixtures/bow-923');
+  beforeAll(() => {
+    artifact = releaseArtifact();
+    symlinkSync(resolve('node_modules'), join(artifact, 'node_modules'));
+    bin = mkdtempSync(join(tmpdir(), 'artifact-bin-'));
+    symlinkSync(process.execPath, join(bin, 'node'));
+    symlinkSync(
+      execFileSync('sh', ['-c', 'command -v python3']).toString().trim(),
+      join(bin, 'python3'),
+    );
+  });
+  afterAll(() => {
+    for (const dir of [artifact, bin])
+      if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+  const run = (args: string[]) =>
+    runCli(args, { root: artifact, path: bin, timeout: 30_000 });
+  async function nothingWritten() {
+    expect(await db().select().from(evaluationNodes)).toEqual([]);
+    expect(
+      await db().execute(sql`select 1 from evaluation_selection_category_head`),
+    ).toMatchObject({ rows: [] });
+    expect(
+      await db().execute(
+        sql`select 1 from evaluation_selection_cohort_bindings`,
+      ),
+    ).toMatchObject({ rows: [] });
+    expect(await countFacts()).toMatchObject({ records: 0, canonical: 0 });
+    // Proof the reader ran before the s-29 transaction too.
+    expect(
+      await db()
+        .select()
+        .from(people)
+        .where(eq(people.id, DEMO_GRADUATION_REVIEWER.id)),
+    ).toEqual([]);
+  }
+  it('initializes from the artifact, then a replay is unchanged', async () => {
+    await managerAccount();
+    // No .git in the artifact and no git executable on the CLI's PATH.
+    expect(existsSync(join(artifact, '.git'))).toBe(false);
+    expect(readdirSync(bin).sort()).toEqual(['node', 'python3']);
+    const first = await run(['--init', '--as', MANAGER]);
+    expect(first.stderr).toBe('');
+    expect(first.code).toBe(0);
+    expect(JSON.parse(first.stdout)).toMatchObject({
+      generation: 'bow-923-v3',
+      nodes: 'created',
+      baseline: 'created',
+      binding: 'created',
+      import: { status: 'inserted' },
+    });
+    const again = await run(['--init', '--as', MANAGER]);
+    expect(again.code).toBe(0);
+    expect(JSON.parse(again.stdout)).toMatchObject({
+      directory: 'unchanged',
+      nodes: 'unchanged',
+      baseline: 'unchanged',
+      binding: 'unchanged',
+      import: { status: 'unchanged' },
+    });
+  }, 90_000);
+  it('without python3 on PATH the artifact init fails before any read or transaction', async () => {
+    await managerAccount();
+    await db().delete(people).where(eq(people.id, DEMO_GRADUATION_REVIEWER.id));
+    const nodeOnly = mkdtempSync(join(tmpdir(), 'artifact-bin-node-'));
+    try {
+      symlinkSync(process.execPath, join(nodeOnly, 'node'));
+      expect(
+        await runCli(['--init', '--as', MANAGER], {
+          root: artifact,
+          path: nodeOnly,
+          timeout: 30_000,
+        }),
+      ).toEqual({
+        code: 1,
+        stdout: '',
+        stderr:
+          JSON.stringify({ status: 'failed', code: 'python_unavailable' }) +
+          '\n',
+      });
+      await nothingWritten();
+    } finally {
+      rmSync(nodeOnly, { recursive: true, force: true });
+    }
+  }, 60_000);
+  it.each([
+    ['tampered', 'fixture_digest_mismatch'],
+    ['missing', 'fixture_missing'],
+  ] as const)(
+    'a %s packaged fact fails before any transaction',
+    async (mode, code) => {
+      await managerAccount();
+      await db()
+        .delete(people)
+        .where(eq(people.id, DEMO_GRADUATION_REVIEWER.id));
+      const path = join(facts(), 'source-rows.json');
+      const original = readFileSync(path);
+      try {
+        if (mode === 'missing') renameSync(path, path + '.away');
+        else writeFileSync(path, Buffer.concat([original, Buffer.from(' ')]));
+        expect(await run(['--init', '--as', MANAGER])).toEqual({
+          code: 1,
+          stdout: '',
+          stderr:
+            JSON.stringify({
+              status: 'failed',
+              code,
+              file: 'source-rows.json',
+            }) + '\n',
+        });
+        await nothingWritten();
+      } finally {
+        rmSync(path + '.away', { force: true });
+        writeFileSync(path, original);
+      }
+    },
+    60_000,
+  );
 });

@@ -1,3 +1,4 @@
+import { recordInputSchema } from '../../contracts/record';
 import { randomUUID } from 'node:crypto';
 import { PgBoss } from 'pg-boss';
 import { eq, sql } from 'drizzle-orm';
@@ -326,7 +327,7 @@ it('reserves existing event identities from the real persisted manifest', async 
   const request = {
     accountId: h.account,
     batchId: h.draft.batchId,
-    operationId: h.intake.originalInput.operation_id,
+    operationId: recordInputSchema.parse(h.intake.originalInput).operation_id,
     attempt: 1,
   };
   const ledger = await h.app.requests.native.ports.locked(request, (tx) =>
@@ -421,7 +422,7 @@ it('native operation save rejects a stale persisted revision without overwriting
   const request = {
     accountId: h.account,
     batchId: h.draft.batchId,
-    operationId: h.intake.originalInput.operation_id,
+    operationId: recordInputSchema.parse(h.intake.originalInput).operation_id,
     attempt: 1,
   };
   const [before] = await connection.db

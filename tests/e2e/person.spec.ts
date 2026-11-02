@@ -66,6 +66,44 @@ async function openFirstCite(page: Page) {
   return { mark, request: await action };
 }
 
+// H3：从真实入口点进去，不直接打开地址。侧栏 → 人员列表 → 速览 → 打开档案，三种业务视角。
+for (const role of ['ceo', 'hrbp', 'mentor'] as const)
+  test(`${role}: reaches the profile from the side bar, the list and the quick view`, async ({
+    page,
+    context,
+    referenceApp,
+  }) => {
+    const name = await prototypeName(SAMPLE);
+    expect(name).not.toBeNull();
+    await login(context, role, referenceApp.baseURL);
+    await page.goto('/');
+    await page
+      .getByRole('complementary', { name: '主导航' })
+      .getByRole('link', {
+        name: role === 'mentor' ? '所带学员' : '人才',
+        exact: true,
+      })
+      .click();
+    await expect(page).toHaveURL(/\/people$/);
+    // 侧栏是客户端跳转，开发服务器第一次进 /people 要现编译，列表出来前等久一点。
+    await expect(page.locator('#plist')).toBeVisible({ timeout: 30_000 });
+    const row = page
+      .locator('#plist .n-person-row')
+      .filter({ has: page.locator('.n-person__name', { hasText: name! }) });
+    await expect(row).toHaveCount(1);
+    await row.click();
+    const drawer = page.getByRole('dialog', { name: name! });
+    await expect(drawer).toBeVisible();
+    await drawer.getByRole('link', { name: '打开档案' }).click();
+    await expect(page).toHaveURL(new RegExp(`/person\\?id=${SAMPLE}$`));
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(name!);
+    await expect(page.locator('#timeline')).toBeVisible();
+    // 角色边界：管理者和 HR 有能力象限，导师没有。
+    await expect(page.locator('.n-miniquad')).toHaveCount(
+      role === 'mentor' ? 0 : 1,
+    );
+  });
+
 test('manager: profile blocks, citations, timeline and source read refusals', async ({
   page,
   context,
