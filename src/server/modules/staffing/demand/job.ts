@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { AuthzContext } from '../../../authz';
 import {
   metadataFor,
@@ -94,6 +94,13 @@ export async function readDemandCreationSnapshotInTransaction(
   accountId: string,
   input: { operationId: string; jobId: string },
 ): Promise<JobSnapshot | null> {
+  // Lock-then-reread is only fresh under Read Committed; a repeatable read
+  // snapshot taken before the wait would present stale status/authority.
+  const { rows } = await tx.execute<{ isolation: string }>(
+    sql`select current_setting('transaction_isolation') as isolation`,
+  );
+  if (rows[0]?.isolation !== 'read committed')
+    throw new Error('Demand creation snapshot requires Read Committed');
   const job = await readJobInTransaction(tx, input.jobId, true);
   if (!job || job.kind !== 'staffing_demand' || job.resourceId !== job.jobId)
     return null;

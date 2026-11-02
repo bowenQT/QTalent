@@ -595,3 +595,60 @@ it('save cannot use a different transaction or delete history; unknown cleanup i
   await f.service.cancel(f.identity, f.conversationId);
   expect(f.provider.archive).toHaveBeenCalledTimes(1);
 });
+async function lockWaiters() {
+  const { rows } = await c.db.execute<{ waiting: number }>(
+    sql`select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
+  );
+  return rows[0]!.waiting;
+}
+it('a logout racing a locked conversation waits behind it instead of deadlocking the same-transaction 903 re-read', async () => {
+  const f = await setup();
+  const locked = gate(),
+    release = gate();
+  // A: conversation transaction that re-reads 903 after the logout is queued.
+  const conversation = f.ports.transaction(f.conversationId, async (tx) => {
+    locked.resolve();
+    await release.promise;
+    return f.ports.current(tx, f.identity);
+  });
+  await locked.promise;
+  // B: real logout. The session delete cascades to the AgentAPI binding and
+  // nulls this conversation's binding, so it must queue behind A's locks.
+  const logout = c.db.delete(session).where(eq(session.id, f.sessionId));
+  await expect.poll(lockWaiters, { timeout: 5000 }).toBeGreaterThan(0);
+  release.resolve();
+  const [current, out] = await Promise.allSettled([conversation, logout]);
+  // Neither side is chosen as a deadlock victim: A finished before logout
+  // committed, and logout then completes with its cascade.
+  expect(current.status).toBe('fulfilled');
+  expect(out.status).toBe('fulfilled');
+  const [row] = await c.db
+    .select()
+    .from(agentApiConversations)
+    .where(eq(agentApiConversations.id, f.conversationId));
+  expect(row!.bindingId).toBeNull();
+  await expect(
+    f.ports.transaction(f.conversationId, (tx) =>
+      f.ports.current(tx, f.identity),
+    ),
+  ).rejects.toThrow();
+}, 15000);
+it('a conversation started after an uncommitted logout waits for it and then fails closed', async () => {
+  const f = await setup();
+  const deleted = gate(),
+    commit = gate();
+  const logout = c.db.transaction(async (tx) => {
+    await tx.delete(session).where(eq(session.id, f.sessionId));
+    deleted.resolve();
+    await commit.promise;
+  });
+  await deleted.promise;
+  const conversation = f.ports.transaction(f.conversationId, (tx) =>
+    f.ports.current(tx, f.identity),
+  );
+  await expect.poll(lockWaiters, { timeout: 5000 }).toBeGreaterThan(0);
+  commit.resolve();
+  await logout;
+  await expect(conversation).rejects.toThrow();
+  expect(f.provider.send).not.toHaveBeenCalled();
+}, 15000);

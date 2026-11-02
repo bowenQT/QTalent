@@ -98,7 +98,7 @@ describe('transaction-local opaque entry identities', () => {
     expect(f.verify).toHaveBeenCalledTimes(1);
   });
 
-  it('preserves the existing pool refresh deadline timing instead of expanding this transaction-only change', async () => {
+  it('rechecks the original deadline after a slow pool refresh too, without touching the transaction reader', async () => {
     const f = fixture();
     const cap = await f.service.authenticate('agentapi', true);
     let release!: (value: CredentialBinding) => void;
@@ -111,9 +111,8 @@ describe('transaction-local opaque entry identities', () => {
     const pending = f.service.current(cap);
     f.setTime(Date.parse(expiry));
     release({ ...f.original, expiresAt: '2027-01-01T00:00:00.000Z' });
-    // The pre-existing pool path checks the original cap before the await only.
-    // The new transaction path below deliberately also checks after the await.
-    expect(await pending).toHaveProperty('personId', f.original.personId);
+    // Both paths share the post-await recheck: a renewed row cannot outlive the cap.
+    await expect(pending).rejects.toMatchObject({ kind: 'unauthenticated' });
     expect(f.currentInTransaction).not.toHaveBeenCalled();
     await expect(f.service.current(cap)).rejects.toMatchObject({
       kind: 'unauthenticated',

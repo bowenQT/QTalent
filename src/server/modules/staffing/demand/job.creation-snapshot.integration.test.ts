@@ -613,3 +613,17 @@ it.each(['binding', 'revocation', 'root-input'] as const)(
   },
   20000,
 );
+
+it('refuses a caller transaction that is not Read Committed instead of serving a pre-wait snapshot', async () => {
+  const creation = await native();
+  for (const isolationLevel of ['repeatable read', 'serializable'] as const)
+    await expect(
+      connection.db.transaction((tx) => readUnchanged(tx, creation), {
+        isolationLevel,
+      }),
+    ).rejects.toThrow('Read Committed');
+  expect(await read(creation)).toMatchObject({
+    jobId: creation.jobId,
+    status: 'queued',
+  });
+});

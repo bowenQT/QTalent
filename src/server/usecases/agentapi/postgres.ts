@@ -387,12 +387,20 @@ export function createAgentConversationPostgresPorts(options: {
 }): ConversationPorts<Transaction> {
   const store = createAgentConversationStore(options.db);
   const handlers = createMcpDomainHandlers(options.domains);
-  const context = createEntryContextLoader(options.identities, {
-    load: loadEntryAuthorizationContext,
-    businessNow: options.now,
+  // Both the explicit identity check and the 899 context loader re-read the
+  // 903 credential on this conversation's transaction, never on the pool.
+  const inTransaction = (tx: Transaction): EntryIdentityService => ({
+    ...options.identities,
+    current: (identity) =>
+      options.identities.currentInTransaction(tx, identity),
   });
+  const context = (tx: Transaction, identity: EntryIdentity) =>
+    createEntryContextLoader<Transaction>(inTransaction(tx), {
+      load: loadEntryAuthorizationContext,
+      businessNow: options.now,
+    })(tx, identity);
   async function current(tx: Transaction, identity: EntryIdentity) {
-    const actor = await options.identities.current(identity);
+    const actor = await options.identities.currentInTransaction(tx, identity);
     if (
       actor.channel !== 'agentapi' ||
       store.bindingId(tx) !== actor.credentialId
