@@ -33,14 +33,24 @@ describe('recognizePerson', () => {
     expect(recognizePerson('苏少卿和季思齐一起做完了', people)).toBeNull();
   });
 
-  it('一个名字对上多个人：这个名字不算', () => {
+  it('重名：不自动选，哪怕原话里还有别的人名', () => {
     expect(recognizePerson('林同名今天很投入', people)).toBeNull();
-    expect(recognizePerson('林同名帮苏少卿改了稿', people)).toBe('a');
+    expect(recognizePerson('林同名帮苏少卿改了稿', people)).toBeNull();
   });
 
-  it('短名被长名包含：只认长的那位', () => {
-    expect(recognizePerson('王一鸣今天主动补了测试', people)).toBe('d');
+  it('姓名互相包含：不自动选', () => {
+    expect(recognizePerson('王一鸣今天主动补了测试', people)).toBeNull();
     expect(recognizePerson('王一今天主动补了测试', people)).toBe('c');
+    expect(recognizePerson('王一和王一鸣一起完成了测试', people)).toBeNull();
+  });
+
+  it('长姓名重名、短姓名唯一：不退化成短姓名', () => {
+    const twins = [
+      person('c', '王一'),
+      person('d1', '王一鸣'),
+      person('d2', '王一鸣'),
+    ];
+    expect(recognizePerson('王一鸣今天补了测试', twins)).toBeNull();
   });
 
   it('候选为空或姓名为空：认不出', () => {

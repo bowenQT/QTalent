@@ -213,11 +213,12 @@ function RecordFlow(props: RecordPageProps) {
   // 输入态防抖写入会话暂存（D19）；开始整理或保存后删除
   useEffect(() => {
     if (phase !== 'write') return;
-    const timer = setTimeout(
-      () =>
-        stashInput(accountId, { text: state.text, personId: state.personId }),
-      STASH_DEBOUNCE_MS,
-    );
+    // 安排时记下会话版本：其间退出或换了账号，到点也不写回旧账号的原话
+    const epoch = sessionDraftEpoch();
+    const timer = setTimeout(() => {
+      if (epoch !== sessionDraftEpoch()) return;
+      stashInput(accountId, { text: state.text, personId: state.personId });
+    }, STASH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [accountId, phase, state.text, state.personId]);
 
@@ -314,6 +315,9 @@ function RecordFlow(props: RecordPageProps) {
       return;
     }
     if (state.text.length > maxLength) return;
+    // 整理开始前记下会话版本；每次等待回来先核对，退出或换了账号就不再推导、提交或写暂存
+    const epoch = sessionDraftEpoch();
+    const ended = () => epoch !== sessionDraftEpoch();
     // 「从原话里识别」：按候选姓名精确匹配，认出恰好一位就填进「谁」；认不出时下面的推导返回
     // none，页面提示选人并把焦点交给「谁」。
     const personId = state.personId ?? recognizePerson(state.text, people);
@@ -328,6 +332,7 @@ function RecordFlow(props: RecordPageProps) {
         return;
       }
       const node = await actions.resolveNode({ personIds, projectId: null });
+      if (ended()) return;
       if (node.status !== 'unique') {
         dispatch({ type: 'node_unresolved', reason: node.status });
         return;
@@ -340,7 +345,6 @@ function RecordFlow(props: RecordPageProps) {
       );
       dispatch({ type: 'submit_begin', op });
       clearRecordInputStash();
-      const epoch = sessionDraftEpoch();
       const result = await actions.submit({
         operationId: op.id,
         evaluationNodeId: node.evaluationNodeId,
@@ -352,8 +356,7 @@ function RecordFlow(props: RecordPageProps) {
       });
       if (result.status === 'success') {
         // 提交期间退出或换了账号：不把原话写回会话暂存
-        if (epoch === sessionDraftEpoch())
-          stashBatchInput(accountId, result.result.batchId, input);
+        if (!ended()) stashBatchInput(accountId, result.result.batchId, input);
         dispatch({ type: 'batch_begin', batch: result.result });
       } else {
         dispatch({

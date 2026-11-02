@@ -1083,6 +1083,34 @@ describe('进入方式', () => {
 });
 
 describe('未保存内容的保护（输入暂存）', () => {
+  it('退出后页面还没卸载：到点的防抖不把旧账号的原话写回', async () => {
+    setup();
+    await userEvent.type(screen.getByRole('textbox'), '写到一半');
+    // 退出成功、清掉暂存，跳转前页面还在
+    clearSessionDrafts();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(window.sessionStorage.getItem(INPUT_STASH_KEY)).toBeNull();
+  });
+
+  it('推导节点期间退出登录：回来后不提交，也不写暂存', async () => {
+    let resolveNode: (value: unknown) => void = () => undefined;
+    const { actions } = setup({
+      actions: {
+        resolveNode: vi.fn(
+          () => new Promise((resolve) => (resolveNode = resolve)),
+        ) as never,
+      },
+    });
+    await typeAndSubmit();
+    await waitFor(() => expect(actions.resolveNode).toHaveBeenCalled());
+    clearSessionDrafts();
+    resolveNode({ status: 'unique', evaluationNodeId: NODE });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(actions.submit).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem(BATCH_STASH_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(INPUT_STASH_KEY)).toBeNull();
+  });
+
   it('提交期间退出登录：晚到的回执不把原话写回会话暂存', async () => {
     let resolveSubmit: (value: unknown) => void = () => undefined;
     const { actions } = setup({
