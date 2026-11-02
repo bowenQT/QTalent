@@ -45,12 +45,22 @@ export const REREAD_LIMIT = 3;
  * - refresh：撤销已完成，但回执没给可用的草稿版本。
  * read 是最近一次重新读取的结果：读到已在别处再次确认（confirmed），或读到了批次却
  * 没有这件事（missing），都继续暂停，交给回执页看。
+ * saveId 是暂停所属的那次保存；attempts 是已发起的重读次数，不论结果，到 REREAD_LIMIT 为止。
  */
 export type Hold = {
   kind: 'pending' | 'refresh';
+  saveId: string;
   read: 'reading' | 'failed' | 'confirmed' | 'missing' | null;
-  failures: number;
+  attempts: number;
 };
+
+/**
+ * 页面当前代表的那次保存：有回执时是回执的 saveId，撤销后暂停时是暂停所属的 saveId，
+ * 回到待确认后为空。撤销和重读的异步结果只在归属等于它时生效。
+ */
+export function currentSaveId(state: RecordState): string | null {
+  return state.receipt?.saveId ?? state.hold?.saveId ?? null;
+}
 
 export type Connection = 'connected' | 'error' | 'gone';
 /** 评价节点为什么没法定下来：多个、没有，或推导入口待接通。 */
@@ -183,18 +193,18 @@ export type Action =
   | { type: 'save_forbidden'; message: string }
   | { type: 'back_to_write' }
   /** draftRevision: the version the undo receipt hands back for saving again; null to reload. */
-  | { type: 'undone'; draftRevision: number | null }
+  | { type: 'undone'; saveId: string; draftRevision: number | null }
   /** 撤销请求出错或超时，结果不明。 */
-  | { type: 'undo_unknown' }
-  | { type: 'undo_reread_begin' }
+  | { type: 'undo_unknown'; saveId: string }
+  | { type: 'undo_reread_begin'; saveId: string }
   /** 撤销后重新读到了这件事、仍待确认：用读到的版本，修改保留，解除暂停。 */
-  | { type: 'undo_reread'; draft: RecordBatchDraft }
+  | { type: 'undo_reread'; saveId: string; draft: RecordBatchDraft }
   /** 重新读取发现这件事在已确认里。 */
-  | { type: 'undo_reread_confirmed' }
+  | { type: 'undo_reread_confirmed'; saveId: string }
   /** 读到了批次，但待确认和已确认里都没有这件事。 */
-  | { type: 'undo_reread_missing' }
+  | { type: 'undo_reread_missing'; saveId: string }
   /** 重新读取失败或超时。 */
-  | { type: 'undo_reread_failed' };
+  | { type: 'undo_reread_failed'; saveId: string };
 
 export function recordReducer(state: RecordState, action: Action): RecordState {
   switch (action.type) {
@@ -350,6 +360,8 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
       // 保存用过的 operation_id 作废，再保存必须换新，否则服务端会重放撤销掉的那次。
       // 846 的撤销推进了草稿版本：再保存用回执给的新版本，不然会被当成冲突。
       // 回执要求重读（refresh_required）时手里的版本已经过时：先重读，读到新版本再保存。
+      // 只认当前这次保存的撤销回执：旧保存的回执（服务端按原 operation_id 重放）原样丢弃。
+      if (currentSaveId(state) !== action.saveId) return state;
       if (!state.draft || !state.edit) return resetToWrite(state);
       return {
         ...state,
@@ -365,18 +377,49 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
         problems: null,
         hold:
           action.draftRevision === null
-            ? { kind: 'refresh', read: null, failures: 0 }
+            ? {
+                kind: 'refresh',
+                saveId: action.saveId,
+                read: null,
+                attempts: 0,
+              }
             : null,
       };
     case 'undo_unknown':
-      if (state.phase !== 'saved' || state.hold) return state;
-      return { ...state, hold: { kind: 'pending', read: null, failures: 0 } };
+      if (
+        state.phase !== 'saved' ||
+        state.hold ||
+        state.receipt?.saveId !== action.saveId
+      )
+        return state;
+      return {
+        ...state,
+        hold: {
+          kind: 'pending',
+          saveId: action.saveId,
+          read: null,
+          attempts: 0,
+        },
+      };
     case 'undo_reread_begin':
-      if (!state.hold) return state;
-      return { ...state, hold: { ...state.hold, read: 'reading' } };
+      // 重读按发起次数计，不论结果；到上限后不再发起
+      if (
+        state.hold?.saveId !== action.saveId ||
+        state.hold.read === 'reading' ||
+        state.hold.attempts >= REREAD_LIMIT
+      )
+        return state;
+      return {
+        ...state,
+        hold: {
+          ...state.hold,
+          read: 'reading',
+          attempts: state.hold.attempts + 1,
+        },
+      };
     case 'undo_reread':
       // 只有读到对应的待确认草稿才解除暂停
-      if (!state.hold || !state.edit) return state;
+      if (state.hold?.saveId !== action.saveId || !state.edit) return state;
       return {
         ...state,
         draft: action.draft,
@@ -389,24 +432,17 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
         hold: null,
       };
     case 'undo_reread_confirmed':
-      if (!state.hold) return state;
+      if (state.hold?.saveId !== action.saveId) return state;
       // 结果不明的撤销其实没生效：仍是已保存，没有可保存的东西，解除暂停
       if (state.hold.kind === 'pending') return { ...state, hold: null };
       // 撤销过、又在别处确认了：本页的草稿已过时，继续暂停，交给回执页
       return { ...state, hold: { ...state.hold, read: 'confirmed' } };
     case 'undo_reread_missing':
-      if (!state.hold) return state;
+      if (state.hold?.saveId !== action.saveId) return state;
       return { ...state, hold: { ...state.hold, read: 'missing' } };
     case 'undo_reread_failed':
-      if (!state.hold) return state;
-      return {
-        ...state,
-        hold: {
-          ...state.hold,
-          read: 'failed',
-          failures: state.hold.failures + 1,
-        },
-      };
+      if (state.hold?.saveId !== action.saveId) return state;
+      return { ...state, hold: { ...state.hold, read: 'failed' } };
   }
 }
 

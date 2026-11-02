@@ -40,10 +40,12 @@ import {
 import { recognizePerson } from './recognize';
 import { RecordInput } from './RecordInput';
 import {
+  currentSaveId,
   initialState,
   inputKey,
   isDirty,
   recordReducer,
+  REREAD_LIMIT,
   type Connection,
 } from './record-flow';
 import {
@@ -199,6 +201,13 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const loadSeq = useRef(0);
+  // 最近一次提交的状态：异步结果回来时用它核对归属（只在事件续体里读）
+  const committed = useRef(state);
+  useEffect(() => {
+    committed.current = state;
+  });
+  // 每次保存只留一条撤销提示；新的保存回执或重读得出结果后收起旧的
+  const undoEntry = useRef<{ saveId: string; close: () => void } | null>(null);
   const settleTimer = useRef<(() => void) | null>(null);
   const [confirm, setConfirm] = useScopedState<Confirm>(scope, null);
   const [copyOut, setCopyOut] = useScopedState<string | null>(scope, null);
@@ -524,6 +533,7 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
       .map((event) => personName(event.personId))
       .join(copy.saved.peopleJoin);
     const message = copy.saved.toast(names, receipt.reviewItemIds.length);
+    closeUndo();
     // 重放说明首次响应丢了，原撤销窗口可能已过：只提示，不给撤销
     if (replayed) {
       toast.show(message);
@@ -538,10 +548,25 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
       return;
     }
     const undoOperation = newId();
+    const saveId = receipt.saveId;
     const target =
       draft && state.batchId
         ? { draftId: draft.draftId, batchId: state.batchId }
         : null;
+    // 撤销属于这一次保存。页面已换到别的保存时（重读后又保存过），结果不再属于当前：
+    // 收起这条提示、不改页面状态；当前保存正暂停时只触发一次重读，由服务端现状决定
+    const stale = () => currentSaveId(committed.current) !== saveId;
+    const drop = () => {
+      close();
+      const hold = committed.current.hold;
+      const now = committed.current;
+      if (hold && hold.read !== 'reading' && now.draft && now.batchId)
+        void rereadAfterUndo(
+          { draftId: now.draft.draftId, batchId: now.batchId },
+          hold.saveId,
+          hold.kind,
+        );
+    };
     // 撤销请求出过错或超时之后，结果就不明了：首次可能已经生效，只是回应丢了
     let uncertain = false;
     let attempts = 0;
@@ -550,6 +575,7 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
       failedText: copy.saved.undoFailed,
       retryLabel: copy.saved.undoRetry,
       onUndo: async () => {
+        if (stale()) return drop();
         // 截止后只拦新发起的撤销；发起过的同一操作仍交给服务端重放，不由本页断定
         if (!uncertain && Date.now() >= undoUntil) {
           close();
@@ -562,36 +588,40 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
           result = await within(
             actions.undo({
               operation_id: undoOperation,
-              saveId: receipt.saveId,
+              saveId,
             }),
           );
         } catch (error) {
+          if (stale()) return drop();
           uncertain = true;
-          dispatch({ type: 'undo_unknown' });
+          dispatch({ type: 'undo_unknown', saveId });
           // 到上限不再重试：收起提示，改为重新读取现状
           if (attempts >= UNDO_ATTEMPTS) {
             close();
-            if (target) void rereadAfterUndo(target, 'pending');
+            if (target) void rereadAfterUndo(target, saveId, 'pending');
             return;
           }
           // 让它抛出，Toast 显示失败并给重试（同一 operation_id）
           throw error;
         }
+        // 服务端会按原 operation_id 重放旧撤销的回执：先核对它仍属于当前这次保存
+        if (stale()) return drop();
         if (result.status === 'success') {
           const restored = result.result.draftRestoration;
           dispatch({
             type: 'undone',
+            saveId,
             draftRevision:
               restored.status === 'available' ? restored.draftRevision : null,
           });
           if (restored.status !== 'available' && target)
-            void rereadAfterUndo(target, 'refresh');
+            void rereadAfterUndo(target, saveId, 'refresh');
           return;
         }
         close();
         // 之前出过错时，拒绝或超时证明不了首次没有生效：重新读取现状再说
         if (uncertain) {
-          if (target) void rereadAfterUndo(target, 'pending');
+          if (target) void rereadAfterUndo(target, saveId, 'pending');
           return;
         }
         // 业务终局失败不是「可重试」：收起原提示，另发一条说明
@@ -602,20 +632,37 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
         );
       },
     });
+    undoEntry.current = { saveId, close };
     if (remaining < UNDO_MS) scope.timeout(close, remaining);
+  }
+
+  /** 收起撤销提示；给了 saveId 时只收起属于那次保存的。 */
+  function closeUndo(saveId?: string) {
+    const entry = undoEntry.current;
+    if (!entry || (saveId && entry.saveId !== saveId)) return;
+    entry.close();
+    undoEntry.current = null;
   }
 
   /**
    * 撤销之后读这件事的现状：回到待确认就用读到的版本。仍在档案里时，结果不明的撤销
    * （pending）说明没有生效；已确认撤销过（refresh）说明别处又确认了，交给回执页看。
+   * 读取按发起次数计，到上限后不再发起；读出结果后收起结果不明的那条撤销提示。
    */
   async function rereadAfterUndo(
     target: { draftId: string; batchId: string },
+    saveId: string,
     mode: 'pending' | 'refresh',
   ) {
+    const hold = committed.current.hold;
+    if (
+      hold?.saveId === saveId &&
+      (hold.read === 'reading' || hold.attempts >= REREAD_LIMIT)
+    )
+      return;
     const seq = ++loadSeq.current;
-    const failed = () => dispatch({ type: 'undo_reread_failed' });
-    dispatch({ type: 'undo_reread_begin' });
+    const failed = () => dispatch({ type: 'undo_reread_failed', saveId });
+    dispatch({ type: 'undo_reread_begin', saveId });
     try {
       const result = await within(
         actions.readBatch({ batchId: target.batchId }),
@@ -625,8 +672,11 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
       const latest = result.result.draftSet?.drafts.find(
         (item) => item.draftId === target.draftId,
       );
+      // 结果不明的撤销读出了现状：收起它的提示，旧的「重试」不再能发出。
+      // 已确认撤销过（refresh）的提示只剩「已撤销」的说明，留着给用户看
+      if (mode === 'pending') closeUndo(saveId);
       if (latest) {
-        dispatch({ type: 'undo_reread', draft: latest });
+        dispatch({ type: 'undo_reread', saveId, draft: latest });
         return;
       }
       if (
@@ -634,12 +684,12 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
           (item) => item.draftId === target.draftId,
         )
       ) {
-        dispatch({ type: 'undo_reread_confirmed' });
+        dispatch({ type: 'undo_reread_confirmed', saveId });
         if (mode === 'pending') toast.show(copy.undo.notApplied);
         return;
       }
       // 读到了批次却没有这件事：仍待核实，保存继续暂停
-      dispatch({ type: 'undo_reread_missing' });
+      dispatch({ type: 'undo_reread_missing', saveId });
     } catch {
       if (seq === loadSeq.current) failed();
     }
@@ -841,11 +891,13 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
                       if (
                         hold &&
                         hold.read !== 'reading' &&
+                        hold.attempts < REREAD_LIMIT &&
                         draft &&
                         state.batchId
                       )
                         void rereadAfterUndo(
                           { draftId: draft.draftId, batchId: state.batchId },
+                          hold.saveId,
                           hold.kind,
                         );
                     }}

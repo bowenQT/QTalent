@@ -998,8 +998,9 @@ describe('5 秒撤销', () => {
       .mockImplementationOnce(() => Promise.reject(new Error('offline')))
       .mockImplementation(() => batchWith(7));
     await click('撤销');
+    // 读出结果后按现状写：读取失败时换成失败的说明
     expect(await screen.findByText(copy.undo.rereadFailed)).toBeTruthy();
-    expect(screen.getByText(copy.undo.refresh)).toBeTruthy();
+    expect(screen.queryByText(copy.undo.refresh)).toBeNull();
     expect(saveButton().disabled).toBe(true);
     await click(copy.actions.reread);
     await waitFor(() => expect(saveButton().disabled).toBe(false));
@@ -1168,6 +1169,111 @@ describe('5 秒撤销', () => {
       screen.getByRole('link', { name: copy.undo.openReceipt }),
     ).toBeTruthy();
   });
+
+  // 第一次撤销已经生效、回应丢了；重新读取回到待确认后又保存了一次
+  async function savedTwiceAfterLostUndo(undo: ReturnType<typeof vi.fn>) {
+    const save = vi
+      .fn()
+      .mockImplementationOnce(() => ok(liveReceipt()))
+      .mockImplementation(() => ok({ ...liveReceipt(), saveId: 'save-2' }));
+    const { actions } = await saved({
+      actions: { undo: undo as never, save: save as never },
+    });
+    actions.readBatch.mockImplementation(() => batchWith(draft.revision + 2));
+    await click('撤销');
+    await screen.findByText(copy.saved.undoFailed);
+    return { actions, save };
+  }
+  const lostUndoReplay = () =>
+    undoDone({ status: 'available', draftRevision: draft.revision + 2 });
+
+  it('旧提示跨过第二次保存：重新读取出结果就收起旧提示，第二次保存不被旧撤销改动', async () => {
+    const undo = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockImplementation(lostUndoReplay);
+    const { save } = await savedTwiceAfterLostUndo(undo);
+    await click(copy.actions.reread);
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    // 结果不明的那条提示已收起，旧的「重试」点不到
+    expect(
+      screen.queryByRole('button', { name: copy.saved.undoRetry }),
+    ).toBeNull();
+    await click(copy.actions.save);
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    await screen.findByRole('button', { name: '撤销' });
+    expect(
+      screen.queryByRole('button', { name: copy.saved.undoRetry }),
+    ).toBeNull();
+    expect(undo).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.n-event__sign')).not.toBeNull();
+  });
+
+  it('旧提示跨过第二次保存：已发出的旧重试在第二次保存后才回来，回执被丢弃', async () => {
+    let release!: () => void;
+    const late = new Promise<void>((resolve) => {
+      release = resolve;
+    }).then(lostUndoReplay);
+    const undo = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockImplementation(() => late);
+    const { save } = await savedTwiceAfterLostUndo(undo);
+    await click(copy.saved.undoRetry);
+    await waitFor(() => expect(undo).toHaveBeenCalledTimes(2));
+    await click(copy.actions.reread);
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    await click(copy.actions.save);
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(document.querySelector('.n-event__sign')).not.toBeNull(),
+    );
+    // 服务端按原 operation_id 重放第一次撤销的成功回执
+    release();
+    await late;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText(copy.saved.undone)).toBeNull();
+    expect(document.querySelector('.n-event__sign')).not.toBeNull();
+    expect(
+      screen.queryByRole('button', { name: copy.actions.save }),
+    ).toBeNull();
+  });
+
+  it.each([
+    [
+      '目标缺失',
+      () => ok({ ...doneBatch, draftSet: null, confirmedDrafts: [] }),
+      copy.undo.missing,
+    ],
+    ['已被再次确认', confirmedBatch, copy.undo.confirmedElsewhere],
+  ] as const)(
+    '读取一直成功但%s：保存保持暂停，重读按次数计，读满只留回执入口',
+    async (_name, read, text) => {
+      const { actions } = await saved({
+        actions: {
+          undo: vi.fn(() => undoDone({ status: 'refresh_required' })) as never,
+        },
+      });
+      actions.readBatch.mockImplementation(read as never);
+      const before = actions.readBatch.mock.calls.length;
+      await click('撤销');
+      expect(await screen.findByText(text)).toBeTruthy();
+      for (let i = 1; i < REREAD_LIMIT; i++) {
+        await waitFor(() =>
+          expect(rereadButton()?.hasAttribute('disabled')).toBe(false),
+        );
+        await click(copy.actions.reread);
+      }
+      await waitFor(() => expect(rereadButton()).toBeNull());
+      expect(actions.readBatch).toHaveBeenCalledTimes(before + REREAD_LIMIT);
+      expect(screen.getByText(text)).toBeTruthy();
+      expect(screen.queryByText(copy.undo.refresh)).toBeNull();
+      expect(saveButton().disabled).toBe(true);
+      expect(
+        screen.getByRole('link', { name: copy.undo.openReceipt }),
+      ).toBeTruthy();
+    },
+  );
 
   it('窗口已过：关闭原提示，另发说明，记录保持已保存，不显示已撤销', async () => {
     const undo = vi

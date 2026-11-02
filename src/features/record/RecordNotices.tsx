@@ -273,8 +273,10 @@ export function HoldNotice({
   onReread: () => void;
 }) {
   const reading = hold.read === 'reading';
-  const canReread = hold.failures < REREAD_LIMIT;
-  const detail =
+  // 读取按发起次数计，不论结果：读满后只留「打开回执」
+  const canReread = hold.attempts < REREAD_LIMIT;
+  // 读出结果后，按读到的现状写这件事现在怎样、下一步做什么
+  const text =
     hold.read === 'confirmed'
       ? copy.undo.confirmedElsewhere
       : hold.read === 'missing'
@@ -283,7 +285,9 @@ export function HoldNotice({
           ? canReread
             ? copy.undo.rereadFailed
             : copy.undo.rereadLimit
-          : null;
+          : hold.kind === 'pending'
+            ? copy.undo.pending
+            : copy.undo.refresh;
   return (
     <Notice
       actions={
@@ -307,8 +311,7 @@ export function HoldNotice({
         </>
       }
     >
-      {hold.kind === 'pending' ? copy.undo.pending : copy.undo.refresh}
-      {detail ? <div className="nt-muted">{detail}</div> : null}
+      {text}
     </Notice>
   );
 }
