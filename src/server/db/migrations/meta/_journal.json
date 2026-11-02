@@ -113,13 +113,6 @@
       "when": 1793599967790,
       "tag": "0015_bow_926_material_sources",
       "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1793612683517,
-      "tag": "0016_bow_849_score_review_calibration",
-      "breakpoints": true
     }
   ]
 }
