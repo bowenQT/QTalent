@@ -108,7 +108,8 @@ export async function readNativeDraftSet(
  * This modifies the same locked job row, not a second status or operation store.
  * Every native batch job transaction takes the intake SHARE lock before the job
  * row lock: the global order is intake first, then batch/draft, sources and
- * permissions. Submit replays already hold the intake writer lock before they
+ * permissions. readBatchInTransaction follows the same order in its caller's
+ * transaction. Submit replays already hold the intake writer lock before they
  * lock the job row, so the runner must not hold the job row and then wait on
  * intake. */
 function nativeJobStore(db: Database): JobStore<Transaction> {

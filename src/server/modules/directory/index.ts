@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../../db/client';
 import { accountBindings, grants, people, organizations } from './schema';
 export async function readDirectory(db: DbExecutor, accountId: string) {
@@ -20,6 +20,23 @@ export async function readDirectory(db: DbExecutor, accountId: string) {
     people: await db.select().from(people),
     organizations: await db.select().from(organizations),
   };
+}
+/** The only writer that changes an account's person. Binding, rebinding and
+ * unbinding to a placeholder all advance `generation` in one statement, so
+ * earlier entry credentials stay invalid. Returns null for an unknown account. */
+export async function rebindDirectoryAccount(
+  db: DbExecutor,
+  input: { accountId: string; personId: string },
+): Promise<{ generation: number } | null> {
+  const [row] = await db
+    .update(accountBindings)
+    .set({
+      personId: input.personId,
+      generation: sql`${accountBindings.generation} + 1`,
+    })
+    .where(eq(accountBindings.accountId, input.accountId))
+    .returning({ generation: accountBindings.generation });
+  return row ?? null;
 }
 export {
   people,

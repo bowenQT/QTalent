@@ -358,6 +358,13 @@ export function planRecordConfirmation(input: {
           ?.revision ?? draft.revision,
       receipt: structuredClone({
         saveId: saved.receipt.saveId,
+        draftRestoration: {
+          status: 'available',
+          draftId: draft.draftId,
+          draftRevision:
+            (state.draftSet.drafts.find((row) => row.draftId === draft.draftId)
+              ?.revision ?? draft.revision) + 1,
+        },
         withdrawnEvents: saved.receipt.events.filter((row) =>
           saved.createdEventIds.includes(row.eventId),
         ),
