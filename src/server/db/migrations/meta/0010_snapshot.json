@@ -1,309 +1,9 @@
 {
-  "id": "618298ee-473d-4aed-8525-cb11f4afc2ad",
+  "id": "9f4cbd28-68ce-4188-ba15-5f537022f18b",
   "prevId": "e7dfc9e9-3d4b-4f0f-8f14-c6d65765d265",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.entry_agent_api_bindings": {
-      "name": "entry_agent_api_bindings",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "account_binding_digest": {
-          "name": "account_binding_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revoked_at": {
-          "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "agent_id": {
-          "name": "agent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "entry_agent_api_bindings_account_id_directory_account_bindings_account_id_fk": {
-          "name": "entry_agent_api_bindings_account_id_directory_account_bindings_account_id_fk",
-          "tableFrom": "entry_agent_api_bindings",
-          "tableTo": "directory_account_bindings",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "account_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "entry_agent_api_bindings_session_id_auth_session_id_fk": {
-          "name": "entry_agent_api_bindings_session_id_auth_session_id_fk",
-          "tableFrom": "entry_agent_api_bindings",
-          "tableTo": "auth_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "entry_agent_session": {
-          "name": "entry_agent_session",
-          "nullsNotDistinct": false,
-          "columns": [
-            "agent_id",
-            "session_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "entry_agent_revision": {
-          "name": "entry_agent_revision",
-          "value": "\"entry_agent_api_bindings\".\"revision\" > 0"
-        },
-        "entry_agent_digest": {
-          "name": "entry_agent_digest",
-          "value": "\"entry_agent_api_bindings\".\"account_binding_digest\" ~ '^[a-f0-9]{64}$'"
-        },
-        "entry_agent_key": {
-          "name": "entry_agent_key",
-          "value": "length(\"entry_agent_api_bindings\".\"agent_id\") between 1 and 200 and \"entry_agent_api_bindings\".\"agent_id\" !~ '[[:space:][:cntrl:]]'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.entry_mcp_credentials": {
-      "name": "entry_mcp_credentials",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "account_binding_digest": {
-          "name": "account_binding_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revoked_at": {
-          "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "token_digest": {
-          "name": "token_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "entry_mcp_credentials_account_id_directory_account_bindings_account_id_fk": {
-          "name": "entry_mcp_credentials_account_id_directory_account_bindings_account_id_fk",
-          "tableFrom": "entry_mcp_credentials",
-          "tableTo": "directory_account_bindings",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "account_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "entry_mcp_credentials_token_digest_unique": {
-          "name": "entry_mcp_credentials_token_digest_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "token_digest"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "entry_mcp_revision": {
-          "name": "entry_mcp_revision",
-          "value": "\"entry_mcp_credentials\".\"revision\" > 0"
-        },
-        "entry_mcp_digests": {
-          "name": "entry_mcp_digests",
-          "value": "\"entry_mcp_credentials\".\"token_digest\" ~ '^[a-f0-9]{64}$' and \"entry_mcp_credentials\".\"account_binding_digest\" ~ '^[a-f0-9]{64}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.entry_wecom_bindings": {
-      "name": "entry_wecom_bindings",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "account_binding_digest": {
-          "name": "account_binding_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revoked_at": {
-          "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "scope": {
-          "name": "scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bot_id": {
-          "name": "bot_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sender_id": {
-          "name": "sender_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "entry_wecom_bindings_account_id_directory_account_bindings_account_id_fk": {
-          "name": "entry_wecom_bindings_account_id_directory_account_bindings_account_id_fk",
-          "tableFrom": "entry_wecom_bindings",
-          "tableTo": "directory_account_bindings",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "account_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "entry_wecom_sender": {
-          "name": "entry_wecom_sender",
-          "nullsNotDistinct": false,
-          "columns": [
-            "scope",
-            "bot_id",
-            "sender_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "entry_wecom_revision": {
-          "name": "entry_wecom_revision",
-          "value": "\"entry_wecom_bindings\".\"revision\" > 0"
-        },
-        "entry_wecom_digest": {
-          "name": "entry_wecom_digest",
-          "value": "\"entry_wecom_bindings\".\"account_binding_digest\" ~ '^[a-f0-9]{64}$'"
-        },
-        "entry_wecom_keys": {
-          "name": "entry_wecom_keys",
-          "value": "length(\"entry_wecom_bindings\".\"scope\") between 1 and 200 and length(\"entry_wecom_bindings\".\"bot_id\") between 1 and 200 and length(\"entry_wecom_bindings\".\"sender_id\") between 1 and 200 and \"entry_wecom_bindings\".\"scope\" !~ '[[:space:][:cntrl:]]' and \"entry_wecom_bindings\".\"bot_id\" !~ '[[:space:][:cntrl:]]' and \"entry_wecom_bindings\".\"sender_id\" !~ '[[:space:][:cntrl:]]'"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.auth_account": {
       "name": "auth_account",
       "schema": "",
@@ -3943,6 +3643,509 @@
       },
       "isRLSEnabled": false
     },
+    "public.records_upload_collections": {
+      "name": "records_upload_collections",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "creator_account_id": {
+          "name": "creator_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_id": {
+          "name": "operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target": {
+          "name": "target",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_fingerprint": {
+          "name": "target_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "records_upload_collection_operation": {
+          "name": "records_upload_collection_operation",
+          "nullsNotDistinct": false,
+          "columns": [
+            "creator_account_id",
+            "operation_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "records_upload_collection_fingerprint": {
+          "name": "records_upload_collection_fingerprint",
+          "value": "\"records_upload_collections\".\"target_fingerprint\" ~ '^[a-f0-9]{64}$'"
+        },
+        "records_upload_collection_revision": {
+          "name": "records_upload_collection_revision",
+          "value": "\"records_upload_collections\".\"revision\" > 0"
+        },
+        "records_upload_collection_window": {
+          "name": "records_upload_collection_window",
+          "value": "\"records_upload_collections\".\"expires_at\" > \"records_upload_collections\".\"created_at\""
+        },
+        "records_upload_collection_target": {
+          "name": "records_upload_collection_target",
+          "value": "coalesce(jsonb_typeof(\"records_upload_collections\".\"target\") = 'object' and \"records_upload_collections\".\"target\"->>'kind' in ('people','event'), false)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_upload_intents": {
+      "name": "records_upload_intents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_id": {
+          "name": "operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quota_scope": {
+          "name": "quota_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "record_collection_id": {
+          "name": "record_collection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request": {
+          "name": "request",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "declared_bytes": {
+          "name": "declared_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "completion_operation_id": {
+          "name": "completion_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completion_fingerprint": {
+          "name": "completion_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed": {
+          "name": "completed",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "released_at": {
+          "name": "released_at",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "release_operation_id": {
+          "name": "release_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "release_fingerprint": {
+          "name": "release_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "records_upload_quota": {
+          "name": "records_upload_quota",
+          "columns": [
+            {
+              "expression": "quota_scope",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "records_upload_intents_record_collection_id_records_upload_collections_id_fk": {
+          "name": "records_upload_intents_record_collection_id_records_upload_collections_id_fk",
+          "tableFrom": "records_upload_intents",
+          "tableTo": "records_upload_collections",
+          "columnsFrom": [
+            "record_collection_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "records_upload_intents_object_key_unique": {
+          "name": "records_upload_intents_object_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "object_key"
+          ]
+        },
+        "records_upload_operation": {
+          "name": "records_upload_operation",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "operation_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "records_upload_size": {
+          "name": "records_upload_size",
+          "value": "coalesce(\"records_upload_intents\".\"declared_bytes\" > 0 and \"records_upload_intents\".\"declared_bytes\" <= 2147483648 and (\"records_upload_intents\".\"request\"->>'declaredBytes')::bigint = \"records_upload_intents\".\"declared_bytes\", false)"
+        },
+        "records_upload_revision": {
+          "name": "records_upload_revision",
+          "value": "\"records_upload_intents\".\"revision\" > 0"
+        },
+        "records_upload_release": {
+          "name": "records_upload_release",
+          "value": "(\"records_upload_intents\".\"released_at\" is null and \"records_upload_intents\".\"release_operation_id\" is null and \"records_upload_intents\".\"release_fingerprint\" is null) or (\"records_upload_intents\".\"released_at\" is not null and \"records_upload_intents\".\"release_operation_id\" is not null and \"records_upload_intents\".\"release_fingerprint\" is not null and \"records_upload_intents\".\"release_fingerprint\" ~ '^[a-f0-9]{64}$')"
+        },
+        "records_upload_collection_scope": {
+          "name": "records_upload_collection_scope",
+          "value": "coalesce(\"records_upload_intents\".\"quota_scope\" = \"records_upload_intents\".\"record_collection_id\" and \"records_upload_intents\".\"request\"->>'recordCollectionId' = \"records_upload_intents\".\"record_collection_id\", false)"
+        },
+        "records_upload_fingerprint": {
+          "name": "records_upload_fingerprint",
+          "value": "\"records_upload_intents\".\"fingerprint\" ~ '^[a-f0-9]{64}$'"
+        },
+        "records_upload_completion": {
+          "name": "records_upload_completion",
+          "value": "(\"records_upload_intents\".\"completed\" is null and \"records_upload_intents\".\"completion_operation_id\" is null and \"records_upload_intents\".\"completion_fingerprint\" is null) or (\"records_upload_intents\".\"completed\" is not null and \"records_upload_intents\".\"completion_operation_id\" is not null and \"records_upload_intents\".\"completion_fingerprint\" is not null and \"records_upload_intents\".\"completion_fingerprint\" ~ '^[a-f0-9]{64}$')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_upload_objects": {
+      "name": "records_upload_objects",
+      "schema": "",
+      "columns": {
+        "original_version_id": {
+          "name": "original_version_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "upload_id": {
+          "name": "upload_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "byte_length": {
+          "name": "byte_length",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "media_type": {
+          "name": "media_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "etag": {
+          "name": "etag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_upload_objects_original_version_id_records_original_versions_id_fk": {
+          "name": "records_upload_objects_original_version_id_records_original_versions_id_fk",
+          "tableFrom": "records_upload_objects",
+          "tableTo": "records_original_versions",
+          "columnsFrom": [
+            "original_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_upload_objects_upload_id_records_upload_intents_id_fk": {
+          "name": "records_upload_objects_upload_id_records_upload_intents_id_fk",
+          "tableFrom": "records_upload_objects",
+          "tableTo": "records_upload_intents",
+          "columnsFrom": [
+            "upload_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "records_upload_objects_upload_id_unique": {
+          "name": "records_upload_objects_upload_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "upload_id"
+          ]
+        },
+        "records_upload_objects_object_key_unique": {
+          "name": "records_upload_objects_object_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "object_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "records_upload_object_size": {
+          "name": "records_upload_object_size",
+          "value": "\"records_upload_objects\".\"byte_length\" > 0 and \"records_upload_objects\".\"byte_length\" <= 2147483648"
+        },
+        "records_upload_object_digest": {
+          "name": "records_upload_object_digest",
+          "value": "\"records_upload_objects\".\"sha256\" ~ '^[a-f0-9]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_upload_read_tickets": {
+      "name": "records_upload_read_tickets",
+      "schema": "",
+      "columns": {
+        "digest": {
+          "name": "digest",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fragment_id": {
+          "name": "fragment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "original_id": {
+          "name": "original_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "original_version_id": {
+          "name": "original_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_range": {
+          "name": "requested_range",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "records_upload_ticket_expiry": {
+          "name": "records_upload_ticket_expiry",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "records_upload_read_tickets_original_id_records_originals_id_fk": {
+          "name": "records_upload_read_tickets_original_id_records_originals_id_fk",
+          "tableFrom": "records_upload_read_tickets",
+          "tableTo": "records_originals",
+          "columnsFrom": [
+            "original_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_upload_read_tickets_original_version_id_records_upload_objects_original_version_id_fk": {
+          "name": "records_upload_read_tickets_original_version_id_records_upload_objects_original_version_id_fk",
+          "tableFrom": "records_upload_read_tickets",
+          "tableTo": "records_upload_objects",
+          "columnsFrom": [
+            "original_version_id"
+          ],
+          "columnsTo": [
+            "original_version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_upload_read_tickets_fragment_id_original_version_id_records_fragments_id_original_version_id_fk": {
+          "name": "records_upload_read_tickets_fragment_id_original_version_id_records_fragments_id_original_version_id_fk",
+          "tableFrom": "records_upload_read_tickets",
+          "tableTo": "records_fragments",
+          "columnsFrom": [
+            "fragment_id",
+            "original_version_id"
+          ],
+          "columnsTo": [
+            "id",
+            "original_version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "records_upload_ticket_digest": {
+          "name": "records_upload_ticket_digest",
+          "value": "\"records_upload_read_tickets\".\"digest\" ~ '^[a-f0-9]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.staffing_demand_operations": {
       "name": "staffing_demand_operations",
       "schema": "",
@@ -5308,13 +5511,7 @@
           "name": "resource_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "at": {
           "name": "at",
@@ -5351,12 +5548,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "audit_entry_metadata": {
-          "name": "audit_entry_metadata",
-          "value": "\"audit_events\".\"metadata\" is null or (\n      jsonb_typeof(\"audit_events\".\"metadata\") = 'object'\n      and (\"audit_events\".\"metadata\" - 'channel' - 'revision') = '{}'::jsonb\n      and coalesce((\"audit_events\".\"metadata\"->'channel') in ('\"web\"'::jsonb,'\"wecom\"'::jsonb,'\"mcp\"'::jsonb,'\"agentapi\"'::jsonb), false)\n      and coalesce((\"audit_events\".\"metadata\"->'revision') = 'null'::jsonb or\n        (jsonb_typeof(\"audit_events\".\"metadata\"->'revision') = 'number' and (\"audit_events\".\"metadata\"->>'revision') ~ '^[1-9][0-9]*$' and (\"audit_events\".\"metadata\"->>'revision')::numeric <= 9007199254740991), false)\n      and octet_length(\"audit_events\".\"metadata\"::text) <= 256\n    )"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     }
   },

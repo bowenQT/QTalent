@@ -3,22 +3,28 @@ import {
   AdminNotice,
   JudgeNotConnected,
 } from '@/features/standard-iteration/NotConnected';
-import { getShellPage } from '@/server/queries/shell';
+import { getJudgePage } from '@/server/queries/judge';
 
 export async function generateMetadata() {
-  const shell = await getShellPage();
+  const page = await getJudgePage();
   return {
-    title: `${!shell ? '查看权限已更新' : shell.isAdmin ? '这一页属于业务视角' : shell.role === 'mentor' ? '我的判断对照' : '判断对照'} · Niu-Talent`,
+    title: `${page.status === 'forbidden' ? '查看权限已更新' : page.status === 'admin' ? '这一页属于业务视角' : page.audience === 'rater' ? '我的判断对照' : '判断对照'} · Niu-Talent`,
   };
 }
 
 /**
- * /judge and /judge?rater=me. The comparison reads (BOW-919) and attribution actions
- * (BOW-921) have no query or action entry yet; the page says 待接通 until they do.
+ * /judge and /judge?rater=me. Who may read and in which audience is decided on the
+ * server (BOW-919 access); no comparison batch is stored yet, so the page says
+ * 待接通 instead of rendering an empty or made-up batch. Attribution actions
+ * (BOW-921) wait for their action entry.
  */
 export default async function JudgePage() {
-  const shell = await getShellPage();
-  if (!shell) return <AccessDenied />;
-  if (shell.isAdmin) return <AdminNotice />;
-  return <JudgeNotConnected role={shell.role} />;
+  const page = await getJudgePage();
+  if (page.status === 'forbidden') return <AccessDenied />;
+  if (page.status === 'admin') return <AdminNotice />;
+  return (
+    <JudgeNotConnected
+      role={page.audience === 'rater' ? 'mentor' : page.audience}
+    />
+  );
 }
