@@ -41,16 +41,9 @@ const mentorView = (overrides: Partial<WorkbenchView> = {}) =>
 const options = { accountId: 'a', namedExamples: false };
 // Blocks not connected yet: none of their titles may appear (BOW-867 and later
 // cards update this list when they connect a block). The materials section (BOW-861)
-// is drawn without a backend and says 待接入 instead; see its own tests.
-const notConnected = [
-  '值得关注的人',
-  '值得关注的项目',
-  '我的关注',
-  '有变化的人',
-  '判断对照',
-  '待办',
-  '我的推荐',
-];
+// is drawn without a backend and says 待接入 instead, and the manager home cards say
+// 待接通; see their own tests.
+const notConnected = ['有变化的人', '判断对照', '待办', '我的推荐'];
 function expectNoPlaceholders(container: HTMLElement) {
   const text = container.textContent ?? '';
   for (const title of notConnected) expect(text).not.toContain(title);
@@ -116,6 +109,10 @@ describe('Workbench registry', () => {
     );
     const managerPage = render(<Workbench view={manager} />);
     expect(screen.getByRole('region', { name: '找人' })).toBeTruthy();
+    expect(screen.getByText('值得关注的人待接通')).toBeTruthy();
+    expect(screen.getByText('值得关注的项目待接通')).toBeTruthy();
+    expect(screen.getByText('我的关注待接通')).toBeTruthy();
+    expect(managerPage.container.querySelector('#jsig')).toBeNull();
     managerPage.unmount();
     // HR records and finds people; every to-do group is not connected: no to-do card.
     const hrPage = render(<Workbench view={hr} />);

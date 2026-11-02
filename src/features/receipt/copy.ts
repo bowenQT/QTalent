@@ -22,6 +22,7 @@ export const copy = {
   summary: {
     label: '这次读到了什么',
     files: '个文件',
+    original: '段原话',
     processing: (n: number) => `${n} 个处理中`,
     failed: (n: number) => `${n} 个失败`,
     people: '人',
@@ -33,6 +34,9 @@ export const copy = {
   files: {
     title: '文件',
     stillProcessing: '还在处理的文件读完后，这份回执会更新；可以先离开。',
+    /** 只写了原话、没有文件的批次（原型没有这个形态，见映射表）。 */
+    originalTitle: '原话',
+    arranging: '整理完后，这份回执会更新；可以先离开。',
     processing: '处理中',
     parsed: '已解析',
     needsReview: '待核对',
@@ -70,6 +74,11 @@ export const copy = {
     waitFor: (name: string) => `等${name}确认`,
     confirmedOn: (date: string) => `${date} 确认，已进入档案`,
     confirmedShort: '已确认，已进入档案',
+    undoPending: '撤销结果待核实，可以再试一次撤销',
+    undoRetry: '再试一次撤销',
+    undoVerify: '撤销结果待核实：刷新回执，看这件事现在的状态',
+    undoReread: '刷新回执',
+    undoReadFailed: '这次刷新中断了，可以再刷新一次',
     aiOriginal: (v: number) => `AI 原为 ${v}`,
     anchorNote: (v: number, anchor: string) => `锚点 ${v} · ${anchor}`,
     held: '待认人',
@@ -94,17 +103,42 @@ export const copy = {
     confirmed: (name: string, edited: boolean) =>
       `已确认${name}的这件事${edited ? '（已改分）' : ''}，已进入档案`,
     undone: '已撤销，回到待确认',
-    undoFailed: '撤销失败：这件事的分已有新的处理，已保留当前结果',
-    undoLate: '撤销时间已过，这件事已确认',
+    undoFailed: '撤销被拒绝，以回执里的状态为准',
+    undoLate: '撤销时间已过，以回执里的状态为准',
+    undoUnknown: '撤销结果待核实，可以在这件事上再试一次',
+    undoSuperseded: '这件事已在别处再次确认，以回执里的状态为准',
+  },
+  read: {
+    stale: (time: string) => `这次刷新中断了，下面是 ${time} 读到的回执`,
+    staleFirst: '这次刷新中断了，下面是打开这一页时读到的回执',
+    retry: '再刷新',
+    paused: '自动刷新已暂停，可以点「再刷新」',
+    unauthenticated: {
+      title: '登录已过期',
+      text: '这一页停在之前读到的内容，刷新已暂停。重新登录后再打开这份回执。',
+    },
+    forbidden: {
+      title: '查看权限已更新',
+      text: '这一页停在之前读到的内容，刷新已暂停。回到工作台，从「进行中的任务」进入。',
+    },
+    not_found: {
+      title: '回执链接失效',
+      text: '这一页停在之前读到的内容，刷新已暂停。回到工作台，从「进行中的任务」重新进入。',
+    },
+    toWork: '回到工作台',
   },
   problem: {
     offline: '网络中断，改动还在，再试一次',
+    unavailable: '这次保存中断了，改动还在，可以稍后再保存',
+    timeout:
+      '保存结果待确认，以回执里的状态为准；需要时再保存一次，不会重复记录',
     invalid: '这件事有内容待修改，改动还在',
     reload: '载入最新版本',
   },
   channel: {
     wecom: '企业微信里的回执',
     mcp: 'Claude Code 里的回执',
+    /** 企业微信回执（#282）接通后再显示，现在页面不用。 */
     web: '回执也会发到',
     webText: '你的企业微信单聊，带这一页的链接；手机上也能打开确认。',
     bot: '小犇',

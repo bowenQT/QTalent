@@ -4,8 +4,22 @@ import { cleanup, render, screen } from '@testing-library/react';
 import type { ShellData } from '@/contracts/shell';
 import ReceiptRoute, { generateMetadata } from './page';
 
-const { shellQuery } = vi.hoisted(() => ({ shellQuery: vi.fn() }));
+const { shellQuery, receiptQuery } = vi.hoisted(() => ({
+  shellQuery: vi.fn(),
+  receiptQuery: vi.fn(),
+}));
 vi.mock('@/server/queries/shell', () => ({ getShellPage: shellQuery }));
+vi.mock('@/server/queries/receipt-page', () => ({
+  readReceiptForCurrentUser: receiptQuery,
+}));
+// 页面本身另有测试；这里只看路由把什么交给它
+vi.mock('./LiveReceipt', () => ({
+  LiveReceipt: (props: { batchId: string; viewerName: string }) => (
+    <p>
+      回执页 {props.batchId} {props.viewerName}
+    </p>
+  ),
+}));
 vi.mock('next/navigation', () => ({
   usePathname: () => '/receipt',
   useRouter: () => ({ refresh: vi.fn() }),
@@ -31,21 +45,43 @@ const shell = (role: ShellData['role']): ShellData => ({
 const open = (id?: string | string[]) =>
   ReceiptRoute({ searchParams: Promise.resolve({ id }) });
 
-beforeEach(() => shellQuery.mockReset());
+beforeEach(() => {
+  shellQuery.mockReset();
+  receiptQuery.mockReset();
+});
 afterEach(cleanup);
 
 describe('/receipt', () => {
   it.each(['manager', 'hr', 'mentor'] as const)(
-    '%s 打开回执链接：写回执待接通，不读取材料',
+    '%s 打开回执链接：按编号在服务端读取，交给回执页',
     async (role) => {
       shellQuery.mockResolvedValue(shell(role));
+      receiptQuery.mockResolvedValue({
+        status: 'success',
+        view: {},
+        viewerName: '演示导师',
+      });
+      render(await open(' d-ms2 '));
+      expect(receiptQuery).toHaveBeenCalledWith({ batchId: 'd-ms2' });
+      expect(screen.getByText('回执页 d-ms2 演示导师')).toBeTruthy();
+      expect((await generateMetadata()).title).toBe('回执 · Niu-Talent');
+    },
+  );
+
+  it.each([
+    ['forbidden', '查看权限已更新'],
+    ['not_found', '回执链接失效'],
+    ['unavailable', '回执读取中断'],
+  ] as const)(
+    '读取结果 %s：写明原因，给回工作台的入口',
+    async (status, title) => {
+      shellQuery.mockResolvedValue(shell('mentor'));
+      receiptQuery.mockResolvedValue({ status, message: '服务端说明' });
       render(await open('d-ms2'));
-      expect(screen.getByRole('heading').textContent).toBe('回执待接通');
-      expect(screen.queryByRole('button')).toBeNull();
+      expect(screen.getByRole('heading').textContent).toBe(title);
       expect(
         screen.getByRole('link', { name: '回到工作台' }).getAttribute('href'),
       ).toBe('/');
-      expect((await generateMetadata()).title).toBe('回执 · Niu-Talent');
     },
   );
 
@@ -59,6 +95,7 @@ describe('/receipt', () => {
     cleanup();
     render(await open(['d-ms2', 'd-pr']));
     expect(screen.getByRole('heading').textContent).toBe('回执链接失效');
+    expect(receiptQuery).not.toHaveBeenCalled();
   });
 
   it('系统管理员去系统管理', async () => {
@@ -76,7 +113,7 @@ describe('/receipt', () => {
   it('查看权限失效时只显示无权访问', async () => {
     shellQuery.mockResolvedValue(null);
     render(await open('d-ms2'));
-    expect(screen.queryByText('回执待接通')).toBeNull();
+    expect(receiptQuery).not.toHaveBeenCalled();
     expect((await generateMetadata()).title).toBe(
       '查看权限已更新 · Niu-Talent',
     );

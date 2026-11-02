@@ -156,6 +156,12 @@ function SourceCiteReader({ source, index, loadSource }: SourceCiteProps) {
     cite = (
       <Cite
         {...base}
+        // 读到原文后才有原件标题与记录人；记录人未知时不显示，不拿事件记录人代替。
+        source={{
+          ...base.source,
+          title: found.originalTitle,
+          by: found.recordedByName ?? undefined,
+        }}
         access="granted"
         // 读到原文才给入口；地址只由这条引用的两个标识生成，各页面点进来落到同一处。
         jump={{ label: '查看原件', href: sourceHref(found) }}

@@ -1,6 +1,7 @@
 import { test, expect, login } from './fixtures';
 import {
   seededHypothesis,
+  seedSelectionDraft,
   seedStandardIteration,
 } from './standard-iteration-seed';
 
@@ -176,4 +177,70 @@ test('the third act runs on the real routes: compare, attribute, draft, publish 
       page.getByRole('heading', { name: '这一页属于业务视角' }),
     ).toBeVisible();
   });
+});
+
+test('/rules: HR submits the drafted revision; the manager publishes and may undo within five seconds', async ({
+  page,
+  context,
+  referenceApp,
+}, testInfo) => {
+  await seedSelectionDraft(referenceApp.pool);
+  const shot = (name: string) =>
+    page.screenshot({ path: testInfo.outputPath(`${name}.png`) });
+
+  await login(context, 'hrbp', referenceApp.baseURL);
+  await page.goto('/rules?r=front&line=xe-select');
+  await page.getByRole('button', { name: '添加要点' }).click();
+  await page.getByLabel('要点名称').fill('个人贡献核验');
+  await page
+    .getByLabel('要点说明')
+    .fill('组队作品里每位成员说明本人做了哪部分');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await page.getByRole('button', { name: '保存并预览影响' }).click();
+  await expect(page.locator('#impact')).toBeVisible();
+  await page.getByRole('button', { name: '提交管理者确认' }).click();
+  await expect(
+    page.getByText('已提交 xe-select-v2，待管理者确认'),
+  ).toBeVisible();
+
+  await context.clearCookies();
+  await login(context, 'ceo', referenceApp.baseURL);
+  const publish = async () => {
+    await page.getByRole('button', { name: '确认发布 xe-select-v2' }).click();
+    await page
+      .getByRole('dialog', { name: '确认发布 xe-select-v2？' })
+      .getByRole('button', { name: '确认发布 xe-select-v2' })
+      .click();
+    await expect(page.locator('#seal')).toBeVisible();
+    await expect(
+      page.getByText('已发布 xe-select-v2，之后新建的期次默认用新版'),
+    ).toBeVisible();
+  };
+  for (const width of [375, 1366]) {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
+    await page.goto('/rules?r=front&line=xe-select');
+    await publish();
+    await shot(`undo-open-${width}`);
+    await page.getByRole('button', { name: '撤销' }).click();
+    await expect(
+      page.getByText('已撤销，xe-select-v2 回到待确认'),
+    ).toBeVisible();
+    await expect(page.locator('#seal')).toHaveCount(0);
+    await shot(`undo-done-${width}`);
+  }
+
+  // Left alone, the undo closes with the window and the publication stands.
+  await publish();
+  await expect(page.getByRole('button', { name: '撤销' })).toBeHidden({
+    timeout: 10_000,
+  });
+  await shot('undo-closed-1366');
+  await page.goto('/rules?r=front&line=xe-select');
+  await expect(page.getByText(/生效中 xe-select-v2/)).toBeVisible();
+  await expect(
+    page.getByText(/xe-select-v1 已替代，XEngineer 第六期.*保持 xe-select-v1/),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: '回到工作台' })).toBeVisible();
+  await page.setViewportSize({ width: 375, height: 812 });
+  await shot('undo-closed-375');
 });

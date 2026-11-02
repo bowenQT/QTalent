@@ -796,6 +796,48 @@ describe('/rules page read', () => {
     for (const viewer of ['hr', 'manager'])
       expect(await app().readPage(viewer, null)).toEqual({ status: 'none' });
   });
+  it('an HR of another cohort cannot tell an existing draft from a missing one', async () => {
+    const created = await app().execute('hr', {
+      action: 'create',
+      input: command(),
+    });
+    if (created.status !== 'success') throw new Error(created.status);
+    const draft = selectionRevisionSchema.parse(created.result);
+    await db().insert(cohorts).values({ id: 'other', name: '另一期（演示）' });
+    await db().insert(people).values({
+      id: 'other-hr',
+      name: '另一期 HR（演示）',
+      organizationId: 'org',
+      demo: true,
+    });
+    await db()
+      .insert(accountBindings)
+      .values({ accountId: 'other-hr', personId: 'other-hr' });
+    await db().insert(grants).values({
+      id: 'other-hr',
+      accountId: 'other-hr',
+      role: 'hr',
+      scope: 'cohort',
+      cohortId: 'other',
+      validFrom: '2026-01-01',
+    });
+    const service = app();
+    for (const draftId of [draft.id, 'absent']) {
+      expect(await service.readPage('other-hr', draftId)).toEqual({
+        status: 'not_found',
+      });
+      expect(
+        await service.execute('other-hr', {
+          action: 'withdraw',
+          input: {
+            operationId: 'probe-' + draftId,
+            draftId,
+            expectedRevision: 1,
+          },
+        }),
+      ).toEqual({ status: 'not_found', message: '草稿不存在或不可见' });
+    }
+  });
   it('an unknown draft is not found rather than the standard in force', async () => {
     expect(await app().readPage('hr', 'absent')).toEqual({
       status: 'not_found',
@@ -1198,10 +1240,20 @@ describe('every private-basis exit refuses a caller whose access ended', () => {
       if ('value' in late) expect(late.value).toBeNull();
       else expect(late.error).toMatchObject({ kind: 'forbidden' });
 
-      for (const [exit, read] of Object.entries(selectionExits))
-        await expect(read(), exit).rejects.toMatchObject({
-          status: 'forbidden',
-        });
+      for (const [exit, read] of Object.entries(selectionExits)) {
+        const outcome = await read().then(
+          (value) => ({ value }),
+          (error: unknown) => ({ error }),
+        );
+        // A draft outside the caller's cohorts reads as missing; any other exit
+        // refuses outright. Neither returns the basis.
+        if ('value' in outcome && exit.startsWith('readRevision'))
+          expect(outcome.value, exit).toBeNull();
+        else
+          expect('error' in outcome && outcome.error, exit).toMatchObject({
+            status: 'forbidden',
+          });
+      }
       for (const id of receipts)
         await expect(receipt(id), id).rejects.toMatchObject({
           kind: 'forbidden',

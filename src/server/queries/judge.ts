@@ -23,6 +23,7 @@ import { getEnv } from '../env';
 import { people, readDirectory } from '../modules/directory';
 import { readEffectiveRuleVersion } from '../modules/evaluation-system';
 import type { ComparisonReadPorts } from '../modules/evaluation-system/judgment-comparison/ports';
+import { holdsCaseGrant } from '../modules/evaluation-system/judgment-comparison/projection';
 import { readJudgmentComparison } from '../modules/evaluation-system/judgment-comparison/read';
 import { readCurrentSelectionStandard } from '../modules/evaluation-system/selection/postgres';
 import { loadEvaluationContext } from '../usecases/evaluation-context';
@@ -32,11 +33,7 @@ import {
 } from '../usecases/judgment-comparison-dataset';
 import { ForbiddenError } from '../usecases/project-context';
 import { readBatchAttributionState } from '../usecases/standard-attribution/batch-state';
-import {
-  comparisonAccess,
-  comparisonCohortIds,
-  type ComparisonAudience,
-} from './judge-access';
+import { comparisonAccess, type ComparisonAudience } from './judge-access';
 
 /**
  * The BOW-919 read ports. Access is real: audience and node grants are reloaded from
@@ -68,16 +65,8 @@ export function comparisonReadPorts(
         { isolationLevel: 'repeatable read', accessMode: 'read only' },
       );
       if (!data) return null;
-      const now = Date.parse(access.now);
       const inScope = data.cases.some((unit) =>
-        access.grants.some(
-          (grant) =>
-            grant.personId === unit.person.id &&
-            (grant.nodeId === unit.frontNodeId ||
-              grant.nodeId === unit.backNodeId) &&
-            Date.parse(grant.validFrom) <= now &&
-            (grant.validUntil === null || now < Date.parse(grant.validUntil)),
-        ),
+        holdsCaseGrant(access, { ...unit, personId: unit.person.id }),
       );
       return inScope ? data : null;
     },
@@ -153,7 +142,7 @@ async function readFor(
   const access = comparisonAccess(context);
   if (!access) return { status: 'forbidden' };
   const batches = await db.transaction(
-    (tx) => listComparisonBatches(tx, comparisonCohortIds(context, access)),
+    (tx) => listComparisonBatches(tx, access),
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
   );
   const ports = comparisonReadPorts(db, accountId, clock);

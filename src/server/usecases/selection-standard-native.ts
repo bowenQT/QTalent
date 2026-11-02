@@ -15,6 +15,7 @@ import {
   type SelectionAuthority,
 } from '../modules/evaluation-system/selection-standard';
 import {
+  selectionCohortBindings,
   selectionRevisions,
   selectionVersionContents,
 } from '../modules/evaluation-system/selection/schema';
@@ -38,8 +39,10 @@ import {
 import { executeSelectionRevision } from './selection-standard';
 import {
   createSelectionRevisionInputSchema,
+  selectionCohortBindingSchema,
   selectionStandardContentSchema,
   type EffectiveRuleVersion,
+  type SelectionCohortBinding,
   type SelectionManagerRevision,
   type SelectionRevision,
 } from '../../contracts/selection-standard';
@@ -55,6 +58,10 @@ export type SelectionStandardPage =
       audience: 'hr' | 'manager';
       version: EffectiveRuleVersion;
       content: SelectionStandardContent;
+      /** Cohorts this viewer may see, with the version each was bound to. */
+      bindings: SelectionCohortBinding[];
+      /** The reviewed next cohort while it is still unbound (in preparation). */
+      preparing: { id: string; name: string } | null;
     }
   | {
       status: 'revision';
@@ -262,10 +269,14 @@ export function createNativeSelectionLifecycle(
   db: Database,
   options: {
     nextCohort: ReviewedNextSelectionCohort | null;
+    /** Business clock: dates rule versions and checks grants. */
     clock?: () => Date;
+    /** Server wall clock: times the publication undo window. */
+    wallClock?: () => Date;
   },
 ) {
   const clock = options.clock ?? (() => new Date());
+  const wallClock = options.wallClock ?? (() => new Date());
   // Freeze server configuration so a retained browser/request object cannot
   // mutate a preview source between calls. No fallback future cohort exists.
   const next = options.nextCohort
@@ -439,11 +450,29 @@ export function createNativeSelectionLifecycle(
             () => new Date(now),
           );
           if (!current) return { status: 'not_found' };
+          const bindings = (
+            await tx.db
+              .select({ binding: selectionCohortBindings.binding })
+              .from(selectionCohortBindings)
+              .orderBy(selectionCohortBindings.boundAt)
+          ).map((row) => selectionCohortBindingSchema.parse(row.binding));
+          const hrCohorts = new Set(
+            activeGrants(authority.context)
+              .filter((grant) => grant.role === 'hr')
+              .map((grant) => grant.cohortId),
+          );
           return {
             status: 'current',
             audience: purpose,
             version: current.version,
             content: current.content,
+            bindings: bindings.filter(
+              (binding) => manager || hrCohorts.has(binding.cohort.id),
+            ),
+            preparing:
+              next && !bindings.some((binding) => binding.cohort.id === next.id)
+                ? { id: next.id, name: next.name }
+                : null,
           };
         });
       } catch (error) {
@@ -456,7 +485,13 @@ export function createNativeSelectionLifecycle(
       }
     },
     execute: (accountId: string, command: unknown) =>
-      executeSelectionRevision(store.ports, accountId, command, clock),
+      executeSelectionRevision(
+        store.ports,
+        accountId,
+        command,
+        clock,
+        wallClock,
+      ),
     async adoptProposal(accountId: string, proposalId: string, raw: unknown) {
       const proposal = identifier.parse(proposalId);
       const input = createSelectionRevisionInputSchema.parse(raw);
@@ -470,6 +505,7 @@ export function createNativeSelectionLifecycle(
         accountId,
         { action: 'create', input: { ...input, operationId } },
         clock,
+        wallClock,
       );
     },
   };
