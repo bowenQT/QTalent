@@ -22,7 +22,7 @@
 
 ## 真实接线
 
-`ComparisonReadPorts.loadBatch(batchId, access)` 由 `src/server/queries/judge.ts` 实现：在只读 Repeatable Read 事务里经 `readComparisonDataset` 读 canonical 批次，只有当前访问对其中至少一个案例持有有效节点授权时才返回，否则与不存在一样返回 null，不先暴露批次元数据。`grants` 由 `comparisonAccess` 从授权域导出。批次列表用 `listComparisonBatches(tx, comparisonCohortIds(ctx, access))`，期次取自当前授权节点所属期次。底层读取异常向上传递，不用空集装成功。
+`ComparisonReadPorts.loadBatch(batchId, access)` 由 `src/server/queries/judge.ts` 实现：在只读 Repeatable Read 事务里经 `readComparisonDataset` 读 canonical 批次，只有当前访问对其中至少一个案例持有有效节点授权时才返回，否则与不存在一样返回 null，不先暴露批次元数据。`grants` 由 `comparisonAccess` 从授权域导出。批次列表 `listComparisonBatches(tx, access)` 用同一条规则（`holdsCaseGrant`）：只列出至少有一个案例在当前授权内的批次，同一期次里授权之外的批次连名称和版本也不列出。底层读取异常向上传递，不用空集装成功。
 
 923 的 007/013/092/093 人工不可比事实已由该卡 writer 在 v2 补齐。只将输入 `manualComparabilityMarks` 中按 case/person/batch/节点关联的理由、标记者与时间映射为内部 `nonComparable`，不取 expected outcome。固定 v2 已做一次纯计算回放：先运行实际投影，再打开预期文件核对，93 个计算结果、HR 批次汇总与每评价人样本分布一致。回放使用显式构造的测试 grant，不是授权适配器或真实查询验收；没有将文件引用或内存 grant 当作真实 PG / 原件 / 身份授权的证据。
 
