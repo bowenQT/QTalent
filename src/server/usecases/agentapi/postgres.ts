@@ -27,6 +27,7 @@ import {
 } from '../entry/context';
 import { createMcpDomainHandlers } from '../mcp/handlers';
 import type { createStaffingDemandRuntime } from '../staffing-demand-runtime';
+import { lockIntakeTable } from '../talent-source-projection';
 import { AgentSessionError, sessionAuthority } from './session-policy';
 import {
   conversationTools,
@@ -438,8 +439,15 @@ export function createAgentConversationPostgresPorts(options: {
   const store = createAgentConversationStore(options.db);
   const handlers = createMcpDomainHandlers(options.domains);
   const historyReadable = (name: ToolSuccess['name']) =>
-    name === 'person_brief' ||
-    (name === 'draft_requirement' && options.demandSnapshots !== undefined);
+    name !== 'draft_requirement' || options.demandSnapshots !== undefined;
+  // Global order is intake table first, then arrange job rows (the arrange
+  // runner holds intake SHARE before its job row). Re-reading a batch locks its
+  // job row and a later submit in the same transaction wants the intake writer
+  // lock, so both take the writer lock before any batch lock. Earlier locks here
+  // are only the credential chain, the conversation row and demand job/root
+  // rows, which no intake holder waits on.
+  const fenceIntake = (tx: Transaction) =>
+    lockIntakeTable(tx, 'locked-for-write');
   // Both the explicit identity check and the 899 context loader re-read the
   // 903 credential on this conversation's transaction, never on the pool.
   const inTransaction = (tx: Transaction): EntryIdentityService => ({
@@ -469,6 +477,7 @@ export function createAgentConversationPostgresPorts(options: {
       // Native create/replay is not a read-only historical source reader, so a
       // tool executes only when its history can later be re-read without it.
       if (!historyReadable(name)) throw new EntryUsecaseError('unavailable');
+      if (name === 'submit_material_batch') await fenceIntake(tx);
       await current(tx, identity);
       const handler = handlers[handlerFor[name]];
       let ctx = await context(tx, identity);
@@ -542,7 +551,51 @@ export function createAgentConversationPostgresPorts(options: {
           isDeepStrictEqual(latest.data.result, disclosed.result)
         );
       }
-      return false;
+      const args = entryToolInputSchemas.submit_material_batch.parse(tool.args);
+      const disclosed = entryToolSuccessSchemas.submit_material_batch.parse(
+        tool.success.payload,
+      );
+      await fenceIntake(tx);
+      // Read-only: the current, non-superseded batch of this creator, its
+      // locked job and the native authorization and receipt. Never a create.
+      const read = await options.domains.records.readBatchInTransaction(
+        tx,
+        ctx.account.id,
+        { batchId: disclosed.batchId },
+      );
+      if (read.status !== 'success') return false;
+      const latest = entryToolSuccessSchemas.submit_material_batch.safeParse(
+        read.result,
+      );
+      if (!latest.success) return false;
+      const now = latest.data;
+      const subject = (value: typeof now | typeof args) => [
+        value.evaluationNodeId,
+        value.personIds,
+        value.projectId,
+      ];
+      if (
+        now.batchId !== disclosed.batchId ||
+        !isDeepStrictEqual(subject(now), subject(disclosed)) ||
+        !isDeepStrictEqual(subject(now), subject(args))
+      )
+        return false;
+      // Processing moves status, files, items and drafts forward; that is not
+      // a withdrawal. Every disclosed original must still be in this batch.
+      const files = new Map(now.files.map((file) => [file.materialId, file]));
+      return (
+        disclosed.files.every((file) => {
+          const kept = files.get(file.materialId);
+          return (
+            kept !== undefined &&
+            kept.clientFileId === file.clientFileId &&
+            (file.originalVersionId === null ||
+              kept.originalVersionId === file.originalVersionId)
+          );
+        }) &&
+        (disclosed.textMaterial === null ||
+          isDeepStrictEqual(now.textMaterial, disclosed.textMaterial))
+      );
     },
   };
 }

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { eq, sql } from 'drizzle-orm';
+import { isDeepStrictEqual } from 'node:util';
+import { and, eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import type { Transaction } from '../../db/client';
 import { beforeAll, afterAll, expect, it, vi } from 'vitest';
@@ -7,6 +8,7 @@ import {
   nativeDatabase,
   seedNativeCase,
   seedNativeRules,
+  syntheticBatchClient,
   businessAt,
   wallAt,
 } from '../../../../tests/fixtures/bow-845/native';
@@ -35,6 +37,11 @@ import {
 import { projects } from '../../modules/staffing/schema';
 import { demandOperations } from '../../modules/staffing/demand/schema';
 import { createRecordBatchArrangeRequests } from '../record-batch-arrange-requests';
+import { createRecordArrangeApplication } from '../record-arrange-application';
+import { recordArrangeQueue } from '../../jobs/record-arrange';
+import { jobSnapshots } from '../../jobs/schema';
+import { arrangeInputs } from '../../modules/records/arrange/input-state/schema';
+import { lockIntakeTable } from '../talent-source-projection';
 import { entryToolSuccessSchemas } from '../../../contracts/entry-tools';
 import {
   AgentApiError,
@@ -982,3 +989,286 @@ it('a queued disclosure stays valid after the real generation completes; the res
   );
   await expect(d.advance()).resolves.toMatchObject({ status: 'complete' });
 });
+
+/** The same conversation wired to the real arrange application: native intake,
+ * its pg-boss queue, runner and batch reader. Only the model is offline. */
+async function withRecords(f: Awaited<ReturnType<typeof setup>>) {
+  if (!boss) {
+    boss = new PgBoss({ connectionString: c.testUrl });
+    await boss.start();
+  }
+  await boss.createQueue(recordArrangeQueue, { retryLimit: 0 });
+  const model = syntheticBatchClient({ twoEvents: true });
+  const app = createRecordArrangeApplication({
+    db: c.db,
+    boss,
+    client: model.client,
+    businessNow: () => businessAt,
+    now: at,
+  });
+  const ports = createAgentConversationPostgresPorts({
+    db: c.db,
+    identities: f.identities,
+    domains: {
+      demands: createStaffingDemandRuntime({
+        db: c.db,
+        boss: async () => {
+          throw new Error('queue not configured in this fixture');
+        },
+        now: () => businessAt,
+      }).service,
+      records: app.requests,
+    },
+    now: () => businessAt,
+  });
+  const tool = (id: string) => ({
+    id,
+    type: 'agent.custom_tool_use' as const,
+    name: 'submit_material_batch',
+    input: { ...f.input, operationId: 'model-chosen-key' },
+  });
+  f.events[1] = tool('evt-tool');
+  const service = createAgentConversationService(ports, f.provider);
+  const tools = () =>
+    c.db
+      .select()
+      .from(agentApiToolEvents)
+      .where(eq(agentApiToolEvents.conversationId, f.conversationId))
+      .orderBy(agentApiToolEvents.eventId);
+  return {
+    app,
+    model,
+    tool,
+    tools,
+    submit: () =>
+      service.submit(f.identity, f.conversationId, 'op-one', '提交演示材料'),
+    advance: () => service.advance(f.identity, f.conversationId, 'op-one'),
+  };
+}
+const endTurn: NativeEvent[] = [
+  {
+    id: 'evt-answer',
+    type: 'agent.message',
+    content: [{ type: 'text', text: '演示建议' }],
+  },
+  {
+    id: 'evt-end',
+    type: 'session.status_idle',
+    stop_reason: { type: 'end_turn' },
+  },
+];
+it('submit_material_batch creates once under the server operation and revalidates from the batch reader', async () => {
+  const f = await setup();
+  const r = await withRecords(f);
+  await r.submit();
+  await Promise.all([r.advance(), r.advance()]);
+  const [tool] = await r.tools();
+  expect(tool).toMatchObject({ name: 'submit_material_batch', state: 'sent' });
+  const payload = entryToolSuccessSchemas.submit_material_batch.parse(
+    tool!.successPayload,
+  );
+  const inputs = await c.db
+    .select()
+    .from(arrangeInputs)
+    .where(eq(arrangeInputs.creatorAccountId, f.account));
+  expect(inputs).toHaveLength(1);
+  expect(inputs[0]!.batchId).toBe(payload.batchId);
+  expect(inputs[0]!.originalInput).toMatchObject({
+    operation_id: tool!.businessOperationId,
+  });
+  expect(
+    await c.db
+      .select({
+        action: auditEvents.action,
+        resourceId: auditEvents.resourceId,
+      })
+      .from(auditEvents)
+      .where(eq(auditEvents.actorId, f.account)),
+  ).toEqual(
+    expect.arrayContaining([
+      {
+        action: 'entry.tool.submit_material_batch',
+        resourceId: payload.batchId,
+      },
+    ]),
+  );
+  f.events.push(...endTurn);
+  await expect(r.advance()).resolves.toMatchObject({ status: 'complete' });
+  expect(
+    await c.db
+      .select()
+      .from(arrangeInputs)
+      .where(eq(arrangeInputs.creatorAccountId, f.account)),
+  ).toHaveLength(1);
+  expect(r.model.calls()).toBe(0);
+});
+it('a processed batch is progress, not a withdrawal: the disclosure stays valid', async () => {
+  const f = await setup();
+  const r = await withRecords(f);
+  await r.submit();
+  await r.advance();
+  const [tool] = await r.tools();
+  const disclosed = entryToolSuccessSchemas.submit_material_batch.parse(
+    tool!.successPayload,
+  );
+  expect(disclosed).toMatchObject({ status: 'processing' });
+  expect(await r.app.runner.run(disclosed.jobId!, 1)).toBe('awaiting_manual');
+  const now = await r.app.requests.readBatch(f.account, {
+    batchId: disclosed.batchId,
+  });
+  expect(now).toMatchObject({
+    status: 'success',
+    result: { status: 'awaiting_confirmation' },
+  });
+  expect(isDeepStrictEqual(now, disclosed)).toBe(false);
+  f.events.push(...endTurn);
+  await expect(r.advance()).resolves.toMatchObject({ status: 'complete' });
+});
+it('a revoked submit grant invalidates the conversation before another provider request', async () => {
+  const f = await setup();
+  const r = await withRecords(f);
+  await r.submit();
+  await r.advance();
+  const polls = vi.mocked(f.provider.events).mock.calls.length;
+  await c.db.delete(grants).where(eq(grants.accountId, f.account));
+  await expect(r.advance()).rejects.toMatchObject({
+    kind: 'permission_changed',
+  });
+  expect(f.provider.events).toHaveBeenCalledTimes(polls);
+});
+it.each([
+  [
+    'subject',
+    (p: Record<string, unknown>, f: { other: string }) => ({
+      ...p,
+      personIds: [f.other],
+    }),
+  ],
+  [
+    'text original',
+    (p: Record<string, unknown>) => ({
+      ...p,
+      textMaterial: { materialId: 'other', originalVersionId: 'other' },
+    }),
+  ],
+  [
+    'file original',
+    (p: Record<string, unknown>) => ({
+      ...p,
+      counts: {
+        ...(p.counts as Record<string, unknown>),
+        files: {
+          ...((p.counts as Record<string, unknown>).files as object),
+          total: 1,
+          original_only: 1,
+        },
+      },
+      files: [
+        {
+          materialId: 'gone',
+          clientFileId: 'gone',
+          filename: '演示.txt',
+          originalVersionId: 'gone',
+          status: 'original_only',
+        },
+      ],
+    }),
+  ],
+])(
+  'a disclosed %s the current batch no longer holds fails revalidation',
+  async (_label, change) => {
+    const f = await setup();
+    const r = await withRecords(f);
+    await r.submit();
+    await r.advance();
+    const [tool] = await r.tools();
+    await c.db
+      .update(agentApiToolEvents)
+      .set({
+        successPayload: change(
+          tool!.successPayload as Record<string, unknown>,
+          f,
+        ) as never,
+      })
+      .where(
+        and(
+          eq(agentApiToolEvents.conversationId, f.conversationId),
+          eq(agentApiToolEvents.eventId, tool!.eventId),
+        ),
+      );
+    await expect(r.advance()).rejects.toMatchObject({
+      kind: 'permission_changed',
+    });
+  },
+);
+it("a batch that is no longer this creator's current batch fails revalidation", async () => {
+  const f = await setup();
+  const r = await withRecords(f);
+  await r.submit();
+  await r.advance();
+  const [input] = await c.db
+    .select()
+    .from(arrangeInputs)
+    .where(eq(arrangeInputs.creatorAccountId, f.account));
+  await c.db
+    .update(arrangeInputs)
+    .set({ creatorAccountId: f.outsiderAccount })
+    .where(eq(arrangeInputs.id, input!.id));
+  await expect(r.advance()).rejects.toMatchObject({
+    kind: 'permission_changed',
+  });
+});
+it('re-reading a batch then submitting another follows intake → job order and does not deadlock the arrange runner', async () => {
+  const f = await setup();
+  const r = await withRecords(f);
+  await r.submit();
+  await r.advance();
+  const [first] = await r.tools();
+  const { jobId } = entryToolSuccessSchemas.submit_material_batch.parse(
+    first!.successPayload,
+  );
+  // The same turn asks for a second submit after the first result was sent.
+  vi.mocked(f.provider.send).mockImplementation(async (_id, event) =>
+    event.type === 'user.message' ? 'evt-user' : 'evt-result-' + randomUUID(),
+  );
+  f.events.push(r.tool('evt-tool-2'), {
+    id: 'evt-idle-2',
+    type: 'session.status_idle',
+    stop_reason: { type: 'requires_action', event_ids: ['evt-tool-2'] },
+  });
+  const held = gate(),
+    lockJob = gate();
+  let runner = 0;
+  // The arrange runner's order: intake SHARE first, then the job row.
+  const worker = c.db.transaction(async (tx) => {
+    runner = await backendPid(tx);
+    await lockIntakeTable(tx, 'locked');
+    held.resolve();
+    await lockJob.promise;
+    await tx
+      .select({ id: jobSnapshots.jobId })
+      .from(jobSnapshots)
+      .where(eq(jobSnapshots.jobId, jobId!))
+      .for('update');
+  });
+  await held.promise;
+  const turn = r.advance();
+  await expect
+    .poll(
+      async () => {
+        const { rows } = await c.db.execute<{ n: number }>(
+          sql`select count(*)::int as n from pg_stat_activity where ${runner}::integer = any(pg_blocking_pids(pid))`,
+        );
+        return rows[0]!.n;
+      },
+      { timeout: 5000 },
+    )
+    .toBe(1);
+  lockJob.resolve();
+  // Re-reading the first batch before the writer lock would hold its job row
+  // and wait on intake while the runner waits on that row: 40P01.
+  const [ran, advanced] = await Promise.allSettled([worker, turn]);
+  expect(ran).toMatchObject({ status: 'fulfilled' });
+  expect(advanced).toMatchObject({ status: 'fulfilled' });
+  expect(await r.tools()).toHaveLength(2);
+}, 15000);
