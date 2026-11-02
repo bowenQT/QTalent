@@ -207,6 +207,7 @@ export async function runAttachmentParse<C>(
       const inserted = await ports.saveParse(tx.context, binding.data, parsed);
       if (inserted === 'created')
         await ports.enqueueArrange(tx.context, {
+          recordCollectionId: binding.data.recordCollectionId,
           mediaId: current.resourceId,
           parseVersionId: parsed.parseVersionId,
           originalVersionId: parsed.originalVersionId,

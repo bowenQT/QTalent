@@ -109,6 +109,10 @@ describe('BOW-899 actual person/source/model node propagation', () => {
   it('allows an explicitly attributed restricted review only through its own current review relation', async () => {
     const data = currentNode();
     data.fragments.push({
+      parseVersionId: null,
+      sourceCategory: null,
+      evaluationKind: null,
+      demo: null,
       id: 'review-fragment',
       originalVersionId: 'version',
       excerpt: '演示：节点评审原量表',
