@@ -110,12 +110,16 @@ export function createEntryIdentityService(
           throw new EntryIdentityError('unauthenticated');
         // Retain the issuing channel's reader: equal row IDs in another issuer
         // cannot renew a revoked credential. Renewal does not extend this cap.
-        const current = active(
-          await state.reader.current(state.binding.credentialId),
-          clock(),
+        const refreshed = await state.reader.current(
+          state.binding.credentialId,
         );
+        // Recheck the issued deadline after the await: a slow lookup that
+        // returns a renewed row must not outlive the original capability.
+        const now = clock();
+        const current = active(refreshed, now);
         if (
           !current ||
+          !active(state.binding, now) ||
           current.accountId !== state.binding.accountId ||
           current.personId !== state.binding.personId ||
           current.credentialId !== state.binding.credentialId ||

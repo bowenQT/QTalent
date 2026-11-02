@@ -119,6 +119,21 @@ describe('trusted entry identities', () => {
       kind: 'unauthenticated',
     });
   });
+  it('rejects a renewed refresh that resolves after the issued deadline', async () => {
+    const f = fixture();
+    const cap = await f.service.authenticate('wecom', 'synthetic-proof');
+    f.current.mockImplementationOnce(async () => {
+      f.time(Date.parse('2026-11-01T02:00:00.000Z'));
+      return { ...f.get(), expiresAt: '2026-11-02T02:00:00.000Z' };
+    });
+    await expect(f.service.current(cap)).rejects.toMatchObject({
+      kind: 'unauthenticated',
+    });
+    f.time(Date.parse(instant));
+    await expect(f.service.current(cap)).rejects.toMatchObject({
+      kind: 'unauthenticated',
+    });
+  });
   it('rejects missing verifiers and invalid proofs without a service identity fallback', async () => {
     await expect(
       createEntryIdentityService().authenticate('agentapi', 'synthetic-proof'),
