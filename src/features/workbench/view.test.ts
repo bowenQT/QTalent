@@ -46,6 +46,12 @@ describe('toWorkbenchView', () => {
       accountId: 'test-account',
       namedExamples: false,
       exportable: { status: 'not_connected' },
+      manager: {
+        notes: { status: 'not_connected' },
+        watch: { status: 'not_connected' },
+        programs: { status: 'not_connected' },
+        follows: { status: 'not_connected' },
+      },
     });
   });
 

@@ -1,6 +1,8 @@
 import type { ShellData } from '@/contracts/shell';
 import type {
   ExportScope,
+  ManagerBlocks,
+  WatchPerson,
   TodosView,
   VerifyKind,
   WorkbenchRole,
@@ -135,6 +137,193 @@ const exportScopes = (first: string, people: number): ExportScope[] => [
   },
 ];
 
+// prototype/y/app/index.html?as=ceo at 2026-09-04: 判断提醒, 值得关注的人 (the rows
+// shown under 全部), 值得关注的项目 and 我的关注. Rendered only; following, the quick view
+// and the project filter wait for their reads.
+type WatchSeed = Omit<WatchPerson, 'hue' | 'photo' | 'verifiedBy' | 'concern'> &
+  Partial<WatchPerson>;
+const watchRow = (person: WatchSeed): WatchPerson => ({
+  hue: null,
+  photo: person.id === 'p-x06' ? 'he-yining' : null,
+  verifiedBy: null,
+  concern: null,
+  ...person,
+});
+const managerBlocks: ManagerBlocks = {
+  notes: {
+    status: 'ready',
+    data: [
+      {
+        kind: 'comparison',
+        text: 'XEngineer 第六期 15 人前后判断不一致，HR 归因中',
+        href: '/judge',
+        detail:
+          '综合判断：前段评为最高或最低一档的 50 人里，10 人前段偏高、5 人前段偏低（中间档另看）',
+      },
+    ],
+  },
+  watch: {
+    status: 'ready',
+    data: (
+      [
+        {
+          id: 'p-x63',
+          name: '谢云舒',
+          title: '全栈方向',
+          fate: { text: '去向 X3D', open: false },
+          category: 'top',
+          brief:
+            '进入最佳 AI 探索实践答辩；从组装、走线到无线控制把硬件方案跑通，已能用手机 App 和语音控制小车',
+        },
+        {
+          id: 'p-x86',
+          name: '魏予安',
+          title: '后端方向',
+          fate: { text: '去向 X3D', open: false },
+          category: 'top',
+          brief:
+            '进入最佳 AI 探索实践答辩；产品方向由其提出，中期起担任组长，把分散的挖孔路线收成一条主链',
+        },
+        {
+          id: 'p-x53',
+          name: '许承宇',
+          title: '前端方向',
+          fate: { text: '去向 灵矽', open: false },
+          category: 'new',
+          brief:
+            'W7、W8 两周观察都写到语音核心模块由许承宇完成；黑客松赛前没有方言数据，自录样本当晚接通了方言识别',
+          verifiedBy: '苏晚',
+        },
+        {
+          id: 'p-x01',
+          name: '苏少卿',
+          title: '产品方向',
+          fate: { text: '去向 业务成功部 TS', open: false },
+          category: 'new',
+          brief:
+            '内生动力已有 3 件事印证，例如「当组长的同时，搭起线索到 CRM 准入的运营工作台」',
+        },
+        {
+          id: 'p-x06',
+          name: '季思齐',
+          title: '产品方向',
+          fate: { text: '未接受 offer', open: true },
+          category: 'act',
+          brief:
+            '获优秀学员提名，没有接受正式 offer；「值得聊一聊」打开 15 天，还没有约谈记录',
+          concern: '未接受 offer',
+        },
+      ] satisfies WatchSeed[]
+    ).map(watchRow),
+  },
+  programs: {
+    status: 'ready',
+    data: [
+      {
+        id: 'pg-xe6',
+        name: 'XEngineer 第六期',
+        kind: 'XEngineer',
+        href: '/programs',
+        stage: '结营评审',
+        notes: [],
+        tags: [
+          { text: '12 人新进入值得关注', href: null },
+          { text: '留用与落位 47 人待 HR 确认', href: '/programs' },
+        ],
+      },
+      {
+        id: 'pg-land4',
+        name: 'Landing 第四期',
+        kind: 'Landing',
+        href: '/programs',
+        stage: '入营名单确定 · 35 人',
+        notes: ['8 人部门待定'],
+        tags: [{ text: '10 人新进入值得关注', href: null }],
+      },
+      {
+        id: 'pg-campus27',
+        name: '2027 届校招 · 提前批',
+        kind: '校招',
+        href: '/programs',
+        stage: '提前批 offer 锁定 · 21 人',
+        notes: [],
+        tags: [{ text: '10 人新进入值得关注', href: null }],
+      },
+      {
+        id: 'pg-hack',
+        name: '夏季黑客松（演示）',
+        kind: '黑客松',
+        href: '/projects',
+        stage: '评审结束',
+        notes: [],
+        tags: [{ text: '2 人新进入值得关注', href: null }],
+      },
+      {
+        id: 'pg-def',
+        name: '试用期转正答辩 · 9 月（演示）',
+        kind: null,
+        href: '/program-actions?node=pg-def:n0',
+        stage: '转正答辩 · 2 人',
+        notes: [],
+        tags: [],
+      },
+    ],
+  },
+  follows: {
+    status: 'ready',
+    data: {
+      people: [
+        {
+          id: 'p-x11',
+          name: '孟逸尘',
+          hue: null,
+          photo: 'song-xiaoman',
+          followedOn: '2026-08-20',
+          latest: '09-02 叶青推荐适合做后端研发',
+        },
+        {
+          id: 'p-x06',
+          name: '季思齐',
+          hue: null,
+          photo: 'he-yining',
+          followedOn: '2026-08-12',
+          latest: '08-28 完成“最佳产品奖”申报 PPT 的内容',
+        },
+        {
+          id: 'p-x01',
+          name: '苏少卿',
+          hue: null,
+          photo: null,
+          followedOn: '2026-08-05',
+          latest: null,
+        },
+      ],
+      updates: [
+        {
+          personId: 'p-x11',
+          name: '孟逸尘',
+          hue: null,
+          photo: 'song-xiaoman',
+          text: '叶青推荐适合做后端研发',
+          on: '2026-09-02',
+          kind: '推荐方向',
+          by: '苏晚',
+        },
+        {
+          personId: 'p-x06',
+          name: '季思齐',
+          hue: null,
+          photo: 'he-yining',
+          text: '完成“最佳产品奖”申报 PPT 的内容以及最终路演 …',
+          on: '2026-08-28',
+          kind: '关键事件',
+          by: '叶青',
+        },
+      ],
+    },
+  },
+};
+
 export const sampleViews: Record<WorkbenchRole, WorkbenchView> = {
   manager: {
     role: 'manager',
@@ -143,6 +332,7 @@ export const sampleViews: Record<WorkbenchRole, WorkbenchView> = {
     entries: { record: true, findPeople: true },
     accountId: 'sample-ceo',
     namedExamples: true,
+    manager: managerBlocks,
     exportable: {
       status: 'ready',
       data: { scopes: exportScopes('全公司范围内的人', 129) },
