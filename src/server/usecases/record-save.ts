@@ -62,7 +62,7 @@ import {
 } from '../modules/talent/record-confirmation';
 import { createConfirmRecordDraftUsecase } from './confirm-record-draft';
 import { loadEvaluationContext } from './evaluation-context';
-import { talentSources, sourceKey } from './talent-source-projection';
+import { rawTalentSourceGraph, sourceKey } from './talent-source-projection';
 import {
   confirmationSources,
   lockConfirmationIntakes,
@@ -333,7 +333,7 @@ async function readSources(
   );
   const projected = confirmationSources({
     ...data,
-    sources: talentSources({ ...data, ...current }),
+    sources: rawTalentSourceGraph({ ...data, ...current }),
     inputs,
     linkedSourceKeys: new Set(
       [...data.eventSources, ...data.historical].map(sourceKey),

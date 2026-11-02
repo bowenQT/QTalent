@@ -16,14 +16,16 @@ export { sourceKey } from './source-key';
  * This graph is not a permission grant or an immutable-version/locator check.
  * Callers still apply current authorization and validate the actual original.
  */
-export type TalentSourceProjectionData = Awaited<
+export type RawTalentSourceData = Awaited<
   ReturnType<typeof readEvidenceForTalent>
 > & {
-  // Query snapshots always supply the complete intake table. Raw confirmation
-  // graphs are also used internally before their already-locked intake union.
-  intakeInputs?: StoredArrangeInput[];
   context: TalentAuthorizationContext;
   staffing: { projects: { id: string; cohortId: string | null }[] };
+};
+export type TalentSourceProjectionData = RawTalentSourceData & {
+  // Every reader must load the complete intake table in its own snapshot:
+  // a missing table would silently drop intake subjects and requiredKinds.
+  intakeInputs: StoredArrangeInput[];
 };
 
 /** Permission requirement for the four approved, pinned prototype history kinds.
@@ -50,8 +52,8 @@ export function historicalEvaluationRequiredKind(row: {
 }
 
 export function eventSubject(
-  data: TalentSourceProjectionData,
-  event: TalentSourceProjectionData['events'][number],
+  data: RawTalentSourceData,
+  event: RawTalentSourceData['events'][number],
 ): TalentSubject {
   return {
     personId: event.personId,
@@ -66,8 +68,8 @@ export function eventSubject(
   };
 }
 export function historicalSubject(
-  data: TalentSourceProjectionData,
-  row: TalentSourceProjectionData['historical'][number],
+  data: RawTalentSourceData,
+  row: RawTalentSourceData['historical'][number],
   personId: string,
 ): TalentSubject {
   return {
@@ -89,11 +91,29 @@ function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   }
   return groups;
 }
-/** Relations are indexed once per call: the full demo snapshot has ~1k
- * fragments, and per-fragment scans of every relation cost seconds per read.
- */
+/** Source graph for every read path: the complete intake restrictions apply. */
 export function talentSources(
   data: TalentSourceProjectionData,
+): TalentSource[] {
+  return confirmationSources({
+    sources: rawTalentSourceGraph(data),
+    versions: data.versions,
+    originals: data.originals,
+    inputs: data.intakeInputs,
+    linkedSourceKeys: new Set(
+      [...data.eventSources, ...data.historical].map(sourceKey),
+    ),
+  });
+}
+
+/** Formal events and history only, before any intake restriction. Only the
+ * confirmation and arrange transactions use it, and they apply the intake
+ * union they have locked themselves; it is never a read projection.
+ * Relations are indexed once per call: the full demo snapshot has ~1k
+ * fragments, and per-fragment scans of every relation cost seconds per read.
+ */
+export function rawTalentSourceGraph(
+  data: RawTalentSourceData,
 ): TalentSource[] {
   const linksBySource = groupBy(data.eventSources, sourceKey);
   const eventOrder = new Map(
@@ -165,15 +185,5 @@ export function talentSources(
       location: fragment.location,
     };
   });
-  return data.intakeInputs === undefined
-    ? sources
-    : confirmationSources({
-        sources,
-        versions: data.versions,
-        originals: data.originals,
-        inputs: data.intakeInputs,
-        linkedSourceKeys: new Set(
-          [...data.eventSources, ...data.historical].map(sourceKey),
-        ),
-      });
+  return sources;
 }

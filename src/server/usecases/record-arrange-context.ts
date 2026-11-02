@@ -425,8 +425,8 @@ export async function loadRecordBatchSnapshot(
   )
     throw new NativeArrangeUnavailable('immutable_text_source_changed');
   // Consume the current846 projection instead of reviving its removed sourcesForDraft.
-  const { talentSources } = await import('./talent-source-projection');
-  const graph = talentSources({ ...actor, ...data }).find(
+  const { rawTalentSourceGraph } = await import('./talent-source-projection');
+  const graph = rawTalentSourceGraph({ ...actor, ...data }).find(
     (source) =>
       source.fragmentId === fragment.id &&
       source.originalVersionId === version.id,
