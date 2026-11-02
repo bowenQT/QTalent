@@ -267,6 +267,7 @@ describe('待确认：编辑与保存', () => {
     );
     for (const [action, banner] of [
       [{ type: 'save_offline' }, { kind: 'offline', scope: 'save' }],
+      [{ type: 'save_unavailable' }, { kind: 'saveUnavailable' }],
       [
         { type: 'save_conflict', message: '被改了' },
         { kind: 'conflict', message: '被改了' },

@@ -291,6 +291,20 @@ describe('BannerNotice 与 FailurePanel', () => {
     expect(screen.getByText(copy.offline.save)).toBeTruthy();
   });
 
+  it('服务端没完成保存：如实说明，可再保存或复制留存', async () => {
+    const h = handlers();
+    render(<BannerNotice banner={{ kind: 'saveUnavailable' }} {...h} />);
+    expect(screen.getByText(copy.saveUnavailable)).toBeTruthy();
+    await userEvent.click(
+      screen.getByRole('button', { name: copy.banner.sendRetry }),
+    );
+    expect(h.onRetry).toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole('button', { name: copy.actions.copyOut }),
+    );
+    expect(h.onCopyOut).toHaveBeenCalled();
+  });
+
   it('冲突：保留输入，可载入最新版本或先复制出来', async () => {
     const h = handlers();
     render(
@@ -384,34 +398,67 @@ describe('BannerNotice 与 FailurePanel', () => {
 });
 
 describe('HandoffPanel', () => {
-  it('每种原因一句话，链接到这个批次的回执；整理不出事时还能改原话', async () => {
-    const onEdit = vi.fn();
+  it('每种原因一句话，链接到这个批次的回执，并如实说回执确认待接通', () => {
     const { rerender } = render(
-      <HandoffPanel reason="many" href="/receipt?id=b-1" onEdit={onEdit} />,
+      <HandoffPanel
+        reason="many"
+        href="/receipt?id=b-1"
+        onEdit={vi.fn()}
+        onCopyOut={null}
+      />,
     );
-    expect(screen.getByText(copy.handoff.many.title)).toBeTruthy();
     expect(
       screen
         .getByRole('link', { name: copy.handoff.open })
         .getAttribute('href'),
     ).toBe('/receipt?id=b-1');
-    expect(
-      screen.queryByRole('button', { name: copy.actions.back }),
-    ).toBeNull();
-    for (const reason of ['review', 'confirmed'] as const) {
+    for (const reason of ['many', 'review', 'none', 'confirmed'] as const) {
       rerender(
-        <HandoffPanel reason={reason} href="/receipt?id=b-1" onEdit={onEdit} />,
+        <HandoffPanel
+          reason={reason}
+          href="/receipt?id=b-1"
+          onEdit={vi.fn()}
+          onCopyOut={null}
+        />,
       );
       expect(screen.getByText(copy.handoff[reason].title)).toBeTruthy();
+      expect(screen.getByText(copy.handoff.pending)).toBeTruthy();
     }
-    rerender(
-      <HandoffPanel reason="none" href="/receipt?id=b-1" onEdit={onEdit} />,
+  });
+
+  it('回执接通前可以回去改原话或复制原话；已确认的事只给查看', async () => {
+    const onEdit = vi.fn();
+    const onCopyOut = vi.fn();
+    const { rerender } = render(
+      <HandoffPanel
+        reason="many"
+        href="/receipt?id=b-1"
+        onEdit={onEdit}
+        onCopyOut={onCopyOut}
+      />,
     );
-    expect(screen.getByText(copy.handoff.none.title)).toBeTruthy();
     await userEvent.click(
       screen.getByRole('button', { name: copy.actions.back }),
     );
     expect(onEdit).toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole('button', { name: copy.actions.copyOut }),
+    );
+    expect(onCopyOut).toHaveBeenCalled();
+    rerender(
+      <HandoffPanel
+        reason="confirmed"
+        href="/receipt?id=b-1"
+        onEdit={onEdit}
+        onCopyOut={null}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: copy.actions.back }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: copy.actions.copyOut }),
+    ).toBeNull();
   });
 });
 

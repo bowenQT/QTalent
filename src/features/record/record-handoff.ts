@@ -3,7 +3,8 @@
  * 1. 工作台交接（841 定的接口）：`sessionStorage['niu-talent:draft:record'] = { accountId, text, savedAt }`，
  *    URL 只带 `draft=work`；本页读取后立即删除。
  * 2. 输入暂存（D19）：用户在本页输入的原话与所选人员，防抖写入，站内导航或刷新回来时恢复；
- *    开始整理或保存后删除，退出登录时由外壳调用 clearRecordInputStash 一并清掉。
+ *    开始整理或保存后删除。
+ * 退出登录或换账号登录时，`lib/session-drafts` 清掉全部 `niu-talent:` 暂存。
  * 3. 批次原话：提交后按批次记下原话和所选人员，整理中刷新（`?batch=`）时恢复；只认同一批次。
  *    保存或回到输入后删除。原话不从服务端草稿里取，897 草稿不带原话。
  */
@@ -159,6 +160,8 @@ export function restoreBatchInput(
 ): { text: string; personId: string | null } | null {
   if (!store) return null;
   const found = read(store, BATCH_STASH_KEY, accountId, now);
+  // 别的账号、超时或损坏的暂存不再有用，读到就删；同账号的别的批次留给它自己。
+  if (!found) remove(store, BATCH_STASH_KEY);
   if (!found || found.batchId !== batchId) return null;
   return { text: found.text, personId: found.personId };
 }

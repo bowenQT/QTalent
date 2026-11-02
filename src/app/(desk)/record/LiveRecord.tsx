@@ -7,11 +7,12 @@ import type {
   RecordActions,
 } from '@/features/record/types';
 import { startRecordArrangeAction } from '@/server/actions/record-arrange';
-import { saveRecordAction, undoRecordAction } from '@/server/actions/record';
+import { undoRecordAction } from '@/server/actions/record';
 import {
   readRecordAnchorsAction,
   readRecordBatchAction,
   readRecordSourceAction,
+  saveRecordBatchAction,
 } from '@/server/actions/record-batch';
 import { resolveRecordNode } from './ports';
 
@@ -19,7 +20,7 @@ const actions: RecordActions = {
   resolveNode: resolveRecordNode,
   submit: startRecordArrangeAction,
   readBatch: readRecordBatchAction,
-  save: saveRecordAction,
+  save: saveRecordBatchAction,
   undo: undoRecordAction,
   loadSource: readRecordSourceAction,
 };

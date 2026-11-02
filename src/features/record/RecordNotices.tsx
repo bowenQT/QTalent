@@ -66,6 +66,31 @@ export function BannerNotice({
           {banner.scope === 'save' ? copy.offline.save : copy.offline.start}
         </Notice>
       );
+    case 'saveUnavailable':
+      return (
+        <Notice
+          actions={
+            <>
+              <button
+                type="button"
+                className="n-btn n-btn--sm n-btn--ghost"
+                onClick={onRetry}
+              >
+                {copy.banner.sendRetry}
+              </button>
+              <button
+                type="button"
+                className="n-btn n-btn--sm n-btn--ghost"
+                onClick={onCopyOut}
+              >
+                {copy.actions.copyOut}
+              </button>
+            </>
+          }
+        >
+          {copy.saveUnavailable}
+        </Notice>
+      );
     case 'conflict':
       return (
         <Notice
@@ -147,10 +172,13 @@ export function HandoffPanel({
   reason,
   href,
   onEdit,
+  onCopyOut,
 }: {
   reason: HandoffReason;
   href: string;
   onEdit: () => void;
+  /** 只在原话还在本页时给（刷新后会话暂存没了就没有原话可复制）。 */
+  onCopyOut: (() => void) | null;
 }) {
   const text = copy.handoff[reason];
   return (
@@ -160,7 +188,8 @@ export function HandoffPanel({
           <a className="n-btn n-btn--sm n-btn--ink" href={href}>
             {copy.handoff.open}
           </a>
-          {reason === 'none' ? (
+          {/* 已确认的事再改原话会重复记一次，只给查看 */}
+          {reason !== 'confirmed' ? (
             <button
               type="button"
               className="n-btn n-btn--sm n-btn--ghost"
@@ -169,11 +198,21 @@ export function HandoffPanel({
               {copy.actions.back}
             </button>
           ) : null}
+          {onCopyOut ? (
+            <button
+              type="button"
+              className="n-btn n-btn--sm n-btn--ghost"
+              onClick={onCopyOut}
+            >
+              {copy.actions.copyOut}
+            </button>
+          ) : null}
         </>
       }
     >
       <b>{text.title}</b>
       <div className="nt-muted">{text.text}</div>
+      <div className="nt-muted">{copy.handoff.pending}</div>
     </Notice>
   );
 }

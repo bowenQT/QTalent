@@ -11,6 +11,7 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/components/ui/Toast';
+import { clearSessionDrafts } from '@/lib/session-drafts';
 import { copy } from './copy';
 import {
   BATCH_STASH_KEY,
@@ -421,6 +422,12 @@ describe('多件事或有核对项：交给回执页', () => {
       expect(
         screen.queryByRole('button', { name: copy.actions.save }),
       ).toBeNull();
+      // 回执确认待接通：本页能回去改原话，原话还在输入框里
+      expect(screen.getByText(copy.handoff.pending)).toBeTruthy();
+      await click(copy.actions.back);
+      expect(
+        (screen.getByRole('textbox') as HTMLTextAreaElement).value,
+      ).not.toBe('');
     },
   );
 });
@@ -609,6 +616,15 @@ describe('确认、改分与保存', () => {
     expect(actions.save.mock.calls[0]?.[0]).toMatchObject({
       sbi: { title: '新标题', behavior: '新行为' },
     });
+  });
+
+  it('服务端没完成保存：不说成断网，修改保留', async () => {
+    const save = vi.fn(async () => ({ status: 'unavailable' as const }));
+    await toReview({ actions: { save: save as never } });
+    await click(copy.actions.save);
+    expect(await screen.findByText(copy.saveUnavailable)).toBeTruthy();
+    expect(screen.queryByText(copy.offline.save)).toBeNull();
+    expect(document.getElementById('ev-save')).toBeTruthy();
   });
 
   it('保存断网：修改保留，重试复用同一个 operation_id；内容变了换新', async () => {
@@ -1049,6 +1065,23 @@ describe('进入方式', () => {
 });
 
 describe('未保存内容的保护（输入暂存）', () => {
+  it('提交期间退出登录：晚到的回执不把原话写回会话暂存', async () => {
+    let resolveSubmit: (value: unknown) => void = () => undefined;
+    const { actions } = setup({
+      actions: {
+        submit: vi.fn(
+          () => new Promise((resolve) => (resolveSubmit = resolve)),
+        ) as never,
+      },
+    });
+    await typeAndSubmit();
+    await waitFor(() => expect(actions.submit).toHaveBeenCalled());
+    clearSessionDrafts();
+    resolveSubmit({ status: 'success', replayed: false, result: batch() });
+    await waitFor(() => expect(actions.readBatch).toHaveBeenCalled());
+    expect(window.sessionStorage.getItem(BATCH_STASH_KEY)).toBeNull();
+  });
+
   it('输入防抖写入会话暂存；提交后改记在这个批次下', async () => {
     setup();
     await userEvent.type(screen.getByRole('textbox'), '写到一半');

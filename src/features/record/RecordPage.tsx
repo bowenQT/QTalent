@@ -46,6 +46,7 @@ import {
   stashInput,
   takeHandoff,
 } from './record-handoff';
+import { sessionDraftEpoch } from '@/lib/session-drafts';
 import { SavedSign } from './SavedSign';
 import { SbiEditor } from './SbiEditor';
 import { ScoreList, type AnchorFocus } from './ScoreList';
@@ -336,6 +337,7 @@ function RecordFlow(props: RecordPageProps) {
       );
       dispatch({ type: 'submit_begin', op });
       clearRecordInputStash();
+      const epoch = sessionDraftEpoch();
       const result = await actions.submit({
         operationId: op.id,
         evaluationNodeId: node.evaluationNodeId,
@@ -346,7 +348,9 @@ function RecordFlow(props: RecordPageProps) {
         files: [],
       });
       if (result.status === 'success') {
-        stashBatchInput(accountId, result.result.batchId, input);
+        // 提交期间退出或换了账号：不把原话写回会话暂存
+        if (epoch === sessionDraftEpoch())
+          stashBatchInput(accountId, result.result.batchId, input);
         dispatch({ type: 'batch_begin', batch: result.result });
       } else {
         dispatch({
@@ -423,6 +427,8 @@ function RecordFlow(props: RecordPageProps) {
         });
       } else if (result.status === 'conflict') {
         dispatch({ type: 'save_conflict', message: result.message });
+      } else if (result.status === 'unavailable') {
+        dispatch({ type: 'save_unavailable' });
       } else {
         dispatch({ type: 'save_forbidden', message: result.message });
       }
@@ -692,6 +698,7 @@ function RecordFlow(props: RecordPageProps) {
                     reason={state.handoff}
                     href={receiptHref(state.batchId)}
                     onEdit={() => dispatch({ type: 'back_to_write' })}
+                    onCopyOut={state.text.trim() ? openCopyOut : null}
                   />
                 ) : draft && edit ? (
                   <>

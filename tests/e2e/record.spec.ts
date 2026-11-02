@@ -167,8 +167,11 @@ for (const [scene, title] of [
 ] as const)
   test(`${scene}: links to this batch's receipt instead of confirming here`, async ({
     page,
+    context,
     referenceApp,
   }) => {
+    // Signed in so the receipt route itself can be opened from the link.
+    await login(context, 'hrbp', referenceApp.baseURL);
     await page.goto(
       `${referenceApp.baseURL}/dev/record?role=hr&scene=${scene}`,
     );
@@ -182,6 +185,19 @@ for (const [scene, title] of [
     );
     await expect(page.locator('.n-score')).toHaveCount(0);
     await expect(page.locator('#ev-save')).toHaveCount(0);
+    // The receipt page cannot confirm yet: it says so, and this page keeps a way back.
+    await expect(
+      page.getByText('回执页的逐件确认待接通', { exact: false }),
+    ).toBeVisible();
+    await page.getByRole('link', { name: '打开回执' }).click();
+    await expect(
+      page.getByRole('heading', { name: '回执待接通' }),
+    ).toBeVisible();
+    await page.goBack();
+    await page.getByRole('button', { name: '改原话' }).click();
+    await expect(
+      page.getByRole('textbox', { name: '说说这次发生了什么' }),
+    ).toHaveValue(SENTENCE);
   });
 
 test(`mentor: /record reads whom to record and derives the node on the server`, async ({

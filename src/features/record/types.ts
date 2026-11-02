@@ -75,7 +75,10 @@ export type RecordActions = {
     | null;
   submit(input: MaterialBatchInput): Promise<MaterialBatchSubmitResult>;
   readBatch(input: { batchId: string }): Promise<MaterialBatchReadResult>;
-  save(input: RecordSaveInput): Promise<RecordSaveResult>;
+  /** `unavailable`：服务端这次没完成保存（不是网络中断），如实告诉用户。 */
+  save(
+    input: RecordSaveInput,
+  ): Promise<RecordSaveResult | { status: 'unavailable' }>;
   undo(input: RecordUndoInput): Promise<RecordUndoResult>;
   loadSource: LoadSource;
 };

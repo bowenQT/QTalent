@@ -28,6 +28,8 @@ export type Banner =
   /** picked：是否选了人；没选人时提示先选，选了人时写明节点待确认的原因。 */
   | { kind: 'node'; reason: NodeIssue; picked: boolean }
   | { kind: 'offline'; scope: 'start' | 'save' }
+  /** 服务端这次没完成保存（不是网络）：改动保留，可以再保存或复制留存。 */
+  | { kind: 'saveUnavailable' }
   | { kind: 'conflict'; message: string }
   | { kind: 'forbidden'; message: string }
   | { kind: 'refused'; message: string }
@@ -156,6 +158,7 @@ export type Action =
   | { type: 'save_begin'; op: OperationId }
   | { type: 'save_saved'; receipt: RecordSaveReceipt; replayed: boolean }
   | { type: 'save_offline' }
+  | { type: 'save_unavailable' }
   | { type: 'save_problems'; problems: SaveProblems }
   | { type: 'save_conflict'; message: string }
   | { type: 'save_forbidden'; message: string }
@@ -282,6 +285,12 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
         ...state,
         phase: 'review',
         banner: { kind: 'offline', scope: 'save' },
+      };
+    case 'save_unavailable':
+      return {
+        ...state,
+        phase: 'review',
+        banner: { kind: 'saveUnavailable' },
       };
     case 'save_problems':
       return {

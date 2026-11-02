@@ -2,6 +2,7 @@
 import 'server-only';
 import { z } from 'zod';
 import type { MaterialBatchReadResult } from '../../contracts/materials';
+import type { RecordSaveResult } from '../../contracts/record';
 import { createClock } from '../../lib/clock';
 import { requireSession } from '../auth/next';
 import { getDatabase } from '../db/client';
@@ -14,6 +15,8 @@ import {
 import { readRecordMaterialBatchForCurrentUser } from '../queries/record-arrange';
 import { readRecordAnchors } from '../queries/record-page';
 import { readSourceForCurrentUser } from '../queries/sources';
+import { RecordSaveUnavailableError } from '../usecases/record-save';
+import { saveRecordAction } from './record';
 
 /**
  * Thin actions for the record page (owner ruling #248 6559810703). Each one only calls
@@ -65,6 +68,23 @@ export async function resolveRecordNodeAction(
   } catch (error) {
     // The reader already hides the cause; say so plainly instead of a network error.
     if (error instanceof RecordNodeResolutionUnavailable)
+      return { status: 'unavailable' };
+    throw error;
+  }
+}
+
+/**
+ * 846 save for the record page. The 846 action throws when the save use case is
+ * unavailable (for example when it cannot read complete sources); the page would
+ * otherwise show that as a lost connection. Only that error is turned into a state.
+ */
+export async function saveRecordBatchAction(
+  input: unknown,
+): Promise<RecordSaveResult | { status: 'unavailable' }> {
+  try {
+    return await saveRecordAction(input);
+  } catch (error) {
+    if (error instanceof RecordSaveUnavailableError)
       return { status: 'unavailable' };
     throw error;
   }

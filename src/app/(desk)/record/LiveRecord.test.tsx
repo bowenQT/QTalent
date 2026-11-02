@@ -27,6 +27,7 @@ vi.mock('@/server/actions/record-batch', () => ({
   readRecordBatchAction: vi.fn(),
   readRecordSourceAction: vi.fn(),
   resolveRecordNodeAction: resolveNode,
+  saveRecordBatchAction: vi.fn(),
 }));
 import { LiveRecord, loadAnchors } from './LiveRecord';
 

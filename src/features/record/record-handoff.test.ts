@@ -138,10 +138,22 @@ describe('批次原话', () => {
       personId: 'p1',
     });
     expect(restoreBatchInput('acc-1', 'b-2', NOW, store)).toBeNull();
+    // 同账号的别的批次不动它
+    expect(store.data.has(BATCH_STASH_KEY)).toBe(true);
+    // 别的账号读到：不给，并删掉明文
     expect(restoreBatchInput('acc-2', 'b-1', NOW, store)).toBeNull();
+    expect(store.data.has(BATCH_STASH_KEY)).toBe(false);
+    stashBatchInput(
+      'acc-1',
+      'b-1',
+      { text: '原话', personId: 'p1' },
+      NOW,
+      store,
+    );
     expect(
       restoreBatchInput('acc-1', 'b-1', NOW + STASH_TTL_MS + 1, store),
     ).toBeNull();
+    expect(store.data.has(BATCH_STASH_KEY)).toBe(false);
     // 输入暂存不认带批次的那一份
     expect(restoreInput('acc-1', NOW, store)).toBeNull();
   });

@@ -1,5 +1,6 @@
 import 'server-only';
 import { eq, inArray } from 'drizzle-orm';
+import { unstable_rethrow } from 'next/navigation';
 import { createClock } from '../../lib/clock';
 import { getDatabase, type DbExecutor } from '../db/client';
 import { getEnv } from '../env';
@@ -33,6 +34,17 @@ export type RecordPageData =
  * the anchor rules in force today. It widens nothing: ids outside `page()` are not read.
  */
 export async function getRecordPageData(): Promise<RecordPageData> {
+  try {
+    return await readPageData();
+  } catch (error) {
+    // Sign-in redirects and other Next control flow pass through; a failed read is
+    // what the page states as "暂时打不开".
+    unstable_rethrow(error);
+    return { status: 'unavailable' };
+  }
+}
+
+async function readPageData(): Promise<RecordPageData> {
   const page = await getRecordPage({});
   if (page.status === 'forbidden' || page.status === 'not_found')
     return { status: 'forbidden' };

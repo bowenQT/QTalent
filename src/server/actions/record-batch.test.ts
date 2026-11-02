@@ -5,6 +5,7 @@ const runtime = vi.hoisted(() => ({
   readSource: vi.fn(),
   readAnchors: vi.fn(),
   resolve: vi.fn(),
+  save: vi.fn(),
   factory: vi.fn(),
 }));
 vi.mock('../auth/next', () => ({ requireSession: runtime.session }));
@@ -17,6 +18,10 @@ vi.mock('../queries/sources', () => ({
 vi.mock('../queries/record-page', () => ({
   readRecordAnchors: runtime.readAnchors,
 }));
+vi.mock('./record', () => ({ saveRecordAction: runtime.save }));
+vi.mock('../usecases/record-save', () => ({
+  RecordSaveUnavailableError: class extends Error {},
+}));
 vi.mock('../db/client', () => ({ getDatabase: () => 'db' }));
 vi.mock('../env', () => ({ getEnv: () => ({ APP_ENV: 'test' }) }));
 vi.mock('../../lib/clock', () => ({
@@ -27,11 +32,13 @@ vi.mock('../usecases/record-evaluation-node', async (original) => ({
   createRecordEvaluationNodeResolver: runtime.factory,
 }));
 import { RecordNodeResolutionUnavailable } from '../usecases/record-evaluation-node';
+import { RecordSaveUnavailableError } from '../usecases/record-save';
 import {
   readRecordAnchorsAction,
   readRecordBatchAction,
   readRecordSourceAction,
   resolveRecordNodeAction,
+  saveRecordBatchAction,
 } from './record-batch';
 
 beforeEach(() => {
@@ -114,4 +121,19 @@ it('derives nothing without a session', async () => {
     resolveRecordNodeAction({ personIds: ['p-1'] }),
   ).rejects.toThrow();
   expect(runtime.resolve).not.toHaveBeenCalled();
+});
+
+it('says the save is unavailable instead of failing like a lost connection', async () => {
+  runtime.save.mockResolvedValue({ status: 'conflict', message: 'x' });
+  expect(await saveRecordBatchAction({ draftId: 'd' })).toEqual({
+    status: 'conflict',
+    message: 'x',
+  });
+  expect(runtime.save).toHaveBeenCalledWith({ draftId: 'd' });
+  runtime.save.mockRejectedValue(
+    new RecordSaveUnavailableError('complete_sources_required'),
+  );
+  expect(await saveRecordBatchAction({})).toEqual({ status: 'unavailable' });
+  runtime.save.mockRejectedValue(new Error('other'));
+  await expect(saveRecordBatchAction({})).rejects.toThrow('other');
 });
