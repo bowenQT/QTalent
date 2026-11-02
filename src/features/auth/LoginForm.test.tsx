@@ -32,9 +32,14 @@ describe('email-password login', () => {
     await user.click(screen.getByRole('button', { name: '登录' }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith(link));
   });
-  it('sends one same-origin request and enters projects on success', async () => {
+  it('sends one same-origin request and enters the workbench on success', async () => {
     const fetch = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', fetch);
+    // 同一标签页换账号登录：先清掉上一个账号的暂存
+    sessionStorage.setItem(
+      'niu-talent:record-batch:acc-1',
+      '{"text":"演示原话"}',
+    );
     const user = userEvent.setup();
     render(<LoginForm />);
     await user.type(screen.getByLabelText('邮箱'), 'ceo@qtalent.test');
@@ -42,7 +47,8 @@ describe('email-password login', () => {
     const form = screen.getByRole('button', { name: '登录' }).closest('form')!;
     fireEvent.submit(form);
     fireEvent.submit(form);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/projects'));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/work'));
+    expect(sessionStorage.getItem('niu-talent:record-batch:acc-1')).toBeNull();
     expect(refresh).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith(

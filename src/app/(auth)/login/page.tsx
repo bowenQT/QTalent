@@ -10,7 +10,7 @@ export default async function Login({
 }) {
   const { returnTo } = await searchParams;
   const next =
-    returnTo === undefined ? '/projects' : safeEntryReturnTo(returnTo);
+    returnTo === undefined ? '/work' : safeEntryReturnTo(returnTo);
   return (
     <main className="nt-login">
       <section className="n-card">

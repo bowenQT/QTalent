@@ -15,6 +15,10 @@ import {
 import { createUploadService } from './service';
 import { createOriginalReader } from './read';
 import { readValidatedUpload } from './handoff';
+import { readValidatedUploadInTransaction } from './handoff-transaction';
+import { createValidatedAttachmentInput } from '../attachments/upload-input';
+import type { Transaction } from '../../../db/client';
+import { newJob } from '../../../jobs/state';
 import { createRecordCollectionService } from './collections';
 import { fixture } from '../../../../../tests/fixtures/upload-fake';
 
@@ -40,7 +44,9 @@ beforeAll(async () => {
   url.pathname = `/${name}`;
   connection = createDatabase(url.toString());
   await migrate(connection.db, {
-    migrationsFolder: 'src/server/db/migrations',
+    //926 combination validation only; default remains the published migration gate.
+    migrationsFolder:
+      process.env.QTALENT_926_TEST_MIGRATIONS ?? 'src/server/db/migrations',
   });
   const { rows } = await connection.db.execute<{ ready: boolean }>(
     sql`select to_regclass('public.records_upload_collections') is not null and to_regclass('public.records_upload_intents') is not null and to_regclass('public.records_upload_objects') is not null and to_regclass('public.records_upload_read_tickets') is not null as ready`,
@@ -429,5 +435,167 @@ it('keeps the real quota lock throughout the caller native transaction and refus
   ).rejects.toMatchObject({
     status: 'unavailable',
     reason: 'upload_read_committed_required',
+  });
+});
+
+it('reads validated upload facts in the caller transaction and retains its quota lock through rollback', async () => {
+  const f = await uploaded();
+  const completed = await f.service.complete('account', f.command);
+  const original = await readValidatedUpload(f.store, completed);
+  const failure = new Error('synthetic caller rollback');
+  await expect(
+    connection!.db.transaction(
+      async (tx) => {
+        const [intent] = await tx
+          .select()
+          .from(uploadIntents)
+          .where(eq(uploadIntents.id, completed.uploadId));
+        await tx
+          .update(uploadIntents)
+          .set({
+            request: { ...intent.request, filename: 'demo-uncommitted.txt' },
+          })
+          .where(eq(uploadIntents.id, intent.id));
+        const current = await readValidatedUploadInTransaction(tx, completed);
+        expect(current).toMatchObject({
+          filename: 'demo-uncommitted.txt',
+          recordCollectionId: f.request.recordCollectionId,
+        });
+        expect(await readValidatedUpload(f.store, completed)).toEqual(original);
+        const attempted = await connection!.db.transaction((other) =>
+          other.execute<{ locked: boolean }>(
+            sql`select pg_try_advisory_xact_lock(hashtextextended(${`quota:${f.request.recordCollectionId}`},0)) as locked`,
+          ),
+        );
+        expect(attempted.rows[0].locked).toBe(false);
+        throw failure;
+      },
+      { isolationLevel: 'read committed' },
+    ),
+  ).rejects.toBe(failure);
+  expect(await readValidatedUpload(f.store, completed)).toEqual(original);
+});
+it('keeps the actual873 collection binding through866 context load and separate open recheck', async () => {
+  const f = await uploaded();
+  const completed = await f.service.complete('account', f.command);
+  let authorizedContext: Transaction | undefined;
+  const input = createValidatedAttachmentInput<Transaction>({
+    readValidatedUploadInContext: readValidatedUploadInTransaction,
+    readValidatedUpload: (ref) => readValidatedUpload(f.store, ref),
+    // Synthetic policy tests only context identity; not production authorization.
+    canProcess: async (tx, binding) => {
+      authorizedContext = tx;
+      return binding.recordCollectionId === f.request.recordCollectionId;
+    },
+    openObject: async () =>
+      (async function* () {
+        yield Buffer.from('synthetic');
+      })(),
+  });
+  const job = newJob(
+    {
+      jobId: completed.jobId,
+      kind: 'media',
+      resourceId: completed.uploadId,
+      inputVersion: completed.originalVersionId,
+    },
+    new Date(f.now()).toISOString(),
+  );
+  await connection!.db.transaction(
+    async (tx) => {
+      expect(await input.loadAuthorizedAttachment(tx, job)).toMatchObject({
+        recordCollectionId: f.request.recordCollectionId,
+        completedJobId: completed.jobId,
+        version: { originalVersionId: completed.originalVersionId },
+      });
+      expect(authorizedContext).toBe(tx);
+    },
+    { isolationLevel: 'read committed' },
+  );
+});
+it('rejects missing or wrong native upload references and repeatable-read snapshots', async () => {
+  const f = await uploaded();
+  const completed = await f.service.complete('account', f.command);
+  expect(
+    await connection!.db.transaction((tx) =>
+      readValidatedUploadInTransaction(tx, {
+        ...completed,
+        uploadId: randomUUID(),
+      }),
+    ),
+  ).toBeNull();
+  expect(
+    await connection!.db.transaction((tx) =>
+      readValidatedUploadInTransaction(tx, {
+        ...completed,
+        originalVersionId: randomUUID(),
+      }),
+    ),
+  ).toBeNull();
+  await expect(
+    connection!.db.transaction(
+      (tx) => readValidatedUploadInTransaction(tx, completed),
+      { isolationLevel: 'repeatable read' },
+    ),
+  ).rejects.toMatchObject({ reason: 'upload_read_committed_required' });
+});
+it('re-reads committed completion after waiting for the collection lock instead of using the pre-lock hint', async () => {
+  const f = await uploaded();
+  const completed = await f.service.complete('account', f.command);
+  let release!: () => void, locked!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const held = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const writer = connection!.db.transaction(async (tx) => {
+    await readUploadCollectionMembers(tx, f.request.recordCollectionId);
+    locked();
+    await gate;
+    // A controlled conflicting persisted fact, never an allowed producer action.
+    await tx
+      .update(uploadIntents)
+      .set({
+        completed: {
+          ...completed,
+          recordCollectionId: 'synthetic-wrong-collection',
+        },
+      })
+      .where(eq(uploadIntents.id, completed.uploadId));
+  });
+  await held;
+  let pid = 0;
+  const reader = connection!.db.transaction(async (tx) => {
+    const result = await tx.execute<{ pid: number }>(
+      sql`select pg_backend_pid() as pid`,
+    );
+    pid = result.rows[0].pid;
+    return readValidatedUploadInTransaction(tx, completed);
+  });
+  const observed = reader.then(
+    (value) => ({ value }),
+    (error) => ({ error }),
+  );
+  // Observe actual PostgreSQL lock waiting, not a timing-only sleep assertion.
+  try {
+    let waiting = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (pid) {
+        const q = await connection!.db.execute<{ waiting: boolean }>(
+          sql`select exists(select 1 from pg_locks where pid=${pid} and not granted) as waiting`,
+        );
+        waiting = q.rows[0].waiting;
+        if (waiting) break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(waiting).toBe(true);
+  } finally {
+    release();
+    await writer;
+  }
+  expect(await observed).toMatchObject({
+    error: { reason: 'upload_collection_inconsistent' },
   });
 });

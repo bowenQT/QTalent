@@ -1,0 +1,82 @@
+# BOW-859 归档录音的离线处理流程
+
+本目录和 server/usecases/recordings 实现录音处理流程与真实媒体字节解析，生产数据库适配器、人工绑定账本和 worker 组合仍未接通。当前普通合入 main fe34b6faffcfb2832a1be266a155f0d7d19d69cc，消费其中最终 897/899 合同和 856/857 客户端；继承的 873 上传私有文件仍需与其固定 2c3ee54eecd896915ca0067fc2f7463c99aa8936 统一。完整链路缺口见末节，不将旧可注入流程当原生持久化完成。
+
+## 已实现的流程
+
+1. 上传完成的原件身份和 job 必须一致；实际媒体解析端口返回该版本字节的摘要、字节数、格式与可信时长。只接受旧 858 的 MP3 / M4A / WAV / AAC 入口，不用文件名、上传声明、配额字符串或默认 0 生成媒体或集合事实。
+2. 在短事务中持真实任务/attempt 与集合锁，读取当前账号、节点关系、成员、原件版本和绑定修订。下载、签名、提交、查询和结果写入之间重复核验；外部调用不占数据库事务。已发出的请求无法撤回，撤权或取消会阻止其结果进入整理。
+3. 在提交前持久化 reservation，以稳定 operation key 调用听悟离线协议。同 job/attempt 的认领有显式执行租约：未到期重复投递忽略，到期后在原锁内换 claim 接管。旧 attempt、旧 poll 序列不重提。提交结果不确定且没有 task ID 时失败关闭；已知 task ID 时只查询原任务。每次投递至多查询一次，后续通过有界队列调度，不在 worker 里循环等待。
+4. 离线结果产生不可变转写版本和逐句片段，每段指向归档原件版本及原始毫秒范围。拒绝零长、负数、越界或错误 task 的引用；不靠补时间或按文字去重修复结果。保留重叠的不同句子，不把供应商 speaker ID 当人员 ID。
+5. 绑定端口须返回本版本所有片段的当前解析结果。只把 pending / deferred 歧义片段送入待核对；bound / irrelevant 不入队。needs_review 对应媒体任务的 awaiting_manual，不能映射成 partial。
+6. 绑定恢复同时核对 BOW-860 已提交的恢复 ledger、当前绑定修订、转写版本和 job/attempt，不信客户端的“全部完成”。恢复复用既有离线版本，不再发起 ASR。只有所有片段均有明确处理时，按 offlineTranscriptInputSchema 将引用交给 845；这里不写正式事件、评分、确认或档案，也不声称 845 已处理完成。
+
+本地取消没有调用供应商取消 API。迟到的同 attempt、同 claim task receipt 可保留用于核对，但不会恢复处理；旧 attempt 或已经被接管的旧拥有者均不允许写入。进程在 reservation 后崩溃、且无法确认 task ID 时需要人工/供应商查证，不能直接清 checkpoint 重提。生产适配器必须在新的 attempt 中保留此防重复事实。
+
+## 首审修复：崩溃认领的恢复
+
+私有 run 只增加 claimExpiresAt，复用原 claim 作为拥有者栅栏，不创建另一套 attempt、调度平台或 producer。claim 保留最后一次拥有者；claimExpiresAt:null 表示租约已释放，不能再用 claim 是否为空判断活跃。保留该栅栏可以在本地取消后记录同拥有者回执，同时拒绝接管前旧执行的迟到结果。
+
+- createRecordingProcessor 必须显式提供正整数 claimLeaseMs 和 RecordingPorts.now()。沿用 jobs/service 的服务端 UTC 时间注入方式，now() 在持锁后读取；生产必须使用一致的真实执行时间，不能使用客户端时间或 createClock 的 demo/test 固定业务时间。当前权限的业务时间仍由原有上下文负责。无效时钟、缺失/损坏的租约元数据、复用的 claim 标识均拒绝，不推测为已过期。
+- 在租约截止时间之前，重复投递仍忽略；到截止时间即允许接管。每个检查点仅续租尚未到期的当前拥有者，不能续活已过期或已被替换的 claim。取消和撤权检查优先于租约拒绝；已取消/失败/交给整理的状态不被旧执行恢复。
+- 认领后、reservation 前崩溃：接管后重新检查归档与权限，只提交一次。reservation 后无 task ID：接管后到达 submission_unknown，不能再次 CreateTask。已有 task：只查原 task；已有持久转写：复用同一版本，不再查询或插入副本。
+- 新拥有者接管后，旧执行的成功、失败、转写与 task receipt 都不能改它的 run。没有接管时，过期的同拥有者只可保留已知 task ID 作为核对元数据；业务处理必须由后续有效租约恢复。该行为不等于外部请求被撤销。
+- 租约期限必须由生产组合按单次 I/O 上限与唯一 pg-boss 的过期/重投安排确定。本片没有持久调度器或自动唤醒：生产必须保证崩溃后的投递发生在租约到期后；不得提前投递、收到 ignored 后永久确认掉唯一恢复机会，也不得靠内存 timer 充当持久恢复。配置与真实重投仍是下述 X1/唯一 worker 的接线验收项。
+
+回归使用真实处理流程留下的非空 claim，再暂停旧执行、推进独立执行时钟并重投，未通过把 claim 清空模拟崩溃。先在原 f67329f 上复现三个恢复窗口及撤权失败，再修复验证；租约内重复、恰到期、并发接管、旧回执/旧失败、已知 task、已提交转写、租约续期与时钟损坏均有反例。
+
+## 859 → 860 的清单与首次状态
+
+完整输入是已持久转写版本的全部 fragments：每段含 fragment/source、reviewItemId、providerSentenceId 和可空的 providerSpeakerId，同时携带独立 transcript/original 版本。providerSpeakerId:null 仍保留在清单、待核对与恢复验证中，不会被过滤；未识别项在旧 SpeakerItem DTO 的必填 speakerId 中用本片段 ID 作待核对 key，这不表示识别了说话人，也不能据此跨片段合并或绑定到人员。
+
+首次 pending 行和当前授权候选人由 859 后续持久适配在存转写时生成；860 消费这份 inventory、记录实际人工绑定/无关 ledger。loadBindings 的生产适配只能依该版本/修订的 ledger 解除 null 片段歧义，不能自动认人。859 的适配联验须证明首次 null→pending 且不整理，860 的联验须证明真实人工 ledger→恢复，两者尚未生产验收。
+
+loadBindings 少任何片段或重复片段都会失败，不会据残缺清单宣称全部完成。原件整体授权仍需 837/873 的完整分类投影，转写片段完整不等于整个原件已获播放许可。
+
+## 必需的生产接线
+
+- RecordingPorts.transaction：Read Committed 的原生短事务，和 873 / 846 共用 quota 锁、当前成员与节点写权限，锁后读取 BOW-860 绑定修订及恢复 ledger；saveRun 原子保存 claim/claimExpiresAt 和原有 run，同事务投影正式 media job 状态。旧存储没有期限字段时必须显式迁移/核对，不把 undefined 当释放或过期。缺少上下文即拒绝，不提供 allow-all / draft / 0 默认值。该私有字段的最终持久映射/迁移交 X1，不在本片生成。
+- readValidatedUpload 只提供历史归档事实，不是永久授权；不复制其内部上传表或创建第二份原件。当前已提供 createKodoAudioInspector 私有适配，用现有 Kodo statObject/openObject 读取不可变版本、验证摘要/长度并实际解码（见下一节）。调用前后的原生权限 checkpoint、生产组合与真实来源读取仍需接线验收，不能用归档历史事实代替当前处理许可。
+- prepareSource 使用既有 Kodo 能力签发；临时 URL / object key 不进入公开任务结果、前端、错误或日志。11/1 所有者在 #248/6551983878 决定沿用 856 唯一 S3 预签名实现；当前已普通同步 main 的 856/S3 输入，私有适配复用 statObject/openObject，不另写签名器。当前没有真实来源/听悟调用，不绕证书、不新增资源，不能将旧组合的合成传输验证当作 S3 生产联验。
+- insertTranscript / 待核对数据 / 任务 checkpoint 的持久表与最终迁移、873 / 837 完整来源授权投影、播放短链和逐句定位页面仍待接。
+- enqueuePoll / enqueueShaping 必须使用同原生事务、852 的唯一 producer / outbox；jobs/recordings.ts 只导出严格 payload、固定 queue 和 handler / dispatch 工厂，不注册 worker，不另起 producer。生产恢复 job 与 BOW-860 的 ledger 必须一致。租约后的崩溃重投由这一处持久队列保证。
+- MP4 在 857 客户端可用，但 873 的旧七格式应用入口尚不接受 MP4；897 新材料 lane 的 video 分派需独立接入，不伪装 audio。
+
+共享接线请求和权威字段答复见 #248 评论 6548144838、6548172004、6548237650。真实播放、真实转写、PG/事务隔离、845 整理和人工确认的端到端验收尚未运行，整卡保留未完成。
+
+## 真实字节与时长私有适配
+
+`usecases/recordings/inspect-audio.ts` 的 `createKodoAudioInspector` 可作为 RecordingPorts.inspectAudio 注入。它要求调用方给出当前 run 的 uploadId、uploadJobId、originalId 和 originalVersionId，先与归档交接核对，错误版本在任何对象读取前拒绝。它不创建当前权限、集合或绑定修订，不能独立授予读取权限。
+
+- 仅复用现有 Kodo 客户端的 statObject/openObject。读前和读后核对对象标识、etag、类型与长度；实际流逐字节计数和重算 SHA-256，少字节、多字节、摘要不符和版本变化均拒绝。不得改用会整体缓冲的 read()。
+- 临时文件位于随机私有目录，文件权限为 0600；只保存这次已验证的编码字节。无论成功、错误或取消，都关闭对象流/文件并删除目录。输出只含版本、摘要、字节数、实际格式与时长，不含对象 key、签名 URL、请求头、文件路径、媒体元数据或原生工具诊断。
+- `audio-probe.ts` 先由 ffprobe 核实容器和唯一音轨，再用 ffmpeg 实际解码成 16kHz、单声道、16-bit PCM，流式计数采样量，不保留解码内容。时长向上取整到毫秒；不读取 duration 标签、不信任上传声明或文件名，不以 0 或估算码率兜底。额外 RIFF chunk 边界核对拒绝截断或未计入 RIFF 的尾随字节；实际回归证明普通解码器接受尾随字节，而本适配拒绝。多音轨、时序视频轨、坏容器、解码错误或超量采样均拒绝；这不扩展 MP4 应用入口。
+- 仅接受已有四种音频格式。原生进程用部署方显式提供的绝对二进制路径，无 shell、不继承应用环境。每次只继承一个本地只读 FD，输入协议仅 fd，容器仅 wav/mp3/aac/mov；禁止经媒体外部引用读取网络或任意本地文件。M4A 从可 seek 的普通文件描述符读取。单解码线程、有限探测/输出/时限，超限杀进程并等待退出后清理。max_alloc 是单次分配限制，不能冒称进程总内存限额；生产仍须在唯一隔离 worker 设置 CPU/内存与并发限制。
+- 配置必须显式给出 ffprobePath、ffmpegPath、timeoutMs、maxDurationMs、maxBytes、readTimeoutMs，界限分别不超过 10 分钟、6 小时、既有 2GiB 和 10 分钟。readTimeoutMs 覆盖本次读取及解析总预算，timeoutMs 额外限制原生解析；应由生产组合与租约期限一起确定。外部 AbortSignal 可提前终止读取/解析，取消仍由原处理用例在真实 checkpoint 上决定；本地中止不等于云端 ASR 取消。
+
+本机验证使用已有 FFmpeg 7.1.1，未安装系统/包依赖。生产和 CI 的固定二进制供应交 X1，缺失时报 provider_unavailable，没有假实现后备。测试用 QTALENT_TEST_FFPROBE_PATH / QTALENT_TEST_FFMPEG_PATH 指向部署提供的二进制；未设置时仅使用平台固定路径，不跳过缺失验证。指令依据 [FFmpeg 7.1.1 的 FD/协议选项](https://github.com/FFmpeg/FFmpeg/blob/n7.1.1/doc/protocols.texi) 与 [ffprobe 选项](https://github.com/FFmpeg/FFmpeg/blob/n7.1.1/doc/ffprobe.texi)，不依赖时长元数据声明。
+
+另以只读 detached main 27d7da28b887d3e0b8043a7ee3cdd915e67c2d56 的真实 S3 Kodo 客户端，直接注入本分支私有适配，验证合成 HTTP 流→实际 FFmpeg 的路径：读前/读后 stat 加 1 次 S3 GET 共 3 次本地传输回调，100ms、摘要/长度匹配；错误原件版本在额外对象读取前拒绝。没有复制或改动共享 Kodo 源码，没有外网访问。该独立组件组合不代表本分支已完成共享 merge、全仓最终 main 类型检查或生产接线。
+
+## 验证边界
+
+policy.test.ts 验证来源、时间和绑定规则；usecases/recordings/processing.test.ts 用串行内存事务、可控执行时钟及假供应商验证竞态和流程；jobs/recordings.test.ts 验证 payload 和原 executor 委托。测试使用化名内容及 .example.test 的本地签名能力，不访问网络或加载凭证。内存回滚、租约接管和 executor 身份一致均不构成真实 PostgreSQL、pg-boss 重投或生产原子性证据。
+
+## 11/1 续作：明确的视频音轨解析与原生前置
+
+`probeVideoAudio` 只接受实际包含一个时序视频轨和一个音轨的 MP4 容器，额外封面不会作为音轨。MOV 家族探测名不足以证明 MP4，还核支持的 major brand（isom、iso2、mp41、mp42、avc1、M4V）。无音轨、多音轨、多时序视频轨、QuickTime MOV、音频冒充视频及坏文件均拒绝，不静默选轨或补默认时长。这是显式的私有视频解析入口；原 `probeAudio` 与 `createKodoAudioInspector` 仍拒绝视频，873 的旧 audio UploadDispatch 不会因此接受 MP4。
+
+解析复用相同 FD 白名单和预算。ffmpeg 在输入与输出两侧禁用视频/字幕/数据，只映射唯一音轨到 16kHz 单声道 s16le；流式计数音频采样，不抽帧、不输出图片、不保存 PCM。时长是解码音频上界，AAC 编码补齐仍可能包含在内；视频比音轨长时，不能用视频时间填补音频。相关选项见 [FFmpeg 流选择](https://ffmpeg.org/ffmpeg.html#Stream-selection) 与 [视频选项](https://ffmpeg.org/ffmpeg.html#Video-Options)。
+
+本机已有 FFmpeg/ffprobe 7.1.1。真实合成夹具使用同一段 100ms 音轨与 1s/2s 纯色视频，分别实际解码后得到相同音频采样时长；还覆盖取消、错误尺寸、截断、超音频预算与工具缺失。测试观察真实子进程参数，确认两侧禁用视频、唯一音轨映射及唯一 PCM 管道输出。旧音频入口对相同 MP4 仍拒绝。未调用 Kodo/听悟真实服务，未上传视频，没有供应商 TaskId。
+
+### 尚须实际交付的原生链路
+
+共享结构/入口请求见 [#248 / 6563399493](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6563399493)。当前没有 recording run、不可变 transcript 与逐句索引的正式持久表，不能手写临时 SQL 或拿 job.result 冒充人工绑定状态。拟由 X1 冻结真实结构和受控原生迁移后，作者在本域 postgres/native 文件实现并验证租约接管、checkpoint、事务回滚、真实重投与取消。
+
+- **873**：固定 `2c3ee54eecd896915ca0067fc2f7463c99aa8936` 的归档与集合事实需要普通组合。`readValidatedUpload` 的历史对象不是当前处理许可；须在相同事务内锁集合/成员、重核账号与 899 当前写权限。video/material 上传 lane 的真实归档交接尚未接，不能用旧 audio 类型强制转换。
+- **860**：固定 `a511078fc2372b606f12e1429b0b6d84025b67ce` 要求真实 batchId/materialId/evaluationNodeId/membershipRevision、完整 inventory、当前其他核对项及本材料阻断项；其原生 ledger/grant/commitResume 尚未实现。未知清单不能默认空，null speaker 保留 pending；这些身份不能从上传 target 猜出。
+- **845**：main `record-batch-arrange-requests.ts::createFromSources` 明确返回 validation_error，只有文本 create 是原生入口。需要唯一同事务媒体 producer 消费已授权、已绑定的完整来源，不能串两次独立事务冒称原子恢复，也不能把媒体改成文本以绕过。
+- **X1/X2**：873 正式结构、859/860 受控结构与正式迁移、共享 worker/唯一队列注册、CI 固定 FFmpeg/ffprobe 供应、部署资源隔离与绝对路径配置均待。部署仅在已合 main 上由 X2 执行，本卡未安装演示机。
+
+默认 CI 和 Ready 必须实际补齐上述本 PR 的代码/结构/运行依赖并验证；本机组件绿色不代表整卡 Ready。当前未跑原生 PG 或真实媒体转写端到端，不关闭 BOW-859。历史审查后修改 1/2 保留，新增业务范围仍需原 Claude 请求按最终 head 审查，不重复派审或自行合并。

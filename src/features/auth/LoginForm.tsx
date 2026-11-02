@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { authRequest } from './auth-request';
 /** `returnTo` is decided on the server (login page); never read from the URL here. */
-export function LoginForm({ returnTo = '/projects' }: { returnTo?: string }) {
+export function LoginForm({ returnTo = '/work' }: { returnTo?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

@@ -14,6 +14,8 @@ export function fixture(
     id,
     name: 'Synthetic ' + id,
     organizationId: 'org',
+    jobTitle: null,
+    jobLevel: null,
     photo: null,
     hue: 220,
     noReview: false,
@@ -66,7 +68,16 @@ export function fixture(
       account,
       grants: grants.map((grant) => ({ ...grant, id: 'grant' })),
       people,
-      organizations: [{ id: 'org', name: 'Synthetic org', shortName: 'Test' }],
+      organizations: [
+        {
+          id: 'org',
+          name: 'Synthetic org',
+          shortName: 'Test',
+          parentId: null,
+          hierarchyKnown: false,
+          isGroup: false,
+        },
+      ],
     },
     staffing: { projects: [], members: [] },
     events: [],
@@ -135,6 +146,10 @@ export function fixture(
       withdrawnAt: null,
     });
     data.fragments.push({
+      parseVersionId: null,
+      sourceCategory: null,
+      evaluationKind: null,
+      demo: null,
       id: fragmentId,
       originalVersionId: 'version',
       excerpt: 'Synthetic observation',

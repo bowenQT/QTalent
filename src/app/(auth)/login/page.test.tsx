@@ -22,8 +22,8 @@ async function returnTo(value?: string | string[]) {
   return view.getByTestId('return-to').textContent;
 }
 describe('login return target', () => {
-  it('enters projects when nothing asked to return', async () => {
-    expect(await returnTo()).toBe('/projects');
+  it('enters the workbench when nothing asked to return', async () => {
+    expect(await returnTo()).toBe('/work');
   });
   it('returns to a canonical deep link', async () => {
     expect(await returnTo(link)).toBe(link);

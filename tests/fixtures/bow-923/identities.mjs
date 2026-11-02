@@ -1,7 +1,13 @@
-/** Persisted identities in a seed input. `owned` belong to one fixture generation
- * and must never be reused for changed content; `shared` are directory and rule
- * facts several generations point at, so a reused id must keep its name. */
-export function seedIdentities(seed) {
+/** Persisted identities of one fixture generation, from every file an importer
+ * persists: the seed, all source rows (missing stages still register their row)
+ * and the manifest's originals. `owned` belong to one generation and must never
+ * be reused for changed content; `shared` are directory and rule facts several
+ * generations point at, so a reused id must keep its name. */
+export function seedIdentities(seed, sourceRows, manifest) {
+  for (const file of [sourceRows, manifest])
+    if (!file) throw new Error('source rows and manifest are required');
+  if (manifest.fixtureVersion !== seed.fixtureVersion)
+    throw new Error('manifest and seed are different generations');
   const owned = {
     batch: new Set([seed.batch.id]),
     mapping: new Set([seed.batch.mappingVersionId]),
@@ -30,16 +36,22 @@ export function seedIdentities(seed) {
       const stage = unit[side];
       if (stage.state !== 'present') continue;
       owned.judgment.add(stage.judgment.judgmentId);
-      owned.fragment.add(stage.judgment.row.source.fragmentId);
-      owned.originalVersion.add(stage.judgment.row.source.originalVersionId);
       name('person', stage.judgment.evaluator);
     }
   }
+  for (const row of sourceRows)
+    for (const side of ['front', 'back']) {
+      owned.fragment.add(row[side].source.fragmentId);
+      owned.originalVersion.add(row[side].source.originalVersionId);
+    }
+  for (const side of ['front', 'back'])
+    owned.originalVersion.add(manifest.originals[side].originalVersionId);
   for (const mark of seed.manualComparabilityMarks) {
     owned.mark.add(mark.id);
     name('person', mark.markedBy);
   }
   return {
+    fixtureVersion: seed.fixtureVersion,
     owned: Object.fromEntries(
       Object.entries(owned).map(([kind, ids]) => [kind, [...ids].sort()]),
     ),
