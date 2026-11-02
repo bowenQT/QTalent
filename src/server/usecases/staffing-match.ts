@@ -42,6 +42,7 @@ import {
 import type { Database, Transaction } from '../db/client';
 import { ForbiddenError } from './project-context';
 import { readEvidenceForTalent } from '../modules/records';
+import { readIntakeTable, type IntakeTable } from './talent-source-projection';
 
 /** Facts come from the event confirmation authority, never inferred from scores. */
 export type { EventConfirmationFact } from '../modules/staffing/matching/types';
@@ -264,7 +265,7 @@ export function createStaffingMatchUsecase<C>(
 export type StaffingMatchEvidenceData = Awaited<
   ReturnType<typeof loadEvaluationContext>
 > &
-  Awaited<ReturnType<typeof readEvidenceForTalent>>;
+  Awaited<ReturnType<typeof readEvidenceForTalent>> & { intake: IntakeTable };
 /** 846 supplies actual event confirmation facts; 837 supplies the shared complete
  * source projection. This loader performs all domain reads in one real snapshot.
  */
@@ -281,9 +282,12 @@ export function createStaffingMatchEvidenceLoader(ports: {
   return (accountId, today) =>
     ports.db.transaction(
       async (tx) => {
+        // The complete intake table, read in this same snapshot, so sources
+        // shared with not-yet-confirmed text keep all their subjects.
         const data = {
           ...(await loadEvaluationContext(tx, accountId, today)),
           ...(await readEvidenceForTalent(tx)),
+          intake: await readIntakeTable(tx, 'snapshot'),
         };
         const confirmations = await ports.readConfirmations(tx, data);
         const projection = await ports.projectSources(data);
