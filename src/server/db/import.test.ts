@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   env: vi.fn(),
   connection: vi.fn(),
   backfill: vi.fn(),
+  directoryProfile: vi.fn(),
 }));
 vi.mock('better-auth/crypto', () => ({ hashPassword: mocks.hash }));
 vi.mock('../env', () => ({ getEnv: mocks.env }));
@@ -21,6 +22,9 @@ vi.mock('../modules/evaluation-system', async () => ({
   backfillLegacyRuleVersionApplicability: mocks.backfill,
 }));
 vi.mock('./client', () => ({ createDatabase: mocks.connection }));
+vi.mock('./seed/directory-profile', () => ({
+  importDirectoryProfileDemo: mocks.directoryProfile,
+}));
 const records: { table: unknown; row: Record<string, unknown> }[] = [];
 const tx = {
   select: () => ({
@@ -51,6 +55,9 @@ beforeEach(() => {
   mocks.hash.mockResolvedValue('opaque-hash');
   mocks.env.mockReturnValue({ APP_ENV: 'test' });
   mocks.backfill.mockReset().mockResolvedValue([]);
+  mocks.directoryProfile
+    .mockReset()
+    .mockResolvedValue({ peopleUpdated: 0, organizationsUpdated: 0 });
 });
 it('direct demo import refuses production before hashing or opening a transaction', async () => {
   mocks.env.mockReturnValue({ APP_ENV: 'production' });
@@ -228,6 +235,7 @@ it('CLI import refuses production and missing password before opening database',
   mocks.env.mockReturnValue({ APP_ENV: 'test' });
   await expect(runImport()).rejects.toThrow('DEMO_PASSWORD');
   expect(mocks.connection).not.toHaveBeenCalled();
+  expect(mocks.directoryProfile).not.toHaveBeenCalled();
 });
 it('CLI closes its pool even when import fails', async () => {
   const end = vi.fn();
@@ -245,5 +253,54 @@ it('CLI closes its pool even when import fails', async () => {
     pool: { end },
   });
   await expect(runImport()).rejects.toThrow('db failure');
+  expect(mocks.directoryProfile).not.toHaveBeenCalled();
   expect(end).toHaveBeenCalledOnce();
+});
+
+it('explicit CLI imports the reviewed directory profile only after the base import has committed', async () => {
+  const end = vi.fn();
+  const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  mocks.env.mockReturnValue({
+    APP_ENV: 'test',
+    DEMO_PASSWORD: 'Test-password-123',
+    DATABASE_URL: 'postgres://localhost/test',
+  });
+  mocks.connection.mockReturnValue({ db, pool: { end } });
+  mocks.directoryProfile.mockImplementation(async (database, root) => {
+    expect(database).toBe(db);
+    expect(root).toBe(process.cwd());
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(records.some((entry) => entry.table === people)).toBe(true);
+    expect(output).not.toHaveBeenCalled();
+    return { peopleUpdated: 93, organizationsUpdated: 0 };
+  });
+  try {
+    await runImport();
+    expect(mocks.directoryProfile).toHaveBeenCalledOnce();
+    expect(output).toHaveBeenCalledOnce();
+    expect(end).toHaveBeenCalledOnce();
+  } finally {
+    output.mockRestore();
+  }
+});
+it('CLI reports directory import failure and closes its pool without reporting success', async () => {
+  const end = vi.fn();
+  const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  mocks.env.mockReturnValue({
+    APP_ENV: 'test',
+    DEMO_PASSWORD: 'Test-password-123',
+    DATABASE_URL: 'postgres://localhost/test',
+  });
+  mocks.connection.mockReturnValue({ db, pool: { end } });
+  mocks.directoryProfile.mockRejectedValue(
+    new Error('Synthetic directory conflict'),
+  );
+  try {
+    await expect(runImport()).rejects.toThrow('Synthetic directory conflict');
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(output).not.toHaveBeenCalled();
+    expect(end).toHaveBeenCalledOnce();
+  } finally {
+    output.mockRestore();
+  }
 });

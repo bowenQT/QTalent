@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PersonData } from './person-data';
-import { talentSources } from './person-data';
+import { completeTalentSources } from './person-data';
 import { collectEvidence, orderedDimensions } from './person-evidence';
 import { nodeFixture } from './person-test-helpers';
 import {
@@ -131,7 +131,11 @@ describe('当前可见证据的缺证提示', () => {
       row.value = null;
       row.anchorId = null;
     }
-    const evidence = await collectEvidence(data, 'one', talentSources(data));
+    const evidence = await collectEvidence(
+      data,
+      'one',
+      completeTalentSources(data),
+    );
     const visible = new Set(
       evidence.keyEvents.flatMap((row) =>
         row.scores.map((score) => score.dimensionId),
@@ -151,10 +155,20 @@ describe('当前可见证据的缺证提示', () => {
     const data = nodeFixture();
     data.events[1]!.title = 'SENTINEL-hidden';
     data.statements[1]!.kind = 'management_observation';
-    const hidden = await collectEvidence(data, 'one', talentSources(data));
-    const absent = structuredClone(data);
+    const hidden = await collectEvidence(
+      data,
+      'one',
+      completeTalentSources(data),
+    );
+    // The issued intake table is frozen and shared; clone everything else.
+    const { intake, ...rest } = data;
+    const absent = { ...structuredClone(rest), intake };
     absent.events = absent.events.filter((row) => row.id !== 'event-1');
-    const none = await collectEvidence(absent, 'one', talentSources(absent));
+    const none = await collectEvidence(
+      absent,
+      'one',
+      completeTalentSources(absent),
+    );
     const hint = (evidence: typeof hidden) =>
       missingVisibleCapabilityEvidence(
         'grit',

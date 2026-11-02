@@ -73,6 +73,7 @@ export {
 
 export {
   storeTrustedRecordDraftBatch,
+  reviseTrustedRecordDraftBatch,
   lockRecordCommand,
   readRecordConfirmationState,
   commitRecordSave,
