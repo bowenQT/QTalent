@@ -110,8 +110,7 @@ beforeAll(async () => {
   url.pathname = `/${databaseName}`;
   connection = createDatabase(url.toString());
   await migrate(connection.db, {
-    migrationsFolder:
-      process.env.BOW_918_TEST_MIGRATIONS_DIR ?? 'src/server/db/migrations',
+    migrationsFolder: 'src/server/db/migrations',
   });
   // Real existing baseline data, all pinned pseudonyms. This is not a production
   // initialization of selection v1: the separate content below is authored test data.

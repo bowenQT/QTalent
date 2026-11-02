@@ -172,8 +172,7 @@ beforeAll(async () => {
   url.pathname = '/' + databaseName;
   connection = createDatabase(url.toString());
   await migrate(db(), {
-    migrationsFolder:
-      process.env.BOW_918_TEST_MIGRATIONS_DIR ?? 'src/server/db/migrations',
+    migrationsFolder: 'src/server/db/migrations',
   });
 }, 30000);
 afterAll(async () => {

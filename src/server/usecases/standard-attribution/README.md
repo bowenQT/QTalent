@@ -78,5 +78,5 @@ pnpm lint
 - 真实PG包括同key跨连接只写一次、新实例重放、pending不二次模型、三重CAS、真实等锁后撤权、到期、模型期间重绑/撤权、审计和回执晚失败回滚、错误revision/基准/跨批/basis、合法空假设。供应商是纯合成结构化响应，无真实网络模型调用。
 - 运行：`node node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts --maxWorkers=2 src/server/usecases/standard-attribution/postgres.integration.test.ts src/server/usecases/standard-attribution/read-adapter.test.ts src/server/usecases/standard-attribution/hypotheses.test.ts`；coverage显式include postgres.ts/read-adapter.ts。
 - 测试只source所有者指定test-db.env，白名单子进程只收TEST_DATABASE_URL和固定参数。随机本机_test库，afterAll删除本人库。真实PG先CAS领heavy槽、结束按token释放；没有新PG服务。
-- 正式迁移未到时仅使用X1固定结构对应受控临时迁移，测试环境变量 `ATTRIBUTION_TEST_MIGRATIONS` 显式指定目录；不设置时只读工程正式迁移，不生成/替代DDL。X1临时0008不是正式迁移编号，不能提交。最终迁移排846→845→873后由X1核游标。
+- 四表在正式迁移 0011；测试固定读取 `src/server/db/migrations`，原临时迁移目录变量已退役。
 - 当前0/2，新的独立Draft PR，#273已合历史不重开。卡片仍Part of BOW-921；源码/结构与最终迁移、真实reader、整链验收分别记录。
