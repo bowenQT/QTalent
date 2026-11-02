@@ -25,7 +25,7 @@ import { readEffectiveRuleVersion } from '../modules/evaluation-system';
 import type { ComparisonReadPorts } from '../modules/evaluation-system/judgment-comparison/ports';
 import { holdsCaseGrant } from '../modules/evaluation-system/judgment-comparison/projection';
 import { readJudgmentComparison } from '../modules/evaluation-system/judgment-comparison/read';
-import { readCurrentSelectionStandard } from '../modules/evaluation-system/selection/postgres';
+import { readSelectionVersionContent } from '../modules/evaluation-system/selection/postgres';
 import { loadEvaluationContext } from '../usecases/evaluation-context';
 import {
   listComparisonBatches,
@@ -82,10 +82,10 @@ export type JudgePage =
   | {
       status: 'hr';
       page: ComparisonHrPage;
-      standard: {
-        versionId: string;
-        content: z.infer<typeof selectionStandardContentSchema>;
-      } | null;
+      /** The points of the version the batch was judged against. */
+      standard: z.infer<typeof selectionStandardContentSchema>;
+      /** The version in force now, which a new revision starts from. */
+      currentVersionId: string | null;
       hypotheses: StandardAttributionHypothesis[];
       attributions: ConfirmedStandardAttribution[];
     }
@@ -108,21 +108,13 @@ type ReadPage = Extract<
   { status: 'success' }
 >['page'];
 
-async function currentStandard(tx: Transaction, now: Date) {
+async function currentVersionId(tx: Transaction, now: Date) {
   const effective = await readEffectiveRuleVersion(
     tx,
     { category: 'xe_selection', at: now.toISOString() },
     () => now,
   );
-  if (effective.status !== 'success') return null;
-  const current = await readCurrentSelectionStandard(
-    tx,
-    effective.version.versionId,
-    () => now,
-  );
-  return current
-    ? { versionId: current.version.versionId, content: current.content }
-    : null;
+  return effective.status === 'success' ? effective.version.versionId : null;
 }
 
 async function readFor(
@@ -187,9 +179,13 @@ async function readFor(
     return first.raters.some((entry) => entry.evaluator.id === rater)
       ? { status: 'hr_rater', page: first, evaluatorId: rater, batchNames }
       : { status: 'not_found' };
-  const { standard, state } = await db.transaction(
+  const { standard, current, state } = await db.transaction(
     async (tx) => ({
-      standard: await currentStandard(tx, clock.now()),
+      standard: await readSelectionVersionContent(
+        tx,
+        first.batch.selectionStandardVersionId,
+      ),
+      current: await currentVersionId(tx, clock.now()),
       state: await readBatchAttributionState(
         tx,
         first.batch.id,
@@ -203,6 +199,7 @@ async function readFor(
     status: 'hr',
     page: first,
     standard,
+    currentVersionId: current,
     hypotheses: state?.hypotheses ?? [],
     attributions: state?.attributions ?? [],
   };

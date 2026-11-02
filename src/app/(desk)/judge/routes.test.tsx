@@ -86,7 +86,8 @@ describe('/judge reads the stored comparison batch', () => {
     judgeQuery.mockResolvedValue({
       status: 'hr',
       page: sampleHrPage,
-      standard: { versionId: 'xe-select-v1', content: sampleStandard },
+      standard: sampleStandard,
+      currentVersionId: 'xe-select-v1',
       hypotheses: [],
       attributions: [],
     });

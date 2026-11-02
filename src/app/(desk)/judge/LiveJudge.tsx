@@ -28,7 +28,8 @@ export function LiveJudge({
 }: {
   page: {
     page: ComparisonHrPage;
-    standard: { versionId: string; content: SelectionStandardContent } | null;
+    standard: SelectionStandardContent;
+    currentVersionId: string | null;
     hypotheses: StandardAttributionHypothesis[];
     attributions: ConfirmedStandardAttribution[];
   };
@@ -37,9 +38,9 @@ export function LiveJudge({
   return (
     <JudgeBatch
       page={page.page}
-      standard={page.standard?.content ?? null}
+      standard={page.standard}
       currentStandardVersionId={
-        page.standard?.versionId ?? page.page.batch.selectionStandardVersionId
+        page.currentVersionId ?? page.page.batch.selectionStandardVersionId
       }
       initialHypotheses={
         page.hypotheses.length
