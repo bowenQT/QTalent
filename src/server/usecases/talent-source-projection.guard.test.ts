@@ -177,7 +177,6 @@ describe('complete talent source projection', () => {
       'src/server/queries/people.ts',
       'src/server/queries/person-data.ts',
       'src/server/queries/person-projection.ts',
-      'src/server/queries/sources.ts',
       // Reads the whole issued intake table for the MCP person brief.
       'src/server/usecases/mcp/person-brief.ts',
       'src/server/usecases/record-arrange-context.ts',
@@ -186,6 +185,8 @@ describe('complete talent source projection', () => {
       'src/server/usecases/record-confirmation-sources.ts',
       'src/server/usecases/record-ledger.ts',
       'src/server/usecases/record-save.ts',
+      'src/server/usecases/source-projection.ts',
+      'src/server/usecases/staffing-match.ts',
       'src/server/usecases/talent-export/policy.ts',
       'src/server/usecases/talent-export/postgres.ts',
       `${PROJECTION}.test-support.ts`,

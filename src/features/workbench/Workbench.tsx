@@ -6,6 +6,7 @@ import { FindBox } from './sections/find/FindBox';
 import { Composer } from './sections/composer/Composer';
 import { Students } from './sections/students/Students';
 import { Todos } from './sections/todos/Todos';
+import { MaterialsCards, MaterialsFold } from './sections/materials/Materials';
 import { showsTodos } from './sections/todos/todo-groups';
 
 /**
@@ -42,13 +43,25 @@ const find: Section = {
 const composer: Section = {
   id: 'composer',
   shows: (view) => view.entries.record,
-  // BOW-861 passes uploadAnchor="#upload" here once its upload section is in place.
-  render: (view) => <Composer view={view} />,
+  // The upload section (`materials`) is on the HR and mentor workbenches only.
+  render: (view) => (
+    <Composer
+      view={view}
+      uploadAnchor={view.role === 'manager' ? undefined : '#upload'}
+    />
+  ),
 };
 const todos: Section = {
   id: 'todos',
   shows: (view) => showsTodos(view.todos),
   render: (view) => <Todos view={view} />,
+};
+// HR shows two cards in the side column; the mentor folds them into one (prototype).
+const materials: Section = {
+  id: 'materials',
+  shows: (view) => view.entries.record,
+  render: (view) =>
+    view.role === 'mentor' ? <MaterialsFold /> : <MaterialsCards />,
 };
 const students: Section = {
   id: 'students',
@@ -63,7 +76,7 @@ type Block =
   | { id: string; className: 'nt-ceo' | 'nt-cols'; main: Slot; side: Slot };
 
 // Order and containers follow prototype/y/app/js/pages/workbench.js per role.
-// Empty slots are where sections not connected yet will go (uploads, …).
+// Empty slots are where sections not connected yet will go.
 const layouts: Record<WorkbenchRole, Block[]> = {
   manager: [
     greeting,
@@ -82,7 +95,7 @@ const layouts: Record<WorkbenchRole, Block[]> = {
       id: 'columns',
       className: 'nt-cols',
       main: { grid: false, sections: [todos] },
-      side: { grid: true, sections: [] },
+      side: { grid: true, sections: [materials] },
     },
   ],
   mentor: [
@@ -92,7 +105,7 @@ const layouts: Record<WorkbenchRole, Block[]> = {
       id: 'columns',
       className: 'nt-ceo',
       main: { grid: true, sections: [students] },
-      side: { grid: true, sections: [] },
+      side: { grid: true, sections: [materials] },
     },
   ],
 };
