@@ -9,13 +9,13 @@ import {
 } from '../../contracts/judgment-comparison';
 import { revisionEligibleAttributionSchema } from '../../contracts/standard-attribution';
 import type { Transaction } from '../db/client';
-import { activeGrants } from '../authz';
+import { activeGrants, isCurrent } from '../authz';
 import {
   canReadNodeTalent,
   canManageNodeAssignments,
   cohortHrCanReadNodeSubject,
 } from '../authz/evaluation-node';
-import { people } from '../modules/directory';
+import { accountBindings, grants, people } from '../modules/directory';
 import { cohorts } from '../modules/programs';
 import { fragments, originals, originalVersions } from '../modules/records';
 import {
@@ -305,6 +305,43 @@ export async function readNativeSelectionImpact(
         );
     results.set(key, group);
   }
+  // Counting follows the cohort HR rule, so a counted cohort with no current HR
+  // has no rule to count under: refuse rather than produce a number.
+  const counted = [...new Set([...results.values()].map((g) => g.cohortId))];
+  if (counted.length) {
+    const hr = await tx
+      .select({
+        cohortId: grants.cohortId,
+        validFrom: grants.validFrom,
+        validTo: grants.validTo,
+        revokedAt: grants.revokedAt,
+      })
+      .from(grants)
+      .innerJoin(
+        accountBindings,
+        eq(accountBindings.accountId, grants.accountId),
+      )
+      .where(
+        and(
+          eq(grants.role, 'hr'),
+          eq(grants.scope, 'cohort'),
+          eq(accountBindings.isSystemAdmin, false),
+          inArray(grants.cohortId, counted),
+        ),
+      );
+    for (const cohortId of counted)
+      if (
+        !hr.some(
+          (grant) =>
+            grant.cohortId === cohortId &&
+            isCurrent(grant, authority.context.now),
+        )
+      )
+        throw new SelectionLifecycleError(
+          'conflict',
+          '期次当前没有 HR，无法计算影响',
+        );
+  }
   return {
     nextCohort: { id: next.id, name: next.name },
     preservedBindings,
@@ -349,6 +386,7 @@ async function disclosedBasisCases(
         ),
     ),
   );
+  const disclosed: { caseId: string; side: 'front' | 'back' }[] = [];
   for (const citation of basis.citations) {
     const unit = allowed.find((c) => c.id === citation.caseId);
     const stage = unit?.[citation.side];
@@ -363,12 +401,13 @@ async function disclosedBasisCases(
         'forbidden',
         '归因引用不在当前授权范围或来源已变化',
       );
+    disclosed.push({ caseId: citation.caseId, side: citation.side });
   }
-  return { identity, facts, allowed };
+  return { identity, facts, allowed, disclosed };
 }
 
-/** Re-checks a stored private basis before any HR revision (new or replayed)
- * returns its citations. */
+/** Re-checks a stored private basis before an HR read returns its citations.
+ * Returns each citation it verified, so the store can tell a real check from a stub. */
 export async function assertSelectionBasisDisclosed(
   tx: Transaction,
   authority: SelectionAuthority,
@@ -377,7 +416,13 @@ export async function assertSelectionBasisDisclosed(
   const basis = revisionEligibleAttributionSchema.parse(raw);
   const snapshot = await authorizedCanonical(tx, authority, basis.batchId);
   authorizeSelectionAction(authority, 'hr', snapshot.facts.batch.cohortId);
-  await disclosedBasisCases(tx, authority, snapshot, basis);
+  const { disclosed } = await disclosedBasisCases(
+    tx,
+    authority,
+    snapshot,
+    basis,
+  );
+  return { citations: disclosed };
 }
 
 export async function readNativeSelectionCreationFacts(

@@ -25,6 +25,7 @@ import {
   createSelectionCohort,
 } from '../../../usecases/selection-standard-native';
 import { cohorts } from '../../programs';
+import { SelectionLifecycleError } from '../selection-standard';
 import {
   organizations,
   people,
@@ -229,9 +230,18 @@ function readers(): SelectionPostgresServices {
         impact: await impact(tx),
       };
     },
-    // Synthetic sources here carry no node relations; disclosure rechecks
-    // run against real 919/921 facts in selection-standard-facts tests.
-    verifyBasisDisclosure: async () => {},
+    // Synthetic sources here carry no node relations, so this stub reports every
+    // citation as verified; real 919/921 rechecks run in selection-standard-facts tests.
+    verifyBasisDisclosure: async (_tx, _authority, basis) => {
+      void _tx;
+      void _authority;
+      return {
+        citations: basis.citations.map(({ caseId, side }) => ({
+          caseId,
+          side,
+        })),
+      };
+    },
     readImpact: async (tx, _authority, record) => {
       void _authority;
       const saved = record.revision.impactPreview;
@@ -719,6 +729,62 @@ describe('918 原生事务持久适配（真实PG）', () => {
     expect(result).toMatchObject({ status: 'forbidden' });
     expect(result).not.toHaveProperty('result');
     expect(await snapshot()).toEqual(before);
+  });
+  it('读取端口返回HR私有依据前重核引用；空实现与少报引用失败关闭，管理者规划读取不重核', async () => {
+    const record = await pending('disclose');
+    const verify = vi.spyOn(services, 'verifyBasisDisclosure');
+    const lock = {
+      category: 'xe_selection' as const,
+      accountId: hr,
+      operationId: 'disclose:submit',
+    };
+    const hrRead = (purpose: 'hr' | 'manager' = 'hr') =>
+      store.ports.transact(lock, async (tx) => {
+        await store.ports.loadAuthority(tx, hr, now);
+        return {
+          revision: await store.ports.readRevision(tx, record.id, purpose),
+          receipt: await store.ports.readOperation(tx, hr, lock.operationId),
+        };
+      });
+    const read = await hrRead();
+    expect(read.revision?.revision.basis).toEqual(record.basis);
+    expect(read.receipt?.result).toEqual(record);
+    expect(verify).toHaveBeenCalledTimes(2);
+    for (const broken of [
+      async () => undefined,
+      async () => ({ citations: 'all' }),
+    ]) {
+      verify.mockImplementation(broken as never);
+      await expect(hrRead()).rejects.toBeInstanceOf(
+        SelectionPersistenceUnavailableError,
+      );
+    }
+    verify.mockImplementation(async () => ({ citations: [] }));
+    await expect(hrRead()).rejects.toMatchObject({ status: 'forbidden' });
+    verify.mockRejectedValue(
+      new SelectionLifecycleError('forbidden', '归因引用不在当前授权范围'),
+    );
+    await expect(
+      store.ports.transact(lock, async (tx) => {
+        await store.ports.loadAuthority(tx, hr, now);
+        return store.ports.readOperation(tx, hr, lock.operationId);
+      }),
+    ).rejects.toMatchObject({ status: 'forbidden' });
+    // HR cannot borrow the manager planning read to skip the recheck.
+    await expect(hrRead('manager')).rejects.toMatchObject({
+      status: 'forbidden',
+    });
+    verify.mockClear();
+    const planned = await store.ports.transact(
+      { ...lock, accountId: manager, operationId: 'disclose:plan' },
+      async (tx) => {
+        await store.ports.loadAuthority(tx, manager, now);
+        return store.ports.readRevision(tx, record.id, 'manager');
+      },
+    );
+    expect(planned?.revision.id).toBe(record.id);
+    expect(verify).not.toHaveBeenCalled();
+    verify.mockRestore();
   });
   it('迟发head CAS不匹配整体回滚，不把已切区段或发布内容部分提交', async () => {
     const record = await pending();

@@ -462,8 +462,10 @@ export function createAttributionPostgresStore(
         s.effect.batchId !== event.batchId
       )
         conflict();
+      // Shared audit_events.actor_id is the account across every flow; the
+      // person signature stays on the attribution record itself.
       await recordAudit(tx.db, {
-        actorId: s.personId,
+        actorId: s.accountId,
         action: 'standard_attribution.' + event.action,
         resourceId: event.batchId,
       });

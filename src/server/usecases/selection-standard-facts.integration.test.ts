@@ -736,6 +736,99 @@ describe('native reader and stale input boundaries', () => {
     expect((await db().select().from(selectionRevisions))[0].state).toBe(
       'draft',
     );
+    // Calling the read ports directly is refused at the same boundary.
+    const ports = service.store.ports;
+    const lock = {
+      category: 'xe_selection' as const,
+      accountId: 'hr',
+      operationId: 'save-before-revoke',
+    };
+    for (const read of [
+      (tx: Parameters<typeof ports.readRevision>[0]) =>
+        ports.readRevision(tx, revision.id, 'hr'),
+      (tx: Parameters<typeof ports.readRevision>[0]) =>
+        ports.readOperation(tx, 'hr', lock.operationId),
+    ])
+      await expect(
+        ports.transact(lock, async (tx) => {
+          await ports.loadAuthority(tx, 'hr', now);
+          return read(tx);
+        }),
+      ).rejects.toMatchObject({
+        status: 'forbidden',
+        message: '归因引用不在当前授权范围或来源已变化',
+      });
+  });
+  it('a counted cohort with no current HR fails impact and publication closed', async () => {
+    const service = app();
+    const created = await service.execute('hr', {
+      action: 'create',
+      input: command(),
+    });
+    if (created.status !== 'success') throw new Error(created.status);
+    const saved = await service.execute('hr', {
+      action: 'save',
+      input: {
+        operationId: 'save-before-hr-leaves',
+        draftId: selectionRevisionSchema.parse(created.result).id,
+        expectedRevision: selectionRevisionSchema.parse(created.result)
+          .revision,
+        reason: 'HR核对（演示）',
+        changes: [
+          {
+            kind: 'add',
+            after: {
+              id: 'hr-point',
+              title: 'HR修改（演示）',
+              description: '使用本人实际交付',
+            },
+          },
+        ],
+      },
+    });
+    if (saved.status !== 'success') throw new Error(saved.status);
+    const draft = selectionRevisionSchema.parse(saved.result);
+    const submitted = await service.execute('hr', {
+      action: 'submit',
+      input: {
+        operationId: 'submit-before-hr-leaves',
+        draftId: draft.id,
+        expectedRevision: draft.revision,
+        expectedPreviewId: draft.impactPreview.id,
+      },
+    });
+    if (submitted.status !== 'success') throw new Error(submitted.status);
+    const pending = selectionRevisionSchema.parse(submitted.result);
+    await db()
+      .update(grants)
+      .set({ revokedAt: '2026-10-31' })
+      .where(eq(grants.id, 'hr-cohort'));
+    await expect(
+      db().transaction(async (tx) => {
+        const who = await loadSelectionAuthority(tx, 'manager', clock);
+        return readNativeSelectionImpact(tx, who, next, ['cohort']);
+      }),
+    ).rejects.toMatchObject({
+      status: 'conflict',
+      message: '期次当前没有 HR，无法计算影响',
+    });
+    expect(
+      await service.execute('manager', {
+        action: 'publish',
+        input: {
+          operationId: 'publish-without-hr',
+          draftId: pending.id,
+          expectedRevision: pending.revision,
+          expectedPreviewId: pending.impactPreview.id,
+        },
+      }),
+    ).toMatchObject({
+      status: 'conflict',
+      message: '期次当前没有 HR，无法计算影响',
+    });
+    expect((await db().select().from(selectionRevisions))[0].state).toBe(
+      'pending_confirmation',
+    );
   });
   it('trusted next-cohort change invalidates the saved preview before HR save', async () => {
     const created = await app().execute('hr', {

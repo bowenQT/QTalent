@@ -280,6 +280,10 @@ it('真实RC及账号操作锁；新实例重放原归因且每次人工确认�
     audits: 2,
     operations: 2,
   });
+  // The account and person ids differ in this fixture on purpose.
+  expect(
+    (await db().select().from(auditEvents)).map((row) => row.actorId),
+  ).toEqual([ACCOUNT, ACCOUNT]);
   expect(modelCalls).toBe(0);
 });
 it('跨连接并发同key只写一次并返回原版本', async () => {

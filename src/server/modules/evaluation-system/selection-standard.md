@@ -6,7 +6,7 @@
 
 `selection-standard.ts` 提供无数据库副作用的领域计划，`server/usecases/selection-standard.ts` 编排可信账号、当前服务端权限、领域计划、审计和操作回执。`selection/postgres.ts` 新增六表的原生事务适配，复用 922 类别锁、按时读取和区段切换。公共出口与最终迁移仍只由 X1 修改。
 
-适配要求调用方提供同一原生事务内的 `loadAuthority`、`creationFacts`、`verifyBasisDisclosure`、`readImpact`、`readCohort`；缺一个就拒绝构造，没有管理员或内存事实兜底。`createNativeSelectionLifecycle` 已用同事务的真实目录授权、919 canonical、921已确认归因/提案及922/918标准绑定装配这些端口，详见下节。Web action/query 尚未接线；显式基线导入及最小期次创建/绑定/读取仍在同一 native 用例文件。原postgres协议测试的合成端口与新增真实装配测试分别记录，不相互冒充。
+适配要求调用方提供同一原生事务内的 `loadAuthority`、`creationFacts`、`verifyBasisDisclosure`、`readImpact`、`readCohort`；缺一个就拒绝构造，没有管理员或内存事实兜底。`verifyBasisDisclosure` 要逐条返回已核对的引用（期次与段别），适配在 HR 用途的 `readRevision` 和 HR 回执的 `readOperation` 返回私有依据前调用它；返回值缺失或形状不对按装配故障失败关闭，引用与依据不一致按无权限拒绝。管理者用途的 `readRevision` 只供发布和退回在内部规划，对外只返回管理者投影或回执。`createNativeSelectionLifecycle` 已用同事务的真实目录授权、919 canonical、921已确认归因/提案及922/918标准绑定装配这些端口，详见下节。Web action/query 尚未接线；显式基线导入及最小期次创建/绑定/读取仍在同一 native 用例文件。原postgres协议测试的合成端口与新增真实装配测试分别记录，不相互冒充。
 
 最终迁移在846 → 845 → 873主链之后按X1游标生成；当前不提交 SQL、journal 或 snapshot。917/922已合入；919/921实际代码依赖与正式迁移未齐，默认CI仍不能通过，本卡保持Draft+blocked。补齐必要门禁后转Ready for review，处理当前head审查与connector，不把Draft交接当整卡完成。
 
