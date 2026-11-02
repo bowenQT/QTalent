@@ -7,7 +7,7 @@ import type { Database } from '../db/client';
 import { readAuthorizedMaterialSource } from '../modules/records';
 import {
   loadPersonDataInTransaction,
-  talentSources,
+  completeTalentSources,
   sourceKey,
 } from '../queries/person-data';
 import { recordAudit } from '../platform/audit';
@@ -36,7 +36,7 @@ export async function readMaterialSource(
           tx,
           {
             context: data.context,
-            sources: talentSources(data),
+            sources: completeTalentSources(data),
           },
           reference.data,
         );

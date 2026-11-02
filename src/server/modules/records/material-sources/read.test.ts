@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { Transaction } from '../../../db/client';
 import { fixture } from '../../../queries/person-test-helpers';
-import { talentSources } from '../../../queries/person-data';
+import { completeTalentSources } from '../../../queries/person-data';
 import { materialSourceReadResultSchema } from '../../../../contracts/sources';
 import { readAuthorizedMaterialSource } from './read';
 import * as store from './store';
@@ -25,7 +25,7 @@ function setup() {
     location: source.location,
     excerpt: source.excerpt,
   });
-  const facts = { context: data.context, sources: talentSources(data) };
+  const facts = { context: data.context, sources: completeTalentSources(data) };
   const read = vi.spyOn(store, 'readMaterialFragment').mockResolvedValue({
     source,
     binding: {

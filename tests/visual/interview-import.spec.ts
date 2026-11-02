@@ -17,9 +17,6 @@ import { startPrototypeServer } from './prototype-server';
  * Left out on purpose: the import bar's action group (import is not connected, so the
  * engineering side shows「导入待接通」next to the disabled button) and the bar's place
  * on screen (it is sticky to a viewport whose shell differs, so it is put in flow).
- * Also left out: the counts and the skipped list. 906 (#277) asks who a rejected or
- * not-yet-joined candidate is before skipping them, so 唐语桐 and 宋知意 wait to be
- * identified here instead of sitting in「跳过的 3 行」as in the prototype.
  */
 const page = 'prototype/y/app/import.html';
 const pinned = manifest.files.some((file) => file.path === page);
@@ -59,6 +56,8 @@ const blocks = [
   ['row-verify-unread', '#iv-r2'],
   ['row-confirm-redacted', '#iv-r5'],
   ['row-unknown', '#iv-r7'],
+  ['counts', '.n-rsum'],
+  ['skipped', 'details.nt-fold'],
   ['bar-caption', '.n-ivbar > .nt-muted'],
 ] as const;
 
