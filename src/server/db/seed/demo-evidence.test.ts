@@ -136,6 +136,42 @@ describe('approved baseline evidence mapping', () => {
     });
     expect(mapPrototypeSeed(readPrototypeSeed(process.cwd()))).toEqual(seed);
   });
+  it('maps a statement quoted from a sheet cell as an original fact, other notes stay management observations', () => {
+    const seed = mapPrototypeSeed(readPrototypeSeed(process.cwd())).evidence;
+    // Every pinned obs source is a sheet cell: 440 observation-sheet rows and
+    // 6 hackathon review rows, so no management observation remains.
+    expect(seed.statements).toHaveLength(446);
+    expect(seed.statements.every((row) => row.kind === 'original_fact')).toBe(
+      true,
+    );
+    const matchable = seed.events.filter((event) =>
+      seed.statements.some(
+        (row) => row.eventId === event.id && row.kind === 'original_fact',
+      ),
+    );
+    expect(matchable).toHaveLength(277);
+    expect(new Set(matchable.map((event) => event.personId)).size).toBe(93);
+    // Fragments and locations are unchanged: each statement still cites its cell.
+    for (const row of seed.statements)
+      expect(
+        seed.eventSources.some(
+          (link) =>
+            link.eventId === row.eventId &&
+            link.fragmentId === row.fragmentId &&
+            link.originalVersionId === row.originalVersionId,
+        ),
+      ).toBe(true);
+    const mixed = synthetic();
+    mixed.EVENTS[0]!.srcs.push({
+      type: 'sheet',
+      label: 'Synthetic sheet',
+      loc: '第 3 行',
+      quote: 'Synthetic behavior',
+    });
+    expect(
+      mapEvidenceSeed(mixed as never).statements.map((row) => row.kind),
+    ).toEqual(['management_observation', 'original_fact']);
+  });
   it('keeps empty demo behavior and never falls back to the result or title', () => {
     const e = synthetic();
     e.EVENTS[0].act = '';

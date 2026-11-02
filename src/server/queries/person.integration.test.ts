@@ -35,7 +35,7 @@ import {
 import { confirmations, aiSuggestions } from '../modules/talent';
 import { loadPersonData } from './person-data';
 import { personFromData } from './person-projection';
-import { peopleFromData } from './people';
+import { peopleFromData, quickViewFromData } from './people';
 import { sourceFromData } from './sources';
 import { fixture, nodeFixture } from './person-test-helpers';
 import { expectDirectoryOrder } from '../../../tests/fixtures/p0-contracts';
@@ -213,8 +213,9 @@ it('projects actual pinned seed observations and ended project participation', a
         (item) => item.kind === 'key_event',
       );
       expect(events.length).toBeGreaterThan(0);
+      // Sheet-cell statements are original facts, read as evaluation.
       for (const item of events) {
-        expect(item.category).toBe('management-observation');
+        expect(item.category).toBe('evaluation');
         expect(item.sources.length).toBeGreaterThan(0);
       }
       for (const item of profile.timeline.data.filter(
@@ -232,15 +233,64 @@ it('projects actual pinned seed observations and ended project participation', a
       '2026-10-25',
     );
     const restricted = await personFromData(mentorData, target);
-    // The mentor keeps ordinary history reviews, but no management observation.
+    // The mentor reads the student's key events and confirmed scores, but no
+    // quadrant and no management observation.
     expect(restricted?.timeline.status).toBe('ready');
     if (restricted?.timeline.status !== 'ready')
       throw new Error('Missing timeline');
+    const targetEvents = mapped.evidence.events.filter(
+      (event) => event.personId === target,
+    );
     expect(
-      restricted.timeline.data.every((row) => row.kind === 'history'),
-    ).toBe(true);
+      restricted.timeline.data
+        .filter((row) => row.kind === 'key_event')
+        .map((row) => row.id)
+        .sort(),
+    ).toEqual(targetEvents.map((event) => event.id).sort());
+    expect(restricted.capabilityProfile.status).toBe('ready');
+    expect(restricted).not.toHaveProperty('referencePosition');
     expect(JSON.stringify(restricted)).not.toContain('management-observation');
     expect(restricted).not.toHaveProperty('managementObservations');
+    const quick = await quickViewFromData(mentorData, target);
+    expect(quick?.recentFacts.status).toBe('ready');
+    expect(quick?.capabilityLines.status).toBe('ready');
+    expect(quick).not.toHaveProperty('referencePosition');
+    // The seed has no management observation left, so add one here: the mentor
+    // still cannot read that event, while the manager reads it as one.
+    const hidden = targetEvents[0]!;
+    const link = mapped.evidence.eventSources.find(
+      (row) => row.eventId === hidden.id,
+    )!;
+    await seeded.db.insert(statements).values({
+      id: 'synthetic-management-note',
+      eventId: hidden.id,
+      kind: 'management_observation',
+      text: 'Synthetic management note',
+      authorId: mentor.personId,
+      modelVersion: null,
+      uncertainty: null,
+      fragmentId: link.fragmentId,
+      originalVersionId: link.originalVersionId,
+    });
+    const afterNote = await personFromData(
+      await loadPersonData(seeded.db, 'demo-mentor', '2026-10-25'),
+      target,
+    );
+    if (afterNote?.timeline.status !== 'ready')
+      throw new Error('Missing timeline');
+    expect(afterNote.timeline.data.map((row) => row.id)).not.toContain(
+      hidden.id,
+    );
+    expect(JSON.stringify(afterNote)).not.toContain('Synthetic management');
+    const managerView = await personFromData(
+      await loadPersonData(seeded.db, 'demo-ceo', '2026-10-25'),
+      target,
+    );
+    if (managerView?.timeline.status !== 'ready')
+      throw new Error('Missing timeline');
+    expect(
+      managerView.timeline.data.find((row) => row.id === hidden.id),
+    ).toMatchObject({ category: 'management-observation' });
     const managerData = await loadPersonData(
       seeded.db,
       'demo-ceo',
