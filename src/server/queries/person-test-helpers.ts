@@ -146,6 +146,10 @@ export function fixture(
       withdrawnAt: null,
     });
     data.fragments.push({
+      parseVersionId: null,
+      sourceCategory: null,
+      evaluationKind: null,
+      demo: null,
       id: fragmentId,
       originalVersionId: 'version',
       excerpt: 'Synthetic observation',

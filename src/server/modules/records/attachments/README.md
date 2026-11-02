@@ -33,12 +33,14 @@
 
 三份 Logo 样例的重建由 BOW-896 生成器负责，本卡 `generate.py` 只重建自己的基础/过滤夹具；不要求 CI 安装额外 Python 依赖。合成诊断边界测试只替换 PDF.js 返回值/警告，实际三格式与混合扫描、坏图像、页数/字符预算及独立 worker 另由真实库回归验证。
 
-## 873 冻结 port v1
+## 873 集合与同事务 handoff
 
-已只读核对 PR186 **ebbd832c760d3db11efed8a654d4d07d4cfc6d10** 的 `uploads/README.md` 和 `handoff.ts`。复用其 getter，不直接读写上传表、不复建原件或上传会话：
+复用 873 的唯一上传/集合事实，不直接复制上传 SQL，不复建原件或上传会话。旧 standalone getter 保留给打开字节前复核；claim/完成事务必须使用 native reader：
 
 ```ts
 const input = createValidatedAttachmentInput<Transaction>({
+  readValidatedUploadInContext: (tx, reference) =>
+    readValidatedUploadInTransaction(tx, reference),
   readValidatedUpload: (reference) =>
     readValidatedUpload(uploadStore, reference),
   canProcess: async (tx, binding) => {
@@ -53,7 +55,7 @@ const input = createValidatedAttachmentInput<Transaction>({
 });
 ```
 
-上例中的 `currentRecordWritePolicy` 是待父连接的真实策略，不是本卡新增的授权算法。`readValidatedUpload` 返回的 uploadId/version/jobId/purpose、account/quotaScope/target、对象字节数/MIME/SHA256 运行时严格校验；worker 只接受与当前 job.resourceId/inputVersion/jobId 一致的 attachment。open 前再次取 getter 检查绑定漂移，私有 objectKey 只在 server → Kodo 间使用，不进入 binding、job DTO 或整理请求。
+上例中的 `currentRecordWritePolicy` 是待父连接的真实策略，不是本卡新增的授权算法。native reader 要求调用方 Read Committed，先定位集合锁，再调用同一 `readUploadCollectionMembers` 锁后读取；锁保留到完成事务提交/回滚。getter 返回的是归档事实，已释放的历史原件不被删除；是否允许当前处理仍须该事务内的真实 membership/节点/完整主体与敏感 kinds 策略判断。creator 不能代替完整来源权限。`readValidatedUpload` 返回的 uploadId/version/jobId/purpose、recordCollectionId、account/quotaScope/target、对象字节数/MIME/SHA256 运行时严格校验；worker 只接受与当前 job.resourceId/inputVersion/jobId 一致的 attachment。open 前再次取 getter 检查绑定漂移，私有 objectKey 只在 server → Kodo 间使用，不进入 binding、job DTO 或整理请求。
 
 ## 任务事务与 845 交接
 
@@ -65,7 +67,7 @@ const input = createValidatedAttachmentInput<Transaction>({
    已成功 claim 的当前 attempt/revision 在完成前失去写权限或发现权威绑定变化时，只保存 `failed / input_changed` 任务终态（阶段 failed、source null、fragmentIds 空），不保存解析片段或排整理；返回值仍保留 forbidden/ignored。初始 claim 前的拒绝仍不读字节、不修改任务。旧 revision/attempt 不得写入这一失败；已接受的取消优先确认 cancelled。公开读取和 retry 继续由当前 requester/action 权限与 inputVersion 栅栏判断。
 
 4. 取消只确认 cancelled，不落片段或排整理。公共投影按 job.status 重建 `stage:'cancelled',source:null,fragmentIds:[]`，不透传 #94 保留的旧内部 result。
-5. `enqueueArrange` 只传 `mediaId,parseVersionId,originalVersionId,accountId,target,sources:SourceReference[]`。每段有独立真实引用，没有 excerpt、推断 personId 或确认信息。父将该端口接845的可信来源加载/整理任务；845/837负责分类、当前权限过滤、选人、规则与待确认草稿，本卡不另建整理业务。
+5. `enqueueArrange` 只传 `recordCollectionId,mediaId,parseVersionId,originalVersionId,accountId,target,sources:SourceReference[]`。每段有独立真实引用，没有 excerpt、推断 personId 或确认信息。父将该端口接845的可信来源加载/整理任务；845/837负责分类、当前权限过滤、选人、规则与待确认草稿，本卡不另建整理业务。
 
 当前 `saveParse` 和 enqueue 是显式注入端口，**没有原生 PG 存储适配/应用注册**。父确定 parse 元数据的最窄持久所有权后，再由唯一责任方接现有 fragments 和任务/解析关系；需要新 schema 时单独协调，在已合 PR94 之后原生生成迁移。没有手写 SQL 或修改旧迁移。
 
