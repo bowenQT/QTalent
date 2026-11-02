@@ -9,6 +9,7 @@ import {
   stabilize,
 } from './compare';
 import {
+  eventCardFacts,
   hideGroupHistory,
   mentorSubsetGaps,
   personAppOnly,
@@ -17,6 +18,7 @@ import {
   personMask,
   personOmit,
   personReplace,
+  trimToVisible,
 } from './person-regions';
 
 const SAMPLE = 'p-x07';
@@ -57,23 +59,33 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
         ];
         const { projects: leftProjects, ...leftRest } = left;
         const { projects: rightProjects, ...rightRest } = right;
+        const appHidden: string[] = [];
+        const omitted: string[] = [];
         if (role === 'mentor') {
-          // 导师只能读到授权后的子集（项目、事件、能力谱、时间线），顺序不变。
+          // 导师只能读到授权后的子集（项目、事件、能力谱、时间线），逐条、按原型顺序。
           expect(
             mentorSubsetGaps(left, right),
             'data/order mismatch, screenshot comparison intentionally stopped',
           ).toEqual([]);
-          expect(
-            rightProjects.every((name) => leftProjects.includes(name)),
-            'mentor projects must be a subset',
-          ).toBe(true);
-          if (JSON.stringify(leftRest) !== JSON.stringify(rightRest)) {
-            // 内容少于原型时版面必然不同，像素比较没有意义；子集闸门已经比过内容。
-            testInfo.annotations.push({
-              type: 'skip-screenshot',
-              description: '导师可见内容少于原型（裁决 ②），只比内容子集',
-            });
-            return;
+          // 原型侧裁到导师可见的条目再比截图；整张卡都看不到的，比空状态的语义。
+          const emptied = await trimToVisible(prototype, left, right);
+          if (emptied.facts) {
+            await expect(page.locator('#facts a.nt-plink')).toHaveCount(0);
+            await expect(page.locator('#facts .nt-empty')).toHaveText(
+              '确认后的关键事件会出现在这里',
+            );
+            omitted.push('#facts');
+            appHidden.push('#facts');
+          }
+          if (emptied.spectrum) {
+            await expect(
+              page.locator('#spectrum .n-spectrum__row'),
+            ).toHaveCount(0);
+            await expect(page.locator('#spectrum .nt-empty')).toHaveText(
+              '确认后的事件分会出现在这里',
+            );
+            omitted.push('#spectrum');
+            appHidden.push('#spectrum');
           }
         } else {
           expect(
@@ -86,15 +98,18 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[]) {
         const summary = (await page.locator('#summary').count()) > 0;
         await normalizeRegions(prototype, page, {
           omit: summary
-            ? personOmit
-            : [...personOmit, 'div:has(> #summary)', '#summary'],
+            ? [...personOmit, ...omitted]
+            : [...personOmit, ...omitted, 'div:has(> #summary)', '#summary'],
           replace: summary ? personReplace : [],
         });
-        await page.evaluate((queries) => {
-          for (const query of queries)
-            for (const node of document.querySelectorAll<HTMLElement>(query))
-              node.style.setProperty('display', 'none', 'important');
-        }, personAppOnly);
+        await page.evaluate(
+          (queries) => {
+            for (const query of queries)
+              for (const node of document.querySelectorAll<HTMLElement>(query))
+                node.style.setProperty('display', 'none', 'important');
+          },
+          [...personAppOnly, ...appHidden],
+        );
         await stabilize(prototype);
         await stabilize(page);
         await matchingMasks(prototype, page, personMask);
@@ -140,6 +155,25 @@ test('manager expanded event card matches the prototype', async ({
     await open(prototype);
     await open(page);
     await normalizeRegions(prototype, page, { omit: ['.n-tags'] });
+    // 遮罩盖住的两处另外比：项目名（工程统一写「项目：」）、每行分数的维度、评分人与确认状态。
+    const [expected, actual] = [
+      await eventCardFacts(prototype),
+      await eventCardFacts(page),
+    ];
+    expect(actual.project).toMatch(/^项目：./);
+    expect(actual.project.replace(/^项目：/, '')).toBe(
+      expected.project.replace(/^(课题|项目)：/, ''),
+    );
+    expect(actual.scores.length).toBeGreaterThan(0);
+    expect(actual.scores).toEqual(expected.scores);
+    for (const score of actual.scores.filter(
+      (row) => row.state === 'confirmed',
+    )) {
+      expect(score.scorer, `${score.dimension} scorer`).not.toBe('');
+      expect(score.note, `${score.dimension} status`).toBe(
+        `${score.scorer}确认`,
+      );
+    }
     await stabilize(prototype);
     await stabilize(page);
     await compareElements(
