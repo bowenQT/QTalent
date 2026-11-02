@@ -26,7 +26,7 @@ beforeEach(() => {
 it('按请求体撤销，结果原样返回且不缓存', async () => {
   mocks.undo.mockResolvedValue({ status: 'success', replayed: false });
   const result = await post(JSON.stringify(input));
-  expect(mocks.undo).toHaveBeenCalledWith(expect.any(Headers), input);
+  expect(mocks.undo).toHaveBeenCalledWith(input);
   expect(result.status).toBe(200);
   expect(await result.json()).toEqual({ status: 'success', replayed: false });
   expect(result.headers.get('cache-control')).toContain('no-store');
@@ -53,7 +53,7 @@ it('撤销抛错答 503；请求体不是 JSON 时照常交给撤销动作校验
   expect(await result.json()).toEqual({ status: 'unavailable' });
   mocks.undo.mockResolvedValue({ status: 'validation_error' });
   await post('not json');
-  expect(mocks.undo).toHaveBeenLastCalledWith(expect.any(Headers), null);
+  expect(mocks.undo).toHaveBeenLastCalledWith(null);
 });
 
 it('不是本站页面发来的撤销：拒绝，不调用撤销', async () => {

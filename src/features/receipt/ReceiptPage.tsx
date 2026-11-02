@@ -157,7 +157,8 @@ export function ReceiptPage({
     const pending = [inflight.current, writes.current];
     return () => {
       alive.current = false;
-      for (const set of pending) for (const controller of set) controller.abort();
+      for (const set of pending)
+        for (const controller of set) controller.abort();
     };
   }, []);
   // 撤销结果不知道时，卡片上的重试沿用同一次撤销

@@ -1,11 +1,12 @@
+'use server';
 import 'server-only';
+import { headers } from 'next/headers';
 import type { RecordUndoResult } from '../../contracts/record';
 import { jobAccount, sessionLost } from '../jobs/request';
 import { undoRecordAction } from './record';
 
 export type RecordUndoRequestResult =
-  | RecordUndoResult
-  | { status: 'unauthenticated' };
+  RecordUndoResult | { status: 'unauthenticated' };
 
 /**
  * The record undo behind the POST route (`/api/record/undo`, BOW-847). Undo has a
@@ -17,14 +18,15 @@ export type RecordUndoRequestResult =
  * route answers 503.
  */
 export async function undoRecordForRequest(
-  headers: Headers,
   input: unknown,
 ): Promise<RecordUndoRequestResult> {
-  if (!(await jobAccount(headers))) return { status: 'unauthenticated' };
+  const requestHeaders = await headers();
+  if (!(await jobAccount(requestHeaders))) return { status: 'unauthenticated' };
   try {
     return await undoRecordAction(input);
   } catch (error) {
-    if (await sessionLost(headers, error)) return { status: 'unauthenticated' };
+    if (await sessionLost(requestHeaders, error))
+      return { status: 'unauthenticated' };
     throw error;
   }
 }

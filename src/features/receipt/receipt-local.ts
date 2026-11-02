@@ -20,7 +20,10 @@ export type SavedRecord = {
   /** 这次保存建的事件（人和事件编号，eventKey），用来和快照里的确认对上。 */
   events: string;
   /** 保存回执给的版本和事件映射，用来判断快照是否已前进到别的保存。 */
-  receipt: { revision: number; events: { personId: string; eventId: string }[] };
+  receipt: {
+    revision: number;
+    events: { personId: string; eventId: string }[];
+  };
 };
 
 /**

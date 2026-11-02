@@ -1991,3 +1991,65 @@ describe('视觉续作第 1 轮', () => {
     );
   });
 });
+
+describe('撤销走路由后的两种回应（第二次裁决）', () => {
+  it('撤销答登录失效：进入失效屏障，不再读取，卡片不说已撤销也不说已确认', async () => {
+    const user = userEvent.setup();
+    const read = vi.fn(() => new Promise(() => {})) as never;
+    mountWith(make(), {
+      read,
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi.fn().mockResolvedValue({ status: 'unauthenticated' }),
+    });
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    expect(
+      await screen.findByText(copy.read.unauthenticated.title),
+    ).toBeTruthy();
+    expect(screen.queryByText(copy.toast.undone)).toBeNull();
+    const card = cardOf('demo-event-draft-a');
+    expect(within(card).getByText(copy.confirm.undoPending)).toBeTruthy();
+    window.dispatchEvent(new Event('online'));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(vi.mocked(read)).toHaveBeenCalledTimes(1);
+  });
+
+  it('撤销答 unavailable（没送到或看不懂回应）：结果待核实，可以再试一次', async () => {
+    const user = userEvent.setup();
+    const undo = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 'unavailable' })
+      .mockResolvedValueOnce(undoneResult(3));
+    mountWith(make(), {
+      read: vi.fn().mockRejectedValue(new Error('offline')),
+      save: vi.fn().mockResolvedValue(saved()),
+      undo,
+    });
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    expect(await screen.findByText(copy.toast.undoUnknown)).toBeTruthy();
+    await user.click(
+      within(cardOf('demo-event-draft-a')).getByRole('button', {
+        name: copy.confirm.undoRetry,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        within(cardOf('demo-event-draft-a')).getByRole('button', {
+          name: /确认这件事/,
+        }),
+      ).toBeTruthy(),
+    );
+    expect(undo.mock.calls[1]![0].operation_id).toBe(
+      undo.mock.calls[0]![0].operation_id,
+    );
+  });
+});

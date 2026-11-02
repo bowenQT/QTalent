@@ -124,12 +124,12 @@ describe('GET 路由的读取：会话在读取途中失效', () => {
   it('读取答 unavailable、再查已认不出账号：答登录失效；还认得出就仍是中断', async () => {
     runtime.readBatch.mockResolvedValue({ status: 'unavailable' });
     runtime.lost.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    expect(await readReceiptForRequest(new Headers(), { batchId: 'b' })).toEqual(
-      { status: 'unauthenticated' },
-    );
-    expect(await readReceiptForRequest(new Headers(), { batchId: 'b' })).toEqual(
-      { status: 'unavailable' },
-    );
+    expect(
+      await readReceiptForRequest(new Headers(), { batchId: 'b' }),
+    ).toEqual({ status: 'unauthenticated' });
+    expect(
+      await readReceiptForRequest(new Headers(), { batchId: 'b' }),
+    ).toEqual({ status: 'unavailable' });
   });
 
   it('会话还在时，读取放行的抛错照常抛出，路由答 503', async () => {

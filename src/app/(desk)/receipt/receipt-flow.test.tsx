@@ -164,7 +164,11 @@ function view(
     },
   } as unknown as ReceiptView;
 }
-const saved = (saveId: string, eventId: string, draftId = 'demo-event-draft-a') => {
+const saved = (
+  saveId: string,
+  eventId: string,
+  draftId = 'demo-event-draft-a',
+) => {
   const at = Date.now();
   return {
     status: 'success' as const,

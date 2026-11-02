@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   }
   try {
     // 没有会话、或撤销途中会话失效时答 401，不跳转登录页：页面据此写明失效
-    return respond(await undoRecordForRequest(request.headers, body));
+    return respond(await undoRecordForRequest(body));
   } catch {
     return respond({ status: 'unavailable' });
   }
