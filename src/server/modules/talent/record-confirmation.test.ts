@@ -1,3 +1,4 @@
+import { recordInputSchema } from '../../../contracts/record';
 import { describe, expect, it } from 'vitest';
 import {
   recordBatchDraftSetFixture,
@@ -535,7 +536,7 @@ describe('whole-save five-second undo plans', () => {
       receipt: {
         ...undo.receipt,
         inputRestoration: 'available',
-        originalInput: structuredClone(f.state.saves[0].originalInput),
+        originalInput: recordInputSchema.parse(f.state.saves[0].originalInput),
       },
     });
     const before = structuredClone(f.state);
@@ -666,12 +667,14 @@ it('does not accept a forged suggestion quote just because its source identity i
 it('retains exact private input but does not infer complete input access from the draft', () => {
   const f = fixture();
   const { command } = f.saved();
-  f.state.saves[0]!.originalInput.text = '  演示原话\n';
+  const original = f.state.saves[0]!.originalInput;
+  if ('kind' in original) throw new Error('text fixture required');
+  original.text = '  演示原话\n';
   expect(f.run(command).receipt).toMatchObject({
     inputRestoration: 'unavailable',
     originalInput: null,
   });
-  expect(f.state.saves[0]!.originalInput.text).toBe('  演示原话\n');
+  expect(original.text).toBe('  演示原话\n');
 });
 it('continues the withdrawn native confirmation revision instead of reusing revision one', () => {
   const f = fixture();

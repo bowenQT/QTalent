@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  confirmsSave,
+  currentSaveId,
   initialState,
   inputKey,
   isDirty,
   recordReducer,
+  REREAD_LIMIT,
   type Action,
   type RecordState,
 } from './record-flow';
@@ -16,6 +19,22 @@ import {
   twoPeopleDraft,
 } from './record.fixtures';
 import { scoreKey } from './types';
+
+const S = receipt.saveId;
+// 读回的已确认条目：same 就是这次保存，moved 是撤销后又被再次确认的
+const same = {
+  draftId: draft.draftId,
+  revision: receipt.revision,
+  events: receipt.events,
+};
+const moved = {
+  ...same,
+  revision: receipt.revision + 2,
+  events: receipt.events.map((event) => ({
+    ...event,
+    eventId: `${event.eventId}-again`,
+  })),
+};
 
 const run = (state: RecordState, ...actions: Action[]) =>
   actions.reduce(recordReducer, state);
@@ -362,21 +381,244 @@ describe('回到输入与撤销', () => {
       { type: 'save_saved', receipt, replayed: false },
     );
     // 846 的撤销回执不带原输入：原话和人员用本页保存时的内容
-    const undone = run(saved, { type: 'undone' });
+    // 撤销推进了草稿版本：再保存用回执给的新版本
+    const undone = run(saved, { type: 'undone', saveId: S, draftRevision: 9 });
     expect(undone).toMatchObject({
       phase: 'review',
       text: TEXT,
       personId: 'p1',
       receipt: null,
       saveOp: null,
-      draft: saved.draft,
+      draft: { ...saved.draft, revision: 9 },
+      edit: saved.edit,
+    });
+    expect(undone.banner).toBeNull();
+  });
+
+  it('撤销回执要求重读：保存暂停，只有读到待确认草稿才解除，修改都在', () => {
+    const saved = run(
+      review,
+      { type: 'edit_sbi', field: 'impact', value: '改过' },
+      { type: 'save_begin', op },
+      { type: 'save_saved', receipt, replayed: false },
+    );
+    const stale = run(saved, {
+      type: 'undone',
+      saveId: S,
+      draftRevision: null,
+    });
+    expect(stale).toMatchObject({
+      phase: 'review',
+      hold: { kind: 'refresh', saveId: S, read: null, attempts: 0 },
+      edit: saved.edit,
+    });
+    // 读取中、读取失败、读到已在别处确认、读到批次里没有这件事：都继续暂停
+    expect(run(stale, { type: 'undo_reread_begin', saveId: S }).hold).toEqual({
+      kind: 'refresh',
+      saveId: S,
+      read: 'reading',
+      attempts: 1,
+    });
+    expect(
+      run(stale, { type: 'undo_reread_failed', saveId: S }).hold?.read,
+    ).toBe('failed');
+    expect(
+      run(stale, { type: 'undo_reread_confirmed', saveId: S, entry: same }).hold
+        ?.read,
+    ).toBe('confirmed');
+    expect(
+      run(stale, { type: 'undo_reread_missing', saveId: S }).hold?.read,
+    ).toBe('missing');
+    // 别的提示替换不了暂停
+    expect(
+      run(stale, {
+        type: 'banner',
+        banner: { kind: 'conflict', message: 'x' },
+      }).hold,
+    ).toEqual(stale.hold);
+    const latest = { ...saved.draft!, revision: 7 };
+    const fresh = run(
+      stale,
+      { type: 'undo_reread_failed', saveId: S },
+      { type: 'undo_reread', saveId: S, draft: latest },
+    );
+    expect(fresh).toMatchObject({
+      phase: 'review',
+      hold: null,
+      draft: latest,
       edit: saved.edit,
     });
   });
 
-  it('没有草稿时撤销回到输入', () => {
-    const undone = run(initialState({ text: '原话' }), { type: 'undone' });
-    expect(undone).toMatchObject({ phase: 'write', text: '原话' });
+  it('撤销结果不明：保存暂停、不算已保存；读到仍在已确认里才解除', () => {
+    const saved = run(
+      review,
+      { type: 'save_begin', op },
+      { type: 'save_saved', receipt, replayed: false },
+    );
+    const pending = run(saved, { type: 'undo_unknown', saveId: S });
+    expect(pending).toMatchObject({
+      phase: 'saved',
+      hold: { kind: 'pending' },
+    });
+    expect(
+      run(pending, { type: 'undo_reread_confirmed', saveId: S, entry: same })
+        .hold,
+    ).toBeNull();
+    expect(
+      run(pending, { type: 'undo_reread_missing', saveId: S }).hold?.read,
+    ).toBe('missing');
+    // 再出错不重置已有的暂停
+    expect(
+      run(
+        pending,
+        { type: 'undo_reread_begin', saveId: S },
+        { type: 'undo_reread_failed', saveId: S },
+        { type: 'undo_unknown', saveId: S },
+      ).hold,
+    ).toMatchObject({ read: 'failed', attempts: 1 });
+    // 只在暂停时生效：别的状态下迟到的结果不改动页面
+    expect(run(review, { type: 'undo_unknown', saveId: S })).toBe(review);
+    expect(
+      run(review, { type: 'undo_reread', saveId: S, draft: review.draft! }),
+    ).toBe(review);
+    expect(
+      run(saved, { type: 'undo_reread_confirmed', saveId: S, entry: same }),
+    ).toBe(saved);
+    expect(run(saved, { type: 'undo_reread_failed', saveId: S })).toBe(saved);
+    expect(run(saved, { type: 'undo_reread_begin', saveId: S })).toBe(saved);
+    expect(run(saved, { type: 'undo_reread_missing', saveId: S })).toBe(saved);
+    // 回到输入就放下这次撤销
+    expect(run(pending, { type: 'back_to_write' }).hold).toBeNull();
+  });
+
+  it('结果不明时读到同一份草稿被再次确认（版本或事件变了）：不当作原保存仍有效，保持暂停', () => {
+    const pending = run(
+      review,
+      { type: 'edit_sbi', field: 'impact', value: '改过' },
+      { type: 'save_begin', op },
+      { type: 'save_saved', receipt, replayed: false },
+      { type: 'undo_unknown', saveId: S },
+    );
+    for (const entry of [
+      moved,
+      { ...same, revision: receipt.revision + 2 },
+      { ...same, events: moved.events },
+    ]) {
+      const next = run(pending, {
+        type: 'undo_reread_confirmed',
+        saveId: S,
+        entry,
+      });
+      // 旧回执的署名和事件不再显示；修改留在页面上，保存继续暂停
+      expect(next).toMatchObject({
+        phase: 'review',
+        receipt: null,
+        edit: pending.edit,
+        hold: { kind: 'refresh', saveId: S, read: 'confirmed' },
+      });
+      expect(currentSaveId(next)).toBe(S);
+      expect(confirmsSave(pending, S, entry)).toBe(false);
+    }
+    expect(confirmsSave(pending, S, same)).toBe(true);
+    expect(confirmsSave(pending, 'save-2', same)).toBe(false);
+  });
+
+  it('同一次保存从结果不明转为已撤销：已读次数照算', () => {
+    let held = run(
+      review,
+      { type: 'save_begin', op },
+      { type: 'save_saved', receipt, replayed: false },
+      { type: 'undo_unknown', saveId: S },
+    );
+    for (let i = 0; i < REREAD_LIMIT; i += 1)
+      held = run(
+        held,
+        { type: 'undo_reread_begin', saveId: S },
+        { type: 'undo_reread_failed', saveId: S },
+      );
+    const refreshed = run(held, {
+      type: 'undone',
+      saveId: S,
+      draftRevision: null,
+    });
+    expect(refreshed.hold).toMatchObject({
+      kind: 'refresh',
+      attempts: REREAD_LIMIT,
+    });
+    expect(run(refreshed, { type: 'undo_reread_begin', saveId: S })).toBe(
+      refreshed,
+    );
+  });
+
+  it('重读按发起次数计，不论读到什么；读满后不再发起', () => {
+    const saved = run(
+      review,
+      { type: 'save_begin', op },
+      { type: 'save_saved', receipt, replayed: false },
+    );
+    let held = run(saved, { type: 'undone', saveId: S, draftRevision: null });
+    for (let i = 0; i < REREAD_LIMIT; i += 1)
+      held = run(
+        held,
+        { type: 'undo_reread_begin', saveId: S },
+        i % 2
+          ? { type: 'undo_reread_missing', saveId: S }
+          : { type: 'undo_reread_confirmed', saveId: S, entry: same },
+      );
+    expect(held.hold?.attempts).toBe(REREAD_LIMIT);
+    expect(run(held, { type: 'undo_reread_begin', saveId: S })).toBe(held);
+    // 读取中不重复发起
+    const reading = run(
+      saved,
+      { type: 'undone', saveId: S, draftRevision: null },
+      { type: 'undo_reread_begin', saveId: S },
+    );
+    expect(run(reading, { type: 'undo_reread_begin', saveId: S })).toBe(
+      reading,
+    );
+  });
+
+  it('撤销和重读的结果只作用于它所属的那次保存', () => {
+    const first = run(
+      review,
+      { type: 'save_begin', op },
+      { type: 'save_saved', receipt, replayed: false },
+      { type: 'undo_unknown', saveId: S },
+    );
+    // 重读回到待确认后又保存了一次：第一次撤销的回执（服务端重放）不再属于当前
+    const second = run(
+      first,
+      { type: 'undo_reread', saveId: S, draft: first.draft! },
+      { type: 'save_begin', op },
+      {
+        type: 'save_saved',
+        receipt: { ...receipt, saveId: 'save-2' },
+        replayed: false,
+      },
+    );
+    expect(currentSaveId(second)).toBe('save-2');
+    const strays: Action[] = [
+      { type: 'undone', saveId: S, draftRevision: 3 },
+      { type: 'undone', saveId: S, draftRevision: null },
+      { type: 'undo_unknown', saveId: S },
+      { type: 'undo_reread_begin', saveId: S },
+      { type: 'undo_reread', saveId: S, draft: first.draft! },
+      { type: 'undo_reread_confirmed', saveId: S, entry: same },
+      { type: 'undo_reread_missing', saveId: S },
+      { type: 'undo_reread_failed', saveId: S },
+    ];
+    for (const action of strays) expect(run(second, action)).toBe(second);
+    // 暂停属于第二次保存时，第一次的重读结果也不解除它
+    const held = run(second, { type: 'undo_unknown', saveId: 'save-2' });
+    expect(
+      run(held, { type: 'undo_reread', saveId: S, draft: first.draft! }),
+    ).toBe(held);
+    // 没有保存时迟到的撤销回执不改页面
+    const blankPage = initialState({ text: '原话' });
+    expect(
+      run(blankPage, { type: 'undone', saveId: S, draftRevision: null }),
+    ).toBe(blankPage);
   });
 });
 

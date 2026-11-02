@@ -1,4 +1,8 @@
 /** Events have one evaluated person. Participants and shared source fragments never imply a score. */
+export { readMediaReviewStateInTransaction } from './material-review/read';
+export type { MediaReviewState } from './material-review/read';
+export { currentImageDecision } from './material-review/image-decision';
+export type { CurrentImageDecision } from './material-review/image-decision';
 export {
   historicalEvaluations,
   historicalParticipants,
@@ -114,3 +118,7 @@ export type { ValidatedUpload } from './uploads/handoff';
 export type { UploadCollectionMembers } from './uploads/types';
 
 export { readAuthorizedMaterialSource } from './material-sources/read';
+export type {
+  StoredRecordOriginalInput,
+  MediaRecordOriginalInput,
+} from './arrange/input-state/original-input';
