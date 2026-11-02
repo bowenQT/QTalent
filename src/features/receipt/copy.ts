@@ -104,7 +104,7 @@ export const copy = {
       `已确认${name}的这件事${edited ? '（已改分）' : ''}，已进入档案`,
     undone: '已撤销，回到待确认',
     undoFailed: '撤销被拒绝，以回执里的状态为准',
-    undoLate: '撤销时间已过，这件事已确认',
+    undoLate: '撤销时间已过，以回执里的状态为准',
     undoUnknown: '撤销结果待核实，可以在这件事上再试一次',
     undoSuperseded: '这件事已在别处再次确认，以回执里的状态为准',
   },
