@@ -8,6 +8,8 @@ vi.mock('../integrations/kodo', async (original) => ({
     return h.storage;
   },
 }));
+// Outside the test environment there is no test Kodo to fall back on.
+vi.mock('./test-kodo', () => ({ testKodoForServer: () => null }));
 
 import {
   materialUploadHandlersForServer,
