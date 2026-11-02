@@ -63,7 +63,7 @@ function StageSide({
           {side === 'front'
             ? standardVersionId
             : present
-              ? `评审 ${present.evaluator.name}`
+              ? `${present.standardVersionId} · 评审 ${present.evaluator.name}`
               : ''}
         </span>
       </div>
