@@ -162,6 +162,8 @@ function syntheticReview(
     shift?: number;
     wrap?: [string, string];
     result?: false;
+    /** Leave out this formal interview field. */
+    drop?: string;
     /** Leave this first-row option without its own circle. */
     omit?: string;
   } = {},
@@ -221,10 +223,16 @@ function syntheticReview(
     change.candidate === null
       ? ''
       : text('候选人：' + (change.candidate ?? '谷嘉树（演示）'), 40, 150),
-    text('面试官：陈川（演示）', 40, 165),
-    text('面试时间：2026-10-01 10:00（演示）', 40, 190),
-    text('面试类型：专业面试', 40, 215),
-    change.result === false ? '' : text('面试结果：通过（演示）', 40, 240),
+    ...[
+      ['面试官', '面试官：陈川（演示）', 165],
+      ['面试时间', '面试时间：2026-10-01 10:00（演示）', 190],
+      ['面试类型', '面试类型：专业面试', 215],
+      ['面试结果', '面试结果：通过（演示）', 240],
+    ].map(([label, line, y]) =>
+      change.drop === label || (label === '面试结果' && change.result === false)
+        ? ''
+        : text(line as string, 40, y as number),
+    ),
     ...rows,
     radio('面试评级', 500, ['S', 'A', 'B', 'C', 'D'], ['B']),
     change.crossPage
@@ -1271,4 +1279,55 @@ describe('BOW-900 parser hardening before upload wiring', () => {
       });
     },
   );
+});
+
+describe('BOW-900 interview field block matches the template exactly', () => {
+  const fields = [
+    ['面试官', 'interviewer', 165],
+    ['面试时间', 'interviewTime', 190],
+    ['面试类型', 'interviewType', 215],
+    ['面试结果', 'interviewResult', 240],
+  ] as const;
+  const paraphrase = '补充说明：以下为转述，尚未确认。';
+  it.each(
+    fields.flatMap(([label, key, y]) => [
+      [
+        label,
+        'an extra line inside the field block',
+        key,
+        [text(paraphrase, 40, 172), text(`${label}：转述值（演示）`, 40, 178)],
+      ],
+      [
+        label,
+        'lines between the field block and the first score row',
+        key,
+        [text(paraphrase, 40, 260), text(`${label}：转述值（演示）`, 40, 275)],
+      ],
+      [
+        label,
+        'its label out of the field column',
+        key,
+        [text(`${label}：转述值（演示）`, 120, y)],
+      ],
+    ]),
+  )('does not read %s from %s', async (label, _, key, cover) => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        drop: label,
+        cover: cover.join('\n'),
+      }),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).metadata[key]).toBeNull();
+  });
+  it('still reads every field when the block is exactly the template', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0]),
+      demoOptions,
+    );
+    expect(result.status).toBe('parsed');
+    const { metadata } = review(result);
+    for (const [, key] of fields) expect(metadata[key]).not.toBeNull();
+  });
 });

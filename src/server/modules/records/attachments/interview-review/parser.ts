@@ -128,6 +128,48 @@ function labelLine(line: Line, label: string): boolean {
   const rest = value.slice(compact(label).length);
   return rest === '' || /^[：:]/.test(rest);
 }
+/** Field rows of the supported form's interview block, in printed order. */
+const blockFields = [
+  ['候选人'],
+  ['面试官姓名', '面试官'],
+  ['面试时间'],
+  ['面试类型'],
+  ['面试结果'],
+];
+function fieldBlockMatches(block: Line[], beforeScores: boolean): boolean {
+  let next = 0;
+  let column: number | null = null;
+  let valueExpected = false;
+  for (const [index, line] of block.entries()) {
+    if (valueExpected) {
+      valueExpected = false;
+      continue;
+    }
+    if (heading(line)) continue;
+    const at = blockFields.findIndex(
+      (labels, field) =>
+        field >= next && labels.some((label) => labelLine(line, label)),
+    );
+    if (at >= 0) {
+      const left = line.spans[0]!.box[0];
+      if (column !== null && Math.abs(left - column) > 2) return false;
+      column ??= left;
+      next = at + 1;
+      const label = blockFields[at]!.find((item) => labelLine(line, item))!;
+      valueExpected = stripLabel(line.text, label) === '';
+      continue;
+    }
+    // The scale caption printed between the fields and the first score row.
+    if (
+      beforeScores &&
+      index === block.length - 1 &&
+      /^原表维度选择/.test(compact(line.text))
+    )
+      continue;
+    return false;
+  }
+  return true;
+}
 function hasRadios(line: Line, pages: PdfLayoutPage[]): boolean {
   const page = pages.find((item) => item.page === line.page);
   return (
@@ -454,6 +496,14 @@ function parseSection(
     );
   const late = commentAt < 0 ? [] : labelledAfter(commentAt + 1);
   for (const group of labelledAfter(blockEnd)) repeated.add(group);
+  // The block itself must be exactly the template's: headings, the field labels in their fixed
+  // order and one column, a value line only under a label printed without one, and the scale
+  // caption right before the first score row. Anything else in it (an extra line, a label out
+  // of order or out of column) leaves every interview field unread.
+  if (!fieldBlockMatches(lines.slice(0, blockEnd), blockEnd === scoresAt))
+    for (const group of fieldGroups)
+      if (readFieldLabels.some((label) => group.includes(label)))
+        repeated.add(group);
   for (const group of late) repeated.add(group);
   const uncertain = (label: string) =>
     [...repeated].some((group) => group.includes(label));
