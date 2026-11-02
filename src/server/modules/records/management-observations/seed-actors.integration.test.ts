@@ -11,13 +11,13 @@ import {
   createManagementObservation,
   readManagementObservations,
 } from '../../../usecases/management-observations';
-import { planLegacyEvaluationNodes } from '../../programs';
 import * as directory from '../../directory/schema';
 import * as programs from '../../programs/schema';
 import * as staffing from '../../staffing/schema';
 import * as evaluation from '../../evaluation-system/schema';
 import * as talent from '../../talent/schema';
 import * as records from '../schema';
+import * as saves from '../save-state/schema';
 import * as auth from '../../../auth/schema';
 import * as audit from '../../../platform/audit/schema';
 import * as observations from './schema';
@@ -67,6 +67,7 @@ beforeAll(async () => {
     ...evaluation,
     ...talent,
     ...records,
+    ...saves,
     ...auth,
     ...audit,
     ...observations,
@@ -78,22 +79,11 @@ beforeAll(async () => {
     await db().execute(sql.raw(statement));
   seed = mapPrototypeSeed(readPrototypeSeed(process.cwd()));
   await importDemo(db(), seed, 'Synthetic-904-test-password-only');
-  // Use 899's existing cohort mapping, never invent a graduation node or infer permissions from noReview.
-  const assignments = await db().select().from(programs.assignments);
-  const plan = planLegacyEvaluationNodes({
-    cohorts: seed.cohorts,
-    people: seed.people,
-    enrollments: seed.enrollments,
-    assignments,
-    projects: seed.projects,
-    events: [],
-  });
-  await db().insert(programs.evaluationNodes).values(plan.nodes);
-  await db().insert(programs.evaluationNodeSubjects).values(plan.subjects);
-  if (plan.relations.length)
-    await db().insert(programs.evaluationRelations).values(plan.relations);
+  // importDemo already writes 899's cohort node mapping; never invent a
+  // graduation node or infer permissions from noReview.
+  const relations = await db().select().from(programs.evaluationRelations);
   const mentor = seed.accounts.find((a) => a.role === 'mentor')!;
-  const relation = plan.relations.find(
+  const relation = relations.find(
     (r) =>
       r.evaluatorId === mentor.personId &&
       r.evaluationNodeId === 'cohort:b-xe6',
