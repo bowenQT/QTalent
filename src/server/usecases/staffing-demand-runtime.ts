@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { fromDrizzle, type PgBoss } from 'pg-boss';
 import { z } from 'zod';
-import type { Database } from '../db/client';
+import type { Database, Transaction } from '../db/client';
 import type { ModelinkMaasClient } from '../integrations/maas';
 import { ForbiddenError } from './project-context';
 import { loadEvaluationContext } from './evaluation-context';
@@ -12,6 +12,7 @@ import {
 } from '../modules/staffing/demand/service';
 import {
   demandJobPolicy,
+  readDemandCreationSnapshotInTransaction,
   runDemandGeneration,
 } from '../modules/staffing/demand/job';
 
@@ -61,6 +62,18 @@ export function createStaffingDemandRuntime(input: {
   return {
     service: createDemandService(deps),
     policy: demandJobPolicy(deps),
+    readCreationSnapshotInTransaction(
+      tx: Transaction,
+      accountId: string,
+      input: { operationId: string; jobId: string },
+    ) {
+      return readDemandCreationSnapshotInTransaction(
+        deps,
+        tx,
+        accountId,
+        input,
+      );
+    },
     async run(payload: unknown) {
       if (!input.maas)
         throw new Error(

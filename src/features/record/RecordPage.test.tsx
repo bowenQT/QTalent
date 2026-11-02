@@ -452,8 +452,7 @@ describe('多件事或有核对项：交给回执页', () => {
       expect(
         screen.queryByRole('button', { name: copy.actions.save }),
       ).toBeNull();
-      // 回执确认待接通：本页能回去改原话，原话还在输入框里
-      expect(screen.getByText(copy.handoff.pending)).toBeTruthy();
+      // 本页仍能回去改原话，原话还在输入框里
       await click(copy.actions.back);
       expect(
         (screen.getByRole('textbox') as HTMLTextAreaElement).value,
