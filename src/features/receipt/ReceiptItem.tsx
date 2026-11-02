@@ -11,7 +11,7 @@ import type { MaterialSourceReference } from '@/contracts/sources';
 import { copy } from './copy';
 import {
   draftScoreKey,
-  formatLocation,
+  locationFor,
   isEdited,
   leadQuote,
   materialCount,
@@ -47,14 +47,36 @@ export type ConfirmedDraft = {
 
 export type ItemProblem = { message: string; reload: boolean };
 
+/** 回到待确认时，恢复保存时的分和理由。 */
+export type RestoredEdit = { values: EditValues; reason: string };
+
+/**
+ * 撤销请求发出去了、结果不知道：卡片不说「已确认」，给出用同一次撤销重试的入口。
+ * verify：重试被拒也证明不了之前那次没生效，改为请用户刷新回执核实。
+ */
+export type PendingUndo = {
+  busy: boolean;
+  verify: boolean;
+  /** 上一次刷新没读到结果。 */
+  failed: boolean;
+  onRetry: () => void;
+  onVerify: () => void;
+};
+
 type Props = {
   view: ReceiptView;
   draft: RecordBatchDraft;
-  /** mine：当前查看人确认；others：等别人确认；confirmed：本页刚确认过。 */
+  /** mine：当前查看人确认；others：等别人确认；confirmed：本页保存的确认。 */
   mode: 'mine' | 'others' | 'confirmed';
   confirmed?: ConfirmedDraft;
   busy: boolean;
+  /** 回执已失效：输入留着可以复制，操作停下。 */
+  frozen?: boolean;
   problem: ItemProblem | null;
+  /** 回到待确认、要恢复的保存时的分和理由。 */
+  restore?: RestoredEdit | null;
+  /** 本页刚确认的事撤销结果未知。 */
+  pendingUndo?: PendingUndo | null;
   onConfirm: (values: EditValues, reason: string) => void;
   onReload: () => void;
 };
@@ -80,24 +102,50 @@ export function ReceiptItem({
   mode,
   confirmed,
   busy,
+  frozen = false,
   problem,
+  restore = null,
+  pendingUndo = null,
   onConfirm,
   onReload,
 }: Props) {
   const { receipt } = view;
-  const [editing, setEditing] = useState(false);
-  const [values, setValues] = useState<EditValues>(() =>
-    suggestedValues(draft),
+  // 撤销回来的事一挂载就带着保存时的分和理由（卡片换了位置重新挂载时也一样）
+  const [editing, setEditing] = useState(() =>
+    restore ? isEdited(draft, restore.values) : false,
   );
-  const [reason, setReason] = useState('');
+  const [values, setValues] = useState<EditValues>(
+    () => restore?.values ?? suggestedValues(draft),
+  );
+  const [reason, setReason] = useState(() => restore?.reason ?? '');
   const [whyMissing, setWhyMissing] = useState(false);
-  // 草稿有了新版本（轮询或载入最新版本）：分值换成新的建议；正在改的分作废并说明
-  const [revision, setRevision] = useState(draft.revision);
+  // 建议分变了（轮询或载入最新版本带回新的整理结果）：分值换成新的建议，正在改的分作废并说明。
+  // 只比建议分本身，不看版本号：撤销会推进版本，建议分没变，改过的分和理由照旧留着
+  // 先按人和维度排序再比，不受 scores 顺序影响
+  const suggestion = JSON.stringify(
+    Object.entries(suggestedValues(draft)).sort(([a], [b]) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    ),
+  );
+  const [seen, setSeen] = useState(suggestion);
   const [refreshed, setRefreshed] = useState(false);
-  if (revision !== draft.revision) {
-    setRevision(draft.revision);
+  // 卡片没重新挂载、但从已确认回到待确认（快照或撤销结果说明了它）：有要恢复的输入就换上，
+  // 没有就回到 AI 建议，组件里残留的上一次输入不再出现
+  const basis =
+    mode === 'confirmed' ? 'confirmed' : restore ? JSON.stringify(restore) : '';
+  const [base, setBase] = useState(basis);
+  if (seen !== suggestion) {
+    setSeen(suggestion);
     setValues(suggestedValues(draft));
     setRefreshed(editing);
+  } else if (basis !== base) {
+    setBase(basis);
+    if (basis !== 'confirmed') {
+      setValues(restore?.values ?? suggestedValues(draft));
+      setReason(restore?.reason ?? '');
+      setEditing(restore ? isEdited(draft, restore.values) : false);
+      setRefreshed(false);
+    }
   }
   // 一件事涉及多人时，每个分数写明是谁的
   const who = (personId: string) =>
@@ -143,7 +191,38 @@ export function ReceiptItem({
   };
 
   let foot;
-  if (mode === 'confirmed')
+  if (mode === 'confirmed' && pendingUndo)
+    foot = (
+      <div className="n-rcpt__foot">
+        <span className="nt-muted" role="status">
+          <span>
+            {pendingUndo.verify
+              ? copy.confirm.undoVerify
+              : copy.confirm.undoPending}
+          </span>
+          {pendingUndo.verify && pendingUndo.failed ? (
+            <>
+              <br />
+              <span>{copy.confirm.undoReadFailed}</span>
+            </>
+          ) : null}
+        </span>
+        <button
+          className="n-btn n-btn--sm n-btn--ghost"
+          type="button"
+          disabled={pendingUndo.busy || frozen}
+          aria-busy={pendingUndo.busy || undefined}
+          onClick={
+            pendingUndo.verify ? pendingUndo.onVerify : pendingUndo.onRetry
+          }
+        >
+          {pendingUndo.verify
+            ? copy.confirm.undoReread
+            : copy.confirm.undoRetry}
+        </button>
+      </div>
+    );
+  else if (mode === 'confirmed')
     foot = (
       <div className="n-rcpt__foot">
         <span className="n-block__sig">{confirmed?.by}</span>
@@ -194,7 +273,7 @@ export function ReceiptItem({
                 className="n-input"
                 aria-label={copy.edit.scoreLabel(dim)}
                 value={values[key]}
-                disabled={busy}
+                disabled={busy || frozen}
                 onChange={(e) =>
                   setValues((v) => ({
                     ...v,
@@ -222,6 +301,7 @@ export function ReceiptItem({
             rows={2}
             value={reason}
             disabled={busy}
+            readOnly={frozen}
             aria-invalid={whyMissing || undefined}
             placeholder={
               whyMissing ? copy.edit.whyRequired : copy.edit.whyPlaceholder
@@ -236,7 +316,7 @@ export function ReceiptItem({
           <button
             className="n-btn n-btn--sm n-btn--ink"
             type="button"
-            disabled={busy}
+            disabled={busy || frozen}
             onClick={save}
           >
             {copy.edit.save}
@@ -244,7 +324,7 @@ export function ReceiptItem({
           <button
             className="n-btn n-btn--sm n-btn--ghost"
             type="button"
-            disabled={busy}
+            disabled={busy || frozen}
             onClick={() => {
               setEditing(false);
               setValues(suggestedValues(draft));
@@ -264,7 +344,7 @@ export function ReceiptItem({
         <button
           className="n-btn n-btn--sm n-btn--ink"
           type="button"
-          disabled={busy}
+          disabled={busy || frozen}
           onClick={() => onConfirm(suggestedValues(draft), '')}
         >
           <Icon name="check" />
@@ -273,7 +353,7 @@ export function ReceiptItem({
         <button
           className="n-btn n-btn--sm n-btn--ghost"
           type="button"
-          disabled={busy}
+          disabled={busy || frozen}
           onClick={() => {
             setEditing(true);
             requestAnimationFrame(() => firstSelect.current?.focus());
@@ -312,7 +392,7 @@ export function ReceiptItem({
             source={{
               kind: citeKind[ref.location.kind],
               title: materialLabel(receipt, ref.originalVersionId),
-              location: formatLocation(ref),
+              location: locationFor(receipt, ref),
             }}
           />
         ))}

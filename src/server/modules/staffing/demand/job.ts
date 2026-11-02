@@ -1,19 +1,20 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { AuthzContext } from '../../../authz';
 import {
   metadataFor,
   MODELINK_MODEL,
   type ModelinkMaasClient,
 } from '../../../integrations/maas';
-import { createJobStore } from '../../../jobs/repository';
+import { createJobStore, readJobInTransaction } from '../../../jobs/repository';
 import { advanceJob, type JobRecord } from '../../../jobs/state';
-import type { JobPolicy } from '../../../jobs/service';
+import { presentJobSnapshot, type JobPolicy } from '../../../jobs/service';
+import type { JobSnapshot } from '../../../../contracts/jobs';
 import type { Transaction } from '../../../db/client';
 import { staffingDemandSchema } from '../../../../contracts/staffing';
 import { canReadDemand, canWriteDemand } from './policy';
 import { generateDemandRequirements, DEMAND_PROMPT_VERSION } from './prompt';
-import { demandRoots, demandVersions } from './schema';
+import { demandOperations, demandRoots, demandVersions } from './schema';
 import {
   loadDemandRoot,
   inputVersion,
@@ -81,6 +82,78 @@ export function demandJobPolicy(
       await deps.enqueue(tx, job);
     },
   };
+}
+/**
+ * Read-only creation lookup on the caller's Read Committed transaction.
+ * Lock job before root, like the worker; load operation and authority only after
+ * both waits. Never replay the creation acknowledgement or a later demand edit.
+ */
+export async function readDemandCreationSnapshotInTransaction(
+  deps: DemandDependencies,
+  tx: Transaction,
+  accountId: string,
+  input: { operationId: string; jobId: string },
+): Promise<JobSnapshot | null> {
+  // Lock-then-reread is only fresh under Read Committed; a repeatable read
+  // snapshot taken before the wait would present stale status/authority.
+  const { rows } = await tx.execute<{ isolation: string }>(
+    sql`select current_setting('transaction_isolation') as isolation`,
+  );
+  if (rows[0]?.isolation !== 'read committed')
+    throw new Error('Demand creation snapshot requires Read Committed');
+  const job = await readJobInTransaction(tx, input.jobId, true);
+  if (!job || job.kind !== 'staffing_demand' || job.resourceId !== job.jobId)
+    return null;
+  await loadDemandRoot(tx, job.resourceId, true);
+  // Fresh statements after a possible root wait must not use a pre-lock join.
+  const root = await loadDemandRoot(tx, job.resourceId);
+  const [operation] = await tx
+    .select()
+    .from(demandOperations)
+    .where(
+      and(
+        eq(demandOperations.accountId, accountId),
+        eq(demandOperations.operationId, input.operationId),
+        isNull(demandOperations.revision),
+      ),
+    );
+  if (
+    !root ||
+    !operation ||
+    operation.demandId !== root.id ||
+    operation.fingerprint !==
+      JSON.stringify(['create', root.projectId, root.inputText]) ||
+    root.initiatorAccountId !== accountId ||
+    job.inputVersion !== inputVersion(root.inputText, root.promptVersion)
+  )
+    return null;
+  const context = await currentContext(deps, tx, accountId);
+  if (
+    !context ||
+    context.account.id !== accountId ||
+    context.account.personId !== root.initiatorPersonId ||
+    !canReadDemand(context, root)
+  )
+    return null;
+  if (job.result !== null) {
+    const result = staffingDemandSchema.safeParse(job.result);
+    if (
+      !result.success ||
+      job.status === 'queued' ||
+      result.data.id !== root.id ||
+      result.data.projectId !== root.projectId ||
+      result.data.inputText !== root.inputText ||
+      result.data.revision !== 1
+    )
+      return null;
+  }
+  const response = await presentJobSnapshot(
+    tx,
+    accountId,
+    job,
+    demandJobPolicy(deps),
+  );
+  return response.status === 'success' ? response.snapshot : null;
 }
 /** Only a queued attempt may call the provider. Redelivery of running is deliberately not resent. */
 export async function runDemandGeneration(
