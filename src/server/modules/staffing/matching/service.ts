@@ -101,6 +101,12 @@ export function projectMatchingRun(
     const visibleSourceKeys = new Set(
       visible.map((unit) => sourceKey(unit.source)),
     );
+    // An AI judgment was formed from this candidate's whole eligible input. If
+    // any of those events is withdrawn or edited, the judgment is stale even
+    // when another event still cites the same source.
+    const inputIntact =
+      visible.length ===
+      candidate.evidence.filter((unit) => isMatchingNature(unit.nature)).length;
     const requirements = candidate.cells.map(({ match, review }) => {
       const permitted = <T extends NonNullable<Match['aiJudgment']>>(
         judgment: T | null,
@@ -112,13 +118,15 @@ export function projectMatchingRun(
           ? judgment
           : null;
       const checkedReview = unsupportedReviewSchema.safeParse(review);
-      const aiJudgment = permitted(
-          match.aiJudgment?.conclusion === 'not_supported' &&
-            (!checkedReview.success ||
-              checkedReview.data.status !== 'confirmed')
-            ? null
-            : match.aiJudgment,
-        ),
+      const aiJudgment = inputIntact
+          ? permitted(
+              match.aiJudgment?.conclusion === 'not_supported' &&
+                (!checkedReview.success ||
+                  checkedReview.data.status !== 'confirmed')
+                ? null
+                : match.aiJudgment,
+            )
+          : null,
         humanJudgment = permitted(match.humanJudgment);
       return {
         requirementId: match.requirementId,
