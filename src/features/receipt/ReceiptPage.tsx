@@ -551,14 +551,14 @@ export function ReceiptPage({
               </pre>
               <p className="nt-caption">{copy.channel.mcpCaption}</p>
             </article>
-          ) : (
+          ) : view.wecomReceipt ? (
             <article className="n-card n-imcard">
               <h3 className="n-section-title">{copy.channel.web}</h3>
               <p className="nt-muted" style={{ margin: 0 }}>
                 {copy.channel.webText}
               </p>
             </article>
-          )}
+          ) : null}
           <article className="n-card">
             <h3 className="n-section-title">{copy.people}</h3>
             <div className="nt-grid" style={{ gap: 'var(--s-2)' }}>

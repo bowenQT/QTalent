@@ -103,6 +103,7 @@ function make(
       },
     },
     dimensions: { 'demo-professionalism': '专业度', 'demo-potential': '潜力' },
+    wecomReceipt: true,
     confirmers: {
       'demo-event-draft-a': { mine: true, name: '叶青' },
       'demo-event-draft-b': { mine: false, name: '苏晚' },
@@ -208,6 +209,15 @@ describe('入口与证据', () => {
     );
     expect(document.querySelector('.n-rstate')?.textContent).toBe('处理失败');
     expect(screen.getByText('1 个失败')).toBeTruthy();
+  });
+
+  it('企业微信回执没接通或没绑定时，网页交的材料不写「回执也会发到」，也不放占位', () => {
+    mount(make({ entry: 'web', tool: null, wecomReceipt: false }));
+    expect(screen.queryByText(copy.channel.web)).toBeNull();
+    expect(screen.queryByText(copy.channel.webText)).toBeNull();
+    expect(document.querySelectorAll('aside .n-imcard')).toHaveLength(0);
+    // 右栏其余内容照常
+    expect(screen.getByText(copy.people)).toBeTruthy();
   });
 });
 

@@ -297,6 +297,8 @@ export const sampleMeta = {
   title: '分镜工厂 · 二组 结营路演',
   entry: 'wecom' as const,
   tool: null,
+  // 演示数据照原型：企业微信回执已接通，提交人已绑定
+  wecomReceipt: true,
   submittedBy: '叶青',
   submittedAt: '2026-09-03T13:10:00.000Z',
 };

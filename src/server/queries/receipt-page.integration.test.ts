@@ -72,6 +72,7 @@ it('names the batch, its submitter and people, and lets the evaluator confirm', 
     receipt: h.receipt,
     title: '演示记录节点',
     entry: 'web',
+    wecomReceipt: false,
     tool: null,
     submittedBy: evaluator!.name,
   });

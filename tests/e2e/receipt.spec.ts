@@ -155,6 +155,8 @@ test('mentor: a batch handed in on /record opens on the real receipt route, for 
   await expect(page.locator('.n-rstate')).toContainText('处理中');
   await expect(page.locator('h1')).not.toHaveText('回执');
   await expect(page.getByText('统一投递', { exact: false })).toBeVisible();
+  // 企业微信回执还没接通：不写「回执也会发到」
+  await expect(page.getByText('回执也会发到')).toHaveCount(0);
   await expect(page.locator('.n-state__title')).toHaveCount(0);
 
   // Another business account does not see this batch.
