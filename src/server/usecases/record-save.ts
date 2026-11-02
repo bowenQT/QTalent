@@ -61,7 +61,11 @@ import {
 } from '../modules/talent/record-confirmation';
 import { createConfirmRecordDraftUsecase } from './confirm-record-draft';
 import { loadEvaluationContext } from './evaluation-context';
-import { talentSources } from './talent-source-projection';
+import {
+  completeTalentSources,
+  readIntakeTable,
+  type IntakeTable,
+} from './talent-source-projection';
 import { ForbiddenError } from './project-context';
 import { recordAudit } from '../platform/audit';
 import { cancelWithdrawnRecordConfirmationWork } from './record-undo-work';
@@ -317,6 +321,7 @@ async function readSources(
   draft: RecordBatchDraft,
   clock: RecordSaveClock,
   actorPersonId: string,
+  intake: IntakeTable,
 ): Promise<ConfirmationSourceFact[]> {
   const data = await readEvidenceForTalent(tx);
   const current = await loadCurrent(
@@ -325,10 +330,9 @@ async function readSources(
     clock.businessNow(),
     actorPersonId,
   );
-  const projected = talentSources({ ...data, ...current });
   return resolveRecordSourceFacts(draft.sourceReferences, {
     ...data,
-    sources: projected,
+    sources: completeTalentSources({ ...data, ...current, intake }),
   });
 }
 
@@ -348,6 +352,8 @@ async function execute(
           .for('share');
         const initial = await loadCurrent(tx, accountId, clock.businessNow());
         const actorPersonId = initial.context.account.personId;
+        // Intake SHARE before batch / draft locks; see readIntakeTable.
+        const sourceInputs = await readIntakeTable(tx, 'locked');
         const lock = await lockRecordCommand(tx, accountId, command);
         await loadCurrent(
           tx,
@@ -428,7 +434,14 @@ async function execute(
             ).context,
           readRules: (versions) => readFrozenRules(tx, versions),
           readSources: (_account, retainedDraft) =>
-            readSources(tx, accountId, retainedDraft, clock, actorPersonId),
+            readSources(
+              tx,
+              accountId,
+              retainedDraft,
+              clock,
+              actorPersonId,
+              sourceInputs,
+            ),
         });
         const outcome =
           command.action === 'save'

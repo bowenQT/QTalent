@@ -3,7 +3,7 @@ import { personSchema } from '../../contracts/person';
 import { fixture } from './person-test-helpers';
 import { personFromData } from './person-projection';
 import { peopleFromData, quickViewFromData } from './people';
-import { sourceFromData } from './sources';
+import { projectReadableSources, sourceFromData } from './sources';
 import type { PersonData } from './person-data';
 
 // ---------- helpers ----------
@@ -634,6 +634,32 @@ describe('source detail', () => {
         excerpt: 'Synthetic observation',
       },
     });
+  });
+});
+
+describe('shared source projection', () => {
+  it('keeps every relation and details only the sources the caller can read', async () => {
+    const data = fixture('mentor');
+    // event-1 becomes a management observation the mentor cannot read.
+    data.statements[1].kind = 'management_observation';
+    const { sources, details } = await projectReadableSources(data);
+    expect(sources.map((row) => row.fragmentId)).toEqual([
+      'fragment-0',
+      'fragment-1',
+    ]);
+    expect(details.map((row) => row.fragmentId)).toEqual(['fragment-0']);
+    const single = await sourceFromData(data, {
+      fragmentId: 'fragment-0',
+      originalVersionId: 'version',
+    });
+    if (single.status !== 'success')
+      throw new Error('Expected a readable source');
+    expect(details[0]).toEqual(single.source);
+    const manager = await projectReadableSources(fixture('manager'));
+    expect(manager.details.map((row) => row.fragmentId)).toEqual([
+      'fragment-0',
+      'fragment-1',
+    ]);
   });
 });
 
