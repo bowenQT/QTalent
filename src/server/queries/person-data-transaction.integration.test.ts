@@ -42,8 +42,9 @@ import {
   loadPersonData,
   loadPersonDataInTransaction,
   personBusinessDay,
-  talentSources,
+  completeTalentSources,
 } from './person-data';
+import { intakeRows } from '../usecases/talent-source-projection';
 import { nodeFixture } from './person-test-helpers';
 import { sourceFromData } from './sources';
 
@@ -279,10 +280,12 @@ it('retains all intake subjects and required kinds, including another creator an
         );
         await tx.insert(arrangeInputs).values(inputs);
         const data = await loadPersonDataInTransaction(tx, 'account', now);
-        expect(data.intakeInputs).toEqual(expect.arrayContaining(inputs));
-        expect(data.intakeInputs).toHaveLength(2);
-        expect({ ...data, intakeInputs: [] }).toEqual(before);
-        const source = talentSources(data).find(
+        // The intake table is an issued object; compare its rows explicitly.
+        expect(intakeRows(data.intake)).toEqual(expect.arrayContaining(inputs));
+        expect(intakeRows(data.intake)).toHaveLength(2);
+        expect(intakeRows(before.intake)).toEqual([]);
+        expect({ ...data, intake: null }).toEqual({ ...before, intake: null });
+        const source = completeTalentSources(data).find(
           (row) => row.fragmentId === reference.fragmentId,
         )!;
         expect(source.subjects).toEqual([
@@ -306,6 +309,7 @@ it('retains all intake subjects and required kinds, including another creator an
         );
         const outside = await loadPersonData(db, 'account', now);
         expect(outside).toEqual(before);
+        expect(intakeRows(outside.intake)).toEqual([]);
         expect(await sourceFromData(outside, reference)).toHaveProperty(
           'status',
           'success',
@@ -317,7 +321,9 @@ it('retains all intake subjects and required kinds, including another creator an
   ).rejects.toBe(rollback);
   expect(await db.select().from(arrangeInputs)).toEqual([]);
   expect(await db.select().from(jobSnapshots)).toEqual([]);
-  expect(await loadPersonData(db, 'account', now)).toEqual(before);
+  const after = await loadPersonData(db, 'account', now);
+  expect(after).toEqual(before);
+  expect(intakeRows(after.intake)).toEqual([]);
 });
 
 it('keeps the complete wrapper result and authorization errors on the transaction entry', async () => {

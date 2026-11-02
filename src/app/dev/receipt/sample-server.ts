@@ -246,6 +246,12 @@ export function createSampleServer(
           withdrawnEvents: entry.events,
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
+          // 照 846（#317）：撤销也推进版本，回执给出再确认要用的新版本
+          draftRestoration: {
+            status: 'available',
+            draftId: entry.draft.draftId,
+            draftRevision: revision,
+          },
           // 照 846（#289）：撤销回执不带原输入；回执页的事回到待确认，本来也不需要原话
           inputRestoration: 'unavailable',
           originalInput: null,
