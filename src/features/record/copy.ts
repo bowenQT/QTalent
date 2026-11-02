@@ -162,8 +162,7 @@ export const copy = {
     start: '网络中断了，内容还在这里',
     save: '网络中断了，修改还在这里',
   },
-  saveUnavailable:
-    '服务端这次保存中断，修改还在这里，可以稍后再保存，或先复制留存',
+  saveUnavailable: '这次保存中断了，修改还在这里，可以稍后再保存，或先复制留存',
   conflict: {
     title: '这条记录刚刚有了更新，你改的内容还在这里',
     savedAlready: '这条记录已经保存过',
