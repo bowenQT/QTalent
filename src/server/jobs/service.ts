@@ -65,6 +65,47 @@ const safeErrors = {
   input_changed: '输入已变化，请重新确认',
   dependency_unavailable: '依赖暂不可用，请稍后重试',
 };
+export async function presentJobSnapshot<C>(
+  context: C,
+  accountId: string,
+  job: JobRecord,
+  policy: JobPolicy<C>,
+): Promise<JobResponse> {
+  if (!(await policy.can(context, accountId, job, 'read')))
+    return { status: 'forbidden' };
+  const projection = await policy.project(context, accountId, job);
+  const snapshot = {
+    schemaVersion: 1,
+    jobId: job.jobId,
+    kind: job.kind,
+    status: job.status,
+    attempt: job.attempt,
+    revision: job.revision,
+    updatedAt: job.updatedAt,
+    result: projection.result,
+    progress: projection.progress,
+    error:
+      job.errorCode === null
+        ? null
+        : { code: job.errorCode, message: safeErrors[job.errorCode] },
+    canRetry:
+      job.status === 'failed' &&
+      job.cancelRequestedAt === null &&
+      (await policy.can(context, accountId, job, 'retry')),
+    canCancel:
+      !['completed', 'cancelled'].includes(job.status) &&
+      job.cancelRequestedAt === null &&
+      (await policy.can(context, accountId, job, 'cancel')),
+    cancelRequestedAt: job.cancelRequestedAt,
+  };
+  // Projection must filter subjects BEFORE calculating counts; strict consumer schema rejects unknown fields.
+  return {
+    status: 'success',
+    snapshot: createJobSnapshotSchema(policy.kind, policy.resultSchema).parse(
+      snapshot,
+    ),
+  };
+}
 export function createJobService<C>(
   store: JobStore<C>,
   policies: readonly JobPolicy<C>[],
@@ -72,54 +113,14 @@ export function createJobService<C>(
 ) {
   const registry = new Map(policies.map((policy) => [policy.kind, policy]));
   if (registry.size !== policies.length) throw new Error('Duplicate job kind');
-  async function present(
-    tx: JobTransaction<C>,
-    accountId: string,
-    job: JobRecord,
-    policy: JobPolicy<C>,
-  ): Promise<JobResponse> {
-    if (!(await policy.can(tx.context, accountId, job, 'read')))
-      return { status: 'forbidden' };
-    const projection = await policy.project(tx.context, accountId, job);
-    const snapshot = {
-      schemaVersion: 1,
-      jobId: job.jobId,
-      kind: job.kind,
-      status: job.status,
-      attempt: job.attempt,
-      revision: job.revision,
-      updatedAt: job.updatedAt,
-      result: projection.result,
-      progress: projection.progress,
-      error:
-        job.errorCode === null
-          ? null
-          : { code: job.errorCode, message: safeErrors[job.errorCode] },
-      canRetry:
-        job.status === 'failed' &&
-        job.cancelRequestedAt === null &&
-        (await policy.can(tx.context, accountId, job, 'retry')),
-      canCancel:
-        !['completed', 'cancelled'].includes(job.status) &&
-        job.cancelRequestedAt === null &&
-        (await policy.can(tx.context, accountId, job, 'cancel')),
-      cancelRequestedAt: job.cancelRequestedAt,
-    };
-    // Projection must filter subjects BEFORE calculating counts; strict consumer schema rejects unknown fields.
-    return {
-      status: 'success',
-      snapshot: createJobSnapshotSchema(policy.kind, policy.resultSchema).parse(
-        snapshot,
-      ),
-    };
-  }
+
   return {
     read(accountId: string, jobId: string): Promise<JobResponse> {
       return store.locked(jobId, async (tx) => {
         if (!tx.record) return { status: 'not_found' };
         const policy = registry.get(tx.record.kind);
         return policy
-          ? present(tx, accountId, tx.record, policy)
+          ? presentJobSnapshot(tx.context, accountId, tx.record, policy)
           : { status: 'forbidden' };
       });
     },
@@ -152,7 +153,12 @@ export function createJobService<C>(
             if (!authorized) return { status: 'forbidden' };
             if (previous.fingerprint !== fingerprint)
               return { status: 'conflict' };
-            return present(tx, accountId, previous.record, policy);
+            return presentJobSnapshot(
+              tx.context,
+              accountId,
+              previous.record,
+              policy,
+            );
           }
           if (!(await policy.can(tx.context, accountId, current, input.action)))
             return { status: 'forbidden' };
@@ -175,7 +181,7 @@ export function createJobService<C>(
             fingerprint,
             record: next,
           });
-          return present(tx, accountId, next, policy);
+          return presentJobSnapshot(tx.context, accountId, next, policy);
         });
       } catch (error) {
         if (error instanceof JobConflictError) return { status: 'conflict' };

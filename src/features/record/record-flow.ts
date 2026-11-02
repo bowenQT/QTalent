@@ -66,8 +66,28 @@ export function currentSaveId(state: RecordState): string | null {
 export type ConfirmedDraft = BatchReceipt['confirmedDrafts'][number];
 
 /**
- * 结果不明的撤销读到这件事仍在已确认里时，只有读回的版本和事件映射都和这次保存的回执
- * 一致，才能证明原保存仍然有效。别处撤销后又确认过同一份草稿，版本和事件都会变。
+ * 读回的已确认是不是这次保存：版本和人员到事件的映射都和保存回执一致。
+ * 别处撤销后又确认过同一份草稿，版本和事件都会变。回执页也用它判断快照是否已前进。
+ */
+export function matchesSave(
+  saved: Pick<RecordSaveReceipt, 'revision' | 'events'>,
+  entry: ConfirmedDraft,
+): boolean {
+  if (
+    entry.revision !== saved.revision ||
+    entry.events.length !== saved.events.length
+  )
+    return false;
+  return saved.events.every((one) =>
+    entry.events.some(
+      (read) => read.personId === one.personId && read.eventId === one.eventId,
+    ),
+  );
+}
+
+/**
+ * 结果不明的撤销读到这件事仍在已确认里时，只有读回的已确认就是这次保存（matchesSave），
+ * 才能证明原保存仍然有效。
  */
 export function confirmsSave(
   state: RecordState,
@@ -79,17 +99,10 @@ export function confirmsSave(
     !receipt ||
     receipt.saveId !== saveId ||
     state.hold?.saveId !== saveId ||
-    state.hold.kind !== 'pending' ||
-    entry.revision !== receipt.revision ||
-    entry.events.length !== receipt.events.length
+    state.hold.kind !== 'pending'
   )
     return false;
-  return receipt.events.every((saved) =>
-    entry.events.some(
-      (read) =>
-        read.personId === saved.personId && read.eventId === saved.eventId,
-    ),
-  );
+  return matchesSave(receipt, entry);
 }
 
 export type Connection = 'connected' | 'error' | 'gone';
