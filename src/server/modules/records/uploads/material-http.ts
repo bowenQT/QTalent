@@ -8,8 +8,15 @@ import {
 } from '../../../../contracts/material-uploads';
 import type { createRecordCollectionService } from './collections';
 import { commandBody, failure, json } from './http';
+import type { DefaultIntakeNode } from './default-node';
 import type { createUploadService } from './service';
 import { UploadError } from './types';
+
+const defaultNodeMessages = {
+  default_node_missing: '你当前没有可以接收材料的评价节点',
+  default_node_ambiguous:
+    '你同时负责多个评价节点，暂时无法确定材料投递到哪一个',
+} as const;
 
 /** Request→Response boundary for material intake into unassigned staging
  * collections: create the collection, request a direct-upload grant, complete.
@@ -20,6 +27,7 @@ export function createMaterialUploadHttpHandlers(deps: {
   service: ReturnType<typeof createUploadService>;
   trustedOrigin: string;
   authenticate(headers: Headers): Promise<string | null>;
+  defaultNode(accountId: string): Promise<DefaultIntakeNode>;
 }) {
   const origin = new URL(deps.trustedOrigin);
   if (
@@ -31,7 +39,7 @@ export function createMaterialUploadHttpHandlers(deps: {
   const trustedOrigin = origin.origin;
   async function command(
     request: Request,
-    run: (accountId: string, input: unknown) => Promise<unknown>,
+    run: (accountId: string, input: unknown) => Promise<unknown | Response>,
   ) {
     let input: unknown = null;
     try {
@@ -43,7 +51,8 @@ export function createMaterialUploadHttpHandlers(deps: {
       if (!accountId)
         throw new UploadError('unauthenticated', 'authentication_required');
       input = await commandBody(request);
-      return json(await run(accountId, input));
+      const result = await run(accountId, input);
+      return result instanceof Response ? result : json(result);
     } catch (error) {
       return failure(error, input);
     }
@@ -54,16 +63,26 @@ export function createMaterialUploadHttpHandlers(deps: {
         const parsed = materialStagingCollectionInputSchema.safeParse(input);
         if (!parsed.success)
           throw new UploadError('validation_error', 'invalid_input');
+        const node = await deps.defaultNode(accountId);
+        if (node.status !== 'resolved')
+          return json(
+            materialStagingCollectionResultSchema.parse({
+              status: node.status,
+              message: defaultNodeMessages[node.status],
+            }),
+            409,
+          );
         const collection = await deps.collections.create(accountId, {
           operationId: parsed.data.operationId,
           target: {
             kind: 'unassigned',
-            evaluationNodeId: parsed.data.evaluationNodeId,
+            evaluationNodeId: node.evaluationNodeId,
           },
         });
         return materialStagingCollectionResultSchema.parse({
           status: 'success',
           recordCollectionId: collection.id,
+          evaluationNodeId: node.evaluationNodeId,
           expiresAt: new Date(collection.expiresAt).toISOString(),
         });
       }),

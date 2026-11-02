@@ -113,6 +113,8 @@ export {
 } from './uploads/store';
 export type { UploadDispatch, PostgresUploadStore } from './uploads/store';
 export { readValidatedUpload } from './uploads/handoff';
+export { resolveDefaultIntakeNode } from './uploads/default-node';
+export type { DefaultIntakeNode } from './uploads/default-node';
 export { readValidatedUploadInTransaction } from './uploads/handoff-transaction';
 export type { ValidatedUpload } from './uploads/handoff';
 export type { UploadCollectionMembers } from './uploads/types';

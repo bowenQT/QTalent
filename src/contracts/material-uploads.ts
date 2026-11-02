@@ -3,12 +3,13 @@ import { z } from 'zod';
 const id = z.string().min(1).max(200).regex(/\S/);
 const text = z.string().min(1).regex(/\S/);
 
-/** One private staging collection per material submission. The node is the
- * intake scope only; it grants no parsing or model disclosure by itself.
+/** One private staging collection per material submission. The server picks
+ * the submitter's default intake node; the node is the intake scope only and
+ * grants no parsing or model disclosure by itself. Upload requests echo the
+ * returned evaluationNodeId in `target`.
  */
 export const materialStagingCollectionInputSchema = z.strictObject({
   operationId: id,
-  evaluationNodeId: id,
 });
 export const materialStagingCollectionResultSchema = z.discriminatedUnion(
   'status',
@@ -16,7 +17,12 @@ export const materialStagingCollectionResultSchema = z.discriminatedUnion(
     z.strictObject({
       status: z.literal('success'),
       recordCollectionId: id,
+      evaluationNodeId: id,
       expiresAt: z.iso.datetime(),
+    }),
+    z.strictObject({
+      status: z.enum(['default_node_missing', 'default_node_ambiguous']),
+      message: text,
     }),
     z.strictObject({
       status: z.literal('validation_error'),

@@ -6,6 +6,8 @@ import { jobAccount } from '../jobs/request';
 import { createClock } from '../../lib/clock';
 import { createMaterialUploadHttpHandlers } from '../modules/records/uploads/material-http';
 import type { UploadDispatch } from '../modules/records/uploads/store';
+import { resolveDefaultIntakeNode } from '../modules/records/uploads/default-node';
+import { UploadError } from '../modules/records/uploads/types';
 import type { UploadStorage } from '../modules/records/uploads/types';
 import {
   canWriteArrange,
@@ -13,6 +15,7 @@ import {
 } from '../usecases/record-arrange-context';
 import { ForbiddenError } from '../usecases/project-context';
 import { kodoUploadStorageFromEnv } from './kodo-upload-storage';
+import { testKodoForServer } from './test-kodo';
 import { createUploadRuntime } from './upload-runtime';
 
 /** Unassigned staging uploads are processed only after a material batch takes
@@ -78,6 +81,23 @@ export function createMaterialUploadRuntime(input: {
       service: runtime.service,
       trustedOrigin: input.trustedOrigin,
       authenticate: jobAccount,
+      async defaultNode(accountId) {
+        let actor;
+        try {
+          actor = await loadArrangeActor(
+            input.db,
+            accountId,
+            input.businessNow(),
+          );
+        } catch (error) {
+          if (error instanceof ForbiddenError)
+            throw new UploadError('forbidden', 'target_not_writable');
+          throw error;
+        }
+        return resolveDefaultIntakeNode(actor.context, (nodeId) =>
+          canWriteArrange(actor, [], null, nodeId),
+        );
+      },
     }),
   };
 }
@@ -101,7 +121,8 @@ export function materialUploadHandlersForServer(): Record<
 > {
   let storage: UploadStorage | null;
   try {
-    storage = kodoUploadStorageFromEnv();
+    storage =
+      kodoUploadStorageFromEnv() ?? testKodoForServer()?.storage ?? null;
   } catch {
     // A malformed deployment value is a dependency failure, never echoed back.
     storage = null;

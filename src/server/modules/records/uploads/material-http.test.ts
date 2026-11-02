@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { fixture } from '../../../../../tests/fixtures/upload-fake';
 import { createRecordCollectionService } from './collections';
+import type { DefaultIntakeNode } from './default-node';
 import { createMaterialUploadHttpHandlers } from './material-http';
 import { createUploadService } from './service';
 
 const origin = 'https://app.test';
-function handlers(account: string | null = 'account', writable = true) {
+function handlers(
+  account: string | null = 'account',
+  writable = true,
+  node: DefaultIntakeNode = {
+    status: 'resolved',
+    evaluationNodeId: 'demo-node',
+  },
+) {
   const f = fixture();
   const collections = createRecordCollectionService({
     store: f.options.store,
@@ -27,6 +35,7 @@ function handlers(account: string | null = 'account', writable = true) {
       service: createUploadService(f.options),
       trustedOrigin: `${origin}/`,
       authenticate: async () => account,
+      defaultNode: async () => node,
     }),
   };
 }
@@ -40,18 +49,17 @@ const post = (body: unknown, from = origin, method = 'POST') =>
 describe('material upload HTTP boundary', () => {
   it('creates a staging collection for the chosen node and replays it', async () => {
     const { f, http } = handlers();
-    const body = { operationId: 'stage-1', evaluationNodeId: 'demo-node' };
+    const body = { operationId: 'stage-1' };
     const first = await http.createCollection(post(body));
     expect(first.status).toBe(200);
     const created = await first.json();
-    expect(created).toMatchObject({ status: 'success' });
+    expect(created).toMatchObject({
+      status: 'success',
+      evaluationNodeId: 'demo-node',
+    });
     expect(await (await http.createCollection(post(body))).json()).toEqual(
       created,
     );
-    const changed = await http.createCollection(
-      post({ ...body, evaluationNodeId: 'demo-node-2' }),
-    );
-    expect(changed.status).toBe(409);
     expect(f.snapshot().collections).toEqual([
       expect.objectContaining({
         target: { kind: 'unassigned', evaluationNodeId: 'demo-node' },
@@ -60,7 +68,7 @@ describe('material upload HTTP boundary', () => {
   });
 
   it('keeps method, origin, session and permission checks on the server', async () => {
-    const body = { operationId: 'stage-1', evaluationNodeId: 'demo-node' };
+    const body = { operationId: 'stage-1' };
     expect(
       (await handlers().http.createCollection(post(body, origin, 'GET')))
         .status,
@@ -80,13 +88,28 @@ describe('material upload HTTP boundary', () => {
         .status,
     ).toBe(403);
     const invalid = await handlers().http.createCollection(
-      post({ operationId: 'stage-1' }),
+      post({ operationId: 'stage-1', evaluationNodeId: 'demo-node' }),
     );
     expect(invalid.status).toBe(400);
     expect(await invalid.json()).toMatchObject({
       status: 'validation_error',
-      input: { operationId: 'stage-1' },
+      input: { operationId: 'stage-1', evaluationNodeId: 'demo-node' },
     });
+  });
+
+  it('answers a missing or ambiguous default node without creating a collection', async () => {
+    for (const status of [
+      'default_node_missing',
+      'default_node_ambiguous',
+    ] as const) {
+      const { f, http } = handlers('account', true, { status });
+      const response = await http.createCollection(
+        post({ operationId: 'stage-1' }),
+      );
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ status });
+      expect(f.snapshot().collections).toEqual([]);
+    }
   });
 
   it('returns the grant and completion results under their contracts', async () => {
@@ -140,6 +163,7 @@ describe('material upload HTTP boundary', () => {
         service: createUploadService(f.options),
         trustedOrigin: 'ftp://app.test',
         authenticate: async () => 'account',
+        defaultNode: async () => ({ status: 'default_node_missing' }),
       }),
     ).toThrow();
   });

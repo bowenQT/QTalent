@@ -6,7 +6,6 @@ import {
   nativeDatabase,
   seedNativeCase,
 } from '../../../../../tests/fixtures/bow-845/native';
-import { fixture } from '../../../../../tests/fixtures/upload-fake';
 import {
   materialRequestUploadResultSchema,
   completeUploadResultSchema,
@@ -25,18 +24,22 @@ import { refuseMaterialDispatch } from '../../../../server/queries/material-uplo
 import { POST as createCollection } from './collections/route';
 import { POST as requestUpload } from './route';
 import { POST as completeUpload } from './complete/route';
+import {
+  POST as kodoPost,
+  PUT as kodoPut,
+} from '../../test/kodo/[...path]/route';
 
 const h = vi.hoisted(() => ({
   db: undefined as unknown,
-  storage: undefined as unknown,
   account: null as string | null,
 }));
 vi.mock('../../../../server/db/client', async (original) => ({
   ...(await original<typeof import('../../../../server/db/client')>()),
   getDatabase: () => h.db,
 }));
+// No deployed Kodo: the routes fall back to the test-only v2 double.
 vi.mock('../../../../server/queries/kodo-upload-storage', () => ({
-  kodoUploadStorageFromEnv: () => h.storage,
+  kodoUploadStorageFromEnv: () => null,
 }));
 vi.mock('../../../../server/auth', () => ({
   getSession: async () => (h.account ? { user: { id: h.account } } : null),
@@ -50,7 +53,6 @@ vi.mock('../../../../server/access', () => ({
 
 let connection: Awaited<ReturnType<typeof nativeDatabase>>;
 let seeded: Awaited<ReturnType<typeof seedNativeCase>>;
-let kodo: ReturnType<typeof fixture>;
 const origin = 'https://app.test';
 
 beforeAll(async () => {
@@ -62,8 +64,6 @@ afterAll(async () => {
   await connection?.close();
 });
 beforeEach(() => {
-  kodo = fixture();
-  h.storage = kodo.options.storage;
   h.account = seeded.account;
 });
 
@@ -81,14 +81,11 @@ function post(
     }),
   );
 }
-async function stage(node = seeded.node) {
+async function stage(operationId: string = randomUUID()) {
   const response = await post(
     createCollection,
     '/api/record/uploads/collections',
-    {
-      operationId: randomUUID(),
-      evaluationNodeId: node,
-    },
+    { operationId },
   );
   return {
     response,
@@ -98,6 +95,7 @@ async function stage(node = seeded.node) {
 function materialRequest(
   recordCollectionId: string,
   file: { purpose: string; filename: string; mediaType: string; bytes: number },
+  evaluationNodeId = seeded.node,
 ) {
   return {
     purpose: file.purpose,
@@ -105,9 +103,68 @@ function materialRequest(
     filename: file.filename,
     declaredBytes: file.bytes,
     declaredMediaType: file.mediaType,
-    target: { kind: 'unassigned', evaluationNodeId: seeded.node },
+    target: { kind: 'unassigned', evaluationNodeId },
     operationId: randomUUID(),
   };
+}
+/** The browser's v2 multipart upload (init, parts, complete) against the
+ * test-only Kodo route, as the workbench client sends it. */
+async function uploadV2(
+  grant: { uploadEndpoint: string; uploadToken: string; objectKey: string },
+  bytes: Uint8Array,
+  mediaType: string,
+) {
+  const key = Buffer.from(grant.objectKey)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+  const base = `${grant.uploadEndpoint}/buckets/test-bucket/objects/${key}/uploads`;
+  const send = (
+    handler: typeof kodoPost,
+    url: string,
+    init: RequestInit = {},
+  ) =>
+    handler(
+      new Request(url, {
+        ...init,
+        headers: {
+          authorization: `UpToken ${grant.uploadToken}`,
+          ...init.headers,
+        },
+      }),
+      {
+        params: Promise.resolve({
+          path: url.slice(grant.uploadEndpoint.length + 1).split('/'),
+        }),
+      },
+    );
+  const init = await send(kodoPost, base, { method: 'POST' });
+  expect(init.status).toBe(200);
+  const { uploadId } = (await init.json()) as { uploadId: string };
+  const half = Math.ceil(bytes.length / 2);
+  const parts = [];
+  for (const [index, chunk] of [
+    bytes.slice(0, half),
+    bytes.slice(half),
+  ].entries()) {
+    const put = await send(kodoPut, `${base}/${uploadId}/${index + 1}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: chunk,
+    });
+    expect(put.status).toBe(200);
+    parts.push({
+      partNumber: index + 1,
+      etag: ((await put.json()) as { etag: string }).etag,
+    });
+  }
+  const done = await send(kodoPost, `${base}/${uploadId}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ parts, mimeType: mediaType }),
+  });
+  expect(done.status).toBe(200);
+  expect(await done.json()).toMatchObject({ key: grant.objectKey });
 }
 async function deliver(
   recordCollectionId: string,
@@ -125,12 +182,11 @@ async function deliver(
   );
   const result = materialRequestUploadResultSchema.parse(await granted.json());
   if (result.status !== 'success') throw new Error(result.status);
-  // The browser's direct upload, replaced by the synthetic Kodo double.
-  await kodo.put(
-    result.upload.objectKey,
-    new Uint8Array(file.bytes),
-    file.mediaType,
-  );
+  expect(result.upload).toMatchObject({
+    method: 'resumable_v2',
+    uploadEndpoint: `${origin}/api/test/kodo`,
+  });
+  await uploadV2(result.upload, new Uint8Array(file.bytes), file.mediaType);
   const completed = await post(completeUpload, '/api/record/uploads/complete', {
     uploadId: result.upload.uploadId,
     receiptRef: 'synthetic-receipt',
@@ -148,6 +204,8 @@ it('takes a material from grant through direct upload to a verified original', a
   const staged = await stage();
   expect(staged.response.status).toBe(200);
   if (staged.body.status !== 'success') throw new Error(staged.body.status);
+  // The only node with a current relation the account may write.
+  expect(staged.body.evaluationNodeId).toBe(seeded.node);
   const collectionId = staged.body.recordCollectionId;
   const png = await sharp({
     create: { width: 2, height: 2, channels: 3, background: '#c00' },
@@ -210,40 +268,42 @@ it('takes a material from grant through direct upload to a verified original', a
   ]);
 });
 
-it('replays a staging collection and checks permission before comparing a changed payload', async () => {
+it('replays a staging collection and refuses a target node other than the collection’s', async () => {
   const operationId = randomUUID();
-  const body = { operationId, evaluationNodeId: seeded.node };
-  const first = await (
-    await post(createCollection, '/api/record/uploads/collections', body)
-  ).json();
-  const again = await (
-    await post(createCollection, '/api/record/uploads/collections', body)
-  ).json();
-  expect(again).toEqual(first);
-  const changed = await post(
-    createCollection,
-    '/api/record/uploads/collections',
-    {
-      operationId,
-      evaluationNodeId: seeded.otherNode,
-    },
+  const first = await stage(operationId);
+  const again = await stage(operationId);
+  expect(again.body).toEqual(first.body);
+  if (first.body.status !== 'success') throw new Error(first.body.status);
+  const elsewhere = await post(
+    requestUpload,
+    '/api/record/uploads',
+    materialRequest(
+      first.body.recordCollectionId,
+      {
+        purpose: 'attachment',
+        filename: 'demo.txt',
+        mediaType: 'text/plain',
+        bytes: 12,
+      },
+      seeded.otherNode,
+    ),
   );
-  // The changed node is outside the account's scope; authorization answers first.
-  expect(changed.status).toBe(403);
+  expect(elsewhere.status).toBe(403);
 });
 
 it('decides the session and node write permission on the server', async () => {
   h.account = null;
   expect((await stage()).response.status).toBe(401);
+  // No current relation on any writable node: nothing to deliver into.
   h.account = seeded.outsiderAccount;
-  expect((await stage()).response.status).toBe(403);
+  const outsider = await stage();
+  expect(outsider.response.status).toBe(409);
+  expect(outsider.body).toMatchObject({ status: 'default_node_missing' });
   h.account = seeded.account;
-  // The account writes records only for subjects of the main node.
-  expect((await stage(seeded.otherNode)).response.status).toBe(403);
   const crossSite = await post(
     createCollection,
     '/api/record/uploads/collections',
-    { operationId: randomUUID(), evaluationNodeId: seeded.node },
+    { operationId: randomUUID() },
     'https://elsewhere.invalid',
   );
   expect(crossSite.status).toBe(403);
