@@ -48,6 +48,7 @@ import {
 import { materialBatchReceiptSchema } from '../../contracts/materials';
 import { recordBatchDraftSetSchema } from '../../contracts/record';
 import { loadRecordBatchSnapshot } from './record-arrange-context';
+import { readIntakeTable } from './talent-source-projection';
 import { parseBatchMetadata } from './record-batch-arrange-state';
 import { prepareBatch } from '../modules/records/arrange/batch';
 import { readBatchArrangeRules } from '../modules/records/arrange/batch-rules';
@@ -204,6 +205,54 @@ it('concurrent distinct intakes by the same account commit without upgrading a s
   ).toHaveLength(2);
   expect(h.calls()).toBe(0);
 });
+async function waitingOnIntake() {
+  for (let i = 0; i < 200; i++) {
+    const { rows } = await connection.db.execute(
+      sql`select count(*)::int as n from pg_locks l join pg_class c on c.oid = l.relation where c.relname = 'records_arrange_inputs' and not l.granted`,
+    );
+    if ((rows[0] as { n: number }).n > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('runner never waited on the intake lock');
+}
+it('the runner takes intake SHARE before the job row, so a same-operation submit replay cannot deadlock it', async () => {
+  const h = await setup();
+  const created = await submitted(h);
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  let replayLockedJob = false;
+  let holding!: () => void;
+  const held = new Promise<void>((resolve) => (holding = resolve));
+  // A submit replay's first lock is the intake writer lock; it then locks the job row.
+  const replay = connection.db.transaction(async (tx) => {
+    await tx.execute(
+      sql`lock table ${arrangeInputs} in share row exclusive mode`,
+    );
+    holding();
+    await released;
+    await tx.execute(
+      sql`select job_id from ${jobSnapshots} where job_id = ${created.jobId} for update nowait`,
+    );
+    replayLockedJob = true;
+  });
+  await held;
+  const run = h.app.runner.run(created.jobId, 1);
+  await waitingOnIntake();
+  // The runner waits on intake without holding the job row: the replay's
+  // NOWAIT row lock succeeds instead of forming a cycle.
+  release();
+  await replay;
+  expect(replayLockedJob).toBe(true);
+  expect(await run).not.toBe('ignored');
+  expect(h.calls()).toBe(1);
+  // The real replay and a second delivery also finish together.
+  const [again, second] = await Promise.all([
+    h.app.requests.create(h.account, h.input),
+    h.app.runner.run(created.jobId, 1),
+  ]);
+  expect(again).toMatchObject({ status: 'success', replayed: true });
+  expect(second).toBeDefined();
+}, 30000);
 it('unknown people remain a real pending intake; old node-less or stale selection cannot dispatch or rewrite it', async () => {
   const h = await setup();
   const pending = await h.app.requests.create(h.account, {
@@ -245,6 +294,42 @@ it('unknown people remain a real pending intake; old node-less or stale selectio
         .where(eq(arrangeInputs.id, input!.id))
     )[0]!.personIds,
   ).toEqual([]);
+  expect(h.calls()).toBe(0);
+});
+it('text naming no directory person, submitted with no people, stays a pending intake without a model call', async () => {
+  const h = await setup();
+  const text = '  演示：某位同学补齐了回滚步骤，并记录了边界触发条件。\n ';
+  const pending = await h.app.requests.create(h.account, {
+    ...h.input,
+    personIds: [],
+    text,
+  });
+  expect(pending).toMatchObject({
+    status: 'success',
+    result: { status: 'needs_review', jobId: null, draftSet: null },
+  });
+  if (pending.status !== 'success') throw new Error('fixture');
+  expect(pending.result.items[0]).toMatchObject({
+    kind: 'unknown_person',
+    state: 'pending',
+  });
+  const [input] = await connection.db
+    .select()
+    .from(arrangeInputs)
+    .where(eq(arrangeInputs.batchId, pending.result.batchId));
+  expect(input!.personIds).toEqual([]);
+  expect(input!.originalInput.text).toBe(text.trim());
+  const [fragment] = await connection.db
+    .select()
+    .from(fragments)
+    .where(eq(fragments.id, input!.inputSource!.fragmentId));
+  expect(fragment!.excerpt).toBe(text);
+  expect(
+    await h.app.requests.readBatch(h.account, {
+      batchId: pending.result.batchId,
+    }),
+  ).toMatchObject({ status: 'success', result: { status: 'needs_review' } });
+  expect(await h.app.runner.run(input!.jobId, 1)).toBe('ignored');
   expect(h.calls()).toBe(0);
 });
 it('keeps explicit project choice and denies a missing/inaccessible one instead of writing a fake null', async () => {
@@ -658,6 +743,89 @@ it('a current no-review flag blocks reading and model dispatch', async () => {
   expect(await h.app.runner.run(created.jobId, 1)).toBe('failed');
   expect(h.calls()).toBe(0);
 });
+it('a restriction held only by another (superseded) intake on the fragment blocks reading and model dispatch', async () => {
+  const h = await setup();
+  const created = await submitted(h);
+  // A second immutable intake on the same text fragment also names B. Only the
+  // complete union over every intake sees B; this evaluator cannot read B.
+  const job = await state(created.jobId);
+  const otherJob = randomUUID();
+  await connection.db.insert(jobSnapshots).values({ ...job, jobId: otherJob });
+  const contexts = structuredClone(created.input.sourceContexts);
+  contexts[0]!.subjects = [
+    { personId: h.other, evaluationNodeId: h.otherNode, cohortId: h.cohort },
+  ];
+  await connection.db.insert(arrangeInputs).values({
+    ...created.input,
+    id: randomUUID(),
+    jobId: otherJob,
+    sourceContexts: contexts,
+    supersededByInputId: created.input.id,
+  });
+  expect(
+    await h.app.requests.readBatch(h.account, {
+      batchId: created.receipt.batchId,
+    }),
+  ).toMatchObject({ status: 'not_found' });
+  expect(await h.app.runner.run(created.jobId, 1)).toBe('failed');
+  expect(h.calls()).toBe(0);
+});
+it('a subject merged only from another intake is locked, so revoking it mid-arrangement blocks the model call', async () => {
+  const h = await setup();
+  const created = await submitted(h);
+  // B appears only in another (superseded) intake on this fragment. The
+  // evaluator can currently read B through a relation on B's node.
+  const relationB = h.prefix + '-relation-b';
+  await connection.db.insert(evaluationRelations).values({
+    id: relationB,
+    evaluationNodeId: h.otherNode,
+    personId: h.other,
+    evaluatorId: h.evaluator,
+    kind: 'evaluator',
+    validFrom: '2026-01-01T00:00:00Z',
+  });
+  const job = await state(created.jobId);
+  const otherJob = randomUUID();
+  await connection.db.insert(jobSnapshots).values({ ...job, jobId: otherJob });
+  const contexts = structuredClone(created.input.sourceContexts);
+  contexts[0]!.subjects = [
+    { personId: h.other, evaluationNodeId: h.otherNode, cohortId: h.cohort },
+  ];
+  await connection.db.insert(arrangeInputs).values({
+    ...created.input,
+    id: randomUUID(),
+    jobId: otherJob,
+    sourceContexts: contexts,
+    supersededByInputId: created.input.id,
+  });
+  let commit!: () => void;
+  const committing = new Promise<void>((resolve) => (commit = resolve));
+  let revoking!: () => void;
+  const revoked = new Promise<void>((resolve) => (revoking = resolve));
+  // The revocation holds B's relation row while the runner builds its snapshot.
+  const revocation = connection.db.transaction(async (tx) => {
+    await tx
+      .update(evaluationRelations)
+      .set({ revokedAt: businessAt })
+      .where(eq(evaluationRelations.id, relationB));
+    revoking();
+    await committing;
+  });
+  await revoked;
+  const run = h.app.runner.run(created.jobId, 1);
+  for (let i = 0; ; i++) {
+    const { rows } = await connection.db.execute(
+      sql`select count(*)::int as n from pg_locks where locktype = 'transactionid' and not granted`,
+    );
+    if ((rows[0] as { n: number }).n > 0) break;
+    if (i > 200) throw new Error('runner never waited on B');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  commit();
+  await revocation;
+  expect(await run).toBe('failed');
+  expect(h.calls()).toBe(0);
+}, 30000);
 it('an account rebinding cannot transfer an accepted batch even with a new valid node relation', async () => {
   const h = await setup();
   const created = await submitted(h);
@@ -753,6 +921,7 @@ it('uses exact encoded boundary with saved rules and preserves accepted replay a
       if (!metadata) throw new Error('native metadata required');
       const snapshot = await loadRecordBatchSnapshot(
         tx,
+        await readIntakeTable(tx, 'locked'),
         original.input,
         metadata,
         businessAt,
