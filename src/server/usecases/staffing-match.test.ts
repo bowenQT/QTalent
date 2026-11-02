@@ -267,6 +267,59 @@ describe('BOW-854 authorized matching', () => {
       ).toMatchObject({ status: 'forbidden' });
     }
   });
+  it('a same-day grant covers reading, model calls and manual judgment', async () => {
+    const f = matchingFixture();
+    f.context.grants[0]!.validFrom = '2026-09-04T03:00:00.000Z';
+    const service = createStaffingMatchUsecase({
+        ...f.dependencies,
+        environment: 'production',
+        wallNow: () => new Date('2026-09-04T04:00:00.000Z'),
+      }),
+      started = startedSchema.parse(
+        await service.start('account-hr', { ...input, operationId: 'grant' }),
+      );
+    await service.execute(started.runId, 1);
+    expect(f.decide).toHaveBeenCalled();
+    expect(await service.read('account-hr', started.runId)).toMatchObject({
+      status: 'success',
+    });
+    expect(
+      await service.judge('account-hr', started.runId, judgment),
+    ).not.toMatchObject({ status: 'forbidden' });
+  });
+  it('a same-day revocation after the model call stops the write-back', async () => {
+    const f = matchingFixture();
+    let finish!: (value: { conclusion: 'supported' }) => void;
+    const pending = new Promise<{ conclusion: 'supported' }>((resolve) => {
+      finish = resolve;
+    });
+    f.decide.mockImplementation(() => pending);
+    const service = createStaffingMatchUsecase({
+        ...f.dependencies,
+        environment: 'production',
+        wallNow: () => new Date('2026-09-04T04:00:00.000Z'),
+      }),
+      started = startedSchema.parse(
+        await service.start('account-hr', { ...input, operationId: 'late' }),
+      ),
+      running = service.execute(started.runId, 1);
+    await vi.waitFor(() => expect(f.decide).toHaveBeenCalled());
+    // Revoked earlier the same day than the write-back instant.
+    f.context.grants[0]!.revokedAt = '2026-09-04T03:30:00.000Z';
+    finish({ conclusion: 'supported' });
+    await running;
+    expect(f.store.state.jobs.get(started.runId)).toMatchObject({
+      status: 'failed',
+      errorCode: 'input_changed',
+      result: null,
+    });
+    expect(
+      f.store.state.runs
+        .get(started.runId)
+        ?.candidates.flatMap((candidate) => candidate.cells)
+        .every(({ match }) => match.aiJudgment === null),
+    ).toBe(true);
+  });
   it('reauthorizes reads and idempotent replay after revocation', async () => {
     const f = matchingFixture(),
       result = await start(f);
