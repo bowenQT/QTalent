@@ -1,5 +1,5 @@
 {
-  "id": "10c00616-66df-4da5-b9b7-f30dff6479a4",
+  "id": "68ded65f-1b84-464e-9d10-7d3f84b5468c",
   "prevId": "b64a5d1c-1af5-4c68-b26d-a0e3a208de43",
   "version": "7",
   "dialect": "postgresql",
@@ -4820,6 +4820,30 @@
           "primaryKey": false,
           "notNull": true
         },
+        "parse_version_id": {
+          "name": "parse_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_category": {
+          "name": "source_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evaluation_kind": {
+          "name": "evaluation_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "demo": {
+          "name": "demo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
         "location": {
           "name": "location",
           "type": "jsonb",
@@ -4847,6 +4871,21 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "records_fragment_parse_version_fk": {
+          "name": "records_fragment_parse_version_fk",
+          "tableFrom": "records_fragments",
+          "tableTo": "records_material_parses",
+          "columnsFrom": [
+            "parse_version_id",
+            "original_version_id"
+          ],
+          "columnsTo": [
+            "id",
+            "original_version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -4862,13 +4901,17 @@
       },
       "policies": {},
       "checkConstraints": {
+        "records_material_fragment_binding": {
+          "name": "records_material_fragment_binding",
+          "value": "coalesce(\n      (\"records_fragments\".\"parse_version_id\" is null and \"records_fragments\".\"source_category\" is null and \"records_fragments\".\"evaluation_kind\" is null and \"records_fragments\".\"demo\" is null and \"records_fragments\".\"location\"->>'kind' in ('document','spreadsheet','recording','snapshot_field')) or\n      (\"records_fragments\".\"parse_version_id\" is not null and \"records_fragments\".\"demo\" is not null and (\n        (\"records_fragments\".\"source_category\"='original' and \"records_fragments\".\"evaluation_kind\" is null and \"records_fragments\".\"location\"->>'kind' not in ('code','snapshot_field')) or\n        (\"records_fragments\".\"source_category\"='historical_evaluation' and \"records_fragments\".\"evaluation_kind\"='interview' and \"records_fragments\".\"location\"->>'kind'='pdf') or\n        (\"records_fragments\".\"source_category\"='submitted_code_snapshot' and \"records_fragments\".\"evaluation_kind\" is null and \"records_fragments\".\"location\"->>'kind'='code')\n      )),false)"
+        },
         "records_excerpt_nonblank": {
           "name": "records_excerpt_nonblank",
           "value": "\"records_fragments\".\"excerpt\" ~ '[^[:space:]]'"
         },
         "records_location": {
           "name": "records_location",
-          "value": "coalesce(jsonb_typeof(\"records_fragments\".\"location\") = 'object' and case \"records_fragments\".\"location\"->>'kind'\n when 'document' then jsonb_typeof(\"records_fragments\".\"location\"->'paragraph') = 'string' and length(trim(\"records_fragments\".\"location\"->>'paragraph')) > 0 and (not (\"records_fragments\".\"location\" ? 'page') or (jsonb_typeof(\"records_fragments\".\"location\"->'page') = 'number' and (\"records_fragments\".\"location\"->>'page')::numeric > 0 and (\"records_fragments\".\"location\"->>'page')::numeric = trunc((\"records_fragments\".\"location\"->>'page')::numeric)))\n when 'spreadsheet' then jsonb_typeof(\"records_fragments\".\"location\"->'sheet') = 'string' and length(trim(\"records_fragments\".\"location\"->>'sheet')) > 0 and jsonb_typeof(\"records_fragments\".\"location\"->'cell') = 'string' and length(trim(\"records_fragments\".\"location\"->>'cell')) > 0\n when 'snapshot_field' then jsonb_typeof(\"records_fragments\".\"location\"->'fieldPath') = 'string' and length(trim(\"records_fragments\".\"location\"->>'fieldPath')) > 0 and (not (\"records_fragments\".\"location\" ? 'originalLocation') or jsonb_typeof(\"records_fragments\".\"location\"->'originalLocation') = 'string')\n when 'recording' then jsonb_typeof(\"records_fragments\".\"location\"->'startMs') = 'number' and jsonb_typeof(\"records_fragments\".\"location\"->'endMs') = 'number' and (\"records_fragments\".\"location\"->>'startMs')::numeric >= 0 and (\"records_fragments\".\"location\"->>'endMs')::numeric > (\"records_fragments\".\"location\"->>'startMs')::numeric and (\"records_fragments\".\"location\"->>'startMs')::numeric = trunc((\"records_fragments\".\"location\"->>'startMs')::numeric) and (\"records_fragments\".\"location\"->>'endMs')::numeric = trunc((\"records_fragments\".\"location\"->>'endMs')::numeric)\n else false end, false)"
+          "value": "coalesce(jsonb_typeof(\"records_fragments\".\"location\") = 'object' and case \"records_fragments\".\"location\"->>'kind'\n when 'document' then jsonb_typeof(\"records_fragments\".\"location\"->'paragraph') = 'string' and length(trim(\"records_fragments\".\"location\"->>'paragraph')) > 0 and (not (\"records_fragments\".\"location\" ? 'page') or (jsonb_typeof(\"records_fragments\".\"location\"->'page') = 'number' and (\"records_fragments\".\"location\"->>'page')::numeric > 0 and (\"records_fragments\".\"location\"->>'page')::numeric = trunc((\"records_fragments\".\"location\"->>'page')::numeric)))\n when 'spreadsheet' then jsonb_typeof(\"records_fragments\".\"location\"->'sheet') = 'string' and length(trim(\"records_fragments\".\"location\"->>'sheet')) > 0 and jsonb_typeof(\"records_fragments\".\"location\"->'cell') = 'string' and length(trim(\"records_fragments\".\"location\"->>'cell')) > 0\n when 'snapshot_field' then jsonb_typeof(\"records_fragments\".\"location\"->'fieldPath') = 'string' and length(trim(\"records_fragments\".\"location\"->>'fieldPath')) > 0 and (not (\"records_fragments\".\"location\" ? 'originalLocation') or jsonb_typeof(\"records_fragments\".\"location\"->'originalLocation') = 'string')\n when 'recording' then jsonb_typeof(\"records_fragments\".\"location\"->'startMs') = 'number' and jsonb_typeof(\"records_fragments\".\"location\"->'endMs') = 'number' and (\"records_fragments\".\"location\"->>'startMs')::numeric >= 0 and (\"records_fragments\".\"location\"->>'endMs')::numeric > (\"records_fragments\".\"location\"->>'startMs')::numeric and (\"records_fragments\".\"location\"->>'startMs')::numeric = trunc((\"records_fragments\".\"location\"->>'startMs')::numeric) and (\"records_fragments\".\"location\"->>'endMs')::numeric = trunc((\"records_fragments\".\"location\"->>'endMs')::numeric)\n\n when 'pdf' then (\"records_fragments\".\"location\" - ARRAY['kind','page','textRange'])='{}'::jsonb and jsonb_typeof(\"records_fragments\".\"location\"->'page')='number' and (\"records_fragments\".\"location\"->>'page')::numeric>0 and (\"records_fragments\".\"location\"->>'page')::numeric=trunc((\"records_fragments\".\"location\"->>'page')::numeric) and jsonb_typeof(\"records_fragments\".\"location\"->'textRange')='object' and ((\"records_fragments\".\"location\"->'textRange') - ARRAY['start','end'])='{}'::jsonb and jsonb_typeof(\"records_fragments\".\"location\"->'textRange'->'start')='number' and jsonb_typeof(\"records_fragments\".\"location\"->'textRange'->'end')='number' and (\"records_fragments\".\"location\"->'textRange'->>'start')::numeric>=0 and (\"records_fragments\".\"location\"->'textRange'->>'end')::numeric>(\"records_fragments\".\"location\"->'textRange'->>'start')::numeric and (\"records_fragments\".\"location\"->'textRange'->>'start')::numeric=trunc((\"records_fragments\".\"location\"->'textRange'->>'start')::numeric) and (\"records_fragments\".\"location\"->'textRange'->>'end')::numeric=trunc((\"records_fragments\".\"location\"->'textRange'->>'end')::numeric)\n when 'presentation' then (\"records_fragments\".\"location\" - ARRAY['kind','slide'])='{}'::jsonb and jsonb_typeof(\"records_fragments\".\"location\"->'slide')='number' and (\"records_fragments\".\"location\"->>'slide')::numeric>0 and (\"records_fragments\".\"location\"->>'slide')::numeric=trunc((\"records_fragments\".\"location\"->>'slide')::numeric)\n when 'video' then (\"records_fragments\".\"location\" - ARRAY['kind','startMs','endMs'])='{}'::jsonb and jsonb_typeof(\"records_fragments\".\"location\"->'startMs')='number' and jsonb_typeof(\"records_fragments\".\"location\"->'endMs')='number' and (\"records_fragments\".\"location\"->>'startMs')::numeric>=0 and (\"records_fragments\".\"location\"->>'endMs')::numeric>(\"records_fragments\".\"location\"->>'startMs')::numeric and (\"records_fragments\".\"location\"->>'startMs')::numeric=trunc((\"records_fragments\".\"location\"->>'startMs')::numeric) and (\"records_fragments\".\"location\"->>'endMs')::numeric=trunc((\"records_fragments\".\"location\"->>'endMs')::numeric)\n when 'image' then (\"records_fragments\".\"location\" - ARRAY['kind','region'])='{}'::jsonb and jsonb_typeof(\"records_fragments\".\"location\"->'region')='object' and ((\"records_fragments\".\"location\"->'region') - ARRAY['left','top','right','bottom'])='{}'::jsonb and jsonb_typeof(\"records_fragments\".\"location\"->'region'->'left')='number' and jsonb_typeof(\"records_fragments\".\"location\"->'region'->'top')='number' and jsonb_typeof(\"records_fragments\".\"location\"->'region'->'right')='number' and jsonb_typeof(\"records_fragments\".\"location\"->'region'->'bottom')='number' and (\"records_fragments\".\"location\"->'region'->>'left')::numeric>=0 and (\"records_fragments\".\"location\"->'region'->>'top')::numeric>=0 and (\"records_fragments\".\"location\"->'region'->>'right')::numeric<=1 and (\"records_fragments\".\"location\"->'region'->>'bottom')::numeric<=1 and (\"records_fragments\".\"location\"->'region'->>'right')::numeric>(\"records_fragments\".\"location\"->'region'->>'left')::numeric and (\"records_fragments\".\"location\"->'region'->>'bottom')::numeric>(\"records_fragments\".\"location\"->'region'->>'top')::numeric\n when 'code' then (\"records_fragments\".\"location\" - ARRAY['kind','repository','commit','path','startLine','endLine'])='{}'::jsonb and jsonb_typeof(\"records_fragments\".\"location\"->'repository')='string' and \"records_fragments\".\"location\"->>'repository' ~ '[^[:space:]]' and jsonb_typeof(\"records_fragments\".\"location\"->'commit')='string' and \"records_fragments\".\"location\"->>'commit' ~ '^[a-f0-9]{40}$' and jsonb_typeof(\"records_fragments\".\"location\"->'path')='string' and \"records_fragments\".\"location\"->>'path' ~ '[^[:space:]]' and \"records_fragments\".\"location\"->>'path' !~ '(^/|(^|/)[.]{1,2}(/|$)|//|/$)' and position(chr(92) in \"records_fragments\".\"location\"->>'path')=0 and jsonb_typeof(\"records_fragments\".\"location\"->'startLine')='number' and jsonb_typeof(\"records_fragments\".\"location\"->'endLine')='number' and (\"records_fragments\".\"location\"->>'startLine')::numeric>0 and (\"records_fragments\".\"location\"->>'endLine')::numeric>=(\"records_fragments\".\"location\"->>'startLine')::numeric and (\"records_fragments\".\"location\"->>'startLine')::numeric=trunc((\"records_fragments\".\"location\"->>'startLine')::numeric) and (\"records_fragments\".\"location\"->>'endLine')::numeric=trunc((\"records_fragments\".\"location\"->>'endLine')::numeric)\n else false end, false)"
         }
       },
       "isRLSEnabled": false
@@ -5176,6 +5219,176 @@
         "records_snapshot_provenance": {
           "name": "records_snapshot_provenance",
           "value": "\"records_import_snapshots\".\"provenance\" = 'demo_import_snapshot'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_material_parses": {
+      "name": "records_material_parses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "original_version_id": {
+          "name": "original_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_digest": {
+          "name": "content_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parser_version": {
+          "name": "parser_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "projection_version": {
+          "name": "projection_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result_digest": {
+          "name": "result_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt": {
+          "name": "attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_material_parses_original_version_id_records_original_versions_id_fk": {
+          "name": "records_material_parses_original_version_id_records_original_versions_id_fk",
+          "tableFrom": "records_material_parses",
+          "tableTo": "records_original_versions",
+          "columnsFrom": [
+            "original_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_material_parses_job_id_job_snapshots_job_id_fk": {
+          "name": "records_material_parses_job_id_job_snapshots_job_id_fk",
+          "tableFrom": "records_material_parses",
+          "tableTo": "job_snapshots",
+          "columnsFrom": [
+            "job_id"
+          ],
+          "columnsTo": [
+            "job_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "records_material_parse_version": {
+          "name": "records_material_parse_version",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "original_version_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "records_material_parse_digests": {
+          "name": "records_material_parse_digests",
+          "value": "\"records_material_parses\".\"content_digest\" ~ '^[a-f0-9]{64}$' and \"records_material_parses\".\"result_digest\" ~ '^[a-f0-9]{64}$'"
+        },
+        "records_material_parse_identity": {
+          "name": "records_material_parse_identity",
+          "value": "\"records_material_parses\".\"id\" ~ '[^[:space:]]' and \"records_material_parses\".\"parser_version\" ~ '[^[:space:]]' and \"records_material_parses\".\"projection_version\" ~ '[^[:space:]]' and \"records_material_parses\".\"attempt\">0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_material_pdf_pages": {
+      "name": "records_material_pdf_pages",
+      "schema": "",
+      "columns": {
+        "parse_version_id": {
+          "name": "parse_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "page": {
+          "name": "page",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text_digest": {
+          "name": "text_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_material_pdf_pages_parse_version_id_records_material_parses_id_fk": {
+          "name": "records_material_pdf_pages_parse_version_id_records_material_parses_id_fk",
+          "tableFrom": "records_material_pdf_pages",
+          "tableTo": "records_material_parses",
+          "columnsFrom": [
+            "parse_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "records_material_pdf_pages_parse_version_id_page_pk": {
+          "name": "records_material_pdf_pages_parse_version_id_page_pk",
+          "columns": [
+            "parse_version_id",
+            "page"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "records_material_pdf_page": {
+          "name": "records_material_pdf_page",
+          "value": "\"records_material_pdf_pages\".\"page\">0 and \"records_material_pdf_pages\".\"text_digest\" ~ '^[a-f0-9]{64}$'"
         }
       },
       "isRLSEnabled": false
@@ -7265,434 +7478,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.talent_score_review_calibrations": {
-      "name": "talent_score_review_calibrations",
-      "schema": "",
-      "columns": {
-        "item_id": {
-          "name": "item_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "original_revision": {
-          "name": "original_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "person_id": {
-          "name": "person_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evaluation_node_id": {
-          "name": "evaluation_node_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "dimension_id": {
-          "name": "dimension_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rule_version_id": {
-          "name": "rule_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_account_id": {
-          "name": "actor_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_person_id": {
-          "name": "actor_person_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "confirmed_at": {
-          "name": "confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "value": {
-          "name": "value",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "anchor_id": {
-          "name": "anchor_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "confirmation_id": {
-          "name": "confirmation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "counterpart_confirmation_id": {
-          "name": "counterpart_confirmation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "suggestion_id": {
-          "name": "suggestion_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "original_fingerprint": {
-          "name": "original_fingerprint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope_fingerprint": {
-          "name": "scope_fingerprint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_fact_revision": {
-          "name": "source_fact_revision",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "payload": {
-          "name": "payload",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "talent_score_review_calibrations_item_id_talent_score_reviews_id_fk": {
-          "name": "talent_score_review_calibrations_item_id_talent_score_reviews_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "talent_score_reviews",
-          "columnsFrom": [
-            "item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_event_id_records_events_id_fk": {
-          "name": "talent_score_review_calibrations_event_id_records_events_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "records_events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_person_id_directory_people_id_fk": {
-          "name": "talent_score_review_calibrations_person_id_directory_people_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "directory_people",
-          "columnsFrom": [
-            "person_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_evaluation_node_id_programs_evaluation_nodes_id_fk": {
-          "name": "talent_score_review_calibrations_evaluation_node_id_programs_evaluation_nodes_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "programs_evaluation_nodes",
-          "columnsFrom": [
-            "evaluation_node_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_dimension_id_evaluation_dimensions_id_fk": {
-          "name": "talent_score_review_calibrations_dimension_id_evaluation_dimensions_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "evaluation_dimensions",
-          "columnsFrom": [
-            "dimension_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_actor_account_id_directory_account_bindings_account_id_fk": {
-          "name": "talent_score_review_calibrations_actor_account_id_directory_account_bindings_account_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "directory_account_bindings",
-          "columnsFrom": [
-            "actor_account_id"
-          ],
-          "columnsTo": [
-            "account_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_actor_person_id_directory_people_id_fk": {
-          "name": "talent_score_review_calibrations_actor_person_id_directory_people_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "directory_people",
-          "columnsFrom": [
-            "actor_person_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_confirmation_id_talent_confirmations_id_fk": {
-          "name": "talent_score_review_calibrations_confirmation_id_talent_confirmations_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "talent_confirmations",
-          "columnsFrom": [
-            "confirmation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_counterpart_confirmation_id_talent_confirmations_id_fk": {
-          "name": "talent_score_review_calibrations_counterpart_confirmation_id_talent_confirmations_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "talent_confirmations",
-          "columnsFrom": [
-            "counterpart_confirmation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_suggestion_id_talent_ai_suggestions_id_fk": {
-          "name": "talent_score_review_calibrations_suggestion_id_talent_ai_suggestions_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "talent_ai_suggestions",
-          "columnsFrom": [
-            "suggestion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_event_id_rule_version_id_records_events_id_rule_version_id_fk": {
-          "name": "talent_score_review_calibrations_event_id_rule_version_id_records_events_id_rule_version_id_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "records_events",
-          "columnsFrom": [
-            "event_id",
-            "rule_version_id"
-          ],
-          "columnsTo": [
-            "id",
-            "rule_version_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "talent_score_review_calibrations_anchor_id_dimension_id_rule_version_id_value_evaluation_anchors_id_dimension_id_rule_version_id_value_fk": {
-          "name": "talent_score_review_calibrations_anchor_id_dimension_id_rule_version_id_value_evaluation_anchors_id_dimension_id_rule_version_id_value_fk",
-          "tableFrom": "talent_score_review_calibrations",
-          "tableTo": "evaluation_anchors",
-          "columnsFrom": [
-            "anchor_id",
-            "dimension_id",
-            "rule_version_id",
-            "value"
-          ],
-          "columnsTo": [
-            "id",
-            "dimension_id",
-            "rule_version_id",
-            "value"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "talent_review_calibration_receipt_identity": {
-          "name": "talent_review_calibration_receipt_identity",
-          "nullsNotDistinct": false,
-          "columns": [
-            "item_id",
-            "revision",
-            "actor_account_id",
-            "actor_person_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "talent_review_calibration_revision": {
-          "name": "talent_review_calibration_revision",
-          "value": "\"talent_score_review_calibrations\".\"original_revision\" > 0 and \"talent_score_review_calibrations\".\"revision\" > 0 and \"talent_score_review_calibrations\".\"revision\" = \"talent_score_review_calibrations\".\"original_revision\" + 1"
-        },
-        "talent_review_calibration_value": {
-          "name": "talent_review_calibration_value",
-          "value": "\"talent_score_review_calibrations\".\"value\" between 1 and 5"
-        },
-        "talent_review_calibration_fingerprints": {
-          "name": "talent_review_calibration_fingerprints",
-          "value": "\"talent_score_review_calibrations\".\"original_fingerprint\" ~ '^[a-f0-9]{64}$' and \"talent_score_review_calibrations\".\"scope_fingerprint\" ~ '^[a-f0-9]{64}$' and \"talent_score_review_calibrations\".\"source_fact_revision\" ~ '^[a-f0-9]{64}$'"
-        },
-        "talent_review_calibration_payload_identity": {
-          "name": "talent_review_calibration_payload_identity",
-          "value": "jsonb_typeof(\"talent_score_review_calibrations\".\"payload\") = 'object'\n        and (\"talent_score_review_calibrations\".\"payload\" -> 'itemId') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"item_id\")\n        and (\"talent_score_review_calibrations\".\"payload\" -> 'revision') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"revision\")\n        and (\"talent_score_review_calibrations\".\"payload\" #> '{original,id}') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"item_id\")\n        and (\"talent_score_review_calibrations\".\"payload\" #> '{original,revision}') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"original_revision\")\n        and (\"talent_score_review_calibrations\".\"payload\" #> '{original,eventId}') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"event_id\")\n        and (\"talent_score_review_calibrations\".\"payload\" #> '{original,personId}') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"person_id\")\n        and (\"talent_score_review_calibrations\".\"payload\" #> '{original,dimensionId}') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"dimension_id\")"
-        },
-        "talent_review_calibration_payload_score": {
-          "name": "talent_review_calibration_payload_score",
-          "value": "(\"talent_score_review_calibrations\".\"payload\" #> '{score,raterId}') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"actor_person_id\")\n        and (\"talent_score_review_calibrations\".\"payload\" #> '{score,value}') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"value\")\n        and (\"talent_score_review_calibrations\".\"payload\" #> '{score,anchor,id}') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"anchor_id\")\n        and (\"talent_score_review_calibrations\".\"payload\" #> '{score,anchor,ruleVersion}') is not distinct from to_jsonb(\"talent_score_review_calibrations\".\"rule_version_id\")\n        and jsonb_typeof(\"talent_score_review_calibrations\".\"payload\" #> '{score,confirmedAt}') is not distinct from 'string'\n        and (\"talent_score_review_calibrations\".\"payload\" #>> '{score,confirmedAt}')::timestamptz is not distinct from \"talent_score_review_calibrations\".\"confirmed_at\"\n        and jsonb_typeof(\"talent_score_review_calibrations\".\"payload\" #> '{score,reason}') is not distinct from 'string'\n        and coalesce((\"talent_score_review_calibrations\".\"payload\" #>> '{score,reason}') ~ '[^[:space:]]', false)"
-        },
-        "talent_review_calibration_original_kind": {
-          "name": "talent_review_calibration_original_kind",
-          "value": "coalesce(((\"talent_score_review_calibrations\".\"payload\" #> '{original,kind}') = '\"rater_gap\"'::jsonb and \"talent_score_review_calibrations\".\"counterpart_confirmation_id\" is not null)\n        or ((\"talent_score_review_calibrations\".\"payload\" #> '{original,kind}') = '\"ai_gap\"'::jsonb and \"talent_score_review_calibrations\".\"suggestion_id\" is not null), false)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.talent_score_review_operations": {
-      "name": "talent_score_review_operations",
-      "schema": "",
-      "columns": {
-        "actor_account_id": {
-          "name": "actor_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "operation_id": {
-          "name": "operation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_person_id": {
-          "name": "actor_person_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fingerprint": {
-          "name": "fingerprint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope_fingerprint": {
-          "name": "scope_fingerprint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "item_id": {
-          "name": "item_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "calibration_revision": {
-          "name": "calibration_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "talent_review_operation_calibration_fk": {
-          "name": "talent_review_operation_calibration_fk",
-          "tableFrom": "talent_score_review_operations",
-          "tableTo": "talent_score_review_calibrations",
-          "columnsFrom": [
-            "item_id",
-            "calibration_revision",
-            "actor_account_id",
-            "actor_person_id"
-          ],
-          "columnsTo": [
-            "item_id",
-            "revision",
-            "actor_account_id",
-            "actor_person_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "talent_score_review_operations_actor_account_id_operation_id_pk": {
-          "name": "talent_score_review_operations_actor_account_id_operation_id_pk",
-          "columns": [
-            "actor_account_id",
-            "operation_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "talent_review_operation_fingerprints": {
-          "name": "talent_review_operation_fingerprints",
-          "value": "\"talent_score_review_operations\".\"fingerprint\" ~ '^[a-f0-9]{64}$' and \"talent_score_review_operations\".\"scope_fingerprint\" ~ '^[a-f0-9]{64}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.talent_score_reviews": {
       "name": "talent_score_reviews",
       "schema": "",
@@ -7727,13 +7512,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'open'"
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
         },
         "save_id": {
           "name": "save_id",
@@ -7890,10 +7668,6 @@
         "talent_review_status": {
           "name": "talent_review_status",
           "value": "\"talent_score_reviews\".\"status\" in ('open','resolved')"
-        },
-        "talent_review_revision_positive": {
-          "name": "talent_review_revision_positive",
-          "value": "\"talent_score_reviews\".\"revision\" > 0"
         },
         "talent_review_save_provenance": {
           "name": "talent_review_save_provenance",

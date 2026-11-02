@@ -48,6 +48,10 @@ it('keeps all real locations on a multi-source event rather than silently choosi
   data.fragments.push({
     id: 'second-source',
     originalVersionId: 'version',
+    parseVersionId: null,
+    sourceCategory: null,
+    evaluationKind: null,
+    demo: null,
     excerpt: '演示第二段',
     location: { kind: 'document', page: 3, paragraph: '2' },
   });
