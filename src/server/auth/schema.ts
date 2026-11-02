@@ -1,4 +1,11 @@
-import { pgTable, text, boolean, timestamp, index } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  text,
+  boolean,
+  timestamp,
+  index,
+  integer,
+} from 'drizzle-orm/pg-core';
 export const user = pgTable('auth_user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -29,6 +36,8 @@ export const session = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    // Directory binding generation when issued; see auth/session-binding.ts.
+    bindingGeneration: integer('binding_generation'),
   },
   (t) => [index('auth_session_user_idx').on(t.userId)],
 );
