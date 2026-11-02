@@ -22,6 +22,10 @@ import type {
   ParsedInterviewReview,
   Selection as ParsedSelection,
 } from '../../modules/records/attachments/interview-review/types';
+import {
+  materialReviewItemSchema,
+  type MaterialReviewItem,
+} from '../../../contracts/material-review';
 import type {
   InterviewImportConfirmInput,
   InterviewImportPreviewResult,
@@ -721,4 +725,53 @@ export async function sendInterviewImportRowToReview(
       revision,
     };
   });
+}
+
+/**
+ * The import rows' open questions for 待核对, filtered first by the current HR grant the
+ * same way the preview is. Each keeps the shared MaterialReviewItem contract with its
+ * current revision and state; newest first, never by score.
+ */
+export async function readInterviewImportReviewInbox(
+  db: DbExecutor,
+  accountId: string,
+  now: string,
+): Promise<
+  | { status: 'ok'; items: (MaterialReviewItem & { createdAt: string })[] }
+  | { status: 'forbidden' }
+> {
+  let loadedContext;
+  try {
+    loadedContext = await loadEvaluationContext(db, accountId, now);
+  } catch (error) {
+    if (error instanceof ForbiddenError) return { status: 'forbidden' };
+    throw error;
+  }
+  const { context, directory } = loadedContext;
+  if (!activeGrants(context).some((g) => g.role === 'hr'))
+    return { status: 'ok', items: [] };
+  const open = await db
+    .selectDistinct({ batchId: interviewImportReviewItems.batchId })
+    .from(interviewImportReviewItems)
+    .where(inArray(interviewImportReviewItems.state, ['pending', 'deferred']));
+  const items = [];
+  for (const { batchId } of open) {
+    const loaded = await loadBatch(db, batchId);
+    if (!loaded || loaded.node.kind !== 'interview') continue;
+    for (const entry of loaded.rows) {
+      if (!visible(context, loaded, entry, directory)) continue;
+      for (const item of openItems(loaded, entry.row.rowId))
+        items.push({
+          // Current revision and state come from the row, never the stored question.
+          ...materialReviewItemSchema.parse({
+            ...item.question,
+            revision: item.revision,
+            state: item.state === 'deferred' ? 'deferred' : 'pending',
+          }),
+          createdAt: new Date(item.createdAt).toISOString(),
+        });
+    }
+  }
+  items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { status: 'ok', items };
 }

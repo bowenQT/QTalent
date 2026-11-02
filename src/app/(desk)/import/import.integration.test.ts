@@ -18,9 +18,18 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { createDatabase, getDatabase } from '@/server/db/client';
 import { importDemo } from '@/server/db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '@/server/db/seed';
-import { interviewImportRows } from '@/server/modules/records/interview-import/schema';
+import {
+  interviewImportCandidates,
+  interviewImportReviewItems,
+  interviewImportRows,
+} from '@/server/modules/records/interview-import/schema';
+import { auditEvents } from '@/server/platform/audit/schema';
+import { readInterviewImportReviewInbox } from '@/server/usecases/interview-import/store';
 import { INTERVIEW_IMPORT_DEMO } from '@/server/db/seed/interview-import-demo/import';
-import { confirmInterviewImportRowAction } from '@/server/actions/interview-import';
+import {
+  confirmInterviewImportRowAction,
+  sendInterviewImportRowToReviewAction,
+} from '@/server/actions/interview-import';
 import { getInterviewImportPreview } from '@/server/queries/interview-import';
 import ImportPage from './page';
 
@@ -249,4 +258,96 @@ it('reads and changes rows only for a current HR grant', async () => {
     }),
   ).toMatchObject({ status: 'forbidden' });
   expect(await stored('professional-1')).toEqual(before);
+});
+
+it('sends a row nobody in the directory matches to 待核对 once, with its audit', async () => {
+  // Test-only fact in this isolated database: the hired record loses its directory
+  // person, so every row waits to be identified. The demo batch never gets here.
+  await db()
+    .update(interviewImportCandidates)
+    .set({ personId: null })
+    .where(
+      and(
+        eq(interviewImportCandidates.batchId, batchId),
+        eq(interviewImportCandidates.candidateId, 'demo-candidate-01'),
+      ),
+    );
+  const before = await stored('campus-1');
+  await openPage();
+  fireEvent.click(screen.getAllByRole('button', { name: '放进待核对' })[0]);
+  await waitFor(() =>
+    expect(screen.getAllByText('已放进待核对').length).toBeGreaterThan(0),
+  );
+  const items = await db()
+    .select()
+    .from(interviewImportReviewItems)
+    .where(eq(interviewImportReviewItems.batchId, batchId));
+  expect(items).toHaveLength(1);
+  expect(items[0]).toMatchObject({
+    rowId: 'campus-1',
+    kind: 'unknown_interview_candidate',
+    state: 'pending',
+    revision: 1,
+    createdByAccountId: 'demo-hrbp',
+    question: {
+      kind: 'unknown_interview_candidate',
+      importRowId: 'campus-1',
+      observedName: '谷嘉树（演示）',
+      candidates: [],
+    },
+  });
+  const [audit] = await db()
+    .select()
+    .from(auditEvents)
+    .where(eq(auditEvents.id, items[0].auditId));
+  expect(audit).toMatchObject({
+    actorId: 'demo-hrbp',
+    action: 'interview_import.review_item.create',
+    resourceId: items[0].id,
+  });
+  expect(await stored('campus-1')).toMatchObject({
+    revision: before.revision + 1,
+    decision: {
+      status: 'needs_review',
+      reviewItemKind: 'unknown_interview_candidate',
+    },
+  });
+
+  // A retry with the revision the page sent before stores nothing new.
+  expect(
+    await sendInterviewImportRowToReviewAction({
+      batchId,
+      rowId: 'campus-1',
+      expectedRevision: before.revision,
+    }),
+  ).toMatchObject({ status: 'ok', revision: before.revision + 1 });
+  expect(
+    await db()
+      .select()
+      .from(interviewImportReviewItems)
+      .where(eq(interviewImportReviewItems.batchId, batchId)),
+  ).toHaveLength(1);
+
+  // 待核对's read sees it for HR, filtered by the current grant; a mentor sees nothing.
+  const inbox = await readInterviewImportReviewInbox(
+    db(),
+    'demo-hrbp',
+    '2026-11-01T00:00:00.000Z',
+  );
+  expect(inbox).toMatchObject({
+    status: 'ok',
+    items: [{ itemId: items[0].id, kind: 'unknown_interview_candidate' }],
+  });
+  expect(
+    await readInterviewImportReviewInbox(
+      db(),
+      'demo-mentor',
+      '2026-11-01T00:00:00.000Z',
+    ),
+  ).toEqual({ status: 'ok', items: [] });
+
+  // Coming back to /import shows the row as sent.
+  cleanup();
+  await openPage();
+  expect(screen.getAllByText('已放进待核对').length).toBeGreaterThan(0);
 });
