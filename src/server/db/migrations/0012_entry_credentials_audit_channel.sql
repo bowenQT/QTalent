@@ -43,6 +43,7 @@ CREATE TABLE "entry_wecom_bindings" (
 );
 --> statement-breakpoint
 ALTER TABLE "audit_events" ALTER COLUMN "resource_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "auth_session" ADD COLUMN "binding_generation" integer;--> statement-breakpoint
 ALTER TABLE "directory_account_bindings" ADD COLUMN "generation" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
 ALTER TABLE "audit_events" ADD COLUMN "metadata" jsonb;--> statement-breakpoint
 ALTER TABLE "entry_agent_api_bindings" ADD CONSTRAINT "entry_agent_api_bindings_account_id_directory_account_bindings_account_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."directory_account_bindings"("account_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
