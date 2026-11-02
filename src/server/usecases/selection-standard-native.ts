@@ -1,10 +1,11 @@
-import { eq } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
+import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Database, Transaction } from '../db/client';
 import { accountBindings, grants, people } from '../modules/directory';
 import { cohorts } from '../modules/programs';
 import { recordAudit } from '../platform/audit';
-import { loadProjectContext } from './project-context';
+import { ForbiddenError, loadProjectContext } from './project-context';
 import { lockRuleCategory } from '../modules/evaluation-system/applicability';
 import {
   authorizeSelectionAction,
@@ -13,11 +14,22 @@ import {
 } from '../modules/evaluation-system/selection-standard';
 import {
   importSelectionBaselineSnapshot,
+  createSelectionPostgresStore,
   selectionStorageFailure,
   bindSelectionCohortFacts,
   readStoredSelectionCohortBinding,
   type SelectionBaselineSnapshot,
 } from '../modules/evaluation-system/selection/postgres';
+
+import {
+  assertSelectionBasisDisclosed,
+  readNativeSelectionCreationFacts,
+  readNativeSelectionImpact,
+  readNativeSelectionProposal,
+  type ReviewedNextSelectionCohort,
+} from './selection-standard-facts';
+import { executeSelectionRevision } from './selection-standard';
+import { createSelectionRevisionInputSchema } from '../../contracts/selection-standard';
 
 const identifier = z.string().trim().min(1).max(200);
 const cohortInput = z.strictObject({
@@ -204,4 +216,111 @@ export async function readNativeSelectionCohortVersion(
       throw new SelectionLifecycleError('not_found', '期次不存在或不可见');
     return readStoredSelectionCohortBinding(tx, cohort.id);
   });
+}
+
+/** Actual production composition. Only reviewed future-cohort metadata is an
+ * explicit server input; directory, authorization, canonical, attribution,
+ * proposal, standard and impact facts are all read from this live transaction. */
+export function createNativeSelectionLifecycle(
+  db: Database,
+  options: {
+    nextCohort: ReviewedNextSelectionCohort | null;
+    clock?: () => Date;
+  },
+) {
+  const clock = options.clock ?? (() => new Date());
+  // Freeze server configuration so a retained browser/request object cannot
+  // mutate a preview source between calls. No fallback future cohort exists.
+  const next = options.nextCohort
+    ? Object.freeze({ ...options.nextCohort })
+    : null;
+  function compose(proposalId?: string) {
+    return createSelectionPostgresStore(db, {
+      async loadAuthority(tx, accountId, at) {
+        const mode = await tx.execute<{ readOnly: string }>(
+          sql`select current_setting('transaction_read_only') as "readOnly"`,
+        );
+        if (mode.rows[0]?.readOnly === 'off')
+          return loadSelectionAuthority(tx, accountId, () => new Date(at));
+        const data = await loadProjectContext(tx, accountId, at).catch(
+          (error: unknown) => {
+            if (error instanceof ForbiddenError)
+              throw new SelectionLifecycleError(
+                'forbidden',
+                '当前身份无法读取选拔标准',
+              );
+            throw error;
+          },
+        );
+        const actor = data.directory.people.find(
+          (person) => person.id === data.context.account.personId,
+        );
+        if (!actor)
+          throw new SelectionLifecycleError('forbidden', '当前人员绑定不存在');
+        return {
+          context: data.context,
+          actor: { id: actor.id, name: actor.name },
+        };
+      },
+      async creationFacts(tx, authority, input) {
+        if (proposalId !== undefined) {
+          const result = await readNativeSelectionProposal(
+            tx,
+            authority,
+            proposalId,
+            input,
+            next,
+          );
+          return { ...result.facts, aiDraft: result.proposal.aiDraft };
+        }
+        return readNativeSelectionCreationFacts(tx, authority, input, next);
+      },
+      verifyBasisDisclosure: assertSelectionBasisDisclosed,
+      async readImpact(tx, authority, record) {
+        const saved = record.revision.impactPreview;
+        if (
+          !next ||
+          next.id !== saved.nextCohort.id ||
+          next.name !== saved.nextCohort.name
+        )
+          throw new SelectionLifecycleError('conflict', '下一期事实已变化');
+        return readNativeSelectionImpact(tx, authority, next, [
+          ...new Set([
+            record.scopeCohortId,
+            ...saved.existingResults.map((row) => row.cohortId),
+            ...saved.preservedBindings.map((row) => row.cohort.id),
+          ]),
+        ]);
+      },
+      async readCohort(tx, authority, cohortId) {
+        authorizeCohort(authority, cohortId);
+        return (
+          (
+            await tx.select().from(cohorts).where(eq(cohorts.id, cohortId))
+          )[0] ?? null
+        );
+      },
+    });
+  }
+  const store = compose();
+  return {
+    store,
+    execute: (accountId: string, command: unknown) =>
+      executeSelectionRevision(store.ports, accountId, command, clock),
+    async adoptProposal(accountId: string, proposalId: string, raw: unknown) {
+      const proposal = identifier.parse(proposalId);
+      const input = createSelectionRevisionInputSchema.parse(raw);
+      const operationId = createHash('sha256')
+        .update(
+          JSON.stringify(['selection-proposal', proposal, input.operationId]),
+        )
+        .digest('hex');
+      return executeSelectionRevision(
+        compose(proposal).ports,
+        accountId,
+        { action: 'create', input: { ...input, operationId } },
+        clock,
+      );
+    },
+  };
 }

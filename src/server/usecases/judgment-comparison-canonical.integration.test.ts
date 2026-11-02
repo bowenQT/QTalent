@@ -154,9 +154,7 @@ beforeAll(async () => {
   connection = createDatabase(url.toString());
   // Optional path is operator-controlled X1 drizzle output, never inline SQL.
   await migrate(db(), {
-    migrationsFolder:
-      process.env.QTALENT_COMPARISON_TEST_MIGRATIONS ??
-      'src/server/db/migrations',
+    migrationsFolder: 'src/server/db/migrations',
   });
   await counts();
 }, 30_000);

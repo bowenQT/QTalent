@@ -18,6 +18,8 @@ import {
   effectiveRuleVersionReadResultSchema,
   selectionCohortVersionReadInputSchema,
   selectionCohortVersionReadResultSchema,
+  selectionAiDraftSchema,
+  selectionRevisionSchema,
   type EffectiveRuleVersionReadInput,
   type EffectiveRuleVersion,
   type SelectionCohortBinding,
@@ -113,6 +115,8 @@ export interface SelectionStandardPorts<Tx> {
     accountId: string,
     now: string,
   ): Promise<SelectionAuthority>;
+  /** A stored HR receipt is returned only after its citations are re-checked
+   * against the caller's current access; a receipt is not a current grant. */
   readOperation(
     tx: Tx,
     accountId: string,
@@ -135,11 +139,15 @@ export interface SelectionStandardPorts<Tx> {
     Omit<
       Parameters<typeof planCreateSelectionRevision>[2],
       'draftId' | 'versionId' | 'previewId' | 'current'
-    >
+    > & { aiDraft?: z.infer<typeof selectionAiDraftSchema> }
   >;
+  /** 'hr' reads return the private basis, so the port re-checks every citation
+   * against current access first. 'manager' reads require manager authorization
+   * and serve planning only; the executor returns projections or receipts. */
   readRevision(
     tx: Tx,
     draftId: string,
+    purpose: 'hr' | 'manager',
   ): Promise<SelectionRevisionRecord | null>;
   /** Current facts for the SAME saved preview scope, not a new manager-global preview. */
   readImpact(
@@ -308,6 +316,23 @@ export async function executeSelectionRevision<Tx>(
             versionId: await ports.allocateVersionId(tx),
             previewId: await ports.allocateId(tx, 'preview'),
           });
+          if (facts.aiDraft !== undefined) {
+            const aiDraft = selectionAiDraftSchema.parse(facts.aiDraft);
+            if (
+              JSON.stringify(aiDraft.basis) !==
+              JSON.stringify(record.revision.basis)
+            )
+              throw new SelectionLifecycleError(
+                'conflict',
+                'AI提案依据与当前人工归因不一致',
+              );
+            // Server-loaded initial proposal only; no save/publish command can
+            // replace the immutable AI original or manufacture an HR edit.
+            record.revision = selectionRevisionSchema.parse({
+              ...record.revision,
+              aiDraft,
+            });
+          }
           plan = { kind: 'revision', record };
           result = record.revision;
         } else if (command.action === 'undo') {
@@ -336,7 +361,11 @@ export async function executeSelectionRevision<Tx>(
           plan = { kind: 'undo', undo };
           result = undo.receipt;
         } else {
-          const loaded = await ports.readRevision(tx, command.input.draftId);
+          const loaded = await ports.readRevision(
+            tx,
+            command.input.draftId,
+            requiredRole(command),
+          );
           if (!loaded)
             throw new SelectionLifecycleError(
               'not_found',

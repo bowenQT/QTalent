@@ -252,6 +252,12 @@ type CreateFacts = Awaited<
     SelectionStandardPorts<SelectionPostgresTransaction>['creationFacts']
   >
 >;
+const basisDisclosureSchema = z.strictObject({
+  citations: z.array(
+    z.strictObject({ caseId: text, side: z.enum(['front', 'back']) }),
+  ),
+});
+export type SelectionBasisDisclosure = z.infer<typeof basisDisclosureSchema>;
 /** Mandatory current server readers, implemented outside this private storage module.
  * No admin/allow-all/in-memory production defaults and no Next session dependencies.
  */
@@ -268,6 +274,13 @@ export interface SelectionPostgresServices {
       SelectionStandardPorts<SelectionPostgresTransaction>['creationFacts']
     >[2],
   ): Promise<Omit<CreateFacts, 'baseContent'>>;
+  /** Re-check every citation against the caller's current access and return
+   * each one verified, in basis order; throw forbidden when one is not. */
+  verifyBasisDisclosure(
+    tx: Transaction,
+    authority: SelectionAuthority,
+    basis: SelectionRevisionRecord['revision']['basis'],
+  ): Promise<SelectionBasisDisclosure>;
   readImpact(
     tx: Transaction,
     authority: SelectionAuthority,
@@ -328,6 +341,7 @@ export function createSelectionPostgresStore(
   for (const name of [
     'loadAuthority',
     'creationFacts',
+    'verifyBasisDisclosure',
     'readImpact',
     'readCohort',
   ] as const)
@@ -429,7 +443,10 @@ export function createSelectionPostgresStore(
           }
         },
         {
-          isolationLevel: 'read committed',
+          // Writers serialize on locks under Read Committed. A read-only call
+          // takes no row locks, so it reads one snapshot: access checks and
+          // canonical facts can never mix two moments.
+          isolationLevel: write ? 'read committed' : 'repeatable read',
           accessMode: write ? 'read write' : 'read only',
         },
       );
@@ -450,6 +467,31 @@ export function createSelectionPostgresStore(
     authorizeRecord(who, parsed);
     current.loaded.set(id, row);
     return parsed;
+  }
+  /** A stored signature or receipt is not a current grant to its citations. A
+   * malformed or empty verifier result is an installation fault, not consent. */
+  async function assertDisclosed(
+    tx: SelectionPostgresTransaction,
+    revision: SelectionRevisionRecord['revision'],
+  ) {
+    const { basis } = revision;
+    // The AI original is bound to the same basis at creation; one check covers both.
+    if (revision.aiDraft && !same(revision.aiDraft.basis, basis))
+      throw new SelectionPersistenceUnavailableError();
+    const result = basisDisclosureSchema.safeParse(
+      await services.verifyBasisDisclosure(tx.db, authority(tx), basis),
+    );
+    if (!result.success) throw new SelectionPersistenceUnavailableError();
+    if (
+      !same(
+        result.data.citations,
+        basis.citations.map(({ caseId, side }) => ({ caseId, side })),
+      )
+    )
+      throw new SelectionLifecycleError(
+        'forbidden',
+        '归因引用不在当前授权范围或来源已变化',
+      );
   }
   async function content(tx: SelectionPostgresTransaction, versionId: string) {
     state(tx);
@@ -1002,6 +1044,9 @@ export function createSelectionPostgresStore(
       });
       if (parsed.status !== 'success')
         throw new SelectionPersistenceUnavailableError();
+      // HR receipts carry the case-level basis; manager receipts do not.
+      if (role(action) === 'hr')
+        await assertDisclosed(tx, selectionRevisionSchema.parse(parsed.result));
       return {
         fingerprint: row.fingerprint,
         scopeCohortId: row.scopeCohortId,
@@ -1071,7 +1116,21 @@ export function createSelectionPostgresStore(
       authorizeSelectionAction(current, 'hr', facts.scopeCohortId);
       return { ...facts, baseContent };
     },
-    readRevision: record,
+    async readRevision(tx, draftId, purpose) {
+      // Manager planning reads keep the full record internally; only projections
+      // and receipts leave the executor. HR reads return the basis, so re-check it.
+      if (purpose === 'manager')
+        authorizeSelectionAction(authority(tx), 'manager');
+      else if (purpose !== 'hr')
+        throw new SelectionPersistenceUnavailableError();
+      const found = await record(tx, draftId);
+      if (found && purpose === 'hr') {
+        for (const cohortId of scope(found))
+          authorizeSelectionAction(authority(tx), 'hr', cohortId);
+        await assertDisclosed(tx, found.revision);
+      }
+      return found;
+    },
     async readImpact(tx, current, revision) {
       const native = state(tx, true);
       if (current !== authority(tx))

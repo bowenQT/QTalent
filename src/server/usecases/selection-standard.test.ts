@@ -13,6 +13,7 @@ import {
   type SelectionOperation,
 } from './selection-standard';
 import {
+  SelectionLifecycleError,
   type SelectionRevisionRecord,
   type SelectionAuthority,
 } from '../modules/evaluation-system/selection-standard';
@@ -304,6 +305,35 @@ it('replays an identical request once, preserves input for semantic conflicts, a
   expect(denied).not.toHaveProperty('result');
   expect(h.state().audits).toHaveLength(1);
 });
+it('reads drafts for HR actions with the disclosure-checked purpose and for review with the manager purpose', async () => {
+  const h = harness();
+  const revision = await pending(h);
+  const read = vi.mocked(h.ports.readRevision);
+  // save and submit read the draft back as HR; the port re-checks citations.
+  expect(read.mock.calls.map((call) => call[2])).toEqual(['hr', 'hr']);
+  read.mockClear();
+  const returned = await h.execute(managerAccount, 'return', {
+    operationId: 'return-checked',
+    draftId: revision.id,
+    expectedRevision: revision.revision,
+    reason: '演示：补充说明',
+  });
+  expect(returned.status).toBe('success');
+  expect(read.mock.calls.map((call) => call[2])).toEqual(['manager']);
+  const stored = h.state().records.get(revision.id)!.revision;
+  const audits = h.state().audits.length;
+  read.mockRejectedValueOnce(
+    new SelectionLifecycleError('forbidden', '归因引用不在当前授权范围'),
+  );
+  expect(
+    await h.execute(hrAccount, 'withdraw', {
+      operationId: 'withdraw-after-revoke',
+      draftId: stored.id,
+      expectedRevision: stored.revision,
+    }),
+  ).toEqual({ status: 'forbidden', message: '归因引用不在当前授权范围' });
+  expect(h.state().audits).toHaveLength(audits);
+});
 it('uses the saved preview for return/withdraw flows and keeps private attribution out of manager responses', async () => {
   const h = harness();
   const revision = await pending(h);
@@ -571,6 +601,9 @@ function nativeReadBoundary() {
     creationFacts: vi.fn(async () => {
       throw new Error('not installed in this unit harness');
     }),
+    verifyBasisDisclosure: vi.fn(async () => {
+      throw new Error('not installed in this unit harness');
+    }),
     readImpact: vi.fn(async () => {
       throw new Error('not installed in this unit harness');
     }),
@@ -597,10 +630,11 @@ it('native adapter refuses forged, copied and other-store contexts before SQL', 
         f.store.ports.readRevision(
           forged as SelectionPostgresTransaction,
           'demo',
+          'hr',
         ),
       ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
     await expect(
-      other.store.ports.readRevision(tx, 'demo'),
+      other.store.ports.readRevision(tx, 'demo', 'hr'),
     ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
   });
   expect(f.select).not.toHaveBeenCalled();
@@ -611,15 +645,15 @@ it('native adapter expires contexts at callback end and refuses readonly writes'
   let captured: SelectionPostgresTransaction | undefined;
   await f.store.ports.read(async (tx) => {
     captured = tx;
-    await expect(f.store.ports.readRevision(tx, 'demo')).rejects.toBeInstanceOf(
-      SelectionPersistenceUnavailableError,
-    );
+    await expect(
+      f.store.ports.readRevision(tx, 'demo', 'hr'),
+    ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
     await expect(f.store.ports.allocateId(tx, 'draft')).rejects.toBeInstanceOf(
       SelectionPersistenceUnavailableError,
     );
   });
   await expect(
-    f.store.ports.readRevision(captured!, 'demo'),
+    f.store.ports.readRevision(captured!, 'demo', 'hr'),
   ).rejects.toBeInstanceOf(SelectionPersistenceUnavailableError);
   expect(f.select).not.toHaveBeenCalled();
 });

@@ -100,8 +100,15 @@ export type At<K extends AnyLocation['kind']> = Extract<
   { kind: K }
 >;
 
+/**
+ * 原件这一侧能显示什么。引用可见不等于整份原件可读（BOW-873：同一版本里有任何一处
+ * 不在查看范围，整份原件就不给读），这时只显示提取出的这一段。
+ */
 export type OriginalState =
-  { status: 'not_connected' } | { status: 'ready'; content: OriginalContent };
+  | { status: 'not_connected' }
+  | { status: 'restricted' }
+  | { status: 'failed' }
+  | { status: 'ready'; content: OriginalContent };
 
 /** 内容种类和出处位置对不上时不展示，按原件待接入处理，不在别的原件上标位置。 */
 export function contentFor<K extends OriginalContent['kind']>(
