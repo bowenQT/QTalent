@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { sourceLocationSchema } from '../../../../contracts/sources';
 import {
   createFakeMaas,
   metadataFor,
@@ -95,7 +96,9 @@ describe('authorized shared record arrangement', () => {
               reference: {
                 fragmentId: 'fragment-text',
                 originalVersionId: 'original-v1',
-                location: snapshot.authorization.sources[0]!.location,
+                location: sourceLocationSchema.parse(
+                  snapshot.authorization.sources[0]!.location,
+                ),
               },
             };
       score.citations = [citation];

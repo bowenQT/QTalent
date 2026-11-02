@@ -16,7 +16,11 @@ import {
   staffingDemandSchema,
   type StaffingDemand,
 } from '../../contracts/staffing';
-import { sourceSchema, type Source } from '../../contracts/sources';
+import {
+  sourceLocationSchema,
+  sourceSchema,
+  type Source,
+} from '../../contracts/sources';
 import type { JevClient } from '../integrations/jev';
 import { createMatchingService } from '../modules/staffing/matching/service';
 import {
@@ -203,9 +207,14 @@ export function createStaffingMatchUsecase<C>(
         )
           continue;
         for (const visible of event.sources) {
+          // The legacy source contract cannot carry the new material locators; such a source
+          // has no legacy detail to match, so it is left out like any other missing detail.
+          const location = sourceLocationSchema.safeParse(visible.location);
+          if (!location.success) continue;
           const detail = loaded.sources.find(
             (source) =>
-              referenceKey(source) === referenceKey(visible) &&
+              referenceKey(source) ===
+                referenceKey({ ...visible, location: location.data }) &&
               source.excerpt === visible.excerpt,
           );
           if (!detail) continue;

@@ -433,6 +433,10 @@ describe('timeline entries', () => {
       data.fragments.push({
         id: 'fragment-w',
         originalVersionId: 'version',
+        parseVersionId: null,
+        sourceCategory: null,
+        evaluationKind: null,
+        demo: null,
         excerpt: 'Synthetic weekly',
         location: { kind: 'snapshot_field', fieldPath: 'sum' },
       });
