@@ -595,6 +595,10 @@ describe('quick view and list', () => {
         by: 'actor',
       });
     };
+    // Same day: names decide by code point ('B' < 'a'), against id order
+    // and against localeCompare, before ids break exact ties.
+    join('x1', 'a-project', '2026-01-15');
+    join('x2', 'B-project', '2026-01-15');
     join('late', 'Alpha', '2026-03-01');
     join('tie-b', 'Beta', '2026-02-01');
     join('tie-a2', 'Alpha', '2026-02-01');
@@ -604,6 +608,8 @@ describe('quick view and list', () => {
     if (person.projects.status !== 'ready') throw new Error('no projects');
     expect(person.projects.data.map((row) => row.id)).toEqual([
       'early',
+      'x2',
+      'x1',
       'tie-a1',
       'tie-a2',
       'tie-b',
