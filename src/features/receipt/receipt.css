@@ -146,6 +146,9 @@
   gap: var(--s-2);
   font-size: var(--t-sm);
 }
+.n-rcpt__who {
+  white-space: nowrap;
+}
 .n-rcpt__editrow small {
   font-size: var(--t-xs);
   color: var(--ink-3);

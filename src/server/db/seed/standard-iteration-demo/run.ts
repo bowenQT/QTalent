@@ -8,6 +8,7 @@ import {
   StandardIterationImportError,
 } from './import';
 import { initializeStandardIterationDemo } from './init';
+import { StandardIterationFactError } from './input';
 
 /** Explicit operator command, never part of db:seed. `--apply` imports the
  * fixed facts onto an already initialized background; `--init --as <account>`
@@ -49,6 +50,7 @@ if (
     // input values. Keep those out of public job logs; never print cause/stack.
     const code =
       error instanceof StandardIterationImportError ||
+      error instanceof StandardIterationFactError ||
       error instanceof CanonicalComparisonError
         ? error.code
         : error instanceof SelectionLifecycleError
@@ -56,8 +58,16 @@ if (
           : 'import_failed';
     const fields =
       error instanceof StandardIterationImportError ? error.fields : undefined;
+    // A fixture error names only the constant fixture file, never a path.
+    const file =
+      error instanceof StandardIterationFactError ? error.file : undefined;
     console.error(
-      JSON.stringify({ status: 'failed', code, ...(fields && { fields }) }),
+      JSON.stringify({
+        status: 'failed',
+        code,
+        ...(fields && { fields }),
+        ...(file && { file }),
+      }),
     );
     process.exitCode = 1;
   }

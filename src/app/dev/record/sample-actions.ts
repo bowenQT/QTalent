@@ -6,7 +6,11 @@ import {
 import { materialReviewItemSchema } from '@/contracts/material-review';
 import {
   RECORD_UNDO_WINDOW_MS,
+  recordSaveResultSchema,
+  recordUndoResultSchema,
   type RecordBatchDraft,
+  type RecordSaveResult,
+  type RecordUndoResult,
 } from '@/contracts/record';
 import type {
   AnchorMap,
@@ -20,6 +24,7 @@ import {
   textReference,
   type SampleScene,
 } from './samples';
+import { ledgerKey, requestKey } from './sample-ledger';
 
 /** One arranging step; the prototype's trail advances at about this pace. */
 export const STEP_MS = 700;
@@ -32,8 +37,10 @@ type Task = {
   startedAt: number;
   /** Drafts still awaiting confirmation, in batch order. */
   drafts: RecordBatchDraft[];
-  confirmed: { draftId: string; revision: number; eventId: string }[];
+  /** One event per person, as the server creates them. */
+  confirmed: { draftId: string; revision: number; events: EventMapping[] }[];
 };
+type EventMapping = { personId: string; eventId: string };
 
 /**
  * Stands in for the server behind the record page: material batches (BOW-897 receipts)
@@ -45,10 +52,21 @@ type Saved = {
   undoUntil: number;
   batchId: string;
   draft: RecordBatchDraft;
+  events: EventMapping[];
+};
+/**
+ * Operation ledger, kept apart from the live saves as 846 does: per account, action and
+ * operation_id, the same (normalized) request replays its first answer (even after the
+ * undo window, or after the save it made was undone); a different request conflicts.
+ */
+type Operation = {
+  request: string;
+  result: RecordSaveResult | RecordUndoResult;
 };
 type Stored = {
   tasks: [string, Task][];
   saves: [string, Saved][];
+  operations: [string, Operation][];
   serial: number;
   offline: boolean;
   conflict: boolean;
@@ -70,10 +88,11 @@ export function sampleServer({
   actions: RecordActions;
   loadAnchors: LoadAnchors;
 } {
-  const key = `qtalent-dev-record:${accountId}:${scene}`;
+  const key = `qtalent-dev-record:v2:${accountId}:${scene}`;
   const loaded = load();
   const tasks = new Map<string, Task>(loaded?.tasks);
   const saves = new Map<string, Saved>(loaded?.saves);
+  const operations = new Map<string, Operation>(loaded?.operations);
   let serial = loaded?.serial ?? 0;
   let offline = loaded?.offline ?? scene === 'offline';
   let conflict = loaded?.conflict ?? scene === 'conflict';
@@ -93,6 +112,7 @@ export function sampleServer({
     const value: Stored = {
       tasks: [...tasks],
       saves: [...saves],
+      operations: [...operations],
       serial,
       offline,
       conflict,
@@ -103,12 +123,12 @@ export function sampleServer({
   const iso = (ms: number) => new Date(ms).toISOString();
 
   function arranged(batchId: string, input: MaterialBatchInput) {
-    const [personId] = input.personIds;
-    if (!personId || scene === 'review') return [];
+    const { personIds } = input;
+    if (personIds.length === 0 || scene === 'review') return [];
     const base = {
       batchId,
       evaluationNodeId: input.evaluationNodeId,
-      personId,
+      personIds,
       text: input.text,
     };
     const first = sampleDraft({ ...base, draftId: id('sample-draft') });
@@ -188,9 +208,7 @@ export function sampleServer({
       confirmedDrafts: task.confirmed.map((entry) => ({
         draftId: entry.draftId,
         revision: entry.revision,
-        events: [
-          { personId: task.input.personIds[0]!, eventId: entry.eventId },
-        ],
+        events: entry.events,
       })),
       counts: {
         files: {
@@ -268,6 +286,13 @@ export function sampleServer({
         : { status: 'not_found', message: '批次不存在或当前不可见' };
     },
     async save(input) {
+      const ledger = ledgerKey(accountId, 'save', input.operation_id);
+      const request = requestKey('save', input);
+      const known = operations.get(ledger);
+      if (known)
+        return known.request === request
+          ? { ...(known.result as RecordSaveResult), replayed: true }
+          : { status: 'conflict', message: '同一次操作的内容变了', input };
       const found = findDraft(input.draftId);
       if (!found)
         return { status: 'not_found', message: '这条记录已失效，请重新整理' };
@@ -294,26 +319,30 @@ export function sampleServer({
         };
       const savedAt = now();
       const saveId = id('sample-save');
-      const eventId = id('sample-event');
+      const events = input.personIds.map((personId) => ({
+        personId,
+        eventId: id('sample-event'),
+      }));
       task.drafts = task.drafts.filter(
         (item) => item.draftId !== draft.draftId,
       );
       task.confirmed.push({
         draftId: draft.draftId,
         revision: draft.revision + 1,
-        eventId,
+        events,
       });
       saves.set(saveId, {
         undoUntil: savedAt + RECORD_UNDO_WINDOW_MS,
         batchId,
         draft,
+        events,
       });
-      return {
+      const result: RecordSaveResult = {
         status: 'success',
         replayed: false,
         result: {
           saveId,
-          events: input.personIds.map((personId) => ({ personId, eventId })),
+          events,
           revision: draft.revision + 1,
           confirmationIds: input.decisions
             .filter((d) => d.action !== 'unknown')
@@ -324,45 +353,64 @@ export function sampleServer({
           undoUntil: iso(savedAt + RECORD_UNDO_WINDOW_MS),
         },
       };
+      operations.set(ledger, {
+        request,
+        result: recordSaveResultSchema.parse(result),
+      });
+      return result;
     },
-    async undo({ saveId }) {
+    async undo(input) {
+      const { saveId } = input;
+      const ledger = ledgerKey(accountId, 'undo', input.operation_id);
+      const request = requestKey('undo', input);
+      const known = operations.get(ledger);
+      if (known)
+        return known.request === request
+          ? { ...(known.result as RecordUndoResult), replayed: true }
+          : { status: 'conflict', message: '同一次操作的内容变了', input };
       const saved = saves.get(saveId);
       if (!saved || now() >= saved.undoUntil)
         return {
           status: 'conflict',
           message: '已超过撤销时间，这条记录已保存',
-          input: { operation_id: 'sample', saveId },
+          input,
         };
       saves.delete(saveId);
       const task = tasks.get(saved.batchId);
+      // 照 846（#317）：保存、撤销各推进一次版本，撤销把草稿恢复成可确认的新版本
+      const restored = { ...saved.draft, revision: saved.draft.revision + 2 };
       if (task) {
         task.confirmed = task.confirmed.filter(
           (entry) => entry.draftId !== saved.draft.draftId,
         );
-        task.drafts = [...task.drafts, saved.draft];
+        task.drafts = [...task.drafts, restored];
       }
-      return {
+      const result: RecordUndoResult = recordUndoResultSchema.parse({
         status: 'success',
         replayed: false,
         result: {
           saveId,
-          withdrawnEvents: [],
+          withdrawnEvents: saved.events,
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
-          // 照 846（#317）：回执给出撤销后再保存要用的草稿版本。样张保存不推进版本，
-          // 所以就是草稿当前的版本；真实服务端保存、撤销各加一
+          // 回执给出撤销后再保存要用的草稿版本
           draftRestoration: task
             ? {
                 status: 'available',
-                draftId: saved.draft.draftId,
-                draftRevision: saved.draft.revision,
+                draftId: restored.draftId,
+                draftRevision: restored.revision,
               }
             : { status: 'refresh_required' },
           // 照 846（#289）：撤销回执不带原输入，页面用自己保存时的原话回到待确认
           inputRestoration: 'unavailable',
           originalInput: null,
         },
-      };
+      });
+      operations.set(ledger, {
+        request,
+        result,
+      });
+      return result;
     },
     // Citations here quote the typed sentence only; nothing points at a stored source.
     loadSource: async () => ({
