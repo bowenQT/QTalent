@@ -46,7 +46,11 @@ import {
   type PreparedStandardIterationDemo,
 } from './input';
 import { importStandardIterationDemo } from './import';
-import { DEMO_NODES, initializeStandardIterationDemo } from './init';
+import {
+  DEMO_GRADUATION_REVIEWER,
+  DEMO_NODES,
+  initializeStandardIterationDemo,
+} from './init';
 
 // Native PG rollback tests use the actual pinned 923 inputs, not injected plans.
 // Positive tests use explicitly synthetic legal node/time facts in this isolated
@@ -152,15 +156,21 @@ beforeEach(async () => {
   const directory = new Map(
     [...previous.requiredPeople, ...plan.requiredPeople].map((p) => [p.id, p]),
   );
+  // s-29 is held in the exact form init registers, under its real organization.
+  directory.delete(DEMO_GRADUATION_REVIEWER.id);
+  await db()
+    .insert(organizations)
+    .values({ id: 'tdc', name: '测试评审组织（演示）', shortName: '评审' });
   await db()
     .insert(people)
-    .values(
-      [...directory.values()].map((p) => ({
+    .values([
+      ...[...directory.values()].map((p) => ({
         ...p,
         organizationId: 'iteration-test-org',
         demo: true,
       })),
-    );
+      DEMO_GRADUATION_REVIEWER,
+    ]);
   await db().insert(cohorts).values(plan.cohort);
 });
 async function runCli(args = ['--apply']) {
@@ -702,6 +712,7 @@ describe('923 generations coexist and demo initialization is idempotent', () => 
     );
     expect(second).toEqual({
       ...first,
+      directory: 'unchanged',
       nodes: 'unchanged',
       baseline: 'unchanged',
       binding: 'unchanged',
@@ -751,6 +762,73 @@ describe('923 generations coexist and demo initialization is idempotent', () => 
     // CLI must not leave any of its own behind.
     expect(await activeConnections()).toBeLessThanOrEqual(before);
   }, 30_000);
+  it('init registers the missing graduation reviewer once, then keeps it', async () => {
+    await managerAccount();
+    await db().delete(people).where(eq(people.id, DEMO_GRADUATION_REVIEWER.id));
+    const first = await initializeStandardIterationDemo(
+      db(),
+      process.cwd(),
+      MANAGER,
+      TEST_ONLY_CLOCK,
+    );
+    expect(first).toMatchObject({
+      directory: 'created',
+      import: { status: 'inserted' },
+    });
+    const stored = await db()
+      .select()
+      .from(people)
+      .where(eq(people.id, DEMO_GRADUATION_REVIEWER.id));
+    expect(stored).toEqual([DEMO_GRADUATION_REVIEWER]);
+    const again = await initializeStandardIterationDemo(
+      db(),
+      process.cwd(),
+      MANAGER,
+      TEST_ONLY_CLOCK,
+    );
+    expect(again).toMatchObject({ directory: 'unchanged' });
+    expect(
+      await db()
+        .select()
+        .from(people)
+        .where(eq(people.id, DEMO_GRADUATION_REVIEWER.id)),
+    ).toEqual(stored);
+  });
+  it.each([
+    ['name', { name: '另一人' }],
+    ['organization', { organizationId: 'iteration-test-org' }],
+    ['hue', { hue: 220 }],
+    ['noReview', { noReview: false }],
+  ] as const)(
+    'init refuses an existing s-29 with a different %s and changes nothing',
+    async (_field, change) => {
+      await managerAccount();
+      await db()
+        .update(people)
+        .set(change)
+        .where(eq(people.id, DEMO_GRADUATION_REVIEWER.id));
+      const before = await db()
+        .select()
+        .from(people)
+        .where(eq(people.id, DEMO_GRADUATION_REVIEWER.id));
+      await expect(
+        initializeStandardIterationDemo(
+          db(),
+          process.cwd(),
+          MANAGER,
+          TEST_ONLY_CLOCK,
+        ),
+      ).rejects.toMatchObject({ code: 'directory_mismatch' });
+      expect(
+        await db()
+          .select()
+          .from(people)
+          .where(eq(people.id, DEMO_GRADUATION_REVIEWER.id)),
+      ).toEqual(before);
+      expect((await countFacts()).canonical).toBe(0);
+      expect(await db().select().from(evaluationNodes)).toEqual([]);
+    },
+  );
   it('init keeps the previous generation nodes and adds the current ones', async () => {
     await managerAccount();
     await nodesFor(previous);

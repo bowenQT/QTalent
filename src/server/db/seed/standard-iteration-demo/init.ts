@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { Database } from '../../client';
+import { organizations, people } from '../../../modules/directory';
 import {
   cohorts,
   evaluationNodes,
@@ -47,6 +48,19 @@ export const DEMO_NEXT_COHORT = {
   sourceReference: `${FACT_DIRECTORY}/cohort-scenarios.json`,
 } as const;
 
+/** The graduation reviewer the v3 fixture needs. Prototype 81e4fd4 (data.js)
+ * added this demo person; the engineering seed still reads prototype 91b297a,
+ * so init registers exactly this one person (#248 ruling) and nobody else. */
+export const DEMO_GRADUATION_REVIEWER = {
+  id: 's-29',
+  name: '孟砚舟',
+  organizationId: 'tdc',
+  photo: null,
+  hue: 318,
+  noReview: true,
+  demo: true,
+} as const;
+
 type Step = 'created' | 'unchanged';
 
 /** Operator-only, idempotent demo initialization. Each step is its own native
@@ -80,6 +94,38 @@ export async function initializeStandardIterationDemo(
       await loadSelectionAuthority(tx, accountId, clock),
       'manager',
     ),
+  );
+
+  // Registered first, so a mismatching s-29 fails before any other write.
+  const directory = await db.transaction(
+    async (tx): Promise<Step> => {
+      const person = DEMO_GRADUATION_REVIEWER;
+      const [existing] = await tx
+        .select()
+        .from(people)
+        .where(eq(people.id, person.id))
+        .for('update');
+      if (existing) {
+        // Compare every column; an existing different person is never patched.
+        if (
+          (Object.keys(person) as (keyof typeof person)[]).some(
+            (key) => existing[key] !== person[key],
+          )
+        )
+          throw new StandardIterationImportError('directory_mismatch');
+        return 'unchanged';
+      }
+      const [organization] = await tx
+        .select({ id: organizations.id })
+        .from(organizations)
+        .where(eq(organizations.id, person.organizationId))
+        .for('share');
+      if (!organization)
+        throw new StandardIterationImportError('directory_mismatch');
+      await tx.insert(people).values(person);
+      return 'created';
+    },
+    { isolationLevel: 'read committed' },
   );
 
   const nodes = await db.transaction(
@@ -172,6 +218,7 @@ export async function initializeStandardIterationDemo(
     nodes,
     baseline,
     binding,
+    directory,
     import: imported,
     nextCohortExists: next.length > 0,
   };
