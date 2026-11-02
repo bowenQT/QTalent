@@ -36,7 +36,10 @@ import { confirmations, aiSuggestions } from '../modules/talent';
 import { loadPersonData } from './person-data';
 import { personFromData } from './person-projection';
 import { peopleFromData, quickViewFromData } from './people';
-import { sourceFromData } from './sources';
+import { projectReadableSources, sourceFromData } from './sources';
+import { loadEvaluationContext } from '../usecases/evaluation-context';
+import { readEvidenceForTalent } from '../modules/records';
+import { readIntakeTable } from '../usecases/talent-source-projection';
 import { fixture, nodeFixture } from './person-test-helpers';
 import { expectDirectoryOrder } from '../../../tests/fixtures/p0-contracts';
 import { importDemo } from '../db/import';
@@ -278,6 +281,18 @@ it('projects actual pinned seed observations and ended project participation', a
     const link = mapped.evidence.eventSources.find(
       (row) => row.eventId === hidden.id,
     )!;
+    // Its own cell, so no original fact makes that source readable.
+    await seeded.db.insert(fragments).values({
+      id: 'synthetic-management-cell',
+      originalVersionId: link.originalVersionId,
+      location: { kind: 'snapshot_field', fieldPath: 'synthetic.note' },
+      excerpt: 'Synthetic management note',
+    });
+    await seeded.db.insert(eventSources).values({
+      eventId: hidden.id,
+      fragmentId: 'synthetic-management-cell',
+      originalVersionId: link.originalVersionId,
+    });
     await seeded.db.insert(statements).values({
       id: 'synthetic-management-note',
       eventId: hidden.id,
@@ -286,7 +301,7 @@ it('projects actual pinned seed observations and ended project participation', a
       authorId: mentor.personId,
       modelVersion: null,
       uncertainty: null,
-      fragmentId: link.fragmentId,
+      fragmentId: 'synthetic-management-cell',
       originalVersionId: link.originalVersionId,
     });
     const afterNote = await personFromData(
@@ -315,6 +330,38 @@ it('projects actual pinned seed observations and ended project participation', a
     expect(
       managerView.timeline.data.find((row) => row.id === hidden.id),
     ).toMatchObject({ category: 'management-observation' });
+    // The matching loader's snapshot shape: every relation is kept for later
+    // authorization; details cover only what each account can read.
+    const projected = async (account: string) => {
+      const data = {
+        ...(await loadEvaluationContext(seeded.db, account, '2026-10-25')),
+        ...(await readEvidenceForTalent(seeded.db)),
+        intake: await seeded.db.transaction((tx) =>
+          readIntakeTable(tx, 'snapshot'),
+        ),
+      };
+      return { data, ...(await projectReadableSources(data)) };
+    };
+    const hr = await projected('demo-hrbp');
+    const mentorSources = await projected('demo-mentor');
+    expect(hr.sources).toHaveLength(hr.data.fragments.length);
+    expect(mentorSources.sources).toHaveLength(hr.sources.length);
+    expect(hr.details.length).toBeGreaterThan(mentorSources.details.length);
+    const observed = new Set(
+      hr.data.statements
+        .filter((row) => row.kind === 'management_observation')
+        .map((row) => row.fragmentId + ':' + row.originalVersionId),
+    );
+    expect(
+      hr.details.some((row) =>
+        observed.has(row.fragmentId + ':' + row.originalVersionId),
+      ),
+    ).toBe(true);
+    expect(
+      mentorSources.details.some((row) =>
+        observed.has(row.fragmentId + ':' + row.originalVersionId),
+      ),
+    ).toBe(false);
     const managerData = await loadPersonData(
       seeded.db,
       'demo-ceo',

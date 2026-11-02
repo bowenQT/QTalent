@@ -32,6 +32,7 @@ export const identity: PersonIdentity = {
   teamId: 'test-team-001',
   teamName: '演示团队',
   teamPath: '演示期 / 演示团队',
+  orgPath: '演示期 / 演示团队',
   jobTitle: '演示岗位',
   level: '2028 届',
   batch: { id: 'test-batch-001', name: '演示期' },
@@ -374,6 +375,7 @@ const roster = (
     teamId: `test-team-${teamName}`,
     teamName,
     teamPath: `演示期 / ${teamName}`,
+    orgPath: `演示期 / ${teamName}`,
   },
 });
 export const directoryList: QuickView[] = [

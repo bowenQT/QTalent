@@ -12,9 +12,10 @@ import { expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createDatabase } from './client';
-import { importDemo } from './import';
-import { mapPrototypeSeed, readPrototypeSeed } from './seed';
-import { fingerprintMigrationFacts } from '../../../tests/fixtures/legacy-migration-seed';
+import {
+  fingerprintMigrationFacts,
+  seedVerifiedLegacyBaseline,
+} from '../../../tests/fixtures/legacy-migration-seed';
 
 const folder = 'src/server/db/migrations';
 const journal = () =>
@@ -91,9 +92,10 @@ it('creates the four upload tables from the default empty-database path without 
 it('upgrades the real seeded 0000–0009 database without changing historical facts and reruns idempotently', async () => {
   await isolated(async (connection) => {
     await previous(connection);
-    await importDemo(
-      connection.db,
-      mapPrototypeSeed(readPrototypeSeed(process.cwd())),
+    // The current importer writes current columns; an old database is seeded
+    // through the pinned pre-899 baseline instead.
+    await seedVerifiedLegacyBaseline(
+      connection,
       'Synthetic-test-password-only',
     );
     const before = await fingerprintMigrationFacts(

@@ -15,6 +15,7 @@ import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { createDatabase, type Database, type Transaction } from './client';
 import { readPrototypeSeed, mapPrototypeSeed, type DemoSeed } from './seed';
+import { importDirectoryProfileDemo } from './seed/directory-profile';
 import {
   parseFormalEvidence,
   type EvidenceRecords,
@@ -787,6 +788,8 @@ export async function runImport(args: string[] = []) {
         : command === 'revert-statement-kinds'
           ? await revertDemoStatementKinds(connection.db, seed)
           : await importDemo(connection.db, seed, env.DEMO_PASSWORD);
+    if (command === undefined)
+      await importDirectoryProfileDemo(connection.db, process.cwd());
     console.log(JSON.stringify(report));
   } finally {
     await connection.pool.end();

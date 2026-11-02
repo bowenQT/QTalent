@@ -54,11 +54,22 @@ function actor(): ArrangeActor {
         ...p,
         name: ['林舟', '许禾', '周岚'][i]!,
         organizationId: 'demo-org',
+        jobTitle: null,
+        jobLevel: null,
         photo: null,
         hue: 220,
         demo: true,
       })),
-      organizations: [{ id: 'demo-org', name: '演示组织', shortName: '演示' }],
+      organizations: [
+        {
+          id: 'demo-org',
+          name: '演示组织',
+          shortName: '演示',
+          parentId: null,
+          hierarchyKnown: false,
+          isGroup: false,
+        },
+      ],
     },
     staffing: { projects: [], members: [] },
   };
