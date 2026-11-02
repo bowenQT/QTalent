@@ -110,8 +110,9 @@ export function ReceiptPage({
   const [undone, setUndone] = useState<
     Record<string, RestoredEdit & { draft: RecordBatchDraft; at: number }>
   >({});
-  // 当前快照是第几次发起的读取带回来的
+  // 当前快照是第几次发起的读取带回来的；更早发起、更晚落定的读取不替换它
   const [viewRead, setViewRead] = useState(0);
+  const shown = useRef(0);
   // 撤销发出去了、结果不知道的事：重试沿用同一次撤销。
   // verify：之前那次结果未知、重试又被拒，说明不了撤销有没有生效，只能刷新回执核实
   const [undoUnknown, setUndoUnknown] = useState<
@@ -126,7 +127,8 @@ export function ReceiptPage({
     const started = ++reads.current;
     try {
       const result = await actions.read(batchId);
-      if (result.status === 'success') {
+      if (result.status === 'success' && started > shown.current) {
+        shown.current = started;
         setView(result.view);
         setViewRead(started);
         setOrder((prev) => draftOrder(prev, result.view));

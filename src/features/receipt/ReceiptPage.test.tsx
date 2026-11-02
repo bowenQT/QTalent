@@ -899,7 +899,7 @@ describe('本页状态和读取快照的优先规则', () => {
     );
   const b = { ...other, draftId: 'demo-event-draft-b' };
 
-  it('确认之后才发起的读取读到这件事在待确认：本地「已确认」作废，回到待确认', async () => {
+  it('确认之后才发起的读取读到这件事在待确认：本地「已确认」作废，回到待确认，分和理由照保存时的留着', async () => {
     const user = userEvent.setup();
     const read = vi
       .fn()
@@ -917,43 +917,44 @@ describe('本页状态和读取快照的优先规则', () => {
       save: vi.fn().mockResolvedValue(saved()),
       undo: vi.fn(),
     });
+    const card = () => cardOf('demo-event-draft-a');
+    await user.click(within(card()).getByRole('button', { name: '改分' }));
+    await user.selectOptions(within(card()).getByRole('combobox'), '5');
+    await user.type(within(card()).getByRole('textbox'), '两人合作');
     await user.click(
-      within(cardOf('demo-event-draft-a')).getByRole('button', {
-        name: /确认这件事/,
-      }),
+      within(card()).getByRole('button', { name: '保存并确认' }),
     );
     await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
-    expect(cardOf('demo-event-draft-a').dataset.state).toBe('confirmed');
+    expect(card().dataset.state).toBe('confirmed');
     await user.click(
       within(cardOf('demo-event-draft-b')).getByRole('button', {
         name: /确认这件事/,
       }),
     );
     await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(card().dataset.state).toBe('ai'));
     expect(
-      await within(cardOf('demo-event-draft-a')).findByRole('button', {
-        name: /确认这件事/,
-      }),
-    ).toBeTruthy();
+      (within(card()).getByRole('combobox') as HTMLSelectElement).value,
+    ).toBe('5');
+    expect(
+      (within(card()).getByRole('textbox') as HTMLTextAreaElement).value,
+    ).toBe('两人合作');
   });
 
-  it('确认之前就发起、之后才落定的读取：旧快照纠正不了本地的「已确认」', async () => {
+  it('保存还没返回时最新一次读取先落定：它带回的待确认纠正不了随后保存成功的「已确认」', async () => {
     const user = userEvent.setup();
-    let release!: (value: unknown) => void;
-    const slow = new Promise((resolve) => (release = resolve));
+    let releaseRead!: (value: unknown) => void;
+    let releaseSave!: (value: unknown) => void;
     const read = vi
       .fn()
-      // 确认第二件事后的读取一直不回
-      .mockReturnValueOnce(slow)
-      .mockResolvedValue({
-        status: 'success',
-        view: snapshot([], ['demo-event-draft-a', 'demo-event-draft-b']),
-      });
-    mountWith(make({ confirmers: bothMine }), {
-      read,
-      save: vi.fn().mockResolvedValue(saved()),
-      undo: vi.fn(),
-    });
+      .mockReturnValueOnce(new Promise((resolve) => (releaseRead = resolve)))
+      // 保存第一件事之后的读取一直不回
+      .mockReturnValue(new Promise(() => undefined));
+    const save = vi
+      .fn()
+      .mockResolvedValueOnce(saved())
+      .mockReturnValueOnce(new Promise((resolve) => (releaseSave = resolve)));
+    mountWith(make({ confirmers: bothMine }), { read, save, undo: vi.fn() });
     await user.click(
       within(cardOf('demo-event-draft-b')).getByRole('button', {
         name: /确认这件事/,
@@ -965,12 +966,16 @@ describe('本页状态和读取快照的优先规则', () => {
         name: /确认这件事/,
       }),
     );
-    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
-    // 第一次读取现在才回来，带着确认第一件事之前的样子
-    release({
+    // 读取在保存返回之前落定，当时这件事确实还在待确认
+    releaseRead({
       status: 'success',
       view: snapshot([draft], ['demo-event-draft-b']),
     });
+    await waitFor(() =>
+      expect(cardOf('demo-event-draft-b').dataset.state).toBe('confirmed'),
+    );
+    releaseSave(saved());
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(cardOf('demo-event-draft-a').dataset.state).toBe('confirmed'),
     );
@@ -979,6 +984,45 @@ describe('本页状态和读取快照的优先规则', () => {
         name: /确认这件事/,
       }),
     ).toBeNull();
+  });
+
+  it('更早发起、更晚落定的读取：不替换已经显示的更新快照', async () => {
+    const user = userEvent.setup();
+    let release!: (value: unknown) => void;
+    const read = vi
+      .fn()
+      .mockReturnValueOnce(new Promise((resolve) => (release = resolve)))
+      // 后发起的读取先回来：第一件事在别处被撤销，回到了待确认
+      .mockResolvedValue({
+        status: 'success',
+        view: snapshot([{ ...draft, revision: 3 }], ['demo-event-draft-b']),
+      });
+    mountWith(make({ confirmers: bothMine }), {
+      read,
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi.fn(),
+    });
+    const card = () => cardOf('demo-event-draft-a');
+    await user.click(
+      within(card()).getByRole('button', { name: /确认这件事/ }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    await user.click(
+      within(cardOf('demo-event-draft-b')).getByRole('button', {
+        name: /确认这件事/,
+      }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    expect(
+      await within(card()).findByRole('button', { name: /确认这件事/ }),
+    ).toBeTruthy();
+    // 第一次读取现在才回来，带着第一件事还是已确认的样子
+    release({ status: 'success', view: snapshot([b], ['demo-event-draft-a']) });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(card().dataset.state).toBe('ai');
+    expect(
+      within(card()).getByRole('button', { name: /确认这件事/ }),
+    ).toBeTruthy();
   });
 
   it('撤销之后才发起的读取读到这件事已确认：撤销记录作废，照快照显示已确认', async () => {
