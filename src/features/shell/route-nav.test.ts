@@ -72,6 +72,14 @@ describe('resolveRouteNav', () => {
     });
   });
 
+  it('keeps the person crumb as 人才 when the mentor entry is renamed', () => {
+    const mentor = [entry('people', '所带学员', '/people')];
+    expect(resolveRouteNav(mentor, '/person', false).parent).toEqual({
+      label: '人才',
+      href: '/people',
+    });
+  });
+
   it('shows no parent link when the viewer has no people entry', () => {
     expect(
       resolveRouteNav(

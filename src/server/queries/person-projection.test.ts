@@ -3,7 +3,7 @@ import { personSchema } from '../../contracts/person';
 import { fixture } from './person-test-helpers';
 import { personFromData } from './person-projection';
 import { peopleFromData, quickViewFromData } from './people';
-import { sourceFromData } from './sources';
+import { projectReadableSources, sourceFromData } from './sources';
 import type { PersonData } from './person-data';
 
 // ---------- helpers ----------
@@ -69,7 +69,8 @@ describe('identity and landing', () => {
       demo: true,
       teamId: 'org',
       teamName: 'Test',
-      teamPath: 'Synthetic org',
+      teamPath: '组织层级未接入',
+      orgPath: '组织层级未接入',
       jobTitle: '职位未接入',
       level: null,
       batch: { id: 'cohort', name: 'Synthetic cohort' },
@@ -377,6 +378,10 @@ describe('timeline entries', () => {
     const data = fixture();
     data.statements[1].kind = 'self_report';
     data.fragments.push({
+      parseVersionId: null,
+      sourceCategory: null,
+      evaluationKind: null,
+      demo: null,
       id: 'fragment-h',
       originalVersionId: 'version',
       excerpt: 'Synthetic history',
@@ -422,6 +427,57 @@ describe('timeline entries', () => {
       hidden.timeline.status === 'ready' &&
         hidden.timeline.data.some((row) => row.kind === 'history'),
     ).toBe(false);
+  });
+  it('drops a history row repeating a key event the caller can read, and only then', async () => {
+    const weekly = (data: PersonData) => {
+      data.fragments.push({
+        id: 'fragment-w',
+        originalVersionId: 'version',
+        parseVersionId: null,
+        sourceCategory: null,
+        evaluationKind: null,
+        demo: null,
+        excerpt: 'Synthetic weekly',
+        location: { kind: 'snapshot_field', fieldPath: 'sum' },
+      });
+      data.historical.push({
+        id: 'weekly-event-0',
+        sourceRecordId: 'event-0',
+        evaluationNodeId: null,
+        personId: 'one',
+        recorderId: 'actor',
+        occurredOn: '2026-06-15',
+        kind: '训练营周评',
+        period: 'W1–W3',
+        scale: [['本周总结', '正常发挥']],
+        ruleVersionId: null,
+        originalVersionId: 'version',
+        fragmentId: 'fragment-w',
+        sourceCategory: 'prototype_baseline',
+      });
+      return data;
+    };
+    const ids = async (data: PersonData) => {
+      const person = await profileOf(data);
+      return person.timeline.status === 'ready'
+        ? person.timeline.data.map((row) => [row.kind, row.id])
+        : [];
+    };
+    const visible = weekly(fixture());
+    expect(await ids(visible)).toEqual([
+      ['key_event', 'event-0'],
+      ['key_event', 'event-1'],
+    ]);
+    const card = cards(await profileOf(visible)).find(
+      (row) => row.id === 'event-0',
+    )!;
+    expect(card.sources.length).toBeGreaterThan(0);
+    // The mentor cannot read event-0 as a management observation, so the
+    // weekly review is not a repeat for that caller and stays on the timeline.
+    const mentor = weekly(fixture('mentor'));
+    mentor.statements[0].kind = 'management_observation';
+    expect(await ids(mentor)).toContainEqual(['history', 'weekly-event-0']);
+    expect(await ids(mentor)).not.toContainEqual(['key_event', 'event-0']);
   });
   it('keeps human conclusions out of the summary until they carry a date', async () => {
     const data = fixture();
@@ -519,6 +575,56 @@ describe('quick view and list', () => {
     const quick = await quickViewFromData(data, 'one');
     expect(quick?.projectLoad).toEqual({ current: 1, ever: 2 });
   });
+  it('lists projects by start date, then name, then id', async () => {
+    const data = fixture('hr');
+    const join = (id: string, name: string, validFrom: string) => {
+      data.staffing.projects.push({
+        id,
+        name,
+        type: 'topic',
+        status: '进行中',
+        goal: 'Synthetic goal',
+        organizationId: 'org',
+        cohortId: 'cohort',
+        isTopic: true,
+        ownerId: 'two',
+        creatorId: 'two',
+        from: validFrom,
+        to: '2026-12-01',
+        sortOrder: 0,
+      });
+      data.staffing.members.push({
+        id: 'member-' + id,
+        projectId: id,
+        personId: 'one',
+        role: 'member',
+        mode: 'full',
+        validFrom,
+        validTo: null,
+        by: 'actor',
+      });
+    };
+    // Same day: names decide by code point ('B' < 'a'), against id order
+    // and against localeCompare, before ids break exact ties.
+    join('x1', 'a-project', '2026-01-15');
+    join('x2', 'B-project', '2026-01-15');
+    join('late', 'Alpha', '2026-03-01');
+    join('tie-b', 'Beta', '2026-02-01');
+    join('tie-a2', 'Alpha', '2026-02-01');
+    join('tie-a1', 'Alpha', '2026-02-01');
+    join('early', 'Zeta', '2026-01-01');
+    const person = await profileOf(data);
+    if (person.projects.status !== 'ready') throw new Error('no projects');
+    expect(person.projects.data.map((row) => row.id)).toEqual([
+      'early',
+      'x2',
+      'x1',
+      'tie-a1',
+      'tie-a2',
+      'tie-b',
+      'late',
+    ]);
+  });
   it('omits management content from the mentor variant, with sentinel text', async () => {
     const data = fixture('mentor');
     data.events[0].title = 'SENTINEL-title';
@@ -543,6 +649,8 @@ describe('quick view and list', () => {
         id: 'id-' + index,
         name,
         organizationId: 'org',
+        jobTitle: null,
+        jobLevel: null,
         photo: null,
         hue: 10,
         noReview: false,
@@ -587,6 +695,32 @@ describe('source detail', () => {
         excerpt: 'Synthetic observation',
       },
     });
+  });
+});
+
+describe('shared source projection', () => {
+  it('keeps every relation and details only the sources the caller can read', async () => {
+    const data = fixture('mentor');
+    // event-1 becomes a management observation the mentor cannot read.
+    data.statements[1].kind = 'management_observation';
+    const { sources, details } = await projectReadableSources(data);
+    expect(sources.map((row) => row.fragmentId)).toEqual([
+      'fragment-0',
+      'fragment-1',
+    ]);
+    expect(details.map((row) => row.fragmentId)).toEqual(['fragment-0']);
+    const single = await sourceFromData(data, {
+      fragmentId: 'fragment-0',
+      originalVersionId: 'version',
+    });
+    if (single.status !== 'success')
+      throw new Error('Expected a readable source');
+    expect(details[0]).toEqual(single.source);
+    const manager = await projectReadableSources(fixture('manager'));
+    expect(manager.details.map((row) => row.fragmentId)).toEqual([
+      'fragment-0',
+      'fragment-1',
+    ]);
   });
 });
 
@@ -637,4 +771,30 @@ describe('strict projection', () => {
       false,
     );
   });
+});
+
+it('keeps material locators out of the unmigrated legacy source/profile contract', async () => {
+  const data = fixture();
+  for (const fragment of data.fragments) {
+    fragment.location = {
+      kind: 'pdf',
+      page: 1,
+      textRange: { start: 0, end: 2 },
+    };
+    fragment.parseVersionId = 'demo-parse';
+    fragment.sourceCategory = 'original';
+    fragment.demo = true;
+  }
+  const fragment = data.fragments[0]!;
+  expect(
+    (
+      await sourceFromData(data, {
+        fragmentId: fragment.id,
+        originalVersionId: fragment.originalVersionId,
+      })
+    ).status,
+  ).toBe('not_found');
+  const person = await profileOf(data);
+  expect(person.timeline.status).toBe('empty');
+  expect(person.capabilityProfile.status).toBe('insufficient_evidence');
 });

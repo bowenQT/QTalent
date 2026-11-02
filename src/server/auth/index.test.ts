@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   adapter: vi.fn(),
   audit: vi.fn(),
   session: vi.fn(),
+  stamp: vi.fn(),
 }));
 vi.mock('better-auth', () => ({ betterAuth: mocks.betterAuth }));
 vi.mock('better-auth/adapters/drizzle', () => ({
@@ -17,6 +18,10 @@ vi.mock('../env', () => ({
   }),
 }));
 vi.mock('../platform/audit', () => ({ recordAudit: mocks.audit }));
+vi.mock('./session-binding', () => ({
+  sessionBindingFields: { bindingGeneration: { type: 'number' } },
+  stampSessionBindingGeneration: mocks.stamp,
+}));
 it('keeps signup disabled, no stale session cache, transactional adapter, login audited', async () => {
   mocks.betterAuth.mockReturnValue({ api: { getSession: mocks.session } });
   mocks.session.mockResolvedValue({ user: { id: 'a' } });
@@ -33,6 +38,16 @@ it('keeps signup disabled, no stale session cache, transactional adapter, login 
     {},
     expect.objectContaining({ transaction: true, provider: 'pg' }),
   );
+  expect(options.session.additionalFields).toEqual({
+    bindingGeneration: { type: 'number' },
+  });
+  mocks.stamp.mockResolvedValue({
+    data: { userId: 'a', bindingGeneration: 2 },
+  });
+  expect(
+    await options.databaseHooks.session.create.before({ userId: 'a' }),
+  ).toEqual({ data: { userId: 'a', bindingGeneration: 2 } });
+  expect(mocks.stamp).toHaveBeenCalledWith({}, { userId: 'a' });
   await options.databaseHooks.session.create.after({ userId: 'a', id: 's' });
   expect(mocks.audit).toHaveBeenCalledWith(
     {},

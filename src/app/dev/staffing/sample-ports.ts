@@ -148,7 +148,7 @@ export function samplePorts(
       } else page = samplePages[scene];
       return snapshot('staffing_match', jobId, 1, status, page);
     },
-    async judge(input) {
+    async judge(_runId, input) {
       await wait(delay);
       if (!current || current.revision !== input.expectedRevision)
         return conflict(input);

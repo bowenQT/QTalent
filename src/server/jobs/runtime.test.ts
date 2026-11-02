@@ -4,6 +4,8 @@ const f = vi.hoisted(() => ({
   example: { kind: 'example' },
   demand: { kind: 'staffing_demand' },
   arrange: { kind: 'record_organize' },
+  match: { kind: 'staffing_match' },
+  matchRuntime: vi.fn(),
   arrangeStore: {},
   arrangeRuntime: vi.fn(),
   create: vi.fn(),
@@ -25,6 +27,9 @@ vi.mock('../usecases/staffing-demand-runtime', () => ({
 vi.mock('../usecases/record-arrange-runtime', () => ({
   recordArrangeRequestsForServer: f.arrangeRuntime,
 }));
+vi.mock('../usecases/staffing-match-runtime', () => ({
+  createStaffingMatchServerRuntime: f.matchRuntime,
+}));
 import { jobService } from './runtime';
 afterEach(() => {
   vi.useRealTimers();
@@ -41,10 +46,11 @@ it.each(['demo', 'test', 'production', 'local'])(
       policy: f.arrange,
       native: { store: f.arrangeStore },
     });
+    f.matchRuntime.mockReturnValue({ policy: f.match });
     jobService();
     expect(f.create).toHaveBeenCalledWith(
       f.arrangeStore,
-      [f.example, f.demand, f.arrange],
+      [f.example, f.demand, f.arrange, f.match],
       expect.any(Function),
     );
     expect(f.producer).not.toHaveBeenCalled();
@@ -63,5 +69,9 @@ it.each(['demo', 'test', 'production', 'local'])(
     expect(f.create.mock.calls[0][2]()).toBe('2026-10-25T12:00:00.001Z');
     await input.boss();
     expect(f.producer).toHaveBeenCalledWith('staffing-demand');
+    const match = f.matchRuntime.mock.calls[0][0];
+    expect(match).toMatchObject({ db: f.db, environment, env: f.env });
+    expect(match.boss).toBe(f.producer);
+    expect(match.wallNow().toISOString()).toBe('2026-10-25T12:00:00.001Z');
   },
 );
