@@ -250,8 +250,17 @@ export async function collectEvidence(
     const project = data.staffing.projects.find(
       (row) => row.id === event.projectId,
     );
-    const cardSources = legacyReferences(projected.sources);
-    if (!cardSources) continue;
+    // Every linked source is authorized and must have a legacy locator before
+    // anything is shown. A score must cite an event source (FK), so the demo
+    // seed links score citations of the event's own text as sources too. When
+    // the event has statements, its materials are exactly their sources; score
+    // citations stay on the scores.
+    const linked = legacyReferences(projected.sources);
+    if (!linked) continue;
+    const materials = new Set(statements.map(sourceKey));
+    const cardSources = linked.filter(
+      (source) => !statements.length || materials.has(sourceKey(source)),
+    );
     // Scores: every row passes its own gate (kind, source, provenance) and is
     // grouped by dimension on this event.
     const scorable = canReadTalent(

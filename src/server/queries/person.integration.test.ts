@@ -216,11 +216,24 @@ it('projects actual pinned seed observations and ended project participation', a
         (item) => item.kind === 'key_event',
       );
       expect(events.length).toBeGreaterThan(0);
-      // Sheet-cell statements are original facts, read as evaluation.
+      // Sheet-cell statements are original facts, read as evaluation. An
+      // event counts its prototype materials, not the score citations the
+      // seed links to it (the prototype's "N 个来源").
+      const materials = (id: string) =>
+        mapped.raw.EVENTS.find((row) => row.id === id)!.srcs.length;
       for (const item of events) {
         expect(item.category).toBe('evaluation');
-        expect(item.sources.length).toBeGreaterThan(0);
+        expect(item.sources).toHaveLength(materials(item.id));
       }
+      const scoreOnly = await personFromData(data, 'p-x07');
+      if (scoreOnly?.timeline.status !== 'ready')
+        throw new Error('Missing timeline');
+      const cited = scoreOnly.timeline.data.filter(
+        (item) => item.kind === 'key_event',
+      );
+      expect(cited.length).toBeGreaterThan(0);
+      for (const item of cited)
+        expect(item.sources).toHaveLength(materials(item.id));
       // Weekly reviews repeat these readable key events and are not listed.
       const weekly = mapped.evidence.historicalEvaluations.filter(
         (row) => row.personId === target && row.kind === '训练营周评',

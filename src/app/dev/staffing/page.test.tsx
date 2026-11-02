@@ -134,7 +134,7 @@ describe('sample ports', () => {
     expect(staffingPageSchema.safeParse(settled.result).success).toBe(true);
 
     const [cited] = sampleSources.values();
-    const judged = await ports.judge({
+    const judged = await ports.judge(matchId!, {
       operationId: 'j1',
       demandId: newDraft.id,
       expectedRevision: 3,
@@ -156,7 +156,7 @@ describe('sample ports', () => {
     });
     expect(
       (
-        await ports.judge({
+        await ports.judge(matchId!, {
           operationId: 'j2',
           demandId: newDraft.id,
           expectedRevision: 1,

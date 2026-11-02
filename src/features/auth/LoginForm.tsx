@@ -22,7 +22,7 @@ export function LoginForm() {
         password: String(form.get('password')),
       });
       if (ok) {
-        router.replace('/projects');
+        router.replace('/work');
         router.refresh();
       } else setError('邮箱或密码有误，请核对后重试。');
     } catch {

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { State } from '@/components/ui/State';
 import { AccessDenied } from '@/features/shell/AccessDenied';
 import { ShellTitle } from '@/features/shell/ShellTitle';
+import { HandedSentence } from '@/features/staffing/HandedSentence';
 import { LiveStaffing } from '@/features/staffing/LiveStaffing';
 import type { ProjectHead } from '@/features/staffing/view';
 import { getProjectsPage } from '@/server/queries/projects';
@@ -14,6 +15,7 @@ type Params = {
   demand?: string;
   job?: string;
   draft?: string;
+  new?: string;
 };
 
 /** Find-people is for managers and HR (prototype Y denyText); data reads authorize again. */
@@ -38,6 +40,70 @@ const toProjects = (
     </a>
   </div>
 );
+
+/**
+ * Open projects the viewer may read, to find people for one of them. With a workbench
+ * sentence waiting (`handoff`), it is quoted and every choice keeps `draft=work`.
+ */
+async function chooseProject(accountId: string, handoff: boolean) {
+  const page = await getProjectsPage();
+  if (page.status === 'forbidden') return <AccessDenied />;
+  const open = page.data.projects.filter(
+    (project) => project.status === '筹备中' || project.status === '进行中',
+  );
+  return (
+    <>
+      <ShellTitle title="找人" />
+      {handoff ? (
+        <HandedSentence accountId={accountId} />
+      ) : (
+        <header className="nt-head">
+          <div>
+            <h1>选一个项目再找人</h1>
+            <p>找人需求按项目保存。选一个项目，再写下要找什么样的人。</p>
+          </div>
+        </header>
+      )}
+      {open.length ? (
+        <div className="n-card">
+          <ul className="nt-list" aria-label="可以找人的项目">
+            {open.map((project) => (
+              <li key={project.id} className="nt-row">
+                <Link
+                  className="nt-plink"
+                  href={`/staffing?${new URLSearchParams(handoff ? { project: project.id, draft: 'work' } : { project: project.id })}`}
+                >
+                  <b>{project.name}</b>
+                </Link>
+                {project.goal ? (
+                  <span className="nt-muted">{project.goal}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <State
+          title="先建一个项目"
+          text="找人需求按项目保存。在项目与课题里新建项目，再从项目卡片点「发起找 owner」接着找人。"
+        >
+          <div className="nt-row" style={{ justifyContent: 'center' }}>
+            <a
+              className="n-btn n-btn--sm"
+              href={
+                handoff
+                  ? `/projects?${new URLSearchParams({ draft: 'work' })}`
+                  : '/projects'
+              }
+            >
+              打开项目与课题
+            </a>
+          </div>
+        </State>
+      )}
+    </>
+  );
+}
 
 /** A project the viewer may read, as the page header shows it; null otherwise. */
 async function projectHead(id: string): Promise<ProjectHead | null> {
@@ -89,6 +155,11 @@ export default async function StaffingPage({
     );
 
   const params = (await searchParams) ?? {};
+  // The new-demand entry (`new=1`, e.g. the workbench「/找」) and a sentence sent from the
+  // workbench both start by choosing a project. A waiting sentence stays in session
+  // storage until then: each choice keeps `draft=work`, so the demand page picks it up.
+  if (!params.project && (params.new === '1' || params.draft === 'work'))
+    return chooseProject(shell.account.id, params.draft === 'work');
   if (!params.project)
     return (
       <>
