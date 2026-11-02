@@ -22,13 +22,23 @@ export async function readJobSnapshot<R>(
 export interface JobSubscriptionState<R> {
   snapshot: JobSnapshot<R> | null;
   stale: boolean;
-  connection: 'loading' | 'connected' | 'error' | 'forbidden' | 'not_found';
+  /** `conflict` only with `stopOnConflict`: the server says the result is stale. */
+  connection:
+    'loading' | 'connected' | 'error' | 'forbidden' | 'not_found' | 'conflict';
+  /** With `retryLimit` only: automatic retries reached the limit, and only
+   * `refresh()` reads again. */
+  gaveUp?: boolean;
 }
 export interface JobSubscriptionOptions<R> {
   jobId: string;
   read(jobId: string, signal: AbortSignal): Promise<JobSnapshot<R>>;
   onChange(state: JobSubscriptionState<R>): void;
   timeoutMs?: number;
+  /** A 409 clears the result and stops, instead of being retried as an outage. */
+  stopOnConflict?: boolean;
+  /** Consecutive failed reads after which automatic retries stop. Failed reads
+   * are also not retried while the page is hidden; showing it again resumes. */
+  retryLimit?: number;
   /** Optional browser lifecycle targets; listeners are removed on unsubscribe. */
   lifecycle?: {
     online: EventTarget;
@@ -43,12 +53,29 @@ export function subscribeToJob<R>(options: JobSubscriptionOptions<R>) {
   let disposed = false;
   let forbidden = false;
   let pendingRefresh = false;
+  let pendingExplicit = false;
   let failures = 0;
+  let gaveUp = false;
   function emit(
     connection: JobSubscriptionState<R>['connection'],
     stale = false,
   ) {
-    options.onChange({ snapshot, stale, connection });
+    options.onChange({
+      snapshot,
+      stale,
+      connection,
+      ...(options.retryLimit === undefined ? {} : { gaveUp }),
+    });
+  }
+  function hidden() {
+    return options.lifecycle?.visibility.visibilityState === 'hidden';
+  }
+  /** Bounded readers hold failed-read retries at the limit and while hidden.
+   * Only an explicit refresh() reads through it. */
+  function holding() {
+    return (
+      options.retryLimit !== undefined && failures > 0 && (gaveUp || hidden())
+    );
   }
   function schedule(delay: number) {
     clearTimeout(timer);
@@ -92,43 +119,82 @@ export function subscribeToJob<R>(options: JobSubscriptionOptions<R>) {
       )
         snapshot = next;
       failures = 0;
+      gaveUp = false;
       emit('connected');
     } catch (error) {
       if (disposed) return;
       if (
         error instanceof JobReadError &&
-        [401, 403, 404].includes(error.status)
+        ([401, 403, 404].includes(error.status) ||
+          (options.stopOnConflict && error.status === 409))
       ) {
         snapshot = null;
         forbidden = true;
-        emit(error.status === 404 ? 'not_found' : 'forbidden');
+        emit(
+          error.status === 404
+            ? 'not_found'
+            : error.status === 409
+              ? 'conflict'
+              : 'forbidden',
+        );
       } else {
         failures++;
+        gaveUp =
+          options.retryLimit !== undefined && failures >= options.retryLimit;
         emit('error', snapshot !== null);
       }
     } finally {
       clearTimeout(timeout);
       active = null;
       if (!disposed && !forbidden) {
-        if (pendingRefresh) {
-          pendingRefresh = false;
+        const queued = pendingRefresh,
+          explicit = pendingExplicit;
+        pendingRefresh = pendingExplicit = false;
+        // A refresh queued by a browser event obeys the hold; an explicit one
+        // starts a new bounded series.
+        if (queued && explicit) {
+          restart();
           schedule(0);
-        } else if (failures > 0)
-          schedule(Math.min(8000, 2000 * 2 ** Math.min(failures - 1, 2)));
-        else if (isPolling()) schedule(1000);
+        } else if (queued && !holding()) schedule(0);
+        else if (failures > 0) {
+          if (!holding())
+            schedule(Math.min(8000, 2000 * 2 ** Math.min(failures - 1, 2)));
+        } else if (isPolling()) schedule(1000);
       }
     }
   }
-  function refresh() {
-    if (!disposed && !forbidden) {
-      clearTimeout(timer);
-      void poll();
+  function restart() {
+    if (gaveUp) {
+      gaveUp = false;
+      failures = 0;
     }
   }
-  function onVisible() {
-    if (options.lifecycle?.visibility.visibilityState === 'visible') refresh();
+  function read(explicit: boolean) {
+    if (disposed || forbidden) return;
+    if (active) {
+      pendingRefresh = true;
+      pendingExplicit ||= explicit;
+      return;
+    }
+    if (explicit) restart();
+    else if (holding()) return;
+    clearTimeout(timer);
+    void poll();
   }
-  options.lifecycle?.online.addEventListener('online', refresh);
+  /** Reads now, starting a new bounded series after `gaveUp`. */
+  function refresh() {
+    read(true);
+  }
+  /** Browser events resume paused retries but never ones that gave up. */
+  function resume() {
+    read(false);
+  }
+  function onVisible() {
+    if (options.lifecycle?.visibility.visibilityState === 'visible') resume();
+    // A retry already scheduled waits until the page is shown again.
+    else if (holding()) clearTimeout(timer);
+  }
+  options.lifecycle?.online.addEventListener('online', resume);
   options.lifecycle?.visibility.addEventListener('visibilitychange', onVisible);
   emit('loading');
   void poll();
@@ -139,7 +205,7 @@ export function subscribeToJob<R>(options: JobSubscriptionOptions<R>) {
       clearTimeout(timer);
       active?.abort();
       snapshot = null;
-      options.lifecycle?.online.removeEventListener('online', refresh);
+      options.lifecycle?.online.removeEventListener('online', resume);
       options.lifecycle?.visibility.removeEventListener(
         'visibilitychange',
         onVisible,

@@ -796,6 +796,59 @@ it('uses an actual subscribed WS closure, real identity reader and native ledger
   }
   // New native client has no old in-memory transport proof or send queue.
 });
+it('H3: one real WS text message reaches a bound intake, one queued arrange job and a Web deep-link receipt', async () => {
+  const h = await wireFixture();
+  try {
+    const queued = async () =>
+      (
+        await c.db.execute<{ count: number }>(
+          sql`select count(*)::int as count from pgboss.job where name = ${recordArrangeQueue}`,
+        )
+      ).rows[0]!.count;
+    const before = await queued();
+    h.send();
+    await expect
+      .poll(() => h.frames.filter((f) => f.cmd === 'aibot_send_msg').length, {
+        timeout: 5000,
+      })
+      .toBe(1);
+    const [message] = await c.db
+      .select()
+      .from(wecomMessages)
+      .where(eq(wecomMessages.actorAccountId, h.account));
+    expect(message).toMatchObject({
+      key: describeWecomDelivery(h.message).key,
+      actorAccountId: h.account,
+      batchId: expect.any(String),
+      jobId: expect.any(String),
+      inputId: expect.any(String),
+    });
+    const [intake] = await c.db
+      .select()
+      .from(arrangeInputs)
+      .where(eq(arrangeInputs.id, message!.inputId!));
+    expect(intake).toMatchObject({
+      creatorAccountId: h.account,
+      batchId: message!.batchId,
+      jobId: message!.jobId,
+    });
+    const [job] = await c.db
+      .select()
+      .from(jobSnapshots)
+      .where(eq(jobSnapshots.jobId, message!.jobId!));
+    expect(job).toMatchObject({ status: 'queued' });
+    expect(await queued()).toBe(before + 1);
+    const receipt = JSON.stringify(
+      h.frames.find((f) => f.cmd === 'aibot_send_msg')!.body,
+    );
+    expect(receipt).toContain('https://demo.example.test/');
+    expect(receipt).toContain(encodeURIComponent(message!.batchId!));
+    expect(receipt).not.toContain(h.text);
+    expect(receipt).not.toContain(h.evaluator);
+  } finally {
+    await h.close();
+  }
+});
 it('reports missing target from the real transport without acknowledging or enqueueing', async () => {
   const h = await wireFixture(false);
   try {

@@ -10,6 +10,7 @@ import {
   within,
 } from '@testing-library/react';
 import type {
+  HumanStaffingJudgmentInput,
   StaffingCandidate,
   StaffingDemand,
   StaffingDemandJobSnapshot,
@@ -175,7 +176,7 @@ function ports(overrides: Partial<StaffingPorts> = {}): StaffingPorts {
     readMatchingJob: vi.fn(async (): Promise<StaffingJobSnapshot> =>
       job('staffing_match', 'awaiting_manual', pageOf(confirmed)),
     ),
-    judge: vi.fn(async (input) => ({
+    judge: vi.fn(async (_runId: string, input: HumanStaffingJudgmentInput) => ({
       status: 'success' as const,
       demandId: input.demandId,
       personId: input.personId,
@@ -712,7 +713,7 @@ describe('candidates', () => {
     expect(confirmButton).toHaveProperty('disabled', false);
     fireEvent.click(confirmButton);
     await screen.findByText('演示审核人 · 09-04');
-    expect(p.judge).toHaveBeenCalledWith({
+    expect(p.judge).toHaveBeenCalledWith('staffing_match-job', {
       operationId: expect.any(String),
       demandId: confirmed.id,
       expectedRevision: confirmed.revision,
@@ -759,7 +760,8 @@ describe('candidates', () => {
     expect((await within(form).findByRole('alert')).textContent).toBe(
       '需求已变化，请保留输入并刷新',
     );
-    expect(judge.mock.calls[0][0]).toMatchObject({
+    expect(judge.mock.calls[0][0]).toBe('staffing_match-job');
+    expect(judge.mock.calls[0][1]).toMatchObject({
       conclusion: 'insufficient',
       sources: [],
     });
@@ -832,7 +834,23 @@ describe('candidates', () => {
       [{ openMatching: vi.fn(async () => null) }, '候选人核对待接通'],
       [
         { openMatching: vi.fn(async () => Promise.reject(new Error('x'))) },
-        '候选人核对待接通',
+        '候选人核对中断',
+      ],
+      [
+        {
+          openMatching: vi.fn(async () =>
+            Promise.reject(new JobReadError(403)),
+          ),
+        },
+        '这次核对在你的查看范围之外',
+      ],
+      [
+        {
+          openMatching: vi.fn(async () =>
+            Promise.reject(new JobReadError(409)),
+          ),
+        },
+        '候选人核对中断',
       ],
       [
         {
@@ -853,6 +871,15 @@ describe('candidates', () => {
           ),
         },
         '这次核对在你的查看范围之外',
+      ],
+      // An opened run whose runtime went away is not a refusal.
+      [
+        {
+          readMatchingJob: vi.fn(async () =>
+            Promise.reject(new JobReadError(503)),
+          ),
+        },
+        '候选人核对待接通',
       ],
       [
         {
@@ -1236,5 +1263,97 @@ describe('helpers', () => {
       '独立交付模块',
       '新要求',
     ]);
+  });
+});
+
+describe('matching reads that end or stop retrying', () => {
+  afterEach(() => vi.useRealTimers());
+  const view = (p: StaffingPorts) =>
+    render(
+      <Staffing
+        project={project}
+        demand={confirmed}
+        matchingJobId="staffing_match-job"
+        accountId="me"
+        ports={p}
+      />,
+    );
+
+  it('clears candidates and judgment entry when the server says the demand changed (409)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const read = vi
+      .fn<StaffingPorts['readMatchingJob']>()
+      .mockResolvedValueOnce(
+        job('staffing_match', 'running', pageOf(confirmed)),
+      )
+      .mockRejectedValue(new JobReadError(409));
+    view(ports({ readMatchingJob: read }));
+    await screen.findByRole('link', { name: '演示甲' });
+    expect(screen.getAllByRole('button', { name: '人工判断' }).length).toBe(1);
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(await screen.findByText('需求已更新')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '重新读取需求' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: '演示甲' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '人工判断' })).toBeNull();
+    // A conflict is final for this run: no further reads.
+    await act(() => vi.advanceTimersByTimeAsync(30000));
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps shown candidates when later reads fail, says which result they are and reconnects', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const read = vi
+      .fn<StaffingPorts['readMatchingJob']>()
+      .mockResolvedValueOnce(
+        job('staffing_match', 'running', pageOf(confirmed)),
+      )
+      .mockRejectedValue(new Error('offline'));
+    view(ports({ readMatchingJob: read }));
+    await screen.findByRole('link', { name: '演示甲' });
+    // The snapshot was updated at 02:00 UTC, 10:00 in the company's zone.
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(
+      await screen.findByText(
+        '核对结果更新中断，正在重试。下面是 10:00 更新的结果。',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '重新连接' })).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(2000 + 4000 + 8000 * 3));
+    expect(read).toHaveBeenCalledTimes(7);
+    expect(
+      await screen.findByText('核对结果已暂停更新。下面是 10:00 更新的结果。'),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: '演示甲' })).toBeTruthy();
+    read.mockResolvedValue(
+      job('staffing_match', 'completed', pageOf(confirmed)),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }));
+    await waitFor(() =>
+      expect(screen.queryByText(/核对结果已暂停更新/)).toBeNull(),
+    );
+    expect(read).toHaveBeenCalledTimes(8);
+  });
+
+  it('stops retrying a not-connected run at the limit and reconnects on request', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const read = vi
+      .fn<StaffingPorts['readMatchingJob']>()
+      .mockRejectedValue(new JobReadError(503));
+    view(ports({ readMatchingJob: read }));
+    expect(await screen.findByText('候选人核对待接通')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '重新连接' })).toBeNull();
+    // Six failed reads: at 0 s, then backing off 2, 4, 8, 8, 8 s.
+    await act(() => vi.advanceTimersByTimeAsync(2000 + 4000 + 8000 * 3));
+    expect(read).toHaveBeenCalledTimes(6);
+    const reconnect = await screen.findByRole('button', { name: '重新连接' });
+    await act(() => vi.advanceTimersByTimeAsync(120000));
+    expect(read).toHaveBeenCalledTimes(6);
+    read.mockResolvedValue(
+      job('staffing_match', 'completed', pageOf(confirmed)),
+    );
+    fireEvent.click(reconnect);
+    await screen.findByRole('link', { name: '演示甲' });
+    expect(read).toHaveBeenCalledTimes(7);
+    expect(screen.queryByText('候选人核对待接通')).toBeNull();
   });
 });

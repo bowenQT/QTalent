@@ -125,6 +125,11 @@ describe('record evidence and actions', () => {
     expect(saved.events).toEqual(events);
     const undo = {
       saveId: saved.saveId,
+      draftRestoration: {
+        status: 'available',
+        draftId: 'demo-draft',
+        draftRevision: 2,
+      },
       withdrawnEvents: saved.events,
       withdrawnConfirmationIds: saved.confirmationIds,
       withdrawnReviewItemIds: saved.reviewItemIds,
@@ -271,6 +276,7 @@ describe('review thresholds and calibration', () => {
 describe('undo input restoration authorization', () => {
   const base = {
     saveId: 'demo-save',
+    draftRestoration: { status: 'refresh_required' },
     withdrawnEvents: [],
     withdrawnConfirmationIds: [],
     withdrawnReviewItemIds: [],
@@ -304,5 +310,41 @@ describe('undo input restoration authorization', () => {
         originalInput: recordDraftFixture.originalInput,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('undo draft restoration', () => {
+  const base = {
+    saveId: 'demo-save',
+    withdrawnEvents: [],
+    withdrawnConfirmationIds: [],
+    withdrawnReviewItemIds: [],
+    inputRestoration: 'unavailable',
+    originalInput: null,
+  };
+  it('requires an exact available revision or explicit refresh without defaulting legacy', () => {
+    for (const draftRestoration of [
+      { status: 'available', draftId: 'demo-draft', draftRevision: 3 },
+      { status: 'refresh_required' },
+    ])
+      expect(
+        recordUndoReceiptSchema.safeParse({ ...base, draftRestoration })
+          .success,
+      ).toBe(true);
+    for (const draftRestoration of [
+      undefined,
+      null,
+      {},
+      { status: 'available', draftId: 'demo-draft', draftRevision: 0 },
+      { status: 'available', draftId: 'demo-draft', draftRevision: 1.5 },
+      { status: 'available', draftId: '', draftRevision: 3 },
+      { status: 'available', draftId: 'demo-draft' },
+      { status: 'refresh_required', draftRevision: 3 },
+      { status: 'refresh_required', draftId: 'demo-draft' },
+    ])
+      expect(
+        recordUndoReceiptSchema.safeParse({ ...base, draftRestoration })
+          .success,
+      ).toBe(false);
   });
 });

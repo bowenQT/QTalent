@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { Database } from './client';
-import { importDemo, importEvidence, runImport } from './import';
+import { boundSeedStep, importDemo, importEvidence, runImport } from './import';
 import { mapPrototypeSeed, readPrototypeSeed } from './seed';
 import { people, organizations } from '../modules/directory';
 import { projects } from '../modules/staffing';
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   env: vi.fn(),
   connection: vi.fn(),
   backfill: vi.fn(),
+  directoryProfile: vi.fn(),
 }));
 vi.mock('better-auth/crypto', () => ({ hashPassword: mocks.hash }));
 vi.mock('../env', () => ({ getEnv: mocks.env }));
@@ -21,6 +22,9 @@ vi.mock('../modules/evaluation-system', async () => ({
   backfillLegacyRuleVersionApplicability: mocks.backfill,
 }));
 vi.mock('./client', () => ({ createDatabase: mocks.connection }));
+vi.mock('./seed/directory-profile', () => ({
+  importDirectoryProfileDemo: mocks.directoryProfile,
+}));
 const records: { table: unknown; row: Record<string, unknown> }[] = [];
 const tx = {
   select: () => ({
@@ -51,6 +55,9 @@ beforeEach(() => {
   mocks.hash.mockResolvedValue('opaque-hash');
   mocks.env.mockReturnValue({ APP_ENV: 'test' });
   mocks.backfill.mockReset().mockResolvedValue([]);
+  mocks.directoryProfile
+    .mockReset()
+    .mockResolvedValue({ peopleUpdated: 0, organizationsUpdated: 0 });
 });
 it('direct demo import refuses production before hashing or opening a transaction', async () => {
   mocks.env.mockReturnValue({ APP_ENV: 'production' });
@@ -228,6 +235,7 @@ it('CLI import refuses production and missing password before opening database',
   mocks.env.mockReturnValue({ APP_ENV: 'test' });
   await expect(runImport()).rejects.toThrow('DEMO_PASSWORD');
   expect(mocks.connection).not.toHaveBeenCalled();
+  expect(mocks.directoryProfile).not.toHaveBeenCalled();
 });
 it('CLI closes its pool even when import fails', async () => {
   const end = vi.fn();
@@ -245,5 +253,122 @@ it('CLI closes its pool even when import fails', async () => {
     pool: { end },
   });
   await expect(runImport()).rejects.toThrow('db failure');
+  expect(mocks.directoryProfile).not.toHaveBeenCalled();
   expect(end).toHaveBeenCalledOnce();
+});
+
+const demoDatabase = {
+  host: 'session.synthetic.test',
+  port: 5432,
+  name: 'postgres',
+  username: 'postgres.synthetic',
+};
+const demoEnv = {
+  APP_ENV: 'demo',
+  DATABASE_URL:
+    'postgres://postgres.synthetic:pw@session.synthetic.test:5432/postgres?sslmode=require',
+};
+it('runs a seed step only for the demo app on the manifest database', () => {
+  const manifest = JSON.stringify(demoDatabase);
+  expect(boundSeedStep([], demoEnv)).toBeUndefined();
+  expect(boundSeedStep(['upgrade-statement-kinds', manifest], demoEnv)).toBe(
+    'upgrade-statement-kinds',
+  );
+  expect(boundSeedStep(['revert-statement-kinds', manifest], demoEnv)).toBe(
+    'revert-statement-kinds',
+  );
+  // A hand-typed step without the manifest identity is not a path.
+  expect(() => boundSeedStep(['upgrade-statement-kinds'], demoEnv)).toThrow(
+    'Unknown seed command',
+  );
+  expect(() => boundSeedStep(['drop', manifest], demoEnv)).toThrow(
+    'Unknown seed command',
+  );
+  expect(() =>
+    boundSeedStep(['upgrade-statement-kinds', manifest, 'extra'], demoEnv),
+  ).toThrow('Unknown seed command');
+  expect(() =>
+    boundSeedStep(['upgrade-statement-kinds', manifest], {
+      ...demoEnv,
+      APP_ENV: 'test',
+    }),
+  ).toThrow('demo deployment');
+  expect(() =>
+    boundSeedStep(['upgrade-statement-kinds', '{"host":"x"}'], demoEnv),
+  ).toThrow('verified database identity');
+  // APP_ENV=demo but DATABASE_URL points at another database with the same seed.
+  for (const other of [
+    'postgres://postgres.synthetic:pw@formal.synthetic.test:5432/postgres',
+    'postgres://postgres.synthetic:pw@session.synthetic.test:6543/postgres',
+    'postgres://postgres.synthetic:pw@session.synthetic.test:5432/formal',
+    'postgres://postgres.other:pw@session.synthetic.test:5432/postgres',
+  ])
+    expect(() =>
+      boundSeedStep(['upgrade-statement-kinds', manifest], {
+        ...demoEnv,
+        DATABASE_URL: other,
+      }),
+    ).toThrow('identity mismatch');
+});
+it('CLI refuses an unbound seed step before opening the database', async () => {
+  mocks.env.mockReturnValue({
+    ...demoEnv,
+    DEMO_PASSWORD: 'Test-password-123',
+    DATABASE_URL:
+      'postgres://postgres.synthetic:pw@formal.synthetic.test:5432/postgres',
+  });
+  await expect(
+    runImport(['upgrade-statement-kinds', JSON.stringify(demoDatabase)]),
+  ).rejects.toThrow('identity mismatch');
+  await expect(runImport(['upgrade-statement-kinds'])).rejects.toThrow(
+    'Unknown seed command',
+  );
+  expect(mocks.connection).not.toHaveBeenCalled();
+});
+it('explicit CLI imports the reviewed directory profile only after the base import has committed', async () => {
+  const end = vi.fn();
+  const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  mocks.env.mockReturnValue({
+    APP_ENV: 'test',
+    DEMO_PASSWORD: 'Test-password-123',
+    DATABASE_URL: 'postgres://localhost/test',
+  });
+  mocks.connection.mockReturnValue({ db, pool: { end } });
+  mocks.directoryProfile.mockImplementation(async (database, root) => {
+    expect(database).toBe(db);
+    expect(root).toBe(process.cwd());
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(records.some((entry) => entry.table === people)).toBe(true);
+    expect(output).not.toHaveBeenCalled();
+    return { peopleUpdated: 93, organizationsUpdated: 0 };
+  });
+  try {
+    await runImport();
+    expect(mocks.directoryProfile).toHaveBeenCalledOnce();
+    expect(output).toHaveBeenCalledOnce();
+    expect(end).toHaveBeenCalledOnce();
+  } finally {
+    output.mockRestore();
+  }
+});
+it('CLI reports directory import failure and closes its pool without reporting success', async () => {
+  const end = vi.fn();
+  const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  mocks.env.mockReturnValue({
+    APP_ENV: 'test',
+    DEMO_PASSWORD: 'Test-password-123',
+    DATABASE_URL: 'postgres://localhost/test',
+  });
+  mocks.connection.mockReturnValue({ db, pool: { end } });
+  mocks.directoryProfile.mockRejectedValue(
+    new Error('Synthetic directory conflict'),
+  );
+  try {
+    await expect(runImport()).rejects.toThrow('Synthetic directory conflict');
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(output).not.toHaveBeenCalled();
+    expect(end).toHaveBeenCalledOnce();
+  } finally {
+    output.mockRestore();
+  }
 });

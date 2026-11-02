@@ -12,13 +12,13 @@ import { projectStatusTone, type ProjectHead } from './view';
 import { projectHref } from './format';
 import {
   dropSentence,
-  hasDraft,
   keepSentence,
+  readHandoff,
   readSentence,
   sessionStorageOrNull,
-  takeDraft,
 } from './draft';
 import { useJob } from './use-job';
+import { JobReadError } from '@/lib/job-subscription';
 import {
   conflictText,
   demandOutOfScope,
@@ -42,6 +42,13 @@ import {
   type MatchingState,
 } from './sections/candidates/Candidates';
 import type { ManualJudgmentDraft } from './sections/candidates/ManualJudgment';
+
+/** How asking for the matching run of a confirmed revision ended. */
+type Opened =
+  | { kind: 'job'; jobId: string }
+  | { kind: 'unavailable' }
+  | { kind: 'denied' }
+  | { kind: 'failed' };
 
 type Failure =
   | { status: 'validation_error'; fieldErrors: Record<string, string[]> }
@@ -79,16 +86,10 @@ export function withRequirement(
     : [...requirements.slice(0, at), added, ...requirements.slice(at)];
 }
 
-// The workbench handoff is taken once and kept for re-renders of this page load; a new
-// sentence handed over later (or another account) replaces it.
-let handoff: { accountId: string; text: string | null } | undefined;
-function readHandoff(accountId: string): string | null {
-  const storage = sessionStorageOrNull();
-  if (handoff?.accountId !== accountId || hasDraft(storage))
-    handoff = { accountId, text: takeDraft(storage, accountId, Date.now()) };
-  return handoff.text;
-}
 const noSubscribe = () => () => {};
+/** A 409 means the demand changed: drop the stale candidates. Outages and
+ * not-connected reads retry a bounded number of times, paused while hidden. */
+const matchingReads = { stopOnConflict: true, retryLimit: 6 } as const;
 
 function ProjectHeader({ project }: { project: ProjectHead }) {
   return (
@@ -143,7 +144,10 @@ export function Staffing(props: StaffingProps) {
   const { ports, accountId } = props;
   const handed = useSyncExternalStore(
     noSubscribe,
-    () => (props.fromWorkbench ? readHandoff(accountId) : null),
+    () =>
+      props.fromWorkbench
+        ? readHandoff(sessionStorageOrNull(), accountId, Date.now())
+        : null,
     () => null,
   );
   const projectId = props.project?.id ?? null;
@@ -188,10 +192,13 @@ export function Staffing(props: StaffingProps) {
 
   const [matching, setMatching] = useState<{
     revision: number;
-    jobId: string | null;
+    opened: Opened;
   } | null>(() =>
     props.demand?.status === 'confirmed' && props.matchingJobId
-      ? { revision: props.demand.revision, jobId: props.matchingJobId }
+      ? {
+          revision: props.demand.revision,
+          opened: { kind: 'job', jobId: props.matchingJobId },
+        }
       : null,
   );
   const confirmed = demand?.status === 'confirmed' ? demand : null;
@@ -204,7 +211,9 @@ export function Staffing(props: StaffingProps) {
   });
   const current =
     confirmed && matching?.revision === confirmed.revision ? matching : null;
-  const matchJob = useJob(current?.jobId ?? null, ports.readMatchingJob);
+  const matchingJobId =
+    current?.opened.kind === 'job' ? current.opened.jobId : null;
+  const matchJob = useJob(matchingJobId, ports.readMatchingJob, matchingReads);
   const [judged, setJudged] = useState<
     ReadonlyMap<string, StaffingCandidate['requirements'][number]>
   >(new Map());
@@ -225,9 +234,17 @@ export function Staffing(props: StaffingProps) {
     let live = true;
     ports
       .openMatching(toOpen)
-      .catch(() => null)
-      .then((jobId) => {
-        if (live) setMatching({ revision: toOpen.revision, jobId });
+      .then(
+        (jobId): Opened =>
+          jobId === null ? { kind: 'unavailable' } : { kind: 'job', jobId },
+        // Refused for this viewer, or gone: not visible. Anything else: it broke.
+        (error: unknown): Opened =>
+          error instanceof JobReadError && [403, 404].includes(error.status)
+            ? { kind: 'denied' }
+            : { kind: 'failed' },
+      )
+      .then((opened) => {
+        if (live) setMatching({ revision: toOpen.revision, opened });
       });
     return () => {
       live = false;
@@ -238,9 +255,9 @@ export function Staffing(props: StaffingProps) {
 
   const matchingState: MatchingState = !current
     ? { kind: 'opening' }
-    : current.jobId === null
-      ? { kind: 'unavailable' }
-      : { kind: 'job', job: matchJob };
+    : current.opened.kind === 'job'
+      ? { kind: 'job', job: matchJob }
+      : { kind: current.opened.kind };
   const page = confirmed ? pageFor(confirmed, matchingState) : null;
   const candidates = useMemo(
     () =>
@@ -324,7 +341,9 @@ export function Staffing(props: StaffingProps) {
     requirementId: string,
     draft: ManualJudgmentDraft,
   ) {
-    if (!confirmed) return;
+    // Judgments are saved on the matching run they were made in.
+    if (!confirmed || !matchingJobId) return;
+    const runId = matchingJobId;
     const target = {
       demandId: confirmed.id,
       revision: confirmed.revision,
@@ -342,7 +361,7 @@ export function Staffing(props: StaffingProps) {
     setJudging({ ...target, busy: true, error: null });
     let error: string;
     try {
-      const result = await ports.judge({
+      const result = await ports.judge(runId, {
         operationId: operationId(),
         demandId: target.demandId,
         expectedRevision: target.revision,

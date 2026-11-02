@@ -52,6 +52,11 @@ export async function nativeDatabase() {
     await migrate(connection.db, {
       migrationsFolder: 'src/server/db/migrations',
     });
+    // Explicit local media combination only; default CI still uses formal SQL.
+    if (process.env.QTALENT_MEDIA_TEST_MIGRATIONS)
+      await migrate(connection.db, {
+        migrationsFolder: process.env.QTALENT_MEDIA_TEST_MIGRATIONS,
+      });
     return {
       ...connection,
       testUrl: url.toString(),

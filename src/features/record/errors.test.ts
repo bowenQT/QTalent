@@ -1,64 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import {
-  commandFailureMessage,
-  failureKindOf,
-  failureView,
-  saveProblems,
-} from './errors';
+import { failureView, saveProblems } from './errors';
 import { copy } from './copy';
 
 describe('failureView', () => {
-  it('每类失败说明发生了什么，并只给真正可走的出口', () => {
-    expect(failureView('processing_failed')).toEqual({
+  it('写发生了什么；只有回执说可以重试时才给重新整理', () => {
+    expect(failureView('processing_failed', true)).toEqual({
       message: copy.failure.processing_failed,
       reorganize: true,
-      edit: true,
     });
-    expect(failureView('dependency_unavailable')).toMatchObject({
-      reorganize: true,
-      edit: true,
-    });
-    expect(failureView('input_changed')).toMatchObject({
-      reorganize: true,
-      edit: false,
-    });
-    expect(failureView('cancelled')).toMatchObject({
+    expect(failureView('all_materials_unusable', false)).toEqual({
+      message: copy.failure.all_materials_unusable,
       reorganize: false,
-      edit: true,
     });
-  });
-});
-
-describe('failureKindOf', () => {
-  it('取消优先，其次取任务给出的错误码，缺省为整理中断', () => {
-    expect(failureKindOf({ status: 'cancelled', error: null })).toBe(
-      'cancelled',
-    );
-    expect(
-      failureKindOf({
-        status: 'failed',
-        error: { code: 'input_changed', message: 'x' },
-      }),
-    ).toBe('input_changed');
-    expect(failureKindOf({ status: 'failed', error: null })).toBe(
-      'processing_failed',
-    );
-  });
-});
-
-describe('commandFailureMessage', () => {
-  it('冲突和其他失败各一句，都不带内部细节', () => {
-    expect(commandFailureMessage('conflict')).toBe(
-      copy.failure.commandConflict,
-    );
-    for (const status of [
-      'unauthenticated',
-      'forbidden',
-      'not_found',
-      'validation_error',
-      'unavailable',
-    ] as const)
-      expect(commandFailureMessage(status)).toBe(copy.failure.commandFailed);
   });
 });
 

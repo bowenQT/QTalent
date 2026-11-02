@@ -143,7 +143,9 @@ it('persists exact protocol text once and replays across a fresh database pool a
   expect(stored).toHaveLength(1);
   // Final 897 canonical RecordInput trims display text; the original fragment
   // and digest, not that DTO, are the authoritative exact protocol bytes.
-  expect(stored[0]!.originalInput.text).toBe(h.text.trim());
+  const original = stored[0]!.originalInput;
+  if ('kind' in original) throw new Error('Text input required');
+  expect(original.text).toBe(h.text.trim());
   const source = stored[0]!.inputSource;
   if (!source) throw new Error('Native source required');
   const [fragment] = await connection.db

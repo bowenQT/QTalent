@@ -12,6 +12,8 @@ const f = vi.hoisted(() => ({
   demandRuntime: vi.fn(),
   arrangeRuntime: vi.fn(),
   registerArrange: vi.fn(),
+  matchRuntime: vi.fn(),
+  registerMatch: vi.fn(),
   access: vi.fn(),
   session: vi.fn(),
   env: {
@@ -40,6 +42,9 @@ vi.mock('../server/usecases/staffing-demand-runtime', () => ({
 }));
 vi.mock('../server/usecases/record-arrange-worker', () => ({
   createRecordArrangeWorker: f.arrangeRuntime,
+}));
+vi.mock('../server/usecases/staffing-match-runtime', () => ({
+  createStaffingMatchServerRuntime: f.matchRuntime,
 }));
 vi.mock('../server/db/client', () => ({ getDatabase: () => ({}) }));
 vi.mock('pg-boss', () => ({
@@ -102,6 +107,8 @@ beforeEach(() => {
   f.demandRuntime.mockReturnValue({ register: f.registerDemand });
   f.registerArrange.mockResolvedValue(undefined);
   f.arrangeRuntime.mockReturnValue({ register: f.registerArrange });
+  f.registerMatch.mockResolvedValue(undefined);
+  f.matchRuntime.mockReturnValue({ register: f.registerMatch });
   f.access.mockResolvedValue(undefined);
   f.session.mockResolvedValue({
     user: { id: 'synthetic' },
@@ -145,6 +152,32 @@ describe('worker lifecycle with transport boundaries replaced', () => {
       }
     },
   );
+  it('registers matching once after arrangement with the shared boss and its wall clock', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-01T12:00:00.000Z'));
+    const worker = await startWorker();
+    try {
+      expect(f.matchRuntime).toHaveBeenCalledOnce();
+      expect(f.registerMatch).toHaveBeenCalledOnce();
+      expect(f.registerArrange.mock.invocationCallOrder[0]).toBeLessThan(
+        f.registerMatch.mock.invocationCallOrder[0]!,
+      );
+      const input = f.matchRuntime.mock.calls[0][0];
+      expect(input).toMatchObject({ environment: f.env.APP_ENV, env: f.env });
+      expect(await input.boss('staffing-match')).toBe(worker.boss);
+      expect(input.wallNow().toISOString()).toBe('2026-11-01T12:00:00.000Z');
+    } finally {
+      await worker.stop();
+    }
+  });
+  it('stops the shared boss if matching registration fails before transport opens', async () => {
+    f.registerMatch.mockRejectedValueOnce(
+      new Error('matching registration failed'),
+    );
+    await expect(startWorker()).rejects.toThrow('matching registration failed');
+    expect(f.stop).toHaveBeenCalledOnce();
+    expect(f.serverEvents.size).toBe(0);
+  });
   it('stops the shared boss if arrangement registration fails before transport opens', async () => {
     f.registerArrange.mockRejectedValueOnce(
       new Error('arrangement registration failed'),

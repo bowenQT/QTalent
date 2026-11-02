@@ -24,8 +24,11 @@ import {
   readEvidenceForTalent,
 } from '../modules/records';
 import { aiSuggestions, confirmations, scoreReviews } from '../modules/talent';
-import { lockConfirmationIntakes } from './record-confirmation-sources';
-import { talentSources, sourceKey } from './talent-source-projection';
+import {
+  completeTalentSources,
+  readIntakeTable,
+  sourceKey,
+} from './talent-source-projection';
 import { loadEvaluationContext } from './evaluation-context';
 
 const unavailable = <R extends string>(reason: R) =>
@@ -75,7 +78,7 @@ export async function readLockedRecordLedger(
   );
   if (isolation.rows[0]?.transaction_isolation !== 'read committed')
     throw new Error('Native record ledger requires READ COMMITTED');
-  const intakeInputs = await lockConfirmationIntakes(tx);
+  const intake = await readIntakeTable(tx, 'locked');
   await tx.execute(sql`lock table ${recordDraftBatches} in exclusive mode`);
   await tx.execute(sql`lock table
     ${recordDrafts}, ${recordDraftEvents}, ${recordSaves}, ${recordOperations},
@@ -89,9 +92,9 @@ export async function readLockedRecordLedger(
   // creator, or the AI attribution list.
   const evidence = await readEvidenceForTalent(tx);
   const current = await loadEvaluationContext(tx, actor.accountId, actor.now());
-  const sourceFacts = talentSources({
+  const sourceFacts = completeTalentSources({
     ...evidence,
-    intakeInputs,
+    intake,
     context: current.context,
     staffing: current.staffing,
   });
@@ -143,13 +146,17 @@ export async function readLockedRecordLedger(
     : [];
   const ledgerEvents = targetEvents.map((event) => {
     const mapped = mappings.find((mapping) => mapping.eventId === event.id);
+    // A parsable receipt decides membership by its events. An earlier
+    // generation of the same draft (undo then re-save) names only its own
+    // events, so it is not part of a newer event's history. Only an
+    // unparsable receipt in the same draft is kept, so corruption fails closed.
     const history = saves.filter((save) => {
+      if (save.createdEventIds.includes(event.id)) return true;
       const receipt = recordSaveReceiptSchema.safeParse(save.receipt);
+      if (receipt.success)
+        return receipt.data.events.some((item) => item.eventId === event.id);
       return (
-        (receipt.success &&
-          receipt.data.events.some((item) => item.eventId === event.id)) ||
-        save.createdEventIds.includes(event.id) ||
-        (mapped?.batchId === save.batchId && mapped.draftId === save.draftId)
+        mapped?.batchId === save.batchId && mapped.draftId === save.draftId
       );
     });
     const saveFacts = history.map((save) => {

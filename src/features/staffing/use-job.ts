@@ -4,6 +4,7 @@ import type { JobSnapshot } from '@/contracts/jobs';
 import {
   JobReadError,
   subscribeToJob,
+  type JobSubscriptionOptions,
   type JobSubscriptionState,
 } from '@/lib/job-subscription';
 
@@ -15,7 +16,17 @@ import {
 export type JobState<S> = Omit<JobSubscriptionState<unknown>, 'snapshot'> & {
   snapshot: S | null;
   signedOut: boolean;
+  /** The last read failed with {@link notConnectedStatus}. */
+  notConnected: boolean;
+  /** Reads again now, starting a new bounded series after `gaveUp`. */
+  retry: () => void;
 };
+type ReadPolicy = Pick<
+  JobSubscriptionOptions<unknown>,
+  'stopOnConflict' | 'retryLimit'
+>;
+/** A reader's "not connected yet": transient, so the subscription retries it. */
+export const notConnectedStatus = 503;
 
 /**
  * Follows one job until it settles. A null id means nothing to follow. The result lives
@@ -24,6 +35,7 @@ export type JobState<S> = Omit<JobSubscriptionState<unknown>, 'snapshot'> & {
 export function useJob<S extends JobSnapshot<unknown>>(
   jobId: string | null,
   read: (jobId: string, signal: AbortSignal) => Promise<S>,
+  policy: ReadPolicy = {},
 ): JobState<S> | null {
   const [state, setState] = useState<{
     jobId: string;
@@ -33,6 +45,7 @@ export function useJob<S extends JobSnapshot<unknown>>(
     if (!jobId) return;
     let lastStatus: number | null = null;
     const subscription = subscribeToJob<unknown>({
+      ...policy,
       jobId,
       read: async (id, signal) => {
         try {
@@ -49,14 +62,21 @@ export function useJob<S extends JobSnapshot<unknown>>(
         setState({
           jobId,
           value: {
-            ...(value as Omit<JobState<S>, 'signedOut'>),
+            ...(value as Omit<
+              JobState<S>,
+              'signedOut' | 'notConnected' | 'retry'
+            >),
             signedOut: value.connection === 'forbidden' && lastStatus === 401,
+            notConnected:
+              value.connection === 'error' && lastStatus === notConnectedStatus,
+            // Called only after subscribing returned.
+            retry: () => subscription.refresh(),
           },
         }),
       lifecycle: { online: window, visibility: document },
     });
     return () => subscription.unsubscribe();
-    // `read` comes from the page and is stable for one job.
+    // `read` and `policy` come from the page and are stable for one job.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
   return jobId && state?.jobId === jobId ? state.value : null;

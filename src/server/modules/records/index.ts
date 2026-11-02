@@ -1,10 +1,16 @@
 /** Events have one evaluated person. Participants and shared source fragments never imply a score. */
+export { readMediaReviewStateInTransaction } from './material-review/read';
+export type { MediaReviewState } from './material-review/read';
+export { currentImageDecision } from './material-review/image-decision';
+export type { CurrentImageDecision } from './material-review/image-decision';
 export {
   historicalEvaluations,
   historicalParticipants,
   originals,
   originalVersions,
   fragments,
+  materialParses,
+  materialPdfPages,
   events,
   eventParticipants,
   eventSources,
@@ -26,6 +32,11 @@ export type {
 
 // Batch preparation and persisted input facts; the native usecase owns authorization.
 export { arrangeInputs } from './arrange/input-state/schema';
+export {
+  managementObservations,
+  managementObservationSources,
+  managementObservationOperations,
+} from './management-observations/schema';
 export type {
   ArrangeSourceContext,
   StoredArrangeInput,
@@ -79,6 +90,9 @@ export {
   commitRecordSave,
   commitRecordUndo,
   requireRecordUndoCommit,
+  recordUndoCancellationFacts,
+  readRecordResaveState,
+  readRecordCancellationHistory,
   RecordWriteError,
 } from './write';
 export type {
@@ -86,13 +100,10 @@ export type {
   RecordSaveLock,
   RecordUndoCommit,
   RecordConfirmationWorkFact,
+  RecordCancelledConfirmationWorkFact,
+  RecordResaveState,
+  RecordCancellationHistory,
 } from './write';
-export { wecomMessages, wecomReceiptAttempts } from './wecom/schema';
-export {
-  wecomArchivedMediaSchema,
-  wecomArchivedMediaListSchema,
-} from './wecom/facts';
-export type { WecomArchivedMedia } from './wecom/facts';
 
 // Internal upload facts require current authorization in the consuming usecase.
 export {
@@ -102,5 +113,17 @@ export {
 } from './uploads/store';
 export type { UploadDispatch, PostgresUploadStore } from './uploads/store';
 export { readValidatedUpload } from './uploads/handoff';
+export { readValidatedUploadInTransaction } from './uploads/handoff-transaction';
 export type { ValidatedUpload } from './uploads/handoff';
 export type { UploadCollectionMembers } from './uploads/types';
+
+export type {
+  StoredRecordOriginalInput,
+  MediaRecordOriginalInput,
+} from './arrange/input-state/original-input';
+export { wecomMessages, wecomReceiptAttempts } from './wecom/schema';
+export {
+  wecomArchivedMediaSchema,
+  wecomArchivedMediaListSchema,
+} from './wecom/facts';
+export type { WecomArchivedMedia } from './wecom/facts';

@@ -514,6 +514,59 @@ test('backups are required, bound to a target database, consumed and never auto-
     /invalid_backup/,
   );
 });
+test('a seed step runs only through seed, after a fresh backup, bound to the manifest database', async () => {
+  const f = fixture(),
+    manager = f.manager();
+  await manager.deploy(f.first, null, true);
+  const backup = await manager.backup();
+  // Rejected before any lock, record or backup consumption.
+  await assert.rejects(
+    manager.database('seed', f.first, backup.file, 'drop-everything'),
+    /invalid_seed_step/,
+  );
+  await assert.rejects(
+    manager.database(
+      'migrate',
+      f.first,
+      backup.file,
+      'upgrade-statement-kinds',
+    ),
+    /invalid_seed_step/,
+  );
+  await assert.rejects(
+    manager.database('seed', f.first, undefined, 'upgrade-statement-kinds'),
+    /backup_required/,
+  );
+  f.state.events.length = 0;
+  await manager.database(
+    'seed',
+    f.first,
+    backup.file,
+    'upgrade-statement-kinds',
+  );
+  const { host, port, name, username } = f.target.database.worker;
+  const seed = f.state.events.find((e) => e.args.includes('db:seed'));
+  assert.deepEqual(seed.args.slice(seed.args.indexOf('db:seed')), [
+    'db:seed',
+    'upgrade-statement-kinds',
+    JSON.stringify({ host, port, name, username }),
+  ]);
+  assert.equal(f.latest().seedStep, 'upgrade-statement-kinds');
+  assert.ok(f.latest().phases.includes('upgrade-statement-kinds'));
+  assert.equal(f.latest().databaseChanged, true);
+  // The backup was consumed; the step cannot reuse it.
+  await assert.rejects(
+    manager.database('seed', f.first, backup.file, 'revert-statement-kinds'),
+    /invalid_backup/,
+  );
+  // A plain seed passes no step arguments.
+  const second = await manager.backup();
+  f.state.events.length = 0;
+  await manager.database('seed', f.first, second.file);
+  const plain = f.state.events.find((e) => e.args.includes('db:seed'));
+  assert.equal(plain.args.at(-1), 'db:seed');
+  assert.equal(f.latest().seedStep, undefined);
+});
 test('partial backup and failed migration remain explicit failures with unknown database outcome', async () => {
   const f = fixture(),
     manager = f.manager();
@@ -894,6 +947,57 @@ test('CLI routes explicit commands through the same manager and records all side
       options,
     ),
     0,
+  );
+  const stepBackup = await manager.backup();
+  assert.equal(
+    await main(
+      [
+        'seed',
+        ...targetArgs,
+        '--sha',
+        f.first,
+        '--backup',
+        stepBackup.file,
+        '--upgrade-statement-kinds',
+      ],
+      options,
+    ),
+    0,
+  );
+  const unusedBackup = await manager.backup();
+  for (const extra of [
+    ['--upgrade-statement-kinds', '--revert-statement-kinds'],
+    ['--upgrade-statement-kinds', '--upgrade-statement-kinds'],
+  ])
+    assert.equal(
+      await main(
+        [
+          'seed',
+          ...targetArgs,
+          '--sha',
+          f.first,
+          '--backup',
+          unusedBackup.file,
+          ...extra,
+        ],
+        options,
+      ),
+      1,
+    );
+  assert.equal(
+    await main(
+      [
+        'migrate',
+        ...targetArgs,
+        '--sha',
+        f.first,
+        '--backup',
+        unusedBackup.file,
+        '--revert-statement-kinds',
+      ],
+      options,
+    ),
+    1,
   );
   assert.equal(await main(['unknown', ...targetArgs], options), 1);
   assert.equal(await main(['deploy', '--unknown', 'value'], options), 1);

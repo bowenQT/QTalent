@@ -9,7 +9,6 @@ import {
   recordUndoInputSchema,
   recordUndoResultSchema,
   type RecordBatchDraft,
-  type RecordSaveInput,
   type RecordSaveResult,
   type RecordUndoInput,
   type RecordUndoResult,
@@ -34,6 +33,7 @@ import {
   type SampleRole,
   type SampleScene,
 } from './sample-data';
+import { ledgerKey, requestKey } from '../record/sample-ledger';
 
 /** processing 样张：读到第几次时录音转写完。 */
 export const PROCESSING_READS = 2;
@@ -43,9 +43,14 @@ type Saved = {
   draft: RecordBatchDraft;
   events: { personId: string; eventId: string }[];
   savedAt: number;
-  operationId: string;
-  key: string;
-  result: RecordSaveResult;
+};
+/**
+ * 操作台账，和当前有效的保存分开（照 846）：按账号、动作、operation_id 分开记，同样的
+ * 请求（归一化后）重放第一次的结果，撤销之后、过了撤销时间也一样；请求变了就是冲突。
+ */
+type Operation = {
+  request: string;
+  result: RecordSaveResult | RecordUndoResult;
 };
 
 /**
@@ -62,7 +67,8 @@ export function createSampleServer(
   let conflictPending = scene === 'conflict';
   let drafts = scene === 'empty' ? [] : sampleDrafts.map((d) => ({ ...d }));
   const saved = new Map<string, Saved>();
-  const undone = new Set<string>();
+  const operations = new Map<string, Operation>();
+  let serial = 0;
   const items = scene === 'empty' ? [] : sampleItems;
   const me = sampleAccount(role);
 
@@ -82,7 +88,8 @@ export function createSampleServer(
       revision: s.draft.revision,
       events: s.events,
     }));
-    const live = drafts.map((d) => ({ ...d, revision }));
+    // 每张草稿有自己的 revision，只在这件事本身变了时前进；确认别的事不影响它
+    const live = drafts;
     const personIds = scene === 'empty' ? [] : Object.keys(people);
     const receipt = materialBatchReceiptSchema.parse({
       batchId: BATCH_ID,
@@ -138,10 +145,6 @@ export function createSampleServer(
     };
   }
 
-  const keyOf = (input: RecordSaveInput) => {
-    return JSON.stringify({ ...input, operation_id: undefined });
-  };
-
   return {
     async read(batchId): Promise<ReceiptReadResult> {
       reads += 1;
@@ -152,12 +155,11 @@ export function createSampleServer(
 
     async save(raw): Promise<RecordSaveResult> {
       const input = recordSaveInputSchema.parse(raw);
-      const replay = [...saved.values()].find(
-        (s) => s.operationId === input.operation_id,
-      );
-      if (replay) {
-        if (replay.key === keyOf(input))
-          return { ...replay.result, replayed: true } as RecordSaveResult;
+      const ledger = ledgerKey(me.id, 'save', input.operation_id);
+      const known = operations.get(ledger);
+      if (known) {
+        if (known.request === requestKey('save', input))
+          return { ...known.result, replayed: true } as RecordSaveResult;
         return recordSaveResultSchema.parse({
           status: 'conflict',
           message: '同一次操作的内容变了，请重新确认',
@@ -170,10 +172,15 @@ export function createSampleServer(
           status: 'not_found',
           message: '这件事已经确认过了',
         });
-      if (conflictPending || input.expected_revision !== revision) {
+      if (conflictPending || input.expected_revision !== draft.revision) {
         if (conflictPending) {
           conflictPending = false;
           revision += 1;
+          drafts = drafts.map((d) =>
+            d.draftId === draft.draftId
+              ? { ...d, revision: d.revision + 1 }
+              : d,
+          );
         }
         return recordSaveResultSchema.parse({
           status: 'conflict',
@@ -182,18 +189,22 @@ export function createSampleServer(
         });
       }
       const savedAt = now();
-      const saveId = `save-${draft.draftId}-${saved.size + undone.size + 1}`;
+      serial += 1;
+      const saveId = `save-${draft.draftId}-${serial}`;
+      // 每次保存逐人新建事件：撤销后再保存是新事件，编号不复用
       const events = draft.personIds.map((personId, i) => ({
         personId,
-        eventId: `ev-${draft.draftId}-${i + 1}`,
+        eventId: `ev-${draft.draftId}-${serial}-${i + 1}`,
       }));
+      // 照 846：保存推进这件事的 revision，回执给出保存后的版本
+      const savedDraft = { ...draft, revision: draft.revision + 1 };
       const result = recordSaveResultSchema.parse({
         status: 'success',
         replayed: false,
         result: {
           saveId,
           events,
-          revision: revision + 1,
+          revision: savedDraft.revision,
           confirmationIds: input.decisions.map(
             (_, i) => `cf-${saveId}-${i + 1}`,
           ),
@@ -207,11 +218,12 @@ export function createSampleServer(
       drafts = drafts.filter((d) => d.draftId !== draft.draftId);
       saved.set(saveId, {
         saveId,
-        draft,
+        draft: savedDraft,
         events,
         savedAt,
-        operationId: input.operation_id,
-        key: keyOf(input),
+      });
+      operations.set(ledger, {
+        request: requestKey('save', input),
         result,
       });
       return result;
@@ -219,6 +231,17 @@ export function createSampleServer(
 
     async undo(raw: RecordUndoInput): Promise<RecordUndoResult> {
       const input = recordUndoInputSchema.parse(raw);
+      const ledger = ledgerKey(me.id, 'undo', input.operation_id);
+      const known = operations.get(ledger);
+      if (known) {
+        if (known.request === requestKey('undo', input))
+          return { ...known.result, replayed: true } as RecordUndoResult;
+        return recordUndoResultSchema.parse({
+          status: 'conflict',
+          message: '同一次操作的内容变了',
+          input,
+        });
+      }
       const entry = saved.get(input.saveId);
       if (!entry)
         return recordUndoResultSchema.parse({
@@ -232,13 +255,14 @@ export function createSampleServer(
           input,
         });
       saved.delete(input.saveId);
-      undone.add(input.saveId);
       revision += 1;
       const order = sampleDrafts.map((d) => d.draftId);
-      drafts = [...drafts, entry.draft].sort(
+      // 照 846（#317）：撤销把草稿恢复成可确认，revision 再前进一次
+      const restored = { ...entry.draft, revision: entry.draft.revision + 1 };
+      drafts = [...drafts, restored].sort(
         (a, b) => order.indexOf(a.draftId) - order.indexOf(b.draftId),
       );
-      return recordUndoResultSchema.parse({
+      const result = recordUndoResultSchema.parse({
         status: 'success',
         replayed: false,
         result: {
@@ -246,11 +270,22 @@ export function createSampleServer(
           withdrawnEvents: entry.events,
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
+          // 回执给出再确认要用的新版本
+          draftRestoration: {
+            status: 'available',
+            draftId: restored.draftId,
+            draftRevision: restored.revision,
+          },
           // 照 846（#289）：撤销回执不带原输入；回执页的事回到待确认，本来也不需要原话
           inputRestoration: 'unavailable',
           originalInput: null,
         },
       });
+      operations.set(ledger, {
+        request: requestKey('undo', input),
+        result,
+      });
+      return result;
     },
   };
 }
