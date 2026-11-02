@@ -66,6 +66,9 @@ function intersect(a: PdfBox, b: PdfBox): PdfBox {
     Math.min(a[3], b[3]),
   ];
 }
+function overlaps(a: PdfBox, b: PdfBox): boolean {
+  return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+}
 function color(value: string): PdfCircle['color'] {
   const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(value);
   if (!match) return 'other';
@@ -103,7 +106,11 @@ function pathKind(value: unknown): 'circle' | 'rectangle' | 'other' {
     : 'other';
 }
 
-/** Extract painted radio circles, including q/Q, CTM, form transforms, clipping and opacity. */
+/**
+ * Extract painted radio circles, including q/Q, CTM, form transforms, clipping and opacity.
+ * A later fill, image or shading that overlaps an earlier circle may hide it, so that circle is
+ * marked unsupported and the row goes to manual review instead of reading a value.
+ */
 export function readCircles(
   operators: { fnArray: number[]; argsArray: unknown[] },
   viewport: Matrix,
@@ -128,6 +135,26 @@ export function readCircles(
     OPS.closeFillStroke,
     OPS.closeEOFillStroke,
   ]);
+  const images = new Set([
+    OPS.paintImageXObject,
+    OPS.paintInlineImageXObject,
+    OPS.paintImageMaskXObject,
+    OPS.paintSolidColorImageMask,
+    OPS.paintImageXObjectRepeat,
+    OPS.paintInlineImageXObjectGroup,
+    OPS.paintImageMaskXObjectGroup,
+    OPS.paintImageMaskXObjectRepeat,
+  ]);
+  const occlude = (area: PdfBox | null) => {
+    const visible = area && state.clip ? intersect(area, state.clip) : area;
+    const pageBox = visible
+      ? bounds(visible, viewport)
+      : state.clip
+        ? bounds(state.clip, viewport)
+        : null;
+    for (const circle of result)
+      if (!pageBox || overlaps(pageBox, circle.box)) circle.supported = false;
+  };
   const strokes = new Set([
     OPS.stroke,
     OPS.closeStroke,
@@ -194,7 +221,9 @@ export function readCircles(
           state.supported = false;
         else if (entry[0] === 'TR') state.supported = false;
       }
-    } else if (op === OPS.constructPath) {
+    } else if (images.has(op)) occlude(bounds([0, 0, 1, 1], state.matrix));
+    else if (op === OPS.shadingFill) occlude(null);
+    else if (op === OPS.constructPath) {
       const n = numbers(args[2]);
       const paths = Array.isArray(args[1]) ? args[1] : [];
       const kind = pathKind(paths[0]);
@@ -208,35 +237,42 @@ export function readCircles(
           box[0] < state.clip[2] &&
           box[3] > state.clip[1] &&
           box[1] < state.clip[3]);
-      if (kind === 'circle' && visible) {
-        const pageBox = bounds(box, viewport);
-        const width = pageBox[2] - pageBox[0],
-          height = pageBox[3] - pageBox[1];
-        if (
-          width >= 2 &&
-          width <= 24 &&
-          height >= 2 &&
-          height <= 24 &&
-          Math.abs(width - height) <= 1
-        ) {
-          const paint = typeof args[0] === 'number' ? args[0] : -1;
-          for (const filled of [true, false]) {
-            if (!(filled ? fills : strokes).has(paint)) continue;
-            const alpha = filled ? state.fillAlpha : state.strokeAlpha;
-            if (
-              alpha === 0 ||
-              (filled ? state.fill : state.stroke) === 'transparent'
-            )
-              continue;
-            result.push({
-              box: pageBox,
-              color: color(filled ? state.fill : state.stroke),
-              filled,
-              supported: state.supported && fullyVisible && alpha === 1,
-            });
-          }
+      const pageBox = bounds(box, viewport);
+      const width = pageBox[2] - pageBox[0],
+        height = pageBox[3] - pageBox[1];
+      const radio =
+        kind === 'circle' &&
+        width >= 2 &&
+        width <= 24 &&
+        height >= 2 &&
+        height <= 24 &&
+        Math.abs(width - height) <= 1;
+      const paintOp = typeof args[0] === 'number' ? args[0] : -1;
+      // Concentric radio paints (a white centre over a blue ring) are resolved by the parser.
+      if (
+        !radio &&
+        visible &&
+        fills.has(paintOp) &&
+        state.fillAlpha > 0 &&
+        state.fill !== 'transparent'
+      )
+        occlude(box);
+      if (radio && visible)
+        for (const filled of [true, false]) {
+          if (!(filled ? fills : strokes).has(paintOp)) continue;
+          const alpha = filled ? state.fillAlpha : state.strokeAlpha;
+          if (
+            alpha === 0 ||
+            (filled ? state.fill : state.stroke) === 'transparent'
+          )
+            continue;
+          result.push({
+            box: pageBox,
+            color: color(filled ? state.fill : state.stroke),
+            filled,
+            supported: state.supported && fullyVisible && alpha === 1,
+          });
         }
-      }
       if (pendingClip) {
         if (kind === 'rectangle')
           state.clip = state.clip ? intersect(state.clip, box) : box;

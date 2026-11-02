@@ -156,23 +156,39 @@ function syntheticReview(
     marker?: boolean;
     candidate?: string | null;
     unicodeHeader?: boolean;
+    comment?: string[];
+    twoLine?: string;
+    cover?: string;
   } = {},
 ): Uint8Array {
   const rows = dimensionNames.map((label, index) =>
-    radio(
-      label,
-      300 + index * 50,
-      ['1', '2', '3', '4', '5'],
-      index === 3
-        ? change.management
-          ? ['4']
-          : []
-        : index === 0 && change.missing
-          ? []
-          : index === 0 && change.multiple
-            ? ['2', '4']
-            : [['2'], ['4'], ['3']][index],
-    ),
+    index === 0 && change.twoLine
+      ? [
+          text(label, 40, 303),
+          ...['1', '2', '3', '4', '5'].map(
+            (value, i) =>
+              text(value, 215 + (i % 3) * 61, 303 + Math.floor(i / 3) * 20) +
+              circle(
+                205 + (i % 3) * 61,
+                300 + Math.floor(i / 3) * 20,
+                value === change.twoLine,
+              ),
+          ),
+        ].join('\n')
+      : radio(
+          label,
+          300 + index * 50,
+          ['1', '2', '3', '4', '5'],
+          index === 3
+            ? change.management
+              ? ['4']
+              : []
+            : index === 0 && change.missing
+              ? []
+              : index === 0 && change.multiple
+                ? ['2', '4']
+                : [['2'], ['4'], ['3']][index],
+        ),
   );
   const detail = [
     change.marker === false
@@ -192,8 +208,13 @@ function syntheticReview(
     change.crossPage
       ? text('建议职级续下页', 40, 560)
       : radio('建议职级', 550, ['N1', 'N2', 'N3', 'N4', 'N5'], ['N3']),
-    text('综合评价：先复现问题，再验证修复。', 40, 620),
-    text('保留失败项，方便后续核对。', 40, 640),
+    ...(
+      change.comment ?? [
+        '综合评价：先复现问题，再验证修复。',
+        '保留失败项，方便后续核对。',
+      ]
+    ).map((line, index) => text(line, 40, 620 + index * 20)),
+    change.cover ?? '',
   ].join('\n');
   return pdf(
     change.crossPage
@@ -815,5 +836,121 @@ describe('actual page text provenance and optional raw candidate metadata', () =
         pdf(Array.from({ length: 200 }, () => text('演示页', 40, 100))),
       ),
     ).toHaveLength(200);
+  });
+});
+
+describe('BOW-900 structural boundaries (connector findings)', () => {
+  it('keeps comment continuation lines that begin with field or dimension names', async () => {
+    const comment = [
+      '综合评价：先复现问题，再验证修复。',
+      '潜力较好，但需要继续观察。',
+      '专业能力扎实，排查有条理。',
+      '候选人在压力下仍能复盘。',
+      '专业能力：建议补充系统设计案例。',
+    ];
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], { comment }),
+      demoOptions,
+    );
+    expect(result.status).toBe('parsed');
+    const parsed = review(result);
+    expect(parsed.metadata.overallComment).toMatchObject({
+      value: ['先复现问题，再验证修复。', ...comment.slice(1)].join('\n'),
+    });
+    expect(parsed.metadata.overallComment?.sources).toHaveLength(5);
+    expect(parsed.dimensions[0].selection).toMatchObject({
+      status: 'recognized',
+      value: '2',
+    });
+  });
+  it('still ends the comment at a standalone scale label', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        comment: ['综合评价：先复现问题。', '专业能力'],
+      }),
+      demoOptions,
+    );
+    expect(result).toMatchObject({
+      status: 'rejected',
+      reason: 'fingerprint_mismatch',
+    });
+  });
+  it('sends a selected circle hidden by a later opaque fill to manual review', async () => {
+    const covered = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        cover: `1 1 1 rg 255 ${842 - 310} 22 20 re f`,
+      }),
+      demoOptions,
+    );
+    expect(covered.status).toBe('needs_manual_input');
+    expect(review(covered).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'unsupported_graphics',
+    });
+    expect(review(covered).dimensions[0].selection).not.toHaveProperty('value');
+    const elsewhere = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        cover: `1 1 1 rg 30 ${842 - 790} 40 20 re f`,
+      }),
+      demoOptions,
+    );
+    expect(elsewhere.status).toBe('parsed');
+  });
+  it.each([
+    ['image', [OPS.paintImageXObject, ['img']] as Op],
+    ['shading', [OPS.shadingFill, ['sh']] as Op],
+    [
+      'rectangle',
+      [
+        OPS.constructPath,
+        [
+          OPS.fill,
+          [new Float32Array(rectanglePath)],
+          new Float32Array([0, 0, 10, 10]),
+        ],
+      ] as Op,
+    ],
+  ])(
+    'marks an earlier circle covered by a later %s unsupported',
+    (_, cover) => {
+      const [circle] = vectors([blue, paint, cover]);
+      expect(circle).toMatchObject({ color: 'blue', supported: false });
+      const [kept] = vectors([
+        blue,
+        paint,
+        [OPS.transform, [1, 0, 0, 1, 100, 0]],
+        ...(cover[0] === OPS.shadingFill ? [] : [cover]),
+      ]);
+      expect(kept).toMatchObject({ color: 'blue', supported: true });
+    },
+  );
+  it.each(['1', '3', '4', '5'])(
+    'pairs two-row options with their circles (selected %s)',
+    async (value) => {
+      const result = await parseInterviewReviewPdf(
+        syntheticReview(templates[0], { twoLine: value }),
+        demoOptions,
+      );
+      expect(result.status).toBe('parsed');
+      expect(review(result).dimensions[0].selection).toMatchObject({
+        status: 'recognized',
+        value,
+      });
+    },
+  );
+  it('refuses two-row options whose labels and circles do not line up', async () => {
+    const pages = await readPdfLayout(
+      syntheticReview(templates[0], { twoLine: '3' }),
+    );
+    pages[0].text = pages[0].text.filter(
+      (item) => !(item.text === '5' && center(item.box) > 310),
+    );
+    pages[0].text.push({ text: '5', box: [337, 296, 343, 306] });
+    const result = parseInterviewReviewLayout(pages, demoOptions);
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'options_mismatch',
+    });
   });
 });

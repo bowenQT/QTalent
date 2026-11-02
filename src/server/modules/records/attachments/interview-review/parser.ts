@@ -102,6 +102,31 @@ function rowLabel(line: Line, label: string): boolean {
     /^[：:1-5SABCDN]/.test(value.slice(compact(label).length))
   );
 }
+/** A field label is the whole label, then a colon or nothing; free text that merely begins with it is not. */
+function labelLine(line: Line, label: string): boolean {
+  const value = compact(line.text).replace(/^[*＊•·\d.、]+/, '');
+  if (!value.startsWith(compact(label))) return false;
+  const rest = value.slice(compact(label).length);
+  return rest === '' || /^[：:]/.test(rest);
+}
+function hasRadios(line: Line, pages: PdfLayoutPage[]): boolean {
+  const page = pages.find((item) => item.page === line.page);
+  return (
+    page?.circles.some(
+      (circle) =>
+        Math.abs(centerY(circle.box) - centerY(line.box)) <= 10 &&
+        centerX(circle.box) > line.spans[0].box[0],
+    ) ?? false
+  );
+}
+function heading(line: Line): boolean {
+  return (
+    /^(明细评价|评价概览|概览评价)/.test(compact(line.text)) ||
+    INTERVIEW_TEMPLATES.some(
+      (template) => compact(line.text) === compact(template.name),
+    )
+  );
+}
 function stripLabel(text: string, label: string): string {
   const pattern = [...label]
     .map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
@@ -111,14 +136,14 @@ function stripLabel(text: string, label: string): string {
 function field(
   lines: Line[],
   labels: string[],
-  stopLabels: string[],
+  boundary: (index: number) => boolean,
   multiline = false,
 ): ReadField {
   const index = lines.findIndex((line) =>
-    labels.some((label) => starts(line, label)),
+    labels.some((label) => labelLine(line, label)),
   );
   if (index < 0) return null;
-  const label = labels.find((value) => starts(lines[index], value))!;
+  const label = labels.find((value) => labelLine(lines[index], value))!;
   const first = stripLabel(lines[index].text, label);
   const values: string[] = first ? [first] : [];
   const sources: PdfRegion[] = first ? [region(lines[index])] : [];
@@ -127,30 +152,20 @@ function field(
     i < lines.length && (multiline || values.length === 0);
     i++
   ) {
-    if (
-      stopLabels.some((stop) => starts(lines[i], stop)) ||
-      /^(明细评价|评价概览|概览评价)/.test(compact(lines[i].text))
-    )
-      break;
-    if (
-      INTERVIEW_TEMPLATES.some(
-        (template) => compact(lines[i].text) === compact(template.name),
-      )
-    )
-      break;
+    if (heading(lines[i]) || boundary(i)) break;
     values.push(lines[i].text.trim());
     sources.push(region(lines[i]));
     if (!multiline) break;
   }
   return values.length ? { value: values.join('\n'), sources } : null;
 }
-function candidateName(lines: Line[], stopLabels: string[]): ReadField {
+function candidateName(lines: Line[]): ReadField {
   const candidates = lines.filter((line) =>
     /^候\s*选\s*人\s*[:：]/.test(line.text),
   );
   if (!candidates.length) return null;
   const values = candidates
-    .map((line) => field([line], ['候选人'], stopLabels))
+    .map((line) => field([line], ['候选人'], () => true))
     .filter((value): value is NonNullable<ReadField> => value !== null);
   if (
     values.length !== candidates.length ||
@@ -264,26 +279,55 @@ function readSelection(
     start: Math.min(...citedLines.map((line) => line.start)),
     end: Math.max(...citedLines.map((line) => line.end)),
   };
-  const optionText = optionLines
-    .map((line) =>
-      starts(line, anchor.name)
+  const tokens = (line: Line) =>
+    [
+      ...(starts(line, anchor.name)
         ? stripLabel(line.text, anchor.name)
-        : line.text,
-    )
-    .join(' ');
-  const found = [
-    ...optionText.matchAll(
-      new RegExp(`(?<![A-Za-z0-9])(${escaped})(?![A-Za-z0-9])`, 'g'),
+        : line.text
+      ).matchAll(
+        new RegExp(`(?<![A-Za-z0-9])(${escaped})(?![A-Za-z0-9])`, 'g'),
+      ),
+    ].map((match) => match[1]);
+  // Pair circles with labels row by row: each circle row must align with exactly one line of
+  // option labels holding the same number of labels, so reading order is the same for both.
+  const circleRows: (typeof groups)[] = [];
+  for (const group of [...groups].sort(
+    (a, b) => centerY(a.box) - centerY(b.box) || a.box[0] - b.box[0],
+  )) {
+    const row = circleRows.find(
+      (items) => Math.abs(centerY(items[0].box) - centerY(group.box)) <= 3,
+    );
+    if (row) row.push(group);
+    else circleRows.push([group]);
+  }
+  const labelled = optionLines.filter((line) => tokens(line).length > 0);
+  const aligned = circleRows.map((row) =>
+    labelled.filter(
+      (line) => Math.abs(centerY(row[0].box) - centerY(line.box)) <= 10,
     ),
-  ].map((match) => match[1]);
-  if (groups.length !== options.length || found.join('|') !== options.join('|'))
+  );
+  const ordered = circleRows.flatMap((row) =>
+    [...row].sort((a, b) => a.box[0] - b.box[0]),
+  );
+  const found = aligned.flatMap((items) => items.flatMap(tokens));
+  if (
+    aligned.some(
+      (items, index) =>
+        items.length !== 1 ||
+        tokens(items[0]).length !== circleRows[index].length,
+    ) ||
+    new Set(aligned.map((items) => items[0])).size !== aligned.length ||
+    labelled.some((line) => !aligned.some((items) => items[0] === line)) ||
+    ordered.length !== options.length ||
+    found.join('|') !== options.join('|')
+  )
     return fail('options_mismatch');
-  const selected = groups.filter((group) => group.selected);
+  const selected = ordered.filter((group) => group.selected);
   if (selected.length === 0) return fail('missing_selection');
   if (selected.length !== 1) return fail('multiple_selections');
   return {
     status: 'recognized',
-    value: options[groups.indexOf(selected[0])],
+    value: options[ordered.indexOf(selected[0])],
     source: {
       page: anchor.line.page,
       box: selected[0].box,
@@ -304,8 +348,34 @@ function parseSection(
     template.rating.label,
     template.level.label,
   ];
+  const metadataLine = (line: Line) =>
+    metadataLabels.some((label) => labelLine(line, label));
+  const choiceRow = (line: Line) =>
+    [...line.text.matchAll(/(?<![A-Za-z0-9])([1-5])(?![A-Za-z0-9])/g)]
+      .map((match) => match[1])
+      .join('') === '12345';
+  // The free-text comment runs until the next field label, standalone scale label, radio or
+  // choice row, or heading. Its lines are never scale rows, whatever words they begin with.
+  const comment = new Set<number>();
+  const commentStart = lines.findIndex((line) => labelLine(line, '综合评价'));
+  if (commentStart >= 0)
+    for (let index = commentStart + 1; index < lines.length; index++) {
+      const line = lines[index];
+      if (
+        heading(line) ||
+        metadataLine(line) ||
+        hasRadios(line, pages) ||
+        choiceRow(line) ||
+        line.spans.some((span) =>
+          labels.some((label) => compact(span.text) === compact(label)),
+        )
+      )
+        break;
+      comment.add(index);
+    }
   const anchors: Anchor[] = [];
   for (let index = 0; index < lines.length; index++) {
+    if (comment.has(index)) continue;
     const name = labels.find((label) => rowLabel(lines[index], label));
     if (name) anchors.push({ name, line: lines[index], index });
   }
@@ -317,11 +387,9 @@ function parseSection(
   )
     return null;
   for (let index = 0; index < lines.length; index++) {
+    if (comment.has(index)) continue;
     const line = lines[index];
-    const choices = [
-      ...line.text.matchAll(/(?<![A-Za-z0-9])([1-5])(?![A-Za-z0-9])/g),
-    ].map((match) => match[1]);
-    if (choices.join('') !== '12345') continue;
+    if (!choiceRow(line)) continue;
     const row = template.dimensions.some((name) => rowLabel(line, name))
       ? line
       : lines[index - 1];
@@ -333,7 +401,10 @@ function parseSection(
     )
       return null;
   }
-  const stopLabels = [...metadataLabels, ...labels];
+  const fieldEnd = (index: number) =>
+    metadataLine(lines[index]) ||
+    labels.some((label) => rowLabel(lines[index], label));
+  const commentEnd = (index: number) => !comment.has(index);
   const selection = (label: string, choices: readonly string[]): Selection => {
     const anchor = anchors.find((item) => item.name === label);
     return anchor
@@ -356,15 +427,15 @@ function parseSection(
     demo: true,
     templateSource: region(title),
     identity: {
-      candidateName: candidateName(lines, stopLabels),
+      candidateName: candidateName(lines),
       positionNumber: null, // No verified PDF label/fixture exists; never substitute another identifier.
     },
     metadata: {
-      interviewTime: field(lines, ['面试时间'], stopLabels),
-      interviewType: field(lines, ['面试类型'], stopLabels),
-      interviewer: field(lines, ['面试官姓名', '面试官'], stopLabels),
-      interviewResult: field(lines, ['面试结果'], stopLabels),
-      overallComment: field(lines, ['综合评价'], stopLabels, true),
+      interviewTime: field(lines, ['面试时间'], fieldEnd),
+      interviewType: field(lines, ['面试类型'], fieldEnd),
+      interviewer: field(lines, ['面试官姓名', '面试官'], fieldEnd),
+      interviewResult: field(lines, ['面试结果'], fieldEnd),
+      overallComment: field(lines, ['综合评价'], commentEnd, true),
     },
     dimensions: template.dimensions.map((name) => ({
       name,
