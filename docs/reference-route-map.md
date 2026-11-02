@@ -14,7 +14,7 @@
 | 同上 | `/dev/design-system/sources`、`/dev/design-system/sources/view` | 原件查看器样张（六种定位、代码快照、基线、待接入） | `sources.ts` 校验后的合成样张 | 路由中的生产环境门禁 | — | 仅开发环境；生产返回 404 |
 | `404.html`           | 全局 `not-found.tsx` | `components/ui/State`                                  | —                    | Next.js 404                                     | —                                    | 通用返回入口                               |
 
-`/` 仅重定向 `/projects`（登录落点改到 `/work` 归 BOW-874）；导航「工作台」指向 `/work`，见下文「工作台（BOW-841）」。
+`/` 重定向到 `/work`，登录后也落到 `/work`，404 页的返回入口是「回到工作台」（BOW-874）；导航「工作台」指向 `/work`，见下文「工作台（BOW-841）」。
 
 ## 全量原型页面规划
 
@@ -536,10 +536,11 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
     - 项目列表：只列可读的「筹备中 / 进行中」项目，卡片（`.n-card`）里放分隔列表（`.nt-list`），每行项目名链接（`.nt-plink`）加目标（`.nt-muted`）；链接是 `?project=<id>&draft=work`。
     - 没有开放项目：空状态（`State`）「先建一个项目」，按钮去 `/projects?draft=work`；项目与课题页带着这个标记时，项目卡片「发起找 owner」和页头「为项目找人」的链接都加 `draft=work`，新建项目后从卡片进入找人，原话照样带过去。
     - 项目读取被拒（`forbidden`）：显示「查看权限已更新」（`AccessDenied`），不引去新建项目。
-  - 确认后的候选人核对：BOW-854 未合入，`openMatching` 返回 `null`，显示「候选人核对待接通」，不拿样张冒充。
+  - 确认后的候选人核对：经 `src/server/actions/staffing-match.ts` 调用 BOW-854 的匹配用例，账号从会话取，权限由用例的 `scopeFor` 判断。唯一组装点 `src/server/queries/staffing-match-runtime.ts` 在前置（匹配两表迁移、846 `readConfirmations`、837 `projectSources`、Jev 与 Gemini 复核客户端、`staffing_match` 队列与 worker 注册，见 #248 评论 6559923544）到位前返回 `null`，动作回 `not_connected`，页面显示「候选人核对待接通」，不拿样张冒充。开启被拒（403/404）显示「这次核对在你的查看范围之外」，冲突或网络失败显示「候选人核对中断」。已打开的核对在读取时回 `not_connected`（服务端配置变化）不算无权限：显示「候选人核对待接通」，订阅按退避自动重试，接通后结果直接出现。
+  - 引用来源：`readStaffingSourceAction` 走与档案相同的当前账号来源读取（`readSourceForCurrentUser`），不依赖 BOW-854。
 - 开发样张 `/dev/staffing?role=manager|hr&scene=ts|agent|new`：原型 Y 种子数据经找人契约渲染，来源都标为原型基线；动作是内存假实现。生产构建返回 404。
 - 排序只用契约的 `orderStaffingCandidates`（必须项支持了几条），同数保持读取顺序；必须项至少两条资料不足、没有一条支持、且没有还在处理或待人工判断的要求的人，放进「条件待确认」。不出总分、胜任率或百分比。
-- 匹配入口：契约没有「取确认后的匹配任务」的读取，`StaffingPorts.openMatching` 是对 BOW-854 的接口假设，返回任务标识或 `null`（这时显示「候选人核对待接通」）。
+- 匹配入口：契约没有「取确认后的匹配任务」的读取。`openStaffingMatchAction` 用「需求 + 版本」推出操作编号，每个账号、每个需求版本只启动一次匹配，再次打开时重放同一个 run，返回它的任务标识；读取和人工判断都带这个 run 标识（`readStaffingMatchAction`、`judgeStaffingMatchAction`）。
 - 新项目入口（`?new=1`）：契约的起草需要 `projectId`，一句话建项目不在找人契约里；真实路由先选项目，开发样张在起草完成后由 `onDemandReady` 绑定演示项目。
 - 工作台交接：项目页读取并删除 `sessionStorage['niu-talent:draft:staffing']`（约定见 BOW-841 `send.ts`），账号不符或超过 10 分钟丢弃；选项目这一步只读不删（见上）。
 

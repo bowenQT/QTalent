@@ -12,6 +12,7 @@ import { getDatabase } from '../server/db/client';
 import { createModelinkMaasClientFromEnv } from '../server/integrations/maas';
 import { createStaffingDemandRuntime } from '../server/usecases/staffing-demand-runtime';
 import { createRecordArrangeWorker } from '../server/usecases/record-arrange-worker';
+import { createStaffingMatchServerRuntime } from '../server/usecases/staffing-match-runtime';
 import { authenticateHandshake, heartbeatReply } from './handshake';
 export async function startWorker() {
   const env = getEnv();
@@ -44,6 +45,13 @@ export async function startWorker() {
       },
       businessNow: () => clock.now().toISOString(),
       now: () => new Date(),
+    }).register();
+    await createStaffingMatchServerRuntime({
+      db: getDatabase(),
+      boss: async () => boss,
+      environment: env.APP_ENV,
+      wallNow: () => new Date(),
+      env,
     }).register();
   } catch (error) {
     await boss.stop();

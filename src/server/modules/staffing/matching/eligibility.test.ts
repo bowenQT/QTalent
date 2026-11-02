@@ -196,3 +196,50 @@ it('直接读取旧run时隐藏依赖观察产生的结论和出处', async () =
   ).toBe(true);
   expect(JSON.stringify(projected)).not.toContain('fragment-demo-');
 });
+
+// #188 review: a saved AI judgment is checked against every event it was formed
+// from, not against the deduplicated set of sources still in view.
+it.each([
+  [
+    '撤回其中一个事件',
+    (units: MatchScope['candidates'][number]['evidence']) => units.slice(0, 1),
+  ],
+  [
+    '改了其中一个事件的行为文本',
+    (units: MatchScope['candidates'][number]['evidence']) => [
+      units[0]!,
+      { ...units[1]!, behavior: '演示：改写后的行为' },
+    ],
+  ],
+])(
+  '两个事件共用同一来源，%s后旧 AI 判断不展示也不参与排序',
+  async (_, change) => {
+    const f = matchingFixture();
+    const runId = await start(f);
+    await f.service.execute(runId, 1);
+    const run = structuredClone(f.store.state.runs.get(runId)!);
+    const [candidate] = run.candidates;
+    const [unit] = candidate!.evidence;
+    // A second event quoting the very same fragment was part of the input.
+    candidate!.evidence.push({ ...unit!, eventId: unit!.eventId + '-shared' });
+    const intact = projectMatchingRun(run, scope(run));
+    expect(
+      intact.candidates[0]!.requirements.some((match) => match.aiJudgment),
+    ).toBe(true);
+    const current = scope(run);
+    current.candidates[0]!.evidence = change(current.candidates[0]!.evidence);
+    // The shared source is still in view through the other event.
+    expect(
+      current.candidates[0]!.evidence.some(
+        (value) => value.source.fragmentId === unit!.source.fragmentId,
+      ),
+    ).toBe(true);
+    const stale = projectMatchingRun(run, current);
+    expect(
+      stale.candidates[0]!.requirements.every(
+        (match) =>
+          match.aiJudgment === null && match.progress === 'awaiting_manual',
+      ),
+    ).toBe(true);
+  },
+);
