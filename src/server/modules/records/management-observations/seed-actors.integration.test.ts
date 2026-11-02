@@ -20,6 +20,7 @@ import * as records from '../schema';
 import * as saves from '../save-state/schema';
 import * as auth from '../../../auth/schema';
 import * as audit from '../../../platform/audit/schema';
+import * as jobs from '../../../jobs/schema';
 import * as observations from './schema';
 import { createManagementObservationPostgresPorts } from './postgres';
 
@@ -70,6 +71,7 @@ beforeAll(async () => {
     ...saves,
     ...auth,
     ...audit,
+    ...jobs,
     ...observations,
   });
   for (const statement of await generateMigration(

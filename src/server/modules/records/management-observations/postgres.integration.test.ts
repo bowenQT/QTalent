@@ -15,6 +15,7 @@ import * as staffingSchema from '../../staffing/schema';
 import * as evaluationSchema from '../../evaluation-system/schema';
 import * as recordsSchema from '../schema';
 import * as auditSchema from '../../../platform/audit/schema';
+import * as jobsSchema from '../../../jobs/schema';
 import * as observationSchema from './schema';
 import {
   createManagementObservationPostgresPorts,
@@ -90,6 +91,7 @@ beforeAll(async () => {
     ...evaluationSchema,
     ...recordsSchema,
     ...auditSchema,
+    ...jobsSchema,
     ...observationSchema,
   });
   const statements = await generateMigration(generateDrizzleJson({}), schema);
