@@ -93,6 +93,14 @@ const fieldGroups = [
   ['规则版本'],
   ['候选人'],
 ];
+/** Interview fields read into metadata, printed before the comment in the supported form. */
+const readFieldLabels = [
+  '面试时间',
+  '面试类型',
+  '面试官姓名',
+  '面试官',
+  '面试结果',
+];
 const metadataLabels = [
   '面试时间',
   '面试类型',
@@ -119,6 +127,48 @@ function labelLine(line: Line, label: string): boolean {
   if (!value.startsWith(compact(label))) return false;
   const rest = value.slice(compact(label).length);
   return rest === '' || /^[：:]/.test(rest);
+}
+/** Field rows of the supported form's interview block, in printed order. */
+const blockFields = [
+  ['候选人'],
+  ['面试官姓名', '面试官'],
+  ['面试时间'],
+  ['面试类型'],
+  ['面试结果'],
+];
+function fieldBlockMatches(block: Line[], beforeScores: boolean): boolean {
+  let next = 0;
+  let column: number | null = null;
+  let valueExpected = false;
+  for (const [index, line] of block.entries()) {
+    if (valueExpected) {
+      valueExpected = false;
+      continue;
+    }
+    if (heading(line)) continue;
+    const at = blockFields.findIndex(
+      (labels, field) =>
+        field >= next && labels.some((label) => labelLine(line, label)),
+    );
+    if (at >= 0) {
+      const left = line.spans[0]!.box[0];
+      if (column !== null && Math.abs(left - column) > 2) return false;
+      column ??= left;
+      next = at + 1;
+      const label = blockFields[at]!.find((item) => labelLine(line, item))!;
+      valueExpected = stripLabel(line.text, label) === '';
+      continue;
+    }
+    // The scale caption printed between the fields and the first score row.
+    if (
+      beforeScores &&
+      index === block.length - 1 &&
+      /^原表维度选择/.test(compact(line.text))
+    )
+      continue;
+    return false;
+  }
+  return true;
 }
 function hasRadios(line: Line, pages: PdfLayoutPage[]): boolean {
   const page = pages.find((item) => item.page === line.page);
@@ -219,7 +269,11 @@ function circleGroups(
   return groups
     .map((group) => {
       let blue: PdfCircle[] = [];
+      // A later non-blue ring over a blue paint leaves the final colour uncertain.
+      let covered = false;
       for (const paint of group) {
+        if (!paint.filled && paint.color !== 'blue' && blue.length > 0)
+          covered = true;
         if (paint.filled && paint.color !== 'blue')
           blue = blue.filter(
             (old) =>
@@ -235,9 +289,9 @@ function circleGroups(
       return {
         box: union(group.map((paint) => paint.box)),
         selected: blue.length > 0,
-        supported: group.every(
-          (paint) => paint.supported && paint.color !== 'other',
-        ),
+        supported:
+          !covered &&
+          group.every((paint) => paint.supported && paint.color !== 'other'),
       };
     })
     .sort((a, b) => a.box[0] - b.box[0]);
@@ -420,6 +474,37 @@ function parseSection(
           .length > 1,
     ),
   );
+  // The supported form prints the interview fields in one block before the first score row
+  // and the free-text comment. A field label outside that block may be someone's paraphrase:
+  // it never fills the field, even when the formal field is missing and the label is seen once.
+  // One inside the comment also leaves the comment's own boundary uncertain.
+  const commentAt = lines.findIndex((line) => labelLine(line, '综合评价'));
+  const scoresAt = lines.findIndex((line) =>
+    template.dimensions.some((name) => rowLabel(line, name)),
+  );
+  const blockEnd = Math.min(
+    ...[commentAt, scoresAt].filter((index) => index >= 0),
+    lines.length,
+  );
+  const labelledAfter = (start: number) =>
+    fieldGroups.filter(
+      (group) =>
+        readFieldLabels.some((label) => group.includes(label)) &&
+        lines
+          .slice(start)
+          .some((line) => group.some((label) => labelLine(line, label))),
+    );
+  const late = commentAt < 0 ? [] : labelledAfter(commentAt + 1);
+  for (const group of labelledAfter(blockEnd)) repeated.add(group);
+  // The block itself must be exactly the template's: headings, the field labels in their fixed
+  // order and one column, a value line only under a label printed without one, and the scale
+  // caption right before the first score row. Anything else in it (an extra line, a label out
+  // of order or out of column) leaves every interview field unread.
+  if (!fieldBlockMatches(lines.slice(0, blockEnd), blockEnd === scoresAt))
+    for (const group of fieldGroups)
+      if (readFieldLabels.some((label) => group.includes(label)))
+        repeated.add(group);
+  for (const group of late) repeated.add(group);
   const uncertain = (label: string) =>
     [...repeated].some((group) => group.includes(label));
   const choiceRow = (line: Line) =>
@@ -429,8 +514,8 @@ function parseSection(
   // The free-text comment runs until the next field label, standalone scale label, radio or
   // choice row, or heading. Its lines are never scale rows, whatever words they begin with.
   const comment = new Set<number>();
-  let commentUncertain = uncertain('综合评价');
-  const commentStart = lines.findIndex((line) => labelLine(line, '综合评价'));
+  let commentUncertain = uncertain('综合评价') || late.length > 0;
+  const commentStart = commentAt;
   if (commentStart >= 0)
     for (let index = commentStart + 1; index < lines.length; index++) {
       const line = lines[index];
@@ -459,8 +544,12 @@ function parseSection(
     const name = labels.find((label) => rowLabel(lines[index], label));
     if (name) anchors.push({ name, line: lines[index], index });
   }
-  // An exact dimension fingerprint is required. A changed or duplicated row is a new template.
+  // An exact dimension fingerprint is required. A changed or duplicated row is a new template;
+  // so are two rating or level rows, which would leave the chosen value uncertain.
   if (
+    [template.rating.label, template.level.label].some(
+      (name) => anchors.filter((anchor) => anchor.name === name).length > 1,
+    ) ||
     template.dimensions.some(
       (name) => anchors.filter((anchor) => anchor.name === name).length !== 1,
     )
