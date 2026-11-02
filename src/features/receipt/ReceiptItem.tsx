@@ -47,6 +47,12 @@ export type ConfirmedDraft = {
 
 export type ItemProblem = { message: string; reload: boolean };
 
+/** 撤销后回到待确认时，恢复保存时的分和理由（撤销推进版本，不是新的整理结果）。 */
+export type RestoredEdit = { values: EditValues; reason: string };
+
+/** 撤销请求发出去了、结果不知道：卡片不说「已确认」，给出用同一次撤销重试的入口。 */
+export type PendingUndo = { busy: boolean; onRetry: () => void };
+
 type Props = {
   view: ReceiptView;
   draft: RecordBatchDraft;
@@ -55,6 +61,10 @@ type Props = {
   confirmed?: ConfirmedDraft;
   busy: boolean;
   problem: ItemProblem | null;
+  /** 版本变化来自本页的撤销时，带上保存时的分和理由。 */
+  restore?: RestoredEdit | null;
+  /** 本页刚确认的事撤销结果未知。 */
+  pendingUndo?: PendingUndo | null;
   onConfirm: (values: EditValues, reason: string) => void;
   onReload: () => void;
 };
@@ -81,6 +91,8 @@ export function ReceiptItem({
   confirmed,
   busy,
   problem,
+  restore = null,
+  pendingUndo = null,
   onConfirm,
   onReload,
 }: Props) {
@@ -91,13 +103,21 @@ export function ReceiptItem({
   );
   const [reason, setReason] = useState('');
   const [whyMissing, setWhyMissing] = useState(false);
-  // 草稿有了新版本（轮询或载入最新版本）：分值换成新的建议；正在改的分作废并说明
+  // 草稿有了新版本（轮询或载入最新版本）：分值换成新的建议；正在改的分作废并说明。
+  // 本页撤销推进的版本不是新的整理结果：恢复保存时的分和理由，改过分就回到改分
   const [revision, setRevision] = useState(draft.revision);
   const [refreshed, setRefreshed] = useState(false);
   if (revision !== draft.revision) {
     setRevision(draft.revision);
-    setValues(suggestedValues(draft));
-    setRefreshed(editing);
+    if (restore) {
+      setValues(restore.values);
+      setReason(restore.reason);
+      setEditing(isEdited(draft, restore.values));
+      setRefreshed(false);
+    } else {
+      setValues(suggestedValues(draft));
+      setRefreshed(editing);
+    }
   }
   // 一件事涉及多人时，每个分数写明是谁的
   const label = (personId: string, dim: string) => {
@@ -129,7 +149,24 @@ export function ReceiptItem({
   };
 
   let foot;
-  if (mode === 'confirmed')
+  if (mode === 'confirmed' && pendingUndo)
+    foot = (
+      <div className="n-rcpt__foot">
+        <span className="nt-muted" role="status">
+          {copy.confirm.undoPending}
+        </span>
+        <button
+          className="n-btn n-btn--sm n-btn--ghost"
+          type="button"
+          disabled={pendingUndo.busy}
+          aria-busy={pendingUndo.busy || undefined}
+          onClick={pendingUndo.onRetry}
+        >
+          {copy.confirm.undoRetry}
+        </button>
+      </div>
+    );
+  else if (mode === 'confirmed')
     foot = (
       <div className="n-rcpt__foot">
         <span className="n-block__sig">{confirmed?.by}</span>

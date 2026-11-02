@@ -70,6 +70,8 @@ export const copy = {
     waitFor: (name: string) => `等${name}确认`,
     confirmedOn: (date: string) => `${date} 确认，已进入档案`,
     confirmedShort: '已确认，已进入档案',
+    undoPending: '撤销结果待确认：网络中断，还不知道撤销有没有生效',
+    undoRetry: '再试一次撤销',
     aiOriginal: (v: number) => `AI 原为 ${v}`,
     anchorNote: (v: number, anchor: string) => `锚点 ${v} · ${anchor}`,
     held: '待认人',
@@ -96,6 +98,8 @@ export const copy = {
     undone: '已撤销，回到待确认',
     undoFailed: '撤销失败：这件事的分已有新的处理，已保留当前结果',
     undoLate: '撤销时间已过，这件事已确认',
+    undoUnknown: '撤销结果还不知道，可以在这件事上再试一次',
+    undoRefused: '没有撤销成功，这件事仍是已确认',
   },
   problem: {
     offline: '网络中断，改动还在，再试一次',

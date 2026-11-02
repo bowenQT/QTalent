@@ -28,6 +28,7 @@ import {
   ReceiptItem,
   type ConfirmedDraft,
   type ItemProblem,
+  type RestoredEdit,
 } from './ReceiptItem';
 import type { ReceiptActions, ReceiptView } from './types';
 import './receipt.css';
@@ -98,8 +99,14 @@ export function ReceiptPage({
   const [confirmed, setConfirmed] = useState<Record<string, ConfirmedDraft>>(
     {},
   );
-  // 本页刚撤销的事：重读还没带回它时，照撤销前的内容留在待确认
-  const [undone, setUndone] = useState<Record<string, RecordBatchDraft>>({});
+  // 本页刚撤销的事：重读还没带回它时，照撤销前的内容留在待确认，并记下保存时的分和理由
+  const [undone, setUndone] = useState<
+    Record<string, RestoredEdit & { draft: RecordBatchDraft }>
+  >({});
+  // 撤销发出去了、结果不知道的事：重试沿用同一次撤销
+  const [undoUnknown, setUndoUnknown] = useState<
+    Record<string, { busy: boolean; retry: () => void }>
+  >({});
   const ops = useRef(new Map<string, { key: string; id: string }>());
   // 卡片按第一次出现的顺序排，确认或撤销后留在原位
   const [order, setOrder] = useState(() => draftOrder([], initial));
@@ -179,7 +186,7 @@ export function ReceiptPage({
           return next;
         });
         // 撤销窗口按服务端的 undoUntil 算，保存成功就给出，不等重读
-        offerUndo(draft, values, saveId, Date.parse(undoUntil));
+        offerUndo(draft, values, reason, saveId, Date.parse(undoUntil));
         await reload();
         focusCard(draft.draftId);
       } else if (result.status === 'conflict')
@@ -209,9 +216,11 @@ export function ReceiptPage({
   function offerUndo(
     draft: RecordBatchDraft,
     values: EditValues,
+    reason: string,
     saveId: string,
     until: number,
   ) {
+    const id = draft.draftId;
     const message = copy.toast.confirmed(
       people(view, draft.personIds),
       isEdited(draft, values),
@@ -220,6 +229,58 @@ export function ReceiptPage({
     if (remaining <= 0) {
       toast.show(message);
       return;
+    }
+    // 一次撤销只用一个 operation_id：结果不知道时重试沿用它，服务端按它重放原结果，
+    // 不会因为换了编号被当成第二次撤销拒掉，页面也就不会把已撤销的事说成仍已确认
+    const operation = newId();
+    const markUnknown = (busy: boolean) =>
+      setUndoUnknown((all) => ({ ...all, [id]: { busy, retry } }));
+    const clearUnknown = () =>
+      setUndoUnknown((all) => {
+        const next = { ...all };
+        delete next[id];
+        return next;
+      });
+    async function attempt(): Promise<'success' | 'refused' | 'unknown'> {
+      let result;
+      try {
+        result = await actions.undo({ operation_id: operation, saveId });
+      } catch {
+        return 'unknown';
+      }
+      if (result.status !== 'success') return 'refused';
+      clearUnknown();
+      setConfirmed((all) => {
+        const next = { ...all };
+        delete next[id];
+        return next;
+      });
+      // 撤销推进了草稿版本：重读没跟上时按回执给的版本再保存；分和理由照保存时的留着
+      const restored = result.result.draftRestoration;
+      setUndone((all) => ({
+        ...all,
+        [id]: {
+          draft:
+            restored.status === 'available' && restored.draftId === id
+              ? { ...draft, revision: restored.draftRevision }
+              : draft,
+          values,
+          reason,
+        },
+      }));
+      await reload();
+      focusCard(id);
+      return 'success';
+    }
+    function retry() {
+      markUnknown(true);
+      void attempt().then((outcome) => {
+        if (outcome === 'unknown') markUnknown(false);
+        else if (outcome === 'refused') {
+          clearUnknown();
+          toast.show(copy.toast.undoRefused);
+        }
+      });
     }
     const close = toast.show(message, {
       undoneText: copy.toast.undone,
@@ -230,25 +291,14 @@ export function ReceiptPage({
           toast.show(copy.toast.undoLate);
           return;
         }
-        const result = await actions.undo({ operation_id: newId(), saveId });
-        if (result.status !== 'success') throw new Error(result.status);
-        setConfirmed((all) => {
-          const next = { ...all };
-          delete next[draft.draftId];
-          return next;
-        });
-        // 撤销推进了草稿版本：重读没跟上时，按回执给的版本再保存，不拿整理时的旧版本
-        const restored = result.result.draftRestoration;
-        setUndone((all) => ({
-          ...all,
-          [draft.draftId]:
-            restored.status === 'available' &&
-            restored.draftId === draft.draftId
-              ? { ...draft, revision: restored.draftRevision }
-              : draft,
-        }));
-        await reload();
-        focusCard(draft.draftId);
+        const outcome = await attempt();
+        if (outcome === 'refused') throw new Error('undo refused');
+        if (outcome === 'unknown') {
+          // 不说「已撤销」也不说「撤销失败」：收起提示，交给卡片上的重试
+          close();
+          markUnknown(false);
+          toast.show(copy.toast.undoUnknown);
+        }
       },
     });
     if (remaining < UNDO_MS) setTimeout(close, remaining);
@@ -257,16 +307,18 @@ export function ReceiptPage({
   const card = (id: string) => {
     const done = confirmed[id];
     // 本页的确认和撤销结果先于读取快照：重读失败或还没跟上时，卡片也不回到旧状态。
-    // 撤销后的版本比快照里的新，就按撤销回执的版本再保存
+    // 撤销后的版本不比快照里的旧，就按撤销回执的版本和保存时的分再保存
     const found = drafts.find((d) => d.draftId === id);
     const back = undone[id];
-    const draft = done
-      ? undefined
-      : back && (!found || back.revision > found.revision)
-        ? back
-        : found;
+    const fromUndo =
+      !done &&
+      back !== undefined &&
+      (!found || back.draft.revision >= found.revision);
+    const draft = done ? undefined : fromUndo ? back!.draft : found;
     if (draft || done) {
-      const mine = draft ? Boolean(view.confirmers[id]?.mine) : true;
+      // 刚撤销回来的事，快照可能还是保存后的（这件事已不在待确认里，没有确认人信息）：
+      // 本人刚确认过它，确认入口留着，能否保存仍由保存动作判断
+      const mine = draft ? (view.confirmers[id]?.mine ?? fromUndo) : true;
       return (
         <ReceiptItem
           key={id}
@@ -276,6 +328,17 @@ export function ReceiptPage({
           confirmed={done}
           busy={Boolean(busy[id])}
           problem={problems[id] ?? null}
+          restore={
+            fromUndo ? { values: back!.values, reason: back!.reason } : null
+          }
+          pendingUndo={
+            done && undoUnknown[id]
+              ? {
+                  busy: undoUnknown[id].busy,
+                  onRetry: undoUnknown[id].retry,
+                }
+              : null
+          }
           onConfirm={(values, reason) => void confirm(draft!, values, reason)}
           onReload={() => {
             setProblem(id, null);
