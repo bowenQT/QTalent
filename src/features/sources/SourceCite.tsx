@@ -11,6 +11,7 @@ import {
   type SourceReference,
 } from '@/contracts/sources';
 import { formatLocation, sourceTypeName } from './source-format';
+import { sourceHref } from './source-href';
 
 /** 读取一条来源原文。由服务端页面把 Server Action 传下来，这里不引用 server/。 */
 export type LoadSource = (input: SourceReadInput) => Promise<SourceReadResult>;
@@ -142,6 +143,8 @@ function SourceCiteReader({ source, index, loadSource }: SourceCiteProps) {
           by: found.recordedByName ?? undefined,
         }}
         access="granted"
+        // 读到原文才给入口；地址只由这条引用的两个标识生成，各页面点进来落到同一处。
+        jump={{ label: '查看原件', href: sourceHref(found) }}
         quote={
           baseline ? (
             <>
