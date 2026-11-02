@@ -39,25 +39,6 @@ export function JudgeNotConnected({ role }: { role: ShellData['role'] }) {
   );
 }
 
-export function StandardNotConnected() {
-  return (
-    <>
-      <header className="nt-head">
-        <div>
-          <h1>XEngineer 入营选拔标准</h1>
-          <p>
-            社招面试、入营选拔怎么评，和入职后的维度怎么对照；判断对照以它为准。
-          </p>
-        </div>
-      </header>
-      <State
-        title="入营选拔标准待接通"
-        text="接通后，这里显示生效中的标准、修订草稿、影响预览和确认发布。"
-      />
-    </>
-  );
-}
-
 export function RulesDenied() {
   return (
     <State
