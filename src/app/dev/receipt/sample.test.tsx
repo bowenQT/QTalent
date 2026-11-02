@@ -365,6 +365,47 @@ describe('回执页', () => {
 });
 
 describe('样张替身', () => {
+  it('撤销回执给出新版本：用它再确认成功，用旧版本被拒（846）', async () => {
+    const server = createSampleServer('mentor', 'normal', () => 1_000_000);
+    const input = {
+      operation_id: 'op',
+      expected_revision: 1,
+      draftId: 'e-d1',
+      personIds: ['p-x12'],
+      projectId: 't-scene-b',
+      sbi: sampleDrafts[0]!.sbi,
+      decisions: [],
+    };
+    const first = await server.save(input);
+    if (first.status !== 'success') throw new Error('save failed');
+    const undone = await server.undo({
+      operation_id: 'u',
+      saveId: first.result.saveId,
+    });
+    if (undone.status !== 'success') throw new Error('undo failed');
+    const restored = undone.result.draftRestoration;
+    expect(restored).toEqual({
+      status: 'available',
+      draftId: 'e-d1',
+      draftRevision: first.result.revision + 1,
+    });
+    if (restored.status !== 'available') throw new Error('no revision');
+    expect(
+      await server.save({
+        ...input,
+        operation_id: 'stale',
+        expected_revision: first.result.revision,
+      }),
+    ).toMatchObject({ status: 'conflict' });
+    expect(
+      await server.save({
+        ...input,
+        operation_id: 'again',
+        expected_revision: restored.draftRevision,
+      }),
+    ).toMatchObject({ status: 'success', replayed: false });
+  });
+
   it('同一次操作重放原结果，内容变了是冲突；过了 5 秒不能撤销', async () => {
     let now = 1_000_000;
     const server = createSampleServer('mentor', 'normal', () => now);
