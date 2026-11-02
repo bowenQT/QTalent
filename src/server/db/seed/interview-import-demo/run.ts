@@ -1,10 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { createDatabase } from '../../client';
 import { getEnv } from '../../../env';
-import {
-  importInterviewImportDemo,
-  InterviewImportDemoError,
-} from './import';
+import { importInterviewImportDemo, InterviewImportDemoError } from './import';
 
 /** Explicit operator command, never part of db:seed: writes the demo interview import
  * batch HR confirms on /import. Replaying it returns `unchanged`. */

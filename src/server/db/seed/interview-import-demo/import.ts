@@ -21,7 +21,6 @@ import {
   interviewImportCandidates,
   interviewImportRows,
 } from '../../../modules/records/interview-import/schema';
-import type { InterviewReviewResult } from '../../../modules/records/attachments/interview-review/types';
 import { jobSnapshots } from '../../../jobs/schema';
 import { parseInterviewPdfIsolated } from '../../../usecases/interview-import/pdf-isolation';
 
@@ -77,9 +76,7 @@ export const INTERVIEW_IMPORT_DEMO = {
 export class InterviewImportDemoError extends Error {
   constructor(
     readonly code:
-      | 'fixture_digest_mismatch'
-      | 'parse_failed'
-      | 'directory_missing',
+      'fixture_digest_mismatch' | 'parse_failed' | 'directory_missing',
   ) {
     super(code);
     this.name = 'InterviewImportDemoError';
@@ -181,9 +178,7 @@ export function interviewImportDemoRecords(
     const versionId = `${originalId}-v1`;
     const parseId = `${versionId}-parse-1`;
     const jobId = `demo-interview-parse-${file.key}`;
-    const result: InterviewReviewResult = file.result;
-    if (result.status === 'rejected')
-      throw new InterviewImportDemoError('parse_failed');
+    const result = file.result;
     records.originals.push({
       id: originalId,
       title: `${file.key}.pdf（演示）`,
@@ -295,14 +290,13 @@ export async function importInterviewImportDemo(db: Database, cwd: string) {
       ),
       await insertChecked(tx, originals, records.originals),
       await insertChecked(tx, originalVersions, records.originalVersions),
-      await insertChecked(tx, jobSnapshots, records.jobs, ['jobId'], [
-        'jobId',
-        'kind',
-        'resourceId',
-        'inputVersion',
-        'status',
-        'attempt',
-      ]),
+      await insertChecked(
+        tx,
+        jobSnapshots,
+        records.jobs,
+        ['jobId'],
+        ['jobId', 'kind', 'resourceId', 'inputVersion', 'status', 'attempt'],
+      ),
       await insertChecked(tx, materialParses, records.parses),
       await insertChecked(tx, fragments, records.fragments),
       await insertChecked(
@@ -314,11 +308,7 @@ export async function importInterviewImportDemo(db: Database, cwd: string) {
             evaluationNodeId: demo.node.id,
             fileName: demo.fileName,
             pageCount: prepared.files.reduce(
-              (sum, file) =>
-                sum +
-                (file.result.status === 'rejected'
-                  ? 0
-                  : file.result.pageTexts.length),
+              (sum, file) => sum + file.result.pageTexts.length,
               0,
             ),
             uploadedByPersonId: demo.uploadedByPersonId,
