@@ -212,7 +212,6 @@ export function HandoffPanel({
     >
       <b>{text.title}</b>
       <div className="nt-muted">{text.text}</div>
-      <div className="nt-muted">{copy.handoff.pending}</div>
     </Notice>
   );
 }

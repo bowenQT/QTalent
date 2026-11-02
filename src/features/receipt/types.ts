@@ -21,7 +21,7 @@ export type ReceiptPerson = {
 /**
  * 回执页读到的一份内容。`receipt` 是 897 冻结的批次快照，原样使用；其余是页面读取在服务端
  * 按当前权限补齐的展示信息（批次标题、入口、提交人、人名、维度名，以及每件事由谁确认）。
- * 这些字段由页面读取（BOW-845）提供，接通前只在开发样张里出现。
+ * 真实路由由 `server/queries/receipt-page.ts` 补齐，开发样张由替身给出。
  */
 export type ReceiptView = {
   receipt: MaterialBatchReceipt;
@@ -43,11 +43,16 @@ export type ReceiptView = {
 
 export type ReceiptReadResult =
   | { status: 'success'; view: ReceiptView }
-  | { status: 'forbidden' | 'not_found'; message: string };
+  | { status: 'forbidden' | 'not_found'; message: string }
+  /** 这次没读到（不是没有权限）：页面保留当前内容。 */
+  | { status: 'unavailable' };
 
 /** 回执页的服务端动作：读回执、按 844 逐件保存确认、5 秒内撤销。 */
 export type ReceiptActions = {
   read: (batchId: string) => Promise<ReceiptReadResult>;
-  save: (input: RecordSaveInput) => Promise<RecordSaveResult>;
+  /** `unavailable`：保存这次中断了（例如读不全来源），改动留在页面上。 */
+  save: (
+    input: RecordSaveInput,
+  ) => Promise<RecordSaveResult | { status: 'unavailable' }>;
   undo: (input: RecordUndoInput) => Promise<RecordUndoResult>;
 };

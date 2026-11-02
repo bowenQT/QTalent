@@ -99,6 +99,7 @@ export const copy = {
   },
   problem: {
     offline: '网络中断，改动还在，再试一次',
+    unavailable: '这次保存中断了，改动还在，可以稍后再保存',
     invalid: '这件事有内容待修改，改动还在',
     reload: '载入最新版本',
   },

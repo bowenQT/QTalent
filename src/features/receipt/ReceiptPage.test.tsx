@@ -307,6 +307,12 @@ describe('确认之后', () => {
           withdrawnEvents: [{ personId: 'demo-person', eventId: 'ev-1' }],
           withdrawnConfirmationIds: ['c-1'],
           withdrawnReviewItemIds: [],
+          // 846 撤销推进了草稿版本；重读失败时页面按这个版本再保存
+          draftRestoration: {
+            status: 'available',
+            draftId: 'demo-event-draft-a',
+            draftRevision: 7,
+          },
           inputRestoration: 'unavailable',
           originalInput: null,
         },
@@ -326,11 +332,35 @@ describe('确认之后', () => {
     ).toBeNull();
     await user.click(undo);
     expect(await screen.findByText(copy.toast.undone)).toBeTruthy();
-    expect(
+    const again = within(cardOf('demo-event-draft-a')).getByRole('button', {
+      name: /确认这件事/,
+    });
+    await user.click(again);
+    await waitFor(() => expect(using.save).toHaveBeenCalledTimes(2));
+    const [first, second] = vi.mocked(using.save).mock.calls;
+    expect(first![0].expected_revision).not.toBe(7);
+    expect(second![0]).toMatchObject({
+      draftId: 'demo-event-draft-a',
+      expected_revision: 7,
+    });
+    expect(second![0].operation_id).not.toBe(first![0].operation_id);
+  });
+
+  it('保存这次中断时说明改动还在，不当作网络断开', async () => {
+    const user = userEvent.setup();
+    mountWith(make(), {
+      read: vi.fn(),
+      save: vi.fn().mockResolvedValue({ status: 'unavailable' }),
+      undo: vi.fn(),
+    });
+    await user.click(
       within(cardOf('demo-event-draft-a')).getByRole('button', {
         name: /确认这件事/,
       }),
-    ).toBeTruthy();
+    );
+    expect(await screen.findByText(copy.problem.unavailable)).toBeTruthy();
+    expect(screen.queryByText(copy.problem.offline)).toBeNull();
+    expect(cardOf('demo-event-draft-a').dataset.state).not.toBe('confirmed');
   });
 
   it('重读一直不回也有撤销入口；保存回执的撤销时间已过就只提示已确认', async () => {

@@ -184,6 +184,11 @@ export function ReceiptPage({
         focusCard(draft.draftId);
       } else if (result.status === 'conflict')
         setProblem(draft.draftId, { message: result.message, reload: true });
+      else if (result.status === 'unavailable')
+        setProblem(draft.draftId, {
+          message: copy.problem.unavailable,
+          reload: false,
+        });
       else if (result.status === 'validation_error')
         setProblem(draft.draftId, {
           message: copy.problem.invalid,
@@ -232,7 +237,16 @@ export function ReceiptPage({
           delete next[draft.draftId];
           return next;
         });
-        setUndone((all) => ({ ...all, [draft.draftId]: draft }));
+        // 撤销推进了草稿版本：重读没跟上时，按回执给的版本再保存，不拿整理时的旧版本
+        const restored = result.result.draftRestoration;
+        setUndone((all) => ({
+          ...all,
+          [draft.draftId]:
+            restored.status === 'available' &&
+            restored.draftId === draft.draftId
+              ? { ...draft, revision: restored.draftRevision }
+              : draft,
+        }));
         await reload();
         focusCard(draft.draftId);
       },
@@ -242,10 +256,15 @@ export function ReceiptPage({
 
   const card = (id: string) => {
     const done = confirmed[id];
-    // 本页的确认和撤销结果先于读取快照：重读失败或还没跟上时，卡片也不回到旧状态
+    // 本页的确认和撤销结果先于读取快照：重读失败或还没跟上时，卡片也不回到旧状态。
+    // 撤销后的版本比快照里的新，就按撤销回执的版本再保存
+    const found = drafts.find((d) => d.draftId === id);
+    const back = undone[id];
     const draft = done
       ? undefined
-      : (drafts.find((d) => d.draftId === id) ?? undone[id]);
+      : back && (!found || back.revision > found.revision)
+        ? back
+        : found;
     if (draft || done) {
       const mine = draft ? Boolean(view.confirmers[id]?.mine) : true;
       return (

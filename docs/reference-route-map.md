@@ -27,7 +27,7 @@
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
 | `app/record.html`                 | `/record`                         | record / materials.ts、record.ts | record / records、talent | 页面读取与评价节点推导（845）、897 批次提交与读取、846 保存与撤销已接；撤销后重存待 #317；样张 `/dev/record` |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
-| `app/receipt.html`                | `/receipt?id=…`                   | receipt / materials.ts、record.ts   | receipt / records、talent                    | 页面与样张已做（BOW-847），读取与保存待接通 |
+| `app/receipt.html`                | `/receipt?id=…`                   | receipt / materials.ts、record.ts   | receipt / records、talent                    | 已接通（BOW-847）：897 批次读取、846 逐件保存与撤销 |
 | `app/import.html`                 | `/import?id=…`                    | interview-import / （BOW-906 读取） | 面评导入预览 / records、directory            | 角色门禁已实现；预览读取待接通，样张 `/dev/import`；视觉参照待同步 |
 | `app/queue.html`                  | `/queue`                          | queue / review-queue.ts | queue / talent | 契约已定义，读写与 UI 待接入 / 404 |
 | `app/reviews.html`                | `/reviews`                        | reviews / reviews                   | reviews / talent                             | 后续 / 404     |
@@ -78,7 +78,7 @@
 - **照原型的部分**：分数说明里，引用本页原话的写成普通文字（「锚点 4 · 引用「……」」），「原话」里不加标记；引用其他来源的用角标。保存后 5 秒内撤销，回到待确认，整理结果和改过的文字、分数都在，再保存换新的 operation_id。
 - **工程补的状态（原型没有，视觉审查重点看）**：
   - 评价节点说明：节点有多个时写「这次记在哪个评价节点，待 HRBP 确认」，没有时写「所选人员待加入你负责的评价节点」，没选人时写「在「谁」里选一位同事，再整理」，推导读取中断时写「评价节点这次读取中断」。端口为 `null` 时写「评价节点推导待接通」，正式路由和样张都已接上推导，不会走到这一状态。都用设计系统的提示块，原话保留。
-  - 去回执页提示：多件事写「整理出几件事，到回执里逐件确认」，有核对项写「有几处待核对，到回执里处理」，整理不出事写「整理结果在回执里」，已确认写「这件事已确认，已进入档案」。都配「打开回执」按钮，并写「回执页的逐件确认待接通。现在可以改原话后重新整理，或先复制原话留存」：`/receipt` 还只显示「回执待接通」（真实读取要补批次标题、入口、提交人和每件事由谁确认，另做）。除已确认外都给「改原话」，原话还在本页时给「先复制出来」。
+  - 去回执页提示：多件事写「整理出几件事，到回执里逐件确认」，有核对项写「有几处待核对，到回执里处理」，整理不出事写「整理结果在回执里」，已确认写「这件事已确认，已进入档案」。都配「打开回执」按钮，回执页接着逐件确认（见「BOW-847 回执页」）。除已确认外都给「改原话」，原话还在本页时给「先复制出来」。
   - 保存中断：846 保存用例抛出不可用（例如读不全来源）时写「这次保存中断了，修改还在这里，可以稍后再保存，或先复制留存」，不说成网络中断。
   - 已删除：选人面板（「先选一下是谁」），原来用于 `selection_required`；897 下待认人是回执里的核对项。
 - 新增样式暂放 `src/features/record/record.css`（小犇容器的行盒），全局样式同步后并入。
@@ -309,8 +309,16 @@ BOW-837 只读取确认表，演示环境的 prototype_baseline 与正常确认�
 
 原型 `app/receipt.html`（BOW-898，#250 合入）；工程 `/receipt?id=…`，组件在 `src/features/receipt/`。回执快照用 897 冻结的 `materialBatchReceiptSchema`，逐件确认用 844 的 `recordSaveInput`，撤销用 `recordUndoInput`，5 秒窗口以服务端为准。
 
-- **待接通**：回执读取（BOW-845 #185）、逐件保存与撤销（BOW-846 #289）、企业微信深链核验（BOW-903 #271）都不在 main。`/receipt` 只写「回执待接通」，不读取材料；缺 `id` 写「回执链接失效」；系统管理员看「这一页属于业务视角」。页面跑在开发样张 `/dev/receipt?role=mentor|hr&scene=normal|processing|conflict|empty|hidden`（生产 404），替身每次返回都经契约 schema 校验。
-- **页面读取补的字段**：897 回执没有批次标题、入口、提交人、提交时间、人名、维度名，也没有「这件事由谁确认」。页面按 `ReceiptView` 读这些，由 845 的页面读取在服务端按当前权限给出；`confirmers[draftId].mine` 只决定显示确认按钮还是「等某人确认」，能否保存仍由保存动作判断。
+- **接通**：`/receipt?id=<batchId>` 在服务端用 `readReceiptForCurrentUser`（`src/server/queries/receipt-page.ts`）读。能看到什么完全由 897 的批次读取（BOW-845）判断，这里不另判权限。批次读取拒绝时写「这份回执不在你的查看范围里」；批次不存在、不可见或编号不合法时写「回执链接失效」；读取失败时写「回执暂时打不开」。缺 `id` 写「回执链接失效」，系统管理员看「这一页属于业务视角」。轮询和重读走 `readReceiptAction`。保存、撤销和 `/record` 用同一组动作：`saveRecordBatchAction`（846 读不全来源时返回 `unavailable`，页面写「这次保存中断了，改动还在」）和 `undoRecordAction`。开发样张 `/dev/receipt?role=mentor|hr&scene=normal|processing|conflict|empty|hidden`（生产 404）保留，替身每次返回都经契约 schema 校验。
+- **页面读取补的字段**：897 回执没有的展示信息，由服务端在同一个只读快照里补齐：
+  - 标题：项目名 · 评价节点名，项目为空时只写节点名。
+  - 提交人、提交时间：取这个批次最早一条整理输入（`records_arrange_inputs`）的账号和时间。
+  - 人名、组织简称、演示标记：只补 897 `personIds` 里的人。
+  - 维度名：来自评价规则。
+  - 「这件事由谁确认」：`mine` 用保存动作自己的规则，即每个人都要满足 `canConfirmOwnNodeScore`。这只是入口提示，能否保存仍由保存动作判断。不是自己确认时，只在查看人本来就能看到分派的情况下（HR，`eligibleNodeEvaluatorRelations`）写出评价人的名字，否则写「评价人」。
+- **入口**：main 上只有 Web 的投递会建批次，入口固定写「统一投递」。企业微信和 MCP 的渠道信息随各自入口接入（#282、#280、#330），在那之前回执不写「企业微信 · 小犇」或工具名。
+- **撤销后再保存**：846 撤销会推进草稿版本（#317）。撤销回执的 `draftRestoration` 给出新版本时，本页按这个版本再保存；重读带回更新的版本时，以重读为准。
+- **未做**：会话代纪门闸（退出或换账号时作废在途结果）只在 `/record` 做了，回执页没有，归为内部加固，赛后按 `/record` 的做法补。
 - **和原型的差异**：
   - 「人」和「涉及的人」只算 897 的 `personIds`（已确定、当前可见的主体），所以样张是 3 人；原型把还在待核对的两个名字也算进去，是 5 人。
   - 待认人卡：说话人没有显示名，写「说话人 · 16:30–17:45」；原型是「说话人 2」。未知人员的待核对项没有原文引文，只写名字和位置。
