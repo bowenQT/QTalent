@@ -155,13 +155,6 @@
       "when": 1793631846979,
       "tag": "0021_bow_909_wecom_messages",
       "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "7",
-      "when": 1793638011302,
-      "tag": "0022_bow_873_unassigned_collection",
-      "breakpoints": true
     }
   ]
 }
