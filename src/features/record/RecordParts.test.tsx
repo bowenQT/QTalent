@@ -431,7 +431,6 @@ describe('HandoffPanel', () => {
         />,
       );
       expect(screen.getByText(copy.handoff[reason].title)).toBeTruthy();
-      expect(screen.getByText(copy.handoff.pending)).toBeTruthy();
     }
   });
 

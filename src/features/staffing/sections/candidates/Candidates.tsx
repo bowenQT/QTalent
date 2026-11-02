@@ -4,10 +4,15 @@ import type { StaffingDemand, StaffingJobSnapshot } from '@/contracts/staffing';
 import type { JobState } from '../../use-job';
 import type { LoadSource } from '@/features/sources/SourceCite';
 import { arrangeCandidates } from '../../view';
+import { formatClock } from '../../format';
 import {
   matchingLoading,
   outOfScope,
   matchingFailed,
+  matchingReadPaused,
+  matchingReload,
+  matchingRetry,
+  matchingStale,
   matchingUnavailable,
   noCandidates,
 } from '../../copy';
@@ -90,10 +95,32 @@ export function Candidates({
   onCancelJudgment: () => void;
 }) {
   const job = matching.kind === 'job' ? matching.job : null;
+  // Automatic reads stopped at their limit: offer reading again by hand.
+  const retry = job?.gaveUp ? (
+    <button type="button" className="n-btn n-btn--sm" onClick={job.retry}>
+      {matchingRetry}
+    </button>
+  ) : null;
   if (matching.kind === 'unavailable' || (!candidates && job?.notConnected))
     return (
       <Section>
-        <State {...matchingUnavailable} />
+        <State {...matchingUnavailable}>{retry}</State>
+      </Section>
+    );
+  // The server said these results belong to an older demand version: they are
+  // already cleared, so no judgment can be made on them.
+  if (job?.connection === 'conflict')
+    return (
+      <Section>
+        <State kind="failed" {...matchingStale}>
+          <button
+            type="button"
+            className="n-btn n-btn--sm"
+            onClick={() => window.location.reload()}
+          >
+            {matchingReload}
+          </button>
+        </State>
       </Section>
     );
   if (!candidates) {
@@ -113,7 +140,9 @@ export function Candidates({
     if (settled || matching.kind === 'failed' || job?.connection === 'error')
       return (
         <Section>
-          <State kind="failed" {...matchingFailed} />
+          <State kind="failed" {...matchingFailed}>
+            {retry}
+          </State>
         </Section>
       );
     return (
@@ -124,8 +153,25 @@ export function Candidates({
   }
   const { listed, pending } = arrangeCandidates(demand, candidates);
   const busy = judging?.busy ?? false;
+  // Candidates kept from the last successful read while reading again fails.
+  const paused =
+    job?.connection === 'error' && job.snapshot
+      ? (job.gaveUp ? matchingReadPaused.stopped : matchingReadPaused.retrying)(
+          formatClock(job.snapshot.updatedAt),
+        )
+      : null;
   return (
     <>
+      {paused ? (
+        <div
+          className="nt-row"
+          role="status"
+          style={{ marginBottom: 'var(--s-3)' }}
+        >
+          <span className="nt-muted">{paused}</span>
+          {retry}
+        </div>
+      ) : null}
       <Section meta={`${listed.length} 人进入候选 · 按必须项的证据排列`}>
         {listed.length ? (
           listed.map((view) => {

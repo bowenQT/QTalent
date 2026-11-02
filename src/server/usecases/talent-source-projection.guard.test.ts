@@ -181,6 +181,7 @@ describe('complete talent source projection', () => {
       'src/server/usecases/agentapi/postgres.ts',
       // Reads the whole issued intake table for the MCP person brief.
       'src/server/usecases/mcp/person-brief.ts',
+      'src/server/usecases/read-material-source.ts',
       'src/server/usecases/record-arrange-context.ts',
       'src/server/usecases/record-batch-arrange-requests.ts',
       'src/server/usecases/record-batch-arrange-store.ts',
@@ -192,6 +193,8 @@ describe('complete talent source projection', () => {
       'src/server/usecases/talent-export/policy.ts',
       'src/server/usecases/talent-export/postgres.ts',
       `${PROJECTION}.test-support.ts`,
+      // Takes the intake writer lock before locking a redelivered message's job.
+      'src/server/usecases/wecom/postgres.ts',
     ]);
   });
 

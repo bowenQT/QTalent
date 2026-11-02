@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { copy } from './copy';
 import type { HandoffReason } from './batch-route';
 import { failureView, type FailureKind } from './errors';
-import type { Banner } from './record-flow';
+import { REREAD_LIMIT, type Banner, type Hold } from './record-flow';
 
 /** 提示条：写发生了什么，输入都还在。操作按钮由调用方决定。 */
 export function Notice({
@@ -212,7 +212,6 @@ export function HandoffPanel({
     >
       <b>{text.title}</b>
       <div className="nt-muted">{text.text}</div>
-      <div className="nt-muted">{copy.handoff.pending}</div>
     </Notice>
   );
 }
@@ -255,6 +254,63 @@ export function FailurePanel({
       }
     >
       {view.message}
+    </Notice>
+  );
+}
+
+/**
+ * 撤销之后、读到这件事现状之前：写明为什么暂不能保存，给「重新读取」和回执入口。
+ * 读取中按钮不可重复点；读满上限后只留回执入口。
+ */
+export function HoldNotice({
+  hold,
+  receiptHref,
+  onReread,
+}: {
+  hold: Hold;
+  receiptHref: string | null;
+  onReread: () => void;
+}) {
+  const reading = hold.read === 'reading';
+  // 读取按发起次数计，不论结果：读满后只留「打开回执」
+  const canReread = hold.attempts < REREAD_LIMIT;
+  // 读出结果后，按读到的现状写这件事现在怎样、下一步做什么
+  const text =
+    hold.read === 'confirmed'
+      ? copy.undo.confirmedElsewhere
+      : hold.read === 'missing'
+        ? copy.undo.missing
+        : !canReread && !reading
+          ? copy.undo.rereadLimit
+          : hold.read === 'failed'
+            ? copy.undo.rereadFailed
+            : hold.kind === 'pending'
+              ? copy.undo.pending
+              : copy.undo.refresh;
+  return (
+    <Notice
+      actions={
+        <>
+          {canReread || reading ? (
+            <button
+              type="button"
+              className="n-btn n-btn--sm n-btn--ghost"
+              disabled={reading}
+              aria-busy={reading || undefined}
+              onClick={onReread}
+            >
+              {reading ? copy.undo.reading : copy.actions.reread}
+            </button>
+          ) : null}
+          {receiptHref ? (
+            <a className="n-btn n-btn--sm n-btn--ghost" href={receiptHref}>
+              {copy.undo.openReceipt}
+            </a>
+          ) : null}
+        </>
+      }
+    >
+      {text}
     </Notice>
   );
 }

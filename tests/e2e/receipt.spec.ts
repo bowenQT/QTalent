@@ -1,8 +1,9 @@
 import { test, expect, login, type DemoRole } from './fixtures';
 
 /**
- * BOW-847 回执页的逐件确认。页面跑在开发样张 /dev/receipt 上（回执读取 BOW-845、逐件保存
- * 与撤销 BOW-846、深链核验 BOW-903 都不在 main）；真实路由 /receipt 只查谁能打开、写「回执待接通」。
+ * BOW-847 回执页的逐件确认。逐件确认、改分和撤销跑在开发样张 /dev/receipt 上；真实路由
+ * /receipt 按 897 的批次读取在服务端判断能不能看。next dev 不跑整理 worker，真实批次停在
+ * 处理中，所以真实路由只走到读出这份回执为止。
  */
 test('mentor: confirm one event, undo within five seconds, then change a score with a reason', async ({
   page,
@@ -117,12 +118,12 @@ test('the receipt is usable at phone width', async ({ page, referenceApp }) => {
 });
 
 for (const [role, heading] of [
-  ['hrbp', '回执待接通'],
-  ['mentor', '回执待接通'],
-  ['ceo', '回执待接通'],
+  ['hrbp', '回执链接失效'],
+  ['mentor', '回执链接失效'],
+  ['ceo', '回执链接失效'],
   ['admin', '这一页属于业务视角'],
 ] as [DemoRole, string][])
-  test(`${role}: /receipt shows「${heading}」`, async ({
+  test(`${role}: /receipt for a batch that does not exist shows「${heading}」`, async ({
     page,
     context,
     referenceApp,
@@ -132,3 +133,43 @@ for (const [role, heading] of [
     await expect(page.locator('.n-state__title')).toHaveText(heading);
     await expect(page.locator('.n-rcpt')).toHaveCount(0);
   });
+
+test('mentor: a batch handed in on /record opens on the real receipt route, for the submitter only', async ({
+  page,
+  context,
+  referenceApp,
+}) => {
+  await login(context, 'mentor', referenceApp.baseURL);
+  await page.goto(`${referenceApp.baseURL}/record`);
+  await page
+    .getByRole('combobox', { name: '记录给谁' })
+    .selectOption({ index: 1 });
+  await page
+    .getByRole('textbox', { name: '说说这次发生了什么' })
+    .fill('演示：今天主动同步了进度。');
+  await page.getByRole('button', { name: '整理成关键事件' }).click();
+  await expect(page).toHaveURL(/batch=/);
+  const batch = new URL(page.url()).searchParams.get('batch')!;
+
+  await page.goto(`${referenceApp.baseURL}/receipt?id=${batch}`);
+  await expect(page.locator('.n-rstate')).toContainText('处理中');
+  await expect(page.locator('h1')).not.toHaveText('回执');
+  await expect(page.getByText('统一投递', { exact: false })).toBeVisible();
+  // 企业微信回执还没接通：不写「回执也会发到」
+  await expect(page.getByText('回执也会发到')).toHaveCount(0);
+  await expect(page.locator('.n-state__title')).toHaveCount(0);
+  // Only the words were handed in: they show as the original, not as 0 files.
+  await expect(
+    page.locator('.n-cite__quote', { hasText: '演示：今天主动同步了进度。' }),
+  ).toBeVisible();
+  await expect(page.locator('.n-rsum')).not.toContainText('个文件');
+
+  // Another business account does not see this batch.
+  await context.clearCookies();
+  await login(context, 'ceo', referenceApp.baseURL);
+  await page.goto(`${referenceApp.baseURL}/receipt?id=${batch}`);
+  await expect(page.locator('.n-state__title')).toHaveText(
+    /回执链接失效|查看权限已更新/,
+  );
+  await expect(page.locator('.n-rcpt')).toHaveCount(0);
+});
