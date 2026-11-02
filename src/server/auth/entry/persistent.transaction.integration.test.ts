@@ -9,6 +9,7 @@ import {
   accountBindings,
   organizations,
   people,
+  rebindDirectoryAccount,
 } from '../../modules/directory';
 import { session, user } from '../schema';
 import { createEntryIdentityService } from './identity';
@@ -76,7 +77,7 @@ async function setup() {
     accountId,
     agentId: owner.agentId,
     sessionId: owner.sessionId,
-    accountBindingDigest: entryAccountBindingDigest(accountId, personId),
+    accountBindingDigest: entryAccountBindingDigest(accountId, personId, 1),
     revision: 1,
     expiresAt,
     revokedAt: null,
@@ -139,10 +140,10 @@ async function invalidate(tx: Transaction, kind: Change, f: Fixture) {
       .set({ revokedAt: at })
       .where(eq(agentApiBindings.id, f.id));
   else if (kind === 'directory rebind')
-    await tx
-      .update(accountBindings)
-      .set({ personId: f.other })
-      .where(eq(accountBindings.accountId, f.accountId));
+    await rebindDirectoryAccount(tx, {
+      accountId: f.accountId,
+      personId: f.other,
+    });
   else
     await tx
       .update(session)
@@ -221,14 +222,18 @@ it('sees a transaction-local valid replacement directory binding but refuses to 
   const rollback = new Error('synthetic rollback');
   await expect(
     c.db.transaction(async (tx) => {
-      await tx
-        .update(accountBindings)
-        .set({ personId: f.other })
-        .where(eq(accountBindings.accountId, f.accountId));
+      const rebound = await rebindDirectoryAccount(tx, {
+        accountId: f.accountId,
+        personId: f.other,
+      });
       await tx
         .update(agentApiBindings)
         .set({
-          accountBindingDigest: entryAccountBindingDigest(f.accountId, f.other),
+          accountBindingDigest: entryAccountBindingDigest(
+            f.accountId,
+            f.other,
+            rebound!.generation,
+          ),
           revision: 2,
         })
         .where(eq(agentApiBindings.id, f.id));

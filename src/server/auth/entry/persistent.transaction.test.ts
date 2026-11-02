@@ -39,7 +39,11 @@ function driver() {
     personId,
     isSystemAdmin: false,
     id: credentialId,
-    accountBindingDigest: entryAccountBindingDigest(owner.accountId, personId),
+    accountBindingDigest: entryAccountBindingDigest(
+      owner.accountId,
+      personId,
+      1,
+    ),
     revision: 1,
     expiresAt: expiry,
     revokedAt: null as string | null,

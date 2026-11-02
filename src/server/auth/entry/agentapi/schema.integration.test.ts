@@ -64,7 +64,7 @@ async function setup() {
   await c.db.insert(agentApiBindings).values({
     id,
     accountId,
-    accountBindingDigest: entryAccountBindingDigest(accountId, personId),
+    accountBindingDigest: entryAccountBindingDigest(accountId, personId, 1),
     revision: 1,
     expiresAt,
     agentId: 'demo-agent',

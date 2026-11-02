@@ -10,7 +10,7 @@ import {
   businessAt,
   wallAt,
 } from '../../../../tests/fixtures/bow-845/native';
-import { accountBindings, grants } from '../../modules/directory';
+import { grants, rebindDirectoryAccount } from '../../modules/directory';
 import { projects } from '../../modules/staffing';
 import {
   arrangeInputs,
@@ -98,6 +98,7 @@ async function setup() {
       accountBindingDigest: entryAccountBindingDigest(
         facts.account,
         facts.evaluator,
+        1,
       ),
       tokenDigest: mcpTokenDigest(token),
       revision: 1,
@@ -376,17 +377,17 @@ it('keeps producer writes rolled back when the real queue is unavailable', async
 
 it('rejects real directory rebinding and does not revive an observed invalid capability after restore', async () => {
   const f = await setup();
-  await connection.db
-    .update(accountBindings)
-    .set({ personId: f.other })
-    .where(eq(accountBindings.accountId, f.account));
+  await rebindDirectoryAccount(connection.db, {
+    accountId: f.account,
+    personId: f.other,
+  });
   await expect(
     f.tools.call(f.identity, 'person_brief', { id: f.target }),
   ).rejects.toMatchObject({ kind: 'unauthenticated' });
-  await connection.db
-    .update(accountBindings)
-    .set({ personId: f.evaluator })
-    .where(eq(accountBindings.accountId, f.account));
+  await rebindDirectoryAccount(connection.db, {
+    accountId: f.account,
+    personId: f.evaluator,
+  });
   await expect(
     f.tools.call(f.identity, 'person_brief', { id: f.target }),
   ).rejects.toMatchObject({ kind: 'unauthenticated' });

@@ -21,7 +21,7 @@ import {
   createAgentApiEntryAuthenticator,
   entryAccountBindingDigest,
 } from '../../auth/entry/persistent';
-import { accountBindings, grants } from '../../modules/directory';
+import { grants, rebindDirectoryAccount } from '../../modules/directory';
 import { auditEvents } from '../../platform/audit/schema';
 import { loadEntryAuthorizationContext } from '../entry/context';
 import { recordEntryAudit } from '../entry/audit';
@@ -90,6 +90,7 @@ async function setup() {
     accountBindingDigest: entryAccountBindingDigest(
       facts.account,
       facts.evaluator,
+      1,
     ),
     revision: 1,
     expiresAt: new Date('2026-12-01T00:00:00Z'),
@@ -419,10 +420,10 @@ it('native owner, current directory reassignment and auth-session deletion canno
   await expect(
     f.service.submit(other.identity, f.conversationId, 'op-one', '读取'),
   ).rejects.toThrow();
-  await c.db
-    .update(accountBindings)
-    .set({ personId: f.other })
-    .where(eq(accountBindings.accountId, f.account));
+  await rebindDirectoryAccount(c.db, {
+    accountId: f.account,
+    personId: f.other,
+  });
   await expect(f.submit()).rejects.toThrow();
   const g = await setup();
   await c.db.delete(session).where(eq(session.id, g.sessionId));
