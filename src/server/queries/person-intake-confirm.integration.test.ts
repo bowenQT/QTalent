@@ -12,11 +12,11 @@ import {
 } from '../../../tests/fixtures/bow-845/native';
 import { createRecordArrangeApplication } from '../usecases/record-arrange-application';
 import { saveRecordDraft } from '../usecases/record-save';
-import { arrangeInputs, recordDrafts } from '../modules/records';
+import { arrangeInputs, eventSources, recordDrafts } from '../modules/records';
 import { enrollments, evaluationRelations } from '../modules/programs';
 import { grants } from '../modules/directory';
 import { recordArrangeQueue } from '../jobs/record-arrange';
-import { loadPersonData, talentSources } from './person-data';
+import { loadPersonData, completeTalentSources } from './person-data';
 import { sourceFromData } from './sources';
 import { personFromData } from './person-projection';
 import { quickViewFromData } from './people';
@@ -73,6 +73,19 @@ it('actual arranged A-only draft retains shared A/B intake authority after save 
       kind: 'judge',
       validFrom: '2026-01-01T00:00:00.000Z',
     });
+    // First save of new text (#332 P1-1): the fragment has no formal event or
+    // history link yet, so its subjects come from the intake contexts alone.
+    expect(
+      await connection.db
+        .select()
+        .from(eventSources)
+        .where(
+          eq(
+            eventSources.fragmentId,
+            stored.draft.sourceReferences[0].fragmentId,
+          ),
+        ),
+    ).toEqual([]);
     const saved = await saveRecordDraft(
       connection.db,
       h.account,
@@ -133,7 +146,7 @@ it('actual arranged A-only draft retains shared A/B intake authority after save 
     expect(
       await buildAuthorizedModelInput(async () => ({
         context: after.context,
-        sources: talentSources(after),
+        sources: completeTalentSources(after),
         records: [
           {
             id: 'demo-derived',

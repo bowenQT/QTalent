@@ -7,7 +7,7 @@ import { createDatabase } from '../db/client';
 import { importDemo } from '../db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '../db/seed';
 import { evaluationRelations } from '../modules/programs';
-import { loadPersonData, talentSources } from './person-data';
+import { loadPersonData, completeTalentSources } from './person-data';
 import { buildAuthorizedModelInput } from '../authz/talent';
 import { sourceFromData } from './sources';
 
@@ -100,7 +100,7 @@ it.each(['demo-ceo', 'demo-hrbp', 'demo-mentor'])(
     )!.excerpt;
     const model = await buildAuthorizedModelInput(async () => ({
       context: data.context,
-      sources: talentSources(data),
+      sources: completeTalentSources(data),
       records: [
         {
           id: 'synthetic-graduation-text',

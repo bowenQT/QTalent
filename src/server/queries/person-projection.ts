@@ -11,7 +11,7 @@ import { deriveReferencePosition } from '../modules/talent';
 import type { PositionScore } from '../modules/talent';
 import {
   type PersonData,
-  talentSources,
+  completeTalentSources,
   personBusinessDay,
 } from './person-data';
 import { byCodePoint, identityOf, landingOf } from './person-identity';
@@ -178,7 +178,7 @@ function spectrum(data: PersonData, evidence: Evidence) {
 export async function personFromData(
   data: PersonData,
   id: string,
-  sources: TalentSource[] = talentSources(data),
+  sources: TalentSource[] = completeTalentSources(data),
 ): Promise<Person | null> {
   const gate = profileGate(data, id);
   if (!gate) return null;

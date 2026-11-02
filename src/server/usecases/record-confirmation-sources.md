@@ -10,6 +10,18 @@
 
 合并后的事实继续交既有 resolveRecordSourceFacts 和确认领域规则校验。每次首次保存、重放、撤销都重新加载当前服务端身份/节点权限，逐主体检查主 kind 与每个 requiredKind；不把整理时的创建者权限缓存成当前确认权限。
 
+## 唯一入口
+
+所有来源读取只经过 `talent-source-projection.ts` 的两个函数：`readIntakeTable(tx, mode)` 读完整的 arrange_inputs（不按创建人、人员、批次或 superseded 过滤），`completeTalentSources(data)` 把正式来源图与所有匹配 intake 合并。`IntakeTable` 只能由 `readIntakeTable` 产生，调用方无法传入过滤过的子集；原始来源图和本文件的合并步骤都不对外使用，`talent-source-projection.guard.test.ts` 列出全部调用方。
+
+| 调用方                                                     | 读法                                                                                                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 档案、原文、速览、模型输入、导出、批次回执与任务控制的授权 | `'snapshot'`：在调用方自己的快照里读，不加锁。intake 只会给片段增加主体和 requiredKinds，所以即使在 READ COMMITTED 下，并发新增的 intake 也只会收紧读取 |
+| 确认、整理把来源交给模型前                                 | `'locked'`：先拿 SHARE，再锁 batch / draft                                                                                                              |
+| 提交新批次（本事务插入 intake）                            | `'locked-for-write'`：事务第一个锁是 SHARE ROW EXCLUSIVE，避免两个写者都先持 SHARE 再升级时死锁；插入后在锁内重读一次，结果包含本行                     |
+
+没有正式关联的新文本（首次保存前）主体只来自匹配 intake 的并集；任一匹配 intake 未通过完整性校验，或片段有正式关联却没有正式主体时，主体为空，所有读取一律拒绝。
+
 ## 事务边界
 
 intake 的 JSON 来源没有片段外键，锁已有行不能排除并发插入的另一份共享 intake。确认事务先取 arrangeInputs 的 SHARE 表锁，再锁 batch/draft、正式来源图和当前权限；不在 batch 锁后取得 input 行锁。表锁只在当前事务持有，允许并行确认读取，阻止 intake DML；代价是短暂串行化 intake 写入。所有来源读取在锁定后发生，等待另一个 intake 提交后必须重新读取。

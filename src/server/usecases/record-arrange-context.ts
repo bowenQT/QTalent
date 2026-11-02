@@ -26,6 +26,7 @@ import {
   statements,
 } from '../modules/records';
 import type { StoredArrangeInput } from '../modules/records/arrange/input-state/schema';
+import type { IntakeTable } from './talent-source-projection';
 import type { BatchSnapshot } from '../modules/records/arrange/batch';
 import { loadEvaluationContext } from './evaluation-context';
 import type { BatchJobMetadata } from './record-batch-arrange-state';
@@ -366,6 +367,8 @@ export async function lockNativeTextFacts(
 }
 export async function loadRecordBatchSnapshot(
   tx: Transaction,
+  // The whole intake table, read by the caller in the mode its transaction needs.
+  intake: IntakeTable,
   input: StoredArrangeInput,
   metadata: BatchJobMetadata,
   at: string,
@@ -424,35 +427,21 @@ export async function loadRecordBatchSnapshot(
     fragment.excerpt.trim() !== input.originalInput.text.trim()
   )
     throw new NativeArrangeUnavailable('immutable_text_source_changed');
-  // Consume the current846 projection instead of reviving its removed sourcesForDraft.
-  const { rawTalentSourceGraph } = await import('./talent-source-projection');
-  const graph = rawTalentSourceGraph({ ...actor, ...data }).find(
+  // The same complete projection every reader uses: formal links plus every
+  // intake on this fragment (superseded included). This input is one of them.
+  if (!intake.rows.some((row) => row.id === input.id))
+    throw new NativeArrangeUnavailable('complete_source_graph_missing');
+  const { completeTalentSources } = await import('./talent-source-projection');
+  const graph = completeTalentSources({ ...actor, ...data, intake }).find(
     (source) =>
       source.fragmentId === fragment.id &&
       source.originalVersionId === version.id,
   );
-  const hasRelatedFacts =
-    data.eventSources.some(
-      (row) =>
-        row.fragmentId === fragment.id && row.originalVersionId === version.id,
-    ) ||
-    data.historical.some(
-      (row) =>
-        row.fragmentId === fragment.id && row.originalVersionId === version.id,
-    );
-  if (!graph || (hasRelatedFacts && graph.subjects.length === 0))
+  if (!graph || graph.subjects.length === 0)
     throw new NativeArrangeUnavailable('complete_source_graph_missing');
-  const allSubjects = [
-    ...new Map(
-      [...stored.subjects, ...graph.subjects].map((subject) => [
-        JSON.stringify(subject),
-        subject,
-      ]),
-    ).values(),
-  ];
+  const allSubjects = graph.subjects;
   const requiredKinds = [
     ...new Set([
-      ...stored.requiredKinds,
       ...(graph.requiredKinds ?? []),
       ...(graph.kind === stored.kind ? [] : [graph.kind]),
     ]),

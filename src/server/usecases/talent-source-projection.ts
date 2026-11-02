@@ -1,12 +1,15 @@
+import { sql } from 'drizzle-orm';
+import type { Transaction } from '../db/client';
 import type {
   TalentSource,
   TalentSubject,
   TalentKind,
   TalentAuthorizationContext,
 } from '../authz/talent';
-import type {
-  readEvidenceForTalent,
-  StoredArrangeInput,
+import {
+  arrangeInputs,
+  type readEvidenceForTalent,
+  type StoredArrangeInput,
 } from '../modules/records';
 import { confirmationSources } from './record-confirmation-sources';
 import { sourceKey } from './source-key';
@@ -22,10 +25,47 @@ export type RawTalentSourceData = Awaited<
   context: TalentAuthorizationContext;
   staffing: { projects: { id: string; cohortId: string | null }[] };
 };
+
+declare const intakeTableBrand: unique symbol;
+/** The whole arrange_inputs table, unfiltered. Only readIntakeTable (and the
+ * test fixture below) produce one, so no caller can pass a filtered subset. */
+export type IntakeTable = {
+  readonly [intakeTableBrand]: true;
+  readonly rows: readonly StoredArrangeInput[];
+};
+const asIntakeTable = (rows: StoredArrangeInput[]) =>
+  ({ rows }) as unknown as IntakeTable;
+
+/** Read every intake row: no creator, person, batch or superseded filter.
+ * - 'snapshot': read-only paths inside the caller's own snapshot, no lock. Safe
+ *   under READ COMMITTED as well, because intake rows only ever add subjects and
+ *   requiredKinds to a fragment; a concurrent intake can only narrow access.
+ * - 'locked': paths that write other tables or hand sources to the model. SHARE
+ *   fences intake DML until commit. Take it before batch / draft locks.
+ * - 'locked-for-write': the transaction itself inserts or updates intake rows.
+ *   SHARE ROW EXCLUSIVE is self-exclusive, so two writers cannot both hold SHARE
+ *   and then deadlock upgrading to write. Take it as the first lock.
+ * Calling it again in the same transaction re-reads, including own inserts. */
+export async function readIntakeTable(
+  tx: Transaction,
+  mode: 'snapshot' | 'locked' | 'locked-for-write',
+): Promise<IntakeTable> {
+  if (mode === 'locked')
+    await tx.execute(sql`lock table ${arrangeInputs} in share mode`);
+  if (mode === 'locked-for-write')
+    await tx.execute(
+      sql`lock table ${arrangeInputs} in share row exclusive mode`,
+    );
+  return asIntakeTable(await tx.select().from(arrangeInputs));
+}
+
+/** Unit-test fixtures only; production code must read the table. */
+export function intakeTableForTests(rows: StoredArrangeInput[]): IntakeTable {
+  return asIntakeTable(rows);
+}
+
 export type TalentSourceProjectionData = RawTalentSourceData & {
-  // Every reader must load the complete intake table in its own snapshot:
-  // a missing table would silently drop intake subjects and requiredKinds.
-  intakeInputs: StoredArrangeInput[];
+  intake: IntakeTable;
 };
 
 /** Permission requirement for the four approved, pinned prototype history kinds.
@@ -91,30 +131,32 @@ function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   }
   return groups;
 }
-/** Source graph for every read path: the complete intake restrictions apply. */
-export function talentSources(
+/** The only source projection: the formal graph plus every matching intake,
+ * superseded ones included. A fragment with no formal links (new text before
+ * its first save) takes its subjects from the matching intake contexts alone.
+ * Any matching intake that fails integrity checks, or a linked fragment with no
+ * formal subjects, yields no subjects, so every reader refuses it. Callers still
+ * apply current permissions to each subject of the result. */
+export function completeTalentSources(
   data: TalentSourceProjectionData,
 ): TalentSource[] {
   return confirmationSources({
     sources: rawTalentSourceGraph(data),
     versions: data.versions,
     originals: data.originals,
-    inputs: data.intakeInputs,
+    inputs: [...data.intake.rows],
     linkedSourceKeys: new Set(
       [...data.eventSources, ...data.historical].map(sourceKey),
     ),
   });
 }
 
-/** Formal events and history only, before any intake restriction. Only the
- * confirmation and arrange transactions use it, and they apply the intake
- * union they have locked themselves; it is never a read projection.
+/** Formal events and history only, before any intake restriction. Private:
+ * every caller goes through completeTalentSources.
  * Relations are indexed once per call: the full demo snapshot has ~1k
  * fragments, and per-fragment scans of every relation cost seconds per read.
  */
-export function rawTalentSourceGraph(
-  data: RawTalentSourceData,
-): TalentSource[] {
+function rawTalentSourceGraph(data: RawTalentSourceData): TalentSource[] {
   const linksBySource = groupBy(data.eventSources, sourceKey);
   const eventOrder = new Map(
     data.events.map((event, index) => [event.id, index]),

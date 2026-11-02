@@ -48,6 +48,7 @@ import {
 import { materialBatchReceiptSchema } from '../../contracts/materials';
 import { recordBatchDraftSetSchema } from '../../contracts/record';
 import { loadRecordBatchSnapshot } from './record-arrange-context';
+import { readIntakeTable } from './talent-source-projection';
 import { parseBatchMetadata } from './record-batch-arrange-state';
 import { prepareBatch } from '../modules/records/arrange/batch';
 import { readBatchArrangeRules } from '../modules/records/arrange/batch-rules';
@@ -658,6 +659,33 @@ it('a current no-review flag blocks reading and model dispatch', async () => {
   expect(await h.app.runner.run(created.jobId, 1)).toBe('failed');
   expect(h.calls()).toBe(0);
 });
+it('a restriction held only by another (superseded) intake on the fragment blocks reading and model dispatch', async () => {
+  const h = await setup();
+  const created = await submitted(h);
+  // A second immutable intake on the same text fragment also names B. Only the
+  // complete union over every intake sees B; this evaluator cannot read B.
+  const job = await state(created.jobId);
+  const otherJob = randomUUID();
+  await connection.db.insert(jobSnapshots).values({ ...job, jobId: otherJob });
+  const contexts = structuredClone(created.input.sourceContexts);
+  contexts[0]!.subjects = [
+    { personId: h.other, evaluationNodeId: h.otherNode, cohortId: h.cohort },
+  ];
+  await connection.db.insert(arrangeInputs).values({
+    ...created.input,
+    id: randomUUID(),
+    jobId: otherJob,
+    sourceContexts: contexts,
+    supersededByInputId: created.input.id,
+  });
+  expect(
+    await h.app.requests.readBatch(h.account, {
+      batchId: created.receipt.batchId,
+    }),
+  ).toMatchObject({ status: 'not_found' });
+  expect(await h.app.runner.run(created.jobId, 1)).toBe('failed');
+  expect(h.calls()).toBe(0);
+});
 it('an account rebinding cannot transfer an accepted batch even with a new valid node relation', async () => {
   const h = await setup();
   const created = await submitted(h);
@@ -753,6 +781,7 @@ it('uses exact encoded boundary with saved rules and preserves accepted replay a
       if (!metadata) throw new Error('native metadata required');
       const snapshot = await loadRecordBatchSnapshot(
         tx,
+        await readIntakeTable(tx, 'locked'),
         original.input,
         metadata,
         businessAt,

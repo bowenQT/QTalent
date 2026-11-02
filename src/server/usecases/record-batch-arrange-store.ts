@@ -18,6 +18,7 @@ import type { JobRecord } from '../jobs/state';
 import { arrangeInputs } from '../modules/records/arrange/input-state/schema';
 import type { StoredArrangeInput } from '../modules/records/arrange/input-state/schema';
 import { lockArrangeInput } from '../modules/records/arrange/input-state/store';
+import { readIntakeTable } from './talent-source-projection';
 import {
   recordDraftBatches,
   recordDrafts,
@@ -191,8 +192,11 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
           ))
       )
         return false;
+      // Read/control authorization only: a snapshot cannot widen access, and
+      // the runner re-checks under SHARE before any model call.
       const snapshot = await loadRecordBatchSnapshot(
         tx,
+        await readIntakeTable(tx, 'snapshot'),
         value,
         metadata,
         deps.businessNow(),
@@ -412,6 +416,8 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
             }
             return loadRecordBatchSnapshot(
               locked.context,
+              // Before the model call: fence intake DML until this commits.
+              await readIntakeTable(locked.context, 'locked'),
               input,
               metadata!,
               deps.businessNow(),

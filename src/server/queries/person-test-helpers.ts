@@ -1,4 +1,5 @@
 import type { PersonData } from './person-data';
+import { intakeTableForTests } from '../usecases/talent-source-projection';
 export function fixture(
   role: 'manager' | 'hr' | 'mentor' | 'admin' = 'manager',
 ): PersonData {
@@ -99,7 +100,7 @@ export function fixture(
       { id: 'grit', name: '坚毅力', axis: 'pot', core: true },
     ],
     confirmations: [],
-    intakeInputs: [],
+    intake: intakeTableForTests([]),
     cohorts: [{ id: 'cohort', name: 'Synthetic cohort' }],
     employments: [
       {
