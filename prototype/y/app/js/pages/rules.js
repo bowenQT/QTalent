@@ -649,7 +649,8 @@
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '退回修改', value: 'ok', cls: 'n-btn--ink', validate: (dl) => !!$('#rt', dl).value.trim(), read: (dl) => $('#rt', dl).value.trim() }] });
       if (v?.value !== 'ok') return;
       const undo = st.returnDraft(k, v.data, L); rerender();
-      if (!undo) return;
+      // 退回前规则状态已经变了（别处已确认、撤回或删掉），页面已按最新状态刷新
+      if (!undo) { NT.toast('规则状态已更新，页面已刷新，请按当前状态处理'); return; }
       // 退回之后起草人已经改过或重新提交，store 拒绝撤销，提示如实写撤销失败
       NT.toast(`已退回给${name(d.by)}修改，理由在${name(d.by)}的待办里`, { undo: () => { const ok = undo(); rerender(); return ok; },
         undoneText: `已撤销退回，${d.v} 回到待确认`, failText: `撤销失败：${d.v} 已有后续处理，已保留当前状态` });

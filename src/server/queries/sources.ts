@@ -6,7 +6,7 @@ import {
   sourceSchema,
   type SourceReadResult,
 } from '../../contracts/sources';
-import { readTalentSource } from '../authz/talent';
+import { readTalentSource, type TalentSource } from '../authz/talent';
 import { ForbiddenError } from '../usecases/project-context';
 import { type PersonData, talentSources, sourceKey } from './person-data';
 import { loadCurrentPersonData } from './person-session';
@@ -14,10 +14,15 @@ import { loadCurrentPersonData } from './person-session';
 export async function sourceFromData(
   data: PersonData,
   reference: { fragmentId: string; originalVersionId: string },
-  sources = talentSources(data),
+  // Callers that read many sources pass the already resolved relations.
+  resolved: TalentSource[] = talentSources(data),
 ): Promise<SourceReadResult> {
   const visible = await readTalentSource(
-    async () => ({ context: data.context, records: [], sources }),
+    async () => ({
+      context: data.context,
+      records: [],
+      sources: resolved,
+    }),
     reference,
   );
   const missing = {
@@ -36,17 +41,24 @@ export async function sourceFromData(
   const linkedEvents = data.events.filter((row) =>
     links.some((link) => link.eventId === row.id),
   );
+  // The fragment itself has no recorder (BOW-834): null means unknown, and the
+  // recorder of a linked event is never used in its place.
+  const detail = {
+    ...visible,
+    originalTitle: original.title,
+    recordedByName: null,
+  };
   const source =
     original.kind === 'prototype_snapshot'
       ? {
-          ...visible,
+          ...detail,
           sourceType: 'prototype_snapshot',
           sourceCategory: 'prototype_baseline',
           demo: true,
           displayNotice: original.displayNotice,
         }
       : {
-          ...visible,
+          ...detail,
           sourceType: visible.location.kind,
           sourceCategory: 'original',
           demo:
@@ -54,7 +66,7 @@ export async function sourceFromData(
         };
   if (original.kind === 'prototype_snapshot') {
     const subjects =
-      sources.find((row) => sourceKey(row) === sourceKey(reference))
+      resolved.find((row) => sourceKey(row) === sourceKey(reference))
         ?.subjects ?? [];
     if (
       linkedEvents.some((row) => !row.demo) ||

@@ -265,3 +265,75 @@ it('wakes a stopped attempt for cancellation acknowledgement exactly once', asyn
   });
   expect(f.enqueue).toHaveBeenCalledTimes(1);
 });
+
+it('replays an accepted control after completion using current control authorization', async () => {
+  const f = fixture();
+  f.record = advanceJob(
+    f.record,
+    { status: 'failed', attempt: 1, expectedRevision: 2 },
+    now,
+  );
+  let canStart = true;
+  let canControl = true;
+  let canRead = true;
+  f.policy.can = async (_tx, _account, _job, action) => {
+    if (action === 'read') return canRead;
+    return action === 'retry' ? canStart : canControl;
+  };
+  f.policy.canReplay = async () => canControl;
+  const accepted = await f.service.command('account', cmd);
+  expect(accepted).toMatchObject({
+    status: 'success',
+    snapshot: { status: 'queued', attempt: 2 },
+  });
+  f.record = advanceJob(
+    f.record,
+    { status: 'running', attempt: 2, expectedRevision: 4 },
+    now,
+  );
+  f.record = advanceJob(
+    f.record,
+    { status: 'completed', attempt: 2, expectedRevision: 5 },
+    now,
+  );
+  const settled = f.record;
+  canStart = false;
+  expect(await f.service.command('account', cmd)).toEqual(accepted);
+  expect(
+    await f.service.command('account', { ...cmd, expectedRevision: 4 }),
+  ).toEqual({ status: 'conflict' });
+  expect(
+    await f.service.command('account', { ...cmd, action: 'cancel' }),
+  ).toEqual({ status: 'conflict' });
+  expect(
+    await f.service.command('account', { ...cmd, operationId: 'new' }),
+  ).toEqual({ status: 'forbidden' });
+  canControl = false;
+  expect(await f.service.command('account', cmd)).toEqual({
+    status: 'forbidden',
+  });
+  canControl = true;
+  canRead = false;
+  expect(await f.service.command('account', cmd)).toEqual({
+    status: 'forbidden',
+  });
+  expect(f.record).toBe(settled);
+  expect(f.enqueue).toHaveBeenCalledTimes(1);
+});
+
+it('keeps checking control permission when the consumer has no replay policy', async () => {
+  const f = fixture();
+  f.record = advanceJob(
+    f.record,
+    { status: 'failed', attempt: 1, expectedRevision: 2 },
+    now,
+  );
+  expect(await f.service.command('account', cmd)).toMatchObject({
+    status: 'success',
+  });
+  f.policy.can = async (_tx, _account, _job, action) => action === 'read';
+  expect(await f.service.command('account', cmd)).toEqual({
+    status: 'forbidden',
+  });
+  expect(f.enqueue).toHaveBeenCalledTimes(1);
+});

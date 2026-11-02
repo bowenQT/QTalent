@@ -23,11 +23,13 @@ export {
   persistEvaluationReassignment,
   insertEvaluationWorkItem,
   completeEvaluationWorkItem,
+  undoEvaluationWorkCompletion,
 } from './reassignment-store';
 export {
   EvaluationReassignmentError,
   evaluationReassignmentFingerprint,
   assignedEvaluationRelationIsCurrent,
+  assignedEvaluationHandlerIsCurrent,
   canWorkOnEvaluationItem,
   planEvaluationReassignment,
 } from './reassignment-policy';
