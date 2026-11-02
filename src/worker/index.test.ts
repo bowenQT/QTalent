@@ -12,6 +12,8 @@ const f = vi.hoisted(() => ({
   demandRuntime: vi.fn(),
   arrangeRuntime: vi.fn(),
   registerArrange: vi.fn(),
+  attachmentRuntime: vi.fn(),
+  registerAttachment: vi.fn(),
   matchRuntime: vi.fn(),
   registerMatch: vi.fn(),
   access: vi.fn(),
@@ -42,6 +44,9 @@ vi.mock('../server/usecases/staffing-demand-runtime', () => ({
 }));
 vi.mock('../server/usecases/record-arrange-worker', () => ({
   createRecordArrangeWorker: f.arrangeRuntime,
+}));
+vi.mock('../server/usecases/attachment-parse-worker', () => ({
+  createAttachmentParseWorker: f.attachmentRuntime,
 }));
 vi.mock('../server/usecases/staffing-match-runtime', () => ({
   createStaffingMatchServerRuntime: f.matchRuntime,
@@ -107,6 +112,8 @@ beforeEach(() => {
   f.demandRuntime.mockReturnValue({ register: f.registerDemand });
   f.registerArrange.mockResolvedValue(undefined);
   f.arrangeRuntime.mockReturnValue({ register: f.registerArrange });
+  f.registerAttachment.mockResolvedValue(undefined);
+  f.attachmentRuntime.mockReturnValue({ register: f.registerAttachment });
   f.registerMatch.mockResolvedValue(undefined);
   f.matchRuntime.mockReturnValue({ register: f.registerMatch });
   f.access.mockResolvedValue(undefined);
@@ -170,6 +177,27 @@ describe('worker lifecycle with transport boundaries replaced', () => {
       await worker.stop();
     }
   });
+  it.each(['demo', 'test', 'production'])(
+    'registers attachment parsing once with the shared boss in %s',
+    async (environment) => {
+      f.env.APP_ENV = environment;
+      const worker = await startWorker();
+      try {
+        expect(f.registerAttachment).toHaveBeenCalledOnce();
+        const input = f.attachmentRuntime.mock.calls[0][0];
+        expect(input.boss).toBe(worker.boss);
+        expect(input.demo).toBe(environment !== 'production');
+        // No deployed Kodo here: only the test environment reads the test
+        // double; elsewhere every open fails as a dependency outage.
+        const opened = input.storage.openObject({ objectKey: 'demo/missing' });
+        await expect(opened).rejects.toMatchObject({
+          code: environment === 'test' ? 'not_found' : 'unavailable',
+        });
+      } finally {
+        await worker.stop();
+      }
+    },
+  );
   it('stops the shared boss if matching registration fails before transport opens', async () => {
     f.registerMatch.mockRejectedValueOnce(
       new Error('matching registration failed'),

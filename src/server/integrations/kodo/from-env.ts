@@ -1,25 +1,24 @@
-import 'server-only';
-import { getEnv } from '../env';
-import { createKodoClient } from '../integrations/kodo';
-import type { UploadStorage } from '../modules/records/uploads/types';
+import { createKodoClient } from './client';
 
-type KodoEnvironment = Pick<
-  ReturnType<typeof getEnv>,
-  | 'QINIU_KODO_ENDPOINT'
-  | 'QINIU_KODO_S3_REGION'
-  | 'QINIU_KODO_UPLOAD_ENDPOINT'
-  | 'QINIU_KODO_MANAGEMENT_ENDPOINT'
-  | 'QINIU_KODO_ACCESS_KEY'
-  | 'QINIU_KODO_SECRET_KEY'
-  | 'QINIU_KODO_BUCKET'
+export type KodoEnvironment = Partial<
+  Record<
+    | 'QINIU_KODO_ENDPOINT'
+    | 'QINIU_KODO_S3_REGION'
+    | 'QINIU_KODO_UPLOAD_ENDPOINT'
+    | 'QINIU_KODO_MANAGEMENT_ENDPOINT'
+    | 'QINIU_KODO_ACCESS_KEY'
+    | 'QINIU_KODO_SECRET_KEY'
+    | 'QINIU_KODO_BUCKET',
+    string
+  >
 >;
 
 /** The deployed Kodo client, or null when the deployment has not configured it.
- * The adapter validates the values only once all required keys are present.
+ * The client validates the values only once all required keys are present.
  */
-export function kodoUploadStorageFromEnv(
-  environment: KodoEnvironment = getEnv(),
-): UploadStorage | null {
+export function createKodoClientFromEnv(
+  environment: KodoEnvironment,
+): ReturnType<typeof createKodoClient> | null {
   const value = (name: keyof KodoEnvironment) =>
     environment[name]?.trim() || undefined;
   const endpoint = value('QINIU_KODO_ENDPOINT');

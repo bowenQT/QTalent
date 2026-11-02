@@ -14,7 +14,7 @@ import {
   loadArrangeActor,
 } from '../usecases/record-arrange-context';
 import { ForbiddenError } from '../usecases/project-context';
-import { kodoUploadStorageFromEnv } from './kodo-upload-storage';
+import { createKodoClientFromEnv } from '../integrations/kodo';
 import { testKodoForServer } from './test-kodo';
 import { createUploadRuntime } from './upload-runtime';
 
@@ -122,7 +122,7 @@ export function materialUploadHandlersForServer(): Record<
   let storage: UploadStorage | null;
   try {
     storage =
-      kodoUploadStorageFromEnv() ?? testKodoForServer()?.storage ?? null;
+      createKodoClientFromEnv(getEnv()) ?? testKodoForServer()?.storage ?? null;
   } catch {
     // A malformed deployment value is a dependency failure, never echoed back.
     storage = null;

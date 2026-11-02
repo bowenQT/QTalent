@@ -104,11 +104,13 @@ export function createAttachmentParsePolicy<C>(
     enqueue: (context, job, action) => ports.enqueue(context, job, action),
   };
 }
+/** No queue retry: the runner settles every claimed attempt itself, and a new
+ * attempt comes only from an explicit retry command. */
 export async function registerAttachmentParseJob(
-  boss: PgBoss,
+  boss: Pick<PgBoss, 'createQueue' | 'work'>,
   run: (payload: unknown) => Promise<unknown>,
 ): Promise<void> {
-  await boss.createQueue(attachmentParseQueue);
+  await boss.createQueue(attachmentParseQueue, { retryLimit: 0 });
   await boss.work(attachmentParseQueue, async (jobs) => {
     for (const job of jobs)
       await run(attachmentJobPayloadSchema.parse(job.data));

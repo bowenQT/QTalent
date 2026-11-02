@@ -12,6 +12,12 @@ import { getDatabase } from '../server/db/client';
 import { createModelinkMaasClientFromEnv } from '../server/integrations/maas';
 import { createStaffingDemandRuntime } from '../server/usecases/staffing-demand-runtime';
 import { createRecordArrangeWorker } from '../server/usecases/record-arrange-worker';
+import { createAttachmentParseWorker } from '../server/usecases/attachment-parse-worker';
+import {
+  createKodoClientFromEnv,
+  KodoError,
+} from '../server/integrations/kodo';
+import { testKodoFor } from '../server/integrations/kodo/test-kodo';
 import { createStaffingMatchServerRuntime } from '../server/usecases/staffing-match-runtime';
 import { authenticateHandshake, heartbeatReply } from './handshake';
 export async function startWorker() {
@@ -43,6 +49,21 @@ export async function startWorker() {
         MODELINK_BASE_URL: env.MODELINK_BASE_URL,
         MODELINK_MODEL: env.MODELINK_MODEL,
       },
+      businessNow: () => clock.now().toISOString(),
+      now: () => new Date(),
+    }).register();
+    await createAttachmentParseWorker({
+      db: getDatabase(),
+      boss,
+      // Without deployed Kodo every parse fails as a dependency outage
+      // instead of waiting unclaimed.
+      storage: createKodoClientFromEnv(env) ??
+        testKodoFor({ ...env, NODE_ENV: process.env.NODE_ENV })?.storage ?? {
+          openObject: async () => {
+            throw new KodoError('unavailable');
+          },
+        },
+      demo: env.APP_ENV !== 'production',
       businessNow: () => clock.now().toISOString(),
       now: () => new Date(),
     }).register();
