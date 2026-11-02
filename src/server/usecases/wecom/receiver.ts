@@ -7,7 +7,7 @@ import type { WecomMessage } from '../../integrations/wecom/protocol';
 import { describeWecomDelivery } from './message';
 
 const targetSchema = z.strictObject({
-  evaluationNodeId: materialBatchInputSchema.shape.evaluationNodeId,
+  evaluationNodeId: materialBatchInputSchema.shape.evaluationNodeId.unwrap(),
   personIds: materialBatchInputSchema.shape.personIds.min(1),
   projectId: materialBatchInputSchema.shape.projectId,
 });

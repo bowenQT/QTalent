@@ -10,6 +10,7 @@ import {
   businessAt,
   wallAt,
 } from '../../../../tests/fixtures/bow-845/native';
+import { unassignedUpload } from '../../../../tests/fixtures/bow-897/staged-upload';
 import { grants, rebindDirectoryAccount } from '../../modules/directory';
 import { projects } from '../../modules/staffing';
 import {
@@ -227,6 +228,36 @@ it('runs all three real handlers through the HTTP composition and persists produ
     'mcp',
     'mcp',
   ]);
+});
+
+it('record_moment takes files with no node on their upload node and queues each parse for the attachment worker', async () => {
+  const f = await setup();
+  const upload = await unassignedUpload(connection.db, f, '演示周记.txt');
+  const response = await f.send('record_moment', {
+    operationId: randomUUID(),
+    personIds: [],
+    projectId: null,
+    text: '',
+    files: [upload.file],
+  });
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.result.structuredContent).toMatchObject({
+    status: 'success',
+    payload: {
+      evaluationNodeId: f.node,
+      jobId: null,
+      files: [{ materialId: upload.originalId, status: 'processing' }],
+    },
+  });
+  const parseJobId = body.result.structuredContent.payload.files[0].jobId;
+  expect(
+    (
+      await connection.db.execute<{ name: string }>(
+        sql`select name from pgboss.job where data->>'jobId' = ${parseJobId}`,
+      )
+    ).rows,
+  ).toEqual([{ name: 'attachment-parse' }]);
 });
 
 it('H3: carries each HTTP tool call to its exact queued job, bound intake and entry audit', async () => {

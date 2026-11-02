@@ -148,20 +148,46 @@ describe('entry tool trust contracts', () => {
       error: null,
     };
     expect(materialBatchReceiptSchema.safeParse(receipt).success).toBe(true);
+    const text = {
+      operationId: 'demo-operation',
+      personIds: [],
+      projectId: null,
+      text: '演示原话',
+      files: [],
+    };
+    const files = {
+      ...text,
+      text: '',
+      files: [{ clientFileId: 'demo-file', uploadId: 'demo-upload' }],
+    };
     expect(
       entryPayloadMatchesInput(
         'record_moment',
-        { evaluationNodeId: 'demo-node' },
+        { ...text, evaluationNodeId: 'demo-node' },
         receipt,
       ),
     ).toBe(true);
     expect(
       entryPayloadMatchesInput(
         'submit_material_batch',
-        { evaluationNodeId: 'other' },
+        { ...text, evaluationNodeId: 'other' },
         receipt,
       ),
     ).toBe(false);
+    // Files with no node take the node the server resolved; text must name one.
+    expect(entryPayloadMatchesInput('record_moment', files, receipt)).toBe(
+      true,
+    );
+    expect(
+      entryPayloadMatchesInput(
+        'submit_material_batch',
+        { ...files, evaluationNodeId: 'other' },
+        receipt,
+      ),
+    ).toBe(false);
+    expect(entryPayloadMatchesInput('record_moment', text, receipt)).toBe(
+      false,
+    );
     expect(
       entryPayloadMatchesInput(
         'read_material_batch',

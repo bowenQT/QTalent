@@ -214,14 +214,8 @@ describe('MCP tools composed from the fixed 903 usecase', () => {
     expect(listed.tools[0].inputSchema).toMatchObject({
       type: 'object',
       additionalProperties: false,
-      required: [
-        'operationId',
-        'evaluationNodeId',
-        'personIds',
-        'projectId',
-        'text',
-        'files',
-      ],
+      // A file batch takes its node from the uploads, so the node is optional here.
+      required: ['operationId', 'personIds', 'projectId', 'text', 'files'],
     });
     expect(listed.tools[1].inputSchema).toMatchObject({
       properties: { id: { type: 'string' } },
