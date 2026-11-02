@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   text,
@@ -5,6 +6,7 @@ import {
   integer,
   date,
   index,
+  check,
 } from 'drizzle-orm/pg-core';
 export const organizations = pgTable('directory_organizations', {
   id: text('id').primaryKey(),
@@ -22,13 +24,21 @@ export const people = pgTable('directory_people', {
   noReview: boolean('no_review').notNull().default(false),
   demo: boolean('demo').notNull().default(true),
 });
-export const accountBindings = pgTable('directory_account_bindings', {
-  accountId: text('account_id').primaryKey(),
-  personId: text('person_id')
-    .notNull()
-    .references(() => people.id),
-  isSystemAdmin: boolean('is_system_admin').notNull().default(false),
-});
+/** `generation` only increases: every rebind goes through
+ * `rebindDirectoryAccount`, so a credential issued under an earlier binding
+ * never matches again, even after the account returns to the same person. */
+export const accountBindings = pgTable(
+  'directory_account_bindings',
+  {
+    accountId: text('account_id').primaryKey(),
+    personId: text('person_id')
+      .notNull()
+      .references(() => people.id),
+    isSystemAdmin: boolean('is_system_admin').notNull().default(false),
+    generation: integer('generation').notNull().default(1),
+  },
+  (t) => [check('directory_account_generation', sql`${t.generation} > 0`)],
+);
 export const grants = pgTable(
   'directory_grants',
   {
