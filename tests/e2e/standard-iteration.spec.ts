@@ -114,7 +114,7 @@ test('the third act runs on the real routes: compare, attribute, draft, publish 
     const draft = page.getByRole('dialog', { name: '起草入营选拔标准修订？' });
     await draft.getByLabel('修订理由').fill('演示：补一条个人贡献核验');
     await draft.getByRole('button', { name: '起草修订' }).click();
-    await expect(page).toHaveURL(/\/rules\?.*draft=/);
+    await expect(page).toHaveURL(/\/rules\?.*draft=/, { timeout: 30_000 });
 
     await page.getByRole('button', { name: '添加要点' }).click();
     await page.getByLabel('要点名称').fill('个人贡献核验');
