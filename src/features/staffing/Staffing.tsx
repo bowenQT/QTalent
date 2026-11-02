@@ -12,11 +12,10 @@ import { projectStatusTone, type ProjectHead } from './view';
 import { projectHref } from './format';
 import {
   dropSentence,
-  hasDraft,
   keepSentence,
+  readHandoff,
   readSentence,
   sessionStorageOrNull,
-  takeDraft,
 } from './draft';
 import { useJob } from './use-job';
 import {
@@ -79,15 +78,6 @@ export function withRequirement(
     : [...requirements.slice(0, at), added, ...requirements.slice(at)];
 }
 
-// The workbench handoff is taken once and kept for re-renders of this page load; a new
-// sentence handed over later (or another account) replaces it.
-let handoff: { accountId: string; text: string | null } | undefined;
-function readHandoff(accountId: string): string | null {
-  const storage = sessionStorageOrNull();
-  if (handoff?.accountId !== accountId || hasDraft(storage))
-    handoff = { accountId, text: takeDraft(storage, accountId, Date.now()) };
-  return handoff.text;
-}
 const noSubscribe = () => () => {};
 
 function ProjectHeader({ project }: { project: ProjectHead }) {
@@ -143,7 +133,10 @@ export function Staffing(props: StaffingProps) {
   const { ports, accountId } = props;
   const handed = useSyncExternalStore(
     noSubscribe,
-    () => (props.fromWorkbench ? readHandoff(accountId) : null),
+    () =>
+      props.fromWorkbench
+        ? readHandoff(sessionStorageOrNull(), accountId, Date.now())
+        : null,
     () => null,
   );
   const projectId = props.project?.id ?? null;
