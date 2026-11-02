@@ -4,7 +4,7 @@ import type { TalentKind } from './talent';
 
 export interface EvaluationNode {
   id: string;
-  kind: 'program_cohort' | 'interview' | 'defense';
+  kind: 'program_cohort' | 'interview' | 'defense' | 'review';
   cohortId: string | null;
 }
 export interface EvaluationNodeSubject {

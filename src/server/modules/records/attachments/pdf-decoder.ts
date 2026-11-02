@@ -6,6 +6,7 @@ import {
   type DocumentOutcome,
 } from './document-protocol';
 import type { AttachmentSegment } from './types';
+import { PDF_TEXT_VERSION, type DecodedPdfText } from './pdf-text';
 import { guardPdfOperators } from './pdf-operator-guard';
 
 function containsTable(value: unknown): boolean {
@@ -114,6 +115,12 @@ export async function decodePdf(
     ]);
     const segments: AttachmentSegment[] = [];
     let total = 0;
+    let rawTotal = 0;
+    const pdfText: DecodedPdfText = {
+      version: PDF_TEXT_VERSION,
+      pages: [],
+      ranges: [],
+    };
     for (let number = 1; number <= document.numPages; number++) {
       const page = await document.getPage(number);
       try {
@@ -134,6 +141,15 @@ export async function decodePdf(
         if (warned) throw new DocumentFault('invalid_content');
         let start = 0,
           raw = '';
+        let pageText = '',
+          rawOffset = 0;
+        function append(text: string) {
+          if (!message.capturePdfText) return;
+          rawTotal += text.length;
+          if (rawTotal > message.budget.maxOutputChars)
+            throw new DocumentFault('resource_limit');
+          pageText += text;
+        }
         const before = segments.length;
         function add(end: number) {
           const excerpt = raw.trim();
@@ -145,6 +161,14 @@ export async function decodePdf(
               segments.length >= message.limits.maxFragments
             )
               throw new DocumentFault('resource_limit');
+            if (message.capturePdfText) {
+              const offset = rawOffset + raw.length - raw.trimStart().length;
+              pdfText.ranges.push({
+                segmentIndex: segments.length,
+                page: page.pageNumber,
+                textRange: { start: offset, end: offset + excerpt.length },
+              });
+            }
             segments.push({
               excerpt,
               location: {
@@ -156,6 +180,7 @@ export async function decodePdf(
           }
           raw = '';
           start = end;
+          rawOffset = pageText.length;
         }
         text.items.forEach((item, index) => {
           if (!('str' in item)) throw new DocumentFault('invalid_content');
@@ -163,14 +188,24 @@ export async function decodePdf(
             // Do not reindex retained items or cite a span containing omitted text.
             add(index);
             start = index + 1;
+            append(item.str);
+            if (item.hasEOL) append('\n');
+            rawOffset = pageText.length;
             return;
           }
+          append(item.str);
           raw += item.str;
           if (raw.length > message.limits.maxFragmentChars)
             throw new DocumentFault('resource_limit');
-          if (item.hasEOL) add(index + 1);
+          if (item.hasEOL) {
+            add(index + 1);
+            append('\n');
+            rawOffset = pageText.length;
+          }
         });
         add(text.items.length);
+        if (message.capturePdfText)
+          pdfText.pages.push({ page: page.pageNumber, text: pageText });
         if (
           segments.length === before &&
           operations.fnArray.some((operation) => imageOps.has(operation))
@@ -181,7 +216,11 @@ export async function decodePdf(
       }
     }
     if (warned) throw new DocumentFault('invalid_content');
-    return { status: 'decoded', segments };
+    return {
+      status: 'decoded',
+      segments,
+      ...(message.capturePdfText ? { pdfText } : {}),
+    };
   } catch (error) {
     if (
       error instanceof Error &&
