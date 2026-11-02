@@ -2,10 +2,9 @@ import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures';
 
 /**
- * BOW-861 materials on the development sample, whose upload backend is scripted
- * (BOW-873 and the batch use cases are not on main): ten progress steps per file,
+ * BOW-861 materials on the development sample, whose upload backend is scripted: ten progress steps per file,
  * `upload=fail` interrupts the first transfer half way, and a batch settles on its
- * first receipt read. /work itself shows 待接入 (see workbench-work.spec.ts).
+ * first receipt read. /work uploads through the live port (see workbench-work.spec.ts).
  */
 const file = (name: string, mimeType: string) => ({
   name,

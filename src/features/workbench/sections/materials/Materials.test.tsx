@@ -367,6 +367,28 @@ describe('materials with a backend', () => {
     expect(batchCard().textContent).toContain('连接中断，可以重新提交');
   });
 
+  it('shows why the server declined a batch, with nothing to resubmit', async () => {
+    const { port, uploads, submits } = manualPort();
+    mount(port);
+    choose([doc('一.docx')]);
+    await act(async () =>
+      uploads[0].answer.resolve({ status: 'uploaded', uploadId: 'u-1' }),
+    );
+    await act(async () =>
+      submits[0].answer.resolve({
+        status: 'refused',
+        message: '评价节点开始后，再把这批材料交上来',
+      }),
+    );
+    expect(head()).toBe('已退回');
+    expect(batchCard().textContent).toContain(
+      '评价节点开始后，再把这批材料交上来',
+    );
+    expect(
+      within(batchCard()).queryByRole('button', { name: '重新提交' }),
+    ).toBeNull();
+  });
+
   it('keeps the first ten files and says how many to choose again', () => {
     const { port, uploads } = manualPort();
     mount(port);

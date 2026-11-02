@@ -1,0 +1,187 @@
+import type { z } from 'zod';
+import {
+  MEDIA_FORMATS,
+  type completeUploadResultSchema,
+  type MaterialFileInput,
+  type MaterialRequestUploadResult,
+  type MaterialUploadRequest,
+} from '@/contracts/media';
+import type {
+  MaterialBatchReadResult,
+  MaterialBatchReceipt,
+} from '@/contracts/materials';
+import { uploadToKodo } from './kodo-upload';
+import type {
+  MaterialsPort,
+  SubmitOutcome,
+  UploadOutcome,
+} from './materials-port';
+
+/** What the browser knows about a file; the server resolves owner, node and collection. */
+export type UploadDeclaration = Pick<
+  MaterialUploadRequest,
+  'purpose' | 'filename' | 'declaredBytes' | 'declaredMediaType' | 'operationId'
+>;
+
+/**
+ * Batch submission answer from /work: the batch receipt, or why the server
+ * declined it. `no_active_node` means the uploader has no evaluation node in
+ * progress to attach the batch to.
+ */
+export type BatchSubmitResult =
+  | { status: 'success'; receipt: MaterialBatchReceipt }
+  | { status: 'no_active_node' }
+  | { status: 'declined'; message: string };
+
+/**
+ * Server calls behind the live port, already parsed at the network boundary.
+ * A rejected promise is a transport failure (offline, timeout, signed out).
+ */
+export type MaterialsTransport = {
+  requestUpload: (
+    input: UploadDeclaration,
+    signal: AbortSignal,
+  ) => Promise<MaterialRequestUploadResult>;
+  completeUpload: (
+    input: {
+      uploadId: string;
+      receiptRef: string;
+      operationId: string;
+      expectedRevision: number;
+    },
+    signal: AbortSignal,
+  ) => Promise<z.infer<typeof completeUploadResultSchema>>;
+  submitBatch: (input: {
+    operationId: string;
+    files: MaterialFileInput[];
+  }) => Promise<BatchSubmitResult>;
+  readBatch: (batchId: string) => Promise<MaterialBatchReadResult>;
+};
+
+const INTERRUPTED = '上传中断，可以重试';
+const SUBMIT_INTERRUPTED = '提交中断，可以重新提交';
+export const NO_ACTIVE_NODE = '评价节点开始后，再把这批材料交上来';
+
+/** The declared type the server accepts for this file name, or null for an unknown format. */
+export function declare(file: File) {
+  const name = file.name.toLowerCase();
+  const format = MEDIA_FORMATS.find((entry) =>
+    name.endsWith(`.${entry.extension}`),
+  );
+  if (!format) return null;
+  const types: readonly string[] = format.mediaTypes;
+  const type = file.type.toLowerCase();
+  return {
+    purpose: format.purpose,
+    declaredMediaType: types.includes(type) ? type : types[0]!,
+  };
+}
+
+/**
+ * The materials port over the real backend: upload grant, direct transfer to
+ * Kodo, completion check; batch submission and receipt reads. Each step's
+ * operationId is new per attempt, except the batch's, which the caller keeps
+ * across retries so the server replays it.
+ */
+export function createLiveMaterialsPort(
+  transport: MaterialsTransport,
+  fetcher: typeof fetch = fetch,
+): MaterialsPort {
+  async function upload(
+    file: File,
+    onProgress: (percent: number) => void,
+    signal: AbortSignal,
+  ): Promise<UploadOutcome> {
+    const declared = declare(file);
+    if (!declared)
+      return {
+        status: 'rejected',
+        message: '请上传 MP3、M4A、WAV、AAC、TXT、DOCX 或文字型 PDF',
+      };
+    try {
+      const granted = await transport.requestUpload(
+        {
+          ...declared,
+          filename: file.name,
+          declaredBytes: file.size,
+          operationId: crypto.randomUUID(),
+        },
+        signal,
+      );
+      if (
+        granted.status === 'unsupported' ||
+        granted.status === 'validation_error'
+      )
+        return {
+          status: 'rejected',
+          message:
+            granted.status === 'unsupported'
+              ? granted.message
+              : '请上传 MP3、M4A、WAV、AAC、TXT、DOCX 或文字型 PDF',
+        };
+      if (granted.status !== 'success')
+        return { status: 'interrupted', message: granted.message };
+      const grant = granted.upload;
+      const stored = await uploadToKodo(
+        grant,
+        file,
+        declared.declaredMediaType,
+        onProgress,
+        signal,
+        fetcher,
+      );
+      if (stored.status !== 'stored')
+        return { status: 'interrupted', message: INTERRUPTED };
+      const completed = await transport.completeUpload(
+        {
+          uploadId: grant.uploadId,
+          receiptRef: stored.hash,
+          operationId: crypto.randomUUID(),
+          expectedRevision: grant.revision,
+        },
+        signal,
+      );
+      if (completed.status === 'success')
+        return { status: 'uploaded', uploadId: completed.result.uploadId };
+      return {
+        status: 'interrupted',
+        message:
+          completed.status === 'validation_error'
+            ? INTERRUPTED
+            : completed.message,
+      };
+    } catch {
+      return { status: 'interrupted', message: INTERRUPTED };
+    }
+  }
+
+  async function submit(input: {
+    operationId: string;
+    files: MaterialFileInput[];
+  }): Promise<SubmitOutcome> {
+    try {
+      const result = await transport.submitBatch(input);
+      switch (result.status) {
+        case 'success':
+          return { status: 'accepted', receipt: result.receipt };
+        case 'no_active_node':
+          return { status: 'refused', message: NO_ACTIVE_NODE };
+        case 'declined':
+          return { status: 'refused', message: result.message };
+      }
+    } catch {
+      return { status: 'interrupted', message: SUBMIT_INTERRUPTED };
+    }
+  }
+
+  async function read(batchId: string) {
+    try {
+      const result = await transport.readBatch(batchId);
+      return result.status === 'success' ? result.result : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return { upload, submit, read };
+}

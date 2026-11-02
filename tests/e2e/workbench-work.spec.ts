@@ -132,9 +132,9 @@ test('managers, HR and mentors get their own /work from the real read', async ({
   await expect(page.getByRole('region', { name: '找人' })).toHaveCount(0);
   // Nothing to hand over in the seed, and the other groups are not connected.
   await expect(page.locator('#todo, #btn-export')).toHaveCount(0);
-  // Materials have no upload backend yet (BOW-873): 待接入, no tasks or progress.
-  await expect(page.locator('#upload')).toContainText('待接入');
-  await expect(page.locator('#tasks')).toContainText('待接入');
+  // Materials upload through the live port; nothing dropped yet, so no tasks.
+  await expect(page.locator('#upload')).not.toContainText('待接入');
+  await expect(page.locator('#tasks')).toHaveText('投递的材料会出现在这里');
   await expect(page.locator('#tasks .n-task, [role=progressbar]')).toHaveCount(
     0,
   );

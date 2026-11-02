@@ -175,7 +175,13 @@ export function useBatches(port: MaterialsPort | null) {
           finish(
             outcome.status === 'accepted'
               ? { state: 'sent', receipt: outcome.receipt }
-              : { state: 'interrupted', operationId, message: outcome.message },
+              : outcome.status === 'refused'
+                ? { state: 'refused', message: outcome.message }
+                : {
+                    state: 'interrupted',
+                    operationId,
+                    message: outcome.message,
+                  },
           ),
         () =>
           finish({

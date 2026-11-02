@@ -36,6 +36,8 @@ export type Submission =
   | { state: 'waiting' }
   | { state: 'sending'; operationId: string }
   | { state: 'interrupted'; operationId: string; message: string }
+  /** Declined by the server as sent; the message says what to do next. */
+  | { state: 'refused'; message: string }
   | { state: 'sent'; receipt: MaterialBatchReceipt };
 
 export type Batch = {
@@ -82,6 +84,8 @@ export function batchState(batch: Batch): [BatchKey, string] {
       return ['processing', '提交中'];
     case 'interrupted':
       return ['failed', '提交中断'];
+    case 'refused':
+      return ['failed', '已退回'];
   }
 }
 

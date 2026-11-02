@@ -14,9 +14,14 @@ export type UploadOutcome =
   | { status: 'rejected'; message: string }
   | { status: 'interrupted'; message: string };
 
+/**
+ * `refused` is the server declining this batch as sent (no evaluation node in progress,
+ * no permission): sending it again changes nothing, so it is not offered again.
+ */
 export type SubmitOutcome =
   | { status: 'accepted'; receipt: MaterialBatchReceipt }
-  | { status: 'interrupted'; message: string };
+  | { status: 'interrupted'; message: string }
+  | { status: 'refused'; message: string };
 
 /**
  * The upload and batch backend (BOW-873 and the BOW-897 batch use cases). The
