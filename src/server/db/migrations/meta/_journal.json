@@ -176,13 +176,6 @@
       "when": 1793643560179,
       "tag": "0024_bow_873_unassigned_collection",
       "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "7",
-      "when": 1793645226333,
-      "tag": "0025_bow_866_media_parse_job",
-      "breakpoints": true
     }
   ]
 }
