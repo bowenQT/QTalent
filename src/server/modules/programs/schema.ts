@@ -61,14 +61,14 @@ export const evaluationNodes = pgTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     kind: text('kind', {
-      enum: ['program_cohort', 'interview', 'defense'],
+      enum: ['program_cohort', 'interview', 'defense', 'review'],
     }).notNull(),
     cohortId: text('cohort_id').references(() => cohorts.id),
   },
   (t) => [
     check(
       'programs_node_kind',
-      sql`${t.kind} in ('program_cohort','interview','defense')`,
+      sql`${t.kind} in ('program_cohort','interview','defense','review')`,
     ),
     check('programs_node_name', sql`length(trim(${t.name})) > 0`),
     check(
