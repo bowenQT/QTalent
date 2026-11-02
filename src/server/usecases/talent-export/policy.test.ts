@@ -242,6 +242,7 @@ it('a mixed HR/evaluator account cannot use its evaluator relationship to expand
     dimensionId: 'prof',
     reason: 'score_gap',
     status: 'open',
+    revision: 1,
     saveId: null,
     confirmationId: null,
     counterpartConfirmationId: null,
