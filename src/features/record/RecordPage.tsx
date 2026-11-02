@@ -188,7 +188,7 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
   );
   useEffect(() => {
     if (batch.receipt) dispatch({ type: 'batch', batch: batch.receipt });
-  }, [batch.receipt]);
+  }, [batch.receipt, dispatch]);
   useEffect(() => {
     if (!listening) return;
     const mapped: Connection =
@@ -198,7 +198,7 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
           ? 'gone'
           : 'connected';
     dispatch({ type: 'connection', connection: mapped });
-  }, [batch.connection, listening]);
+  }, [batch.connection, listening, dispatch]);
 
   // 批次 id 变化时通知页面换 URL
   const reportedBatch = useRef<string | null>(entry?.batchId ?? null);
@@ -312,7 +312,7 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
     return () => {
       live = false;
     };
-  }, [anchorKey, loadAnchors]);
+  }, [anchorKey, loadAnchors, setAnchorResult]);
   const anchorLoad: AnchorLoad =
     anchorKey && anchorResult?.key === anchorKey
       ? anchorResult.load

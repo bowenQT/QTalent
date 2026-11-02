@@ -117,11 +117,11 @@ it('runs changes, timers and toasts only while live; clears timers when the sess
     const cancelled = vi.fn();
     scope.timeout(cancelled, 100)();
     const dismiss = vi.fn();
-    const show = vi.fn((_message: string) => dismiss);
+    const show = vi.fn((message: string) => (void message, dismiss));
     scope.toast(show)('提示')();
     expect(dismiss).toHaveBeenCalledTimes(1);
     const open = vi.fn();
-    scope.toast(vi.fn((_message: string) => open))('还开着');
+    scope.toast(vi.fn((message: string) => (void message, open)))('还开着');
     vi.advanceTimersByTime(100);
     expect(fired).toHaveBeenCalledTimes(1);
     expect(cancelled).not.toHaveBeenCalled();
