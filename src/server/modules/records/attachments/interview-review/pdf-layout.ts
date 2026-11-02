@@ -206,12 +206,16 @@ export function readCircles(
     else if (key === 'ML' && n >= 1) state.miterLimit = n;
     else state.supported = false;
   };
-  // Line width on the page: the widest the current transform can stretch it.
+  // Line width on the page: the widest the current transform can stretch it, which is the
+  // largest singular value of its linear part (column lengths understate it under shear).
   const pageLineWidth = () => {
-    const m = multiply(viewport, state.matrix);
-    return (
-      state.lineWidth * Math.max(Math.hypot(m[0], m[1]), Math.hypot(m[2], m[3]))
+    const [a, b, c, d] = multiply(viewport, state.matrix);
+    const sum = a * a + b * b + c * c + d * d;
+    const det = a * d - b * c;
+    const stretch = Math.sqrt(
+      (sum + Math.sqrt(Math.max(0, sum * sum - 4 * det * det))) / 2,
     );
+    return state.lineWidth * stretch;
   };
   const strokes = new Set([
     OPS.stroke,

@@ -162,6 +162,8 @@ function syntheticReview(
     shift?: number;
     wrap?: [string, string];
     result?: false;
+    /** Leave this first-row option without its own circle. */
+    omit?: string;
   } = {},
 ): Uint8Array {
   const rows = dimensionNames.map((label, index) =>
@@ -178,14 +180,20 @@ function syntheticReview(
               ),
           ),
         ].join('\n')
-      : index === 0 && (change.shift || change.wrap)
+      : index === 0 && (change.shift || change.wrap || change.omit)
         ? [
             change.wrap?.[0] ?? '',
             text(label, 40, 303),
             ...['1', '2', '3', '4', '5'].map(
               (value, i) =>
                 text(value, 215 + i * 61, 303) +
-                circle(205 + i * 61 + (change.shift ?? 0), 300, value === '2'),
+                (value === change.omit
+                  ? ''
+                  : circle(
+                      205 + i * 61 + (change.shift ?? 0),
+                      300,
+                      value === '2',
+                    )),
             ),
             change.wrap?.[1] ?? '',
           ].join('\n')
@@ -1097,8 +1105,8 @@ describe('BOW-900 uncertain layout fails closed (review round 1)', () => {
 
 describe('BOW-900 parser hardening before upload wiring', () => {
   // The selected '2' of the first dimension is centred at (266, 300) from the top.
-  const ring = (prefix: string, x = 266) =>
-    `q ${prefix} ${circle(x, 300, true).replace(' rg', ' RG').replace(/f$/, 'S')} Q`;
+  const ring = (prefix: string, radius = 5) =>
+    `q ${prefix} ${circle(266, 300, true, radius).replace(' rg', ' RG').replace(/f$/, 'S')} Q`;
   const firstRow = async (change: Parameters<typeof syntheticReview>[1]) => {
     const result = await parseInterviewReviewPdf(
       syntheticReview(templates[0], change),
@@ -1142,12 +1150,36 @@ describe('BOW-900 parser hardening before upload wiring', () => {
     }),
   );
 
+  it('does not read a selection drawn as an invisible dash pattern', async () =>
+    firstRow({ missing: true, cover: ring('[0 100] 0 d') }));
+
+  // The option's own grey circle is left out, so only the blue ring is there to read.
   it.each([
-    ['an invisible dash pattern', '[0 100] 0 d'],
-    ['a thick ring', '4 w'],
-  ])('does not read a selection drawn as %s', async (_, prefix) =>
-    firstRow({ missing: true, cover: ring(prefix) }),
+    ['a thick ring', ring('4 w')],
+    // Scaled twice about the circle's centre: 1.5 units is a 3 pt ring.
+    ['a scaled thick ring', ring('2 0 0 2 -266 -542 cm 1.5 w', 2.5)],
+    // Sheared about the centre: column lengths give 1.68 pt, the real width is 2.25 pt.
+    ['a sheared thick ring', ring('1 0.5 0.5 1 -271 -133 cm 1.5 w', 10 / 3)],
+  ])('does not accept %s as the only paint of an option', async (_, cover) =>
+    firstRow({ omit: '2', cover }),
   );
+
+  it('does not fill a missing field from a label outside the field block', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        result: false,
+        comment: [
+          '补充说明：以下为转述，尚未确认。',
+          '面试结果：建议复试。',
+          '综合评价：第一行。',
+          '最后一行。',
+        ],
+      }),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).metadata.interviewResult).toBeNull();
+  });
 
   it('sends a blue ring covered by a later grey ring on the same path to manual review', async () =>
     firstRow({

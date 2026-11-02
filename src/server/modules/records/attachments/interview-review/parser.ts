@@ -432,20 +432,28 @@ function parseSection(
           .length > 1,
     ),
   );
-  // The supported form prints the interview fields before the free-text comment. A field label
-  // after the comment starts may be the comment's own text: that field and the comment are
-  // both uncertain, even when the label is seen only once.
+  // The supported form prints the interview fields in one block before the first score row
+  // and the free-text comment. A field label outside that block may be someone's paraphrase:
+  // it never fills the field, even when the formal field is missing and the label is seen once.
+  // One inside the comment also leaves the comment's own boundary uncertain.
   const commentAt = lines.findIndex((line) => labelLine(line, '综合评价'));
-  const late =
-    commentAt < 0
-      ? []
-      : fieldGroups.filter(
-          (group) =>
-            readFieldLabels.some((label) => group.includes(label)) &&
-            lines
-              .slice(commentAt + 1)
-              .some((line) => group.some((label) => labelLine(line, label))),
-        );
+  const scoresAt = lines.findIndex((line) =>
+    template.dimensions.some((name) => rowLabel(line, name)),
+  );
+  const blockEnd = Math.min(
+    ...[commentAt, scoresAt].filter((index) => index >= 0),
+    lines.length,
+  );
+  const labelledAfter = (start: number) =>
+    fieldGroups.filter(
+      (group) =>
+        readFieldLabels.some((label) => group.includes(label)) &&
+        lines
+          .slice(start)
+          .some((line) => group.some((label) => labelLine(line, label))),
+    );
+  const late = commentAt < 0 ? [] : labelledAfter(commentAt + 1);
+  for (const group of labelledAfter(blockEnd)) repeated.add(group);
   for (const group of late) repeated.add(group);
   const uncertain = (label: string) =>
     [...repeated].some((group) => group.includes(label));
