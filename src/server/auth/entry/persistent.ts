@@ -42,13 +42,25 @@ export function mcpTokenDigest(token: string): string {
     throw new EntryIdentityError('unauthenticated');
   return digest('qtalent:entry:mcp-token:v1', [token]);
 }
+/** Binds a credential to the account, person and binding generation at issue
+ * time. A rebind advances the generation, so A→B→A does not revive it. */
 export function entryAccountBindingDigest(
   accountId: string,
   personId: string,
+  generation: number,
 ): string {
-  if (!key.safeParse(accountId).success || !key.safeParse(personId).success)
+  if (
+    !key.safeParse(accountId).success ||
+    !key.safeParse(personId).success ||
+    !Number.isSafeInteger(generation) ||
+    generation < 1
+  )
     throw new EntryIdentityError('unauthenticated');
-  return digest('qtalent:entry:directory-binding:v1', [accountId, personId]);
+  return digest('qtalent:entry:directory-binding:v2', [
+    accountId,
+    personId,
+    String(generation),
+  ]);
 }
 function reject(): never {
   throw new EntryIdentityError('unauthenticated');
@@ -57,12 +69,14 @@ const common = {
   accountId: accountBindings.accountId,
   personId: accountBindings.personId,
   isSystemAdmin: accountBindings.isSystemAdmin,
+  generation: accountBindings.generation,
 };
 type BoundRow = {
   id: string;
   accountId: string;
   personId: string;
   isSystemAdmin: boolean;
+  generation: number;
   accountBindingDigest: string;
   revision: number;
   expiresAt: Date;
@@ -86,7 +100,7 @@ function descriptor(
     expiry <= at ||
     (row.revokedAt !== null && row.revokedAt.getTime() <= at) ||
     row.accountBindingDigest !==
-      entryAccountBindingDigest(row.accountId, row.personId)
+      entryAccountBindingDigest(row.accountId, row.personId, row.generation)
   )
     reject();
   return {
