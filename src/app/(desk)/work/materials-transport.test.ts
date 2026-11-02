@@ -48,7 +48,18 @@ describe('materialsTransport', () => {
   });
 
   it('posts the completion with the upload it completes', async () => {
-    const fetcher = respond({ status: 'staged', uploadId: 'u/1' });
+    const fetcher = respond({
+      status: 'success',
+      result: {
+        status: 'staged',
+        uploadId: 'u/1',
+        recordCollectionId: 'collection-1',
+        originalId: 'original-1',
+        originalVersionId: 'version-1',
+        source: null,
+        revision: 2,
+      },
+    });
     const input = {
       uploadId: 'u/1',
       receiptRef: 'hash',
@@ -100,6 +111,10 @@ describe('materialsTransport', () => {
     expect(
       (await materialsTransport.openCollection({ operationId: 'op-0' })).status,
     ).toBe('node_ambiguous');
+    respond({ status: 'validation_error', fieldErrors: {}, input: {} });
+    expect(
+      (await materialsTransport.openCollection({ operationId: 'op-0' })).status,
+    ).toBe('failed');
     respond({ status: 'forbidden', message: '只有 HR 和导师可以上传' });
     expect(
       await materialsTransport.openCollection({ operationId: 'op-0' }),

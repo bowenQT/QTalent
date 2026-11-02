@@ -1,8 +1,5 @@
 import { z } from 'zod';
-import {
-  completeUploadResultSchema,
-  materialRequestUploadResultSchema,
-} from '@/contracts/media';
+import { materialRequestUploadResultSchema } from '@/contracts/media';
 import type { MaterialBatchSubmitResult } from '@/contracts/materials';
 import { startRecordArrangeAction } from '@/server/actions/record-arrange';
 import type {
@@ -21,6 +18,10 @@ export const MATERIAL_ROUTES = {
 };
 
 const text = z.string().min(1);
+const INTERRUPTED = '上传中断，可以重试';
+const validationSchema = z.object({ status: z.literal('validation_error') });
+const failureSchema = z.object({ status: text, message: text });
+
 const collectionResponseSchema = z.union([
   z.object({
     status: z.literal('success'),
@@ -30,7 +31,8 @@ const collectionResponseSchema = z.union([
   z.object({
     status: z.enum(['default_node_missing', 'default_node_ambiguous']),
   }),
-  z.object({ status: text, message: text }),
+  validationSchema,
+  failureSchema,
 ]);
 
 function toCollectionResult(
@@ -50,28 +52,29 @@ function toCollectionResult(
     return { status: 'node_ambiguous' };
   return {
     status: 'failed',
-    message: 'message' in result ? result.message : '',
+    message: 'message' in result ? result.message : INTERRUPTED,
   };
 }
 
+/** Success carries the staged upload; only its uploadId is used, never a jobId. */
 const completeResponseSchema = z.union([
-  z.object({ status: z.literal('staged'), uploadId: text }),
-  completeUploadResultSchema,
+  z.object({
+    status: z.literal('success'),
+    result: z.object({ uploadId: text }),
+  }),
+  validationSchema,
+  failureSchema,
 ]);
 
 function toCompleteResult(
   result: z.infer<typeof completeResponseSchema>,
 ): CompleteResult {
-  switch (result.status) {
-    case 'staged':
-      return { status: 'staged', uploadId: result.uploadId };
-    case 'success':
-      return { status: 'staged', uploadId: result.result.uploadId };
-    case 'validation_error':
-      return { status: 'failed', message: '上传中断，可以重试' };
-    default:
-      return { status: 'failed', message: result.message };
-  }
+  if ('result' in result)
+    return { status: 'staged', uploadId: result.result.uploadId };
+  return {
+    status: 'failed',
+    message: 'message' in result ? result.message : INTERRUPTED,
+  };
 }
 
 /** POSTs JSON and parses the answer; a sign-in redirect or unknown body is a transport failure. */
