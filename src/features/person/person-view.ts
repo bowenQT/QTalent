@@ -102,9 +102,10 @@ export function spectrumGroups(
             state: 'insufficient',
             missing: dimension.missing ?? '',
           };
-        const scores = profile.scores.filter(
-          (score) => score.dimensionId === dimension.id,
-        );
+        // 原型 `store.scoresOf` 按事件日期倒序，展开时列最近的几条。
+        const scores = profile.scores
+          .filter((score) => score.dimensionId === dimension.id)
+          .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn));
         const bins: Partial<
           Record<ScoreValue, { earlier: number; recent: number }>
         > = {};

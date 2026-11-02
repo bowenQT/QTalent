@@ -189,6 +189,21 @@ describe('spectrumGroups', () => {
       missing: '待补带动他人的事件',
     });
   });
+  it('lists the newest events first and still bins every score', () => {
+    const latest = score('m6', 'mot', 3, '2026-08-20');
+    const [mot] = spectrumGroups(
+      { ...profile, scores: [...profile.scores, latest] },
+      null,
+      '2026-09-04',
+    )[1].dimensions;
+    if (mot.state !== 'scored') throw new Error('scored');
+    expect(mot.events).toHaveLength(6);
+    expect(mot.events[0]).toMatchObject({ value: 3, dateLabel: '08-20' });
+    expect(mot.bins).toEqual({
+      5: { earlier: 6, recent: 0 },
+      3: { earlier: 0, recent: 1 },
+    });
+  });
   it('drops groups without dimensions', () => {
     expect(
       spectrumGroups(
