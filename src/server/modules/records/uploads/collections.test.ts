@@ -226,7 +226,10 @@ it('requires current write permission and canonical mapping for EVERY saved even
     store: f.options.store,
     now: f.options.now,
     async canWriteTarget(_accountId, target) {
-      return target.kind === 'people' || allowed.has(target.eventId);
+      return (
+        target.kind === 'people' ||
+        (target.kind === 'event' && allowed.has(target.eventId))
+      );
     },
     async loadBinding() {
       return binding;

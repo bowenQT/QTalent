@@ -1,4 +1,4 @@
-import type { UploadRequest } from '../../../../contracts/media';
+import type { MaterialUploadRequest } from '../../../../contracts/media';
 import type {
   UploadStore,
   UploadIntent,
@@ -13,10 +13,11 @@ export type ValidatedUpload = {
   recordCollectionId: string;
   originalId: string;
   originalVersionId: string;
-  jobId: string;
-  purpose: UploadRequest['purpose'];
+  /** Null while an unassigned material is staged for a batch to claim. */
+  jobId: string | null;
+  purpose: MaterialUploadRequest['purpose'];
   filename: string;
-  target: UploadRequest['target'];
+  target: MaterialUploadRequest['target'];
   accountId: string;
   quotaScope: string;
   /** Server-worker metadata only; never serialize the private object key to UI. */
@@ -53,7 +54,7 @@ export function validatedUploadFromFacts(
     recordCollectionId: intent.recordCollectionId,
     originalId: completed.originalId,
     originalVersionId: completed.originalVersionId,
-    jobId: completed.jobId,
+    jobId: 'jobId' in completed ? completed.jobId : null,
     purpose: intent.request.purpose,
     filename: intent.request.filename,
     accountId: intent.accountId,

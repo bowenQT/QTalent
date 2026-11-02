@@ -30,6 +30,13 @@ const environmentSchema = z
       .string()
       .regex(/^[^\s]+$/)
       .optional(),
+    QINIU_KODO_ENDPOINT: z.string().optional(),
+    QINIU_KODO_S3_REGION: z.string().optional(),
+    QINIU_KODO_UPLOAD_ENDPOINT: z.string().optional(),
+    QINIU_KODO_MANAGEMENT_ENDPOINT: z.string().optional(),
+    QINIU_KODO_ACCESS_KEY: z.string().optional(),
+    QINIU_KODO_SECRET_KEY: z.string().optional(),
+    QINIU_KODO_BUCKET: z.string().optional(),
   })
   .superRefine((value, context) => {
     if (

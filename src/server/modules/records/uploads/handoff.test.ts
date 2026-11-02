@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { fixture } from '../../../../../tests/fixtures/upload-fake';
+import { dispatched, fixture } from '../../../../../tests/fixtures/upload-fake';
 import { createUploadService } from './service';
 import { readValidatedUpload } from './handoff';
 
@@ -25,7 +25,7 @@ it('hands a committed verified original version to a worker with no fabricated f
     uploadId: result.uploadId,
     originalId: result.originalId,
     originalVersionId: result.originalVersionId,
-    jobId: result.jobId,
+    jobId: dispatched(result).jobId,
     purpose: 'attachment',
     filename: 'demo.txt',
     accountId: 'account',

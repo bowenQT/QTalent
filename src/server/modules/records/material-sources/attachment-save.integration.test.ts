@@ -19,7 +19,7 @@ import { createUploadService } from '../uploads/service';
 import { readValidatedUpload } from '../uploads/handoff';
 import { readValidatedUploadInTransaction } from '../uploads/handoff-transaction';
 import { uploadObjects } from '../uploads/schema';
-import { fixture } from '../../../../../tests/fixtures/upload-fake';
+import { dispatched, fixture } from '../../../../../tests/fixtures/upload-fake';
 import {
   materialParses,
   fragments,
@@ -194,7 +194,7 @@ async function setup() {
     runAttachmentParse(
       createJobStore(db),
       ports,
-      { jobId: completed.jobId, attempt: 1 },
+      { jobId: dispatched(completed).jobId, attempt: 1 },
       {
         now: () => now,
         limits: {
@@ -229,7 +229,7 @@ async function setup() {
         await db
           .select()
           .from(jobSnapshots)
-          .where(eq(jobSnapshots.jobId, completed.jobId))
+          .where(eq(jobSnapshots.jobId, dispatched(completed).jobId))
       )[0],
     parses: () =>
       db
@@ -341,12 +341,12 @@ it.each(['revoked', 'binding', 'cancelled', 'attempt'] as const)(
         await f.db
           .update(jobSnapshots)
           .set({ cancelRequestedAt: now })
-          .where(eq(jobSnapshots.jobId, f.completed.jobId));
+          .where(eq(jobSnapshots.jobId, dispatched(f.completed).jobId));
       if (mode === 'attempt')
         await f.db
           .update(jobSnapshots)
           .set({ attempt: 2 })
-          .where(eq(jobSnapshots.jobId, f.completed.jobId));
+          .where(eq(jobSnapshots.jobId, dispatched(f.completed).jobId));
     });
     expect((await f.run()).status).toBe(
       mode === 'revoked'

@@ -105,3 +105,15 @@ worker使用上述`readValidatedUpload`，不直接读写uploads内部表，不�
 `readValidatedUploadInTransaction(tx, reference)` 复用现 `readUploadCollectionMembers` 的 quota 锁和 Read Committed 要求。初查只用于定位锁；可接受的 intent/object/completion 均在取得锁后重读。它与 standalone `readValidatedUpload` 共用同一事实校验，返回真实 recordCollectionId，不从 quota 标签、目标人或 creator 推导集合。调用方保持此 tx 到当前授权、saveParse、enqueue 和 job fence 完成，不能再包装一层独立 transaction。
 
 该 reader 不是处理许可，历史 released 原件仍是归档事实；当前成员有效性、全体主体/敏感类型、节点权限由调用方既有策略在同 tx 重验，unknown 仍关闭。打开字节前继续 standalone getter 对整份绑定（含 collection）重核，私有对象 key 不进入公开 DTO。此共享接线没有新增表或正式迁移，不代表926生产saveParse/845媒体producer已装配。
+
+## 材料暂存入口
+
+`/api/record/uploads/collections`、`/api/record/uploads`、`/api/record/uploads/complete` 三个同源 POST 由 `queries/material-upload-runtime.ts` 组合，只接受 `target.kind = 'unassigned'`。
+
+1. 建暂存集合：请求只带 `{ operationId }`。服务端用 `resolveDefaultIntakeNode`（`default-node.ts`，经 records 出口供批次侧复用）选默认节点：投递人在节点上有当前有效的评价关系，且 `canWriteArrange` 允许写，按业务时钟判断；多个节点取关系 `validFrom` 最大的那个；并列返回 `default_node_ambiguous`，一个都没有返回 `default_node_missing`（均为 409）。成功返回 `{ recordCollectionId, evaluationNodeId, expiresAt }`。
+2. 取直传凭证：`target` 原样回传第 1 步的 `evaluationNodeId`，与集合上的节点不一致即拒绝。凭证的 `method` 为 `resumable_v2`，即 Kodo v2 分片上传；`uploadEndpoint` 是 v2 接口的源地址，浏览器依次调用 `POST {uploadEndpoint}/buckets/{bucket}/objects/{urlsafe-base64(key)}/uploads`（init）、`PUT …/uploads/{uploadId}/{partNumber}`（分片）、`POST …/uploads/{uploadId}`（complete，带 `parts` 与 `mimeType`）；bucket 取自上传 token 的 policy scope。
+3. 确认完成：按容器嗅探校验内容。支持格式在媒体格式之外加 mp4、png、jpg/jpeg（`material-formats.ts`）。
+
+未分配材料完成后只归档原件、不派发任务：store 对 unassigned 目标不调用 dispatch，完成结果是 `uploadCompletedSchema` 的 `{ status: 'staged', uploadId, … }` 变体，不带 jobId；`ValidatedUpload.jobId` 为 null。批次侧按 uploadId 接收已暂存的上传。people/event 目标仍只走带 jobId 的原变体，store 校验已存完成结果与目标类型一致。
+
+Kodo 配置经 `env.ts` 的可选键读取：`QINIU_KODO_ENDPOINT`、`QINIU_KODO_UPLOAD_ENDPOINT`、`QINIU_KODO_MANAGEMENT_ENDPOINT`、`QINIU_KODO_ACCESS_KEY`、`QINIU_KODO_SECRET_KEY`、`QINIU_KODO_BUCKET` 必填，`QINIU_KODO_S3_REGION` 可省略。缺任一必填键时，测试环境（`APP_ENV=test` 且非生产构建）改用 `queries/test-kodo.ts` 的内存 v2 替身，并注册 `/api/test/kodo/...`，上传接口与完成校验共用同一份对象存储；其他环境三个入口返回 503，其他流程不受影响。生产构建和非测试环境下该端点返回 404。
