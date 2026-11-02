@@ -162,8 +162,22 @@ describe('sample server', () => {
     });
     expect(undone).toMatchObject({
       status: 'success',
-      result: { inputRestoration: 'unavailable', originalInput: null },
+      result: {
+        draftRestoration: {
+          status: 'available',
+          draftId: draft.draftId,
+          draftRevision: draft.revision,
+        },
+        inputRestoration: 'unavailable',
+        originalInput: null,
+      },
     });
+    expect(
+      await s.actions.save({
+        ...saveInput(draft.draftId, draft.revision),
+        operation_id: 'op-again',
+      }),
+    ).toMatchObject({ status: 'success' });
   });
 
   it('rejects a stale revision and a missing draft', async () => {

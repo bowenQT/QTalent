@@ -22,6 +22,17 @@ import type {
 
 type SaveReceipt = Extract<RecordSaveResult, { status: 'success' }>['result'];
 type UndoReceipt = Extract<RecordUndoResult, { status: 'success' }>['result'];
+// Stored only by the fresh native undo transaction; never part of a public DTO.
+type StoredUndoReceipt = UndoReceipt & {
+  cancelledConfirmationWork?: {
+    id: string;
+    personId: string;
+    evaluationNodeId: string;
+    assignedRelationId: string;
+    assignedEvaluatorId: string;
+    cancelledRevision: number;
+  }[];
+};
 
 /** Trusted producer facts have no synthetic production defaults. No full draft set is duplicated here. */
 export const recordDraftBatches = pgTable(
@@ -138,7 +149,9 @@ export const recordOperations = pgTable(
       .notNull()
       .references(() => recordSaves.saveId),
     draftSnapshot: jsonb('draft_snapshot').$type<RecordBatchDraft>().notNull(),
-    receipt: jsonb('receipt').$type<SaveReceipt | UndoReceipt>().notNull(),
+    receipt: jsonb('receipt')
+      .$type<SaveReceipt | StoredUndoReceipt>()
+      .notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
   },
   (t) => [

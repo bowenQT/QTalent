@@ -40,7 +40,7 @@ type Task = {
  * scene asks for. Every answer follows the BOW-844 / BOW-897 record contract; the job
  * snapshots are checked against `recordJobSchema` before they leave.
  */
-type Saved = { undoUntil: number; input: RecordInput };
+type Saved = { undoUntil: number; input: RecordInput; draftId: string };
 type Stored = {
   tasks: [string, Task][];
   drafts: [string, RecordDraft][];
@@ -239,6 +239,7 @@ export function sampleServer({
       saves.set(saveId, {
         undoUntil: savedAt + RECORD_UNDO_WINDOW_MS,
         input: draft.originalInput,
+        draftId: draft.draftId,
       });
       return {
         status: 'success',
@@ -269,6 +270,7 @@ export function sampleServer({
           input: { operation_id: 'sample', saveId },
         };
       saves.delete(saveId);
+      const draft = drafts.get(saved.draftId);
       return {
         status: 'success',
         replayed: false,
@@ -277,6 +279,15 @@ export function sampleServer({
           withdrawnEvents: [],
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
+          // 照 846（#317）：回执给出撤销后再保存要用的草稿版本。样张保存不推进版本，
+          // 所以就是草稿当前的版本；真实服务端保存、撤销各加一
+          draftRestoration: draft
+            ? {
+                status: 'available',
+                draftId: draft.draftId,
+                draftRevision: draft.revision,
+              }
+            : { status: 'refresh_required' },
           // 照 846（#289）：撤销回执不带原输入，页面用自己保存时的原话回到待确认
           inputRestoration: 'unavailable',
           originalInput: null,
