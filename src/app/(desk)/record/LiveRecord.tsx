@@ -8,28 +8,25 @@ import type {
 } from '@/features/record/types';
 import { startRecordArrangeAction } from '@/server/actions/record-arrange';
 import { undoRecordAction } from '@/server/actions/record';
-import {
-  readRecordAnchorsAction,
-  readRecordBatchAction,
-  readRecordSourceAction,
-  saveRecordBatchAction,
-} from '@/server/actions/record-batch';
+import { saveRecordBatchAction } from '@/server/actions/record-batch';
 import { resolveRecordNode } from './ports';
+import { readAnchors, readBatch, readSource } from './reads';
 
+// 写操作走 Server Action；读取走 GET（reads.ts），不和撤销排同一个队列
 const actions: RecordActions = {
   resolveNode: resolveRecordNode,
   submit: startRecordArrangeAction,
-  readBatch: readRecordBatchAction,
+  readBatch,
   save: saveRecordBatchAction,
   undo: undoRecordAction,
-  loadSource: readRecordSourceAction,
+  loadSource: readSource,
 };
 
 const levels = [1, 2, 3, 4, 5] as const;
 
 /** 锚点是规则内容，人人相同：按草稿冻结的版本读，再按人展开成页面要的形状。 */
 export const loadAnchors: LoadAnchors = async ({ personIds, ruleVersions }) => {
-  const rows = await readRecordAnchorsAction({ ruleVersions });
+  const rows = await readAnchors(ruleVersions);
   const map: AnchorMap = {};
   for (const ruleVersion of ruleVersions) {
     const byDimension = new Map<string, string[]>();

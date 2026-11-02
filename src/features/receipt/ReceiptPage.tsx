@@ -127,9 +127,17 @@ export function ReceiptPage({
   }, [running, reload]);
 
   const drafts = receipt.draftSet?.drafts ?? [];
-
-  const mineDrafts = drafts.filter((d) => view.confirmers[d.draftId]?.mine);
-  const others = drafts.filter((d) => !view.confirmers[d.draftId]?.mine);
+  // 本页刚撤销的事是查看人自己确认过的；重读失败、快照里没有确认人时也仍归自己
+  const mineId = (id: string) =>
+    Boolean(view.confirmers[id]?.mine) || id in undone;
+  const pending = [
+    ...drafts,
+    ...Object.values(undone).filter(
+      (u) => !drafts.some((d) => d.draftId === u.draftId),
+    ),
+  ];
+  const mineDrafts = pending.filter((d) => mineId(d.draftId));
+  const others = pending.filter((d) => !mineId(d.draftId));
   const raters = [
     ...new Set(
       others.map((d) => view.confirmers[d.draftId]?.name).filter(Boolean),
@@ -212,6 +220,8 @@ export function ReceiptPage({
       isEdited(draft, values),
     );
     const remaining = msUntil(until);
+    // 一次撤销只用一个 operation_id：第一次其实已生效时，重试按同一操作返回结果
+    const operationId = newId();
     if (remaining <= 0) {
       toast.show(message);
       return;
@@ -225,14 +235,25 @@ export function ReceiptPage({
           toast.show(copy.toast.undoLate);
           return;
         }
-        const result = await actions.undo({ operation_id: newId(), saveId });
+        const result = await actions.undo({
+          operation_id: operationId,
+          saveId,
+        });
         if (result.status !== 'success') throw new Error(result.status);
         setConfirmed((all) => {
           const next = { ...all };
           delete next[draft.draftId];
           return next;
         });
-        setUndone((all) => ({ ...all, [draft.draftId]: draft }));
+        // 撤销推进了这件事的版本：按回执给的新版本再确认，重读失败也不会撞上冲突
+        const restored = result.result.draftRestoration;
+        setUndone((all) => ({
+          ...all,
+          [draft.draftId]:
+            restored.status === 'available'
+              ? { ...draft, revision: restored.draftRevision }
+              : draft,
+        }));
         await reload();
         focusCard(draft.draftId);
       },
@@ -247,7 +268,7 @@ export function ReceiptPage({
       ? undefined
       : (drafts.find((d) => d.draftId === id) ?? undone[id]);
     if (draft || done) {
-      const mine = draft ? Boolean(view.confirmers[id]?.mine) : true;
+      const mine = draft ? mineId(id) : true;
       return (
         <ReceiptItem
           key={id}
@@ -301,10 +322,10 @@ export function ReceiptPage({
     (id) =>
       drafts.some((d) => d.draftId === id) ||
       confirmed[id] ||
+      undone[id] ||
       receipt.confirmedDrafts.some((d) => d.draftId === id),
   );
-  const isMine = (id: string) =>
-    Boolean(confirmed[id]) || Boolean(view.confirmers[id]?.mine);
+  const isMine = (id: string) => Boolean(confirmed[id]) || mineId(id);
   const anyMine = mineDrafts.length > 0 || mineConfirmed > 0;
   const files = receipt.counts.files;
   const verifyOpen = receipt.counts.reviewItems;

@@ -53,6 +53,7 @@ export function openReview(
     dimensionId: 'prof',
     reason,
     status: 'open',
+    revision: 1,
     saveId: null,
     confirmationId: null,
     counterpartConfirmationId: null,
