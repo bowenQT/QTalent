@@ -1,425 +1,9 @@
 {
-  "id": "f9a2bb5a-1843-4377-888c-29ed27d3064d",
+  "id": "38045610-2685-4003-87e3-2f81f9ef3354",
   "prevId": "31705b65-2cee-48c6-bf43-72e4a66c8a29",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.agentapi_conversations": {
-      "name": "agentapi_conversations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "binding_id": {
-          "name": "binding_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "person_id": {
-          "name": "person_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_revision": {
-          "name": "credential_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "authorization_digest": {
-          "name": "authorization_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider_session_id": {
-          "name": "provider_session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cleanup": {
-          "name": "cleanup",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "agentapi_conversations_binding_id_entry_agent_api_bindings_id_fk": {
-          "name": "agentapi_conversations_binding_id_entry_agent_api_bindings_id_fk",
-          "tableFrom": "agentapi_conversations",
-          "tableTo": "entry_agent_api_bindings",
-          "columnsFrom": [
-            "binding_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "agentapi_conversations_provider_session_id_unique": {
-          "name": "agentapi_conversations_provider_session_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "provider_session_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "agentapi_conversation_identity": {
-          "name": "agentapi_conversation_identity",
-          "value": "length(\"agentapi_conversations\".\"id\") between 1 and 200\n        and length(\"agentapi_conversations\".\"account_id\") > 0 and length(\"agentapi_conversations\".\"person_id\") > 0\n        and length(\"agentapi_conversations\".\"credential_id\") > 0 and \"agentapi_conversations\".\"credential_revision\" > 0\n        and \"agentapi_conversations\".\"authorization_digest\" ~ '^[a-f0-9]{64}$'"
-        },
-        "agentapi_conversation_provider": {
-          "name": "agentapi_conversation_provider",
-          "value": "\"agentapi_conversations\".\"provider_session_id\" is null or length(\"agentapi_conversations\".\"provider_session_id\") > 0"
-        },
-        "agentapi_conversation_state": {
-          "name": "agentapi_conversation_state",
-          "value": "\"agentapi_conversations\".\"state\" in ('creating', 'active', 'invalidated', 'outcome_unknown', 'failed', 'cancelled')\n        and (\"agentapi_conversations\".\"state\" <> 'active' or \"agentapi_conversations\".\"provider_session_id\" is not null)"
-        },
-        "agentapi_conversation_cleanup": {
-          "name": "agentapi_conversation_cleanup",
-          "value": "\"agentapi_conversations\".\"cleanup\" in ('none', 'reserved', 'verified', 'unknown')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.agentapi_tool_events": {
-      "name": "agentapi_tool_events",
-      "schema": "",
-      "columns": {
-        "conversation_id": {
-          "name": "conversation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "operation_id": {
-          "name": "operation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_operation_id": {
-          "name": "business_operation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "args": {
-          "name": "args",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "success_payload": {
-          "name": "success_payload",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "result_event_id": {
-          "name": "result_event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "agentapi_tool_turn": {
-          "name": "agentapi_tool_turn",
-          "tableFrom": "agentapi_tool_events",
-          "tableTo": "agentapi_turns",
-          "columnsFrom": [
-            "conversation_id",
-            "operation_id"
-          ],
-          "columnsTo": [
-            "conversation_id",
-            "operation_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "agentapi_tool_events_conversation_id_event_id_pk": {
-          "name": "agentapi_tool_events_conversation_id_event_id_pk",
-          "columns": [
-            "conversation_id",
-            "event_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "agentapi_tool_events_business_operation_id_unique": {
-          "name": "agentapi_tool_events_business_operation_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "business_operation_id"
-          ]
-        },
-        "agentapi_tool_result_event": {
-          "name": "agentapi_tool_result_event",
-          "nullsNotDistinct": false,
-          "columns": [
-            "conversation_id",
-            "result_event_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "agentapi_tool_identity": {
-          "name": "agentapi_tool_identity",
-          "value": "length(\"agentapi_tool_events\".\"event_id\") > 0 and \"agentapi_tool_events\".\"business_operation_id\" ~ '^[a-f0-9]{64}$'\n        and (\"agentapi_tool_events\".\"result_event_id\" is null or length(\"agentapi_tool_events\".\"result_event_id\") > 0)"
-        },
-        "agentapi_tool_state": {
-          "name": "agentapi_tool_state",
-          "value": "\"agentapi_tool_events\".\"state\" in ('sending', 'sent', 'outcome_unknown')"
-        },
-        "agentapi_tool_shape": {
-          "name": "agentapi_tool_shape",
-          "value": "(jsonb_typeof(\"agentapi_tool_events\".\"args\") = 'object'\n        and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\") = 'object'\n        and case \"agentapi_tool_events\".\"name\"\n          when 'submit_material_batch' then\n            jsonb_typeof(\"agentapi_tool_events\".\"args\"->'operationId') = 'string'\n            and length(\"agentapi_tool_events\".\"args\"->>'operationId') > 0\n            and jsonb_typeof(\"agentapi_tool_events\".\"args\"->'evaluationNodeId') = 'string'\n            and length(\"agentapi_tool_events\".\"args\"->>'evaluationNodeId') > 0\n            and jsonb_typeof(\"agentapi_tool_events\".\"args\"->'personIds') = 'array'\n            and jsonb_typeof(\"agentapi_tool_events\".\"args\"->'projectId') in ('string', 'null')\n            and jsonb_typeof(\"agentapi_tool_events\".\"args\"->'text') = 'string'\n            and jsonb_typeof(\"agentapi_tool_events\".\"args\"->'files') = 'array'\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'batchId') = 'string'\n            and length(\"agentapi_tool_events\".\"success_payload\"->>'batchId') > 0\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'revision') = 'number'\n            and (\"agentapi_tool_events\".\"success_payload\"->>'revision') ~ '^[1-9][0-9]*$'\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'evaluationNodeId') = 'string'\n            and \"agentapi_tool_events\".\"success_payload\"->>'evaluationNodeId' = \"agentapi_tool_events\".\"args\"->>'evaluationNodeId'\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'personIds') = 'array'\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'files') = 'array'\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'counts') = 'object'\n          when 'person_brief' then\n            jsonb_typeof(\"agentapi_tool_events\".\"args\"->'id') = 'string'\n            and length(\"agentapi_tool_events\".\"args\"->>'id') > 0\n            and \"agentapi_tool_events\".\"success_payload\"->>'role' in ('manager', 'hr', 'mentor')\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'person') = 'object'\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'person'->'id') = 'string'\n            and \"agentapi_tool_events\".\"success_payload\"->'person'->>'id' = \"agentapi_tool_events\".\"args\"->>'id'\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'projectLoad') = 'object'\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'recentFacts') = 'object'\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'capabilityLines') = 'object'\n          when 'draft_requirement' then\n            jsonb_typeof(\"agentapi_tool_events\".\"args\"->'operationId') = 'string'\n            and length(trim(\"agentapi_tool_events\".\"args\"->>'operationId')) > 0\n            and jsonb_typeof(\"agentapi_tool_events\".\"args\"->'projectId') = 'string'\n            and length(trim(\"agentapi_tool_events\".\"args\"->>'projectId')) > 0\n            and jsonb_typeof(\"agentapi_tool_events\".\"args\"->'inputText') = 'string'\n            and length(trim(\"agentapi_tool_events\".\"args\"->>'inputText')) > 0\n            and \"agentapi_tool_events\".\"success_payload\"->>'kind' = 'staffing_demand'\n            and \"agentapi_tool_events\".\"success_payload\"->'schemaVersion' = '1'::jsonb\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'jobId') = 'string'\n            and length(\"agentapi_tool_events\".\"success_payload\"->>'jobId') > 0\n            and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'revision') = 'number'\n            and (\"agentapi_tool_events\".\"success_payload\"->>'revision') ~ '^[1-9][0-9]*$'\n            and \"agentapi_tool_events\".\"success_payload\"->>'status' in ('queued', 'running', 'partial', 'awaiting_manual', 'failed', 'completed', 'cancelled')\n            and (\"agentapi_tool_events\".\"success_payload\"->'result' = 'null'::jsonb or (\n              jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'result') = 'object'\n              and jsonb_typeof(\"agentapi_tool_events\".\"success_payload\"->'result'->'projectId') = 'string'\n              and \"agentapi_tool_events\".\"success_payload\"->'result'->>'projectId' = \"agentapi_tool_events\".\"args\"->>'projectId'))\n          else false\n        end) is true"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.agentapi_turns": {
-      "name": "agentapi_turns",
-      "schema": "",
-      "columns": {
-        "conversation_id": {
-          "name": "conversation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "operation_id": {
-          "name": "operation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ordinal": {
-          "name": "ordinal",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "input_digest": {
-          "name": "input_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_event_id": {
-          "name": "user_event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "answer": {
-          "name": "answer",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nature": {
-          "name": "nature",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'ai_suggestion'"
-        },
-        "polls": {
-          "name": "polls",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "agentapi_turn_incomplete": {
-          "name": "agentapi_turn_incomplete",
-          "columns": [
-            {
-              "expression": "conversation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"agentapi_turns\".\"state\" <> 'complete'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "agentapi_turns_conversation_id_agentapi_conversations_id_fk": {
-          "name": "agentapi_turns_conversation_id_agentapi_conversations_id_fk",
-          "tableFrom": "agentapi_turns",
-          "tableTo": "agentapi_conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "agentapi_turns_conversation_id_operation_id_pk": {
-          "name": "agentapi_turns_conversation_id_operation_id_pk",
-          "columns": [
-            "conversation_id",
-            "operation_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "agentapi_turn_ordinal": {
-          "name": "agentapi_turn_ordinal",
-          "nullsNotDistinct": false,
-          "columns": [
-            "conversation_id",
-            "ordinal"
-          ]
-        },
-        "agentapi_turn_user_event": {
-          "name": "agentapi_turn_user_event",
-          "nullsNotDistinct": false,
-          "columns": [
-            "conversation_id",
-            "user_event_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "agentapi_turn_identity": {
-          "name": "agentapi_turn_identity",
-          "value": "length(\"agentapi_turns\".\"operation_id\") between 1 and 200 and \"agentapi_turns\".\"ordinal\" > 0\n        and \"agentapi_turns\".\"input_digest\" ~ '^[a-f0-9]{64}$'\n        and (\"agentapi_turns\".\"user_event_id\" is null or length(\"agentapi_turns\".\"user_event_id\") > 0)"
-        },
-        "agentapi_turn_state": {
-          "name": "agentapi_turn_state",
-          "value": "\"agentapi_turns\".\"state\" in ('reserved', 'submitted', 'complete', 'outcome_unknown', 'failed')"
-        },
-        "agentapi_turn_answer": {
-          "name": "agentapi_turn_answer",
-          "value": "(\"agentapi_turns\".\"answer\" is null or (\"agentapi_turns\".\"state\" = 'complete' and length(\"agentapi_turns\".\"answer\") <= 65536))\n        and \"agentapi_turns\".\"nature\" = 'ai_suggestion'"
-        },
-        "agentapi_turn_polls": {
-          "name": "agentapi_turn_polls",
-          "value": "\"agentapi_turns\".\"polls\" between 0 and 120"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.entry_agent_api_bindings": {
       "name": "entry_agent_api_bindings",
       "schema": "",
@@ -4833,7 +4417,7 @@
         },
         "records_arrange_original_input": {
           "name": "records_arrange_original_input",
-          "value": "jsonb_typeof(\"records_arrange_inputs\".\"original_input\") = 'object' and jsonb_typeof(\"records_arrange_inputs\".\"original_input\"->'text') = 'string' and (\"records_arrange_inputs\".\"original_input\"->>'text') ~ '[^[:space:]]'"
+          "value": "jsonb_typeof(\"records_arrange_inputs\".\"original_input\") = 'object' and (\n        coalesce(jsonb_typeof(\"records_arrange_inputs\".\"original_input\"->'text') = 'string' and (\"records_arrange_inputs\".\"original_input\"->>'text') ~ '[^[:space:]]', false)\n        or coalesce(\"records_arrange_inputs\".\"original_input\"->>'kind' = 'media' and jsonb_typeof(\"records_arrange_inputs\".\"original_input\"->'operationId') = 'string'\n          and (\"records_arrange_inputs\".\"original_input\"->>'operationId') ~ '[^[:space:]]'\n          and jsonb_typeof(\"records_arrange_inputs\".\"original_input\"->'materialIds') = 'array'\n          and jsonb_array_length(\"records_arrange_inputs\".\"original_input\"->'materialIds') between 1 and 10, false)\n      )"
         },
         "records_arrange_new_input": {
           "name": "records_arrange_new_input",
@@ -5300,6 +4884,580 @@
         "records_observation_origin_attribution": {
           "name": "records_observation_origin_attribution",
           "value": "coalesce(\n    (\"records_management_observations\".\"origin\" = 'manual' and \"records_management_observations\".\"author_person_id\" is not null and not \"records_management_observations\".\"author_unconfirmed\"\n      and \"records_management_observations\".\"imported_by_account_id\" is null and \"records_management_observations\".\"imported_by_person_id\" is null and \"records_management_observations\".\"imported_by_name\" is null and \"records_management_observations\".\"attribution_id\" is null)\n    or (\"records_management_observations\".\"origin\" = 'interview_import' and \"records_management_observations\".\"author_unconfirmed\"\n      and \"records_management_observations\".\"imported_by_account_id\" = \"records_management_observations\".\"recorded_by_account_id\" and \"records_management_observations\".\"imported_by_person_id\" is not null\n      and \"records_management_observations\".\"imported_by_name\" ~ '[^[:space:]]' and \"records_management_observations\".\"attribution_id\" ~ '[^[:space:]]'), false)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_media_materials": {
+      "name": "records_media_materials",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "input_id": {
+          "name": "input_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "input_version": {
+          "name": "input_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_file_id": {
+          "name": "client_file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "upload_id": {
+          "name": "upload_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "record_collection_id": {
+          "name": "record_collection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "original_version_id": {
+          "name": "original_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intake_scope": {
+          "name": "intake_scope",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope_audit_id": {
+          "name": "scope_audit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_media_materials_upload_id_records_upload_intents_id_fk": {
+          "name": "records_media_materials_upload_id_records_upload_intents_id_fk",
+          "tableFrom": "records_media_materials",
+          "tableTo": "records_upload_intents",
+          "columnsFrom": [
+            "upload_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_materials_record_collection_id_records_upload_collections_id_fk": {
+          "name": "records_media_materials_record_collection_id_records_upload_collections_id_fk",
+          "tableFrom": "records_media_materials",
+          "tableTo": "records_upload_collections",
+          "columnsFrom": [
+            "record_collection_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_materials_original_version_id_records_upload_objects_original_version_id_fk": {
+          "name": "records_media_materials_original_version_id_records_upload_objects_original_version_id_fk",
+          "tableFrom": "records_media_materials",
+          "tableTo": "records_upload_objects",
+          "columnsFrom": [
+            "original_version_id"
+          ],
+          "columnsTo": [
+            "original_version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_materials_scope_audit_id_audit_events_id_fk": {
+          "name": "records_media_materials_scope_audit_id_audit_events_id_fk",
+          "tableFrom": "records_media_materials",
+          "tableTo": "audit_events",
+          "columnsFrom": [
+            "scope_audit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_materials_input_id_input_version_records_arrange_inputs_id_input_version_fk": {
+          "name": "records_media_materials_input_id_input_version_records_arrange_inputs_id_input_version_fk",
+          "tableFrom": "records_media_materials",
+          "tableTo": "records_arrange_inputs",
+          "columnsFrom": [
+            "input_id",
+            "input_version"
+          ],
+          "columnsTo": [
+            "id",
+            "input_version"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "records_media_material_client": {
+          "name": "records_media_material_client",
+          "nullsNotDistinct": false,
+          "columns": [
+            "input_id",
+            "client_file_id"
+          ]
+        },
+        "records_media_material_upload": {
+          "name": "records_media_material_upload",
+          "nullsNotDistinct": false,
+          "columns": [
+            "input_id",
+            "upload_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "records_media_material_revision": {
+          "name": "records_media_material_revision",
+          "value": "\"records_media_materials\".\"revision\" > 0"
+        },
+        "records_media_material_scope": {
+          "name": "records_media_material_scope",
+          "value": "(\"records_media_materials\".\"intake_scope\" is null and \"records_media_materials\".\"scope_audit_id\" is null) or (\"records_media_materials\".\"intake_scope\" is not null and \"records_media_materials\".\"scope_audit_id\" is not null and coalesce(jsonb_typeof(\"records_media_materials\".\"intake_scope\") = 'object' and jsonb_typeof(\"records_media_materials\".\"intake_scope\"->'subjects') = 'array' and jsonb_array_length(\"records_media_materials\".\"intake_scope\"->'subjects') > 0 and jsonb_typeof(\"records_media_materials\".\"intake_scope\"->'requiredKinds') = 'array' and jsonb_typeof(\"records_media_materials\".\"intake_scope\"->'kind') = 'string' and (\"records_media_materials\".\"intake_scope\"->>'occurredOn') ~ '^\\d{4}-\\d{2}-\\d{2}$', false))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_media_review_draft_dependencies": {
+      "name": "records_media_review_draft_dependencies",
+      "schema": "",
+      "columns": {
+        "operation_id": {
+          "name": "operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "draft_id": {
+          "name": "draft_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "draft_revision": {
+          "name": "draft_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_media_review_draft_dependencies_operation_id_records_media_review_operations_id_fk": {
+          "name": "records_media_review_draft_dependencies_operation_id_records_media_review_operations_id_fk",
+          "tableFrom": "records_media_review_draft_dependencies",
+          "tableTo": "records_media_review_operations",
+          "columnsFrom": [
+            "operation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_review_draft_dependencies_item_id_records_media_review_items_id_fk": {
+          "name": "records_media_review_draft_dependencies_item_id_records_media_review_items_id_fk",
+          "tableFrom": "records_media_review_draft_dependencies",
+          "tableTo": "records_media_review_items",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_review_draft_dependencies_draft_id_records_drafts_draft_id_fk": {
+          "name": "records_media_review_draft_dependencies_draft_id_records_drafts_draft_id_fk",
+          "tableFrom": "records_media_review_draft_dependencies",
+          "tableTo": "records_drafts",
+          "columnsFrom": [
+            "draft_id"
+          ],
+          "columnsTo": [
+            "draft_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "records_media_review_draft_dependencies_operation_id_item_id_draft_id_draft_revision_pk": {
+          "name": "records_media_review_draft_dependencies_operation_id_item_id_draft_id_draft_revision_pk",
+          "columns": [
+            "operation_id",
+            "item_id",
+            "draft_id",
+            "draft_revision"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "records_media_review_draft_revision": {
+          "name": "records_media_review_draft_revision",
+          "value": "\"records_media_review_draft_dependencies\".\"draft_revision\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_media_review_items": {
+      "name": "records_media_review_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "question": {
+          "name": "question",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_operation_id": {
+          "name": "current_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_media_review_items_material_id_records_media_materials_id_fk": {
+          "name": "records_media_review_items_material_id_records_media_materials_id_fk",
+          "tableFrom": "records_media_review_items",
+          "tableTo": "records_media_materials",
+          "columnsFrom": [
+            "material_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_review_items_current_operation_id_material_id_records_media_review_operations_id_material_id_fk": {
+          "name": "records_media_review_items_current_operation_id_material_id_records_media_review_operations_id_material_id_fk",
+          "tableFrom": "records_media_review_items",
+          "tableTo": "records_media_review_operations",
+          "columnsFrom": [
+            "current_operation_id",
+            "material_id"
+          ],
+          "columnsTo": [
+            "id",
+            "material_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "records_media_item_material": {
+          "name": "records_media_item_material",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "material_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "records_media_item_revision": {
+          "name": "records_media_item_revision",
+          "value": "\"records_media_review_items\".\"revision\" > 0"
+        },
+        "records_media_item_kind": {
+          "name": "records_media_item_kind",
+          "value": "\"records_media_review_items\".\"kind\" in ('speaker','unknown_person','image_scope','unknown_interviewer','unknown_project','unknown_interview_candidate')"
+        },
+        "records_media_item_state": {
+          "name": "records_media_item_state",
+          "value": "\"records_media_review_items\".\"state\" in ('pending','deferred','resolved') and (\"records_media_review_items\".\"state\" <> 'resolved' or \"records_media_review_items\".\"current_operation_id\" is not null)"
+        },
+        "records_media_item_question": {
+          "name": "records_media_item_question",
+          "value": "jsonb_typeof(\"records_media_review_items\".\"question\") = 'object' and (\"records_media_review_items\".\"question\"->'itemId') is not distinct from to_jsonb(\"records_media_review_items\".\"id\") and (\"records_media_review_items\".\"question\"->'materialId') is not distinct from to_jsonb(\"records_media_review_items\".\"material_id\") and (\"records_media_review_items\".\"question\"->'kind') is not distinct from to_jsonb(\"records_media_review_items\".\"kind\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.records_media_review_operations": {
+      "name": "records_media_review_operations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "actor_account_id": {
+          "name": "actor_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_person_id": {
+          "name": "actor_person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_id": {
+          "name": "operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_operation_id": {
+          "name": "source_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "command": {
+          "name": "command",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "receipt": {
+          "name": "receipt",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "changes": {
+          "name": "changes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "audit_id": {
+          "name": "audit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "records_media_review_operations_actor_account_id_directory_account_bindings_account_id_fk": {
+          "name": "records_media_review_operations_actor_account_id_directory_account_bindings_account_id_fk",
+          "tableFrom": "records_media_review_operations",
+          "tableTo": "directory_account_bindings",
+          "columnsFrom": [
+            "actor_account_id"
+          ],
+          "columnsTo": [
+            "account_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_review_operations_actor_person_id_directory_people_id_fk": {
+          "name": "records_media_review_operations_actor_person_id_directory_people_id_fk",
+          "tableFrom": "records_media_review_operations",
+          "tableTo": "directory_people",
+          "columnsFrom": [
+            "actor_person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_review_operations_source_operation_id_records_media_review_operations_id_fk": {
+          "name": "records_media_review_operations_source_operation_id_records_media_review_operations_id_fk",
+          "tableFrom": "records_media_review_operations",
+          "tableTo": "records_media_review_operations",
+          "columnsFrom": [
+            "source_operation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_review_operations_audit_id_audit_events_id_fk": {
+          "name": "records_media_review_operations_audit_id_audit_events_id_fk",
+          "tableFrom": "records_media_review_operations",
+          "tableTo": "audit_events",
+          "columnsFrom": [
+            "audit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "records_media_review_operations_item_id_material_id_records_media_review_items_id_material_id_fk": {
+          "name": "records_media_review_operations_item_id_material_id_records_media_review_items_id_material_id_fk",
+          "tableFrom": "records_media_review_operations",
+          "tableTo": "records_media_review_items",
+          "columnsFrom": [
+            "item_id",
+            "material_id"
+          ],
+          "columnsTo": [
+            "id",
+            "material_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "records_media_review_operation_key": {
+          "name": "records_media_review_operation_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "actor_account_id",
+            "operation_id"
+          ]
+        },
+        "records_media_review_operation_material": {
+          "name": "records_media_review_operation_material",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "material_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "records_media_review_operation_fingerprint": {
+          "name": "records_media_review_operation_fingerprint",
+          "value": "\"records_media_review_operations\".\"fingerprint\" ~ '^[a-f0-9]{64}$'"
+        },
+        "records_media_review_operation_action": {
+          "name": "records_media_review_operation_action",
+          "value": "(\"records_media_review_operations\".\"action\" = 'resolve' and \"records_media_review_operations\".\"source_operation_id\" is null) or (\"records_media_review_operations\".\"action\" = 'undo' and \"records_media_review_operations\".\"source_operation_id\" is not null and \"records_media_review_operations\".\"source_operation_id\" <> \"records_media_review_operations\".\"id\")"
+        },
+        "records_media_review_operation_command": {
+          "name": "records_media_review_operation_command",
+          "value": "jsonb_typeof(\"records_media_review_operations\".\"command\") = 'object' and (\"records_media_review_operations\".\"command\"->'operationId') is not distinct from to_jsonb(\"records_media_review_operations\".\"operation_id\") and (\"records_media_review_operations\".\"command\"->'itemId') is not distinct from to_jsonb(\"records_media_review_operations\".\"item_id\")"
+        },
+        "records_media_review_operation_changes": {
+          "name": "records_media_review_operation_changes",
+          "value": "coalesce(jsonb_typeof(\"records_media_review_operations\".\"changes\") = 'array' and jsonb_array_length(\"records_media_review_operations\".\"changes\") > 0, false)"
         }
       },
       "isRLSEnabled": false
