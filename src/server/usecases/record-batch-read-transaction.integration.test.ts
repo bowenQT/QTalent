@@ -17,6 +17,7 @@ import { arrangeInputs } from '../modules/records/arrange/input-state/schema';
 import { recordArrangeQueue } from '../jobs/record-arrange';
 import { createRecordArrangeApplication } from './record-arrange-application';
 import { readArrangeJobRecord } from './record-batch-arrange-requests';
+import { lockIntakeTable } from './talent-source-projection';
 let connection: Awaited<ReturnType<typeof nativeDatabase>>;
 let boss: PgBoss;
 beforeAll(async () => {
@@ -63,9 +64,14 @@ it('reads an uncommitted text batch in its caller transaction, hides it outside 
       expect(
         await h.app.requests.readBatchInTransaction(tx, h.account, { batchId }),
       ).toEqual(created);
-      expect(await h.app.requests.readBatch(h.account, { batchId })).toEqual(
-        notFound,
-      );
+      // readBatch takes intake SHARE and would wait for this writer, so prove
+      // isolation with a plain external SELECT instead.
+      expect(
+        await connection.db
+          .select()
+          .from(arrangeInputs)
+          .where(eq(arrangeInputs.batchId, batchId)),
+      ).toEqual([]);
       throw failure;
     }),
   ).rejects.toBe(failure);
@@ -201,7 +207,7 @@ it.each([
   },
 );
 it.each(['superseded', 'moved', 'ambiguous'] as const)(
-  'rechecks the current batch after a proven job lock wait (%s)',
+  'reads the current batch after a proven wait on an intake writer (%s)',
   async (change) => {
     const h = await setup();
     const created = await h.app.requests.create(h.account, h.input);
@@ -238,6 +244,8 @@ it.each(['superseded', 'moved', 'ambiguous'] as const)(
         const blocker = await tx.execute<{ pid: number }>(
           sql`select pg_backend_pid() as pid`,
         );
+        // An intake writer follows the global order: intake lock, then job row.
+        await lockIntakeTable(tx, 'locked-for-write');
         expect(
           await readArrangeJobRecord(tx, first.jobId, true),
         ).not.toBeNull();
@@ -272,8 +280,8 @@ it.each(['superseded', 'moved', 'ambiguous'] as const)(
             { timeout: 5000 },
           )
           .toBe(true);
-        // No sleep-based race: PostgreSQL confirms the reader has already located
-        // the original input and is blocked specifically by our job-row lock.
+        // No sleep-based race: PostgreSQL confirms the reader is blocked by this
+        // writer before locating anything, so it must see the committed change.
         if (change === 'superseded') {
           await tx
             .update(arrangeInputs)
@@ -295,6 +303,132 @@ it.each(['superseded', 'moved', 'ambiguous'] as const)(
       expect(await h.app.requests.readBatch(h.account, raw)).toEqual(notFound);
     } finally {
       if (reading) await Promise.allSettled([reading]);
+    }
+    expect(h.calls()).toBe(0);
+  },
+  20000,
+);
+it.each(['runner first', 'runner during entry'] as const)(
+  'create then read in one entry transaction does not deadlock with a concurrent runner (%s)',
+  async (order) => {
+    const h = await setup();
+    const existing = await h.app.requests.create(h.account, h.input);
+    if (existing.status !== 'success' || !existing.result.jobId)
+      throw new Error('queued native intake required');
+    const jobId = existing.result.jobId;
+    const raw = { batchId: existing.result.batchId };
+    const pidOf = async (tx: { execute: typeof connection.db.execute }) =>
+      (await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`))
+        .rows[0]!.pid;
+    const blockedBy = (waiter: number, holder: number) =>
+      expect
+        .poll(
+          async () =>
+            (
+              await connection.db.execute<{ blocked: boolean }>(
+                sql`select ${holder}::int = any(pg_blocking_pids(${waiter}::int)) as blocked`,
+              )
+            ).rows[0]!.blocked,
+          { timeout: 5000 },
+        )
+        .toBe(true);
+    let releaseRunner: () => void = () => undefined;
+    const runnerGate = new Promise<void>((resolve) => {
+      releaseRunner = resolve;
+    });
+    let releaseEntry: () => void = () => undefined;
+    const entryGate = new Promise<void>((resolve) => {
+      releaseEntry = resolve;
+    });
+    let runnerPid: (pid: number) => void = () => undefined;
+    const runnerStarted = new Promise<number>((resolve) => {
+      runnerPid = resolve;
+    });
+    let entryPid: (pid: number) => void = () => undefined;
+    const entryStarted = new Promise<number>((resolve) => {
+      entryPid = resolve;
+    });
+    let entryCreated: () => void = () => undefined;
+    const created = new Promise<void>((resolve) => {
+      entryCreated = resolve;
+    });
+    // The runner's own lock path: intake SHARE, then the job row.
+    const runner = () =>
+      h.app.requests.native.store.locked(jobId, async (locked) => {
+        await locked.context.execute(sql`set local statement_timeout = '10s'`);
+        runnerPid(await pidOf(locked.context));
+        if (order === 'runner first') await runnerGate;
+        return locked.record?.jobId ?? null;
+      });
+    const entry = () =>
+      connection.db.transaction(
+        async (tx) => {
+          await tx.execute(sql`set local statement_timeout = '10s'`);
+          entryPid(await pidOf(tx));
+          const result = await h.app.requests.createInTransaction(
+            tx,
+            h.account,
+            { ...h.input, operationId: randomUUID() },
+          );
+          entryCreated();
+          if (order === 'runner during entry') await entryGate;
+          return {
+            created: result,
+            read: await h.app.requests.readBatchInTransaction(
+              tx,
+              h.account,
+              raw,
+            ),
+          };
+        },
+        { isolationLevel: 'read committed' },
+      );
+    let running: Promise<string | null> | undefined;
+    let entering: ReturnType<typeof entry> | undefined;
+    try {
+      if (order === 'runner first') {
+        running = runner();
+        const holder = await runnerStarted;
+        entering = entry();
+        // The entry waits for the intake writer lock behind the runner.
+        await blockedBy(await entryStarted, holder);
+        releaseRunner();
+      } else {
+        entering = entry();
+        const holder = await entryStarted;
+        await created;
+        running = runner();
+        // The runner waits for intake SHARE behind the entry's writer lock and
+        // has not taken the job row, so the entry's read does not wait on it.
+        await expect
+          .poll(
+            async () =>
+              (
+                await connection.db.execute<{ blocked: boolean }>(sql`
+                  select exists (
+                    select 1 from pg_stat_activity
+                    where ${holder}::int = any(pg_blocking_pids(pid))
+                  ) as blocked`)
+              ).rows[0]!.blocked,
+            { timeout: 5000 },
+          )
+          .toBe(true);
+        releaseEntry();
+      }
+      const result = await entering;
+      expect(result.created.status).toBe('success');
+      expect(result.read).toMatchObject({
+        status: 'success',
+        result: { batchId: existing.result.batchId },
+      });
+      expect(await running).toBe(jobId);
+      expect(await h.app.requests.readBatch(h.account, raw)).toEqual(
+        result.read,
+      );
+    } finally {
+      releaseRunner();
+      releaseEntry();
+      await Promise.allSettled([running, entering]);
     }
     expect(h.calls()).toBe(0);
   },

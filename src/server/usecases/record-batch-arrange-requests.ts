@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { readIntakeTable } from './talent-source-projection';
+import { lockIntakeTable, readIntakeTable } from './talent-source-projection';
 import {
   materialBatchInputSchema,
   materialBatchReadInputSchema,
@@ -401,6 +401,10 @@ export function createRecordBatchArrangeRequests(
         fieldErrors: { batchId: ['请提供有效批次'] },
         input: raw,
       };
+    // Global order: intake SHARE, then the job row (see nativeJobStore). A
+    // caller already holding the intake writer lock (createInTransaction) keeps
+    // it, so create-then-read in one transaction cannot cycle with the runner.
+    await lockIntakeTable(tx, 'locked');
     const currentInputs = () =>
       tx
         .select()
@@ -416,8 +420,8 @@ export function createRecordBatchArrangeRequests(
     if (rows.length !== 1)
       return { status: 'not_found', message: '批次不存在或当前不可见' };
     const job = await readArrangeJobRecord(tx, rows[0]!.jobId, true);
-    // Locate inside the caller transaction without taking an input lock ahead
-    // of the job. Waiting for that lock may supersede or rebind the batch.
+    // Intake writers are fenced by the SHARE lock, so only this caller's own
+    // earlier writes can move the batch; re-locate after the job lock anyway.
     const current = await currentInputs();
     if (
       !job ||
