@@ -198,13 +198,11 @@ for (const [scene, title] of [
     );
     await expect(page.locator('.n-score')).toHaveCount(0);
     await expect(page.locator('#ev-save')).toHaveCount(0);
-    // The receipt page cannot confirm yet: it says so, and this page keeps a way back.
-    await expect(
-      page.getByText('回执页的逐件确认待接通', { exact: false }),
-    ).toBeVisible();
+    // The sample batch exists only in this tab, so the real receipt route does not
+    // find it; this page keeps a way back either way.
     await page.getByRole('link', { name: '打开回执' }).click();
     await expect(
-      page.getByRole('heading', { name: '回执待接通' }),
+      page.getByRole('heading', { name: '回执链接失效' }),
     ).toBeVisible();
     await page.goBack();
     await page.getByRole('button', { name: '改原话' }).click();

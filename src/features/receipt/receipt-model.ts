@@ -32,7 +32,8 @@ export function formatLocation(ref: MaterialSourceReference): string {
   const loc = ref.location;
   switch (loc.kind) {
     case 'document':
-      return `第 ${loc.paragraph} 段`;
+      // 段落不是编号时（例如手写原话的定位）不拼「第…段」
+      return /^\d+$/.test(loc.paragraph) ? `第 ${loc.paragraph} 段` : '文中';
     case 'pdf':
       return `第 ${loc.page} 页`;
     case 'spreadsheet':
@@ -63,11 +64,24 @@ export function materialLabel(
     : '原件';
 }
 
+const isOriginal = (
+  receipt: MaterialBatchReceipt,
+  ref: MaterialSourceReference,
+) => receipt.textMaterial?.originalVersionId === ref.originalVersionId;
+
+/** 出处位置：这次写下的原话只有一段，不写段落。 */
+export const locationFor = (
+  receipt: MaterialBatchReceipt,
+  ref: MaterialSourceReference,
+) => (isOriginal(receipt, ref) ? '这次写下的' : formatLocation(ref));
+
 export const sourceLine = (
   receipt: MaterialBatchReceipt,
   ref: MaterialSourceReference,
 ) =>
-  `${materialLabel(receipt, ref.originalVersionId)} · ${formatLocation(ref)}`;
+  isOriginal(receipt, ref)
+    ? '原话'
+    : `${materialLabel(receipt, ref.originalVersionId)} · ${formatLocation(ref)}`;
 
 /** 文件格式角标：扩展名大写，最多四个字母。 */
 export function extLabel(filename: string): string {

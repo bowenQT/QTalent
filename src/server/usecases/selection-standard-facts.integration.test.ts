@@ -600,6 +600,65 @@ describe('918 native canonical/attribution/lifecycle composition', () => {
         .status,
     ).toBe('conflict');
   });
+  it('HR without a grant on the future next cohort still drafts through the impact preview', async () => {
+    await db()
+      .update(grants)
+      .set({ revokedAt: '2026-01-02' })
+      .where(eq(grants.id, 'hr-' + next.id));
+    const result = await app().execute('hr', {
+      action: 'create',
+      input: command(),
+    });
+    expect(result.status).toBe('success');
+    if (result.status !== 'success') return;
+    const revision = selectionRevisionSchema.parse(result.result);
+    expect(revision.impactPreview.nextCohort).toEqual({
+      id: next.id,
+      name: next.name,
+    });
+    expect(revision.impactPreview.existingResults).toEqual([
+      { cohortId: 'cohort', standardVersionId: 'xe-select-v1', count: 1 },
+    ]);
+    // Save re-reads the impact preview under the same rule.
+    const saved = await app().execute('hr', {
+      action: 'save',
+      input: {
+        operationId: 'save-without-next-grant',
+        draftId: revision.id,
+        expectedRevision: revision.revision,
+        reason: 'HR核对（演示）',
+        changes: [
+          {
+            kind: 'add',
+            after: {
+              id: 'hr-point',
+              title: 'HR修改（演示）',
+              description: '使用本人实际交付',
+            },
+          },
+        ],
+      },
+    });
+    expect(saved.status).toBe('success');
+    if (saved.status !== 'success') return;
+    const updated = selectionRevisionSchema.parse(saved.result);
+    expect(updated.impactPreview.id).not.toBe(revision.impactPreview.id);
+    expect(updated.impactPreview.nextCohort).toEqual(
+      revision.impactPreview.nextCohort,
+    );
+  });
+  it('an existing next cohort outside the HR scope is forbidden, not adopted', async () => {
+    await db()
+      .update(grants)
+      .set({ revokedAt: '2026-01-02' })
+      .where(eq(grants.id, 'hr-' + next.id));
+    await db().insert(cohorts).values({ id: next.id, name: next.name });
+    expect(
+      (await app().execute('hr', { action: 'create', input: command() }))
+        .status,
+    ).toBe('forbidden');
+    expect(await db().select().from(selectionRevisions)).toEqual([]);
+  });
   it('an AI proposal with a different full basis cannot be adopted', async () => {
     const [row] = await db().select().from(selectionDraftProposals);
     await db()
