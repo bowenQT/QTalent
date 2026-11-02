@@ -93,6 +93,14 @@ const fieldGroups = [
   ['规则版本'],
   ['候选人'],
 ];
+/** Interview fields read into metadata, printed before the comment in the supported form. */
+const readFieldLabels = [
+  '面试时间',
+  '面试类型',
+  '面试官姓名',
+  '面试官',
+  '面试结果',
+];
 const metadataLabels = [
   '面试时间',
   '面试类型',
@@ -219,7 +227,11 @@ function circleGroups(
   return groups
     .map((group) => {
       let blue: PdfCircle[] = [];
+      // A later non-blue ring over a blue paint leaves the final colour uncertain.
+      let covered = false;
       for (const paint of group) {
+        if (!paint.filled && paint.color !== 'blue' && blue.length > 0)
+          covered = true;
         if (paint.filled && paint.color !== 'blue')
           blue = blue.filter(
             (old) =>
@@ -235,9 +247,9 @@ function circleGroups(
       return {
         box: union(group.map((paint) => paint.box)),
         selected: blue.length > 0,
-        supported: group.every(
-          (paint) => paint.supported && paint.color !== 'other',
-        ),
+        supported:
+          !covered &&
+          group.every((paint) => paint.supported && paint.color !== 'other'),
       };
     })
     .sort((a, b) => a.box[0] - b.box[0]);
@@ -420,6 +432,21 @@ function parseSection(
           .length > 1,
     ),
   );
+  // The supported form prints the interview fields before the free-text comment. A field label
+  // after the comment starts may be the comment's own text: that field and the comment are
+  // both uncertain, even when the label is seen only once.
+  const commentAt = lines.findIndex((line) => labelLine(line, '综合评价'));
+  const late =
+    commentAt < 0
+      ? []
+      : fieldGroups.filter(
+          (group) =>
+            readFieldLabels.some((label) => group.includes(label)) &&
+            lines
+              .slice(commentAt + 1)
+              .some((line) => group.some((label) => labelLine(line, label))),
+        );
+  for (const group of late) repeated.add(group);
   const uncertain = (label: string) =>
     [...repeated].some((group) => group.includes(label));
   const choiceRow = (line: Line) =>
@@ -429,8 +456,8 @@ function parseSection(
   // The free-text comment runs until the next field label, standalone scale label, radio or
   // choice row, or heading. Its lines are never scale rows, whatever words they begin with.
   const comment = new Set<number>();
-  let commentUncertain = uncertain('综合评价');
-  const commentStart = lines.findIndex((line) => labelLine(line, '综合评价'));
+  let commentUncertain = uncertain('综合评价') || late.length > 0;
+  const commentStart = commentAt;
   if (commentStart >= 0)
     for (let index = commentStart + 1; index < lines.length; index++) {
       const line = lines[index];
@@ -459,8 +486,12 @@ function parseSection(
     const name = labels.find((label) => rowLabel(lines[index], label));
     if (name) anchors.push({ name, line: lines[index], index });
   }
-  // An exact dimension fingerprint is required. A changed or duplicated row is a new template.
+  // An exact dimension fingerprint is required. A changed or duplicated row is a new template;
+  // so are two rating or level rows, which would leave the chosen value uncertain.
   if (
+    [template.rating.label, template.level.label].some(
+      (name) => anchors.filter((anchor) => anchor.name === name).length > 1,
+    ) ||
     template.dimensions.some(
       (name) => anchors.filter((anchor) => anchor.name === name).length !== 1,
     )

@@ -19,6 +19,11 @@ type GraphicsState = {
   supported: boolean;
   clip: PdfBox | null;
   lineWidth: number;
+  /** PDF line cap (0 butt, 1 round, 2 square) and join (0 miter, 1 round, 2 bevel). */
+  lineCap: number;
+  lineJoin: number;
+  miterLimit: number;
+  dashed: boolean;
 };
 const identity: Matrix = [1, 0, 0, 1, 0, 0];
 
@@ -66,6 +71,9 @@ function intersect(a: PdfBox, b: PdfBox): PdfBox {
     Math.min(a[2], b[2]),
     Math.min(a[3], b[3]),
   ];
+}
+function axisAligned(m: Matrix): boolean {
+  return (m[1] === 0 && m[2] === 0) || (m[0] === 0 && m[3] === 0);
 }
 function overlaps(a: PdfBox, b: PdfBox): boolean {
   return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
@@ -147,6 +155,10 @@ export function readCircles(
     supported: true,
     clip: null,
     lineWidth: 1,
+    lineCap: 0,
+    lineJoin: 0,
+    miterLimit: 10,
+    dashed: false,
   };
   let pendingClip = false;
   const fills = new Set([
@@ -177,6 +189,23 @@ export function readCircles(
     for (const circle of result)
       if (!pageBox || overlaps(pageBox, circle.box)) circle.supported = false;
   };
+  // Stroke state is tracked so a stroke's painted area can be bounded; any value we cannot
+  // read marks the state unsupported.
+  const setStroke = (key: string, value: unknown) => {
+    if (key === 'D') {
+      const dash = Array.isArray(value) ? numbers(value[0]) : null;
+      if (dash && dash.every((item) => item >= 0))
+        state.dashed = dash.length > 0;
+      else state.supported = false;
+      return;
+    }
+    const n = typeof value === 'number' && Number.isFinite(value) ? value : NaN;
+    if (key === 'LW' && n >= 0) state.lineWidth = n;
+    else if (key === 'LC' && [0, 1, 2].includes(n)) state.lineCap = n;
+    else if (key === 'LJ' && [0, 1, 2].includes(n)) state.lineJoin = n;
+    else if (key === 'ML' && n >= 1) state.miterLimit = n;
+    else state.supported = false;
+  };
   const strokes = new Set([
     OPS.stroke,
     OPS.closeStroke,
@@ -204,6 +233,8 @@ export function readCircles(
       if (op === OPS.paintFormXObjectBegin) {
         const n = numbers(args[1]);
         if (n?.length === 4) {
+          // The form /BBox is an implicit clip: same support boundary as an explicit one.
+          if (!axisAligned(state.matrix)) state.supported = false;
           const clip = bounds([n[0], n[1], n[2], n[3]], state.matrix);
           state.clip = state.clip ? intersect(state.clip, clip) : clip;
         }
@@ -227,17 +258,20 @@ export function readCircles(
     else if (op === OPS.setFillColorN) state.fill = '';
     else if (op === OPS.setStrokeColorN) state.stroke = '';
     else if (op === OPS.clip || op === OPS.eoClip) pendingClip = true;
-    else if (op === OPS.setLineWidth) {
-      const width = typeof args[0] === 'number' ? args[0] : NaN;
-      if (Number.isFinite(width) && width >= 0) state.lineWidth = width;
-      else state.supported = false;
-    } else if (op === OPS.setGState && Array.isArray(args[0])) {
+    else if (op === OPS.setLineWidth) setStroke('LW', args[0]);
+    else if (op === OPS.setLineCap) setStroke('LC', args[0]);
+    else if (op === OPS.setLineJoin) setStroke('LJ', args[0]);
+    else if (op === OPS.setMiterLimit) setStroke('ML', args[0]);
+    else if (op === OPS.setDash) setStroke('D', args);
+    else if (op === OPS.setGState && Array.isArray(args[0])) {
       for (const entry of args[0]) {
         if (!Array.isArray(entry)) {
           state.supported = false;
           continue;
         }
-        if (entry[0] === 'ca' && typeof entry[1] === 'number')
+        if (['LW', 'LC', 'LJ', 'ML', 'D'].includes(entry[0]))
+          setStroke(entry[0], entry[1]);
+        else if (entry[0] === 'ca' && typeof entry[1] === 'number')
           state.fillAlpha = entry[1];
         else if (entry[0] === 'CA' && typeof entry[1] === 'number')
           state.strokeAlpha = entry[1];
@@ -283,8 +317,14 @@ export function readCircles(
         state.fill !== 'transparent'
       )
         occlude(box);
-      // A stroke covers its path widened by half the line width on every side.
-      const half = state.lineWidth / 2;
+      // A stroke covers its path widened by half the line width on every side; a miter join
+      // can reach miterLimit half-widths from a corner and a square cap √2 half-widths.
+      const half =
+        (state.lineWidth / 2) *
+        Math.max(
+          state.lineJoin === 0 ? state.miterLimit : 1,
+          state.lineCap === 2 ? Math.SQRT2 : 1,
+        );
       if (
         (!radio || state.lineWidth > 2) &&
         strokes.has(paintOp) &&
@@ -311,18 +351,18 @@ export function readCircles(
             (filled ? state.fill : state.stroke) === 'transparent'
           )
             continue;
+          // A dashed or thick ring may show less, or more, than the plain radio we can read.
+          const plainStroke = filled || (!state.dashed && state.lineWidth <= 2);
           result.push({
             box: pageBox,
             color: color(filled ? state.fill : state.stroke),
             filled,
-            supported: state.supported && fullyVisible && alpha === 1,
+            supported:
+              state.supported && fullyVisible && alpha === 1 && plainStroke,
           });
         }
       if (pendingClip) {
-        const m = state.matrix;
-        const axisAligned =
-          (m[1] === 0 && m[2] === 0) || (m[0] === 0 && m[3] === 0);
-        if (kind === 'rectangle' && axisAligned)
+        if (kind === 'rectangle' && axisAligned(state.matrix))
           state.clip = state.clip ? intersect(state.clip, box) : box;
         else state.supported = false;
         pendingClip = false;

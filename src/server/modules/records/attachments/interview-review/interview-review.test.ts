@@ -161,6 +161,7 @@ function syntheticReview(
     cover?: string;
     shift?: number;
     wrap?: [string, string];
+    result?: false;
   } = {},
 ): Uint8Array {
   const rows = dimensionNames.map((label, index) =>
@@ -215,7 +216,7 @@ function syntheticReview(
     text('面试官：陈川（演示）', 40, 165),
     text('面试时间：2026-10-01 10:00（演示）', 40, 190),
     text('面试类型：专业面试', 40, 215),
-    text('面试结果：通过（演示）', 40, 240),
+    change.result === false ? '' : text('面试结果：通过（演示）', 40, 240),
     ...rows,
     radio('面试评级', 500, ['S', 'A', 'B', 'C', 'D'], ['B']),
     change.crossPage
@@ -1092,4 +1093,143 @@ describe('BOW-900 uncertain layout fails closed (review round 1)', () => {
       reason: 'unsupported_graphics',
     });
   });
+});
+
+describe('BOW-900 parser hardening before upload wiring', () => {
+  // The selected '2' of the first dimension is centred at (266, 300) from the top.
+  const ring = (prefix: string, x = 266) =>
+    `q ${prefix} ${circle(x, 300, true).replace(' rg', ' RG').replace(/f$/, 'S')} Q`;
+  const firstRow = async (change: Parameters<typeof syntheticReview>[1]) => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], change),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    const selection = review(result).dimensions[0].selection;
+    expect(selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'unsupported_graphics',
+    });
+    expect(selection).not.toHaveProperty('value');
+  };
+
+  it('does not read a single field label inside the comment as the missing formal field', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        result: false,
+        comment: ['综合评价：第一行。', '面试结果：建议复试。', '最后一行。'],
+      }),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).metadata.interviewResult).toBeNull();
+    expect(review(result).metadata.overallComment).toBeNull();
+  });
+
+  it.each([
+    [
+      'a sharp miter join',
+      `1 1 1 RG 6 w 0 j 30 M 262 342 m 266 312 l 270 342 l S`,
+    ],
+    ['a diagonal square cap', `1 1 1 RG 8 w 1 j 2 J 250 322 m 262 310 l S`],
+  ])('treats the area reached by %s as covering the circle', async (_, cover) =>
+    firstRow({
+      // PDF space: the circle spans y 537–547; these paths end below it.
+      cover: cover.replace(
+        /(\d+) (\d+) ([ml])/g,
+        (_m, x, y, op) => `${x} ${842 - Number(y)} ${op}`,
+      ),
+    }),
+  );
+
+  it.each([
+    ['an invisible dash pattern', '[0 100] 0 d'],
+    ['a thick ring', '4 w'],
+  ])('does not read a selection drawn as %s', async (_, prefix) =>
+    firstRow({ missing: true, cover: ring(prefix) }),
+  );
+
+  it('sends a blue ring covered by a later grey ring on the same path to manual review', async () =>
+    firstRow({
+      missing: true,
+      cover: [
+        ring(''),
+        ring('').replace('0.086 0.365 1 RG', '0.65 0.65 0.65 RG'),
+      ].join('\n'),
+    }));
+
+  it('reads the ExtGState line width of a later stroke', () => {
+    const line: Op = [
+      OPS.constructPath,
+      [
+        OPS.stroke,
+        [new Float32Array([0, 20, 5, 1, 30, 5])],
+        new Float32Array([20, 5, 30, 5]),
+      ],
+    ];
+    const white: Op = [OPS.setStrokeRGBColor, ['#ffffff']];
+    expect(vectors([blue, paint, white, line])[0]!.supported).toBe(true);
+    expect(
+      vectors([blue, paint, [OPS.setGState, [[['LW', 30]]]], white, line])[0]!
+        .supported,
+    ).toBe(false);
+    expect(
+      vectors([[OPS.setGState, [[['LW', -1]]]], blue, paint])[0]!.supported,
+    ).toBe(false);
+  });
+
+  it('does not read a lone radio drawn as a thick or dashed ring', () => {
+    const ring = (state: Op): Op[] => [
+      [OPS.setStrokeRGBColor, ['#167bff']],
+      state,
+      [
+        OPS.constructPath,
+        [
+          OPS.stroke,
+          [new Float32Array(roundPath)],
+          new Float32Array([0, 0, 10, 10]),
+        ],
+      ],
+    ];
+    expect(vectors(ring([OPS.setLineWidth, [1]]))[0]!.supported).toBe(true);
+    expect(vectors(ring([OPS.setLineWidth, [4]]))[0]!.supported).toBe(false);
+    expect(vectors(ring([OPS.setDash, [[0, 100], 0]]))[0]!.supported).toBe(
+      false,
+    );
+    expect(vectors(ring([OPS.setDash, [[], 0]]))[0]!.supported).toBe(true);
+  });
+
+  it('treats a rotated form bounding box as an unsupported clip', () => {
+    const form = (m: number[]): Op => [
+      OPS.paintFormXObjectBegin,
+      [m, [-5, -5, 20, 20]],
+    ];
+    const end: Op = [OPS.paintFormXObjectEnd, []];
+    expect(
+      vectors([form([1, 0, 0, 1, 0, 0]), blue, paint, end])[0]!.supported,
+    ).toBe(true);
+    expect(
+      vectors([form([0.8, 0.6, -0.6, 0.8, 0, 0]), blue, paint, end])[0]!
+        .supported,
+    ).toBe(false);
+  });
+
+  it.each([
+    ['面试评级', ['S', 'A', 'B', 'C', 'D'], 'D'],
+    ['建议职级', ['N1', 'N2', 'N3', 'N4', 'N5'], 'N5'],
+  ])(
+    'rejects a second %s row instead of reading the first',
+    async (label, choices, pick) => {
+      const result = await parseInterviewReviewPdf(
+        syntheticReview(templates[0], {
+          cover: radio(label, 590, choices, [pick]),
+        }),
+        demoOptions,
+      );
+      expect(result).toMatchObject({
+        status: 'rejected',
+        reason: 'fingerprint_mismatch',
+      });
+    },
+  );
 });
