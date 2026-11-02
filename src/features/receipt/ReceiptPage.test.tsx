@@ -15,7 +15,9 @@ import {
 } from '@/contracts/materials.fixtures';
 import type { MaterialBatchReceipt } from '@/contracts/materials';
 import { copy } from './copy';
+import { ReceiptItem } from './ReceiptItem';
 import { ReceiptPage } from './ReceiptPage';
+import { suggestedValues } from './receipt-model';
 import type { ReceiptActions, ReceiptView } from './types';
 
 afterEach(cleanup);
@@ -550,18 +552,19 @@ describe('撤销链路', () => {
     expect(within(card()).queryByText(copy.confirm.undoPending)).toBeNull();
   });
 
-  it('撤销重试时服务端明确拒绝：写明仍是已确认', async () => {
+  it('撤销先超时、重试又被拒：不说仍已确认，请用户刷新回执，以重读到的为准', async () => {
     const user = userEvent.setup();
+    // 那次撤销其实生效了、只是响应丢了；之后评价关系被撤权，服务端先鉴权再重放，返回 forbidden
     const undo = vi
       .fn()
-      .mockRejectedValueOnce(new Error('response lost'))
-      .mockResolvedValueOnce({
-        status: 'conflict',
-        message: '已超过撤销时间，这条记录已保存',
-        input: {},
-      });
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ status: 'forbidden', message: '无权' });
+    const read = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ status: 'success', view: make() });
     mountWith(make(), {
-      read: vi.fn().mockRejectedValue(new Error('offline')),
+      read,
       save: vi.fn().mockResolvedValue(saved()),
       undo,
     });
@@ -575,9 +578,21 @@ describe('撤销链路', () => {
         name: copy.confirm.undoRetry,
       }),
     );
-    expect(await screen.findByText(copy.toast.undoRefused)).toBeTruthy();
-    expect(card().dataset.state).toBe('confirmed');
-    expect(within(card()).queryByText(copy.confirm.undoPending)).toBeNull();
+    expect(
+      await within(card()).findByText(copy.confirm.undoVerify),
+    ).toBeTruthy();
+    expect(within(card()).queryByText(/已进入档案/)).toBeNull();
+    expect(screen.queryByText(/仍是已确认/)).toBeNull();
+    const calls = read.mock.calls.length;
+    await user.click(
+      within(card()).getByRole('button', { name: copy.confirm.undoReread }),
+    );
+    await waitFor(() => expect(read.mock.calls.length).toBe(calls + 1));
+    // 重读到的回执里这件事在待确认：照它显示
+    expect(
+      await within(card()).findByRole('button', { name: /确认这件事/ }),
+    ).toBeTruthy();
+    expect(within(card()).queryByText(copy.confirm.undoVerify)).toBeNull();
   });
 
   it('改分保存后撤销：版本按回执推进，分和理由照保存时的留着，再保存用新版本和新编号', async () => {
@@ -622,6 +637,74 @@ describe('撤销链路', () => {
       ],
     });
     expect(second![0].operation_id).not.toBe(first![0].operation_id);
+  });
+
+  it('改分 → 保存 → 重读成功 → 撤销（之后的重读失败）：卡片换组也不丢改过的分和理由', async () => {
+    const user = userEvent.setup();
+    // 保存后的快照：这件事在 confirmedDrafts，确认人里没有它，卡片排到别人的事后面
+    const afterSave = make(
+      { confirmers: { 'demo-event-draft-b': { mine: false, name: '苏晚' } } },
+      {
+        draftSet: {
+          batchId: 'demo-batch',
+          revision: 2,
+          drafts: [other],
+          duplicateCandidates: [],
+        },
+        confirmedDrafts: [
+          {
+            draftId: 'demo-event-draft-a',
+            revision: 2,
+            events: [{ personId: 'demo-person', eventId: 'ev-1' }],
+          },
+        ],
+      },
+    );
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 'success', view: afterSave })
+      // 撤销后的重读失败：页面还拿着保存后的快照，这件事的确认人信息不在里面
+      .mockRejectedValue(new Error('offline'));
+    const save = vi.fn().mockResolvedValue(saved());
+    mountWith(make(), {
+      read,
+      save,
+      undo: vi.fn().mockResolvedValue(undoneResult(3)),
+    });
+    const card = () => cardOf('demo-event-draft-a');
+    await user.click(within(card()).getByRole('button', { name: '改分' }));
+    await user.selectOptions(within(card()).getByRole('combobox'), '5');
+    await user.type(within(card()).getByRole('textbox'), '两人合作');
+    await user.click(
+      within(card()).getByRole('button', { name: '保存并确认' }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    await user.click(await screen.findByRole('button', { name: '撤销' }));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        (within(card()).getByRole('combobox') as HTMLSelectElement).value,
+      ).toBe('5'),
+    );
+    expect(
+      (within(card()).getByRole('textbox') as HTMLTextAreaElement).value,
+    ).toBe('两人合作');
+    expect(within(card()).queryByText(copy.edit.refreshed)).toBeNull();
+    await user.click(
+      within(card()).getByRole('button', { name: '保存并确认' }),
+    );
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save.mock.calls[1]![0]).toMatchObject({
+      expected_revision: 3,
+      decisions: [
+        expect.objectContaining({
+          action: 'edit',
+          value: 5,
+          reason: '两人合作',
+        }),
+        ...save.mock.calls[0]![0].decisions.slice(1),
+      ],
+    });
   });
 
   it('保存后重读成功、撤销后重读失败：这件事回到待确认，确认入口还在', async () => {
@@ -745,5 +828,28 @@ describe('只写了原话的批次', () => {
     expect(
       screen.queryByRole('heading', { name: copy.files.title }),
     ).toBeNull();
+  });
+});
+
+describe('撤销回来的卡片重新挂载时', () => {
+  it('一挂载就带着保存时的分和理由，停在改分里', () => {
+    const key = Object.keys(suggestedValues(draft))[0]!;
+    render(
+      <ReceiptItem
+        view={make()}
+        draft={{ ...draft, revision: 3 }}
+        mode="mine"
+        busy={false}
+        problem={null}
+        restore={{ values: { [key]: 5 }, reason: '两人合作' }}
+        onConfirm={vi.fn()}
+        onReload={vi.fn()}
+      />,
+    );
+    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('5');
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
+      '两人合作',
+    );
+    expect(screen.queryByText(copy.edit.refreshed)).toBeNull();
   });
 });

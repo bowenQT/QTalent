@@ -103,9 +103,10 @@ export function ReceiptPage({
   const [undone, setUndone] = useState<
     Record<string, RestoredEdit & { draft: RecordBatchDraft }>
   >({});
-  // 撤销发出去了、结果不知道的事：重试沿用同一次撤销
+  // 撤销发出去了、结果不知道的事：重试沿用同一次撤销。
+  // verify：之前那次结果未知、重试又被拒，说明不了撤销有没有生效，只能刷新回执核实
   const [undoUnknown, setUndoUnknown] = useState<
-    Record<string, { busy: boolean; retry: () => void }>
+    Record<string, { busy: boolean; verify: boolean; retry: () => void }>
   >({});
   const ops = useRef(new Map<string, { key: string; id: string }>());
   // 卡片按第一次出现的顺序排，确认或撤销后留在原位
@@ -233,8 +234,8 @@ export function ReceiptPage({
     // 一次撤销只用一个 operation_id：结果不知道时重试沿用它，服务端按它重放原结果，
     // 不会因为换了编号被当成第二次撤销拒掉，页面也就不会把已撤销的事说成仍已确认
     const operation = newId();
-    const markUnknown = (busy: boolean) =>
-      setUndoUnknown((all) => ({ ...all, [id]: { busy, retry } }));
+    const markUnknown = (busy: boolean, verify = false) =>
+      setUndoUnknown((all) => ({ ...all, [id]: { busy, verify, retry } }));
     const clearUnknown = () =>
       setUndoUnknown((all) => {
         const next = { ...all };
@@ -275,11 +276,9 @@ export function ReceiptPage({
     function retry() {
       markUnknown(true);
       void attempt().then((outcome) => {
-        if (outcome === 'unknown') markUnknown(false);
-        else if (outcome === 'refused') {
-          clearUnknown();
-          toast.show(copy.toast.undoRefused);
-        }
+        // 被拒（例如评价关系已撤权，服务端先鉴权再重放）证明不了之前那次没生效：
+        // 不说仍已确认，改为请用户刷新回执看这件事现在的状态
+        if (outcome !== 'success') markUnknown(false, outcome === 'refused');
       });
     }
     const close = toast.show(message, {
@@ -304,21 +303,43 @@ export function ReceiptPage({
     if (remaining < UNDO_MS) setTimeout(close, remaining);
   }
 
+  /** 核实撤销结果：丢掉本页对这件事的确认和撤销记录，以重读到的回执为准。 */
+  function verifyUndo(id: string) {
+    const without = <T,>(all: Record<string, T>) => {
+      const next = { ...all };
+      delete next[id];
+      return next;
+    };
+    setConfirmed(without);
+    setUndone(without);
+    setUndoUnknown(without);
+    void reload().then(() => focusCard(id));
+  }
+
+  /**
+   * 这件事是不是当前查看人确认。刚撤销回来的事，快照可能还是保存后的（这件事已不在待确认里，
+   * 没有确认人信息）：本人刚确认过它，确认入口留着，能否保存仍由保存动作判断。
+   */
+  const mineOf = (id: string) =>
+    Boolean(confirmed[id]) ||
+    (view.confirmers[id]?.mine ?? undone[id] !== undefined);
+
   const card = (id: string) => {
     const done = confirmed[id];
     // 本页的确认和撤销结果先于读取快照：重读失败或还没跟上时，卡片也不回到旧状态。
-    // 撤销后的版本不比快照里的旧，就按撤销回执的版本和保存时的分再保存
+    // 撤销回来的事一直带着保存时的分和理由，直到再次保存；版本号只用来选保存时对照的版本，
+    // 不用来推断撤销状态（更高的版本不一定是新的整理结果）
     const found = drafts.find((d) => d.draftId === id);
-    const back = undone[id];
-    const fromUndo =
-      !done &&
-      back !== undefined &&
-      (!found || back.draft.revision >= found.revision);
-    const draft = done ? undefined : fromUndo ? back!.draft : found;
+    const back = done ? undefined : undone[id];
+    const draft = back
+      ? found && found.revision > back.draft.revision
+        ? found
+        : back.draft
+      : done
+        ? undefined
+        : found;
     if (draft || done) {
-      // 刚撤销回来的事，快照可能还是保存后的（这件事已不在待确认里，没有确认人信息）：
-      // 本人刚确认过它，确认入口留着，能否保存仍由保存动作判断
-      const mine = draft ? (view.confirmers[id]?.mine ?? fromUndo) : true;
+      const mine = mineOf(id);
       return (
         <ReceiptItem
           key={id}
@@ -328,14 +349,14 @@ export function ReceiptPage({
           confirmed={done}
           busy={Boolean(busy[id])}
           problem={problems[id] ?? null}
-          restore={
-            fromUndo ? { values: back!.values, reason: back!.reason } : null
-          }
+          restore={back ? { values: back.values, reason: back.reason } : null}
           pendingUndo={
             done && undoUnknown[id]
               ? {
                   busy: undoUnknown[id].busy,
+                  verify: undoUnknown[id].verify,
                   onRetry: undoUnknown[id].retry,
+                  onVerify: () => verifyUndo(id),
                 }
               : null
           }
@@ -385,8 +406,7 @@ export function ReceiptPage({
       confirmed[id] ||
       receipt.confirmedDrafts.some((d) => d.draftId === id),
   );
-  const isMine = (id: string) =>
-    Boolean(confirmed[id]) || Boolean(view.confirmers[id]?.mine);
+  const isMine = mineOf;
   const anyMine = mineDrafts.length > 0 || mineConfirmed > 0;
   const files = receipt.counts.files;
   const verifyOpen = receipt.counts.reviewItems;
@@ -589,8 +609,11 @@ export function ReceiptPage({
                 {running ? copy.confirm.emptyProcessing : copy.confirm.empty}
               </div>
             )}
-            {visible.filter(isMine).map(card)}
-            {visible.filter((id) => !isMine(id)).map(card)}
+            {/* 一个数组、按 id 作 key：撤销后从「别人的」挪到「自己的」只是换位置，卡片不重新挂载 */}
+            {[
+              ...visible.filter(isMine),
+              ...visible.filter((id) => !isMine(id)),
+            ].map(card)}
             {held.map((entry) => (
               <HeldItem key={entry.itemId} state="held" {...entry} />
             ))}

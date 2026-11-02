@@ -50,8 +50,16 @@ export type ItemProblem = { message: string; reload: boolean };
 /** 撤销后回到待确认时，恢复保存时的分和理由（撤销推进版本，不是新的整理结果）。 */
 export type RestoredEdit = { values: EditValues; reason: string };
 
-/** 撤销请求发出去了、结果不知道：卡片不说「已确认」，给出用同一次撤销重试的入口。 */
-export type PendingUndo = { busy: boolean; onRetry: () => void };
+/**
+ * 撤销请求发出去了、结果不知道：卡片不说「已确认」，给出用同一次撤销重试的入口。
+ * verify：重试被拒也证明不了之前那次没生效，改为请用户刷新回执核实。
+ */
+export type PendingUndo = {
+  busy: boolean;
+  verify: boolean;
+  onRetry: () => void;
+  onVerify: () => void;
+};
 
 type Props = {
   view: ReceiptView;
@@ -97,11 +105,14 @@ export function ReceiptItem({
   onReload,
 }: Props) {
   const { receipt } = view;
-  const [editing, setEditing] = useState(false);
-  const [values, setValues] = useState<EditValues>(() =>
-    suggestedValues(draft),
+  // 撤销回来的事一挂载就带着保存时的分和理由（卡片换了位置重新挂载时也一样）
+  const [editing, setEditing] = useState(() =>
+    restore ? isEdited(draft, restore.values) : false,
   );
-  const [reason, setReason] = useState('');
+  const [values, setValues] = useState<EditValues>(
+    () => restore?.values ?? suggestedValues(draft),
+  );
+  const [reason, setReason] = useState(() => restore?.reason ?? '');
   const [whyMissing, setWhyMissing] = useState(false);
   // 草稿有了新版本（轮询或载入最新版本）：分值换成新的建议；正在改的分作废并说明。
   // 本页撤销推进的版本不是新的整理结果：恢复保存时的分和理由，改过分就回到改分
@@ -153,16 +164,22 @@ export function ReceiptItem({
     foot = (
       <div className="n-rcpt__foot">
         <span className="nt-muted" role="status">
-          {copy.confirm.undoPending}
+          {pendingUndo.verify
+            ? copy.confirm.undoVerify
+            : copy.confirm.undoPending}
         </span>
         <button
           className="n-btn n-btn--sm n-btn--ghost"
           type="button"
           disabled={pendingUndo.busy}
           aria-busy={pendingUndo.busy || undefined}
-          onClick={pendingUndo.onRetry}
+          onClick={
+            pendingUndo.verify ? pendingUndo.onVerify : pendingUndo.onRetry
+          }
         >
-          {copy.confirm.undoRetry}
+          {pendingUndo.verify
+            ? copy.confirm.undoReread
+            : copy.confirm.undoRetry}
         </button>
       </div>
     );
