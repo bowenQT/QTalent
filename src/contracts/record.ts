@@ -172,14 +172,41 @@ export const recordUndoInputSchema = z.strictObject({
   operation_id: text,
   saveId: text,
 });
-export const recordUndoReceiptSchema = z.strictObject({
+const draftRestorationSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    status: z.literal('available'),
+    draftId: text,
+    draftRevision: revision,
+  }),
+  z.strictObject({ status: z.literal('refresh_required') }),
+]);
+// A submitted undo version, not a promise that today's draft is still current.
+// Historical absence is handled only when reading the internal operation ledger.
+const recordUndoReceiptBase = {
+  draftRestoration: draftRestorationSchema,
   saveId: text,
   // Only events created by this batch; a second rater may create none.
   withdrawnEvents: eventMappingsSchema,
   withdrawnConfirmationIds: z.array(text),
   withdrawnReviewItemIds: z.array(text),
-  originalInput: recordInputSchema,
-});
+};
+// Undo eligibility never implies access to the entire original input. The server
+// reprojects this pair under current complete-input authorization on every replay.
+export const recordUndoReceiptSchema = z.discriminatedUnion(
+  'inputRestoration',
+  [
+    z.strictObject({
+      ...recordUndoReceiptBase,
+      inputRestoration: z.literal('available'),
+      originalInput: recordInputSchema,
+    }),
+    z.strictObject({
+      ...recordUndoReceiptBase,
+      inputRestoration: z.literal('unavailable'),
+      originalInput: z.null(),
+    }),
+  ],
+);
 
 // Typed input is returned on conflicts so callers can retain edits.
 export function recordActionResultSchema<

@@ -1,0 +1,541 @@
+[
+  {
+    "caseId": "bow-923-v3-case-001",
+    "personId": "p-x01",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-002",
+    "personId": "p-x02",
+    "expectedOutcome": { "state": "front_higher", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-003",
+    "personId": "p-x03",
+    "expectedOutcome": { "state": "front_higher", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-004",
+    "personId": "p-x04",
+    "expectedOutcome": { "state": "middle_distribution", "backGrade": "不建议" }
+  },
+  {
+    "caseId": "bow-923-v3-case-005",
+    "personId": "p-x05",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-006",
+    "personId": "p-x06",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-007",
+    "personId": "p-x07",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-008",
+    "personId": "p-x08",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-009",
+    "personId": "p-x09",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-010",
+    "personId": "p-x10",
+    "expectedOutcome": { "state": "middle_distribution", "backGrade": "不建议" }
+  },
+  {
+    "caseId": "bow-923-v3-case-011",
+    "personId": "p-x11",
+    "expectedOutcome": { "state": "front_lower", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-012",
+    "personId": "p-x12",
+    "expectedOutcome": { "state": "front_higher", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-013",
+    "personId": "p-x13",
+    "expectedOutcome": { "state": "front_higher", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-014",
+    "personId": "p-x14",
+    "expectedOutcome": { "state": "front_lower", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-015",
+    "personId": "p-x15",
+    "expectedOutcome": { "state": "front_higher", "bands": 1 }
+  },
+  {
+    "caseId": "bow-923-v3-case-016",
+    "personId": "p-x16",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-017",
+    "personId": "p-x17",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-018",
+    "personId": "p-x18",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-019",
+    "personId": "p-x19",
+    "expectedOutcome": { "state": "front_lower", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-020",
+    "personId": "p-x20",
+    "expectedOutcome": { "state": "front_higher", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-021",
+    "personId": "p-x21",
+    "expectedOutcome": { "state": "front_higher", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-022",
+    "personId": "p-x22",
+    "expectedOutcome": { "state": "front_higher", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-023",
+    "personId": "p-x23",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-024",
+    "personId": "p-x24",
+    "expectedOutcome": { "state": "missing", "missing": "back" }
+  },
+  {
+    "caseId": "bow-923-v3-case-025",
+    "personId": "p-x25",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-026",
+    "personId": "p-x26",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-027",
+    "personId": "p-x27",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-028",
+    "personId": "p-x28",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-029",
+    "personId": "p-x29",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-030",
+    "personId": "p-x30",
+    "expectedOutcome": { "state": "front_higher", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-031",
+    "personId": "p-x31",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-032",
+    "personId": "p-x32",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-033",
+    "personId": "p-x33",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-034",
+    "personId": "p-x34",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-035",
+    "personId": "p-x35",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-036",
+    "personId": "p-x36",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-037",
+    "personId": "p-x37",
+    "expectedOutcome": { "state": "middle_distribution", "backGrade": "不建议" }
+  },
+  {
+    "caseId": "bow-923-v3-case-038",
+    "personId": "p-x38",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-039",
+    "personId": "p-x39",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-040",
+    "personId": "p-x40",
+    "expectedOutcome": { "state": "middle_distribution", "backGrade": "不建议" }
+  },
+  {
+    "caseId": "bow-923-v3-case-041",
+    "personId": "p-x41",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-042",
+    "personId": "p-x42",
+    "expectedOutcome": {
+      "state": "not_comparable",
+      "reason": "入营后从全套组转到前端方向，选拔作品和营内课题考的是不同方向（演示）",
+      "markedBy": { "id": "p-suwan", "name": "苏晚（演示）" },
+      "markedAt": "2026-09-02T01:00:00.000Z"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-043",
+    "personId": "p-x43",
+    "expectedOutcome": { "state": "middle_distribution", "backGrade": "不建议" }
+  },
+  {
+    "caseId": "bow-923-v3-case-044",
+    "personId": "p-x44",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-045",
+    "personId": "p-x45",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-046",
+    "personId": "p-x46",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-047",
+    "personId": "p-x47",
+    "expectedOutcome": { "state": "missing", "missing": "front" }
+  },
+  {
+    "caseId": "bow-923-v3-case-048",
+    "personId": "p-x48",
+    "expectedOutcome": { "state": "missing", "missing": "front" }
+  },
+  {
+    "caseId": "bow-923-v3-case-049",
+    "personId": "p-x49",
+    "expectedOutcome": { "state": "missing", "missing": "front" }
+  },
+  {
+    "caseId": "bow-923-v3-case-050",
+    "personId": "p-x50",
+    "expectedOutcome": { "state": "missing", "missing": "front" }
+  },
+  {
+    "caseId": "bow-923-v3-case-051",
+    "personId": "p-x51",
+    "expectedOutcome": { "state": "missing", "missing": "both" }
+  },
+  {
+    "caseId": "bow-923-v3-case-052",
+    "personId": "p-x52",
+    "expectedOutcome": { "state": "missing", "missing": "front" }
+  },
+  {
+    "caseId": "bow-923-v3-case-053",
+    "personId": "p-x53",
+    "expectedOutcome": { "state": "missing", "missing": "front" }
+  },
+  {
+    "caseId": "bow-923-v3-case-054",
+    "personId": "p-x54",
+    "expectedOutcome": { "state": "missing", "missing": "front" }
+  },
+  {
+    "caseId": "bow-923-v3-case-055",
+    "personId": "p-x55",
+    "expectedOutcome": { "state": "missing", "missing": "front" }
+  },
+  {
+    "caseId": "bow-923-v3-case-056",
+    "personId": "p-x56",
+    "expectedOutcome": { "state": "missing", "missing": "front" }
+  },
+  {
+    "caseId": "bow-923-v3-case-057",
+    "personId": "p-x57",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-058",
+    "personId": "p-x58",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-059",
+    "personId": "p-x59",
+    "expectedOutcome": { "state": "middle_distribution", "backGrade": "不建议" }
+  },
+  {
+    "caseId": "bow-923-v3-case-060",
+    "personId": "p-x60",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-061",
+    "personId": "p-x61",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-062",
+    "personId": "p-x62",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-063",
+    "personId": "p-x63",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-064",
+    "personId": "p-x64",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-065",
+    "personId": "p-x65",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-066",
+    "personId": "p-x66",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-067",
+    "personId": "p-x67",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-068",
+    "personId": "p-x68",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-069",
+    "personId": "p-x69",
+    "expectedOutcome": { "state": "missing", "missing": "back" }
+  },
+  {
+    "caseId": "bow-923-v3-case-070",
+    "personId": "p-x70",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-071",
+    "personId": "p-x71",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-072",
+    "personId": "p-x72",
+    "expectedOutcome": { "state": "front_higher", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-073",
+    "personId": "p-x73",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-074",
+    "personId": "p-x74",
+    "expectedOutcome": { "state": "front_lower", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-075",
+    "personId": "p-x75",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-076",
+    "personId": "p-x76",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-077",
+    "personId": "p-x77",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-078",
+    "personId": "p-x78",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-079",
+    "personId": "p-x79",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-080",
+    "personId": "p-x80",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-081",
+    "personId": "p-x81",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-082",
+    "personId": "p-x82",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-083",
+    "personId": "p-x83",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "继续观察"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-084",
+    "personId": "p-x84",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-085",
+    "personId": "p-x85",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-086",
+    "personId": "p-x86",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-087",
+    "personId": "p-x87",
+    "expectedOutcome": { "state": "front_lower", "bands": 2 }
+  },
+  {
+    "caseId": "bow-923-v3-case-088",
+    "personId": "p-x88",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-089",
+    "personId": "p-x89",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-090",
+    "personId": "p-x90",
+    "expectedOutcome": { "state": "missing", "missing": "back" }
+  },
+  {
+    "caseId": "bow-923-v3-case-091",
+    "personId": "p-x91",
+    "expectedOutcome": { "state": "consistent" }
+  },
+  {
+    "caseId": "bow-923-v3-case-092",
+    "personId": "p-x92",
+    "expectedOutcome": {
+      "state": "middle_distribution",
+      "backGrade": "建议留用"
+    }
+  },
+  {
+    "caseId": "bow-923-v3-case-093",
+    "personId": "p-x93",
+    "expectedOutcome": { "state": "consistent" }
+  }
+]

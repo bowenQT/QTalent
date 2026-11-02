@@ -1,9 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { Pool } from 'pg';
 import { eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { createDatabase } from '../../db/client';
+import { createDatabase, type Transaction } from '../../db/client';
 import * as directorySchema from '../directory/schema';
 import * as programsSchema from './schema';
 import * as evaluationSchema from '../evaluation-system/schema';
@@ -18,6 +26,7 @@ import {
   readEvaluationWorkItemForUpdate,
 } from './reassignment-store';
 import { canWorkOnEvaluationItem } from './reassignment-policy';
+import { undoEvaluationWorkCompletion } from './index';
 import { canReadNodeTalent } from '../../authz/evaluation-node';
 import {
   evaluationWorkFixture,
@@ -1056,3 +1065,243 @@ it.each(['unknown_interviewer', 'unknown_interview_candidate'] as const)(
     ).toBeNull();
   },
 );
+
+describe('undoEvaluationWorkCompletion', () => {
+  async function completedWork() {
+    await db()
+      .update(evaluationRelations)
+      .set({ validTo: null, revokedAt: null })
+      .where(eq(evaluationRelations.id, original.assignedRelationId));
+    const [item] = await db()
+      .update(evaluationWorkItems)
+      .set({
+        state: 'completed',
+        revision: 4,
+        updatedAt: new Date(Date.parse(now()) - 1000).toISOString(),
+      })
+      .where(eq(evaluationWorkItems.id, original.id))
+      .returning();
+    return item;
+  }
+  const command = (
+    item: Awaited<ReturnType<typeof currentWork>>,
+    nextState: 'pending' | 'cancelled' = 'pending',
+  ) => ({
+    id: item.id,
+    expectedRevision: item.revision,
+    assignedRelationId: item.assignedRelationId,
+    assignedEvaluatorId: item.assignedEvaluatorId,
+    nextState,
+  });
+  const ownerContext = async (tx: Transaction) =>
+    (await loadEvaluationContext(tx, 'demo-old-account', now())).context;
+
+  it.each(['pending', 'cancelled'] as const)(
+    'restores %s for the original evaluator without HR qualification',
+    async (nextState) => {
+      const before = await completedWork();
+      const context = (
+        await loadEvaluationContext(db(), 'demo-old-account', now())
+      ).context;
+      expect(
+        context.grants.filter(
+          (grant) => grant.accountId === context.account.id,
+        ),
+      ).toEqual([]);
+      const updated = await db().transaction((tx) =>
+        undoEvaluationWorkCompletion(
+          tx,
+          command(before, nextState),
+          ownerContext,
+        ),
+      );
+      expect(updated.state).toBe(nextState);
+      expect(updated.revision).toBe(before.revision + 1);
+      expect(new Date(updated.updatedAt).toISOString()).toBe(now());
+      expect({
+        ...updated,
+        state: before.state,
+        revision: before.revision,
+        updatedAt: before.updatedAt,
+      }).toEqual(before);
+    },
+  );
+
+  it.each([
+    'revision',
+    'relation',
+    'evaluator',
+    'state',
+    'next-state',
+    'missing',
+  ])(
+    'refuses a stale or invalid %s without changing the work item',
+    async (kind) => {
+      const before = await completedWork();
+      const input = command(before);
+      if (kind === 'revision') input.expectedRevision -= 1;
+      if (kind === 'relation') input.assignedRelationId = 'different-relation';
+      if (kind === 'evaluator')
+        input.assignedEvaluatorId = 'demo-new-evaluator';
+      if (kind === 'state')
+        await db()
+          .update(evaluationWorkItems)
+          .set({ state: 'pending' })
+          .where(eq(evaluationWorkItems.id, original.id));
+      if (kind === 'next-state')
+        input.nextState = 'completed' as typeof input.nextState;
+      if (kind === 'missing') input.id = 'missing-work';
+      const current = await currentWork();
+      await expect(
+        db().transaction((tx) =>
+          undoEvaluationWorkCompletion(tx, input, ownerContext),
+        ),
+      ).rejects.toMatchObject({
+        status: kind === 'missing' ? 'not_found' : 'conflict',
+      });
+      expect(await currentWork()).toEqual(current);
+    },
+  );
+
+  it.each(['another-evaluator', 'admin', 'no-review-subject'])(
+    'refuses %s even when a completed work row exists',
+    async (kind) => {
+      const before = await completedWork();
+      if (kind === 'admin')
+        await db()
+          .update(accountBindings)
+          .set({ isSystemAdmin: true })
+          .where(eq(accountBindings.accountId, 'demo-old-account'));
+      if (kind === 'no-review-subject')
+        await db()
+          .update(people)
+          .set({ noReview: true })
+          .where(eq(people.id, original.personId));
+      const accountId =
+        kind === 'another-evaluator' ? 'demo-new-account' : 'demo-old-account';
+      await expect(
+        db().transaction((tx) =>
+          undoEvaluationWorkCompletion(
+            tx,
+            command(before),
+            async (locked) =>
+              (await loadEvaluationContext(locked, accountId, now())).context,
+          ),
+        ),
+      ).rejects.toMatchObject(
+        kind === 'admin' ? { name: 'ForbiddenError' } : { status: 'forbidden' },
+      );
+      expect(await currentWork()).toEqual(before);
+    },
+  );
+
+  it.each([false, true])(
+    'requires the original relation after revocation (replacement=%s)',
+    async (replacement) => {
+      const before = await completedWork();
+      await db()
+        .update(evaluationRelations)
+        .set({ validTo: now(), revokedAt: now() })
+        .where(eq(evaluationRelations.id, original.assignedRelationId));
+      if (replacement)
+        await db().insert(evaluationRelations).values({
+          id: 'demo-replacement-owner-relation',
+          evaluationNodeId: original.evaluationNodeId,
+          personId: original.personId,
+          evaluatorId: original.assignedEvaluatorId,
+          kind: 'interviewer',
+          validFrom: now(),
+        });
+      await expect(
+        db().transaction((tx) =>
+          undoEvaluationWorkCompletion(tx, command(before), ownerContext),
+        ),
+      ).rejects.toMatchObject({ status: 'forbidden' });
+      expect(await currentWork()).toEqual(before);
+    },
+  );
+
+  it('rolls back the state and revision with its outer source transaction', async () => {
+    const before = await completedWork();
+    await expect(
+      db().transaction(async (tx) => {
+        await undoEvaluationWorkCompletion(tx, command(before), ownerContext);
+        throw new Error('synthetic outer save rollback');
+      }),
+    ).rejects.toThrow('synthetic outer save rollback');
+    expect(await currentWork()).toEqual(before);
+  });
+
+  it('allows only one undo for the same completed revision under concurrency', async () => {
+    const before = await completedWork();
+    const results = await Promise.allSettled(
+      (['pending', 'cancelled'] as const).map((nextState) =>
+        db().transaction((tx) =>
+          undoEvaluationWorkCompletion(
+            tx,
+            command(before, nextState),
+            ownerContext,
+          ),
+        ),
+      ),
+    );
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    const rejected = results.find((result) => result.status === 'rejected');
+    expect(rejected?.status === 'rejected' && rejected.reason).toMatchObject({
+      status: 'conflict',
+    });
+    expect((await currentWork()).revision).toBe(before.revision + 1);
+  });
+
+  it('reloads current ownership after a row-lock wait before applying an undo', async () => {
+    const before = await completedWork();
+    let acquired!: () => void;
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const blocker = db().transaction(async (tx) => {
+      await readEvaluationWorkItemForUpdate(tx, original.id);
+      acquired();
+      await held;
+    });
+    await ready;
+    const load = vi.fn(ownerContext);
+    const waiting = db()
+      .transaction((tx) =>
+        undoEvaluationWorkCompletion(tx, command(before), load),
+      )
+      .then(
+        (value) => ({ value, error: null }),
+        (error: unknown) => ({ value: null, error }),
+      );
+    try {
+      await vi.waitFor(
+        async () => {
+          const rows = await admin!.query(
+            'SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = $1 AND wait_event_type = $2',
+            [name, 'Lock'],
+          );
+          expect(rows.rows[0].n).toBeGreaterThan(0);
+        },
+        { interval: 20, timeout: 3000 },
+      );
+      expect(load).not.toHaveBeenCalled();
+      await db()
+        .update(evaluationRelations)
+        .set({ revokedAt: now() })
+        .where(eq(evaluationRelations.id, original.assignedRelationId));
+    } finally {
+      release();
+      await blocker;
+    }
+    expect((await waiting).error).toMatchObject({ status: 'forbidden' });
+    expect(load).toHaveBeenCalledOnce();
+    expect(await currentWork()).toEqual(before);
+  });
+});

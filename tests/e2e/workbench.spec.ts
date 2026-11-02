@@ -50,8 +50,13 @@ test('mentor reaches input, send, examples and every trainee by keyboard', async
     '季思齐',
     '记一件事',
   ]);
+  // /record needs a session that the dev sample does not have: what is checked is
+  // that Enter asks for the person's record page, not where the sign-in gate lands.
+  const opened = page.waitForRequest((request) =>
+    /\/record\?person=p-x06(&|$)/.test(request.url()),
+  );
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/\/record\?person=p-x06$/);
+  await opened;
 });
 
 test('HR opens a slash command with the keyboard only', async ({ page }) => {
@@ -72,8 +77,12 @@ test('HR opens a slash command with the keyboard only', async ({ page }) => {
   await expect(menu).toBeHidden();
   await page.keyboard.type('找');
   await expect(menu.getByRole('option')).toHaveText(['为项目找人/找']);
+  // Same for /staffing: the request is the command's effect, the sign-in gate is not.
+  const opened = page.waitForRequest((request) =>
+    /\/staffing\?new=1(&|$)/.test(request.url()),
+  );
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/\/staffing\?new=1$/);
+  await opened;
 });
 
 test('HR sends a sentence: the text goes through session storage, not the URL', async ({
@@ -84,9 +93,12 @@ test('HR sends a sentence: the text goes through session storage, not the URL', 
   await field.fill('谷嘉树这周把覆盖率补到了 80%');
   await field.press('Enter');
   await expect(field).toHaveValue('谷嘉树这周把覆盖率补到了 80%\n');
+  // The sign-in gate may follow (no session on the dev sample); the request is what counts.
+  const sent = page.waitForRequest((request) =>
+    /\/record\?draft=work(&|$)/.test(request.url()),
+  );
   await field.press('ControlOrMeta+Enter');
-  await expect(page).toHaveURL(/\/record\?draft=work$/);
-  expect(page.url()).not.toContain(encodeURIComponent('谷嘉树'));
+  expect((await sent).url()).not.toContain(encodeURIComponent('谷嘉树'));
   expect(JSON.parse((await draft(page, 'niu-talent:draft:record'))!)).toEqual({
     accountId: 'sample-hrbp',
     text: '谷嘉树这周把覆盖率补到了 80%',
@@ -113,8 +125,11 @@ test('manager example panel and find box send to find people with Enter', async 
   const field = page.getByRole('textbox', { name: '描述你要找什么样的人' });
   await expect(field).toBeFocused();
   await expect(asks).toBeHidden();
+  const sent = page.waitForRequest((request) =>
+    /\/staffing\?new=1&draft=work(&|$)/.test(request.url()),
+  );
   await field.press('Enter');
-  await expect(page).toHaveURL(/\/staffing\?new=1&draft=work$/);
+  await sent;
   expect(await draft(page, 'niu-talent:draft:staffing')).toContain(
     'MaaS 智能体平台',
   );

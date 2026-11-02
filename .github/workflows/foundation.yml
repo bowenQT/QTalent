@@ -22,8 +22,8 @@ concurrency:
   group: foundation-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  checks:
-    runs-on: ubuntu-latest
+  quality:
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     # id-token 只用于向 Codecov 证明上传来自本仓库的 CI，不需要保存上传令牌。
     permissions:
@@ -62,10 +62,34 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: pnpm exec playwright install --with-deps chromium
+      - name: Validate BOW-923 workbooks
+        run: PYTHONDONTWRITEBYTECODE=1 python3 tests/fixtures/bow-923/validate-workbooks.py tests/fixtures/bow-923
+      - name: Test BOW-923 workbook validation
+        run: >-
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover
+          -s tests/fixtures/bow-923 -p 'test_*.py'
+      - name: Test BOW-923 input isolation
+        run: node --test --test-concurrency=2 tests/fixtures/bow-923/seed-input.test.mjs
       - run: pnpm reference:prepare
+      - name: Verify deployment scripts
+        run: >-
+          node --test --test-concurrency=2 --experimental-test-coverage
+          '--test-coverage-include=deploy/*.mjs'
+          '--test-coverage-exclude=deploy/*.test.mjs'
+          --test-coverage-lines=85 --test-coverage-branches=85
+          deploy/*.test.mjs
+      - name: Test official media source validation
+        run: PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-media-source.py
+      - name: Install and verify fixed official media tools
+        timeout-minutes: 5
+        run: bash scripts/install-official-media.sh
+      - name: Verify actual media adapters
+        timeout-minutes: 3
+        run: >-
+          pnpm exec vitest run --maxWorkers=2
+          src/server/usecases/recordings/audio-probe.test.ts
+          src/server/usecases/recordings/inspect-audio.test.ts
       - run: pnpm check
-        id: quality
       # 覆盖率门槛由 pnpm check 把关；Codecov 只展示，上传失败不影响检查结论。
       - uses: codecov/codecov-action@v7
         with:
@@ -73,15 +97,125 @@ jobs:
           disable_search: true
           use_oidc: true
           fail_ci_if_error: false
-      - run: pnpm test:e2e
-      - run: pnpm test:visual
-        if: ${{ !cancelled() && steps.quality.outcome == 'success' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: foundation-verification
+          name: foundation-quality
+          path: coverage/
+          retention-days: 7
+
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: qtalent
+          POSTGRES_PASSWORD: isolated-ci-only
+          POSTGRES_DB: qtalent_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U qtalent -d qtalent_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: test
+      NODE_ENV: test
+      DATABASE_URL: postgresql://qtalent:isolated-ci-only@127.0.0.1:5432/qtalent_test
+      TEST_DATABASE_URL: postgresql://qtalent:isolated-ci-only@127.0.0.1:5432/qtalent_test
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      BETTER_AUTH_SECRET: synthetic-ci-secret-not-valid-outside-isolated-tests
+      DEMO_PASSWORD: synthetic-ci-password-only
+      ACCESS_ENFORCED: 'false'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm reference:prepare
+      # dev-routes.spec.ts 验证生产环境隐藏开发路由，不能复用另一 job 的构建目录。
+      - run: pnpm build
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foundation-e2e
           path: |
-            coverage/
             playwright-report/
             test-results/
           retention-days: 7
+
+  visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: qtalent
+          POSTGRES_PASSWORD: isolated-ci-only
+          POSTGRES_DB: qtalent_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U qtalent -d qtalent_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: test
+      NODE_ENV: test
+      DATABASE_URL: postgresql://qtalent:isolated-ci-only@127.0.0.1:5432/qtalent_test
+      TEST_DATABASE_URL: postgresql://qtalent:isolated-ci-only@127.0.0.1:5432/qtalent_test
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      BETTER_AUTH_SECRET: synthetic-ci-secret-not-valid-outside-isolated-tests
+      DEMO_PASSWORD: synthetic-ci-password-only
+      ACCESS_ENFORCED: 'false'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm reference:prepare
+      - run: pnpm test:visual
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foundation-visual
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # 保留稳定的汇总检查；失败、取消、跳过或缺失的结果都不能变成成功。
+  checks:
+    needs: [quality, e2e, visual]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every verification job to succeed
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          VISUAL_RESULT: ${{ needs.visual.result }}
+        run: |
+          printf 'quality=%s e2e=%s visual=%s\n' "$QUALITY_RESULT" "$E2E_RESULT" "$VISUAL_RESULT"
+          if [[ "$QUALITY_RESULT" != "success" || "$E2E_RESULT" != "success" || "$VISUAL_RESULT" != "success" ]]; then
+            echo "All verification jobs must succeed." >&2
+            exit 1
+          fi

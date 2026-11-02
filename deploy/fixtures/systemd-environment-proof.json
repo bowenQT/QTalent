@@ -1,0 +1,11 @@
+{
+  "digest": "9124c0e5c0143114d156446159c1c1d38913a6454864ca62f0f18c78f51ba080",
+  "variableCount": 13,
+  "verifiedUtc": "2026-11-01T06:01:27Z",
+  "systemdVersion": "systemd 255 (255.4-1ubuntu8.18)",
+  "sourceSha256": "e63b1b5380c44ddb5a0fff2672e48faa6e5bacaf3ababb17508081c6d28b1806",
+  "literalValuesNotLogged": true,
+  "unitCollected": true,
+  "formalServicePidsUnchanged": true,
+  "syntheticOnly": true
+}

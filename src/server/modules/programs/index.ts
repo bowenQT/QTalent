@@ -23,6 +23,7 @@ export {
   persistEvaluationReassignment,
   insertEvaluationWorkItem,
   completeEvaluationWorkItem,
+  undoEvaluationWorkCompletion,
 } from './reassignment-store';
 export {
   EvaluationReassignmentError,

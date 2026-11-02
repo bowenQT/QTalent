@@ -8,9 +8,12 @@ import { filterProjects } from './project-state';
 export function Projects({
   data,
   mentor,
+  handoff = false,
 }: {
   data: ProjectList;
   mentor: boolean;
+  /** A workbench sentence is waiting: links into find-people carry `draft=work`. */
+  handoff?: boolean;
 }) {
   const [status, setStatus] = useState('all');
   const [creating, setCreating] = useState(false);
@@ -34,7 +37,10 @@ export function Projects({
         </div>
         {data.canCreate ? (
           <div className="nt-head__acts">
-            <a className="n-btn n-btn--sm" href="/staffing?new=1">
+            <a
+              className="n-btn n-btn--sm"
+              href={`/staffing?${new URLSearchParams(handoff ? { new: '1', draft: 'work' } : { new: '1' })}`}
+            >
               <Icon name="spark" />
               为项目找人
             </a>
@@ -78,6 +84,7 @@ export function Projects({
               key={project.id}
               project={project}
               canFindOwner={data.canCreate}
+              handoff={handoff}
             />
           ))
         ) : (
