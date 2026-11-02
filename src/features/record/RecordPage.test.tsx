@@ -284,8 +284,11 @@ describe('输入与整理', () => {
     readJob.mockResolvedValue(none);
     await typeAndSubmit();
     expect(await screen.findByText(copy.input.whoMissingLead)).toBeTruthy();
-    expect(document.activeElement).toBe(
-      screen.getByRole('combobox', { name: copy.input.whoLabel }),
+    // 焦点在提醒出现后的 effect 里交给「谁」：等它到位再断言
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('combobox', { name: copy.input.whoLabel }),
+      ),
     );
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
       TEXT,

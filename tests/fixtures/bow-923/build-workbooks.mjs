@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { SpreadsheetFile, Workbook } from '@oai/artifact-tool';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import * as prettier from 'prettier';
 import {
-  BACK_DATE,
   CONTRACT_SHA,
-  FRONT_DATE,
   FIXTURE_VERSION,
   backHeaders,
   buildScene,
@@ -15,18 +15,29 @@ import {
 } from './scene.mjs';
 import { createSeedInput } from './seed-input.mjs';
 
-const [outputDir, qaDir] = process.argv.slice(2);
+const [extractDir, outputDir, qaDir, templateArg] = process.argv.slice(2);
 assert(
-  outputDir && qaDir,
-  'usage: node build-workbooks.mjs <new-output-dir> <qa-dir>',
+  extractDir && outputDir && qaDir,
+  'usage: node build-workbooks.mjs <extract-dir> <new-output-dir> <qa-dir> [template-dir]',
 );
+const here = path.dirname(fileURLToPath(import.meta.url));
+const templateDir = templateArg ?? here;
 await fs.mkdir(outputDir, { recursive: true });
 await fs.mkdir(qaDir, { recursive: true });
-const data = await buildScene();
-const writeJson = (name, value) =>
+// Step two consumes step one's output only, never the committed copies.
+const data = await buildScene(pathToFileURL(path.resolve(extractDir) + '/'));
+// Committed fixtures follow the repository Prettier style; format on write so a
+// rerun reproduces the committed bytes.
+const prettierOptions = await prettier.resolveConfig(
+  path.join(here, 'roster.json'),
+);
+const writeJson = async (name, value) =>
   fs.writeFile(
     path.join(outputDir, name),
-    `${JSON.stringify(value, null, 2)}\n`,
+    await prettier.format(JSON.stringify(value), {
+      ...prettierOptions,
+      filepath: name,
+    }),
   );
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const manifest = {
@@ -36,133 +47,36 @@ const manifest = {
     '两份表均为化名重建的演示原表，不是历史原件；既有 prototype_snapshot 未修改。',
   contractSha: CONTRACT_SHA,
   rosterCommit: data.roster.provenance.commit,
+  prototypeCommit: data.prototype.provenance.commit,
   evidenceStatus: 'expected_only_actual_query_not_run',
   originals: {},
 };
 
+const sides = {};
 for (const side of ['front', 'back']) {
   const original = originals[side];
-  const headers = side === 'front' ? frontHeaders : backHeaders;
-  const rows = side === 'front' ? data.frontRows : data.backRows;
+  sides[side] = {
+    file: original.file,
+    headers: side === 'front' ? frontHeaders : backHeaders,
+    rows: side === 'front' ? data.frontRows : data.backRows,
+    dateColumn: original.dateColumn,
+  };
+}
+const rowsFile = path.join(qaDir, 'workbook-rows.json');
+await fs.writeFile(rowsFile, `${JSON.stringify(sides)}\n`);
+// Keep the reviewed container (styles/table/rels); rewrite only sheet data.
+execFileSync('python3', [
+  '-I',
+  path.join(here, 'write-workbooks.py'),
+  templateDir,
+  rowsFile,
+  outputDir,
+]);
+for (const side of ['front', 'back']) {
+  const original = originals[side];
+  const rows = sides[side].rows;
   const dateIndex = side === 'front' ? 12 : 6;
-  const wb = Workbook.create();
-  const sheet = wb.worksheets.add(original.sheet);
-  // Use Excel serials plus an explicit UTC display format. The SDK exports Date
-  // objects as ISO t="d" cells; numeric dates also support older XLSX readers.
-  const typedRows = rows.map((row) =>
-    row.map((value, index) =>
-      index === dateIndex && value !== null
-        ? Date.parse(value) / 86_400_000 + 25_569
-        : value,
-    ),
-  );
-  sheet.getRangeByIndexes(0, 0, rows.length + 1, headers.length).values = [
-    headers,
-    ...typedRows,
-  ];
-  const all = sheet.getRange(`A1:${original.lastColumn}94`);
-  all.format.font = { name: 'Arial', size: 11, color: '#24364B' };
-  all.format.verticalAlignment = 'center';
-  all.format.columnWidth = 21;
-  all.format.rowHeight = 48;
-  all.format.wrapText = true;
-  const header = sheet.getRange(`A1:${original.lastColumn}1`);
-  header.format = {
-    fill: '#263D55',
-    font: { name: 'Arial', size: 11, bold: true, color: '#FFFFFF' },
-    horizontalAlignment: 'center',
-    verticalAlignment: 'center',
-    wrapText: true,
-  };
-  header.format.rowHeight = 54;
-  header.format.borders = { bottom: { style: 'medium', color: '#A1AFBC' } };
-  sheet.getRange('A2:A94').format.font = {
-    name: 'Arial',
-    size: 11,
-    color: '#66778A',
-  };
-  sheet.getRange('A1:A94').format.columnWidth = 13;
-  sheet.getRange('B1:B94').format.columnWidth = 20;
-  sheet.getRange('C1:C94').format.columnWidth = 25;
-  const comments = `${original.excerptColumn}1:${original.excerptColumn}94`;
-  sheet.getRange(comments).format.columnWidth = 60;
-  sheet
-    .getRange(`${original.dateColumn}2:${original.dateColumn}94`)
-    .setNumberFormat('yyyy-mm-dd hh:mm');
-  sheet.getRange(
-    `${original.dateColumn}1:${original.dateColumn}94`,
-  ).format.columnWidth = 22;
-  sheet.getRange(
-    `${original.dateColumn}2:${original.dateColumn}94`,
-  ).format.horizontalAlignment = 'center';
-  if (side === 'front') {
-    sheet.getRange('D1:D94').format.columnWidth = 30;
-    sheet.getRange('G1:I94').format.columnWidth = 26;
-    sheet.getRange('K1:K94').format.columnWidth = 14;
-    sheet.getRange('O1:O94').format.columnWidth = 18;
-  } else {
-    sheet.getRange('E1:E94').format.columnWidth = 14;
-    sheet.getRange('H1:H94').format.columnWidth = 33;
-    sheet.getRange('I1:I94').format.columnWidth = 18;
-  }
-  sheet.freezePanes.freezeRows(1);
-  sheet.freezePanes.freezeColumns(2);
-  sheet.showGridLines = false;
-  sheet.tabColor = '#526D82';
-  const table = sheet.tables.add(
-    `A1:${original.lastColumn}94`,
-    true,
-    side === 'front' ? 'DemoSelectionOriginal' : 'DemoGraduationOriginal',
-  );
-  table.showFilterButton = true;
-  table.showTotals = false;
-  wb.recalculate();
-  const overview = await wb.inspect({
-    kind: 'table',
-    range: `'${original.sheet}'!A1:${original.lastColumn}8`,
-    include: 'values,formulas',
-    tableMaxRows: 8,
-    tableMaxCols: headers.length,
-    maxChars: 10000,
-  });
-  await fs.writeFile(
-    path.join(qaDir, `${side}-inspect.ndjson`),
-    overview.ndjson,
-  );
-  const errors = await wb.inspect({
-    kind: 'match',
-    searchTerm: '#REF!|#DIV/0!|#VALUE!|#N/A|#NAME\\?|#NUM!|#SPILL!',
-    options: { useRegex: true, maxResults: 100 },
-    maxChars: 2500,
-  });
-  await fs.writeFile(
-    path.join(qaDir, `${side}-error-scan.ndjson`),
-    errors.ndjson,
-  );
-  const previewRanges =
-    side === 'front'
-      ? ['A1:F8', 'G1:L8', 'M1:P8', 'A13:F17', 'G13:P17', 'A89:F94']
-      : ['A1:F8', 'G1:J8', 'A13:F17', 'G13:J17', 'A89:F94'];
-  for (const [index, range] of previewRanges.entries()) {
-    const preview = await wb.render({
-      sheetName: original.sheet,
-      range,
-      scale: 1,
-      format: 'png',
-    });
-    await fs.writeFile(
-      path.join(qaDir, `${side}-${index + 1}.png`),
-      new Uint8Array(await preview.arrayBuffer()),
-    );
-  }
-  const output = await SpreadsheetFile.exportXlsx(wb);
-  const filePath = path.join(outputDir, original.file);
-  await output.save(filePath);
-  await fs.rename(
-    `${filePath}.inspect.ndjson`,
-    path.join(qaDir, `${side}-export-inspect.ndjson`),
-  );
-  const bytes = await fs.readFile(filePath);
+  const bytes = await fs.readFile(path.join(outputDir, original.file));
   manifest.originals[side] = {
     ...original,
     sha256: sha256(bytes),
@@ -173,12 +87,13 @@ for (const side of ['front', 'back']) {
     personRows: 93,
     identityColumns: ['A', 'B'],
     dateEncoding: 'Excel numeric date, displayed in UTC',
-    presentEvaluations: side === 'front' ? 87 : 86,
+    presentEvaluations: rows.filter((row) => row[dateIndex] !== null).length,
   };
 }
 
 await writeJson('selection-standard.json', data.standard);
 await writeJson('roster.json', data.roster);
+await writeJson('prototype-judgments.json', data.prototype);
 await writeJson('mapping.json', data.mapping);
 await writeJson('source-rows.json', data.sourceRows);
 await writeJson('manual-comparability-marks.json', data.manualComparability);
@@ -240,8 +155,6 @@ const csv = [
   .map((row) => row.map(csvCell).join(','))
   .join('\n');
 await fs.writeFile(path.join(outputDir, 'expected-cases.csv'), `${csv}\n`);
-assert.equal(FRONT_DATE, '2026-03-02T01:00:00.000Z');
-assert.equal(BACK_DATE, '2026-06-12T06:00:00.000Z');
 console.log(
   JSON.stringify({
     outputDir,

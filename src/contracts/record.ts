@@ -172,7 +172,18 @@ export const recordUndoInputSchema = z.strictObject({
   operation_id: text,
   saveId: text,
 });
+const draftRestorationSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    status: z.literal('available'),
+    draftId: text,
+    draftRevision: revision,
+  }),
+  z.strictObject({ status: z.literal('refresh_required') }),
+]);
+// A submitted undo version, not a promise that today's draft is still current.
+// Historical absence is handled only when reading the internal operation ledger.
 const recordUndoReceiptBase = {
+  draftRestoration: draftRestorationSchema,
   saveId: text,
   // Only events created by this batch; a second rater may create none.
   withdrawnEvents: eventMappingsSchema,

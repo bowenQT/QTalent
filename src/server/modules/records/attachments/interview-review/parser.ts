@@ -82,6 +82,25 @@ function starts(line: Line, label: string): boolean {
     .replace(/^[*＊•·\d.、]+/, '')
     .startsWith(compact(label));
 }
+/** Labels naming the same field; each field appears once in a supported form. */
+const fieldGroups = [
+  ['面试时间'],
+  ['面试类型'],
+  ['面试官姓名', '面试官'],
+  ['面试结果'],
+  ['综合评价'],
+  ['评价表名称'],
+  ['规则版本'],
+  ['候选人'],
+];
+/** Interview fields read into metadata, printed before the comment in the supported form. */
+const readFieldLabels = [
+  '面试时间',
+  '面试类型',
+  '面试官姓名',
+  '面试官',
+  '面试结果',
+];
 const metadataLabels = [
   '面试时间',
   '面试类型',
@@ -102,6 +121,73 @@ function rowLabel(line: Line, label: string): boolean {
     /^[：:1-5SABCDN]/.test(value.slice(compact(label).length))
   );
 }
+/** A field label is the whole label, then a colon or nothing; free text that merely begins with it is not. */
+function labelLine(line: Line, label: string): boolean {
+  const value = compact(line.text).replace(/^[*＊•·\d.、]+/, '');
+  if (!value.startsWith(compact(label))) return false;
+  const rest = value.slice(compact(label).length);
+  return rest === '' || /^[：:]/.test(rest);
+}
+/** Field rows of the supported form's interview block, in printed order. */
+const blockFields = [
+  ['候选人'],
+  ['面试官姓名', '面试官'],
+  ['面试时间'],
+  ['面试类型'],
+  ['面试结果'],
+];
+function fieldBlockMatches(block: Line[], beforeScores: boolean): boolean {
+  let next = 0;
+  let column: number | null = null;
+  let valueExpected = false;
+  for (const [index, line] of block.entries()) {
+    if (valueExpected) {
+      valueExpected = false;
+      continue;
+    }
+    if (heading(line)) continue;
+    const at = blockFields.findIndex(
+      (labels, field) =>
+        field >= next && labels.some((label) => labelLine(line, label)),
+    );
+    if (at >= 0) {
+      const left = line.spans[0]!.box[0];
+      if (column !== null && Math.abs(left - column) > 2) return false;
+      column ??= left;
+      next = at + 1;
+      const label = blockFields[at]!.find((item) => labelLine(line, item))!;
+      valueExpected = stripLabel(line.text, label) === '';
+      continue;
+    }
+    // The scale caption printed between the fields and the first score row.
+    if (
+      beforeScores &&
+      index === block.length - 1 &&
+      /^原表维度选择/.test(compact(line.text))
+    )
+      continue;
+    return false;
+  }
+  return true;
+}
+function hasRadios(line: Line, pages: PdfLayoutPage[]): boolean {
+  const page = pages.find((item) => item.page === line.page);
+  return (
+    page?.circles.some(
+      (circle) =>
+        Math.abs(centerY(circle.box) - centerY(line.box)) <= 10 &&
+        centerX(circle.box) > line.spans[0].box[0],
+    ) ?? false
+  );
+}
+function heading(line: Line): boolean {
+  return (
+    /^(明细评价|评价概览|概览评价)/.test(compact(line.text)) ||
+    INTERVIEW_TEMPLATES.some(
+      (template) => compact(line.text) === compact(template.name),
+    )
+  );
+}
 function stripLabel(text: string, label: string): string {
   const pattern = [...label]
     .map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
@@ -111,14 +197,14 @@ function stripLabel(text: string, label: string): string {
 function field(
   lines: Line[],
   labels: string[],
-  stopLabels: string[],
+  boundary: (index: number) => boolean,
   multiline = false,
 ): ReadField {
   const index = lines.findIndex((line) =>
-    labels.some((label) => starts(line, label)),
+    labels.some((label) => labelLine(line, label)),
   );
   if (index < 0) return null;
-  const label = labels.find((value) => starts(lines[index], value))!;
+  const label = labels.find((value) => labelLine(lines[index], value))!;
   const first = stripLabel(lines[index].text, label);
   const values: string[] = first ? [first] : [];
   const sources: PdfRegion[] = first ? [region(lines[index])] : [];
@@ -127,30 +213,20 @@ function field(
     i < lines.length && (multiline || values.length === 0);
     i++
   ) {
-    if (
-      stopLabels.some((stop) => starts(lines[i], stop)) ||
-      /^(明细评价|评价概览|概览评价)/.test(compact(lines[i].text))
-    )
-      break;
-    if (
-      INTERVIEW_TEMPLATES.some(
-        (template) => compact(lines[i].text) === compact(template.name),
-      )
-    )
-      break;
+    if (heading(lines[i]) || boundary(i)) break;
     values.push(lines[i].text.trim());
     sources.push(region(lines[i]));
     if (!multiline) break;
   }
   return values.length ? { value: values.join('\n'), sources } : null;
 }
-function candidateName(lines: Line[], stopLabels: string[]): ReadField {
+function candidateName(lines: Line[]): ReadField {
   const candidates = lines.filter((line) =>
     /^候\s*选\s*人\s*[:：]/.test(line.text),
   );
   if (!candidates.length) return null;
   const values = candidates
-    .map((line) => field([line], ['候选人'], stopLabels))
+    .map((line) => field([line], ['候选人'], () => true))
     .filter((value): value is NonNullable<ReadField> => value !== null);
   if (
     values.length !== candidates.length ||
@@ -193,7 +269,11 @@ function circleGroups(
   return groups
     .map((group) => {
       let blue: PdfCircle[] = [];
+      // A later non-blue ring over a blue paint leaves the final colour uncertain.
+      let covered = false;
       for (const paint of group) {
+        if (!paint.filled && paint.color !== 'blue' && blue.length > 0)
+          covered = true;
         if (paint.filled && paint.color !== 'blue')
           blue = blue.filter(
             (old) =>
@@ -209,9 +289,9 @@ function circleGroups(
       return {
         box: union(group.map((paint) => paint.box)),
         selected: blue.length > 0,
-        supported: group.every(
-          (paint) => paint.supported && paint.color !== 'other',
-        ),
+        supported:
+          !covered &&
+          group.every((paint) => paint.supported && paint.color !== 'other'),
       };
     })
     .sort((a, b) => a.box[0] - b.box[0]);
@@ -264,26 +344,105 @@ function readSelection(
     start: Math.min(...citedLines.map((line) => line.start)),
     end: Math.max(...citedLines.map((line) => line.end)),
   };
-  const optionText = optionLines
-    .map((line) =>
-      starts(line, anchor.name)
+  const tokens = (line: Line) =>
+    [
+      ...(starts(line, anchor.name)
         ? stripLabel(line.text, anchor.name)
-        : line.text,
-    )
-    .join(' ');
-  const found = [
-    ...optionText.matchAll(
-      new RegExp(`(?<![A-Za-z0-9])(${escaped})(?![A-Za-z0-9])`, 'g'),
+        : line.text
+      ).matchAll(
+        new RegExp(`(?<![A-Za-z0-9])(${escaped})(?![A-Za-z0-9])`, 'g'),
+      ),
+    ].map((match) => match[1]);
+  // Pair circles with labels row by row: each circle row must align with exactly one line of
+  // option labels holding the same number of labels, so reading order is the same for both.
+  const circleRows: (typeof groups)[] = [];
+  for (const group of [...groups].sort(
+    (a, b) => centerY(a.box) - centerY(b.box) || a.box[0] - b.box[0],
+  )) {
+    const row = circleRows.find(
+      (items) => Math.abs(centerY(items[0].box) - centerY(group.box)) <= 3,
+    );
+    if (row) row.push(group);
+    else circleRows.push([group]);
+  }
+  const labelled = optionLines.filter((line) => tokens(line).length > 0);
+  const aligned = circleRows.map((row) =>
+    labelled.filter(
+      (line) => Math.abs(centerY(row[0].box) - centerY(line.box)) <= 10,
     ),
-  ].map((match) => match[1]);
-  if (groups.length !== options.length || found.join('|') !== options.join('|'))
+  );
+  const ordered = circleRows.flatMap((row) =>
+    [...row].sort((a, b) => a.box[0] - b.box[0]),
+  );
+  const found = aligned.flatMap((items) => items.flatMap(tokens));
+  if (
+    aligned.some(
+      (items, index) =>
+        items.length !== 1 ||
+        tokens(items[0]).length !== circleRows[index].length,
+    ) ||
+    new Set(aligned.map((items) => items[0])).size !== aligned.length ||
+    labelled.some((line) => !aligned.some((items) => items[0] === line)) ||
+    ordered.length !== options.length ||
+    found.join('|') !== options.join('|')
+  )
     return fail('options_mismatch');
-  const selected = groups.filter((group) => group.selected);
+  // Then pair each circle with the one option label printed just to its right on the same
+  // line. A circle with no such label, two candidates, or a label used twice is a layout we
+  // cannot read with certainty, so nothing is read.
+  const paired: string[] = [];
+  for (const [index, row] of circleRows.entries()) {
+    const labels: { token: string; box: PdfBox }[] = [];
+    for (const span of aligned[index]![0]!.spans) {
+      const text = starts(
+        { ...aligned[index]![0]!, text: span.text, spans: [span] },
+        anchor.name,
+      )
+        ? stripLabel(span.text, anchor.name)
+        : span.text;
+      const inSpan = [
+        ...text.matchAll(
+          new RegExp(`(?<![A-Za-z0-9])(${escaped})(?![A-Za-z0-9])`, 'g'),
+        ),
+      ].map((match) => match[1]!);
+      if (inSpan.length > 1) return fail('options_mismatch');
+      if (inSpan.length === 1)
+        labels.push({ token: inSpan[0]!, box: span.box });
+    }
+    const used = new Set<number>();
+    for (const group of [...row].sort((a, b) => a.box[0] - b.box[0])) {
+      const near = labels.flatMap((label, at) =>
+        label.box[0] >= group.box[2] - 2 && label.box[0] <= group.box[2] + 20
+          ? [at]
+          : [],
+      );
+      if (near.length !== 1 || used.has(near[0]!))
+        return fail('options_mismatch');
+      used.add(near[0]!);
+      paired.push(labels[near[0]!]!.token);
+    }
+  }
+  if (paired.join('|') !== options.join('|')) return fail('options_mismatch');
+  const page = pages.find((item) => item.page === anchor.line.page)!;
+  // Text painted over a circle can hide or fake a selection.
+  if (
+    groups.some((group) =>
+      page.text.some(
+        (span) =>
+          span.box[0] < group.box[2] &&
+          group.box[0] < span.box[2] &&
+          span.box[1] < group.box[3] &&
+          group.box[1] < span.box[3],
+      ),
+    )
+  )
+    return fail('unsupported_graphics');
+  const selected = ordered.filter((group) => group.selected);
   if (selected.length === 0) return fail('missing_selection');
   if (selected.length !== 1) return fail('multiple_selections');
   return {
     status: 'recognized',
-    value: options[groups.indexOf(selected[0])],
+    value: paired[ordered.indexOf(selected[0])]!,
     source: {
       page: anchor.line.page,
       box: selected[0].box,
@@ -304,24 +463,102 @@ function parseSection(
     template.rating.label,
     template.level.label,
   ];
+  const metadataLine = (line: Line) =>
+    metadataLabels.some((label) => labelLine(line, label));
+  // A field label seen more than once (for example a comment line written as
+  // 「候选人：…」) leaves the field and the comment boundary uncertain: neither is read.
+  const repeated = new Set(
+    fieldGroups.filter(
+      (group) =>
+        lines.filter((line) => group.some((label) => labelLine(line, label)))
+          .length > 1,
+    ),
+  );
+  // The supported form prints the interview fields in one block before the first score row
+  // and the free-text comment. A field label outside that block may be someone's paraphrase:
+  // it never fills the field, even when the formal field is missing and the label is seen once.
+  // One inside the comment also leaves the comment's own boundary uncertain.
+  const commentAt = lines.findIndex((line) => labelLine(line, '综合评价'));
+  const scoresAt = lines.findIndex((line) =>
+    template.dimensions.some((name) => rowLabel(line, name)),
+  );
+  const blockEnd = Math.min(
+    ...[commentAt, scoresAt].filter((index) => index >= 0),
+    lines.length,
+  );
+  const labelledAfter = (start: number) =>
+    fieldGroups.filter(
+      (group) =>
+        readFieldLabels.some((label) => group.includes(label)) &&
+        lines
+          .slice(start)
+          .some((line) => group.some((label) => labelLine(line, label))),
+    );
+  const late = commentAt < 0 ? [] : labelledAfter(commentAt + 1);
+  for (const group of labelledAfter(blockEnd)) repeated.add(group);
+  // The block itself must be exactly the template's: headings, the field labels in their fixed
+  // order and one column, a value line only under a label printed without one, and the scale
+  // caption right before the first score row. Anything else in it (an extra line, a label out
+  // of order or out of column) leaves every interview field unread.
+  if (!fieldBlockMatches(lines.slice(0, blockEnd), blockEnd === scoresAt))
+    for (const group of fieldGroups)
+      if (readFieldLabels.some((label) => group.includes(label)))
+        repeated.add(group);
+  for (const group of late) repeated.add(group);
+  const uncertain = (label: string) =>
+    [...repeated].some((group) => group.includes(label));
+  const choiceRow = (line: Line) =>
+    [...line.text.matchAll(/(?<![A-Za-z0-9])([1-5])(?![A-Za-z0-9])/g)]
+      .map((match) => match[1])
+      .join('') === '12345';
+  // The free-text comment runs until the next field label, standalone scale label, radio or
+  // choice row, or heading. Its lines are never scale rows, whatever words they begin with.
+  const comment = new Set<number>();
+  let commentUncertain = uncertain('综合评价') || late.length > 0;
+  const commentStart = commentAt;
+  if (commentStart >= 0)
+    for (let index = commentStart + 1; index < lines.length; index++) {
+      const line = lines[index];
+      if (
+        heading(line) ||
+        metadataLine(line) ||
+        hasRadios(line, pages) ||
+        choiceRow(line) ||
+        line.spans.some((span) =>
+          labels.some((label) => compact(span.text) === compact(label)),
+        )
+      ) {
+        if (
+          metadataLabels.some(
+            (label) => labelLine(line, label) && uncertain(label),
+          )
+        )
+          commentUncertain = true;
+        break;
+      }
+      comment.add(index);
+    }
   const anchors: Anchor[] = [];
   for (let index = 0; index < lines.length; index++) {
+    if (comment.has(index)) continue;
     const name = labels.find((label) => rowLabel(lines[index], label));
     if (name) anchors.push({ name, line: lines[index], index });
   }
-  // An exact dimension fingerprint is required. A changed or duplicated row is a new template.
+  // An exact dimension fingerprint is required. A changed or duplicated row is a new template;
+  // so are two rating or level rows, which would leave the chosen value uncertain.
   if (
+    [template.rating.label, template.level.label].some(
+      (name) => anchors.filter((anchor) => anchor.name === name).length > 1,
+    ) ||
     template.dimensions.some(
       (name) => anchors.filter((anchor) => anchor.name === name).length !== 1,
     )
   )
     return null;
   for (let index = 0; index < lines.length; index++) {
+    if (comment.has(index)) continue;
     const line = lines[index];
-    const choices = [
-      ...line.text.matchAll(/(?<![A-Za-z0-9])([1-5])(?![A-Za-z0-9])/g),
-    ].map((match) => match[1]);
-    if (choices.join('') !== '12345') continue;
+    if (!choiceRow(line)) continue;
     const row = template.dimensions.some((name) => rowLabel(line, name))
       ? line
       : lines[index - 1];
@@ -333,7 +570,10 @@ function parseSection(
     )
       return null;
   }
-  const stopLabels = [...metadataLabels, ...labels];
+  const fieldEnd = (index: number) =>
+    metadataLine(lines[index]) ||
+    labels.some((label) => rowLabel(lines[index], label));
+  const commentEnd = (index: number) => !comment.has(index);
   const selection = (label: string, choices: readonly string[]): Selection => {
     const anchor = anchors.find((item) => item.name === label);
     return anchor
@@ -356,15 +596,25 @@ function parseSection(
     demo: true,
     templateSource: region(title),
     identity: {
-      candidateName: candidateName(lines, stopLabels),
+      candidateName: candidateName(lines),
       positionNumber: null, // No verified PDF label/fixture exists; never substitute another identifier.
     },
     metadata: {
-      interviewTime: field(lines, ['面试时间'], stopLabels),
-      interviewType: field(lines, ['面试类型'], stopLabels),
-      interviewer: field(lines, ['面试官姓名', '面试官'], stopLabels),
-      interviewResult: field(lines, ['面试结果'], stopLabels),
-      overallComment: field(lines, ['综合评价'], stopLabels, true),
+      interviewTime: uncertain('面试时间')
+        ? null
+        : field(lines, ['面试时间'], fieldEnd),
+      interviewType: uncertain('面试类型')
+        ? null
+        : field(lines, ['面试类型'], fieldEnd),
+      interviewer: uncertain('面试官')
+        ? null
+        : field(lines, ['面试官姓名', '面试官'], fieldEnd),
+      interviewResult: uncertain('面试结果')
+        ? null
+        : field(lines, ['面试结果'], fieldEnd),
+      overallComment: commentUncertain
+        ? null
+        : field(lines, ['综合评价'], commentEnd, true),
     },
     dimensions: template.dimensions.map((name) => ({
       name,

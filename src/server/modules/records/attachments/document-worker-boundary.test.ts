@@ -24,7 +24,10 @@ vi.mock('node:worker_threads', async () => {
     },
   };
 });
-import { createDocumentDecoders } from './document-decoders';
+import {
+  createDocumentDecoders,
+  createMaterialPdfDecoder,
+} from './document-decoders';
 const options = {
   limits: { maxBytes: 100, maxFragments: 10, maxFragmentChars: 50 },
 };
@@ -139,5 +142,57 @@ describe('document worker transport boundary', () => {
     expect(await promise).toEqual({ status: 'failed', reason: 'cancelled' });
     expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
     expect(state.workers[0].eventNames()).toEqual([]);
+  });
+});
+
+describe('material PDF worker mode', () => {
+  it('sends the explicit mode and rejects a reply missing its promised page text', async () => {
+    const pending = createMaterialPdfDecoder().decode(
+      new Uint8Array([1]),
+      options,
+    );
+    const worker = state.workers[0];
+    expect(worker.options.workerData.capturePdfText).toBe(true);
+    worker.emit('message', { status: 'decoded', segments: [] });
+    expect(await pending).toEqual({
+      status: 'failed',
+      reason: 'invalid_content',
+    });
+    expect(worker.terminate).toHaveBeenCalledOnce();
+  });
+  it('does not accept page-text output through a legacy decoder', async () => {
+    const pending = createDocumentDecoders().pdf.decode(
+      new Uint8Array([1]),
+      options,
+    );
+    state.workers[0].emit('message', {
+      status: 'decoded',
+      segments: [],
+      pdfText: {
+        version: 'pdf-page-text-v1',
+        pages: [{ page: 1, text: '' }],
+        ranges: [],
+      },
+    });
+    expect(await pending).toEqual({
+      status: 'failed',
+      reason: 'invalid_content',
+    });
+    expect(state.workers[0].terminate).toHaveBeenCalledOnce();
+  });
+  it('preserves safe failures and terminates the material worker', async () => {
+    const pending = createMaterialPdfDecoder().decode(
+      new Uint8Array([1]),
+      options,
+    );
+    state.workers[0].emit('message', {
+      status: 'failed',
+      reason: 'resource_limit',
+    });
+    expect(await pending).toEqual({
+      status: 'failed',
+      reason: 'resource_limit',
+    });
+    expect(state.workers[0].terminate).toHaveBeenCalledOnce();
   });
 });

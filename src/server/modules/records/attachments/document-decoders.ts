@@ -3,6 +3,7 @@ import { Worker } from 'node:worker_threads';
 import {
   DOCX_DECODER_VERSION,
   PDF_DECODER_VERSION,
+  MATERIAL_PDF_DECODER_VERSION,
   documentBudgetSchema,
   documentOutcomeSchema,
   type DocumentDecoderOptions,
@@ -14,6 +15,7 @@ function runWorker(
   bytes: Uint8Array,
   options: Parameters<AttachmentDecoder['decode']>[1],
   budget: DocumentBudget,
+  capturePdfText?: true,
 ): Promise<DocumentOutcome> {
   if (options.signal?.aborted)
     return Promise.resolve({ status: 'failed', reason: 'cancelled' });
@@ -24,7 +26,13 @@ function runWorker(
     const worker = new Worker(
       new URL('./document-worker.ts', import.meta.url),
       {
-        workerData: { format, bytes: owned, limits: options.limits, budget },
+        workerData: {
+          format,
+          bytes: owned,
+          limits: options.limits,
+          budget,
+          ...(capturePdfText ? { capturePdfText } : {}),
+        },
         transferList: [owned.buffer],
         execArgv: ['--import', 'tsx'],
         stdout: true,
@@ -64,7 +72,9 @@ function runWorker(
     worker.once('message', (output) => {
       const checked = documentOutcomeSchema.safeParse(output);
       void finish(
-        checked.success
+        checked.success &&
+          (checked.data.status !== 'decoded' ||
+            (checked.data.pdfText !== undefined) === (capturePdfText === true))
           ? checked.data
           : { status: 'failed', reason: 'invalid_content' },
       );
@@ -97,5 +107,16 @@ export function createDocumentDecoders(
       version: PDF_DECODER_VERSION,
       decode: (bytes, options) => runWorker('pdf', bytes, options, budget),
     },
+  };
+}
+
+/** Explicit new parse generation; legacy items-v2 remains unchanged. */
+export function createMaterialPdfDecoder(
+  options: DocumentDecoderOptions = {},
+): AttachmentDecoder {
+  const budget = documentBudgetSchema.parse(options);
+  return {
+    version: MATERIAL_PDF_DECODER_VERSION,
+    decode: (bytes, options) => runWorker('pdf', bytes, options, budget, true),
   };
 }

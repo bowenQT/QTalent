@@ -85,3 +85,29 @@ const input = createValidatedAttachmentInput<Transaction>({
 - PR112 已于main32d0acb正式合入，最终检查不使用media overlay。此consumer只取已合target和media进度schema；request/grant/completed的recordCollectionId回显、source:null与raw-original读取身份union由相应上传/读取入口消费。worker输入仍按873冻结getter核upload/job/version绑定及当前写权限，不能用目标人员替代稳定记录集合或造片段。
 - 873 getter/845/852应用接线、saveParse原生持久适配及本卡写入端口的真实PG原子验收仍Pending。完整工程真实PG统一覆盖若通过，也只证明实际执行的集成范围，不能把本卡端口fake说成真实持久链路通过。
 - 精确命令、受检head与CI/远审终态记录于PR189；卡和issue保持In Progress/open。独立能力满足自测门禁后按授权转Ready，最终合并由父负责；代码回退保留原件、用户编辑与已有解析事实。
+
+## BOW-926 页面文本输入（独立生产续作）
+
+接口冻结 [#248/6560298661](https://github.com/bowenQT/QTalent/issues/248#issuecomment-6560298661)，926 已确认消费。显式 `createMaterialPdfDecoder()` 复用同一受限 worker，通过 `parseAttachment({ ...input, decoders: { ...createDocumentDecoders(), pdf: createMaterialPdfDecoder() } })` 选择新一代解析。既有 `createDocumentDecoders().pdf` 仍是 `pdfjs-dist@6.4.299:items-v2`，不会给历史结果补造页文本或改 parseVersionId。
+
+新 decoder version 为 `pdfjs-dist@6.4.299:items-v2+page-u16-v1`。成功的 `ParsedAttachment.pdfText`：
+
+```ts
+{
+  version: 'pdf-page-text-v1',
+  pages: Array<{ page: number; text: string }>,
+  ranges: Array<{
+    fragmentId: string;
+    page: number;
+    textRange: { start: number; end: number };
+  }>,
+}
+```
+
+`pages` 保留从 1 开始的全部物理页（含空页）。每页文本直接取同次 PDF.js `getTextContent({disableNormalization:true,includeMarkedContent:false})` 的 TextItem 原顺序与原 `str`，仅每次 `hasEOL` 后增加 LF；不按坐标猜阅读顺序或补空格，不从 fragments 重建。旋转文字和平台水印仍在页文本中，旧过滤/trim 只决定保留片段。完整提取文本属于原始受限资料，不可直接放入公共任务进度或日志；926 必须执行当前完整来源权限后才能读取。
+
+每个保留 fragment 恰有一条对应范围。start/end 是页面文本中的 UTF-16 零基半开区间，包含首端、不含末端，必须精确回切为 excerpt，端点不切代理对。完整页文本须为完整 Unicode；未配对代理项或因过滤切开的代理对安全失败。内部 transport 的 segmentIndex 仅用于绑定当前输出数组，不是来源 offset，最终映射为真实 fragmentId。新 parseVersionId 同时绑定全页文本、范围和版本；相同输入重放稳定，未保留文本改变也产生不同解析身份。历史 `location.kind=document` / `pdf:items:*` 不变；926 用此 bundle 生成新的 canonical PDF 位置，不 cast 旧索引。
+
+全部原始页文本（含 LF、过滤项）纳入 maxOutputChars，原有字节、页面、内存、时间与片段预算继续生效。扫描、结构异常、超限或任何页失败不返回部分页文本。worker 与 parse 边界均严格验证范围、页号、Unicode、模式和版本，缺失或伪造投影拒绝。
+
+本续作只提供生产解码输入。页面摘要、不可变持久化、job attempt 栅栏、事务、分类、授权投影由926消费；公共工厂出口和实际运行器选择交X1接入。未完成该接线前，不声称应用已保存五类出处。此处不改公共 schema/迁移，也不覆盖 #189 原审查头及轮次。

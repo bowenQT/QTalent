@@ -18,6 +18,12 @@ type GraphicsState = {
   strokeAlpha: number;
   supported: boolean;
   clip: PdfBox | null;
+  lineWidth: number;
+  /** PDF line cap (0 butt, 1 round, 2 square) and join (0 miter, 1 round, 2 bevel). */
+  lineCap: number;
+  lineJoin: number;
+  miterLimit: number;
+  dashed: boolean;
 };
 const identity: Matrix = [1, 0, 0, 1, 0, 0];
 
@@ -66,6 +72,12 @@ function intersect(a: PdfBox, b: PdfBox): PdfBox {
     Math.min(a[3], b[3]),
   ];
 }
+function axisAligned(m: Matrix): boolean {
+  return (m[1] === 0 && m[2] === 0) || (m[0] === 0 && m[3] === 0);
+}
+function overlaps(a: PdfBox, b: PdfBox): boolean {
+  return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+}
 function color(value: string): PdfCircle['color'] {
   const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(value);
   if (!match) return 'other';
@@ -81,13 +93,16 @@ function pathKind(value: unknown): 'circle' | 'rectangle' | 'other' {
   let moves = 0,
     lines = 0,
     curves = 0;
+  const points: [number, number][] = [];
   for (let i = 0; i < n.length;) {
     const op = n[i++];
     if (op === 0) {
       moves++;
+      points.push([n[i]!, n[i + 1]!]);
       i += 2;
     } else if (op === 1) {
       lines++;
+      points.push([n[i]!, n[i + 1]!]);
       i += 2;
     } else if (op === 2) {
       curves++;
@@ -98,12 +113,33 @@ function pathKind(value: unknown): 'circle' | 'rectangle' | 'other' {
     if (i > n.length) return 'other';
   }
   if (moves === 1 && curves === 4 && lines === 0) return 'circle';
-  return moves === 1 && curves === 0 && lines >= 3 && lines <= 4
+  if (moves !== 1 || curves !== 0 || lines < 3 || lines > 4) return 'other';
+  // Only a real axis-aligned rectangle: four distinct corners, every edge
+  // horizontal or vertical. A triangle or other polygon is not one.
+  const corners = points.slice(0, 4);
+  if (lines === 4) {
+    const last = points[4]!;
+    if (last[0] !== points[0]![0] || last[1] !== points[0]![1]) return 'other';
+  }
+  const xs = new Set(corners.map((point) => point[0]));
+  const ys = new Set(corners.map((point) => point[1]));
+  const distinct = new Set(corners.map((point) => point.join(',')));
+  const axisEdges = corners.every((point, index) => {
+    const next = corners[(index + 1) % 4]!;
+    return (point[0] === next[0]) !== (point[1] === next[1]);
+  });
+  return xs.size === 2 && ys.size === 2 && distinct.size === 4 && axisEdges
     ? 'rectangle'
     : 'other';
 }
 
-/** Extract painted radio circles, including q/Q, CTM, form transforms, clipping and opacity. */
+/**
+ * Extract painted radio circles, including q/Q, CTM, form transforms, clipping and opacity.
+ * A later fill, stroke (with its line width), image or shading that overlaps an earlier circle
+ * may hide it, so that circle is marked unsupported and the row goes to manual review instead of
+ * reading a value. Only axis-aligned rectangular clips are understood; any other clip path
+ * marks the state unsupported. Layout we cannot interpret fails closed rather than guessing.
+ */
 export function readCircles(
   operators: { fnArray: number[]; argsArray: unknown[] },
   viewport: Matrix,
@@ -118,6 +154,11 @@ export function readCircles(
     strokeAlpha: 1,
     supported: true,
     clip: null,
+    lineWidth: 1,
+    lineCap: 0,
+    lineJoin: 0,
+    miterLimit: 10,
+    dashed: false,
   };
   let pendingClip = false;
   const fills = new Set([
@@ -128,6 +169,54 @@ export function readCircles(
     OPS.closeFillStroke,
     OPS.closeEOFillStroke,
   ]);
+  const images = new Set([
+    OPS.paintImageXObject,
+    OPS.paintInlineImageXObject,
+    OPS.paintImageMaskXObject,
+    OPS.paintSolidColorImageMask,
+    OPS.paintImageXObjectRepeat,
+    OPS.paintInlineImageXObjectGroup,
+    OPS.paintImageMaskXObjectGroup,
+    OPS.paintImageMaskXObjectRepeat,
+  ]);
+  const occlude = (area: PdfBox | null) => {
+    const visible = area && state.clip ? intersect(area, state.clip) : area;
+    const pageBox = visible
+      ? bounds(visible, viewport)
+      : state.clip
+        ? bounds(state.clip, viewport)
+        : null;
+    for (const circle of result)
+      if (!pageBox || overlaps(pageBox, circle.box)) circle.supported = false;
+  };
+  // Stroke state is tracked so a stroke's painted area can be bounded; any value we cannot
+  // read marks the state unsupported.
+  const setStroke = (key: string, value: unknown) => {
+    if (key === 'D') {
+      const dash = Array.isArray(value) ? numbers(value[0]) : null;
+      if (dash && dash.every((item) => item >= 0))
+        state.dashed = dash.length > 0;
+      else state.supported = false;
+      return;
+    }
+    const n = typeof value === 'number' && Number.isFinite(value) ? value : NaN;
+    if (key === 'LW' && n >= 0) state.lineWidth = n;
+    else if (key === 'LC' && [0, 1, 2].includes(n)) state.lineCap = n;
+    else if (key === 'LJ' && [0, 1, 2].includes(n)) state.lineJoin = n;
+    else if (key === 'ML' && n >= 1) state.miterLimit = n;
+    else state.supported = false;
+  };
+  // Line width on the page: the widest the current transform can stretch it, which is the
+  // largest singular value of its linear part (column lengths understate it under shear).
+  const pageLineWidth = () => {
+    const [a, b, c, d] = multiply(viewport, state.matrix);
+    const sum = a * a + b * b + c * c + d * d;
+    const det = a * d - b * c;
+    const stretch = Math.sqrt(
+      (sum + Math.sqrt(Math.max(0, sum * sum - 4 * det * det))) / 2,
+    );
+    return state.lineWidth * stretch;
+  };
   const strokes = new Set([
     OPS.stroke,
     OPS.closeStroke,
@@ -155,6 +244,8 @@ export function readCircles(
       if (op === OPS.paintFormXObjectBegin) {
         const n = numbers(args[1]);
         if (n?.length === 4) {
+          // The form /BBox is an implicit clip: same support boundary as an explicit one.
+          if (!axisAligned(state.matrix)) state.supported = false;
           const clip = bounds([n[0], n[1], n[2], n[3]], state.matrix);
           state.clip = state.clip ? intersect(state.clip, clip) : clip;
         }
@@ -178,13 +269,20 @@ export function readCircles(
     else if (op === OPS.setFillColorN) state.fill = '';
     else if (op === OPS.setStrokeColorN) state.stroke = '';
     else if (op === OPS.clip || op === OPS.eoClip) pendingClip = true;
+    else if (op === OPS.setLineWidth) setStroke('LW', args[0]);
+    else if (op === OPS.setLineCap) setStroke('LC', args[0]);
+    else if (op === OPS.setLineJoin) setStroke('LJ', args[0]);
+    else if (op === OPS.setMiterLimit) setStroke('ML', args[0]);
+    else if (op === OPS.setDash) setStroke('D', args);
     else if (op === OPS.setGState && Array.isArray(args[0])) {
       for (const entry of args[0]) {
         if (!Array.isArray(entry)) {
           state.supported = false;
           continue;
         }
-        if (entry[0] === 'ca' && typeof entry[1] === 'number')
+        if (['LW', 'LC', 'LJ', 'ML', 'D'].includes(entry[0]))
+          setStroke(entry[0], entry[1]);
+        else if (entry[0] === 'ca' && typeof entry[1] === 'number')
           state.fillAlpha = entry[1];
         else if (entry[0] === 'CA' && typeof entry[1] === 'number')
           state.strokeAlpha = entry[1];
@@ -194,7 +292,9 @@ export function readCircles(
           state.supported = false;
         else if (entry[0] === 'TR') state.supported = false;
       }
-    } else if (op === OPS.constructPath) {
+    } else if (images.has(op)) occlude(bounds([0, 0, 1, 1], state.matrix));
+    else if (op === OPS.shadingFill) occlude(null);
+    else if (op === OPS.constructPath) {
       const n = numbers(args[2]);
       const paths = Array.isArray(args[1]) ? args[1] : [];
       const kind = pathKind(paths[0]);
@@ -208,37 +308,72 @@ export function readCircles(
           box[0] < state.clip[2] &&
           box[3] > state.clip[1] &&
           box[1] < state.clip[3]);
-      if (kind === 'circle' && visible) {
-        const pageBox = bounds(box, viewport);
-        const width = pageBox[2] - pageBox[0],
-          height = pageBox[3] - pageBox[1];
-        if (
-          width >= 2 &&
-          width <= 24 &&
-          height >= 2 &&
-          height <= 24 &&
-          Math.abs(width - height) <= 1
-        ) {
-          const paint = typeof args[0] === 'number' ? args[0] : -1;
-          for (const filled of [true, false]) {
-            if (!(filled ? fills : strokes).has(paint)) continue;
-            const alpha = filled ? state.fillAlpha : state.strokeAlpha;
-            if (
-              alpha === 0 ||
-              (filled ? state.fill : state.stroke) === 'transparent'
-            )
-              continue;
-            result.push({
-              box: pageBox,
-              color: color(filled ? state.fill : state.stroke),
-              filled,
-              supported: state.supported && fullyVisible && alpha === 1,
-            });
-          }
+      const pageBox = bounds(box, viewport);
+      const width = pageBox[2] - pageBox[0],
+        height = pageBox[3] - pageBox[1];
+      const radio =
+        kind === 'circle' &&
+        width >= 2 &&
+        width <= 24 &&
+        height >= 2 &&
+        height <= 24 &&
+        Math.abs(width - height) <= 1;
+      const paintOp = typeof args[0] === 'number' ? args[0] : -1;
+      // Concentric radio paints (a white centre over a blue ring) are resolved by the parser.
+      if (
+        !radio &&
+        visible &&
+        fills.has(paintOp) &&
+        state.fillAlpha > 0 &&
+        state.fill !== 'transparent'
+      )
+        occlude(box);
+      // A stroke covers its path widened by half the line width on every side; a miter join
+      // can reach miterLimit half-widths from a corner and a square cap √2 half-widths.
+      const half =
+        (state.lineWidth / 2) *
+        Math.max(
+          state.lineJoin === 0 ? state.miterLimit : 1,
+          state.lineCap === 2 ? Math.SQRT2 : 1,
+        );
+      if (
+        (!radio || pageLineWidth() > 2) &&
+        strokes.has(paintOp) &&
+        state.strokeAlpha > 0 &&
+        state.stroke !== 'transparent'
+      )
+        occlude(
+          bounds(
+            [
+              rawBox[0] - half,
+              rawBox[1] - half,
+              rawBox[2] + half,
+              rawBox[3] + half,
+            ],
+            state.matrix,
+          ),
+        );
+      if (radio && visible)
+        for (const filled of [true, false]) {
+          if (!(filled ? fills : strokes).has(paintOp)) continue;
+          const alpha = filled ? state.fillAlpha : state.strokeAlpha;
+          if (
+            alpha === 0 ||
+            (filled ? state.fill : state.stroke) === 'transparent'
+          )
+            continue;
+          // A dashed or thick ring may show less, or more, than the plain radio we can read.
+          const plainStroke = filled || (!state.dashed && pageLineWidth() <= 2);
+          result.push({
+            box: pageBox,
+            color: color(filled ? state.fill : state.stroke),
+            filled,
+            supported:
+              state.supported && fullyVisible && alpha === 1 && plainStroke,
+          });
         }
-      }
       if (pendingClip) {
-        if (kind === 'rectangle')
+        if (kind === 'rectangle' && axisAligned(state.matrix))
           state.clip = state.clip ? intersect(state.clip, box) : box;
         else state.supported = false;
         pendingClip = false;

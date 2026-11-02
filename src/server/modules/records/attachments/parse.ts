@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { sourceLocationSchema } from '../../../../contracts/sources';
+import {
+  documentOutcomeSchema,
+  MATERIAL_PDF_DECODER_VERSION,
+} from './document-protocol';
+import type { DecodedPdfText } from './pdf-text';
 import { parseLimitsSchema } from './limits';
 import { createDocumentDecoders } from './document-decoders';
 import type {
@@ -22,29 +26,6 @@ export const attachmentVersionSchema = z.strictObject({
   byteLength: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
-const segmentSchema = z.strictObject({
-  excerpt: z.string().min(1).regex(/\S/),
-  location: sourceLocationSchema.options[1],
-});
-const decodedSchema = z.discriminatedUnion('status', [
-  z.strictObject({
-    status: z.literal('decoded'),
-    segments: z.array(segmentSchema),
-  }),
-  z.strictObject({
-    status: z.literal('unsupported'),
-    reason: z.enum(['format', 'scanned']),
-  }),
-  z.strictObject({
-    status: z.literal('failed'),
-    reason: z.enum([
-      'invalid_content',
-      'resource_limit',
-      'processing_failed',
-      'cancelled',
-    ]),
-  }),
-]);
 const mime = {
   txt: 'text/plain',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -133,6 +114,7 @@ export async function parseAttachment(
 
   let segments: AttachmentSegment[];
   let parserVersion: string;
+  let pdfText: DecodedPdfText | undefined;
   try {
     const chunks: Buffer[] = [];
     const hash = createHash('sha256');
@@ -174,7 +156,7 @@ export async function parseAttachment(
       // Optional adapters are an explicit dependency boundary. No fallback parser.
       if (!decoder || !id.safeParse(decoder.version).success)
         return failure('invalid_content');
-      const decoded = decodedSchema.safeParse(
+      const decoded = documentOutcomeSchema.safeParse(
         await decoder.decode(bytes, { limits, signal: input.signal }),
       );
       if (input.signal?.aborted) return failure('cancelled');
@@ -182,6 +164,15 @@ export async function parseAttachment(
       if (decoded.data.status === 'unsupported')
         return unsupported(decoded.data.reason);
       if (decoded.data.status === 'failed') return failure(decoded.data.reason);
+      pdfText = decoded.data.pdfText;
+      if (
+        (pdfText !== undefined &&
+          (format !== 'pdf' ||
+            decoder.version !== MATERIAL_PDF_DECODER_VERSION)) ||
+        (decoder.version === MATERIAL_PDF_DECODER_VERSION &&
+          pdfText === undefined)
+      )
+        return failure('invalid_content');
       segments = decoded.data.segments;
       if (
         format === 'pdf' &&
@@ -203,17 +194,37 @@ export async function parseAttachment(
   const locators = segments.map((segment) => JSON.stringify(segment.location));
   if (new Set(locators).size !== locators.length)
     return failure('invalid_content');
-  const parseVersionId = `attachment-parse:${digest([version.data.originalVersionId, version.data.sha256, parserVersion, segments])}`;
+  const identity: unknown[] = [
+    version.data.originalVersionId,
+    version.data.sha256,
+    parserVersion,
+    segments,
+  ];
+  if (pdfText) identity.push(pdfText);
+  const parseVersionId = `attachment-parse:${digest(identity)}`;
+  const fragments = segments.map((segment) => ({
+    ...segment,
+    originalVersionId: version.data.originalVersionId,
+    fragmentId: `attachment-fragment:${digest([parseVersionId, segment.location, segment.excerpt])}`,
+  }));
   return {
     status: 'parsed',
     parseVersionId,
     originalVersionId: version.data.originalVersionId,
     sha256: version.data.sha256,
     parserVersion,
-    fragments: segments.map((segment) => ({
-      ...segment,
-      originalVersionId: version.data.originalVersionId,
-      fragmentId: `attachment-fragment:${digest([parseVersionId, segment.location, segment.excerpt])}`,
-    })),
+    fragments,
+    ...(pdfText
+      ? {
+          pdfText: {
+            version: pdfText.version,
+            pages: pdfText.pages,
+            ranges: pdfText.ranges.map(({ segmentIndex, ...range }) => ({
+              ...range,
+              fragmentId: fragments[segmentIndex].fragmentId,
+            })),
+          },
+        }
+      : {}),
   };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { OPS } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { materialSourceLocationSchema } from '../../../../../contracts/sources';
 import { readCircles, readPdfLayout } from './pdf-layout';
 
 // One CID maps to the actual two-code-unit character through the ToUnicode CMap.
@@ -155,23 +156,63 @@ function syntheticReview(
     marker?: boolean;
     candidate?: string | null;
     unicodeHeader?: boolean;
+    comment?: string[];
+    twoLine?: string;
+    cover?: string;
+    shift?: number;
+    wrap?: [string, string];
+    result?: false;
+    /** Leave out this formal interview field. */
+    drop?: string;
+    /** Leave this first-row option without its own circle. */
+    omit?: string;
   } = {},
 ): Uint8Array {
   const rows = dimensionNames.map((label, index) =>
-    radio(
-      label,
-      300 + index * 50,
-      ['1', '2', '3', '4', '5'],
-      index === 3
-        ? change.management
-          ? ['4']
-          : []
-        : index === 0 && change.missing
-          ? []
-          : index === 0 && change.multiple
-            ? ['2', '4']
-            : [['2'], ['4'], ['3']][index],
-    ),
+    index === 0 && change.twoLine
+      ? [
+          text(label, 40, 303),
+          ...['1', '2', '3', '4', '5'].map(
+            (value, i) =>
+              text(value, 215 + (i % 3) * 61, 303 + Math.floor(i / 3) * 20) +
+              circle(
+                205 + (i % 3) * 61,
+                300 + Math.floor(i / 3) * 20,
+                value === change.twoLine,
+              ),
+          ),
+        ].join('\n')
+      : index === 0 && (change.shift || change.wrap || change.omit)
+        ? [
+            change.wrap?.[0] ?? '',
+            text(label, 40, 303),
+            ...['1', '2', '3', '4', '5'].map(
+              (value, i) =>
+                text(value, 215 + i * 61, 303) +
+                (value === change.omit
+                  ? ''
+                  : circle(
+                      205 + i * 61 + (change.shift ?? 0),
+                      300,
+                      value === '2',
+                    )),
+            ),
+            change.wrap?.[1] ?? '',
+          ].join('\n')
+        : radio(
+            label,
+            300 + index * 50,
+            ['1', '2', '3', '4', '5'],
+            index === 3
+              ? change.management
+                ? ['4']
+                : []
+              : index === 0 && change.missing
+                ? []
+                : index === 0 && change.multiple
+                  ? ['2', '4']
+                  : [['2'], ['4'], ['3']][index],
+          ),
   );
   const detail = [
     change.marker === false
@@ -182,17 +223,28 @@ function syntheticReview(
     change.candidate === null
       ? ''
       : text('候选人：' + (change.candidate ?? '谷嘉树（演示）'), 40, 150),
-    text('面试官：陈川（演示）', 40, 165),
-    text('面试时间：2026-10-01 10:00（演示）', 40, 190),
-    text('面试类型：专业面试', 40, 215),
-    text('面试结果：通过（演示）', 40, 240),
+    ...[
+      ['面试官', '面试官：陈川（演示）', 165],
+      ['面试时间', '面试时间：2026-10-01 10:00（演示）', 190],
+      ['面试类型', '面试类型：专业面试', 215],
+      ['面试结果', '面试结果：通过（演示）', 240],
+    ].map(([label, line, y]) =>
+      change.drop === label || (label === '面试结果' && change.result === false)
+        ? ''
+        : text(line as string, 40, y as number),
+    ),
     ...rows,
     radio('面试评级', 500, ['S', 'A', 'B', 'C', 'D'], ['B']),
     change.crossPage
       ? text('建议职级续下页', 40, 560)
       : radio('建议职级', 550, ['N1', 'N2', 'N3', 'N4', 'N5'], ['N3']),
-    text('综合评价：先复现问题，再验证修复。', 40, 620),
-    text('保留失败项，方便后续核对。', 40, 640),
+    ...(
+      change.comment ?? [
+        '综合评价：先复现问题，再验证修复。',
+        '保留失败项，方便后续核对。',
+      ]
+    ).map((line, index) => text(line, 40, 620 + index * 20)),
+    change.cover ?? '',
   ].join('\n');
   return pdf(
     change.crossPage
@@ -774,11 +826,15 @@ describe('actual page text provenance and optional raw candidate metadata', () =
           end <= page.text.length,
       ).toBe(true);
       expect(page.text.slice(start, end).trim()).not.toBe('');
-      const location = {
+      const location = materialSourceLocationSchema.parse({
         kind: 'pdf',
         page: region.page,
         textRange: region.textRange,
-      };
+      });
+      expect(
+        materialSourceLocationSchema.safeParse({ ...location, box: region.box })
+          .success,
+      ).toBe(false);
       expect(Object.keys(location)).toEqual(['kind', 'page', 'textRange']);
     }
     const title = row.templateSource;
@@ -810,5 +866,468 @@ describe('actual page text provenance and optional raw candidate metadata', () =
         pdf(Array.from({ length: 200 }, () => text('演示页', 40, 100))),
       ),
     ).toHaveLength(200);
+  });
+});
+
+describe('BOW-900 structural boundaries (connector findings)', () => {
+  it('keeps comment continuation lines that begin with field or dimension names', async () => {
+    const comment = [
+      '综合评价：先复现问题，再验证修复。',
+      '潜力较好，但需要继续观察。',
+      '专业能力扎实，排查有条理。',
+      '候选人在压力下仍能复盘。',
+      '专业能力：建议补充系统设计案例。',
+    ];
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], { comment }),
+      demoOptions,
+    );
+    expect(result.status).toBe('parsed');
+    const parsed = review(result);
+    expect(parsed.metadata.overallComment).toMatchObject({
+      value: ['先复现问题，再验证修复。', ...comment.slice(1)].join('\n'),
+    });
+    expect(parsed.metadata.overallComment?.sources).toHaveLength(5);
+    expect(parsed.dimensions[0].selection).toMatchObject({
+      status: 'recognized',
+      value: '2',
+    });
+  });
+  it('still ends the comment at a standalone scale label', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        comment: ['综合评价：先复现问题。', '专业能力'],
+      }),
+      demoOptions,
+    );
+    expect(result).toMatchObject({
+      status: 'rejected',
+      reason: 'fingerprint_mismatch',
+    });
+  });
+  it('sends a selected circle hidden by a later opaque fill to manual review', async () => {
+    const covered = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        cover: `1 1 1 rg 255 ${842 - 310} 22 20 re f`,
+      }),
+      demoOptions,
+    );
+    expect(covered.status).toBe('needs_manual_input');
+    expect(review(covered).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'unsupported_graphics',
+    });
+    expect(review(covered).dimensions[0].selection).not.toHaveProperty('value');
+    const elsewhere = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        cover: `1 1 1 rg 30 ${842 - 790} 40 20 re f`,
+      }),
+      demoOptions,
+    );
+    expect(elsewhere.status).toBe('parsed');
+  });
+  it.each([
+    ['image', [OPS.paintImageXObject, ['img']] as Op],
+    ['shading', [OPS.shadingFill, ['sh']] as Op],
+    [
+      'rectangle',
+      [
+        OPS.constructPath,
+        [
+          OPS.fill,
+          [new Float32Array(rectanglePath)],
+          new Float32Array([0, 0, 10, 10]),
+        ],
+      ] as Op,
+    ],
+  ])(
+    'marks an earlier circle covered by a later %s unsupported',
+    (_, cover) => {
+      const [circle] = vectors([blue, paint, cover]);
+      expect(circle).toMatchObject({ color: 'blue', supported: false });
+      const [kept] = vectors([
+        blue,
+        paint,
+        [OPS.transform, [1, 0, 0, 1, 100, 0]],
+        ...(cover[0] === OPS.shadingFill ? [] : [cover]),
+      ]);
+      expect(kept).toMatchObject({ color: 'blue', supported: true });
+    },
+  );
+  it.each(['1', '3', '4', '5'])(
+    'pairs two-row options with their circles (selected %s)',
+    async (value) => {
+      const result = await parseInterviewReviewPdf(
+        syntheticReview(templates[0], { twoLine: value }),
+        demoOptions,
+      );
+      expect(result.status).toBe('parsed');
+      expect(review(result).dimensions[0].selection).toMatchObject({
+        status: 'recognized',
+        value,
+      });
+    },
+  );
+  it('refuses two-row options whose labels and circles do not line up', async () => {
+    const pages = await readPdfLayout(
+      syntheticReview(templates[0], { twoLine: '3' }),
+    );
+    pages[0].text = pages[0].text.filter(
+      (item) => !(item.text === '5' && center(item.box) > 310),
+    );
+    pages[0].text.push({ text: '5', box: [337, 296, 343, 306] });
+    const result = parseInterviewReviewLayout(pages, demoOptions);
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'options_mismatch',
+    });
+  });
+});
+
+describe('BOW-900 uncertain layout fails closed (review round 1)', () => {
+  it.each([
+    '候选人：能复盘失败。',
+    '面试结果：建议复试。',
+    '面试官：另一位同事。',
+  ])(
+    'does not report a comment cut by a repeated field label %s as parsed',
+    async (line) => {
+      const result = await parseInterviewReviewPdf(
+        syntheticReview(templates[0], {
+          comment: ['综合评价：第一行。', line, '最后一行。'],
+        }),
+        demoOptions,
+      );
+      expect(result.status).toBe('needs_manual_input');
+      expect(review(result).metadata.overallComment).toBeNull();
+    },
+  );
+  it('treats a thick stroke over a selected circle as covering it', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        cover: `1 1 1 RG 22 w 255 ${842 - 300} m 277 ${842 - 300} l S`,
+      }),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'unsupported_graphics',
+    });
+    const thin = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        cover: `0.5 0.5 0.5 RG 1 w 40 ${842 - 780} m 500 ${842 - 780} l S`,
+      }),
+      demoOptions,
+    );
+    expect(thin.status).toBe('parsed');
+  });
+  it.each([61, 30, -61])(
+    'refuses circles shifted %s pt away from their labels',
+    async (shift) => {
+      const result = await parseInterviewReviewPdf(
+        syntheticReview(templates[0], { shift }),
+        demoOptions,
+      );
+      expect(result.status).toBe('needs_manual_input');
+      expect(review(result).dimensions[0].selection).toMatchObject({
+        status: 'unrecognized',
+        reason: 'options_mismatch',
+      });
+    },
+  );
+  it('refuses a shifted second row of two-row options', async () => {
+    const pages = await readPdfLayout(
+      syntheticReview(templates[0], { twoLine: '4' }),
+    );
+    for (const item of pages[0].circles)
+      if (center(item.box) === 320)
+        item.box = [
+          item.box[0] + 61,
+          item.box[1],
+          item.box[2] + 61,
+          item.box[3],
+        ];
+    const result = parseInterviewReviewLayout(pages, demoOptions);
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'options_mismatch',
+    });
+  });
+  it('does not read a circle outside a triangular clip but inside its bounding box', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        wrap: [
+          `q 200 ${842 - 285} m 470 ${842 - 285} l 470 ${842 - 305} l 200 ${842 - 285} l h W n`,
+          'Q',
+        ],
+      }),
+      demoOptions,
+    );
+    expect(result.status).not.toBe('parsed');
+    expect(review(result).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+    });
+    expect(review(result).dimensions[0].selection).not.toHaveProperty('value');
+  });
+  it('accepts only real axis-aligned rectangles as clip paths', () => {
+    const clip = (path: number[], m = [1, 0, 0, 1, 0, 0]): Op[] => [
+      [OPS.transform, m],
+      [OPS.clip, []],
+      [
+        OPS.constructPath,
+        [
+          OPS.endPath,
+          [new Float32Array(path)],
+          new Float32Array([-5, -5, 20, 20]),
+        ],
+      ],
+    ];
+    const triangle = [0, -5, -5, 1, 20, -5, 1, 20, 20, 1, -5, -5, 4];
+    expect(vectors([...clip(triangle), blue, paint])[0]).toMatchObject({
+      supported: false,
+    });
+    const square = [0, -5, -5, 1, 20, -5, 1, 20, 20, 1, -5, 20, 4];
+    expect(vectors([...clip(square), blue, paint])[0]).toMatchObject({
+      supported: true,
+    });
+    const rotated = [0.8, 0.6, -0.6, 0.8, 0, 0];
+    expect(vectors([...clip(square, rotated), blue, paint])[0]).toMatchObject({
+      supported: false,
+    });
+  });
+  it('treats text painted over a circle as unsupported', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], { cover: text('■', 263, 303) }),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).dimensions[0].selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'unsupported_graphics',
+    });
+  });
+});
+
+describe('BOW-900 parser hardening before upload wiring', () => {
+  // The selected '2' of the first dimension is centred at (266, 300) from the top.
+  const ring = (prefix: string, radius = 5) =>
+    `q ${prefix} ${circle(266, 300, true, radius).replace(' rg', ' RG').replace(/f$/, 'S')} Q`;
+  const firstRow = async (change: Parameters<typeof syntheticReview>[1]) => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], change),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    const selection = review(result).dimensions[0].selection;
+    expect(selection).toMatchObject({
+      status: 'unrecognized',
+      reason: 'unsupported_graphics',
+    });
+    expect(selection).not.toHaveProperty('value');
+  };
+
+  it('does not read a single field label inside the comment as the missing formal field', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        result: false,
+        comment: ['综合评价：第一行。', '面试结果：建议复试。', '最后一行。'],
+      }),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).metadata.interviewResult).toBeNull();
+    expect(review(result).metadata.overallComment).toBeNull();
+  });
+
+  it.each([
+    [
+      'a sharp miter join',
+      `1 1 1 RG 6 w 0 j 30 M 262 342 m 266 312 l 270 342 l S`,
+    ],
+    ['a diagonal square cap', `1 1 1 RG 8 w 1 j 2 J 250 322 m 262 310 l S`],
+  ])('treats the area reached by %s as covering the circle', async (_, cover) =>
+    firstRow({
+      // PDF space: the circle spans y 537–547; these paths end below it.
+      cover: cover.replace(
+        /(\d+) (\d+) ([ml])/g,
+        (_m, x, y, op) => `${x} ${842 - Number(y)} ${op}`,
+      ),
+    }),
+  );
+
+  it('does not read a selection drawn as an invisible dash pattern', async () =>
+    firstRow({ missing: true, cover: ring('[0 100] 0 d') }));
+
+  // The option's own grey circle is left out, so only the blue ring is there to read.
+  it.each([
+    ['a thick ring', ring('4 w')],
+    // Scaled twice about the circle's centre: 1.5 units is a 3 pt ring.
+    ['a scaled thick ring', ring('2 0 0 2 -266 -542 cm 1.5 w', 2.5)],
+    // Sheared about the centre: column lengths give 1.68 pt, the real width is 2.25 pt.
+    ['a sheared thick ring', ring('1 0.5 0.5 1 -271 -133 cm 1.5 w', 10 / 3)],
+  ])('does not accept %s as the only paint of an option', async (_, cover) =>
+    firstRow({ omit: '2', cover }),
+  );
+
+  it('does not fill a missing field from a label outside the field block', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        result: false,
+        comment: [
+          '补充说明：以下为转述，尚未确认。',
+          '面试结果：建议复试。',
+          '综合评价：第一行。',
+          '最后一行。',
+        ],
+      }),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).metadata.interviewResult).toBeNull();
+  });
+
+  it('sends a blue ring covered by a later grey ring on the same path to manual review', async () =>
+    firstRow({
+      missing: true,
+      cover: [
+        ring(''),
+        ring('').replace('0.086 0.365 1 RG', '0.65 0.65 0.65 RG'),
+      ].join('\n'),
+    }));
+
+  it('reads the ExtGState line width of a later stroke', () => {
+    const line: Op = [
+      OPS.constructPath,
+      [
+        OPS.stroke,
+        [new Float32Array([0, 20, 5, 1, 30, 5])],
+        new Float32Array([20, 5, 30, 5]),
+      ],
+    ];
+    const white: Op = [OPS.setStrokeRGBColor, ['#ffffff']];
+    expect(vectors([blue, paint, white, line])[0]!.supported).toBe(true);
+    expect(
+      vectors([blue, paint, [OPS.setGState, [[['LW', 30]]]], white, line])[0]!
+        .supported,
+    ).toBe(false);
+    expect(
+      vectors([[OPS.setGState, [[['LW', -1]]]], blue, paint])[0]!.supported,
+    ).toBe(false);
+  });
+
+  it('does not read a lone radio drawn as a thick or dashed ring', () => {
+    const ring = (state: Op): Op[] => [
+      [OPS.setStrokeRGBColor, ['#167bff']],
+      state,
+      [
+        OPS.constructPath,
+        [
+          OPS.stroke,
+          [new Float32Array(roundPath)],
+          new Float32Array([0, 0, 10, 10]),
+        ],
+      ],
+    ];
+    expect(vectors(ring([OPS.setLineWidth, [1]]))[0]!.supported).toBe(true);
+    expect(vectors(ring([OPS.setLineWidth, [4]]))[0]!.supported).toBe(false);
+    expect(vectors(ring([OPS.setDash, [[0, 100], 0]]))[0]!.supported).toBe(
+      false,
+    );
+    expect(vectors(ring([OPS.setDash, [[], 0]]))[0]!.supported).toBe(true);
+    // A 1.5-unit ring scaled twice is a 3 pt ring on the page.
+    expect(
+      vectors([
+        [OPS.transform, [2, 0, 0, 2, 0, 0]],
+        ...ring([OPS.setLineWidth, [1.5]]),
+      ]).map((item) => item.supported),
+    ).toEqual([false]);
+  });
+
+  it('treats a rotated form bounding box as an unsupported clip', () => {
+    const form = (m: number[]): Op => [
+      OPS.paintFormXObjectBegin,
+      [m, [-5, -5, 20, 20]],
+    ];
+    const end: Op = [OPS.paintFormXObjectEnd, []];
+    expect(
+      vectors([form([1, 0, 0, 1, 0, 0]), blue, paint, end])[0]!.supported,
+    ).toBe(true);
+    expect(
+      vectors([form([0.8, 0.6, -0.6, 0.8, 0, 0]), blue, paint, end])[0]!
+        .supported,
+    ).toBe(false);
+  });
+
+  it.each([
+    ['面试评级', ['S', 'A', 'B', 'C', 'D'], 'D'],
+    ['建议职级', ['N1', 'N2', 'N3', 'N4', 'N5'], 'N5'],
+  ])(
+    'rejects a second %s row instead of reading the first',
+    async (label, choices, pick) => {
+      const result = await parseInterviewReviewPdf(
+        syntheticReview(templates[0], {
+          cover: radio(label, 590, choices, [pick]),
+        }),
+        demoOptions,
+      );
+      expect(result).toMatchObject({
+        status: 'rejected',
+        reason: 'fingerprint_mismatch',
+      });
+    },
+  );
+});
+
+describe('BOW-900 interview field block matches the template exactly', () => {
+  const fields = [
+    ['面试官', 'interviewer', 165],
+    ['面试时间', 'interviewTime', 190],
+    ['面试类型', 'interviewType', 215],
+    ['面试结果', 'interviewResult', 240],
+  ] as const;
+  const paraphrase = '补充说明：以下为转述，尚未确认。';
+  it.each(
+    fields.flatMap(([label, key, y]) => [
+      [
+        label,
+        'an extra line inside the field block',
+        key,
+        [text(paraphrase, 40, 172), text(`${label}：转述值（演示）`, 40, 178)],
+      ],
+      [
+        label,
+        'lines between the field block and the first score row',
+        key,
+        [text(paraphrase, 40, 260), text(`${label}：转述值（演示）`, 40, 275)],
+      ],
+      [
+        label,
+        'its label out of the field column',
+        key,
+        [text(`${label}：转述值（演示）`, 120, y)],
+      ],
+    ]),
+  )('does not read %s from %s', async (label, _, key, cover) => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0], {
+        drop: label,
+        cover: cover.join('\n'),
+      }),
+      demoOptions,
+    );
+    expect(result.status).toBe('needs_manual_input');
+    expect(review(result).metadata[key]).toBeNull();
+  });
+  it('still reads every field when the block is exactly the template', async () => {
+    const result = await parseInterviewReviewPdf(
+      syntheticReview(templates[0]),
+      demoOptions,
+    );
+    expect(result.status).toBe('parsed');
+    const { metadata } = review(result);
+    for (const [, key] of fields) expect(metadata[key]).not.toBeNull();
   });
 });
