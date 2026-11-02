@@ -223,6 +223,7 @@ describe('attachment parse transaction pipeline', () => {
     const input = createValidatedAttachmentInput<Context>({
       readValidatedUploadInContext: async () => upload,
       readValidatedUpload: async () => structuredClone(upload),
+      stagedJob: async () => null,
       canProcess,
       openObject: async () =>
         (async function* () {

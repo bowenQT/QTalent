@@ -12,6 +12,7 @@ import {
 } from '../modules/records/attachments/flow';
 import { createMaterialPdfDecoder } from '../modules/records/attachments/document-decoders';
 import { createValidatedAttachmentInput } from '../modules/records/attachments/upload-input';
+import { stagedParseJob } from '../modules/records/material-review/read';
 import type { ParseLimits } from '../modules/records/attachments/types';
 import { saveAttachmentPdf } from '../modules/records/material-sources/attachment-save';
 import { readValidatedUploadInTransaction } from '../modules/records/uploads/handoff-transaction';
@@ -63,14 +64,17 @@ export function createAttachmentParseWorker(input: {
       input.db.transaction((tx) =>
         readValidatedUploadInTransaction(tx, reference),
       ),
+    stagedJob: stagedParseJob,
     canProcess: async (tx, binding: AttachmentBinding) => {
-      if (binding.target.kind !== 'people') return false;
+      if (binding.target.kind === 'event') return false;
       const actor = await loadArrangeActor(
         tx,
         binding.accountId,
         input.businessNow(),
       );
-      return canWriteArrange(actor, binding.target.personIds, null);
+      return binding.target.kind === 'people'
+        ? canWriteArrange(actor, binding.target.personIds, null)
+        : canWriteArrange(actor, [], null, binding.target.evaluationNodeId);
     },
     openObject: async (objectKey, signal) => {
       const object = await input.storage.openObject({ objectKey, signal });
