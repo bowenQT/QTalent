@@ -120,6 +120,13 @@
       "when": 1793612539131,
       "tag": "0016_entry_credentials_audit_channel",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793615684821,
+      "tag": "0017_bow_902_node_conclusions",
+      "breakpoints": true
     }
   ]
 }
