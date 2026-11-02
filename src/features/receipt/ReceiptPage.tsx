@@ -23,13 +23,17 @@ import {
   statusKey,
   type EditValues,
 } from './receipt-model';
+import { HeldItem, ReceiptItem, type ItemProblem } from './ReceiptItem';
 import {
-  HeldItem,
-  ReceiptItem,
-  type ConfirmedDraft,
-  type ItemProblem,
-  type RestoredEdit,
-} from './ReceiptItem';
+  cardState,
+  emptyLocal,
+  eventKey,
+  reconcile,
+  type EditInput,
+  type LocalState,
+  type Op,
+  type SavedRecord,
+} from './receipt-local';
 import type { ReceiptActions, ReceiptView } from './types';
 import './receipt.css';
 
@@ -97,44 +101,35 @@ export function ReceiptPage({
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [problems, setProblems] = useState<Record<string, ItemProblem>>({});
   /*
-   * 本页状态和读取快照的优先规则：本页刚做的确认或撤销先于快照显示（重读失败或还没跟上时，
-   * 卡片也不回到旧状态）；但在这次操作之后才发起的读取成功了，就以它为准——读到这件事在
-   * 待确认，本地的「已确认」作废（分和理由照保存时的留着）；读到它已确认，本地的撤销记录作废。
-   * `at` 记下操作发生时已经发起过几次读取，只有更晚发起的读取才能纠正它。
+   * 卡片是已确认、待确认还是已撤销，只看最近一次成功读取的快照。本地每件事只留进行中的操作
+   * 和用来恢复的编辑输入（receipt-local.ts）；操作只在一次能说明它的成功读取后清掉，
+   * 读取失败、unavailable、forbidden 一律留着。
    */
+  const [local, setLocal] = useState<LocalState>(emptyLocal);
+  // 发起过几次读取；当前快照是第几次读取带回来的，更早发起、更晚落定的读取不替换它
   const reads = useRef(0);
-  const [confirmed, setConfirmed] = useState<
-    Record<string, ConfirmedDraft & { reason: string; at: number }>
-  >({});
-  // 本页刚撤销的事：重读还没带回它时，照撤销前的内容留在待确认，并记下保存时的分和理由
-  const [undone, setUndone] = useState<
-    Record<string, RestoredEdit & { draft: RecordBatchDraft; at: number }>
-  >({});
-  // 当前快照是第几次发起的读取带回来的；更早发起、更晚落定的读取不替换它
-  const [viewRead, setViewRead] = useState(0);
   const shown = useRef(0);
-  // 撤销发出去了、结果不知道的事：重试沿用同一次撤销。
-  // verify：之前那次结果未知、重试又被拒，说明不了撤销有没有生效，只能刷新回执核实
-  const [undoUnknown, setUndoUnknown] = useState<
-    Record<string, { busy: boolean; verify: boolean; retry: () => void }>
-  >({});
+  // 撤销结果不知道时，卡片上的重试沿用同一次撤销
+  const retries = useRef(new Map<string, () => void>());
   const ops = useRef(new Map<string, { key: string; id: string }>());
   // 卡片按第一次出现的顺序排，确认或撤销后留在原位
   const [order, setOrder] = useState(() => draftOrder([], initial));
   const { receipt } = view;
 
+  /** 重读回执；带回的快照被采用时返回 true。 */
   const reload = useCallback(async () => {
     const started = ++reads.current;
     try {
       const result = await actions.read(batchId);
-      if (result.status === 'success' && started > shown.current) {
-        shown.current = started;
-        setView(result.view);
-        setViewRead(started);
-        setOrder((prev) => draftOrder(prev, result.view));
-      }
+      if (result.status !== 'success' || started <= shown.current) return false;
+      shown.current = started;
+      setView(result.view);
+      setOrder((prev) => draftOrder(prev, result.view));
+      setLocal((all) => reconcile(all, started, result.view.receipt));
+      return true;
     } catch {
       // 读不到时保留当前内容，下一次轮询或操作再读
+      return false;
     }
   }, [actions, batchId]);
 
@@ -148,25 +143,11 @@ export function ReceiptPage({
   }, [running, reload]);
 
   const drafts = receipt.draftSet?.drafts ?? [];
-  // 按上面的优先规则，把本页记录和当前快照合成卡片该显示的确认与撤销状态
-  const settled = new Set(receipt.confirmedDrafts.map((d) => d.draftId));
-  const confirmedNow: typeof confirmed = {};
-  const undoneNow: typeof undone = Object.fromEntries(
-    Object.entries(undone).filter(
-      ([id, entry]) => !(entry.at < viewRead && settled.has(id)),
-    ),
+  const states = new Map(
+    order.map((id) => [id, cardState(local, id, receipt)] as const),
   );
-  for (const [id, entry] of Object.entries(confirmed)) {
-    const pending = drafts.find((d) => d.draftId === id);
-    if (pending && entry.at < viewRead)
-      undoneNow[id] = {
-        draft: pending,
-        values: entry.values,
-        reason: entry.reason,
-        at: entry.at,
-      };
-    else confirmedNow[id] = entry;
-  }
+  const stateOf = (id: string) =>
+    states.get(id) ?? cardState(local, id, receipt);
 
   const mineDrafts = drafts.filter((d) => view.confirmers[d.draftId]?.mine);
   const others = drafts.filter((d) => !view.confirmers[d.draftId]?.mine);
@@ -175,7 +156,12 @@ export function ReceiptPage({
       others.map((d) => view.confirmers[d.draftId]?.name).filter(Boolean),
     ),
   ].join('、');
-  const mineConfirmed = Object.keys(confirmedNow).length;
+  const mineConfirmed = [...states.values()].filter(
+    (st) =>
+      st.kind === 'saved' ||
+      st.kind === 'unknown' ||
+      (st.kind === 'settled' && st.signed),
+  ).length;
   const awaiting = receipt.counts.events.awaiting_confirmation;
   const held = heldEntries(receipt);
   const skipped = skippedEntries(receipt);
@@ -186,6 +172,26 @@ export function ReceiptPage({
       if (problem) next[draftId] = problem;
       else delete next[draftId];
       return next;
+    });
+
+  /** 改一件事的进行中操作；edit 给出时一起换掉编辑输入。 */
+  const setOp = (
+    id: string,
+    next: (op: Op | undefined) => Op | undefined,
+    edit?: EditInput,
+  ) =>
+    setLocal((all) => {
+      const item = all.items[id] ?? {};
+      const op = next(item.op);
+      const value = edit ?? item.edit;
+      const items = { ...all.items };
+      if (op || value)
+        items[id] = {
+          ...(op ? { op } : {}),
+          ...(value ? { edit: value } : {}),
+        };
+      else delete items[id];
+      return { ...all, items };
     });
 
   async function confirm(
@@ -203,30 +209,26 @@ export function ReceiptPage({
       const result = await actions.save(saveInput(draft, values, reason, id));
       if (result.status === 'success') {
         ops.current.delete(draft.draftId);
-        const { saveId, savedAt, undoUntil } = result.result;
+        const { saveId, savedAt, undoUntil, events } = result.result;
+        const record: SavedRecord = {
+          draft,
+          values,
+          reason,
+          by: viewerName,
+          on: shanghai(savedAt, false),
+          saveId,
+          events: eventKey(events),
+        };
         // 在 updater 外取值：updater 到渲染时才执行，那时紧接着的重读已经发起了
         const at = reads.current;
-        setConfirmed((all) => ({
+        // 再次保存：这次保存成为进行中的操作，上一次的撤销操作随之替换
+        setOp(draft.draftId, () => ({ kind: 'saved', at, save: record }));
+        setLocal((all) => ({
           ...all,
-          [draft.draftId]: {
-            draft,
-            values,
-            reason,
-            by: viewerName,
-            on: shanghai(savedAt, false),
-            at,
-          },
+          signed: { ...all.signed, [record.events]: record },
         }));
-        const without = <T,>(all: Record<string, T>) => {
-          const next = { ...all };
-          delete next[draft.draftId];
-          return next;
-        };
-        // 再次保存后，上一次的撤销记录和撤销结果都不再适用
-        setUndone(without);
-        setUndoUnknown(without);
         // 撤销窗口按服务端的 undoUntil 算，保存成功就给出，不等重读
-        offerUndo(draft, values, reason, saveId, Date.parse(undoUntil));
+        offerUndo(record, Date.parse(undoUntil));
         await reload();
         focusCard(draft.draftId);
       } else if (result.status === 'conflict')
@@ -253,13 +255,8 @@ export function ReceiptPage({
     }
   }
 
-  function offerUndo(
-    draft: RecordBatchDraft,
-    values: EditValues,
-    reason: string,
-    saveId: string,
-    until: number,
-  ) {
+  function offerUndo(save: SavedRecord, until: number) {
+    const { draft, values, reason, saveId } = save;
     const id = draft.draftId;
     const message = copy.toast.confirmed(
       people(view, draft.personIds),
@@ -271,16 +268,19 @@ export function ReceiptPage({
       return;
     }
     // 一次撤销只用一个 operation_id：结果不知道时重试沿用它，服务端按它重放原结果，
-    // 不会因为换了编号被当成第二次撤销拒掉，页面也就不会把已撤销的事说成仍已确认
+    // 不会因为换了编号被当成第二次撤销拒掉
     const operation = newId();
-    const markUnknown = (busy: boolean, verify = false) =>
-      setUndoUnknown((all) => ({ ...all, [id]: { busy, verify, retry } }));
-    const clearUnknown = () =>
-      setUndoUnknown((all) => {
-        const next = { ...all };
-        delete next[id];
-        return next;
-      });
+    const markUnknown = (busy: boolean, verify = false) => {
+      const at = reads.current;
+      setOp(id, () => ({
+        kind: 'unknown',
+        at,
+        save,
+        busy,
+        verify,
+        failed: false,
+      }));
+    };
     async function attempt(): Promise<'success' | 'refused' | 'unknown'> {
       let result;
       try {
@@ -289,27 +289,21 @@ export function ReceiptPage({
         return 'unknown';
       }
       if (result.status !== 'success') return 'refused';
-      clearUnknown();
-      setConfirmed((all) => {
-        const next = { ...all };
-        delete next[id];
-        return next;
-      });
       // 撤销推进了草稿版本：重读没跟上时按回执给的版本再保存；分和理由照保存时的留着
       const restored = result.result.draftRestoration;
       const at = reads.current;
-      setUndone((all) => ({
-        ...all,
-        [id]: {
+      setOp(
+        id,
+        () => ({
+          kind: 'undone',
+          at,
           draft:
             restored.status === 'available' && restored.draftId === id
               ? { ...draft, revision: restored.draftRevision }
               : draft,
-          values,
-          reason,
-          at,
-        },
-      }));
+        }),
+        { values, reason },
+      );
       await reload();
       focusCard(id);
       return 'success';
@@ -318,10 +312,11 @@ export function ReceiptPage({
       markUnknown(true);
       void attempt().then((outcome) => {
         // 被拒（例如评价关系已撤权，服务端先鉴权再重放）证明不了之前那次没生效：
-        // 不说仍已确认，改为请用户刷新回执看这件事现在的状态
+        // 改为请用户刷新回执看这件事现在的状态
         if (outcome !== 'success') markUnknown(false, outcome === 'refused');
       });
     }
+    retries.current.set(id, retry);
     const close = toast.show(message, {
       undoneText: copy.toast.undone,
       failedText: copy.toast.undoFailed,
@@ -344,109 +339,105 @@ export function ReceiptPage({
     if (remaining < UNDO_MS) setTimeout(close, remaining);
   }
 
-  /** 核实撤销结果：丢掉本页对这件事的确认和撤销记录，以重读到的回执为准。 */
-  function verifyUndo(id: string) {
-    const without = <T,>(all: Record<string, T>) => {
-      const next = { ...all };
-      delete next[id];
-      return next;
-    };
-    setConfirmed(without);
-    setUndone(without);
-    setUndoUnknown(without);
-    void reload().then(() => focusCard(id));
+  /** 核实撤销结果：重读回执；读到这件事就以快照为准，读不到就留在待核实。 */
+  async function verifyUndo(id: string) {
+    const mark = (busy: boolean, failed: boolean) =>
+      setOp(id, (op) =>
+        op?.kind === 'unknown' ? { ...op, busy, failed } : op,
+      );
+    mark(true, false);
+    const ok = await reload();
+    mark(false, !ok);
+    focusCard(id);
   }
 
-  /**
-   * 这件事是不是当前查看人确认。刚撤销回来的事，快照可能还是保存后的（这件事已不在待确认里，
-   * 没有确认人信息）：本人刚确认过它，确认入口留着，能否保存仍由保存动作判断。
-   */
-  const mineOf = (id: string) =>
-    Boolean(confirmedNow[id]) ||
-    (view.confirmers[id]?.mine ?? undoneNow[id] !== undefined);
+  /** 这件事是不是当前查看人确认（决定卡片的模式和所在的组）。 */
+  const mineOf = (id: string) => {
+    const st = stateOf(id);
+    if (st.kind === 'saved' || st.kind === 'unknown') return true;
+    if (st.kind === 'settled') return Boolean(st.signed);
+    if (st.kind === 'pending')
+      // 刚撤销回来的事，快照可能还是保存后的、没有它的确认人信息：本人刚确认过它，确认入口留着；
+      // 快照明确写了 mine:false 时照快照。能否保存仍由保存动作判断
+      return view.confirmers[id]?.mine ?? st.fromUndo;
+    return false;
+  };
 
   const card = (id: string) => {
-    const done = confirmedNow[id];
-    // 本页的确认和撤销结果先于读取快照：重读失败或还没跟上时，卡片也不回到旧状态。
-    // 撤销回来的事一直带着保存时的分和理由，直到再次保存；版本号只用来选保存时对照的版本，
-    // 不用来推断撤销状态（更高的版本不一定是新的整理结果）
-    const found = drafts.find((d) => d.draftId === id);
-    const back = done ? undefined : undoneNow[id];
-    const draft = back
-      ? found && found.revision > back.draft.revision
-        ? found
-        : back.draft
-      : done
-        ? undefined
-        : found;
-    if (draft || done) {
-      const mine = mineOf(id);
+    const st = stateOf(id);
+    if (st.kind === 'none') return null;
+    if (st.kind === 'settled' && !st.signed) {
+      const entry = receipt.confirmedDrafts.find((d) => d.draftId === id)!;
       return (
-        <ReceiptItem
+        <article
           key={id}
-          view={view}
-          draft={draft ?? done!.draft}
-          mode={draft ? (mine ? 'mine' : 'others') : 'confirmed'}
-          confirmed={done}
-          busy={Boolean(busy[id])}
-          problem={problems[id] ?? null}
-          restore={back ? { values: back.values, reason: back.reason } : null}
-          pendingUndo={
-            done && undoUnknown[id]
-              ? {
-                  busy: undoUnknown[id].busy,
-                  verify: undoUnknown[id].verify,
-                  onRetry: undoUnknown[id].retry,
-                  onVerify: () => verifyUndo(id),
-                }
-              : null
-          }
-          onConfirm={(values, reason) => void confirm(draft!, values, reason)}
-          onReload={() => {
-            setProblem(id, null);
-            void reload();
-          }}
-        />
+          className="n-card n-rcpt"
+          data-state="confirmed"
+          id={`rc-${id}`}
+          tabIndex={-1}
+        >
+          <div className="n-rcpt__head">
+            {entry.events.map(({ personId }) => {
+              const person = view.people[personId];
+              return person ? (
+                <span key={personId} style={{ display: 'contents' }}>
+                  <Avatar
+                    name={person.name}
+                    hue={person.hue}
+                    photo={person.photo}
+                  />
+                  <b>{person.name}</b>
+                  {person.demo ? <Badge tone="demo">{copy.demo}</Badge> : null}
+                </span>
+              ) : null;
+            })}
+          </div>
+          <div className="n-rcpt__foot">
+            <span className="nt-muted">{copy.confirm.confirmedShort}</span>
+          </div>
+        </article>
       );
     }
-    const entry = receipt.confirmedDrafts.find((d) => d.draftId === id);
-    if (!entry) return null;
+    const done =
+      st.kind === 'saved'
+        ? st.save
+        : st.kind === 'unknown'
+          ? st.op.save
+          : st.kind === 'settled'
+            ? st.signed!
+            : undefined;
+    const draft = st.kind === 'pending' ? st.draft : done!.draft;
+    const edit = local.items[id]?.edit ?? null;
     return (
-      <article
+      <ReceiptItem
         key={id}
-        className="n-card n-rcpt"
-        data-state="confirmed"
-        id={`rc-${id}`}
-        tabIndex={-1}
-      >
-        <div className="n-rcpt__head">
-          {entry.events.map(({ personId }) => {
-            const person = view.people[personId];
-            return person ? (
-              <span key={personId} style={{ display: 'contents' }}>
-                <Avatar
-                  name={person.name}
-                  hue={person.hue}
-                  photo={person.photo}
-                />
-                <b>{person.name}</b>
-                {person.demo ? <Badge tone="demo">{copy.demo}</Badge> : null}
-              </span>
-            ) : null;
-          })}
-        </div>
-        <div className="n-rcpt__foot">
-          <span className="nt-muted">{copy.confirm.confirmedShort}</span>
-        </div>
-      </article>
+        view={view}
+        draft={draft}
+        mode={done ? 'confirmed' : mineOf(id) ? 'mine' : 'others'}
+        confirmed={done}
+        busy={Boolean(busy[id])}
+        problem={problems[id] ?? null}
+        restore={st.kind === 'pending' ? edit : null}
+        pendingUndo={
+          st.kind === 'unknown'
+            ? {
+                busy: st.op.busy,
+                verify: st.op.verify,
+                failed: st.op.failed,
+                onRetry: () => retries.current.get(id)?.(),
+                onVerify: () => void verifyUndo(id),
+              }
+            : null
+        }
+        onConfirm={(values, reason) => void confirm(draft, values, reason)}
+        onReload={() => {
+          setProblem(id, null);
+          void reload();
+        }}
+      />
     );
   };
-  const visible = order.filter(
-    (id) =>
-      drafts.some((d) => d.draftId === id) ||
-      confirmedNow[id] ||
-      receipt.confirmedDrafts.some((d) => d.draftId === id),
-  );
+  const visible = order.filter((id) => stateOf(id).kind !== 'none');
   const isMine = mineOf;
   const anyMine = mineDrafts.length > 0 || mineConfirmed > 0;
   const files = receipt.counts.files;

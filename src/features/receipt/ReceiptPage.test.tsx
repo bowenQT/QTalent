@@ -854,6 +854,49 @@ describe('撤销回来的卡片重新挂载时', () => {
   });
 });
 
+describe('建议分比较不看 scores 的顺序', () => {
+  it('同一组建议分只是换了顺序：正在改的分和理由留着，不提示有新版本', async () => {
+    const user = userEvent.setup();
+    const [first] = draft.scores;
+    const two = {
+      ...draft,
+      scores: [
+        first!,
+        { ...first!, dimensionId: 'demo-potential', value: 4 },
+      ] as typeof draft.scores,
+    };
+    const props = {
+      view: make(),
+      mode: 'mine' as const,
+      busy: false,
+      problem: null,
+      onConfirm: vi.fn(),
+      onReload: vi.fn(),
+    };
+    const { rerender } = render(<ReceiptItem {...props} draft={two} />);
+    await user.click(screen.getByRole('button', { name: '改分' }));
+    const [select] = screen.getAllByRole('combobox');
+    await user.selectOptions(select!, '5');
+    await user.type(screen.getByRole('textbox'), '两人合作');
+    rerender(
+      <ReceiptItem
+        {...props}
+        draft={{ ...two, revision: 2, scores: [...two.scores].reverse() }}
+      />,
+    );
+    expect(
+      screen
+        .getAllByRole('combobox')
+        .map((el) => (el as HTMLSelectElement).value)
+        .sort(),
+    ).toEqual(['4', '5']);
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
+      '两人合作',
+    );
+    expect(screen.queryByText(copy.edit.refreshed)).toBeNull();
+  });
+});
+
 describe('本页状态和读取快照的优先规则', () => {
   const bothMine = {
     'demo-event-draft-a': { mine: true, name: '叶青' },
@@ -875,7 +918,8 @@ describe('本页状态和读取快照的优先规则', () => {
   });
   const snapshot = (
     pending: object[],
-    confirmedIds: string[],
+    // 已确认的事；写成 [id, eventId] 时指定这次确认的事件编号
+    confirmedIds: (string | [string, string])[],
     confirmers: ReceiptView['confirmers'] = bothMine,
   ) =>
     make(
@@ -889,25 +933,56 @@ describe('本页状态和读取快照的优先规则', () => {
               duplicateCandidates: [],
             }
           : null,
-        confirmedDrafts: confirmedIds.map((draftId, i) => ({
-          draftId,
-          revision: 2,
-          events: [{ personId: 'demo-person', eventId: `ev-${i}` }],
-        })),
+        confirmedDrafts: confirmedIds.map((entry) => {
+          const [draftId, eventId] =
+            typeof entry === 'string' ? [entry, `ev-${entry}`] : entry;
+          return {
+            draftId,
+            revision: 2,
+            events: [{ personId: 'demo-person', eventId }],
+          };
+        }),
         counts: counts(pending.length, confirmedIds.length),
       },
     );
   const b = { ...other, draftId: 'demo-event-draft-b' };
 
-  it('确认之后才发起的读取读到这件事在待确认：本地「已确认」作废，回到待确认，分和理由照保存时的留着', async () => {
+  it('保存之后发起的读取读到这件事在待确认（别处撤销了）：按快照回到待确认，分和理由照保存时的留着', async () => {
+    const user = userEvent.setup();
+    const read = vi.fn().mockResolvedValue({
+      status: 'success',
+      view: snapshot([{ ...draft, revision: 3 }, b], []),
+    });
+    mountWith(make({ confirmers: bothMine }), {
+      read,
+      save: vi.fn().mockResolvedValue(saved()),
+      undo: vi.fn(),
+    });
+    const card = () => cardOf('demo-event-draft-a');
+    await user.click(within(card()).getByRole('button', { name: '改分' }));
+    await user.selectOptions(within(card()).getByRole('combobox'), '5');
+    await user.type(within(card()).getByRole('textbox'), '两人合作');
+    await user.click(
+      within(card()).getByRole('button', { name: '保存并确认' }),
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(card().dataset.state).toBe('ai'));
+    expect(
+      (within(card()).getByRole('combobox') as HTMLSelectElement).value,
+    ).toBe('5');
+    expect(
+      (within(card()).getByRole('textbox') as HTMLTextAreaElement).value,
+    ).toBe('两人合作');
+  });
+
+  it('快照确认过这次保存之后，别处撤销：按快照回到待确认，换回 AI 建议（编辑输入已在快照确认时丢弃）', async () => {
     const user = userEvent.setup();
     const read = vi
       .fn()
       .mockResolvedValueOnce({
         status: 'success',
-        view: snapshot([b], ['demo-event-draft-a']),
+        view: snapshot([b], [['demo-event-draft-a', 'ev-1']]),
       })
-      // 确认第二件事后的读取：第一件事在别处被撤销，回到了待确认
       .mockResolvedValue({
         status: 'success',
         view: snapshot([{ ...draft, revision: 3 }], ['demo-event-draft-b']),
@@ -925,20 +1000,18 @@ describe('本页状态和读取快照的优先规则', () => {
       within(card()).getByRole('button', { name: '保存并确认' }),
     );
     await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    // 快照里的确认就是本页这次保存：照它补署名和分数
     expect(card().dataset.state).toBe('confirmed');
+    expect(within(card()).getByText(/AI 原为/)).toBeTruthy();
     await user.click(
       within(cardOf('demo-event-draft-b')).getByRole('button', {
         name: /确认这件事/,
       }),
     );
     await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(card().dataset.state).toBe('ai'));
     expect(
-      (within(card()).getByRole('combobox') as HTMLSelectElement).value,
-    ).toBe('5');
-    expect(
-      (within(card()).getByRole('textbox') as HTMLTextAreaElement).value,
-    ).toBe('两人合作');
+      await within(card()).findByRole('button', { name: /确认这件事/ }),
+    ).toBeTruthy();
   });
 
   it('保存还没返回时最新一次读取先落定：它带回的待确认纠正不了随后保存成功的「已确认」', async () => {
@@ -1122,5 +1195,150 @@ describe('本页状态和读取快照的优先规则', () => {
       (within(card()).getByRole('textbox') as HTMLTextAreaElement).value,
     ).toBe('两人合作');
     expect(within(card()).queryByText(copy.edit.refreshed)).toBeNull();
+  });
+
+  describe('Codex 最终轮的两个场景', () => {
+    const c = { ...other, draftId: 'demo-event-draft-c' };
+    const threeMine = {
+      ...bothMine,
+      'demo-event-draft-c': { mine: true, name: '叶青' },
+    };
+    const three = make(
+      { confirmers: threeMine },
+      {
+        draftSet: {
+          batchId: 'demo-batch',
+          revision: 1,
+          drafts: [draft, b, c],
+          duplicateCandidates: [],
+        },
+      },
+    );
+
+    it('撤销成功但响应丢了、之后撤权、重试被拒，刷新读取又失败：一直是待核实，不退回「已确认」', async () => {
+      const user = userEvent.setup();
+      const read = vi
+        .fn()
+        // 保存后的读取：这件事已确认，事件编号和这次保存一致
+        .mockResolvedValueOnce({
+          status: 'success',
+          view: snapshot([b], [['demo-event-draft-a', 'ev-1']]),
+        })
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce({ status: 'forbidden', message: '无权' })
+        .mockResolvedValueOnce({ status: 'unavailable' });
+      const undo = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('timeout'))
+        .mockResolvedValue({ status: 'forbidden', message: '无权' });
+      mountWith(make({ confirmers: bothMine }), {
+        read,
+        save: vi.fn().mockResolvedValue(saved()),
+        undo,
+      });
+      const card = () => cardOf('demo-event-draft-a');
+      await user.click(
+        within(card()).getByRole('button', { name: /确认这件事/ }),
+      );
+      await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+      await user.click(await screen.findByRole('button', { name: '撤销' }));
+      await user.click(
+        await within(card()).findByRole('button', {
+          name: copy.confirm.undoRetry,
+        }),
+      );
+      expect(
+        await within(card()).findByText(copy.confirm.undoVerify),
+      ).toBeTruthy();
+      // 刷新读取抛错、forbidden、unavailable：都留在待核实，刷新入口还在
+      for (const calls of [2, 3, 4]) {
+        await user.click(
+          within(card()).getByRole('button', {
+            name: copy.confirm.undoReread,
+          }),
+        );
+        await waitFor(() => expect(read).toHaveBeenCalledTimes(calls));
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(within(card()).queryByText(/已进入档案/)).toBeNull();
+        expect(within(card()).getByText(copy.confirm.undoVerify)).toBeTruthy();
+        expect(
+          await within(card()).findByText(copy.confirm.undoReadFailed),
+        ).toBeTruthy();
+        await waitFor(() =>
+          expect(
+            within(card()).getByRole('button', {
+              name: copy.confirm.undoReread,
+            }),
+          ).toHaveProperty('disabled', false),
+        );
+      }
+    });
+
+    it('本页 5 分保存，别处撤销、改 3 分重存：读到别处的确认时只显示摘要，不补回本页的 5 分', async () => {
+      const user = userEvent.setup();
+      const read = vi
+        .fn()
+        // 本页保存后：这件事已确认，是本页这次保存（ev-1）
+        .mockResolvedValueOnce({
+          status: 'success',
+          view: snapshot([b, c], [['demo-event-draft-a', 'ev-1']], threeMine),
+        })
+        // 别处撤销了：这件事回到待确认
+        .mockResolvedValueOnce({
+          status: 'success',
+          view: snapshot(
+            [{ ...draft, revision: 3 }, c],
+            [['demo-event-draft-b', 'ev-b']],
+            threeMine,
+          ),
+        })
+        // 别处改 3 分重新保存：新的事件编号
+        .mockResolvedValue({
+          status: 'success',
+          view: snapshot(
+            [],
+            [
+              ['demo-event-draft-a', 'ev-2'],
+              ['demo-event-draft-b', 'ev-b'],
+              ['demo-event-draft-c', 'ev-c'],
+            ],
+            threeMine,
+          ),
+        });
+      mountWith(three, {
+        read,
+        save: vi.fn().mockResolvedValue(saved()),
+        undo: vi.fn(),
+      });
+      const card = () => cardOf('demo-event-draft-a');
+      await user.click(within(card()).getByRole('button', { name: '改分' }));
+      await user.selectOptions(within(card()).getByRole('combobox'), '5');
+      await user.type(within(card()).getByRole('textbox'), '两人合作');
+      await user.click(
+        within(card()).getByRole('button', { name: '保存并确认' }),
+      );
+      await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+      await user.click(
+        within(cardOf('demo-event-draft-b')).getByRole('button', {
+          name: /确认这件事/,
+        }),
+      );
+      await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(card().dataset.state).toBe('ai'));
+      await user.click(
+        within(cardOf('demo-event-draft-c')).getByRole('button', {
+          name: /确认这件事/,
+        }),
+      );
+      await waitFor(() => expect(read).toHaveBeenCalledTimes(3));
+      await waitFor(() =>
+        expect(
+          within(card()).getByText(copy.confirm.confirmedShort),
+        ).toBeTruthy(),
+      );
+      expect(within(card()).queryByText(/AI 原为/)).toBeNull();
+      expect(within(card()).queryByText('5')).toBeNull();
+      expect(within(card()).queryByText(/叶青/)).toBeNull();
+    });
   });
 });

@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/components/ui/Toast';
 import { RECORD_UNDO_WINDOW_MS } from '@/contracts/record';
 import { ReceiptPage, RECEIPT_POLL_MS } from '@/features/receipt/ReceiptPage';
+import { copy } from '@/features/receipt/copy';
 import type { ReceiptActions, ReceiptView } from '@/features/receipt/types';
 import ReceiptSample from './page';
 import {
@@ -274,7 +275,7 @@ describe('回执页', () => {
       within(card('e-d1')).getByRole('button', { name: '确认这件事' }),
     );
     await user.click(await screen.findByRole('button', { name: '撤销' }));
-    await screen.findByText('撤销失败：这件事的分已有新的处理，已保留当前结果');
+    await screen.findByText(copy.toast.undoFailed);
     expect(card('e-d1').dataset.state).toBe('confirmed');
   });
 
