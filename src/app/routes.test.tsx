@@ -67,8 +67,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe('thin reference routes', () => {
-  it('redirects home to the reference slice', () => {
-    expect(Home).toThrow('redirect:/projects');
+  it('redirects home to the workbench', () => {
+    expect(Home).toThrow('redirect:/work');
   });
   it('renders the authenticated shell from its server query', async () => {
     render(await DeskLayout({ children: '已授权内容' }));
@@ -114,8 +114,8 @@ describe('thin reference routes', () => {
     error.unmount();
     render(<NotFound />);
     expect(
-      screen.getByRole('link', { name: '回到项目列表' }).getAttribute('href'),
-    ).toBe('/projects');
+      screen.getByRole('link', { name: '回到工作台' }).getAttribute('href'),
+    ).toBe('/work');
   });
   it('renders login and the document language with the approved sprite', () => {
     render(<Login />);
