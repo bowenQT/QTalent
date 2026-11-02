@@ -389,3 +389,72 @@ it('with retryLimit, pauses failed reads while hidden and resumes when shown', a
   expect(read).toHaveBeenCalledTimes(3);
   sub.unsubscribe();
 });
+it('with retryLimit, hiding the page cancels a scheduled retry and online waits until shown', async () => {
+  const read = vi.fn().mockRejectedValue(new JobReadError(503));
+  const visibility = Object.assign(new EventTarget(), {
+    visibilityState: 'visible',
+  });
+  const online = new EventTarget();
+  const sub = subscribeToJob({
+    jobId: 'j',
+    read,
+    onChange: vi.fn(),
+    retryLimit: 5,
+    lifecycle: { online, visibility },
+  });
+  await flush();
+  expect(read).toHaveBeenCalledTimes(1);
+  // A retry is scheduled in 2 s; hiding the page cancels it.
+  visibility.visibilityState = 'hidden';
+  visibility.dispatchEvent(new Event('visibilitychange'));
+  online.dispatchEvent(new Event('online'));
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(read).toHaveBeenCalledTimes(1);
+  visibility.visibilityState = 'visible';
+  visibility.dispatchEvent(new Event('visibilitychange'));
+  await flush();
+  expect(read).toHaveBeenCalledTimes(2);
+  sub.unsubscribe();
+});
+it('with retryLimit, a browser event during the last failing read does not read past the limit', async () => {
+  let fail!: () => void;
+  const read = vi.fn(
+    () =>
+      new Promise<JobSnapshot>((_resolve, reject) => {
+        fail = () => reject(new JobReadError(503));
+      }),
+  );
+  const onChange = vi.fn();
+  const online = new EventTarget();
+  const visibility = Object.assign(new EventTarget(), {
+    visibilityState: 'visible',
+  });
+  const sub = subscribeToJob({
+    jobId: 'j',
+    read,
+    onChange,
+    retryLimit: 2,
+    lifecycle: { online, visibility },
+  });
+  await flush();
+  fail();
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(read).toHaveBeenCalledTimes(2);
+  // The second (last) read is still in flight when the page comes online.
+  online.dispatchEvent(new Event('online'));
+  fail();
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(read).toHaveBeenCalledTimes(2);
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ connection: 'error', gaveUp: true }),
+  );
+  // An explicit refresh queued during a failing read still reads again.
+  sub.refresh();
+  await flush();
+  expect(read).toHaveBeenCalledTimes(3);
+  sub.refresh();
+  fail();
+  await flush();
+  expect(read).toHaveBeenCalledTimes(4);
+  sub.unsubscribe();
+});

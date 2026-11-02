@@ -4,10 +4,12 @@ import type { StaffingDemand, StaffingJobSnapshot } from '@/contracts/staffing';
 import type { JobState } from '../../use-job';
 import type { LoadSource } from '@/features/sources/SourceCite';
 import { arrangeCandidates } from '../../view';
+import { formatClock } from '../../format';
 import {
   matchingLoading,
   outOfScope,
   matchingFailed,
+  matchingReadPaused,
   matchingReload,
   matchingRetry,
   matchingStale,
@@ -151,8 +153,25 @@ export function Candidates({
   }
   const { listed, pending } = arrangeCandidates(demand, candidates);
   const busy = judging?.busy ?? false;
+  // Candidates kept from the last successful read while reading again fails.
+  const paused =
+    job?.connection === 'error' && job.snapshot
+      ? (job.gaveUp ? matchingReadPaused.stopped : matchingReadPaused.retrying)(
+          formatClock(job.snapshot.updatedAt),
+        )
+      : null;
   return (
     <>
+      {paused ? (
+        <div
+          className="nt-row"
+          role="status"
+          style={{ marginBottom: 'var(--s-3)' }}
+        >
+          <span className="nt-muted">{paused}</span>
+          {retry}
+        </div>
+      ) : null}
       <Section meta={`${listed.length} 人进入候选 · 按必须项的证据排列`}>
         {listed.length ? (
           listed.map((view) => {

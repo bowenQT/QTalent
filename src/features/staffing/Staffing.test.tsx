@@ -1300,6 +1300,40 @@ describe('matching reads that end or stop retrying', () => {
     expect(read).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps shown candidates when later reads fail, says which result they are and reconnects', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const read = vi
+      .fn<StaffingPorts['readMatchingJob']>()
+      .mockResolvedValueOnce(
+        job('staffing_match', 'running', pageOf(confirmed)),
+      )
+      .mockRejectedValue(new Error('offline'));
+    view(ports({ readMatchingJob: read }));
+    await screen.findByRole('link', { name: '演示甲' });
+    // The snapshot was updated at 02:00 UTC, 10:00 in the company's zone.
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(
+      await screen.findByText(
+        '核对结果更新中断，正在重试。下面是 10:00 更新的结果。',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '重新连接' })).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(2000 + 4000 + 8000 * 3));
+    expect(read).toHaveBeenCalledTimes(7);
+    expect(
+      await screen.findByText('核对结果已暂停更新。下面是 10:00 更新的结果。'),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: '演示甲' })).toBeTruthy();
+    read.mockResolvedValue(
+      job('staffing_match', 'completed', pageOf(confirmed)),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }));
+    await waitFor(() =>
+      expect(screen.queryByText(/核对结果已暂停更新/)).toBeNull(),
+    );
+    expect(read).toHaveBeenCalledTimes(8);
+  });
+
   it('stops retrying a not-connected run at the limit and reconnects on request', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const read = vi

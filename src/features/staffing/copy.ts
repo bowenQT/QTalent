@@ -53,6 +53,12 @@ export const matchingStale = {
 export const matchingReload = '重新读取需求';
 /** Automatic reads stopped at their limit; reading again is the reader's call. */
 export const matchingRetry = '重新连接';
+/** Shown above candidates kept from the last successful read. */
+export const matchingReadPaused = {
+  retrying: (at: string) =>
+    `核对结果更新中断，正在重试。下面是 ${at} 更新的结果。`,
+  stopped: (at: string) => `核对结果已暂停更新。下面是 ${at} 更新的结果。`,
+};
 export const draftFailed = '需求卡生成失败，回到输入框再发一次。';
 export const draftSignedOut = '登录已失效，重新登录后回到输入框再发一次。';
 export const draftOutOfScope =

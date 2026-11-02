@@ -284,8 +284,19 @@ describe('BOW-854 authorized matching', () => {
       status: 'success',
     });
     expect(
-      await service.judge('account-hr', started.runId, judgment),
-    ).not.toMatchObject({ status: 'forbidden' });
+      staffingJudgmentResultSchema.parse(
+        await service.judge('account-hr', started.runId, judgment),
+      ),
+    ).toMatchObject({
+      status: 'success',
+      match: {
+        humanJudgment: {
+          conclusion: 'not_supported',
+          judgedBy: { id: 'hr', name: '演示·HR' },
+          judgedAt: '2026-09-04T04:00:00.000Z',
+        },
+      },
+    });
   });
   it('a same-day revocation after the model call stops the write-back', async () => {
     const f = matchingFixture();

@@ -53,6 +53,7 @@ export function subscribeToJob<R>(options: JobSubscriptionOptions<R>) {
   let disposed = false;
   let forbidden = false;
   let pendingRefresh = false;
+  let pendingExplicit = false;
   let failures = 0;
   let gaveUp = false;
   function emit(
@@ -68,6 +69,13 @@ export function subscribeToJob<R>(options: JobSubscriptionOptions<R>) {
   }
   function hidden() {
     return options.lifecycle?.visibility.visibilityState === 'hidden';
+  }
+  /** Bounded readers hold failed-read retries at the limit and while hidden.
+   * Only an explicit refresh() reads through it. */
+  function holding() {
+    return (
+      options.retryLimit !== undefined && failures > 0 && (gaveUp || hidden())
+    );
   }
   function schedule(delay: number) {
     clearTimeout(timer);
@@ -111,6 +119,7 @@ export function subscribeToJob<R>(options: JobSubscriptionOptions<R>) {
       )
         snapshot = next;
       failures = 0;
+      gaveUp = false;
       emit('connected');
     } catch (error) {
       if (disposed) return;
@@ -138,34 +147,52 @@ export function subscribeToJob<R>(options: JobSubscriptionOptions<R>) {
       clearTimeout(timeout);
       active = null;
       if (!disposed && !forbidden) {
-        if (pendingRefresh) {
-          pendingRefresh = false;
+        const queued = pendingRefresh,
+          explicit = pendingExplicit;
+        pendingRefresh = pendingExplicit = false;
+        // A refresh queued by a browser event obeys the hold; an explicit one
+        // starts a new bounded series.
+        if (queued && explicit) {
+          restart();
           schedule(0);
-        } else if (failures > 0) {
-          // Bounded readers stop at the limit and pause while hidden.
-          if (!gaveUp && !(options.retryLimit !== undefined && hidden()))
+        } else if (queued && !holding()) schedule(0);
+        else if (failures > 0) {
+          if (!holding())
             schedule(Math.min(8000, 2000 * 2 ** Math.min(failures - 1, 2)));
         } else if (isPolling()) schedule(1000);
       }
     }
   }
-  function refresh() {
-    if (!disposed && !forbidden) {
-      clearTimeout(timer);
-      // An explicit refresh starts a new bounded series.
-      if (gaveUp) {
-        gaveUp = false;
-        failures = 0;
-      }
-      void poll();
+  function restart() {
+    if (gaveUp) {
+      gaveUp = false;
+      failures = 0;
     }
   }
-  /** Browser events resume paused retries but not ones that gave up. */
+  function read(explicit: boolean) {
+    if (disposed || forbidden) return;
+    if (active) {
+      pendingRefresh = true;
+      pendingExplicit ||= explicit;
+      return;
+    }
+    if (explicit) restart();
+    else if (holding()) return;
+    clearTimeout(timer);
+    void poll();
+  }
+  /** Reads now, starting a new bounded series after `gaveUp`. */
+  function refresh() {
+    read(true);
+  }
+  /** Browser events resume paused retries but never ones that gave up. */
   function resume() {
-    if (!gaveUp) refresh();
+    read(false);
   }
   function onVisible() {
     if (options.lifecycle?.visibility.visibilityState === 'visible') resume();
+    // A retry already scheduled waits until the page is shown again.
+    else if (holding()) clearTimeout(timer);
   }
   options.lifecycle?.online.addEventListener('online', resume);
   options.lifecycle?.visibility.addEventListener('visibilitychange', onVisible);
