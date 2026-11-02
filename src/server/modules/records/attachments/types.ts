@@ -21,8 +21,18 @@ export interface AttachmentFragment extends SourceReference {
   excerpt: string;
   location: AttachmentSegment['location'];
 }
+export interface AttachmentPdfText {
+  version: 'pdf-page-text-v1';
+  pages: Array<{ page: number; text: string }>;
+  ranges: Array<{
+    fragmentId: string;
+    page: number;
+    textRange: { start: number; end: number };
+  }>;
+}
 export interface ParsedAttachment {
   status: 'parsed';
+  pdfText?: AttachmentPdfText;
   parseVersionId: string;
   originalVersionId: string;
   sha256: string;
