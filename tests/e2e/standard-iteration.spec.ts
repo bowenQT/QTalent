@@ -101,7 +101,8 @@ test('the real routes say 待接通 until their reads are connected', async ({
     page.getByRole('heading', { name: '入营选拔标准待接通' }),
   ).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/许致远|第六期判断对照/);
-  expect((await page.goto('/rules'))?.status()).toBe(404);
+  await page.goto('/rules');
+  await expect(page).toHaveURL(/\/rules\?r=front&line=xe-select$/);
 
   await context.clearCookies();
   await login(context, 'mentor', referenceApp.baseURL);
