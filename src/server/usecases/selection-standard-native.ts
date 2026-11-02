@@ -49,6 +49,7 @@ type SelectionStandardContent = z.infer<typeof selectionStandardContentSchema>;
 export type SelectionStandardPage =
   | { status: 'forbidden' }
   | { status: 'not_found' }
+  | { status: 'none' }
   | {
       status: 'current';
       audience: 'hr' | 'manager';
@@ -429,7 +430,9 @@ export function createNativeSelectionLifecycle(
             { category: 'xe_selection', at: now },
             () => new Date(now),
           );
-          if (effective.status !== 'success') return { status: 'not_found' };
+          if (effective.status === 'not_found') return { status: 'none' };
+          if (effective.status !== 'success')
+            throw new SelectionLifecycleError('conflict', effective.message);
           const current = await readCurrentSelectionStandard(
             tx.db,
             effective.version.versionId,

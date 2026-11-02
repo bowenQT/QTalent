@@ -258,6 +258,12 @@ describe('/rules?r=front&line=xe-select', () => {
       }),
     ).rejects.toThrow('not-found');
     expect(rulesQuery).toHaveBeenCalledWith('rev-1');
+    rulesQuery.mockResolvedValue({ status: 'none' });
+    render(await RulesPage({ searchParams: standard }));
+    expect(
+      screen.getByRole('heading', { name: '还没有生效的入营选拔标准' }),
+    ).toBeTruthy();
+    cleanup();
     rulesQuery.mockResolvedValue({ status: 'forbidden' });
     render(await RulesPage({ searchParams: standard }));
     expect(

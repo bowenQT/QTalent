@@ -25,3 +25,13 @@ export function RulesDenied() {
     </State>
   );
 }
+
+/** No XEngineer selection standard is in force yet, so there is nothing to show or revise. */
+export function StandardNone() {
+  return (
+    <State
+      title="还没有生效的入营选拔标准"
+      text="第一版入营选拔标准发布后，这里会显示正在生效的版本和要点。"
+    />
+  );
+}
