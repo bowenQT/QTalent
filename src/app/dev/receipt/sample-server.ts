@@ -62,7 +62,8 @@ export function createSampleServer(
   let conflictPending = scene === 'conflict';
   let drafts = scene === 'empty' ? [] : sampleDrafts.map((d) => ({ ...d }));
   const saved = new Map<string, Saved>();
-  const undone = new Set<string>();
+  // 撤销按 operation_id 幂等：同一次撤销重发，返回原结果
+  const undone = new Map<string, RecordUndoResult>();
   const items = scene === 'empty' ? [] : sampleItems;
   const me = sampleAccount(role);
 
@@ -82,7 +83,8 @@ export function createSampleServer(
       revision: s.draft.revision,
       events: s.events,
     }));
-    const live = drafts.map((d) => ({ ...d, revision }));
+    // 每张草稿有自己的 revision，只在这件事本身变了时前进；确认别的事不影响它
+    const live = drafts;
     const personIds = scene === 'empty' ? [] : Object.keys(people);
     const receipt = materialBatchReceiptSchema.parse({
       batchId: BATCH_ID,
@@ -170,10 +172,15 @@ export function createSampleServer(
           status: 'not_found',
           message: '这件事已经确认过了',
         });
-      if (conflictPending || input.expected_revision !== revision) {
+      if (conflictPending || input.expected_revision !== draft.revision) {
         if (conflictPending) {
           conflictPending = false;
           revision += 1;
+          drafts = drafts.map((d) =>
+            d.draftId === draft.draftId
+              ? { ...d, revision: d.revision + 1 }
+              : d,
+          );
         }
         return recordSaveResultSchema.parse({
           status: 'conflict',
@@ -219,6 +226,8 @@ export function createSampleServer(
 
     async undo(raw: RecordUndoInput): Promise<RecordUndoResult> {
       const input = recordUndoInputSchema.parse(raw);
+      const replay = undone.get(input.operation_id);
+      if (replay) return { ...replay, replayed: true } as RecordUndoResult;
       const entry = saved.get(input.saveId);
       if (!entry)
         return recordUndoResultSchema.parse({
@@ -232,13 +241,14 @@ export function createSampleServer(
           input,
         });
       saved.delete(input.saveId);
-      undone.add(input.saveId);
       revision += 1;
       const order = sampleDrafts.map((d) => d.draftId);
-      drafts = [...drafts, entry.draft].sort(
+      // 照 846 续作：撤销把草稿恢复成可确认，revision 前进
+      const restored = { ...entry.draft, revision: entry.draft.revision + 1 };
+      drafts = [...drafts, restored].sort(
         (a, b) => order.indexOf(a.draftId) - order.indexOf(b.draftId),
       );
-      return recordUndoResultSchema.parse({
+      const result = recordUndoResultSchema.parse({
         status: 'success',
         replayed: false,
         result: {
@@ -251,6 +261,8 @@ export function createSampleServer(
           originalInput: null,
         },
       });
+      undone.set(input.operation_id, result);
+      return result;
     },
   };
 }
