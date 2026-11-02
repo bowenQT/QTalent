@@ -455,7 +455,7 @@ describe('样张替身', () => {
     const again = await server.save({
       ...input,
       operation_id: 'again',
-      expected_revision: 2,
+      expected_revision: 3,
     });
     if (again.status !== 'success') throw new Error('save failed');
     now += RECORD_UNDO_WINDOW_MS;

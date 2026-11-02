@@ -245,7 +245,15 @@ export function ReceiptPage({
           delete next[draft.draftId];
           return next;
         });
-        setUndone((all) => ({ ...all, [draft.draftId]: draft }));
+        // 撤销推进了这件事的版本：按回执给的新版本再确认，重读失败也不会撞上冲突
+        const restored = result.result.draftRestoration;
+        setUndone((all) => ({
+          ...all,
+          [draft.draftId]:
+            restored.status === 'available'
+              ? { ...draft, revision: restored.draftRevision }
+              : draft,
+        }));
         await reload();
         focusCard(draft.draftId);
       },

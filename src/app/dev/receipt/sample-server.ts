@@ -194,13 +194,15 @@ export function createSampleServer(
         personId,
         eventId: `ev-${draft.draftId}-${i + 1}`,
       }));
+      // 照 846：保存推进这件事的 revision，回执给出保存后的版本
+      const savedDraft = { ...draft, revision: draft.revision + 1 };
       const result = recordSaveResultSchema.parse({
         status: 'success',
         replayed: false,
         result: {
           saveId,
           events,
-          revision: revision + 1,
+          revision: savedDraft.revision,
           confirmationIds: input.decisions.map(
             (_, i) => `cf-${saveId}-${i + 1}`,
           ),
@@ -214,7 +216,7 @@ export function createSampleServer(
       drafts = drafts.filter((d) => d.draftId !== draft.draftId);
       saved.set(saveId, {
         saveId,
-        draft,
+        draft: savedDraft,
         events,
         savedAt,
         operationId: input.operation_id,
@@ -243,7 +245,7 @@ export function createSampleServer(
       saved.delete(input.saveId);
       revision += 1;
       const order = sampleDrafts.map((d) => d.draftId);
-      // 照 846 续作：撤销把草稿恢复成可确认，revision 前进
+      // 照 846（#317）：撤销把草稿恢复成可确认，revision 再前进一次
       const restored = { ...entry.draft, revision: entry.draft.revision + 1 };
       drafts = [...drafts, restored].sort(
         (a, b) => order.indexOf(a.draftId) - order.indexOf(b.draftId),
@@ -256,11 +258,11 @@ export function createSampleServer(
           withdrawnEvents: entry.events,
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
-          // 照 846（#317）：撤销也推进版本，回执给出再确认要用的新版本
+          // 回执给出再确认要用的新版本
           draftRestoration: {
             status: 'available',
-            draftId: entry.draft.draftId,
-            draftRevision: revision,
+            draftId: restored.draftId,
+            draftRevision: restored.revision,
           },
           // 照 846（#289）：撤销回执不带原输入；回执页的事回到待确认，本来也不需要原话
           inputRestoration: 'unavailable',

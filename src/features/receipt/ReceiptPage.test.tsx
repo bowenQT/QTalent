@@ -307,6 +307,11 @@ describe('确认之后', () => {
           withdrawnEvents: [{ personId: 'demo-person', eventId: 'ev-1' }],
           withdrawnConfirmationIds: ['c-1'],
           withdrawnReviewItemIds: [],
+          draftRestoration: {
+            status: 'available',
+            draftId: 'demo-event-draft-a',
+            draftRevision: 3,
+          },
           inputRestoration: 'unavailable',
           originalInput: null,
         },
@@ -343,6 +348,11 @@ describe('确认之后', () => {
         withdrawnEvents: [{ personId: 'demo-person', eventId: 'ev-1' }],
         withdrawnConfirmationIds: ['c-1'],
         withdrawnReviewItemIds: [],
+        draftRestoration: {
+          status: 'available' as const,
+          draftId: 'demo-event-draft-a',
+          draftRevision: 3,
+        },
         inputRestoration: 'unavailable' as const,
         originalInput: null,
       },
@@ -409,6 +419,10 @@ describe('确认之后', () => {
       within(card).getByRole('button', { name: /确认这件事/ }),
     ).toBeTruthy();
     expect(within(card).queryByText(/等.*确认/)).toBeNull();
+    // 重读失败时，再确认用撤销回执给的新版本
+    await user.click(within(card).getByRole('button', { name: /确认这件事/ }));
+    await waitFor(() => expect(using.save).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(using.save).mock.calls[1]![0].expected_revision).toBe(3);
   });
 
   it('重读一直不回也有撤销入口；保存回执的撤销时间已过就只提示已确认', async () => {
