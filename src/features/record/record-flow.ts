@@ -163,7 +163,8 @@ export type Action =
   | { type: 'save_conflict'; message: string }
   | { type: 'save_forbidden'; message: string }
   | { type: 'back_to_write' }
-  | { type: 'undone' };
+  /** draftRevision: the version the undo receipt hands back for saving again; null to reload. */
+  | { type: 'undone'; draftRevision: number | null };
 
 export function recordReducer(state: RecordState, action: Action): RecordState {
   switch (action.type) {
@@ -317,9 +318,14 @@ export function recordReducer(state: RecordState, action: Action): RecordState {
       // 照原型撤销后回到待确认：整理结果和改过的文字、分数都还在，可以改完再保存。
       // 846 的撤销回执不带原输入（originalInput 为 null），原话用本页 state 里的。
       // 保存用过的 operation_id 作废，再保存必须换新，否则服务端会重放撤销掉的那次。
+      // 846 的撤销推进了草稿版本：再保存用回执给的新版本，不然会被当成冲突。
       if (!state.draft || !state.edit) return resetToWrite(state);
       return {
         ...state,
+        draft:
+          action.draftRevision === null
+            ? state.draft
+            : { ...state.draft, revision: action.draftRevision },
         phase: 'review',
         saveOp: null,
         receipt: null,

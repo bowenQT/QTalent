@@ -25,7 +25,7 @@
 | `app/index.html`                  | `/work`                           | workbench / workbench               | workbench / 多领域聚合                       | 后续 / 404     |
 | `app/people.html`                 | `/people`                         | people / people                     | people / directory、talent                   | 后续 / 404     |
 | `app/person.html`                 | `/person?id=…`                    | person / person                     | person / directory、records、talent          | 后续 / 404     |
-| `app/record.html`                 | `/record`                         | record / materials.ts、record.ts | record / records、talent | 页面读取与评价节点推导（845）、897 批次提交与读取、846 保存与撤销已接；撤销后重存待 #317；样张 `/dev/record` |
+| `app/record.html`                 | `/record`                         | record / materials.ts、record.ts | record / records、talent | 页面读取与评价节点推导（845）、897 批次提交与读取、846 保存、撤销与撤销后重存已接；样张 `/dev/record` |
 | `app/inbox.html`                  | `/inbox`                          | inbox / inbox                       | inbox / records                              | 后续 / 404     |
 | `app/receipt.html`                | `/receipt?id=…`                   | receipt / materials.ts、record.ts   | receipt / records、talent                    | 页面与样张已做（BOW-847），读取与保存待接通 |
 | `app/import.html`                 | `/import?id=…`                    | interview-import / （BOW-906 读取） | 面评导入预览 / records、directory            | 角色门禁已实现；预览读取待接通，样张 `/dev/import`；视觉参照待同步 |
@@ -66,12 +66,12 @@
 - **待接通**：
   - 语音输入和添加附件：897 入口目前只收文本，两个按钮留在原型的位置，标「待接通」。附件由 BOW-870 经 `attachmentSlot` 接入。
   - 846 新文本批次的首次保存：保存用例读来源主体时还没读批次里 845 记下的主体绑定，新文本没有事件，读出来为空，保存不可用（后端修复）。修好前本页写「保存中断」，修改保留。
-  - 846 撤销后重存（#317）：撤销后回到待确认，原话用本页 state 里的；重存时如果服务端返回冲突，就如实显示保存冲突。
+  - 846 撤销后重存（#317）：撤销后回到待确认，原话用本页 state 里的；重存用撤销回执 `draftRestoration` 给的新版本。回执要求重读（`refresh_required`）时沿用原版本，服务端返回冲突就如实显示保存冲突，可以载入最新版本。
 - **样张**：`/dev/record?role=hr|mentor|manager` 生产环境 404。`?scene=fail|offline|conflict|many|review|node-multiple|node-none` 分别走整理失败、断网、保存冲突、多件事、待核对、节点多个、节点没有。替身按 897 回执契约回应（经 `materialBatchReceiptSchema` 校验）。空人员和 845 一样推导不出节点。演示人员取自原型 Y 种子（化名，标「演示」）。
 - **和原型的差异**：
   - 标签：契约没有标签，整理轨迹是 3 步，也没有标签行。
   - 整理中：897 回执只说处理中还是已结束，轨迹停在第一步并写「已提交，整理中」，结束后三步一起完成，不编造分步进度。
-  - 待确认时焦点交给标题，原型不移焦点。
+  - 待确认时焦点交给标题；「改原话」回到输入后焦点交给原话文本框。原型都不移焦点。
   - 「谁」的下拉按 `main` 上的原型种子，比固定参照多两位演示人员。
 - **「从原话里识别」的机制（不是界面差异）**：和原型一样默认「从原话里识别」。识别方式是用「谁」的候选（服务端 845 `page()` 按当前权限给出）的姓名，在原话里做精确匹配，不调模型，也不做模糊匹配。只有毫无歧义时才自动选中：原话里出现的候选姓名恰好一个，这个姓名在候选里没有重名。有重名、姓名互相包含（如「王一」和「王一鸣」，原话写「王一鸣」时两者都算出现）或出现多位候选的姓名时，都不自动选。姓名里的字不到 2 个时不参与自动选中：按字形计数（`Intl.Segmenter`），只数含字母类字符（`\p{L}`）的字形。单字「一」会命中「今天一起」；纯 emoji、组合 emoji 和符号也不算姓名。自动选中时填进「谁」，再推导节点；不自动选时，写「在「谁」里选一位同事，再整理」，并把焦点交给「谁」。赛后可以改由 845 在整理时识别，并做两阶段授权来替代（#248 编排裁决）。
 - **「演示」徽标**：按这件事记给的人在目录里的 `demo` 标记显示，不用整页开关。

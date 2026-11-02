@@ -122,7 +122,7 @@ describe('sample server', () => {
       batchId: 'b',
       draftId: 'd',
       evaluationNodeId: SAMPLE_NODE,
-      personId: SUBJECT,
+      personIds: [SUBJECT],
       text: '开了个会',
     });
     expect(draft.scores.every((score) => score.state === 'unknown')).toBe(true);
@@ -165,7 +165,8 @@ describe('sample server', () => {
         draftRestoration: {
           status: 'available',
           draftId: draft!.draftId,
-          draftRevision: draft!.revision,
+          // 保存、撤销各推进一次
+          draftRevision: draft!.revision + 2,
         },
         inputRestoration: 'unavailable',
         originalInput: null,
@@ -174,9 +175,18 @@ describe('sample server', () => {
     expect((await s.read(batchId)).draftSet?.drafts[0]?.draftId).toBe(
       draft!.draftId,
     );
+    // 撤销前的版本再保存是冲突；用回执给的新版本才能保存
+    expect(
+      (
+        await s.actions.save({
+          ...saveInput(draft!.draftId, draft!.revision),
+          operation_id: 'op-stale',
+        })
+      ).status,
+    ).toBe('conflict');
     expect(
       await s.actions.save({
-        ...saveInput(draft!.draftId, draft!.revision),
+        ...saveInput(draft!.draftId, draft!.revision + 2),
         operation_id: 'op-again',
       }),
     ).toMatchObject({ status: 'success' });
@@ -219,6 +229,22 @@ describe('sample server', () => {
     });
     const { receipt } = await arranged(s, input(SENTENCE, [SUBJECT], 'op-2'));
     expect(receipt.status).toBe('awaiting_confirmation');
+  });
+
+  it('keeps everyone chosen: each person gets scores and an event on save', async () => {
+    const s = server();
+    const both = [SUBJECT, 'p-x08'];
+    const { draft } = await arranged(s, input(SENTENCE, both));
+    expect(draft?.personIds).toEqual(both);
+    expect([...new Set(draft?.scores.map((score) => score.personId))]).toEqual(
+      both,
+    );
+    const saved = await s.actions.save({
+      ...saveInput(draft!.draftId, 1),
+      personIds: both,
+    });
+    if (saved.status !== 'success') throw new Error(saved.status);
+    expect(saved.result.events.map((event) => event.personId)).toEqual(both);
   });
 
   it('offline scene: the first submit never arrives, the second does', async () => {

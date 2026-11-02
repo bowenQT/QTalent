@@ -81,6 +81,11 @@ function setup(over: Overrides = {}) {
         withdrawnEvents: [{ personId: 'p1', eventId: 'ev-1' }],
         withdrawnConfirmationIds: [],
         withdrawnReviewItemIds: [],
+        draftRestoration: {
+          status: 'available',
+          draftId: draft.draftId,
+          draftRevision: draft.revision + 2,
+        },
         inputRestoration: 'unavailable',
         originalInput: null,
       }),
@@ -874,10 +879,10 @@ describe('确认、改分与保存', () => {
   it('改原话：有修改时先确认，确认后回到输入并保留原话', async () => {
     await toReview();
     await click(copy.actions.back);
-    // 无修改：直接回到输入
-    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
-      TEXT,
-    );
+    // 无修改：直接回到输入，焦点交给原话，接着就能改
+    const text = screen.getByRole('textbox') as HTMLTextAreaElement;
+    expect(text.value).toBe(TEXT);
+    await waitFor(() => expect(document.activeElement).toBe(text));
   });
 
   it('改原话：改过 SBI 后先确认，可以继续编辑', async () => {
@@ -900,9 +905,10 @@ describe('确认、改分与保存', () => {
         name: copy.actions.back,
       }),
     );
-    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
-      TEXT,
-    );
+    const text = screen.getByRole('textbox') as HTMLTextAreaElement;
+    expect(text.value).toBe(TEXT);
+    // 确认框关掉后，焦点不回到已经不在的「改原话」，而是原话
+    await waitFor(() => expect(document.activeElement).toBe(text));
   });
 });
 
@@ -931,6 +937,8 @@ describe('5 秒撤销', () => {
     const [first, second] = (actions.save as ReturnType<typeof vi.fn>).mock
       .calls;
     expect(second?.[0].operation_id).not.toBe(first?.[0].operation_id);
+    // 846 撤销推进了草稿版本：再保存用撤销回执给的新版本
+    expect(second?.[0].expected_revision).toBe(draft.revision + 2);
   });
 
   it('网络失败：提示撤销遇到问题并可重试，重试复用同一个 operation_id', async () => {
@@ -943,6 +951,7 @@ describe('5 秒撤销', () => {
           withdrawnEvents: [],
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
+          draftRestoration: { status: 'refresh_required' },
           inputRestoration: 'unavailable',
           originalInput: null,
         }),

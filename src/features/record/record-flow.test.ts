@@ -362,20 +362,28 @@ describe('回到输入与撤销', () => {
       { type: 'save_saved', receipt, replayed: false },
     );
     // 846 的撤销回执不带原输入：原话和人员用本页保存时的内容
-    const undone = run(saved, { type: 'undone' });
+    // 撤销推进了草稿版本：再保存用回执给的新版本
+    const undone = run(saved, { type: 'undone', draftRevision: 9 });
     expect(undone).toMatchObject({
       phase: 'review',
       text: TEXT,
       personId: 'p1',
       receipt: null,
       saveOp: null,
-      draft: saved.draft,
+      draft: { ...saved.draft, revision: 9 },
       edit: saved.edit,
     });
+    // 回执要求重读时，草稿保持原样
+    expect(run(saved, { type: 'undone', draftRevision: null }).draft).toBe(
+      saved.draft,
+    );
   });
 
   it('没有草稿时撤销回到输入', () => {
-    const undone = run(initialState({ text: '原话' }), { type: 'undone' });
+    const undone = run(initialState({ text: '原话' }), {
+      type: 'undone',
+      draftRevision: null,
+    });
     expect(undone).toMatchObject({ phase: 'write', text: '原话' });
   });
 });

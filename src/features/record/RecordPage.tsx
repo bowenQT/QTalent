@@ -327,6 +327,13 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
         ?.querySelector<HTMLElement>('[data-k="title"]')
         ?.focus({ preventScroll: true });
   }, [phase, draft?.draftId]);
+  // 改原话回到输入：焦点交给原话文本框，接着就能改
+  const focusText = useRef(false);
+  useEffect(() => {
+    if (phase !== 'write' || !focusText.current) return;
+    focusText.current = false;
+    textareaRef.current?.focus();
+  }, [phase]);
   useEffect(() => {
     if (state.banner?.kind === 'node' && !state.banner.picked)
       document.getElementById('ev-person')?.focus();
@@ -515,7 +522,12 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
           saveId: receipt.saveId,
         });
         if (result.status === 'success') {
-          dispatch({ type: 'undone' });
+          const restored = result.result.draftRestoration;
+          dispatch({
+            type: 'undone',
+            draftRevision:
+              restored.status === 'available' ? restored.draftRevision : null,
+          });
           return;
         }
         // 业务终局失败不是「可重试」：收起原提示，另发一条说明
@@ -530,9 +542,14 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
     if (remaining < UNDO_MS) scope.timeout(close, remaining);
   }
 
+  function backToWrite() {
+    focusText.current = true;
+    dispatch({ type: 'back_to_write' });
+  }
+
   function requestBack() {
     if (phase === 'review' && dirty) setConfirm('discard');
-    else dispatch({ type: 'back_to_write' });
+    else backToWrite();
   }
 
   async function loadLatest() {
@@ -656,7 +673,7 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
               <button
                 type="button"
                 className="n-btn n-btn--sm n-btn--ink"
-                onClick={() => dispatch({ type: 'back_to_write' })}
+                onClick={backToWrite}
               >
                 {copy.connection.goneAction}
               </button>
@@ -723,13 +740,13 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
                       state.failure.retryable && state.text.trim() !== ''
                     }
                     onReorganize={() => void start(true)}
-                    onEdit={() => dispatch({ type: 'back_to_write' })}
+                    onEdit={backToWrite}
                   />
                 ) : phase === 'handoff' && state.handoff && state.batchId ? (
                   <HandoffPanel
                     reason={state.handoff}
                     href={receiptHref(state.batchId)}
-                    onEdit={() => dispatch({ type: 'back_to_write' })}
+                    onEdit={backToWrite}
                     onCopyOut={state.text.trim() ? openCopyOut : null}
                   />
                 ) : draft && edit ? (
@@ -856,7 +873,7 @@ function RecordFlow(props: RecordPageProps & { epoch: number }) {
               if (confirm === 'load') void loadLatest();
               else {
                 setConfirm(null);
-                dispatch({ type: 'back_to_write' });
+                backToWrite();
               }
             },
           },

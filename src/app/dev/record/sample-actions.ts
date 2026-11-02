@@ -103,12 +103,12 @@ export function sampleServer({
   const iso = (ms: number) => new Date(ms).toISOString();
 
   function arranged(batchId: string, input: MaterialBatchInput) {
-    const [personId] = input.personIds;
-    if (!personId || scene === 'review') return [];
+    const { personIds } = input;
+    if (personIds.length === 0 || scene === 'review') return [];
     const base = {
       batchId,
       evaluationNodeId: input.evaluationNodeId,
-      personId,
+      personIds,
       text: input.text,
     };
     const first = sampleDraft({ ...base, draftId: id('sample-draft') });
@@ -188,9 +188,10 @@ export function sampleServer({
       confirmedDrafts: task.confirmed.map((entry) => ({
         draftId: entry.draftId,
         revision: entry.revision,
-        events: [
-          { personId: task.input.personIds[0]!, eventId: entry.eventId },
-        ],
+        events: task.input.personIds.map((personId) => ({
+          personId,
+          eventId: entry.eventId,
+        })),
       })),
       counts: {
         files: {
@@ -335,11 +336,13 @@ export function sampleServer({
         };
       saves.delete(saveId);
       const task = tasks.get(saved.batchId);
+      // 照 846（#317）：保存、撤销各推进一次版本，撤销把草稿恢复成可确认的新版本
+      const restored = { ...saved.draft, revision: saved.draft.revision + 2 };
       if (task) {
         task.confirmed = task.confirmed.filter(
           (entry) => entry.draftId !== saved.draft.draftId,
         );
-        task.drafts = [...task.drafts, saved.draft];
+        task.drafts = [...task.drafts, restored];
       }
       return {
         status: 'success',
@@ -349,13 +352,12 @@ export function sampleServer({
           withdrawnEvents: [],
           withdrawnConfirmationIds: [],
           withdrawnReviewItemIds: [],
-          // 照 846（#317）：回执给出撤销后再保存要用的草稿版本。样张保存不推进版本，
-          // 所以就是草稿当前的版本；真实服务端保存、撤销各加一
+          // 回执给出撤销后再保存要用的草稿版本
           draftRestoration: task
             ? {
                 status: 'available',
-                draftId: saved.draft.draftId,
-                draftRevision: saved.draft.revision,
+                draftId: restored.draftId,
+                draftRevision: restored.revision,
               }
             : { status: 'refresh_required' },
           // 照 846（#289）：撤销回执不带原输入，页面用自己保存时的原话回到待确认
