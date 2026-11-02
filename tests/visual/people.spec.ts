@@ -42,12 +42,13 @@ for (const role of ['ceo', 'hrbp', 'mentor'] satisfies DemoRole[])
         ).toEqual(
           await prototype.locator('#pp-list .n-person__name').allTextContents(),
         );
-        // The steps below restyle server-rendered nodes. Done before hydration, React
-        // reports an attribute mismatch and the dev overlay puts its issue badge into
-        // the screenshot, so wait until the rows carry their React props.
+        // The steps below restyle server-rendered nodes (rows, team heads, the legend
+        // after them). Done before hydration, React reports an attribute mismatch and
+        // the dev overlay puts its issue badge into the screenshot, so wait until the
+        // whole list panel carries its React props.
         await page.waitForFunction(() =>
-          [...document.querySelectorAll('#plist .n-person-row')].every((row) =>
-            Object.keys(row).some((key) => key.startsWith('__reactProps')),
+          [...document.querySelectorAll('#pp-list, #pp-list *')].every((node) =>
+            Object.keys(node).some((key) => key.startsWith('__reactProps')),
           ),
         );
         await page.evaluate(() => {
