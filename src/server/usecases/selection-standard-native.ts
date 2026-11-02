@@ -140,6 +140,9 @@ export async function bindExistingSelectionCohort(
   accountId: string,
   rawCohortId: unknown,
   clock: () => Date = () => new Date(),
+  /** Optional caller check of the resulting binding, run in the same
+   * transaction under the category lock; throwing rolls the binding back. */
+  verify?: (tx: Transaction) => Promise<void>,
 ) {
   const cohortId = identifier.parse(rawCohortId);
   return transact(db, async (tx) => {
@@ -154,6 +157,7 @@ export async function bindExistingSelectionCohort(
       cohort,
       'baseline_import',
     );
+    await verify?.(tx);
     if (result.created)
       await recordAudit(tx, {
         actorId: accountId,
