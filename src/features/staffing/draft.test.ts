@@ -5,6 +5,9 @@ import {
   dropSentence,
   hasDraft,
   keepSentence,
+  peekDraft,
+  peekHandoff,
+  readHandoff,
   readSentence,
   SENTENCE_KEY_PREFIX,
   STAFFING_DRAFT_KEY,
@@ -72,6 +75,39 @@ describe('takeDraft', () => {
       removeItem: () => {},
     };
     expect(takeDraft(broken, 'me', now)).toBeNull();
+  });
+});
+
+describe('peekDraft', () => {
+  it('reads the handed sentence without taking it, with the same checks', () => {
+    const store = storage(entry());
+    expect(peekDraft(store, 'me', now)).toBe('找一个能带新人的牵头人');
+    expect(store.items.has(STAFFING_DRAFT_KEY)).toBe(true);
+    expect(peekDraft(store, 'other', now)).toBeNull();
+    expect(peekDraft(store, 'me', now + DRAFT_TTL_MS)).toBeNull();
+    expect(peekDraft(null, 'me', now)).toBeNull();
+  });
+});
+
+describe('readHandoff / peekHandoff', () => {
+  it('keeps the taken sentence for this page load, so choosing again still shows it', () => {
+    const store = storage(entry({ accountId: 'page-load' }));
+    expect(peekHandoff(store, 'page-load', now)).toBe('找一个能带新人的牵头人');
+    expect(readHandoff(store, 'page-load', now)).toBe('找一个能带新人的牵头人');
+    expect(store.items.has(STAFFING_DRAFT_KEY)).toBe(false);
+    expect(peekHandoff(store, 'page-load', now)).toBe('找一个能带新人的牵头人');
+    expect(readHandoff(store, 'page-load', now)).toBe('找一个能带新人的牵头人');
+    expect(peekHandoff(store, 'someone-else', now)).toBeNull();
+  });
+  it('replaces the kept sentence with one handed over later', () => {
+    const store = storage(entry({ accountId: 'later' }));
+    readHandoff(store, 'later', now);
+    store.items.set(
+      STAFFING_DRAFT_KEY,
+      JSON.stringify(entry({ accountId: 'later', text: '换一句' })),
+    );
+    expect(peekHandoff(store, 'later', now)).toBe('换一句');
+    expect(readHandoff(store, 'later', now)).toBe('换一句');
   });
 });
 

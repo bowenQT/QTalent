@@ -1,3 +1,4 @@
+import { sourceLocationSchema } from '../../contracts/sources';
 import type { Person } from '../../contracts/person';
 import { canReadProject } from '../authz';
 import {
@@ -5,6 +6,7 @@ import {
   projectTalentRecord,
   type TalentKind,
   type TalentSource,
+  type VisibleTalentSource,
 } from '../authz/talent';
 import {
   type PersonData,
@@ -78,6 +80,20 @@ const pluck = (reference: {
   originalVersionId: string;
   location: KeyEvent['sources'][number]['location'];
 }) => ({ ...refOf(reference), location: reference.location });
+// The legacy profile contract cannot represent the five new material locators.
+// Suppress the whole dependent item until its reader migrates, never invent an
+// old locator or drop its citation while retaining the derived statement.
+function legacyReferences(
+  sources: VisibleTalentSource[],
+): ReturnType<typeof pluck>[] | null {
+  const result: ReturnType<typeof pluck>[] = [];
+  for (const source of sources) {
+    const location = sourceLocationSchema.safeParse(source.location);
+    if (!location.success) return null;
+    result.push({ ...refOf(source), location: location.data });
+  }
+  return result;
+}
 const restricts = (
   sources: TalentSource[],
   reference: object,
@@ -150,6 +166,8 @@ function visibleStatements(
       'person-profile',
     );
     if (!projected || typeof projected.fields.text !== 'string') return [];
+    const references = legacyReferences(projected.sources);
+    if (!references) return [];
     return [
       {
         id: statement.id,
@@ -161,7 +179,7 @@ function visibleStatements(
           [statement],
           kind === 'management-observation',
         ),
-        sources: projected.sources.map(pluck),
+        sources: references,
       },
     ];
   });
@@ -232,7 +250,8 @@ export async function collectEvidence(
     const project = data.staffing.projects.find(
       (row) => row.id === event.projectId,
     );
-    const cardSources = projected.sources.map(pluck);
+    const cardSources = legacyReferences(projected.sources);
+    if (!cardSources) continue;
     // Scores: every row passes its own gate (kind, source, provenance) and is
     // grouped by dimension on this event.
     const scorable = canReadTalent(
@@ -417,6 +436,8 @@ export async function collectEvidence(
     );
     if (!projected || !row.scale.length || shownEvents.has(row.sourceRecordId))
       return [];
+    const references = legacyReferences(projected.sources);
+    if (!references) return [];
     return [
       {
         kind: 'history' as const,
@@ -425,7 +446,7 @@ export async function collectEvidence(
         occurredOn: row.occurredOn,
         label: 'history' as const,
         category,
-        sources: projected.sources.map(pluck),
+        sources: references,
         scale: row.scale,
       },
     ];
