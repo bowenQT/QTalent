@@ -15,6 +15,7 @@ type Params = {
   demand?: string;
   job?: string;
   draft?: string;
+  new?: string;
 };
 
 /** Find-people is for managers and HR (prototype Y denyText); data reads authorize again. */
@@ -40,8 +41,11 @@ const toProjects = (
   </div>
 );
 
-/** Open projects the viewer may read, to take a workbench sentence into one of them. */
-async function chooseProject(accountId: string) {
+/**
+ * Open projects the viewer may read, to find people for one of them. With a workbench
+ * sentence waiting (`handoff`), it is quoted and every choice keeps `draft=work`.
+ */
+async function chooseProject(accountId: string, handoff: boolean) {
   const page = await getProjectsPage();
   if (page.status === 'forbidden') return <AccessDenied />;
   const open = page.data.projects.filter(
@@ -50,7 +54,16 @@ async function chooseProject(accountId: string) {
   return (
     <>
       <ShellTitle title="找人" />
-      <HandedSentence accountId={accountId} />
+      {handoff ? (
+        <HandedSentence accountId={accountId} />
+      ) : (
+        <header className="nt-head">
+          <div>
+            <h1>选一个项目再找人</h1>
+            <p>找人需求按项目保存。选一个项目，再写下要找什么样的人。</p>
+          </div>
+        </header>
+      )}
       {open.length ? (
         <div className="n-card">
           <ul className="nt-list" aria-label="可以找人的项目">
@@ -58,7 +71,7 @@ async function chooseProject(accountId: string) {
               <li key={project.id} className="nt-row">
                 <Link
                   className="nt-plink"
-                  href={`/staffing?${new URLSearchParams({ project: project.id, draft: 'work' })}`}
+                  href={`/staffing?${new URLSearchParams(handoff ? { project: project.id, draft: 'work' } : { project: project.id })}`}
                 >
                   <b>{project.name}</b>
                 </Link>
@@ -77,7 +90,11 @@ async function chooseProject(accountId: string) {
           <div className="nt-row" style={{ justifyContent: 'center' }}>
             <a
               className="n-btn n-btn--sm"
-              href={`/projects?${new URLSearchParams({ draft: 'work' })}`}
+              href={
+                handoff
+                  ? `/projects?${new URLSearchParams({ draft: 'work' })}`
+                  : '/projects'
+              }
             >
               打开项目与课题
             </a>
@@ -138,10 +155,11 @@ export default async function StaffingPage({
     );
 
   const params = (await searchParams) ?? {};
-  // A sentence sent from the workbench waits in session storage until a project is
-  // chosen: each choice keeps `draft=work`, so the demand page picks it up.
-  if (!params.project && params.draft === 'work')
-    return chooseProject(shell.account.id);
+  // The new-demand entry (`new=1`, e.g. the workbench「/找」) and a sentence sent from the
+  // workbench both start by choosing a project. A waiting sentence stays in session
+  // storage until then: each choice keeps `draft=work`, so the demand page picks it up.
+  if (!params.project && (params.new === '1' || params.draft === 'work'))
+    return chooseProject(shell.account.id, params.draft === 'work');
   if (!params.project)
     return (
       <>

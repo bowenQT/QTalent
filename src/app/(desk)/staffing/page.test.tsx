@@ -92,18 +92,52 @@ describe('staffing route', () => {
 
   it('asks for a project first: a demand is saved per project', async () => {
     getShellPage.mockResolvedValue(shell(['manager']));
-    for (const params of [{}, { new: '1' }] as Record<string, string>[]) {
-      render(await open(params));
-      expect(screen.getByText('选一个项目再找人')).toBeTruthy();
-      expect(
-        screen
-          .getByRole('link', { name: '打开项目与课题' })
-          .getAttribute('href'),
-      ).toBe('/projects');
-      expect(live).not.toHaveBeenCalled();
-      cleanup();
-    }
+    render(await open({}));
+    expect(screen.getByText('选一个项目再找人')).toBeTruthy();
+    expect(
+      screen.getByRole('link', { name: '打开项目与课题' }).getAttribute('href'),
+    ).toBe('/projects');
+    expect(live).not.toHaveBeenCalled();
     expect(await generateMetadata()).toEqual({ title: '找人 · Niu-Talent' });
+  });
+
+  it('lists open projects to choose from on the new-demand entry, without a handoff', async () => {
+    getShellPage.mockResolvedValue(shell(['hr']));
+    getProjectsPage.mockResolvedValue({
+      status: 'ok',
+      data: {
+        projects: [
+          project,
+          {
+            ...project,
+            id: 'demo-ended',
+            name: '已结束项目',
+            status: '已结束',
+          },
+        ],
+      },
+    });
+    // A sentence left from an earlier handoff is not quoted: this entry did not send it.
+    sessionStorage.setItem(
+      'niu-talent:draft:staffing',
+      JSON.stringify({
+        accountId: 'acct-hr',
+        text: '寻找一位能带新人的牵头人',
+        savedAt: Date.now(),
+      }),
+    );
+    render(await open({ new: '1' }));
+    expect(
+      screen.getByRole('heading', { name: '选一个项目再找人' }),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText('刚才写的那句话')).toBeNull();
+    const links = screen
+      .getByRole('list', { name: '可以找人的项目' })
+      .querySelectorAll('a');
+    expect(
+      [...links].map((link) => [link.textContent, link.getAttribute('href')]),
+    ).toEqual([['演示项目', '/staffing?project=demo-project']]);
+    expect(live).not.toHaveBeenCalled();
   });
 
   it('takes a workbench sentence into a project the viewer picks, keeping the handoff', async () => {
