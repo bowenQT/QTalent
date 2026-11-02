@@ -19,6 +19,7 @@ import { createDatabase, getDatabase } from '@/server/db/client';
 import { importDemo } from '@/server/db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '@/server/db/seed';
 import {
+  interviewImportBatches,
   interviewImportCandidates,
   interviewImportOperations,
   interviewImportReviewItems,
@@ -183,6 +184,88 @@ it('seeds the demo batch through the real command and replays unchanged', async 
     confirmedCandidateId: null,
     decision: null,
   });
+});
+
+it('upgrades a batch seeded before score-missing was added, keeping its earlier rows', async () => {
+  // What the earlier seed left: three rows and their pages.
+  const [{ pageCount }] = await db()
+    .select({ pageCount: interviewImportBatches.pageCount })
+    .from(interviewImportBatches)
+    .where(eq(interviewImportBatches.id, batchId));
+  const missing = await stored('score-missing-1');
+  await db()
+    .delete(interviewImportRows)
+    .where(
+      and(
+        eq(interviewImportRows.batchId, batchId),
+        eq(interviewImportRows.rowId, 'score-missing-1'),
+      ),
+    );
+  await db()
+    .update(interviewImportBatches)
+    .set({ pageCount: pageCount - 2 })
+    .where(eq(interviewImportBatches.id, batchId));
+  const earlier = await stored('campus-1');
+
+  expect(await seed()).toEqual({ status: 'created', batchId, rows: 4 });
+  expect(await seed()).toEqual({ status: 'unchanged', batchId, rows: 4 });
+  expect(await stored('score-missing-1')).toEqual(missing);
+  expect(await stored('campus-1')).toEqual(earlier);
+  expect(
+    (
+      await db()
+        .select({ pageCount: interviewImportBatches.pageCount })
+        .from(interviewImportBatches)
+        .where(eq(interviewImportBatches.id, batchId))
+    )[0],
+  ).toEqual({ pageCount });
+});
+
+it('checks every person a printed name could be while it matches several records', async () => {
+  const [{ name }] = await db()
+    .select({ name: interviewImportCandidates.name })
+    .from(interviewImportCandidates)
+    .where(
+      and(
+        eq(interviewImportCandidates.batchId, batchId),
+        eq(interviewImportCandidates.candidateId, 'demo-candidate-01'),
+      ),
+    );
+  // A second record by the same name, about a person outside the batch's node.
+  await db().insert(interviewImportCandidates).values({
+    batchId,
+    candidateId: 'demo-candidate-same-name',
+    name,
+    personId: 'p-suwan',
+    status: 'hired',
+    demo: true,
+  });
+  const before = await stored('campus-1');
+  // Every demo PDF prints this name, so no row is shown and neither is the batch.
+  expect(await getInterviewImportPreview(batchId)).toEqual({
+    status: 'not_found',
+  });
+  expect(
+    await confirmInterviewImportRowAction({
+      batchId,
+      rowId: 'campus-1',
+      expectedRevision: before.revision,
+      ok: true,
+    }),
+  ).toMatchObject({ status: 'not_found' });
+  expect(await stored('campus-1')).toEqual(before);
+
+  await db()
+    .delete(interviewImportCandidates)
+    .where(
+      and(
+        eq(interviewImportCandidates.batchId, batchId),
+        eq(interviewImportCandidates.candidateId, 'demo-candidate-same-name'),
+      ),
+    );
+  const restored = await getInterviewImportPreview(batchId);
+  if (restored.status !== 'ok') throw new Error(restored.status);
+  expect(restored.preview.batch.rows.map((r) => r.rowId)).toContain('campus-1');
 });
 
 it('goes from /import through HR confirmation to the stored import decision', async () => {

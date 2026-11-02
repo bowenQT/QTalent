@@ -143,12 +143,26 @@ function proposalFor(row: Row, candidates: Candidate[]) {
   return named.length === 1 ? named[0] : null;
 }
 
-/** Whose row this is, as far as the stored facts say; empty when nobody is known. */
+/**
+ * Whose row this could be, as far as the stored facts say: the confirmed or only
+ * matching record's person, or, while the printed name matches several records, every
+ * known person among them. Empty when nobody is known.
+ */
 function subjectsFor(row: Row, candidates: Candidate[], directory: Directory) {
-  const personId = proposalFor(row, candidates)?.personId;
-  return personId && directory.people.some((p) => p.id === personId)
-    ? [personId]
-    : [];
+  const proposal = proposalFor(row, candidates);
+  const name = reviewOf(row)?.identity.candidateName?.value;
+  const possible = proposal
+    ? [proposal]
+    : candidates.filter((c) => c.name === name);
+  return [
+    ...new Set(
+      possible.flatMap((c) =>
+        c.personId && directory.people.some((p) => p.id === c.personId)
+          ? [c.personId]
+          : [],
+      ),
+    ),
+  ];
 }
 
 /**

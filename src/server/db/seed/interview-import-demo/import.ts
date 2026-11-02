@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Database } from '../../client';
 import { insertChecked } from '../../import';
@@ -282,6 +282,10 @@ export async function importInterviewImportDemo(db: Database, cwd: string) {
   const prepared = await prepareInterviewImportDemo(cwd);
   const records = interviewImportDemoRecords(prepared);
   const demo = INTERVIEW_IMPORT_DEMO;
+  const pageCount = prepared.files.reduce(
+    (sum, file) => sum + file.result.pageTexts.length,
+    0,
+  );
   return db.transaction(async (tx) => {
     const needed = [
       demo.uploadedByPersonId,
@@ -326,18 +330,27 @@ export async function importInterviewImportDemo(db: Database, cwd: string) {
             id: demo.batchId,
             evaluationNodeId: demo.node.id,
             fileName: demo.fileName,
-            pageCount: prepared.files.reduce(
-              (sum, file) => sum + file.result.pageTexts.length,
-              0,
-            ),
+            pageCount,
             uploadedByPersonId: demo.uploadedByPersonId,
             uploadedAt: demo.uploadedAt,
             demo: true,
           },
         ],
         ['id'],
-        ['id', 'evaluationNodeId', 'fileName', 'pageCount', 'demo'],
+        ['id', 'evaluationNodeId', 'fileName', 'demo'],
       ),
+      // A batch seeded before files were appended grows to the new page count; a
+      // batch with more pages than these files is a collision.
+      await tx
+        .update(interviewImportBatches)
+        .set({ pageCount })
+        .where(
+          and(
+            eq(interviewImportBatches.id, demo.batchId),
+            lt(interviewImportBatches.pageCount, pageCount),
+          ),
+        )
+        .returning(),
       await insertChecked(
         tx,
         interviewImportCandidates,
@@ -361,6 +374,12 @@ export async function importInterviewImportDemo(db: Database, cwd: string) {
         ROW_IMMUTABLE,
       ),
     ];
+    const [batch] = await tx
+      .select({ pageCount: interviewImportBatches.pageCount })
+      .from(interviewImportBatches)
+      .where(eq(interviewImportBatches.id, demo.batchId));
+    if (batch!.pageCount !== pageCount)
+      throw new Error('Import identity collision: ' + demo.batchId);
     return {
       status: inserted.some((rows) => rows.length)
         ? ('created' as const)
