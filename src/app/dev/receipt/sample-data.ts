@@ -297,6 +297,7 @@ export const sampleMeta = {
   title: '分镜工厂 · 二组 结营路演',
   entry: 'wecom' as const,
   tool: null,
+  original: null,
   submittedBy: '叶青',
   submittedAt: '2026-09-03T13:10:00.000Z',
 };
