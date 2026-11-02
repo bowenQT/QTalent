@@ -117,10 +117,10 @@ test('managers, HR and mentors get their own /work from the real read', async ({
     '9 月 4 日 · 周五 · 全部人才项目',
   );
   await expect(page.getByRole('region', { name: '找人' })).toBeVisible();
-  // Not connected blocks: none rendered, no counts.
-  await expect(page.locator('.nt-ceo, #todo, #btn-export, #jsig')).toHaveCount(
-    0,
-  );
+  // DY-04 cards say 待接通 with no counts; 判断提醒 is not drawn.
+  await expect(page.locator('.nt-ceo')).toContainText('值得关注的人待接通');
+  await expect(page.locator('.nt-ceo .n-count')).toHaveCount(0);
+  await expect(page.locator('#todo, #btn-export, #jsig')).toHaveCount(0);
 
   await context.clearCookies();
   await login(context, 'hrbp', referenceApp.baseURL);

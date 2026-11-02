@@ -20,11 +20,9 @@
 
 个人 `sample.caseIds` 只包含当前可披露的可对照案例。distribution 从这组案例重算，因此 excluded 四字段为零；批次 counts 独立保留可读案例的缺段 / 不可比。少于 5 例只有“样本不足”和案例 ID，没有分布。不接受已有汇总作输入，以避免跨人或隐藏统计混入；已同步 917 最后 R2 冻结并复验受影响范围。
 
-## 真实接线尚未完成
+## 真实接线
 
-`ComparisonReadPorts.loadBatch(batchId, access)` 必须先按可信身份授权批次，未知或范围外统一返回 null，再提供经校验的批次绑定、映射、节点、历史判断及人工事实。`grants` 是授权域导出的当前有效读取事实；HR/管理者范围应由实际授权域计算，不能为凑测试伪造持久关系。底层读取异常向上传递，不用空集装成功。
-
-当前只有纯函数与内存端口单测，没有应用查询入口或数据库适配器。待 899/837 显式映射新历史类型、923 导入真实数据、873/908 完成独立原件访问后，再申请 X1 公共出口与查询接线；不放宽 person-data 的未知历史类型保护，不改共享 schema/index/read/effective-version、918 selection-standard、seed 或迁移。
+`ComparisonReadPorts.loadBatch(batchId, access)` 由 `src/server/queries/judge.ts` 实现：在只读 Repeatable Read 事务里经 `readComparisonDataset` 读 canonical 批次，只有当前访问对其中至少一个案例持有有效节点授权时才返回，否则与不存在一样返回 null，不先暴露批次元数据。`grants` 由 `comparisonAccess` 从授权域导出。批次列表 `listComparisonBatches(tx, access)` 用同一条规则（`holdsCaseGrant`）：只列出至少有一个案例在当前授权内的批次，同一期次里授权之外的批次连名称和版本也不列出。底层读取异常向上传递，不用空集装成功。
 
 923 的 007/013/092/093 人工不可比事实已由该卡 writer 在 v2 补齐。只将输入 `manualComparabilityMarks` 中按 case/person/batch/节点关联的理由、标记者与时间映射为内部 `nonComparable`，不取 expected outcome。固定 v2 已做一次纯计算回放：先运行实际投影，再打开预期文件核对，93 个计算结果、HR 批次汇总与每评价人样本分布一致。回放使用显式构造的测试 grant，不是授权适配器或真实查询验收；没有将文件引用或内存 grant 当作真实 PG / 原件 / 身份授权的证据。
 

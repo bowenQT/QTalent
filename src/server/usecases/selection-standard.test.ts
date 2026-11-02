@@ -289,11 +289,19 @@ it('replays an identical request once, preserves input for semantic conflicts, a
   expect(repeated).toEqual({ ...first, replayed: true });
   expect(h.state().records.size).toBe(1);
   expect(h.state().audits).toHaveLength(1);
-  h.state().authorities.get(hrAccount)!.context.grants[1].revokedAt = now;
+  // The future next cohort is not a scope; the current cohort is.
+  const grantsOf = () => h.state().authorities.get(hrAccount)!.context.grants;
+  grantsOf()[1].revokedAt = now;
+  expect(await h.execute(hrAccount, 'create', create)).toEqual({
+    ...first,
+    replayed: true,
+  });
+  grantsOf()[1].revokedAt = null;
+  grantsOf()[0].revokedAt = now;
   expect((await h.execute(hrAccount, 'create', create)).status).toBe(
     'forbidden',
   );
-  h.state().authorities.get(hrAccount)!.context.grants[1].revokedAt = null;
+  grantsOf()[0].revokedAt = null;
   const changed = { ...create, reason: '不同语义' };
   expect(await h.execute(hrAccount, 'create', changed)).toMatchObject({
     status: 'conflict',

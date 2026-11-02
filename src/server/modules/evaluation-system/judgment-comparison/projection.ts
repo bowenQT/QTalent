@@ -44,19 +44,37 @@ function sample(
       };
 }
 
+function holdsGrant(
+  access: CurrentComparisonAccess,
+  personId: string,
+  nodeIds: readonly string[],
+): boolean {
+  const now = Date.parse(access.now);
+  return access.grants.some(
+    (grant) =>
+      grant.personId === personId &&
+      nodeIds.includes(grant.nodeId) &&
+      Date.parse(grant.validFrom) <= now &&
+      (grant.validUntil === null || now < Date.parse(grant.validUntil)),
+  );
+}
+
+/** Whether the viewer currently holds a grant on either stage of a case. A batch
+ * is visible, in the list and when read, only while this holds for one of its
+ * cases; what the viewer then sees is cut by `projectComparison`. */
+export function holdsCaseGrant(
+  access: CurrentComparisonAccess,
+  unit: { personId: string; frontNodeId: string; backNodeId: string },
+): boolean {
+  return holdsGrant(access, unit.personId, [unit.frontNodeId, unit.backNodeId]);
+}
+
 function canReadStage(
   access: CurrentComparisonAccess,
   unit: ComparisonFacts,
   nodeId: string,
 ): boolean {
-  const now = Date.parse(access.now);
-  return access.grants.some(
-    (grant) =>
-      grant.personId === unit.person.id &&
-      grant.nodeId === nodeId &&
-      Date.parse(grant.validFrom) <= now &&
-      (grant.validUntil === null || now < Date.parse(grant.validUntil)),
-  );
+  return holdsGrant(access, unit.person.id, [nodeId]);
 }
 
 function identity(unit: ComparisonFacts) {

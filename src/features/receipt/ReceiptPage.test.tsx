@@ -2095,13 +2095,16 @@ describe('撤销走路由后的两种回应（第二次裁决）', () => {
       ).toBeTruthy();
     });
 
-    it('结果晚到、撤销被拒（已过撤销时间）：提示这件事已确认', async () => {
+    it('结果晚到、撤销被拒（已过撤销时间）：提示撤销时间已过，状态以回执为准', async () => {
       await undoAtDeadline({
         status: 'conflict',
         message: '保存状态已变化或已超过撤销时间',
         input: { operation_id: 'op-1', saveId: 'save-1' },
       });
       expect(await screen.findByText(copy.toast.undoLate)).toBeTruthy();
+      // 这次保存可能已在别处撤销：提示不替回执断言这件事的状态
+      expect(copy.toast.undoLate).toContain('以回执里的状态为准');
+      expect(copy.toast.undoLate).not.toContain('已确认');
       expect(screen.queryByText(copy.toast.undoFailed)).toBeNull();
       expect(cardOf('demo-event-draft-a').dataset.state).toBe('confirmed');
     });
