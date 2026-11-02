@@ -64,6 +64,20 @@
       "when": 1793533036814,
       "tag": "0008_bow_846_record_save",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793551189357,
+      "tag": "0009_record_arrange_native",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793555733492,
+      "tag": "0010_bow_873_upload_sources",
+      "breakpoints": true
     }
   ]
 }

@@ -28,6 +28,7 @@ const row = (rowId: string, extra: Partial<ImportRow> = {}): ImportRow => ({
   pages: { from: 1, to: 1 },
   observedName: `候选人${rowId}`,
   candidateStatus: 'hired',
+  located: true,
   template: { name: '测试评价表', scale: 'A–D' },
   interviewedOn: '2026-05-08',
   match: {
@@ -85,8 +86,8 @@ const rows: ImportRow[] = [
       reviewItemId: 'i-int',
     },
   }),
-  // 906 skips a rejected application once HR has confirmed who it is.
-  row('E', { candidateStatus: 'rejected', confirmed: true }),
+  // A rejected application whose record is located is skipped before HR confirms.
+  row('E', { candidateStatus: 'rejected' }),
   row('F', { duplicate: { importedOn: '2026-08-20' } }),
 ];
 
@@ -284,10 +285,11 @@ describe('InterviewImport', () => {
     ).toBe('/inbox#i-iv-C');
   });
 
-  it('asks who a not-hired candidate is before skipping, and says what review does with it', async () => {
+  it('asks who a not-hired candidate is when the record cannot be located, and says what review does with it', async () => {
     const user = userEvent.setup();
     const notHired = row('G', {
       candidateStatus: 'offer_pending',
+      located: false,
       match: null,
     });
     const using = ports();
@@ -407,9 +409,7 @@ describe('InterviewImport', () => {
     show(
       batch({
         prior: null,
-        rows: [
-          row('E', { candidateStatus: 'offer_declined', confirmed: true }),
-        ],
+        rows: [row('E', { candidateStatus: 'offer_declined' })],
       }),
     );
     expect(document.querySelector('.n-note')).toBeNull();
