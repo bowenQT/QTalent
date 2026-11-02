@@ -71,11 +71,13 @@ function Conclusion({
   attribution,
   hypothesis,
   cases,
+  onCase,
   onDraft,
 }: {
   attribution: ConfirmedStandardAttribution;
   hypothesis: StandardAttributionHypothesis | null;
   cases: readonly DisplayCase[];
+  onCase: (caseId: string) => void;
   onDraft: (attribution: ConfirmedStandardAttribution) => void;
 }) {
   const judgment = cases.find(
@@ -107,6 +109,12 @@ function Conclusion({
         <p className="n-jcase__why" style={{ margin: 'var(--s-1) 0 0' }}>
           {attribution.rationale}
         </p>
+        {/* The signed conclusion keeps its way back to the cases it rests on. */}
+        <CaseChips
+          caseIds={uniqueCaseIds(attribution.citations)}
+          cases={cases}
+          onCase={onCase}
+        />
         <div className="n-block__by">
           <span className="n-block__sig">{attribution.confirmedBy.name}</span>
           {monthDay(attribution.confirmedAt)} 确认归因
@@ -320,7 +328,10 @@ export function Attribution({
         ...input,
       }),
     );
-    if (result.status === 'success') operation.done();
+    // A model failure is a finished answer the server would replay for the same id:
+    // 重新整理 starts a new request. A lost answer keeps the id for a resend.
+    if (result.status === 'success' || result.status === 'model_failed')
+      operation.done();
     setHypotheses(
       result.status === 'success'
         ? { status: 'ready', items: result.result }
@@ -412,6 +423,7 @@ export function Attribution({
             attribution={attribution}
             hypothesis={hypothesisOf(attribution.hypothesisId)}
             cases={cases}
+            onCase={onCase}
             onDraft={setDrafting}
           />
         ))}
