@@ -144,3 +144,53 @@ it('preserves an existing pre-migration audit fact without inventing channel or 
     },
   ]);
 });
+
+it('returns the actual inserted id while leaving commit ownership to the caller', async () => {
+  const actorId = randomUUID();
+  const id = await c.db.transaction(async (tx) => {
+    const insertedId = await recordAudit(tx, {
+      actorId,
+      action: 'synthetic.audit.receipt',
+      resourceId: null,
+      metadata: { channel: 'web', revision: null },
+    });
+    expect(
+      await tx.select().from(auditEvents).where(eq(auditEvents.id, insertedId)),
+    ).toMatchObject([{ id: insertedId, actorId, resourceId: null }]);
+    expect(
+      await c.db
+        .select()
+        .from(auditEvents)
+        .where(eq(auditEvents.id, insertedId)),
+    ).toEqual([]);
+    return insertedId;
+  });
+  expect(
+    await c.db.select().from(auditEvents).where(eq(auditEvents.id, id)),
+  ).toMatchObject([{ id, actorId }]);
+});
+
+it('does not retain a returned audit id when the outer transaction rolls back', async () => {
+  let insertedId = '';
+  const failure = new Error('synthetic audit receipt rollback');
+  await expect(
+    c.db.transaction(async (tx) => {
+      insertedId = await recordAudit(tx, {
+        actorId: randomUUID(),
+        action: 'synthetic.audit.rollback',
+        resourceId: null,
+      });
+      expect(
+        await tx
+          .select()
+          .from(auditEvents)
+          .where(eq(auditEvents.id, insertedId)),
+      ).toHaveLength(1);
+      throw failure;
+    }),
+  ).rejects.toBe(failure);
+  expect(insertedId).not.toBe('');
+  expect(
+    await c.db.select().from(auditEvents).where(eq(auditEvents.id, insertedId)),
+  ).toEqual([]);
+});

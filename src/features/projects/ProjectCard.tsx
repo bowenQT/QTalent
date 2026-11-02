@@ -12,9 +12,11 @@ const statusClasses = {
 export function ProjectCard({
   project: p,
   canFindOwner,
+  handoff = false,
 }: {
   project: Project;
   canFindOwner: boolean;
+  handoff?: boolean;
 }) {
   const ended = p.status === '已结束' || p.status === '已归档';
   return (
@@ -70,7 +72,7 @@ export function ProjectCard({
           {canFindOwner ? (
             <a
               className="n-btn n-btn--sm n-btn--light"
-              href={`/staffing?project=${encodeURIComponent(p.id)}`}
+              href={`/staffing?${new URLSearchParams(handoff ? { project: p.id, draft: 'work' } : { project: p.id })}`}
             >
               <Icon name="spark" />
               发起找 owner

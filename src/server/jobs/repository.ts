@@ -36,10 +36,14 @@ export function createJobStore(
   return {
     locked: (jobId, run) =>
       db.transaction(async (context) => {
-        const record = await readJobInTransaction(context, jobId, true);
+        const [row] = await context
+          .select()
+          .from(jobSnapshots)
+          .where(eq(jobSnapshots.jobId, jobId))
+          .for('update');
         return run({
           context,
-          record,
+          record: row ? normalized(row) : null,
           save: async (record) => {
             await context
               .update(jobSnapshots)
