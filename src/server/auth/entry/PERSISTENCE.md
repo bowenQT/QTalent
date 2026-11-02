@@ -11,12 +11,14 @@
 
 换绑是单向的：账号的人员绑定只经 directory 公共出口 `rebindDirectoryAccount` 修改，每次换绑（包括换回原来的人、把账号从人员解绑后再绑定）都在同一条 UPDATE 中让代次加一，代次不回退，旧代次签发的凭据永久不符。本片不加数据库触发器：directory 绑定没有其他 writer，直接改表的测试与运维脚本不属于受信路径。凭据自身的撤销仍是逐行 `revokedAt`，与绑定代次无关。未来受信配置 writer 必须在同一事务锁定当前绑定，按当前代次签发，凭据内容/范围修改时增加 revision，不自动跟随换绑重算摘要。撤销后已失败的能力由现 identity service 永久退役。业务操作仍在各自事务内锁定并重验当前领域权限，认证不替代授权。
 
+Web 会话同样遵守单向换绑：Better Auth 签发会话时，`auth/session-binding.ts` 的 create.before 钩子把账号当时的绑定代次写进 `auth_session.binding_generation`（服务端字段，客户端不能提交；未绑定账号写 null）。`web.ts` 每次核验都比对会话记录的代次和绑定当前的代次，不一致或为 null 就拒绝，所以 A→B→A 之后，换绑前签发的会话即使在新请求里也不能再用，重新登录拿到的新会话正常。代次读取与插入之间如果碰上换绑，会话记下的是旧代次，结果是拒绝（失败时关闭）。本迁移之前签发的会话没有代次，入口核验会拒绝，需要重新登录。范围只到入口 Web 核验；主站页面的会话读取不在本片。
+
 三个 reader 安装到现 `createEntryIdentityService`，对外仍只产生不可序列化的进程内 capability。上层负责将原生异常映射为既有安全错误；不得记录 bearer token、验证回调的秘密或数据库连接串。
 
 ## 验证与迁移边界
 
 `persistent.integration.test.ts` 建立随机隔离 `_test` 数据库，默认运行仓库内正式迁移；本片的表、审计渠道列与绑定代次列在同一条正式迁移中（编号按迁移游标在合入时重新生成）。`BOW_903_TEST_MIGRATIONS_DIR` 只是本地结构验证的过渡入口，默认 CI 不设置，合入后退役。
 
-只使用合成人员/组织/凭据，覆盖三渠道当前绑定、换绑、A→B→A 换回后旧代次凭据仍被拒、撤销、过期、revision、可信连接元组、真实 Web 会话 owner/截止、异步等待后重新读取、数据库唯一/FK/check 与事务回滚。不存在真实供应商、生产 token 或生产绑定验收。
+只使用合成人员/组织/凭据，覆盖三渠道当前绑定、换绑、A→B→A 换回后旧代次凭据仍被拒、撤销、过期、revision、可信连接元组、真实 Web 会话 owner/截止、Web 会话按签发代次在 A→B→A 后被拒、真实 Better Auth 登录写入代次、异步等待后重新读取、数据库唯一/FK/check 与事务回滚。不存在真实供应商、生产 token 或生产绑定验收。
 
 `identity.current(capability)` 额外返回 `credentialRevision`（来自已逐项核验的当前凭据 revision），供入口消息账本记录真实签发代次；该字段与审计/批次的业务资源 revision 不同。它不是客户端可传字段。原 account/person/channel/credentialId 保持不变。
