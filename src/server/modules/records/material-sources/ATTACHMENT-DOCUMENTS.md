@@ -14,7 +14,7 @@
 
 新增单测使用真实 TXT 与 DOCX parser，核原文/段落、格式和原件绑定、不造页与失败投影。`attachment-document-save.integration.test.ts` 使用真实隔离 PostgreSQL + 上传服务 + 解析运行器 + pg-boss，核同事务写入/回读/一次性排队、回滚及取消。该层上传授权是显式边界替身，不能代替生产权限验收。
 
-`attachment-document-worker.integration.test.ts` 起与部署相同的 `node --import tsx src/worker/index.ts` 子进程；经测试 Kodo v2 上传与真实 PG 队列验证 TXT/DOCX 成功、重复消费、坏编码、空白、损坏、表格拒绝和当前写权限拒绝。测试 Kodo 仅替代供应商对象存储。上传侧沿 #373 的明确策略替身，处理侧用真实当前权限；它证明的是已绑定上传的消费者子链路，不证明 staged 批次/生产 Kodo/部署环境。
+`attachment-document-worker.integration.test.ts` 起与部署相同的 `node --import tsx src/worker/index.ts` 子进程；经测试 Kodo v2 上传与真实 PG 队列验证 TXT/DOCX 成功、重复消费、空白、损坏、表格拒绝和当前写权限拒绝；非法 UTF-8 在上传验证阶段已被拒绝，新增集成用例核无解析任务产生。测试 Kodo 仅替代供应商对象存储。上传侧沿 #373 的明确策略替身，处理侧用真实当前权限；它证明的是已绑定上传的消费者子链路，不证明 staged 批次/生产 Kodo/部署环境。
 
 实际应用接线依赖 #373 的消费者：格式 gate 允许 TXT/DOCX、decoder 增加已有 DOCX decoder、saveParse 分派本适配器。共享路由由唯一集成方写入；整理 enqueue 由 c902 独立接入。没有新增 schema、迁移、依赖或锁文件变更。
 

@@ -4,6 +4,8 @@ import { expect, it } from 'vitest';
 import { parseAttachment } from '../attachments/parse';
 import { createDocumentDecoders } from '../attachments/document-decoders';
 import { projectAttachmentDocument } from './attachment-document-save';
+import { verifyUploadObject } from '../uploads/content';
+import { fixture } from '../../../../../tests/fixtures/upload-fake';
 
 async function document(format: 'txt' | 'docx' = 'txt') {
   const bytes =
@@ -121,3 +123,44 @@ it.each([
     );
   },
 );
+
+it('a corrupted DOCX with a valid upload envelope reaches the real decoder and fails safely', async () => {
+  const bytes = await readFile('tests/fixtures/attachments/chinese-pages.docx');
+  const payload = 30 + bytes.readUInt16LE(26) + bytes.readUInt16LE(28);
+  bytes[payload] ^= 1;
+  const mediaType =
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const fake = fixture();
+  await fake.put('synthetic/corrupt-docx', bytes, mediaType);
+  const object = await verifyUploadObject(
+    fake.options.storage,
+    'synthetic/corrupt-docx',
+    {
+      ...fake.request,
+      filename: 'corrupt.docx',
+      declaredBytes: bytes.length,
+      declaredMediaType: mediaType,
+    },
+  );
+  expect(object.byteLength).toBe(bytes.length);
+  const result = await parseAttachment({
+    version: {
+      mediaId: 'demo-upload',
+      originalVersionId: 'demo-corrupt',
+      filename: 'corrupt.docx',
+      mediaType,
+      byteLength: bytes.length,
+      sha256: object.sha256,
+    },
+    content: (async function* () {
+      yield bytes;
+    })(),
+    limits: {
+      maxBytes: 1024 * 1024,
+      maxFragments: 100,
+      maxFragmentChars: 10000,
+    },
+    decoders: createDocumentDecoders(),
+  });
+  expect(result).toMatchObject({ status: 'failed', reason: 'invalid_content' });
+});

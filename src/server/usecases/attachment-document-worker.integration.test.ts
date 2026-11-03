@@ -305,14 +305,31 @@ it.each(['txt', 'docx'] as const)(
   90000,
 );
 
+async function corruptDocx() {
+  const bytes = await readFile('tests/fixtures/attachments/chinese-pages.docx');
+  // Preserve the upload verifier's ZIP envelope; corrupt actual compressed content.
+  const payload = 30 + bytes.readUInt16LE(26) + bytes.readUInt16LE(28);
+  bytes[payload] ^= 1;
+  return bytes;
+}
+it('invalid UTF-8 is rejected by upload verification before a parse job exists', async () => {
+  const before = await connection.db
+    .select({ jobId: jobSnapshots.jobId })
+    .from(jobSnapshots);
+  await expect(
+    deliver('坏编码.txt', 'text/plain', Buffer.from([0xff, 0xfe, 0xff])),
+  ).rejects.toMatchObject({
+    status: 'validation_error',
+    reason: 'invalid_content',
+  });
+  expect(
+    await connection.db
+      .select({ jobId: jobSnapshots.jobId })
+      .from(jobSnapshots),
+  ).toEqual(before);
+});
+
 it.each([
-  [
-    '坏编码.txt',
-    'text/plain',
-    () => Promise.resolve(Buffer.from([0xff, 0xfe, 0xff])),
-    'failed',
-    'invalid_content',
-  ],
   [
     '空白.txt',
     'text/plain',
@@ -320,13 +337,7 @@ it.each([
     'failed',
     'empty',
   ],
-  [
-    '损坏.docx',
-    docxMime,
-    () => Promise.resolve(Buffer.from('not a DOCX zip')),
-    'failed',
-    'invalid_content',
-  ],
+  ['损坏.docx', docxMime, corruptDocx, 'failed', 'invalid_content'],
   [
     '表格.docx',
     docxMime,
