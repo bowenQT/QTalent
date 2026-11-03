@@ -946,6 +946,14 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 /* 长任务 */
 .n-task { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); }
 .n-task:first-child { border-top: 0; }
+/* 进行中的任务超出部分：按内容高度展开收起，行随展开淡入 */
+.n-tasks__fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--d-base) var(--ease-out); }
+.n-tasks__fold[data-open] { grid-template-rows: 1fr; }
+.n-tasks__fold > div { min-height: 0; overflow: hidden; }
+.n-tasks__fold .n-task { opacity: 0; transform: translateY(-4px); transition: opacity var(--d-base) var(--ease-out), transform var(--d-base) var(--ease-out); }
+.n-tasks__fold[data-open] .n-task { opacity: 1; transform: none; }
+.n-tasks__fold .n-task:first-child { border-top: 1px solid var(--line); }
+.n-tasks__foot { padding-top: var(--s-2); border-top: 1px solid var(--line); }
 .n-task__icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-field); background: var(--sheet-sunk); color: var(--ink-2); }
 .n-task__icon svg { width: 15px; height: 15px; }
 .n-task__name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--s-2); font-weight: 600; }

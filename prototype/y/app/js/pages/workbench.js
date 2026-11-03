@@ -272,10 +272,13 @@
     const act = d.kind === 'interview' ? '打开导入预览' : s.mineToConfirm ? `去确认 ${s.mineToConfirm} 件` : '看回执';
     return html`<div class="n-task" data-state="${k === 'processing' ? 'shaping' : k === 'done' ? 'done' : 'partial'}" data-drop="${d.id}"><span class="n-task__icon">${icon(DROP_ICON[k])}</span><div><div class="n-task__name">${d.title}<span class="n-badge">${st.ENTRY[d.entry]}</span></div><div class="n-task__state"><b>${label}</b> · ${parts.join(' · ')}</div>${k === 'processing' ? html`<div class="n-progress is-indeterminate"><i></i></div>` : ''}</div><div class="n-task__acts"><a class="n-btn n-btn--sm ${s.mineToConfirm || d.kind === 'interview' ? '' : 'n-btn--ghost'}" href="${st.dropHref(d)}${s.mineToConfirm ? '#confirm' : ''}">${act}</a></div></div>`;
   }
+  // 进行中的任务默认露出前几条，其余收在折叠区里；列表随进度频繁重绘，展开状态单独记住
+  const TASKS_SHOWN = 3;
+  let tasksOpen = false;
   function renderTasks() {
     const all = st.get().tasks, tasks = st.visibleTasks();
     st.tickDrops();
-    mount($('#tasks'), [...st.drops().map(dropRow), ...tasks.map((t) => {
+    const rows = [...st.drops().map(dropRow), ...tasks.map((t) => {
       const [ic, label] = STATE[t.state];
       const act = {
         uploading: html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cancel="${t.id}">取消</button>`,
@@ -286,8 +289,22 @@
       }[t.state] || '';
       const bar = t.state === 'uploading' ? html`<div class="n-progress"><i style="width:${t.progress}%"></i></div>` : ['transcribing', 'shaping'].includes(t.state) ? html`<div class="n-progress is-indeterminate"><i></i></div>` : '';
       return html`<div class="n-task" data-state="${t.state}" data-id="${t.id}"><span class="n-task__icon">${icon(ic)}</span><div><div class="n-task__name">${t.name}${t.preset ? html` <span class="n-badge n-badge--demo">演示</span>` : ''}</div><div class="n-task__state"><b>${label}</b> · ${t.note}</div>${bar}</div><div class="n-task__acts">${act}</div></div>`;
-    })]);
+    })];
+    const rest = rows.length - TASKS_SHOWN;
+    mount($('#tasks'), rest > 0
+      ? html`${rows.slice(0, TASKS_SHOWN)}<div class="n-tasks__fold" id="tasks-fold" ${tasksOpen ? 'data-open' : 'inert'}><div>${rows.slice(TASKS_SHOWN)}</div></div><div class="n-tasks__foot"><button class="n-link" type="button" id="tasks-more" aria-controls="tasks-fold" aria-expanded="${String(tasksOpen)}">${tasksOpen ? '收起' : `再看 ${rest} 个`}</button></div>`
+      : rows);
     $('#tasks').onclick = (e) => {
+      const m = e.target.closest('#tasks-more');
+      if (m) {
+        tasksOpen = !tasksOpen;
+        const fold = $('#tasks-fold');
+        fold.toggleAttribute('data-open', tasksOpen);
+        fold.inert = !tasksOpen;
+        m.setAttribute('aria-expanded', tasksOpen);
+        m.textContent = tasksOpen ? '收起' : `再看 ${rest} 个`;
+        return;
+      }
       const r = e.target.closest('[data-retry]'), c = e.target.closest('[data-cancel]');
       if (r) retry(r.dataset.retry);
       if (c) { const t = tasks.find((x) => x.id === c.dataset.cancel); const i = all.indexOf(t); all.splice(i, 1); st.save(); renderTasks(); NT.toast(`已取消上传「${t.name}」`, { undo: () => { all.splice(i, 0, t); st.save(); renderTasks(); } }); }
