@@ -913,6 +913,27 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-dialog__bar { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-6); }
 .n-dialog__hint { margin: var(--s-3) 0 calc(-1 * var(--s-3)); font-size: var(--t-sm); line-height: 1.6; color: var(--no); } /* 必填项没写时，按钮栏上方的一句提示 */
 .n-dialog[open] { animation: dlg-in var(--d-base) var(--ease-out); }
+/* 盘点 · 逐人结论浮层：顶部切换上一个、下一个，正文是参考背景和结论输入 */
+.n-condlg { width: min(560px, calc(100vw - 32px)); padding: var(--s-4) var(--s-6) var(--s-6); }
+.n-condlg__nav { display: flex; align-items: center; gap: 2px; margin: 0 calc(-1 * var(--s-3)) var(--s-3) 0; }
+.n-condlg__pos { margin-right: auto; font-size: var(--t-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.n-condlg__stage { display: grid; gap: var(--s-4); }
+.n-condlg__who { display: flex; align-items: center; gap: var(--s-3); }
+.n-condlg__who h3 { margin: 0; font-size: var(--t-lg); }
+.n-condlg__who small { font-size: var(--t-xs); color: var(--ink-3); }
+.n-condlg__who > .n-badge { margin-left: auto; }
+.n-condlg__ctx { display: grid; gap: var(--s-2); margin: 0; padding: var(--s-3) var(--s-4); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-sm); }
+.n-condlg__ctx > div { display: grid; grid-template-columns: 4.5em minmax(0, 1fr); gap: var(--s-3); align-items: baseline; }
+.n-condlg__ctx dt { font-size: var(--t-xs); color: var(--ink-3); }
+.n-condlg__ctx dd { margin: 0; color: var(--ink-2); line-height: 1.6; }
+.n-condlg__ctx .n-rule { margin: 0 4px 2px 0; }
+.n-condlg__evs { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.n-condlg__evs small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
+.n-condlg .n-textarea { font-size: var(--t-md); }
+.n-condlg__file { justify-self: start; }
+.n-condlg .n-dialog__bar { align-items: center; margin-top: var(--s-5); }
+.n-condlg__hint { margin-right: auto; font-size: var(--t-xs); color: var(--ink-4); }
+@media (max-width: 560px) { .n-condlg__hint { display: none; } }
 @keyframes dlg-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 
 /* 手机底部弹层 */
