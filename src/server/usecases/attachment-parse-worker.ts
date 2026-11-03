@@ -188,7 +188,8 @@ export function createAttachmentParseWorker(input: {
             status: 'failed',
             // A refused claim reads like an input that changed under the
             // job, never as why the account may not process it.
-            errorCode: outcome === 'refused' ? 'input_changed' : 'processing_failed',
+            errorCode:
+              outcome === 'refused' ? 'input_changed' : 'processing_failed',
             result: attachmentJobResultSchema.parse({
               stage: outcome === 'unsupported' ? 'unsupported' : 'failed',
               mediaId: job.resourceId,
