@@ -314,12 +314,15 @@
     const bucket = new Map(stages.map((s) => [s.key, []]));
     const unknown = [];
     items.forEach((it) => { const s = it.date && home(it.date); if (s) bucket.get(s.key).push(it); else unknown.push(it); });
-    bucket.forEach((l) => l.sort((a, b) => a.date.localeCompare(b.date)));
+    bucket.forEach((l) => l.sort((a, b) => b.date.localeCompare(a.date)));
     const live = stages.filter((s) => s.status !== 'planned');
     const dflt = (live.find((s) => s.status === 'now' && bucket.get(s.key).length) || live.filter((s) => bucket.get(s.key).length).pop() || live.pop())?.key;
     const when = (s) => (s.span != null ? s.span : s.from ? `${NT.md(s.from)} – ${s.to.startsWith('9999') ? '' : NT.md(s.to)}` : s.at ? (s.end ? `${NT.md(s.at)} – ${NT.md(s.end)}` : NT.md(s.at)) : '');
     const yr = (s) => (s.from || s.at || '').slice(0, 4);
-    return html`<div class="n-stages">${stages.map((s) => {
+    // 由近及远，按节点结束的时间排：还没到的节点在最上面，往下是正在进行和已经过去的
+    const end = (s) => s.to || s.end || s.at || '9999';
+    const order = stages.map((s, i) => [s, i]).sort(([a, i], [b, k]) => end(b).localeCompare(end(a)) || k - i).map(([s]) => s);
+    return html`<div class="n-stages">${order.map((s) => {
       const list = bucket.get(s.key), open = stageOpen[s.key] ?? s.key === dflt, id = `stg-${s.key}`;
       const body = list.length || s.facts?.length;
       return html`<section class="n-stage" data-status="${s.status}" data-key="${s.key}">
