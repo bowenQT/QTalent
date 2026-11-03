@@ -18,6 +18,37 @@ body.nt-desk { min-height: 100vh; }
 .nt-side__foot a:hover { background: rgb(36 42 48 / .05); color: var(--ink); }
 .nt-side__foot svg { width: 14px; height: 14px; }
 
+/* 侧栏收起：宽度收成一列图标，入口名、分组名、最近访问淡出；计数缩成图标右上角的小圆点 */
+.nt-side__toggle { display: flex; align-items: center; gap: var(--s-2); width: 100%; padding: 6px var(--s-2); border: 0; border-radius: var(--r-field); background: none; font: inherit; font-size: var(--t-xs); color: var(--ink-3); text-align: left; cursor: pointer; }
+.nt-side__toggle:hover { background: rgb(36 42 48 / .05); color: var(--ink); }
+.nt-side__toggle svg { width: 14px; height: 14px; flex: none; }
+.nt-side__toggle:focus-visible { outline: none; box-shadow: var(--focus); }
+.nt-nav__label, .nt-brand__text { white-space: nowrap; transition: opacity var(--d-quick) var(--ease-out); }
+#app.is-side-moving { transition: grid-template-columns var(--d-base) var(--ease-out); }
+@media (min-width: 861px) {
+  #app[data-side-collapsed] { grid-template-columns: 64px minmax(0, 1fr); }
+  [data-side-collapsed] .nt-side { padding-inline: 10px; overflow-x: hidden; }
+  [data-side-collapsed] .nt-brand { padding-inline: 9px; }
+  [data-side-collapsed] .n-navitem, [data-side-collapsed] .nt-side__foot a, [data-side-collapsed] .nt-side__toggle { position: relative; justify-content: center; padding-inline: 0; }
+  [data-side-collapsed] .nt-side__foot a, [data-side-collapsed] .nt-side__toggle { padding-block: 8px; }
+  [data-side-collapsed] .nt-side__foot svg, [data-side-collapsed] .nt-side__toggle svg { width: 16px; height: 16px; }
+  /* 文字留给读屏：视觉上隐藏，不从无障碍树里拿掉 */
+  [data-side-collapsed] .nt-nav__label, [data-side-collapsed] .nt-brand__text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); opacity: 0; }
+  [data-side-collapsed] .nt-nav__h { height: 0; margin: 0 6px var(--s-2); padding: 0; border-top: 1px solid var(--line); overflow: hidden; color: transparent; }
+  [data-side-collapsed] .nt-nav__grp { margin-top: var(--s-3); }
+  [data-side-collapsed] .nt-recent { display: none; }
+  [data-side-collapsed] .n-navitem .n-count { position: absolute; top: 5px; left: 24px; min-width: 0; width: 8px; height: 8px; padding: 0; border: 2px solid var(--sheet); box-sizing: content-box; font-size: 0; }
+  [data-side-collapsed] .nt-side__toggle svg { transform: scaleX(-1); }
+}
+.nt-side__toggle svg { transition: transform var(--d-base) var(--ease-out); }
+@media (max-width: 860px) { .nt-side__toggle { display: none; } }
+
+/* 收起后的浮出提示：入口名和计数，贴在图标右侧淡入并轻移 */
+.nt-tip { position: fixed; z-index: 60; display: flex; align-items: center; gap: var(--s-2); padding: 5px 10px; border-radius: var(--r-field); background: var(--ink); color: #fff; font-size: var(--t-xs); font-weight: 500; white-space: nowrap; box-shadow: var(--e-2); pointer-events: none; opacity: 0; transform: translate(-4px, -50%); transition: opacity var(--d-quick) var(--ease-out), transform var(--d-quick) var(--ease-out); }
+.nt-tip::before { content: ""; position: absolute; left: -4px; top: 50%; width: 8px; height: 8px; background: inherit; border-radius: 1px; transform: translateY(-50%) rotate(45deg); }
+.nt-tip.is-on { opacity: 1; transform: translate(0, -50%); }
+.nt-tip .n-count { margin: 0; background: rgb(255 255 255 / .18); color: #fff; }
+
 /* 顶栏 */
 .nt-main { min-width: 0; display: flex; flex-direction: column; }
 .nt-top { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-6); background: rgb(248 249 250 / .92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }

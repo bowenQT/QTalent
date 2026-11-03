@@ -103,7 +103,7 @@
     const allow = (n) => (role === 'admin' ? n.id === 'admin' : n.id === 'judge' ? !st.canJudge() && st.isRater() : !n.roles || n.roles.includes(role)) && !(n.hideFor || []).includes(role);
     const navCount = (id, n) => (n ? html`<span class="n-count${id === 'review' ? ' is-quiet' : ''}" data-nav-count>${n}</span>` : '');
     const first = counts();
-    const navItem = (n) => html`<a class="n-navitem" data-nav="${n.id}" href="${n.href}" ${NT.raw(cfg.nav === n.id ? 'aria-current="page"' : '')}>${icon(n.icon)}${n.label}${navCount(n.id, first[n.id])}</a>`;
+    const navItem = (n) => html`<a class="n-navitem" data-nav="${n.id}" href="${n.href}" ${NT.raw(cfg.nav === n.id ? 'aria-current="page"' : '')}>${icon(n.icon)}<span class="nt-nav__label">${n.label}</span>${navCount(n.id, first[n.id])}</a>`;
     // 待办和草稿数随数据变化：store.save() 之后统一重算，页面里处理完一件事，侧栏角标跟着变
     let navTimer = 0;
     NT.refreshNav = () => {
@@ -135,13 +135,14 @@
     const root = document.getElementById('app');
     mount(root, html`
       <a class="nt-skip" href="#main">跳到正文</a>
-      <aside class="nt-side" aria-label="主导航">
-        <a class="n-shell__brand nt-brand" href="${role === 'admin' ? 'admin.html' : 'index.html'}"><span class="nt-ip" data-ip="rest" data-size="24"></span><span>Niu-Talent<small>人才识别、追踪与盘点</small></span></a>
+      <aside class="nt-side" id="nt-side" aria-label="主导航">
+        <a class="n-shell__brand nt-brand" href="${role === 'admin' ? 'admin.html' : 'index.html'}"><span class="nt-ip" data-ip="rest" data-size="24"></span><span class="nt-brand__text">Niu-Talent<small>人才识别、追踪与盘点</small></span></a>
         <nav class="nt-nav">${items.filter((n) => !n.group).map(navItem)}${groups.map((g) => html`<div class="nt-nav__grp" role="group" aria-label="${g}"><span class="nt-nav__h" aria-hidden="true">${g}</span>${items.filter((n) => n.group === g).map(navItem)}</div>`)}</nav>
         ${recent.length ? html`<div class="n-shell__recent nt-recent">最近${recent.map(([t, h]) => html`<a href="${h}">${t}</a>`)}</div>` : ''}
         <div class="nt-side__foot">
-          <a href="../../index.html">${icon('book')}评审导览</a>
-          ${role === 'admin' ? '' : html`<a href="../m/index.html">${icon('phone')}手机版</a>`}
+          <a href="../../index.html">${icon('book')}<span class="nt-nav__label">评审导览</span></a>
+          ${role === 'admin' ? '' : html`<a href="../m/index.html">${icon('phone')}<span class="nt-nav__label">手机版</span></a>`}
+          <button class="nt-side__toggle" type="button" id="nt-side-toggle" aria-controls="nt-side">${icon('sidebar')}<span class="nt-nav__label">收起导航</span></button>
         </div>
       </aside>
       <div class="nt-main">
@@ -181,6 +182,7 @@
       }, 1000);
     }
     NT.ui.mountIPs(root);
+    wireSide(root);
     // 窄屏时侧栏变成横向滚动条：当前页的入口滚到可见处，两侧有渐隐提示还能滚动
     if (matchMedia('(max-width: 860px)').matches) document.querySelector('.nt-side [aria-current="page"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 
@@ -202,6 +204,66 @@
 
 
   // ⌘K：搜人、项目，或把输入当作一句话交给 AI
+  // 侧栏收起：只留图标，悬停或键盘聚焦时在右侧浮出入口名；收起状态按浏览器记住
+  const SIDE_KEY = 'nty-side';
+  function wireSide(root) {
+    const btn = NT.$('#nt-side-toggle');
+    const side = NT.$('#nt-side');
+    const set = (collapsed) => {
+      root.toggleAttribute('data-side-collapsed', collapsed);
+      btn.setAttribute('aria-expanded', String(!collapsed));
+      btn.querySelector('.nt-nav__label').textContent = collapsed ? '展开导航' : '收起导航';
+    };
+    let saved = false;
+    try { saved = localStorage.getItem(SIDE_KEY) === '1'; } catch (e) { /* 忽略 */ }
+    set(saved);
+    btn.addEventListener('click', () => {
+      const collapsed = !root.hasAttribute('data-side-collapsed');
+      hide();
+      root.classList.add('is-side-moving');
+      set(collapsed);
+      setTimeout(() => root.classList.remove('is-side-moving'), 320);
+      try { localStorage.setItem(SIDE_KEY, collapsed ? '1' : '0'); } catch (e) { /* 忽略 */ }
+    });
+
+    // 浮出提示挂在 body 上：侧栏自身会滚动，提示放在里面会被裁掉
+    const tip = document.createElement('div');
+    tip.className = 'nt-tip';
+    tip.setAttribute('aria-hidden', 'true');
+    document.body.append(tip);
+    let showTimer = 0;
+    let hideTimer = 0;
+    let warm = false; // 刚看过一个提示，移到相邻入口时不再等待
+    const targets = '.n-navitem, .nt-side__foot a, .nt-side__toggle, .nt-brand';
+    function show(el) {
+      if (!root.hasAttribute('data-side-collapsed') || matchMedia('(max-width: 860px)').matches) return;
+      clearTimeout(hideTimer);
+      clearTimeout(showTimer);
+      showTimer = setTimeout(() => {
+        const label = el.matches('.nt-brand') ? 'Niu-Talent · 回到首页' : el.querySelector('.nt-nav__label')?.textContent || '';
+        const count = el.querySelector('[data-nav-count]');
+        tip.replaceChildren(label);
+        if (count) { const b = document.createElement('span'); b.className = count.className; b.textContent = count.textContent; tip.append(b); }
+        const r = el.getBoundingClientRect();
+        tip.style.top = `${r.top + r.height / 2}px`;
+        tip.style.left = `${side.getBoundingClientRect().right + 8}px`;
+        tip.classList.add('is-on');
+        warm = true;
+      }, warm ? 0 : 180);
+    }
+    function hide() {
+      clearTimeout(showTimer);
+      tip.classList.remove('is-on');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => { warm = false; }, 300);
+    }
+    side.addEventListener('pointerover', (e) => { const el = e.target.closest(targets); if (el) show(el); });
+    side.addEventListener('pointerout', (e) => { const el = e.target.closest(targets); if (el && !el.contains(e.relatedTarget)) hide(); });
+    side.addEventListener('focusin', (e) => { const el = e.target.closest(targets); if (el?.matches(':focus-visible')) show(el); });
+    side.addEventListener('focusout', hide);
+    side.addEventListener('scroll', hide, { passive: true });
+  }
+
   function wireCmdk() {
     const dlg = document.createElement('dialog');
     dlg.className = 'n-cmdk'; dlg.setAttribute('aria-label', '命令面板');
