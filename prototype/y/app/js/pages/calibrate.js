@@ -75,7 +75,7 @@
     const canConfirm = st.can('quadConfirm');
     const nScores = placed.reduce((n, x) => n + x.r.n, 0);
     mount(main, html`
-      <header class="nt-head"><div><h1>${LABEL} · 象限校准</h1><p>${isLanding ? 'XEngineer 第六期结营：学员第一次落位，形成第一份档案。' : `${b.name} · HR 发起。`}同意参考位置的人保持原样；调整位置要写一句理由。</p></div>
+      <header class="nt-head"><div><h1>${LABEL} · 象限校准</h1><p>${isLanding ? 'XEngineer 第六期结营 · 学员第一次落位' : `${b.name} · HR 发起`}</p></div>
         ${!isLanding ? html`<div class="nt-head__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="review.html?id=${id}">回到盘点清单</a></div>` : ''}</header>
       ${!isLanding ? html`<div class="n-seg n-seg--md" role="group" aria-label="团队" data-manual id="teams" style="margin-bottom:var(--s-4)">${teams.map((t) => html`<button type="button" data-t="${t}" aria-pressed="${t === team}">${st.orgShort(t)}${sn?.teams?.includes(t) ? ' · 已存档' : ''}</button>`)}</div>` : ''}
       <div class="nt-split nt-split--wide">
@@ -105,7 +105,7 @@
             ${isFrozen ? html`<p class="nt-muted" style="margin:0">${NT.md(sn.at)} 由${st.person(sn.by).name}确认存档。之后有新证据时，档案里提示「可能需要重新校准」，正式位置保持上次校准的结果。</p>`
               : html`<div class="nt-row"><button class="n-btn n-btn--ink" type="button" id="quad-confirm" ${NT.raw(canConfirm ? '' : 'disabled')}>${icon('stamp')}确认并存档${isLanding ? '' : `「${st.orgShort(team)}」`}</button><button class="n-btn n-btn--ghost" type="button" id="quad-reset">${icon('retry')}重新给出参考位置</button></div>
               ${!canConfirm ? html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>校准由 HR 确认存档。</b></div></div>` : ''}
-              <p class="nt-caption">选中头像后可以用方向键移动，点头像查看维度分和证据。</p>`}
+              `}
           </div>
         </aside>
       </div>`);

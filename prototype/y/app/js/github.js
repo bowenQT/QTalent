@@ -62,7 +62,7 @@
         <div class="n-field" style="margin-top:var(--s-3)"><label class="n-field__label" for="ghl-q">GitHub 用户名或主页</label>
           <div class="nt-row" style="flex-wrap:nowrap"><input class="n-input" id="ghl-q" autocomplete="off" spellcheck="false" placeholder="比如 demo-shenyc 或 github.com/demo-shenyc"><button class="n-btn n-btn--sm" type="button" id="ghl-find">${icon('search')}查找</button></div></div>
         <div id="ghl-res" aria-live="polite"></div>
-        ${cur ? html`<p class="nt-caption" style="margin-top:var(--s-3)">已保存的记录继续引用当时取得的内容，更换后的账号用于之后的查找。</p>` : ''}`,
+        `,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '保存关联', value: 'ok', cls: 'n-btn--ink',
         validate: (dl) => (!found ? '先查找并核对账号' : !$('#ghl-ok', dl)?.checked ? `勾选确认这是${p.name}本人的账号` : true) }],
       onOpen: (dl) => {
@@ -112,12 +112,12 @@
     // 档案右栏的概况卡里只占一行：账号或「待关联」，操作放在标题行右侧
     if (o.compact) return html`<section class="n-facet" id="gh"><h3 class="n-facet__head">GitHub 账号${can ? html`<span class="n-facet__act">${l ? html`<button class="n-link" type="button" data-gh="link">更换</button><button class="n-link" type="button" data-gh="unlink">解除关联</button>` : html`<button class="n-link" type="button" data-gh="link">关联账号</button>`}</span>` : ''}</h3>
       ${l ? html`<div class="n-gh__acct">${gh.avatar(l.login)}<div><b>@${l.login}</b> ${NT.ui.demo()}<small>${st.person(l.by).name} ${NT.md(l.at)} 关联 · 记一件事时按这个账号查找</small></div></div>
-          ${last ? html`<p class="nt-caption">${NT.md(last.from)} 至 ${NT.md(last.to)} 关联的是 @${last.login}，那段时间保存的记录照旧引用当时的内容。</p>` : ''}`
+          ${last ? html`<p class="nt-caption">${NT.md(last.from)} 至 ${NT.md(last.to)} 关联的是 @${last.login}。</p>` : ''}`
         : html`<p class="nt-muted" style="margin:0;font-size:var(--t-sm)">待关联${can ? ' · 关联后记一件事时可以按账号查找 Issue 和 PR' : ' · 由 HR 关联'}</p>`}
     </section>`;
     return html`<article class="n-card" id="gh"><h3 class="n-section-title">GitHub 账号</h3>
       ${l ? html`<div class="n-gh__acct">${gh.avatar(l.login)}<div><b>@${l.login}</b> ${NT.ui.demo()}<small>${st.person(l.by).name} ${NT.md(l.at)} 关联 · 记一件事时按这个账号查找</small></div></div>
-          ${last ? html`<p class="nt-caption">${NT.md(last.from)} 至 ${NT.md(last.to)} 关联的是 @${last.login}，那段时间保存的记录照旧引用当时的内容。</p>` : ''}
+          ${last ? html`<p class="nt-caption">${NT.md(last.from)} 至 ${NT.md(last.to)} 关联的是 @${last.login}。</p>` : ''}
           ${can ? html`<div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm" type="button" data-gh="link">更换</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-gh="unlink">解除关联</button></div>` : ''}`
         : html`<p class="nt-muted" style="margin:0;font-size:var(--t-sm)">待关联${can ? '' : ' · 由 HR 关联'}</p>
           ${can ? html`<div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm" type="button" data-gh="link">${icon('branch')}关联 GitHub 账号</button></div>` : ''}`}
@@ -170,7 +170,7 @@
         <div class="n-field n-gh__paste"><label class="n-field__label" for="gh-url">粘贴 Issue 或 PR 链接</label>
           <div class="nt-row" style="flex-wrap:nowrap"><input class="n-input" id="gh-url" autocomplete="off" spellcheck="false" placeholder="github.com/niu-demo/storyboard-factory/pull/214"><button class="n-btn n-btn--sm" type="button" id="gh-url-add">添加</button></div>
           <p class="n-field__err" id="gh-url-err" hidden></p></div>
-        <p class="nt-caption" style="margin-top:var(--s-3)">勾选的内容作为这件事的依据，和你写的原话一起整理。</p>`,
+        `,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '加入这件事', value: 'ok', cls: 'n-btn--ink',
         validate: (dl) => ($$('#gh-list input:checked:not(:disabled)', dl).length ? true : '先勾选要加入的 Issue 或 PR'),
         read: (dl) => $$('#gh-list input:checked:not(:disabled)', dl).map((x) => x.value) }],

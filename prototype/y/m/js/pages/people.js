@@ -21,8 +21,7 @@
     mount(main, html`
       <input class="n-input m-search" type="search" placeholder="按姓名或岗位筛选" aria-label="按姓名或岗位筛选" id="pq" value="${q}">
       <div class="m-chips" role="group" aria-label="筛选">${kinds.map(([k, l]) => html`<button class="n-chip" type="button" data-k="${k}" aria-pressed="${k === kind}">${l}</button>`)}</div>
-      <div id="plist"></div>
-      <p class="nt-caption">${quad ? '右侧是正式位置，待校准的人显示带光点的参考位置。' : st.role() === 'mentor' ? '每位学员的全部评价都在档案里。' : ''}</p>`);
+      <div id="plist"></div>`);
     const draw = () => {
       const list = people.filter((p) => (!q || p.name.includes(q) || p.title.includes(q))
         && (kind === 'all' || (kind === 'track' && tracks.includes(p.id)) || (kind === 'landing' && p.landing) || (kind === 'na' && st.refPos(p.id).na)));

@@ -129,12 +129,12 @@
         </div>
       </section>
       <section class="nt-sec">
-        <h2 class="nt-h2">同步范围</h2>
+        <h2 class="nt-h2">同步范围${NT.ui.hint('冲突时组织、人员、任职以北森为准；人才项目名单、导师关系、评价与校准不被北森覆盖')}</h2>
         <div class="n-card nt-tablewrap" style="padding:var(--s-2) var(--s-4)"><table class="nt-table">
           <thead><tr><th>数据</th><th>写入</th><th>用法</th></tr></thead>
           <tbody>${SYNC.map(([d, to, use]) => html`<tr><td>${d}</td><td>${to}</td><td>${use}</td></tr>`)}</tbody>
         </table></div>
-        <p class="nt-caption">冲突时组织、人员、任职以北森为准；人才项目名单、导师关系、评价与校准不被北森覆盖。</p>
+        
       </section>
       <div class="nt-cols nt-sec">
         <section><h2 class="nt-h2">最近同步</h2><div class="nt-empty">接入后，这里列出每次同步的时间、条数和失败原因。</div></section>
@@ -155,7 +155,7 @@
           <thead><tr><th>服务</th><th>用途</th><th>状态</th></tr></thead>
           <tbody>${INTG.map(([n, use, s]) => html`<tr><td>${n}</td><td>${use}</td><td><span class="n-badge ${s === '待接入' ? 'n-badge--prep' : 'n-badge--demo'}">${s}</span></td></tr>`)}</tbody>
         </table></div>
-        <p class="nt-caption">密钥只在服务端环境变量里配置。模型与提示词版本、用量接入后在这里查看；企业微信、MCP、AgentAPI 的连接情况和失败任务在「接入状态」。</p>
+        
       </section>`;
   }
 
@@ -192,12 +192,12 @@
         </table></div>` : html`<div class="nt-empty">有账号调用后，记录会出现在这里。</div>`}
       </section>
       <section class="nt-sec">
-        <h2 class="nt-h2">绑定失败 <small>发送人待匹配人员目录 · 近 7 天 ${BINDS.length} 条</small></h2>
+        <h2 class="nt-h2">绑定失败${NT.ui.hint('绑定以北森人员目录里的企业微信账号为准，改绑在北森里做；匹配失败的消息会回复发送人「账号待绑定」')} <small>发送人待匹配人员目录 · 近 7 天 ${BINDS.length} 条</small></h2>
         ${BINDS.length ? html`<div class="n-card nt-tablewrap" style="padding:var(--s-2) var(--s-4)"><table class="nt-table">
           <thead><tr><th>时间</th><th>发送人账号</th><th>原因</th><th>接下来</th></tr></thead>
           <tbody>${BINDS.map(([t, acct, why, next]) => html`<tr><td style="white-space:nowrap">${t}</td><td style="white-space:nowrap" title="企业微信账号只显示后四位">${acct}</td><td>${why}</td><td>${next}</td></tr>`)}</tbody>
         </table></div>` : html`<div class="nt-empty">近 7 天的绑定都已成功。</div>`}
-        <p class="nt-caption">绑定以北森人员目录里的企业微信账号为准，改绑在北森里做。匹配失败的消息留在企业微信，并回复发送人「账号待绑定」。</p>
+        
       </section>
       <section class="nt-sec">
         <h2 class="nt-h2">任务失败 <small>${open.length ? `${open.length} 个待处理` : '都已处理'}${open.length < tasks.length ? ` · ${tasks.length - open.length} 个已重新排队` : ''}</small></h2>
@@ -222,7 +222,7 @@
           <thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th></tr></thead>
           <tbody>${[...st.audits().map((a) => [a.at, a.by, a.act, a.obj]), ...AUDIT].map(([t, pid, act, obj]) => html`<tr><td style="white-space:nowrap">${t}</td><td style="white-space:nowrap">${st.person(pid).name}</td><td>${act}</td><td>${obj}</td></tr>`)}</tbody>
         </table></div>
-        <p class="nt-caption">系统管理员和 HR 负责人可以查。日志只记谁在什么时间做了什么；档案、评价和导出的内容留在各自的页面里。</p>
+        
       </section>`;
   }
 })();

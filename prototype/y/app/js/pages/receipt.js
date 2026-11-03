@@ -42,7 +42,7 @@
         <div class="nt-grid">
           <article class="n-card"><h3 class="n-section-title">文件</h3>
             <ul class="n-files" style="margin:0">${d.files.map((f) => fileRow(d, f))}</ul>
-            ${s.processing ? html`<p class="nt-caption">还在处理的文件读完后，这份回执会更新；可以先离开。</p>` : ''}
+            ${s.processing ? html`<p class="nt-caption">文件还在处理，读完后这份回执会更新。</p>` : ''}
           </article>
           ${s.verify.length ? html`<article class="n-card"><h3 class="n-section-title">待核对${s.verifyOpen ? html`<span class="n-count">${s.verifyOpen}</span>` : ''}</h3>
             <ul class="nt-list">${s.verify.map((i) => html`<li class="nt-row" style="justify-content:space-between;gap:var(--s-3)"><span><span class="n-kind">${Object.fromEntries(st.INBOX_KINDS)[i.kind]}</span> ${i.q.replace(/？$/, '')}${i.done ? html` → <b>${i.choice === 'none' ? st.noneText(i) : i.choice === 'rows' ? '整理范围内的部分' : i.choice === 'attach' ? '只作附件' : st.person(i.choice)?.name || ''}</b>` : ''}</span>${i.done ? html`<span class="n-badge n-badge--yes">${icon('check')}已核对</span>` : i.by === st.me().id || st.role() === 'hrbp' ? html`<a class="n-btn n-btn--sm" href="inbox.html#${i.id}">去核对</a>` : ''}</li>`)}</ul>
@@ -89,7 +89,7 @@
     if (d.entry === 'wecom') {
       return html`<article class="n-card n-imcard" aria-label="企业微信里的回执"><h3 class="n-section-title">企业微信里的回执 ${UI.demo()}</h3>
         <div class="n-imcard__bubble"><span class="nt-ip" data-ip="rest" data-size="24"></span><div><b>小犇</b><p>${line}</p><a class="n-btn n-btn--sm" href="#confirm">${icon('up-r')}到 Web 确认</a></div></div>
-        <p class="nt-caption">回执和确认链接发到提交人的单聊；在群里交的，群里只回「收到了」。</p></article>`;
+        </article>`;
     }
     if (d.entry === 'mcp') {
       return html`<article class="n-card n-imcard" aria-label="Claude Code 里的回执"><h3 class="n-section-title">Claude Code 里的回执 ${UI.demo()}</h3>
@@ -98,7 +98,7 @@
   出处      ${d.files[0].name} ${d.files[0].meta}
 ⏺ 已交给 Niu-Talent，整理出 ${s.events} 件事${s.hidden ? `\n  ${HIDDEN}` : ''}
   建议分等你确认 → 在 Web 上确认</pre>
-        <p class="nt-caption">桌面 agent 只能交材料、看人和起草需求；确认回到这一页做。</p></article>`;
+        </article>`;
     }
     return html`<article class="n-card n-imcard"><h3 class="n-section-title">回执也会发到</h3><p class="nt-muted" style="margin:0">你的企业微信单聊，带这一页的链接；手机上也能打开确认。</p></article>`;
   }

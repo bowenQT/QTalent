@@ -71,7 +71,7 @@
           </article>` : ''}
           <article class="n-card"><h3 class="n-section-title">成员变动记录</h3>
             ${log.length ? html`<ul class="n-mhist" style="margin:0">${log.map((l) => html`<li><time>${NT.md(l.at)}</time>${l.text} · ${st.person(l.by).name}</li>`)}</ul>` : html`<div class="nt-empty">还没有变动。</div>`}
-            <p class="nt-caption">加入、退出、改角色都记时间和操作人，任用后复盘会用到。</p></article>
+            </article>
         </aside>
       </div>`);
 

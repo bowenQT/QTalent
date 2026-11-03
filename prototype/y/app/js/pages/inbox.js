@@ -26,7 +26,7 @@
     const targets = [...new Set(all.filter((i) => ['person', 'speaker', 'unknown'].includes(i.kind)).flatMap((i) => i.options.map((o) => o[0])))].filter((id) => st.person(id) && st.scope(id));
     const nOpen = all.filter((i) => !i.done && !i.later).length;
     mount(main, html`
-      <header class="nt-head"><div><h1>待核对</h1><p>选出这几处说的是谁、哪个课题、整理哪一部分，选完即生效；整理出的建议分确认前，可以在「已核对」里撤销。</p></div></header>
+      <header class="nt-head"><div><h1>待核对${NT.ui.hint('选完即生效；整理出的建议分确认前，可以在「已核对」里撤销')}</h1></div></header>
       ${kinds.length > 1 ? html`<div class="n-chips" role="group" aria-label="按类型筛选" id="ib-kinds"><button class="n-chip" type="button" data-k="all" aria-pressed="${kind === 'all'}">全部<b>${nOpen}</b></button>${kinds.map(([k, l]) => html`<button class="n-chip" type="button" data-k="${k}" aria-pressed="${kind === k}">${l}<b>${all.filter((i) => i.kind === k && !i.done && !i.later).length || ''}</b></button>`)}</div>` : ''}
       <div class="nt-split">
         <div class="nt-grid" id="cards">

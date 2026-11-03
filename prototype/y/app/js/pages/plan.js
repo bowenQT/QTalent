@@ -31,7 +31,7 @@
     const T = p.title || '组织调整方案';
     const hiddenN = p.moves.filter((m) => !st.canSeeMove(m)).length;
     mount(main, html`
-      <header class="nt-head"><div><h1>${T}</h1><p>${b.name}。每条动作都能回到依据，确认后生成跟进行动。</p></div>
+      <header class="nt-head"><div><h1>${T}</h1><p>${b.name}</p></div>
         <div class="nt-head__acts">${canEdit ? html`<button class="n-btn n-btn--sm" type="button" id="add">${icon('plus')}加一条动作</button>` : ''}</div></header>
       <div class="nt-split">
         <article class="n-card" id="doc" style="position:relative">
@@ -44,8 +44,7 @@
         <aside class="nt-grid nt-sticky">
           <article class="n-card"><h3 class="n-section-title">版本</h3>
             ${plans().slice().reverse().map((x) => html`<div class="n-version" style="margin-bottom:6px"><span class="n-version__tag ${x.status === 'draft' ? 'is-draft' : x.status === 'confirmed' ? 'is-frozen' : ''}">${x.status === 'draft' ? '草稿' : x.status === 'confirmed' ? '已确认' : '已被替代'} v${x.version}</span><span style="color:var(--ink-3)">${st.person(x.confirmedBy || x.by).name} · ${NT.md(x.confirmedAt || x.at)}${x.status === 'confirmed' ? ' · 已存档' : ''}</span>${x.status === 'confirmed' ? html`<span class="n-seal n-seal--sm" style="margin-left:auto">定</span>` : ''}</div>`)}
-            ${canEdit ? html`<div class="nt-row" style="margin-top:var(--s-4)"><button class="n-btn n-btn--ink" type="button" id="confirm">${icon('stamp')}确认 v${p.version}</button></div>
-              <p class="nt-caption">确认后存档并生成行动，这次盘点也一起确认；之后的调整在下一次盘点里做。</p>` : html`<div class="n-notice is-plain" style="margin-top:var(--s-4)">${icon('lock')}<div>${conf ? `v${conf.version} 已确认，方案不能再修改；之后的调整在下一次盘点里做。` : '方案由 HR 和管理者修改和确认，你在这里查看。'}</div></div>`}
+            ${canEdit ? html`<div class="nt-row" style="margin-top:var(--s-4)"><button class="n-btn n-btn--ink" type="button" id="confirm">${icon('stamp')}确认 v${p.version}</button></div>` : html`<div class="n-notice is-plain" style="margin-top:var(--s-4)">${icon('lock')}<div>${conf ? `v${conf.version} 已确认，不能再修改。` : '方案由 HR 和管理者修改和确认。'}</div></div>`}
           </article>
         </aside>
       </div>`);

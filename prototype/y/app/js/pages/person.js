@@ -96,10 +96,10 @@
             <div id="dirwrap">${UI.directionBlock(pid, { compact: true, canWrite: st.can('curate', pid) ? 'mgmt' : '' })}</div>
             ${canQuad ? html`<section class="n-facet"><h3 class="n-facet__head">能力象限</h3>
               <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)} <span class="nt-muted">${f.snap.label} 校准 · ${NT.md(f.snap.at)} · ${st.person(f.snap.by).name}确认</span>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
-                <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted" title="rubric-v1">按当前评价规则</span>`}</dd></dl>
+                <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>${NT.ui.hint('落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分')}` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted" title="rubric-v1">按当前评价规则</span>`}</dd></dl>
               ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>上次盘点之后新确认的事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。${st.can('calibrate') ? html`<div class="nt-row" style="margin-top:var(--s-2)">${st.recalTarget(pid) ? html`<a class="n-btn n-btn--sm" href="${st.recalTarget(pid)}">去象限校准</a>` : html`<a class="n-btn n-btn--sm" href="reviews.html">发起新的盘点后校准</a>`}</div>` : ''}</div></div>` : ''}
               ${st.recalKept(pid) ? (() => { const k = st.recalKept(pid); return html`<p class="nt-caption">参考位置在「${st.QN[k.refQ]}」，${st.person(k.by).name} ${NT.md(k.at)} 决定保持正式位置：<span class="ink-hand">${k.why}</span></p>`; })() : ''}
-              ${ref.na ? html`<p class="nt-caption">落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分。</p>` : ''}
+              
             </section>` : ''}
             <section class="n-facet"><h3 class="n-facet__head">参与的项目</h3>
               ${projs.length ? html`<ul class="n-members">${projs.map((m) => html`<li class="${m.to ? 'is-left' : ''}"><a class="nt-plink" href="project.html?id=${m.p.id}"><b>${m.p.name}</b></a><span class="n-members__role">${m.role} · ${m.mode}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}</span></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0;font-size:var(--t-sm)">还没有参与项目。</p>`}
@@ -421,7 +421,7 @@
   function correctionsBlock(p) {
     const list = st.get().corrections.filter((c) => c.person === p.id && !c.done);
     if (!list.length) return '';
-    return html`<article class="n-card"><h3 class="n-section-title">本人纠错</h3>${list.map((c) => html`<div class="n-notice is-plain" data-corr="${c.id}">${icon('info')}<div><b>${p.name}提出：</b>${c.text}<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-fix="${c.id}">按纠错修改</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-reply="${c.id}">回复说明</button></div></div></div>`)}<p class="nt-caption">修改后保留原记录和修改理由。</p></article>`;
+    return html`<article class="n-card"><h3 class="n-section-title">本人纠错</h3>${list.map((c) => html`<div class="n-notice is-plain" data-corr="${c.id}">${icon('info')}<div><b>${p.name}提出：</b>${c.text}<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-fix="${c.id}">按纠错修改</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-reply="${c.id}">回复说明</button></div></div></div>`)}</article>`;
   }
 
   // 员工本人：只看本人经历、参与的项目和发布给本人的行动；能补充、能纠错，不能改别人的观察和管理结论

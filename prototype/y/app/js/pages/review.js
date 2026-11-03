@@ -63,13 +63,13 @@
           <div>已写逐人结论<b>${concluded} / ${list.length}</b></div>
         </div>
         ${b.log?.length ? html`<ul class="n-log">${b.log.map(([d, by, t]) => html`<li>${NT.md(d)} ${st.person(by).name}：${t}</li>`)}</ul>` : ''}
-        ${conf ? html`<p class="nt-caption">${NT.md(b.confirmedAt)} 由${st.person(b.confirmedBy).name}确认，范围内每个人的档案存下了当时的版本，之后的新事件不会改动它。</p>` : html`
+        ${conf ? html`<p class="nt-caption">${NT.md(b.confirmedAt)} 由${st.person(b.confirmedBy).name}确认${NT.ui.hint('范围内每个人的档案存下了当时的版本，之后的新事件不会改动它')}</p>` : html`
         <ol class="nt-steps">${[['固定范围', null], ['补资料缺口', '#roll'], ['象限校准', st.can('calibrate') ? `calibrate.html?id=${id}` : null], ['逐人结论', '#roll'], ['调整方案', `plan.html?id=${id}`], ['确认版本', `plan.html?id=${id}`]].map(([t, h], i) => html`<li data-s="${stepState[i] === true ? 'done' : stepState[i] === 'partial' ? 'part' : 'todo'}">${h ? html`<a href="${h}" ${NT.raw(i === 1 ? 'data-show="na"' : '')}>${t}</a>` : t}${i === 2 ? html`<small>${calTeams.length}/${teams.length} 个团队</small>` : i === 3 ? html`<small>${concluded}/${list.length}</small>` : ''}</li>`)}</ol>`}
         <section class="n-batch__dist" aria-label="团队分布">
-          <div class="n-batch__distH"><h3>团队分布 · 本期${prev ? '（上期）' : ''}</h3>
+          <div class="n-batch__distH"><h3>团队分布 · 本期${prev ? '（上期）' : ''}${NT.ui.hint(conf ? (list.some((p) => snap?.entries[p.id]?.uncal) ? '已校准的团队是正式位置，未校准的是盘点确认时的参考位置' : '盘点确认时的正式位置') : '已校准的团队按校准结果，其余按当前参考位置')}</h3>
             ${!conf ? html`<div class="nt-row">${st.can('calibrate') ? html`<a class="n-btn n-btn--sm n-btn--ink" href="calibrate.html?id=${id}">${icon('grid')}去象限校准</a>` : ''}<a class="n-btn n-btn--sm ${st.can('calibrate') ? '' : 'n-btn--ink'}" href="plan.html?id=${id}">调整方案${opPlan ? ` v${opPlan.version}` : ''}</a></div>` : html`<a class="n-btn n-btn--sm" href="plan.html?id=${id}">看组织调整方案</a>`}</div>
           <div class="n-dist is-row">${[['hl', '高潜待练'], ['hh', '双高'], ['ll', '待观察'], ['lh', '专业骨干']].map(([k, l]) => html`<div>${l} <b>${now[k]}${prev ? html` <small>(${prev[k]})</small>` : ''}</b></div>`)}<div class="na">资料不足 <b>${now.na}${prev ? html` <small>(${prev.na})</small>` : ''}</b></div></div>
-          <p class="nt-caption">${conf ? (list.some((p) => snap?.entries[p.id]?.uncal) ? '盘点确认时的位置：已校准的团队是正式位置，未校准的是盘点确认时的参考位置。' : '盘点确认时的正式位置。') : '已校准的团队按校准结果，其余按当前参考位置。'}${prev && now.na > prev.na ? '资料不足上升主要来自后几周事件较少的学员，他们的事件待补录。' : ''}</p>
+          ${prev && now.na > prev.na ? html`<p class="nt-caption">资料不足上升主要来自后几周事件较少的学员，他们的事件待补录。</p>` : ''}
         </section>
       </article>
 
@@ -88,7 +88,7 @@
               <td>${c ? html`<span class="ink-hand" style="font-size:var(--t-body)">${c.text}</span><small>${st.person(c.by).name} · ${NT.md(c.at)}${canEdit ? html` · <button class="n-link" type="button" data-con="${p.id}">改</button>` : ''}</small>` : canEdit ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-con="${p.id}">${icon('pen')}写结论</button>` : html`<span class="n-badge">未写</span>`}</td></tr>`;
           })}</tbody></table></div>
         ${!shown.length ? html`<div class="nt-empty">换个筛选条件试试。</div>` : ''}
-        <p class="nt-caption">按团队和姓名排列，不按分数排序。结论是人写的判断，用楷体呈现；AI 不替人写结论。</p>
+        
       </article>`);
 
     $('#fteam')?.addEventListener('change', (e) => { team = e.target.value; render(main); });

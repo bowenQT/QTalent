@@ -44,7 +44,7 @@
               </div>
             </div>
             <div id="chg-list"></div>
-            <p class="nt-caption">按时间列出已确认的变化。</p>
+            
           </div></div>
         </div>` : '';
       const composer = html`
@@ -185,7 +185,7 @@
         NT.toast(`已核实，${st.person(c.person).name}会出现在「值得关注的人」`, { undo: () => { const ok = st.unverifyClue(c.id, token); redraw(); return ok; }, failText: CLUE_UNDO_FAIL });
       }
       if (b.dataset.cno) {
-        const r = await NT.dialog({ title: '不采纳这条线索', body: html`<label class="n-field"><span class="n-field__label">理由（必填）</span><textarea class="n-textarea" rows="2" id="cn-why" placeholder="比如：周报里说的是同一件事，只能算一条证据"></textarea></label><p class="nt-caption">这条线索只留在你的处理记录里。</p>`,
+        const r = await NT.dialog({ title: '不采纳这条线索', body: html`<label class="n-field"><span class="n-field__label">理由（必填）</span><textarea class="n-textarea" rows="2" id="cn-why" placeholder="比如：周报里说的是同一件事，只能算一条证据"></textarea></label>`,
           actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '不采纳', value: 'ok', cls: 'n-btn--ink', validate: (d) => !!d.querySelector('#cn-why').value.trim(), read: (d) => d.querySelector('#cn-why').value.trim() }] });
         if (r?.value !== 'ok') return;
         const c = st.verifyClue(b.dataset.cno, false, r.data); if (!c) { NT.toast(clueFail(b.dataset.cno)); redraw(); return; }
@@ -492,7 +492,7 @@
         </div>
         <p class="n-export__sum" id="ex-sum"></p>
         <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl id="ex-head"></dl></div>
-        <p class="nt-caption">每行是一条已确认的维度分，附行为锚点、原文引用、评分人、规则版本和来源位置。只含你查看范围内的人；象限位置和盘点结论以盘点确认时的存档为准，到盘点里查看。导出会记入审计日志。</p>
+        
       </div>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '生成表格', value: 'go', cls: 'n-btn--ink', icon: 'download', validate: (d) => (sum(d) ? true : '换一个范围或时间再生成'), read: (d) => ({ scope: $('#ex-scope', d).value, from: $('#ex-time', d).value }) }],
       onOpen: (d) => { sum(d); d.addEventListener('change', () => sum(d)); },
@@ -714,7 +714,7 @@
     };
     mount($('#students'), html`<h3 class="n-section-title" id="stu-h">我带的学员<span class="n-count is-quiet">${list.length} 人</span></h3>
       ${list.length ? html`<ul class="n-students__list">${list.map(row)}</ul>` : html`<div class="nt-empty">分配给你的学员会出现在这里。</div>`}
-      <p class="nt-caption">每件事按情境、行为、影响记下来；分数在事件里给，对照行为锚点。</p>`);
+      `);
     drawRecos();
   }
   // 我的推荐：本人提交的推荐与处理状态

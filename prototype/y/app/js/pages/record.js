@@ -26,7 +26,7 @@
     const pre = NT.param('person');
     const track = pre && NT.param('track') && st.get().tracks.find((t) => t.id === NT.param('track') && t.person === pre);
     mount(main, html`
-      <header class="nt-head"><div><h1>记一件事</h1><p>写原话就行。AI 按情境、行为、影响整理，给涉及的维度打建议分，文字和分数都可以直接改。保存后 5 秒内可以撤销。</p></div></header>
+      <header class="nt-head"><div><h1>记一件事</h1></div></header>
       <div class="nt-split">
         <article class="n-card n-event" id="ev" data-step="write">
           <div class="n-event__head" id="ev-head"><span>谁</span><select class="n-select" id="ev-person" style="width:auto;min-height:30px" aria-label="记录给谁">
@@ -51,7 +51,7 @@
           <div class="n-anchor" id="anchor"><b id="anchor-t">锚点</b> <span class="n-badge" style="margin-left:6px" id="anchor-v"></span><p class="nt-muted" id="anchor-fam" style="margin:4px 0 0" hidden></p><ol></ol>
             ${st.canSuggestRule() ? html`<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="anchor-sug">${icon('note')}提修订建议</button></div><div id="my-sugs"></div>` : ''}</div>
           <div class="n-card" style="padding:var(--s-4) var(--s-5)"><b style="font-size:var(--t-sm)">怎么算一条关键事件</b>
-            <p class="nt-caption">一件具体的事，按 SBI 讲：在什么情境下（S）、本人做了什么（B）、带来什么影响（I）。只写了「参与」的地方标为资料不足。多人参与的事，按各自的行为打分。</p></div>
+            </div>
         </aside>
       </div>`);
     // 附件：「改原话」或撤销保存回到这页时保留已解析的附件
@@ -278,7 +278,7 @@
   // ---------- 员工本人：补充经历与自述 ----------
   function renderSelfNote(main) {
     const me = st.me();
-    mount(main, html`<header class="nt-head"><div><h1>补充经历</h1><p>你写下的内容作为「本人自述」进入档案，和他人的观察分开呈现。</p></div></header>
+    mount(main, html`<header class="nt-head"><div><h1>补充经历${NT.ui.hint('你写下的内容作为「本人自述」进入档案，和他人的观察分开呈现')}</h1></div></header>
       <article class="n-card" style="max-width:640px"><label class="n-eventin__label" for="self-text">想补充什么</label>
         <textarea class="n-eventin__field" id="self-text" placeholder="比如：MS3 的演示环境是我和组员一起搭的。"></textarea>
         <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--ink n-btn--sm" type="button" id="self-save">保存到我的档案</button><span class="nt-muted">保存后录入人和 HR 能看到</span></div></article>`);

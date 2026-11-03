@@ -25,7 +25,7 @@
     const nFollow = tracks.filter((t) => t.state === 'on').length + (st.can('signals') ? sigs.filter((s) => s.state === 'open').length : 0);
     const tabs = [['list', role === 'mentor' ? '学员' : '人员', people.length], ['follow', st.can('signals') ? `${SEC.signal} · ${SEC.track}` : SEC.track, nFollow]];
     mount(main, html`
-      <header class="nt-head"><div><h1>${role === 'mentor' ? '所带学员' : '人才'}</h1><p>${role === 'mentor' ? '你在 XEngineer 第六期带的学员，每位学员的全部评价都在档案里。' : `你能查看的 ${people.length} 人，按团队和姓名排列。`}</p></div>
+      <header class="nt-head"><div><h1>${role === 'mentor' ? '所带学员' : '人才'}</h1>${role === 'mentor' ? html`<p>XEngineer 第六期</p>` : ''}</div>
         <div class="nt-head__acts">${!['mentor', 'ceo'].includes(role) ? html`<a class="n-btn n-btn--sm" href="people.html?tab=track&new=1">${icon('target')}设一个重点跟踪</a>` : ''}<a class="n-btn n-btn--sm n-btn--ink" href="record.html">${icon('pen')}记一件事</a></div></header>
       <div class="n-tabs" role="tablist" id="ptabs">${tabs.map(([k, l, n]) => html`<button role="tab" type="button" data-tab="${k}" aria-selected="${k === tab}" aria-controls="pp-${k}" tabindex="${k === tab ? 0 : -1}">${l}${n ? html`<span class="n-count is-quiet">${n}</span>` : ''}</button>`)}</div>
       <div class="n-tabpanel" role="tabpanel" id="pp-list" ${NT.raw(tab === 'list' ? '' : 'hidden')}></div>
@@ -61,8 +61,7 @@
         <input class="n-input" type="search" placeholder="按姓名或岗位筛选" aria-label="按姓名或岗位筛选" id="pq" value="${q}">
         ${teams.length > 1 ? html`<select class="n-select" id="porg" aria-label="团队"><option value="all">全部团队</option>${teams.map((t) => html`<option value="${t}" ${org === t ? 'selected' : ''}>${st.orgShort(t)}</option>`)}</select>` : ''}
         <div class="n-chips" style="margin:0" role="group" aria-label="筛选">${kinds.map(([k, l]) => html`<button class="n-chip" type="button" data-k="${k}" aria-pressed="${k === kind}">${l}</button>`)}</div>
-      </div><div id="plist"></div>
-      ${quad ? html`<p class="nt-caption">右侧是正式位置（最近一次确认的校准），待校准的人显示参考位置，带光点标记。</p>` : ''}`);
+      </div><div id="plist"></div>`);
     $('#pq').addEventListener('input', (e) => { q = e.target.value.trim(); draw(); });
     $('#porg')?.addEventListener('change', (e) => { org = e.target.value; draw(); });
     host.querySelector('.n-chips').addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (!b) return; kind = b.dataset.k; $$('[data-k]', host).forEach((x) => x.setAttribute('aria-pressed', x === b)); draw(); });

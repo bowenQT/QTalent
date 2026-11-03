@@ -14,7 +14,7 @@
       const canStart = st.can('calibrate');
       const inv = S.batches.filter((b) => b.kind === 'inventory'), land = S.batches.filter((b) => b.kind === 'landing');
       mount(main, html`
-        <header class="nt-head"><div><h1>盘点</h1><p>先固定范围和证据截止时间，再补资料缺口、校准象限、逐人写结论，最后形成调整方案并确认版本。确认后为范围内每个人存下一份当时的档案。</p></div>
+        <header class="nt-head"><div><h1>盘点</h1></div>
           ${canStart ? html`<div class="nt-head__acts"><button class="n-btn n-btn--sm n-btn--ink" type="button" id="new">${icon('plus')}发起盘点</button></div>` : ''}</header>
         <div class="nt-grid">${inv.map((b) => card(b))}</div>
         <h2 class="nt-h2" style="margin-top:var(--s-6)">训练营</h2>
