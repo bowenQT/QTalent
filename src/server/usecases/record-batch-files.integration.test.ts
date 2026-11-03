@@ -10,6 +10,7 @@ import {
   seedNativeRules,
   seedNativeCase,
 } from '../../../tests/fixtures/bow-845/native';
+import { attachmentParseMessageId } from '../jobs/attachment-parse';
 import { jobSnapshots } from '../jobs/schema';
 import { getAppJobProducer } from '../platform/jobs/app-runtime';
 import { materialParses } from '../modules/records/schema';
@@ -147,14 +148,18 @@ it('takes staged files on their upload node, hands each parse to the worker, and
   expect(receipt.jobId).toBeNull();
   // Each file's parse goes to the attachment worker's queue in the batch's transaction.
   expect(getAppJobProducer).toHaveBeenCalledWith('attachment-parse');
+  // Sent for the job's current revision under that revision's message id.
   expect(send).toHaveBeenCalledWith(
     'attachment-parse',
-    { jobId: notesJob.jobId, attempt: 1 },
-    expect.objectContaining({ retryLimit: 0 }),
+    { jobId: notesJob.jobId, attempt: 1, revision: notesJob.revision },
+    expect.objectContaining({
+      retryLimit: 0,
+      id: attachmentParseMessageId(notesJob.jobId, notesJob.revision),
+    }),
   );
   expect(send).toHaveBeenCalledWith(
     'attachment-parse',
-    { jobId: deckJob.jobId, attempt: 1 },
+    { jobId: deckJob.jobId, attempt: 1, revision: deckJob.revision },
     expect.anything(),
   );
 

@@ -10,7 +10,10 @@ import { recordEntryAudit } from '../entry/audit';
 import { createMcpTools, McpCapacityError } from '../../integrations/mcp/tools';
 import { createMcpHttpHandler } from '../../integrations/mcp/http';
 import { recordArrangeQueue } from '../../jobs/record-arrange';
-import { attachmentParseQueue } from '../../jobs/attachment-parse';
+import {
+  attachmentParseQueue,
+  sendAttachmentParse,
+} from '../../jobs/attachment-parse';
 import { DemandAccessError } from '../../modules/staffing/demand/service';
 import { DemandConflictError } from '../../modules/staffing/demand/version';
 import { createStaffingDemandRuntime } from '../staffing-demand-runtime';
@@ -65,11 +68,15 @@ export function createMcpPostgresTools(options: McpPostgresOptions) {
         job.kind === 'media' ? attachmentParseQueue : recordArrangeQueue;
       // File batches hand parses to the attachment queue; createQueue is idempotent.
       if (queue === attachmentParseQueue) await options.boss.createQueue(queue);
-      const queued = await options.boss.send(
-        queue,
-        { jobId: job.jobId, attempt: job.attempt },
-        { db: fromDrizzle(tx, sql), retryLimit: 0 },
-      );
+      const db = fromDrizzle(tx, sql);
+      const queued =
+        queue === attachmentParseQueue
+          ? await sendAttachmentParse(options.boss, job, { db })
+          : await options.boss.send(
+              queue,
+              { jobId: job.jobId, attempt: job.attempt },
+              { db, retryLimit: 0 },
+            );
       if (!queued) throw new EntryUsecaseError('unavailable');
     },
   });

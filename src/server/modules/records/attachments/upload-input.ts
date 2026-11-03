@@ -1,7 +1,7 @@
 import type { JobRecord } from '../../../jobs/state';
 import type { AttachmentBinding, AttachmentParsePorts } from './flow';
 import { z } from 'zod';
-import { uploadRequestSchema } from '../../../../contracts/media';
+import { materialUploadRequestSchema } from '../../../../contracts/media';
 import { attachmentVersionSchema } from './parse';
 
 const id = z.string().min(1).max(200).regex(/\S/);
@@ -10,12 +10,12 @@ const validatedUploadSchema = z.strictObject({
   recordCollectionId: id,
   originalId: id,
   originalVersionId: id,
-  jobId: id,
-  purpose: z.enum(['audio', 'attachment']),
+  jobId: id.nullable(),
+  purpose: z.enum(['audio', 'video', 'attachment', 'image']),
   filename: attachmentVersionSchema.shape.filename,
   accountId: id,
   quotaScope: id,
-  target: uploadRequestSchema.shape.target,
+  target: materialUploadRequestSchema.shape.target,
   object: z.strictObject({
     objectKey: z.string().min(1).regex(/\S/),
     byteLength: attachmentVersionSchema.shape.byteLength,
@@ -26,15 +26,16 @@ const validatedUploadSchema = z.strictObject({
 });
 function bindingFrom(
   upload: z.infer<typeof validatedUploadSchema>,
+  jobId: string,
 ): AttachmentBinding | null {
   if (
-    upload.purpose !== 'attachment' ||
+    upload.purpose === 'audio' ||
     upload.recordCollectionId !== upload.quotaScope
   )
     return null;
   return {
-    purpose: 'attachment',
-    completedJobId: upload.jobId,
+    purpose: upload.purpose,
+    completedJobId: jobId,
     recordCollectionId: upload.recordCollectionId,
     accountId: upload.accountId,
     quotaScope: upload.quotaScope,
@@ -65,6 +66,12 @@ export interface ValidatedAttachmentInputOptions<C> {
     uploadId: string;
     originalVersionId: string;
   }): Promise<unknown>;
+  /** The parse job a material batch created for this staged upload, read in
+   * THIS context; null when no current batch holds the upload. */
+  stagedJob(
+    context: C,
+    reference: { uploadId: string; originalVersionId: string },
+  ): Promise<string | null>;
   canProcess(context: C, binding: AttachmentBinding): Promise<boolean>;
   openObject(
     objectKey: string,
@@ -84,12 +91,21 @@ export function createValidatedAttachmentInput<C>(
       );
       if (
         !upload.success ||
-        upload.data.jobId !== job.jobId ||
         upload.data.uploadId !== job.resourceId ||
         upload.data.originalVersionId !== job.inputVersion
       )
         return null;
-      const binding = bindingFrom(upload.data);
+      // Dispatched uploads carry their job; staged ones are bound by a batch.
+      const jobId =
+        upload.data.jobId ??
+        (upload.data.target.kind === 'unassigned'
+          ? await options.stagedJob(context, {
+              uploadId: upload.data.uploadId,
+              originalVersionId: upload.data.originalVersionId,
+            })
+          : null);
+      if (jobId !== job.jobId) return null;
+      const binding = bindingFrom(upload.data, jobId);
       return binding && (await options.canProcess(context, binding))
         ? binding
         : null;
@@ -103,7 +119,8 @@ export function createValidatedAttachmentInput<C>(
       );
       if (
         !upload.success ||
-        JSON.stringify(bindingFrom(upload.data)) !== JSON.stringify(binding)
+        JSON.stringify(bindingFrom(upload.data, binding.completedJobId)) !==
+          JSON.stringify(binding)
       )
         throw new Error('Attachment input changed');
       return options.openObject(upload.data.object.objectKey, signal);

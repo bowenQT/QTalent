@@ -6,7 +6,10 @@ import { getEnv } from '../env';
 import { createClock } from '../../lib/clock';
 import { getAppJobProducer } from '../platform/jobs/app-runtime';
 import { recordArrangeQueue } from '../jobs/record-arrange';
-import { attachmentParseQueue } from '../jobs/attachment-parse';
+import {
+  attachmentParseQueue,
+  sendAttachmentParse,
+} from '../jobs/attachment-parse';
 import {
   createEntryIdentityService,
   type EntryIdentity,
@@ -148,11 +151,15 @@ export async function agentConversationForRequest(headers: Headers) {
           const queue =
             job.kind === 'media' ? attachmentParseQueue : recordArrangeQueue;
           const boss = await getAppJobProducer(queue);
-          const sent = await boss.send(
-            queue,
-            { jobId: job.jobId, attempt: job.attempt },
-            { db: fromDrizzle(tx, sql), retryLimit: 0 },
-          );
+          const db = fromDrizzle(tx, sql);
+          const sent =
+            queue === attachmentParseQueue
+              ? await sendAttachmentParse(boss, job, { db })
+              : await boss.send(
+                  queue,
+                  { jobId: job.jobId, attempt: job.attempt },
+                  { db, retryLimit: 0 },
+                );
           if (!sent)
             throw new Error('Record arrangement enqueue was not committed');
         },
