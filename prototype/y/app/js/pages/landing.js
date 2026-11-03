@@ -29,7 +29,7 @@
           <div class="n-weeks">
             ${b.weeks.map(([w, tag, kind, from, to]) => {
               const now = NT.TODAY >= from && NT.TODAY <= to, past = NT.TODAY > to;
-              const extra = w === 'W8' ? `对人复盘 ${done}/${b.newcomers.length} 已确认` : w === 'W5' ? '中期盘点已冻结' : '已完成';
+              const extra = w === 'W8' ? `对人复盘 ${done}/${b.newcomers.length} 已确认` : w === 'W5' ? '中期盘点已确认' : '已完成';
               return html`<div class="n-week ${now ? 'is-now' : past ? 'is-done' : ''}"><b>${w}${tag ? ` ${tag}` : ''}${now ? ' 本周' : ''}</b>${kind}<div class="tags"><span>${extra}</span></div></div>`;
             })}
           </div>

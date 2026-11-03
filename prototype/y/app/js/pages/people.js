@@ -55,7 +55,7 @@
         ${teams.length > 1 ? html`<select class="n-select" id="porg" aria-label="团队"><option value="all">全部团队</option>${teams.map((t) => html`<option value="${t}" ${org === t ? 'selected' : ''}>${st.orgShort(t)}</option>`)}</select>` : ''}
         <div class="n-chips" style="margin:0" role="group" aria-label="筛选">${kinds.map(([k, l]) => html`<button class="n-chip" type="button" data-k="${k}" aria-pressed="${k === kind}">${l}</button>`)}</div>
       </div><div id="plist"></div>
-      ${quad ? html`<p class="nt-caption">右侧是正式位置（最近一次冻结的校准），待校准的人显示参考位置，带光点标记。</p>` : ''}`);
+      ${quad ? html`<p class="nt-caption">右侧是正式位置（最近一次确认的校准），待校准的人显示参考位置，带光点标记。</p>` : ''}`);
     $('#pq').addEventListener('input', (e) => { q = e.target.value.trim(); draw(); });
     $('#porg')?.addEventListener('change', (e) => { org = e.target.value; draw(); });
     host.querySelector('.n-chips').addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (!b) return; kind = b.dataset.k; $$('[data-k]', host).forEach((x) => x.setAttribute('aria-pressed', x === b)); draw(); });

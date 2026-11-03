@@ -341,7 +341,7 @@
     <!-- ═════════ 颜色 ═════════ -->
     <section class="ds-sec" id="color">
       <h2>颜色</h2>
-      <p class="lead">底色是中性的浅灰，卡片是白底细边，正文是深石板灰，绝大部分界面只用这几样。彩色只有三类：石板蓝与流光是唯一的强调色；朱印只给正式确认、冻结快照和「需要你决定」的计数；判断状态只在匹配和冲突处以小标记出现，各配一个图形。头像、标签、来源都不再逐个着色，活力留在小犇的状态动效、流光和落墨压印这些操作反馈上。</p>
+      <p class="lead">底色是中性的浅灰，卡片是白底细边，正文是深石板灰，绝大部分界面只用这几样。彩色只有三类：石板蓝与流光是唯一的强调色；朱印只给正式确认、存档和「需要你决定」的计数；判断状态只在匹配和冲突处以小标记出现，各配一个图形。头像、标签、来源都不再逐个着色，活力留在小犇的状态动效、流光和落墨压印这些操作反馈上。</p>
 
       <h3 class="ds-sub">纸与墨</h3>
       <div class="sw">
@@ -356,12 +356,12 @@
       </div>
 
       <h3 class="ds-sub">流光与朱印</h3>
-      <p>流光是四种低饱和色调缓慢流动的渐变，只出现在 AI 生成、尚未被人确认的内容上。朱印只出现在正式确认与冻结快照上，一个页面通常只有一处。</p>
+      <p>流光是四种低饱和色调缓慢流动的渐变，只出现在 AI 生成、尚未被人确认的内容上。朱印只出现在正式确认与存档上，一个页面通常只有一处。</p>
       <div class="sw">
         <div class="sw-item"><div class="sw-chip is-foil" style="background-color:#fff"></div><div><b>流光底</b>AI 建议中的内容</div></div>
         <div class="sw-item"><div class="sw-chip" style="background:var(--foil-edge)"></div><div><b>流光边</b>AI 进行中、光标</div></div>
         <div class="sw-item"><div class="sw-chip" style="background:var(--light)"></div><div><b>石板蓝</b><code>#3D6385</code> 选中、链接、AI 署名</div></div>
-        <div class="sw-item"><div class="sw-chip" style="background:var(--seal)"></div><div><b>朱</b><code>#B5452E</code> 确认与冻结</div></div>
+        <div class="sw-item"><div class="sw-chip" style="background:var(--seal)"></div><div><b>朱</b><code>#B5452E</code> 确认与存档</div></div>
       </div>
 
       <h3 class="ds-sub">判断状态与象限底色</h3>
@@ -620,10 +620,10 @@
       </div>
 
       <h3 class="ds-sub">弹窗与底部弹层</h3>
-      <p>桌面用居中弹窗，手机用底部弹层。确认强度跟后果相称：删除有关联的项目被引导为归档；冻结方案说明冻结了什么、不代表人事已执行。</p>
+      <p>桌面用居中弹窗，手机用底部弹层。确认强度跟后果相称：删除有关联的项目被引导为归档；确认方案时说明存下了什么、不代表人事已执行。</p>
       <div class="ds-grid c2">
         <div class="ds-stage">
-          <div class="ds-row"><button class="n-btn" type="button" data-open="dlg-delete">删除「海外加速搜索体验」</button><button class="n-btn n-btn--seal" type="button" data-open="dlg-freeze">确认 v3 并冻结</button></div>
+          <div class="ds-row"><button class="n-btn" type="button" data-open="dlg-delete">删除「海外加速搜索体验」</button><button class="n-btn n-btn--seal" type="button" data-open="dlg-freeze">确认 v3 并存档</button></div>
           <p class="ds-caption" id="dlg-result">点开看两种弹窗。下面是删除弹窗的静态样张。</p>
           <div class="n-dialog n-dialog--static" aria-hidden="true">
             <h3>改为归档？</h3>
@@ -647,7 +647,7 @@
             <p class="n-sheet__sub">基于 v2 · 改了 2 处 · 涉及 3 人</p>
             <div class="n-diff" style="font-size:var(--t-sm);line-height:1.9;margin-bottom:var(--s-4)">owner：<del>待定</del> <ins>周屿</ins><br>前端：<ins>林知远（兼职）</ins></div>
             <button class="n-btn n-btn--seal" type="button">确认此版本</button>
-            <p class="ds-caption" style="text-align:center">确认后冻结快照；不代表任命已经执行</p>
+            <p class="ds-caption" style="text-align:center">确认后存档；不代表任命已经执行</p>
           </div>
         </div>
       </div>
@@ -660,9 +660,9 @@
       </dialog>
       <dialog class="n-dialog" id="dlg-freeze" aria-labelledby="dlg-freeze-t">
         <h3 id="dlg-freeze-t">确认方案 v3</h3>
-        <p>确认后会冻结这一版的人员范围、主要依据、人工结论和后续行动。之后再改会生成 v4，v3 原样保留。</p>
+        <p>确认后会存档这一版的人员范围、主要依据、人工结论和后续行动。之后再改会生成 v4，v3 原样保留。</p>
         <ul class="n-dialog__facts"><li>涉及 3 人，都在你的授权范围内</li><li>后续行动 2 项，进入行动列表</li><li>确认不等于任命已经执行</li></ul>
-        <div class="n-dialog__bar"><button class="n-btn n-btn--ghost" type="button" data-close>取消</button><button class="n-btn n-btn--seal" type="button" data-close="frozen">确认并冻结</button></div>
+        <div class="n-dialog__bar"><button class="n-btn n-btn--ghost" type="button" data-close>取消</button><button class="n-btn n-btn--seal" type="button" data-close="frozen">确认并存档</button></div>
       </dialog>
     </section>
 
@@ -1198,12 +1198,12 @@
           <li><div><span class="n-badge">与 AI 分差大</span> 何以宁 · 内生动力 · 客户现场演示<small>导师改分 5，AI 建议 2，导师没写理由</small></div><span class="n-queue__pair">5 / <span style="color:var(--light)">2</span></span></li>
           <li><div><span class="n-badge n-badge--recal">可能需要重新校准</span> 周屿 · 参考位置从双高移到专业骨干<small>新事件 3 条 · 正式位置不会自动移动</small></div><span class="n-queue__pair">双高 → 专业骨干</span>
             <div style="grid-column:1/-1;padding-top:var(--s-3)">
-              <p style="margin:0;font-size:var(--t-sm)">冻结后的新事件让参考位置从「双高」移到了「专业骨干」。正式位置保持冻结时的样子：可以去象限校准里调整，也可以写明理由保持正式位置。</p>
+              <p style="margin:0;font-size:var(--t-sm)">上次盘点之后的新事件让参考位置从「双高」移到了「专业骨干」。正式位置保持上次校准的结果：可以去象限校准里调整，也可以写明理由保持正式位置。</p>
               <textarea class="n-calib__reason" aria-label="保持正式位置的理由">新增的 3 件事都在同一个项目里，等结营盘点再看</textarea>
               <div class="ds-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm n-btn--ink" type="button"><svg><use href="#i-grid"/></svg>去象限校准</button><button class="n-btn n-btn--sm" type="button"><svg><use href="#i-check"/></svg>保持正式位置</button><button class="n-btn n-btn--sm n-btn--ghost" type="button">看能力谱</button></div>
             </div></li>
         </ul>
-        <p class="ds-caption">「可能需要重新校准」有两个出口：去象限校准里移动正式位置，或者写一句理由保持正式位置。保持后这一条离开队列，理由出现在右栏「保持正式位置」和这个人的档案里；参考位置再变或者重新冻结，会重新进队列。理由必填，可以撤销。</p>
+        <p class="ds-caption">「可能需要重新校准」有两个出口：去象限校准里移动正式位置，或者写一句理由保持正式位置。保持后这一条离开队列，理由出现在右栏「保持正式位置」和这个人的档案里；参考位置再变或者重新校准，会重新进队列。理由必填，可以撤销。</p>
       </article>
     </section>
 
@@ -1339,13 +1339,13 @@
     <!-- ═════════ 档案：版本与时间线 ═════════ -->
     <section class="ds-sec" id="c-timeline">
       <h2>档案：版本与时间线</h2>
-      <p class="lead">每次盘点批次确认时，为范围内每个人冻结一份档案版本，之后的新事件不会改写它；档案页可以切到历史版本，和当前对比。时间线用事件真实发生的时间，不知道时间的单独列出；历史资料保留原量表，不换算成维度分。</p>
+      <p class="lead">每次盘点批次确认时，为范围内每个人存下一份当时的档案，之后的新事件不会改动它；档案页可以切到历史版本，和当前对比。时间线用事件真实发生的时间，不知道时间的单独列出；历史资料保留原量表，不换算成维度分。</p>
       <div class="n-pver" id="pver">
         <span class="n-pver__label">档案版本</span>
         <div class="n-seg" role="group" aria-label="档案版本" id="pver-seg">
           <button type="button" data-v="now" aria-pressed="true">当前</button>
-          <button type="button" data-v="h1" aria-pressed="false">2026 H1 · 已冻结</button>
-          <button type="button" data-v="land" aria-pressed="false">Landing 结营 · 已冻结</button>
+          <button type="button" data-v="h1" aria-pressed="false">2026 H1 · 已存档</button>
+          <button type="button" data-v="land" aria-pressed="false">Landing 结营 · 已存档</button>
         </div>
         <span class="n-pver__label" id="pver-note">实时更新 · 包含 10-23 前已确认的事件</span>
         <div class="n-pver__cmp" id="pver-cmp" hidden></div>
@@ -1569,7 +1569,7 @@
     <!-- ═════════ 组件：能力象限 ═════════ -->
     <section class="ds-sec" id="c-quad">
       <h2>能力象限（校准会）</h2>
-      <p class="lead">用在盘点批次或训练营结营的校准会上：HR 把一个团队的人逐个落到象限里。纸面上只有两笔墨。小犇根据已确认的维度分算出每个人的参考位置，化作光点落下；人把头像拖到自己判断的位置，光点留在原处，中间连一道由光到墨的痕迹。拖到另一个象限时，小犇会问一句理由；全部确认后光点消散、盖印冻结。</p>
+      <p class="lead">用在盘点批次或训练营结营的校准会上：HR 把一个团队的人逐个落到象限里。纸面上只有两笔墨。小犇根据已确认的维度分算出每个人的参考位置，化作光点落下；人把头像拖到自己判断的位置，光点留在原处，中间连一道由光到墨的痕迹。拖到另一个象限时，小犇会问一句理由；全部确认后光点消散、盖印存档。</p>
       <div class="ds-grid c2 quad-layout">
         <div class="n-quad" id="quad-wrap">
           <span class="n-seal n-quad__seal" id="quad-seal">冻<br>结</span>
@@ -1822,7 +1822,7 @@
           </div>
           <div class="n-slot"><span class="n-slot__empty"><svg width="14" height="14"><use href="#i-plus"/></svg></span><div><div class="n-slot__role">角色</div><b>前端</b></div></div>
           <div class="n-version"><span class="n-version__tag is-draft">草稿 v3</span><span style="color:var(--ink-3)">基于 v2 · 改了 2 处</span><span style="margin-left:auto" class="n-diff">owner：<del>待定</del> <ins>周屿</ins></span></div>
-          <div class="n-version"><span class="n-version__tag is-frozen">v2 已确认</span><span style="color:var(--ink-3)">程远 · 管理者· 10-20 · 快照已冻结</span><span class="n-seal n-seal--sm" style="margin-left:auto">定</span></div>
+          <div class="n-version"><span class="n-version__tag is-frozen">v2 已确认</span><span style="color:var(--ink-3)">程远 · 管理者· 10-20 · 已存档</span><span class="n-seal n-seal--sm" style="margin-left:auto">定</span></div>
         </div>
       </div>
       <div class="ds-grid c3" style="margin-top: var(--s-4)">
@@ -2171,7 +2171,7 @@
               </div>
               <div class="n-checkbar__sec">
                 <span class="n-checkbar__label">兼容声明</span>
-                <p class="n-checkbar__text">阈值类修订，不涉及复核。生效后按新阈值计算，生效前冻结的快照不变。</p>
+                <p class="n-checkbar__text">阈值类修订，不涉及复核。生效后按新阈值计算，生效前已存档的盘点结果不变。</p>
               </div>
               <div class="n-checkbar__sec">
                 <span class="n-checkbar__label" id="eff-l">生效点</span>
@@ -2279,7 +2279,7 @@
     <!-- ═════════ 组件：反馈与状态 ═════════ -->
     <section class="ds-sec" id="c-access">
       <h2>接入状态、导出与打印</h2>
-      <p class="lead">系统管理员在「系统管理 · 接入状态」看三个入口通不通、谁绑不上、哪些任务失败和接下来能做什么；管理者和 HR 在工作台导出权限内已确认的内容，在档案页打印单人档案。三处都不显示消息正文和密钥，导出与打印都写明「盘点结论以冻结快照为准」并记入审计日志。</p>
+      <p class="lead">系统管理员在「系统管理 · 接入状态」看三个入口通不通、谁绑不上、哪些任务失败和接下来能做什么；管理者和 HR 在工作台导出权限内已确认的内容，在档案页打印单人档案。三处都不显示消息正文和密钥，导出与打印都写明「盘点结论以盘点确认时的存档为准」并记入审计日志。</p>
 
       <h3 class="ds-sub">接入状态：三个入口</h3>
       <p>企业微信机器人分已连接、已断开、待首次连接三种，写最近一次收到消息的时间；待首次连接写「等第一条消息」，不写 0。MCP 和 AgentAPI 写最近一次调用和近 24 小时的次数。状态点配文字，用形状区分：实心墨点、红色菱形点、空心灰圈；不用绿色，绿色留给证据判断的「支持」。配置在部署时完成，这里没有配置项。</p>
@@ -2300,14 +2300,14 @@
       <div class="n-lock" style="margin-top:var(--s-3);max-width:760px"><svg><use href="#i-lock"/></svg><span>接入配置（机器人回调地址、MCP 与 AgentAPI 的令牌）在部署时完成，这里只看状态和结果；消息正文、文件内容、查询内容和密钥都留在原处。</span></div>
 
       <h3 class="ds-sub">工作台 · 导出已确认内容</h3>
-      <p>入口在管理者和 HR 工作台的标题右侧；导师没有这个入口。选范围和事件时间后，弹窗实时写出会导出多少人、多少条已确认的维度分，以及已跳过多少条分：未确认的、待按新版本复核的，和还在评分复核里的（待校准、改了 AI 的分差 2 分以上又没写理由）；范围里没有已确认内容时不生成，并说明原因。表格每行是一条已确认的维度分，附行为锚点、原文引用、评分人、规则版本和来源位置，按新版本复核过的分取复核后的值和评分人；一件事有几处来源时，来源位置写这条分的引用所在的那一处，对不上具体位置就写「全部来源：」并列出这件事的每一处；象限位置和盘点结论以盘点冻结快照为准，不导出。生成前按当前视角再取一次，范围外的人不会进表。</p>
+      <p>入口在管理者和 HR 工作台的标题右侧；导师没有这个入口。选范围和事件时间后，弹窗实时写出会导出多少人、多少条已确认的维度分，以及已跳过多少条分：未确认的、待按新版本复核的，和还在评分复核里的（待校准、改了 AI 的分差 2 分以上又没写理由）；范围里没有已确认内容时不生成，并说明原因。表格每行是一条已确认的维度分，附行为锚点、原文引用、评分人、规则版本和来源位置，按新版本复核过的分取复核后的值和评分人；一件事有几处来源时，来源位置写这条分的引用所在的那一处，对不上具体位置就写「全部来源：」并列出这件事的每一处；象限位置和盘点结论以盘点确认时的存档为准，不导出。生成前按当前视角再取一次，范围外的人不会进表。</p>
       <div class="ds-grid c2">
         <div class="n-dialog n-dialog--static" aria-hidden="true">
           <h3>导出已确认内容</h3>
           <div class="n-export">
             <div class="n-export__pick"><label class="n-field"><span class="n-field__label">范围</span><span class="n-select">我负责的人（93 人）</span></label><label class="n-field"><span class="n-field__label">事件时间</span><span class="n-select">近 12 个月</span></label></div>
             <p class="n-export__sum"><b>93 人 · 555 条已确认的维度分</b><span>已跳过 4 条待确认、待复核或还在评分复核里的分</span></p>
-            <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl><dt>导出时间</dt><dd>生成时写入，精确到分钟</dd><dt>导出人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至导出时已确认的关键事件与维度分，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分和还在评分复核里的分留在系统里；盘点结论以冻结快照为准</dd><dt>范围</dt><dd>我负责的人 · 近 12 个月</dd></dl></div>
+            <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl><dt>导出时间</dt><dd>生成时写入，精确到分钟</dd><dt>导出人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至导出时已确认的关键事件与维度分，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分和还在评分复核里的分留在系统里；盘点结论以盘点确认时的存档为准</dd><dt>范围</dt><dd>我负责的人 · 近 12 个月</dd></dl></div>
           </div>
           <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-download"/></svg>生成表格</span></div>
         </div>
@@ -2320,7 +2320,7 @@
           </div>
           <p class="ds-caption">生成后结果写在标题下方。生成前按当前视角再校验一次，所以有处理中、已生成、失败、拒绝、范围里没有已确认内容五种：</p>
           <div class="n-notice is-plain n-exst" data-state="busy"><svg><use href="#i-clock"/></svg><div>正在生成「我负责的人 · 近 12 个月」的表格，只取已确认的内容…</div></div>
-          <div class="n-notice is-plain n-exst" data-state="done"><svg><use href="#i-check"/></svg><div><b>表格已生成：</b>我负责的人 · 近 12 个月，93 人、556 条已确认的维度分。表头写明了导出时间 09-04 15:00 和口径，盘点结论以冻结快照为准；已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ink"><svg><use href="#i-download"/></svg>下载表格</span><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
+          <div class="n-notice is-plain n-exst" data-state="done"><svg><use href="#i-check"/></svg><div><b>表格已生成：</b>我负责的人 · 近 12 个月，93 人、556 条已确认的维度分。表头写明了导出时间 09-04 15:00 和口径，盘点结论以盘点确认时的存档为准；已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ink"><svg><use href="#i-download"/></svg>下载表格</span><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
           <div class="n-notice is-deny n-exst" data-state="fail"><svg><use href="#i-x"/></svg><div><b>导出停在生成文件这一步。</b>导出服务超时，文件待重新生成；这次失败已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm"><svg><use href="#i-retry"/></svg>重试</span><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
           <div class="n-notice is-deny n-exst" data-state="deny"><svg><use href="#i-lock"/></svg><div><b>导出停在权限校验这一步。</b>生成前按你现在的视角重新校验，批量导出只对管理者和 HR 开放；这次尝试已记入审计日志。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
           <div class="n-notice is-plain n-exst" data-state="empty"><svg><use href="#i-info"/></svg><div><b>导出停在取数这一步。</b>生成时「我负责的人 · 近 3 个月」里已确认的内容 0 条，换一个范围或时间再导出。<div class="ds-row" style="margin-top:var(--s-2)"><span class="n-btn n-btn--sm n-btn--ghost">关闭</span></div></div></div>
@@ -2333,7 +2333,7 @@
         <div style="display:grid;gap:var(--s-3);align-content:start">
           <div class="n-dialog n-dialog--static" aria-hidden="true" style="margin-top:0">
             <h3>打印苏少卿的档案</h3>
-            <p>打印的是截至现在已确认的内容；盘点结论以冻结快照为准。打印会记入审计日志。</p>
+            <p>打印的是截至现在已确认的内容；盘点结论以盘点确认时的存档为准。打印会记入审计日志。</p>
             <ul class="n-dialog__facts"><li><b>会打印</b>：基本信息、3 件关键事件里 11 条已确认的维度分（附引用、评分人、规则版本和来源位置）、能力象限的正式位置</li><li><b>留在系统里</b>：跳过的 1 条分（待确认、待复核或还在评分复核里）、AI 摘要、系统给的参考位置</li></ul>
             <div class="n-dialog__bar"><span class="n-btn n-btn--ghost">取消</span><span class="n-btn n-btn--ink"><svg><use href="#i-print"/></svg>打印</span></div>
           </div>
@@ -2345,7 +2345,7 @@
         </div>
         <div class="n-print is-preview" aria-label="打印稿样张">
           <header class="n-print__head"><h1>苏少卿 <small>演示</small></h1><p>XEngineer 第六期 / 线索雷达 · 产品方向 · 2027 届 · 入营 2 个月</p></header>
-          <dl class="n-print__meta"><dt>打印时间</dt><dd>2026-09-04 14:20</dd><dt>打印人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分、还在评分复核里的分、AI 摘要和参考位置留在系统里；盘点结论以冻结快照为准</dd></dl>
+          <dl class="n-print__meta"><dt>打印时间</dt><dd>2026-09-04 14:20</dd><dt>打印人</dt><dd>苏晚</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分、还在评分复核里的分、AI 摘要和参考位置留在系统里；盘点结论以盘点确认时的存档为准</dd></dl>
           <section><h2>能力象限 · 正式位置</h2><p>待正式校准</p></section>
           <section><h2>关键事件与已确认的维度分 <small>3 件 · 11 条</small></h2>
             <ol class="n-print__evs"><li><p class="n-print__ev"><b>08-28 · 把自动触达做到增量同步和断点续传</b> · 线索雷达 · 任辞远记录</p><ul><li>专业度 4 · 任辞远评 · 评价规则 v1<br><span>锚点 4：超出本届学员预期</span><br><span>引用「在团队中负责串通模块、引导组员沟通」</span></li><li>内生动力 4 · 任辞远评 · 评价规则 v1<br><span>锚点 4：有难度或模糊的情境下主动表现，并有可见结果</span><br><span>引用「做事踏实」</span></li></ul><p class="n-print__src">来源：XEngineer 第六期观察表 · W7–W8 · 突出表现 · 第 6 行</p></li><li><p class="n-print__ev"><b>08-07 · 围绕线索从发现到 CRM 准入的全链路</b> · 线索雷达 · 苏鹤年记录</p><ul><li>专业度 4 · 苏鹤年评 · 评价规则 v1<br><span>锚点 4：超出本届学员预期</span><br><span>引用「节奏清晰（边界→骨架→V2 设计→工程→文档/测试）」</span><br><span class="n-print__src">来源：XEngineer 第六期观察表 · W4–W5 · 突出表现 · 第 6 行</span></li><li>智慧力 2 · 苏鹤年评 · 评价规则 v1<br><span>锚点 2：相关行为偶发，需要他人推动才发生</span><br><span>引用「搭建了运营工作台并完成路演汇报」</span><br><span class="n-print__src">全部来源：XEngineer 第六期观察表 · W4–W5 · 突出表现 · 第 6 行；XEngineer 第六期观察表 · W4–W5 · 待改进 · 第 6 行</span></li></ul></li></ol>
@@ -2362,7 +2362,7 @@
         <button class="n-btn n-btn--ink" type="button">保存事件</button>
         <button class="n-btn" type="button">添加成员</button>
         <button class="n-btn n-btn--light" type="button"><svg><use href="#i-spark"/></svg>让 AI 整理</button>
-        <button class="n-btn n-btn--seal" type="button">确认 v3 并冻结</button>
+        <button class="n-btn n-btn--seal" type="button">确认 v3 并存档</button>
         <button class="n-btn n-btn--ghost" type="button">取消</button>
         <button class="n-btn" type="button" disabled>无权限确认</button>
       </div>
@@ -2980,7 +2980,7 @@
     if (next) { ask(next); return; }
     NiuIP.setState(quadIp, 'rest');
     const n = people.filter(o => Math.hypot(o.pos[0] - o.ref[0], o.pos[1] - o.ref[1]) > .03).length;
-    sayText.textContent = n ? `已调整 ${n} 人的位置，都还在参考象限内。确认后冻结。` : '参考位置已给出。把头像拖到你判断的位置；同意的人不用动。';
+    sayText.textContent = n ? `已调整 ${n} 人的位置，都还在参考象限内。确认后存档。` : '参考位置已给出。把头像拖到你判断的位置；同意的人不用动。';
   }
   reason.addEventListener('input', () => {
     if (!asking) return;
@@ -3033,7 +3033,7 @@
     NiuIP.setState(quadIp, 'done');
     say.classList.add('is-ink');
     const moved = people.filter(p => p.reason.trim()).map(p => `${p.name}（${esc(p.reason.trim())}）`);
-    sayText.innerHTML = `已冻结快照 · <span class="ink-hand">苏晚</span> · 10-23。${moved.length ? '调整：' + moved.join('；') + '。' : ''}之后有新证据时，我会提示可能需要重新校准，位置保持原样。`;
+    sayText.innerHTML = `已存档 · <span class="ink-hand">苏晚</span> · 10-23。${moved.length ? '调整：' + moved.join('；') + '。' : ''}之后有新证据时，我会提示可能需要重新校准，位置保持原样。`;
   });
 
   /* ── 拖入槽位 ── */
@@ -3271,7 +3271,7 @@
   $$('.n-dialog').forEach(d => {
     $$('[data-close]', d).forEach(b => b.addEventListener('click', () => d.close(b.dataset.close || 'cancel')));
     d.addEventListener('close', () => {
-      const msg = { archived: '已改为归档。成员、事件和方案都保留。', frozen: '已确认 v3 并冻结。后续行动进入行动列表。' }[d.returnValue];
+      const msg = { archived: '已改为归档。成员、事件和方案都保留。', frozen: '已确认 v3 并存档。后续行动进入行动列表。' }[d.returnValue];
       if (msg) $('#dlg-result').textContent = msg;
     });
   });
@@ -3343,8 +3343,8 @@
   // 档案版本切换
   const pv = {
     now: ['实时更新 · 包含 10-23 前已确认的事件', null],
-    h1: ['2026-06-30 冻结 · 2026 H1 盘点批次 · rubric-v1', [['正式象限', '高潜待练', '高潜待练'], ['已确认事件', '9 条', '18 条'], ['内生动力均值', '3.2', '3.9'], ['智慧力均值', '3.5', '3.5']]],
-    land: ['2025-11-02 冻结 · Landing 第二期结营 · rubric-v0', [['正式象限', '资料不足', '高潜待练'], ['已确认事件', '4 条', '18 条'], ['内生动力均值', '—', '3.9'], ['规则版本', 'rubric-v0', 'rubric-v1']]],
+    h1: ['2026-06-30 存档 · 2026 H1 盘点批次 · rubric-v1', [['正式象限', '高潜待练', '高潜待练'], ['已确认事件', '9 条', '18 条'], ['内生动力均值', '3.2', '3.9'], ['智慧力均值', '3.5', '3.5']]],
+    land: ['2025-11-02 存档 · Landing 第二期结营 · rubric-v0', [['正式象限', '资料不足', '高潜待练'], ['已确认事件', '4 条', '18 条'], ['内生动力均值', '—', '3.9'], ['规则版本', 'rubric-v0', 'rubric-v1']]],
   };
   $('#pver-seg').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -3352,7 +3352,7 @@
     $('#pver-note').textContent = note;
     $('#pver-cmp').hidden = !cmp;
     if (cmp) $('#pver-cmp').innerHTML = cmp.map(([k, a, n]) => `<div>${k}<b>${a === n ? a : `<span class="n-diff"><del>${a}</del> → <ins>${n}</ins></span>`}</b></div>`).join('') +
-      '<div style="grid-column:1/-1;background:transparent;padding:0">左边是冻结时的值，右边是当前。冻结版本不会被新事件改写。</div>';
+      '<div style="grid-column:1/-1;background:transparent;padding:0">左边是盘点时的值，右边是现在。盘点时的结果不会被新事件改动。</div>';
   });
 
   // 停止跟踪：保留历史

@@ -467,7 +467,7 @@
   const exportBtn = () => (st.canExport() ? html`<div class="nt-head__acts"><button class="n-btn n-btn--sm" type="button" id="btn-export">${icon('download')}导出已确认内容</button></div>` : '');
   const exportHost = () => (st.canExport() ? html`<div id="export-st" aria-live="polite"></div>` : '');
   const exLabel = (sc, from) => `${sc.label} · ${EX_TIME.find(([k]) => k === from)[1]}`;
-  const EX_BASIS = '截至导出时已确认的关键事件与维度分，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分和还在评分复核里的分留在系统里；盘点结论以冻结快照为准';
+  const EX_BASIS = '截至导出时已确认的关键事件与维度分，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分和还在评分复核里的分留在系统里；盘点结论以盘点确认时的存档为准';
   const exSkipped = (n) => html`<span>已跳过 ${n} 条待确认、待复核或还在评分复核里的分</span>`;
   function wireExport() {
     $('#btn-export')?.addEventListener('click', openExport);
@@ -492,7 +492,7 @@
         </div>
         <p class="n-export__sum" id="ex-sum"></p>
         <div class="n-export__head"><span class="n-export__cap">表头会写明</span><dl id="ex-head"></dl></div>
-        <p class="nt-caption">每行是一条已确认的维度分，附行为锚点、原文引用、评分人、规则版本和来源位置。只含你查看范围内的人；象限位置和盘点结论以盘点冻结快照为准，到盘点里查看。导出会记入审计日志。</p>
+        <p class="nt-caption">每行是一条已确认的维度分，附行为锚点、原文引用、评分人、规则版本和来源位置。只含你查看范围内的人；象限位置和盘点结论以盘点确认时的存档为准，到盘点里查看。导出会记入审计日志。</p>
       </div>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '生成表格', value: 'go', cls: 'n-btn--ink', icon: 'download', validate: (d) => (sum(d) ? true : '换一个范围或时间再生成'), read: (d) => ({ scope: $('#ex-scope', d).value, from: $('#ex-time', d).value }) }],
       onOpen: (d) => { sum(d); d.addEventListener('change', () => sum(d)); },
@@ -548,7 +548,7 @@
         ? html`<div class="n-notice is-plain n-exst" data-state="empty">${icon('info')}<div><b>导出停在取数这一步。</b>生成时「${label}」里已确认的内容 0 条，换一个范围或时间再导出。${close}</div></div>`
       : j.state === 'fail'
         ? html`<div class="n-notice is-deny n-exst" data-state="fail">${icon('x')}<div><b>导出停在生成文件这一步。</b>导出服务超时，文件待重新生成；这次失败已记入审计日志。<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm" type="button" data-exretry>${icon('retry')}重试</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-exclose>关闭</button></div></div></div>`
-        : html`<div class="n-notice is-plain n-exst" data-state="done">${icon('check')}<div><b>表格已生成：</b>${label}，${j.people} 人、${j.n} 条已确认的维度分。表头写明了导出时间 ${j.at.slice(5)} 和口径，盘点结论以冻结快照为准；已记入审计日志。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm n-btn--ink" href="${j.url}" download="${j.name}">${icon('download')}下载表格</a><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-exclose>关闭</button></div></div></div>`);
+        : html`<div class="n-notice is-plain n-exst" data-state="done">${icon('check')}<div><b>表格已生成：</b>${label}，${j.people} 人、${j.n} 条已确认的维度分。表头写明了导出时间 ${j.at.slice(5)} 和口径，盘点结论以盘点确认时的存档为准；已记入审计日志。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm n-btn--ink" href="${j.url}" download="${j.name}">${icon('download')}下载表格</a><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-exclose>关闭</button></div></div></div>`);
     host.onclick = (e) => {
       if (e.target.closest('[data-exretry]')) runExport(j.sc, j.from);
       if (e.target.closest('[data-exclose]')) { if (j.url) URL.revokeObjectURL(j.url); exJob = null; drawExport(); }

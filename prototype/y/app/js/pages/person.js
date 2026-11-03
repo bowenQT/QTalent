@@ -171,7 +171,7 @@
     const { rows, skipped, evs, hidden } = printData();
     const ok = await NT.dialog({
       title: `打印${p.name}的档案`,
-      body: '打印的是截至现在已确认的内容；盘点结论以冻结快照为准。打印会记入审计日志。',
+      body: '打印的是截至现在已确认的内容；盘点结论以盘点确认时的存档为准。打印会记入审计日志。',
       facts: [
         html`<b>会打印</b>：基本信息、${evs.length} 件关键事件里 ${rows.length} 条已确认的维度分（附行为锚点、引用、评分人、规则版本和来源位置）${st.can('quad', pid) ? '、能力象限的正式位置' : ''}`,
         html`<b>留在系统里</b>：${skipped ? `跳过的 ${skipped} 条分（待确认、待复核或还在评分复核里）、` : ''}AI 摘要、系统给的参考位置${hidden ? `，以及你权限外的 ${hidden} 条资料` : ''}`,
@@ -185,8 +185,8 @@
     const land = st.landingOf(pid);
     sheet.innerHTML = String(html`
       <header class="n-print__head"><h1>${p.name} <small>演示</small></h1><p>${st.orgPath(p.org)} · ${p.title} · ${p.level} · ${st.tenure(p)}${land ? ` · ${land.batch.name}` : ''}</p></header>
-      <dl class="n-print__meta"><dt>打印时间</dt><dd>${at}</dd><dt>打印人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分、还在评分复核里的分、AI 摘要和参考位置留在系统里；盘点结论以冻结快照为准</dd></dl>
-      ${now.quad ? html`<section><h2>能力象限 · 正式位置</h2><p>${now.f ? `${st.QN[now.f.q]} · ${now.f.snap.label}校准 · ${NT.md(now.f.snap.at)} 冻结 · ${st.person(now.f.snap.by).name}确认` : '待正式校准'}</p></section>` : ''}
+      <dl class="n-print__meta"><dt>打印时间</dt><dd>${at}</dd><dt>打印人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分、还在评分复核里的分、AI 摘要和参考位置留在系统里；盘点结论以盘点确认时的存档为准</dd></dl>
+      ${now.quad ? html`<section><h2>能力象限 · 正式位置</h2><p>${now.f ? `${st.QN[now.f.q]} · ${now.f.snap.label}校准 · ${NT.md(now.f.snap.at)} 存档 · ${st.person(now.f.snap.by).name}确认` : '待正式校准'}</p></section>` : ''}
       <section><h2>关键事件与已确认的维度分 <small>${now.evs.length} 件 · ${now.rows.length} 条</small></h2>
         ${now.evs.length ? html`<ol class="n-print__evs">${now.evs.map(({ e, rows: rs }) => html`<li><p class="n-print__ev"><b>${NT.md(e.date)} · ${e.title}</b>${e.project ? ` · ${st.project(e.project)?.name || ''}` : ''} · ${st.person(e.recorder)?.name || ''}记录</p>
           <ul>${rs.map((r) => html`<li>${r.dim} ${r.v} · ${st.person(r.by)?.name || r.by}评 · ${r.rubric}${r.anchor ? html`<br><span>锚点 ${r.v}：${r.anchor}</span>` : ''}${r.note ? html`<br><span>${r.note}</span>` : ''}${!sameSrc(rs) && r.src ? html`<br><span class="n-print__src">${srcLine(r)}</span>` : ''}</li>`)}</ul>

@@ -1,5 +1,5 @@
 /* 组织调整方案：每条动作写清依据、缺口、本人意愿、可否释放和对两边团队的影响；意愿和释放未知时写「未知」。
-   按版本确认并冻结快照（压印）；之后的修改自动进入新草稿，并用行内差异标出变化。确认方案不等于人事动作已执行。 */
+   按版本确认并存档（压印）；之后的修改自动进入新草稿，并用行内差异标出变化。确认方案不等于人事动作已执行。 */
 (function () {
   'use strict';
   const NT = window.NT, st = NT.store, UI = NT.ui;
@@ -45,10 +45,10 @@
         </article>
         <aside class="nt-grid nt-sticky">
           <article class="n-card"><h3 class="n-section-title">版本</h3>
-            ${plans().slice().reverse().map((x) => html`<div class="n-version" style="margin-bottom:6px"><span class="n-version__tag ${x.status === 'draft' ? 'is-draft' : x.status === 'confirmed' ? 'is-frozen' : ''}">${x.status === 'draft' ? '草稿' : x.status === 'confirmed' ? '已确认' : '已被替代'} v${x.version}</span><span style="color:var(--ink-3)">${st.person(x.confirmedBy || x.by).name} · ${NT.md(x.confirmedAt || x.at)}${x.status === 'confirmed' ? ' · 快照已冻结' : ''}</span>${x.status === 'confirmed' ? html`<span class="n-seal n-seal--sm" style="margin-left:auto">定</span>` : ''}</div>`)}
+            ${plans().slice().reverse().map((x) => html`<div class="n-version" style="margin-bottom:6px"><span class="n-version__tag ${x.status === 'draft' ? 'is-draft' : x.status === 'confirmed' ? 'is-frozen' : ''}">${x.status === 'draft' ? '草稿' : x.status === 'confirmed' ? '已确认' : '已被替代'} v${x.version}</span><span style="color:var(--ink-3)">${st.person(x.confirmedBy || x.by).name} · ${NT.md(x.confirmedAt || x.at)}${x.status === 'confirmed' ? ' · 已存档' : ''}</span>${x.status === 'confirmed' ? html`<span class="n-seal n-seal--sm" style="margin-left:auto">定</span>` : ''}</div>`)}
             ${diff ? html`<div class="n-version" style="margin-top:var(--s-2)"><span style="color:var(--ink-3)">v${p.version} 对比 v${prev.version}：</span><span class="n-diff">${diff.summary}</span></div>` : ''}
             ${draft && !canEdit ? html`<div class="n-notice is-plain" style="margin-top:var(--s-4)">${icon('lock')}<div>方案由 HR 修改和确认，你在这里查看。</div></div>` : ''}${draft && canEdit ? html`<div class="nt-row" style="margin-top:var(--s-4)"><button class="n-btn n-btn--ink" type="button" id="confirm">${icon('stamp')}确认 v${p.version}</button></div><div id="deny"></div>
-              <p class="nt-caption">确认后冻结快照并生成行动，这次盘点也一起确认；之后的调整在下一次盘点里做。</p>` : html`<p class="nt-caption">${conf ? `v${conf.version} 已确认。` : ''}${canEdit ? '要调整时直接改，会自动开一版新草稿。' : ''}</p>${canEdit ? html`<button class="n-btn n-btn--sm" type="button" id="newdraft">${icon('pen')}基于 v${p.version} 修改</button>` : ''}`}
+              <p class="nt-caption">确认后存档并生成行动，这次盘点也一起确认；之后的调整在下一次盘点里做。</p>` : html`<p class="nt-caption">${conf ? `v${conf.version} 已确认。` : ''}${canEdit ? '要调整时直接改，会自动开一版新草稿。' : ''}</p>${canEdit ? html`<button class="n-btn n-btn--sm" type="button" id="newdraft">${icon('pen')}基于 v${p.version} 修改</button>` : ''}`}
           </article>
           <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">写方案时的规则</h3>
             <ul class="nt-list" style="font-size:var(--t-sm);color:var(--ink-2)">
@@ -156,9 +156,9 @@
     const uncal = st.people().filter((x) => !x.noReview && st.inOrg(x.org, b.org) && !sn?.entries[x.id]).length;
     const v = await NT.dialog({
       title: `确认${p.title || '组织调整方案'} v${p.version}？`,
-      body: html`<p>确认后冻结快照，每条动作生成一条跟进行动。</p>`,
+      body: html`<p>确认后存档，每条动作生成一条跟进行动。</p>`,
       facts: [uncal ? html`${uncal} 人待校准，确认时按参考位置记为「未校准」` : html`范围内的人都已有校准结果`, html`${p.moves.length} 条动作：${p.moves.slice(0, 6).map((m) => `${m.kind || typeLabel(m)}${m.person ? ` · ${st.person(m.person).name}` : ''}`).join('、')}${p.moves.length > 6 ? ' 等' : ''}`, pending.length ? html`<span style="color:var(--conflict)">${pending.length} 条人选待定，确认后在行动里继续跟进</span>` : html`意愿或释放为「未知」的，行动会先从沟通开始`],
-      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并冻结 v${p.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并存档 v${p.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
     if (v !== 'ok') return;
     const created = st.confirmOrg(p);
@@ -166,6 +166,6 @@
     render($('#main'));
     const seal = $('#seal'); seal?.classList.add('is-stamping');
     $('#doc')?.classList.add('is-settling');
-    NT.toast(`已确认 v${p.version} 并冻结${created ? `，新增 ${created} 条行动` : ''}，在「人才项目」的关键节点复盘里跟进`);
+    NT.toast(`已确认 v${p.version} 并存档${created ? `，新增 ${created} 条行动` : ''}，在「人才项目」的关键节点复盘里跟进`);
   }
 })();

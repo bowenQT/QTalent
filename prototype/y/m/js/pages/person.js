@@ -41,7 +41,7 @@
       ${canQuad ? html`<div class="m-card"><h3 class="m-h" style="margin-top:0">能力象限</h3>
         <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)}<div class="nt-muted">${f.snap.label} · ${NT.md(f.snap.at)} ${st.person(f.snap.by).name}确认</div>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
           <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()}<div class="nt-muted">${ref.miss}</div>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''}`}</dd></dl>
-        ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后的新事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。</div></div>` : ''}
+        ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>上次盘点之后的新事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。</div></div>` : ''}
         
       </div>` : ''}
 
@@ -90,7 +90,7 @@
     // 两轴均值和落位缺口都是象限信息，只给能看象限的人
     if (canQuad && !ref.na) text += `已确认的分数里，专业度均值 ${ref.px.toFixed(1)}，潜力核心均值 ${ref.py.toFixed(1)}。`;
     if (canQuad && ref.na) text += `落位还差：${ref.miss}。`;
-    if (canQuad && st.needsRecal(pid)) text += '冻结后的新事件让参考位置离开了正式象限，建议在下次校准时讨论。';
+    if (canQuad && st.needsRecal(pid)) text += '上次盘点之后的新事件让参考位置离开了正式象限，建议在下次校准时讨论。';
     return html`<div class="n-block m-block" data-state="light" id="summary">${text}<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>随新确认的事件自动更新 · 只用你有权限查看的资料</div></div>`;
   }
 

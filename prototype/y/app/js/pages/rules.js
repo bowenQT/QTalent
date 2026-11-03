@@ -312,7 +312,7 @@
           </div>
           <div class="n-checkbar__sec">
             <span class="n-checkbar__label" id="compat-l">兼容声明</span>
-            ${kind === 'front' ? html`<p class="n-checkbar__text">选拔标准只影响之后新建的期次怎么评；已有的选拔记录和判断对照保持 ${d.base}。</p>` : kind === 'watch' ? html`<p class="n-checkbar__text">阈值类修订：生效后按新阈值计算，生效前冻结的快照保持原样。</p>` : html`
+            ${kind === 'front' ? html`<p class="n-checkbar__text">选拔标准只影响之后新建的期次怎么评；已有的选拔记录和判断对照保持 ${d.base}。</p>` : kind === 'watch' ? html`<p class="n-checkbar__text">阈值类修订：生效后按新阈值计算，生效前已存档的盘点结果保持原样。</p>` : html`
               <div class="n-seg" role="group" aria-labelledby="compat-l" id="compat"><button type="button" data-v="ok" aria-pressed="${d.compat === 'ok' && !forced}" ${NT.raw(forced || !ed ? 'disabled' : '')}>兼容：措辞澄清、补示例</button><button type="button" data-v="break" aria-pressed="${d.compat === 'break' || forced}" ${NT.raw(!ed ? 'disabled' : '')}>不兼容：等级含义变了</button></div>
               ${forced ? html`<div class="n-lock">${icon('lock')}<span>岗位族锚点首次启用，按不兼容处理：取数窗口内这一族的专业度分都要按新锚点复核。</span></div>` : ''}`}
           </div>
@@ -425,7 +425,7 @@
         <div class="n-checkbar">
           <div class="n-checkbar__sec"><span class="n-checkbar__label">修订理由</span><p style="margin:0;font-size:var(--t-sm);line-height:1.65">${d.why}</p></div>
           ${(d.basis || []).length ? html`<div class="n-checkbar__sec"><span class="n-checkbar__label">依据</span><div class="nt-row">${d.basis.map((b, i) => basisChip(b, i, false))}</div></div>` : ''}
-          <div class="n-checkbar__sec"><span class="n-checkbar__label">兼容声明</span><p class="n-checkbar__text">${kind === 'front' ? `选拔标准只影响之后新建的期次怎么评；已有的选拔记录和判断对照保持 ${d.base}。` : d.compat === 'break' ? html`<b>不兼容</b>：生效时为受影响的旧分生成复核任务，原分保留并显示 ${d.base}。` : kind === 'watch' ? '阈值类修订：生效后按新阈值计算，生效前冻结的快照保持原样。' : html`<b>兼容</b>：旧分继续参与取数。`}</p></div>
+          <div class="n-checkbar__sec"><span class="n-checkbar__label">兼容声明</span><p class="n-checkbar__text">${kind === 'front' ? `选拔标准只影响之后新建的期次怎么评；已有的选拔记录和判断对照保持 ${d.base}。` : d.compat === 'break' ? html`<b>不兼容</b>：生效时为受影响的旧分生成复核任务，原分保留并显示 ${d.base}。` : kind === 'watch' ? '阈值类修订：生效后按新阈值计算，生效前已存档的盘点结果保持原样。' : html`<b>兼容</b>：旧分继续参与取数。`}</p></div>
           <div class="n-checkbar__sec"><span class="n-checkbar__label">生效点</span><p class="n-checkbar__text">${kind === 'front' ? frontEffect(d) : d.effect === 'now' ? html`<b>立即对新的评价生效</b>，${d.base} 变为已替代。` : html`<b>从下一个盘点批次开始</b>，之前 ${d.base} 继续生效。`}</p></div>
           <div class="n-checkbar__foot">
             ${st.lockBlocks(d) ? html`<div class="n-lock">${icon('lock')}<span>${st.inventoryLock().name}进行中，这份草稿选的是立即生效；退回请${name(d.by)}把生效点改为下一个盘点批次。</span></div>` : ''}
@@ -632,7 +632,7 @@
       const k = kind, d = st.ruleOpen(k, L);
       const v = await NT.dialog({
         title: `确认发布 ${d.v}？`,
-        body: html`<p>${k === 'front' ? `确认后 ${d.v} 立即成为之后新建期次的默认版本，${d.base} 变为已替代；已建立的期次、选拔记录和判断对照保持原版本。` : d.effect === 'now' ? `确认后新的评价按 ${d.v} 计算，${d.base} 变为已替代。已确认的分数、冻结的快照和档案版本保留原来的版本。` : `确认后进入已排期，${nextText(d)}，在那之前 ${d.base} 继续生效。已确认的分数、冻结的快照和档案版本保留原来的版本。`}</p>`,
+        body: html`<p>${k === 'front' ? `确认后 ${d.v} 立即成为之后新建期次的默认版本，${d.base} 变为已替代；已建立的期次、选拔记录和判断对照保持原版本。` : d.effect === 'now' ? `确认后新的评价按 ${d.v} 计算，${d.base} 变为已替代。已确认的分数、已存档的盘点结果和档案版本保留原来的版本。` : `确认后进入已排期，${nextText(d)}，在那之前 ${d.base} 继续生效。已确认的分数、已存档的盘点结果和档案版本保留原来的版本。`}</p>`,
         facts: [html`理由：${d.why}`, d.preview ? impactLine(d.preview) : ''].filter(Boolean),
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认发布 ${d.v}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
       });

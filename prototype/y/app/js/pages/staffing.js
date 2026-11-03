@@ -275,13 +275,13 @@
       })}</div>
       ${draft || changed.length ? html`<div class="n-version" style="margin-top:var(--s-3)"><span class="n-version__tag is-draft">草稿 v${ver}</span><span style="color:var(--ink-3)">${conf ? `基于 v${conf.version} · 改了 ${changed.length} 处` : '第一版'}</span>
         ${changed.length ? html`<span class="n-diff" style="flex-basis:100%">${changed.map((r) => html`${r.name}：${conf?.slots?.[r.id] ? html`<del>${st.person(conf.slots[r.id]).name}</del> ` : html`<del>待定</del> `}${slots[r.id] ? html`<ins>${st.person(slots[r.id]).name}${draft?.slotNote?.[r.id] ? `（${draft.slotNote[r.id]}）` : ''}</ins>` : html`<ins>待定</ins>`}。`)}</span>` : ''}</div>` : ''}
-      ${plans.filter((p) => p.status !== 'draft').slice().reverse().map((p) => html`<div class="n-version" style="margin-top:6px"><span class="n-version__tag ${p.status === 'confirmed' ? 'is-frozen' : ''}">v${p.version} ${p.status === 'confirmed' ? '已确认' : '已被替代'}</span><span style="color:var(--ink-3)">${st.person(p.confirmedBy || p.by).name} · ${NT.md(p.confirmedAt || p.at)}${p.status === 'confirmed' ? ' · 快照已冻结' : ''}</span>${p.status === 'confirmed' ? html`<span class="n-seal n-seal--sm" style="margin-left:auto">定</span>` : ''}</div>`)}
+      ${plans.filter((p) => p.status !== 'draft').slice().reverse().map((p) => html`<div class="n-version" style="margin-top:6px"><span class="n-version__tag ${p.status === 'confirmed' ? 'is-frozen' : ''}">v${p.version} ${p.status === 'confirmed' ? '已确认' : '已被替代'}</span><span style="color:var(--ink-3)">${st.person(p.confirmedBy || p.by).name} · ${NT.md(p.confirmedAt || p.at)}${p.status === 'confirmed' ? ' · 已存档' : ''}</span>${p.status === 'confirmed' ? html`<span class="n-seal n-seal--sm" style="margin-left:auto">定</span>` : ''}</div>`)}
       ${frozenNow ? html`<p class="nt-caption">当前方案已确认。想调整时，把候选人拖进槽位，会自动开一版新草稿。</p>` : html`
         <div class="nt-row" style="margin-top:var(--s-4)">
           <button class="n-btn n-btn--ink" type="button" id="confirm">${icon('stamp')}确认 v${ver}</button>
           <button class="n-btn n-btn--ghost" type="button" id="savedraft">保存草稿</button>
         </div>
-        ${canConfirm ? html`<p class="nt-caption">确认后冻结快照，owner 和成员写入项目，并生成跟进行动，执行情况在「人才项目」的关键节点复盘里跟踪。</p>` : ''}
+        ${canConfirm ? html`<p class="nt-caption">确认后存档，owner 和成员写入项目，并生成跟进行动，执行情况在「人才项目」的关键节点复盘里跟踪。</p>` : ''}
         <div id="deny"></div>`}
     </article>
     <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">手动补入</h3>
@@ -370,14 +370,14 @@
     const d = saveDraft();
     const v = await NT.dialog({
       title: `确认「${p.name}」用人方案 v${d.version}？`,
-      body: html`<p>确认后冻结快照并生成跟进行动，之后的修改进入新草稿。</p>`,
+      body: html`<p>确认后存档并生成跟进行动，之后的修改进入新草稿。</p>`,
       facts: [...sc.roles.map((r) => html`${r.name}：<b>${slots[r.id] ? st.person(slots[r.id]).name : '待定'}</b>`), empty.length ? html`<span style="color:var(--conflict)">${empty.map((r) => r.name).join('、')}还空着，之后可以再补</span>` : html`写入项目成员，生成跟进行动`],
-      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并冻结 v${d.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并存档 v${d.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
     if (v !== 'ok') return;
     st.confirmStaffing(d, sc.roles);
     drawAll();
     const seal = $('#plan .n-seal'); seal?.classList.add('is-stamping');
-    NT.toast(`已确认 v${d.version} 并冻结。${slots.owner ? `${st.person(slots.owner).name}写入项目 owner` : ''}，后续行动进入行动列表`);
+    NT.toast(`已确认 v${d.version} 并存档。${slots.owner ? `${st.person(slots.owner).name}写入项目 owner` : ''}，后续行动进入行动列表`);
   }
 })();

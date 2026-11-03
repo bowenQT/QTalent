@@ -48,7 +48,7 @@
   function detail(it) {
     if (it.kind === 'recal') {
       const f = st.formal(it.person), r = st.refPos(it.person);
-      return html`<div class="nt-qdetail"><p style="margin:0">冻结后的新事件让参考位置从「${st.QN[f.q]}」移到了「${st.QN[r.q]}」。正式位置保持冻结时的样子：可以去象限校准里调整，也可以写明理由保持正式位置。</p>
+      return html`<div class="nt-qdetail"><p style="margin:0">上次盘点之后的新事件让参考位置从「${st.QN[f.q]}」移到了「${st.QN[r.q]}」。正式位置保持上次校准的结果：可以去象限校准里调整，也可以写明理由保持正式位置。</p>
         <textarea class="n-calib__reason" id="kr" aria-label="保持正式位置的理由" placeholder="写一句理由，会留在这个人的档案里。比如：新增的两件事都在同一个项目里，等下一次盘点再看"></textarea>
         <div class="nt-row">${st.recalTarget(it.person) ? html`<a class="n-btn n-btn--sm n-btn--ink" href="${st.recalTarget(it.person)}">${icon('grid')}去象限校准</a>` : html`<a class="n-btn n-btn--sm n-btn--ink" href="reviews.html">${icon('grid')}发起新的盘点后校准</a>`}<button class="n-btn n-btn--sm" type="button" data-keepformal="${it.person}">${icon('check')}保持正式位置</button><a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${it.person}#spectrum">看能力谱</a></div></div>`;
     }
