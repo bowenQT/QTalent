@@ -712,7 +712,7 @@
     const list = st.visiblePeople().filter((p) => st.scope(p.id) === 'mentor');
     // 推荐的进展跟着学员走：每人只显示本人最近一次推荐
     const recos = st.myRecos(), recoOf = (pid) => recos.find((c) => c.person === pid);
-    const recoLine = (c) => html`<small class="n-students__reco">${icon('target', 12)}<span>${st.fitText(c.dir)} · ${c.state === 'pending' ? 'HR 核实中' : c.state === 'verified' ? `${st.person(c.verifiedBy).name}已核实，进入发展方向` : `${st.person(c.verifiedBy).name}不采纳：${c.rejectWhy}`}</span></small>`;
+    const recoLine = (c) => html`<button class="n-students__reco" type="button" data-recoview="${c.id}">${icon('target', 12)}<span>${st.fitText(c.dir)} · ${c.state === 'pending' ? 'HR 核实中' : c.state === 'verified' ? `${st.person(c.verifiedBy).name}已核实，进入发展方向` : `${st.person(c.verifiedBy).name}不采纳：${c.rejectWhy}`}</span></button>`;
     const row = (p) => {
       const reco = recoOf(p.id);
       const land = st.landingOf(p.id), topic = land && st.project(land.row[1]);
@@ -720,13 +720,25 @@
       const week = mine.filter((e) => e.date >= since).length;
       return html`<li>${raw(`<a href="person.html?id=${p.id}" data-peek="p:${p.id}" tabindex="-1" aria-hidden="true">`)}${UI.avatar(p.id)}</a>
         <div><a class="nt-plink" href="person.html?id=${p.id}" data-peek="p:${p.id}"><b>${p.name}</b></a><small>${topic ? `${topic.name} · ` : ''}${week ? `本周记了 ${week} 件` : '本周待记'}${mine[0] ? ` · 最近 ${NT.md(mine[0].date)}` : ''}</small>${reco ? recoLine(reco) : ''}</div>
-        <div class="n-students__acts"><a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${p.id}">${icon('pen')}记一件事</a>${st.canRecommend(p.id) ? html`<button class="n-btn n-btn--sm" type="button" data-reco="${p.id}">${icon('target')}推荐</button>` : ''}</div></li>`;
+        <div class="n-students__acts"><a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${p.id}">${icon('pen')}记一件事</a>${st.canRecommend(p.id) ? html`<button class="n-btn n-btn--sm" type="button" data-reco="${p.id}"${raw(reco ? ' title="推荐另一个发展方向"' : '')}>${icon('target')}${reco ? '再推荐' : '推荐'}</button>` : ''}</div></li>`;
     };
     const todo = list.filter((p) => !S.events.some((e) => e.kind === 'obs' && e.people.includes(p.id) && e.recorder === me && e.date >= since)).length;
     $('#stu-total').textContent = `${list.length} 人`;
     const pending = recos.filter((c) => c.state === 'pending').length;
     $('#stu-meta').textContent = !list.length ? '' : [todo ? `本周还有 ${todo} 人没记` : '本周每人都记过了', pending && `${pending} 条推荐 HR 核实中`].filter(Boolean).join(' · ');
     mount($('#students'), list.length ? html`<ul class="n-students__list">${list.map(row)}</ul>` : html`<div class="nt-empty">分配给你的学员会出现在这里。</div>`);
+  }
+  // 本人提交的一条推荐：方向、理由、引用的事和 HR 的处理
+  async function recoView(id) {
+    const c = st.myRecos().find((x) => x.id === id); if (!c) return;
+    const p = st.person(c.person), evs = c.evs.map((e) => st.get().events.find((x) => x.id === e)).filter(Boolean);
+    const state = c.state === 'pending' ? html`<span class="n-astate" data-s="doing">HR 核实中</span>`
+      : c.state === 'verified' ? html`<span class="n-astate" data-s="done">已核实</span><small>${st.person(c.verifiedBy).name} ${NT.md(c.verifiedAt)} 核实，已进入档案的发展方向</small>`
+      : html`<span class="n-astate" data-s="cancel">不采纳</span><small>${st.person(c.verifiedBy).name} ${NT.md(c.verifiedAt)}：${c.rejectWhy}</small>`;
+    const r = await NT.dialog({ title: `推荐方向：${p.name}`, cls: 'n-recoview',
+      body: html`<dl class="n-recoview__dl"><dt>适合做</dt><dd><b>${st.template(c.dir)?.name}</b></dd><dt>状态</dt><dd class="n-recoview__st">${state}</dd><dt>理由</dt><dd>${c.why}</dd><dt>依据</dt><dd><ul>${evs.map((e) => html`<li>${e.title}<small>${NT.md(e.date)}</small></li>`)}</ul></dd><dt>提交</dt><dd>${NT.md(c.at)}</dd></dl>`,
+      actions: [{ label: '关闭', value: 'cancel', cls: 'n-btn--ghost' }, { label: '看档案', value: 'open', cls: 'n-btn--ink' }] });
+    if (r === 'open') location.href = `person.html?id=${c.person}`;
   }
   function wireMentor() {
     $('#stu-toggle').addEventListener('click', (e) => {
@@ -735,7 +747,10 @@
       btn.querySelector('.n-chgtray__act').textContent = stuOpen ? '收起' : '展开';
       const panel = $('#stu-panel'); panel.toggleAttribute('data-open', stuOpen); panel.inert = !stuOpen;
     });
-    $('#students').addEventListener('click', (e) => { const r = e.target.closest('[data-reco]'); if (r) UI.recoDialog(r.dataset.reco, drawMentor); });
+    $('#students').addEventListener('click', (e) => {
+      const v = e.target.closest('[data-recoview]'); if (v) { recoView(v.dataset.recoview); return; }
+      const r = e.target.closest('[data-reco]'); if (r) UI.recoDialog(r.dataset.reco, drawMentor);
+    });
   }
 
 })();

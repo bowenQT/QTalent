@@ -1721,7 +1721,17 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-students__list small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
 .n-students__list b { font-weight: 650; }
 .n-students__acts { display: flex; gap: var(--s-2); }
-.n-students__list small.n-students__reco { display: flex; align-items: center; gap: 4px; margin-top: 2px; min-width: 0; }
+.n-students__reco { display: flex; align-items: center; gap: 4px; max-width: 100%; margin-top: 2px; padding: 0; border: 0; border-radius: 4px; background: none; font: inherit; font-size: var(--t-xs); color: var(--ink-3); text-align: left; cursor: pointer; }
+.n-students__reco:hover { color: var(--ink); }
+.n-students__reco:hover span { text-decoration: underline; text-underline-offset: 2px; }
+.n-students__reco:focus-visible { outline: none; box-shadow: var(--focus); }
+.n-recoview__dl { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: var(--s-3); margin: 0; font-size: var(--t-sm); }
+.n-recoview__dl dt { color: var(--ink-3); font-size: var(--t-xs); padding-top: 2px; }
+.n-recoview__dl dd { margin: 0; min-width: 0; line-height: 1.6; }
+.n-recoview__dl ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.n-recoview__dl small { margin-left: 6px; color: var(--ink-3); font-size: var(--t-xs); }
+.n-recoview__st { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.n-recoview__st small { margin-left: 0; }
 .n-students__reco svg { width: 12px; height: 12px; flex: none; }
 .n-students__reco span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .n-dir__recos { display: grid; gap: var(--s-2); margin-top: var(--s-3); }
