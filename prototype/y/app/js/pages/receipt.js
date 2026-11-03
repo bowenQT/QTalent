@@ -30,7 +30,7 @@
     const raters = [...new Set(others.map((x) => x.ev.recorder))].map((p) => st.person(p)?.name).join('、');
     document.title = `回执 · ${d.title} · Niu-Talent`;
     mount(main, html`
-      <header class="nt-head"><div><h1>${d.title}</h1><p>${st.ENTRY[d.entry]}${d.tool ? ` · ${d.tool}` : ''} · ${st.person(d.by).name}交 · ${d.at.slice(5)}</p></div><span class="n-rstate" data-s="${stateKey}">${stateLabel}</span></header>
+      <header class="nt-head"><div><h1>${d.title}</h1><p class="n-entryline">${UI.entry(d.entry, d.tool)}<span>${st.person(d.by).name}交 · ${d.at.slice(5)}</span></p></div><span class="n-rstate" data-s="${stateKey}">${stateLabel}</span></header>
       <ul class="n-rsum" aria-label="这次读到了什么">
         <li><b>${s.files}</b>个文件${s.processing ? html`<small>${s.processing} 个处理中</small>` : ''}${s.failed ? html`<small class="is-err">${s.failed} 个失败</small>` : ''}</li>
         <li><b>${s.people}</b>人</li>

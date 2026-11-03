@@ -9,6 +9,9 @@
   UI.root = '..';
 
   UI.demo = () => html`<span class="n-badge n-badge--demo">演示</span>`;
+  // 投递入口标签：全站同一个样子，企业微信小犇、MCP 用各自的底色和图标区分
+  const ENTRY_ICON = { web: 'upload', wecom: 'chat', mcp: 'code', mobile: 'phone' };
+  UI.entry = (k, tool) => html`<span class="n-via n-via--${k}">${icon(ENTRY_ICON[k], 12)}${st.ENTRY[k]}${tool ? ` · ${tool}` : ''}</span>`;
   // 原量表里的星级（绩效评分，满 5 星）画成星星；其他取值原样显示
   UI.scaleVal = (v) => { const m = /^([0-5]) 星$/.exec(v); return m ? html`<span class="n-stars" role="img" aria-label="${m[1]} 星，满分 5 星">${'★'.repeat(+m[1])}<i>${'★'.repeat(5 - m[1])}</i></span>` : v; };
   UI.avatar = (pid, size = '') => {

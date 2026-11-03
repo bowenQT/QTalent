@@ -29,7 +29,7 @@
   };
 
   // 关键事件的来源：带 GitHub 依据的算 GitHub；从投递来的按投递入口（企业微信小犇、MCP、统一投递、手机）；其余按第一份材料
-  const VIA = { gh: ['branch', 'GitHub'], wecom: ['chat', '企业微信 · 小犇'], mcp: ['spark', 'Claude Code（MCP）'], web: ['upload', '统一投递'], mobile: ['phone', '手机网页'], doc: ['doc', '材料与记录'] };
+  const VIA = { gh: ['branch', 'GitHub'], wecom: ['chat', st.ENTRY.wecom], mcp: ['code', st.ENTRY.mcp], web: ['upload', st.ENTRY.web], mobile: ['phone', st.ENTRY.mobile], doc: ['doc', '材料与记录'] };
   const VIA_TABS = [['all', '全部'], ['gh', 'GitHub'], ['wecom', '企业微信 · 小犇'], ['mcp', 'MCP'], ['doc', '材料与记录']];
   const viaOf = (e) => {
     const g = e.srcs.find((x) => x.type === 'gh');
