@@ -1677,6 +1677,9 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-btn:focus-visible, .n-link:focus-visible, .n-chip:focus-visible, .n-navitem:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus); }
 .n-link { color: var(--light); text-decoration-color: transparent; }
 .n-link:hover { color: var(--light); text-decoration-color: currentColor; }
+/* 正文里不带类名的 <a> 与文字动作同一外观，字号跟随所在文字；:where 不抬优先级，容器自己的链接规则照常生效 */
+:where(a:not([class])) { color: var(--light); text-decoration: underline; text-decoration-color: transparent; text-decoration-thickness: 1px; text-underline-offset: 3px; transition: text-decoration-color var(--d-quick); }
+:where(a:not([class])):hover { text-decoration-color: currentColor; }
 .n-navitem { color: var(--ink-2); }
 .n-navitem:hover { background: var(--hover); color: var(--ink); }
 .n-navitem[aria-current="page"] { background: var(--light-soft); color: var(--light); box-shadow: none; }
