@@ -435,7 +435,7 @@
   // ---------- 管理者首页：找人、值得关注的人、值得关注的项目、我的关注；判断提醒一行告知 ----------
   function renderCeo(main, me) {
     mount(main, html`
-      <header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · 全部人才项目</p></div><div class="nt-notes" id="jsig" role="note" aria-label="提醒"></div>${exportBtn()}</header>${exportHost()}
+      <header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · 全部人才项目</p></div><div class="nt-notes" id="jsig" role="note" aria-label="提醒"></div></header>
       <section class="n-find is-pop" aria-label="找人">
         <div class="n-composer is-hero" id="composer">
           <span class="nt-ip" data-ip="rest" data-size="36" id="composer-ip"></span>
@@ -459,7 +459,6 @@
         <div class="nt-grid"><article class="n-card n-progs" id="progs" aria-labelledby="progs-h"></article><article class="n-card n-follows" id="follows" aria-labelledby="follows-h"></article></div>
       </div>`);
     wireComposer('ceo');
-    wireExport();
     $('#composer-field').addEventListener('keydown', (e) => { if (e.key === 'Escape') e.target.blur(); });
     drawCeo();
     wireWatch();

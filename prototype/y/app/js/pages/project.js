@@ -143,7 +143,7 @@
         <div><b>${items.filter((g) => g.state === '已合并').length}</b><span>已合并的 PR</span></div>
       </div>
       <article class="n-card"><h3 class="n-section-title">近期动态</h3>
-        ${feed.length ? html`<ul class="n-feed">${feed.map((f) => html`<li><span class="n-feed__ic">${icon(f.ic, 14)}</span><div class="n-feed__body">${f.body}<div class="n-feed__meta">${f.at ? NT.md(f.at) : '时间未知'} · ${f.chip}</div></div></li>`)}</ul>` : html`<div class="nt-empty">记录、Issue 和 PR 会按时间出现在这里。</div>`}
+        ${feed.length ? html`<ul class="n-pjfeed">${feed.map((f) => html`<li><span class="n-pjfeed__ic">${icon(f.ic, 14)}</span><div class="n-pjfeed__body">${f.body}<div class="n-pjfeed__meta">${f.at ? NT.md(f.at) : '时间未知'} · ${f.chip}</div></div></li>`)}</ul>` : html`<div class="nt-empty">记录、Issue 和 PR 会按时间出现在这里。</div>`}
       </article>`;
   }
 

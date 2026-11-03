@@ -2301,12 +2301,12 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-pjstats > div { padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--sheet); box-shadow: inset 0 0 0 1px var(--line); }
 .n-pjstats b { display: block; font-size: var(--t-lg); font-weight: 650; font-variant-numeric: tabular-nums; }
 .n-pjstats span { font-size: var(--t-xs); color: var(--ink-3); }
-.n-feed { list-style: none; margin: 0; padding: 0; }
-.n-feed li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: var(--s-3); padding: var(--s-2) 0; }
-.n-feed__ic { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--sheet-sunk); color: var(--ink-2); }
-.n-feed__ic svg { width: 14px; height: 14px; }
-.n-feed__body { min-width: 0; font-size: var(--t-sm); line-height: 1.55; color: var(--ink); }
-.n-feed__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; font-size: var(--t-xs); color: var(--ink-3); }
+.n-pjfeed { list-style: none; margin: 0; padding: 0; }
+.n-pjfeed li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: var(--s-3); padding: var(--s-2) 0; }
+.n-pjfeed__ic { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--sheet-sunk); color: var(--ink-2); }
+.n-pjfeed__ic svg { width: 14px; height: 14px; }
+.n-pjfeed__body { min-width: 0; font-size: var(--t-sm); line-height: 1.55; color: var(--ink); }
+.n-pjfeed__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; font-size: var(--t-xs); color: var(--ink-3); }
 .n-via { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: var(--r-chip); background: var(--sheet-sunk); font-size: 11px; color: var(--ink-2); white-space: nowrap; }
 .n-via svg { width: 12px; height: 12px; flex: none; }
 .n-entryline { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
@@ -2315,7 +2315,7 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-via--mcp { background: var(--light-soft); color: var(--light); }
 .nt-split.is-board { grid-template-columns: minmax(0, 1fr); }
 .nt-split.is-board > aside { display: none; }
-.n-feed__body .nt-plink { display: inline; }
+.n-pjfeed__body .nt-plink { display: inline; }
 .n-board__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-bottom: var(--s-3); }
 .n-board__bar .n-select { width: auto; flex: 0 1 160px; }
 .n-board__sync { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--t-xs); color: var(--ink-3); }
