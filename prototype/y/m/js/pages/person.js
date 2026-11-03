@@ -80,19 +80,10 @@
       }
       const a = e.target.closest('a[href^="#ev-"]');
       if (a) { e.preventDefault(); document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({ block: 'start', behavior: NT.reduced ? 'auto' : 'smooth' }); }
-      const sum = e.target.closest('[data-sum]');
-      if (sum) {
-        st.adoptSummary(pid, $('#sum-text').textContent, st.can('quad', pid));
-        const b = $('#summary'); b.dataset.state = 'ink'; b.classList.add('is-settling');
-        $('.n-block__by', b).innerHTML = `<span class="n-block__sig">${NT.esc(st.me().name)}</span>刚刚采纳 AI 摘要`;
-        sum.remove();
-      }
     };
   }
 
   function summary(p, obs, canScore, ref, canQuad) {
-    const saved = st.summaryFor(pid);
-    if (saved) return html`<div class="n-block m-block" data-state="ink" id="summary">${saved.text}<div class="n-block__by"><span class="n-block__sig">${st.person(saved.by).name}</span>${NT.md(saved.at)} 采纳 AI 摘要</div></div>`;
     const dated = obs.filter((e) => e.date);
     const recent = dated.filter((e) => e.date >= NT.addDays(NT.TODAY, -90)).length;
     let text = `近 12 个月有 ${dated.length} 条关键事件，其中近 3 个月 ${recent} 条。`;
@@ -100,8 +91,7 @@
     if (canQuad && !ref.na) text += `已确认的分数里，专业度均值 ${ref.px.toFixed(1)}，潜力核心均值 ${ref.py.toFixed(1)}。`;
     if (canQuad && ref.na) text += `落位还差：${ref.miss}。`;
     if (canQuad && st.needsRecal(pid)) text += '冻结后的新事件让参考位置离开了正式象限，建议在下次校准时讨论。';
-    return html`<div class="n-block m-block" data-state="light" id="summary"><span id="sum-text">${text}</span><div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>只用你有权限查看的资料</div>
-      ${st.role() !== 'mentor' ? html`<button class="n-btn n-btn--sm" type="button" data-sum style="margin-top:var(--s-2)">${icon('check')}采纳</button>` : ''}</div>`;
+    return html`<div class="n-block m-block" data-state="light" id="summary">${text}<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>随新确认的事件自动更新 · 只用你有权限查看的资料</div></div>`;
   }
 
   function timeline(events) {

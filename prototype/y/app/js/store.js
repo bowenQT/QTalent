@@ -112,7 +112,7 @@
       case 'scores': return pid ? ['full', 'mentor', 'project'].includes(sc) : role !== 'self';
       case 'quad': return pid ? sc === 'full' && role !== 'mentor' : ['ceo', 'hrbp', 'lead'].includes(role);
       case 'mgmt': return pid ? sc === 'full' && role !== 'mentor' : ['ceo', 'hrbp', 'lead'].includes(role);
-      // 整理档案（写管理判断、采纳 AI 摘要）由 HR 汇总各方意见后做；管理者是公司层视角，只读
+      // 整理档案（写管理判断）由 HR 汇总各方意见后做；管理者是公司层视角，只读
       case 'curate': return role === 'hrbp' && (!pid || sc === 'full');
       case 'signals': {
         if (!['ceo', 'hrbp', 'lead'].includes(role)) return false;
@@ -555,20 +555,6 @@
     if (!r.total) return '待记录事件';
     const left = r.total - r.confirmed;
     return left > 0 ? `还有 ${left} 项待确认` : '逐项已确认，待整份确认';
-  };
-
-  // 采纳的 AI 摘要记下它依据的事件和是否含象限信息；换到看不到这些内容的视角时不复用，改由 AI 按新视角重写
-  store.adoptSummary = (pid, text, quad) => {
-    S.summaries = S.summaries || {};
-    S.summaries[pid] = { text, by: store.me().id, at: NT.TODAY, ids: store.visibleEvents(pid).events.map((e) => e.id), quad: !!quad };
-    store.save();
-  };
-  store.summaryFor = (pid) => {
-    const saved = S.summaries?.[pid];
-    if (!saved || !saved.ids) return null;
-    if (saved.quad && !store.can('quad', pid)) return null;
-    const seen = new Set(store.visibleEvents(pid).events.map((e) => e.id));
-    return saved.ids.every((id) => seen.has(id)) ? saved : null;
   };
 
   // 面评等招聘资料按来源类别标记（cat: 'recruit'），类型名统一写「招聘评估」（需求定稿 v1.2 §3.9.2）；可见过滤看类别，不看类型名

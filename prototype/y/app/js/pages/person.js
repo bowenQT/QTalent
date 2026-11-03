@@ -126,7 +126,6 @@
     $('#btn-track')?.addEventListener('click', () => startTrack());
     $('#btn-print')?.addEventListener('click', () => printProfile());
     wireTimeline(main);
-    wireSummary(main);
     UI.mountIPs(main);
     if (NT.param('track') && !tracks.some((t) => t.state === 'on') && !render.asked) { render.asked = true; startTrack(); }
   }
@@ -142,7 +141,7 @@
   }
 
   // 档案打印（BOW-911）：打印前按当前权限再校验一次，越权就拒绝并留审计；打印内容只含已确认的部分，
-  // 不含 AI 建议分、待校准的分、未采纳的 AI 摘要和参考位置。直接用浏览器打印只会印出一句提示。演示：?print=deny 看拒绝
+  // 不含 AI 建议分、待校准的分、AI 摘要和参考位置。直接用浏览器打印只会印出一句提示。演示：?print=deny 看拒绝
   // 浏览器打印印出的提示按当时的视角写：页面上有「打印档案」的指向它，没有的说明档案打印对谁开放
   const printIdle = () => `<p class="n-print__idle">${st.canExport(pid)
     ? '档案请用页面上的「打印档案」打印：打印内容只含已确认的部分，并记入审计日志。'
@@ -163,18 +162,18 @@
   const printData = () => {
     const { rows, skipped } = st.exportRows([pid]);
     const evs = [...new Set(rows.map((r) => r.ev))].map((id) => ({ e: st.event(id), rows: rows.filter((r) => r.ev === id) })).sort((a, b) => (b.e.date || '').localeCompare(a.e.date || ''));
-    return { rows, skipped, evs, saved: st.summaryFor(pid), quad: st.can('quad', pid), f: st.can('quad', pid) ? st.formal(pid) : null, hidden: st.visibleEvents(pid).hidden };
+    return { rows, skipped, evs, quad: st.can('quad', pid), f: st.can('quad', pid) ? st.formal(pid) : null, hidden: st.visibleEvents(pid).hidden };
   };
   async function printProfile() {
     const p = st.person(pid);
     if (printDenied()) { await refusePrint(p); return; }
-    const { rows, skipped, evs, saved, hidden } = printData();
+    const { rows, skipped, evs, hidden } = printData();
     const ok = await NT.dialog({
       title: `打印${p.name}的档案`,
       body: '打印的是截至现在已确认的内容；盘点结论以冻结快照为准。打印会记入审计日志。',
       facts: [
-        html`<b>会打印</b>：基本信息、${evs.length} 件关键事件里 ${rows.length} 条已确认的维度分（附行为锚点、引用、评分人、规则版本和来源位置）${saved ? '、已采纳的 AI 摘要（标明 AI 生成和采纳人）' : ''}${st.can('quad', pid) ? '、能力象限的正式位置' : ''}`,
-        html`<b>留在系统里</b>：${skipped ? `跳过的 ${skipped} 条分（待确认、待复核或还在评分复核里）、` : ''}待采纳的 AI 摘要、系统给的参考位置${hidden ? `，以及你权限外的 ${hidden} 条资料` : ''}`,
+        html`<b>会打印</b>：基本信息、${evs.length} 件关键事件里 ${rows.length} 条已确认的维度分（附行为锚点、引用、评分人、规则版本和来源位置）${st.can('quad', pid) ? '、能力象限的正式位置' : ''}`,
+        html`<b>留在系统里</b>：${skipped ? `跳过的 ${skipped} 条分（待确认、待复核或还在评分复核里）、` : ''}AI 摘要、系统给的参考位置${hidden ? `，以及你权限外的 ${hidden} 条资料` : ''}`,
       ],
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '打印', value: 'go', cls: 'n-btn--ink', icon: 'print' }],
     });
@@ -185,8 +184,7 @@
     const land = st.landingOf(pid);
     sheet.innerHTML = String(html`
       <header class="n-print__head"><h1>${p.name} <small>演示</small></h1><p>${st.orgPath(p.org)} · ${p.title} · ${p.level} · ${st.tenure(p)}${land ? ` · ${land.batch.name}` : ''}</p></header>
-      <dl class="n-print__meta"><dt>打印时间</dt><dd>${at}</dd><dt>打印人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分、还在评分复核里的分、待采纳的 AI 摘要和参考位置留在系统里；盘点结论以冻结快照为准</dd></dl>
-      ${now.saved ? html`<section><h2>档案摘要 <small>AI 生成 · 经人采纳</small></h2><p>${now.saved.text}</p><p class="n-print__by">${st.person(now.saved.by).name} ${NT.md(now.saved.at)} 采纳 AI 摘要</p></section>` : ''}
+      <dl class="n-print__meta"><dt>打印时间</dt><dd>${at}</dd><dt>打印人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分、还在评分复核里的分、AI 摘要和参考位置留在系统里；盘点结论以冻结快照为准</dd></dl>
       ${now.quad ? html`<section><h2>能力象限 · 正式位置</h2><p>${now.f ? `${st.QN[now.f.q]} · ${now.f.snap.label}校准 · ${NT.md(now.f.snap.at)} 冻结 · ${st.person(now.f.snap.by).name}确认` : '待正式校准'}</p></section>` : ''}
       <section><h2>关键事件与已确认的维度分 <small>${now.evs.length} 件 · ${now.rows.length} 条</small></h2>
         ${now.evs.length ? html`<ol class="n-print__evs">${now.evs.map(({ e, rows: rs }) => html`<li><p class="n-print__ev"><b>${NT.md(e.date)} · ${e.title}</b>${e.project ? ` · ${st.project(e.project)?.name || ''}` : ''} · ${st.person(e.recorder)?.name || ''}记录</p>
@@ -222,8 +220,6 @@
 
   // AI 摘要：光；采纳后落墨并署名
   function summaryBlock(p, events, canScore, ref, f, canQuad) {
-    const S = st.get();
-    const saved = st.summaryFor(pid);
     const obs = events.filter((e) => e.kind === 'obs' && e.date);
     const tags = {}; obs.forEach((e) => (e.tags || []).forEach((t) => { tags[t] = (tags[t] || 0) + 1; }));
     const topTags = Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
@@ -235,22 +231,8 @@
     if (canQuad && ref.na) text += `落位还差：${ref.miss}。`;
     if (self) text += `本人说过${self.title}`;
     if (canQuad && st.needsRecal(pid)) text += `冻结后的新事件让参考位置离开了正式象限，建议在下次校准时讨论。`;
-    if (saved) return html`<div class="n-block" data-state="ink" id="summary">${saved.text}<div class="n-block__by"><span class="n-block__sig">${st.person(saved.by).name}</span>${NT.md(saved.at)} 采纳 AI 摘要</div></div>`;
-    return html`<div><div class="n-block" data-state="light" id="summary"><span id="sum-text">${text}</span><div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>依据 ${obs.length} 条事件 · 只用你有权限查看的资料</div></div>
-      ${st.can('curate', pid) ? html`<div class="nt-row" style="margin-top:var(--s-2);padding-left:var(--s-5)" id="sum-acts"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-sum="ok">${icon('check')}采纳</button><button class="n-btn n-btn--sm" type="button" data-sum="edit">${icon('pen')}改写</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-sum="drop">删去</button></div>` : ''}</div>`;
-  }
-  function wireSummary(main) {
-    const acts = $('#sum-acts'); if (!acts) return;
-    const block = $('#summary'), text = $('#sum-text');
-    acts.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-sum]'); if (!b) return;
-      if (b.dataset.sum === 'edit') { text.contentEditable = 'plaintext-only'; text.classList.add('n-edit'); text.focus(); b.dataset.sum = 'ok'; b.innerHTML = '<svg><use href="#i-check"/></svg>改好了，采纳'; return; }
-      if (b.dataset.sum === 'drop') { block.parentElement.remove(); NT.toast('已删去这段摘要', { undo: () => render(main) }); return; }
-      block.dataset.state = 'ink'; block.classList.add('is-settling'); text.contentEditable = 'false';
-      st.adoptSummary(pid, text.textContent, st.can('quad', pid));
-      $('.n-block__by', block).innerHTML = `<span class="n-block__sig">${NT.esc(st.me().name)}</span>刚刚采纳 AI 摘要`;
-      acts.remove();
-    });
+    // AI 摘要随新确认的事件自动重写，不需要采纳；它只是导读，不进打印档案，也不参与任何判断
+    return html`<div class="n-block" data-state="light" id="summary">${text}<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>依据 ${obs.length} 条事件 · 随新确认的事件自动更新 · 只用你有权限查看的资料</div></div>`;
   }
 
   // 时间线按人才发展的关键节点分段：XEngineer → 入职 → Landing → 绩效 → 转正 / 晋升。
