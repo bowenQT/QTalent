@@ -1075,6 +1075,10 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-track__new h5 { margin: 0 0 4px; font-size: var(--t-xs); color: var(--ink-3); font-weight: 500; }
 .n-track__acts { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
 .n-track.is-stopped { opacity: .7; }
+/* 并排的跟踪卡等高：「上次之后新增」吃掉多出的高度，操作按钮落在同一条底线上 */
+.nt-cols:has(> .n-track), .nt-cols-3:has(> .n-track) { align-items: stretch; }
+.n-track { display: flex; flex-direction: column; }
+.n-track__new { flex: 1; }
 
 /* ══════════════ Landing 与盘点 ══════════════ */
 .n-batch__head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s-3); }
