@@ -47,9 +47,6 @@
             ${canEdit ? html`<div class="nt-row" style="margin-top:var(--s-4)"><button class="n-btn n-btn--ink" type="button" id="confirm">${icon('stamp')}确认 v${p.version}</button></div>
               <p class="nt-caption">确认后存档并生成行动，这次盘点也一起确认；之后的调整在下一次盘点里做。</p>` : html`<div class="n-notice is-plain" style="margin-top:var(--s-4)">${icon('lock')}<div>${conf ? `v${conf.version} 已确认，方案不能再修改；之后的调整在下一次盘点里做。` : '方案由 HR 和管理者修改和确认，你在这里查看。'}</div></div>`}
           </article>
-          <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">写方案时的规则</h3>
-            <ul class="nt-list" style="font-size:var(--t-sm);color:var(--ink-2)">
-              <li>本人意愿、原团队能否放人还不清楚时写「未知」。</li><li>资料不足的人放「继续观察」，写清下次补什么、谁负责。</li><li>动作来自「值得聊一聊」的，标为「激活」。</li></ul></article>
         </aside>
       </div>`);
     editable = canEdit;
@@ -59,6 +56,7 @@
 
   // 列表按类型分组，类型筛选和姓名 / 部门筛选只影响显示，不改方案
   let ftype = 'all', fq = '', editable = false;
+  const ACT_HINT = '激活：这条动作来自「值得聊一聊」之后和本人的沟通';
   const groupOf = (m) => (m.kind === '激活' ? '激活' : m.type);
   const GROUPS = ['负责人安排', '调岗', '激活', '落位', '留用', '继续观察', '未接受'];
   const groupLabel = (g) => (g === '未接受' ? '未接受 offer' : g);
@@ -73,7 +71,7 @@
     mount($('#mvf'), html`${['all', ...groups].map((g) => html`<button class="n-chip" type="button" data-g="${g}" aria-pressed="${g === ftype}">${g === 'all' ? '全部' : groupLabel(g)} <b>${n(g)}</b></button>`)}`);
     const shown = groups.filter((g) => ftype === 'all' || g === ftype).map((g) => [g, byQ.filter(([m]) => groupOf(m) === g)]).filter(([, l]) => l.length);
     mount($('#moves'), shown.length
-      ? html`${shown.map(([g, l]) => html`<section class="n-movegrp"><h3 class="n-movegrp__title">${groupLabel(g)}<span class="n-count is-quiet">${l.length}</span></h3>${l.map(([m, i]) => move(m, i, editable))}</section>`)}`
+      ? html`${shown.map(([g, l]) => html`<section class="n-movegrp"><h3 class="n-movegrp__title">${groupLabel(g)}${g === '激活' ? UI.hint(ACT_HINT) : ''}<span class="n-count is-quiet">${l.length}</span></h3>${l.map(([m, i]) => move(m, i, editable))}</section>`)}`
       : html`<div class="nt-empty">没有符合条件的动作。<button class="n-link" type="button" id="mvclear">清除筛选</button></div>`);
     NT.$$('[data-menu]', $('#moves')).forEach((btn) => {
       const i = +btn.dataset.menu;
@@ -140,7 +138,7 @@
       title: i == null ? '加一条动作' : '修改这条动作',
       cls: 'n-dialog--wide',
       body: html`<div class="nt-grid n-mvform" style="gap:var(--s-4)">
-        <div class="n-field"><span class="n-field__label">类型</span>${seg('type', TYPES.map((t) => [t, t === '未接受' ? '未接受 offer' : t]), curType)}</div>
+        <div class="n-field"><span class="n-field__label">类型 ${UI.hint(ACT_HINT)}</span>${seg('type', TYPES.map((t) => [t, t === '未接受' ? '未接受 offer' : t]), curType)}</div>
         <div class="nt-cols" style="gap:var(--s-3)">
           <label class="n-field"><span class="n-field__label">谁</span><select class="n-select" data-k="person"><option value="">人选待定</option>${people.map((x) => html`<option value="${x.id}" ${x.id === m.person ? 'selected' : ''}>${x.name} · ${st.orgShort(x.org)}</option>`)}</select></label>
           <label class="n-field" data-for="to"><span class="n-field__label">去向</span><select class="n-select" data-k="to">${dests.map((t) => html`<option ${t === m.to ? 'selected' : ''}>${t}</option>`)}${m.to && !dests.includes(m.to) ? html`<option selected>${m.to}</option>` : ''}</select></label></div>

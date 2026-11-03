@@ -27,6 +27,8 @@
     ${tabs.length > 1 ? html`<nav class="n-tabs nt-subtabs" aria-label="人才项目">${tabs.map(([k, l, h]) => html`<a href="${h}" ${raw(k === cur ? 'aria-current="page"' : '')}>${l}</a>`)}</nav>` : ''}
     <p class="nt-tabdesc">${desc}</p>`;
   };
+  // 词义不直观时，在词旁边放一个问号，悬浮或聚焦时说明；不在页面里另放规则说明
+  UI.hint = (text) => NT.html`<span class="n-hint" tabindex="0" role="img" aria-label="${text}" data-hint="${text}">${NT.icon('help', 14)}</span>`;
   UI.plink = (pid, text) => {
     const p = st.person(pid);
     if (!p) return text || '';

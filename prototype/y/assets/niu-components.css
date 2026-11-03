@@ -2256,3 +2256,10 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-mvform__auto dt { color: var(--ink-3); }
 .n-mvform__auto dd { margin: 0; color: var(--ink); line-height: 1.6; }
 .n-mvform > :empty { display: none; }
+/* 词旁问号：悬浮或键盘聚焦时浮出说明 */
+.n-hint { position: relative; display: inline-flex; vertical-align: -2px; margin-left: 2px; color: var(--ink-3); cursor: help; border-radius: 50%; }
+.n-hint:hover, .n-hint:focus-visible { color: var(--ink); }
+.n-hint:focus-visible { outline: 2px solid var(--light); outline-offset: 1px; }
+.n-hint::after { content: attr(data-hint); position: absolute; left: -8px; top: calc(100% + 6px); z-index: 30; width: max-content; max-width: 240px; padding: 6px 10px; border-radius: var(--r-field); background: var(--ink); color: #fff; font-size: var(--t-xs); font-weight: 400; line-height: 1.55; letter-spacing: 0; white-space: normal; box-shadow: var(--e-2); pointer-events: none; opacity: 0; transform: translateY(-2px); transition: opacity var(--d-quick) var(--ease-out), transform var(--d-quick) var(--ease-out); }
+.n-hint:hover::after, .n-hint:focus-visible::after { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .n-hint::after { transition: none; transform: none; } }
