@@ -104,6 +104,8 @@ a.n-btn { text-decoration: none; }
 .nt-empty { padding: var(--s-5); border-radius: var(--r-card); background: var(--sheet-sunk); font-size: var(--t-sm); color: var(--ink-3); text-align: center; }
 .nt-dlg-body { font-size: var(--t-sm); line-height: 1.7; color: var(--ink-2); }
 .nt-dlg-body .n-field + .n-field { margin-top: var(--s-3); }
+/* 网格里的字段靠 gap 排间距，不再叠加上边距，否则同一行的两列错开 */
+.nt-dlg-body :is(.nt-grid, .nt-cols, .nt-cols-3) > .n-field + .n-field { margin-top: 0; }
 .nt-toasts { position: fixed; left: 50%; bottom: 24px; translate: -50% 0; z-index: 2147483000; display: grid; justify-items: center; gap: var(--s-2); pointer-events: none; }
 .nt-toasts .n-toast { pointer-events: auto; }
 .nt-event + .nt-event { margin-top: var(--s-3); }
