@@ -116,4 +116,4 @@ worker使用上述`readValidatedUpload`，不直接读写uploads内部表，不�
 
 未分配材料完成后只归档原件、不派发任务：store 对 unassigned 目标不调用 dispatch，完成结果是 `uploadCompletedSchema` 的 `{ status: 'staged', uploadId, … }` 变体，不带 jobId；`ValidatedUpload.jobId` 为 null。批次侧按 uploadId 接收已暂存的上传。people/event 目标仍只走带 jobId 的原变体，store 校验已存完成结果与目标类型一致。
 
-Kodo 配置经 `env.ts` 的可选键读取：`QINIU_KODO_ENDPOINT`、`QINIU_KODO_UPLOAD_ENDPOINT`、`QINIU_KODO_MANAGEMENT_ENDPOINT`、`QINIU_KODO_ACCESS_KEY`、`QINIU_KODO_SECRET_KEY`、`QINIU_KODO_BUCKET` 必填，`QINIU_KODO_S3_REGION` 可省略。缺任一必填键时，测试环境（`APP_ENV=test` 且非生产构建）改用 `queries/test-kodo.ts` 的内存 v2 替身，并注册 `/api/test/kodo/...`，上传接口与完成校验共用同一份对象存储；其他环境三个入口返回 503，其他流程不受影响。生产构建和非测试环境下该端点返回 404。
+Kodo 配置经 `env.ts` 的可选键读取：`QINIU_KODO_ENDPOINT`、`QINIU_KODO_UPLOAD_ENDPOINT`、`QINIU_KODO_MANAGEMENT_ENDPOINT`、`QINIU_KODO_ACCESS_KEY`、`QINIU_KODO_SECRET_KEY`、`QINIU_KODO_BUCKET` 必填，`QINIU_KODO_S3_REGION` 可省略。缺任一必填键时，测试环境（`APP_ENV=test` 且非生产构建）改用 `integrations/kodo/test-kodo.ts` 的 v2 替身，并注册 `/api/test/kodo/...`。替身的对象按测试库存放在本机临时目录，上传接口、完成校验和 worker 进程读到的是同一份字节；其他环境三个入口返回 503，其他流程不受影响。生产构建和非测试环境下该端点返回 404。

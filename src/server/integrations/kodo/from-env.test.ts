@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kodoUploadStorageFromEnv } from './kodo-upload-storage';
+import { createKodoClientFromEnv } from './from-env';
 
 const complete = {
   QINIU_KODO_ENDPOINT: 'https://s3.cn-east-1.qiniucs.com',
@@ -10,26 +10,24 @@ const complete = {
   QINIU_KODO_BUCKET: 'demo-bucket',
 };
 
-describe('Kodo upload storage from the deployment environment', () => {
+describe('Kodo client from the deployment environment', () => {
   it('builds a client only when every required value is present', () => {
-    const storage = kodoUploadStorageFromEnv(complete);
+    const storage = createKodoClientFromEnv(complete);
     expect(storage?.issueUploadGrant).toBeTypeOf('function');
     for (const name of Object.keys(complete))
-      expect(
-        kodoUploadStorageFromEnv({ ...complete, [name]: '  ' }),
-      ).toBeNull();
-    expect(kodoUploadStorageFromEnv({})).toBeNull();
+      expect(createKodoClientFromEnv({ ...complete, [name]: '  ' })).toBeNull();
+    expect(createKodoClientFromEnv({})).toBeNull();
   });
 
   it('passes an explicit S3 region through and rejects malformed values', () => {
     expect(
-      kodoUploadStorageFromEnv({
+      createKodoClientFromEnv({
         ...complete,
         QINIU_KODO_S3_REGION: 'cn-east-1',
       }),
     ).not.toBeNull();
     expect(() =>
-      kodoUploadStorageFromEnv({
+      createKodoClientFromEnv({
         ...complete,
         QINIU_KODO_ENDPOINT: 'not-a-url',
       }),

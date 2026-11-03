@@ -1,4 +1,5 @@
-import type { PgBoss } from 'pg-boss';
+import { createHash } from 'node:crypto';
+import type { PgBoss, SendOptions } from 'pg-boss';
 import type { JobPolicy } from './service';
 import {
   attachmentJobPayloadSchema,
@@ -104,13 +105,59 @@ export function createAttachmentParsePolicy<C>(
     enqueue: (context, job, action) => ports.enqueue(context, job, action),
   };
 }
+/** Message id for one job revision: while that message row is retained, the
+ * queue's primary key turns a second send for the same `jobId:revision` into a
+ * no-op (`send` returns null). */
+export function attachmentParseMessageId(jobId: string, revision: number) {
+  const hex = createHash('sha256')
+    .update(`attachment-parse:${jobId}:${revision}`)
+    .digest('hex');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    '5' + hex.slice(13, 16),
+    ((parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 20),
+    hex.slice(20, 32),
+  ].join('-');
+}
+
+/** Every attachment parse message, first send or recovery, goes through here. */
+export function sendAttachmentParse(
+  boss: Pick<PgBoss, 'send'>,
+  job: { jobId: string; attempt: number; revision: number },
+  options: Pick<SendOptions, 'db' | 'startAfter'> = {},
+) {
+  return boss.send(
+    attachmentParseQueue,
+    { jobId: job.jobId, attempt: job.attempt, revision: job.revision },
+    {
+      ...options,
+      id: attachmentParseMessageId(job.jobId, job.revision),
+      singletonKey: `${job.jobId}:${job.revision}`,
+      retryLimit: 0,
+    },
+  );
+}
+
+export const attachmentParseRecoveryQueue = 'attachment-parse-recovery';
+/** No queue retry: the runner settles every claimed attempt itself, and a new
+ * attempt comes only from an explicit retry command. A job left queued without
+ * a live message, or a claim whose runner died, is found by `recover`, once at
+ * start and then every minute. */
 export async function registerAttachmentParseJob(
-  boss: PgBoss,
+  boss: Pick<PgBoss, 'createQueue' | 'work' | 'schedule'>,
   run: (payload: unknown) => Promise<unknown>,
+  recover: () => Promise<unknown>,
 ): Promise<void> {
-  await boss.createQueue(attachmentParseQueue);
+  await boss.createQueue(attachmentParseQueue, { retryLimit: 0 });
   await boss.work(attachmentParseQueue, async (jobs) => {
     for (const job of jobs)
       await run(attachmentJobPayloadSchema.parse(job.data));
   });
+  await boss.createQueue(attachmentParseRecoveryQueue, { retryLimit: 0 });
+  await boss.work(attachmentParseRecoveryQueue, async () => {
+    await recover();
+  });
+  await boss.schedule(attachmentParseRecoveryQueue, '* * * * *');
+  await recover();
 }

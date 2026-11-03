@@ -28,6 +28,7 @@ export function createFakeKodo(): KodoClient {
 }
 
 export { createKodoClient } from './client';
+export { createKodoClientFromEnv, type KodoEnvironment } from './from-env';
 export {
   takeTranscriptionSourceUrl,
   TRANSCRIPTION_MIN_TTL_MS,
