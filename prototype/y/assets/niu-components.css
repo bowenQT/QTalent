@@ -1316,7 +1316,7 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-pretro__edit label { display: block; margin-bottom: var(--s-1); font-size: var(--t-xs); font-weight: 600; color: var(--ink-3); }
 
 /* ══════════════ 状态补全 ══════════════ */
-.n-cmeta { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); gap: 4px var(--s-3); margin: var(--s-3) 0 0; padding-top: var(--s-3); border-top: 1px dashed var(--line); font-size: var(--t-xs); line-height: 1.6; }
+.n-cmeta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px var(--s-3); margin: var(--s-3) 0 0; padding-top: var(--s-3); border-top: 1px dashed var(--line); font-size: var(--t-xs); line-height: 1.6; }
 .n-cmeta dt { color: var(--ink-3); }
 .n-cmeta dd { margin: 0; color: var(--ink-2); }
 .n-cmeta .unknown { color: var(--unknown); }

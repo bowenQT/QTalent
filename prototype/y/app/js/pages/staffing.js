@@ -25,9 +25,9 @@
         'p-x07': { r1: ['yes', '独立完成服务端主流程 MVP，是核心框架的主要搭建者', 'e-x07-2'], r1alt: ['yes', '服务端主流程 MVP', 'e-x07-2'], r2: ['unknown', '没有实时语音链路的事件'], r2alt: ['yes', '口语陪练课题里负责服务端主流程', 'e-x07-2'], r3: ['unknown', '到岗时间还没确认'], r3alt: ['unknown', '到岗时间还没确认'], r4: ['unknown', '资料不足'],
           will: ['未知 · 结营去向灵矽，对这个项目还没问', true], release: '不涉及', now: '—', next: '确认到岗时间', dims: ['prof', 'wis'] },
         'p-x14': { r1: ['yes', '主导 Java 状态机模块的方案设计与落地', 'e-x14-2'], r1alt: ['yes', 'Java 状态机模块', 'e-x14-2'], r2: ['unknown', '没有语音相关事件'], r2alt: ['unknown', '没有语音或多模态相关事件'], r3: ['yes', '实习 offer 已接受，去向灵矽', null], r3alt: ['yes', '已接受实习', null], r4: ['unknown', '资料不足'],
-          will: ['未知 · 还没问过', true], release: '实习期内', now: '—', next: '先补语音方向的证据', dims: ['prof', 'wis'] },
+          will: ['未知 · 还没问过', true], release: '实习中，要先和导师确认', now: '—', next: '先补语音方向的证据', dims: ['prof', 'wis'] },
         'p-x80': { r1: ['no', '负责前端 MVP 开发，没有服务端模块'], r1alt: ['unknown', '没有服务端开发的事件'], r2: ['yes', '引入 ASR、LLM、TTS 组合，降低实时模型成本', 'e-x80-3'], r2alt: ['yes', '引入 ASR 和 TTS', 'e-x80-3'], r3: ['no', '12-01 才能回来'], r3alt: ['no', '12-01 才能回来'], r4: ['unknown', '资料不足'],
-          will: ['未知', true], release: '结营去向 MaaS', now: '—', next: '—', dims: ['prof'] },
+          will: ['未知', true], release: '已去 MaaS，要和 MaaS 确认', now: '—', next: '—', dims: ['prof'] },
       },
       manual: { 'p-x28': { r1: ['yes', '完成 ModuleContent v1、JSON Schema 和规则引擎流程', 'e-x28-2'], r1alt: ['yes', '规则引擎流程', 'e-x28-2'], r2: ['unknown', '没有语音相关事件'], r2alt: ['unknown', '没有语音相关事件'], r3: ['no', '12-01 才能回来'], r3alt: ['no', '12-01 才能回来'], r4: ['unknown', '资料不足'], will: ['未知', true], release: '结营去向 Kodo', now: '—', next: '和 Kodo 确认能否兼顾', dims: ['prof', 'wis'] } },
     },
@@ -251,7 +251,7 @@
       <ul class="n-reqs">${reqs.map((r) => { const [s, t, ev] = evOf(pid, r); const [cls, ic, l] = STATUS[s]; return html`<li data-req="${r.id}" data-s="${s}"><span class="n-badge ${cls}">${icon(ic)}${l}</span><span>${t}${citeFor(ev)}${r.must ? '' : html` <span class="nt-muted">（加分项）</span>`}</span></li>`; })}</ul>
       ${st.scope(pid) === 'full' && scores.length ? html`<div class="nt-muted" style="margin-top:var(--s-2)">相关维度 · ${scores.join(' · ')}</div>` : ''}
       <div style="margin-top:var(--s-2)">${UI.directionLine(pid)}</div>
-      <dl class="n-cmeta"><dt>本人意愿</dt><dd class="${c.will[1] ? 'unknown' : ''}">${c.will[0]}</dd><dt>可否释放</dt><dd>${c.release}</dd><dt>当前安排</dt><dd>${c.now}</dd><dt>下一步</dt><dd>${c.next}</dd></dl>
+      <dl class="n-cmeta"><dt>本人意愿</dt><dd class="${c.will[1] ? 'unknown' : ''}">${c.will[0]}</dd>${c.release === '不涉及' ? '' : html`<dt>原团队能否放人</dt><dd class="${/未知/.test(c.release) ? 'unknown' : ''}">${c.release}</dd>`}<dt>当前安排</dt><dd>${c.now}</dd><dt>下一步</dt><dd>${c.next}</dd></dl>
       <div class="nt-row" style="margin-top:var(--s-3)">${sc.roles.map((ro) => html`<button class="n-btn n-btn--sm" type="button" data-put="${pid}" data-role="${ro.id}" ${NT.raw(inSlot ? 'disabled' : '')}>放入「${ro.name}」</button>`)}<a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${pid}">看档案</a></div>
     </article>`;
   }
