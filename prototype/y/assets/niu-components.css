@@ -854,7 +854,12 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-listbox__filter { flex: none; padding: 4px 4px 6px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
 .n-listbox__filter input { width: 100%; height: 30px; padding: 0 var(--s-2); border: 0; border-radius: 6px; background: var(--sheet-sunk); font: inherit; font-size: var(--t-sm); color: var(--ink); outline: none; }
 .n-listbox__filter input:focus { box-shadow: inset 0 0 0 1px var(--line-strong); }
-.n-listbox__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scroll-padding: 4px; }
+.n-listbox__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scroll-padding: 4px; scrollbar-width: none; }
+.n-listbox__list::-webkit-scrollbar { display: none; }
+/* 不显示滚动条：上下还有选项时，对应一侧渐隐，提示可以继续滚 */
+.n-listbox__list.has-above { mask-image: linear-gradient(to bottom, transparent, #000 28px); }
+.n-listbox__list.has-below { mask-image: linear-gradient(to top, transparent, #000 28px); }
+.n-listbox__list.has-above.has-below { mask-image: linear-gradient(to bottom, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
 .n-listbox__opt { display: flex; align-items: center; gap: var(--s-3); padding: 7px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: background-color 80ms; }
 .n-listbox__opt > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .n-listbox__opt > svg { flex: none; color: var(--ink); opacity: 0; transform: scale(.6); transition: opacity var(--d-quick) var(--ease-out), transform var(--d-quick) var(--ease-out); }

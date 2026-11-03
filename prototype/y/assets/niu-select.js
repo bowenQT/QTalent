@@ -117,6 +117,12 @@
     setActive(cur);
     // 当前选中项放在列表中间附近，长列表打开就能看到自己选的是哪一项
     if (cur) list.scrollTop = cur.offsetTop - list.offsetTop - list.clientHeight / 2 + cur.offsetHeight / 2;
+    const edges = () => {
+      list.classList.toggle('has-above', list.scrollTop > 1);
+      list.classList.toggle('has-below', list.scrollTop + list.clientHeight < list.scrollHeight - 1);
+    };
+    list.addEventListener('scroll', edges, { passive: true });
+    edges();
     requestAnimationFrame(() => pop.classList.add('is-in'));
     btn.setAttribute('aria-expanded', 'true');
     btn.setAttribute('aria-controls', listId);
@@ -128,6 +134,7 @@
       rows.forEach((r) => { r.hidden = !!q && !r.textContent.toLowerCase().includes(q); });
       const v = visible();
       empty.hidden = !!v.length;
+      edges();
       setActive(v.includes(active) ? active : v[0], true);
     };
     input?.addEventListener('input', filter);
