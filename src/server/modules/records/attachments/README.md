@@ -48,6 +48,8 @@ const input = createValidatedAttachmentInput<Transaction>({
     // 不用 readOriginal：未解析版本尚无 fragment/complete 分类。
     return currentRecordWritePolicy(tx, binding);
   },
+  // staged 上传没有派发时的 jobId，按当前批次里的解析任务绑定。
+  stagedJob: stagedParseJob,
   openObject: async (objectKey, signal) => {
     const object = await kodo.openObject({ objectKey, signal });
     return object.body;
