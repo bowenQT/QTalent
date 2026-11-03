@@ -31,6 +31,18 @@ import { createUploadService } from '../modules/records/uploads/service';
 import { createPostgresUploadStore } from '../modules/records/uploads/store';
 import type { UploadStorage } from '../modules/records/uploads/types';
 import { createAttachmentParseWorker } from './attachment-parse-worker';
+import { runAttachmentParse } from './attachment-parse';
+import {
+  entryAccountBindingDigest,
+  mcpTokenDigest,
+} from '../auth/entry/persistent';
+import { mcpCredentials } from '../auth/entry/schema';
+import { createJobStore } from '../jobs/repository';
+import { createDocumentDecoders } from '../modules/records/attachments/document-decoders';
+import { createValidatedAttachmentInput } from '../modules/records/attachments/upload-input';
+import { saveAttachmentDocument } from '../modules/records/material-sources/attachment-document-save';
+import { readValidatedUploadInTransaction } from '../modules/records/uploads/handoff-transaction';
+import { createMcpPostgresTools } from './mcp/postgres';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('../auth/next', () => ({ requireSession: vi.fn() }));
@@ -581,3 +593,153 @@ it('parses a staged PDF once a batch takes it from the real entry, and the batch
     }),
   ]);
 }, 90_000);
+
+const docxMime =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const documentOf = async (format: 'txt' | 'docx') =>
+  format === 'txt'
+    ? Buffer.from('第一段演示原文。\r\n\r\n第二段精确引用。')
+    : readFile('tests/fixtures/attachments/chinese-pages.docx');
+
+/** MCP tools on the seeded account's own persisted credential. */
+async function mcp() {
+  const proof = 'synthetic-mcp-proof-' + randomUUID();
+  await connection.db.insert(mcpCredentials).values({
+    id: seeded.prefix + '-credential-' + randomUUID(),
+    accountId: seeded.account,
+    accountBindingDigest: entryAccountBindingDigest(
+      seeded.account,
+      seeded.evaluator,
+      1,
+    ),
+    tokenDigest: mcpTokenDigest(proof),
+    revision: 1,
+    expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+    revokedAt: null,
+  });
+  const tools = createMcpPostgresTools({ db: connection.db, boss });
+  const identity = await tools.authenticate(proof);
+  return (name: string, args: unknown) => tools.call(identity, name, args);
+}
+
+it.each(['txt', 'docx'] as const)(
+  'parses a staged %s sent through MCP record_moment, and the batch reads it as parsed',
+  async (format) => {
+    const staged = await upload(
+      `演示周记.${format}`,
+      format === 'txt' ? 'text/plain' : docxMime,
+      await documentOf(format),
+      { kind: 'unassigned', evaluationNodeId: seeded.node },
+    );
+    expect(staged.completed).toMatchObject({ status: 'staged' });
+    const call = await mcp();
+    const sent = await call('record_moment', {
+      operationId: randomUUID(),
+      personIds: [],
+      projectId: null,
+      text: '',
+      files: [{ clientFileId: randomUUID(), uploadId: staged.uploadId }],
+    });
+    const receipt = sent.structuredContent as {
+      status: string;
+      payload: { batchId: string; files: { jobId: string }[] };
+    };
+    expect(receipt).toMatchObject({
+      status: 'success',
+      payload: { files: [{ status: 'processing' }] },
+    });
+    const job = await settled(receipt.payload.files[0]!.jobId);
+    expect(job.status).toBe('completed');
+    const [parse] = await parsesOf(job.jobId);
+    expect(parse).toMatchObject({ projectionVersion: 'document-paragraph-v1' });
+    vi.mocked(requireSession).mockResolvedValue({
+      user: { id: seeded.account },
+    } as Awaited<ReturnType<typeof requireSession>>);
+    const read = await readRecordBatchAction({
+      batchId: receipt.payload.batchId,
+    });
+    expect(read.status).toBe('success');
+    if (read.status !== 'success') return;
+    expect(read.result.files).toEqual([
+      expect.objectContaining({
+        filename: `演示周记.${format}`,
+        status: 'parsed',
+        parseVersionId: parse!.id,
+      }),
+    ]);
+  },
+  90_000,
+);
+
+it('refuses to save a staged document under a job its batch did not create', async () => {
+  const staged = await upload(
+    '演示周记.txt',
+    'text/plain',
+    await documentOf('txt'),
+    { kind: 'unassigned', evaluationNodeId: seeded.node },
+  );
+  const stray = newJob(
+    {
+      jobId: randomUUID(),
+      kind: 'media',
+      resourceId: staged.uploadId,
+      inputVersion: (staged.completed as { originalVersionId: string })
+        .originalVersionId,
+    },
+    new Date().toISOString(),
+  );
+  await connection.db.insert(jobSnapshots).values(stray);
+  const kodo = testStorage();
+  // The claim double accepts the stray job, so only the save's own binding
+  // check stands between it and the parse.
+  const input = createValidatedAttachmentInput({
+    readValidatedUploadInContext: readValidatedUploadInTransaction,
+    readValidatedUpload: (reference) =>
+      connection.db.transaction((tx) =>
+        readValidatedUploadInTransaction(tx, reference),
+      ),
+    stagedJob: async () => stray.jobId,
+    canProcess: async () => true,
+    openObject: async (objectKey) => {
+      const object = await kodo.storage.openObject({ objectKey });
+      return (async function* () {
+        const reader = object.body.getReader();
+        try {
+          for (;;) {
+            const next = await reader.read();
+            if (next.done) break;
+            yield next.value;
+          }
+        } finally {
+          reader.releaseLock();
+          object.close();
+        }
+      })();
+    },
+  });
+  await expect(
+    runAttachmentParse(
+      createJobStore(connection.db),
+      {
+        ...input,
+        saveParse: (tx, binding, parsed) =>
+          saveAttachmentDocument(tx, binding, parsed, {
+            sourceCategory: 'original',
+            demo: true,
+          }),
+        enqueueArrange: async () => {},
+      },
+      { jobId: stray.jobId, attempt: 1, revision: stray.revision },
+      {
+        now: () => new Date().toISOString(),
+        limits: {
+          maxBytes: 1000000,
+          maxFragments: 100,
+          maxFragmentChars: 1000,
+        },
+        decoders: createDocumentDecoders(),
+      },
+    ),
+  ).rejects.toThrow('material_conflict');
+  expect(await parsesOf(stray.jobId)).toEqual([]);
+}, 30_000);

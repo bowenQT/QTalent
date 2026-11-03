@@ -8,10 +8,10 @@ import {
   attachmentJobResultSchema,
 } from '../attachments/flow';
 import { MATERIAL_PDF_DECODER_VERSION } from '../attachments/document-protocol';
-import { stagedParseJob } from '../material-review/read';
 import { readValidatedUploadInTransaction } from '../uploads/handoff-transaction';
 import { MaterialProjectionError, projectAttachmentPdf } from './projection';
 import { MaterialStoreError, writeMaterialParse } from './store';
+import { isUploadBoundToJob } from './upload-job';
 
 const provenanceSchema = z.discriminatedUnion('sourceCategory', [
   z.strictObject({ sourceCategory: z.literal('original'), demo: z.boolean() }),
@@ -58,19 +58,10 @@ export async function saveAttachmentPdf(
       uploadId: binding.version.mediaId,
       originalVersionId: binding.version.originalVersionId,
     });
-    // A staged upload has no job of its own: its batch's material row names it.
-    const uploadJobId =
-      upload?.jobId ??
-      (upload?.target.kind === 'unassigned'
-        ? await stagedParseJob(tx, {
-            uploadId: upload.uploadId,
-            originalVersionId: upload.originalVersionId,
-          })
-        : null);
     if (
       !upload ||
       upload.purpose !== 'attachment' ||
-      uploadJobId !== job.jobId ||
+      !(await isUploadBoundToJob(tx, upload, job.jobId)) ||
       upload.accountId !== binding.accountId ||
       upload.recordCollectionId !== binding.recordCollectionId ||
       upload.quotaScope !== binding.quotaScope ||
