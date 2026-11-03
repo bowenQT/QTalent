@@ -464,11 +464,11 @@
   const vetHist = (id, date, title, histType, scale, loc) => EVENTS.push({ id, date, kind: 'hist', histType, restricted: true, title, people: [VET], recorder: 'p-hanxu', demo: true,
     srcs: [{ type: 'sheet', label: '北森人事记录（演示）', loc }], scale, quote: '', tags: [], scores: [] });
   vetHist('e-vet-xe', '2023-08-25', 'XEngineer 第三期 · 结营评审', '结营评审', [['能力等级', 'A'], ['结营结论', '应届 · 正式 offer']], 'XEngineer 第三期观察表 · 结营评审');
-  vetHist('e-vet-p1', '2024-12-31', '2024 下半年绩效', '绩效', [['绩效等级', 'B+'], ['评定人', '韩叙']], '绩效档案 · 2024 下半年');
-  vetHist('e-vet-p2', '2025-06-30', '2025 上半年绩效', '绩效', [['绩效等级', 'A'], ['评定人', '韩叙']], '绩效档案 · 2025 上半年');
-  vetHist('e-vet-p3', '2025-12-31', '2025 下半年绩效', '绩效', [['绩效等级', 'A'], ['评定人', '韩叙']], '绩效档案 · 2025 下半年');
+  vetHist('e-vet-p1', '2024-12-31', '2024 下半年绩效', '绩效', [['绩效评分', '3 星'], ['评定人', '韩叙']], '绩效档案 · 2024 下半年');
+  vetHist('e-vet-p2', '2025-06-30', '2025 上半年绩效', '绩效', [['绩效评分', '4 星'], ['评定人', '韩叙']], '绩效档案 · 2025 上半年');
+  vetHist('e-vet-p3', '2025-12-31', '2025 下半年绩效', '绩效', [['绩效评分', '4 星'], ['评定人', '韩叙']], '绩效档案 · 2025 下半年');
   vetHist('e-vet-promo', '2026-03-01', '2025 年度晋升评审', '晋升', [['评审结论', '通过'], ['职级', 'N3 → N4']], '晋升评审 · 2025 年度');
-  vetHist('e-vet-p4', '2026-06-30', '2026 上半年绩效', '绩效', [['绩效等级', 'A'], ['评定人', '韩叙']], '绩效档案 · 2026 上半年');
+  vetHist('e-vet-p4', '2026-06-30', '2026 上半年绩效', '绩效', [['绩效评分', '5 星'], ['评定人', '韩叙']], '绩效档案 · 2026 上半年');
   [
     ['e-vet-1', '2024-07-30', null, 'Landing 课题按期交付元数据巡检脚本', 'Landing 第一期', '按导师拆好的任务写完巡检脚本，第三周开始每天跑一次。', '结营时巡检脚本接进了组里的值班流程。', [['prof', 3]]],
     ['e-vet-2', '2025-11-12', null, '主动接手冷热分层的迁移工具，先写了灰度方案', '冷热分层一期', '迁移工具原负责人转岗后没人接，主动认领，动手前先写灰度和回滚方案给组里评审。', '方案评审一次通过，迁移按灰度节奏推进。', [['mot', 4], ['prof', 4]]],
@@ -518,7 +518,7 @@
   };
 
   NT.SEED = {
-    version: 'y13', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
+    version: 'y14', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES: [], FOLLOWS,
     FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS, GH_LINKS,
   };

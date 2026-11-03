@@ -112,7 +112,7 @@
       if (e.kind === 'obs') return UI.eventCard(e, { for: pid });
       const meta = e.kind === 'self' ? html`${UI.src('self')}${e.srcs[0]?.label} ${e.srcs[0]?.loc || ''}`
         : e.restricted ? html`<span class="n-badge">${icon('lock')}管理受限</span> 含评价成分，不当作客观事实` : html`${UI.src(e.group ? 'fact' : 'hist')}${e.srcs[0]?.label} · ${e.srcs[0]?.loc}`;
-      return html`<div class="m-card m-tlmini" id="ev-${e.id}"><b>${e.title}</b><div class="n-tl__meta">${NT.md(e.date) || '时间未知'} · ${meta}</div>${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${v}</span>`)}</div>` : ''}</div>`;
+      return html`<div class="m-card m-tlmini" id="ev-${e.id}"><b>${e.title}</b><div class="n-tl__meta">${NT.md(e.date) || '时间未知'} · ${meta}</div>${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${UI.scaleVal(v)}</span>`)}</div>` : ''}</div>`;
     };
     known.forEach((e) => {
       const label = e.date < '2026-01-01' ? '更早' : NT.monthLabel(e.date);

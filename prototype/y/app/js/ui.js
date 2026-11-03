@@ -9,6 +9,8 @@
   UI.root = '..';
 
   UI.demo = () => html`<span class="n-badge n-badge--demo">演示</span>`;
+  // 原量表里的星级（绩效评分，满 5 星）画成星星；其他取值原样显示
+  UI.scaleVal = (v) => { const m = /^([0-5]) 星$/.exec(v); return m ? html`<span class="n-stars" role="img" aria-label="${m[1]} 星，满分 5 星">${'★'.repeat(+m[1])}<i>${'★'.repeat(5 - m[1])}</i></span>` : v; };
   UI.avatar = (pid, size = '') => {
     const p = st.person(pid);
     if (!p) return html`<span class="n-avatar ${size ? `n-avatar--${size}` : ''}" style="--hue:0;background:var(--sheet-sunk)">?</span>`;
@@ -294,7 +296,7 @@
         ${proj ? html`<a class="n-badge" href="project.html?id=${proj.id}">${icon('folder')}${proj.type === 'XEngineer 课题' ? '课题' : '项目'}：${proj.name}</a>` : ''}${who}${roleNote}</div>
       <h3 class="n-event__title">${e.title}${e.kind !== 'hist' ? UI.cites(e.srcs) : ''}</h3>
       ${e.bg || e.act || e.res ? html`<dl class="n-event__sbar">${[['情境', e.bg], ['行为', e.act], ['影响', e.res]].map(([k, v]) => html`<dt>${k}</dt><dd>${v || html`<span class="nt-muted">待补充</span>`}</dd>`)}</dl>` : ''}
-      ${e.scale ? html`<div class="n-scale"><span class="n-scale__tag">原量表 · 单独保存</span>${e.scale.map(([k, v]) => html`<span class="${v === '非管理岗免评' ? 'is-na' : ''}">${k}${v === '非管理岗免评' ? ' · ' : ' '}${v}</span>`)}</div><div class="n-tl__note">原量表单独保存，和 1–5 的维度分、能力象限分开。${e.srcs?.[0] ? ` 来源：${e.srcs[0].label} · ${e.srcs[0].loc}` : ''}</div>` : ''}
+      ${e.scale ? html`<div class="n-scale"><span class="n-scale__tag">原量表 · 单独保存</span>${e.scale.map(([k, v]) => html`<span class="${v === '非管理岗免评' ? 'is-na' : ''}">${k}${v === '非管理岗免评' ? ' · ' : ' '}${UI.scaleVal(v)}</span>`)}</div><div class="n-tl__note">原量表单独保存，和 1–5 的维度分、能力象限分开。${e.srcs?.[0] ? ` 来源：${e.srcs[0].label} · ${e.srcs[0].loc}` : ''}</div>` : ''}
       ${tags.length ? html`<div class="n-tags"><span class="n-tags__label">标签</span>${tags}</div>` : ''}
       ${scores.length ? (canScore ? html`<div class="n-event__scores">${scores.map((s) => UI.scoreLine(s, { hist: true }))}</div>` : html`<div class="n-event__scores">${UI.lock('本人视角已隐藏维度分')}</div>`) : ''}
     </article>`;

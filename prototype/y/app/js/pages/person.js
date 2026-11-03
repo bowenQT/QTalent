@@ -288,9 +288,9 @@
       const [f, t, label] = half(y, k);
       if (t < lt || f > T) return;
       const done = t < T;
-      // 有履历的人，绩效等级在管理受限的绩效记录里，节点本身不再重复
+      // 有履历的人，绩效评分在管理受限的绩效记录里，节点本身不再重复
       out.push({ key: `perf-${y}-${k}`, name: `${label}绩效`, from: f < lt ? D(lt, 1) : f, to: t, status: done ? 'done' : 'now', state: done ? '已评定' : '进行中', demo: done && !path,
-        facts: done && mgmt && !path ? [['绩效等级', ['B+', 'A', 'B'][(h + y + k) % 3]], ['评定人', '直属上级（演示）']] : [] });
+        facts: done && mgmt && !path ? [['绩效评分', `${[3, 4, 4][(h + y + k) % 3]} 星`], ['评定人', '直属上级（演示）']] : [] });
     });
     if (def) out.push({ key: 'conv', name: '转正', at: def.from, status: 'done', state: '已答辩，转正结论待确认', facts: [['答辩', def.name]] });
     (path?.promo || []).forEach((x, i) => out.push({ key: `promo-${i}`, name: '晋升', at: x.at, status: 'done', state: mgmt ? `${x.from} → ${x.to}` : '', facts: mgmt ? [['职级', `${x.from} → ${x.to}`], ['依据', x.via]] : [] }));
@@ -331,7 +331,7 @@
           ${body ? html`<svg class="n-stage__chev" aria-hidden="true"><use href="#i-chev"/></svg>` : ''}
         </button>
         ${body ? html`<div class="n-fold" id="${id}" ${raw(open ? 'data-open' : 'inert')}><div><div class="n-stage__body">
-          ${s.facts?.length ? html`<dl class="n-stage__facts">${s.facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>` : ''}
+          ${s.facts?.length ? html`<dl class="n-stage__facts">${s.facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${UI.scaleVal(v)}</dd></div>`)}</dl>` : ''}
           ${list.length ? html`<ol class="n-tl">${list.map((it) => item(it, verSnap && it.date > verSnap.cutoff))}</ol>` : ''}
         </div></div></div>` : ''}
       </section>`;
@@ -364,7 +364,7 @@
     return html`<li class="n-tl__item ${isUnknown ? 'is-unknown' : ''}" id="ev-${e.id}"${style}><span class="n-tl__date">${isUnknown ? '未知' : e.kind === 'hist' && e.restricted ? 'H1' : NT.md(e.date)}</span><span class="n-tl__dot ${dot}"></span><div class="n-tl__body">
       <div class="n-tl__title">${e.kind === 'obs' ? html`<button class="nt-tl-open" type="button" aria-expanded="false">${e.title}</button>` : e.title}${pending ? html` <span class="n-badge n-badge--ai">${icon('spark')}${pending} 项待确认</span>` : ''}${conflict ? html` <span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : ''}</div>
       <div class="n-tl__meta">${meta}${isUnknown && st.can('record', pid) ? html` · <button class="n-btn n-btn--sm n-btn--ghost" type="button" data-date="${e.id}" style="min-height:22px;padding:0 6px">补上时间</button>` : ''}</div>
-      ${e.scale ? html`<div class="n-scale">${st.isRecruit(e) ? html`<span class="n-scale__tag">原量表 · 单独保存</span>` : ''}${e.scale.map(([k, v]) => html`<span class="${v === '非管理岗免评' ? 'is-na' : ''}">${k}${v === '非管理岗免评' ? ' · ' : ' '}${v}</span>`)}</div>${e.kind === 'hist' && !e.restricted ? html`<div class="n-tl__note">${e.group ? '这是小组的评分。' : st.isRecruit(e) ? '北森面评原样保存，是档案里最早的一段判断；AI 打分时可以引用其中的文字评价。' : '保留原量表，AI 打分时可以引用其中的文字评价。'}</div>` : ''}` : ''}
+      ${e.scale ? html`<div class="n-scale">${st.isRecruit(e) ? html`<span class="n-scale__tag">原量表 · 单独保存</span>` : ''}${e.scale.map(([k, v]) => html`<span class="${v === '非管理岗免评' ? 'is-na' : ''}">${k}${v === '非管理岗免评' ? ' · ' : ' '}${UI.scaleVal(v)}</span>`)}</div>${e.kind === 'hist' && !e.restricted ? html`<div class="n-tl__note">${e.group ? '这是小组的评分。' : st.isRecruit(e) ? '北森面评原样保存，是档案里最早的一段判断；AI 打分时可以引用其中的文字评价。' : '保留原量表，AI 打分时可以引用其中的文字评价。'}</div>` : ''}` : ''}
       ${e.kind === 'obs' ? html`<div class="nt-tl-card" hidden>${UI.eventCard(e, { for: pid })}</div>` : ''}
     </div></li>`;
   }
