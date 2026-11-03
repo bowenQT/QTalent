@@ -6,6 +6,7 @@ import {
   createStaffingDemandRuntime,
   staffingDemandQueue,
 } from '../usecases/staffing-demand-runtime';
+import { parsedAttachmentRequestsForServer } from '../usecases/parsed-attachment-runtime';
 import { recordArrangeRequestsForServer } from '../usecases/record-arrange-runtime';
 import { createStaffingMatchServerRuntime } from '../usecases/staffing-match-runtime';
 import { createJobService } from './service';
@@ -31,7 +32,13 @@ export function jobService() {
     // Use the native store so a retry retains the immutable batch metadata
     // on the same locked job row while its policy enqueues in that transaction.
     arrange.native.store,
-    [exampleJobPolicy(), demand.policy, arrange.policy, match.policy],
+    [
+      exampleJobPolicy(),
+      demand.policy,
+      arrange.policy,
+      parsedAttachmentRequestsForServer().policy,
+      match.policy,
+    ],
     () => new Date().toISOString(),
   );
 }

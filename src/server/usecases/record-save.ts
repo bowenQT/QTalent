@@ -73,6 +73,7 @@ import {
 import { ForbiddenError } from './project-context';
 import { recordAudit } from '../platform/audit';
 import { cancelWithdrawnRecordConfirmationWork } from './record-undo-work';
+import { mediaDraftDependenciesCurrent } from './media-draft-dependencies';
 
 export { ConfirmationError as RecordSaveError };
 
@@ -372,6 +373,11 @@ async function execute(
           accountId,
           command,
         );
+        if (
+          command.action === 'save' &&
+          !(await mediaDraftDependenciesCurrent(tx, draft))
+        )
+          throw new ConfirmationError('conflict', 'material_review_changed');
         const workItems = await tx
           .select()
           .from(evaluationWorkItems)

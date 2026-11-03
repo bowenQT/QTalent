@@ -199,8 +199,7 @@ export function requireNativeMediaInput(input: StoredArrangeInput) {
     input.origin !== 'attachment' ||
     !('kind' in input.originalInput) ||
     input.originalInput.kind !== 'media' ||
-    input.inputSource !== null ||
-    input.sourceContexts.length !== 0
+    input.inputSource !== null
   )
     throw new NativeArrangeUnavailable('native_media_input_facts_required');
   return {
