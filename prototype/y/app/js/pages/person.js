@@ -41,15 +41,16 @@
     // 判断变化只放能力走向和象限偏移；活跃度与安排、团队分布另放
     const jchg = changes.filter((c) => c.t === 'trend' || c.t === 'quad'), achg = changes.filter((c) => c.t !== 'trend' && c.t !== 'quad');
     const facts = events.filter((e) => e.kind === 'obs' && e.date && !e.scores.some((x) => x.p === pid && x.st === 'ai')).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
-    const pverBar = canQuad && snapsWith.length ? html`<div class="n-pver">
-        <span class="n-pver__label">档案版本</span>
+    // 档案版本对照放在能力谱里：切到冻结版本时，在刻度上方写出从那时到现在变了什么
+    const pverBar = canQuad && snapsWith.length ? html`<div class="n-pver n-pver--inline">
+        <span class="n-pver__label">和冻结版本对照</span>
         <div class="n-seg" role="group" aria-label="档案版本" data-manual id="pver">
-          <button type="button" data-v="now" aria-pressed="${ver === 'now'}">当前</button>
+          <button type="button" data-v="now" aria-pressed="${ver === 'now'}">不对照</button>
           ${snapsWith.map((s) => html`<button type="button" data-v="${s.id}" aria-pressed="${ver === s.id}">${s.label} · 已冻结</button>`)}
         </div>
-        <span class="n-pver__label">${verSnap ? `${NT.md(verSnap.at)} 冻结 · 包含 ${NT.md(verSnap.cutoff)} 前已确认的事件 · 之后的新事件不会改写它` : `实时更新 · 包含 ${NT.md(NT.TODAY)} 前已确认的事件`}</span>
-        ${verSnap ? html`<div class="n-pver__cmp">${verCompare(verSnap.entries[pid], ref, f)}</div>` : ''}
+        ${verSnap ? html`<div class="n-pver__cmp"><span class="n-pver__label">${verSnap.label}（${NT.md(verSnap.at)} 冻结，含 ${NT.md(verSnap.cutoff)} 前已确认的事件，之后的新事件不会改写它）到现在：</span>${verCompare(verSnap.entries[pid], ref, f)}</div>` : ''}
       </div>` : '';
+    const chgList = jchg.length ? html`<div class="n-spectrum__chg"><h4>近 3 个月的变化</h4><div id="pchanges">${jchg.map((c) => UI.change(c, 'win'))}</div></div>` : '';
 
     // 第一屏依次回答：为什么值得关注、发生过什么、有什么证据、判断有什么变化；能力谱与象限在第二层（v1.5 3.28）
     mount(main, html`
@@ -71,16 +72,15 @@
           <article class="n-card" id="facts"><h3 class="n-section-title">关键事件与证据${events.some((e) => e.kind === 'obs') ? html`<a class="n-link" href="#timeline">查看全部</a>` : ''}</h3>
             ${facts.length ? html`<ol class="n-peek__facts n-pfacts">${facts.map((e) => html`<li><span class="n-peek__date">${NT.md(e.date)}</span><span><a class="nt-plink" href="#ev-${e.id}">${e.title}</a>${UI.evCite(e.id, '原文')}<small>${[e.project && st.project(e.project)?.name, `${st.person(e.recorder)?.name}记录`].filter(Boolean).join(' · ')}</small></span></li>`)}</ol>` : html`<div class="nt-empty">还没有已确认的关键事件。</div>`}
           </article>
-          ${pverBar || jchg.length ? html`<article class="n-card" id="judgechg"><h3 class="n-section-title">判断变化</h3>
-            ${pverBar}
-            ${jchg.length ? html`<div id="pchanges" ${raw(pverBar ? 'style="margin-top:var(--s-3)"' : '')}>${jchg.map((c) => UI.change(c, 'win'))}</div>` : html`<p class="nt-caption">近 3 个月能力走向和象限里符合提醒条件的变化会出现在这里。</p>`}
-          </article>` : ''}
+          ${!spec && (pverBar || chgList) ? html`<article class="n-card" id="judgechg"><h3 class="n-section-title">判断变化</h3>${pverBar}${chgList}</article>` : ''}
           ${summaryBlock(p, events, canScore, ref, f, canQuad)}
           ${spec ? html`<article class="n-card n-spectrum" id="spectrum">
             <div class="n-spectrum__head"><div><h3 class="n-section-title" style="margin:0">个人能力谱</h3><div class="nt-muted">详细维度 · 近 12 个月 · 已确认 ${spec.total} 条事件分 · ${['ceo', 'hrbp'].includes(st.role()) ? html`<a class="nt-plink" href="rules.html?r=rubric" title="${spec.vers.join('、') || st.ruleLive('rubric').v}">评价规则</a>` : html`<span title="${spec.vers.join('、') || st.ruleLive('rubric').v}">评价规则</span>`}</div></div>${canQuad ? UI.miniquad(pid) : ''}</div>
+            ${pverBar}
             <div class="n-spectrum__scale"><span></span><div class="n-spectrum__ticks">${[1, 2, 3, 4, 5].map((v, i) => html`<span style="left:${i * 25}%">${v}</span>`)}</div><span></span></div>
             <div id="spec-rows">${spec.html}</div>
             <div class="n-spectrum__legend"><span><i class="k-all"></i>外圈：这个分值的全部事件</span><span><i class="k-recent"></i>实心：其中近 3 个月</span><span><i class="k-mean"></i>均值</span><span><i class="k-unknown"></i>资料不足</span><span>点一行展开事件</span></div>
+            ${chgList}
           </article>` : ''}
 
           <article class="n-card" id="timeline">
@@ -213,9 +213,15 @@
   }
 
   function verCompare(e, ref, f) {
-    const d = (k) => { const a = e.dims?.[k]?.m, b = ref.dims?.[k]?.m; if (a == null && b == null) return '—'; return `${a == null ? '无' : a.toFixed(1)} → ${b == null ? '无' : b.toFixed(1)}`; };
-    return html`<div>正式位置<b>${e.q ? st.QN[e.q] : '资料不足'} → ${f ? st.QN[f.q] : '—'}</b></div><div>参考位置<b>${e.ref ? st.QN[e.ref] : '资料不足'} → ${ref.na ? '资料不足' : st.QN[ref.q]}</b></div>
-      <div>已确认事件分<b>${e.n} → ${ref.n} 条</b></div>${['prof', 'mot', 'wis', 'grit'].map((k) => html`<div>${st.dim(k).name}均值<b>${d(k)}</b></div>`)}`;
+    const m = (x) => (x == null ? '无' : x.toFixed(1));
+    const items = [
+      ['正式位置', e.q ? st.QN[e.q] : '资料不足', f ? st.QN[f.q] : '—'],
+      ['参考位置', e.ref ? st.QN[e.ref] : '资料不足', ref.na ? '资料不足' : st.QN[ref.q]],
+      ['已确认事件分', `${e.n} 条`, `${ref.n} 条`],
+      ...['prof', 'mot', 'wis', 'grit'].filter((k) => e.dims?.[k]?.m != null || ref.dims?.[k]?.m != null).map((k) => [`${st.dim(k).name}均值`, m(e.dims?.[k]?.m), m(ref.dims?.[k]?.m)]),
+    ];
+    const moved = items.filter(([, a, b]) => a !== b), same = items.filter(([, a, b]) => a === b);
+    return html`${moved.map(([k, a, b]) => html`<span>${k} <span class="n-diff"><del>${a}</del> → <ins>${b}</ins></span></span>`)}${same.length ? html`<span class="is-same">${same.map(([k, a]) => `${k} ${a}`).join('、')} 未变</span>` : ''}`;
   }
 
   // AI 摘要：光；采纳后落墨并署名
