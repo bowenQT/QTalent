@@ -1,7 +1,7 @@
 /* 工作台：按视角呈现。
    - 管理者：找人、值得关注的人、值得关注的项目、我的关注；判断提醒只做一行告知。留用与落位方案在方案页修改和确认，这里不审批。
    - HR：首屏「变化」，然后是一句话输入、待办、判断对照、进行中的任务与上传。
-   - 导师：一句话输入，下面收着所带学员（记一件事、推荐），然后是待办、我的推荐与进行中的任务。 */
+   - 导师：一句话输入，下面收着所带学员（记一件事、推荐及推荐进展），然后是待办与进行中的任务。 */
 (function () {
   'use strict';
   const NT = window.NT, st = NT.store, UI = NT.ui;
@@ -84,7 +84,7 @@
         mount(main, html`${head}${composer}
           <div class="nt-cols">
             <article class="n-card" id="todo">${todoBlock(role, todos)}</article>
-            <div class="nt-grid"><article class="n-card n-recos" id="recos" aria-labelledby="recos-h"></article>${fold}</div>
+            ${fold}
           </div>`);
         wireComposer(role); wireTodos(); renderTasks(); wireUpload();
         drawMentor(); wireMentor();
@@ -710,27 +710,23 @@
   function drawMentor() {
     const me = st.me().id, since = NT.addDays(NT.TODAY, -6), S = st.get();
     const list = st.visiblePeople().filter((p) => st.scope(p.id) === 'mentor');
+    // 推荐的进展跟着学员走：每人只显示本人最近一次推荐
+    const recos = st.myRecos(), recoOf = (pid) => recos.find((c) => c.person === pid);
+    const recoLine = (c) => html`<small class="n-students__reco">${icon('target', 12)}<span>${st.fitText(c.dir)} · ${c.state === 'pending' ? 'HR 核实中' : c.state === 'verified' ? `${st.person(c.verifiedBy).name}已核实，进入发展方向` : `${st.person(c.verifiedBy).name}不采纳：${c.rejectWhy}`}</span></small>`;
     const row = (p) => {
+      const reco = recoOf(p.id);
       const land = st.landingOf(p.id), topic = land && st.project(land.row[1]);
       const mine = S.events.filter((e) => e.kind === 'obs' && e.people.includes(p.id) && e.recorder === me && e.date).sort((a, b) => b.date.localeCompare(a.date));
       const week = mine.filter((e) => e.date >= since).length;
       return html`<li>${raw(`<a href="person.html?id=${p.id}" data-peek="p:${p.id}" tabindex="-1" aria-hidden="true">`)}${UI.avatar(p.id)}</a>
-        <div><a class="nt-plink" href="person.html?id=${p.id}" data-peek="p:${p.id}"><b>${p.name}</b></a><small>${topic ? `${topic.name} · ` : ''}${week ? `本周记了 ${week} 件` : '本周待记'}${mine[0] ? ` · 最近 ${NT.md(mine[0].date)}` : ''}</small></div>
+        <div><a class="nt-plink" href="person.html?id=${p.id}" data-peek="p:${p.id}"><b>${p.name}</b></a><small>${topic ? `${topic.name} · ` : ''}${week ? `本周记了 ${week} 件` : '本周待记'}${mine[0] ? ` · 最近 ${NT.md(mine[0].date)}` : ''}</small>${reco ? recoLine(reco) : ''}</div>
         <div class="n-students__acts"><a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${p.id}">${icon('pen')}记一件事</a>${st.canRecommend(p.id) ? html`<button class="n-btn n-btn--sm" type="button" data-reco="${p.id}">${icon('target')}推荐</button>` : ''}</div></li>`;
     };
     const todo = list.filter((p) => !S.events.some((e) => e.kind === 'obs' && e.people.includes(p.id) && e.recorder === me && e.date >= since)).length;
     $('#stu-total').textContent = `${list.length} 人`;
-    $('#stu-meta').textContent = !list.length ? '' : todo ? `本周还有 ${todo} 人没记` : '本周每人都记过了';
+    const pending = recos.filter((c) => c.state === 'pending').length;
+    $('#stu-meta').textContent = !list.length ? '' : [todo ? `本周还有 ${todo} 人没记` : '本周每人都记过了', pending && `${pending} 条推荐 HR 核实中`].filter(Boolean).join(' · ');
     mount($('#students'), list.length ? html`<ul class="n-students__list">${list.map(row)}</ul>` : html`<div class="nt-empty">分配给你的学员会出现在这里。</div>`);
-    drawRecos();
-  }
-  // 我的推荐：本人提交的推荐与处理状态
-  function drawRecos() {
-    const host = $('#recos'); if (!host) return;
-    const recos = st.myRecos(), ST = { pending: ['HR 核实中', 'doing'], verified: ['已核实', 'done'], rejected: ['不采纳', 'cancel'] };
-    mount(host, html`<h3 class="n-section-title" id="recos-h">我的推荐${recos.length ? html`<span class="n-count is-quiet">${recos.length}</span>` : ''}</h3>
-      ${recos.length ? html`<ul class="n-mine__list">${recos.map((c) => html`<li><a href="person.html?id=${c.person}" data-peek="p:${c.person}"><span class="n-mine__title">${st.person(c.person).name} · ${st.fitText(c.dir)}<small>${c.state === 'rejected' ? `${st.person(c.verifiedBy).name}不采纳：${c.rejectWhy}` : c.state === 'verified' ? `${st.person(c.verifiedBy).name} ${NT.md(c.verifiedAt)} 核实，已进入档案的发展方向` : `${NT.md(c.at)} 提交 · ${c.why}`}</small></span><span class="n-mine__meta"><span class="n-astate" data-s="${ST[c.state][1]}">${ST[c.state][0]}</span></span></a></li>`)}</ul>`
-        : html`<div class="nt-empty">在学员那一行点「推荐」，写理由并引用两件事；HR 核实后会进入学员档案的发展方向。</div>`}`);
   }
   function wireMentor() {
     $('#stu-toggle').addEventListener('click', (e) => {
