@@ -266,8 +266,10 @@
       return [
         { key: 'xe', name: xe.name, from: xe.from, to: xe.to, status: xe.to < T ? 'done' : 'now', state: xe.to < T ? '已结营' : '进行中',
           facts: [['课题组', st.orgShort(p.org)], ['导师', p.manager ? st.person(p.manager).name : '—'], ...(mgmt && x.final ? [['结营结论', x.final]] : []), ...(mgmt && x.posFinal ? [['岗位建议', x.posFinal]] : [])] },
-        { key: 'hire', name: '入职', from: D(xe.to, 1), to: land ? D(land.from, -1) : '9999-12-31', span: '', status: 'planned', ...hire },
+        { key: 'hire', name: '入职', from: D(xe.to, 1), to: land ? D(land.from, -1) : D(xe.to, 30), span: '', status: 'planned', ...hire },
         { key: 'land', name: land ? land.name : 'Landing', at: land?.from, end: land?.to, status: 'planned', state: land ? '待开营' : mgmt && offer && x.accept === '接受' ? '部门确定后安排' : '', facts: land ? [['去向', x.dest]] : [] },
+        // 校招入职，试用期 6 个月后转正答辩
+        { key: 'conv', name: '转正', at: mgmt && offer && x.accept === '接受' && land ? D(land.from, 182) : undefined, status: 'planned', state: mgmt && offer && x.accept === '接受' ? '入职满 6 个月后转正答辩' : '' },
         { key: 'perf', name: '绩效', status: 'planned', state: '入职后从第一个绩效周期开始记录' },
         { key: 'promo', name: '晋升', status: 'planned', state: '暂无' },
       ];
@@ -293,6 +295,7 @@
         facts: done && mgmt && !path ? [['绩效评分', `${[3, 4, 4][(h + y + k) % 3]} 星`], ['评定人', '直属上级（演示）']] : [] });
     });
     if (def) out.push({ key: 'conv', name: '转正', at: def.from, status: 'done', state: '已答辩，转正结论待确认', facts: [['答辩', def.name]] });
+    else if (path?.conv) out.push({ key: 'conv', name: '转正', at: path.conv.at, status: 'done', state: '已转正', facts: [['依据', path.conv.via]] });
     (path?.promo || []).forEach((x, i) => out.push({ key: `promo-${i}`, name: '晋升', at: x.at, status: 'done', state: mgmt ? `${x.from} → ${x.to}` : '', facts: mgmt ? [['职级', `${x.from} → ${x.to}`], ['依据', x.via]] : [] }));
     if (!path?.promo?.length) out.push({ key: 'promo', name: '晋升', status: 'planned', state: '暂无' });
     const start = (x) => x.from || x.at || '9999';
