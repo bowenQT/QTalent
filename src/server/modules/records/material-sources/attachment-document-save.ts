@@ -9,6 +9,7 @@ import {
 } from '../attachments/flow';
 import { DOCX_DECODER_VERSION } from '../attachments/document-protocol';
 import { attachmentVersionSchema } from '../attachments/parse';
+import { stagedParseJob } from '../material-review/read';
 import { readValidatedUploadInTransaction } from '../uploads/handoff-transaction';
 import {
   MaterialStoreError,
@@ -142,10 +143,20 @@ export async function saveAttachmentDocument(
       uploadId: binding.version.mediaId,
       originalVersionId: binding.version.originalVersionId,
     });
+    // Staged uploads are bound by their current batch material, not a fabricated
+    // upload job. Reuse the same transaction reader as the PDF adapter.
+    const uploadJobId =
+      upload?.jobId ??
+      (upload?.target.kind === 'unassigned'
+        ? await stagedParseJob(tx, {
+            uploadId: upload.uploadId,
+            originalVersionId: upload.originalVersionId,
+          })
+        : null);
     if (
       !upload ||
       upload.purpose !== 'attachment' ||
-      upload.jobId !== job.jobId ||
+      uploadJobId !== job.jobId ||
       upload.accountId !== binding.accountId ||
       upload.recordCollectionId !== binding.recordCollectionId ||
       upload.quotaScope !== binding.quotaScope ||

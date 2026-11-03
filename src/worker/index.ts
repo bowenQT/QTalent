@@ -11,6 +11,8 @@ import { registerProgressExample } from '../server/jobs/progress-worker';
 import { getDatabase } from '../server/db/client';
 import { createModelinkMaasClientFromEnv } from '../server/integrations/maas';
 import { createStaffingDemandRuntime } from '../server/usecases/staffing-demand-runtime';
+import { createParsedAttachmentWorker } from '../server/usecases/parsed-attachment-worker';
+import { createRecordArrangeModelClient } from '../server/usecases/record-arrange-worker';
 import { createRecordArrangeWorker } from '../server/usecases/record-arrange-worker';
 import { createAttachmentParseWorker } from '../server/usecases/attachment-parse-worker';
 import {
@@ -72,10 +74,20 @@ export async function startWorker() {
       businessNow: () => clock.now().toISOString(),
       now: () => new Date(),
     }).register();
+    const parsedAttachments = createParsedAttachmentWorker({
+      db: getDatabase(),
+      boss,
+      client: createRecordArrangeModelClient(env),
+      businessNow: () => clock.now().toISOString(),
+      now: () => new Date(),
+    });
+    await parsedAttachments.register();
     await createAttachmentParseWorker({
       db: getDatabase(),
       boss,
       storage: attachmentStorage(env),
+      afterParse: parsedAttachments.afterParse,
+      afterRecovery: parsedAttachments.recover,
       demo: env.APP_ENV !== 'production',
       businessNow: () => clock.now().toISOString(),
       now: () => new Date(),

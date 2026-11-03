@@ -171,7 +171,7 @@ describe('complete talent source projection', () => {
     expect(
       importing(
         PROJECTION,
-        /^(completeTalentSources|readIntakeTable|lockIntakeTable|intakeRows)$/,
+        /^(completeTalentSources|readIntakeTable|lockIntakeTable|intakeRows|intakeMediaFacts)$/,
       ),
     ).toEqual([
       'src/server/queries/people.ts',
@@ -184,8 +184,13 @@ describe('complete talent source projection', () => {
       'src/server/usecases/attachment-parse-worker.ts',
       // Reads the whole issued intake table for the MCP person brief.
       'src/server/usecases/mcp/person-brief.ts',
+      'src/server/usecases/parsed-attachment-arrange.ts',
+      'src/server/usecases/parsed-attachment-batch.ts',
+      'src/server/usecases/parsed-attachment-policy.ts',
+      'src/server/usecases/parsed-attachment-receipt.ts',
       'src/server/usecases/read-material-source.ts',
       'src/server/usecases/record-arrange-context.ts',
+      'src/server/usecases/record-arrange-media-context.ts',
       'src/server/usecases/record-batch-arrange-requests.ts',
       'src/server/usecases/record-batch-arrange-store.ts',
       'src/server/usecases/record-confirmation-sources.ts',

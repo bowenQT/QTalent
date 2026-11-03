@@ -92,6 +92,9 @@ export function createAttachmentParseWorker(input: {
   demo: boolean;
   businessNow(): string;
   now(): Date;
+  /** Downstream handoff after the parse transaction has settled. */
+  afterParse?(jobId: string): Promise<unknown>;
+  afterRecovery?(): Promise<unknown>;
 }) {
   const store = attachmentJobStore(input.db);
   const now = () => input.now().toISOString();
@@ -221,7 +224,7 @@ export function createAttachmentParseWorker(input: {
     });
   }
 
-  async function run(payload: unknown) {
+  async function runParse(payload: unknown) {
     const { jobId, attempt } = attachmentJobPayloadSchema.parse(payload);
     // The revision this runner holds: the one it claimed, or the one it found
     // when the claim was refused or failed before committing.
@@ -267,6 +270,15 @@ export function createAttachmentParseWorker(input: {
     return fence === null ? 'ignored' : settle(jobId, attempt, fence, outcome);
   }
 
+  async function run(payload: unknown) {
+    const parsed = attachmentJobPayloadSchema.parse(payload);
+    const outcome = await runParse(parsed);
+    // Includes duplicate terminal deliveries. The durable downstream producer
+    // makes this idempotent and recovery repairs a missed post-commit handoff.
+    await input.afterParse?.(parsed.jobId);
+    return outcome;
+  }
+
   /** Hands claimed parses that outlived their lease back to the queue, or
    * settles them once they have used up their claims. */
   async function recover() {
@@ -299,6 +311,7 @@ export function createAttachmentParseWorker(input: {
           attempt: job.attempt,
         });
     }
+    await input.afterRecovery?.();
     return stale.length;
   }
 

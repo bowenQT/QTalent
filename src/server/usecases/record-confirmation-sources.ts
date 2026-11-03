@@ -1,8 +1,14 @@
 import { createHash } from 'node:crypto';
 import type { TalentKind, TalentSource } from '../authz/talent';
 import type { StoredArrangeInput } from '../modules/records';
+import { materialSourceReferenceSchema } from '../../contracts/sources';
+import { mediaSourceDigest } from './media-source-provenance';
 import { sourceKey } from './source-key';
-import { intakeRows, type IntakeTable } from './talent-source-projection';
+import {
+  intakeRows,
+  intakeMediaFacts,
+  type IntakeTable,
+} from './talent-source-projection';
 
 const kinds = new Set<TalentKind>([
   'person',
@@ -55,31 +61,73 @@ export function confirmationSources(
       const original = data.originals.find(
         (row) => row.id === version?.originalId,
       );
+      const media =
+        input.origin === 'attachment' &&
+        'kind' in input.originalInput &&
+        input.originalInput.kind === 'media';
+      const reference = media
+        ? materialSourceReferenceSchema.safeParse({
+            fragmentId: source.fragmentId,
+            originalVersionId: source.originalVersionId,
+            location: source.location,
+          })
+        : null;
+      const proof = media
+        ? intakeMediaFacts(data.intake).find(
+            (fact) =>
+              fact.inputId === input.id &&
+              fact.inputVersion === input.inputVersion &&
+              fact.reference.fragmentId === source.fragmentId &&
+              fact.originalVersionId === source.originalVersionId,
+          )
+        : undefined;
+      const mediaValid =
+        media &&
+        'kind' in input.originalInput &&
+        proof &&
+        input.originalInput.materialIds.includes(proof.materialId) &&
+        input.inputSource === null &&
+        contexts.length === 1 &&
+        original?.kind === 'original' &&
+        version?.originalId === proof.originalId &&
+        reference?.success &&
+        ['document', 'pdf'].includes(reference.data.location.kind) &&
+        proof.sourceDigest ===
+          mediaSourceDigest(
+            proof.parseVersionId,
+            reference.data,
+            source.excerpt,
+          );
+      const textValid =
+        input.origin === 'text' &&
+        !('kind' in input.originalInput) &&
+        input.originalInput.attachmentIds.length === 0 &&
+        input.inputSource &&
+        sourceKey(input.inputSource) === key &&
+        contexts.length === 1 &&
+        source.location.kind === 'document' &&
+        source.location.paragraph === 'input' &&
+        source.location.page === undefined &&
+        original?.kind === 'original' &&
+        version?.contentDigest ===
+          createHash('sha256').update(source.excerpt).digest('hex') &&
+        source.excerpt.trim() === input.originalInput.text;
       if (
         !input.batchId ||
         !input.evaluationNodeId ||
         !input.boundAt ||
         !input.occurredOn ||
-        input.origin !== 'text' ||
-        'kind' in input.originalInput ||
-        input.originalInput.attachmentIds.length !== 0 ||
-        !input.inputSource ||
-        sourceKey(input.inputSource) !== key ||
-        contexts.length !== 1 ||
-        source.location.kind !== 'document' ||
-        source.location.paragraph !== 'input' ||
-        source.location.page !== undefined ||
-        original?.kind !== 'original' ||
-        version?.contentDigest !==
-          createHash('sha256').update(source.excerpt).digest('hex') ||
-        // RecordInput canonicalizes surrounding whitespace; the digest above
-        // still authenticates the exact, untrimmed original bytes.
-        source.excerpt.trim() !== input.originalInput.text
+        (!textValid && !mediaValid)
       ) {
         complete = false;
         continue;
       }
       const context = contexts[0]!;
+      if (media && proof) {
+        subjects.push(...proof.subjects);
+        if (proof.kind !== source.kind) required.add(proof.kind);
+        for (const kind of proof.requiredKinds) required.add(kind);
+      }
       if (
         !context.subjects.length ||
         !kinds.has(context.kind) ||

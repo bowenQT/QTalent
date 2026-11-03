@@ -37,6 +37,7 @@ import {
 import { readBatchArrangeRules } from '../modules/records/arrange/batch-rules';
 import { projectBatchReceipt } from '../modules/records/arrange/batch-receipt';
 import { MODELINK_MODEL } from '../integrations/maas';
+import { readParsedAttachmentReceipt } from './parsed-attachment-receipt';
 import {
   loadArrangeActor,
   canWriteArrange,
@@ -424,7 +425,11 @@ export function createNativeBatchStore(deps: NativeBatchDependencies) {
     input: StoredArrangeInput,
     metadata: BatchJobMetadata,
   ): Promise<MaterialBatchReceipt> {
-    if (isNativeMediaInput(input)) return mediaReceipt(tx, input);
+    if (isNativeMediaInput(input))
+      return (
+        (await readParsedAttachmentReceipt(tx, input, deps.businessNow())) ??
+        mediaReceipt(tx, input)
+      );
     const native = requireNativeInput(input);
     const all = await readNativeDraftSet(tx, native.batchId, input);
     const active = await tx

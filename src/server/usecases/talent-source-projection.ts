@@ -13,6 +13,10 @@ import {
 } from '../modules/records';
 import { confirmationSources } from './record-confirmation-sources';
 import { sourceKey } from './source-key';
+import {
+  readMediaSourceProvenance,
+  type MediaSourceProvenance,
+} from './media-source-provenance';
 import { INTERVIEW_HISTORY_KIND } from './interview-import/archive-model';
 export { sourceKey } from './source-key';
 
@@ -33,11 +37,16 @@ export type RawTalentSourceData = Awaited<
  * hand-built `{ rows }` is not registered, so no caller can swap in a subset. */
 class IssuedIntakeTable {
   readonly #rows: readonly StoredArrangeInput[];
-  constructor(rows: StoredArrangeInput[]) {
+  readonly #mediaFacts: readonly MediaSourceProvenance[];
+  constructor(rows: StoredArrangeInput[], mediaFacts: MediaSourceProvenance[]) {
     this.#rows = deepFreeze(structuredClone(rows));
+    this.#mediaFacts = deepFreeze(structuredClone(mediaFacts));
   }
   get rows(): readonly StoredArrangeInput[] {
     return this.#rows;
+  }
+  get mediaFacts(): readonly MediaSourceProvenance[] {
+    return this.#mediaFacts;
   }
 }
 export type IntakeTable = IssuedIntakeTable;
@@ -56,6 +65,15 @@ export function intakeRows(table: IntakeTable): readonly StoredArrangeInput[] {
   return table.rows;
 }
 
+/** Native media facts belong to this same complete issued intake snapshot. */
+export function intakeMediaFacts(
+  table: IntakeTable,
+): readonly MediaSourceProvenance[] {
+  if (!issued.has(table))
+    throw new Error('intake table was not read by readIntakeTable');
+  return table.mediaFacts;
+}
+
 /** Read every intake row: no creator, person, batch or superseded filter.
  * - 'snapshot': read-only paths inside the caller's own snapshot, no lock. Safe
  *   under READ COMMITTED as well, because intake rows only ever add subjects and
@@ -71,7 +89,11 @@ export async function readIntakeTable(
   mode: 'snapshot' | 'locked' | 'locked-for-write',
 ): Promise<IntakeTable> {
   if (mode !== 'snapshot') await lockIntakeTable(tx, mode);
-  const table = new IssuedIntakeTable(await tx.select().from(arrangeInputs));
+  const rows = await tx.select().from(arrangeInputs);
+  const mediaFacts = rows.some((row) => row.origin === 'attachment')
+    ? await readMediaSourceProvenance(tx, rows)
+    : [];
+  const table = new IssuedIntakeTable(rows, mediaFacts);
   issued.add(table);
   return table;
 }

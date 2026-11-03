@@ -23,7 +23,9 @@ export function resolveRecordSourceFacts(
   },
 ): ConfirmationSourceFact[] {
   return references.map((reference) => {
-    if (!['document', 'spreadsheet'].includes(reference.location.kind))
+    // Canonical PDF page text now uses the same immutable graph, locator and
+    // complete-scope checks below. Recording/image capabilities remain closed.
+    if (!['document', 'spreadsheet', 'pdf'].includes(reference.location.kind))
       throw new ConfirmationError(
         'unavailable',
         reference.location.kind === 'recording'

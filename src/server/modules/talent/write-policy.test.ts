@@ -105,7 +105,6 @@ it('preserves an unknown/poisoned history as incomplete instead of adding draft 
 });
 it.each([
   { kind: 'recording', startMs: 0, endMs: 1000 },
-  { kind: 'pdf', page: 1, textRange: { start: 0, end: 4 } },
   { kind: 'image', region: { left: 0, top: 0, right: 1, bottom: 1 } },
 ] satisfies MaterialSourceReference['location'][])(
   'keeps an unconnected material capability unavailable (%j)',
@@ -125,4 +124,52 @@ it('does not use blank canonical text or a projected replacement quote', () => {
   expect(() => resolveRecordSourceFacts([reference], data)).toThrow(
     'immutable_source_missing',
   );
+});
+
+it('connects canonical PDF facts without relaxing shared subjects, version or exact location', () => {
+  const location = {
+    kind: 'pdf' as const,
+    page: 2,
+    textRange: { start: 0, end: 4 },
+  };
+  const pdf = { ...reference, location };
+  const base = fixture();
+  const data = {
+    ...base,
+    fragments: [{ ...base.fragments[0], location }],
+    sources: [{ ...base.sources[0], location }],
+  };
+  expect(resolveRecordSourceFacts([pdf], data)[0]).toMatchObject({
+    reference: pdf,
+    complete: true,
+    subjects: [
+      { personId: 'one', evaluationNodeId: 'node' },
+      { personId: 'two', evaluationNodeId: 'other-node' },
+    ],
+    requiredKinds: ['restricted-evaluation', 'management-observation'],
+  });
+  expect(() =>
+    resolveRecordSourceFacts(
+      [{ ...pdf, originalVersionId: 'different' }],
+      data,
+    ),
+  ).toThrow('immutable_source_missing');
+  expect(() =>
+    resolveRecordSourceFacts(
+      [{ ...pdf, location: { ...location, page: 1 } }],
+      data,
+    ),
+  ).toThrow('source_locator_changed');
+  expect(() =>
+    resolveRecordSourceFacts(
+      [{ ...pdf, location: { ...location, textRange: { start: 1, end: 4 } } }],
+      data,
+    ),
+  ).toThrow('source_locator_changed');
+  expect(
+    resolveRecordSourceFacts([pdf], {
+      ...data,
+      sources: [{ ...data.sources[0], subjects: [] }],
+    })[0],
+  ).toMatchObject({ complete: false, subjects: [] });
 });
