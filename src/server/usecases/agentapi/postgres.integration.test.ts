@@ -12,6 +12,7 @@ import {
   businessAt,
   wallAt,
 } from '../../../../tests/fixtures/bow-845/native';
+import { unassignedUpload } from '../../../../tests/fixtures/bow-897/staged-upload';
 import {
   agentApiConversations,
   agentApiTurns,
@@ -998,7 +999,10 @@ it('a queued disclosure stays valid after the real generation completes; the res
 
 /** The same conversation wired to the real arrange application: native intake,
  * its pg-boss queue, runner and batch reader. Only the model is offline. */
-async function withRecords(f: Awaited<ReturnType<typeof setup>>) {
+async function withRecords(
+  f: Awaited<ReturnType<typeof setup>>,
+  input: Record<string, unknown> = f.input,
+) {
   if (!boss) {
     boss = new PgBoss({ connectionString: c.testUrl });
     await boss.start();
@@ -1031,7 +1035,7 @@ async function withRecords(f: Awaited<ReturnType<typeof setup>>) {
     id,
     type: 'agent.custom_tool_use' as const,
     name: 'submit_material_batch',
-    input: { ...f.input, operationId: 'model-chosen-key' },
+    input: { ...input, operationId: 'model-chosen-key' },
   });
   f.events[1] = tool('evt-tool');
   const service = createAgentConversationService(ports, f.provider);
@@ -1106,6 +1110,40 @@ it('submit_material_batch creates once under the server operation and revalidate
       .from(arrangeInputs)
       .where(eq(arrangeInputs.creatorAccountId, f.account)),
   ).toHaveLength(1);
+  expect(r.model.calls()).toBe(0);
+});
+it('submit_material_batch takes files with no node on their upload node, and the history recheck keeps it', async () => {
+  const f = await setup();
+  const upload = await unassignedUpload(c.db, f, '演示周记.txt');
+  const r = await withRecords(f, {
+    personIds: [],
+    projectId: null,
+    text: '',
+    files: [upload.file],
+  });
+  await r.submit();
+  await r.advance();
+  const [tool] = await r.tools();
+  expect(tool).toMatchObject({ name: 'submit_material_batch', state: 'sent' });
+  const payload = entryToolSuccessSchemas.submit_material_batch.parse(
+    tool!.successPayload,
+  );
+  expect(payload).toMatchObject({
+    evaluationNodeId: f.node,
+    jobId: null,
+    files: [{ materialId: upload.originalId, status: 'processing' }],
+  });
+  const parseJobId = (payload.files[0] as { jobId: string }).jobId;
+  expect(
+    (
+      await c.db.execute<{ name: string }>(
+        sql`select name from pgboss.job where data->>'jobId' = ${parseJobId}`,
+      )
+    ).rows,
+  ).toEqual([{ name: 'attachment-parse' }]);
+  // The next turn re-reads the batch against the recorded call, which named no node.
+  f.events.push(...endTurn);
+  await expect(r.advance()).resolves.toMatchObject({ status: 'complete' });
   expect(r.model.calls()).toBe(0);
 });
 it('a processed batch is progress, not a withdrawal: the disclosure stays valid', async () => {

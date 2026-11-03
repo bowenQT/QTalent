@@ -12,6 +12,7 @@ import {
   type AnyPgColumn,
   type PgTableExtraConfigValue,
 } from 'drizzle-orm/pg-core';
+import { jobSnapshots } from '../../../jobs/schema';
 import type {
   MaterialReviewItem,
   MaterialReviewCommand,
@@ -59,6 +60,10 @@ export const mediaMaterials = pgTable(
     originalVersionId: text('original_version_id')
       .notNull()
       .references(() => uploadObjects.originalVersionId),
+    /** The media job this batch created to parse the file (BOW-866 attachment worker). */
+    parseJobId: text('parse_job_id')
+      .notNull()
+      .references(() => jobSnapshots.jobId),
     revision: integer('revision').notNull(),
     intakeScope: jsonb('intake_scope').$type<MediaIntakeScope>(),
     scopeAuditId: text('scope_audit_id').references(() => auditEvents.id),
@@ -71,6 +76,7 @@ export const mediaMaterials = pgTable(
     }),
     unique('records_media_material_client').on(t.inputId, t.clientFileId),
     unique('records_media_material_upload').on(t.inputId, t.uploadId),
+    unique('records_media_material_parse_job').on(t.parseJobId),
     check('records_media_material_revision', sql`${t.revision} > 0`),
     check(
       'records_media_material_scope',

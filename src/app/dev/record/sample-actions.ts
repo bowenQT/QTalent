@@ -127,7 +127,7 @@ export function sampleServer({
     if (personIds.length === 0 || scene === 'review') return [];
     const base = {
       batchId,
-      evaluationNodeId: input.evaluationNodeId,
+      evaluationNodeId: input.evaluationNodeId ?? SAMPLE_NODE,
       personIds,
       text: input.text,
     };
@@ -164,7 +164,7 @@ export function sampleServer({
           materialReviewItemSchema.parse({
             itemId: `${batchId}-who`,
             batchId,
-            evaluationNodeId: task.input.evaluationNodeId,
+            evaluationNodeId: task.input.evaluationNodeId ?? SAMPLE_NODE,
             materialId: text.fragmentId,
             originalVersionId: text.originalVersionId,
             revision: 1,
@@ -181,7 +181,7 @@ export function sampleServer({
     return materialBatchReceiptSchema.parse({
       batchId,
       revision,
-      evaluationNodeId: task.input.evaluationNodeId,
+      evaluationNodeId: task.input.evaluationNodeId ?? SAMPLE_NODE,
       personIds: task.input.personIds,
       projectId: task.input.projectId,
       hasHiddenContent: false,

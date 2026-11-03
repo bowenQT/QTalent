@@ -5,6 +5,7 @@ import {
   registerRecordArrangeJob,
   recordArrangeQueue,
 } from '../jobs/record-arrange';
+import { attachmentParseQueue } from '../jobs/attachment-parse';
 import type { ModelinkMaasClient } from '../integrations/maas';
 import {
   createRecordBatchArrange,
@@ -34,8 +35,12 @@ export function createRecordArrangeApplication(input: {
   const requests = createRecordBatchArrangeRequests({
     ...input,
     enqueue: async (tx, job) => {
+      const queue =
+        job.kind === 'media' ? attachmentParseQueue : recordArrangeQueue;
+      // File batches hand parses to the attachment queue; createQueue is idempotent.
+      if (queue === attachmentParseQueue) await input.boss.createQueue(queue);
       const sent = await input.boss.send(
-        recordArrangeQueue,
+        queue,
         { jobId: job.jobId, attempt: job.attempt },
         { db: fromDrizzle(tx, sql), retryLimit: 0 },
       );
