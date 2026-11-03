@@ -5,7 +5,7 @@
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, icon, mount, $ } = NT;
 
-  const TABS = [['acct', '账号与权限'], ['hr', '北森同步'], ['intg', '集成与设置'], ['conn', '接入状态'], ['audit', '审计日志']];
+  const TABS = [['acct', '账号与权限'], ['hr', '北森同步'], ['gh', 'GitHub'], ['intg', '集成与设置'], ['conn', '接入状态'], ['audit', '审计日志']];
   let tab = TABS.some(([k]) => k === NT.param('tab')) ? NT.param('tab') : 'acct';
 
   NT.shell({
@@ -37,7 +37,6 @@
     ['通义听悟', '录音转写：离线稿为准，实时稿只做预览', '演示数据'],
     ['七牛 Kodo', '原件与录音存储', '待接入'],
     ['北森开放接口', '组织、任职与人事数据，只读', '待接入'],
-    ['GitHub', '记一件事时按人查找已配置仓库里的 Issue 和 PR，只读；仓库名单在服务端配置', '演示数据'],
   ];
   const AUDIT = [
     ['09-03 10:12', 'p-xuheng', '发起授权变更', '苏晚 · 负责期次增加 Landing 第四期'],
@@ -82,12 +81,16 @@
       <div class="n-tabs n-tabs--scroll" role="tablist" id="atabs">${TABS.map(([k, l]) => html`<button role="tab" type="button" data-tab="${k}" aria-selected="${k === tab}" aria-controls="ap-${k}" tabindex="${k === tab ? 0 : -1}">${l}</button>`)}</div>
       <div class="n-tabpanel" role="tabpanel" id="ap-acct" ${NT.raw(tab === 'acct' ? '' : 'hidden')}>${accounts()}</div>
       <div class="n-tabpanel" role="tabpanel" id="ap-hr" ${NT.raw(tab === 'hr' ? '' : 'hidden')}>${beisen()}</div>
+      <div class="n-tabpanel" role="tabpanel" id="ap-gh" ${NT.raw(tab === 'gh' ? '' : 'hidden')}>${github()}</div>
       <div class="n-tabpanel" role="tabpanel" id="ap-intg" ${NT.raw(tab === 'intg' ? '' : 'hidden')}>${integrations()}</div>
       <div class="n-tabpanel" role="tabpanel" id="ap-conn" ${NT.raw(tab === 'conn' ? '' : 'hidden')}>${connections()}</div>
       <div class="n-tabpanel" role="tabpanel" id="ap-audit" ${NT.raw(tab === 'audit' ? '' : 'hidden')}>${audit()}</div>`);
     NT.tabs($('#atabs'), (t) => { tab = t; });
     main.onclick = (e) => {
       if (e.target.closest('[data-grant]')) NT.toast('发起后要管理者确认才生效');
+      if (e.target.closest('#gh-repos')) editRepos();
+      const ap = e.target.closest('[data-gh-approve]');
+      if (ap) { const A = NT.gh.app(); A.repos.push(...A.pending); A.pending = []; st.save(); redrawGh(); NT.toast('组织所有者已审批，开始读取'); }
       const r = e.target.closest('[data-requeue]');
       if (r) {
         const id = r.dataset.requeue;
@@ -157,6 +160,53 @@
         </table></div>
         
       </section>`;
+  }
+
+  // GitHub App：系统管理员发起安装并选仓库，组织所有者按组织设置审批；只读，私有仓库也要明确开放
+  // 演示：?gh=pending 看「等组织所有者审批」，?gh=none 看「未安装」
+  const GH_READ = [['Issue', '标题、描述、状态、指派'], ['Pull request', '标题、描述、状态、合并记录'], ['评论与评审', 'Issue 和 PR 下的评论、评审意见'], ['组织成员', '用户名和 GitHub ID，用来关联人员'], ['元数据', '仓库名称与可见性']];
+  function redrawGh() { mount($('#ap-gh'), github()); }
+  function github() {
+    const gh = NT.gh, A = gh.app(), demo = NT.param('gh');
+    const state = demo === 'pending' ? 'pending' : demo === 'none' ? 'none' : A.state;
+    const on = new Set(A.repos), wait = new Set(A.pending);
+    const head = state === 'none'
+      ? html`<div class="n-ghapp__state">${icon('branch', 20)}<div><b>还没有安装 GitHub App</b><small>安装时选择要开放的仓库；组织要求审批时，由组织所有者在 GitHub 上批准</small></div><button class="n-btn n-btn--sm n-btn--ink" type="button" data-grant>${icon('up-r')}到 GitHub 安装</button></div>`
+      : state === 'pending'
+        ? html`<div class="n-ghapp__state">${icon('clock', 20)}<div><b>等组织所有者审批</b> <span class="n-badge n-badge--prep">待审批</span><small>${st.person(A.by).name} ${NT.md(A.at)} 发起安装 · 组织 ${A.org} 要求所有者批准后才能读取</small></div></div>`
+        : html`<div class="n-ghapp__state">${icon('check', 20)}<div><b>已安装到 ${A.org}</b> <span class="n-badge n-badge--yes">只读</span><small>${st.person(A.by).name} ${NT.md(A.at)} 发起 · 组织所有者 ${NT.md(A.approvedAt)} 批准 · 最近同步 ${A.synced}</small></div></div>`;
+    return html`
+      <section class="nt-sec">
+        <h2 class="nt-h2">GitHub App</h2>
+        <div class="n-card">${head}
+          <dl class="n-ghapp__perm">${GH_READ.map(([k, v]) => html`<dt>${k}</dt><dd>${v}</dd>`)}</dl></div>
+      </section>
+      ${state === 'installed' ? html`<section class="nt-sec">
+        <div class="nt-row" style="justify-content:space-between"><h2 class="nt-h2">开放的仓库 <small class="nt-muted">${A.repos.length} / ${gh.ORG_REPOS.length}</small>${NT.ui.hint('没有开放的仓库不读取；关闭后，已保存的依据保留，不再读取新内容')}</h2>
+          <button class="n-btn n-btn--sm" type="button" id="gh-repos">${icon('pen')}调整开放的仓库</button></div>
+        <div class="n-card nt-tablewrap" style="padding:var(--s-2) var(--s-4)"><table class="nt-table">
+          <thead><tr><th>仓库</th><th>可见性</th><th>状态</th></tr></thead>
+          <tbody>${gh.ORG_REPOS.map((r) => html`<tr class="${on.has(r.name) ? '' : 'is-off'}"><td><b>${gh.short(r.name)}</b><div class="nt-muted">${r.desc}</div></td><td>${r.private ? html`<span class="n-badge">${icon('lock', 12)}私有</span>` : html`<span class="n-badge n-badge--demo">公开</span>`}</td>
+            <td>${on.has(r.name) ? html`<span class="n-badge n-badge--yes">已开放</span>` : wait.has(r.name) ? html`<span class="n-badge n-badge--prep">等组织所有者审批</span> <button class="n-link" type="button" data-gh-approve>模拟审批通过</button>` : html`<span class="nt-muted">未开放，不读取</span>`}</td></tr>`)}</tbody>
+        </table></div>
+      </section>` : ''}`;
+  }
+  async function editRepos() {
+    const gh = NT.gh, A = gh.app(), on = new Set([...A.repos, ...A.pending]);
+    const r = await NT.dialog({
+      title: `调整 ${A.org} 开放给本系统的仓库`,
+      body: html`<p>在 GitHub 上选择 Niu-Talent 可以读取的仓库。私有仓库只有勾选后才读取。</p>
+        <div class="n-ghapp__pick">${gh.ORG_REPOS.map((x) => html`<label class="n-check"><input type="checkbox" value="${x.name}" ${NT.raw(on.has(x.name) ? 'checked' : '')}><b>${gh.short(x.name)}</b>${x.private ? html`<span class="n-badge">${icon('lock', 12)}私有</span>` : ''}<span class="nt-muted">${x.desc}</span></label>`)}</div>`,
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '保存', value: 'ok', cls: 'n-btn--ink', read: (d) => NT.$$('input:checked', d).map((x) => x.value) }],
+    });
+    if (r?.value !== 'ok') return;
+    const before = { repos: [...A.repos], pending: [...A.pending] }, pick = new Set(r.data);
+    const added = r.data.filter((x) => !A.repos.includes(x));
+    A.repos = A.repos.filter((x) => pick.has(x));
+    A.pending = A.needApproval ? added : [];
+    if (!A.needApproval) A.repos.push(...added);
+    st.save(); redrawGh();
+    NT.toast(A.pending.length ? `${A.pending.length} 个仓库等组织所有者审批` : '已保存', { undo: () => { Object.assign(A, before); st.save(); redrawGh(); } });
   }
 
   function redrawConn() { mount($('#ap-conn'), connections()); }

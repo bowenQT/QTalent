@@ -31,7 +31,10 @@
   const TEAM = Object.fromEntries(X.teams.map((t) => [t.id, t]));
 
   // ---------- 人员 ----------
-  const P = (id, name, org, title, level, joined, hue, extra) => ({ id, name, org, title, level, joined, hue, photo: null, ...(extra || {}) });
+  // 员工编号（演示）：北森里的人员唯一编号，批量关联 GitHub 账号时按它匹配
+  let empSeq = 0;
+  const empNo = () => `QN${260100 + empSeq++ * 7}`;
+  const P = (id, name, org, title, level, joined, hue, extra) => ({ id, name, org, title, level, joined, hue, photo: null, no: empNo(), ...(extra || {}) });
   const PEOPLE = [
     P('p-cheng', '程远', 'strategy', '管理者', 'M', '2011-08-01', 212, { role: 'ceo', noReview: true }),
     P('p-suwan', '苏晚', 'hr', 'HR · 人才项目', 'N6', '2019-03-11', 340, { role: 'hrbp', noReview: true }),
@@ -62,9 +65,11 @@
   };
 
   // ---------- 项目：19 个课题、黑客松（演示）和两个用人项目 ----------
+  // 课题绑定的代码仓库（演示）：只能从 GitHub App 已开放的仓库里选
+  const TOPIC_REPOS = { 't-scene-b': ['niu-demo/storyboard-factory', 'niu-demo/story-api'], 't-base': ['niu-demo/xe6-infra'] };
   const PROJECTS = [
     ...X.teams.map((t) => ({ id: t.id, name: t.name, type: 'XEngineer 课题', org: t.id, status: '已结束', from: '2026-07-06', to: '2026-08-31', owner: t.mentor, creator: 'p-suwan', batch: 'b-xe6',
-      goal: `${t.domain}。终期为${t.live}，MS1–MS4 按小组评审。` })),
+      goal: `${t.domain}。终期为${t.live}，MS1–MS4 按小组评审。`, repos: TOPIC_REPOS[t.id] || [] })),
     { id: 'pr-hack', name: '夏季黑客松 · 语音助手赛道（演示）', type: '黑客松', org: 'xe6', status: '已结束', from: '2026-08-20', to: '2026-08-21', owner: 's-28', creator: 'p-suwan', goal: '48 小时做出一个能听懂方言的语音助手原型。' },
     { id: 'pr-ts', name: '业务成功部 TS 新人组', type: '用人项目', org: 'xe6', status: '进行中', from: '2026-09-01', to: '2026-12-31', owner: null, creator: 'p-suwan', goal: '第六期留用进业务成功部 TS 的同学组成新人组，跟一线客户问题，三个月后独立值班。' },
     { id: 'pr-agent', name: 'MaaS 智能体平台 · 应用后端', type: '用人项目', org: 'xe6', status: '筹备中', from: '2026-10-08', to: '2027-03-31', owner: null, creator: 'p-cheng', goal: '给 MaaS 智能体平台补一条应用后端：工具注册、会话持久化和多租户隔离，Q4 内部上线。' },
@@ -128,6 +133,16 @@
   FINAL_EV.forEach(([id, pid, project, recorder, title, act, res, sc], i) => EVENTS.push({
     id, date: '2026-08-30', kind: 'obs', project, recorder, people: [pid], title, bg: `W8 · 结营路演 · ${X.teams.find((t) => t.id === project).name}`, act, res, gap: '', week: 'W8', demo: true,
     srcs: [{ type: 'sheet', label: '第六期结营路演评审表（演示）', loc: `第 ${i + 4} 行`, quote: `${act}${res}` }], tags: [], scores: sc.map(([d, v]) => s(pid, d, v, 'confirmed', recorder, { note: `引用「${act.split('，')[0]}」` })),
+  }));
+  // 来自 GitHub 的事件（演示）：导师在记一件事时加的 Issue / PR 依据，出处是 PR 描述
+  [
+    ['e-gh-1', 'p-x12', '2026-08-24', '把分镜缓存换成三级缓存，压测 P95 从 2.1 秒降到 0.6 秒', 'story-api', 'pull', 205, '已合并',
+      '把单层 Redis 换成内存、Redis、对象存储三级缓存；压测下 P95 从 2.1 秒降到 0.6 秒。'],
+    ['e-gh-2', 'p-x11', '2026-08-27', '视频上传改成分片退避重试，弱网成功率从 72% 提到 96%', 'storyboard-factory', 'pull', 214, '已合并',
+      '单片失败后按 1、2、4 秒退避重试 3 次，仍失败再提示重新上传。弱网下演示视频上传成功率从 72% 提到 96%。'],
+  ].forEach(([id, pid, date, title, repo, kind, n, state, quote]) => EVENTS.push({
+    id, date, kind: 'obs', project: 't-scene-b', recorder: 'p-yeqing', people: [pid], title, bg: `分镜工厂 · 二组 · ${repo} #${n}`, act: quote, res: '', gap: '', demo: true,
+    srcs: [{ type: 'gh', label: `GitHub：niu-demo/${repo} #${n}`, loc: `PR 描述 · ${state} · 08-28 10:20 取得`, quote, url: `github.com/niu-demo/${repo}/${kind}/${n}` }], tags: [], scores: [],
   }));
   const ev = (id) => EVENTS.find((e) => e.id === id);
   // 待校准：导师和助教对同一件事的领导力判断差 2 分
@@ -519,10 +534,13 @@
     'p-x13': { login: 'demo-jixubai', id: 61002387, by: 'p-suwan', at: '2026-07-08', prev: [] },
     'p-x15': { login: 'demo-zhoucq', id: 59877410, by: 'p-suwan', at: '2026-07-08', prev: [] },
   };
+  // GitHub App（演示）：系统管理员发起安装，组织所有者审批；只读取安装时开放的仓库，私有仓库也要在这里明确开放
+  const GH_APP = { org: 'niu-demo', state: 'installed', by: 'p-xuheng', at: '2026-07-03', approvedAt: '2026-07-03', needApproval: true,
+    repos: ['niu-demo/storyboard-factory', 'niu-demo/story-api', 'niu-demo/xe6-infra'], pending: [], synced: '09-04 14:00' };
 
   NT.SEED = {
-    version: 'y16', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
+    version: 'y17', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES: [], FOLLOWS,
-    FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS, GH_LINKS,
+    FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS, GH_LINKS, GH_APP,
   };
 })();

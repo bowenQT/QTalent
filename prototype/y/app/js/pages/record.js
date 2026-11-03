@@ -57,6 +57,9 @@
     // 附件：「改原话」或撤销保存回到这页时保留已解析的附件
     att = UI.attach({ key: 'record' }).list($('#ev-atts')).pick($('[data-att-pick]', $('#ev'))).drop($('#ev')).fallback(() => $('#ev-back'));
     if (q || NT.param('keep')) att.restore(); else att.clear();
+    // 从项目看板的 Issue / PR 进来：带上这一条作为依据
+    const ghPre = pre && NT.param('gh') && NT.gh.find(NT.param('gh'));
+    if (ghPre && !att.ghItems().some((g) => g.key === ghPre.key)) att.addRemote([{ ...ghPre, fetched: `${NT.md(NT.TODAY)} ${new Date().toTimeString().slice(0, 5)}` }]);
     $('#ev-shape').addEventListener('click', () => doShape());
     $('#ev-gh').addEventListener('click', addGithub);
     $('#ev-mic').addEventListener('click', () => {

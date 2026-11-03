@@ -26,7 +26,7 @@
     const tabs = [['list', role === 'mentor' ? '学员' : '人员', people.length], ['follow', st.can('signals') ? `${SEC.signal} · ${SEC.track}` : SEC.track, nFollow]];
     mount(main, html`
       <header class="nt-head"><div><h1>${role === 'mentor' ? '所带学员' : '人才'}</h1>${role === 'mentor' ? html`<p>XEngineer 第六期</p>` : ''}</div>
-        <div class="nt-head__acts">${!['mentor', 'ceo'].includes(role) ? html`<a class="n-btn n-btn--sm" href="people.html?tab=track&new=1">${icon('target')}设一个重点跟踪</a>` : ''}<a class="n-btn n-btn--sm n-btn--ink" href="record.html">${icon('pen')}记一件事</a></div></header>
+        <div class="nt-head__acts">${st.can('ghLink') ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" id="ghbatch">${icon('branch')}批量关联 GitHub</button>` : ''}${!['mentor', 'ceo'].includes(role) ? html`<a class="n-btn n-btn--sm" href="people.html?tab=track&new=1">${icon('target')}设一个重点跟踪</a>` : ''}<a class="n-btn n-btn--sm n-btn--ink" href="record.html">${icon('pen')}记一件事</a></div></header>
       <div class="n-tabs" role="tablist" id="ptabs">${tabs.map(([k, l, n]) => html`<button role="tab" type="button" data-tab="${k}" aria-selected="${k === tab}" aria-controls="pp-${k}" tabindex="${k === tab ? 0 : -1}">${l}${n ? html`<span class="n-count is-quiet">${n}</span>` : ''}</button>`)}</div>
       <div class="n-tabpanel" role="tabpanel" id="pp-list" ${NT.raw(tab === 'list' ? '' : 'hidden')}></div>
       <div class="n-tabpanel" role="tabpanel" id="pp-follow" ${NT.raw(tab === 'follow' ? '' : 'hidden')}>
@@ -38,6 +38,7 @@
     renderTracks(tracks);
     if (st.can('signals')) renderSignals(sigs);
     showSec();
+    $('#ghbatch')?.addEventListener('click', () => NT.gh.batchDialog());
     $('#psec')?.addEventListener('click', (e) => { const b = e.target.closest('[data-sec]'); if (!b) return; sec = b.dataset.sec; showSec(); });
     if (NT.param('new') && role !== 'ceo') newTrack();
   }

@@ -206,6 +206,9 @@
   <defs>
     <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
     <symbol id="i-clip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11.5 12.5 19a5 5 0 0 1-7-7l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3"/></symbol>
+    <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17v-8a3 3 0 0 0-3-3h-4M13 4l-2 2 2 2"/></symbol>
+    <symbol id="i-issue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></symbol>
     <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></symbol>
     <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
@@ -1789,6 +1792,43 @@
             <li><time>10-08</time>周屿成为 owner：来自项目用人方案 v2</li>
           </ul>
           <p class="ds-caption">加入、退出、改角色都记时间和操作人，任用后复盘会用到。</p>
+        </div>
+      </div>
+      <div class="ds-grid c2" style="margin-top: var(--s-4)">
+        <div class="ds-stage">
+          <h4 class="n-section-title" style="font-size:var(--t-sm)">课题看板</h4>
+          <div class="n-lane n-lane--review" style="min-height:0">
+            <h4 class="n-lane__head"><i></i>评审中<span>2</span></h4>
+            <article class="n-issue">
+              <div class="n-issue__top"><svg width="14" height="14"><use href="#i-branch"/></svg><span>storyboard-factory #228</span></div>
+              <p class="n-issue__title">分镜卡片支持批量替换角色</p>
+              <div class="n-issue__foot"><span class="n-person"><span class="n-avatar n-avatar--sm" style="--hue:200">孟</span>孟逸尘</span><span class="n-issue__talk"><svg width="12" height="12"><use href="#i-chat"/></svg>3</span><time>09-03</time></div>
+              <a class="n-issue__rec" href="#" style="opacity:1"><svg width="12" height="12"><use href="#i-pen"/></svg>记一件事</a>
+            </article>
+            <article class="n-issue">
+              <div class="n-issue__top"><svg width="14" height="14"><use href="#i-issue"/></svg><span>story-api #205</span></div>
+              <p class="n-issue__title">分镜导出接口超时</p>
+              <div class="n-issue__foot"><span class="n-issue__ext">@demo-wenyu<small>未关联</small></span><time>09-02</time></div>
+            </article>
+          </div>
+          <p class="ds-caption">看板四列跟着 GitHub 的状态走：待处理、进行中、评审中、已完成。负责人按已关联的账号显示成人，没关联的显示用户名和「未关联」。「记一件事」在悬停或聚焦时出现，触屏上常显。卡片不显示分数，也不按数量给人排序。</p>
+        </div>
+        <div class="ds-stage">
+          <h4 class="n-section-title" style="font-size:var(--t-sm)">关键事件来源</h4>
+          <div class="ds-row" style="flex-wrap:wrap;gap:6px">
+            <span class="n-via n-via--gh"><svg width="12" height="12"><use href="#i-branch"/></svg>GitHub · story-api #205</span>
+            <span class="n-via n-via--wecom"><svg width="12" height="12"><use href="#i-chat"/></svg>企业微信 · 小犇</span>
+            <span class="n-via n-via--mcp"><svg width="12" height="12"><use href="#i-spark"/></svg>Claude Code（MCP） · record_moment</span>
+            <span class="n-via"><svg width="12" height="12"><use href="#i-doc"/></svg>周报 09-01</span>
+          </div>
+          <p class="ds-caption">每条关键事件标出它从哪来，课题页可以按来源筛选。</p>
+          <h4 class="n-section-title" style="font-size:var(--t-sm);margin-top:var(--s-4)">课题属性</h4>
+          <div class="n-props"><dl>
+            <dt>状态</dt><dd><span class="n-badge n-badge--yes">进行中</span></dd>
+            <dt>时间</dt><dd>07-06 – 08-30</dd>
+            <dt>代码仓库</dt><dd class="n-props__repos"><span class="n-repo"><svg><use href="#i-branch"/></svg>storyboard-factory</span><span class="n-repo"><svg><use href="#i-branch"/></svg>story-api</span></dd>
+          </dl></div>
+          <p class="ds-caption">课题只能绑定系统管理员在 GitHub App 里开放的仓库。</p>
         </div>
       </div>
     </section>
