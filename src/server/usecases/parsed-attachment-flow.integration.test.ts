@@ -1,16 +1,21 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { and, eq, sql } from 'drizzle-orm';
 import { PgBoss, fromDrizzle } from 'pg-boss';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
   nativeDatabase,
   seedNativeRules,
-  syntheticBatchClient,
   businessAt,
 } from '../../../tests/fixtures/bow-845/native';
 import { materialReviewItemSchema } from '../../contracts/material-review';
 import type { RecordBatchDraft } from '../../contracts/record';
 import { grants } from '../modules/directory';
+import { evaluationRelations } from '../modules/programs';
+import {
+  createFakeModelinkMaas,
+  type ModelinkMaasClient,
+} from '../integrations/maas';
 import {
   originalVersions,
   recordDrafts,
@@ -54,14 +59,45 @@ let pause: {
   entered: () => void;
   wait: Promise<void>;
 } | null = null;
-const model = syntheticBatchClient({
-  before: async (input) => {
+let modelCalls = 0;
+const client: ModelinkMaasClient = {
+  async generateStructured(input) {
+    modelCalls++;
     if (pause && JSON.stringify(input.messages).includes(pause.personId)) {
       pause.entered();
       await pause.wait;
     }
+    const raw = JSON.parse(
+      input.messages.find((message) => message.role === 'user')!
+        .content as string,
+    );
+    const source = raw.sources[0];
+    const quote = source.text.slice(0, 24);
+    return createFakeModelinkMaas({
+      events: [
+        {
+          eventKey: 'proposal',
+          personIds: raw.personIds,
+          sbi: {
+            title: '演示事件',
+            situation: '',
+            behavior: quote,
+            impact: '',
+          },
+          evidence: [{ reference: source.reference, quote }],
+          scores: raw.personIds.map((personId: string) => ({
+            state: 'unknown',
+            personId,
+            dimensionId: raw.dimensions[0],
+            reason: '演示离线模型不产生评分',
+          })),
+        },
+      ],
+      similarGroups: [],
+    }).generateStructured(input);
   },
-});
+};
+const model = { client, calls: () => modelCalls };
 let worker: ReturnType<typeof createParsedAttachmentWorker>;
 beforeAll(async () => {
   connection = await nativeDatabase();
@@ -83,12 +119,20 @@ afterAll(async () => {
 }, 30_000);
 
 /** Explicit precondition fixture, NOT a scope capture endpoint. Reuses the
- * existing native material fixture, replacing its synthetic image with a TXT
+ * existing native material fixture, replacing its synthetic image with TXT/PDF
  * before parsing. Real PG facts/permissions/queue/parser/845/846 are exercised;
  * only object storage and the model are controlled external boundaries. */
-async function fixture(knownScope = true, pendingIdentity = true) {
+async function fixture(
+  knownScope = true,
+  pendingIdentity = true,
+  format: 'txt' | 'pdf' = 'txt',
+) {
   const f = await seedImageCase(connection.db);
-  const bytes = Buffer.from('补齐回滚步骤。记录边界触发条件。', 'utf8');
+  const bytes =
+    format === 'pdf'
+      ? await readFile('tests/fixtures/attachments/chinese-pages.pdf')
+      : Buffer.from('补齐回滚步骤。记录边界触发条件。', 'utf8');
+  const mediaType = format === 'pdf' ? 'application/pdf' : 'text/plain';
   const digest = createHash('sha256').update(bytes).digest('hex');
   const [intent] = await connection.db
     .select()
@@ -99,8 +143,8 @@ async function fixture(knownScope = true, pendingIdentity = true) {
     .set({
       request: {
         ...intent!.request,
-        filename: 'demo.txt',
-        declaredMediaType: 'text/plain',
+        filename: `demo.${format}`,
+        declaredMediaType: mediaType,
         declaredBytes: bytes.length,
       },
       declaredBytes: bytes.length,
@@ -109,7 +153,7 @@ async function fixture(knownScope = true, pendingIdentity = true) {
     .where(eq(uploadIntents.id, f.row.uploadId));
   await connection.db
     .update(uploadObjects)
-    .set({ byteLength: bytes.length, mediaType: 'text/plain', sha256: digest })
+    .set({ byteLength: bytes.length, mediaType, sha256: digest })
     .where(eq(uploadObjects.uploadId, f.row.uploadId));
   await connection.db
     .update(originalVersions)
@@ -117,7 +161,7 @@ async function fixture(knownScope = true, pendingIdentity = true) {
     .where(eq(originalVersions.id, f.row.originalVersionId));
   await connection.db
     .update(mediaReviewItems)
-    .set({ currentOperationId: null })
+    .set({ currentOperationId: null, state: 'pending' })
     .where(eq(mediaReviewItems.id, f.question.itemId));
   await connection.db
     .delete(mediaReviewOperations)
@@ -163,7 +207,7 @@ async function fixture(knownScope = true, pendingIdentity = true) {
           status: 200 as const,
           headers: {
             'content-length': String(bytes.length),
-            'content-type': 'text/plain',
+            'content-type': mediaType,
           },
           body: new ReadableStream<Uint8Array>({
             start(controller) {
@@ -248,23 +292,52 @@ it('settles unknown scope as pending; a bind does not create proof or call the m
     .where(eq(mediaMaterials.id, h.f.row.id));
   expect(material!.intakeScope).toBeNull();
 });
-it('runs native canonical TXT through845 exactly once and confirms its real document source', async () => {
-  const h = await fixture(true, false);
-  const calls = model.calls();
+it.each(['txt', 'pdf'] as const)(
+  'runs native canonical %s through845 exactly once and confirms its real source',
+  async (format) => {
+    const h = await fixture(true, false, format);
+    const calls = model.calls();
+    await h.parse();
+    await expect
+      .poll(async () => (await h.drafts()).length, { timeout: 15000 })
+      .toBe(1);
+    const draft = (await h.drafts())[0]!.draft;
+    expect(draft.sourceReferences[0]!.location.kind).toBe(
+      format === 'pdf' ? 'pdf' : 'document',
+    );
+    await h.parse();
+    await worker.recover();
+    expect(model.calls()).toBe(calls + 1);
+    const saved = await save(draft, h.f.account);
+    expect(saved.result.events).toHaveLength(1);
+    const receipt = await h.receipt();
+    expect(receipt?.confirmedDrafts).toHaveLength(1);
+    expect(receipt?.draftSet).toBeNull();
+  },
+  30000,
+);
+it('does not confirm canonical PDF after current node permission is revoked', async () => {
+  const h = await fixture(true, false, 'pdf');
   await h.parse();
   await expect
     .poll(async () => (await h.drafts()).length, { timeout: 15000 })
     .toBe(1);
   const draft = (await h.drafts())[0]!.draft;
-  expect(draft.sourceReferences[0]!.location.kind).toBe('document');
-  await h.parse();
-  await worker.recover();
-  expect(model.calls()).toBe(calls + 1);
-  const saved = await save(draft, h.f.account);
-  expect(saved.result.events).toHaveLength(1);
-  const receipt = await h.receipt();
-  expect(receipt?.confirmedDrafts).toHaveLength(1);
-  expect(receipt?.draftSet).toBeNull();
+  expect(draft.sourceReferences[0]!.location.kind).toBe('pdf');
+  await connection.db
+    .update(evaluationRelations)
+    .set({ validTo: businessAt })
+    .where(eq(evaluationRelations.id, h.f.relation));
+  await expect(save(draft, h.f.account)).rejects.toMatchObject({
+    status: 'forbidden',
+  });
+  expect(
+    await connection.db
+      .select()
+      .from(recordSaves)
+      .where(eq(recordSaves.batchId, h.f.row.inputId)),
+  ).toHaveLength(0);
+  expect((await h.drafts())[0]!.draft).toEqual(draft);
 }, 30000);
 it('enforces current review dependencies after undo/rebind, and blocks undo after real confirmation', async () => {
   const h = await fixture();

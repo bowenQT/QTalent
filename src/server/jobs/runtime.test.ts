@@ -4,6 +4,8 @@ const f = vi.hoisted(() => ({
   example: { kind: 'example' },
   demand: { kind: 'staffing_demand' },
   arrange: { kind: 'record_organize' },
+  parsedAttachment: { kind: 'record_attachment_organize' },
+  parsedAttachmentRuntime: vi.fn(),
   match: { kind: 'staffing_match' },
   matchRuntime: vi.fn(),
   arrangeStore: {},
@@ -27,6 +29,9 @@ vi.mock('../usecases/staffing-demand-runtime', () => ({
 vi.mock('../usecases/record-arrange-runtime', () => ({
   recordArrangeRequestsForServer: f.arrangeRuntime,
 }));
+vi.mock('../usecases/parsed-attachment-runtime', () => ({
+  parsedAttachmentRequestsForServer: f.parsedAttachmentRuntime,
+}));
 vi.mock('../usecases/staffing-match-runtime', () => ({
   createStaffingMatchServerRuntime: f.matchRuntime,
 }));
@@ -46,13 +51,18 @@ it.each(['demo', 'test', 'production', 'local'])(
       policy: f.arrange,
       native: { store: f.arrangeStore },
     });
+    f.parsedAttachmentRuntime.mockReturnValue({
+      policy: f.parsedAttachment,
+    });
     f.matchRuntime.mockReturnValue({ policy: f.match });
     jobService();
     expect(f.create).toHaveBeenCalledWith(
       f.arrangeStore,
-      [f.example, f.demand, f.arrange, f.match],
+      [f.example, f.demand, f.arrange, f.parsedAttachment, f.match],
       expect.any(Function),
     );
+    expect(f.parsedAttachmentRuntime).toHaveBeenCalledOnce();
+    expect(f.parsedAttachmentRuntime).toHaveBeenCalledWith();
     expect(f.producer).not.toHaveBeenCalled();
     const input = f.demandRuntime.mock.calls[0][0];
     const fixed = environment === 'demo' || environment === 'test';

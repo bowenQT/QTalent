@@ -11,6 +11,12 @@ const f = vi.hoisted(() => ({
   registerDemand: vi.fn(),
   demandRuntime: vi.fn(),
   arrangeRuntime: vi.fn(),
+  arrangeModelClient: vi.fn(),
+  modelClient: { generateStructured: vi.fn() },
+  parsedAttachmentRuntime: vi.fn(),
+  registerParsedAttachment: vi.fn(),
+  afterParsedAttachment: vi.fn(),
+  recoverParsedAttachments: vi.fn(),
   registerArrange: vi.fn(),
   attachmentRuntime: vi.fn(),
   registerAttachment: vi.fn(),
@@ -44,6 +50,10 @@ vi.mock('../server/usecases/staffing-demand-runtime', () => ({
 }));
 vi.mock('../server/usecases/record-arrange-worker', () => ({
   createRecordArrangeWorker: f.arrangeRuntime,
+  createRecordArrangeModelClient: f.arrangeModelClient,
+}));
+vi.mock('../server/usecases/parsed-attachment-worker', () => ({
+  createParsedAttachmentWorker: f.parsedAttachmentRuntime,
 }));
 vi.mock('../server/usecases/attachment-parse-worker', () => ({
   createAttachmentParseWorker: f.attachmentRuntime,
@@ -114,6 +124,13 @@ beforeEach(() => {
   f.demandRuntime.mockReturnValue({ register: f.registerDemand });
   f.registerArrange.mockResolvedValue(undefined);
   f.arrangeRuntime.mockReturnValue({ register: f.registerArrange });
+  f.arrangeModelClient.mockReturnValue(f.modelClient);
+  f.registerParsedAttachment.mockResolvedValue(undefined);
+  f.parsedAttachmentRuntime.mockReturnValue({
+    register: f.registerParsedAttachment,
+    afterParse: f.afterParsedAttachment,
+    recover: f.recoverParsedAttachments,
+  });
   f.registerAttachment.mockResolvedValue(undefined);
   f.attachmentRuntime.mockReturnValue({ register: f.registerAttachment });
   f.registerMatch.mockResolvedValue(undefined);
@@ -200,6 +217,56 @@ describe('worker lifecycle with transport boundaries replaced', () => {
       }
     },
   );
+  it.each(['demo', 'test', 'production', 'local'])(
+    'wires parsed attachment arrangement to its model factory, parser hooks and %s clocks',
+    async (environment) => {
+      f.env.APP_ENV = environment;
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-01T12:00:00.000Z'));
+      const worker = await startWorker();
+      try {
+        expect(f.arrangeModelClient).toHaveBeenCalledOnce();
+        expect(f.arrangeModelClient).toHaveBeenCalledWith(f.env);
+        expect(f.parsedAttachmentRuntime).toHaveBeenCalledOnce();
+        expect(f.registerParsedAttachment).toHaveBeenCalledOnce();
+        const input = f.parsedAttachmentRuntime.mock.calls[0][0];
+        expect(input.boss).toBe(worker.boss);
+        expect(input.client).toBe(f.modelClient);
+        const parser = f.attachmentRuntime.mock.calls[0][0];
+        expect(parser.afterParse).toBe(f.afterParsedAttachment);
+        expect(parser.afterRecovery).toBe(f.recoverParsedAttachments);
+        expect(f.registerArrange.mock.invocationCallOrder[0]).toBeLessThan(
+          f.registerParsedAttachment.mock.invocationCallOrder[0]!,
+        );
+        expect(
+          f.registerParsedAttachment.mock.invocationCallOrder[0],
+        ).toBeLessThan(f.registerAttachment.mock.invocationCallOrder[0]!);
+        const fixed = environment === 'demo' || environment === 'test';
+        expect(input.businessNow()).toBe(
+          fixed ? '2026-09-04T00:00:00.000Z' : '2026-11-01T12:00:00.000Z',
+        );
+        expect(input.now().toISOString()).toBe('2026-11-01T12:00:00.000Z');
+        vi.setSystemTime(new Date('2026-11-01T12:00:01.000Z'));
+        expect(input.businessNow()).toBe(
+          fixed ? '2026-09-04T00:00:00.000Z' : '2026-11-01T12:00:01.000Z',
+        );
+        expect(input.now().toISOString()).toBe('2026-11-01T12:00:01.000Z');
+      } finally {
+        await worker.stop();
+      }
+    },
+  );
+  it('stops the shared boss if parsed attachment registration fails before parsing or transport opens', async () => {
+    f.registerParsedAttachment.mockRejectedValueOnce(
+      new Error('parsed attachment registration failed'),
+    );
+    await expect(startWorker()).rejects.toThrow(
+      'parsed attachment registration failed',
+    );
+    expect(f.stop).toHaveBeenCalledOnce();
+    expect(f.attachmentRuntime).not.toHaveBeenCalled();
+    expect(f.serverEvents.size).toBe(0);
+  });
   it('starts every queue and the socket when the Kodo configuration is malformed', async () => {
     f.env.APP_ENV = 'production';
     Object.assign(f.env, {
