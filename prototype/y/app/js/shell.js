@@ -215,6 +215,7 @@
       btn.querySelector('.nt-nav__label').textContent = collapsed ? '展开导航' : '收起导航';
     };
     let saved = false;
+    let moveTimer = 0;
     try { saved = localStorage.getItem(SIDE_KEY) === '1'; } catch (e) { /* 忽略 */ }
     set(saved);
     btn.addEventListener('click', () => {
@@ -222,7 +223,8 @@
       hide();
       root.classList.add('is-side-moving');
       set(collapsed);
-      setTimeout(() => root.classList.remove('is-side-moving'), 320);
+      clearTimeout(moveTimer);
+      moveTimer = setTimeout(() => root.classList.remove('is-side-moving'), 400); // 比过渡时长稍长，连点时过渡不被截断
       try { localStorage.setItem(SIDE_KEY, collapsed ? '1' : '0'); } catch (e) { /* 忽略 */ }
     });
 
