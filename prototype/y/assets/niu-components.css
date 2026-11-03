@@ -1206,15 +1206,8 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-roll th { font-size: var(--t-xs); font-weight: 500; color: var(--ink-3); }
 .n-roll td small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
 .n-rollwrap { overflow-x: auto; }
-.n-cover { display: flex; flex-wrap: nowrap; gap: 4px; }
-.n-roll td > .n-cover { white-space: nowrap; }
+.n-roll__ev { display: block; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .n-roll td:first-child small { white-space: nowrap; }
-.n-condlg__ctx .n-cover { flex-wrap: wrap; }
-.n-cover__d { padding: 1px 7px; border-radius: 999px; font-size: var(--t-xs); line-height: 18px; color: var(--ink-3); border: 1px dashed var(--line-strong); }
-.n-cover__d[data-on="true"] { color: var(--ink); background: var(--sheet-sunk); border: 1px solid transparent; }
-.n-roll td small.n-cover__miss, .n-cover__miss { color: var(--ink-2); }
-.n-roll td > .n-cover + small { margin-top: 4px; }
-.n-condlg__ctx dd > .n-cover + small { display: block; margin-top: 4px; font-size: var(--t-xs); color: var(--ink-3); }
 .n-rollwrap .n-roll { min-width: 560px; }
 
 /* 组织调整方案的动作行 */
