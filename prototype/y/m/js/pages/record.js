@@ -207,6 +207,11 @@
     const S = st.get();
     const evs = m.events.map((id) => st.event(id)).filter(Boolean);
     const verify = S.inbox.filter((i) => i.src === m.title);
+    // 能做的事给入口，不能做的只写现在等谁（和桌面纪要一致）
+    const me = st.me().id, role = st.role();
+    const mentorsOf = (pid) => st.batch(m.batch)?.newcomers.find((n) => n[0] === pid)?.[2] || [];
+    const canVerify = (v) => role === 'hrbp' || v.by === me;
+    const mine = evs.filter((e) => e.scores.some((x) => x.st === 'ai') && mentorsOf(e.people[0]).includes(me));
     const durS = DUR;
     const toS = (t) => { const [a, b] = t.split(':').map(Number); return a * 60 + b; };
     const N = 56;
@@ -226,12 +231,13 @@
           const pend = e.scores.filter((s) => s.st === 'ai').length, conf = e.scores.some((s) => s.st === 'conflict');
           const who = st.person(e.people[0]), loc = e.srcs.find((x) => x.type === 'audio')?.loc;
           const t = loc?.match(/\d\d:\d\d/)?.[0];
-          return html`<div class="n-minievent m-mev"><div><a class="nt-plink" href="person.html?id=${who.id}#ev-${e.id}">${e.title}</a><small>${who.name} · ${e.scores.filter((s) => s.v != null).map((s) => `${st.dim(s.d).name} ${s.v}`).join('、') || '—'}${t ? html` · <button class="n-link" type="button" data-seek="${t}">${icon('play', 9)} ${t}</button>` : ''}</small></div>${conf ? html`<span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : pend ? html`<span class="n-badge n-badge--ai">${icon('spark')}${pend} 项待确认</span>` : html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>`}</div>`;
+          return html`<div class="n-minievent m-mev"><div><a class="nt-plink" href="person.html?id=${who.id}#ev-${e.id}">${e.title}</a><small>${who.name} · ${e.scores.filter((s) => s.v != null).map((s) => `${st.dim(s.d).name} ${s.v}`).join('、') || '—'}${t ? html` · <button class="n-link" type="button" data-seek="${t}">${icon('play', 9)} ${t}</button>` : ''}</small></div>${conf ? html`<span class="n-badge n-badge--conflict">${icon('split')}${st.can('calibrate') ? '待校准' : '待 HR 校准'}</span>` : pend ? html`<span class="n-badge n-badge--ai">${icon('spark')}${mentorsOf(who.id).includes(me) ? `${pend} 项待你确认` : `${pend} 项待导师确认`}</span>` : html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>`}</div>`;
         })}
-        ${verify.length ? html`<h3 class="m-h">待核对 · ${verify.filter((v) => !v.done).length} 处</h3>${verify.map((v) => html`<a class="n-minievent nt-plink m-mev" href="inbox.html#${v.id}"><div>${v.q}<small>${v.at} · ${st.person(v.by).name}</small></div>${v.done ? html`<span class="n-badge n-badge--yes">${icon('check')}已核对</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}去核对</span>`}</a>`)}` : ''}
+        ${verify.length ? html`<h3 class="m-h">待核对 · ${verify.filter((v) => !v.done).length} 处</h3>${verify.map((v) => { const row = html`<div>${v.q}<small>${v.at} · ${st.person(v.by).name}</small></div>${v.done ? html`<span class="n-badge n-badge--yes">${icon('check')}已核对</span>` : canVerify(v) ? html`<span class="n-badge n-badge--ai">${icon('spark')}去核对</span>` : html`<span class="n-badge">待${st.person(v.by).name}核对</span>`}`;
+          return !v.done && canVerify(v) ? html`<a class="n-minievent nt-plink m-mev" href="inbox.html#${v.id}">${row}</a>` : html`<div class="n-minievent m-mev">${row}</div>`; })}` : ''}
         <ul class="m-list" style="margin-top:var(--s-4)">
-          ${M.row('mentor.html', icon('users'), '导师逐个确认建议分', 'W8 对人复盘')}
-          ${M.row('inbox.html', icon('spark'), '核对人名和项目', `${verify.filter((v) => !v.done).length} 处待核对`)}
+          ${mine.length ? M.row('mentor.html', icon('users'), '确认学员的建议分', `W8 对人复盘 · ${mine.map((e) => st.person(e.people[0]).name).join('、')}`) : ''}
+          ${verify.some((v) => !v.done && canVerify(v)) ? M.row('inbox.html', icon('spark'), '核对人名和课题', `${verify.filter((v) => !v.done && canVerify(v)).length} 处待核对`) : ''}
         </ul>
       </div>
       <div class="n-tabpanel" role="tabpanel" id="mp-2" hidden>

@@ -301,6 +301,11 @@
     const bars = Array.from({ length: 80 }, (_, i) => i);
     const durS = m.dur.split(':').reduce((a, x) => a * 60 + +x, 0); // 「38:20」→ 秒，波形上的标记位置按真实时长摆放
     const speakers = new Set(m.lines.map((l) => l[1])).size;
+    // 能做的事给入口，不能做的只写现在等谁：待核对由录入人或 HR 处理，建议分由这位学员的导师在对人复盘里确认，分差大的由 HR 校准
+    const me = st.me().id, role = st.role();
+    const mentorsOf = (pid) => st.batch(m.batch)?.newcomers.find((n) => n[0] === pid)?.[2] || [];
+    const canVerify = (v) => role === 'hrbp' || v.by === me;
+    const mine = evs.filter((e) => e.scores.some((x) => x.st === 'ai') && mentorsOf(e.people[0]).includes(me));
     mount(main, html`
       <header class="nt-head"><div><h1>${m.title}</h1><p>${m.mode} · ${m.dur} · ${st.person(m.by).name}录制 · ${NT.md(m.at)} · 关联「${st.batch(m.batch).name}」</p></div>
         <div class="nt-head__acts"><span class="n-badge n-badge--preset">预先处理的演示任务</span></div></header>
@@ -313,14 +318,15 @@
           </div>
           <div class="n-tabpanel" role="tabpanel" id="mp-1">
             <p class="n-minutes__sum" id="sum"></p>
-            <div class="n-minutes__people">${m.people.filter(([pid]) => st.scope(pid)).map(([pid]) => html`<a class="nt-plink" href="person.html?id=${pid}"><span>${UI.avatar(pid, 'sm')}${st.person(pid).name} · ${evs.filter((e) => e.people.includes(pid)).length} 条</span></a>`)}${verify.filter((v) => !v.done).map((v) => html`<a class="nt-plink" href="inbox.html#${v.id}"><span><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>${v.quote.match(/「?(小孟|分镜那个组)/)?.[1] || '待核对'} · 待核对</span></a>`)}</div>
+            <div class="n-minutes__people">${m.people.filter(([pid]) => st.scope(pid)).map(([pid]) => html`<a class="nt-plink" href="person.html?id=${pid}"><span>${UI.avatar(pid, 'sm')}${st.person(pid).name} · ${evs.filter((e) => e.people.includes(pid)).length} 条</span></a>`)}${verify.filter((v) => !v.done).map((v) => { const chip = html`<span><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>${v.quote.match(/「?(小孟|分镜那个组)/)?.[1] || '待核对'} · 待核对</span>`; return canVerify(v) ? html`<a class="nt-plink" href="inbox.html#${v.id}">${chip}</a>` : chip; })}</div>
             <h4 class="nt-h2" style="font-size:var(--t-sm)">新事件 · ${evs.length} 条</h4>
             ${evs.map((e) => {
               const pend = e.scores.filter((s) => s.st === 'ai').length, conf = e.scores.some((s) => s.st === 'conflict');
               const who = st.person(e.people[0]);
-              return html`<a class="n-minievent nt-plink" href="person.html?id=${who.id}#ev-${e.id}"><div>${e.title}<small>${who.name} · ${e.scores.filter((s) => s.v != null).map((s) => `${st.dim(s.d).name} ${s.v}`).join('、') || '—'} · ${e.srcs.find((x) => x.type === 'audio')?.loc || NT.md(e.date)}</small></div>${conf ? html`<span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : pend ? html`<span class="n-badge n-badge--ai">${icon('spark')}${pend} 项待确认</span>` : html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>`}</a>`;
+              return html`<a class="n-minievent nt-plink" href="person.html?id=${who.id}#ev-${e.id}"><div>${e.title}<small>${who.name} · ${e.scores.filter((s) => s.v != null).map((s) => `${st.dim(s.d).name} ${s.v}`).join('、') || '—'} · ${e.srcs.find((x) => x.type === 'audio')?.loc || NT.md(e.date)}</small></div>${conf ? html`<span class="n-badge n-badge--conflict">${icon('split')}${st.can('calibrate') ? '待校准' : '待 HR 校准'}</span>` : pend ? html`<span class="n-badge n-badge--ai">${icon('spark')}${mentorsOf(who.id).includes(me) ? `${pend} 项待你确认` : `${pend} 项待导师确认`}</span>` : html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>`}</a>`;
             })}
-            ${verify.length ? html`<h4 class="nt-h2" style="font-size:var(--t-sm);margin-top:var(--s-4)">待核对 · ${verify.filter((v) => !v.done).length} 处</h4>${verify.map((v) => html`<a class="n-minievent nt-plink" href="inbox.html#${v.id}"><div>${v.q}<small>${v.at} · ${st.person(v.by).name}</small></div>${v.done ? html`<span class="n-badge n-badge--yes">${icon('check')}已核对</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}去核对</span>`}</a>`)}` : ''}
+            ${verify.length ? html`<h4 class="nt-h2" style="font-size:var(--t-sm);margin-top:var(--s-4)">待核对 · ${verify.filter((v) => !v.done).length} 处</h4>${verify.map((v) => { const row = html`<div>${v.q}<small>${v.at} · ${st.person(v.by).name}</small></div>${v.done ? html`<span class="n-badge n-badge--yes">${icon('check')}已核对</span>` : canVerify(v) ? html`<span class="n-badge n-badge--ai">${icon('spark')}去核对</span>` : html`<span class="n-badge">待${st.person(v.by).name}核对</span>`}`;
+              return !v.done && canVerify(v) ? html`<a class="n-minievent nt-plink" href="inbox.html#${v.id}">${row}</a>` : html`<div class="n-minievent">${row}</div>`; })}` : ''}
           </div>
           <div class="n-tabpanel" role="tabpanel" id="mp-2" hidden>
             <ol class="n-transcript">${m.lines.map(([t, by, text, flag]) => html`<li class="${flag === 'flag' ? 'is-flag' : ''}"><time>${t}</time><div><b>${st.person(by).name} · ${st.person(by).staff === 'ta' ? '助教' : '导师'}</b>${flag === 'verify' ? raw(NT.esc(text).replace(/(小孟|分镜那个组)/, '<mark>$1</mark>')) : text}</div></li>`)}</ol>
@@ -334,9 +340,9 @@
           <div class="n-card">${UI.trail('处理这段录音 · 5 步', ['上传完成 · 182 MB', `转写 · 区分 ${speakers} 位说话人`, '提取人员与项目', `整理出 ${evs.length} 条事件`, `标出 ${verify.length} 处需要人确认`], false)}</div>
           <div class="n-card"><h3 class="n-section-title">接下来</h3>
             <ul class="nt-list" style="font-size:var(--t-sm)">
-              <li>导师逐个确认学员的建议分：<a href="landing-review.html?id=p-x11">孟逸尘 W8 对人复盘</a></li>
-              <li>核对人名和项目：<a href="inbox.html">待核对</a></li>
-              ${st.can('calibrate') ? html`<li>分差大的分数由 HR 校准：<a href="queue.html">评分复核</a></li>` : ''}
+              ${mine.length ? mine.map((e) => html`<li>确认${st.person(e.people[0]).name}的建议分：<a href="landing-review.html?id=${e.people[0]}">W8 对人复盘</a></li>`) : html`<li>学员的建议分由各自的导师在对人复盘里确认</li>`}
+              ${verify.some((v) => !v.done && canVerify(v)) ? html`<li>核对人名和课题：<a href="inbox.html">待核对</a></li>` : verify.some((v) => !v.done) ? html`<li>人名和课题由录入人${st.person(m.by).name}核对</li>` : ''}
+              ${st.can('calibrate') ? html`<li>分差大的分数由你校准：<a href="queue.html">评分复核</a></li>` : html`<li>分差大的分数由 HR 校准</li>`}
             </ul></div>
         </aside>
       </div>`);
