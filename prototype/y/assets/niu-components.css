@@ -1241,16 +1241,26 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-rollwrap .n-roll { min-width: 560px; }
 
 /* 组织调整方案的动作行 */
-.n-move { padding: var(--s-4) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); }
-.n-move:first-of-type { border-top: 0; padding-top: 0; }
-.n-move__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
-.n-move__type { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: var(--r-chip); background: var(--ink); color: #fff; font-size: var(--t-xs); font-weight: 600; }
-.n-move__type.is-watch { background: var(--sheet-sunk); color: var(--ink-2); }
-.n-move__path { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); color: var(--ink-2); }
+.n-movebar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); padding-bottom: var(--s-4); border-bottom: 1px solid var(--line); }
+.n-movebar .n-chips { flex: 1 1 320px; margin: 0; }
+.n-movebar__q { flex: 0 1 220px; min-width: 160px; }
+.n-movegrp + .n-movegrp { margin-top: var(--s-2); }
+.n-movegrp__title .n-count { margin-left: 0; }
+.n-movegrp__title { display: flex; align-items: center; gap: var(--s-2); margin: 0; padding: var(--s-5) 0 var(--s-1); font-size: var(--t-xs); font-weight: 600; color: var(--ink-3); letter-spacing: .02em; }
+.n-move { padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); }
+.n-movegrp__title + .n-move { border-top: 0; }
+.n-move__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-3); min-height: 28px; }
+.n-move__who { font-weight: 600; }
+.n-move__path { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--ink-3); }
+.n-move__path b { font-weight: 500; color: var(--ink); }
 .n-move__path svg { width: 14px; height: 14px; color: var(--ink-3); }
-.n-move__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--s-2) var(--s-4); margin-top: var(--s-3); }
-.n-move__grid div { font-size: var(--t-xs); color: var(--ink-3); line-height: 1.6; }
-.n-move__grid b { display: block; font-size: var(--t-sm); font-weight: 500; color: var(--ink); }
+.n-move__end { display: inline-flex; align-items: center; gap: var(--s-2); margin-left: auto; }
+.n-move__basis { margin: 2px 0 0; color: var(--ink-2); line-height: 1.65; }
+.n-move__k { margin-right: 4px; color: var(--ink-3); }
+.n-move__sep { margin: 0 6px; color: var(--ink-4, var(--ink-3)); }
+.n-move__meta { display: flex; flex-wrap: wrap; gap: 2px var(--s-4); margin-top: 2px; font-size: var(--t-xs); color: var(--ink-3); }
+.n-move__meta:empty { display: none; }
+.n-move__meta b { margin-left: 4px; font-weight: 500; color: var(--ink-2); }
 
 /* ══════════════ 项目复盘与改进事项 ══════════════ */
 .n-action { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-2) var(--s-4); align-items: start; padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); }

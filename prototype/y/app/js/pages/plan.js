@@ -37,7 +37,9 @@
         <article class="n-card" id="doc" style="position:relative">
           ${!draft ? html`<span class="n-seal" style="position:absolute;right:22px;top:18px" id="seal">定</span>` : ''}
           ${hiddenN ? html`<p class="nt-muted" style="margin:0 0 var(--s-3)">另有 ${hiddenN} 条动作涉及你范围以外的人，已隐藏。</p>` : ''}
-          ${p.moves.length ? p.moves.map((m, i) => (st.canSeeMove(m) ? move(m, i, canEdit) : '')) : html`<div class="nt-empty">还没有动作。从盘点清单和象限校准的结论出发，加第一条。</div>`}
+          ${p.moves.length ? html`<div class="n-movebar"><div class="n-chips" role="group" aria-label="按类型筛选" id="mvf"></div>
+            <input class="n-input n-movebar__q" type="search" placeholder="按姓名或部门筛选" aria-label="按姓名或部门筛选" id="mvq" value="${fq}"></div>
+            <div id="moves" aria-live="polite"></div>` : html`<div class="nt-empty">还没有动作。从盘点清单和象限校准的结论出发，加第一条。</div>`}
         </article>
         <aside class="nt-grid nt-sticky">
           <article class="n-card"><h3 class="n-section-title">版本</h3>
@@ -50,24 +52,68 @@
               <li>本人意愿、可否释放待了解时写「未知」。</li><li>资料不足的人放「继续观察」，写清下次补什么、谁负责。</li><li>动作来自「值得聊一聊」的，标为「激活」。</li></ul></article>
         </aside>
       </div>`);
+    editable = canEdit;
+    if (p.moves.length) drawMoves(p);
     wire(main, p);
   }
+
+  // 列表按类型分组，类型筛选和姓名 / 部门筛选只影响显示，不改方案
+  let ftype = 'all', fq = '', editable = false;
+  const groupOf = (m) => (m.kind === '激活' ? '激活' : m.type);
+  const GROUPS = ['负责人安排', '调岗', '激活', '落位', '留用', '继续观察', '未接受'];
+  const groupLabel = (g) => (g === '未接受' ? '未接受 offer' : g);
+  function drawMoves(p) {
+    const seen = p.moves.map((m, i) => [m, i]).filter(([m]) => st.canSeeMove(m));
+    const q = fq.trim().toLowerCase();
+    const hit = (m) => !q || [m.person && st.person(m.person).name, m.from, m.to].some((t) => (t || '').toLowerCase().includes(q));
+    const byQ = seen.filter(([m]) => hit(m));
+    const groups = GROUPS.filter((g) => seen.some(([m]) => groupOf(m) === g));
+    if (ftype !== 'all' && !groups.includes(ftype)) ftype = 'all';
+    const n = (g) => byQ.filter(([m]) => g === 'all' || groupOf(m) === g).length;
+    mount($('#mvf'), html`${['all', ...groups].map((g) => html`<button class="n-chip" type="button" data-g="${g}" aria-pressed="${g === ftype}">${g === 'all' ? '全部' : groupLabel(g)} <b>${n(g)}</b></button>`)}`);
+    const shown = groups.filter((g) => ftype === 'all' || g === ftype).map((g) => [g, byQ.filter(([m]) => groupOf(m) === g)]).filter(([, l]) => l.length);
+    mount($('#moves'), shown.length
+      ? html`${shown.map(([g, l]) => html`<section class="n-movegrp"><h3 class="n-movegrp__title">${groupLabel(g)}<span class="n-count is-quiet">${l.length}</span></h3>${l.map(([m, i]) => move(m, i, editable))}</section>`)}`
+      : html`<div class="nt-empty">没有符合条件的动作。<button class="n-link" type="button" id="mvclear">清除筛选</button></div>`);
+    NT.$$('[data-menu]', $('#moves')).forEach((btn) => {
+      const i = +btn.dataset.menu;
+      NT.menu(btn, [{ label: '修改', icon: 'pen', run: () => editMove(p, i) }, { label: '删去这条', icon: 'trash', danger: true, run: () => {
+        const [rm] = p.moves.splice(i, 1); st.save(); render($('#main'));
+        NT.toast('已删去这条动作', { undo: () => { p.moves.splice(i, 0, rm); st.save(); render($('#main')); } });
+      } }]);
+    });
+  }
+
+  // 本人意愿是落位能否推进的关键，放在每条动作的第一行
+  function willBadge(will) {
+    const w = (will || '未知').replace(/^已沟通 · /, '');
+    const cls = /未接受|拒绝/.test(w) ? 'n-badge--conflict' : /未知|待/.test(w) ? 'n-badge--unknown' : 'n-badge--yes';
+    return html`<span class="n-badge ${cls}">${/未知|待/.test(w) ? `本人意愿${w === '未知' ? '未知' : `：${w}`}` : `本人${w}`}</span>`;
+  }
+  // 依据按「；」分段，「键：值」的段落把键弱化，方便扫读
+  function basisLine(t) {
+    const segs = (t || '—').split('；');
+    return segs.map((x, k) => { const c = x.indexOf('：'); return html`${k ? html`<span class="n-move__sep" aria-hidden="true">·</span>` : ''}${c > 0 ? html`<span class="n-move__k">${x.slice(0, c)}</span>${x.slice(c + 1)}` : x}`; });
+  }
+  const metaItem = (k, v) => html`<span>${k}<b style="${/未知/.test(v) ? 'color:var(--unknown)' : ''}">${v}</b></span>`;
 
   function move(m, i, editable) {
     const who = m.person ? st.person(m.person) : null;
     const pendingLink = m.pending ? (st.project(m.pending) ? `staffing.html?project=${m.pending}` : NT.link('staffing.html', { new: 1, q: '新转化团队要找一个能带 SDR 和 SMB 的 owner，11 月到岗' })) : null;
-    const unk = (t) => (/未知/.test(t || '') ? html`<b style="color:var(--unknown)">${t}</b>` : html`<b>${t || '—'}</b>`);
+    const name = who ? html`<b class="n-move__who">${UI.plink(m.person)}</b>` : html`<span class="n-badge n-badge--unknown">${icon('dash')}人选待定</span>`;
+    const path = html`<span class="n-move__path">${m.from ? html`${m.from}${icon('chev')}` : ''}<b>${m.to}</b></span>`;
     if (m.type === '继续观察') {
-      return html`<div class="n-move" data-i="${i}"><div class="n-move__head"><span class="n-move__type is-watch">继续观察</span><b>${who ? UI.plink(m.person) : ''}</b><span class="n-move__path">${m.to}</span>${editable ? menu(i) : ''}</div>
-        <div class="n-move__grid"><div>依据${unk(m.basis)}</div><div>下次补什么${unk(m.next)}</div><div>负责人${unk(`${st.person(m.owner)?.name || ''} · ${NT.md(m.due)} 前`)}</div></div></div>`;
+      return html`<div class="n-move" data-i="${i}"><div class="n-move__head">${name}${path}<span class="n-move__end">${m.will ? willBadge(m.will) : ''}${editable ? menu(i) : ''}</span></div>
+        <p class="n-move__basis">${basisLine(m.basis)}</p>
+        <div class="n-move__meta">${metaItem('下次补什么', m.next || '—')}${metaItem('负责人', `${st.person(m.owner)?.name || ''} · ${NT.md(m.due)} 前`)}</div></div>`;
     }
-    return html`<div class="n-move" data-i="${i}"><div class="n-move__head"><span class="n-move__type">${typeLabel(m)}</span>
-      ${who ? html`<b>${UI.plink(m.person)}</b>` : html`<span class="n-badge n-badge--unknown">${icon('dash')}人选待定</span>`}
-      <span class="n-move__path">${m.from || ''}${m.from ? icon('chev') : ''}${m.to}</span>${m.kind === '激活' ? html`<span class="n-kind">激活</span>` : ''}${editable ? menu(i) : ''}</div>
+    const meta = [m.gap && m.gap !== '—' && metaItem('缺口', m.gap), m.impact && m.impact !== '不涉及' && metaItem('影响', m.impact), metaItem('可否释放', m.release || '未知')].filter(Boolean);
+    return html`<div class="n-move" data-i="${i}"><div class="n-move__head">${name}${path}${m.kind === '激活' && ftype !== '激活' ? html`<span class="n-kind">激活 · ${m.type}</span>` : ''}<span class="n-move__end">${willBadge(m.will)}${editable ? menu(i) : ''}</span></div>
       ${!who && pendingLink ? html`<div class="n-ownerless" style="margin-top:var(--s-3)"><span class="n-slot__empty">${icon('plus', 14)}</span><div><b>人选来自项目用人方案</b><div class="nt-muted">项目用人方案确认后，这里自动填上人</div></div><a class="n-btn n-btn--sm n-btn--light" href="${pendingLink}">${icon('spark')}去找 owner</a></div>` : ''}
-      <div class="n-move__grid"><div>依据${unk(m.basis)}${m.ev ? UI.cite(st.event(m.ev)?.srcs[0], 1) : ''}</div><div>缺口${unk(m.gap)}</div><div>本人意愿${unk(m.will)}</div><div>可否释放${unk(m.release)}</div><div>影响${unk(m.impact)}</div></div></div>`;
+      <p class="n-move__basis">${basisLine(m.basis)}${m.ev ? UI.cite(st.event(m.ev)?.srcs[0], 1) : ''}</p>
+      <div class="n-move__meta">${meta}</div></div>`;
   }
-  const menu = (i) => html`<span class="n-menuwrap" style="margin-left:auto"><button class="n-btn n-btn--sm n-btn--ghost n-btn--icon" type="button" data-menu="${i}" aria-label="更多">${icon('more')}</button></span>`;
+  const menu = (i) => html`<span class="n-menuwrap"><button class="n-btn n-btn--sm n-btn--ghost n-btn--icon" type="button" data-menu="${i}" aria-label="更多">${icon('more')}</button></span>`;
 
   async function editMove(p, i) {
     const m = i == null ? { type: '调岗', person: '', from: '', to: '', basis: '', gap: '', will: '未知', release: '未知', impact: '' } : p.moves[i];
@@ -102,13 +148,10 @@
 
   function wire(main, p) {
     $('#add')?.addEventListener('click', () => editMove(p, null));
-    NT.$$('[data-menu]', main).forEach((btn) => {
-      const i = +btn.dataset.menu;
-      NT.menu(btn, [{ label: '修改', icon: 'pen', run: () => editMove(p, i) }, { label: '删去这条', icon: 'trash', danger: true, run: () => {
-        const [rm] = p.moves.splice(i, 1); st.save(); render(main);
-        NT.toast('已删去这条动作', { undo: () => { p.moves.splice(i, 0, rm); st.save(); render(main); } });
-      } }]);
-    });
+    const redraw = () => drawMoves(p);
+    $('#mvf')?.addEventListener('click', (e) => { const c = e.target.closest('[data-g]'); if (!c) return; ftype = c.dataset.g; redraw(); });
+    $('#mvq')?.addEventListener('input', (e) => { fq = e.target.value; redraw(); });
+    $('#moves')?.addEventListener('click', (e) => { if (!e.target.closest('#mvclear')) return; ftype = 'all'; fq = ''; $('#mvq').value = ''; redraw(); });
     $('#confirm')?.addEventListener('click', () => confirm(p));
   }
 
