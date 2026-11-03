@@ -49,7 +49,7 @@
           <button type="button" data-v="now" aria-pressed="${ver === 'now'}">只看现在</button>
           ${snapsWith.map((s) => html`<button type="button" data-v="${s.id}" aria-pressed="${ver === s.id}">${atReview(s)} · ${NT.md(s.at)}</button>`)}
         </div>
-        ${verSnap ? html`<div class="n-pver__cmp"><span class="n-pver__label">${atReview(verSnap)}（${NT.md(verSnap.at)}）记下的结果只算 ${NT.md(verSnap.cutoff)} 前确认的事件，之后的事件不会改动它。到现在：</span>${verCompare(verSnap.entries[pid], ref, f)}</div>` : ''}
+        ${verSnap ? html`<div class="n-pver__cmp">${verCompare(verSnap.entries[pid], ref, f)}</div>` : ''}
       </div>` : '';
     const chgList = jchg.length ? html`<div class="n-spectrum__chg"><h4>近 3 个月的变化</h4><div id="pchanges">${jchg.map((c) => UI.change(c, 'win'))}</div></div>` : '';
 
@@ -221,8 +221,8 @@
       ['已确认事件分', `${e.n} 条`, `${ref.n} 条`],
       ...['prof', 'mot', 'wis', 'grit'].filter((k) => e.dims?.[k]?.m != null || ref.dims?.[k]?.m != null).map((k) => [`${st.dim(k).name}均值`, m(e.dims?.[k]?.m), m(ref.dims?.[k]?.m)]),
     ];
-    const moved = items.filter(([, a, b]) => a !== b), same = items.filter(([, a, b]) => a === b);
-    return html`${moved.map(([k, a, b]) => html`<span>${k} <span class="n-diff"><del>${a}</del> → <ins>${b}</ins></span></span>`)}${same.length ? html`<span class="is-same">${same.map(([k, a]) => `${k} ${a}`).join('、')} 未变</span>` : ''}`;
+    const moved = items.filter(([, a, b]) => a !== b);
+    return moved.length ? html`${moved.map(([k, a, b]) => html`<span>${k} <span class="n-diff"><del>${a}</del> → <ins>${b}</ins></span></span>`)}` : html`<span class="nt-muted">到现在没有变化</span>`;
   }
 
   // AI 摘要：光；采纳后落墨并署名

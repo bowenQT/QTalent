@@ -2234,10 +2234,8 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-dirc dd small { display: block; font-size: var(--t-xs); color: var(--ink-2); }
 .n-dirc .n-dir__old { margin-top: 2px; }
 
-/* 能力谱里的版本对照：一行切换，选中冻结版本后只列变了的项，没变的合成一句 */
+/* 能力谱里的版本对照：一行切换，选中一次盘点后只列变了的项 */
 .n-pver--inline { padding: 0; background: none; gap: var(--s-2) var(--s-3); margin-bottom: var(--s-4); }
 .n-pver--inline .n-pver__cmp { display: flex; flex-wrap: wrap; gap: 4px var(--s-4); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-sm); color: var(--ink-2); }
-.n-pver--inline .n-pver__cmp > .n-pver__label { flex-basis: 100%; }
-.n-pver--inline .n-pver__cmp .is-same { color: var(--ink-3); font-size: var(--t-xs); align-self: center; }
 .n-spectrum__chg { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1px solid var(--line); }
 .n-spectrum__chg h4 { margin: 0 0 var(--s-2); font-size: var(--t-sm); font-weight: 650; }
