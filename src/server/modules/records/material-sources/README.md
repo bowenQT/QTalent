@@ -52,7 +52,7 @@ reader 核验全部 parse 片段、页面摘要及原件绑定，再返回私有
 
 ## 同事务 PDF 保存适配
 
-`saveAttachmentPdf(tx, binding, parsed, serverProvenance)` 是866 `saveParse` 的具体原生实现：在调用方完成事务中锁定当前media job，复核parsing阶段、输入版本与取消状态，调用873 `readValidatedUploadInTransaction` 持集合锁重读实际归档事实，逐项绑定账号/集合/目标/文件/字节数/摘要，再把固定页面文本decoder的真实输出投影并写入现canonical store。没有另开事务，也不改job或独立入队；失败统一安全错误，旧items-v2无页面文本不能进入此入口。
+`saveAttachmentPdf(tx, binding, parsed, serverProvenance)` 是866 `saveParse` 的具体原生实现：在调用方完成事务中锁定当前media job，复核parsing阶段、输入版本与取消状态，调用873 `readValidatedUploadInTransaction` 持集合锁重读实际归档事实，经 `isUploadBoundToJob` 核对上传与任务的绑定（与文档保存共用），逐项绑定账号/集合/目标/文件/字节数/摘要，再把固定页面文本decoder的真实输出投影并写入现canonical store。没有另开事务，也不改job或独立入队；失败统一安全错误，旧items-v2无页面文本不能进入此入口。
 
 此适配只接PDF页面文本版本，不新增TXT/DOCX存储语义。`serverProvenance` 必须来自服务器已确认分类；null/未知类别失败，不按文件名或上传者猜类别。它不是授权函数，调用方仍须在同一完成事务先完成当前写权限、全部主体/node/kinds重验。当前私人适配尚未被生产worker装配调用，未完成材料intake分类时不得启用。
 

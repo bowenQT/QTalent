@@ -15,6 +15,7 @@ import {
   prepareMaterialParse,
   writeMaterialParse,
 } from './store';
+import { isUploadBoundToJob } from './upload-job';
 
 const nonblank = z.string().min(1).regex(/\S/);
 const documentParseSchema = z.strictObject({
@@ -145,7 +146,7 @@ export async function saveAttachmentDocument(
     if (
       !upload ||
       upload.purpose !== 'attachment' ||
-      upload.jobId !== job.jobId ||
+      !(await isUploadBoundToJob(tx, upload, job.jobId)) ||
       upload.accountId !== binding.accountId ||
       upload.recordCollectionId !== binding.recordCollectionId ||
       upload.quotaScope !== binding.quotaScope ||

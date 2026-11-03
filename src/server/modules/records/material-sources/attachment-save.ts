@@ -11,6 +11,7 @@ import { MATERIAL_PDF_DECODER_VERSION } from '../attachments/document-protocol';
 import { readValidatedUploadInTransaction } from '../uploads/handoff-transaction';
 import { MaterialProjectionError, projectAttachmentPdf } from './projection';
 import { MaterialStoreError, writeMaterialParse } from './store';
+import { isUploadBoundToJob } from './upload-job';
 
 const provenanceSchema = z.discriminatedUnion('sourceCategory', [
   z.strictObject({ sourceCategory: z.literal('original'), demo: z.boolean() }),
@@ -60,7 +61,7 @@ export async function saveAttachmentPdf(
     if (
       !upload ||
       upload.purpose !== 'attachment' ||
-      upload.jobId !== job.jobId ||
+      !(await isUploadBoundToJob(tx, upload, job.jobId)) ||
       upload.accountId !== binding.accountId ||
       upload.recordCollectionId !== binding.recordCollectionId ||
       upload.quotaScope !== binding.quotaScope ||

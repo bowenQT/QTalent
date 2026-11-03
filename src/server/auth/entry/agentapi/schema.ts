@@ -189,8 +189,16 @@ export const agentApiToolEvents = pgTable(
           when 'submit_material_batch' then
             jsonb_typeof(${t.args}->'operationId') = 'string'
             and length(${t.args}->>'operationId') > 0
-            and jsonb_typeof(${t.args}->'evaluationNodeId') = 'string'
-            and length(${t.args}->>'evaluationNodeId') > 0
+            and (
+              (jsonb_typeof(${t.args}->'evaluationNodeId') = 'string'
+                and length(${t.args}->>'evaluationNodeId') > 0
+                and ${t.successPayload}->>'evaluationNodeId' = ${t.args}->>'evaluationNodeId')
+              or (${t.args}->'evaluationNodeId' is null
+                and ${t.args}->>'text' = ''
+                and case when jsonb_typeof(${t.args}->'files') = 'array'
+                  then jsonb_array_length(${t.args}->'files') > 0 else false end
+                and length(${t.successPayload}->>'evaluationNodeId') > 0)
+            )
             and jsonb_typeof(${t.args}->'personIds') = 'array'
             and jsonb_typeof(${t.args}->'projectId') in ('string', 'null')
             and jsonb_typeof(${t.args}->'text') = 'string'
@@ -200,7 +208,6 @@ export const agentApiToolEvents = pgTable(
             and jsonb_typeof(${t.successPayload}->'revision') = 'number'
             and (${t.successPayload}->>'revision') ~ '^[1-9][0-9]*$'
             and jsonb_typeof(${t.successPayload}->'evaluationNodeId') = 'string'
-            and ${t.successPayload}->>'evaluationNodeId' = ${t.args}->>'evaluationNodeId'
             and jsonb_typeof(${t.successPayload}->'personIds') = 'array'
             and jsonb_typeof(${t.successPayload}->'files') = 'array'
             and jsonb_typeof(${t.successPayload}->'counts') = 'object'

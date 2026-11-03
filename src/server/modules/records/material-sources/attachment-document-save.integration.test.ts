@@ -137,6 +137,7 @@ async function setup(format: 'txt' | 'docx' = 'txt') {
     readValidatedUploadInContext: readValidatedUploadInTransaction,
     readValidatedUpload: (reference) => readValidatedUpload(store, reference),
     canProcess: async () => permitted,
+    stagedJob: async () => null,
     openObject: async (objectKey) => {
       openCalls++;
       await beforeOpen?.();

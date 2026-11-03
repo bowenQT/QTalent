@@ -5,6 +5,10 @@ import {
   registerRecordArrangeJob,
   recordArrangeQueue,
 } from '../jobs/record-arrange';
+import {
+  attachmentParseQueue,
+  sendAttachmentParse,
+} from '../jobs/attachment-parse';
 import type { ModelinkMaasClient } from '../integrations/maas';
 import {
   createRecordBatchArrange,
@@ -34,11 +38,19 @@ export function createRecordArrangeApplication(input: {
   const requests = createRecordBatchArrangeRequests({
     ...input,
     enqueue: async (tx, job) => {
-      const sent = await input.boss.send(
-        recordArrangeQueue,
-        { jobId: job.jobId, attempt: job.attempt },
-        { db: fromDrizzle(tx, sql), retryLimit: 0 },
-      );
+      const queue =
+        job.kind === 'media' ? attachmentParseQueue : recordArrangeQueue;
+      // File batches hand parses to the attachment queue; createQueue is idempotent.
+      if (queue === attachmentParseQueue) await input.boss.createQueue(queue);
+      const db = fromDrizzle(tx, sql);
+      const sent =
+        queue === attachmentParseQueue
+          ? await sendAttachmentParse(input.boss, job, { db })
+          : await input.boss.send(
+              queue,
+              { jobId: job.jobId, attempt: job.attempt },
+              { db, retryLimit: 0 },
+            );
       if (!sent)
         throw new Error('Record arrangement enqueue was not committed');
     },

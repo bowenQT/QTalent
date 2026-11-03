@@ -162,6 +162,7 @@ async function material() {
     inputVersion: version,
     clientFileId: randomUUID(),
     uploadId,
+    parseJobId: await parseJob(c.db, uploadId, version),
     recordCollectionId: collectionId,
     originalVersionId: version,
     revision: 1,
@@ -238,6 +239,26 @@ async function operation(
     auditId,
     createdAt: new Date('2026-11-01T12:00:00Z'),
   };
+}
+
+/** A queued media parse job, the one a batch creates for each file. */
+async function parseJob(
+  db: DbExecutor,
+  uploadId: string,
+  originalVersionId: string,
+) {
+  const jobId = randomUUID();
+  await db.insert(jobSnapshots).values({
+    jobId,
+    kind: 'media',
+    resourceId: uploadId,
+    inputVersion: originalVersionId,
+    status: 'queued',
+    attempt: 1,
+    revision: 1,
+    updatedAt: new Date().toISOString(),
+  });
+  return jobId;
 }
 
 it('retains an unknown complete scope and a null initial source without inventing authorization', async () => {
@@ -372,6 +393,7 @@ it('rejects a stale input version and missing audit references instead of defaul
       ...f.row,
       id: randomUUID(),
       clientFileId: randomUUID(),
+      parseJobId: await parseJob(c.db, f.row.uploadId, f.row.originalVersionId),
       inputVersion: 'missing-version',
     }),
   ).rejects.toThrow();

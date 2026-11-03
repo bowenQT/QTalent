@@ -143,6 +143,7 @@ async function setup() {
   const input = createValidatedAttachmentInput<Transaction>({
     readValidatedUploadInContext: readValidatedUploadInTransaction,
     readValidatedUpload: (reference) => readValidatedUpload(store, reference),
+    stagedJob: async () => null,
     canProcess: async () => permitted,
     openObject: async (objectKey) => {
       openCalls++;
