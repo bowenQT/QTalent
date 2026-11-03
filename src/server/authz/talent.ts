@@ -21,6 +21,7 @@ export type TalentKind =
   | 'person'
   | 'evaluation'
   | 'restricted-evaluation'
+  | 'interview-evaluation'
   | 'confirmed-score'
   | 'quadrant'
   | 'management-observation'
@@ -119,6 +120,7 @@ const mentorKinds: readonly TalentKind[] = [
 const directKinds: readonly TalentKind[] = [
   ...mentorKinds,
   'restricted-evaluation',
+  'interview-evaluation',
   'quadrant',
   'management-observation',
   'change',
@@ -162,7 +164,11 @@ export function canReadTalent(
   if (
     !purposes.includes(purpose) ||
     !directKinds.includes(resource.kind) ||
-    (purpose === 'model-input' && resource.kind === 'performance') ||
+    (purpose === 'model-input' &&
+      (resource.kind === 'performance' ||
+        resource.kind === 'interview-evaluation')) ||
+    (resource.kind === 'interview-evaluation' &&
+      (!completeNodeContext(ctx) || resource.evaluationNodeId == null)) ||
     !ctx.people.some(
       (person) => person.id === resource.personId && !person.noReview,
     )

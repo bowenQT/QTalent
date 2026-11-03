@@ -1,4 +1,5 @@
 import type { DbExecutor } from '../../db/client';
+import { readInterviewArchives } from './interview-import/read';
 import {
   events,
   eventParticipants,
@@ -24,5 +25,6 @@ export async function readEvidenceForTalent(db: DbExecutor) {
     fragments: await db.select().from(fragments),
     historical: await db.select().from(historicalEvaluations),
     historicalParticipants: await db.select().from(historicalParticipants),
+    interviewArchives: await readInterviewArchives(db),
   };
 }

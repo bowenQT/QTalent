@@ -7,6 +7,7 @@ import {
   jsonb,
   timestamp,
   unique,
+  uniqueIndex,
   check,
   foreignKey,
   primaryKey,
@@ -21,12 +22,13 @@ import {
   originalVersions,
   fragments,
   materialParses,
+  historicalEvaluations,
 } from '../schema';
 
 /**
  * One interview PDF import awaiting HR row by row (BOW-906). The batch, its rows and
- * HR's stored confirmation live here; filing a historical evaluation does not (no
- * profile projection yet), so a row is never "imported" by these tables.
+ * HR's stored confirmation live here. Archive links below connect a confirmed row
+ * revision to its historical evaluation without duplicating the historical facts.
  */
 export const interviewImportBatches = pgTable(
   'records_interview_import_batches',
@@ -289,3 +291,58 @@ export type InterviewImportDecision = {
   decidedAt: string;
   decidedByAccountId: string;
 };
+
+/** Only the import relationship and lifecycle. Original scales live in historicalEvaluations;
+ * the linked immutable operation retains the HR entries and the import account/time. */
+export const interviewImportArchives = pgTable(
+  'records_interview_import_archives',
+  {
+    evaluationId: text('evaluation_id')
+      .primaryKey()
+      .references(() => historicalEvaluations.id),
+    batchId: text('batch_id').notNull(),
+    rowId: text('row_id').notNull(),
+    importRevision: integer('import_revision').notNull(),
+    duplicateKey: text('duplicate_key').notNull(),
+    importerPersonId: text('importer_person_id')
+      .notNull()
+      .references(() => people.id),
+    withdrawnAt: timestamp('withdrawn_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    withdrawalAuditId: text('withdrawal_audit_id').references(
+      () => auditEvents.id,
+    ),
+  },
+  (t) => [
+    foreignKey({
+      name: 'records_interview_archive_operation',
+      columns: [t.batchId, t.rowId, t.importRevision],
+      foreignColumns: [
+        interviewImportOperations.batchId,
+        interviewImportOperations.rowId,
+        interviewImportOperations.toRevision,
+      ],
+    }),
+    unique('records_interview_archive_revision').on(
+      t.batchId,
+      t.rowId,
+      t.importRevision,
+    ),
+    uniqueIndex('records_interview_archive_active_row')
+      .on(t.batchId, t.rowId)
+      .where(sql`${t.withdrawnAt} is null`),
+    uniqueIndex('records_interview_archive_active_identity')
+      .on(t.duplicateKey)
+      .where(sql`${t.withdrawnAt} is null`),
+    check(
+      'records_interview_archive_identity',
+      sql`${t.duplicateKey} ~ '^[a-f0-9]{64}$' and ${t.importRevision} > 0`,
+    ),
+    check(
+      'records_interview_archive_withdrawal',
+      sql`(${t.withdrawnAt} is null and ${t.withdrawalAuditId} is null) or (${t.withdrawnAt} is not null and ${t.withdrawalAuditId} is not null)`,
+    ),
+  ],
+);

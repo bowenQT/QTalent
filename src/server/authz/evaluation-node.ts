@@ -40,6 +40,7 @@ const evaluatorKinds: readonly TalentKind[] = [
 ];
 const directKinds: readonly TalentKind[] = [
   ...evaluatorKinds,
+  'interview-evaluation',
   'quadrant',
   'management-observation',
   'change',
@@ -148,7 +149,10 @@ export function canReadNodeTalent(
     node === undefined ||
     !purposes.includes(purpose) ||
     !directKinds.includes(resource.kind) ||
-    (purpose === 'model-input' && resource.kind === 'performance')
+    (purpose === 'model-input' &&
+      (resource.kind === 'performance' ||
+        resource.kind === 'interview-evaluation')) ||
+    (resource.kind === 'interview-evaluation' && node.kind !== 'interview')
   )
     return false;
   return (

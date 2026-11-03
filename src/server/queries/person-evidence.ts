@@ -420,7 +420,8 @@ export async function collectEvidence(
       .map((item) => item.personId);
     if (row.personId !== personId && !members.includes(personId)) return [];
     const category = historicalEvaluationRequiredKind(row);
-    if (!category) return [];
+    // PDF interviews use the archive block, never the legacy source contract.
+    if (!category || category === 'interview-evaluation') return [];
     const reference = refOf(row);
     const projected = projectTalentRecord(
       data.context,

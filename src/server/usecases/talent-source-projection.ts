@@ -13,6 +13,7 @@ import {
 } from '../modules/records';
 import { confirmationSources } from './record-confirmation-sources';
 import { sourceKey } from './source-key';
+import { INTERVIEW_HISTORY_KIND } from './interview-import/archive-model';
 export { sourceKey } from './source-key';
 
 /** Complete raw provenance, including withdrawn events and every shared subject.
@@ -99,7 +100,9 @@ export type TalentSourceProjectionData = RawTalentSourceData & {
 export function historicalEvaluationRequiredKind(row: {
   kind: string;
   sourceCategory: string;
-}): 'evaluation' | 'restricted-evaluation' | null {
+}): 'evaluation' | 'restricted-evaluation' | 'interview-evaluation' | null {
+  if (row.sourceCategory === 'original' && row.kind === INTERVIEW_HISTORY_KIND)
+    return 'interview-evaluation';
   if (row.sourceCategory !== 'prototype_baseline') return null;
   switch (row.kind) {
     case '训练营周评':
@@ -168,7 +171,29 @@ export function completeTalentSources(
     originals: data.originals,
     intake: data.intake,
     linkedSourceKeys: new Set(
-      [...data.eventSources, ...data.historical].map(sourceKey),
+      [
+        ...data.eventSources,
+        ...data.historical,
+        ...data.interviewArchives.flatMap(({ history }) => {
+          const primary = data.fragments.find(
+            (fragment) =>
+              fragment.id === history.fragmentId &&
+              fragment.originalVersionId === history.originalVersionId,
+          );
+          return primary?.parseVersionId
+            ? data.fragments
+                .filter(
+                  (fragment) =>
+                    fragment.parseVersionId === primary.parseVersionId &&
+                    fragment.originalVersionId === primary.originalVersionId,
+                )
+                .map((fragment) => ({
+                  fragmentId: fragment.id,
+                  originalVersionId: fragment.originalVersionId,
+                }))
+            : [];
+        }),
+      ].map(sourceKey),
     ),
   });
 }
@@ -185,6 +210,35 @@ function rawTalentSourceGraph(data: RawTalentSourceData): TalentSource[] {
   );
   const participantsByEvent = groupBy(data.participants, (p) => p.eventId);
   const historyBySource = groupBy(data.historical, sourceKey);
+  // Each archive publishes one canonical per-row parse. Its field-level fragments
+  // share the same historical subjects as the explicitly linked overview fragment;
+  // this preserves the original score regions without inventing title citations.
+  const archivedHistory = new Set(
+    data.interviewArchives.map(({ history }) => history.id),
+  );
+  for (const { history } of data.interviewArchives) {
+    const primary = data.fragments.find(
+      (fragment) =>
+        fragment.id === history.fragmentId &&
+        fragment.originalVersionId === history.originalVersionId,
+    );
+    if (!primary?.parseVersionId) continue;
+    for (const fragment of data.fragments) {
+      if (
+        fragment.id === primary.id ||
+        fragment.parseVersionId !== primary.parseVersionId ||
+        fragment.originalVersionId !== primary.originalVersionId
+      )
+        continue;
+      const key = sourceKey({
+        fragmentId: fragment.id,
+        originalVersionId: fragment.originalVersionId,
+      });
+      const linked = historyBySource.get(key) ?? [];
+      if (!linked.some((item) => item.id === history.id))
+        historyBySource.set(key, [...linked, history]);
+    }
+  }
   const historicalParticipantsByEvaluation = groupBy(
     data.historicalParticipants,
     (participant) => participant.evaluationId,
@@ -231,9 +285,22 @@ function rawTalentSourceGraph(data: RawTalentSourceData): TalentSource[] {
     // Sensitivity adds an access requirement without rewriting historical facts.
     if (historyKinds.includes('restricted-evaluation'))
       requiredKinds.push('restricted-evaluation');
+    if (historyKinds.includes('interview-evaluation'))
+      requiredKinds.push('interview-evaluation');
     if (
       links.some((link) => !eventOrder.has(link.eventId)) ||
       historyKinds.includes(null) ||
+      history.some(
+        (row) =>
+          historicalEvaluationRequiredKind(row) === 'interview-evaluation' &&
+          (!archivedHistory.has(row.id) ||
+            fragment.sourceCategory !== 'historical_evaluation' ||
+            fragment.evaluationKind !== 'interview' ||
+            !data.context.evaluationNodes?.some(
+              (node) =>
+                node.id === row.evaluationNodeId && node.kind === 'interview',
+            )),
+      ) ||
       history.some(
         (row) =>
           !row.personId && !historicalParticipantsByEvaluation.has(row.id),

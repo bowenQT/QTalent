@@ -5,11 +5,15 @@ import { personReadInputSchema } from '../../contracts/person';
 import { personFromData } from './person-projection';
 import { loadCurrentPersonData } from './person-session';
 import { quickViewFromData } from './people';
+import { personInterviewArchiveFromData } from './person-interviews';
 
 export async function readPersonForCurrentUser(input: unknown) {
   const { id } = personReadInputSchema.parse(input);
   const data = await loadCurrentPersonData();
   const person = await personFromData(data, id);
+  const interviewArchive = person
+    ? await personInterviewArchiveFromData(data, id)
+    : undefined;
   if (person)
     await recordAudit(getDatabase(), {
       actorId: data.context.account.id,
@@ -17,7 +21,11 @@ export async function readPersonForCurrentUser(input: unknown) {
       resourceId: id,
     });
   return person
-    ? { status: 'success' as const, person }
+    ? {
+        status: 'success' as const,
+        person,
+        ...(interviewArchive ? { interviewArchive } : {}),
+      }
     : { status: 'not_found' as const, message: '人员不存在或不可见' };
 }
 export async function readPersonPreviewForCurrentUser(input: unknown) {
