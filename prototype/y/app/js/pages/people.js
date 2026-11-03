@@ -1,4 +1,4 @@
-/* 人才：人员列表（按团队、姓名排列，不按分数排序）；「跟进」里合看值得聊一聊和重点跟踪。 */
+/* 人才：人员列表（按团队、姓名排列，不按分数排序）；值得聊一聊和重点跟踪合在一个页签里。 */
 (function () {
   'use strict';
   const NT = window.NT, st = NT.store, UI = NT.ui;
@@ -9,7 +9,7 @@
   NT.shell({
     nav: 'people', title: st.role() === 'mentor' ? '所带学员' : '人才',
     allow: (r) => r !== 'self',
-    view: () => `人才 · ${tab === 'list' ? '人员' : `跟进${sec === 'all' ? '' : ` · ${SEC[sec]}`}`}${kind !== 'all' ? ` · ${kind}` : ''}`,
+    view: () => `人才 · ${tab === 'list' ? '人员' : (sec === 'all' ? `${SEC.signal} · ${SEC.track}` : SEC[sec])}${kind !== 'all' ? ` · ${kind}` : ''}`,
     state: () => ({ tab, sec, org, kind, q }),
     restore: (s) => { Object.assign(STATE, s); tab = s.tab; sec = s.sec || 'all'; org = s.org; kind = s.kind; q = s.q || ''; render($('#main')); },
     render,
@@ -23,14 +23,14 @@
     const tracks = st.get().tracks.filter((t) => st.scope(t.person));
     const sigs = st.get().signals.filter((s) => st.can('signals', s.person));
     const nFollow = tracks.filter((t) => t.state === 'on').length + (st.can('signals') ? sigs.filter((s) => s.state === 'open').length : 0);
-    const tabs = [['list', role === 'mentor' ? '学员' : '人员', people.length], ['follow', st.can('signals') ? '跟进' : SEC.track, nFollow]];
+    const tabs = [['list', role === 'mentor' ? '学员' : '人员', people.length], ['follow', st.can('signals') ? `${SEC.signal} · ${SEC.track}` : SEC.track, nFollow]];
     mount(main, html`
       <header class="nt-head"><div><h1>${role === 'mentor' ? '所带学员' : '人才'}</h1><p>${role === 'mentor' ? '你在 XEngineer 第六期带的学员，每位学员的全部评价都在档案里。' : `你能查看的 ${people.length} 人，按团队和姓名排列。`}</p></div>
         <div class="nt-head__acts">${!['mentor', 'ceo'].includes(role) ? html`<a class="n-btn n-btn--sm" href="people.html?tab=track&new=1">${icon('target')}设一个重点跟踪</a>` : ''}<a class="n-btn n-btn--sm n-btn--ink" href="record.html">${icon('pen')}记一件事</a></div></header>
       <div class="n-tabs" role="tablist" id="ptabs">${tabs.map(([k, l, n]) => html`<button role="tab" type="button" data-tab="${k}" aria-selected="${k === tab}" aria-controls="pp-${k}" tabindex="${k === tab ? 0 : -1}">${l}${n ? html`<span class="n-count is-quiet">${n}</span>` : ''}</button>`)}</div>
       <div class="n-tabpanel" role="tabpanel" id="pp-list" ${NT.raw(tab === 'list' ? '' : 'hidden')}></div>
       <div class="n-tabpanel" role="tabpanel" id="pp-follow" ${NT.raw(tab === 'follow' ? '' : 'hidden')}>
-        ${st.can('signals') ? html`<div class="n-seg" role="group" aria-label="跟进类型" data-manual id="psec">${[['all', '全部'], ['signal', SEC.signal, sigs.filter((x) => x.state === 'open').length], ['track', SEC.track, tracks.filter((t) => t.state === 'on').length]].map(([k, l, n]) => html`<button type="button" data-sec="${k}" aria-pressed="${k === sec}">${l}${n ? ` ${n}` : ''}</button>`)}</div>` : ''}
+        ${st.can('signals') ? html`<div class="n-seg" role="group" aria-label="只看一类" data-manual id="psec">${[['all', '全部'], ['signal', SEC.signal, sigs.filter((x) => x.state === 'open').length], ['track', SEC.track, tracks.filter((t) => t.state === 'on').length]].map(([k, l, n]) => html`<button type="button" data-sec="${k}" aria-pressed="${k === sec}">${l}${n ? ` ${n}` : ''}</button>`)}</div>` : ''}
         ${st.can('signals') ? html`<section class="n-follow" id="pp-signal" data-sec="signal"></section>` : ''}
         <section class="n-follow" id="pp-track" data-sec="track"></section></div>`);
     NT.tabs($('#ptabs'), (t) => { tab = t; });
@@ -87,7 +87,7 @@
     return html`<a class="n-person-row nt-plink" href="person.html?id=${p.id}" data-peek="p:${p.id}">${UI.person(p.id, { link: false, meta })}${right}</a>`;
   }
 
-  // 「跟进」里两类内容用分段切换，「全部」时上下排列：先待处理的信号，再进行中的跟踪
+  // 这个页签里两类内容用分段切换，「全部」时上下排列：先待处理的信号，再进行中的跟踪
   function showSec() {
     $$('#pp-follow .n-follow').forEach((x) => { x.hidden = sec !== 'all' && x.dataset.sec !== sec; });
     $$('#psec [data-sec]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.sec === sec));
