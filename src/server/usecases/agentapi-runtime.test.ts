@@ -149,29 +149,37 @@ it('fails closed when the Web session no longer verifies, before any conversatio
     agentConversationForRequest(new Headers()),
   ).rejects.toMatchObject({ kind: 'unauthenticated' });
 });
-it('enqueues record arrangement on the caller transaction through the shared producer', async () => {
+it('enqueues record arrangement and file parses on the caller transaction, each to its own queue', async () => {
   const agentConversationForRequest = await load();
   await agentConversationForRequest(new Headers());
   const { enqueue } = m.records.mock.calls[0]![0] as {
     enqueue(
       tx: unknown,
-      job: { jobId: string; attempt: number },
+      job: { jobId: string; attempt: number; kind: string },
     ): Promise<void>;
   };
   const send = vi
     .fn()
     .mockResolvedValueOnce('demo-queued')
+    .mockResolvedValueOnce('demo-queued')
     .mockResolvedValueOnce(null);
   m.producer.mockResolvedValue({ send });
   const tx = { execute: vi.fn() };
-  await enqueue(tx, { jobId: 'demo-job', attempt: 1 });
-  expect(m.producer).toHaveBeenCalledWith('record-arrange');
-  expect(send).toHaveBeenCalledWith(
+  await enqueue(tx, { jobId: 'demo-job', attempt: 1, kind: 'record_organize' });
+  expect(m.producer).toHaveBeenLastCalledWith('record-arrange');
+  expect(send).toHaveBeenLastCalledWith(
     'record-arrange',
     { jobId: 'demo-job', attempt: 1 },
     expect.objectContaining({ retryLimit: 0, db: expect.anything() }),
   );
-  await expect(enqueue(tx, { jobId: 'demo-job', attempt: 2 })).rejects.toThrow(
-    'not committed',
+  await enqueue(tx, { jobId: 'demo-parse', attempt: 1, kind: 'media' });
+  expect(m.producer).toHaveBeenLastCalledWith('attachment-parse');
+  expect(send).toHaveBeenLastCalledWith(
+    'attachment-parse',
+    { jobId: 'demo-parse', attempt: 1 },
+    expect.objectContaining({ retryLimit: 0, db: expect.anything() }),
   );
+  await expect(
+    enqueue(tx, { jobId: 'demo-job', attempt: 2, kind: 'record_organize' }),
+  ).rejects.toThrow('not committed');
 });

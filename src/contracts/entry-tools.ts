@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  batchNodeMatchesInput,
   materialBatchInputSchema,
   materialBatchReadInputSchema,
   materialBatchReceiptSchema,
@@ -130,11 +131,14 @@ export function entryPayloadMatchesInput(
   payload: EntryToolPayload,
 ): boolean {
   const input = args as Record<string, unknown>;
-  if (name === 'record_moment' || name === 'submit_material_batch')
+  if (name === 'record_moment' || name === 'submit_material_batch') {
+    const batch = materialBatchInputSchema.safeParse(args);
     return (
+      batch.success &&
       'evaluationNodeId' in payload &&
-      payload.evaluationNodeId === input.evaluationNodeId
+      batchNodeMatchesInput(batch.data, payload.evaluationNodeId)
     );
+  }
   if (name === 'read_material_batch')
     return 'batchId' in payload && payload.batchId === input.batchId;
   if (name === 'person_brief')

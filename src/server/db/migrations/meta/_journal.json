@@ -183,6 +183,20 @@
       "when": 1793645019602,
       "tag": "0025_bow_906_import_review_items",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793646998634,
+      "tag": "0026_bow_866_media_parse_job",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793655131034,
+      "tag": "0027_bow_866_agentapi_tool_shape",
+      "breakpoints": true
     }
   ]
 }

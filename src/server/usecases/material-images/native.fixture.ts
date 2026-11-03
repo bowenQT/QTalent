@@ -138,12 +138,24 @@ export async function seedImageCase(db: Database) {
       supersededByInputId: null,
       createdAt: at,
     });
+    const parseJobId = randomUUID();
+    await db.insert(jobSnapshots).values({
+      jobId: parseJobId,
+      kind: 'media',
+      resourceId: uploadId,
+      inputVersion: version,
+      status: 'queued',
+      attempt: 1,
+      revision: 1,
+      updatedAt: at.toISOString(),
+    });
     const row = {
       id,
       inputId,
       inputVersion: version,
       clientFileId: randomUUID(),
       uploadId,
+      parseJobId,
       recordCollectionId: collectionId,
       originalVersionId: version,
       revision: 1,
