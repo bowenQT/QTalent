@@ -1,4 +1,4 @@
-import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Transaction } from '../../../db/client';
 import { jobSnapshots } from '../../../jobs/schema';
 import { arrangeInputs } from '../arrange/input-state/schema';
@@ -189,3 +189,29 @@ export async function readMediaReviewStateInTransaction(
 export type MediaReviewState = NonNullable<
   Awaited<ReturnType<typeof readMediaReviewStateInTransaction>>
 >;
+
+/** The parse job the current (not superseded) material batch created for a
+ * staged upload; read under the caller's intake lock. */
+export async function stagedParseJob(
+  tx: Transaction,
+  reference: { uploadId: string; originalVersionId: string },
+) {
+  const [row] = await tx
+    .select({ jobId: mediaMaterials.parseJobId })
+    .from(mediaMaterials)
+    .innerJoin(
+      arrangeInputs,
+      and(
+        eq(arrangeInputs.id, mediaMaterials.inputId),
+        eq(arrangeInputs.inputVersion, mediaMaterials.inputVersion),
+      ),
+    )
+    .where(
+      and(
+        eq(mediaMaterials.uploadId, reference.uploadId),
+        eq(mediaMaterials.originalVersionId, reference.originalVersionId),
+        isNull(arrangeInputs.supersededByInputId),
+      ),
+    );
+  return row?.jobId ?? null;
+}
