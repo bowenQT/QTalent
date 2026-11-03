@@ -88,10 +88,10 @@
     const cls = /未接受|拒绝/.test(w) ? 'n-badge--conflict' : /未知|待/.test(w) ? 'n-badge--unknown' : 'n-badge--yes';
     return html`<span class="n-badge ${cls}">${/未知|待/.test(w) ? `本人意愿${w === '未知' ? '未知' : `：${w}`}` : `本人${w}`}</span>`;
   }
-  // 依据按「；」分段，「键：值」的段落把键弱化，方便扫读
+  // 依据按「；」分段：开头的结论加重，「键：值」的段落把键弱化，方便扫读
   function basisLine(t) {
     const segs = (t || '—').split('；');
-    return segs.map((x, k) => { const c = x.indexOf('：'); return html`${k ? html`<span class="n-move__sep" aria-hidden="true">·</span>` : ''}${c > 0 ? html`<span class="n-move__k">${x.slice(0, c)}</span>${x.slice(c + 1)}` : x}`; });
+    return segs.map((x, k) => { const c = x.indexOf('：'); return html`${k ? html`<span class="n-move__sep" aria-hidden="true">·</span>` : ''}${c > 0 ? html`<span class="n-move__k">${x.slice(0, c)}</span>${x.slice(c + 1)}` : k ? x : html`<span class="n-move__lead">${x}</span>`}`; });
   }
   const withNote = (m) => [m.basis, m.note && `补充说明：${m.note}`].filter(Boolean).join('；');
   const metaItem = (k, v) => html`<span>${k}<b style="${/未知/.test(v) ? 'color:var(--unknown)' : ''}">${v}</b></span>`;
