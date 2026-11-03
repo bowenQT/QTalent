@@ -177,7 +177,7 @@ a.n-btn { text-decoration: none; }
 .n-slash__item small { color: var(--ink-3); font-size: var(--t-xs); }
 /* 工作台输入框：命令和示例浮在输入框下方，与管理者找人框的示例浮层同一做法 */
 .n-cmd { margin-bottom: var(--s-6); }
-.n-cmd__box { position: relative; }
+.n-cmd__box { position: relative; z-index: 1; }
 .n-cmd .n-files:empty { display: none; }
 .n-composer { transition: box-shadow var(--d-quick), background var(--d-quick); }
 .n-composer.is-over { background: var(--light-soft); box-shadow: var(--e-2), 0 0 0 2px var(--light); }
@@ -901,6 +901,23 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-changes__head h3 { margin: 0; font-size: var(--t-md); }
 .n-changes__meta { font-size: var(--t-xs); color: var(--ink-3); }
 .n-changes__head .n-seg { margin-left: auto; }
+/* 工作台：有变化的人收在输入框下方，抽屉从输入框底下露出一截，点开展开清单 */
+.n-chgtray { position: relative; margin: calc(-1 * var(--r-sheet)) var(--s-3) 0; padding-top: var(--r-sheet); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--r-sheet) var(--r-sheet); background: var(--sheet); }
+.n-cmd .n-files:not(:empty) + .n-chgtray { margin-top: var(--s-3); padding-top: 0; border-top: 1px solid var(--line); border-radius: var(--r-sheet); }
+.n-chgtray__head { display: flex; align-items: center; gap: var(--s-2); width: 100%; min-width: 0; padding: var(--s-3) var(--s-4); border: 0; border-radius: 0 0 var(--r-sheet) var(--r-sheet); background: transparent; font: inherit; font-size: var(--t-sm); color: var(--ink); text-align: left; cursor: pointer; transition: background var(--d-quick); }
+.n-chgtray__head:hover { background: rgb(36 42 48 / .03); }
+.n-chgtray__head:focus-visible { outline: none; box-shadow: var(--focus); }
+.n-chgtray__head > svg { width: 16px; height: 16px; flex: none; color: var(--ink-3); }
+.n-chgtray__head b { font-weight: 600; white-space: nowrap; }
+.n-chgtray__head .n-count { margin-left: 0; }
+.n-chgtray__head .n-changes__meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.n-chgtray__act { margin-left: auto; flex: none; font-size: var(--t-xs); color: var(--ink-3); }
+.n-chgtray__head > svg:last-child { width: 14px; height: 14px; transform: rotate(90deg); transition: transform var(--d-base) var(--ease-out); }
+.n-chgtray__head[aria-expanded="true"] > svg:last-child { transform: rotate(-90deg); }
+.n-chgtray .n-changes { padding: var(--s-1) var(--s-4) var(--s-4); border-top: 1px solid var(--line); opacity: 0; transition: opacity var(--d-base) var(--ease-out); }
+.n-chgtray .n-fold[data-open] .n-changes { opacity: 1; }
+.n-chgtray .n-changes__head { margin: var(--s-3) 0; }
+.n-chgtray .n-changes__head .n-chips { margin: 0; }
 .n-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--s-3); }
 .n-chip { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border: 0; border-radius: var(--r-pill); background: transparent; box-shadow: inset 0 0 0 1px var(--line); font-size: var(--t-xs); color: var(--ink-2); }
 .n-chip[aria-pressed="true"] { background: var(--ink); color: #fff; box-shadow: none; }

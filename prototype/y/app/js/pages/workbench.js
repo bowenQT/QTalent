@@ -6,7 +6,7 @@
   'use strict';
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, raw, icon, mount, $, $$ } = NT;
-  let base = 'ver', type = 'all', expanded = false, watchCat = 'all', watchAll = false, watchProg = null;
+  let base = 'ver', type = 'all', expanded = false, chgOpen = false, watchCat = 'all', watchAll = false, watchProg = null;
 
   const SUGGEST = {
     ceo: ['MaaS 智能体平台要一个能牵头应用后端的人，10 月到岗', 'TS 新人组还缺一个懂测试和部署、能带大家对齐节奏的人'],
@@ -30,18 +30,23 @@
       main.dataset.peekScope = ''; // 工作台上的人名先拉起速览
       if (role === 'ceo') return renderCeo(main, me);
       const todos = st.todos();
-      const changesCard = st.can('changes') ? html`<article class="n-card n-changes" id="changes" style="margin-bottom:var(--s-5)">
-          <header class="n-changes__head"><h3>有变化的人</h3><span class="n-changes__meta" id="chg-meta"></span>
-            <div class="n-seg" role="group" aria-label="比较基准" data-manual id="chg-base">
-              <button type="button" data-b="win" aria-pressed="true">近 3 个月和之前比</button>
-              <button type="button" data-b="ver" aria-pressed="false">和中期盘点比</button>
-            </div></header>
-          <div class="n-chips" role="group" aria-label="按类型筛选" id="chg-filter">
-            ${[['all', '全部'], ['trend', '能力走向'], ['activity', '活跃度与安排'], ['quad', '象限变化'], ['team', '团队分布']].map(([k, l]) => html`<button class="n-chip" type="button" data-t="${k}" aria-pressed="${k === type}">${l}<b data-n="${k}"></b></button>`)}
-          </div>
-          <div id="chg-list"></div>
-          <p class="nt-caption">按时间列出已确认的变化。</p>
-        </article>` : '';
+      // 有变化的人收成输入框下面的一条抽屉：平时只露一行摘要，点开看清单，输入框始终在首屏
+      const changesTray = st.can('changes') ? html`<div class="n-chgtray" id="changes">
+          <button class="n-chgtray__head" type="button" id="chg-toggle" aria-expanded="${String(chgOpen)}" aria-controls="chg-panel">${icon('pulse')}<b>有变化的人</b><span class="n-count is-quiet" id="chg-total"></span><span class="n-changes__meta" id="chg-meta"></span><span class="n-chgtray__act">${chgOpen ? '收起' : '展开'}</span>${icon('chev')}</button>
+          <div class="n-fold" id="chg-panel" ${raw(chgOpen ? 'data-open' : 'inert')}><div class="n-changes">
+            <div class="n-changes__head">
+              <div class="n-chips" role="group" aria-label="按类型筛选" id="chg-filter">
+                ${[['all', '全部'], ['trend', '能力走向'], ['activity', '活跃度与安排'], ['quad', '象限变化'], ['team', '团队分布']].map(([k, l]) => html`<button class="n-chip" type="button" data-t="${k}" aria-pressed="${String(k === type)}">${l}<b data-n="${k}"></b></button>`)}
+              </div>
+              <div class="n-seg" role="group" aria-label="比较基准" data-manual id="chg-base">
+                <button type="button" data-b="win" aria-pressed="${String(base === 'win')}">近 3 个月和之前比</button>
+                <button type="button" data-b="ver" aria-pressed="${String(base === 'ver')}">和中期盘点比</button>
+              </div>
+            </div>
+            <div id="chg-list"></div>
+            <p class="nt-caption">按时间列出已确认的变化。</p>
+          </div></div>
+        </div>` : '';
       const composer = html`
         <section class="n-cmd" id="upload" aria-label="输入框">
         <div class="n-cmd__box">
@@ -64,6 +69,7 @@
         </div>
         </div>
         <ul class="n-files" id="files"></ul>
+        ${role === 'mentor' ? '' : changesTray}
         </section>`;
       const head = html`<header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · ${role === 'mentor' ? 'XEngineer 第六期已结营 · W8 对人复盘今天截止' : `XEngineer 第六期结营盘点进行中 · 证据截至 ${NT.md(NT.TODAY)}`}</p></div>${exportBtn()}</header>${exportHost()}`;
       // 导师：进行中的任务默认折叠
@@ -82,7 +88,7 @@
       }
       mount(main, html`
         ${head}
-        ${changesCard}${composer}
+        ${composer}
         <div class="nt-cols">
           <article class="n-card" id="todo">${todoBlock(role, todos)}</article>
           <div class="nt-grid">
@@ -97,6 +103,12 @@
       if (st.can('changes')) {
         renderChanges();
         UI.wireChanges($('#chg-list'));
+        $('#chg-toggle').addEventListener('click', (e) => {
+          const btn = e.currentTarget; chgOpen = !chgOpen;
+          btn.setAttribute('aria-expanded', String(chgOpen));
+          btn.querySelector('.n-chgtray__act').textContent = chgOpen ? '收起' : '展开';
+          const panel = $('#chg-panel'); panel.toggleAttribute('data-open', chgOpen); panel.inert = !chgOpen;
+        });
         $('#chg-base').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; base = b.dataset.b; $$('#chg-base button').forEach((x) => x.setAttribute('aria-pressed', x === b)); renderChanges(); });
         $('#chg-filter').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; type = b.dataset.t; $$('#chg-filter button').forEach((x) => x.setAttribute('aria-pressed', x === b)); renderChanges(); });
       }
@@ -186,6 +198,7 @@
   function renderChanges() {
     const host = $('#chg-list'); if (!host) return;
     const all = st.changes({ base });
+    $('#chg-total').textContent = all.length;
     $$('#chg-filter [data-n]').forEach((b) => { const n = b.dataset.n === 'all' ? all.length : all.filter((c) => c.t === b.dataset.n).length; b.textContent = n ? ` ${n}` : ''; });
     $$('#chg-base button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.b === base));
     $$('#chg-filter button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === type));
