@@ -1,37 +1,44 @@
-/* 人才：人员列表（按团队、姓名排列，不按分数排序）、重点跟踪、值得聊一聊。 */
+/* 人才：人员列表（按团队、姓名排列，不按分数排序）；「跟进」里合看值得聊一聊和重点跟踪。 */
 (function () {
   'use strict';
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, icon, mount, $, $$ } = NT;
-  let tab = NT.param('tab') || 'list', org = 'all', kind = 'all', q = '';
+  const TAB0 = NT.param('tab');
+  let tab = TAB0 === 'track' || TAB0 === 'signal' ? 'follow' : TAB0 || 'list', sec = TAB0 === 'track' || TAB0 === 'signal' ? TAB0 : 'all', org = 'all', kind = 'all', q = '';
 
   NT.shell({
     nav: 'people', title: st.role() === 'mentor' ? '所带学员' : '人才',
     allow: (r) => r !== 'self',
-    view: () => `人才 · ${({ list: '人员', track: '重点跟踪', signal: '值得聊一聊' })[tab]}${kind !== 'all' ? ` · ${kind}` : ''}`,
-    state: () => ({ tab, org, kind, q }),
-    restore: (s) => { Object.assign(STATE, s); tab = s.tab; org = s.org; kind = s.kind; q = s.q || ''; render($('#main')); },
+    view: () => `人才 · ${tab === 'list' ? '人员' : `跟进${sec === 'all' ? '' : ` · ${SEC[sec]}`}`}${kind !== 'all' ? ` · ${kind}` : ''}`,
+    state: () => ({ tab, sec, org, kind, q }),
+    restore: (s) => { Object.assign(STATE, s); tab = s.tab; sec = s.sec || 'all'; org = s.org; kind = s.kind; q = s.q || ''; render($('#main')); },
     render,
   });
   const STATE = {};
+  const SEC = { signal: '值得聊一聊', track: '重点跟踪' };
 
   function render(main) {
     const role = st.role();
     const people = st.visiblePeople();
     const tracks = st.get().tracks.filter((t) => st.scope(t.person));
     const sigs = st.get().signals.filter((s) => st.can('signals', s.person));
-    const tabs = [['list', role === 'mentor' ? '学员' : '人员', people.length], ['track', '重点跟踪', tracks.filter((t) => t.state === 'on').length], st.can('signals') && ['signal', '值得聊一聊', sigs.filter((s) => s.state === 'open').length]].filter(Boolean);
+    const nFollow = tracks.filter((t) => t.state === 'on').length + (st.can('signals') ? sigs.filter((s) => s.state === 'open').length : 0);
+    const tabs = [['list', role === 'mentor' ? '学员' : '人员', people.length], ['follow', st.can('signals') ? '跟进' : SEC.track, nFollow]];
     mount(main, html`
       <header class="nt-head"><div><h1>${role === 'mentor' ? '所带学员' : '人才'}</h1><p>${role === 'mentor' ? '你在 XEngineer 第六期带的学员，每位学员的全部评价都在档案里。' : `你能查看的 ${people.length} 人，按团队和姓名排列。`}</p></div>
         <div class="nt-head__acts">${!['mentor', 'ceo'].includes(role) ? html`<a class="n-btn n-btn--sm" href="people.html?tab=track&new=1">${icon('target')}设一个重点跟踪</a>` : ''}<a class="n-btn n-btn--sm n-btn--ink" href="record.html">${icon('pen')}记一件事</a></div></header>
       <div class="n-tabs" role="tablist" id="ptabs">${tabs.map(([k, l, n]) => html`<button role="tab" type="button" data-tab="${k}" aria-selected="${k === tab}" aria-controls="pp-${k}" tabindex="${k === tab ? 0 : -1}">${l}${n ? html`<span class="n-count is-quiet">${n}</span>` : ''}</button>`)}</div>
       <div class="n-tabpanel" role="tabpanel" id="pp-list" ${NT.raw(tab === 'list' ? '' : 'hidden')}></div>
-      <div class="n-tabpanel" role="tabpanel" id="pp-track" ${NT.raw(tab === 'track' ? '' : 'hidden')}></div>
-      <div class="n-tabpanel" role="tabpanel" id="pp-signal" ${NT.raw(tab === 'signal' ? '' : 'hidden')}></div>`);
+      <div class="n-tabpanel" role="tabpanel" id="pp-follow" ${NT.raw(tab === 'follow' ? '' : 'hidden')}>
+        ${st.can('signals') ? html`<div class="n-seg" role="group" aria-label="跟进类型" data-manual id="psec">${[['all', '全部'], ['signal', SEC.signal, sigs.filter((x) => x.state === 'open').length], ['track', SEC.track, tracks.filter((t) => t.state === 'on').length]].map(([k, l, n]) => html`<button type="button" data-sec="${k}" aria-pressed="${k === sec}">${l}${n ? ` ${n}` : ''}</button>`)}</div>` : ''}
+        ${st.can('signals') ? html`<section class="n-follow" id="pp-signal" data-sec="signal"></section>` : ''}
+        <section class="n-follow" id="pp-track" data-sec="track"></section></div>`);
     NT.tabs($('#ptabs'), (t) => { tab = t; });
     renderList(people);
     renderTracks(tracks);
     if (st.can('signals')) renderSignals(sigs);
+    showSec();
+    $('#psec')?.addEventListener('click', (e) => { const b = e.target.closest('[data-sec]'); if (!b) return; sec = b.dataset.sec; showSec(); });
     if (NT.param('new') && role !== 'ceo') newTrack();
   }
 
@@ -80,11 +87,18 @@
     return html`<a class="n-person-row nt-plink" href="person.html?id=${p.id}" data-peek="p:${p.id}">${UI.person(p.id, { link: false, meta })}${right}</a>`;
   }
 
+  // 「跟进」里两类内容用分段切换，「全部」时上下排列：先待处理的信号，再进行中的跟踪
+  function showSec() {
+    $$('#pp-follow .n-follow').forEach((x) => { x.hidden = sec !== 'all' && x.dataset.sec !== sec; });
+    $$('#psec [data-sec]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.sec === sec));
+  }
+  const secHead = (ic, title, n, hint, extra) => html`<h3 class="n-follow__head">${icon(ic, 16)}${title}${UI.hint(hint)}${n ? html`<span class="n-count is-quiet">${n}</span>` : ''}${extra || ''}</h3>`;
+
   function renderTracks(tracks) {
     const host = $('#pp-track');
     const on = tracks.filter((t) => t.state === 'on'), off = tracks.filter((t) => t.state !== 'on');
     const ceo = st.role() === 'ceo';
-    mount(host, html`<p class="nt-caption" style="margin:0 0 var(--s-3)">${ceo ? 'HR 在跟这些人，观察问题和进展都在这里查看。' : '写清为什么关注、想观察什么、谁负责、下次什么时候看。'}</p>
+    mount(host, html`${secHead('target', SEC.track, on.length, ceo ? 'HR 在持续观察的人，观察问题和进展都在卡片里' : '持续观察一个人：写清为什么关注、想观察什么、谁负责、下次什么时候看')}
       <div class="nt-cols">${on.map((t) => NT.ui.trackCard(t))}</div>
       ${!on.length ? html`<div class="nt-empty">重点跟踪的人会出现在这里${ceo ? '' : '。可以从人员档案、变化或一句话发起'}。</div>` : ''}
       ${off.length ? html`<h3 class="nt-h2" style="margin-top:var(--s-6)">已结束的跟踪</h3><div class="nt-cols">${off.map((t) => NT.ui.trackCard(t))}</div>` : ''}`);
@@ -96,9 +110,9 @@
 
   function renderSignals(sigs) {
     const host = $('#pp-signal');
-    mount(host, html`<p class="nt-caption" style="margin:0 0 var(--s-3)">只列能核实的信号，每条都带来源。HR 的处理方式是安排一次沟通，或写明原因暂不处理。</p>
+    mount(host, html`${secHead('pulse', SEC.signal, sigs.filter((x) => x.state === 'open').length, '能核实、带来源的信号；HR 安排一次沟通，或写明原因暂不处理', html`<span class="n-follow__lock" title="只对管理者和归属 HR 可见">${icon('lock', 13)}只对管理者和归属 HR 可见</span>`)}
       <div class="n-card" style="padding:var(--s-1)">${sigs.map((s) => html`<a class="n-person-row nt-plink" href="person.html?id=${s.person}#signal">${UI.person(s.person, { link: false, meta: s.items.map((i) => i.text).join(' · ') })}${s.state === 'open' ? html`<span class="n-badge">${s.items.length} 条信号 · 待处理</span>` : s.state === 'talk' ? html`<span class="n-badge">待沟通</span>` : s.state === 'hold' ? html`<span class="n-badge">暂不处理</span>` : html`<span class="n-badge n-badge--yes">${icon('check')}已沟通</span>`}</a>`)}</div>
-      <div class="n-lock" style="margin-top:var(--s-3)">${icon('lock')}只对管理者和归属 HR 可见。</div>`);
+`);
   }
 
   async function newTrack() {

@@ -2264,3 +2264,11 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-hint::after { content: attr(data-hint); position: absolute; left: -8px; top: calc(100% + 6px); z-index: 30; width: max-content; max-width: 240px; padding: 6px 10px; border-radius: var(--r-field); background: var(--ink); color: #fff; font-size: var(--t-xs); font-weight: 400; line-height: 1.55; letter-spacing: 0; white-space: normal; box-shadow: var(--e-2); pointer-events: none; opacity: 0; transform: translateY(-2px); transition: opacity var(--d-quick) var(--ease-out), transform var(--d-quick) var(--ease-out); }
 .n-hint:hover::after, .n-hint:focus-visible::after { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .n-hint::after { transition: none; transform: none; } }
+/* 人才 · 跟进：值得聊一聊和重点跟踪两段 */
+#pp-follow > .n-seg { margin-bottom: var(--s-2); }
+.n-follow + .n-follow:not([hidden]) { margin-top: var(--s-6); }
+#pp-follow .n-follow:first-of-type, #pp-follow .n-follow[hidden] + .n-follow { margin-top: 0; }
+.n-follow__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: var(--s-4) 0 var(--s-3); font-size: var(--t-body); font-weight: 600; color: var(--ink); }
+.n-follow__head > svg { color: var(--ink-3); }
+.n-follow__head .n-count { margin-left: 2px; }
+.n-follow__lock { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--t-xs); font-weight: 400; color: var(--ink-3); }
