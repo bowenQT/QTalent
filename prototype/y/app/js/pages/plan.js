@@ -116,7 +116,7 @@
   }
   const menu = (i) => html`<span class="n-menuwrap"><button class="n-btn n-btn--sm n-btn--ghost n-btn--icon" type="button" data-menu="${i}" aria-label="更多">${icon('more')}</button></span>`;
 
-  // 选人后由系统带出原团队、依据、本人意愿和影响；人只做选择，补充说明和缺口才需要手写
+  // 选人后根据档案自动填写原团队、依据、本人意愿和影响；人只做选择，补充说明和缺口才需要手写
   const student = (pid) => NT.XE6.students.find((x) => x.id === pid);
   const WILLS = [['已沟通 · 接受', '接受'], ['已沟通 · 未接受', '未接受'], ['待沟通', '待沟通'], ['未知', '未知']];
   function derive(pid, type, to) {
@@ -161,7 +161,7 @@
           if (!touched.will && x.will) will = x.will;
           if (!x.releases.includes(release)) release = x.releases[0];
           d.querySelector('[data-for="to"]').hidden = type === '继续观察';
-          mount(d.querySelector('#mv-auto'), html`<span class="n-mvform__tag">${icon('spark', 13)}系统带出</span>
+          mount(d.querySelector('#mv-auto'), html`<span class="n-mvform__tag">根据档案自动填写</span>
             <dl><div><dt>原团队</dt><dd>${x.from || '—'}</dd></div>
             <div><dt>依据</dt><dd>${x.basis ? basisLine(x.basis) : html`<span class="nt-muted">${pid ? '这个人还没有可引用的结营或盘点结论，请在补充说明里写依据' : '选人后带出'}</span>`}</dd></div>
             <div><dt>影响</dt><dd>${x.impact}</dd></div></dl>`);

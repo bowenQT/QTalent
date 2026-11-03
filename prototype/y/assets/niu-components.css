@@ -2247,7 +2247,7 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 /* 能力谱里的版本对照：一行切换，选中一次盘点后只列变了的项 */
 .n-pver--inline { padding: 0; background: none; gap: var(--s-2) var(--s-3); margin-bottom: var(--s-4); }
 .n-pver--inline .n-pver__cmp { display: flex; flex-wrap: wrap; gap: 4px var(--s-4); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-sm); color: var(--ink-2); }
-/* 方案动作表单：系统带出的部分只读呈现，和人填的字段分开 */
+/* 方案动作表单：根据档案自动填写的部分只读呈现，和人填的字段分开 */
 .n-mvform .n-seg { display: flex; }
 .n-mvform__auto { position: relative; padding: var(--s-3) var(--s-4); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-sm); }
 .n-mvform__tag { display: inline-flex; align-items: center; gap: 4px; margin-bottom: var(--s-2); font-size: var(--t-xs); color: var(--ink-3); }
