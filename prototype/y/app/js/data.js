@@ -463,9 +463,16 @@
       text: '锚点 3「常规情境下稳定表现」太宽：按期交付和攻下一个难题后坚持到有结果，都能落到 3 分，建议写清楚' },
   ];
 
+  // 人员与 GitHub 账号的关联（演示）：按 GitHub 稳定 ID 匹配，login 只用于展示；沈亦初留作待关联，演示 HR 关联流程
+  const GH_LINKS = {
+    'p-x11': { login: 'demo-mengyc', id: 58210473, by: 'p-suwan', at: '2026-07-08', prev: [] },
+    'p-x13': { login: 'demo-jixubai', id: 61002387, by: 'p-suwan', at: '2026-07-08', prev: [] },
+    'p-x15': { login: 'demo-zhoucq', id: 59877410, by: 'p-suwan', at: '2026-07-08', prev: [] },
+  };
+
   NT.SEED = {
-    version: 'y11', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
+    version: 'y12', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES: [], FOLLOWS,
-    FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS,
+    FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS, GH_LINKS,
   };
 })();

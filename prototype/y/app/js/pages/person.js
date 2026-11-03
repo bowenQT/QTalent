@@ -105,6 +105,7 @@
           <article class="n-card"><h3 class="n-section-title">参与的项目</h3>
             ${projs.length ? html`<ul class="n-members">${projs.map((m) => html`<li class="${m.to ? 'is-left' : ''}"><a class="nt-plink" href="project.html?id=${m.p.id}"><b>${m.p.name}</b></a><span class="n-members__role">${m.role} · ${m.mode}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}</span></li>`)}</ul>` : html`<div class="nt-empty">还没有参与项目。</div>`}
           </article>
+          <div id="ghwrap">${NT.gh.card(pid)}</div>
           ${mgmt ? correctionsBlock(p) : ''}
         </aside>
       </div>`);
@@ -114,6 +115,7 @@
     $('#btn-reco')?.addEventListener('click', () => UI.recoDialog(pid, rr));
     if (spec) UI.wireSpectrum($('#spec-rows'));
     UI.wireDirection($('#dirwrap'), pid, () => render(main));
+    NT.gh.wireCard($('#ghwrap'), pid, () => render(main));
     if ($('#pchanges')) UI.wireChanges($('#pchanges'));
     if ($('#pachanges')) UI.wireChanges($('#pachanges'));
     if ($('#sigwrap')) UI.wireSignal($('#sigwrap'), () => render(main));

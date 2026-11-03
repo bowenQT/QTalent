@@ -49,6 +49,7 @@
   const SYMBOLS = {
     mic: '<symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>',
     clip: '<symbol id="i-clip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 11.5 12.5 19a5 5 0 0 1-7-7l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3"/></symbol>',
+    branch: '<symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17v-8a3 3 0 0 0-3-3h-4M13 4l-2 2 2 2"/></symbol>',
     up: '<symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></symbol>',
     chev: '<symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>',
     back: '<symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></symbol>',
@@ -173,7 +174,7 @@
   }
   NT.dialog = (o) => new Promise((resolve) => {
     const d = document.createElement('dialog');
-    d.className = 'n-dialog';
+    d.className = o.cls ? `n-dialog ${o.cls}` : 'n-dialog';
     d.setAttribute('aria-labelledby', 'dlg-t');
     d.innerHTML = `<h3 id="dlg-t">${NT.esc(o.title)}</h3>${o.body ? `<div class="nt-dlg-body">${piece(o.body)}</div>` : ''}
       ${o.facts?.length ? `<ul class="n-dialog__facts">${o.facts.map((f) => `<li>${piece(f)}</li>`).join('')}</ul>` : ''}

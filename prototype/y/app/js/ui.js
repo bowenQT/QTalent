@@ -107,9 +107,9 @@
     citeN += 1;
     // 有时间段的录音（含附件里的录音、视频音轨）可以就地播放那一段
     const audio = (src.type === 'audio' || src.type === 'video') && /\d:\d\d/.test(src.loc || '');
-    const ic = { audio: 'wave', video: 'play', doc: 'doc', slide: 'doc', sheet: 'doc', note: 'note' }[src.type] || 'doc';
+    const ic = { audio: 'wave', video: 'play', doc: 'doc', slide: 'doc', sheet: 'doc', note: 'note', gh: 'branch' }[src.type] || 'doc';
     const quote = src.quote ? html`<p class="n-cite__quote">${src.quote}</p>` : '';
-    return html`<span class="n-cite"><button class="n-cite__mark" ${raw(audio ? 'data-kind="audio"' : '')} type="button" aria-label="引用 ${n}：${src.label}">${n}</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src">${icon(ic, 14)}${src.label} · ${src.loc}${src.by ? ` · ${st.person(src.by)?.name}` : ''}</span>${quote}${audio ? html`<span class="n-cite__foot"><button class="n-player__play nt-play" type="button" style="width:26px;height:26px" aria-label="播放这一段">${icon('play', 10)}</button><span style="font-size:var(--t-xs);color:var(--ink-3)">播放 ${src.loc.match(/\d+:\d\d/)[0]} 起的 10 秒</span></span>` : ''}</span></span>`;
+    return html`<span class="n-cite"><button class="n-cite__mark" ${raw(audio ? 'data-kind="audio"' : '')} type="button" aria-label="引用 ${n}：${src.label}">${n}</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src">${icon(ic, 14)}${src.label} · ${src.loc}${src.by ? ` · ${st.person(src.by)?.name}` : ''}</span>${quote}${src.url ? html`<span class="n-cite__url">${src.url}</span>` : ''}${audio ? html`<span class="n-cite__foot"><button class="n-player__play nt-play" type="button" style="width:26px;height:26px" aria-label="播放这一段">${icon('play', 10)}</button><span style="font-size:var(--t-xs);color:var(--ink-3)">播放 ${src.loc.match(/\d+:\d\d/)[0]} 起的 10 秒</span></span>` : ''}</span></span>`;
   };
   UI.cites = (srcs) => (srcs || []).map((s, i) => UI.cite(s, i + 1));
 
@@ -157,7 +157,8 @@
     const input = document.createElement('input');
     Object.assign(input, { type: 'file', multiple: true, accept: UI.ATT_ACCEPT, hidden: true });
     document.body.append(input);
-    const stateLine = (it) => (it.st === 'up' ? `上传中 · ${attSize(it.size)}`
+    const stateLine = (it) => (it.gh ? html`<span class="ok">已取得</span> · ${it.gh.state} · ${it.gh.ref} · ${it.gh.fetched} 取得`
+      : it.st === 'up' ? `上传中 · ${attSize(it.size)}`
       : it.st === 'parse' ? (it.unit === '时' ? '转写中…' : '解析中 · 识别文字')
         : it.st === 'err' ? html`<span class="err">${it.err}</span>`
           : it.scan ? html`<span class="ok">已上传</span> · 扫描件，未识别出文字，只作附件保存`
@@ -232,9 +233,20 @@
         return api;
       },
       add,
+      // GitHub 依据：取得即可用，和附件一起作为这件事的出处；同一条 Issue / PR 只加一次
+      addRemote(list) {
+        list.forEach((g) => {
+          if (items.some((x) => x.gh?.key === g.key)) { NT.toast(`「${g.ref}」已经加过了`); return; }
+          items.push({ id: NT.uid('att'), name: g.title, ext: g.kind === 'pr' ? 'PR' : 'ISS', type: 'gh', st: 'ok', gh: g });
+        });
+        draw(); return api;
+      },
+      ghItems: () => items.filter((x) => x.gh).map((x) => x.gh),
       pending: () => items.filter((x) => x.st === 'up' || x.st === 'parse').length,
       // 出处：已解析的给到具体位置和原文示意；扫描件只作附件，不给位置
-      srcs: () => items.filter((x) => x.st === 'ok').map((x) => (x.scan
+      srcs: () => items.filter((x) => x.st === 'ok').map((x) => (x.gh
+        ? { type: 'gh', label: `GitHub：${x.gh.repo} #${x.gh.n}`, loc: `${x.gh.kind === 'pr' ? 'PR 描述' : 'Issue 描述'} · ${x.gh.state} · ${x.gh.fetched} 取得`, quote: x.gh.body, url: x.gh.url }
+        : x.scan
         ? { type: x.type, att: 1, label: `附件：${x.name}`, loc: '扫描件，未识别出文字' }
         : { type: x.type, att: 1, label: `附件：${x.name}`, loc: x.loc, quote: `演示附件：这里显示${x.loc}的原文。` })),
       lock() { locked = true; items = items.filter((x) => x.st === 'ok'); draw(); },

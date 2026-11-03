@@ -39,7 +39,8 @@
             <div class="n-eventin__bar">
               <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="ev-mic" aria-label="按住说话">${icon('mic')}</button>
               ${UI.attachButton()}
-              <span class="n-eventin__hint" id="ev-hint">写原话就行，不用分段；可以附上 PDF、PPT、文档、表格、录音或视频，也可以直接拖进来</span>
+              <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="ev-gh" aria-label="添加 GitHub 依据" title="添加 GitHub 依据：Issue 或 PR">${icon('branch')}</button>
+              <span class="n-eventin__hint" id="ev-hint">写原话就行，不用分段；可以附上 PDF、PPT、文档、表格、录音或视频，也可以添加 GitHub 上的 Issue 和 PR</span>
               <button class="n-btn n-btn--light" type="button" id="ev-shape">${icon('spark')}整理成关键事件</button>
             </div>
           </div>
@@ -55,8 +56,9 @@
       </div>`);
     // 附件：「改原话」或撤销保存回到这页时保留已解析的附件
     att = UI.attach({ key: 'record' }).list($('#ev-atts')).pick($('[data-att-pick]', $('#ev'))).drop($('#ev')).fallback(() => $('#ev-back'));
-    if (q) att.restore(); else att.clear();
+    if (q || NT.param('keep')) att.restore(); else att.clear();
     $('#ev-shape').addEventListener('click', () => doShape());
+    $('#ev-gh').addEventListener('click', addGithub);
     $('#ev-mic').addEventListener('click', () => {
       const f = $('#ev-text'); NT.ipState($('#ev-ip'), 'listening');
       NT.stream(f, '结营前一周组员都在等分工。孟逸尘主动把任务池同步给了全组，下午组员就接上了。分工清楚多了，演示前一天全部跑通。', 38).then(() => NT.ipState($('#ev-ip'), 'confirm'));
@@ -112,10 +114,21 @@
   }
 
   let draft = null, att = null;
+  // GitHub 依据按「记给谁」查：先看上面选的人，再看原话里提到的人
+  async function addGithub() {
+    const pid = $('#ev-person').value || findPeople($('#ev-text').value).hit[0]?.id;
+    if (!pid) { $('#ev-hint').innerHTML = '<span style="color:var(--conflict)">先选是谁，</span>再按这个人的 GitHub 账号查找'; $('#ev-person').focus(); return; }
+    if (!$('#ev-person').value) $('#ev-person').value = pid;
+    const picked = await NT.gh.pick(pid, att.ghItems());
+    if (picked.length) att.addRemote(picked);
+  }
   async function doShape() {
-    const text = $('#ev-text').value.trim();
-    if (!text) { $('#ev-text').focus(); return; }
+    const typed = $('#ev-text').value.trim(), ghs = att.ghItems();
+    if (!typed && !ghs.length) { $('#ev-text').focus(); return; }
     let pid = $('#ev-person').value;
+    if (!typed && !pid) { $('#ev-hint').innerHTML = '<span style="color:var(--conflict)">这件事是谁的？</span>在上面选一下'; $('#ev-person').focus(); return; }
+    // 没写原话、只加了 GitHub 依据时，按材料起草；起草的文字不当作记录原话保存
+    const text = typed || NT.gh.draftText(pid, ghs);
     const found = findPeople(text);
     if (!pid) {
       if (found.hit.length) pid = found.hit[0].id;
@@ -125,7 +138,7 @@
     const ev = $('#ev'), ip = $('#ev-ip');
     const proj = findProject(text);
     const s = shape(text, pid);
-    draft = { pid, text, proj, ...s };
+    draft = { pid, text: typed, proj, ...s };
     ev.dataset.step = 'shaped';
     $('#ev-in').hidden = true;
     const body = $('#ev-body'); body.hidden = false;
@@ -141,7 +154,7 @@
         <dt>影响</dt><dd><span class="n-edit is-light" data-k="res" contenteditable="plaintext-only" spellcheck="false"></span></dd>
       </dl>
       <div class="n-tags" id="ev-tags" hidden><span class="n-tags__label">标签</span><span class="n-tags__list" id="tag-list"></span><span class="n-tags__undo" id="tag-undo" hidden></span></div>
-      <details class="n-event__raw"><summary>原话</summary><p>${text}</p></details>
+      ${typed ? html`<details class="n-event__raw"><summary>原话</summary><p>${typed}</p></details>` : html`<p class="n-event__raw">按所选 GitHub 依据起草</p>`}
       <div id="ev-att-slot"></div>
       <div class="n-event__scores" id="scores"></div>
       <div class="n-event__sign" id="ev-sign" hidden></div>
@@ -167,7 +180,7 @@
     NT.ipState($('#ev-ip'), 'confirm');
     $('#ev-actions').hidden = false; hint();
     $('#ev-save').addEventListener('click', save);
-    $('#ev-back').addEventListener('click', () => { att.keep(); location.href = NT.link('record.html', { q: text }); });
+    $('#ev-back').addEventListener('click', () => { att.keep(); location.href = NT.link('record.html', { q: typed, person: pid, keep: 1 }); });
   }
   async function buildTags(s) {
     const host = $('#tag-list'); $('#ev-tags').hidden = false;
@@ -258,7 +271,7 @@
     sign.hidden = false; $('#ev-actions').hidden = true;
     NT.ipState($('#ev-ip'), 'done');
     NT.toast(`已保存到${st.person(draft.pid).name}的档案${big ? `，${big} 项转给了 HR 复核` : ''}`, {
-      undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('record.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销这条记录',
+      undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('record.html', { q: draft.text, person: draft.pid, keep: 1 }); }, undoneText: '已撤销这条记录',
     });
   }
 

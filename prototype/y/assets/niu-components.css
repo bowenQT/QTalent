@@ -2033,3 +2033,32 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 @media (prefers-reduced-motion: reduce) {
   .n-rstate[data-s="processing"]::before { animation: none; }
 }
+
+/* GitHub 依据：档案里的账号关联、记一件事时选择 Issue 与 PR、引用浮层里的原链接 */
+.n-dialog--wide { width: min(640px, calc(100vw - 32px)); }
+.n-cite__url { display: block; margin-top: var(--s-2); font-size: var(--t-xs); color: var(--ink-3); overflow-wrap: anywhere; }
+.n-gh__acct { display: flex; align-items: flex-start; gap: var(--s-3); font-size: var(--t-sm); }
+.n-gh__acct small { display: block; margin-top: 2px; font-size: var(--t-xs); color: var(--ink-3); line-height: 1.5; }
+.n-gh__avatar { --hue: 210; flex: none; }
+.n-gh__query { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.n-gh__query .n-select { width: auto; min-width: 0; flex: 1 1 180px; }
+.n-gh__status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); margin-top: var(--s-3); font-size: var(--t-xs); color: var(--ink-3); }
+.n-gh__fail { display: inline-flex; align-items: center; gap: 6px; color: var(--conflict); font-weight: 600; }
+.n-gh__fail svg { width: 14px; height: 14px; }
+.n-gh__list { list-style: none; margin: var(--s-2) 0 0; padding: 0; max-height: min(320px, 42vh); overflow: auto; }
+.n-gh__item label { display: grid; grid-template-columns: 16px 44px minmax(0, 1fr) auto; align-items: start; gap: var(--s-2) var(--s-3); padding: var(--s-3) var(--s-1); border-top: 1px solid var(--line); cursor: pointer; }
+.n-gh__item:first-child label { border-top: 0; }
+.n-gh__item input { width: 16px; height: 16px; margin: 3px 0 0; accent-color: var(--ink); }
+.n-gh__item input:disabled + .n-gh__kind, .n-gh__item input:disabled ~ .n-gh__main { opacity: .6; }
+.n-gh__kind { display: grid; place-items: center; height: 22px; border-radius: 6px; background: var(--sheet-sunk); font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.n-gh__main { min-width: 0; font-size: var(--t-sm); line-height: 1.5; }
+.n-gh__main b { font-weight: 600; }
+.n-gh__main small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
+.n-gh__url { overflow-wrap: anywhere; }
+.n-gh__empty { padding: var(--s-4) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-sm); color: var(--ink-2); }
+.n-gh__paste { margin-top: var(--s-4); padding-top: var(--s-3); border-top: 1px dashed var(--line); }
+@media (max-width: 560px) {
+  .n-gh__item label { grid-template-columns: 16px minmax(0, 1fr); }
+  .n-gh__kind { display: none; }
+  .n-gh__item .n-badge { grid-column: 2; justify-self: start; }
+}
