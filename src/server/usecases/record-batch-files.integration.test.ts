@@ -63,7 +63,7 @@ async function parseJobOf(
 /** What the attachment worker commits when it finishes a file. */
 async function finishParse(
   upload: Awaited<ReturnType<typeof unassignedUpload>>,
-  outcome: 'parsed' | 'format' | 'cancelled',
+  outcome: 'parsed' | 'format' | 'cancelled' | 'input_changed',
 ) {
   const { jobId } = await parseJobOf(upload);
   await connection.db
@@ -74,9 +74,13 @@ async function finishParse(
           parsed: 'completed',
           format: 'failed',
           cancelled: 'cancelled',
+          input_changed: 'failed',
         } as const
       )[outcome],
       revision: 2,
+      ...(outcome === 'input_changed'
+        ? { errorCode: 'input_changed' as const }
+        : {}),
       ...(outcome === 'cancelled'
         ? { cancelRequestedAt: new Date().toISOString() }
         : {}),
@@ -86,6 +90,7 @@ async function finishParse(
           parsed: 'parsed',
           format: 'unsupported',
           cancelled: 'parsing',
+          input_changed: 'parsing',
         }[outcome],
         mediaId: upload.file.uploadId,
         source: null,
@@ -211,6 +216,31 @@ it('shows a cancelled parse as stopped, not as still parsing', async () => {
       status: 'completed',
       jobId: null,
       files: [{ status: 'failed', code: 'processing_failed' }],
+    },
+  });
+});
+
+it('shows a file withdrawn before its parse as not retryable, without saying why', async () => {
+  const f = await seedNativeCase(connection.db);
+  const notes = await unassignedUpload(connection.db, f, '演示周记.txt');
+  signIn(f.account);
+  const created = await startRecordArrangeAction(filesOnly([notes.file]));
+  expect(created.status).toBe('success');
+  if (created.status !== 'success') return;
+  await finishParse(notes, 'input_changed');
+  const read = await readRecordBatchAction({ batchId: created.result.batchId });
+  expect(read).toMatchObject({
+    status: 'success',
+    result: {
+      status: 'completed',
+      files: [
+        {
+          status: 'failed',
+          code: 'processing_failed',
+          message: '文件已移除或当前无权处理，不能再解析',
+          retryable: false,
+        },
+      ],
     },
   });
 });

@@ -177,6 +177,16 @@ function mediaFileReceipt(
     return { ...file, status: 'processing', jobId: parseJobId };
   if (parseJob.status === 'completed' && stage === 'parsed' && parseVersionId)
     return { ...file, status: 'parsed', parseVersionId };
+  // The upload was withdrawn or is no longer this account's to process; a retry
+  // cannot change that, and the reason stays undisclosed.
+  if (parseJob.errorCode === 'input_changed')
+    return {
+      ...file,
+      status: 'failed',
+      code: 'processing_failed',
+      message: '文件已移除或当前无权处理，不能再解析',
+      retryable: false,
+    };
   const reason = result.success ? result.data.failureReason : undefined;
   if (reason === 'format' || reason === 'scanned')
     return {
