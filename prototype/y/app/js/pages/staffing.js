@@ -25,9 +25,9 @@
         'p-x07': { r1: ['yes', '独立完成服务端主流程 MVP，是核心框架的主要搭建者', 'e-x07-2'], r1alt: ['yes', '服务端主流程 MVP', 'e-x07-2'], r2: ['unknown', '没有实时语音链路的事件'], r2alt: ['yes', '口语陪练课题里负责服务端主流程', 'e-x07-2'], r3: ['unknown', '到岗时间还没确认'], r3alt: ['unknown', '到岗时间还没确认'], r4: ['unknown', '资料不足'],
           will: ['未知 · 结营去向灵矽，对这个项目还没问', true], release: '不涉及', now: '—', next: '确认到岗时间', dims: ['prof', 'wis'] },
         'p-x14': { r1: ['yes', '主导 Java 状态机模块的方案设计与落地', 'e-x14-2'], r1alt: ['yes', 'Java 状态机模块', 'e-x14-2'], r2: ['unknown', '没有语音相关事件'], r2alt: ['unknown', '没有语音或多模态相关事件'], r3: ['yes', '实习 offer 已接受，去向灵矽', null], r3alt: ['yes', '已接受实习', null], r4: ['unknown', '资料不足'],
-          will: ['未知 · 还没问过', true], release: '实习期内', now: '—', next: '先补语音方向的证据', dims: ['prof', 'wis'] },
+          will: ['未知 · 还没问过', true], release: '实习中，要先和导师确认', now: '—', next: '先补语音方向的证据', dims: ['prof', 'wis'] },
         'p-x80': { r1: ['no', '负责前端 MVP 开发，没有服务端模块'], r1alt: ['unknown', '没有服务端开发的事件'], r2: ['yes', '引入 ASR、LLM、TTS 组合，降低实时模型成本', 'e-x80-3'], r2alt: ['yes', '引入 ASR 和 TTS', 'e-x80-3'], r3: ['no', '12-01 才能回来'], r3alt: ['no', '12-01 才能回来'], r4: ['unknown', '资料不足'],
-          will: ['未知', true], release: '结营去向 MaaS', now: '—', next: '—', dims: ['prof'] },
+          will: ['未知', true], release: '已去 MaaS，要和 MaaS 确认', now: '—', next: '—', dims: ['prof'] },
       },
       manual: { 'p-x28': { r1: ['yes', '完成 ModuleContent v1、JSON Schema 和规则引擎流程', 'e-x28-2'], r1alt: ['yes', '规则引擎流程', 'e-x28-2'], r2: ['unknown', '没有语音相关事件'], r2alt: ['unknown', '没有语音相关事件'], r3: ['no', '12-01 才能回来'], r3alt: ['no', '12-01 才能回来'], r4: ['unknown', '资料不足'], will: ['未知', true], release: '结营去向 Kodo', now: '—', next: '和 Kodo 确认能否兼顾', dims: ['prof', 'wis'] } },
     },
@@ -110,13 +110,13 @@
     if (!isNew && projectId && !st.project(projectId)) return mount(main, UI.state({ ip: 'confirm', title: '项目链接失效', text: '可能已删除，或链接有误。回到项目列表重新进入。', actions: html`<a class="n-btn n-btn--sm" href="projects.html">回到项目列表</a><a class="n-btn n-btn--sm n-btn--ghost" href="staffing.html">为新项目找人</a>` }));
     if (!sc) {
       const T = st.templates(), tv = tpl && st.tplVersion(tpl);
-      mount(main, html`<header class="nt-head"><div><h1>为一个项目或关键岗位找人</h1><p>说一句要做什么、要什么样的人，或者从目标角色模板开始。</p></div></header>
+      mount(main, html`<header class="nt-head"><div><h1>为一个项目或关键岗位找人</h1></div></header>
         <div class="n-tpls" role="group" aria-label="目标角色模板" style="margin-bottom:var(--s-4)">${T.map((t) => html`<a class="n-tpl" href="staffing.html?tpl=${t.id}" aria-pressed="${t.id === tplId}">${UI.tplTitle(t)}<small>v${st.tplVersion(t).v}</small></a>`)}</div>
         ${tpl ? html`<article class="n-card" style="max-width:720px;margin-bottom:var(--s-4)">
           <div class="nt-row" style="justify-content:space-between"><h3 class="n-section-title" style="margin:0">目标角色模板 · ${tpl.name}</h3><span class="n-tplver">v${tv.v} · ${st.person(tv.by).name} ${NT.md(tv.at)} 更新</span></div>
           <dl class="nt-dl" style="margin-top:var(--s-3)"><dt>对应通道</dt><dd>${st.channel(tpl.ch).name}</dd><dt>典型职责</dt><dd>${tpl.duties}</dd><dt>相关维度</dt><dd>${tpl.dims.map((d) => st.dim(d).name).join('、')}</dd></dl>
           <ul class="n-reqs">${tv.reqs.map((r) => html`<li><span class="n-badge ${r.must ? '' : 'n-badge--demo'}">${r.must ? '必须' : '加分'}</span><span>${r.text}${r.alt ? html` <span class="nt-muted">（可放宽为「${r.alt}」）</span>` : ''}</span></li>`)}</ul>
-          ${tv.note ? html`<p class="nt-caption">v${tv.v} 的改动：${tv.note}。之前生成的需求卡保留当时的版本。</p>` : ''}
+          ${tv.note ? html`<p class="nt-caption">v${tv.v} 的改动：${tv.note}。</p>` : ''}
           ${TPL_SCEN[tpl.id] ? '' : html`<div class="n-notice is-plain" id="demo-note" style="margin-top:var(--s-3)">${icon('info')}<div>${UI.demo()} 候选人只准备了后端研发和技术支持两个模板，其他模板可以先看上面的要求。<div class="nt-row" style="margin-top:var(--s-2)"><a class="n-btn n-btn--sm" href="staffing.html?tpl=tpl-be">用后端研发走一遍</a><a class="n-btn n-btn--sm" href="staffing.html?tpl=tpl-ts">用技术支持走一遍</a></div></div></div>`}
         </article>` : ''}
         <div class="n-composer" style="max-width:720px"><span class="nt-ip" data-ip="rest" data-size="36"></span><textarea class="n-composer__field" id="sq" rows="2" aria-label="描述项目和要找的人" placeholder="${tpl ? (TPL_SAY[tpl.id] ? `比如：${TPL_SAY[tpl.id]}` : '比如：说一句要做什么、要什么样的人') : "比如：语音硬件端云联调要找一个能打通设备端和服务端的 owner，10 月到岗"}"></textarea>
@@ -222,7 +222,7 @@
       <ul class="n-reqs" id="reqs">${reqs.map((r, i) => html`<li><button class="n-badge ${r.must ? '' : 'n-badge--demo'}" type="button" data-must="${i}" style="border:0;cursor:pointer" aria-label="切换为${r.must ? '加分项' : '必须项'}">${r.must ? '必须' : '加分'}</button><span>${r.alt ? html`<button class="nt-req ${r.useAlt ? 'is-alt' : ''}" type="button" data-alt="${i}" title="点一下改写">${r.useAlt ? r.alt : r.text}</button>` : r.text}</span></li>`)}</ul>
       <div class="nt-row" style="margin-top:var(--s-3)"><input class="n-input" id="reqadd" style="flex:1;min-width:12em;height:32px" placeholder="补一句要求，比如：10 月能到岗" aria-label="补一句要求"><button class="n-btn n-btn--sm" type="button" id="reqadd-go">${icon('plus')}加上</button>
         ${!reqs.some((r) => r.id === 'r3') && key === 'newconv' ? html`<button class="n-ask" type="button" data-addreq="10 月能到岗">10 月能到岗</button>` : ''}</div>
-      <p class="nt-caption">改了要求，候选人会按新要求重新核对。</p>`;
+      `;
   }
   // 就地补的要求：只有和预置证据意思一致的到岗时间（10 月到岗 / 11 月前到岗）复用 r3 的核对结果，
   // 其他要求（含「到岗后必须全职」这类）一律先按资料不足核对，不凭关键词共享证据
@@ -245,13 +245,13 @@
     const inSlot = Object.values(slots).includes(pid);
     const projs = st.projectsOf(pid).length;
     const scores = (c.dims || []).map((d) => { const l = st.scoresOf(pid, { dim: d, from: NT.addDays(NT.TODAY, -365), visible: true }); return l.length ? `${st.dim(d).name} ${st.mean(l.map((s) => s.v)).toFixed(1)}（${l.length} 条）` : `${st.dim(d).name}资料不足`; });
-    return html`<article class="n-card n-candidate" draggable="true" data-pid="${pid}" aria-describedby="drag-tip">
+    return html`<article class="n-card n-candidate" draggable="true" data-pid="${pid}">
       <div class="nt-row" style="justify-content:space-between;align-items:flex-start">${UI.person(pid, { meta: `${st.orgShort(p.org)} · ${p.level} · 当前在 ${projs} 个项目` })}${inSlot ? html`<span class="n-badge n-badge--yes">${icon('check')}已放入方案</span>` : ''}</div>
       ${isManual ? html`<div class="nt-row" style="margin-top:var(--s-2)"><span class="n-manual">${icon('user', 11)}${st.me().name}手动补入</span><span class="nt-muted">不冒充模型推荐；要求逐项照样核对</span></div>` : ''}
       <ul class="n-reqs">${reqs.map((r) => { const [s, t, ev] = evOf(pid, r); const [cls, ic, l] = STATUS[s]; return html`<li data-req="${r.id}" data-s="${s}"><span class="n-badge ${cls}">${icon(ic)}${l}</span><span>${t}${citeFor(ev)}${r.must ? '' : html` <span class="nt-muted">（加分项）</span>`}</span></li>`; })}</ul>
       ${st.scope(pid) === 'full' && scores.length ? html`<div class="nt-muted" style="margin-top:var(--s-2)">相关维度 · ${scores.join(' · ')}</div>` : ''}
       <div style="margin-top:var(--s-2)">${UI.directionLine(pid)}</div>
-      <dl class="n-cmeta"><dt>本人意愿</dt><dd class="${c.will[1] ? 'unknown' : ''}">${c.will[0]}</dd><dt>可否释放</dt><dd>${c.release}</dd><dt>当前安排</dt><dd>${c.now}</dd><dt>下一步</dt><dd>${c.next}</dd></dl>
+      <dl class="n-cmeta"><dt>本人意愿</dt><dd class="${c.will[1] ? 'unknown' : ''}">${c.will[0]}</dd>${c.release === '不涉及' ? '' : html`<dt>原团队能否放人</dt><dd class="${/未知/.test(c.release) ? 'unknown' : ''}">${c.release}</dd>`}<dt>当前安排</dt><dd>${c.now}</dd><dt>下一步</dt><dd>${c.next}</dd></dl>
       <div class="nt-row" style="margin-top:var(--s-3)">${sc.roles.map((ro) => html`<button class="n-btn n-btn--sm" type="button" data-put="${pid}" data-role="${ro.id}" ${NT.raw(inSlot ? 'disabled' : '')}>放入「${ro.name}」</button>`)}<a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${pid}">看档案</a></div>
     </article>`;
   }
@@ -275,18 +275,18 @@
       })}</div>
       ${draft || changed.length ? html`<div class="n-version" style="margin-top:var(--s-3)"><span class="n-version__tag is-draft">草稿 v${ver}</span><span style="color:var(--ink-3)">${conf ? `基于 v${conf.version} · 改了 ${changed.length} 处` : '第一版'}</span>
         ${changed.length ? html`<span class="n-diff" style="flex-basis:100%">${changed.map((r) => html`${r.name}：${conf?.slots?.[r.id] ? html`<del>${st.person(conf.slots[r.id]).name}</del> ` : html`<del>待定</del> `}${slots[r.id] ? html`<ins>${st.person(slots[r.id]).name}${draft?.slotNote?.[r.id] ? `（${draft.slotNote[r.id]}）` : ''}</ins>` : html`<ins>待定</ins>`}。`)}</span>` : ''}</div>` : ''}
-      ${plans.filter((p) => p.status !== 'draft').slice().reverse().map((p) => html`<div class="n-version" style="margin-top:6px"><span class="n-version__tag ${p.status === 'confirmed' ? 'is-frozen' : ''}">v${p.version} ${p.status === 'confirmed' ? '已确认' : '已被替代'}</span><span style="color:var(--ink-3)">${st.person(p.confirmedBy || p.by).name} · ${NT.md(p.confirmedAt || p.at)}${p.status === 'confirmed' ? ' · 快照已冻结' : ''}</span>${p.status === 'confirmed' ? html`<span class="n-seal n-seal--sm" style="margin-left:auto">定</span>` : ''}</div>`)}
-      ${frozenNow ? html`<p class="nt-caption">当前方案已确认。想调整时，把候选人拖进槽位，会自动开一版新草稿。</p>` : html`
+      ${plans.filter((p) => p.status !== 'draft').slice().reverse().map((p) => html`<div class="n-version" style="margin-top:6px"><span class="n-version__tag ${p.status === 'confirmed' ? 'is-frozen' : ''}">v${p.version} ${p.status === 'confirmed' ? '已确认' : '已被替代'}</span><span style="color:var(--ink-3)">${st.person(p.confirmedBy || p.by).name} · ${NT.md(p.confirmedAt || p.at)}${p.status === 'confirmed' ? ' · 已存档' : ''}</span>${p.status === 'confirmed' ? html`<span class="n-seal n-seal--sm" style="margin-left:auto">定</span>` : ''}</div>`)}
+      ${frozenNow ? html`<p class="nt-caption">当前方案已确认${NT.ui.hint('想调整时把候选人拖进槽位，会自动开一版新草稿')}</p>` : html`
         <div class="nt-row" style="margin-top:var(--s-4)">
           <button class="n-btn n-btn--ink" type="button" id="confirm">${icon('stamp')}确认 v${ver}</button>
           <button class="n-btn n-btn--ghost" type="button" id="savedraft">保存草稿</button>
         </div>
-        ${canConfirm ? html`<p class="nt-caption">确认后冻结快照，owner 和成员写入项目，并生成跟进行动，执行情况在「人才项目」的关键节点复盘里跟踪。</p>` : ''}
+        
         <div id="deny"></div>`}
     </article>
     <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">手动补入</h3>
       <div class="nt-row"><select class="n-select" id="manual" style="flex:1"><option value="">选一个不在候选里的人</option>${Object.keys(sc.manual).filter((x) => !manual.includes(x)).map((x) => html`<option value="${x}">${st.person(x).name} · ${st.orgShort(st.person(x).org)}</option>`)}${st.visiblePeople().filter((x) => st.scope(x.id) === 'full' && !sc.cands[x.id] && !sc.manual[x.id] && !manual.includes(x.id)).map((x) => html`<option value="${x.id}">${x.name} · 还没有预先核对的证据</option>`)}</select><button class="n-btn n-btn--sm" type="button" id="addmanual">补入</button></div>
-      <p class="nt-caption" id="drag-tip">候选卡可以直接拖到上面的槽位，也可以用卡片上的按钮放入。</p></article>`;
+      </article>`;
   }
 
   function drawAll(changedReq) {
@@ -297,7 +297,7 @@
     const old = $$('.n-candidate', host);
     const render = () => {
       mount(host, main.length ? main.map((c) => candCard(c.pid)) : UI.state({ ip: 'confirm', title: '换个条件再找', text: '可以先补材料，或者放宽一项要求。' }));
-      mount($('#pending'), html`<h4 class="n-section-title" style="font-size:var(--t-sm)">条件待确认 · ${pend.length} 人</h4>${pend.length ? html`<ul class="n-pending">${pend.map((c) => html`<li>${UI.avatar(c.pid, 'sm')}${UI.plink(c.pid)}<small>${reqs.filter((r) => r.must && evOf(c.pid, r)[0] === 'unknown').map((r) => (r.useAlt ? r.alt : r.text)).join('、')}资料不足</small></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">没有。</p>`}<p class="nt-caption">资料待补充的人放在这里，补齐后再看是否满足。进入正式方案前再核对关键条件。</p>`);
+      mount($('#pending'), html`<h4 class="n-section-title" style="font-size:var(--t-sm)">条件待确认 · ${pend.length} 人</h4>${pend.length ? html`<ul class="n-pending">${pend.map((c) => html`<li>${UI.avatar(c.pid, 'sm')}${UI.plink(c.pid)}<small>${reqs.filter((r) => r.must && evOf(c.pid, r)[0] === 'unknown').map((r) => (r.useAlt ? r.alt : r.text)).join('、')}资料不足</small></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0">没有。</p>`}`);
     };
     if (old.length && changedReq) {
       // 需求即时重排：记住旧位置，重画后做位置过渡，变化的证据高亮
@@ -370,14 +370,14 @@
     const d = saveDraft();
     const v = await NT.dialog({
       title: `确认「${p.name}」用人方案 v${d.version}？`,
-      body: html`<p>确认后冻结快照并生成跟进行动，之后的修改进入新草稿。</p>`,
+      body: html`<p>确认后存档并生成跟进行动，之后的修改进入新草稿。</p>`,
       facts: [...sc.roles.map((r) => html`${r.name}：<b>${slots[r.id] ? st.person(slots[r.id]).name : '待定'}</b>`), empty.length ? html`<span style="color:var(--conflict)">${empty.map((r) => r.name).join('、')}还空着，之后可以再补</span>` : html`写入项目成员，生成跟进行动`],
-      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并冻结 v${d.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认并存档 v${d.version}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
     if (v !== 'ok') return;
     st.confirmStaffing(d, sc.roles);
     drawAll();
     const seal = $('#plan .n-seal'); seal?.classList.add('is-stamping');
-    NT.toast(`已确认 v${d.version} 并冻结。${slots.owner ? `${st.person(slots.owner).name}写入项目 owner` : ''}，后续行动进入行动列表`);
+    NT.toast(`已确认 v${d.version} 并存档。${slots.owner ? `${st.person(slots.owner).name}写入项目 owner` : ''}，后续行动进入行动列表`);
   }
 })();

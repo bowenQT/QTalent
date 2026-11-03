@@ -152,7 +152,7 @@
   // 评分人本人：只列自己给的、待按新版本复核的分
   function renderRaterReview(main) {
     const mine = st.myHeldScores(), vers = [...new Set(mine.map((x) => x.ver))];
-    mount(main, html`<header class="nt-head"><div><h1>按新版本复核你的评分</h1><p>维度与锚点改了等级含义，你在旧版本下给的分要按新版本再看一遍。原分保留；你确认前，这些分暂停计入档案和象限；你请假或离开时由 HR 代为确认。</p></div></header>
+    mount(main, html`<header class="nt-head"><div><h1>按新版本复核你的评分${NT.ui.hint('原分保留；你确认前，这些分暂停计入档案和象限；你请假或离开时由 HR 代为确认')}</h1><p>维度与锚点改了等级含义，你在旧版本下给的分要按新版本再看一遍。</p></div></header>
       ${vers.length ? vers.map((v) => reviewTable(st.reviewHolds().find((h) => h.ver === v), true)) : UI.state({ ip: 'done', size: 48, title: '都复核完了', text: '新版本下你的评分已经全部确认。' })}`);
     wire(main);
   }
@@ -166,7 +166,7 @@
         <td><select class="n-select" style="width:auto" aria-label="${name(s.p)}${st.dim(s.d).name}按 ${h.ver} 的分">${[1, 2, 3, 4, 5].map((v) => html`<option value="${v}" ${NT.raw(v === s.v ? 'selected' : '')}>${v} 分</option>`)}</select><small>AI 建议 ${s.v} 分</small></td>
         <td><button class="n-btn n-btn--sm n-btn--ink" type="button" data-rv>确认</button></td></tr>`)}
       </tbody></table>
-      <p class="nt-caption">确认后按 ${h.ver} 参与取数；原分和 ${h.base} 的版本标记保留。</p></article>`;
+      </article>`;
   }
   function sideNote(live, open) {
     const lock = st.inventoryLock();
@@ -224,7 +224,7 @@
       })}</ul>
       <h3 class="n-section-title" style="margin-top:var(--s-5)">七条入选规则</h3>
       <ul class="nt-list">${st.WATCH_CATS.map(([cat, cn]) => Object.entries(rules).filter(([, x]) => x.cat === cat).map(([code, x]) => html`<li class="nt-row" style="align-items:baseline;flex-wrap:nowrap;padding:6px 0"><span class="n-rule">${code}</span><span style="font-size:var(--t-sm)">${cn} · ${x.text}</span></li>`))}</ul>
-      <p class="nt-caption">这里只调已有规则的参数，规则保持七条；按分数挑人的条件始终排除在外。T1、I1 与「变化」同口径，在「变化」的规则里改。</p>
+      
     </article>`;
   }
   const changeCount = (r) => { const n = st.ruleChanges(r).length; return n ? `改了 ${n} 处` : '在原处直接改，改过的地方会标出原值'; };
@@ -284,7 +284,7 @@
       ['加分项', `领导力或开放性均值 ${c.bonus} 分及以上，标为加分项，位置保持原象限`],
     ];
     return html`<article class="n-card"><table class="nt-table"><tbody>${rows.map(([k, v]) => html`<tr><th scope="row" style="width:9em">${k}</th><td>${v}</td></tr>`)}</tbody></table>
-      <p class="nt-caption">门槛之下的人放在「资料不足」区；资料不足只说明证据还少。</p></article>`;
+      </article>`;
   }
 
   // ---------- HR：原地修订 + 检查栏 ----------
@@ -312,7 +312,7 @@
           </div>
           <div class="n-checkbar__sec">
             <span class="n-checkbar__label" id="compat-l">兼容声明</span>
-            ${kind === 'front' ? html`<p class="n-checkbar__text">选拔标准只影响之后新建的期次怎么评；已有的选拔记录和判断对照保持 ${d.base}。</p>` : kind === 'watch' ? html`<p class="n-checkbar__text">阈值类修订：生效后按新阈值计算，生效前冻结的快照保持原样。</p>` : html`
+            ${kind === 'front' ? html`<p class="n-checkbar__text">选拔标准只影响之后新建的期次怎么评；已有的选拔记录和判断对照保持 ${d.base}。</p>` : kind === 'watch' ? html`<p class="n-checkbar__text">阈值类修订：生效后按新阈值计算，生效前已存档的盘点结果保持原样。</p>` : html`
               <div class="n-seg" role="group" aria-labelledby="compat-l" id="compat"><button type="button" data-v="ok" aria-pressed="${d.compat === 'ok' && !forced}" ${NT.raw(forced || !ed ? 'disabled' : '')}>兼容：措辞澄清、补示例</button><button type="button" data-v="break" aria-pressed="${d.compat === 'break' || forced}" ${NT.raw(!ed ? 'disabled' : '')}>不兼容：等级含义变了</button></div>
               ${forced ? html`<div class="n-lock">${icon('lock')}<span>岗位族锚点首次启用，按不兼容处理：取数窗口内这一族的专业度分都要按新锚点复核。</span></div>` : ''}`}
           </div>
@@ -392,7 +392,7 @@
       return html`<div class="n-scope" style="margin-top:0"><div>适用范围<b>之后新建的期次</b></div><div>保持原版本的期次<b>${p.bound.length} 期</b></div><div>保持旧版的选拔记录<b>${p.keep} 条</b></div><div>汇总依据<b>${p.basis.length + p.notes} 条</b></div></div>
         <p style="margin:0;font-size:var(--t-sm);line-height:1.7">${p.next ? `${p.next.name}还在筹备（${p.next.node} ${NT.md(p.next.at)}），建立时绑定当时的默认版本。` : ''}${p.bound.map((g) => `${g.name}建立时绑定 ${g.std}`).join('，')}，${p.keep} 条选拔记录和 ${p.keepBatch.join('、') || '已有的判断对照'}继续按原版本，结果保持当时的样子；下一次判断对照按选拔标准版本分组。</p>
         ${p.basis.length ? html`<ul class="n-impact__basis">${p.basis.map((b) => html`<li>${icon('split', 12)}${b.batch} · ${b.dim}：${b.n}</li>`)}</ul>` : ''}
-        <p class="nt-caption">影响预览只看适用范围、保持原版本的期次与条数和汇总依据；选拔标准改的是之后的期次怎么评，已有的人和分数保持原样。</p>`;
+        `;
     }
     if (p.kind === 'rubric') {
       const ver = st.ruleVer(st.ruleOpen('rubric')?.base || '') || st.ruleLive('rubric');
@@ -425,7 +425,7 @@
         <div class="n-checkbar">
           <div class="n-checkbar__sec"><span class="n-checkbar__label">修订理由</span><p style="margin:0;font-size:var(--t-sm);line-height:1.65">${d.why}</p></div>
           ${(d.basis || []).length ? html`<div class="n-checkbar__sec"><span class="n-checkbar__label">依据</span><div class="nt-row">${d.basis.map((b, i) => basisChip(b, i, false))}</div></div>` : ''}
-          <div class="n-checkbar__sec"><span class="n-checkbar__label">兼容声明</span><p class="n-checkbar__text">${kind === 'front' ? `选拔标准只影响之后新建的期次怎么评；已有的选拔记录和判断对照保持 ${d.base}。` : d.compat === 'break' ? html`<b>不兼容</b>：生效时为受影响的旧分生成复核任务，原分保留并显示 ${d.base}。` : kind === 'watch' ? '阈值类修订：生效后按新阈值计算，生效前冻结的快照保持原样。' : html`<b>兼容</b>：旧分继续参与取数。`}</p></div>
+          <div class="n-checkbar__sec"><span class="n-checkbar__label">兼容声明</span><p class="n-checkbar__text">${kind === 'front' ? `选拔标准只影响之后新建的期次怎么评；已有的选拔记录和判断对照保持 ${d.base}。` : d.compat === 'break' ? html`<b>不兼容</b>：生效时为受影响的旧分生成复核任务，原分保留并显示 ${d.base}。` : kind === 'watch' ? '阈值类修订：生效后按新阈值计算，生效前已存档的盘点结果保持原样。' : html`<b>兼容</b>：旧分继续参与取数。`}</p></div>
           <div class="n-checkbar__sec"><span class="n-checkbar__label">生效点</span><p class="n-checkbar__text">${kind === 'front' ? frontEffect(d) : d.effect === 'now' ? html`<b>立即对新的评价生效</b>，${d.base} 变为已替代。` : html`<b>从下一个盘点批次开始</b>，之前 ${d.base} 继续生效。`}</p></div>
           <div class="n-checkbar__foot">
             ${st.lockBlocks(d) ? html`<div class="n-lock">${icon('lock')}<span>${st.inventoryLock().name}进行中，这份草稿选的是立即生效；退回请${name(d.by)}把生效点改为下一个盘点批次。</span></div>` : ''}
@@ -488,7 +488,7 @@
     const fromJudge = st.judgeBatches().find((b) => b.std && st.ruleVer(b.std)?.line === line);
     const back = role === 'hrbp' && judgeB ? html`<a class="n-btn n-btn--ghost" href="judge.html?id=${judgeB.batch}#attrib">${icon('back')}回到判断对照</a>` : role === 'ceo' && line ? html`<a class="n-btn n-btn--ghost" href="index.html">${icon('back')}回到工作台</a>` : '';
     mount(main, html`
-      <header class="nt-head"><div><h1>${line ? lineName(line) : KINDS.front.n}</h1><p>${KINDS.front.w}；判断对照以它为准。</p></div>
+      <header class="nt-head"><div><h1>${line ? lineName(line) : KINDS.front.n}</h1><p>${KINDS.front.w}</p></div>
         <div class="nt-head__acts">${back}${sealFor(st.ruleVers('front', line))}
           ${open && !editing && !reviewing ? rstate(open, open.v) : ''}
           ${line && !FRONT_EDITABLE.includes(line) ? html`<span class="n-rcard__ro">${icon('lock')}只读</span>` : ''}
@@ -505,7 +505,7 @@
       <div class="nt-row" style="margin-bottom:var(--s-2)"><h3 class="n-section-title" style="margin:0">${lineName(l)}</h3><span class="n-rule">${icon('doc')}生效中 ${live.v}</span>${open ? rstate(open, open.v) : ''}${!line ? html`<a class="n-link" href="rules.html?r=front&line=${l}" style="margin-left:auto">${FRONT_EDITABLE.includes(l) ? '修订与版本历史' : '版本历史'}</a>` : ''}</div>
       <p style="margin:0;font-size:var(--t-sm);line-height:1.7">${live.note}</p>
       <p class="nt-muted" style="margin:var(--s-2) 0 0">${NT.md(live.effAt)} 起生效 · 之后新建期次的默认版本${boundText(live.v) ? ` · ${boundText(live.v)}绑定这一版` : ''}${old ? ` · ${old.v} 已替代${boundText(old.v) ? `，${boundText(old.v)}保持 ${old.v}` : ''}` : ''}${g && !g.std && FRONT_EDITABLE.includes(l) ? ` · ${g.name}还在筹备，建立时绑定当时的默认版本` : ''}</p>
-      ${FRONT_EDITABLE.includes(l) && !open && role === 'hrbp' ? html`<p class="nt-caption" style="margin:var(--s-2) 0 0">修订从判断对照里发起：只有你已确认、归因含「评价标准」的结论可以起草。</p>` : ''}
+      ${FRONT_EDITABLE.includes(l) && !open && role === 'hrbp' ? html`<p class="nt-caption" style="margin:var(--s-2) 0 0">修订从判断对照里发起。</p>` : ''}
       ${open ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('pen')}<div><b>${open.v} ${STATE[open.state]}</b> · ${openNote(open)}${open.why ? html`<div class="nt-muted">${open.why}</div>` : ''}
         ${line !== l ? html`<a class="n-link" href="rules.html?r=front&line=${l}">${role === 'ceo' && open.state === 'pending' ? '去确认' : '打开草稿'}</a>` : ''}</div></div>` : ''}
     </article>`;
@@ -514,7 +514,7 @@
   // ---------- 目标角色与发展通道（只读，沿用 v1.3 模板版本） ----------
   function renderTpl(main) {
     mount(main, html`
-      <header class="nt-head"><div><h1>${KINDS.tpl.n}</h1><p>${KINDS.tpl.w}。由 HR 维护，发布即生效。</p></div>
+      <header class="nt-head"><div><h1>${KINDS.tpl.n}</h1><p>${KINDS.tpl.w}</p></div>
         <div class="nt-head__acts"><span class="n-rcard__ro">${icon('lock')}只读</span></div></header>
       <div class="nt-grid">${st.templates().map((t) => {
         const vs = t.versions.slice().reverse();
@@ -632,7 +632,7 @@
       const k = kind, d = st.ruleOpen(k, L);
       const v = await NT.dialog({
         title: `确认发布 ${d.v}？`,
-        body: html`<p>${k === 'front' ? `确认后 ${d.v} 立即成为之后新建期次的默认版本，${d.base} 变为已替代；已建立的期次、选拔记录和判断对照保持原版本。` : d.effect === 'now' ? `确认后新的评价按 ${d.v} 计算，${d.base} 变为已替代。已确认的分数、冻结的快照和档案版本保留原来的版本。` : `确认后进入已排期，${nextText(d)}，在那之前 ${d.base} 继续生效。已确认的分数、冻结的快照和档案版本保留原来的版本。`}</p>`,
+        body: html`<p>${k === 'front' ? `确认后 ${d.v} 立即成为之后新建期次的默认版本，${d.base} 变为已替代；已建立的期次、选拔记录和判断对照保持原版本。` : d.effect === 'now' ? `确认后新的评价按 ${d.v} 计算，${d.base} 变为已替代。已确认的分数、已存档的盘点结果和档案版本保留原来的版本。` : `确认后进入已排期，${nextText(d)}，在那之前 ${d.base} 继续生效。已确认的分数、已存档的盘点结果和档案版本保留原来的版本。`}</p>`,
         facts: [html`理由：${d.why}`, d.preview ? impactLine(d.preview) : ''].filter(Boolean),
         actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: `确认发布 ${d.v}`, value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
       });

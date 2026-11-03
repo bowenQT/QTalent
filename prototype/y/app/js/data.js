@@ -31,7 +31,10 @@
   const TEAM = Object.fromEntries(X.teams.map((t) => [t.id, t]));
 
   // ---------- 人员 ----------
-  const P = (id, name, org, title, level, joined, hue, extra) => ({ id, name, org, title, level, joined, hue, photo: null, ...(extra || {}) });
+  // 员工编号（演示）：北森里的人员唯一编号，批量关联 GitHub 账号时按它匹配
+  let empSeq = 0;
+  const empNo = () => `QN${260100 + empSeq++ * 7}`;
+  const P = (id, name, org, title, level, joined, hue, extra) => ({ id, name, org, title, level, joined, hue, photo: null, no: empNo(), ...(extra || {}) });
   const PEOPLE = [
     P('p-cheng', '程远', 'strategy', '管理者', 'M', '2011-08-01', 212, { role: 'ceo', noReview: true }),
     P('p-suwan', '苏晚', 'hr', 'HR · 人才项目', 'N6', '2019-03-11', 340, { role: 'hrbp', noReview: true }),
@@ -62,9 +65,11 @@
   };
 
   // ---------- 项目：19 个课题、黑客松（演示）和两个用人项目 ----------
+  // 课题绑定的代码仓库（演示）：只能从 GitHub App 已开放的仓库里选
+  const TOPIC_REPOS = { 't-scene-b': ['niu-demo/storyboard-factory', 'niu-demo/story-api'], 't-base': ['niu-demo/xe6-infra'] };
   const PROJECTS = [
     ...X.teams.map((t) => ({ id: t.id, name: t.name, type: 'XEngineer 课题', org: t.id, status: '已结束', from: '2026-07-06', to: '2026-08-31', owner: t.mentor, creator: 'p-suwan', batch: 'b-xe6',
-      goal: `${t.domain}。终期为${t.live}，MS1–MS4 按小组评审。` })),
+      goal: `${t.domain}。终期为${t.live}，MS1–MS4 按小组评审。`, repos: TOPIC_REPOS[t.id] || [] })),
     { id: 'pr-hack', name: '夏季黑客松 · 语音助手赛道（演示）', type: '黑客松', org: 'xe6', status: '已结束', from: '2026-08-20', to: '2026-08-21', owner: 's-28', creator: 'p-suwan', goal: '48 小时做出一个能听懂方言的语音助手原型。' },
     { id: 'pr-ts', name: '业务成功部 TS 新人组', type: '用人项目', org: 'xe6', status: '进行中', from: '2026-09-01', to: '2026-12-31', owner: null, creator: 'p-suwan', goal: '第六期留用进业务成功部 TS 的同学组成新人组，跟一线客户问题，三个月后独立值班。' },
     { id: 'pr-agent', name: 'MaaS 智能体平台 · 应用后端', type: '用人项目', org: 'xe6', status: '筹备中', from: '2026-10-08', to: '2027-03-31', owner: null, creator: 'p-cheng', goal: '给 MaaS 智能体平台补一条应用后端：工具注册、会话持久化和多租户隔离，Q4 内部上线。' },
@@ -81,7 +86,10 @@
   MEMBERS.push(M('pr-hack', 's-28', 'owner', '顾问', '2026-08-20', '2026-08-21', 'p-suwan'));
   const TS = X.students.filter((s) => s.dest === '业务成功部 · TS' && s.accept === '接受').map((s) => s.id);
   TS.forEach((pid) => MEMBERS.push(M('pr-ts', pid, '新人', '全职', '2026-09-01', null, 'p-suwan')));
+  const nameOf = (pid) => X.students.find((x) => x.id === pid).name;
   const MEMBER_LOG = [
+    ['pr-ts', '2026-09-03', `${nameOf('p-x08')}下周起进值班轮岗，先跟一线客户问题一周`, 'p-suwan'],
+    ['pr-ts', '2026-09-02', `${nameOf('p-x47')}担任新人组牵头人：按 09-02 确认的用人方案`, 'p-suwan'],
     ['pr-ts', '2026-09-01', `${TS.length} 位留用同学加入：来自第六期结营评审`, 'p-suwan'],
     ['pr-hack', '2026-08-21', '黑客松结束，6 位第六期学员参赛', 'p-suwan'],
   ].map(([project, at, text, by]) => ({ project, at, text, by }));
@@ -116,6 +124,25 @@
   HACK_EV.forEach(([pid, title, act, res, sc], i) => EVENTS.push({
     id: `e-hack-${i + 1}`, date: '2026-08-21', kind: 'obs', project: 'pr-hack', recorder: 's-28', people: [pid], title, bg: '夏季黑客松 · 语音助手赛道', act, res, gap: '', demo: true,
     srcs: [{ type: 'sheet', label: '夏季黑客松评审表（演示）', loc: `第 ${i + 3} 行`, quote: `${act}${res}` }], tags: [], scores: sc.map(([d, v]) => s(pid, d, v, 'confirmed', 's-28', { note: `引用「${act.split('，')[0]}」` })),
+  }));
+  // 结营路演（演示）：中期之后的已确认事件，专业度一升一降
+  const FINAL_EV = [
+    ['e-x08-live', 'p-x08', 't-talk-a', 'p-yeqing', '结营路演现场讲清了数据库迁移方案，追问都答上了', '路演答辩时评委追问分库后的回滚，现场画出迁移步骤和回滚点。', '评委记录为「方案可落地」。', [['prof', 4]]],
+    ['e-x25-live', 'p-x25', 't-metric-a', 's-27', '结营路演前端联调没完成，演示改用录屏', '路演前一天前后端接口还没对齐，没有提前说明风险，当天改放录屏。', '评委没看到实时演示，追问时没能说清卡在哪一步。', [['prof', 2]]],
+  ];
+  FINAL_EV.forEach(([id, pid, project, recorder, title, act, res, sc], i) => EVENTS.push({
+    id, date: '2026-08-30', kind: 'obs', project, recorder, people: [pid], title, bg: `W8 · 结营路演 · ${X.teams.find((t) => t.id === project).name}`, act, res, gap: '', week: 'W8', demo: true,
+    srcs: [{ type: 'sheet', label: '第六期结营路演评审表（演示）', loc: `第 ${i + 4} 行`, quote: `${act}${res}` }], tags: [], scores: sc.map(([d, v]) => s(pid, d, v, 'confirmed', recorder, { note: `引用「${act.split('，')[0]}」` })),
+  }));
+  // 来自 GitHub 的事件（演示）：导师在记一件事时加的 Issue / PR 依据，出处是 PR 描述
+  [
+    ['e-gh-1', 'p-x12', '2026-08-24', '把分镜缓存换成三级缓存，压测 P95 从 2.1 秒降到 0.6 秒', 'story-api', 'pull', 205, '已合并',
+      '把单层 Redis 换成内存、Redis、对象存储三级缓存；压测下 P95 从 2.1 秒降到 0.6 秒。'],
+    ['e-gh-2', 'p-x11', '2026-08-27', '视频上传改成分片退避重试，弱网成功率从 72% 提到 96%', 'storyboard-factory', 'pull', 214, '已合并',
+      '单片失败后按 1、2、4 秒退避重试 3 次，仍失败再提示重新上传。弱网下演示视频上传成功率从 72% 提到 96%。'],
+  ].forEach(([id, pid, date, title, repo, kind, n, state, quote]) => EVENTS.push({
+    id, date, kind: 'obs', project: 't-scene-b', recorder: 'p-yeqing', people: [pid], title, bg: `分镜工厂 · 二组 · ${repo} #${n}`, act: quote, res: '', gap: '', demo: true,
+    srcs: [{ type: 'gh', label: `GitHub：niu-demo/${repo} #${n}`, loc: `PR 描述 · ${state} · 08-28 10:20 取得`, quote, url: `github.com/niu-demo/${repo}/${kind}/${n}` }], tags: [], scores: [],
   }));
   const ev = (id) => EVENTS.find((e) => e.id === id);
   // 待校准：导师和助教对同一件事的领导力判断差 2 分
@@ -206,13 +233,14 @@
       reqs: [{ id: 'r1', text: '在训练营里担任过组长或牵头过分工', must: true }, { id: 'r2', text: '做过测试、部署或排障相关的工作', must: true }, { id: 'r3', text: '已接受留用', must: true }] },
   ];
   const outcome = (st) => (st.accept === '接受' ? '已沟通 · 接受' : st.accept === '拒绝' ? '已沟通 · 未接受' : '待沟通');
+  const advice = (st) => (st.adv8 === st.final ? '一致' : st.adv8 || '—');
   const moves = X.students.filter((st) => st.final && st.final !== '不建议 offer').map((st) => {
     const t = TEAM[st.team];
-    if (st.accept === '拒绝') return { type: '未接受', person: st.id, from: t.name, to: '去向待沟通', basis: `${st.final}；导师结营建议：${st.adv8 || '—'}`, gap: '本人未接受 offer', will: outcome(st), release: '训练营已结束', impact: '不涉及' };
+    if (st.accept === '拒绝') return { type: '未接受', person: st.id, from: t.name, to: '去向待沟通', basis: `${st.final}；导师结营建议：${advice(st)}`, gap: '本人未接受 offer', will: outcome(st), impact: '不涉及' };
     if (st.final === '应届 · 继续实习观察') return { type: '继续观察', person: st.id, from: t.name, to: st.dest && st.dest !== '待定部门' ? `${st.dest} · 继续实习观察` : '继续实习观察', basis: `导师结营建议：${st.adv8 || '—'}`, next: '实习满 8 周后再评一次', owner: 'p-suwan', due: '2026-11-15', will: outcome(st) };
     return { type: st.dest && st.dest !== '待定部门' ? '落位' : '留用', person: st.id, from: t.name, to: st.dest && st.dest !== '待定部门' ? st.dest : '部门待定',
-      basis: `${st.final}；导师结营建议：${st.adv8 || '—'}${st.posFinal || st.posMentor ? `；岗位建议：${st.posFinal || st.posMentor}` : ''}`,
-      gap: '', will: outcome(st), release: '训练营已结束', impact: st.dest && st.dest !== '待定部门' ? `${st.dest} 增加 1 名${st.track.replace('方向', '')}` : '待和用人部门确认' };
+      basis: `${st.final}；导师结营建议：${advice(st)}${st.posFinal || st.posMentor ? `；岗位建议：${st.posFinal || st.posMentor}` : ''}`,
+      gap: '', will: outcome(st), impact: st.dest && st.dest !== '待定部门' ? `${st.dest} 增加 1 名${st.track.replace('方向', '')}` : '待和用人部门确认' };
   });
   const PLANS = [
     { id: 'sp-ts-1', kind: 'staffing', project: 'pr-ts', need: 'n-ts', version: 1, status: 'confirmed', by: 'p-suwan', at: '2026-09-02', confirmedBy: 'p-cheng', confirmedAt: '2026-09-02', slots: { owner: 'p-x47' }, note: '任子衿在训练营担任组长并负责合并全组代码' },
@@ -313,11 +341,12 @@
         ['25:15', 's-09', '孟逸尘分工的时候没同步任务池，组员接不上，活都压在 TA 身上。', 'flag'],
         ['33:05', 'p-yeqing', '周初晴较早做出了 DOM 树展示，九宫格和光影一致性那块是 TA 攻下来的。'],
       ],
-      asks: ['谁在这次会议里展现了推动力？', '有要跟进的事吗？', '周初晴的内生动力有证据吗？'],
+      // 追问用日常说法；维度名放在回答里，告诉用户这条能当哪一项的证据
+      asks: ['这次会上谁在带着大家往前推？', '会后还有哪些事要我处理？', '周初晴是主动揽活的吗？'],
       answers: {
-        '谁在这次会议里展现了推动力？': '孟逸尘：整体流程按 TA 的方案推进，五个模块的链路由 TA 牵头整合（11:40）。推动力是观察主题，挂在「内生动力」维度下。',
-        '有要跟进的事吗？': '三件：确认「小孟」指谁（06:15）、确认「分镜那个组」是哪个课题（17:40）；叶青和助教对孟逸尘领导力的判断差 2 分，已经转给 HR 复核。',
-        '周初晴的内生动力有证据吗？': '资料不足。这次提到 TA 攻下了光影一致性难题，但没说是主动认领还是被安排的。下次一对一可以问一句。',
+        '这次会上谁在带着大家往前推？': '孟逸尘。整体流程按 TA 的方案推进，五个模块的链路由 TA 牵头整合（11:40）。这条可以作为 TA「内生动力」的证据。',
+        '会后还有哪些事要我处理？': '三件：确认「小孟」指谁（06:15）、确认「分镜那个组」是哪个课题（17:40）；叶青和助教对孟逸尘领导力的判断差 2 分，已经转给 HR 复核。',
+        '周初晴是主动揽活的吗？': '这次还看不出来。会上提到 TA 攻下了光影一致性难题（33:05），但没说是主动认领还是被安排的，所以 TA 的「内生动力」这次记为资料不足。下次一对一可以问一句。',
       } },
   };
 
@@ -432,6 +461,42 @@
   // ---------- 人才评价规则：六类规则各自的版本 ----------
   const FAMILIES = [['biz', '商业'], ['design', '设计'], ['eng', '工程']];
   PEOPLE.forEach((p) => { p.family = /产品/.test(p.title) ? 'design' : p.xe ? 'eng' : 'biz'; });
+
+  // ---------- 在职两年的老员工（演示）：XEngineer 第三期留用，入职、Landing、三个绩效周期、晋升，现在负责一个业务项目 ----------
+  // 档案时间线的五类关键节点都能看到真实结构；绩效和晋升评审作为管理受限的原始资料存，和维度分分开
+  ORGS.push({ id: 'rd', name: '产研', parent: null, group: true }, { id: 'kodo', name: '对象存储研发部', parent: 'rd', group: false });
+  PEOPLE.push(P('p-hanxu', '韩叙', 'kodo', '对象存储研发部负责人', 'M2', '2016-04-05', 24, { noReview: true, family: 'eng', orgHist: [['kodo', '2016-04-05', null]] }));
+  PEOPLE.push(P('p-shenyq', '沈砚秋', 'kodo', '后端工程师 · 对象存储', 'N4', '2024-07-01', 168, {
+    hrbp: 'p-suwan', manager: 'p-hanxu', family: 'eng', orgHist: [['kodo', '2024-07-01', null]],
+    path: {
+      xe: { name: 'XEngineer 第三期', from: '2023-07-03', to: '2023-08-25', facts: [['课题', '冷数据扫描与归档（演示）'], ['导师', '韩叙'], ['结营结论', '应届 · 正式 offer']] },
+      land: { name: 'Landing 第一期', from: '2024-07-08', to: '2024-08-02', facts: [['导师', '韩叙'], ['课题', '元数据巡检脚本（演示）']] },
+      conv: { at: '2025-01-06', via: '校招试用期转正答辩' },
+      promo: [{ at: '2026-03-01', from: 'N3', to: 'N4', via: '2025 年度晋升评审' }],
+    },
+  }));
+  PROJECTS.push({ id: 'pr-tier', name: '对象存储 · 冷热分层二期（演示）', type: '业务项目', org: 'kodo', status: '进行中', from: '2026-03-02', to: '2026-12-31', owner: 'p-shenyq', creator: 'p-hanxu',
+    goal: '把 90 天未访问的对象自动迁到低频存储，迁移过程可灰度、可回滚，年底前覆盖全部公有云区域。' });
+  MEMBERS.push(M('pr-tier', 'p-shenyq', '技术负责人', '全职', '2026-03-02', null, 'p-hanxu'));
+  const VET = 'p-shenyq';
+  const vetHist = (id, date, title, histType, scale, loc) => EVENTS.push({ id, date, kind: 'hist', histType, restricted: true, title, people: [VET], recorder: 'p-hanxu', demo: true,
+    srcs: [{ type: 'sheet', label: '北森人事记录（演示）', loc }], scale, quote: '', tags: [], scores: [] });
+  vetHist('e-vet-xe', '2023-08-25', 'XEngineer 第三期 · 结营评审', '结营评审', [['能力等级', 'A'], ['结营结论', '应届 · 正式 offer']], 'XEngineer 第三期观察表 · 结营评审');
+  vetHist('e-vet-p1', '2024-12-31', '2024 下半年绩效', '绩效', [['绩效评分', '3 星'], ['评定人', '韩叙']], '绩效档案 · 2024 下半年');
+  vetHist('e-vet-p2', '2025-06-30', '2025 上半年绩效', '绩效', [['绩效评分', '4 星'], ['评定人', '韩叙']], '绩效档案 · 2025 上半年');
+  vetHist('e-vet-p3', '2025-12-31', '2025 下半年绩效', '绩效', [['绩效评分', '4 星'], ['评定人', '韩叙']], '绩效档案 · 2025 下半年');
+  vetHist('e-vet-promo', '2026-03-01', '2025 年度晋升评审', '晋升', [['评审结论', '通过'], ['职级', 'N3 → N4']], '晋升评审 · 2025 年度');
+  vetHist('e-vet-p4', '2026-06-30', '2026 上半年绩效', '绩效', [['绩效评分', '5 星'], ['评定人', '韩叙']], '绩效档案 · 2026 上半年');
+  [
+    ['e-vet-1', '2024-07-30', null, 'Landing 课题按期交付元数据巡检脚本', 'Landing 第一期', '按导师拆好的任务写完巡检脚本，第三周开始每天跑一次。', '结营时巡检脚本接进了组里的值班流程。', [['prof', 3]]],
+    ['e-vet-2', '2025-11-12', null, '主动接手冷热分层的迁移工具，先写了灰度方案', '冷热分层一期', '迁移工具原负责人转岗后没人接，主动认领，动手前先写灰度和回滚方案给组里评审。', '方案评审一次通过，迁移按灰度节奏推进。', [['mot', 4], ['prof', 4]]],
+    ['e-vet-3', '2026-01-20', null, '迁移灰度出错后当天回滚，次日给出复盘和修复', '冷热分层一期', '灰度到第二个区域时发现少量对象元数据没同步，当天按方案回滚，第二天在周会上讲清原因和修复。', '修复后重新灰度，没有再出现同类问题。', [['grit', 4], ['open', 4]]],
+    ['e-vet-4', '2026-05-14', 'pr-tier', '带两位新人拆分冷热分层二期，分工表沿用到现在', '冷热分层二期 · 启动', '二期启动时按模块拆成三块，给两位新人各配一块并每周对一次进度。', '两位新人都按期交付了第一个里程碑，分工表一直沿用。', [['lead', 4], ['wis', 4]]],
+    ['e-vet-5', '2026-08-06', 'pr-tier', '冷热分层二期上线评审，讲清了成本测算和回滚预案', '冷热分层二期 · 上线评审', '评审会上逐项说明低频存储的成本测算口径，以及每个区域的回滚预案。', '评审通过，按区域分批上线。', [['prof', 4], ['wis', 3]]],
+  ].forEach(([id, date, project, title, bg, act, res, sc], i) => EVENTS.push({
+    id, date, kind: 'obs', project, recorder: 'p-hanxu', people: [VET], title, bg, act, res, gap: '', demo: true,
+    srcs: [{ type: 'note', label: '一对一记录（演示）', loc: NT.md(date), quote: `${act}${res}` }], tags: [], scores: sc.map(([d, v]) => s(VET, d, v, 'confirmed', 'p-hanxu', { note: `引用「${act.split('，')[0]}」` })),
+  }));
   const ENG_ANCHORS = ['拆解和方案常需要他人重做，代码返工多', '能完成拆好的任务，方案和质量要他人把关', '独立完成一个模块的方案、实现和测试', '主导跨模块的技术方案，主动补上工程规范和质量保障', '能为团队定技术方向和规范，带着他人交付'];
   const ENG_THEMES = ['问题拆解', '技术方案', '代码实现', '工程规范', '质量保障', '协作交付'];
   const WATCH_PARAMS = { n1Days: 90, n1Count: 3, n1Min: 4, i2Days: 14 };
@@ -463,9 +528,19 @@
       text: '锚点 3「常规情境下稳定表现」太宽：按期交付和攻下一个难题后坚持到有结果，都能落到 3 分，建议写清楚' },
   ];
 
+  // 人员与 GitHub 账号的关联（演示）：按 GitHub 稳定 ID 匹配，login 只用于展示；沈亦初留作待关联，演示 HR 关联流程
+  const GH_LINKS = {
+    'p-x11': { login: 'demo-mengyc', id: 58210473, by: 'p-suwan', at: '2026-07-08', prev: [] },
+    'p-x13': { login: 'demo-jixubai', id: 61002387, by: 'p-suwan', at: '2026-07-08', prev: [] },
+    'p-x15': { login: 'demo-zhoucq', id: 59877410, by: 'p-suwan', at: '2026-07-08', prev: [] },
+  };
+  // GitHub App（演示）：系统管理员发起安装，组织所有者审批；只读取安装时开放的仓库，私有仓库也要在这里明确开放
+  const GH_APP = { org: 'niu-demo', state: 'installed', by: 'p-xuheng', at: '2026-07-03', approvedAt: '2026-07-03', needApproval: true,
+    repos: ['niu-demo/storyboard-factory', 'niu-demo/story-api', 'niu-demo/xe6-infra'], pending: [], synced: '09-04 14:00' };
+
   NT.SEED = {
-    version: 'y11', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
+    version: 'y17', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES: [], FOLLOWS,
-    FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS,
+    FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS, GH_LINKS, GH_APP,
   };
 })();

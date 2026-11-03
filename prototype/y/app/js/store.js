@@ -18,7 +18,7 @@
       tasks: SEED.TASKS, batches: SEED.BATCHES, conclusions: SEED.CONCLUSIONS, tagCands: SEED.TAG_CANDIDATES, taglibAdd: [],
       seen: {}, snaps: [], reviews: {}, reviewEvals: {}, corrections: [], selfNotes: [], directions: SEED.DIRECTIONS,
       watchClues: SEED.WATCH_CLUES, follows: SEED.FOLLOWS, rules: SEED.RULES, ruleSugs: SEED.RULE_SUGS, reviewHolds: [],
-      recalKeeps: {}, nodeRetros: SEED.NODE_RETROS, judgeMarks: NT.clone(SEED.JUDGE.marks || {}), judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])),
+      recalKeeps: {}, nodeRetros: SEED.NODE_RETROS, ghLinks: SEED.GH_LINKS, ghApp: SEED.GH_APP, judgeMarks: NT.clone(SEED.JUDGE.marks || {}), judgeAttribs: Object.fromEntries(Object.values(SEED.JUDGE.attribs).map((a) => [a.hyp, a])),
     });
     S = s;
     // 每件事固定保存时生效的维度与锚点版本（v1.6 3.35.6）；之后补日期、确认分数都按这一版。种子只有 rubric-v1 生效过
@@ -112,7 +112,7 @@
       case 'scores': return pid ? ['full', 'mentor', 'project'].includes(sc) : role !== 'self';
       case 'quad': return pid ? sc === 'full' && role !== 'mentor' : ['ceo', 'hrbp', 'lead'].includes(role);
       case 'mgmt': return pid ? sc === 'full' && role !== 'mentor' : ['ceo', 'hrbp', 'lead'].includes(role);
-      // 整理档案（写管理判断、采纳 AI 摘要）由 HR 汇总各方意见后做；管理者是公司层视角，只读
+      // 整理档案（写管理判断）由 HR 汇总各方意见后做；管理者是公司层视角，只读
       case 'curate': return role === 'hrbp' && (!pid || sc === 'full');
       case 'signals': {
         if (!['ceo', 'hrbp', 'lead'].includes(role)) return false;
@@ -122,12 +122,14 @@
       }
       case 'changes': return pid ? sc === 'full' && role !== 'mentor' : ['ceo', 'hrbp', 'lead'].includes(role);
       case 'record': return pid ? ['full', 'mentor', 'project'].includes(sc) : role !== 'self';
-      // 校准、象限确认、标签收录、留用与落位方案由 HR 确认，管理者只读
+      // 校准、象限确认、标签收录由 HR 确认，管理者只读；留用与落位方案 HR 和管理者都能修改和确认
       case 'calibrate': return role === 'hrbp';
       case 'quadConfirm': return role === 'hrbp';
       case 'findOwner': return ['ceo', 'hrbp', 'lead'].includes(role);
       case 'confirmPlan': return ['ceo', 'hrbp'].includes(role);
       case 'approveTags': return role === 'hrbp';
+      // 人员与 GitHub 账号的对应关系由负责这个人的 HR 确认；能看档案的人只读
+      case 'ghLink': return role === 'hrbp' && (!pid || sc === 'full');
       case 'review': return ['ceo', 'hrbp', 'lead'].includes(role);
       default: return false;
     }
@@ -346,10 +348,11 @@
     const people = store.visiblePeople(role).filter((p) => store.scope(p.id, role) === 'full');
     const out = [];
     const h1 = S.snaps.find((s) => s.id === 's-mid');
+    let teamIds = new Set();
     people.forEach((p) => {
       // ① 能力走向
       SEED.DIMS.forEach((d) => {
-        const recent = store.scoresOf(p.id, { dim: d.id, from: RECENT });
+        const recent = store.scoresOf(p.id, { dim: d.id, from: base === 'win' ? RECENT : NT.addDays(h1.cutoff, 1) });
         const before = base === 'win' ? store.scoresOf(p.id, { dim: d.id, from: BASE_FROM, to: NT.addDays(RECENT, -1) }) : store.scoresOf(p.id, { dim: d.id, from: NT.addDays(h1.cutoff, -365), to: h1.cutoff });
         if (recent.length < 2 || !before.length) return; // 资料从无到有不算上升
         const a = mean(before.map((s) => s.v)), b = mean(recent.map((s) => s.v));
@@ -368,8 +371,15 @@
       const f = store.formal(p.id), r = store.refPos(p.id);
       if (f && !r.na && f.q !== r.q) {
         const after = store.scoresOf(p.id, { from: NT.addDays(f.snap.cutoff, 1) });
-        out.push({ id: `quad-${p.id}`, t: 'quad', hit: true, person: p.id, what: '象限可能要重新校准', when: after[0]?.date || NT.TODAY, rule: '',
-          sub: `${f.snap.label}校准为${QN[f.q]}，按新事件算是${QN[r.q]} · 之后新增 ${new Set(after.map((s) => s.ev.id)).size} 条事件`, fq: f.q, rq: r.q });
+        const was = store.refPos(p.id, f.snap.cutoff);
+        // 哪条轴跨过了 3.5 的分界：专业度看均值，潜力看核心三维均值里变化最大的一维
+        const axis = f.q[1] !== r.q[1]
+          ? { name: '专业度', from: was.px, to: r.px }
+          : (() => { const d = ['mot', 'wis', 'grit'].map((k) => ({ k, a: was.dims?.[k]?.m, b: r.dims[k].m })).filter((x) => x.a != null && x.b != null).sort((x, y) => Math.abs(y.b - y.a) - Math.abs(x.b - x.a))[0]; return { name: '潜力', from: was.py, to: r.py, dim: d && store.dim(d.k).name }; })();
+        const n = new Set(after.map((s) => s.ev.id)).size;
+        out.push({ id: `quad-${p.id}`, t: 'quad', hit: true, person: p.id, what: `参考位置从${QN[f.q]}移到${QN[r.q]}`, when: after[0]?.date || NT.TODAY, rule: '参考位置跨象限',
+          sub: `${f.snap.label}之后新增${n === 1 ? `「${after[0].ev.title}」` : ` ${n} 条事件`}，${axis.name}均值${axis.from != null ? ` ${axis.from.toFixed(1)} →` : '变为'} ${axis.to.toFixed(1)}，${axis.to >= 3.5 ? '过了' : '低于'} 3.5 的分界${axis.dim ? `（主要是${axis.dim}）` : ''}`,
+          fq: f.q, rq: r.q, axis, after: after.slice(0, 4) });
       }
     });
     // 活跃度：项目进出、调岗（记录层面的变化，不命中规则）
@@ -381,6 +391,7 @@
     // ④ 团队分布：资料不足比例
     {
       const teams = SEED.ORGS.filter((o) => o.parent === 'xe6');
+      teamIds = new Set(teams.map((t) => t.id));
       teams.forEach((t) => {
         // 入职不到 3 个月的新人本来就资料不足，不计入比例，另行说明
         const all = SEED.PEOPLE.filter((p) => !p.noReview && p.org === t.id && store.scope(p.id) === 'full');
@@ -395,6 +406,14 @@
         out.push({ id: `team-${t.id}`, t: 'team', hit: true, team: t.id, what: '资料不足比例上升', from: Math.round(rPrev * 100), to: Math.round(rNow * 100), unit: '%', when: merged ? '2026-10-20' : NT.TODAY,
           rule: '资料不足 +20 个百分点', sub: `${now.length} 人中 ${naNow} 人资料不足${merged ? ` · 并入的 ${merged} 人事件待补录` : ''}${newbies ? ` · 入职 3 个月内的 ${newbies} 名新人另计` : ''}`, merged, newbies });
       });
+    }
+    // 批次整体：资料不足比例下降（中期之后补了事件），供了解，不命中规则
+    if (base === 'ver') {
+      const rows = Object.values(h1.entries).filter((e) => teamIds.has(e.org));
+      const now = SEED.PEOPLE.filter((p) => !p.noReview && teamIds.has(p.org) && store.scope(p.id) === 'full');
+      const rPrev = rows.filter((e) => e.na).length / (rows.length || 1), rNow = now.filter((p) => store.refPos(p.id).na).length / (now.length || 1);
+      if (rPrev - rNow >= 0.2) out.push({ id: 'team-xe6', t: 'team', hit: false, team: 'xe6', what: '资料不足比例下降', from: Math.round(rPrev * 100), to: Math.round(rNow * 100), unit: '%', when: NT.TODAY,
+        sub: `${now.length} 人中 ${now.filter((p) => store.refPos(p.id).na).length} 人资料不足 · 中期时 ${rows.length} 人中 ${rows.filter((e) => e.na).length} 人` });
     }
     return out.sort((a, b) => b.when.localeCompare(a.when)); // 按发生时间，不按幅度
   };
@@ -419,7 +438,7 @@
       if (!store.can('review') && role !== 'lead') return;
       const title = p.kind === 'staffing' ? `项目用人方案 v${p.version}` : `${p.title || '组织调整方案'} v${p.version}`;
       const sub = p.kind === 'staffing' ? `${store.project(p.project)?.name || ''} · ${store.person(p.by).name}起草` : `${store.batch(p.batch).name}`;
-      // 组织调整（留用与落位）方案由 HR 在方案页确认，管理者只读，不进管理者的待办
+      // 留用与落位方案管理者也能在方案页修改和确认，但不进管理者的待办（管理者工作台不处理流程）
       if (role !== 'hrbp' || p.kind !== 'org') return;
       list.push({ kind: 'plan', plan: p.id, badge: '待确认', cls: 'n-badge--seal', title, sub, due: '本人确认', href: `plan.html?id=${p.batch}` });
     });
@@ -429,6 +448,8 @@
       store.reviewHolds().forEach((h) => list.push({ kind: 'rulereview', badge: '按新版本复核', title: `${h.ver}：${h.n} 条旧分待按新版本复核`, sub: `涉及 ${h.people} 人、${h.raters} 位评分人；复核确认前暂停参与取数`, due: NT.md(h.at), href: 'rules.html?r=rubric' }));
       S.ruleSugs.filter((x) => x.state === 'open').forEach((x) => list.push({ kind: 'rulesug', sug: x.id, badge: '修订建议', title: `${store.sugLabel(x)}：${store.person(x.by).name}的建议`, sub: `「${x.text}」`, due: NT.md(x.at), href: `rules.html?r=${x.rule}#sugs` }));
       Object.keys(S.rules).forEach((k) => S.rules[k].filter((r) => r.state === 'draft' && r.returned && r.by === me).forEach((r) => list.push({ kind: 'ruleback', badge: '管理者退回', cls: 'n-badge--seal', title: `${store.ruleKindName(k)} ${r.v} 退回到草稿`, sub: `「${r.returned.why}」`, due: NT.md(r.returned.at), href: `rules.html?r=${k}${r.line ? `&line=${r.line}` : ''}` })));
+      // 判断对照：AI 给的偏差原因要 HR 确认
+      store.judgeBatches().filter((b) => b.status === 'open').forEach((b) => { const n = store.judgeHyps(b.id).filter((h) => !store.judgeAttrib(h.id)).length; if (n) list.push({ kind: 'judge', badge: '判断对照', title: `${b.name}：${n} 条偏差原因待你确认`, sub: `AI 给的原因 · ${b.range}`, due: '本人确认', href: `judge.html?id=${b.id}#attrib` }); });
       store.watchPending().forEach((c) => list.push({ kind: 'clue', clue: c.id, badge: '待核实', cls: 'n-badge--ai', icon: 'spark', title: `${store.person(c.person).name}：${c.why}`, sub: c.dir ? `${store.person(c.by).name}推荐${store.fitText(c.dir)} · 核实后进入档案的发展方向和「值得关注的人」` : `${c.by === 'ai' ? 'AI 线索' : `${store.person(c.by).name}提名`} · 核实后进入「值得关注的人」`, due: NT.md(c.at), href: `person.html?id=${c.person}` }));
     }
     return list;
@@ -536,20 +557,6 @@
     return left > 0 ? `还有 ${left} 项待确认` : '逐项已确认，待整份确认';
   };
 
-  // 采纳的 AI 摘要记下它依据的事件和是否含象限信息；换到看不到这些内容的视角时不复用，改由 AI 按新视角重写
-  store.adoptSummary = (pid, text, quad) => {
-    S.summaries = S.summaries || {};
-    S.summaries[pid] = { text, by: store.me().id, at: NT.TODAY, ids: store.visibleEvents(pid).events.map((e) => e.id), quad: !!quad };
-    store.save();
-  };
-  store.summaryFor = (pid) => {
-    const saved = S.summaries?.[pid];
-    if (!saved || !saved.ids) return null;
-    if (saved.quad && !store.can('quad', pid)) return null;
-    const seen = new Set(store.visibleEvents(pid).events.map((e) => e.id));
-    return saved.ids.every((id) => seen.has(id)) ? saved : null;
-  };
-
   // 面评等招聘资料按来源类别标记（cat: 'recruit'），类型名统一写「招聘评估」（需求定稿 v1.2 §3.9.2）；可见过滤看类别，不看类型名
   store.isRecruit = (e) => e.kind === 'hist' && e.cat === 'recruit';
   // 档案里这个视角能看到的事件：导师看不到管理观察、管理受限资料和招聘资料；项目负责人只看自己项目相关的
@@ -646,7 +653,7 @@
     // 已冻结/被替代的版本不能再次确认；盘点结束后不再允许确认同批次方案。
     const batch = plan && S.batches.find((b) => b.id === plan.batch);
     if (!plan || plan.kind !== 'org' || plan.status !== 'draft' || !S.plans.includes(plan)
-      || !store.can('calibrate') || batch?.status === 'confirmed') return null;
+      || !store.can('confirmPlan') || batch?.status === 'confirmed') return null;
     const me = store.me().id;
     S.plans.filter((x) => x.kind === 'org' && x.batch === plan.batch && x.status === 'confirmed' && x !== plan).forEach((x) => { x.status = 'superseded'; });
     Object.assign(plan, { status: 'confirmed', confirmedBy: me, confirmedAt: NT.TODAY });

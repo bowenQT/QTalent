@@ -6,6 +6,7 @@
   const { html, raw, icon, mount, $, $$ } = NT;
   const pid = NT.param('id') || st.me().id;
   let ver = 'now';
+  const stageOpen = {}; // 时间线各节点的展开状态，重新渲染时保留
   const gone = !st.person(pid);
 
   NT.shell({
@@ -37,16 +38,17 @@
     const obsN = events.filter((e) => e.kind === 'obs').length;
 
     const w = st.watch().find((x) => x.person === pid);
-    // 判断变化只放能力走向和象限偏移；活跃度与安排、团队分布另放
-    const jchg = changes.filter((c) => c.t === 'trend' || c.t === 'quad'), achg = changes.filter((c) => c.t !== 'trend' && c.t !== 'quad');
+    // 能力走向和象限偏移由能力谱里的盘点对照和象限的重新校准提示呈现；这里只留活跃度与安排
+    const achg = changes.filter((c) => c.t !== 'trend' && c.t !== 'quad');
     const facts = events.filter((e) => e.kind === 'obs' && e.date && !e.scores.some((x) => x.p === pid && x.st === 'ai')).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
-    const pverBar = canQuad && snapsWith.length ? html`<div class="n-pver">
-        <span class="n-pver__label">档案版本</span>
-        <div class="n-seg" role="group" aria-label="档案版本" data-manual id="pver">
-          <button type="button" data-v="now" aria-pressed="${ver === 'now'}">当前</button>
-          ${snapsWith.map((s) => html`<button type="button" data-v="${s.id}" aria-pressed="${ver === s.id}">${s.label} · 已冻结</button>`)}
+    // 档案版本对照放在能力谱里：选一次盘点时，在刻度上方写出从那时到现在变了什么
+    const atReview = (s) => `${/盘点$/.test(s.label) ? s.label : `${s.label}盘点`}时`;
+    const pverBar = canQuad && snapsWith.length ? html`<div class="n-pver n-pver--inline">
+        <span class="n-pver__label">和以前比</span>
+        <div class="n-seg" role="group" aria-label="和哪次盘点比" data-manual id="pver">
+          <button type="button" data-v="now" aria-pressed="${ver === 'now'}">只看现在</button>
+          ${snapsWith.map((s) => html`<button type="button" data-v="${s.id}" aria-pressed="${ver === s.id}">${atReview(s)} · ${NT.md(s.at)}</button>`)}
         </div>
-        <span class="n-pver__label">${verSnap ? `${NT.md(verSnap.at)} 冻结 · 包含 ${NT.md(verSnap.cutoff)} 前已确认的事件 · 之后的新事件不会改写它` : `实时更新 · 包含 ${NT.md(NT.TODAY)} 前已确认的事件`}</span>
         ${verSnap ? html`<div class="n-pver__cmp">${verCompare(verSnap.entries[pid], ref, f)}</div>` : ''}
       </div>` : '';
 
@@ -67,43 +69,42 @@
       <div class="nt-split nt-split--wide">
         <div class="nt-grid">
           ${w ? whyBlock(w) : ''}
+          ${summaryBlock(p, events, canScore, ref, f, canQuad)}
           <article class="n-card" id="facts"><h3 class="n-section-title">关键事件与证据${events.some((e) => e.kind === 'obs') ? html`<a class="n-link" href="#timeline">查看全部</a>` : ''}</h3>
             ${facts.length ? html`<ol class="n-peek__facts n-pfacts">${facts.map((e) => html`<li><span class="n-peek__date">${NT.md(e.date)}</span><span><a class="nt-plink" href="#ev-${e.id}">${e.title}</a>${UI.evCite(e.id, '原文')}<small>${[e.project && st.project(e.project)?.name, `${st.person(e.recorder)?.name}记录`].filter(Boolean).join(' · ')}</small></span></li>`)}</ol>` : html`<div class="nt-empty">还没有已确认的关键事件。</div>`}
           </article>
-          ${pverBar || jchg.length ? html`<article class="n-card" id="judgechg"><h3 class="n-section-title">判断变化</h3>
-            ${pverBar}
-            ${jchg.length ? html`<div id="pchanges" ${raw(pverBar ? 'style="margin-top:var(--s-3)"' : '')}>${jchg.map((c) => UI.change(c, 'win'))}</div>` : html`<p class="nt-caption">近 3 个月能力走向和象限里符合提醒条件的变化会出现在这里。</p>`}
-          </article>` : ''}
-          ${summaryBlock(p, events, canScore, ref, f, canQuad)}
           ${spec ? html`<article class="n-card n-spectrum" id="spectrum">
             <div class="n-spectrum__head"><div><h3 class="n-section-title" style="margin:0">个人能力谱</h3><div class="nt-muted">详细维度 · 近 12 个月 · 已确认 ${spec.total} 条事件分 · ${['ceo', 'hrbp'].includes(st.role()) ? html`<a class="nt-plink" href="rules.html?r=rubric" title="${spec.vers.join('、') || st.ruleLive('rubric').v}">评价规则</a>` : html`<span title="${spec.vers.join('、') || st.ruleLive('rubric').v}">评价规则</span>`}</div></div>${canQuad ? UI.miniquad(pid) : ''}</div>
+            ${pverBar}
             <div class="n-spectrum__scale"><span></span><div class="n-spectrum__ticks">${[1, 2, 3, 4, 5].map((v, i) => html`<span style="left:${i * 25}%">${v}</span>`)}</div><span></span></div>
             <div id="spec-rows">${spec.html}</div>
             <div class="n-spectrum__legend"><span><i class="k-all"></i>外圈：这个分值的全部事件</span><span><i class="k-recent"></i>实心：其中近 3 个月</span><span><i class="k-mean"></i>均值</span><span><i class="k-unknown"></i>资料不足</span><span>点一行展开事件</span></div>
           </article>` : ''}
 
           <article class="n-card" id="timeline">
-            <h3 class="n-section-title">时间线<small class="nt-muted" style="font-weight:400;margin-left:auto">${obsN} 条关键事件 · 按事件真实发生的时间</small></h3>
+            <h3 class="n-section-title">时间线<small class="nt-muted" style="font-weight:400;margin-left:auto">按关键节点 · ${obsN} 条关键事件</small></h3>
             ${timeline(events, changes, verSnap)}
             ${hiddenN ? html`<div class="n-lock" style="margin-top:var(--s-3)">${icon('lock')}${role === 'mentor' ? `另有 ${hiddenN} 条管理观察和受限资料，导师视角已隐藏` : `另有 ${hiddenN} 条资料属于你负责范围以外的项目，已隐藏`}。</div>` : ''}
           </article>
         </div>
 
         <aside class="nt-grid">
-          <div id="dirwrap">${UI.directionBlock(pid, { canWrite: st.can('curate', pid) ? 'mgmt' : '' })}</div>
           ${tracks.length ? html`<div id="track" data-trackwrap class="nt-grid">${tracks.map((t) => UI.trackCard(t, { readonly: role === 'ceo' }))}</div>` : ''}
-          ${achg.length ? html`<article class="n-card"><h3 class="n-section-title">活跃度与安排</h3><div id="pachanges">${achg.map((c) => UI.change(c, 'win'))}</div></article>` : ''}
           ${sig ? html`<div id="sigwrap">${UI.signalBlock(sig)}</div>` : ''}
-          ${canQuad ? html`<article class="n-card"><h3 class="n-section-title">能力象限</h3>
-            <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)} <span class="nt-muted">${f.snap.label} 校准 · ${NT.md(f.snap.at)} · ${st.person(f.snap.by).name}确认</span>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
-              <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted" title="rubric-v1">按当前评价规则</span>`}</dd></dl>
-            ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后新增的已确认事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。${st.can('calibrate') ? html`<div class="nt-row" style="margin-top:var(--s-2)">${st.recalTarget(pid) ? html`<a class="n-btn n-btn--sm" href="${st.recalTarget(pid)}">去象限校准</a>` : html`<a class="n-btn n-btn--sm" href="reviews.html">发起新的盘点后校准</a>`}</div>` : ''}</div></div>` : ''}
-            ${st.recalKept(pid) ? (() => { const k = st.recalKept(pid); return html`<p class="nt-caption">参考位置在「${st.QN[k.refQ]}」，${st.person(k.by).name} ${NT.md(k.at)} 决定保持正式位置：<span class="ink-hand">${k.why}</span></p>`; })() : ''}
-            ${ref.na ? html`<p class="nt-caption">落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分。</p>` : ''}
-          </article>` : ''}
-
-          <article class="n-card"><h3 class="n-section-title">参与的项目</h3>
-            ${projs.length ? html`<ul class="n-members">${projs.map((m) => html`<li class="${m.to ? 'is-left' : ''}"><a class="nt-plink" href="project.html?id=${m.p.id}"><b>${m.p.name}</b></a><span class="n-members__role">${m.role} · ${m.mode}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}</span></li>`)}</ul>` : html`<div class="nt-empty">还没有参与项目。</div>`}
+          ${achg.length ? html`<article class="n-card"><h3 class="n-section-title">活跃度与安排</h3><div id="pachanges">${achg.map((c) => UI.change(c, 'win'))}</div></article>` : ''}
+          <article class="n-card n-facets">
+            <div id="dirwrap">${UI.directionBlock(pid, { compact: true, canWrite: st.can('curate', pid) ? 'mgmt' : '' })}</div>
+            ${canQuad ? html`<section class="n-facet"><h3 class="n-facet__head">能力象限</h3>
+              <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)} <span class="nt-muted">${f.snap.label} 校准 · ${NT.md(f.snap.at)} · ${st.person(f.snap.by).name}确认</span>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
+                <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>${NT.ui.hint('落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分')}` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted" title="rubric-v1">按当前评价规则</span>`}</dd></dl>
+              ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>上次盘点之后新确认的事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。${st.can('calibrate') ? html`<div class="nt-row" style="margin-top:var(--s-2)">${st.recalTarget(pid) ? html`<a class="n-btn n-btn--sm" href="${st.recalTarget(pid)}">去象限校准</a>` : html`<a class="n-btn n-btn--sm" href="reviews.html">发起新的盘点后校准</a>`}</div>` : ''}</div></div>` : ''}
+              ${st.recalKept(pid) ? (() => { const k = st.recalKept(pid); return html`<p class="nt-caption">参考位置在「${st.QN[k.refQ]}」，${st.person(k.by).name} ${NT.md(k.at)} 决定保持正式位置：<span class="ink-hand">${k.why}</span></p>`; })() : ''}
+              
+            </section>` : ''}
+            <section class="n-facet"><h3 class="n-facet__head">参与的项目</h3>
+              ${projs.length ? html`<ul class="n-members">${projs.map((m) => html`<li class="${m.to ? 'is-left' : ''}"><a class="nt-plink" href="project.html?id=${m.p.id}"><b>${m.p.name}</b></a><span class="n-members__role">${m.role} · ${m.mode}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}</span></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0;font-size:var(--t-sm)">还没有参与项目。</p>`}
+            </section>
+            <div id="ghwrap">${NT.gh.card(pid, { compact: true })}</div>
           </article>
           ${mgmt ? correctionsBlock(p) : ''}
         </aside>
@@ -114,7 +115,7 @@
     $('#btn-reco')?.addEventListener('click', () => UI.recoDialog(pid, rr));
     if (spec) UI.wireSpectrum($('#spec-rows'));
     UI.wireDirection($('#dirwrap'), pid, () => render(main));
-    if ($('#pchanges')) UI.wireChanges($('#pchanges'));
+    NT.gh.wireCard($('#ghwrap'), pid, () => render(main));
     if ($('#pachanges')) UI.wireChanges($('#pachanges'));
     if ($('#sigwrap')) UI.wireSignal($('#sigwrap'), () => render(main));
     if ($('[data-trackwrap]')) UI.wireTracks($('[data-trackwrap]'), () => render(main));
@@ -122,7 +123,6 @@
     $('#btn-track')?.addEventListener('click', () => startTrack());
     $('#btn-print')?.addEventListener('click', () => printProfile());
     wireTimeline(main);
-    wireSummary(main);
     UI.mountIPs(main);
     if (NT.param('track') && !tracks.some((t) => t.state === 'on') && !render.asked) { render.asked = true; startTrack(); }
   }
@@ -138,7 +138,7 @@
   }
 
   // 档案打印（BOW-911）：打印前按当前权限再校验一次，越权就拒绝并留审计；打印内容只含已确认的部分，
-  // 不含 AI 建议分、待校准的分、未采纳的 AI 摘要和参考位置。直接用浏览器打印只会印出一句提示。演示：?print=deny 看拒绝
+  // 不含 AI 建议分、待校准的分、AI 摘要和参考位置。直接用浏览器打印只会印出一句提示。演示：?print=deny 看拒绝
   // 浏览器打印印出的提示按当时的视角写：页面上有「打印档案」的指向它，没有的说明档案打印对谁开放
   const printIdle = () => `<p class="n-print__idle">${st.canExport(pid)
     ? '档案请用页面上的「打印档案」打印：打印内容只含已确认的部分，并记入审计日志。'
@@ -159,18 +159,18 @@
   const printData = () => {
     const { rows, skipped } = st.exportRows([pid]);
     const evs = [...new Set(rows.map((r) => r.ev))].map((id) => ({ e: st.event(id), rows: rows.filter((r) => r.ev === id) })).sort((a, b) => (b.e.date || '').localeCompare(a.e.date || ''));
-    return { rows, skipped, evs, saved: st.summaryFor(pid), quad: st.can('quad', pid), f: st.can('quad', pid) ? st.formal(pid) : null, hidden: st.visibleEvents(pid).hidden };
+    return { rows, skipped, evs, quad: st.can('quad', pid), f: st.can('quad', pid) ? st.formal(pid) : null, hidden: st.visibleEvents(pid).hidden };
   };
   async function printProfile() {
     const p = st.person(pid);
     if (printDenied()) { await refusePrint(p); return; }
-    const { rows, skipped, evs, saved, hidden } = printData();
+    const { rows, skipped, evs, hidden } = printData();
     const ok = await NT.dialog({
       title: `打印${p.name}的档案`,
-      body: '打印的是截至现在已确认的内容；盘点结论以冻结快照为准。打印会记入审计日志。',
+      body: '打印的是截至现在已确认的内容；盘点结论以盘点确认时的存档为准。打印会记入审计日志。',
       facts: [
-        html`<b>会打印</b>：基本信息、${evs.length} 件关键事件里 ${rows.length} 条已确认的维度分（附行为锚点、引用、评分人、规则版本和来源位置）${saved ? '、已采纳的 AI 摘要（标明 AI 生成和采纳人）' : ''}${st.can('quad', pid) ? '、能力象限的正式位置' : ''}`,
-        html`<b>留在系统里</b>：${skipped ? `跳过的 ${skipped} 条分（待确认、待复核或还在评分复核里）、` : ''}待采纳的 AI 摘要、系统给的参考位置${hidden ? `，以及你权限外的 ${hidden} 条资料` : ''}`,
+        html`<b>会打印</b>：基本信息、${evs.length} 件关键事件里 ${rows.length} 条已确认的维度分（附行为锚点、引用、评分人、规则版本和来源位置）${st.can('quad', pid) ? '、能力象限的正式位置' : ''}`,
+        html`<b>留在系统里</b>：${skipped ? `跳过的 ${skipped} 条分（待确认、待复核或还在评分复核里）、` : ''}AI 摘要、系统给的参考位置${hidden ? `，以及你权限外的 ${hidden} 条资料` : ''}`,
       ],
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '打印', value: 'go', cls: 'n-btn--ink', icon: 'print' }],
     });
@@ -181,9 +181,8 @@
     const land = st.landingOf(pid);
     sheet.innerHTML = String(html`
       <header class="n-print__head"><h1>${p.name} <small>演示</small></h1><p>${st.orgPath(p.org)} · ${p.title} · ${p.level} · ${st.tenure(p)}${land ? ` · ${land.batch.name}` : ''}</p></header>
-      <dl class="n-print__meta"><dt>打印时间</dt><dd>${at}</dd><dt>打印人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分、还在评分复核里的分、待采纳的 AI 摘要和参考位置留在系统里；盘点结论以冻结快照为准</dd></dl>
-      ${now.saved ? html`<section><h2>档案摘要 <small>AI 生成 · 经人采纳</small></h2><p>${now.saved.text}</p><p class="n-print__by">${st.person(now.saved.by).name} ${NT.md(now.saved.at)} 采纳 AI 摘要</p></section>` : ''}
-      ${now.quad ? html`<section><h2>能力象限 · 正式位置</h2><p>${now.f ? `${st.QN[now.f.q]} · ${now.f.snap.label}校准 · ${NT.md(now.f.snap.at)} 冻结 · ${st.person(now.f.snap.by).name}确认` : '待正式校准'}</p></section>` : ''}
+      <dl class="n-print__meta"><dt>打印时间</dt><dd>${at}</dd><dt>打印人</dt><dd>${st.me().name}</dd><dt>口径</dt><dd>截至打印时已确认的内容，按新版本复核过的取复核结果；AI 建议分、待按新版本复核的分、还在评分复核里的分、AI 摘要和参考位置留在系统里；盘点结论以盘点确认时的存档为准</dd></dl>
+      ${now.quad ? html`<section><h2>能力象限 · 正式位置</h2><p>${now.f ? `${st.QN[now.f.q]} · ${now.f.snap.label}校准 · ${NT.md(now.f.snap.at)} 存档 · ${st.person(now.f.snap.by).name}确认` : '待正式校准'}</p></section>` : ''}
       <section><h2>关键事件与已确认的维度分 <small>${now.evs.length} 件 · ${now.rows.length} 条</small></h2>
         ${now.evs.length ? html`<ol class="n-print__evs">${now.evs.map(({ e, rows: rs }) => html`<li><p class="n-print__ev"><b>${NT.md(e.date)} · ${e.title}</b>${e.project ? ` · ${st.project(e.project)?.name || ''}` : ''} · ${st.person(e.recorder)?.name || ''}记录</p>
           <ul>${rs.map((r) => html`<li>${r.dim} ${r.v} · ${st.person(r.by)?.name || r.by}评 · ${r.rubric}${r.anchor ? html`<br><span>锚点 ${r.v}：${r.anchor}</span>` : ''}${r.note ? html`<br><span>${r.note}</span>` : ''}${!sameSrc(rs) && r.src ? html`<br><span class="n-print__src">${srcLine(r)}</span>` : ''}</li>`)}</ul>
@@ -211,15 +210,20 @@
   }
 
   function verCompare(e, ref, f) {
-    const d = (k) => { const a = e.dims?.[k]?.m, b = ref.dims?.[k]?.m; if (a == null && b == null) return '—'; return `${a == null ? '无' : a.toFixed(1)} → ${b == null ? '无' : b.toFixed(1)}`; };
-    return html`<div>正式位置<b>${e.q ? st.QN[e.q] : '资料不足'} → ${f ? st.QN[f.q] : '—'}</b></div><div>参考位置<b>${e.ref ? st.QN[e.ref] : '资料不足'} → ${ref.na ? '资料不足' : st.QN[ref.q]}</b></div>
-      <div>已确认事件分<b>${e.n} → ${ref.n} 条</b></div>${['prof', 'mot', 'wis', 'grit'].map((k) => html`<div>${st.dim(k).name}均值<b>${d(k)}</b></div>`)}`;
+    const m = (x) => (x == null ? '无' : x.toFixed(1));
+    const items = [
+      ['正式位置', e.q ? st.QN[e.q] : '资料不足', f ? st.QN[f.q] : '—'],
+      ['参考位置', e.ref ? st.QN[e.ref] : '资料不足', ref.na ? '资料不足' : st.QN[ref.q]],
+      ...['prof', 'mot', 'wis', 'grit'].filter((k) => e.dims?.[k]?.m != null || ref.dims?.[k]?.m != null).map((k) => [`${st.dim(k).name}均值`, m(e.dims?.[k]?.m), m(ref.dims?.[k]?.m)]),
+    ];
+    const moved = items.filter(([, a, b]) => a !== b);
+    // 评分条数不按新旧值写，直接说之后多确认了几条
+    const added = ref.n - e.n;
+    return moved.length || added ? html`${added > 0 ? html`<span>之后新确认 ${added} 条评分</span>` : ''}${moved.map(([k, a, b]) => html`<span>${k} <span class="n-diff"><del>${a}</del> → <ins>${b}</ins></span></span>`)}` : html`<span class="nt-muted">到现在没有变化</span>`;
   }
 
   // AI 摘要：光；采纳后落墨并署名
   function summaryBlock(p, events, canScore, ref, f, canQuad) {
-    const S = st.get();
-    const saved = st.summaryFor(pid);
     const obs = events.filter((e) => e.kind === 'obs' && e.date);
     const tags = {}; obs.forEach((e) => (e.tags || []).forEach((t) => { tags[t] = (tags[t] || 0) + 1; }));
     const topTags = Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
@@ -230,47 +234,105 @@
     if (canQuad && !ref.na) text += `已确认的分数里，专业度均值 ${ref.px.toFixed(1)}，潜力核心均值 ${ref.py.toFixed(1)}。`;
     if (canQuad && ref.na) text += `落位还差：${ref.miss}。`;
     if (self) text += `本人说过${self.title}`;
-    if (canQuad && st.needsRecal(pid)) text += `冻结后的新事件让参考位置离开了正式象限，建议在下次校准时讨论。`;
-    if (saved) return html`<div class="n-block" data-state="ink" id="summary">${saved.text}<div class="n-block__by"><span class="n-block__sig">${st.person(saved.by).name}</span>${NT.md(saved.at)} 采纳 AI 摘要</div></div>`;
-    return html`<div><div class="n-block" data-state="light" id="summary"><span id="sum-text">${text}</span><div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>依据 ${obs.length} 条事件 · 只用你有权限查看的资料</div></div>
-      ${st.can('curate', pid) ? html`<div class="nt-row" style="margin-top:var(--s-2);padding-left:var(--s-5)" id="sum-acts"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-sum="ok">${icon('check')}采纳</button><button class="n-btn n-btn--sm" type="button" data-sum="edit">${icon('pen')}改写</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-sum="drop">删去</button></div>` : ''}</div>`;
+    if (canQuad && st.needsRecal(pid)) text += `上次盘点之后的新事件让参考位置离开了正式位置所在的象限，建议在下次校准时讨论。`;
+    // AI 摘要随新确认的事件自动重写，不需要采纳；它只是导读，不进打印档案，也不参与任何判断
+    return html`<div class="n-block" data-state="light" id="summary">${text}<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>依据 ${obs.length} 条事件 · 随新确认的事件自动更新 · 只用你有权限查看的资料</div></div>`;
   }
-  function wireSummary(main) {
-    const acts = $('#sum-acts'); if (!acts) return;
-    const block = $('#summary'), text = $('#sum-text');
-    acts.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-sum]'); if (!b) return;
-      if (b.dataset.sum === 'edit') { text.contentEditable = 'plaintext-only'; text.classList.add('n-edit'); text.focus(); b.dataset.sum = 'ok'; b.innerHTML = '<svg><use href="#i-check"/></svg>改好了，采纳'; return; }
-      if (b.dataset.sum === 'drop') { block.parentElement.remove(); NT.toast('已删去这段摘要', { undo: () => render(main) }); return; }
-      block.dataset.state = 'ink'; block.classList.add('is-settling'); text.contentEditable = 'false';
-      st.adoptSummary(pid, text.textContent, st.can('quad', pid));
-      $('.n-block__by', block).innerHTML = `<span class="n-block__sig">${NT.esc(st.me().name)}</span>刚刚采纳 AI 摘要`;
-      acts.remove();
+
+  // 时间线按人才发展的关键节点分段：XEngineer → 入职 → Landing → 绩效 → 转正 / 晋升。
+  // 发生过但系统里没有记录的节点用演示数据补上并标「演示」；还没到的节点只写计划，不当作已发生
+  function stagesOf(p, mgmt) {
+    const D = NT.addDays, T = NT.TODAY, PG = NT.SEED.PROGRAMS;
+    const xe = PG.find((g) => g.kind === 'XEngineer' && g.people.includes(p.id));
+    if (xe && p.xe) {
+      const x = p.xe, land = PG.find((g) => g.kind === 'Landing' && g.people.includes(p.id));
+      const offer = x.final && !['不建议 offer', '—'].includes(x.final);
+      const hire = !mgmt ? { state: '' } : !offer ? { state: '未发 offer' }
+        : x.accept === '接受' ? { state: land ? `计划 ${NT.md(land.from)} 入职` : '待入职', facts: [['去向', x.dest || '部门待定'], ['offer', x.final]] }
+        : x.accept === '拒绝' ? { state: '未接受 offer', facts: [['offer', x.final]] } : { state: '待沟通去向', facts: [['offer', x.final]] };
+      return [
+        { key: 'xe', name: xe.name, from: xe.from, to: xe.to, status: xe.to < T ? 'done' : 'now', state: xe.to < T ? '已结营' : '进行中',
+          facts: [['课题组', st.orgShort(p.org)], ['导师', p.manager ? st.person(p.manager).name : '—'], ...(mgmt && x.final ? [['结营结论', x.final]] : []), ...(mgmt && x.posFinal ? [['岗位建议', x.posFinal]] : [])] },
+        { key: 'hire', name: '入职', from: D(xe.to, 1), to: land ? D(land.from, -1) : D(xe.to, 30), span: '', status: 'planned', ...hire },
+        { key: 'land', name: land ? land.name : 'Landing', at: land?.from, end: land?.to, status: 'planned', state: land ? '待开营' : mgmt && offer && x.accept === '接受' ? '部门确定后安排' : '', facts: land ? [['去向', x.dest]] : [] },
+        // 校招入职，试用期 6 个月后转正答辩
+        { key: 'conv', name: '转正', at: mgmt && offer && x.accept === '接受' && land ? D(land.from, 182) : undefined, status: 'planned', state: mgmt && offer && x.accept === '接受' ? '入职满 6 个月后转正答辩' : '' },
+        { key: 'perf', name: '绩效', status: 'planned', state: '入职后从第一个绩效周期开始记录' },
+        { key: 'promo', name: '晋升', status: 'planned', state: '暂无' },
+      ];
+    }
+    // 在职员工：有履历（path）的按履历；没有的，Landing 和已过去的绩效周期用演示数据补上。转正答辩取答辩节点
+    const j = p.joined, h = [...p.id].reduce((n, c) => n + c.charCodeAt(0), 0), path = p.path;
+    const def = PG.find((g) => g.kind === '答辩' && g.people.includes(p.id));
+    const keep = (facts) => facts.filter(([k]) => mgmt || k !== '结营结论');
+    const land = path?.land || { name: 'Landing', from: D(j, 7), to: D(j, 32), demo: true, facts: [['导师', '方序（演示）'], ['课题', '客户工单分级与值班手册（演示）']] };
+    const out = [
+      ...(path?.xe ? [{ key: 'xe', name: path.xe.name, from: path.xe.from, to: path.xe.to, status: 'done', state: '已结营', facts: keep(path.xe.facts) }] : []),
+      { key: 'hire', name: '入职', at: j, status: 'done', state: '', facts: [['部门', st.orgShort(p.org)], ['岗位', p.title]] },
+      { key: 'land', name: land.name, from: land.from, to: land.to, status: land.to < T ? 'done' : 'now', state: land.to < T ? '已结营' : '进行中', demo: land.demo, facts: land.facts },
+    ];
+    const lt = land.to;
+    const half = (y, k) => (k ? [`${y}-07-01`, `${y}-12-31`, `${y} 下半年`] : [`${y}-01-01`, `${y}-06-30`, `${y} 上半年`]);
+    for (let y = +j.slice(0, 4); y <= +T.slice(0, 4); y++) [0, 1].forEach((k) => {
+      const [f, t, label] = half(y, k);
+      if (t < lt || f > T) return;
+      const done = t < T;
+      // 有履历的人，绩效评分在管理受限的绩效记录里，节点本身不再重复
+      out.push({ key: `perf-${y}-${k}`, name: `${label}绩效`, from: f < lt ? D(lt, 1) : f, to: t, status: done ? 'done' : 'now', state: done ? '已评定' : '进行中', demo: done && !path,
+        facts: done && mgmt && !path ? [['绩效评分', `${[3, 4, 4][(h + y + k) % 3]} 星`], ['评定人', '直属上级（演示）']] : [] });
     });
+    if (def) out.push({ key: 'conv', name: '转正', at: def.from, status: 'done', state: '已答辩，转正结论待确认', facts: [['答辩', def.name]] });
+    else if (path?.conv) out.push({ key: 'conv', name: '转正', at: path.conv.at, status: 'done', state: '已转正', facts: [['依据', path.conv.via]] });
+    (path?.promo || []).forEach((x, i) => out.push({ key: `promo-${i}`, name: '晋升', at: x.at, status: 'done', state: mgmt ? `${x.from} → ${x.to}` : '', facts: mgmt ? [['职级', `${x.from} → ${x.to}`], ['依据', x.via]] : [] }));
+    if (!path?.promo?.length) out.push({ key: 'promo', name: '晋升', status: 'planned', state: '暂无' });
+    const start = (x) => x.from || x.at || '9999';
+    return out.sort((a, b) => start(a).localeCompare(start(b)));
   }
 
   function timeline(events, changes, verSnap) {
+    const p = st.person(pid), stages = stagesOf(p, st.can('mgmt', pid));
     const items = [];
     events.forEach((e) => items.push({ date: e.date, e }));
     changes.filter((c) => c.t === 'trend' || c.t === 'quad').forEach((c) => items.push({ date: c.when, c }));
     // 节点结论（答辩）：HR 确认的人工结论，单独一条，不当作关键事件；管理者和 HR 能看
     if (st.can('mgmt', pid)) st.conclusionsOf(pid).forEach((c) => items.push({ date: c.node === 'pg-def:n0' ? '2026-09-02' : c.versions[0].at, nc: c }));
-    const known = items.filter((i) => i.date).sort((a, b) => b.date.localeCompare(a.date));
-    const unknown = items.filter((i) => !i.date);
-    let month = '';
-    const out = [];
-    known.forEach((it) => {
-      const m = it.date.slice(0, 7);
-      const label = it.date < '2026-01-01' ? '更早' : NT.monthLabel(it.date);
-      if (label !== month) { month = label; out.push(html`<li class="n-tl__month">${label}</li>`); }
-      out.push(item(it, verSnap && it.date > verSnap.cutoff));
-      void m;
-    });
-    if (unknown.length) { out.push(html`<li class="n-tl__month">时间未知</li>`); unknown.forEach((it) => out.push(item(it))); }
-    return out.length ? html`<ol class="n-tl">${out}</ol>` : html`<div class="nt-empty">还没有记录。</div>`;
+    // 归属：落在某个节点当天的归这个节点，其次归时间段包含它的节点，都不在就归最近的时间段
+    const ranges = stages.filter((s) => s.from);
+    const gap = (s, d) => (d < s.from ? NT.days(d) - NT.days(s.from) : d > s.to ? NT.days(s.to) - NT.days(d) : 0);
+    const home = (d) => stages.find((s) => s.at === d && !s.from) || ranges.find((s) => d >= s.from && d <= s.to)
+      || ranges.slice().sort((a, b) => Math.abs(gap(a, d)) - Math.abs(gap(b, d)))[0];
+    const bucket = new Map(stages.map((s) => [s.key, []]));
+    const unknown = [];
+    items.forEach((it) => { const s = it.date && home(it.date); if (s) bucket.get(s.key).push(it); else unknown.push(it); });
+    bucket.forEach((l) => l.sort((a, b) => b.date.localeCompare(a.date)));
+    const live = stages.filter((s) => s.status !== 'planned');
+    const dflt = (live.find((s) => s.status === 'now' && bucket.get(s.key).length) || live.filter((s) => bucket.get(s.key).length).pop() || live.pop())?.key;
+    const when = (s) => (s.span != null ? s.span : s.from ? `${NT.md(s.from)} – ${s.to.startsWith('9999') ? '' : NT.md(s.to)}` : s.at ? (s.end ? `${NT.md(s.at)} – ${NT.md(s.end)}` : NT.md(s.at)) : '');
+    const yr = (s) => (s.from || s.at || '').slice(0, 4);
+    // 由近及远，按节点结束的时间排：还没到的节点在最上面，往下是正在进行和已经过去的
+    const end = (s) => s.to || s.end || s.at || '9999';
+    const order = stages.map((s, i) => [s, i]).sort(([a, i], [b, k]) => end(b).localeCompare(end(a)) || k - i).map(([s]) => s);
+    return html`<div class="n-stages">${order.map((s) => {
+      const list = bucket.get(s.key), open = stageOpen[s.key] ?? s.key === dflt, id = `stg-${s.key}`;
+      const body = list.length || s.facts?.length;
+      return html`<section class="n-stage" data-status="${s.status}" data-key="${s.key}">
+        <button class="n-stage__head" type="button" aria-expanded="${String(open && !!body)}" aria-controls="${id}" ${raw(body ? '' : 'disabled')}>
+          <span class="n-stage__dot" aria-hidden="true"></span>
+          <span class="n-stage__name">${s.name}${s.demo ? html` ${UI.demo()}` : ''}</span>
+          <span class="n-stage__when">${yr(s) && yr(s) !== NT.TODAY.slice(0, 4) ? `${yr(s)} · ` : ''}${when(s)}</span>
+          <span class="n-stage__state">${s.state}${list.length ? html`<b>${list.length} 条记录</b>` : ''}</span>
+          ${body ? html`<svg class="n-stage__chev" aria-hidden="true"><use href="#i-chev"/></svg>` : ''}
+        </button>
+        ${body ? html`<div class="n-fold" id="${id}" ${raw(open ? 'data-open' : 'inert')}><div><div class="n-stage__body">
+          ${s.facts?.length ? html`<dl class="n-stage__facts">${s.facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${UI.scaleVal(v)}</dd></div>`)}</dl>` : ''}
+          ${list.length ? html`<ol class="n-tl">${list.map((it) => item(it, verSnap && it.date > verSnap.cutoff))}</ol>` : ''}
+        </div></div></div>` : ''}
+      </section>`;
+    })}
+    ${unknown.length ? html`<section class="n-stage" data-status="unknown"><div class="n-stage__head is-static"><span class="n-stage__dot" aria-hidden="true"></span><span class="n-stage__name">时间未知</span><span class="n-stage__state">补上时间后归入对应的节点</span></div><div class="n-stage__body"><ol class="n-tl">${unknown.map((it) => item(it))}</ol></div></section>` : ''}</div>`;
   }
   function item(it, after) {
-    const style = after ? raw(' style="opacity:.4" title="这条记在所选档案版本冻结之后"') : '';
+    const style = after ? raw(' style="opacity:.4" title="这条在所选那次盘点之后才确认，当时的结果没有算它"') : '';
     if (it.nc) {
       const c = it.nc, v = c.versions[0], g = NT.SEED.PROGRAMS.find((x) => x.id === c.node.split(':')[0]);
       return html`<li class="n-tl__item" id="${c.id}"${style}><span class="n-tl__date">${NT.md(it.date)}</span><span class="n-tl__dot is-hist"></span><div class="n-tl__body">
@@ -295,13 +357,28 @@
     return html`<li class="n-tl__item ${isUnknown ? 'is-unknown' : ''}" id="ev-${e.id}"${style}><span class="n-tl__date">${isUnknown ? '未知' : e.kind === 'hist' && e.restricted ? 'H1' : NT.md(e.date)}</span><span class="n-tl__dot ${dot}"></span><div class="n-tl__body">
       <div class="n-tl__title">${e.kind === 'obs' ? html`<button class="nt-tl-open" type="button" aria-expanded="false">${e.title}</button>` : e.title}${pending ? html` <span class="n-badge n-badge--ai">${icon('spark')}${pending} 项待确认</span>` : ''}${conflict ? html` <span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : ''}</div>
       <div class="n-tl__meta">${meta}${isUnknown && st.can('record', pid) ? html` · <button class="n-btn n-btn--sm n-btn--ghost" type="button" data-date="${e.id}" style="min-height:22px;padding:0 6px">补上时间</button>` : ''}</div>
-      ${e.scale ? html`<div class="n-scale">${st.isRecruit(e) ? html`<span class="n-scale__tag">原量表 · 单独保存</span>` : ''}${e.scale.map(([k, v]) => html`<span class="${v === '非管理岗免评' ? 'is-na' : ''}">${k}${v === '非管理岗免评' ? ' · ' : ' '}${v}</span>`)}</div>${e.kind === 'hist' && !e.restricted ? html`<div class="n-tl__note">${e.group ? '这是小组的评分。' : st.isRecruit(e) ? '北森面评原样保存，是档案里最早的一段判断；AI 打分时可以引用其中的文字评价。' : '保留原量表，AI 打分时可以引用其中的文字评价。'}</div>` : ''}` : ''}
+      ${e.scale ? html`<div class="n-scale">${st.isRecruit(e) ? html`<span class="n-scale__tag">原量表 · 单独保存</span>` : ''}${e.scale.map(([k, v]) => html`<span class="${v === '非管理岗免评' ? 'is-na' : ''}">${k}${v === '非管理岗免评' ? ' · ' : ' '}${UI.scaleVal(v)}</span>`)}</div>${e.kind === 'hist' && !e.restricted ? html`<div class="n-tl__note">${e.group ? '这是小组的评分。' : st.isRecruit(e) ? '北森面评原样保存，是档案里最早的一段判断；AI 打分时可以引用其中的文字评价。' : '保留原量表，AI 打分时可以引用其中的文字评价。'}</div>` : ''}` : ''}
       ${e.kind === 'obs' ? html`<div class="nt-tl-card" hidden>${UI.eventCard(e, { for: pid })}</div>` : ''}
     </div></li>`;
+  }
+  function setStage(head, open) {
+    const fold = document.getElementById(head.getAttribute('aria-controls'));
+    head.setAttribute('aria-expanded', String(open));
+    fold.toggleAttribute('data-open', open); fold.inert = !open;
+    stageOpen[head.closest('.n-stage').dataset.key] = open;
+  }
+  // 跳到某条事件前，先展开它所在的节点
+  function revealStage(li) {
+    const head = li?.closest('.n-stage')?.querySelector('.n-stage__head[aria-controls]');
+    if (!head || head.getAttribute('aria-expanded') === 'true') return;
+    setStage(head, true);
+    setTimeout(() => li.scrollIntoView({ behavior: NT.reduced ? 'auto' : 'smooth', block: 'center' }), NT.reduced ? 0 : 340);
   }
   function wireTimeline(main) {
     const tl = $('#timeline'); if (!tl) return;
     tl.addEventListener('click', async (e) => {
+      const sh = e.target.closest('.n-stage__head[aria-controls]');
+      if (sh) { setStage(sh, sh.getAttribute('aria-expanded') !== 'true'); return; }
       const b = e.target.closest('.nt-tl-open');
       if (b) { const open = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', open); b.closest('.n-tl__body').querySelector('.nt-tl-card').hidden = !open; return; }
       const h = e.target.closest('.nt-hist');
@@ -322,7 +399,7 @@
       }
     });
     // 从能力谱点到某条事件时展开它
-    if (location.hash.startsWith('#ev-')) { const li = document.getElementById(location.hash.slice(1)); li?.querySelector('.nt-tl-open')?.click(); }
+    if (location.hash.startsWith('#ev-')) { const li = document.getElementById(location.hash.slice(1)); revealStage(li); li?.querySelector('.nt-tl-open')?.click(); }
     if (main.dataset.wired) return;
     main.dataset.wired = 1;
     main.addEventListener('click', (e) => {
@@ -335,6 +412,7 @@
       }
       const a = e.target.closest('a[href^="#ev-"]'); if (!a) return;
       const li = document.getElementById(a.getAttribute('href').slice(1));
+      revealStage(li);
       const btn = li?.querySelector('.nt-tl-open');
       if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click();
     });
@@ -343,7 +421,7 @@
   function correctionsBlock(p) {
     const list = st.get().corrections.filter((c) => c.person === p.id && !c.done);
     if (!list.length) return '';
-    return html`<article class="n-card"><h3 class="n-section-title">本人纠错</h3>${list.map((c) => html`<div class="n-notice is-plain" data-corr="${c.id}">${icon('info')}<div><b>${p.name}提出：</b>${c.text}<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-fix="${c.id}">按纠错修改</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-reply="${c.id}">回复说明</button></div></div></div>`)}<p class="nt-caption">修改后保留原记录和修改理由。</p></article>`;
+    return html`<article class="n-card"><h3 class="n-section-title">本人纠错</h3>${list.map((c) => html`<div class="n-notice is-plain" data-corr="${c.id}">${icon('info')}<div><b>${p.name}提出：</b>${c.text}<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ink" type="button" data-fix="${c.id}">按纠错修改</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-reply="${c.id}">回复说明</button></div></div></div>`)}</article>`;
   }
 
   // 员工本人：只看本人经历、参与的项目和发布给本人的行动；能补充、能纠错，不能改别人的观察和管理结论

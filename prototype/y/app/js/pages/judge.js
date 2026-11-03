@@ -140,7 +140,7 @@
               <div class="n-jdist__head" aria-hidden="true"><span></span><span>前段低两档+</span><span>前段低一档</span><span class="is-mid">一致</span><span>前段高一档</span><span>前段高两档+</span></div>
               ${dims.map((d) => dimRow(d, units.filter((u) => u.dim === d.id), chain, map))}
             </div>
-            <p class="nt-caption">前段和后段按对应表 ${map.id} 换算到同一档后对照，偏差人数只算可对照的案例。</p>
+            
           </article>
           ${siblings.length > 1 ? versionCard(chain, siblings) : ''}
           <article class="n-card" id="attrib"><h3 class="n-section-title">归因</h3>${attribBody(b, chain, units)}</article>
@@ -210,12 +210,11 @@
 
   function versionCard(chain, bs) {
     const per = bs.map((b) => ({ b, units: unitsOf(b.id) }));
-    return html`<article class="n-card" id="ver"><h3 class="n-section-title">按标准版本对比</h3>
+    return html`<article class="n-card" id="ver"><h3 class="n-section-title">按标准版本对比${NT.ui.hint('每期只有 8 人，偏差减少只作为提示，不能据此下「改进有效」的结论')}</h3>
       <div class="n-jver">
         <span class="is-h">维度</span>${per.map(({ b }) => html`<span class="is-h">${b.name.replace('判断对照', '')} · ${b.std}</span>`)}
         ${chain.dims.map((d) => html`<span class="is-dim">${d.name}</span>${per.map(({ units }) => { const us = units.filter((u) => u.dim === d.id); const t = st.judgeTally(us); return html`<span><b>${t.high}</b> 人前段偏高${t.low ? html`，<b>${t.low}</b> 人偏低` : ''}<span class="nt-muted"> / ${us.length} 人</span></span>`; })}`)}
       </div>
-      <p class="nt-caption">第二期的后段来自 10-17 完成的训练营评审（演示用的历史时间线）。每期只有 8 人，偏差减少只作为提示，不能据此下「改进有效」的结论。</p>
     </article>`;
   }
 
@@ -233,10 +232,9 @@
   // 评价人：按姓名排列，不排行、不给准确率；可对照案例不到门槛只说「样本不足」
   function raterCard(units, bid) {
     const raters = [...new Set(units.map((u) => u.front.by).filter(Boolean))].sort((a, b) => name(a).localeCompare(name(b), 'zh'));
-    return html`<article class="n-card"><h3 class="n-section-title">按评价人<small class="nt-muted" style="font-weight:400;margin-left:auto">按姓名排列</small></h3>
+    return html`<article class="n-card"><h3 class="n-section-title">按评价人${NT.ui.hint('仅 HR 和评价人本人可见，评价人只看自己的部分')}<small class="nt-muted" style="font-weight:400;margin-left:auto">按姓名排列</small></h3>
       <div>${raters.map((r) => { const x = st.raterStats(units, r); const t = x.tally; return html`<a class="n-rater" href="${NT.link('judge.html', { rater: r, ...(bid ? { from: bid } : {}) })}">${UI.avatar(r, 'sm')}<b>${name(r)}</b>${x.enough ? html`<span class="nt-muted">${x.cases.length} 个案例</span>` : html`<span class="n-rater__few">样本不足</span>`}
-        <small>${x.enough ? [t.high && `前段偏高 ${t.high}`, t.low && `前段偏低 ${t.low}`, t.same && `一致 ${t.same}`].filter(Boolean).join(' · ') : `只有 ${x.cases.length} 个可对照案例（门槛 ${st.RATER_MIN} 个），只列案例`}</small></a>`; })}</div>
-      <p class="nt-caption">可对照案例都计入门槛；偏高、偏低、一致只算前段给了最高或最低一档的判断，中间档只看结营结论的分布。仅 HR 和评价人本人可见，评价人只看自己的部分。</p></article>`;
+        <small>${x.enough ? [t.high && `前段偏高 ${t.high}`, t.low && `前段偏低 ${t.low}`, t.same && `一致 ${t.same}`].filter(Boolean).join(' · ') : `只有 ${x.cases.length} 个可对照案例（门槛 ${st.RATER_MIN} 个），只列案例`}</small></a>`; })}</div></article>`;
   }
 
   function actionsCard(b) {
@@ -249,7 +247,7 @@
     return html`<article class="n-card" id="acts"><h3 class="n-section-title">改进动作</h3>
       ${acts.length ? html`<ul class="nt-list">${acts.map((a) => html`<li><a class="nt-plink" href="actions.html#${a.id}"><b style="font-weight:600">${a.title}</b></a><div class="nt-muted">${a.kind} · 负责人 ${name(a.owner)} · ${actLabel(a)}</div></li>`)}</ul>`
         : html`<div class="nt-empty">归因确认后，改进动作会出现在这里。</div>`}
-      <p class="nt-caption">改进动作挂在「人才项目」关键节点复盘的对应节点下跟进；修订评价标准会产生新版本，新记录按新版本，旧记录保留原版本。</p></article>`;
+      </article>`;
   }
 
   // ---------- 归因：AI 提出带证据的假设（光），HR 选类别、写理由、确认后落墨 ----------
@@ -281,7 +279,7 @@
         ${wait ? html`<p class="nt-caption">另有 ${wait} 条 AI 假设待 HR 确认。</p>` : ''}`;
     }
     return html`<div class="nt-grid">${hyps.map((h) => (st.judgeAttrib(h.id) ? conclusion(h, chain, false) : hypBlock(h, chain)))}</div>
-      <p class="nt-caption">AI 提出带证据的假设，HR 选类别、写理由并确认归因。结论用于修订人才评价规则。</p>`;
+      `;
   }
   // 依据变化的说明：评价人只在 HR 视角下点名
   const checkText = (h, chk, forCeo) => [chk.dropped.length && `${chk.dropped.length} 个依据案例已标为不可比或资料不足`, chk.few && (forCeo ? '涉及的评价人可对照案例不到门槛，样本不足' : `${name(h.rater)}的可对照案例不到 ${st.RATER_MIN} 个，样本不足`), chk.changed && !chk.dropped.length && '依据范围内的事件或分数有变化，正文里的统计可能已经过时'].filter(Boolean).join('；');
@@ -426,7 +424,7 @@
           <article class="n-card"><h3 class="n-section-title">${enough ? `${cases.length} 个可对照案例` : '样本不足'}</h3>
             ${enough ? html`<p style="margin:0">前段给了最高或最低一档的 ${x.clear.length} 个里，${[t.high && `前段偏高 ${t.high} 个`, t.low && `前段偏低 ${t.low} 个`, t.same && `一致 ${t.same} 个`].filter(Boolean).join('，') || '待结营结论'}。${x.mid.length ? `中间档 ${x.mid.length} 个，只看结营结论：${Object.entries(x.midBack).map(([g, n]) => `${g} ${n}`).join(' · ')}。` : ''}${byDimLine(x.clear)}</p>`
               : html`<p style="margin:0">样本不足：可对照案例 ${cases.length} 个（含中间档），门槛 ${st.RATER_MIN} 个。下面列出案例。</p>`}
-            <p class="nt-caption">${gradeLine(self ? '你' : name(raterId), vals, batches)}可对照案例（含中间档）都计入门槛，偏高、偏低、一致只算最高或最低一档。${restLine(all, denied, self ? st.myJudgeHidden() : 0)}</p>
+            <p class="nt-caption">${gradeLine(self ? '你' : name(raterId), vals, batches)}${restLine(all, denied, self ? st.myJudgeHidden() : 0)}</p>
           </article>
           ${batches.map((b) => { const chain = st.judgeChain(b.chain), map = st.judgeMap(b.map); const us = sortCases(all.filter((u) => u.batch === b.id)); return html`<section><h2 class="nt-h2">${b.name}<small>${b.std} · ${b.range}</small></h2>${us.map((u) => caseCard(u, chain, map, { raterOnly: self }))}</section>`; })}
         </div>

@@ -41,7 +41,7 @@
       ${canQuad ? html`<div class="m-card"><h3 class="m-h" style="margin-top:0">能力象限</h3>
         <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)}<div class="nt-muted">${f.snap.label} · ${NT.md(f.snap.at)} ${st.person(f.snap.by).name}确认</div>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
           <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()}<div class="nt-muted">${ref.miss}</div>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''}`}</dd></dl>
-        ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后的新事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。</div></div>` : ''}
+        ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>上次盘点之后的新事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。</div></div>` : ''}
         
       </div>` : ''}
 
@@ -80,28 +80,18 @@
       }
       const a = e.target.closest('a[href^="#ev-"]');
       if (a) { e.preventDefault(); document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({ block: 'start', behavior: NT.reduced ? 'auto' : 'smooth' }); }
-      const sum = e.target.closest('[data-sum]');
-      if (sum) {
-        st.adoptSummary(pid, $('#sum-text').textContent, st.can('quad', pid));
-        const b = $('#summary'); b.dataset.state = 'ink'; b.classList.add('is-settling');
-        $('.n-block__by', b).innerHTML = `<span class="n-block__sig">${NT.esc(st.me().name)}</span>刚刚采纳 AI 摘要`;
-        sum.remove();
-      }
     };
   }
 
   function summary(p, obs, canScore, ref, canQuad) {
-    const saved = st.summaryFor(pid);
-    if (saved) return html`<div class="n-block m-block" data-state="ink" id="summary">${saved.text}<div class="n-block__by"><span class="n-block__sig">${st.person(saved.by).name}</span>${NT.md(saved.at)} 采纳 AI 摘要</div></div>`;
     const dated = obs.filter((e) => e.date);
     const recent = dated.filter((e) => e.date >= NT.addDays(NT.TODAY, -90)).length;
     let text = `近 12 个月有 ${dated.length} 条关键事件，其中近 3 个月 ${recent} 条。`;
     // 两轴均值和落位缺口都是象限信息，只给能看象限的人
     if (canQuad && !ref.na) text += `已确认的分数里，专业度均值 ${ref.px.toFixed(1)}，潜力核心均值 ${ref.py.toFixed(1)}。`;
     if (canQuad && ref.na) text += `落位还差：${ref.miss}。`;
-    if (canQuad && st.needsRecal(pid)) text += '冻结后的新事件让参考位置离开了正式象限，建议在下次校准时讨论。';
-    return html`<div class="n-block m-block" data-state="light" id="summary"><span id="sum-text">${text}</span><div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>只用你有权限查看的资料</div>
-      ${st.role() !== 'mentor' ? html`<button class="n-btn n-btn--sm" type="button" data-sum style="margin-top:var(--s-2)">${icon('check')}采纳</button>` : ''}</div>`;
+    if (canQuad && st.needsRecal(pid)) text += '上次盘点之后的新事件让参考位置离开了正式象限，建议在下次校准时讨论。';
+    return html`<div class="n-block m-block" data-state="light" id="summary">${text}<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>随新确认的事件自动更新 · 只用你有权限查看的资料</div></div>`;
   }
 
   function timeline(events) {
@@ -112,7 +102,7 @@
       if (e.kind === 'obs') return UI.eventCard(e, { for: pid });
       const meta = e.kind === 'self' ? html`${UI.src('self')}${e.srcs[0]?.label} ${e.srcs[0]?.loc || ''}`
         : e.restricted ? html`<span class="n-badge">${icon('lock')}管理受限</span> 含评价成分，不当作客观事实` : html`${UI.src(e.group ? 'fact' : 'hist')}${e.srcs[0]?.label} · ${e.srcs[0]?.loc}`;
-      return html`<div class="m-card m-tlmini" id="ev-${e.id}"><b>${e.title}</b><div class="n-tl__meta">${NT.md(e.date) || '时间未知'} · ${meta}</div>${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${v}</span>`)}</div>` : ''}</div>`;
+      return html`<div class="m-card m-tlmini" id="ev-${e.id}"><b>${e.title}</b><div class="n-tl__meta">${NT.md(e.date) || '时间未知'} · ${meta}</div>${e.scale ? html`<div class="n-scale">${e.scale.map(([k, v]) => html`<span>${k} ${UI.scaleVal(v)}</span>`)}</div>` : ''}</div>`;
     };
     known.forEach((e) => {
       const label = e.date < '2026-01-01' ? '更早' : NT.monthLabel(e.date);

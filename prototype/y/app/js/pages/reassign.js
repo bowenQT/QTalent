@@ -25,7 +25,7 @@
     if (to && !cands.some((c) => c.id === to && c.ok)) to = null;
     const done = st.reassignDone();
     mount(main, html`
-      <header class="nt-head"><div><h1>重新分派</h1><p>评价关系到期后待完成的事，选一位接手人。接手人在本节点获得这几位的评价关系，到这批事里最晚的截止日。</p></div></header>
+      <header class="nt-head"><div><h1>重新分派${NT.ui.hint('接手人在本节点获得这几位的评价关系，到这批事里最晚的截止日')}</h1></div></header>
       ${notices.length ? html`<div class="n-note is-warn" role="alert">${icon('info')}<div><b>${notices.length} 件已有变化，以原评价人的结果为准</b><ul>${notices.map((x) => html`<li>${st.person(x.person).name} · ${st.reassignTask(x).label}：${x.gone}</li>`)}</ul><button class="n-link" type="button" id="ra-ok">知道了</button></div></div>` : ''}
       ${items.length ? html`<div class="nt-split">
         <div class="nt-grid">${groups.map(({ rel, list }) => html`<article class="n-card">
@@ -34,7 +34,7 @@
         </article>`)}</div>
         <aside class="nt-grid nt-sticky"><article class="n-card"><h3 class="n-section-title">接手人</h3>
           <div class="n-choices" role="radiogroup" aria-label="接手人">${cands.map((c) => html`<button class="n-choice ${to === c.id ? 'is-picked' : ''}" type="button" role="radio" aria-checked="${to === c.id}" data-to="${c.id}" ${NT.raw(c.ok ? '' : 'disabled aria-disabled="true"')}>${UI.avatar(c.id, 'sm')}${st.person(c.id).name}<small>${c.label}</small></button>`)}</div>
-          <p class="nt-caption">名单里是本期关系有效的评价人和你自己；关系已到期的人置灰。</p>
+          
           <button class="n-btn n-btn--ink" type="button" id="ra-go" style="width:100%;margin-top:var(--s-3)" ${NT.raw(to && sel.length ? '' : 'disabled')}>${to ? `交给${st.person(to).name}` : '选接手人'}${sel.length ? ` · ${sel.length} 件` : ''}</button>
         </article></aside>
       </div>` : UI.state({ ip: 'done', title: '需要重新分派的事都处理完了', text: '评价关系到期后待完成的事会出现在这里。', actions: html`<a class="n-btn n-btn--sm" href="index.html">回到工作台</a>` })}

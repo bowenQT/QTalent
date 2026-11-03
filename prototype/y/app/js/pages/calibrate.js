@@ -1,5 +1,5 @@
 /* 团队象限校准（光点落位）：小犇根据已确认的维度分算出参考位置，化作光点落下；人把头像拖到自己判断的位置，
-   光点留在原处，中间连一道由光到墨的痕迹。拖到另一个象限时小犇问一句理由；全部确认后光点消散、盖印冻结。
+   光点留在原处，中间连一道由光到墨的痕迹。拖到另一个象限时小犇问一句理由；全部确认后光点消散、盖印存档。
    资料不足的人不进象限，单独列出缺什么。确认由 HR 完成。 */
 (function () {
   'use strict';
@@ -34,7 +34,7 @@
     // 管理者在盘点批次页看校准结果；校准本身由 HR 完成
     denyTitle: st.role() === 'ceo' ? '象限校准由 HR 完成' : undefined,
     denyText: st.role() === 'ceo' ? html`确认后的位置和各团队分布，在<a href="${isLanding ? 'landing.html' : `review.html?id=${id}`}">${isLanding ? 'XEngineer 第六期' : '盘点批次'}</a>里查看。` : '象限仅管理者和 HR 可见。',
-    view: () => `象限校准 · ${isLanding ? '新人' : st.orgShort(team)}${frozen() ? ' · 已冻结' : ''}`,
+    view: () => `象限校准 · ${isLanding ? '新人' : st.orgShort(team)}${frozen() ? ' · 已存档' : ''}`,
     state: () => ({ team }),
     restore: (s) => { if (s.team) { team = s.team; render($('#main')); } },
     render,
@@ -62,7 +62,7 @@
     ids.forEach((pid) => {
       // 冻结后整份读快照：位置、维度均值、证据条数都是冻结那一刻的，不随新事件变化
       const e = isFrozen ? sn.entries[pid] : null;
-      if (isFrozen && !e) { na.push({ pid, miss: '快照冻结后加入' }); return; }
+      if (isFrozen && !e) { na.push({ pid, miss: '存档之后才加入' }); return; }
       const r = e ? { ...e, q: e.ref } : st.refPos(pid, cutoff());
       if (r.na) { na.push({ pid, miss: r.miss }); return; }
       const prev = st.formal(pid);
@@ -75,9 +75,9 @@
     const canConfirm = st.can('quadConfirm');
     const nScores = placed.reduce((n, x) => n + x.r.n, 0);
     mount(main, html`
-      <header class="nt-head"><div><h1>${LABEL} · 象限校准</h1><p>${isLanding ? 'XEngineer 第六期结营：学员第一次落位，形成第一份档案。' : `${b.name} · HR 发起。`}同意参考位置的人保持原样；调整位置要写一句理由。</p></div>
+      <header class="nt-head"><div><h1>${LABEL} · 象限校准</h1><p>${isLanding ? 'XEngineer 第六期结营 · 学员第一次落位' : `${b.name} · HR 发起`}</p></div>
         ${!isLanding ? html`<div class="nt-head__acts"><a class="n-btn n-btn--sm n-btn--ghost" href="review.html?id=${id}">回到盘点清单</a></div>` : ''}</header>
-      ${!isLanding ? html`<div class="n-seg n-seg--md" role="group" aria-label="团队" data-manual id="teams" style="margin-bottom:var(--s-4)">${teams.map((t) => html`<button type="button" data-t="${t}" aria-pressed="${t === team}">${st.orgShort(t)}${sn?.teams?.includes(t) ? ' · 已冻结' : ''}</button>`)}</div>` : ''}
+      ${!isLanding ? html`<div class="n-seg n-seg--md" role="group" aria-label="团队" data-manual id="teams" style="margin-bottom:var(--s-4)">${teams.map((t) => html`<button type="button" data-t="${t}" aria-pressed="${t === team}">${st.orgShort(t)}${sn?.teams?.includes(t) ? ' · 已存档' : ''}</button>`)}</div>` : ''}
       <div class="nt-split nt-split--wide">
         <div class="n-quad" id="quad-wrap">
           <span class="n-seal n-quad__seal" id="quad-seal" ${NT.raw(isFrozen ? 'style="opacity:1"' : '')}>冻<br>结</span>
@@ -102,10 +102,10 @@
         <aside class="nt-grid nt-sticky">
           <div class="n-card" id="panel"></div>
           <div class="n-card">
-            ${isFrozen ? html`<p class="nt-muted" style="margin:0">${NT.md(sn.at)} 由${st.person(sn.by).name}确认冻结。之后有新证据时，档案里提示「可能需要重新校准」，正式位置保持冻结时的样子。</p>`
-              : html`<div class="nt-row"><button class="n-btn n-btn--ink" type="button" id="quad-confirm" ${NT.raw(canConfirm ? '' : 'disabled')}>${icon('stamp')}确认并冻结${isLanding ? '' : `「${st.orgShort(team)}」`}</button><button class="n-btn n-btn--ghost" type="button" id="quad-reset">${icon('retry')}重新给出参考位置</button></div>
-              ${!canConfirm ? html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>校准由 HR 确认冻结。</b></div></div>` : ''}
-              <p class="nt-caption">选中头像后可以用方向键移动，点头像查看维度分和证据。</p>`}
+            ${isFrozen ? html`<p class="nt-muted" style="margin:0">${NT.md(sn.at)} 由${st.person(sn.by).name}确认存档。之后有新证据时，档案里提示「可能需要重新校准」，正式位置保持上次校准的结果。</p>`
+              : html`<div class="nt-row"><button class="n-btn n-btn--ink" type="button" id="quad-confirm" ${NT.raw(canConfirm ? '' : 'disabled')}>${icon('stamp')}确认并存档${isLanding ? '' : `「${st.orgShort(team)}」`}</button><button class="n-btn n-btn--ghost" type="button" id="quad-reset">${icon('retry')}重新给出参考位置</button></div>
+              ${!canConfirm ? html`<div class="n-notice is-deny" style="margin-top:var(--s-3)">${icon('lock')}<div><b>校准由 HR 确认存档。</b></div></div>` : ''}
+              `}
           </div>
         </aside>
       </div>`);
@@ -132,7 +132,7 @@
 
   function frozenText(sn) {
     const moved = people.filter((x) => x.reason).map((x) => `${x.p.name}（${NT.esc(x.reason)}）`);
-    return `已冻结快照 · <span class="ink-hand">${NT.esc(st.person(sn.by).name)}</span> · ${NT.md(sn.at)}。${moved.length ? `调整：${moved.join('；')}。` : ''}之后有新证据时提示「可能需要重新校准」，正式位置保持冻结时的样子。`;
+    return `已存档 · <span class="ink-hand">${NT.esc(st.person(sn.by).name)}</span> · ${NT.md(sn.at)}。${moved.length ? `调整：${moved.join('；')}。` : ''}之后有新证据时提示「可能需要重新校准」，正式位置保持上次校准的结果。`;
   }
 
   function place(x) {
@@ -201,7 +201,7 @@
     const n = people.filter((x) => Math.hypot(x.pos[0] - x.ref[0], x.pos[1] - x.ref[1]) > 0.03).length;
     const shift = people.filter((x) => x.prevQ && x.prevQ !== x.refQ);
     const sg = st.can('quadConfirm') ? people.filter((x) => x.sug).length : 0;
-    $('#quad-say-text').textContent = sg && !n ? `有 ${sg} 人收到调整建议，点头像查看，可以按建议放。` : n ? `已调整 ${n} 人的位置。确认后冻结。`
+    $('#quad-say-text').textContent = sg && !n ? `有 ${sg} 人收到调整建议，点头像查看，可以按建议放。` : n ? `已调整 ${n} 人的位置。确认后存档。`
       : `参考位置已给出。拖动头像到你判断的位置，同意参考位置的人保持原位。${shift.length ? `${shift.map((x) => `${x.p.name}的参考位置离开了上次的正式位置（${QN[x.prevQ]}）`).join('；')}，待你判断。` : ''}`;
   }
 
@@ -267,10 +267,10 @@
     const next = pending()[0];
     if (next) { ask(next); NT.toast('和参考位置不同的人待补理由'); return; }
     const v = await NT.dialog({
-      title: `确认并冻结${isLanding ? '结营校准' : `「${st.orgShort(team)}」的校准`}？`,
-      body: html`<p>冻结为快照：当时的位置、维度分、证据和规则版本都保存下来，成为每个人${isLanding ? '的第一份' : '这一期的'}档案版本。</p>`,
+      title: `确认并存档${isLanding ? '结营校准' : `「${st.orgShort(team)}」的校准`}？`,
+      body: html`<p>确认后存档：当时的位置、维度分、证据和规则版本都保存下来，成为每个人${isLanding ? '的第一份' : '这一期的'}档案版本。</p>`,
       facts: [html`${people.length} 人落位 · ${people.filter((x) => x.reason).length} 人和参考不同`, html`规则版本 ${b?.rubric || st.ruleLive('rubric').v}、${st.ruleLive('place').v} · 证据截止 ${NT.md(cutoff())}`],
-      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '确认并冻结', value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
+      actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '确认并存档', value: 'ok', cls: 'n-btn--seal', icon: 'stamp' }],
     });
     if (v !== 'ok') return;
     const S = st.get();
@@ -291,7 +291,7 @@
     NT.ipState($('#quad-ip'), 'done');
     $('#quad-say').classList.add('is-ink');
     $('#quad-say-text').innerHTML = frozenText(sn);
-    NT.toast(`已冻结${isLanding ? '结营校准' : `「${st.orgShort(team)}」`}，档案版本随之生成`);
+    NT.toast(`已存档${isLanding ? '结营校准' : `「${st.orgShort(team)}」`}，档案版本随之生成`);
     setTimeout(() => render($('#main')), NT.reduced ? 0 : 1400);
   }
 })();

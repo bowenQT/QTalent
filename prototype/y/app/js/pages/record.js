@@ -26,7 +26,7 @@
     const pre = NT.param('person');
     const track = pre && NT.param('track') && st.get().tracks.find((t) => t.id === NT.param('track') && t.person === pre);
     mount(main, html`
-      <header class="nt-head"><div><h1>记一件事</h1><p>写原话就行。AI 按情境、行为、影响整理，给涉及的维度打建议分，文字和分数都可以直接改。保存后 5 秒内可以撤销。</p></div></header>
+      <header class="nt-head"><div><h1>记一件事</h1></div></header>
       <div class="nt-split">
         <article class="n-card n-event" id="ev" data-step="write">
           <div class="n-event__head" id="ev-head"><span>谁</span><select class="n-select" id="ev-person" style="width:auto;min-height:30px" aria-label="记录给谁">
@@ -39,7 +39,8 @@
             <div class="n-eventin__bar">
               <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="ev-mic" aria-label="按住说话">${icon('mic')}</button>
               ${UI.attachButton()}
-              <span class="n-eventin__hint" id="ev-hint">写原话就行，不用分段；可以附上 PDF、PPT、文档、表格、录音或视频，也可以直接拖进来</span>
+              <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="ev-gh" aria-label="添加 GitHub 依据" title="添加 GitHub 依据：Issue 或 PR">${icon('branch')}</button>
+              <span class="n-eventin__hint" id="ev-hint">写原话就行，不用分段；可以附上 PDF、PPT、文档、表格、录音或视频，也可以添加 GitHub 上的 Issue 和 PR</span>
               <button class="n-btn n-btn--light" type="button" id="ev-shape">${icon('spark')}整理成关键事件</button>
             </div>
           </div>
@@ -50,13 +51,17 @@
           <div class="n-anchor" id="anchor"><b id="anchor-t">锚点</b> <span class="n-badge" style="margin-left:6px" id="anchor-v"></span><p class="nt-muted" id="anchor-fam" style="margin:4px 0 0" hidden></p><ol></ol>
             ${st.canSuggestRule() ? html`<div class="nt-row" style="margin-top:var(--s-2)"><button class="n-btn n-btn--sm n-btn--ghost" type="button" id="anchor-sug">${icon('note')}提修订建议</button></div><div id="my-sugs"></div>` : ''}</div>
           <div class="n-card" style="padding:var(--s-4) var(--s-5)"><b style="font-size:var(--t-sm)">怎么算一条关键事件</b>
-            <p class="nt-caption">一件具体的事，按 SBI 讲：在什么情境下（S）、本人做了什么（B）、带来什么影响（I）。只写了「参与」的地方标为资料不足。多人参与的事，按各自的行为打分。</p></div>
+            </div>
         </aside>
       </div>`);
     // 附件：「改原话」或撤销保存回到这页时保留已解析的附件
     att = UI.attach({ key: 'record' }).list($('#ev-atts')).pick($('[data-att-pick]', $('#ev'))).drop($('#ev')).fallback(() => $('#ev-back'));
-    if (q) att.restore(); else att.clear();
+    if (q || NT.param('keep')) att.restore(); else att.clear();
+    // 从项目看板的 Issue / PR 进来：带上这一条作为依据
+    const ghPre = pre && NT.param('gh') && NT.gh.find(NT.param('gh'));
+    if (ghPre && !att.ghItems().some((g) => g.key === ghPre.key)) att.addRemote([{ ...ghPre, fetched: `${NT.md(NT.TODAY)} ${new Date().toTimeString().slice(0, 5)}` }]);
     $('#ev-shape').addEventListener('click', () => doShape());
+    $('#ev-gh').addEventListener('click', addGithub);
     $('#ev-mic').addEventListener('click', () => {
       const f = $('#ev-text'); NT.ipState($('#ev-ip'), 'listening');
       NT.stream(f, '结营前一周组员都在等分工。孟逸尘主动把任务池同步给了全组，下午组员就接上了。分工清楚多了，演示前一天全部跑通。', 38).then(() => NT.ipState($('#ev-ip'), 'confirm'));
@@ -112,10 +117,21 @@
   }
 
   let draft = null, att = null;
+  // GitHub 依据按「记给谁」查：先看上面选的人，再看原话里提到的人
+  async function addGithub() {
+    const pid = $('#ev-person').value || findPeople($('#ev-text').value).hit[0]?.id;
+    if (!pid) { $('#ev-hint').innerHTML = '<span style="color:var(--conflict)">先选是谁，</span>再按这个人的 GitHub 账号查找'; $('#ev-person').focus(); return; }
+    if (!$('#ev-person').value) $('#ev-person').value = pid;
+    const picked = await NT.gh.pick(pid, att.ghItems());
+    if (picked.length) att.addRemote(picked);
+  }
   async function doShape() {
-    const text = $('#ev-text').value.trim();
-    if (!text) { $('#ev-text').focus(); return; }
+    const typed = $('#ev-text').value.trim(), ghs = att.ghItems();
+    if (!typed && !ghs.length) { $('#ev-text').focus(); return; }
     let pid = $('#ev-person').value;
+    if (!typed && !pid) { $('#ev-hint').innerHTML = '<span style="color:var(--conflict)">这件事是谁的？</span>在上面选一下'; $('#ev-person').focus(); return; }
+    // 没写原话、只加了 GitHub 依据时，按材料起草；起草的文字不当作记录原话保存
+    const text = typed || NT.gh.draftText(pid, ghs);
     const found = findPeople(text);
     if (!pid) {
       if (found.hit.length) pid = found.hit[0].id;
@@ -125,7 +141,7 @@
     const ev = $('#ev'), ip = $('#ev-ip');
     const proj = findProject(text);
     const s = shape(text, pid);
-    draft = { pid, text, proj, ...s };
+    draft = { pid, text: typed, proj, ...s };
     ev.dataset.step = 'shaped';
     $('#ev-in').hidden = true;
     const body = $('#ev-body'); body.hidden = false;
@@ -141,7 +157,7 @@
         <dt>影响</dt><dd><span class="n-edit is-light" data-k="res" contenteditable="plaintext-only" spellcheck="false"></span></dd>
       </dl>
       <div class="n-tags" id="ev-tags" hidden><span class="n-tags__label">标签</span><span class="n-tags__list" id="tag-list"></span><span class="n-tags__undo" id="tag-undo" hidden></span></div>
-      <details class="n-event__raw"><summary>原话</summary><p>${text}</p></details>
+      ${typed ? html`<details class="n-event__raw"><summary>原话</summary><p>${typed}</p></details>` : html`<p class="n-event__raw">按所选 GitHub 依据起草</p>`}
       <div id="ev-att-slot"></div>
       <div class="n-event__scores" id="scores"></div>
       <div class="n-event__sign" id="ev-sign" hidden></div>
@@ -167,7 +183,7 @@
     NT.ipState($('#ev-ip'), 'confirm');
     $('#ev-actions').hidden = false; hint();
     $('#ev-save').addEventListener('click', save);
-    $('#ev-back').addEventListener('click', () => { att.keep(); location.href = NT.link('record.html', { q: text }); });
+    $('#ev-back').addEventListener('click', () => { att.keep(); location.href = NT.link('record.html', { q: typed, person: pid, keep: 1 }); });
   }
   async function buildTags(s) {
     const host = $('#tag-list'); $('#ev-tags').hidden = false;
@@ -258,14 +274,14 @@
     sign.hidden = false; $('#ev-actions').hidden = true;
     NT.ipState($('#ev-ip'), 'done');
     NT.toast(`已保存到${st.person(draft.pid).name}的档案${big ? `，${big} 项转给了 HR 复核` : ''}`, {
-      undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('record.html', { q: draft.text, person: draft.pid }); }, undoneText: '已撤销这条记录',
+      undo: () => { st.removeEvent(e.id); att.keep(); location.href = NT.link('record.html', { q: draft.text, person: draft.pid, keep: 1 }); }, undoneText: '已撤销这条记录',
     });
   }
 
   // ---------- 员工本人：补充经历与自述 ----------
   function renderSelfNote(main) {
     const me = st.me();
-    mount(main, html`<header class="nt-head"><div><h1>补充经历</h1><p>你写下的内容作为「本人自述」进入档案，和他人的观察分开呈现。</p></div></header>
+    mount(main, html`<header class="nt-head"><div><h1>补充经历${NT.ui.hint('你写下的内容作为「本人自述」进入档案，和他人的观察分开呈现')}</h1></div></header>
       <article class="n-card" style="max-width:640px"><label class="n-eventin__label" for="self-text">想补充什么</label>
         <textarea class="n-eventin__field" id="self-text" placeholder="比如：MS3 的演示环境是我和组员一起搭的。"></textarea>
         <div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--ink n-btn--sm" type="button" id="self-save">保存到我的档案</button><span class="nt-muted">保存后录入人和 HR 能看到</span></div></article>`);
@@ -288,6 +304,11 @@
     const bars = Array.from({ length: 80 }, (_, i) => i);
     const durS = m.dur.split(':').reduce((a, x) => a * 60 + +x, 0); // 「38:20」→ 秒，波形上的标记位置按真实时长摆放
     const speakers = new Set(m.lines.map((l) => l[1])).size;
+    // 能做的事给入口，不能做的只写现在等谁：待核对由录入人或 HR 处理，建议分由这位学员的导师在对人复盘里确认，分差大的由 HR 校准
+    const me = st.me().id, role = st.role();
+    const mentorsOf = (pid) => st.batch(m.batch)?.newcomers.find((n) => n[0] === pid)?.[2] || [];
+    const canVerify = (v) => role === 'hrbp' || v.by === me;
+    const mine = evs.filter((e) => e.scores.some((x) => x.st === 'ai') && mentorsOf(e.people[0]).includes(me));
     mount(main, html`
       <header class="nt-head"><div><h1>${m.title}</h1><p>${m.mode} · ${m.dur} · ${st.person(m.by).name}录制 · ${NT.md(m.at)} · 关联「${st.batch(m.batch).name}」</p></div>
         <div class="nt-head__acts"><span class="n-badge n-badge--preset">预先处理的演示任务</span></div></header>
@@ -300,14 +321,15 @@
           </div>
           <div class="n-tabpanel" role="tabpanel" id="mp-1">
             <p class="n-minutes__sum" id="sum"></p>
-            <div class="n-minutes__people">${m.people.filter(([pid]) => st.scope(pid)).map(([pid]) => html`<a class="nt-plink" href="person.html?id=${pid}"><span>${UI.avatar(pid, 'sm')}${st.person(pid).name} · ${evs.filter((e) => e.people.includes(pid)).length} 条</span></a>`)}${verify.filter((v) => !v.done).map((v) => html`<a class="nt-plink" href="inbox.html#${v.id}"><span><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>${v.quote.match(/「?(小孟|分镜那个组)/)?.[1] || '待核对'} · 待核对</span></a>`)}</div>
+            <div class="n-minutes__people">${m.people.filter(([pid]) => st.scope(pid)).map(([pid]) => html`<a class="nt-plink" href="person.html?id=${pid}"><span>${UI.avatar(pid, 'sm')}${st.person(pid).name} · ${evs.filter((e) => e.people.includes(pid)).length} 条</span></a>`)}${verify.filter((v) => !v.done).map((v) => { const chip = html`<span><span class="n-avatar n-avatar--sm" style="--hue:0;background:var(--sheet-sunk)">?</span>${v.quote.match(/「?(小孟|分镜那个组)/)?.[1] || '待核对'} · 待核对</span>`; return canVerify(v) ? html`<a class="nt-plink" href="inbox.html#${v.id}">${chip}</a>` : chip; })}</div>
             <h4 class="nt-h2" style="font-size:var(--t-sm)">新事件 · ${evs.length} 条</h4>
             ${evs.map((e) => {
               const pend = e.scores.filter((s) => s.st === 'ai').length, conf = e.scores.some((s) => s.st === 'conflict');
               const who = st.person(e.people[0]);
-              return html`<a class="n-minievent nt-plink" href="person.html?id=${who.id}#ev-${e.id}"><div>${e.title}<small>${who.name} · ${e.scores.filter((s) => s.v != null).map((s) => `${st.dim(s.d).name} ${s.v}`).join('、') || '—'} · ${e.srcs.find((x) => x.type === 'audio')?.loc || NT.md(e.date)}</small></div>${conf ? html`<span class="n-badge n-badge--conflict">${icon('split')}待校准</span>` : pend ? html`<span class="n-badge n-badge--ai">${icon('spark')}${pend} 项待确认</span>` : html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>`}</a>`;
+              return html`<a class="n-minievent nt-plink" href="person.html?id=${who.id}#ev-${e.id}"><div>${e.title}<small>${who.name} · ${e.scores.filter((s) => s.v != null).map((s) => `${st.dim(s.d).name} ${s.v}`).join('、') || '—'} · ${e.srcs.find((x) => x.type === 'audio')?.loc || NT.md(e.date)}</small></div>${conf ? html`<span class="n-badge n-badge--conflict">${icon('split')}${st.can('calibrate') ? '待校准' : '待 HR 校准'}</span>` : pend ? html`<span class="n-badge n-badge--ai">${icon('spark')}${mentorsOf(who.id).includes(me) ? `${pend} 项待你确认` : `${pend} 项待导师确认`}</span>` : html`<span class="n-badge n-badge--yes">${icon('check')}已确认</span>`}</a>`;
             })}
-            ${verify.length ? html`<h4 class="nt-h2" style="font-size:var(--t-sm);margin-top:var(--s-4)">待核对 · ${verify.filter((v) => !v.done).length} 处</h4>${verify.map((v) => html`<a class="n-minievent nt-plink" href="inbox.html#${v.id}"><div>${v.q}<small>${v.at} · ${st.person(v.by).name}</small></div>${v.done ? html`<span class="n-badge n-badge--yes">${icon('check')}已核对</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}去核对</span>`}</a>`)}` : ''}
+            ${verify.length ? html`<h4 class="nt-h2" style="font-size:var(--t-sm);margin-top:var(--s-4)">待核对 · ${verify.filter((v) => !v.done).length} 处</h4>${verify.map((v) => { const row = html`<div>${v.q}<small>${v.at} · ${st.person(v.by).name}</small></div>${v.done ? html`<span class="n-badge n-badge--yes">${icon('check')}已核对</span>` : canVerify(v) ? html`<span class="n-badge n-badge--ai">${icon('spark')}去核对</span>` : html`<span class="n-badge">待${st.person(v.by).name}核对</span>`}`;
+              return !v.done && canVerify(v) ? html`<a class="n-minievent nt-plink" href="inbox.html#${v.id}">${row}</a>` : html`<div class="n-minievent">${row}</div>`; })}` : ''}
           </div>
           <div class="n-tabpanel" role="tabpanel" id="mp-2" hidden>
             <ol class="n-transcript">${m.lines.map(([t, by, text, flag]) => html`<li class="${flag === 'flag' ? 'is-flag' : ''}"><time>${t}</time><div><b>${st.person(by).name} · ${st.person(by).staff === 'ta' ? '助教' : '导师'}</b>${flag === 'verify' ? raw(NT.esc(text).replace(/(小孟|分镜那个组)/, '<mark>$1</mark>')) : text}</div></li>`)}</ol>
@@ -321,9 +343,9 @@
           <div class="n-card">${UI.trail('处理这段录音 · 5 步', ['上传完成 · 182 MB', `转写 · 区分 ${speakers} 位说话人`, '提取人员与项目', `整理出 ${evs.length} 条事件`, `标出 ${verify.length} 处需要人确认`], false)}</div>
           <div class="n-card"><h3 class="n-section-title">接下来</h3>
             <ul class="nt-list" style="font-size:var(--t-sm)">
-              <li>导师逐个确认学员的建议分：<a href="landing-review.html?id=p-x11">孟逸尘 W8 对人复盘</a></li>
-              <li>核对人名和项目：<a href="inbox.html">待核对</a></li>
-              ${st.can('calibrate') ? html`<li>分差大的分数由 HR 校准：<a href="queue.html">评分复核</a></li>` : ''}
+              ${mine.length ? mine.map((e) => html`<li>确认${st.person(e.people[0]).name}的建议分：<a href="landing-review.html?id=${e.people[0]}">W8 对人复盘</a></li>`) : html`<li>学员的建议分由各自的导师在对人复盘里确认</li>`}
+              ${verify.some((v) => !v.done && canVerify(v)) ? html`<li>核对人名和课题：<a href="inbox.html">待核对</a></li>` : verify.some((v) => !v.done) ? html`<li>人名和课题由录入人${st.person(m.by).name}核对</li>` : ''}
+              ${st.can('calibrate') ? html`<li>分差大的分数由你校准：<a href="queue.html">评分复核</a></li>` : html`<li>分差大的分数由 HR 校准</li>`}
             </ul></div>
         </aside>
       </div>`);

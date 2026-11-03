@@ -27,7 +27,7 @@
     const left = s.mineToConfirm, held = mine.some((x) => x.state === 'held');
     mount(main, html`
       <section class="m-card">
-        <p class="nt-muted" style="margin:0 0 4px">${st.ENTRY[d.entry]} · ${d.at.slice(5)}</p>
+        <p class="nt-muted n-entryline" style="margin:0 0 4px">${NT.ui.entry(d.entry)}<span>${d.at.slice(5)}</span></p>
         <h2 style="margin:0 0 var(--s-2);font-size:var(--t-lg)">${d.title}</h2>
         <ul class="n-rsum" style="margin:0"><li><b>${s.people}</b>人</li><li><b>${s.events}</b>件事</li><li><b>${s.verifyOpen}</b>处待核对</li><li><b>${s.mineToConfirm}</b>件待你确认</li></ul>
       </section>

@@ -9,6 +9,11 @@
   UI.root = '..';
 
   UI.demo = () => html`<span class="n-badge n-badge--demo">演示</span>`;
+  // 投递入口标签：全站同一个样子，企业微信小犇、MCP 用各自的底色和图标区分
+  const ENTRY_ICON = { web: 'upload', wecom: 'chat', mcp: 'code', mobile: 'phone' };
+  UI.entry = (k, tool) => html`<span class="n-via n-via--${k}">${icon(ENTRY_ICON[k], 12)}${st.ENTRY[k]}${tool ? ` · ${tool}` : ''}</span>`;
+  // 原量表里的星级（绩效评分，满 5 星）画成星星；其他取值原样显示
+  UI.scaleVal = (v) => { const m = /^([0-5]) 星$/.exec(v); return m ? html`<span class="n-stars" role="img" aria-label="${m[1]} 星，满分 5 星">${'★'.repeat(+m[1])}<i>${'★'.repeat(5 - m[1])}</i></span>` : v; };
   UI.avatar = (pid, size = '') => {
     const p = st.person(pid);
     if (!p) return html`<span class="n-avatar ${size ? `n-avatar--${size}` : ''}" style="--hue:0;background:var(--sheet-sunk)">?</span>`;
@@ -25,6 +30,8 @@
     ${tabs.length > 1 ? html`<nav class="n-tabs nt-subtabs" aria-label="人才项目">${tabs.map(([k, l, h]) => html`<a href="${h}" ${raw(k === cur ? 'aria-current="page"' : '')}>${l}</a>`)}</nav>` : ''}
     <p class="nt-tabdesc">${desc}</p>`;
   };
+  // 词义不直观时，在词旁边放一个问号，悬浮或聚焦时说明；不在页面里另放规则说明
+  UI.hint = (text) => NT.html`<span class="n-hint" tabindex="0" role="img" aria-label="${text}" data-hint="${text}">${NT.icon('help', 14)}</span>`;
   UI.plink = (pid, text) => {
     const p = st.person(pid);
     if (!p) return text || '';
@@ -107,9 +114,9 @@
     citeN += 1;
     // 有时间段的录音（含附件里的录音、视频音轨）可以就地播放那一段
     const audio = (src.type === 'audio' || src.type === 'video') && /\d:\d\d/.test(src.loc || '');
-    const ic = { audio: 'wave', video: 'play', doc: 'doc', slide: 'doc', sheet: 'doc', note: 'note' }[src.type] || 'doc';
+    const ic = { audio: 'wave', video: 'play', doc: 'doc', slide: 'doc', sheet: 'doc', note: 'note', gh: 'branch' }[src.type] || 'doc';
     const quote = src.quote ? html`<p class="n-cite__quote">${src.quote}</p>` : '';
-    return html`<span class="n-cite"><button class="n-cite__mark" ${raw(audio ? 'data-kind="audio"' : '')} type="button" aria-label="引用 ${n}：${src.label}">${n}</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src">${icon(ic, 14)}${src.label} · ${src.loc}${src.by ? ` · ${st.person(src.by)?.name}` : ''}</span>${quote}${audio ? html`<span class="n-cite__foot"><button class="n-player__play nt-play" type="button" style="width:26px;height:26px" aria-label="播放这一段">${icon('play', 10)}</button><span style="font-size:var(--t-xs);color:var(--ink-3)">播放 ${src.loc.match(/\d+:\d\d/)[0]} 起的 10 秒</span></span>` : ''}</span></span>`;
+    return html`<span class="n-cite"><button class="n-cite__mark" ${raw(audio ? 'data-kind="audio"' : '')} type="button" aria-label="引用 ${n}：${src.label}">${n}</button><span class="n-cite__pop" role="tooltip"><span class="n-cite__src">${icon(ic, 14)}${src.label} · ${src.loc}${src.by ? ` · ${st.person(src.by)?.name}` : ''}</span>${quote}${src.url ? html`<span class="n-cite__url">${src.url}</span>` : ''}${audio ? html`<span class="n-cite__foot"><button class="n-player__play nt-play" type="button" style="width:26px;height:26px" aria-label="播放这一段">${icon('play', 10)}</button><span style="font-size:var(--t-xs);color:var(--ink-3)">播放 ${src.loc.match(/\d+:\d\d/)[0]} 起的 10 秒</span></span>` : ''}</span></span>`;
   };
   UI.cites = (srcs) => (srcs || []).map((s, i) => UI.cite(s, i + 1));
 
@@ -157,7 +164,8 @@
     const input = document.createElement('input');
     Object.assign(input, { type: 'file', multiple: true, accept: UI.ATT_ACCEPT, hidden: true });
     document.body.append(input);
-    const stateLine = (it) => (it.st === 'up' ? `上传中 · ${attSize(it.size)}`
+    const stateLine = (it) => (it.gh ? html`<span class="ok">已取得</span> · ${it.gh.state} · ${it.gh.ref} · ${it.gh.fetched} 取得`
+      : it.st === 'up' ? `上传中 · ${attSize(it.size)}`
       : it.st === 'parse' ? (it.unit === '时' ? '转写中…' : '解析中 · 识别文字')
         : it.st === 'err' ? html`<span class="err">${it.err}</span>`
           : it.scan ? html`<span class="ok">已上传</span> · 扫描件，未识别出文字，只作附件保存`
@@ -232,9 +240,20 @@
         return api;
       },
       add,
+      // GitHub 依据：取得即可用，和附件一起作为这件事的出处；同一条 Issue / PR 只加一次
+      addRemote(list) {
+        list.forEach((g) => {
+          if (items.some((x) => x.gh?.key === g.key)) { NT.toast(`「${g.ref}」已经加过了`); return; }
+          items.push({ id: NT.uid('att'), name: g.title, ext: g.kind === 'pr' ? 'PR' : 'ISS', type: 'gh', st: 'ok', gh: g });
+        });
+        draw(); return api;
+      },
+      ghItems: () => items.filter((x) => x.gh).map((x) => x.gh),
       pending: () => items.filter((x) => x.st === 'up' || x.st === 'parse').length,
       // 出处：已解析的给到具体位置和原文示意；扫描件只作附件，不给位置
-      srcs: () => items.filter((x) => x.st === 'ok').map((x) => (x.scan
+      srcs: () => items.filter((x) => x.st === 'ok').map((x) => (x.gh
+        ? { type: 'gh', label: `GitHub：${x.gh.repo} #${x.gh.n}`, loc: `${x.gh.kind === 'pr' ? 'PR 描述' : 'Issue 描述'} · ${x.gh.state} · ${x.gh.fetched} 取得`, quote: x.gh.body, url: x.gh.url }
+        : x.scan
         ? { type: x.type, att: 1, label: `附件：${x.name}`, loc: '扫描件，未识别出文字' }
         : { type: x.type, att: 1, label: `附件：${x.name}`, loc: x.loc, quote: `演示附件：这里显示${x.loc}的原文。` })),
       lock() { locked = true; items = items.filter((x) => x.st === 'ok'); draw(); },
@@ -282,7 +301,7 @@
         ${proj ? html`<a class="n-badge" href="project.html?id=${proj.id}">${icon('folder')}${proj.type === 'XEngineer 课题' ? '课题' : '项目'}：${proj.name}</a>` : ''}${who}${roleNote}</div>
       <h3 class="n-event__title">${e.title}${e.kind !== 'hist' ? UI.cites(e.srcs) : ''}</h3>
       ${e.bg || e.act || e.res ? html`<dl class="n-event__sbar">${[['情境', e.bg], ['行为', e.act], ['影响', e.res]].map(([k, v]) => html`<dt>${k}</dt><dd>${v || html`<span class="nt-muted">待补充</span>`}</dd>`)}</dl>` : ''}
-      ${e.scale ? html`<div class="n-scale"><span class="n-scale__tag">原量表 · 单独保存</span>${e.scale.map(([k, v]) => html`<span class="${v === '非管理岗免评' ? 'is-na' : ''}">${k}${v === '非管理岗免评' ? ' · ' : ' '}${v}</span>`)}</div><div class="n-tl__note">原量表单独保存，和 1–5 的维度分、能力象限分开。${e.srcs?.[0] ? ` 来源：${e.srcs[0].label} · ${e.srcs[0].loc}` : ''}</div>` : ''}
+      ${e.scale ? html`<div class="n-scale"><span class="n-scale__tag">原量表 · 单独保存</span>${e.scale.map(([k, v]) => html`<span class="${v === '非管理岗免评' ? 'is-na' : ''}">${k}${v === '非管理岗免评' ? ' · ' : ' '}${UI.scaleVal(v)}</span>`)}</div><div class="n-tl__note">原量表单独保存，和 1–5 的维度分、能力象限分开。${e.srcs?.[0] ? ` 来源：${e.srcs[0].label} · ${e.srcs[0].loc}` : ''}</div>` : ''}
       ${tags.length ? html`<div class="n-tags"><span class="n-tags__label">标签</span>${tags}</div>` : ''}
       ${scores.length ? (canScore ? html`<div class="n-event__scores">${scores.map((s) => UI.scoreLine(s, { hist: true }))}</div>` : html`<div class="n-event__scores">${UI.lock('本人视角已隐藏维度分')}</div>`) : ''}
     </article>`;
@@ -354,23 +373,25 @@
     const ava = p ? UI.avatar(c.person) : html`<span class="n-change__icon">${icon('layers')}</span>`;
     const delta = c.from != null ? html`<span class="n-delta"><s>${c.unit ? c.from : c.from.toFixed(1)}${c.unit || ''}</s>${icon(c.to > c.from ? 'up-r' : 'down-r')}${c.unit ? c.to : c.to.toFixed(1)}${c.unit || ''}</span>` : '';
     const mini = c.from != null && !c.unit ? raw(`<span class="n-mini" aria-hidden="true"><i class="was" style="left:${((c.from - 1) / 4) * 100}%"></i><i class="now" style="left:${((c.to - 1) / 4) * 100}%"></i></span>`) : '';
-    const sub = c.sub || (c.t === 'trend' ? `近 3 个月 ${c.n} 条 · ${base === 'ver' ? '对比中期档案版本' : '对比之前 9 个月'}${c.thin ? ' · 证据少' : ''}` : '');
+    const sub = c.sub || (c.t === 'trend' ? `${base === 'ver' ? '中期之后' : '近 3 个月'} ${c.n} 条 · ${base === 'ver' ? '对比中期档案版本' : '对比之前 9 个月'}${c.thin ? ' · 证据少' : ''}` : '');
     const evli = (list) => html`<ul>${list.map((s) => html`<li><b>${s.v}</b>${s.ev.title} <small>${NT.md(s.date)} · ${st.person(s.by)?.name || ''}</small></li>`)}</ul>`;
     const why = {
       trend: c.up ? '上升和下降一样按规则提示，便于在盘点里及时看到。先看事件再判断。' : '下降可能和情境变化有关（换了项目、任务更模糊），建议先看事件再判断，不直接下结论。',
       activity: c.hit ? '近 90 天的事件待补记。' : '这是一条记录变动，供了解。',
-      quad: '校准过的位置保持原样，要在象限校准里重新确认。',
-      team: '资料不足上升，需要补录事件。',
+      quad: c.axis ? `参考位置按${c.axis.name}均值是否到 3.5 分高低，上面这些新事件让它跨到了${st.QN[c.rq]}。校准过的${st.QN[c.fq]}不会自动改，要在象限校准里看过事件后重新确认。` : '校准过的位置保持原样，要在象限校准里重新确认。',
+      team: c.hit ? '资料不足上升，需要补录事件。' : '中期之后补记了事件，更多人满足落位条件。供了解，不需要处理。',
     }[c.t];
     const acts = {
       trend: [['转为跟踪', `person.html?id=${c.person}&track=1`], ['看档案', `person.html?id=${c.person}`]],
       activity: c.hit ? [['看「值得聊一聊」', `person.html?id=${c.person}#signal`], ['看档案', `person.html?id=${c.person}`]] : [['看档案', `person.html?id=${c.person}`]],
       // 校准由 HR 完成：管理者只看档案，不给校准入口
-      quad: st.can('calibrate') ? [st.recalTarget(c.person) ? ['去象限校准', st.recalTarget(c.person)] : ['发起新的盘点后校准', 'reviews.html']] : [['看档案', `person.html?id=${c.person}`]],
+      quad: c.t !== 'quad' ? [] : st.can('calibrate') ? [st.recalTarget(c.person) ? ['去象限校准', st.recalTarget(c.person)] : ['发起新的盘点后校准', 'reviews.html']] : [['看档案', `person.html?id=${c.person}`]],
       team: [['看盘点清单', `review.html?id=b-xe6-end`]],
     }[c.t];
     const detail = c.t === 'trend'
-      ? html`<div><h5>${base === 'ver' ? '中期档案版本' : '之前 9 个月'}</h5>${evli(c.before)}</div><div><h5>近 3 个月</h5>${evli(c.after)}</div><p class="n-change__why">${why}</p>`
+      ? html`<div><h5>${base === 'ver' ? '中期档案版本' : '之前 9 个月'}</h5>${evli(c.before)}</div><div><h5>${base === 'ver' ? '中期之后' : '近 3 个月'}</h5>${evli(c.after)}</div><p class="n-change__why">${why}</p>`
+      : c.t === 'quad' && c.after?.length
+      ? html`<div style="grid-column:1/-1"><h5>中期之后的事件</h5><ul>${c.after.map((s) => html`<li><b>${s.v}</b>${st.dim(s.d).name} · ${s.ev.title} <small>${NT.md(s.date)} · ${st.person(s.by)?.name || ''}</small></li>`)}</ul></div><p class="n-change__why">${why}</p>`
       : html`<p class="n-change__why" style="border:0;padding:0">${why}</p>`;
     return html`<div class="n-change ${st.get().seen[c.id] ? 'is-seen' : ''}" data-id="${c.id}"><button class="n-change__row" type="button" aria-expanded="false">${ava}
       <span class="n-change__what"><span class="n-change__line"><b>${who}</b>${c.what}${delta}${mini}${c.hit && c.rule ? html`<span class="n-rule">${icon('flag')}${c.rule}</span>` : ''}</span><span class="n-change__sub">${sub}</span></span>
@@ -429,7 +450,7 @@
     const p = st.person(pid);
     const r = await NT.dialog({
       title: t ? `改${p.name}的观察问题` : `重点跟踪${p.name}`,
-      body: html`<label class="n-field"><span class="n-field__label">为什么关注</span><input class="n-input" id="tk-why" value="${t?.why || ''}" placeholder="比如：近 3 个月智慧力明显走低"></label>
+      body: html`<label class="n-field"><span class="n-field__label">为什么关注</span><input class="n-input" id="tk-why" value="${t?.why || ''}" placeholder="比如：最近遇到难题时，处理思路不如之前清楚"></label>
         <label class="n-field"><span class="n-field__label">具体想观察什么 <small>写成一个能回答的问题</small></span><textarea class="n-textarea ink-hand" id="tk-q" style="font-size:var(--t-md)" placeholder="比如：没有导师在场时，能不能独立做方案取舍？">${t?.q || ''}</textarea></label>
         <label class="n-field"><span class="n-field__label">下次什么时候看</span><select class="n-select" id="tk-next"><option value="2026-11-06">11-06 前</option><option value="2026-11-13">11-13 前</option><option value="2026-11-30">本月底前</option></select></label>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: t ? '保存' : '开始跟踪', value: 'ok', cls: 'n-btn--ink',
@@ -452,6 +473,19 @@
     const mgSide = d.mgmt == null ? html`<div class="n-lock">${icon('lock')}管理判断仅管理者和 HR 可见。</div>`
       : mg ? html`<div class="n-dir__side is-mgmt"><span class="n-dir__label"><span class="n-src n-src--obs">${icon('eye')}管理判断</span>${st.person(mg.by).name} · ${NT.md(mg.at)}</span><b class="n-dir__ch">${ch(mg.ch)}</b><span class="n-dir__note">依据：${mg.basis}${mg.ev && st.event(mg.ev) ? UI.cite({ ...st.event(mg.ev).srcs[0], quote: st.event(mg.ev).srcs[0]?.quote || st.event(mg.ev).act || st.event(mg.ev).title }, 1) : ''}</span>${older(d.mgmt, (x) => `${st.person(x.by).name} ${NT.md(x.at)}`)}</div>`
         : html`<div class="n-dir__side is-unknown"><span class="n-dir__label">管理判断</span><b class="n-dir__ch">未知</b><span class="n-dir__note">还没有人写过，不当作「不适合」</span></div>`;
+    // 档案右栏的概况卡里用紧凑的一行一条：来源标签在左，通道和出处在右
+    if (o.compact) {
+      const row = (src, side, meta, note, old) => html`<dt>${src}</dt><dd>${side ? html`<b>${ch(side.ch)}</b>` : html`<b class="is-unknown">未知</b>`} <span class="nt-muted">${meta}</span>${note ? html`<small>${note}</small>` : ''}${old}</dd>`;
+      const recosC = st.recosFor(pid).map((c) => html`<div class="n-dir__reco">${icon('target')}<span><b>推荐${st.fitText(c.dir)}</b>${c.why}<small>${st.person(c.by).name}推荐 · ${st.person(c.verifiedBy).name}核实 · ${NT.md(c.verifiedAt)}</small></span></div>`);
+      return html`<section class="n-facet" id="direction"><h3 class="n-facet__head">发展方向<small>通道取自人才发展大图</small>${o.canWrite ? html`<button class="n-link n-facet__act" type="button" data-dir="${o.canWrite}">${o.canWrite === 'self' ? '写下或修改我的意愿' : '写管理判断'}</button>` : ''}</h3>
+        <dl class="n-dirc">
+          ${row(html`<span class="n-src n-src--self">${icon('quote')}本人意愿</span>`, self, self ? `${self.src || '本人填写'} · ${NT.md(self.at)}` : '', self ? (self.text ? `「${self.text}」` : '') : '还没有本人的记录，不当作「不想」', older(d.self, (x) => NT.md(x.at)))}
+          ${d.mgmt == null ? html`<dt><span class="n-src">${icon('lock')}管理判断</span></dt><dd class="nt-muted">仅管理者和 HR 可见</dd>`
+            : row(html`<span class="n-src n-src--obs">${icon('eye')}管理判断</span>`, mg, mg ? `${st.person(mg.by).name} · ${NT.md(mg.at)}` : '', mg ? html`依据：${mg.basis}${mg.ev && st.event(mg.ev) ? UI.cite({ ...st.event(mg.ev).srcs[0], quote: st.event(mg.ev).srcs[0]?.quote || st.event(mg.ev).act || st.event(mg.ev).title }, 1) : ''}` : '还没有人写过，不当作「不适合」', older(d.mgmt, (x) => `${st.person(x.by).name} ${NT.md(x.at)}`))}
+        </dl>
+        ${recosC.length ? html`<div class="n-dir__recos">${recosC}</div>` : ''}
+        <div data-dir-form></div></section>`;
+    }
     const differ = self && mg && self.ch !== mg.ch;
     // 已核实的推荐方向（v1.5 3.31）：推荐人与核实人都写出来，不打分、不参与排序
     const recos = st.recosFor(pid).map((c) => html`<div class="n-dir__reco">${icon('target')}<span><b>推荐${st.fitText(c.dir)}</b>${c.why}<small>${st.person(c.by).name}推荐 · ${st.person(c.verifiedBy).name}核实 · ${NT.md(c.verifiedAt)}</small></span></div>`);

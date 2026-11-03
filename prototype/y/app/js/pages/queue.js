@@ -21,7 +21,7 @@
     const done = st.get().events.flatMap((e) => e.scores.filter((s) => s.st === 'calibrated' && s.hist?.[0]?.kind === 'calib' && st.scope(s.p)).map((s) => ({ e, s })));
     if (!openId && q[0]) openId = q[0].id;
     mount(main, html`
-      <header class="nt-head"><div><h1>评分复核</h1><p>两位评价人打分差 2 分以上、改了 AI 的分还没写理由、新事件让象限位置变了的，都在这里复核。复核后定下的分数带朱点，理由留在修订历史里。</p></div></header>
+      <header class="nt-head"><div><h1>评分复核${NT.ui.hint('两位评价人打分差 2 分以上、改了 AI 的分还没写理由、新事件让象限位置变了的，都在这里复核')}</h1></div></header>
       <div class="nt-split nt-split--wide">
         <article class="n-card"><h3 class="n-section-title">待处理${q.length ? html`<span class="n-count">${q.length}</span>` : ''}</h3>
           ${q.length ? html`<ul class="n-queue">${q.map((it) => html`<li id="${it.id}"><button class="nt-qrow" type="button" data-open="${it.id}" aria-expanded="${it.id === openId}"><div><span class="n-badge ${it.kind === 'conflict' ? 'n-badge--conflict' : it.kind === 'recal' ? 'n-badge--recal' : ''}">${it.kind === 'conflict' ? icon('split') : ''}${it.kind === 'conflict' ? '证据冲突' : it.kindLabel}</span> ${it.kind === 'conflict' ? `${st.person(it.s.p).name} · ${st.dim(it.s.d).name} · ${it.ev.title}` : it.title}<small>${it.sub}</small></div><span class="n-queue__pair">${it.pair}</span></button>
@@ -48,7 +48,7 @@
   function detail(it) {
     if (it.kind === 'recal') {
       const f = st.formal(it.person), r = st.refPos(it.person);
-      return html`<div class="nt-qdetail"><p style="margin:0">冻结后的新事件让参考位置从「${st.QN[f.q]}」移到了「${st.QN[r.q]}」。正式位置保持冻结时的样子：可以去象限校准里调整，也可以写明理由保持正式位置。</p>
+      return html`<div class="nt-qdetail"><p style="margin:0">上次盘点之后的新事件让参考位置从「${st.QN[f.q]}」移到了「${st.QN[r.q]}」。正式位置保持上次校准的结果：可以去象限校准里调整，也可以写明理由保持正式位置。</p>
         <textarea class="n-calib__reason" id="kr" aria-label="保持正式位置的理由" placeholder="写一句理由，会留在这个人的档案里。比如：新增的两件事都在同一个项目里，等下一次盘点再看"></textarea>
         <div class="nt-row">${st.recalTarget(it.person) ? html`<a class="n-btn n-btn--sm n-btn--ink" href="${st.recalTarget(it.person)}">${icon('grid')}去象限校准</a>` : html`<a class="n-btn n-btn--sm n-btn--ink" href="reviews.html">${icon('grid')}发起新的盘点后校准</a>`}<button class="n-btn n-btn--sm" type="button" data-keepformal="${it.person}">${icon('check')}保持正式位置</button><a class="n-btn n-btn--sm n-btn--ghost" href="person.html?id=${it.person}#spectrum">看能力谱</a></div></div>`;
     }
