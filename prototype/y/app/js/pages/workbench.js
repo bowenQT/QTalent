@@ -109,16 +109,22 @@
   // 待核实线索先看这个人的速览再办
   const peekBtn = (pid) => (pid ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-peek="p:${pid}">${icon('user')}看速览</button>` : '');
   const todoActs = (t) => (t.kind === 'clue' ? html`<div class="n-todo__acts">${clueSrc(t.clue)}${peekBtn(st.get().watchClues.find((c) => c.id === t.clue)?.person)}<button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，进入值得关注</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
-  // bare：组里每条的标签都一样时不再逐条重复；noDue：到期时间相同时只写在组标题上
-  const todoList = (list, o = {}) => html`<ul class="n-todo${o.bare ? ' is-bare' : ''}">${list.map((t) => html`<li class="${t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}">${o.bare ? '' : html`<span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span>`}<span>${t.title}<small>${t.sub}</small></span><span class="due">${o.noDue ? '' : t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
-  const GROUPS = [['verify', '待核对', ['verify']], ['confirm', '待你确认的建议分', ['confirm']], ['conclusion', '节点结论', ['conclusion']], ['reassign', '待重新分派', ['reassign']], ['takeover', '接手的事', ['takeover']], ['clue', '待核实的关注线索', ['clue']], ['plan', '待确认', ['plan', 'ruleback']], ['rulesug', '规则修订建议', ['rulesug']], ['rulereview', '按新版本复核', ['rulereview']], ['calib', '待复核的评分', ['calib']], ['cover', '待补记录', ['cover']], ['follow', '待回访', ['track', 'talk']]];
+  // bare：组里每条的标签都一样时不再逐条重复
+  const todoList = (list, o = {}) => html`<ul class="n-todo${o.bare ? ' is-bare' : ''}">${list.map((t) => html`<li class="${t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}">${o.bare ? '' : html`<span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span>`}<span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
+  // 按要做的动作归成四组：组名统一两个字，后面一句话说清要处理什么
+  const GROUPS = [
+    ['verify', '核对', '材料里的人和课题对不上号，选一下是谁', ['verify']],
+    ['confirm', '确认', '建议分、节点结论和方案等你拍板', ['confirm', 'conclusion', 'plan', 'ruleback']],
+    ['review', '复核', '评分有分歧或规则改了版，再看一眼', ['calib', 'rulereview', 'rulesug']],
+    ['follow', '跟进', '线索、补记录、回访和接手的事', ['clue', 'cover', 'track', 'talk', 'reassign', 'takeover']],
+  ];
   const TODO_SHOWN = 3;
   let openGroup = null, showHandled = false, todoMore = {};
-  // 一组待办：标题行写组名、条数和共同的到期时间；默认露出 3 条，其余点开展开
+  // 一组待办：标题行写动作、要处理什么和条数；默认露出 3 条，其余点开展开
   const todoGroup = (g, open) => {
-    const o = { bare: new Set(g.list.map((t) => t.badge)).size === 1, noDue: new Set(g.list.map((t) => t.due)).size === 1 };
+    const o = { bare: new Set(g.list.map((t) => t.badge)).size === 1 };
     const rest = g.list.slice(TODO_SHOWN), more = !!todoMore[g.k];
-    return html`<div class="n-todogrp"><button class="n-todogrp__head" type="button" data-grp="${g.k}" aria-expanded="${String(open)}" aria-controls="tg-${g.k}">${g.l}<span class="n-count is-quiet">${g.list.length}</span>${o.noDue && g.list[0].due ? html`<small>${g.list[0].due}</small>` : ''}${icon('chev')}</button>
+    return html`<div class="n-todogrp"><button class="n-todogrp__head" type="button" data-grp="${g.k}" aria-expanded="${String(open)}" aria-controls="tg-${g.k}"><b>${g.l}</b><small>${g.d}</small><span class="n-count is-quiet">${g.list.length}</span>${icon('chev')}</button>
       <div class="n-fold" id="tg-${g.k}" ${raw(open ? 'data-open' : 'inert')}><div>${todoList(g.list.slice(0, TODO_SHOWN), o)}${rest.length ? html`<div class="n-fold" id="tgm-${g.k}" ${raw(more ? 'data-open' : 'inert')}><div>${todoList(rest, o)}</div></div><button class="n-link n-todogrp__more" type="button" data-more="${g.k}" aria-controls="tgm-${g.k}" aria-expanded="${String(more)}">${more ? '收起' : `再看 ${rest.length} 条`}</button>` : ''}</div></div></div>`;
   };
   // 已处理的线索：核实的和不采纳的都留痕，不采纳的写出理由，可以改回待核实
@@ -132,7 +138,7 @@
   function todoBlock(role, todos) {
     const empty = UI.state({ ip: 'done', size: 48, title: '待办都处理完了', text: '新的待核对、校准和到期的跟踪会出现在这里。' });
     if (role !== 'hrbp') return html`<h3 class="n-section-title">待办${todos.length ? html`<span class="n-count">${todos.length}</span>` : ''}</h3>${todos.length ? todoList(todos) : empty}`;
-    const groups = GROUPS.map(([k, l, kinds]) => ({ k, l, list: todos.filter((t) => kinds.includes(t.kind)) })).filter((g) => g.list.length);
+    const groups = GROUPS.map(([k, l, d, kinds]) => ({ k, l, d, list: todos.filter((t) => kinds.includes(t.kind)) })).filter((g) => g.list.length);
     if (!groups.length) return html`<h3 class="n-section-title">待办</h3>${empty}${handledBlock()}`;
     // 默认展开最紧急的一组（当天要处理的待核对）；空字符串表示用户把各组都收起了
     const open = openGroup === '' ? '' : groups.some((g) => g.k === openGroup) ? openGroup : groups[0].k;
