@@ -839,6 +839,31 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-input:hover, .n-select:hover, .n-textarea:hover { box-shadow: inset 0 0 0 1px var(--ink-4); }
 .n-input:focus, .n-select:focus, .n-textarea:focus { outline: none; box-shadow: inset 0 0 0 1px var(--light), 0 0 0 3px var(--light-soft); }
 .n-input:disabled, .n-select:disabled, .n-textarea:disabled { background: var(--sheet-sunk); color: var(--ink-3); box-shadow: none; cursor: not-allowed; }
+.n-picker__native { position: absolute !important; width: 1px !important; height: 1px !important; min-height: 0 !important; padding: 0 !important; overflow: hidden; clip: rect(0 0 0 0); opacity: 0; pointer-events: none; }
+/* 自绘下拉（niu-select.js）：按钮沿用 .n-select 的外观，列表从按钮下方展开 */
+.n-picker { display: block; font: inherit; font-size: var(--t-sm); text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.n-picker__text { pointer-events: none; }
+.n-picker.is-open { box-shadow: inset 0 0 0 1px var(--light), 0 0 0 3px var(--light-soft); }
+.n-picker:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--light), 0 0 0 3px var(--light-soft); }
+.n-listbox { position: fixed; inset: auto; z-index: 90; display: flex; flex-direction: column; box-sizing: border-box; max-width: min(360px, calc(100vw - 16px)); margin: 0; padding: 4px; border: 0; border-radius: calc(var(--r-field) + 4px); background: var(--sheet); color: var(--ink); box-shadow: var(--e-3); overflow: hidden; font-size: var(--t-sm);
+  opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top center; transition: opacity var(--d-quick) var(--ease-out), transform var(--d-quick) var(--ease-out); }
+.n-listbox.is-up { transform: translateY(6px) scale(.98); transform-origin: bottom center; }
+.n-listbox.is-in { opacity: 1; transform: none; }
+.n-listbox.is-out { opacity: 0; transform: translateY(-3px) scale(.99); transition-duration: 140ms; }
+.n-listbox.is-up.is-out { transform: translateY(3px) scale(.99); }
+.n-listbox__filter { flex: none; padding: 4px 4px 6px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.n-listbox__filter input { width: 100%; height: 30px; padding: 0 var(--s-2); border: 0; border-radius: 6px; background: var(--sheet-sunk); font: inherit; font-size: var(--t-sm); color: var(--ink); outline: none; }
+.n-listbox__filter input:focus { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.n-listbox__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scroll-padding: 4px; }
+.n-listbox__opt { display: flex; align-items: center; gap: var(--s-3); padding: 7px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: background-color 80ms; }
+.n-listbox__opt > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.n-listbox__opt > svg { flex: none; color: var(--ink); opacity: 0; transform: scale(.6); transition: opacity var(--d-quick) var(--ease-out), transform var(--d-quick) var(--ease-out); }
+.n-listbox__opt.is-active { background: var(--sheet-sunk); }
+.n-listbox__opt[aria-selected="true"] { font-weight: 600; }
+.n-listbox__opt[aria-selected="true"] > svg { opacity: 1; transform: none; }
+.n-listbox__opt.is-picked { background: rgb(36 42 48 / .09); }
+.n-listbox__opt[aria-disabled="true"] { color: var(--ink-4); cursor: not-allowed; }
+.n-listbox__empty { margin: 0; padding: var(--s-3) 10px; font-size: var(--t-xs); color: var(--ink-3); }
 .n-field.is-error .n-input, .n-field.is-error .n-textarea { box-shadow: inset 0 0 0 1px var(--no), 0 0 0 3px var(--no-soft); }
 .n-field__hint { font-size: var(--t-xs); color: var(--ink-3); line-height: 1.5; }
 .n-field.is-error .n-field__hint { color: var(--no); }
