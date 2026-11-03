@@ -95,6 +95,7 @@
     const segs = (t || '—').split('；');
     return segs.map((x, k) => { const c = x.indexOf('：'); return html`${k ? html`<span class="n-move__sep" aria-hidden="true">·</span>` : ''}${c > 0 ? html`<span class="n-move__k">${x.slice(0, c)}</span>${x.slice(c + 1)}` : x}`; });
   }
+  const withNote = (m) => [m.basis, m.note && `补充说明：${m.note}`].filter(Boolean).join('；');
   const metaItem = (k, v) => html`<span>${k}<b style="${/未知/.test(v) ? 'color:var(--unknown)' : ''}">${v}</b></span>`;
 
   function move(m, i, editable) {
@@ -104,33 +105,86 @@
     const path = html`<span class="n-move__path">${m.from ? html`${m.from}${icon('chev')}` : ''}<b>${m.to}</b></span>`;
     if (m.type === '继续观察') {
       return html`<div class="n-move" data-i="${i}"><div class="n-move__head">${name}${path}<span class="n-move__end">${m.will ? willBadge(m.will) : ''}${editable ? menu(i) : ''}</span></div>
-        <p class="n-move__basis">${basisLine(m.basis)}</p>
+        <p class="n-move__basis">${basisLine(withNote(m))}</p>
         <div class="n-move__meta">${metaItem('下次补什么', m.next || '—')}${metaItem('负责人', `${st.person(m.owner)?.name || ''} · ${NT.md(m.due)} 前`)}</div></div>`;
     }
     const meta = [m.gap && m.gap !== '—' && metaItem('缺口', m.gap), m.impact && m.impact !== '不涉及' && metaItem('影响', m.impact), metaItem('可否释放', m.release || '未知')].filter(Boolean);
     return html`<div class="n-move" data-i="${i}"><div class="n-move__head">${name}${path}${m.kind === '激活' && ftype !== '激活' ? html`<span class="n-kind">激活 · ${m.type}</span>` : ''}<span class="n-move__end">${willBadge(m.will)}${editable ? menu(i) : ''}</span></div>
       ${!who && pendingLink ? html`<div class="n-ownerless" style="margin-top:var(--s-3)"><span class="n-slot__empty">${icon('plus', 14)}</span><div><b>人选来自项目用人方案</b><div class="nt-muted">项目用人方案确认后，这里自动填上人</div></div><a class="n-btn n-btn--sm n-btn--light" href="${pendingLink}">${icon('spark')}去找 owner</a></div>` : ''}
-      <p class="n-move__basis">${basisLine(m.basis)}${m.ev ? UI.cite(st.event(m.ev)?.srcs[0], 1) : ''}</p>
+      <p class="n-move__basis">${basisLine(withNote(m))}${m.ev ? UI.cite(st.event(m.ev)?.srcs[0], 1) : ''}</p>
       <div class="n-move__meta">${meta}</div></div>`;
   }
   const menu = (i) => html`<span class="n-menuwrap"><button class="n-btn n-btn--sm n-btn--ghost n-btn--icon" type="button" data-menu="${i}" aria-label="更多">${icon('more')}</button></span>`;
 
+  // 选人后由系统带出原团队、依据、本人意愿和影响；人只做选择，补充说明和缺口才需要手写
+  const student = (pid) => NT.XE6.students.find((x) => x.id === pid);
+  const WILLS = [['已沟通 · 接受', '接受'], ['已沟通 · 未接受', '未接受'], ['待沟通', '待沟通'], ['未知', '未知']];
+  function derive(pid, type, to) {
+    const x = pid && student(pid), per = pid && st.person(pid);
+    const from = x ? NT.XE6.teams.find((t) => t.id === x.team)?.name || '' : per ? st.orgShort(per.org) : '';
+    const basis = x ? `${x.final}；导师结营建议：${x.adv8 === x.final ? '一致' : x.adv8 || '—'}${x.posFinal || x.posMentor ? `；岗位建议：${x.posFinal || x.posMentor}` : ''}` : '';
+    const will = x ? (x.accept === '接受' ? WILLS[0][0] : x.accept === '拒绝' ? WILLS[1][0] : '待沟通') : '';
+    const role = x ? x.track.replace('方向', '') : per ? per.title : '人';
+    const impact = type === '未接受' || type === '继续观察' ? '不涉及' : !to || to === '部门待定' ? '待和用人部门确认'
+      : `${to} 增加 1 名${role}${from && type !== '留用' && type !== '落位' ? `；${from} 少 1 人` : ''}`;
+    return { from, basis, will, releases: x ? ['训练营已结束', '未知'] : ['可以释放', '需要交接', '未知'], impact };
+  }
+
   async function editMove(p, i) {
-    const m = i == null ? { type: '调岗', person: '', from: '', to: '', basis: '', gap: '', will: '未知', release: '未知', impact: '' } : p.moves[i];
+    const m = i == null ? { type: '调岗', person: '', to: '', note: '', gap: '', will: '未知', release: '未知' } : p.moves[i];
     const people = st.visiblePeople().filter((x) => st.scope(x.id) === 'full');
-    const f = (k, label, ph) => html`<label class="n-field"><span class="n-field__label">${label}</span><input class="n-input" data-k="${k}" value="${m[k] || ''}" placeholder="${ph || ''}"></label>`;
+    const dests = [...new Set(['部门待定', ...p.moves.map((x) => x.to).filter((t) => t && !/待沟通|继续/.test(t)), ...st.orgs().filter((o) => !o.group).map((o) => o.name)])];
+    const curType = m.kind === '激活' ? '激活' : m.type;
+    const seg = (k, opts, v) => html`<div class="n-seg n-seg--md" role="group" data-manual data-seg="${k}">${opts.map(([val, l]) => html`<button type="button" data-v="${val}" aria-pressed="${val === v}">${l}</button>`)}</div><input type="hidden" data-k="${k}" value="${v}">`;
     const r = await NT.dialog({
       title: i == null ? '加一条动作' : '修改这条动作',
-      body: html`<div class="nt-grid" style="gap:var(--s-3)">
-        <div class="nt-cols" style="gap:var(--s-3)"><label class="n-field"><span class="n-field__label">类型</span><select class="n-select" data-k="type">${TYPES.map((t) => html`<option ${t === (m.kind === '激活' ? '激活' : m.type) ? 'selected' : ''}>${t}</option>`)}</select></label>
-          <label class="n-field"><span class="n-field__label">谁</span><select class="n-select" data-k="person"><option value="">人选待定</option>${people.map((x) => html`<option value="${x.id}" ${x.id === m.person ? 'selected' : ''}>${x.name} · ${st.orgShort(x.org)}</option>`)}</select></label></div>
-        <div class="nt-cols" style="gap:var(--s-3)">${f('from', '从', '原团队 / 原角色')}${f('to', '到', '新团队 / 新角色')}</div>
-        ${f('basis', '依据', '能回到证据的事实')}${f('gap', '缺口', '还缺什么证据')}
-        <div class="nt-cols" style="gap:var(--s-3)">${f('will', '本人意愿', '未知')}${f('release', '可否释放', '未知')}</div>${f('impact', '对两边团队的影响')}
-        <p class="n-field__err" id="mv-err" role="alert" hidden>「谁」和「到」至少填写一项。</p></div>`,
+      cls: 'n-dialog--wide',
+      body: html`<div class="nt-grid n-mvform" style="gap:var(--s-4)">
+        <div class="n-field"><span class="n-field__label">类型</span>${seg('type', TYPES.map((t) => [t, t === '未接受' ? '未接受 offer' : t]), curType)}</div>
+        <div class="nt-cols" style="gap:var(--s-3)">
+          <label class="n-field"><span class="n-field__label">谁</span><select class="n-select" data-k="person"><option value="">人选待定</option>${people.map((x) => html`<option value="${x.id}" ${x.id === m.person ? 'selected' : ''}>${x.name} · ${st.orgShort(x.org)}</option>`)}</select></label>
+          <label class="n-field" data-for="to"><span class="n-field__label">去向</span><select class="n-select" data-k="to">${dests.map((t) => html`<option ${t === m.to ? 'selected' : ''}>${t}</option>`)}${m.to && !dests.includes(m.to) ? html`<option selected>${m.to}</option>` : ''}</select></label></div>
+        <div class="n-mvform__auto" id="mv-auto" aria-live="polite"></div>
+        <div class="nt-cols" style="gap:var(--s-3)">
+          <div class="n-field"><span class="n-field__label">本人意愿</span><div id="mv-will"></div></div>
+          <div class="n-field"><span class="n-field__label">可否释放</span><div id="mv-rel"></div></div></div>
+        <div id="mv-watch"></div>
+        <label class="n-field"><span class="n-field__label">补充说明 <small class="nt-muted">选填</small></span><input class="n-input" data-k="note" value="${m.note || ''}" placeholder="系统依据之外，还有什么需要写进方案的事实"></label>
+        <label class="n-field" id="mv-gapf"><span class="n-field__label">缺口 <small class="nt-muted">选填</small></span><input class="n-input" data-k="gap" value="${m.gap || ''}" placeholder="还缺什么证据，比如本人意愿还没确认"></label>
+        <p class="n-field__err" id="mv-err" role="alert" hidden>请选一个人，或者把类型改成需要找人的动作后选「人选待定」。</p></div>`,
+      onOpen: (d) => {
+        const val = (k) => d.querySelector(`[data-k="${k}"]`).value;
+        const setSeg = (k, v) => { d.querySelector(`[data-k="${k}"]`).value = v; NT.$$(`[data-seg="${k}"] > button`, d).forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v)); };
+        let will = m.will || '未知', release = m.release || '未知', touched = { will: i != null, release: i != null };
+        const draw = () => {
+          const type = val('type'), pid = val('person'), x = derive(pid, type, val('to'));
+          if (!touched.will && x.will) will = x.will;
+          if (!x.releases.includes(release)) release = x.releases[0];
+          d.querySelector('[data-for="to"]').hidden = type === '继续观察';
+          mount(d.querySelector('#mv-auto'), html`<span class="n-mvform__tag">${icon('spark', 13)}系统带出</span>
+            <dl><div><dt>原团队</dt><dd>${x.from || '—'}</dd></div>
+            <div><dt>依据</dt><dd>${x.basis ? basisLine(x.basis) : html`<span class="nt-muted">${pid ? '这个人还没有可引用的结营或盘点结论，请在补充说明里写依据' : '选人后带出'}</span>`}</dd></div>
+            <div><dt>影响</dt><dd>${x.impact}</dd></div></dl>`);
+          mount(d.querySelector('#mv-will'), seg('will', WILLS, will));
+          mount(d.querySelector('#mv-rel'), seg('release', x.releases.map((t) => [t, t]), release));
+          mount(d.querySelector('#mv-watch'), type === '继续观察' ? html`<div class="nt-cols" style="gap:var(--s-3)">
+            <label class="n-field"><span class="n-field__label">下次补什么</span><input class="n-input" data-k="next" value="${m.next || '实习满 8 周后再评一次'}"></label>
+            <label class="n-field"><span class="n-field__label">${st.me().name}负责，截止</span><input class="n-input" type="date" data-k="due" value="${m.due || NT.addDays(NT.TODAY, 30)}"></label></div>` : '');
+        };
+        d.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-seg] > button'); if (!b) return;
+          const k = b.closest('[data-seg]').dataset.seg;
+          setSeg(k, b.dataset.v);
+          if (k === 'will') { will = b.dataset.v; touched.will = true; } else if (k === 'release') { release = b.dataset.v; touched.release = true; } else draw();
+        });
+        d.querySelector('[data-k="person"]').addEventListener('change', () => { touched.will = false; draw(); });
+        d.querySelector('[data-k="to"]').addEventListener('change', draw);
+        draw();
+      },
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: '保存', value: 'ok', cls: 'n-btn--ink',
         validate: (d) => {
-          const who = d.querySelector('[data-k="person"]'), to = d.querySelector('[data-k="to"]'), ok = !!(who.value || to.value.trim());
+          const who = d.querySelector('[data-k="person"]'), type = d.querySelector('[data-k="type"]').value;
+          const ok = !!who.value || !['落位', '留用', '继续观察', '未接受', '激活'].includes(type);
           d.querySelector('#mv-err').hidden = ok;
           if (!ok) who.focus();
           return ok;
@@ -138,9 +192,10 @@
         read: (d) => Object.fromEntries(NT.$$('[data-k]', d).map((x) => [x.dataset.k, x.value.trim()])) }],
     });
     if (r?.value !== 'ok') return;
-    const d = r.data;
-    const next = { ...m, ...d, person: d.person || null, kind: d.type === '激活' ? '激活' : undefined, type: d.type === '激活' ? '调岗' : d.type, will: d.will || '未知', release: d.release || '未知' };
-    if (next.type === '继续观察') Object.assign(next, { next: next.gap || '补充事件', owner: st.me().id, due: '2026-12-15' });
+    const d = r.data, x = derive(d.person, d.type, d.to);
+    const next = { ...m, ...d, person: d.person || null, from: x.from || m.from || '', basis: x.basis || m.basis || '', impact: x.impact,
+      kind: d.type === '激活' ? '激活' : undefined, type: d.type === '激活' ? '调岗' : d.type };
+    if (next.type === '继续观察') Object.assign(next, { to: m.to && /观察/.test(m.to) ? m.to : '继续观察', owner: st.me().id });
     if (i == null) p.moves.push(next); else p.moves[i] = next;
     st.save(); render($('#main'));
     NT.toast(i == null ? '已加入方案草稿' : '已修改');
