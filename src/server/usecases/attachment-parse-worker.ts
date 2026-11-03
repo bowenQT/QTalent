@@ -15,10 +15,14 @@ import {
   type AttachmentBinding,
   type AttachmentParsePorts,
 } from '../modules/records/attachments/flow';
-import { createMaterialPdfDecoder } from '../modules/records/attachments/document-decoders';
+import {
+  createDocumentDecoders,
+  createMaterialPdfDecoder,
+} from '../modules/records/attachments/document-decoders';
 import { createValidatedAttachmentInput } from '../modules/records/attachments/upload-input';
 import type { ParseLimits } from '../modules/records/attachments/types';
 import { saveAttachmentPdf } from '../modules/records/material-sources/attachment-save';
+import { saveAttachmentDocument } from '../modules/records/material-sources/attachment-document-save';
 import { readValidatedUploadInTransaction } from '../modules/records/uploads/handoff-transaction';
 import { readUploadCollectionMembers } from '../modules/records/uploads/store';
 import type { UploadStorage } from '../modules/records/uploads/types';
@@ -41,9 +45,7 @@ export const attachmentParseLeaseMs = 5 * 60 * 1000;
  * Each claim (queued→running, then running→partial) advances the revision. */
 const maxClaimRevision = 4;
 
-/** Only PDF page text has a canonical store; other formats are refused as
- * unsupported before any byte is read rather than saved without provenance.
- */
+/** Formats without a native source store are refused before reading bytes. */
 class UnstoredFormat extends Error {}
 
 type Settlement = 'unsupported' | 'refused' | 'failed';
@@ -129,12 +131,21 @@ export function createAttachmentParseWorker(input: {
     ...attachment,
     loadAuthorizedAttachment: async (tx, job) => {
       const binding = await attachment.loadAuthorizedAttachment(tx, job);
-      if (binding && binding.version.mediaType !== 'application/pdf')
+      if (
+        binding &&
+        ![
+          'application/pdf',
+          'text/plain',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ].includes(binding.version.mediaType)
+      )
         throw new UnstoredFormat();
       return binding;
     },
     saveParse: (tx, binding, parsed) =>
-      saveAttachmentPdf(tx, binding, parsed, {
+      (binding.version.mediaType === 'application/pdf'
+        ? saveAttachmentPdf
+        : saveAttachmentDocument)(tx, binding, parsed, {
         sourceCategory: 'original',
         demo: input.demo,
       }),
@@ -188,7 +199,8 @@ export function createAttachmentParseWorker(input: {
             status: 'failed',
             // A refused claim reads like an input that changed under the
             // job, never as why the account may not process it.
-            errorCode: outcome === 'refused' ? 'input_changed' : 'processing_failed',
+            errorCode:
+              outcome === 'refused' ? 'input_changed' : 'processing_failed',
             result: attachmentJobResultSchema.parse({
               stage: outcome === 'unsupported' ? 'unsupported' : 'failed',
               mediaId: job.resourceId,
@@ -237,7 +249,10 @@ export function createAttachmentParseWorker(input: {
         {
           now,
           limits: attachmentParseLimits,
-          decoders: { pdf: createMaterialPdfDecoder() },
+          decoders: {
+            ...createDocumentDecoders(),
+            pdf: createMaterialPdfDecoder(),
+          },
         },
       );
       if (status !== 'forbidden') return status;

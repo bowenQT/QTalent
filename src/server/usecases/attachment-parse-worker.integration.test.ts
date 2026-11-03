@@ -273,17 +273,17 @@ it('a real worker process claims a PDF parse from the queue and saves its page t
 
 it.each([
   [
-    '演示说明.txt',
-    'text/plain',
-    async () => Buffer.from('演示材料：补齐回滚步骤。\n'),
+    '演示表格.docx',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    () => readFile('tests/fixtures/attachments/table.docx'),
   ],
   [
-    '演示说明.docx',
+    '演示不支持内容.docx',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    () => readFile('tests/fixtures/attachments/chinese-pages.docx'),
+    () => readFile('tests/fixtures/attachments/unsupported-content.docx'),
   ],
 ])(
-  'ends %s, a format without a canonical store, as unsupported without parsing',
+  'ends %s with unsupported document content without saving a parse',
   async (filename, mediaType, bytes) => {
     const { jobId } = await deliver(filename, mediaType, await bytes());
     const job = await settled(jobId);
