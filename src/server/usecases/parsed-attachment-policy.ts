@@ -5,7 +5,8 @@ import type { JobPolicy } from '../jobs/service';
 import type { JobRecord } from '../jobs/state';
 import { canReadTalent } from '../authz/talent';
 import { arrangeInputs } from '../modules/records/arrange/input-state/schema';
-import { canWriteArrange, loadArrangeActor } from './record-arrange-context';
+import { loadArrangeActor } from './record-arrange-context';
+import { canResolveAttachmentSubjects } from './parsed-attachment-authorization';
 import { readIntakeTable, intakeMediaFacts } from './talent-source-projection';
 import {
   readAttachmentArrangeMetadata,
@@ -39,7 +40,7 @@ export function createParsedAttachmentPolicy(
     const actor = await loadArrangeActor(tx, accountId, deps.businessNow());
     if (
       actor.context.account.personId !== meta.arrange.actorPersonId ||
-      !canWriteArrange(actor, [], null, input.evaluationNodeId)
+      !canResolveAttachmentSubjects(actor, [], input.evaluationNodeId)
     )
       return false;
     // These are read-only native facts: never acquire a parent/source write lock
@@ -57,10 +58,9 @@ export function createParsedAttachmentPolicy(
       facts.every((fact) =>
         fact.subjects.every(
           (subject) =>
-            canWriteArrange(
+            canResolveAttachmentSubjects(
               actor,
               [subject.personId],
-              null,
               subject.evaluationNodeId!,
             ) &&
             [fact.kind, ...fact.requiredKinds].every((kind) =>

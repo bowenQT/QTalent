@@ -20,7 +20,7 @@ import {
 import { recordAudit } from '../platform/audit';
 import type { NativeBatchDependencies } from './record-batch-arrange-store';
 import { readIntakeTable } from './talent-source-projection';
-import { canWriteArrange } from './record-arrange-context';
+import { canResolveAttachmentSubjects } from './parsed-attachment-authorization';
 import {
   parseBatchMetadata,
   updateBatchJob,
@@ -65,10 +65,9 @@ export function createParsedAttachmentBatchRequests(
       !canonical ||
       !attribution ||
       !attribution.personIds.length ||
-      !canWriteArrange(
+      !canResolveAttachmentSubjects(
         actor,
         attribution.personIds,
-        null,
         state.input.evaluationNodeId!,
       ) ||
       attribution.personIds.some(
@@ -305,10 +304,9 @@ export function createParsedAttachmentBatchRequests(
           if (
             command.resolution.action === 'bind_people' &&
             (!material.scopeAllowed ||
-              !canWriteArrange(
+              !canResolveAttachmentSubjects(
                 actor,
                 command.resolution.personIds,
-                null,
                 state.input.evaluationNodeId!,
               ) ||
               command.resolution.personIds.some(
