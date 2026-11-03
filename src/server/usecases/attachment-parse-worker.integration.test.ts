@@ -5,7 +5,13 @@ import { createServer } from 'node:net';
 import { once } from 'node:events';
 import { eq, sql } from 'drizzle-orm';
 import { PgBoss, fromDrizzle } from 'pg-boss';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
+import { getDatabase } from '../db/client';
+import { requireSession } from '../auth/next';
+import { startRecordArrangeAction } from '../actions/record-arrange';
+import { readRecordBatchAction } from '../actions/record-batch';
+import { getAppJobProducer } from '../platform/jobs/app-runtime';
+import type { MaterialUploadRequest } from '../../contracts/media';
 import {
   nativeDatabase,
   seedNativeCase,
@@ -25,6 +31,17 @@ import { createUploadService } from '../modules/records/uploads/service';
 import { createPostgresUploadStore } from '../modules/records/uploads/store';
 import type { UploadStorage } from '../modules/records/uploads/types';
 import { createAttachmentParseWorker } from './attachment-parse-worker';
+
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('../auth/next', () => ({ requireSession: vi.fn() }));
+vi.mock('../db/client', async (original) => ({
+  ...(await original<typeof import('../db/client')>()),
+  getDatabase: vi.fn(),
+}));
+vi.mock('../env', () => ({ getEnv: () => ({ APP_ENV: 'test' }) }));
+vi.mock('../platform/jobs/app-runtime', () => ({
+  getAppJobProducer: vi.fn(),
+}));
 
 const authUrl = 'http://127.0.0.1:3000';
 let connection: Awaited<ReturnType<typeof nativeDatabase>>;
@@ -75,6 +92,8 @@ beforeAll(async () => {
   boss = new PgBoss({ connectionString: connection.testUrl });
   await boss.start();
   await boss.createQueue(attachmentParseQueue, { retryLimit: 0 });
+  vi.mocked(getDatabase).mockImplementation(() => connection.db);
+  vi.mocked(getAppJobProducer).mockResolvedValue(boss);
   await startWorker();
 }, 60_000);
 afterAll(async () => {
@@ -94,12 +113,13 @@ function testStorage() {
 
 /** An attachment upload whose completion creates its media job and, unless a
  * case holds it back, sends it in the archive transaction, as the record
- * attachment dispatch does. */
-async function deliver(
+ * attachment dispatch does; an unassigned upload is only staged. */
+async function upload(
   filename: string,
   mediaType: string,
   bytes: Buffer,
-  { send = true, personId = seeded.target } = {},
+  target: MaterialUploadRequest['target'],
+  send = true,
 ) {
   const db = connection.db;
   const now = new Date().toISOString();
@@ -121,7 +141,6 @@ async function deliver(
     if (!sent) throw new Error('Attachment parse enqueue was not committed');
     return { jobId: job.jobId };
   });
-  const target = { kind: 'people' as const, personIds: [personId] };
   // Upload-side write policy is a boundary double; the worker decides
   // processing on the account's current record write permission.
   const collections = createRecordCollectionService({
@@ -142,14 +161,22 @@ async function deliver(
     store,
     now: () => Date.now(),
   });
-  const grant = await service.request(seeded.account, {
+  const request = {
     ...fake.request,
     operationId: randomUUID(),
     target,
     filename,
     declaredMediaType: mediaType,
     declaredBytes: bytes.length,
-  });
+  };
+  // Staging goes through the material intake endpoint's request.
+  const grant =
+    target.kind === 'unassigned'
+      ? await service.requestMaterial(seeded.account, request).then((r) => {
+          if (r.status !== 'success') throw new Error(r.status);
+          return r.upload;
+        })
+      : await service.request(seeded.account, request);
   const path = [
     'buckets',
     'test-bucket',
@@ -194,16 +221,36 @@ async function deliver(
     receiptRef: 'synthetic-receipt',
     expectedRevision: grant.revision,
   });
-  const { jobId, revision } = dispatched(completed);
   return {
-    jobId,
+    uploadId: grant.uploadId,
+    completed,
     /** Removes the upload from its collection, as the composer's remove does. */
     release: () =>
       collections.release(seeded.account, {
         uploadId: grant.uploadId,
         operationId: randomUUID(),
-        expectedRevision: revision,
+        expectedRevision: completed.revision,
       }),
+  };
+}
+
+async function deliver(
+  filename: string,
+  mediaType: string,
+  bytes: Buffer,
+  { send = true, personId = seeded.target } = {},
+) {
+  const uploaded = await upload(
+    filename,
+    mediaType,
+    bytes,
+    { kind: 'people', personIds: [personId] },
+    send,
+  );
+  const { jobId } = dispatched(uploaded.completed);
+  return {
+    jobId,
+    release: uploaded.release,
     send: (options: { startAfter?: number } = {}) =>
       sendAttachmentParse(boss, { jobId, attempt: 1, revision: 1 }, options),
   };
@@ -496,4 +543,41 @@ it('skips a stale queued job while another transaction holds its row', async () 
   const job = await settled(upload.jobId);
   expect(job.status).toBe('completed');
   expect(await parsesOf(upload.jobId)).toHaveLength(1);
+}, 90_000);
+
+it('parses a staged PDF once a batch takes it from the real entry, and the batch reads it as parsed', async () => {
+  const staged = await upload('演示汇报.pdf', 'application/pdf', await pdf(), {
+    kind: 'unassigned',
+    evaluationNodeId: seeded.node,
+  });
+  expect(staged.completed).toMatchObject({ status: 'staged' });
+  vi.mocked(requireSession).mockResolvedValue({
+    user: { id: seeded.account },
+  } as Awaited<ReturnType<typeof requireSession>>);
+  const created = await startRecordArrangeAction({
+    operationId: randomUUID(),
+    personIds: [],
+    projectId: null,
+    text: '',
+    files: [{ clientFileId: randomUUID(), uploadId: staged.uploadId }],
+  });
+  expect(created.status).toBe('success');
+  if (created.status !== 'success') return;
+  const [file] = created.result.files;
+  expect(file).toMatchObject({ status: 'processing' });
+  const job = await settled((file as { jobId: string }).jobId);
+  expect(job.status).toBe('completed');
+  const [parse] = await parsesOf(job.jobId);
+  const read = await readRecordBatchAction({
+    batchId: created.result.batchId,
+  });
+  expect(read.status).toBe('success');
+  if (read.status !== 'success') return;
+  expect(read.result.files).toEqual([
+    expect.objectContaining({
+      filename: '演示汇报.pdf',
+      status: 'parsed',
+      parseVersionId: parse!.id,
+    }),
+  ]);
 }, 90_000);

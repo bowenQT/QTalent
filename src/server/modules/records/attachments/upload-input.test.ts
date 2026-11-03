@@ -36,6 +36,7 @@ function fixture() {
       async () => structuredClone(upload) as unknown,
     ),
     readValidatedUpload: vi.fn(async () => structuredClone(upload) as unknown),
+    stagedJob: vi.fn(async (): Promise<string | null> => null),
     canProcess: vi.fn(async () => true),
     openObject: vi.fn(async () =>
       (async function* () {
@@ -51,6 +52,37 @@ function fixture() {
   };
 }
 describe('873 validated-upload port adapter', () => {
+  it('binds a staged upload only to the parse job its material batch created', async () => {
+    const f = fixture();
+    Object.assign(f.upload, {
+      jobId: null,
+      purpose: 'image',
+      target: { kind: 'unassigned', evaluationNodeId: 'demo-node' },
+    });
+    const context = { transaction: 'current' };
+    expect(await f.input.loadAuthorizedAttachment(context, f.job)).toBeNull();
+    f.options.stagedJob.mockResolvedValue('another-job');
+    expect(await f.input.loadAuthorizedAttachment(context, f.job)).toBeNull();
+    f.options.stagedJob.mockResolvedValue('job');
+    const binding = await f.input.loadAuthorizedAttachment(context, f.job);
+    expect(f.options.stagedJob).toHaveBeenCalledWith(context, {
+      uploadId: 'upload',
+      originalVersionId: 'version',
+    });
+    expect(binding).toMatchObject({
+      purpose: 'image',
+      completedJobId: 'job',
+      target: { kind: 'unassigned', evaluationNodeId: 'demo-node' },
+    });
+    if (!binding) throw new Error('binding absent');
+    await expect(f.input.open(binding)).resolves.toBeDefined();
+    // Without a batch, a staged people target would be a forged record.
+    Object.assign(f.upload, {
+      target: { kind: 'people', personIds: ['demo-person'] },
+    });
+    expect(await f.input.loadAuthorizedAttachment(context, f.job)).toBeNull();
+  });
+
   it('loads by persisted upload/version and checks current write permission without a fabricated fragment', async () => {
     const f = fixture();
     const context = { transaction: 'current' };
