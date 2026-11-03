@@ -86,7 +86,6 @@
         <div class="nt-cols">
           <article class="n-card" id="todo">${todoBlock(role, todos)}</article>
           <div class="nt-grid">
-            ${judgeCard()}
             <article class="n-card"><h3 class="n-section-title">进行中的任务</h3><div id="tasks"></div></article>
           </div>
         </div>`);
@@ -114,7 +113,7 @@
   // 按要做的动作归成四组：组名统一两个字，后面一句话说清要处理什么
   const GROUPS = [
     ['verify', '核对', '材料里的人和课题对不上号，选一下是谁', ['verify']],
-    ['confirm', '确认', '建议分、节点结论和方案等你拍板', ['confirm', 'conclusion', 'plan', 'ruleback']],
+    ['confirm', '确认', '建议分、节点结论、判断对照和方案等你拍板', ['confirm', 'conclusion', 'plan', 'ruleback', 'judge']],
     ['review', '复核', '评分有分歧或规则改了版，再看一眼', ['calib', 'rulereview', 'rulesug']],
     ['follow', '跟进', '线索、补记录、回访和接手的事', ['clue', 'cover', 'track', 'talk', 'reassign', 'takeover']],
   ];
@@ -182,12 +181,6 @@
         NT.toast('已不采纳，理由已记录', { undo: () => { const ok = st.unverifyClue(c.id, token); redraw(); return ok; }, failText: CLUE_UNDO_FAIL });
       }
     };
-  }
-  // HR 的判断对照入口：有待确认的 AI 假设时提示数量
-  function judgeCard() {
-    const rows = st.judgeBatches().filter((b) => b.status === 'open').map((b) => ({ b, n: st.judgeHyps(b.id).filter((h) => !st.judgeAttrib(h.id)).length }));
-    return html`<article class="n-card"><h3 class="n-section-title">判断对照<a class="n-link" href="judge.html">全部</a></h3>
-      <ul class="nt-list">${rows.map(({ b, n }) => html`<li><a class="nt-plink" href="judge.html?id=${b.id}"><b style="font-weight:600">${b.name}</b></a><div class="nt-muted">${n ? `${n} 条 AI 给的偏差原因待你确认` : '偏差原因都已确认'} · ${b.range}</div></li>`)}</ul></article>`;
   }
 
   function renderChanges() {

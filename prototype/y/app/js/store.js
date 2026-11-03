@@ -448,6 +448,8 @@
       store.reviewHolds().forEach((h) => list.push({ kind: 'rulereview', badge: '按新版本复核', title: `${h.ver}：${h.n} 条旧分待按新版本复核`, sub: `涉及 ${h.people} 人、${h.raters} 位评分人；复核确认前暂停参与取数`, due: NT.md(h.at), href: 'rules.html?r=rubric' }));
       S.ruleSugs.filter((x) => x.state === 'open').forEach((x) => list.push({ kind: 'rulesug', sug: x.id, badge: '修订建议', title: `${store.sugLabel(x)}：${store.person(x.by).name}的建议`, sub: `「${x.text}」`, due: NT.md(x.at), href: `rules.html?r=${x.rule}#sugs` }));
       Object.keys(S.rules).forEach((k) => S.rules[k].filter((r) => r.state === 'draft' && r.returned && r.by === me).forEach((r) => list.push({ kind: 'ruleback', badge: '管理者退回', cls: 'n-badge--seal', title: `${store.ruleKindName(k)} ${r.v} 退回到草稿`, sub: `「${r.returned.why}」`, due: NT.md(r.returned.at), href: `rules.html?r=${k}${r.line ? `&line=${r.line}` : ''}` })));
+      // 判断对照：AI 给的偏差原因要 HR 确认
+      store.judgeBatches().filter((b) => b.status === 'open').forEach((b) => { const n = store.judgeHyps(b.id).filter((h) => !store.judgeAttrib(h.id)).length; if (n) list.push({ kind: 'judge', badge: '判断对照', title: `${b.name}：${n} 条偏差原因待你确认`, sub: `AI 给的原因 · ${b.range}`, due: '本人确认', href: `judge.html?id=${b.id}#attrib` }); });
       store.watchPending().forEach((c) => list.push({ kind: 'clue', clue: c.id, badge: '待核实', cls: 'n-badge--ai', icon: 'spark', title: `${store.person(c.person).name}：${c.why}`, sub: c.dir ? `${store.person(c.by).name}推荐${store.fitText(c.dir)} · 核实后进入档案的发展方向和「值得关注的人」` : `${c.by === 'ai' ? 'AI 线索' : `${store.person(c.by).name}提名`} · 核实后进入「值得关注的人」`, due: NT.md(c.at), href: `person.html?id=${c.person}` }));
     }
     return list;
