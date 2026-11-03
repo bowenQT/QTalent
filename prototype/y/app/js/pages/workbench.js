@@ -720,7 +720,7 @@
       const week = mine.filter((e) => e.date >= since).length;
       return html`<li>${raw(`<a href="person.html?id=${p.id}" data-peek="p:${p.id}" tabindex="-1" aria-hidden="true">`)}${UI.avatar(p.id)}</a>
         <div><a class="nt-plink" href="person.html?id=${p.id}" data-peek="p:${p.id}"><b>${p.name}</b></a><small>${topic ? `${topic.name} · ` : ''}${week ? `本周记了 ${week} 件` : '本周待记'}${mine[0] ? ` · 最近 ${NT.md(mine[0].date)}` : ''}</small>${reco ? recoLine(reco) : ''}</div>
-        <div class="n-students__acts"><a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${p.id}">${icon('pen')}记一件事</a>${st.canRecommend(p.id) ? html`<button class="n-btn n-btn--sm" type="button" data-reco="${p.id}"${raw(reco ? ' title="推荐另一个发展方向"' : '')}>${icon('target')}${reco ? '再推荐' : '推荐'}</button>` : ''}</div></li>`;
+        <div class="n-students__acts"><a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${p.id}">${icon('pen')}记一件事</a>${st.canRecommend(p.id) ? html`<button class="n-btn n-btn--sm" type="button" data-reco="${p.id}"${raw(reco ? ' title="推荐另一个发展方向"' : '')}>${icon('target')}推荐</button>` : ''}</div></li>`;
     };
     const todo = list.filter((p) => !S.events.some((e) => e.kind === 'obs' && e.people.includes(p.id) && e.recorder === me && e.date >= since)).length;
     $('#stu-total').textContent = `${list.length} 人`;
