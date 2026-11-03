@@ -221,11 +221,11 @@
   const advice = (st) => (st.adv8 === st.final ? '一致' : st.adv8 || '—');
   const moves = X.students.filter((st) => st.final && st.final !== '不建议 offer').map((st) => {
     const t = TEAM[st.team];
-    if (st.accept === '拒绝') return { type: '未接受', person: st.id, from: t.name, to: '去向待沟通', basis: `${st.final}；导师结营建议：${advice(st)}`, gap: '本人未接受 offer', will: outcome(st), release: '训练营已结束', impact: '不涉及' };
+    if (st.accept === '拒绝') return { type: '未接受', person: st.id, from: t.name, to: '去向待沟通', basis: `${st.final}；导师结营建议：${advice(st)}`, gap: '本人未接受 offer', will: outcome(st), impact: '不涉及' };
     if (st.final === '应届 · 继续实习观察') return { type: '继续观察', person: st.id, from: t.name, to: st.dest && st.dest !== '待定部门' ? `${st.dest} · 继续实习观察` : '继续实习观察', basis: `导师结营建议：${st.adv8 || '—'}`, next: '实习满 8 周后再评一次', owner: 'p-suwan', due: '2026-11-15', will: outcome(st) };
     return { type: st.dest && st.dest !== '待定部门' ? '落位' : '留用', person: st.id, from: t.name, to: st.dest && st.dest !== '待定部门' ? st.dest : '部门待定',
       basis: `${st.final}；导师结营建议：${advice(st)}${st.posFinal || st.posMentor ? `；岗位建议：${st.posFinal || st.posMentor}` : ''}`,
-      gap: '', will: outcome(st), release: '训练营已结束', impact: st.dest && st.dest !== '待定部门' ? `${st.dest} 增加 1 名${st.track.replace('方向', '')}` : '待和用人部门确认' };
+      gap: '', will: outcome(st), impact: st.dest && st.dest !== '待定部门' ? `${st.dest} 增加 1 名${st.track.replace('方向', '')}` : '待和用人部门确认' };
   });
   const PLANS = [
     { id: 'sp-ts-1', kind: 'staffing', project: 'pr-ts', need: 'n-ts', version: 1, status: 'confirmed', by: 'p-suwan', at: '2026-09-02', confirmedBy: 'p-cheng', confirmedAt: '2026-09-02', slots: { owner: 'p-x47' }, note: '任子衿在训练营担任组长并负责合并全组代码' },
@@ -521,7 +521,7 @@
   };
 
   NT.SEED = {
-    version: 'y15', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
+    version: 'y16', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES: [], FOLLOWS,
     FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS, GH_LINKS,
   };

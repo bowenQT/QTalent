@@ -1,4 +1,4 @@
-/* 组织调整方案：每条动作写清依据、缺口、本人意愿、可否释放和对两边团队的影响；意愿和释放未知时写「未知」。
+/* 组织调整方案：每条动作写清依据、缺口、本人意愿、原团队能否放人和对两边团队的影响；不清楚时写「未知」。训练营学员结营后不属于任何团队，不问能否放人。
    HR 和管理者都能修改和确认；确认后存档（压印）并锁定，之后的调整在下一次盘点里做。确认方案不等于人事动作已执行。 */
 (function () {
   'use strict';
@@ -49,7 +49,7 @@
           </article>
           <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">写方案时的规则</h3>
             <ul class="nt-list" style="font-size:var(--t-sm);color:var(--ink-2)">
-              <li>本人意愿、可否释放待了解时写「未知」。</li><li>资料不足的人放「继续观察」，写清下次补什么、谁负责。</li><li>动作来自「值得聊一聊」的，标为「激活」。</li></ul></article>
+              <li>本人意愿、原团队能否放人还不清楚时写「未知」。</li><li>资料不足的人放「继续观察」，写清下次补什么、谁负责。</li><li>动作来自「值得聊一聊」的，标为「激活」。</li></ul></article>
         </aside>
       </div>`);
     editable = canEdit;
@@ -108,7 +108,7 @@
         <p class="n-move__basis">${basisLine(withNote(m))}</p>
         <div class="n-move__meta">${metaItem('下次补什么', m.next || '—')}${metaItem('负责人', `${st.person(m.owner)?.name || ''} · ${NT.md(m.due)} 前`)}</div></div>`;
     }
-    const meta = [m.gap && m.gap !== '—' && metaItem('缺口', m.gap), m.impact && m.impact !== '不涉及' && metaItem('影响', m.impact), metaItem('可否释放', m.release || '未知')].filter(Boolean);
+    const meta = [m.gap && m.gap !== '—' && metaItem('缺口', m.gap), m.impact && m.impact !== '不涉及' && metaItem('影响', m.impact), m.release && metaItem('原团队能否放人', m.release)].filter(Boolean);
     return html`<div class="n-move" data-i="${i}"><div class="n-move__head">${name}${path}${m.kind === '激活' && ftype !== '激活' ? html`<span class="n-kind">激活 · ${m.type}</span>` : ''}<span class="n-move__end">${willBadge(m.will)}${editable ? menu(i) : ''}</span></div>
       ${!who && pendingLink ? html`<div class="n-ownerless" style="margin-top:var(--s-3)"><span class="n-slot__empty">${icon('plus', 14)}</span><div><b>人选来自项目用人方案</b><div class="nt-muted">项目用人方案确认后，这里自动填上人</div></div><a class="n-btn n-btn--sm n-btn--light" href="${pendingLink}">${icon('spark')}去找 owner</a></div>` : ''}
       <p class="n-move__basis">${basisLine(withNote(m))}${m.ev ? UI.cite(st.event(m.ev)?.srcs[0], 1) : ''}</p>
@@ -127,7 +127,7 @@
     const role = x ? x.track.replace('方向', '') : per ? per.title : '人';
     const impact = type === '未接受' || type === '继续观察' ? '不涉及' : !to || to === '部门待定' ? '待和用人部门确认'
       : `${to} 增加 1 名${role}${from && type !== '留用' && type !== '落位' ? `；${from} 少 1 人` : ''}`;
-    return { from, basis, will, releases: x ? ['训练营已结束', '未知'] : ['可以释放', '需要交接', '未知'], impact };
+    return { from, basis, will, releases: x ? null : ['能放人', '需要交接', '未知'], impact };
   }
 
   async function editMove(p, i) {
@@ -147,7 +147,7 @@
         <div class="n-mvform__auto" id="mv-auto" aria-live="polite"></div>
         <div class="nt-cols" style="gap:var(--s-3)">
           <div class="n-field"><span class="n-field__label">本人意愿</span><div id="mv-will"></div></div>
-          <div class="n-field"><span class="n-field__label">可否释放</span><div id="mv-rel"></div></div></div>
+          <div class="n-field" id="mv-relf"><span class="n-field__label">原团队能否放人</span><div id="mv-rel"></div></div></div>
         <div id="mv-watch"></div>
         <label class="n-field"><span class="n-field__label">补充说明 <small class="nt-muted">选填</small></span><input class="n-input" data-k="note" value="${m.note || ''}" placeholder="系统依据之外，还有什么需要写进方案的事实"></label>
         <label class="n-field" id="mv-gapf"><span class="n-field__label">缺口 <small class="nt-muted">选填</small></span><input class="n-input" data-k="gap" value="${m.gap || ''}" placeholder="还缺什么证据，比如本人意愿还没确认"></label>
@@ -159,14 +159,15 @@
         const draw = () => {
           const type = val('type'), pid = val('person'), x = derive(pid, type, val('to'));
           if (!touched.will && x.will) will = x.will;
-          if (!x.releases.includes(release)) release = x.releases[0];
+          if (x.releases && !x.releases.includes(release)) release = x.releases[0];
+          d.querySelector('#mv-relf').hidden = !x.releases;
           d.querySelector('[data-for="to"]').hidden = type === '继续观察';
           mount(d.querySelector('#mv-auto'), html`<span class="n-mvform__tag">根据档案自动填写</span>
             <dl><div><dt>原团队</dt><dd>${x.from || '—'}</dd></div>
             <div><dt>依据</dt><dd>${x.basis ? basisLine(x.basis) : html`<span class="nt-muted">${pid ? '这个人还没有可引用的结营或盘点结论，请在补充说明里写依据' : '选人后带出'}</span>`}</dd></div>
             <div><dt>影响</dt><dd>${x.impact}</dd></div></dl>`);
           mount(d.querySelector('#mv-will'), seg('will', WILLS, will));
-          mount(d.querySelector('#mv-rel'), seg('release', x.releases.map((t) => [t, t]), release));
+          mount(d.querySelector('#mv-rel'), x.releases ? seg('release', x.releases.map((t) => [t, t]), release) : html`<input type="hidden" data-k="release" value="">`);
           mount(d.querySelector('#mv-watch'), type === '继续观察' ? html`<div class="nt-cols" style="gap:var(--s-3)">
             <label class="n-field"><span class="n-field__label">下次补什么</span><input class="n-input" data-k="next" value="${m.next || '实习满 8 周后再评一次'}"></label>
             <label class="n-field"><span class="n-field__label">${st.me().name}负责，截止</span><input class="n-input" type="date" data-k="due" value="${m.due || NT.addDays(NT.TODAY, 30)}"></label></div>` : '');
