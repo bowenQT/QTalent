@@ -482,6 +482,7 @@ it('keeps the actual873 collection binding through866 context load and separate 
   const input = createValidatedAttachmentInput<Transaction>({
     readValidatedUploadInContext: readValidatedUploadInTransaction,
     readValidatedUpload: (ref) => readValidatedUpload(f.store, ref),
+    stagedJob: async () => null,
     // Synthetic policy tests only context identity; not production authorization.
     canProcess: async (tx, binding) => {
       authorizedContext = tx;

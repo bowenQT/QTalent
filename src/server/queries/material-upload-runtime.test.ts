@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ storage: null as unknown, fail: false }));
-vi.mock('./kodo-upload-storage', () => ({
-  kodoUploadStorageFromEnv: () => {
+vi.mock('../integrations/kodo', async (original) => ({
+  ...(await original<typeof import('../integrations/kodo')>()),
+  createKodoClientFromEnv: () => {
     if (h.fail) throw new Error('malformed deployment value');
     return h.storage;
   },
@@ -14,7 +15,7 @@ import {
   materialUploadHandlersForServer,
   refuseMaterialDispatch,
 } from './material-upload-runtime';
-import { kodoUploadStorageFromEnv } from './kodo-upload-storage';
+import { createKodoClientFromEnv } from '../integrations/kodo';
 
 const staging = {
   purpose: 'image' as const,
@@ -54,6 +55,6 @@ describe('material upload runtime', () => {
       }
     }
     h.fail = false;
-    expect(kodoUploadStorageFromEnv).toBeTypeOf('function');
+    expect(createKodoClientFromEnv).toBeTypeOf('function');
   });
 });

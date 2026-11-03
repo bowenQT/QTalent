@@ -5,6 +5,7 @@ import { applyJobCommand, newJob, type JobRecord } from '../jobs/state';
 import { createJobService, type JobStore } from '../jobs/service';
 import type { PgBoss } from 'pg-boss';
 import {
+  attachmentParseQueue,
   createAttachmentParsePolicy,
   registerAttachmentParseJob,
 } from '../jobs/attachment-parse';
@@ -223,6 +224,7 @@ describe('attachment parse transaction pipeline', () => {
     const input = createValidatedAttachmentInput<Context>({
       readValidatedUploadInContext: async () => upload,
       readValidatedUpload: async () => structuredClone(upload),
+      stagedJob: async () => null,
       canProcess,
       openObject: async () =>
         (async function* () {
@@ -235,12 +237,15 @@ describe('attachment parse transaction pipeline', () => {
       ((jobs: Array<{ data: unknown }>) => Promise<void>) | undefined;
     const boss = {
       createQueue: vi.fn(async () => {}),
-      work: vi.fn(async (_queue: string, handler: typeof dispatch) => {
-        dispatch = handler;
+      work: vi.fn(async (queue: string, handler: typeof dispatch) => {
+        if (queue === attachmentParseQueue) dispatch = handler;
       }),
+      schedule: vi.fn(async () => {}),
     };
-    await registerAttachmentParseJob(boss as unknown as PgBoss, (data) =>
-      runAttachmentParse(f.store, ports, data, options),
+    await registerAttachmentParseJob(
+      boss as unknown as PgBoss,
+      (data) => runAttachmentParse(f.store, ports, data, options),
+      async () => 0,
     );
     await dispatch!([{ data: payload }]);
     expect(canProcess).toHaveBeenCalledTimes(2);

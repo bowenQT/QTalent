@@ -7,6 +7,7 @@ import {
   entryToolInputSchemas,
   entryToolSuccessSchemas,
 } from '../../../contracts/entry-tools';
+import { batchNodeMatchesInput } from '../../../contracts/materials';
 import {
   agentApiConversations,
   agentApiTurns,
@@ -572,12 +573,13 @@ export function createAgentConversationPostgresPorts(options: {
       // Native create stores personIds sorted; the recorded args keep the
       // model's order. Compare the set, the same way create normalizes it.
       const subject = (value: typeof now | typeof args) => [
-        value.evaluationNodeId,
         [...value.personIds].sort(),
         value.projectId,
       ];
       if (
         now.batchId !== disclosed.batchId ||
+        now.evaluationNodeId !== disclosed.evaluationNodeId ||
+        !batchNodeMatchesInput(args, now.evaluationNodeId) ||
         !isDeepStrictEqual(subject(now), subject(disclosed)) ||
         !isDeepStrictEqual(subject(now), subject(args))
       )

@@ -12,6 +12,8 @@ const f = vi.hoisted(() => ({
   demandRuntime: vi.fn(),
   arrangeRuntime: vi.fn(),
   registerArrange: vi.fn(),
+  attachmentRuntime: vi.fn(),
+  registerAttachment: vi.fn(),
   matchRuntime: vi.fn(),
   registerMatch: vi.fn(),
   access: vi.fn(),
@@ -25,7 +27,7 @@ const f = vi.hoisted(() => ({
     DATABASE_URL: 'test',
     BETTER_AUTH_URL: 'https://test.local',
     WORKER_PORT: 3001,
-  },
+  } as Record<string, string | number | undefined>,
   failListen: false,
   clientClose: vi.fn(),
   closeSockets: vi.fn(),
@@ -42,6 +44,9 @@ vi.mock('../server/usecases/staffing-demand-runtime', () => ({
 }));
 vi.mock('../server/usecases/record-arrange-worker', () => ({
   createRecordArrangeWorker: f.arrangeRuntime,
+}));
+vi.mock('../server/usecases/attachment-parse-worker', () => ({
+  createAttachmentParseWorker: f.attachmentRuntime,
 }));
 vi.mock('../server/usecases/staffing-match-runtime', () => ({
   createStaffingMatchServerRuntime: f.matchRuntime,
@@ -99,6 +104,8 @@ beforeEach(() => {
   f.env.MODELINK_API_KEY = undefined;
   f.env.MODELINK_BASE_URL = undefined;
   f.env.MODELINK_MODEL = undefined;
+  for (const key of Object.keys(f.env))
+    if (key.startsWith('QINIU_KODO_')) delete f.env[key];
   f.start.mockResolvedValue(undefined);
   f.stop.mockResolvedValue(undefined);
   f.register.mockResolvedValue(undefined);
@@ -107,6 +114,8 @@ beforeEach(() => {
   f.demandRuntime.mockReturnValue({ register: f.registerDemand });
   f.registerArrange.mockResolvedValue(undefined);
   f.arrangeRuntime.mockReturnValue({ register: f.registerArrange });
+  f.registerAttachment.mockResolvedValue(undefined);
+  f.attachmentRuntime.mockReturnValue({ register: f.registerAttachment });
   f.registerMatch.mockResolvedValue(undefined);
   f.matchRuntime.mockReturnValue({ register: f.registerMatch });
   f.access.mockResolvedValue(undefined);
@@ -167,6 +176,59 @@ describe('worker lifecycle with transport boundaries replaced', () => {
       expect(await input.boss('staffing-match')).toBe(worker.boss);
       expect(input.wallNow().toISOString()).toBe('2026-11-01T12:00:00.000Z');
     } finally {
+      await worker.stop();
+    }
+  });
+  it.each(['demo', 'test', 'production'])(
+    'registers attachment parsing once with the shared boss in %s',
+    async (environment) => {
+      f.env.APP_ENV = environment;
+      const worker = await startWorker();
+      try {
+        expect(f.registerAttachment).toHaveBeenCalledOnce();
+        const input = f.attachmentRuntime.mock.calls[0][0];
+        expect(input.boss).toBe(worker.boss);
+        expect(input.demo).toBe(environment !== 'production');
+        // No deployed Kodo here: only the test environment reads the test
+        // double; elsewhere every open fails as a dependency outage.
+        const opened = input.storage.openObject({ objectKey: 'demo/missing' });
+        await expect(opened).rejects.toMatchObject({
+          code: environment === 'test' ? 'not_found' : 'unavailable',
+        });
+      } finally {
+        await worker.stop();
+      }
+    },
+  );
+  it('starts every queue and the socket when the Kodo configuration is malformed', async () => {
+    f.env.APP_ENV = 'production';
+    Object.assign(f.env, {
+      QINIU_KODO_ENDPOINT: 'not a url',
+      QINIU_KODO_UPLOAD_ENDPOINT: 'not a url',
+      QINIU_KODO_MANAGEMENT_ENDPOINT: 'not a url',
+      QINIU_KODO_ACCESS_KEY: 'synthetic-access',
+      QINIU_KODO_SECRET_KEY: 'synthetic-secret',
+      QINIU_KODO_BUCKET: 'synthetic-bucket',
+    });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const worker = await startWorker();
+    try {
+      expect(f.registerArrange).toHaveBeenCalledOnce();
+      expect(f.registerAttachment).toHaveBeenCalledOnce();
+      expect(f.registerMatch).toHaveBeenCalledOnce();
+      expect(f.serverEvents.size).toBeGreaterThan(0);
+      const input = f.attachmentRuntime.mock.calls[0][0];
+      await expect(
+        input.storage.openObject({ objectKey: 'demo/missing' }),
+      ).rejects.toMatchObject({ code: 'unavailable' });
+      // Only the safe category is logged, never a configured value.
+      expect(errors).toHaveBeenCalledWith(
+        'Attachment storage unavailable',
+        'kodo_config_invalid',
+      );
+      expect(JSON.stringify(errors.mock.calls)).not.toContain('synthetic');
+    } finally {
+      errors.mockRestore();
       await worker.stop();
     }
   });

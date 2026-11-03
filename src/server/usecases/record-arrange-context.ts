@@ -188,6 +188,31 @@ export function requireNativeInput(input: StoredArrangeInput) {
     occurredOn: input.occurredOn,
   };
 }
+/** A files-only intake: the uploaded materials are its only originals; it has no
+ * text fragment or source contexts until each file's own parse produces them. */
+export function requireNativeMediaInput(input: StoredArrangeInput) {
+  if (
+    !input.batchId ||
+    !input.evaluationNodeId ||
+    !input.boundAt ||
+    !input.occurredOn ||
+    input.origin !== 'attachment' ||
+    !('kind' in input.originalInput) ||
+    input.originalInput.kind !== 'media' ||
+    input.inputSource !== null ||
+    input.sourceContexts.length !== 0
+  )
+    throw new NativeArrangeUnavailable('native_media_input_facts_required');
+  return {
+    originalInput: input.originalInput,
+    batchId: input.batchId,
+    evaluationNodeId: input.evaluationNodeId,
+  };
+}
+export const isNativeMediaInput = (input: StoredArrangeInput) =>
+  input.origin === 'attachment' &&
+  'kind' in input.originalInput &&
+  input.originalInput.kind === 'media';
 /** Lock existing authorization rows and the FK-backed complete source graph.
  * The intake table and job row are locked by the caller first. Subjects merged
  * from every other intake on the same fragment (superseded included) are part

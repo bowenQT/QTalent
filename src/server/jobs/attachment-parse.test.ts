@@ -11,6 +11,7 @@ import {
   createAttachmentParsePolicy,
   registerAttachmentParseJob,
   attachmentParseQueue,
+  attachmentParseRecoveryQueue,
 } from './attachment-parse';
 import type { AttachmentPolicyPorts } from '../modules/records/attachments/flow';
 
@@ -164,21 +165,37 @@ describe('attachment media policy and isolated worker registration', () => {
     expect(await policy.can({}, 'viewer', job, 'retry')).toBe(true);
   });
   it('registers an isolated queue and validates payload before dispatch', async () => {
-    let callback:
-      ((jobs: Array<{ data: unknown }>) => Promise<void>) | undefined;
+    const handlers = new Map<
+      string,
+      (jobs: Array<{ data: unknown }>) => Promise<void>
+    >();
     const boss = {
       createQueue: vi.fn(async () => {}),
-      work: vi.fn(async (_queue: string, run: typeof callback) => {
-        callback = run;
-      }),
+      work: vi.fn(
+        async (
+          queue: string,
+          run: (jobs: Array<{ data: unknown }>) => Promise<void>,
+        ) => {
+          handlers.set(queue, run);
+        },
+      ),
+      schedule: vi.fn(async () => {}),
     };
     const run = vi.fn(async () => {});
-    await registerAttachmentParseJob(boss as unknown as PgBoss, run);
-    expect(boss.createQueue).toHaveBeenCalledWith(attachmentParseQueue);
-    expect(boss.work).toHaveBeenCalledWith(
-      attachmentParseQueue,
-      expect.any(Function),
+    const recover = vi.fn(async () => 0);
+    await registerAttachmentParseJob(boss as unknown as PgBoss, run, recover);
+    expect(boss.createQueue).toHaveBeenCalledWith(attachmentParseQueue, {
+      retryLimit: 0,
+    });
+    // Lost runners are recovered once at start, then on the minute schedule.
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(boss.schedule).toHaveBeenCalledWith(
+      attachmentParseRecoveryQueue,
+      '* * * * *',
     );
+    await handlers.get(attachmentParseRecoveryQueue)!([{ data: null }]);
+    expect(recover).toHaveBeenCalledTimes(2);
+    const callback = handlers.get(attachmentParseQueue);
     if (!callback) throw new Error('missing callback');
     await callback([{ data: { jobId: 'job', attempt: 1 } }]);
     expect(run).toHaveBeenLastCalledWith({ jobId: 'job', attempt: 1 });

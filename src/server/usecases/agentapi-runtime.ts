@@ -6,6 +6,7 @@ import { getEnv } from '../env';
 import { createClock } from '../../lib/clock';
 import { getAppJobProducer } from '../platform/jobs/app-runtime';
 import { recordArrangeQueue } from '../jobs/record-arrange';
+import { attachmentParseQueue } from '../jobs/attachment-parse';
 import {
   createEntryIdentityService,
   type EntryIdentity,
@@ -144,9 +145,11 @@ export async function agentConversationForRequest(headers: Headers) {
         now: wallNow,
         businessNow,
         async enqueue(tx, job) {
-          const boss = await getAppJobProducer(recordArrangeQueue);
+          const queue =
+            job.kind === 'media' ? attachmentParseQueue : recordArrangeQueue;
+          const boss = await getAppJobProducer(queue);
           const sent = await boss.send(
-            recordArrangeQueue,
+            queue,
             { jobId: job.jobId, attempt: job.attempt },
             { db: fromDrizzle(tx, sql), retryLimit: 0 },
           );

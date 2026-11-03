@@ -104,13 +104,24 @@ export function createAttachmentParsePolicy<C>(
     enqueue: (context, job, action) => ports.enqueue(context, job, action),
   };
 }
+export const attachmentParseRecoveryQueue = 'attachment-parse-recovery';
+/** No queue retry: the runner settles every claimed attempt itself, and a new
+ * attempt comes only from an explicit retry command. A claim whose runner died
+ * is found by `recover`, once at start and then every minute. */
 export async function registerAttachmentParseJob(
-  boss: PgBoss,
+  boss: Pick<PgBoss, 'createQueue' | 'work' | 'schedule'>,
   run: (payload: unknown) => Promise<unknown>,
+  recover: () => Promise<unknown>,
 ): Promise<void> {
-  await boss.createQueue(attachmentParseQueue);
+  await boss.createQueue(attachmentParseQueue, { retryLimit: 0 });
   await boss.work(attachmentParseQueue, async (jobs) => {
     for (const job of jobs)
       await run(attachmentJobPayloadSchema.parse(job.data));
   });
+  await boss.createQueue(attachmentParseRecoveryQueue, { retryLimit: 0 });
+  await boss.work(attachmentParseRecoveryQueue, async () => {
+    await recover();
+  });
+  await boss.schedule(attachmentParseRecoveryQueue, '* * * * *');
+  await recover();
 }

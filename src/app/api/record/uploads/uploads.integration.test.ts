@@ -38,14 +38,19 @@ vi.mock('../../../../server/db/client', async (original) => ({
   getDatabase: () => h.db,
 }));
 // No deployed Kodo: the routes fall back to the test-only v2 double.
-vi.mock('../../../../server/queries/kodo-upload-storage', () => ({
-  kodoUploadStorageFromEnv: () => null,
+vi.mock('../../../../server/integrations/kodo', async (original) => ({
+  ...(await original<typeof import('../../../../server/integrations/kodo')>()),
+  createKodoClientFromEnv: () => null,
 }));
 vi.mock('../../../../server/auth', () => ({
   getSession: async () => (h.account ? { user: { id: h.account } } : null),
 }));
 vi.mock('../../../../server/env', () => ({
-  getEnv: () => ({ APP_ENV: 'test', BETTER_AUTH_URL: 'https://app.test' }),
+  getEnv: () => ({
+    APP_ENV: 'test',
+    BETTER_AUTH_URL: 'https://app.test',
+    DATABASE_URL: 'postgres://uploads-integration.test/db',
+  }),
 }));
 vi.mock('../../../../server/access', () => ({
   verifyAccessRequest: async () => undefined,
