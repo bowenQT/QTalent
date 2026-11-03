@@ -272,25 +272,31 @@
         { key: 'promo', name: '晋升', status: 'planned', state: '暂无' },
       ];
     }
-    // 在职员工：入职、Landing、各绩效周期按入职时间推出来；转正答辩取答辩节点
-    const j = p.joined, h = [...p.id].reduce((n, c) => n + c.charCodeAt(0), 0);
+    // 在职员工：有履历（path）的按履历；没有的，Landing 和已过去的绩效周期用演示数据补上。转正答辩取答辩节点
+    const j = p.joined, h = [...p.id].reduce((n, c) => n + c.charCodeAt(0), 0), path = p.path;
     const def = PG.find((g) => g.kind === '答辩' && g.people.includes(p.id));
-    const lf = D(j, 7), lt = D(j, 32);
+    const keep = (facts) => facts.filter(([k]) => mgmt || k !== '结营结论');
+    const land = path?.land || { name: 'Landing', from: D(j, 7), to: D(j, 32), demo: true, facts: [['导师', '方序（演示）'], ['课题', '客户工单分级与值班手册（演示）']] };
     const out = [
-      { key: 'hire', name: '入职', at: j, status: 'done', state: '', facts: [['部门', st.orgShort(p.org)], ['岗位', `${p.title} · ${p.level}`]] },
-      { key: 'land', name: 'Landing', from: lf, to: lt, status: lt < T ? 'done' : 'now', state: lt < T ? '已结营' : '进行中', demo: true, facts: [['导师', '方序（演示）'], ['课题', '客户工单分级与值班手册（演示）']] },
+      ...(path?.xe ? [{ key: 'xe', name: path.xe.name, from: path.xe.from, to: path.xe.to, status: 'done', state: '已结营', facts: keep(path.xe.facts) }] : []),
+      { key: 'hire', name: '入职', at: j, status: 'done', state: '', facts: [['部门', st.orgShort(p.org)], ['岗位', p.title]] },
+      { key: 'land', name: land.name, from: land.from, to: land.to, status: land.to < T ? 'done' : 'now', state: land.to < T ? '已结营' : '进行中', demo: land.demo, facts: land.facts },
     ];
+    const lt = land.to;
     const half = (y, k) => (k ? [`${y}-07-01`, `${y}-12-31`, `${y} 下半年`] : [`${y}-01-01`, `${y}-06-30`, `${y} 上半年`]);
     for (let y = +j.slice(0, 4); y <= +T.slice(0, 4); y++) [0, 1].forEach((k) => {
       const [f, t, label] = half(y, k);
       if (t < lt || f > T) return;
       const done = t < T;
-      out.push({ key: `perf-${y}-${k}`, name: `${label}绩效`, from: f < lt ? D(lt, 1) : f, to: t, status: done ? 'done' : 'now', state: done ? '已评定' : '进行中', demo: done,
-        facts: done && mgmt ? [['绩效等级', ['B+', 'A', 'B'][(h + y + k) % 3]], ['评定人', '直属上级（演示）']] : [] });
+      // 有履历的人，绩效等级在管理受限的绩效记录里，节点本身不再重复
+      out.push({ key: `perf-${y}-${k}`, name: `${label}绩效`, from: f < lt ? D(lt, 1) : f, to: t, status: done ? 'done' : 'now', state: done ? '已评定' : '进行中', demo: done && !path,
+        facts: done && mgmt && !path ? [['绩效等级', ['B+', 'A', 'B'][(h + y + k) % 3]], ['评定人', '直属上级（演示）']] : [] });
     });
     if (def) out.push({ key: 'conv', name: '转正', at: def.from, status: 'done', state: '已答辩，转正结论待确认', facts: [['答辩', def.name]] });
-    out.push({ key: 'promo', name: '晋升', status: 'planned', state: '暂无' });
-    return out;
+    (path?.promo || []).forEach((x, i) => out.push({ key: `promo-${i}`, name: '晋升', at: x.at, status: 'done', state: mgmt ? `${x.from} → ${x.to}` : '', facts: mgmt ? [['职级', `${x.from} → ${x.to}`], ['依据', x.via]] : [] }));
+    if (!path?.promo?.length) out.push({ key: 'promo', name: '晋升', status: 'planned', state: '暂无' });
+    const start = (x) => x.from || x.at || '9999';
+    return out.sort((a, b) => start(a).localeCompare(start(b)));
   }
 
   function timeline(events, changes, verSnap) {

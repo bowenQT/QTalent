@@ -444,6 +444,41 @@
   // ---------- 人才评价规则：六类规则各自的版本 ----------
   const FAMILIES = [['biz', '商业'], ['design', '设计'], ['eng', '工程']];
   PEOPLE.forEach((p) => { p.family = /产品/.test(p.title) ? 'design' : p.xe ? 'eng' : 'biz'; });
+
+  // ---------- 在职两年的老员工（演示）：XEngineer 第三期留用，入职、Landing、三个绩效周期、晋升，现在负责一个业务项目 ----------
+  // 档案时间线的五类关键节点都能看到真实结构；绩效和晋升评审作为管理受限的原始资料存，和维度分分开
+  ORGS.push({ id: 'rd', name: '产研', parent: null, group: true }, { id: 'kodo', name: '对象存储研发部', parent: 'rd', group: false });
+  PEOPLE.push(P('p-hanxu', '韩叙', 'kodo', '对象存储研发部负责人', 'M2', '2016-04-05', 24, { noReview: true, family: 'eng', orgHist: [['kodo', '2016-04-05', null]] }));
+  PEOPLE.push(P('p-shenyq', '沈砚秋', 'kodo', '后端工程师 · 对象存储', 'N4', '2024-07-01', 168, {
+    hrbp: 'p-suwan', manager: 'p-hanxu', family: 'eng', orgHist: [['kodo', '2024-07-01', null]],
+    path: {
+      xe: { name: 'XEngineer 第三期', from: '2023-07-03', to: '2023-08-25', facts: [['课题', '冷数据扫描与归档（演示）'], ['导师', '韩叙'], ['结营结论', '应届 · 正式 offer']] },
+      land: { name: 'Landing 第一期', from: '2024-07-08', to: '2024-08-02', facts: [['导师', '韩叙'], ['课题', '元数据巡检脚本（演示）']] },
+      promo: [{ at: '2026-03-01', from: 'N3', to: 'N4', via: '2025 年度晋升评审' }],
+    },
+  }));
+  PROJECTS.push({ id: 'pr-tier', name: '对象存储 · 冷热分层二期（演示）', type: '业务项目', org: 'kodo', status: '进行中', from: '2026-03-02', to: '2026-12-31', owner: 'p-shenyq', creator: 'p-hanxu',
+    goal: '把 90 天未访问的对象自动迁到低频存储，迁移过程可灰度、可回滚，年底前覆盖全部公有云区域。' });
+  MEMBERS.push(M('pr-tier', 'p-shenyq', '技术负责人', '全职', '2026-03-02', null, 'p-hanxu'));
+  const VET = 'p-shenyq';
+  const vetHist = (id, date, title, histType, scale, loc) => EVENTS.push({ id, date, kind: 'hist', histType, restricted: true, title, people: [VET], recorder: 'p-hanxu', demo: true,
+    srcs: [{ type: 'sheet', label: '北森人事记录（演示）', loc }], scale, quote: '', tags: [], scores: [] });
+  vetHist('e-vet-xe', '2023-08-25', 'XEngineer 第三期 · 结营评审', '结营评审', [['能力等级', 'A'], ['结营结论', '应届 · 正式 offer']], 'XEngineer 第三期观察表 · 结营评审');
+  vetHist('e-vet-p1', '2024-12-31', '2024 下半年绩效', '绩效', [['绩效等级', 'B+'], ['评定人', '韩叙']], '绩效档案 · 2024 下半年');
+  vetHist('e-vet-p2', '2025-06-30', '2025 上半年绩效', '绩效', [['绩效等级', 'A'], ['评定人', '韩叙']], '绩效档案 · 2025 上半年');
+  vetHist('e-vet-p3', '2025-12-31', '2025 下半年绩效', '绩效', [['绩效等级', 'A'], ['评定人', '韩叙']], '绩效档案 · 2025 下半年');
+  vetHist('e-vet-promo', '2026-03-01', '2025 年度晋升评审', '晋升', [['评审结论', '通过'], ['职级', 'N3 → N4']], '晋升评审 · 2025 年度');
+  vetHist('e-vet-p4', '2026-06-30', '2026 上半年绩效', '绩效', [['绩效等级', 'A'], ['评定人', '韩叙']], '绩效档案 · 2026 上半年');
+  [
+    ['e-vet-1', '2024-07-30', null, 'Landing 课题按期交付元数据巡检脚本', 'Landing 第一期', '按导师拆好的任务写完巡检脚本，第三周开始每天跑一次。', '结营时巡检脚本接进了组里的值班流程。', [['prof', 3]]],
+    ['e-vet-2', '2025-11-12', null, '主动接手冷热分层的迁移工具，先写了灰度方案', '冷热分层一期', '迁移工具原负责人转岗后没人接，主动认领，动手前先写灰度和回滚方案给组里评审。', '方案评审一次通过，迁移按灰度节奏推进。', [['mot', 4], ['prof', 4]]],
+    ['e-vet-3', '2026-01-20', null, '迁移灰度出错后当天回滚，次日给出复盘和修复', '冷热分层一期', '灰度到第二个区域时发现少量对象元数据没同步，当天按方案回滚，第二天在周会上讲清原因和修复。', '修复后重新灰度，没有再出现同类问题。', [['grit', 4], ['open', 4]]],
+    ['e-vet-4', '2026-05-14', 'pr-tier', '带两位新人拆分冷热分层二期，分工表沿用到现在', '冷热分层二期 · 启动', '二期启动时按模块拆成三块，给两位新人各配一块并每周对一次进度。', '两位新人都按期交付了第一个里程碑，分工表一直沿用。', [['lead', 4], ['wis', 4]]],
+    ['e-vet-5', '2026-08-06', 'pr-tier', '冷热分层二期上线评审，讲清了成本测算和回滚预案', '冷热分层二期 · 上线评审', '评审会上逐项说明低频存储的成本测算口径，以及每个区域的回滚预案。', '评审通过，按区域分批上线。', [['prof', 4], ['wis', 3]]],
+  ].forEach(([id, date, project, title, bg, act, res, sc], i) => EVENTS.push({
+    id, date, kind: 'obs', project, recorder: 'p-hanxu', people: [VET], title, bg, act, res, gap: '', demo: true,
+    srcs: [{ type: 'note', label: '一对一记录（演示）', loc: NT.md(date), quote: `${act}${res}` }], tags: [], scores: sc.map(([d, v]) => s(VET, d, v, 'confirmed', 'p-hanxu', { note: `引用「${act.split('，')[0]}」` })),
+  }));
   const ENG_ANCHORS = ['拆解和方案常需要他人重做，代码返工多', '能完成拆好的任务，方案和质量要他人把关', '独立完成一个模块的方案、实现和测试', '主导跨模块的技术方案，主动补上工程规范和质量保障', '能为团队定技术方向和规范，带着他人交付'];
   const ENG_THEMES = ['问题拆解', '技术方案', '代码实现', '工程规范', '质量保障', '协作交付'];
   const WATCH_PARAMS = { n1Days: 90, n1Count: 3, n1Min: 4, i2Days: 14 };
@@ -483,7 +518,7 @@
   };
 
   NT.SEED = {
-    version: 'y12', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
+    version: 'y13', DIMS, ANCHORS, THEMES, ORGS, PEOPLE, ROLES, PROJECTS, MEMBERS, MEMBER_LOG, EVENTS, H1_OVERRIDE, BATCHES, CONCLUSIONS, PROGRAMS,
     NEEDS, PLANS, ACTIONS, TRACKS, SIGNALS, TAGLIB, TAG_CANDIDATES, INBOX, TASKS, MINUTES, CHANNELS, DIRECTIONS, TEMPLATES, JUDGE, WATCH_CLUES, PUSHES: [], FOLLOWS,
     FAMILIES, ENG_THEMES, RULES, RULE_SUGS, RETRO_NODES, NODE_RETROS, GH_LINKS,
   };
