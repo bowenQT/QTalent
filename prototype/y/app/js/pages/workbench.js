@@ -122,12 +122,13 @@
   const todoActs = (t) => (t.kind === 'clue' ? html`<div class="n-todo__acts">${clueSrc(t.clue)}${peekBtn(st.get().watchClues.find((c) => c.id === t.clue)?.person)}<button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，进入值得关注</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
   // bare：组里每条的标签都一样时不再逐条重复
   const todoList = (list, o = {}) => html`<ul class="n-todo${o.bare ? ' is-bare' : ''}">${list.map((t) => html`<li class="${t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}">${o.bare ? '' : html`<span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span>`}<span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
-  // 按要做的动作归成四组：组名统一两个字，后面一句话说清要处理什么
+  // 按要做的动作分组：组名统一两个字，后面一句话说清要处理什么（导师有自己的说法）；本视角没有的组不出现
   const GROUPS = [
     ['verify', '核对', '材料里的人和课题对不上号，选一下是谁', ['verify']],
-    ['confirm', '确认', '建议分、节点结论、判断对照和方案等你拍板', ['confirm', 'conclusion', 'plan', 'ruleback', 'judge']],
+    ['landing', '复盘', '本周的对人复盘，逐项确认后整份确认', ['review']],
+    ['confirm', '确认', '建议分、节点结论、判断对照和方案等你拍板', ['confirm', 'conclusion', 'plan', 'ruleback', 'judge'], '记录里 AI 给的建议分等你确认'],
     ['review', '复核', '评分有分歧或规则改了版，再看一眼', ['calib', 'rulereview', 'rulesug']],
-    ['follow', '跟进', '线索、补记录、回访和接手的事', ['clue', 'cover', 'track', 'talk', 'reassign', 'takeover']],
+    ['follow', '跟进', '线索、补记录、回访和接手的事', ['clue', 'cover', 'track', 'talk', 'reassign', 'takeover'], '补记录和到期的重点跟踪'],
   ];
   const TODO_SHOWN = 3;
   let openGroup = null, showHandled = false, todoMore = {};
@@ -148,14 +149,14 @@
   }
   function todoBlock(role, todos) {
     const empty = UI.state({ ip: 'done', size: 48, title: '待办都处理完了', text: '新的待核对、校准和到期的跟踪会出现在这里。' });
-    if (role !== 'hrbp') return html`<h3 class="n-section-title">待办${todos.length ? html`<span class="n-count">${todos.length}</span>` : ''}</h3>${todos.length ? todoList(todos) : empty}`;
-    const groups = GROUPS.map(([k, l, d, kinds]) => ({ k, l, d, list: todos.filter((t) => kinds.includes(t.kind)) })).filter((g) => g.list.length);
-    if (!groups.length) return html`<h3 class="n-section-title">待办</h3>${empty}${handledBlock()}`;
+    const handled = role === 'hrbp' ? handledBlock() : '';
+    const groups = GROUPS.map(([k, l, d, kinds, dMentor]) => ({ k, l, d: (role === 'mentor' && dMentor) || d, list: todos.filter((t) => kinds.includes(t.kind)) })).filter((g) => g.list.length);
+    if (!groups.length) return html`<h3 class="n-section-title">待办</h3>${empty}${handled}`;
     // 默认展开最紧急的一组（当天要处理的待核对）；空字符串表示用户把各组都收起了
     const open = openGroup === '' ? '' : groups.some((g) => g.k === openGroup) ? openGroup : groups[0].k;
     return html`<h3 class="n-section-title">待办<span class="n-count">${todos.length}</span></h3>
       ${groups.map((g) => todoGroup(g, g.k === open))}
-      ${handledBlock()}`;
+      ${handled}`;
   }
   // 线索处理失败时说清发生了什么：只由负责这个人的 HR 处理；或这条线索已有新结论
   const CLUE_UNDO_FAIL = '撤销失败：这条线索已有新结论，已保留当前结果';
