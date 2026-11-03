@@ -11,7 +11,10 @@ import {
   seedNativeCase,
 } from '../../../tests/fixtures/bow-845/native';
 import { dispatched, fixture } from '../../../tests/fixtures/upload-fake';
-import { attachmentParseQueue } from '../jobs/attachment-parse';
+import {
+  attachmentParseQueue,
+  sendAttachmentParse,
+} from '../jobs/attachment-parse';
 import { jobSnapshots } from '../jobs/schema';
 import { newJob } from '../jobs/state';
 import { testKodoFor } from '../integrations/kodo/test-kodo';
@@ -109,9 +112,9 @@ async function deliver(
     );
     await tx.insert(jobSnapshots).values(job);
     if (!send) return { jobId: job.jobId };
-    const sent = await boss.send(
-      attachmentParseQueue,
-      { jobId: job.jobId, attempt: job.attempt },
+    const sent = await sendAttachmentParse(
+      boss,
+      { jobId: job.jobId, attempt: job.attempt, revision: job.revision },
       { db: fromDrizzle(tx, sql) },
     );
     if (!sent) throw new Error('Attachment parse enqueue was not committed');
@@ -200,7 +203,10 @@ async function deliver(
         operationId: randomUUID(),
         expectedRevision: revision,
       }),
-    send: () => boss.send(attachmentParseQueue, { jobId, attempt: 1 }),
+    /** Redelivers the first message; a plain send stands in for a redelivery
+     * that the message id would otherwise refuse. */
+    send: () =>
+      boss.send(attachmentParseQueue, { jobId, attempt: 1, revision: 1 }),
   };
 }
 
