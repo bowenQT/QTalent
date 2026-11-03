@@ -128,8 +128,8 @@ const wait = (ms: number, signal?: AbortSignal) =>
   });
 
 /**
- * Scripted upload backend for the development sample (BOW-873 and the batch use
- * cases are not on main): ten progress steps per file, `?upload=fail` interrupts
+ * Scripted upload backend for the development sample: one step to open the
+ * batch's collection, ten progress steps per file, `?upload=fail` interrupts
  * the first transfer half way, a batch is processing when submitted and settled
  * on the first read. Never used by /work.
  */
@@ -145,7 +145,17 @@ export function SampleMaterials({
     const batches = new Map<string, { files: Sent[]; reads: number }>();
     const names = new Map<string, string>();
     return {
-      async upload(file, onProgress, signal) {
+      async prepare(operationId) {
+        await wait(STEP_MS);
+        return {
+          status: 'ready',
+          collection: {
+            recordCollectionId: `c-${operationId}`,
+            evaluationNodeId: NODE,
+          },
+        };
+      },
+      async upload(file, _collection, onProgress, signal) {
         const fail = failFirst && transfers++ === 0;
         for (let percent = 10; percent <= 100; percent += 10) {
           await wait(STEP_MS, signal);

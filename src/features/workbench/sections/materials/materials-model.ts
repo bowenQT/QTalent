@@ -30,12 +30,16 @@ export type LocalFile = { clientFileId: string; name: string } & (
   /** Format or size: this file never goes, another one has to. */
   | { state: 'rejected'; message: string }
   | { state: 'canceled' }
+  /** Never sent: the batch was refused before any file went. */
+  | { state: 'held' }
 );
 
 export type Submission =
   | { state: 'waiting' }
   | { state: 'sending'; operationId: string }
   | { state: 'interrupted'; operationId: string; message: string }
+  /** Declined by the server as sent; the message says what to do next. */
+  | { state: 'refused'; message: string }
   | { state: 'sent'; receipt: MaterialBatchReceipt };
 
 export type Batch = {
@@ -55,6 +59,7 @@ export type BatchKey = 'processing' | 'verify' | 'confirm' | 'done' | 'failed';
  */
 export function batchState(batch: Batch): [BatchKey, string] {
   const { submission } = batch;
+  if (submission.state === 'refused') return ['failed', '已退回'];
   if (submission.state === 'sent')
     switch (submission.receipt.status) {
       case 'processing':
@@ -129,6 +134,13 @@ export function localLine(file: LocalFile): FileLine {
         label: '已取消',
         tone: null,
         meta: '已移出本次投递',
+      };
+    case 'held':
+      return {
+        icon: 'dash',
+        label: '未上传',
+        tone: null,
+        meta: '按提示处理后重新拖入',
       };
   }
 }
@@ -210,6 +222,7 @@ export function localParts(batch: Batch): string[] {
     count('interrupted') ? `${count('interrupted')} 个上传中断` : '',
     count('rejected') ? `${count('rejected')} 个待换文件` : '',
     count('canceled') ? `${count('canceled')} 个已取消` : '',
+    count('held') ? `${count('held')} 个未上传` : '',
   ].filter(Boolean);
 }
 

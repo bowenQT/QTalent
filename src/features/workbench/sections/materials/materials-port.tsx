@@ -3,6 +3,22 @@ import { createContext, useContext, type ReactNode } from 'react';
 import type { MaterialFileInput } from '@/contracts/media';
 import type { MaterialBatchReceipt } from '@/contracts/materials';
 
+/** Where one batch's files are staged: the upload collection and the node the server chose. */
+export type UploadCollection = {
+  recordCollectionId: string;
+  evaluationNodeId: string;
+};
+
+/**
+ * Opening a batch's upload collection. `refused` means the server has no single
+ * evaluation node in progress for the uploader: nothing of this batch goes, and
+ * the message says what to do. `interrupted` may be retried.
+ */
+export type PrepareOutcome =
+  | { status: 'ready'; collection: UploadCollection }
+  | { status: 'refused'; message: string }
+  | { status: 'interrupted'; message: string };
+
 /**
  * One file's way into storage: upload grant, the transfer itself with progress, and
  * the completion check (BOW-873, `materialUploadRequestSchema` and
@@ -14,9 +30,15 @@ export type UploadOutcome =
   | { status: 'rejected'; message: string }
   | { status: 'interrupted'; message: string };
 
+/**
+ * `refused` is the server declining this batch as sent (no single evaluation node
+ * in progress, no permission): sending it again changes nothing, so it is not
+ * offered again.
+ */
 export type SubmitOutcome =
   | { status: 'accepted'; receipt: MaterialBatchReceipt }
-  | { status: 'interrupted'; message: string };
+  | { status: 'interrupted'; message: string }
+  | { status: 'refused'; message: string };
 
 /**
  * The upload and batch backend (BOW-873 and the BOW-897 batch use cases). The
@@ -24,8 +46,11 @@ export type SubmitOutcome =
  * uploading is not connected and draws no tasks, counts or progress.
  */
 export type MaterialsPort = {
+  /** Once per batch, before any file goes; the same operationId on a retry. */
+  prepare: (operationId: string) => Promise<PrepareOutcome>;
   upload: (
     file: File,
+    collection: UploadCollection,
     onProgress: (percent: number) => void,
     signal: AbortSignal,
   ) => Promise<UploadOutcome>;

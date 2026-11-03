@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FileSelection } from '@/components/ui/file-selection';
-import type { MaterialsPort } from './materials-port';
+import type { MaterialsPort, PrepareOutcome } from './materials-port';
 import { settled, type Batch, type LocalFile } from './materials-model';
 
 /** How often a processing receipt is read again. */
@@ -23,6 +23,14 @@ export function useBatches(port: MaterialsPort | null) {
   const transfers = useRef(new Map<string, AbortController>());
   // Guards against a second submission of the same batch from a repeated effect.
   const submitting = useRef(new Set<string>());
+  // Each batch's upload collection: opened once, shared by its files, and opened
+  // again with the same operationId only after an interruption.
+  const collections = useRef(
+    new Map<
+      string,
+      { operationId: string; opening: Promise<PrepareOutcome> | null }
+    >(),
+  );
 
   const patchFile = useCallback(
     (batchId: string, clientFileId: string, next: LocalFile) =>
@@ -48,10 +56,53 @@ export function useBatches(port: MaterialsPort | null) {
     [],
   );
 
+  const prepare = useCallback(
+    (batchId: string) => {
+      const entry = collections.current.get(batchId);
+      if (!port || !entry) return null;
+      entry.opening ??= port.prepare(entry.operationId).then(
+        (outcome) => {
+          if (outcome.status === 'interrupted') entry.opening = null;
+          return outcome;
+        },
+        (): PrepareOutcome => {
+          entry.opening = null;
+          return { status: 'interrupted', message: '连接中断，可以重试' };
+        },
+      );
+      return entry.opening;
+    },
+    [port],
+  );
+
+  // Nothing of a refused batch goes: its waiting files stay here, unsent.
+  const refuse = useCallback(
+    (batchId: string, message: string) =>
+      patchBatch(batchId, (batch) =>
+        batch.submission.state === 'refused'
+          ? batch
+          : {
+              ...batch,
+              files: batch.files.map((file) =>
+                file.state === 'uploading' || file.state === 'interrupted'
+                  ? {
+                      clientFileId: file.clientFileId,
+                      name: file.name,
+                      state: 'held',
+                    }
+                  : file,
+              ),
+              submission: { state: 'refused', message },
+            },
+      ),
+    [patchBatch],
+  );
+
   const transfer = useCallback(
     (batchId: string, clientFileId: string) => {
       const file = files.current.get(clientFileId);
-      if (!port || !file) return;
+      const opening = prepare(batchId);
+      if (!port || !file || !opening) return;
       const controller = new AbortController();
       transfers.current.set(clientFileId, controller);
       const base = { clientFileId, name: file.name };
@@ -65,21 +116,35 @@ export function useBatches(port: MaterialsPort | null) {
         transfers.current.delete(clientFileId);
         patchFile(batchId, clientFileId, next);
       };
-      port
-        .upload(
-          file,
-          (percent) => {
-            if (!controller.signal.aborted)
-              patchFile(batchId, clientFileId, {
-                ...base,
-                state: 'uploading',
-                percent: Math.min(100, Math.max(0, Math.round(percent))),
-              });
-          },
-          controller.signal,
-        )
+      opening
+        .then((prepared) => {
+          if (controller.signal.aborted) return null;
+          if (prepared.status === 'refused') {
+            transfers.current.delete(clientFileId);
+            refuse(batchId, prepared.message);
+            return null;
+          }
+          if (prepared.status === 'interrupted') {
+            done({ ...base, state: 'interrupted', message: prepared.message });
+            return null;
+          }
+          return port.upload(
+            file,
+            prepared.collection,
+            (percent) => {
+              if (!controller.signal.aborted)
+                patchFile(batchId, clientFileId, {
+                  ...base,
+                  state: 'uploading',
+                  percent: Math.min(100, Math.max(0, Math.round(percent))),
+                });
+            },
+            controller.signal,
+          );
+        })
         .then(
           (outcome) => {
+            if (!outcome) return;
             if (outcome.status === 'uploaded')
               done({ ...base, state: 'uploaded', uploadId: outcome.uploadId });
             else if (outcome.status === 'rejected')
@@ -95,7 +160,7 @@ export function useBatches(port: MaterialsPort | null) {
             }),
         );
     },
-    [port, patchFile],
+    [port, patchFile, prepare, refuse],
   );
 
   const add = useCallback(
@@ -127,6 +192,7 @@ export function useBatches(port: MaterialsPort | null) {
         ],
         submission: { state: 'waiting' },
       };
+      collections.current.set(batchId, { operationId: newId(), opening: null });
       setBatches((current) => [batch, ...current]);
       for (const { clientFileId } of accepted) transfer(batchId, clientFileId);
     },
@@ -175,7 +241,13 @@ export function useBatches(port: MaterialsPort | null) {
           finish(
             outcome.status === 'accepted'
               ? { state: 'sent', receipt: outcome.receipt }
-              : { state: 'interrupted', operationId, message: outcome.message },
+              : outcome.status === 'refused'
+                ? { state: 'refused', message: outcome.message }
+                : {
+                    state: 'interrupted',
+                    operationId,
+                    message: outcome.message,
+                  },
           ),
         () =>
           finish({

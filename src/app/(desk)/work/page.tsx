@@ -2,6 +2,7 @@ import { AccessDenied } from '@/features/shell/AccessDenied';
 import { State } from '@/components/ui/State';
 import { Workbench } from '@/features/workbench/Workbench';
 import { toWorkbenchView } from '@/features/workbench/view';
+import { LiveMaterials } from './LiveMaterials';
 import { readEvaluationReassignmentsForCurrentUser } from '@/server/queries/evaluation-reassignments';
 import { getShellPage } from '@/server/queries/shell';
 import {
@@ -63,5 +64,9 @@ export default async function WorkPage() {
     },
     { reassignments },
   );
-  return <Workbench view={view} />;
+  return (
+    <LiveMaterials>
+      <Workbench view={view} />
+    </LiveMaterials>
+  );
 }

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { ShellData } from '@/contracts/shell';
 import { fixtures } from '../../../../tests/fixtures/p0-contracts';
@@ -90,10 +91,14 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+/** The shell provides toasts around every desk page. */
+const renderWork = (page: ReactNode) =>
+  render(<ToastProvider>{page}</ToastProvider>);
+
 describe('/work', () => {
   it('renders the real read for HR with the handover row from BOW-899', async () => {
     workbenchQuery.mockResolvedValue({ status: 'ok', data: hr });
-    const { container } = render(await WorkPage());
+    const { container } = renderWork(await WorkPage());
     expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(
       /演示 HR$/,
     );
@@ -115,12 +120,19 @@ describe('/work', () => {
     expect(container.querySelector('#btn-export')).toBeNull();
     // Named demo examples outside production.
     expect(container.querySelectorAll('.n-ask')).toHaveLength(1);
+    // Materials go through the live upload port: an open drop zone, no 待接入.
+    expect(container.querySelector('#upload')?.textContent).not.toContain(
+      '待接入',
+    );
+    expect(container.querySelector('#tasks')?.textContent).toBe(
+      '投递的材料会出现在这里',
+    );
   });
 
   it('reads reassignments for HR only', async () => {
     for (const data of [manager, mentor]) {
       workbenchQuery.mockResolvedValue({ status: 'ok', data });
-      const { container, unmount } = render(await WorkPage());
+      const { container, unmount } = renderWork(await WorkPage());
       expect(container.querySelector('#todo')).toBeNull();
       unmount();
     }
@@ -130,21 +142,21 @@ describe('/work', () => {
   it('drops the named examples in production', async () => {
     vi.stubEnv('APP_ENV', 'production');
     workbenchQuery.mockResolvedValue({ status: 'ok', data: mentor });
-    const { container } = render(await WorkPage());
+    const { container } = renderWork(await WorkPage());
     expect(container.querySelector('.n-ask')).toBeNull();
     expect(container.querySelector('#students')).toBeTruthy();
   });
 
   it('says a mixed HR and mentor account waits for its view, never an empty list', async () => {
     workbenchQuery.mockRejectedValue(new NotConnected());
-    const { container } = render(await WorkPage());
+    const { container } = renderWork(await WorkPage());
     expect(screen.getByText('工作台待开通')).toBeTruthy();
     expect(container.querySelector('#students, #todo, textarea')).toBeNull();
   });
 
   it('shows administrators the business-view state, and rethrows other failures', async () => {
     workbenchQuery.mockResolvedValue({ status: 'forbidden' });
-    render(await WorkPage());
+    renderWork(await WorkPage());
     expect(screen.getByText('这一页属于业务视角')).toBeTruthy();
     expect(
       screen.getByRole('link', { name: '打开系统管理' }).getAttribute('href'),
@@ -155,7 +167,7 @@ describe('/work', () => {
 
   it('denies without a shell and titles the page per viewer', async () => {
     shellQuery.mockResolvedValue(null);
-    render(await WorkPage());
+    renderWork(await WorkPage());
     expect(workbenchQuery).not.toHaveBeenCalled();
     expect(await generateMetadata()).toEqual({
       title: '查看权限已更新 · Niu-Talent',

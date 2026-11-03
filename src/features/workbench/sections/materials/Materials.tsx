@@ -141,7 +141,7 @@ function BatchCard({ batch, state }: { batch: Batch; state: Batches }) {
       ))}
       <div className="n-dropbatch__foot">
         <span className="nt-muted">
-          {submission.state === 'interrupted'
+          {submission.state === 'interrupted' || submission.state === 'refused'
             ? submission.message
             : parts.join(' · ') || label}
         </span>

@@ -14,6 +14,7 @@ import type { MaterialBatchReceipt } from '@/contracts/materials';
 import {
   MaterialsPortProvider,
   type MaterialsPort,
+  type PrepareOutcome,
   type SubmitOutcome,
   type UploadOutcome,
 } from './materials-port';
@@ -31,8 +32,16 @@ type Deferred<T> = {
   reject: (error: unknown) => void;
 };
 
-/** A port whose every call waits until the test answers it. */
-function manualPort() {
+const COLLECTION = {
+  recordCollectionId: 'collection-1',
+  evaluationNodeId: 'node-1',
+};
+
+/**
+ * A port whose every call waits until the test answers it; the batch's collection
+ * opens at once unless `opened` is false.
+ */
+function manualPort({ opened = true }: { opened?: boolean } = {}) {
   const uploads: {
     file: File;
     progress: (percent: number) => void;
@@ -47,8 +56,18 @@ function manualPort() {
     batchId: string;
     answer: Deferred<MaterialBatchReceipt | null>;
   }[] = [];
+  const prepares: {
+    operationId: string;
+    answer: Deferred<PrepareOutcome>;
+  }[] = [];
   const port: MaterialsPort = {
-    upload: (file, progress, signal) =>
+    prepare: (operationId) =>
+      opened
+        ? Promise.resolve({ status: 'ready', collection: COLLECTION })
+        : new Promise((resolve, reject) =>
+            prepares.push({ operationId, answer: { resolve, reject } }),
+          ),
+    upload: (file, _collection, progress, signal) =>
       new Promise((resolve, reject) =>
         uploads.push({ file, progress, signal, answer: { resolve, reject } }),
       ),
@@ -61,7 +80,7 @@ function manualPort() {
         reads.push({ batchId, answer: { resolve, reject } }),
       ),
   };
-  return { port, uploads, submits, reads };
+  return { port, prepares, uploads, submits, reads };
 }
 
 const doc = (name: string, size = 10) =>
@@ -69,11 +88,13 @@ const doc = (name: string, size = 10) =>
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
 
-function choose(files: File[]) {
+/** Drops files and lets the batch's collection open, so its transfers start. */
+async function choose(files: File[]) {
   const input = document.querySelector<HTMLInputElement>(
     '#upload input[type=file]',
   )!;
   fireEvent.change(input, { target: { files } });
+  await act(async () => {});
 }
 
 function mount(port: MaterialsPort | null, mentor = false) {
@@ -139,7 +160,7 @@ describe('materials with a backend', () => {
     const { port, uploads, submits, reads } = manualPort();
     mount(port);
     expect(screen.getByText('投递的材料会出现在这里')).toBeTruthy();
-    choose([doc('纪要.docx'), doc('评审.docx'), doc('现场.heic')]);
+    await choose([doc('纪要.docx'), doc('评审.docx'), doc('现场.heic')]);
 
     expect(uploads).toHaveLength(2);
     expect(within(batchCard()).getByText('本次投递 · 3 个文件')).toBeTruthy();
@@ -203,7 +224,7 @@ describe('materials with a backend', () => {
   it('cancels a file while it uploads, and the rest still goes', async () => {
     const { port, uploads, submits } = manualPort();
     mount(port);
-    choose([doc('一.docx'), doc('二.docx')]);
+    await choose([doc('一.docx'), doc('二.docx')]);
     const row = within(batchCard())
       .getByText('一.docx')
       .closest('.n-file') as HTMLElement;
@@ -225,7 +246,7 @@ describe('materials with a backend', () => {
   it('retries an interrupted upload with the same file, or lets it go', async () => {
     const { port, uploads, submits } = manualPort();
     mount(port);
-    choose([doc('一.docx'), doc('二.docx')]);
+    await choose([doc('一.docx'), doc('二.docx')]);
     await act(async () =>
       uploads[0].answer.resolve({
         status: 'interrupted',
@@ -239,7 +260,9 @@ describe('materials with a backend', () => {
       ...batchCard().querySelectorAll<HTMLElement>('.n-file'),
     ];
     expect(second.textContent).toContain('连接中断，可以重试');
-    fireEvent.click(within(first).getByRole('button', { name: '重试' }));
+    await act(async () =>
+      fireEvent.click(within(first).getByRole('button', { name: '重试' })),
+    );
     expect(uploads).toHaveLength(3);
     expect(uploads[2].file.name).toBe('一.docx');
     fireEvent.click(within(second).getByRole('button', { name: '取消上传' }));
@@ -255,16 +278,18 @@ describe('materials with a backend', () => {
   it('keeps an interrupted batch reachable after the next drop, and both still go', async () => {
     const { port, uploads, submits } = manualPort();
     mount(port);
-    choose([doc('甲.docx')]);
+    await choose([doc('甲.docx')]);
     await act(async () => uploads[0].answer.reject(new Error('network')));
-    choose([doc('乙.docx')]);
+    await choose([doc('乙.docx')]);
     const cards = () => [
       ...document.querySelectorAll<HTMLElement>('.n-dropbatch'),
     ];
     expect(
       cards().map((card) => card.querySelector('.n-rstate')!.textContent),
     ).toEqual(['上传中', '上传中断']);
-    fireEvent.click(within(cards()[1]).getByRole('button', { name: '重试' }));
+    await act(async () =>
+      fireEvent.click(within(cards()[1]).getByRole('button', { name: '重试' })),
+    );
     expect(uploads[2].file.name).toBe('甲.docx');
     await act(async () =>
       uploads[2].answer.resolve({ status: 'uploaded', uploadId: 'u-a' }),
@@ -311,8 +336,8 @@ describe('materials with a backend', () => {
   it('cancels in an older batch while a newer one uploads', async () => {
     const { port, uploads, submits } = manualPort();
     mount(port);
-    choose([doc('甲.docx'), doc('丙.docx')]);
-    choose([doc('乙.docx')]);
+    await choose([doc('甲.docx'), doc('丙.docx')]);
+    await choose([doc('乙.docx')]);
     const older = document.querySelectorAll<HTMLElement>('.n-dropbatch')[1];
     fireEvent.click(
       within(older).getAllByRole('button', { name: '取消上传' })[0],
@@ -329,7 +354,7 @@ describe('materials with a backend', () => {
   it('ends without submitting when the server rejects every file', async () => {
     const { port, uploads, submits } = manualPort();
     mount(port);
-    choose([doc('一.docx')]);
+    await choose([doc('一.docx')]);
     await act(async () =>
       uploads[0].answer.resolve({
         status: 'rejected',
@@ -346,7 +371,7 @@ describe('materials with a backend', () => {
   it('resubmits an interrupted submission with the same operation', async () => {
     const { port, uploads, submits } = manualPort();
     mount(port);
-    choose([doc('一.docx')]);
+    await choose([doc('一.docx')]);
     await act(async () =>
       uploads[0].answer.resolve({ status: 'uploaded', uploadId: 'u-1' }),
     );
@@ -367,10 +392,75 @@ describe('materials with a backend', () => {
     expect(batchCard().textContent).toContain('连接中断，可以重新提交');
   });
 
-  it('keeps the first ten files and says how many to choose again', () => {
+  it('shows why the server declined a batch, with nothing to resubmit', async () => {
+    const { port, uploads, submits } = manualPort();
+    mount(port);
+    await choose([doc('一.docx')]);
+    await act(async () =>
+      uploads[0].answer.resolve({ status: 'uploaded', uploadId: 'u-1' }),
+    );
+    await act(async () =>
+      submits[0].answer.resolve({
+        status: 'refused',
+        message: '评价节点开始后，再把这批材料交上来',
+      }),
+    );
+    expect(head()).toBe('已退回');
+    expect(batchCard().textContent).toContain(
+      '评价节点开始后，再把这批材料交上来',
+    );
+    expect(
+      within(batchCard()).queryByRole('button', { name: '重新提交' }),
+    ).toBeNull();
+  });
+
+  it('opens one collection per batch, and sends nothing of a refused one', async () => {
+    const { port, prepares, uploads, submits } = manualPort({ opened: false });
+    mount(port);
+    await choose([doc('一.docx'), doc('二.docx')]);
+    expect(prepares).toHaveLength(1);
+    expect(uploads).toHaveLength(0);
+    await act(async () =>
+      prepares[0].answer.resolve({
+        status: 'refused',
+        message: '评价节点开始后，再把这批材料交上来',
+      }),
+    );
+    expect(uploads).toHaveLength(0);
+    expect(submits).toHaveLength(0);
+    expect(head()).toBe('已退回');
+    expect(batchCard().textContent).toContain(
+      '评价节点开始后，再把这批材料交上来',
+    );
+    expect(batchCard().textContent).toContain('未上传');
+  });
+
+  it('opens the collection again with the same operation after an interruption', async () => {
+    const { port, prepares, uploads } = manualPort({ opened: false });
+    mount(port);
+    await choose([doc('一.docx')]);
+    await act(async () =>
+      prepares[0].answer.resolve({
+        status: 'interrupted',
+        message: '连接中断，可以重试',
+      }),
+    );
+    expect(head()).toBe('上传中断');
+    fireEvent.click(within(batchCard()).getByRole('button', { name: '重试' }));
+    expect(prepares).toHaveLength(2);
+    expect(prepares[1].operationId).toBe(prepares[0].operationId);
+    await act(async () =>
+      prepares[1].answer.resolve({ status: 'ready', collection: COLLECTION }),
+    );
+    expect(uploads).toHaveLength(1);
+  });
+
+  it('keeps the first ten files and says how many to choose again', async () => {
     const { port, uploads } = manualPort();
     mount(port);
-    choose(Array.from({ length: 12 }, (_, index) => doc(`${index + 1}.docx`)));
+    await choose(
+      Array.from({ length: 12 }, (_, index) => doc(`${index + 1}.docx`)),
+    );
     expect(uploads).toHaveLength(10);
     expect(screen.getByRole('status').textContent).toContain(
       '其余 2 个请再选一次',
@@ -382,7 +472,7 @@ describe('materials with a backend', () => {
     const { container } = mount(port, true);
     const summary = container.querySelector('summary')!;
     expect(summary.textContent).toBe('材料与任务');
-    choose([doc('一.docx')]);
+    await choose([doc('一.docx')]);
     expect(summary.textContent).toBe('材料与任务1 个在处理');
     await act(async () =>
       uploads[0].answer.resolve({ status: 'rejected', message: '格式不对' }),
@@ -390,10 +480,10 @@ describe('materials with a backend', () => {
     expect(summary.textContent).toBe('材料与任务');
   });
 
-  it('stops transfers when the page goes away', () => {
+  it('stops transfers when the page goes away', async () => {
     const { port, uploads } = manualPort();
     const page = mount(port);
-    choose([doc('一.docx')]);
+    await choose([doc('一.docx')]);
     page.unmount();
     expect(uploads[0].signal.aborted).toBe(true);
   });
