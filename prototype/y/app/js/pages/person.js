@@ -41,14 +41,15 @@
     // 判断变化只放能力走向和象限偏移；活跃度与安排、团队分布另放
     const jchg = changes.filter((c) => c.t === 'trend' || c.t === 'quad'), achg = changes.filter((c) => c.t !== 'trend' && c.t !== 'quad');
     const facts = events.filter((e) => e.kind === 'obs' && e.date && !e.scores.some((x) => x.p === pid && x.st === 'ai')).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
-    // 档案版本对照放在能力谱里：切到冻结版本时，在刻度上方写出从那时到现在变了什么
+    // 档案版本对照放在能力谱里：选一次盘点时，在刻度上方写出从那时到现在变了什么
+    const atReview = (s) => `${/盘点$/.test(s.label) ? s.label : `${s.label}盘点`}时`;
     const pverBar = canQuad && snapsWith.length ? html`<div class="n-pver n-pver--inline">
-        <span class="n-pver__label">和冻结版本对照</span>
-        <div class="n-seg" role="group" aria-label="档案版本" data-manual id="pver">
-          <button type="button" data-v="now" aria-pressed="${ver === 'now'}">不对照</button>
-          ${snapsWith.map((s) => html`<button type="button" data-v="${s.id}" aria-pressed="${ver === s.id}">${s.label} · 已冻结</button>`)}
+        <span class="n-pver__label">和以前比</span>
+        <div class="n-seg" role="group" aria-label="和哪次盘点比" data-manual id="pver">
+          <button type="button" data-v="now" aria-pressed="${ver === 'now'}">只看现在</button>
+          ${snapsWith.map((s) => html`<button type="button" data-v="${s.id}" aria-pressed="${ver === s.id}">${atReview(s)} · ${NT.md(s.at)}</button>`)}
         </div>
-        ${verSnap ? html`<div class="n-pver__cmp"><span class="n-pver__label">${verSnap.label}（${NT.md(verSnap.at)} 冻结，含 ${NT.md(verSnap.cutoff)} 前已确认的事件，之后的新事件不会改写它）到现在：</span>${verCompare(verSnap.entries[pid], ref, f)}</div>` : ''}
+        ${verSnap ? html`<div class="n-pver__cmp"><span class="n-pver__label">${atReview(verSnap)}（${NT.md(verSnap.at)}）记下的结果只算 ${NT.md(verSnap.cutoff)} 前确认的事件，之后的事件不会改动它。到现在：</span>${verCompare(verSnap.entries[pid], ref, f)}</div>` : ''}
       </div>` : '';
     const chgList = jchg.length ? html`<div class="n-spectrum__chg"><h4>近 3 个月的变化</h4><div id="pchanges">${jchg.map((c) => UI.change(c, 'win'))}</div></div>` : '';
 
@@ -99,7 +100,7 @@
             ${canQuad ? html`<section class="n-facet"><h3 class="n-facet__head">能力象限</h3>
               <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)} <span class="nt-muted">${f.snap.label} 校准 · ${NT.md(f.snap.at)} · ${st.person(f.snap.by).name}确认</span>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
                 <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted" title="rubric-v1">按当前评价规则</span>`}</dd></dl>
-              ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后新增的已确认事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。${st.can('calibrate') ? html`<div class="nt-row" style="margin-top:var(--s-2)">${st.recalTarget(pid) ? html`<a class="n-btn n-btn--sm" href="${st.recalTarget(pid)}">去象限校准</a>` : html`<a class="n-btn n-btn--sm" href="reviews.html">发起新的盘点后校准</a>`}</div>` : ''}</div></div>` : ''}
+              ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>上次盘点之后新确认的事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。${st.can('calibrate') ? html`<div class="nt-row" style="margin-top:var(--s-2)">${st.recalTarget(pid) ? html`<a class="n-btn n-btn--sm" href="${st.recalTarget(pid)}">去象限校准</a>` : html`<a class="n-btn n-btn--sm" href="reviews.html">发起新的盘点后校准</a>`}</div>` : ''}</div></div>` : ''}
               ${st.recalKept(pid) ? (() => { const k = st.recalKept(pid); return html`<p class="nt-caption">参考位置在「${st.QN[k.refQ]}」，${st.person(k.by).name} ${NT.md(k.at)} 决定保持正式位置：<span class="ink-hand">${k.why}</span></p>`; })() : ''}
               ${ref.na ? html`<p class="nt-caption">落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分。</p>` : ''}
             </section>` : ''}
@@ -236,7 +237,7 @@
     if (canQuad && !ref.na) text += `已确认的分数里，专业度均值 ${ref.px.toFixed(1)}，潜力核心均值 ${ref.py.toFixed(1)}。`;
     if (canQuad && ref.na) text += `落位还差：${ref.miss}。`;
     if (self) text += `本人说过${self.title}`;
-    if (canQuad && st.needsRecal(pid)) text += `冻结后的新事件让参考位置离开了正式象限，建议在下次校准时讨论。`;
+    if (canQuad && st.needsRecal(pid)) text += `上次盘点之后的新事件让参考位置离开了正式位置所在的象限，建议在下次校准时讨论。`;
     // AI 摘要随新确认的事件自动重写，不需要采纳；它只是导读，不进打印档案，也不参与任何判断
     return html`<div class="n-block" data-state="light" id="summary">${text}<div class="n-block__by"><span class="n-src n-src--ai">${icon('spark')}AI 摘要</span>依据 ${obs.length} 条事件 · 随新确认的事件自动更新 · 只用你有权限查看的资料</div></div>`;
   }
@@ -334,7 +335,7 @@
     ${unknown.length ? html`<section class="n-stage" data-status="unknown"><div class="n-stage__head is-static"><span class="n-stage__dot" aria-hidden="true"></span><span class="n-stage__name">时间未知</span><span class="n-stage__state">补上时间后归入对应的节点</span></div><div class="n-stage__body"><ol class="n-tl">${unknown.map((it) => item(it))}</ol></div></section>` : ''}</div>`;
   }
   function item(it, after) {
-    const style = after ? raw(' style="opacity:.4" title="这条记在所选档案版本冻结之后"') : '';
+    const style = after ? raw(' style="opacity:.4" title="这条在所选那次盘点之后才确认，当时的结果没有算它"') : '';
     if (it.nc) {
       const c = it.nc, v = c.versions[0], g = NT.SEED.PROGRAMS.find((x) => x.id === c.node.split(':')[0]);
       return html`<li class="n-tl__item" id="${c.id}"${style}><span class="n-tl__date">${NT.md(it.date)}</span><span class="n-tl__dot is-hist"></span><div class="n-tl__body">
