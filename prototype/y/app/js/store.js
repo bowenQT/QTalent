@@ -348,10 +348,11 @@
     const people = store.visiblePeople(role).filter((p) => store.scope(p.id, role) === 'full');
     const out = [];
     const h1 = S.snaps.find((s) => s.id === 's-mid');
+    let teamIds = new Set();
     people.forEach((p) => {
       // ① 能力走向
       SEED.DIMS.forEach((d) => {
-        const recent = store.scoresOf(p.id, { dim: d.id, from: RECENT });
+        const recent = store.scoresOf(p.id, { dim: d.id, from: base === 'win' ? RECENT : NT.addDays(h1.cutoff, 1) });
         const before = base === 'win' ? store.scoresOf(p.id, { dim: d.id, from: BASE_FROM, to: NT.addDays(RECENT, -1) }) : store.scoresOf(p.id, { dim: d.id, from: NT.addDays(h1.cutoff, -365), to: h1.cutoff });
         if (recent.length < 2 || !before.length) return; // 资料从无到有不算上升
         const a = mean(before.map((s) => s.v)), b = mean(recent.map((s) => s.v));
@@ -370,8 +371,15 @@
       const f = store.formal(p.id), r = store.refPos(p.id);
       if (f && !r.na && f.q !== r.q) {
         const after = store.scoresOf(p.id, { from: NT.addDays(f.snap.cutoff, 1) });
-        out.push({ id: `quad-${p.id}`, t: 'quad', hit: true, person: p.id, what: '象限可能要重新校准', when: after[0]?.date || NT.TODAY, rule: '',
-          sub: `${f.snap.label}校准为${QN[f.q]}，按新事件算是${QN[r.q]} · 之后新增 ${new Set(after.map((s) => s.ev.id)).size} 条事件`, fq: f.q, rq: r.q });
+        const was = store.refPos(p.id, f.snap.cutoff);
+        // 哪条轴跨过了 3.5 的分界：专业度看均值，潜力看核心三维均值里变化最大的一维
+        const axis = f.q[1] !== r.q[1]
+          ? { name: '专业度', from: was.px, to: r.px }
+          : (() => { const d = ['mot', 'wis', 'grit'].map((k) => ({ k, a: was.dims?.[k]?.m, b: r.dims[k].m })).filter((x) => x.a != null && x.b != null).sort((x, y) => Math.abs(y.b - y.a) - Math.abs(x.b - x.a))[0]; return { name: '潜力', from: was.py, to: r.py, dim: d && store.dim(d.k).name }; })();
+        const n = new Set(after.map((s) => s.ev.id)).size;
+        out.push({ id: `quad-${p.id}`, t: 'quad', hit: true, person: p.id, what: `参考位置从${QN[f.q]}移到${QN[r.q]}`, when: after[0]?.date || NT.TODAY, rule: '参考位置跨象限',
+          sub: `${f.snap.label}之后新增${n === 1 ? `「${after[0].ev.title}」` : ` ${n} 条事件`}，${axis.name}均值${axis.from != null ? ` ${axis.from.toFixed(1)} →` : '变为'} ${axis.to.toFixed(1)}，${axis.to >= 3.5 ? '过了' : '低于'} 3.5 的分界${axis.dim ? `（主要是${axis.dim}）` : ''}`,
+          fq: f.q, rq: r.q, axis, after: after.slice(0, 4) });
       }
     });
     // 活跃度：项目进出、调岗（记录层面的变化，不命中规则）
@@ -383,6 +391,7 @@
     // ④ 团队分布：资料不足比例
     {
       const teams = SEED.ORGS.filter((o) => o.parent === 'xe6');
+      teamIds = new Set(teams.map((t) => t.id));
       teams.forEach((t) => {
         // 入职不到 3 个月的新人本来就资料不足，不计入比例，另行说明
         const all = SEED.PEOPLE.filter((p) => !p.noReview && p.org === t.id && store.scope(p.id) === 'full');
@@ -397,6 +406,14 @@
         out.push({ id: `team-${t.id}`, t: 'team', hit: true, team: t.id, what: '资料不足比例上升', from: Math.round(rPrev * 100), to: Math.round(rNow * 100), unit: '%', when: merged ? '2026-10-20' : NT.TODAY,
           rule: '资料不足 +20 个百分点', sub: `${now.length} 人中 ${naNow} 人资料不足${merged ? ` · 并入的 ${merged} 人事件待补录` : ''}${newbies ? ` · 入职 3 个月内的 ${newbies} 名新人另计` : ''}`, merged, newbies });
       });
+    }
+    // 批次整体：资料不足比例下降（中期之后补了事件），供了解，不命中规则
+    if (base === 'ver') {
+      const rows = Object.values(h1.entries).filter((e) => teamIds.has(e.org));
+      const now = SEED.PEOPLE.filter((p) => !p.noReview && teamIds.has(p.org) && store.scope(p.id) === 'full');
+      const rPrev = rows.filter((e) => e.na).length / (rows.length || 1), rNow = now.filter((p) => store.refPos(p.id).na).length / (now.length || 1);
+      if (rPrev - rNow >= 0.2) out.push({ id: 'team-xe6', t: 'team', hit: false, team: 'xe6', what: '资料不足比例下降', from: Math.round(rPrev * 100), to: Math.round(rNow * 100), unit: '%', when: NT.TODAY,
+        sub: `${now.length} 人中 ${now.filter((p) => store.refPos(p.id).na).length} 人资料不足 · 中期时 ${rows.length} 人中 ${rows.filter((e) => e.na).length} 人` });
     }
     return out.sort((a, b) => b.when.localeCompare(a.when)); // 按发生时间，不按幅度
   };

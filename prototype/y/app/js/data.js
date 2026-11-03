@@ -81,7 +81,10 @@
   MEMBERS.push(M('pr-hack', 's-28', 'owner', '顾问', '2026-08-20', '2026-08-21', 'p-suwan'));
   const TS = X.students.filter((s) => s.dest === '业务成功部 · TS' && s.accept === '接受').map((s) => s.id);
   TS.forEach((pid) => MEMBERS.push(M('pr-ts', pid, '新人', '全职', '2026-09-01', null, 'p-suwan')));
+  const nameOf = (pid) => X.students.find((x) => x.id === pid).name;
   const MEMBER_LOG = [
+    ['pr-ts', '2026-09-03', `${nameOf('p-x08')}下周起进值班轮岗，先跟一线客户问题一周`, 'p-suwan'],
+    ['pr-ts', '2026-09-02', `${nameOf('p-x47')}担任新人组牵头人：按 09-02 确认的用人方案`, 'p-suwan'],
     ['pr-ts', '2026-09-01', `${TS.length} 位留用同学加入：来自第六期结营评审`, 'p-suwan'],
     ['pr-hack', '2026-08-21', '黑客松结束，6 位第六期学员参赛', 'p-suwan'],
   ].map(([project, at, text, by]) => ({ project, at, text, by }));
@@ -116,6 +119,15 @@
   HACK_EV.forEach(([pid, title, act, res, sc], i) => EVENTS.push({
     id: `e-hack-${i + 1}`, date: '2026-08-21', kind: 'obs', project: 'pr-hack', recorder: 's-28', people: [pid], title, bg: '夏季黑客松 · 语音助手赛道', act, res, gap: '', demo: true,
     srcs: [{ type: 'sheet', label: '夏季黑客松评审表（演示）', loc: `第 ${i + 3} 行`, quote: `${act}${res}` }], tags: [], scores: sc.map(([d, v]) => s(pid, d, v, 'confirmed', 's-28', { note: `引用「${act.split('，')[0]}」` })),
+  }));
+  // 结营路演（演示）：中期之后的已确认事件，专业度一升一降
+  const FINAL_EV = [
+    ['e-x08-live', 'p-x08', 't-talk-a', 'p-yeqing', '结营路演现场讲清了数据库迁移方案，追问都答上了', '路演答辩时评委追问分库后的回滚，现场画出迁移步骤和回滚点。', '评委记录为「方案可落地」。', [['prof', 4]]],
+    ['e-x25-live', 'p-x25', 't-metric-a', 's-27', '结营路演前端联调没完成，演示改用录屏', '路演前一天前后端接口还没对齐，没有提前说明风险，当天改放录屏。', '评委没看到实时演示，追问时没能说清卡在哪一步。', [['prof', 2]]],
+  ];
+  FINAL_EV.forEach(([id, pid, project, recorder, title, act, res, sc], i) => EVENTS.push({
+    id, date: '2026-08-30', kind: 'obs', project, recorder, people: [pid], title, bg: `W8 · 结营路演 · ${X.teams.find((t) => t.id === project).name}`, act, res, gap: '', week: 'W8', demo: true,
+    srcs: [{ type: 'sheet', label: '第六期结营路演评审表（演示）', loc: `第 ${i + 4} 行`, quote: `${act}${res}` }], tags: [], scores: sc.map(([d, v]) => s(pid, d, v, 'confirmed', recorder, { note: `引用「${act.split('，')[0]}」` })),
   }));
   const ev = (id) => EVENTS.find((e) => e.id === id);
   // 待校准：导师和助教对同一件事的领导力判断差 2 分

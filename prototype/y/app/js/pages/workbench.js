@@ -6,7 +6,7 @@
   'use strict';
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, raw, icon, mount, $, $$ } = NT;
-  let base = 'win', type = 'all', expanded = false, watchCat = 'all', watchAll = false, watchProg = null;
+  let base = 'ver', type = 'all', expanded = false, watchCat = 'all', watchAll = false, watchProg = null;
 
   const SUGGEST = {
     ceo: ['MaaS 智能体平台要一个能牵头应用后端的人，10 月到岗', 'TS 新人组还缺一个懂测试和部署、能带大家对齐节奏的人'],

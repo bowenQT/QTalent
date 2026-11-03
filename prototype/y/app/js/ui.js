@@ -366,23 +366,25 @@
     const ava = p ? UI.avatar(c.person) : html`<span class="n-change__icon">${icon('layers')}</span>`;
     const delta = c.from != null ? html`<span class="n-delta"><s>${c.unit ? c.from : c.from.toFixed(1)}${c.unit || ''}</s>${icon(c.to > c.from ? 'up-r' : 'down-r')}${c.unit ? c.to : c.to.toFixed(1)}${c.unit || ''}</span>` : '';
     const mini = c.from != null && !c.unit ? raw(`<span class="n-mini" aria-hidden="true"><i class="was" style="left:${((c.from - 1) / 4) * 100}%"></i><i class="now" style="left:${((c.to - 1) / 4) * 100}%"></i></span>`) : '';
-    const sub = c.sub || (c.t === 'trend' ? `近 3 个月 ${c.n} 条 · ${base === 'ver' ? '对比中期档案版本' : '对比之前 9 个月'}${c.thin ? ' · 证据少' : ''}` : '');
+    const sub = c.sub || (c.t === 'trend' ? `${base === 'ver' ? '中期之后' : '近 3 个月'} ${c.n} 条 · ${base === 'ver' ? '对比中期档案版本' : '对比之前 9 个月'}${c.thin ? ' · 证据少' : ''}` : '');
     const evli = (list) => html`<ul>${list.map((s) => html`<li><b>${s.v}</b>${s.ev.title} <small>${NT.md(s.date)} · ${st.person(s.by)?.name || ''}</small></li>`)}</ul>`;
     const why = {
       trend: c.up ? '上升和下降一样按规则提示，便于在盘点里及时看到。先看事件再判断。' : '下降可能和情境变化有关（换了项目、任务更模糊），建议先看事件再判断，不直接下结论。',
       activity: c.hit ? '近 90 天的事件待补记。' : '这是一条记录变动，供了解。',
-      quad: '校准过的位置保持原样，要在象限校准里重新确认。',
-      team: '资料不足上升，需要补录事件。',
+      quad: c.axis ? `参考位置按${c.axis.name}均值是否到 3.5 分高低，上面这些新事件让它跨到了${st.QN[c.rq]}。校准过的${st.QN[c.fq]}不会自动改，要在象限校准里看过事件后重新确认。` : '校准过的位置保持原样，要在象限校准里重新确认。',
+      team: c.hit ? '资料不足上升，需要补录事件。' : '中期之后补记了事件，更多人满足落位条件。供了解，不需要处理。',
     }[c.t];
     const acts = {
       trend: [['转为跟踪', `person.html?id=${c.person}&track=1`], ['看档案', `person.html?id=${c.person}`]],
       activity: c.hit ? [['看「值得聊一聊」', `person.html?id=${c.person}#signal`], ['看档案', `person.html?id=${c.person}`]] : [['看档案', `person.html?id=${c.person}`]],
       // 校准由 HR 完成：管理者只看档案，不给校准入口
-      quad: st.can('calibrate') ? [st.recalTarget(c.person) ? ['去象限校准', st.recalTarget(c.person)] : ['发起新的盘点后校准', 'reviews.html']] : [['看档案', `person.html?id=${c.person}`]],
+      quad: c.t !== 'quad' ? [] : st.can('calibrate') ? [st.recalTarget(c.person) ? ['去象限校准', st.recalTarget(c.person)] : ['发起新的盘点后校准', 'reviews.html']] : [['看档案', `person.html?id=${c.person}`]],
       team: [['看盘点清单', `review.html?id=b-xe6-end`]],
     }[c.t];
     const detail = c.t === 'trend'
-      ? html`<div><h5>${base === 'ver' ? '中期档案版本' : '之前 9 个月'}</h5>${evli(c.before)}</div><div><h5>近 3 个月</h5>${evli(c.after)}</div><p class="n-change__why">${why}</p>`
+      ? html`<div><h5>${base === 'ver' ? '中期档案版本' : '之前 9 个月'}</h5>${evli(c.before)}</div><div><h5>${base === 'ver' ? '中期之后' : '近 3 个月'}</h5>${evli(c.after)}</div><p class="n-change__why">${why}</p>`
+      : c.t === 'quad' && c.after?.length
+      ? html`<div style="grid-column:1/-1"><h5>中期之后的事件</h5><ul>${c.after.map((s) => html`<li><b>${s.v}</b>${st.dim(s.d).name} · ${s.ev.title} <small>${NT.md(s.date)} · ${st.person(s.by)?.name || ''}</small></li>`)}</ul></div><p class="n-change__why">${why}</p>`
       : html`<p class="n-change__why" style="border:0;padding:0">${why}</p>`;
     return html`<div class="n-change ${st.get().seen[c.id] ? 'is-seen' : ''}" data-id="${c.id}"><button class="n-change__row" type="button" aria-expanded="false">${ava}
       <span class="n-change__what"><span class="n-change__line"><b>${who}</b>${c.what}${delta}${mini}${c.hit && c.rule ? html`<span class="n-rule">${icon('flag')}${c.rule}</span>` : ''}</span><span class="n-change__sub">${sub}</span></span>
