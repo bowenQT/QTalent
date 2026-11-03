@@ -57,30 +57,25 @@
         <div class="n-scope">
           <div>范围<b>${list.length} 人 · ${teams.length} 个二级团队</b></div>
           <div>证据截止<b>${NT.md(b.cutoff)}${canEdit ? html` <button class="n-link" type="button" id="cutoff">改</button>` : ''}</b></div>
-          <div>资料不足<b>${na.length} 人（${Math.round(na.length / Math.max(1, list.length) * 100)}%）</b></div>
+          <div>资料不足<b>${na.length} 人（${Math.round(na.length / Math.max(1, list.length) * 100)}%）${na.length ? html` <button class="n-link" type="button" data-show="na">看是谁</button>` : ''}</b></div>
           <div>已写逐人结论<b>${concluded} / ${list.length}</b></div>
         </div>
         ${b.log?.length ? html`<ul class="n-log">${b.log.map(([d, by, t]) => html`<li>${NT.md(d)} ${st.person(by).name}：${t}</li>`)}</ul>` : ''}
         ${conf ? html`<p class="nt-caption">${NT.md(b.confirmedAt)} 由${st.person(b.confirmedBy).name}确认，范围内每个人的档案版本已冻结；之后的新事件不会改写它。</p>` : html`
-        <ol class="nt-steps">${[['固定范围', null], ['补资料缺口', '#gaps'], ['象限校准', st.can('calibrate') ? `calibrate.html?id=${id}` : null], ['逐人结论', '#roll'], ['调整方案', `plan.html?id=${id}`], ['确认版本', `plan.html?id=${id}`]].map(([t, h], i) => html`<li data-s="${stepState[i] === true ? 'done' : stepState[i] === 'partial' ? 'part' : 'todo'}">${h ? html`<a href="${h}">${t}</a>` : t}${i === 2 ? html`<small>${calTeams.length}/${teams.length} 个团队</small>` : i === 3 ? html`<small>${concluded}/${list.length}</small>` : ''}</li>`)}</ol>`}
-      </article>
-
-      <div class="nt-cols" style="margin-top:var(--s-4)">
-        <article class="n-card"><h3 class="n-section-title" style="font-size:var(--t-sm)">团队分布 · 本期${prev ? '（上期）' : ''}</h3>
-          <div class="n-dist">${[['hl', '高潜待练'], ['hh', '双高'], ['ll', '待观察'], ['lh', '专业骨干']].map(([k, l]) => html`<div>${l} <b>${now[k]}${prev ? html` <small style="color:var(--ink-3);font-weight:400">(${prev[k]})</small>` : ''}</b></div>`)}<div class="na">资料不足 <b>${now.na}${prev ? html` <small style="color:var(--ink-3);font-weight:400">(${prev.na})</small>` : ''}</b></div></div>
+        <ol class="nt-steps">${[['固定范围', null], ['补资料缺口', '#roll'], ['象限校准', st.can('calibrate') ? `calibrate.html?id=${id}` : null], ['逐人结论', '#roll'], ['调整方案', `plan.html?id=${id}`], ['确认版本', `plan.html?id=${id}`]].map(([t, h], i) => html`<li data-s="${stepState[i] === true ? 'done' : stepState[i] === 'partial' ? 'part' : 'todo'}">${h ? html`<a href="${h}" ${NT.raw(i === 1 ? 'data-show="na"' : '')}>${t}</a>` : t}${i === 2 ? html`<small>${calTeams.length}/${teams.length} 个团队</small>` : i === 3 ? html`<small>${concluded}/${list.length}</small>` : ''}</li>`)}</ol>`}
+        <section class="n-batch__dist" aria-label="团队分布">
+          <div class="n-batch__distH"><h3>团队分布 · 本期${prev ? '（上期）' : ''}</h3>
+            ${!conf ? html`<div class="nt-row">${st.can('calibrate') ? html`<a class="n-btn n-btn--sm n-btn--ink" href="calibrate.html?id=${id}">${icon('grid')}去象限校准</a>` : ''}<a class="n-btn n-btn--sm ${st.can('calibrate') ? '' : 'n-btn--ink'}" href="plan.html?id=${id}">调整方案${opPlan ? ` v${opPlan.version}` : ''}</a></div>` : html`<a class="n-btn n-btn--sm" href="plan.html?id=${id}">看组织调整方案</a>`}</div>
+          <div class="n-dist is-row">${[['hl', '高潜待练'], ['hh', '双高'], ['ll', '待观察'], ['lh', '专业骨干']].map(([k, l]) => html`<div>${l} <b>${now[k]}${prev ? html` <small>(${prev[k]})</small>` : ''}</b></div>`)}<div class="na">资料不足 <b>${now.na}${prev ? html` <small>(${prev.na})</small>` : ''}</b></div></div>
           <p class="nt-caption">${conf ? (list.some((p) => snap?.entries[p.id]?.uncal) ? '冻结时的位置：已校准的团队是正式位置，未校准的是冻结时的参考位置。' : '冻结时的正式位置。') : '已校准的团队按校准结果，其余按当前参考位置。'}${prev && now.na > prev.na ? '资料不足上升主要来自后几周事件较少的学员，他们的事件待补录。' : ''}</p>
-          ${!conf ? html`<div class="nt-row" style="margin-top:var(--s-3)">${st.can('calibrate') ? html`<a class="n-btn n-btn--sm n-btn--ink" href="calibrate.html?id=${id}">${icon('grid')}去象限校准</a>` : ''}<a class="n-btn n-btn--sm ${st.can('calibrate') ? '' : 'n-btn--ink'}" href="plan.html?id=${id}">调整方案${opPlan ? ` v${opPlan.version}` : ''}</a></div>` : html`<div class="nt-row" style="margin-top:var(--s-3)"><a class="n-btn n-btn--sm" href="plan.html?id=${id}">看组织调整方案</a></div>`}
-        </article>
-        <article class="n-card" id="gaps"><h3 class="n-section-title" style="font-size:var(--t-sm)">资料缺口 · ${na.length} 人</h3>
-          ${na.length ? html`<ul class="n-pending">${na.slice(0, 8).map((p) => html`<li>${UI.avatar(p.id, 'sm')}${UI.plink(p.id)}<small>${pos(p.id).miss}</small></li>`)}${na.length > 8 ? html`<li class="nt-muted">还有 ${na.length - 8} 人，在下方清单里筛「资料不足」</li>` : ''}</ul>` : html`<p class="nt-muted">没有资料不足的人。</p>`}
-          ${canEdit && na.length ? html`<div class="nt-row" style="margin-top:var(--s-3)"><button class="n-btn n-btn--sm" type="button" id="remind">提醒导师补录</button><span class="nt-muted">资料不足不会被放进低潜力</span></div>` : ''}
-        </article>
-      </div>
+        </section>
+      </article>
 
       <article class="n-card" id="roll" style="margin-top:var(--s-4)">
         <div class="nt-row" style="justify-content:space-between;margin-bottom:var(--s-3)"><h3 class="n-section-title" style="margin:0">人员清单</h3>
           <div class="nt-row"><select class="n-select" id="fteam" style="width:auto" aria-label="团队"><option value="all">全部团队</option>${teams.map((t) => html`<option value="${t}" ${t === team ? 'selected' : ''}>${st.orgShort(t)}</option>`)}</select>
-            <div class="n-seg" data-manual role="group" aria-label="筛选" id="fshow">${[['all', '全部'], ['todo', '未写结论'], ['na', '资料不足'], ['chg', '有变化']].map(([k, l]) => html`<button type="button" data-k="${k}" aria-pressed="${k === show}">${l}</button>`)}</div></div></div>
+            <div class="n-seg" data-manual role="group" aria-label="筛选" id="fshow">${[['all', '全部'], ['todo', '未写结论', list.length - concluded], ['na', '资料不足', na.length], ['chg', '有变化', list.filter((p) => chOf(p.id).length).length]].map(([k, l, n]) => html`<button type="button" data-k="${k}" aria-pressed="${k === show}">${l}${n ? html`<small class="n-seg__n">${n}</small>` : ''}</button>`)}</div></div></div>
+        ${show === 'na' && na.length ? html`<div class="n-roll__gap"><span>${na.length} 人资料不足，缺什么写在「资料」一列；资料不足不会被放进低潜力。</span>${canEdit ? html`<button class="n-btn n-btn--sm" type="button" id="remind">${icon('note')}提醒导师补录</button>` : ''}</div>` : ''}
         <div class="n-rollwrap"><table class="n-roll"><thead><tr><th>人员</th><th>资料</th><th>变化</th><th>位置</th><th>结论</th></tr></thead><tbody>
           ${shown.map((p) => {
             const ps = pos(p.id), r = snap?.entries[p.id] || st.refPos(p.id, b.cutoff), c = S.conclusions[p.id], chs = chOf(p.id);
@@ -95,6 +90,10 @@
       </article>`);
 
     $('#fteam')?.addEventListener('change', (e) => { team = e.target.value; render(main); });
+    main.querySelectorAll('[data-show]').forEach((x) => x.addEventListener('click', (e) => {
+      e.preventDefault(); show = x.dataset.show; team = 'all'; render(main);
+      $('#roll').scrollIntoView({ behavior: NT.reduced ? 'auto' : 'smooth', block: 'start' });
+    }));
     $('#fshow')?.addEventListener('click', (e) => { const x = e.target.closest('[data-k]'); if (x) { show = x.dataset.k; render(main); } });
     $('#remind')?.addEventListener('click', () => NT.toast(`已提醒 ${new Set(na.map((p) => p.manager).filter(Boolean)).size} 位导师补录，截止 ${NT.md(b.cutoff)}`));
     $('#cutoff')?.addEventListener('click', async () => {

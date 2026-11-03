@@ -1013,6 +1013,19 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-dist b { font-size: var(--t-sm); color: var(--ink); font-variant-numeric: tabular-nums; }
 .n-dist .na { grid-column: 1 / -1; background: repeating-linear-gradient(-45deg, var(--unknown-soft) 0 5px, #e6e8e3 5px 6px); }
 
+/* 盘点批次页首里的团队分布：一行五格，和范围、步骤放在同一张卡片里 */
+.n-batch__dist { margin-top: var(--s-5); padding-top: var(--s-4); border-top: 1px solid var(--line); }
+.n-batch__distH { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); margin-bottom: var(--s-3); }
+.n-batch__distH h3 { margin: 0; font-size: var(--t-sm); }
+.n-dist.is-row { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-2); max-width: none; }
+.n-dist.is-row div { padding: var(--s-2) var(--s-3); background: var(--sheet-sunk); }
+.n-dist.is-row .na { grid-column: auto; background: repeating-linear-gradient(-45deg, var(--unknown-soft) 0 5px, #e6e8e3 5px 6px); }
+.n-dist small { font-size: var(--t-xs); font-weight: 400; color: var(--ink-3); }
+@media (max-width: 720px) { .n-dist.is-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .n-dist.is-row .na { grid-column: 1 / -1; } }
+/* 人员清单筛「资料不足」时，清单上方给出补录的动作 */
+.n-roll__gap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2) var(--s-4); margin-bottom: var(--s-3); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-sm); color: var(--ink-2); }
+.n-seg__n { margin-left: 5px; font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
 /* 待办 */
 /* 各行共用一套列（subgrid），徽标长短不一时标题仍然对齐 */
 .n-todo { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr) auto; column-gap: var(--s-3); }
