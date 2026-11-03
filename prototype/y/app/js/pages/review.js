@@ -22,6 +22,8 @@
     return st.people().filter((p) => !p.noReview && st.inOrg(p.org, b.org) && st.scope(p.id) === 'full');
   }
   const snapOf = (b) => st.snaps().find((s) => s.batch === b.id);
+  // 六个维度各有没有确认过的评分：只看覆盖，不显示分数
+  const cover = (r) => html`<span class="n-cover">${st.dims.map((d) => html`<span class="n-cover__d" data-on="${String(!!r.dims[d.id]?.n)}" title="${d.name}：${r.dims[d.id]?.n ? `${r.dims[d.id].n} 条评分` : '还没有评分'}">${d.name}</span>`)}</span>`;
 
   function render(main) {
     const b = st.batch(id), S = st.get();
@@ -75,12 +77,12 @@
         <div class="nt-row" style="justify-content:space-between;margin-bottom:var(--s-3)"><h3 class="n-section-title" style="margin:0">人员清单</h3>
           <div class="nt-row"><select class="n-select" id="fteam" style="width:auto" aria-label="团队"><option value="all">全部团队</option>${teams.map((t) => html`<option value="${t}" ${t === team ? 'selected' : ''}>${st.orgShort(t)}</option>`)}</select>
             <div class="n-seg" data-manual role="group" aria-label="筛选" id="fshow">${[['all', '全部'], ['todo', '未写结论', list.length - concluded], ['na', '资料不足', na.length], ['chg', '有变化', list.filter((p) => chOf(p.id).length).length]].map(([k, l, n]) => html`<button type="button" data-k="${k}" aria-pressed="${k === show}">${l}${n ? html`<small class="n-seg__n">${n}</small>` : ''}</button>`)}</div></div></div>
-        ${show === 'na' && na.length ? html`<div class="n-roll__gap"><span>${na.length} 人资料不足，缺什么写在「资料」一列；资料不足不会被放进低潜力。</span>${canEdit ? html`<button class="n-btn n-btn--sm" type="button" id="remind">${icon('note')}提醒导师补录</button>` : ''}</div>` : ''}
-        <div class="n-rollwrap"><table class="n-roll"><thead><tr><th>人员</th><th>资料</th><th>变化</th><th>位置</th><th>结论</th></tr></thead><tbody>
+        ${show === 'na' && na.length ? html`<div class="n-roll__gap"><span>${na.length} 人资料不足，缺什么写在「证据覆盖」一列；资料不足不会被放进低潜力。</span>${canEdit ? html`<button class="n-btn n-btn--sm" type="button" id="remind">${icon('note')}提醒导师补录</button>` : ''}</div>` : ''}
+        <div class="n-rollwrap"><table class="n-roll"><thead><tr><th>人员</th><th>证据覆盖</th><th>变化</th><th>位置</th><th>结论</th></tr></thead><tbody>
           ${shown.map((p) => {
             const ps = pos(p.id), r = snap?.entries[p.id] || st.refPos(p.id, b.cutoff), c = S.conclusions[p.id], chs = chOf(p.id);
-            return html`<tr><td>${UI.plink(p.id)}<small>${st.orgShort(p.org)}</small></td>
-              <td>${r.n} 条分${ps.na ? html`<small>${ps.miss}</small>` : html`<small>${Object.values(r.dims).filter((d) => d.n).length} 个维度有分</small>`}</td>
+            return html`<tr><td>${UI.plink(p.id)}<small>${st.orgShort(p.org)}${p.manager ? ` · 导师 ${st.person(p.manager).name}` : ''}</small></td>
+              <td>${cover(r)}<small class="${ps.na ? 'n-cover__miss' : ''}">${ps.na ? ps.miss : `近一年 ${r.n} 条确认评分`}</small></td>
               <td>${chs.length ? chs.map((x) => html`<span class="n-rule" style="margin:2px 2px 2px 0">${icon('flag')}${x.t === 'trend' ? `${st.dim(x.dim).name}${x.up ? '↑' : '↓'}` : x.t === 'quad' ? '跨象限' : '90 天无事件'}</span>`) : st.needsRecal(p.id) ? html`<span class="n-badge n-badge--recal">可能需要重新校准</span>` : '—'}</td>
               <td>${ps.na ? UI.na() : (ps.frozen && !ps.ref) || isCal(p.id) ? UI.qBadge(ps.q) : html`<span class="n-badge n-badge--ai">${icon('spark')}参考：${st.QN[ps.q]}</span>`}</td>
               <td>${c ? html`<span class="ink-hand" style="font-size:var(--t-body)">${c.text}</span><small>${st.person(c.by).name} · ${NT.md(c.at)}${canEdit ? html` · <button class="n-link" type="button" data-con="${p.id}">改</button>` : ''}</small>` : canEdit ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-con="${p.id}">${icon('pen')}写结论</button>` : html`<span class="n-badge">未写</span>`}</td></tr>`;
@@ -130,7 +132,7 @@
         const draft = drafts[pid];
         return html`<div class="n-condlg__who">${UI.avatar(pid)}<div><h3 id="cd-name">${p.name}</h3><small>${st.orgShort(p.org)}${p.manager ? ` · 导师 ${st.person(p.manager).name}` : ''}</small></div>${place}</div>
           <dl class="n-condlg__ctx">
-            <div><dt>资料</dt><dd>${r.n} 条分${ps.na ? ` · ${ps.miss}` : ` · ${Object.values(r.dims).filter((x) => x.n).length} 个维度有分`}</dd></div>
+            <div><dt>证据覆盖</dt><dd>${cover(r)}<small class="${ps.na ? 'n-cover__miss' : ''}">${ps.na ? ps.miss : `近一年 ${r.n} 条确认评分`}</small></dd></div>
             <div><dt>本期变化</dt><dd>${chs.length ? chs.map((x) => html`<span class="n-rule">${icon('flag')}${x.t === 'trend' ? `${st.dim(x.dim).name}${x.up ? '走高' : '走低'}` : x.t === 'quad' ? '参考位置跨象限' : '90 天无事件'}</span>`) : st.needsRecal(pid) ? html`<span class="n-badge n-badge--recal">可能需要重新校准</span>` : html`<span class="nt-muted">没有符合提醒条件的变化</span>`}</dd></div>
             <div><dt>最近的事</dt><dd>${evs.length ? html`<ul class="n-condlg__evs">${evs.map((e) => html`<li>${e.title}<small>${NT.md(e.date)}${e.project ? ` · ${st.project(e.project)?.name || ''}` : ''}${e.recorder ? ` · ${st.person(e.recorder).name}记录` : ''}</small></li>`)}</ul>` : html`<span class="nt-muted">证据截止前还没有确认的事件</span>`}</dd></div>
           </dl>
