@@ -46,6 +46,7 @@ export async function runAttachmentParse<C>(
       job.jobId !== input.jobId ||
       job.kind !== 'media' ||
       job.attempt !== input.attempt ||
+      job.revision !== input.revision ||
       !['queued', 'running', 'partial'].includes(job.status)
     )
       return { status: 'ignored' };

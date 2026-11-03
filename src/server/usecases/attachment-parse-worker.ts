@@ -1,9 +1,11 @@
-import { and, eq, inArray, lt, sql } from 'drizzle-orm';
-import type { PgBoss } from 'pg-boss';
+import { and, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import { fromDrizzle, type PgBoss } from 'pg-boss';
 import type { Database, Transaction } from '../db/client';
 import {
+  attachmentParseMessageId,
   attachmentParseQueue,
   registerAttachmentParseJob,
+  sendAttachmentParse,
 } from '../jobs/attachment-parse';
 import { createJobStore } from '../jobs/repository';
 import { jobSnapshots } from '../jobs/schema';
@@ -36,10 +38,17 @@ export const attachmentParseLimits: ParseLimits = {
 /** A claimed parse untouched this long has lost its runner: well past the
  * 60 s PDF decode budget plus reading the 64 MiB input. */
 export const attachmentParseLeaseMs = 5 * 60 * 1000;
-/** Claims a job may take before a lost runner settles it as failed instead of
- * being handed out again: a file that kills its runner never loops forever.
- * Each claim (queued→running, then running→partial) advances the revision. */
-const maxClaimRevision = 4;
+/** A queued job untouched this long has no message that will claim it. A
+ * message is normally claimed within seconds (pg-boss notifies on send and
+ * polls every 2 s); ten minutes also covers a backlog of a few dozen parses
+ * ahead of it. A job whose current message is still waiting is never resent. */
+export const attachmentParseQueuedMs = 10 * 60 * 1000;
+/** Revision at which recovery settles a job as failed instead of handing it
+ * out again, so neither a lost message nor a file that kills its runner loops
+ * forever. Every claim and every resend advances the revision: a new job is 1,
+ * so a queued job is resent at most three times, a claimed one once. */
+const maxRecoveryRevision = 4;
+const pendingMessage = new Set(['created', 'retry', 'active']);
 
 /** Only PDF page text has a canonical store; other formats are refused as
  * unsupported before any byte is read rather than saved without provenance.
@@ -152,8 +161,9 @@ export function createAttachmentParseWorker(input: {
     attempt: number,
     fence: number,
     outcome: Settlement,
+    jobs: JobStore<Transaction> = store,
   ) {
-    return store.locked(jobId, async (tx) => {
+    return jobs.locked(jobId, async (tx) => {
       let job: JobRecord | null = tx.record;
       if (
         !job ||
@@ -207,34 +217,47 @@ export function createAttachmentParseWorker(input: {
   }
 
   async function run(payload: unknown) {
-    const { jobId, attempt } = attachmentJobPayloadSchema.parse(payload);
-    // The revision this runner holds: the one it claimed, or the one it found
-    // when the claim was refused or failed before committing.
+    const { jobId, attempt, revision } =
+      attachmentJobPayloadSchema.parse(payload);
+    // The revision this runner holds once its claim transaction has ended: the
+    // one it committed, or the one it found when the claim was refused or
+    // rolled back. A claim that never reached the job leaves it to recovery.
     let fence: number | null = null;
+    let claiming = true;
     const fenced: JobStore<Transaction> = {
-      locked: (id, work) =>
-        store.locked(id, async (tx) => {
-          const first = fence === null;
-          if (first) fence = tx.record?.revision ?? null;
-          const result = await work(tx);
-          if (
-            first &&
-            typeof result === 'object' &&
-            result !== null &&
-            'status' in result &&
-            result.status === 'claimed' &&
-            'revision' in result
-          )
-            fence = result.revision as number;
+      locked: async (id, work) => {
+        if (!claiming) return store.locked(id, work);
+        claiming = false;
+        let observed: number | null = null;
+        let claimed: number | null = null;
+        try {
+          const result = await store.locked(id, async (tx) => {
+            observed = tx.record?.revision ?? null;
+            const outcome = await work(tx);
+            if (
+              typeof outcome === 'object' &&
+              outcome !== null &&
+              'status' in outcome &&
+              outcome.status === 'claimed' &&
+              'revision' in outcome
+            )
+              claimed = outcome.revision as number;
+            return outcome;
+          });
+          fence = claimed ?? observed;
           return result;
-        }),
+        } catch (error) {
+          fence = observed;
+          throw error;
+        }
+      },
     };
     let outcome: Settlement;
     try {
       const { status } = await runAttachmentParse(
         fenced,
         ports,
-        { jobId, attempt },
+        { jobId, attempt, revision },
         {
           now,
           limits: attachmentParseLimits,
@@ -249,39 +272,74 @@ export function createAttachmentParseWorker(input: {
     return fence === null ? 'ignored' : settle(jobId, attempt, fence, outcome);
   }
 
-  /** Hands claimed parses that outlived their lease back to the queue, or
-   * settles them once they have used up their claims. */
+  /** Resends every media job whose state has outlived its window: queued
+   * with no waiting message, or claimed by a runner that stopped touching it.
+   * Each resend advances the revision in the transaction that sends it, so the
+   * older message is ignored; jobs at the revision bound are settled as
+   * failed. Concurrent scans skip each other's rows. */
   async function recover() {
-    const stale = await input.db
-      .select({
-        jobId: jobSnapshots.jobId,
-        attempt: jobSnapshots.attempt,
-        revision: jobSnapshots.revision,
-      })
-      .from(jobSnapshots)
-      .where(
-        and(
-          eq(jobSnapshots.kind, 'media'),
-          inArray(jobSnapshots.status, ['running', 'partial']),
-          sql`${jobSnapshots.result}->>'stage' = 'parsing'`,
-          lt(
-            jobSnapshots.updatedAt,
-            new Date(
-              input.now().getTime() - attachmentParseLeaseMs,
-            ).toISOString(),
+    const at = input.now().getTime();
+    const before = (ms: number) => new Date(at - ms).toISOString();
+    return input.db.transaction(async (tx) => {
+      await lockIntakeTable(tx, 'locked');
+      const stale = await tx
+        .select({
+          jobId: jobSnapshots.jobId,
+          status: jobSnapshots.status,
+          attempt: jobSnapshots.attempt,
+          revision: jobSnapshots.revision,
+        })
+        .from(jobSnapshots)
+        .where(
+          and(
+            eq(jobSnapshots.kind, 'media'),
+            or(
+              and(
+                eq(jobSnapshots.status, 'queued'),
+                lt(jobSnapshots.updatedAt, before(attachmentParseQueuedMs)),
+              ),
+              and(
+                inArray(jobSnapshots.status, ['running', 'partial']),
+                sql`${jobSnapshots.result}->>'stage' = 'parsing'`,
+                lt(jobSnapshots.updatedAt, before(attachmentParseLeaseMs)),
+              ),
+            ),
           ),
-        ),
-      );
-    for (const job of stale) {
-      if (job.revision >= maxClaimRevision)
-        await settle(job.jobId, job.attempt, job.revision, 'failed');
-      else
-        await input.boss.send(attachmentParseQueue, {
-          jobId: job.jobId,
-          attempt: job.attempt,
-        });
-    }
-    return stale.length;
+        )
+        .for('update', { skipLocked: true });
+      let recovered = 0;
+      for (const job of stale) {
+        if (job.status === 'queued') {
+          const message = await input.boss.getJobById(
+            attachmentParseQueue,
+            attachmentParseMessageId(job.jobId, job.revision),
+          );
+          if (message && pendingMessage.has(message.state)) continue;
+        }
+        recovered += 1;
+        if (job.revision >= maxRecoveryRevision) {
+          await settle(
+            job.jobId,
+            job.attempt,
+            job.revision,
+            'failed',
+            createJobStore(tx),
+          );
+          continue;
+        }
+        const revision = job.revision + 1;
+        await tx
+          .update(jobSnapshots)
+          .set({ revision, updatedAt: new Date(at).toISOString() })
+          .where(eq(jobSnapshots.jobId, job.jobId));
+        await sendAttachmentParse(
+          input.boss,
+          { jobId: job.jobId, attempt: job.attempt, revision },
+          { db: fromDrizzle(tx, sql) },
+        );
+      }
+      return recovered;
+    });
   }
 
   return {

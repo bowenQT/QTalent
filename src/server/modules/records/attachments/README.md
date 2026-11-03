@@ -59,9 +59,10 @@ const input = createValidatedAttachmentInput<Transaction>({
 
 ## 任务事务与 845 交接
 
-`runAttachmentParse(jobStore, ports, {jobId,attempt}, options)` 复用已合 #94 的 JobStore/advanceJob。队列 payload 不含 accountId、objectKey、人员或客户端内容。`registerAttachmentParseJob(boss, run)` 只导出独立 `attachment-parse` 队列注册，未写全局 worker。
+`runAttachmentParse(jobStore, ports, {jobId,attempt,revision}, options)` 复用已合 #94 的 JobStore/advanceJob。队列 payload 不含 accountId、objectKey、人员或客户端内容。所有投递（首次入队与恢复重投）都经 `sendAttachmentParse`，消息 id 由 `jobId:revision` 决定，同一 revision 的第二次 send 不入队。`registerAttachmentParseJob(boss, run, recover)` 注册 `attachment-parse` 队列与 `attachment-parse-recovery` 定时恢复。
 
-1. claim 事务检查当前写权限、完整上传绑定、attempt 和可运行阶段，推进 revision。running/partial-parsing 的重新投递可接管旧 worker；其他阶段、失败、待人工与终态不重跑。
+1. claim 事务检查当前写权限、完整上传绑定、attempt、消息 revision 与任务当前 revision 一致和可运行阶段，推进 revision。旧 revision 的消息一律忽略。running/partial-parsing 的恢复重投可接管旧 worker；其他阶段、失败、待人工与终态不重跑。
+   恢复按任务状态兜底：超过 10 分钟仍 queued 且当前 revision 的消息不在队列中、或超过 5 分钟租约仍在解析中的任务，在 `FOR UPDATE SKIP LOCKED` 扫描事务内推进 revision 并重投；revision 达到 4 时落 `failed / processing_failed`。
 2. 只读解析在事务外，不锁着事务调用供应商或模型。读取失败保存安全失败快照；没有隐式无限业务重试。
 3. 完成事务重新授权、核绑定、attempt/revision/cancel fence。`ports.saveParse(tx, binding, bundle)`、`ports.enqueueArrange(tx, request)`、`tx.save(job)` 必须使用同一个事务 context。saveParse 对同 ID 比较完整不可变 bundle，只有 `created` 首次结果排整理，`existing` 不重复入队；冲突和任一写入异常全部回滚。原件和旧任务历史不删除。
    已成功 claim 的当前 attempt/revision 在完成前失去写权限或发现权威绑定变化时，只保存 `failed / input_changed` 任务终态（阶段 failed、source null、fragmentIds 空），不保存解析片段或排整理；返回值仍保留 forbidden/ignored。初始 claim 前的拒绝仍不读字节、不修改任务。旧 revision/attempt 不得写入这一失败；已接受的取消优先确认 cancelled。公开读取和 retry 继续由当前 requester/action 权限与 inputVersion 栅栏判断。
@@ -79,7 +80,7 @@ const input = createValidatedAttachmentInput<Transaction>({
 - 依所有者 #248/6558974554 裁决，failed 解析任务不接受新的 cancel：公共 jobs service 经此 policy 返回 `canCancel:false`，取消命令被拒且不写 cancelRequestedAt / 操作回执或入队；可恢复失败仍可按当前权限与 inputVersion 栅栏 retry。unsupported 等不可恢复失败不因此开放 retry。queued/running 的取消与已取消终态、既有已接受操作的重放语义不变。此处不修复或猜测历史异常数据，真实应用未接链路仍按下节说明。
 - `visibleSources(tx, requesterAccountId, job)` 复用837/873已分类来源读取，仅返回当前可见的真实引用；必须是任务持久 fragmentIds 与 originalVersionId 的子集。公开 source 取可见列表首项，计数在过滤后计算，隐藏/未分类片段不泄露。
 - `inputVersion` 重载当前输入；`enqueue` 在传入 tx 上用852唯一 producer 原子排 retry/cancel，不能另开连接或创建 singleton。
-- 873 dispatch 在其归档事务内先建立 `newJob({kind:'media',resourceId:uploadId,inputVersion:originalVersionId,...})`，再通过同事务 pg-boss send 到 `attachment-parse`。该绑定应唯一；解析 worker 按873完成事实再次验证 completed.jobId。
+- 873 dispatch 在其归档事务内先建立 `newJob({kind:'media',resourceId:uploadId,inputVersion:originalVersionId,...})`，再通过同事务 `sendAttachmentParse` 投递到 `attachment-parse`。该绑定应唯一；解析 worker 按873完成事实再次验证 completed.jobId。
 - 应用入口、JobPolicy registry、worker、852 producer/env 及最终合并由父串行接线。本卡没有新增 HTTP/Action、读取凭据或真实 API 调用。
 
 ## 未完成门禁

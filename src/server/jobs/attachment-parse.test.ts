@@ -10,8 +10,10 @@ import {
 import {
   createAttachmentParsePolicy,
   registerAttachmentParseJob,
+  attachmentParseMessageId,
   attachmentParseQueue,
   attachmentParseRecoveryQueue,
+  sendAttachmentParse,
 } from './attachment-parse';
 import type { AttachmentPolicyPorts } from '../modules/records/attachments/flow';
 
@@ -187,6 +189,10 @@ describe('attachment media policy and isolated worker registration', () => {
     expect(boss.createQueue).toHaveBeenCalledWith(attachmentParseQueue, {
       retryLimit: 0,
     });
+    expect(boss.createQueue).toHaveBeenCalledWith(
+      attachmentParseRecoveryQueue,
+      { retryLimit: 0 },
+    );
     // Lost runners are recovered once at start, then on the minute schedule.
     expect(recover).toHaveBeenCalledTimes(1);
     expect(boss.schedule).toHaveBeenCalledWith(
@@ -197,12 +203,35 @@ describe('attachment media policy and isolated worker registration', () => {
     expect(recover).toHaveBeenCalledTimes(2);
     const callback = handlers.get(attachmentParseQueue);
     if (!callback) throw new Error('missing callback');
-    await callback([{ data: { jobId: 'job', attempt: 1 } }]);
-    expect(run).toHaveBeenLastCalledWith({ jobId: 'job', attempt: 1 });
+    const data = { jobId: 'job', attempt: 1, revision: 2 };
+    await callback([{ data }]);
+    expect(run).toHaveBeenLastCalledWith(data);
     await expect(
-      callback([{ data: { jobId: 'job', attempt: 1, accountId: 'spoof' } }]),
+      callback([{ data: { ...data, accountId: 'spoof' } }]),
+    ).rejects.toThrow();
+    await expect(
+      callback([{ data: { jobId: 'job', attempt: 1 } }]),
     ).rejects.toThrow();
     expect(run).toHaveBeenCalledTimes(1);
+  });
+  it('sends each job revision under one deterministic message id', async () => {
+    const send = vi.fn(async () => 'sent');
+    const job = { jobId: 'job', attempt: 1, revision: 3 };
+    await sendAttachmentParse({ send }, job);
+    expect(send).toHaveBeenCalledWith(attachmentParseQueue, job, {
+      id: attachmentParseMessageId('job', 3),
+      singletonKey: 'job:3',
+      retryLimit: 0,
+    });
+    expect(attachmentParseMessageId('job', 3)).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(attachmentParseMessageId('job', 3)).toBe(
+      attachmentParseMessageId('job', 3),
+    );
+    expect(attachmentParseMessageId('job', 4)).not.toBe(
+      attachmentParseMessageId('job', 3),
+    );
   });
 });
 

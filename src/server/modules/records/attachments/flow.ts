@@ -14,9 +14,12 @@ import type { JobRecord } from '../../../jobs/state';
 import type { AttachmentVersion, ParsedAttachment } from './types';
 
 const id = z.string().min(1).max(200).regex(/\S/);
+/** A message names the job revision it was sent for; a message for an older
+ * revision is ignored once the job has moved on. */
 export const attachmentJobPayloadSchema = z.strictObject({
   jobId: id,
   attempt: z.number().int().positive(),
+  revision: z.number().int().positive(),
 });
 export const attachmentBindingSchema = z
   .strictObject({
