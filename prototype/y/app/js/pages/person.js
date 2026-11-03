@@ -38,8 +38,8 @@
     const obsN = events.filter((e) => e.kind === 'obs').length;
 
     const w = st.watch().find((x) => x.person === pid);
-    // 判断变化只放能力走向和象限偏移；活跃度与安排、团队分布另放
-    const jchg = changes.filter((c) => c.t === 'trend' || c.t === 'quad'), achg = changes.filter((c) => c.t !== 'trend' && c.t !== 'quad');
+    // 能力走向和象限偏移由能力谱里的盘点对照和象限的重新校准提示呈现；这里只留活跃度与安排
+    const achg = changes.filter((c) => c.t !== 'trend' && c.t !== 'quad');
     const facts = events.filter((e) => e.kind === 'obs' && e.date && !e.scores.some((x) => x.p === pid && x.st === 'ai')).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
     // 档案版本对照放在能力谱里：选一次盘点时，在刻度上方写出从那时到现在变了什么
     const atReview = (s) => `${/盘点$/.test(s.label) ? s.label : `${s.label}盘点`}时`;
@@ -51,7 +51,6 @@
         </div>
         ${verSnap ? html`<div class="n-pver__cmp">${verCompare(verSnap.entries[pid], ref, f)}</div>` : ''}
       </div>` : '';
-    const chgList = jchg.length ? html`<div class="n-spectrum__chg"><h4>近 3 个月的变化</h4><div id="pchanges">${jchg.map((c) => UI.change(c, 'win'))}</div></div>` : '';
 
     // 第一屏依次回答：为什么值得关注、发生过什么、有什么证据、判断有什么变化；能力谱与象限在第二层（v1.5 3.28）
     mount(main, html`
@@ -70,18 +69,16 @@
       <div class="nt-split nt-split--wide">
         <div class="nt-grid">
           ${w ? whyBlock(w) : ''}
+          ${summaryBlock(p, events, canScore, ref, f, canQuad)}
           <article class="n-card" id="facts"><h3 class="n-section-title">关键事件与证据${events.some((e) => e.kind === 'obs') ? html`<a class="n-link" href="#timeline">查看全部</a>` : ''}</h3>
             ${facts.length ? html`<ol class="n-peek__facts n-pfacts">${facts.map((e) => html`<li><span class="n-peek__date">${NT.md(e.date)}</span><span><a class="nt-plink" href="#ev-${e.id}">${e.title}</a>${UI.evCite(e.id, '原文')}<small>${[e.project && st.project(e.project)?.name, `${st.person(e.recorder)?.name}记录`].filter(Boolean).join(' · ')}</small></span></li>`)}</ol>` : html`<div class="nt-empty">还没有已确认的关键事件。</div>`}
           </article>
-          ${!spec && (pverBar || chgList) ? html`<article class="n-card" id="judgechg"><h3 class="n-section-title">判断变化</h3>${pverBar}${chgList}</article>` : ''}
-          ${summaryBlock(p, events, canScore, ref, f, canQuad)}
           ${spec ? html`<article class="n-card n-spectrum" id="spectrum">
             <div class="n-spectrum__head"><div><h3 class="n-section-title" style="margin:0">个人能力谱</h3><div class="nt-muted">详细维度 · 近 12 个月 · 已确认 ${spec.total} 条事件分 · ${['ceo', 'hrbp'].includes(st.role()) ? html`<a class="nt-plink" href="rules.html?r=rubric" title="${spec.vers.join('、') || st.ruleLive('rubric').v}">评价规则</a>` : html`<span title="${spec.vers.join('、') || st.ruleLive('rubric').v}">评价规则</span>`}</div></div>${canQuad ? UI.miniquad(pid) : ''}</div>
             ${pverBar}
             <div class="n-spectrum__scale"><span></span><div class="n-spectrum__ticks">${[1, 2, 3, 4, 5].map((v, i) => html`<span style="left:${i * 25}%">${v}</span>`)}</div><span></span></div>
             <div id="spec-rows">${spec.html}</div>
             <div class="n-spectrum__legend"><span><i class="k-all"></i>外圈：这个分值的全部事件</span><span><i class="k-recent"></i>实心：其中近 3 个月</span><span><i class="k-mean"></i>均值</span><span><i class="k-unknown"></i>资料不足</span><span>点一行展开事件</span></div>
-            ${chgList}
           </article>` : ''}
 
           <article class="n-card" id="timeline">
@@ -119,7 +116,6 @@
     if (spec) UI.wireSpectrum($('#spec-rows'));
     UI.wireDirection($('#dirwrap'), pid, () => render(main));
     NT.gh.wireCard($('#ghwrap'), pid, () => render(main));
-    if ($('#pchanges')) UI.wireChanges($('#pchanges'));
     if ($('#pachanges')) UI.wireChanges($('#pachanges'));
     if ($('#sigwrap')) UI.wireSignal($('#sigwrap'), () => render(main));
     if ($('[data-trackwrap]')) UI.wireTracks($('[data-trackwrap]'), () => render(main));
