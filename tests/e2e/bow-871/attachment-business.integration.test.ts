@@ -393,9 +393,17 @@ it.each(['txt', 'docx', 'pdf'] as const)(
     );
     expect(saved.result.events).toHaveLength(1);
     expect(saved.result.confirmationIds).toHaveLength(1);
+    expect(saved.result.revision).toBe(draft.revision + 1);
+    const savedRows = rows.map((row) => ({
+      ...row,
+      revision: row.revision + 1,
+      draft: { ...row.draft, revision: row.draft.revision + 1 },
+    }));
+    expect(await drafts(h)).toEqual(savedRows);
     expect(
       await saveRecordDraft(connection.db, h.facts.account, save, clock),
     ).toEqual({ ...saved, replayed: true });
+    expect(await drafts(h)).toEqual(savedRows);
     const [confirmed] = await connection.db
       .select()
       .from(confirmations)
@@ -424,7 +432,7 @@ it.each(['txt', 'docx', 'pdf'] as const)(
       );
       expect(source.status).toBe('success');
     }
-    await undoRecordSave(
+    const undone = await undoRecordSave(
       connection.db,
       h.facts.account,
       { operation_id: randomUUID(), saveId: saved.result.saveId },
@@ -433,7 +441,18 @@ it.each(['txt', 'docx', 'pdf'] as const)(
     const withdrawn = await formal(h);
     expect(withdrawn).toHaveLength(1);
     expect(withdrawn[0]!.withdrawnAt).not.toBeNull();
-    expect(await drafts(h)).toEqual(rows);
+    expect(undone.result.draftRestoration).toEqual({
+      status: 'available',
+      draftId: draft.draftId,
+      draftRevision: draft.revision + 2,
+    });
+    expect(await drafts(h)).toEqual(
+      rows.map((row) => ({
+        ...row,
+        revision: row.revision + 2,
+        draft: { ...row.draft, revision: row.draft.revision + 2 },
+      })),
+    );
     const [inactive] = await connection.db
       .select()
       .from(confirmations)

@@ -40,3 +40,7 @@ pnpm exec vitest run --config vitest.integration.config.ts \
 规格经独立复核通过（SHA-256 `6b45de52332232c3bc894650fe7560d8138a4e682fffd78272b700c8cba12ecd`）；本轮根据所有者“暂不增加范围确认交互”收窄成功前置，绝不伪造普通上传的范围采集能力。
 
 云端 PostgreSQL 17.10 的 Unix socket 被沙箱拒绝，官方 escalation 在启动前 bwrap 挂载失败；没有绕过，也没有本云端真实 PG 通过结论。两套共九项已实际收集，命令 exit 1：面评3项在 beforeEach 失败，附件6项因 beforeAll 同样缺 TEST_DATABASE_URL 未执行（runner 标为 skipped，不是源码 skip），无任何 PG 通过结论。最终九项/完整 CI 以 PR 当前提交的实际结果为准，未跑不记通过、不降门槛。独立代码审查及必要 CI 通过后才 Ready for review，不合并。
+
+### 首轮真实 CI（未通过）
+
+PR #379 `9bd3ab728fb0fbf39f179506c249a328dcb9b5a0` 的 run `41558256726` 在 PostgreSQL17 真正执行九项：面评3项、附件未知范围/撤权/绑定undo→846三项通过；附件三格式仍有失败，因此不是九项通过。TXT/DOCX 已执行到 save 与 undo，暴露本测试把草稿版本错误当成不变（实际事务每次推进1），本增量改为**精确 +1/+2 且其余整行完全不变**，不是忽略版本；PDF 在真实846入口被旧 write-policy 格式白名单拒绝 `material_reader_not_connected`，交业务所有者连接 canonical PDF，成功断言不放松。完整 quality 另有上游用例失败，e2e/visual 成功不替代 quality。最终仍以修复同步后当前 head 的真实结果为准。
