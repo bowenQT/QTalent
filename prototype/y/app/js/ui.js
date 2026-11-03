@@ -445,7 +445,7 @@
     const p = st.person(pid);
     const r = await NT.dialog({
       title: t ? `改${p.name}的观察问题` : `重点跟踪${p.name}`,
-      body: html`<label class="n-field"><span class="n-field__label">为什么关注</span><input class="n-input" id="tk-why" value="${t?.why || ''}" placeholder="比如：近 3 个月智慧力明显走低"></label>
+      body: html`<label class="n-field"><span class="n-field__label">为什么关注</span><input class="n-input" id="tk-why" value="${t?.why || ''}" placeholder="比如：最近遇到难题时，处理思路不如之前清楚"></label>
         <label class="n-field"><span class="n-field__label">具体想观察什么 <small>写成一个能回答的问题</small></span><textarea class="n-textarea ink-hand" id="tk-q" style="font-size:var(--t-md)" placeholder="比如：没有导师在场时，能不能独立做方案取舍？">${t?.q || ''}</textarea></label>
         <label class="n-field"><span class="n-field__label">下次什么时候看</span><select class="n-select" id="tk-next"><option value="2026-11-06">11-06 前</option><option value="2026-11-13">11-13 前</option><option value="2026-11-30">本月底前</option></select></label>`,
       actions: [{ label: '取消', value: 'cancel', cls: 'n-btn--ghost' }, { label: t ? '保存' : '开始跟踪', value: 'ok', cls: 'n-btn--ink',
