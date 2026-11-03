@@ -353,10 +353,11 @@
   // 统一投递：一次拖入多个文件成一批，文件各自上传、解析，有的失败、有的要核对；处理完在回执里看读到了什么
   function wireUpload() {
     const files = $('#files');
-    let timer = 0;
+    let timer = 0, closed = '';
     const draw = (d) => {
+      if (d.id === closed) return;
       const s = st.dropSummary(d), [k, label] = st.dropState(d);
-      mount(files, html`<li class="n-dropbatch" data-state="${k}"><div class="n-dropbatch__head"><b>${d.title}</b><span class="n-rstate" data-s="${k}">${label}</span></div>
+      mount(files, html`<li class="n-dropbatch" data-state="${k}"><div class="n-dropbatch__head"><b>${d.title}</b><span class="n-dropbatch__end"><span class="n-rstate" data-s="${k}">${label}</span><button class="n-btn n-btn--ghost n-btn--icon n-dropbatch__close" type="button" data-close="${d.id}" aria-label="收起本次投递" title="收起，处理进度仍在「进行中的任务」">${icon('x')}</button></span></div>
         ${d.files.map((f) => { const [ic, fl] = st.FILE_STATE[f.state]; return html`<div class="n-file"><span class="n-file__ext">${UI.attachKind(f.name).ext}</span><div style="min-width:0"><div class="n-file__name">${f.name}</div><div class="n-file__state"><span class="${f.state === 'failed' ? 'err' : f.state === 'done' ? 'ok' : ''}">${icon(ic, 12)} ${fl}</span> · ${f.meta}</div>${['queued', 'parsing', 'transcribing', 'uploading'].includes(f.state) ? html`<div class="n-progress is-indeterminate"><i></i></div>` : ''}</div><span></span></div>`; })}
         <div class="n-dropbatch__foot"><span class="nt-muted">${s.processing ? `${s.processing} 个处理中，可以离开，结果会回到「进行中的任务」` : [s.failed && `${s.failed} 个失败`, s.verifyOpen && `${s.verifyOpen} 处待核对`, `${s.events} 件事`].filter(Boolean).join(' · ')}</span><a class="n-btn n-btn--sm" href="receipt.html?id=${d.id}">看回执</a></div></li>`);
     };
@@ -367,6 +368,15 @@
       timer = setInterval(() => { if (!document.body.contains(files)) { clearInterval(timer); return; } if (st.tickDrops()) { if (d) draw(st.drop(d.id)); renderTasks(); } if (!st.drops().some(busy)) clearInterval(timer); }, 500);
     };
     const follow = (d) => { draw(d); renderTasks(); watch(d); };
+    // 收起本次投递：批次照常处理，进度和回执在「进行中的任务」里
+    files.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-close]');
+      if (!b) return;
+      closed = b.dataset.close;
+      const li = b.closest('.n-dropbatch');
+      li.classList.add('is-leaving');
+      setTimeout(() => { if (li.isConnected) mount(files, ''); }, NT.reduced ? 0 : 200);
+    });
     // 刷新或离开后回到工作台：之前投递、还没处理完的批次接着推进
     if (st.drops().some(busy)) watch(null);
     // 回形针选文件；文件也可以直接拖到输入框上
