@@ -1,12 +1,12 @@
 /* 工作台：按视角呈现。
    - 管理者：找人、值得关注的人、值得关注的项目、我的关注；判断提醒只做一行告知。留用与落位方案在方案页修改和确认，这里不审批。
    - HR：首屏「变化」，然后是一句话输入、待办、判断对照、进行中的任务与上传。
-   - 导师：先列所带学员，记一件事、推荐。 */
+   - 导师：一句话输入，下面收着所带学员（记一件事、推荐），然后是待办、我的推荐与进行中的任务。 */
 (function () {
   'use strict';
   const NT = window.NT, st = NT.store, UI = NT.ui;
   const { html, raw, icon, mount, $, $$ } = NT;
-  let base = 'ver', type = 'all', expanded = false, chgOpen = false, watchCat = 'all', watchAll = false, watchProg = null;
+  let base = 'ver', type = 'all', expanded = false, chgOpen = false, stuOpen = false, watchCat = 'all', watchAll = false, watchProg = null;
 
   const SUGGEST = {
     ceo: ['MaaS 智能体平台要一个能牵头应用后端的人，10 月到岗', 'TS 新人组还缺一个懂测试和部署、能带大家对齐节奏的人'],
@@ -47,12 +47,17 @@
             
           </div></div>
         </div>` : '';
+      // 导师所带学员同样收在输入框下面：平时一行摘要，点开逐人记一件事、推荐
+      const studentsTray = html`<div class="n-chgtray" id="stu-tray">
+          <button class="n-chgtray__head" type="button" id="stu-toggle" aria-expanded="${String(stuOpen)}" aria-controls="stu-panel">${icon('users')}<b id="stu-h">我带的学员</b><span class="n-count is-quiet" id="stu-total"></span><span class="n-changes__meta" id="stu-meta"></span><span class="n-chgtray__act">${stuOpen ? '收起' : '展开'}</span>${icon('chev')}</button>
+          <div class="n-fold" id="stu-panel" ${raw(stuOpen ? 'data-open' : 'inert')}><div class="n-changes n-students" id="students"></div></div>
+        </div>`;
       const composer = html`
         <section class="n-cmd" id="upload" aria-label="输入框">
         <div class="n-cmd__box">
         <div class="n-composer" id="composer">
           <span class="nt-ip" data-ip="rest" data-size="36" id="composer-ip"></span>
-          <textarea class="n-composer__field" rows="2" id="composer-field" aria-label="描述你要做的事" placeholder="${role === 'mentor' ? '按情境、行为、影响说一件学员做的事：在什么情况下、做了什么、带来什么影响' : '说一件事，或描述一个项目要找谁；文件可以直接拖进来。输入 / 查看命令'}"></textarea>
+          <textarea class="n-composer__field" rows="2" id="composer-field" aria-label="描述你要做的事" placeholder="${role === 'mentor' ? '说一件学员做的事：在什么情况下、做了什么、带来什么影响；文件可以直接拖进来。输入 / 查看命令' : '说一件事，或描述一个项目要找谁；文件可以直接拖进来。输入 / 查看命令'}"></textarea>
           <div class="n-composer__bar">
             <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="drop" aria-label="添加文件" title="添加文件：${UI.ATT_TYPES}，可以一次拖入多个">${icon('clip')}</button>
             <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="composer-mic" aria-label="语音输入" title="语音输入（演示）" aria-pressed="false">${icon('mic')}</button>
@@ -63,13 +68,13 @@
         <!-- 命令和示例在输入框聚焦且还没输入、或输入 / 时出现；/ 之后的字只筛命令 -->
         <div class="n-slash is-pop" id="slash" role="listbox" aria-label="命令和示例" hidden>
           <span class="n-slash__label" data-group="cmd">命令</span>
-          ${[['note', '记一件事', '/记', 'record.html'], st.can('findOwner') && ['folder', '为项目找人', '/找', 'staffing.html?new=1'], st.can('calibrate') && ['eye', '发起盘点', '/盘', 'reviews.html#new'], st.canOpenMinutes('w8') && ['wave', '打开会议人才纪要', '/录', 'record.html?m=w8']].filter(Boolean).map(([ic, l, k, h]) => html`<a class="n-slash__item" role="option" aria-selected="false" href="${h}" data-group="cmd" data-label="${l}" data-key="${k.slice(1)}">${icon(ic, 16)}${l}<kbd>${k}</kbd></a>`)}
+          ${[['note', '记一件事', '/记', 'record.html'], st.can('findOwner') && ['folder', '为项目找人', '/找', 'staffing.html?new=1'], role === 'mentor' && ['users', '做 W8 对人复盘', '/复', 'landing.html'], st.can('calibrate') && ['eye', '发起盘点', '/盘', 'reviews.html#new'], st.canOpenMinutes('w8') && ['wave', '打开会议人才纪要', '/录', 'record.html?m=w8']].filter(Boolean).map(([ic, l, k, h]) => html`<a class="n-slash__item" role="option" aria-selected="false" href="${h}" data-group="cmd" data-label="${l}" data-key="${k.slice(1)}">${icon(ic, 16)}${l}<kbd>${k}</kbd></a>`)}
           <span class="n-slash__label" data-group="say">试试这样说</span>
           ${(SUGGEST[role] || []).map((x) => html`<button class="n-slash__item" type="button" role="option" aria-selected="false" data-group="say" data-say="${x}">${icon('quote', 16)}<span>${x}</span></button>`)}
         </div>
         </div>
         <ul class="n-files" id="files"></ul>
-        ${role === 'mentor' ? '' : changesTray}
+        ${role === 'mentor' ? studentsTray : changesTray}
         </section>`;
       const head = html`<header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · ${role === 'mentor' ? 'XEngineer 第六期已结营 · W8 对人复盘今天截止' : `XEngineer 第六期结营盘点进行中 · 证据截至 ${NT.md(NT.TODAY)}`}</p></div>${exportBtn()}</header>${exportHost()}`;
       // 导师：进行中的任务默认折叠
@@ -77,8 +82,8 @@
           <div id="tasks"></div></details>`;
       if (role === 'mentor') {
         mount(main, html`${head}${composer}
-          <div class="nt-ceo">
-            <div class="nt-grid"><article class="n-card n-students" id="students" aria-labelledby="stu-h"></article><article class="n-card" id="todo">${todoBlock(role, todos)}</article></div>
+          <div class="nt-cols">
+            <article class="n-card" id="todo">${todoBlock(role, todos)}</article>
             <div class="nt-grid"><article class="n-card n-recos" id="recos" aria-labelledby="recos-h"></article>${fold}</div>
           </div>`);
         wireComposer(role); wireTodos(); renderTasks(); wireUpload();
@@ -713,9 +718,10 @@
         <div><a class="nt-plink" href="person.html?id=${p.id}" data-peek="p:${p.id}"><b>${p.name}</b></a><small>${topic ? `${topic.name} · ` : ''}${week ? `本周记了 ${week} 件` : '本周待记'}${mine[0] ? ` · 最近 ${NT.md(mine[0].date)}` : ''}</small></div>
         <div class="n-students__acts"><a class="n-btn n-btn--sm n-btn--ink" href="record.html?person=${p.id}">${icon('pen')}记一件事</a>${st.canRecommend(p.id) ? html`<button class="n-btn n-btn--sm" type="button" data-reco="${p.id}">${icon('target')}推荐</button>` : ''}</div></li>`;
     };
-    mount($('#students'), html`<h3 class="n-section-title" id="stu-h">我带的学员<span class="n-count is-quiet">${list.length} 人</span></h3>
-      ${list.length ? html`<ul class="n-students__list">${list.map(row)}</ul>` : html`<div class="nt-empty">分配给你的学员会出现在这里。</div>`}
-      `);
+    const todo = list.filter((p) => !S.events.some((e) => e.kind === 'obs' && e.people.includes(p.id) && e.recorder === me && e.date >= since)).length;
+    $('#stu-total').textContent = `${list.length} 人`;
+    $('#stu-meta').textContent = !list.length ? '' : todo ? `本周还有 ${todo} 人没记` : '本周每人都记过了';
+    mount($('#students'), list.length ? html`<ul class="n-students__list">${list.map(row)}</ul>` : html`<div class="nt-empty">分配给你的学员会出现在这里。</div>`);
     drawRecos();
   }
   // 我的推荐：本人提交的推荐与处理状态
@@ -727,6 +733,12 @@
         : html`<div class="nt-empty">在学员那一行点「推荐」，写理由并引用两件事；HR 核实后会进入学员档案的发展方向。</div>`}`);
   }
   function wireMentor() {
+    $('#stu-toggle').addEventListener('click', (e) => {
+      const btn = e.currentTarget; stuOpen = !stuOpen;
+      btn.setAttribute('aria-expanded', String(stuOpen));
+      btn.querySelector('.n-chgtray__act').textContent = stuOpen ? '收起' : '展开';
+      const panel = $('#stu-panel'); panel.toggleAttribute('data-open', stuOpen); panel.inert = !stuOpen;
+    });
     $('#students').addEventListener('click', (e) => { const r = e.target.closest('[data-reco]'); if (r) UI.recoDialog(r.dataset.reco, drawMentor); });
   }
 
