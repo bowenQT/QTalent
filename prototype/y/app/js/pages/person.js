@@ -214,11 +214,12 @@
     const items = [
       ['正式位置', e.q ? st.QN[e.q] : '资料不足', f ? st.QN[f.q] : '—'],
       ['参考位置', e.ref ? st.QN[e.ref] : '资料不足', ref.na ? '资料不足' : st.QN[ref.q]],
-      ['已确认事件分', `${e.n} 条`, `${ref.n} 条`],
       ...['prof', 'mot', 'wis', 'grit'].filter((k) => e.dims?.[k]?.m != null || ref.dims?.[k]?.m != null).map((k) => [`${st.dim(k).name}均值`, m(e.dims?.[k]?.m), m(ref.dims?.[k]?.m)]),
     ];
     const moved = items.filter(([, a, b]) => a !== b);
-    return moved.length ? html`${moved.map(([k, a, b]) => html`<span>${k} <span class="n-diff"><del>${a}</del> → <ins>${b}</ins></span></span>`)}` : html`<span class="nt-muted">到现在没有变化</span>`;
+    // 评分条数不按新旧值写，直接说之后多确认了几条
+    const added = ref.n - e.n;
+    return moved.length || added ? html`${added > 0 ? html`<span>之后新确认 ${added} 条评分</span>` : ''}${moved.map(([k, a, b]) => html`<span>${k} <span class="n-diff"><del>${a}</del> → <ins>${b}</ins></span></span>`)}` : html`<span class="nt-muted">到现在没有变化</span>`;
   }
 
   // AI 摘要：光；采纳后落墨并署名
