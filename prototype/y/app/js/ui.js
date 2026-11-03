@@ -468,6 +468,19 @@
     const mgSide = d.mgmt == null ? html`<div class="n-lock">${icon('lock')}管理判断仅管理者和 HR 可见。</div>`
       : mg ? html`<div class="n-dir__side is-mgmt"><span class="n-dir__label"><span class="n-src n-src--obs">${icon('eye')}管理判断</span>${st.person(mg.by).name} · ${NT.md(mg.at)}</span><b class="n-dir__ch">${ch(mg.ch)}</b><span class="n-dir__note">依据：${mg.basis}${mg.ev && st.event(mg.ev) ? UI.cite({ ...st.event(mg.ev).srcs[0], quote: st.event(mg.ev).srcs[0]?.quote || st.event(mg.ev).act || st.event(mg.ev).title }, 1) : ''}</span>${older(d.mgmt, (x) => `${st.person(x.by).name} ${NT.md(x.at)}`)}</div>`
         : html`<div class="n-dir__side is-unknown"><span class="n-dir__label">管理判断</span><b class="n-dir__ch">未知</b><span class="n-dir__note">还没有人写过，不当作「不适合」</span></div>`;
+    // 档案右栏的概况卡里用紧凑的一行一条：来源标签在左，通道和出处在右
+    if (o.compact) {
+      const row = (src, side, meta, note, old) => html`<dt>${src}</dt><dd>${side ? html`<b>${ch(side.ch)}</b>` : html`<b class="is-unknown">未知</b>`} <span class="nt-muted">${meta}</span>${note ? html`<small>${note}</small>` : ''}${old}</dd>`;
+      const recosC = st.recosFor(pid).map((c) => html`<div class="n-dir__reco">${icon('target')}<span><b>推荐${st.fitText(c.dir)}</b>${c.why}<small>${st.person(c.by).name}推荐 · ${st.person(c.verifiedBy).name}核实 · ${NT.md(c.verifiedAt)}</small></span></div>`);
+      return html`<section class="n-facet" id="direction"><h3 class="n-facet__head">发展方向<small>通道取自人才发展大图</small>${o.canWrite ? html`<button class="n-link n-facet__act" type="button" data-dir="${o.canWrite}">${o.canWrite === 'self' ? '写下或修改我的意愿' : '写管理判断'}</button>` : ''}</h3>
+        <dl class="n-dirc">
+          ${row(html`<span class="n-src n-src--self">${icon('quote')}本人意愿</span>`, self, self ? `${self.src || '本人填写'} · ${NT.md(self.at)}` : '', self ? (self.text ? `「${self.text}」` : '') : '还没有本人的记录，不当作「不想」', older(d.self, (x) => NT.md(x.at)))}
+          ${d.mgmt == null ? html`<dt><span class="n-src">${icon('lock')}管理判断</span></dt><dd class="nt-muted">仅管理者和 HR 可见</dd>`
+            : row(html`<span class="n-src n-src--obs">${icon('eye')}管理判断</span>`, mg, mg ? `${st.person(mg.by).name} · ${NT.md(mg.at)}` : '', mg ? html`依据：${mg.basis}${mg.ev && st.event(mg.ev) ? UI.cite({ ...st.event(mg.ev).srcs[0], quote: st.event(mg.ev).srcs[0]?.quote || st.event(mg.ev).act || st.event(mg.ev).title }, 1) : ''}` : '还没有人写过，不当作「不适合」', older(d.mgmt, (x) => `${st.person(x.by).name} ${NT.md(x.at)}`))}
+        </dl>
+        ${recosC.length ? html`<div class="n-dir__recos">${recosC}</div>` : ''}
+        <div data-dir-form></div></section>`;
+    }
     const differ = self && mg && self.ch !== mg.ch;
     // 已核实的推荐方向（v1.5 3.31）：推荐人与核实人都写出来，不打分、不参与排序
     const recos = st.recosFor(pid).map((c) => html`<div class="n-dir__reco">${icon('target')}<span><b>推荐${st.fitText(c.dir)}</b>${c.why}<small>${st.person(c.by).name}推荐 · ${st.person(c.verifiedBy).name}核实 · ${NT.md(c.verifiedAt)}</small></span></div>`);

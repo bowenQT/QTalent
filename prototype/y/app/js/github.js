@@ -107,8 +107,14 @@
   };
 
   // 档案右栏：能看档案的人都能看到关联的账号，负责这个人的 HR 可以关联、更换或解除
-  gh.card = (pid) => {
+  gh.card = (pid, o = {}) => {
     const l = gh.link(pid), can = st.can('ghLink', pid), last = l?.prev.at(-1);
+    // 档案右栏的概况卡里只占一行：账号或「待关联」，操作放在标题行右侧
+    if (o.compact) return html`<section class="n-facet" id="gh"><h3 class="n-facet__head">GitHub 账号${can ? html`<span class="n-facet__act">${l ? html`<button class="n-link" type="button" data-gh="link">更换</button><button class="n-link" type="button" data-gh="unlink">解除关联</button>` : html`<button class="n-link" type="button" data-gh="link">关联账号</button>`}</span>` : ''}</h3>
+      ${l ? html`<div class="n-gh__acct">${gh.avatar(l.login)}<div><b>@${l.login}</b> ${NT.ui.demo()}<small>${st.person(l.by).name} ${NT.md(l.at)} 关联 · 记一件事时按这个账号查找</small></div></div>
+          ${last ? html`<p class="nt-caption">${NT.md(last.from)} 至 ${NT.md(last.to)} 关联的是 @${last.login}，那段时间保存的记录照旧引用当时的内容。</p>` : ''}`
+        : html`<p class="nt-muted" style="margin:0;font-size:var(--t-sm)">待关联${can ? ' · 关联后记一件事时可以按账号查找 Issue 和 PR' : ' · 由 HR 关联'}</p>`}
+    </section>`;
     return html`<article class="n-card" id="gh"><h3 class="n-section-title">GitHub 账号</h3>
       ${l ? html`<div class="n-gh__acct">${gh.avatar(l.login)}<div><b>@${l.login}</b> ${NT.ui.demo()}<small>${st.person(l.by).name} ${NT.md(l.at)} 关联 · 记一件事时按这个账号查找</small></div></div>
           ${last ? html`<p class="nt-caption">${NT.md(last.from)} 至 ${NT.md(last.to)} 关联的是 @${last.login}，那段时间保存的记录照旧引用当时的内容。</p>` : ''}

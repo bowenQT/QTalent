@@ -2217,3 +2217,19 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
   .n-gh__kind { display: none; }
   .n-gh__item .n-badge { grid-column: 2; justify-self: start; }
 }
+
+/* 档案右栏概况：发展方向、能力象限、参与的项目、GitHub 账号合在一张卡里，分段用细线隔开 */
+.n-facets > * + * { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1px solid var(--line); }
+.n-facets > :empty { display: none; }
+.n-facet__head { display: flex; align-items: baseline; gap: var(--s-2); margin: 0 0 var(--s-2); font-size: var(--t-sm); font-weight: 650; color: var(--ink); }
+.n-facet__head small { font-size: var(--t-xs); font-weight: 400; color: var(--ink-3); }
+.n-facet__act { display: inline-flex; gap: var(--s-3); margin-left: auto; font-weight: 400; }
+.n-facet .n-members li:first-child { padding-top: 0; }
+.n-facet .n-members li:last-child { padding-bottom: 0; }
+.n-dirc { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-2) var(--s-3); margin: 0; font-size: var(--t-sm); line-height: 1.6; }
+.n-dirc dt { padding-top: 2px; color: var(--ink-2); }
+.n-dirc dd { margin: 0; min-width: 0; }
+.n-dirc dd b { font-weight: 650; color: var(--ink); }
+.n-dirc dd b.is-unknown { color: var(--ink-3); }
+.n-dirc dd small { display: block; font-size: var(--t-xs); color: var(--ink-2); }
+.n-dirc .n-dir__old { margin-top: 2px; }

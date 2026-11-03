@@ -91,22 +91,23 @@
         </div>
 
         <aside class="nt-grid">
-          <div id="dirwrap">${UI.directionBlock(pid, { canWrite: st.can('curate', pid) ? 'mgmt' : '' })}</div>
           ${tracks.length ? html`<div id="track" data-trackwrap class="nt-grid">${tracks.map((t) => UI.trackCard(t, { readonly: role === 'ceo' }))}</div>` : ''}
-          ${achg.length ? html`<article class="n-card"><h3 class="n-section-title">活跃度与安排</h3><div id="pachanges">${achg.map((c) => UI.change(c, 'win'))}</div></article>` : ''}
           ${sig ? html`<div id="sigwrap">${UI.signalBlock(sig)}</div>` : ''}
-          ${canQuad ? html`<article class="n-card"><h3 class="n-section-title">能力象限</h3>
-            <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)} <span class="nt-muted">${f.snap.label} 校准 · ${NT.md(f.snap.at)} · ${st.person(f.snap.by).name}确认</span>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
-              <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted" title="rubric-v1">按当前评价规则</span>`}</dd></dl>
-            ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后新增的已确认事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。${st.can('calibrate') ? html`<div class="nt-row" style="margin-top:var(--s-2)">${st.recalTarget(pid) ? html`<a class="n-btn n-btn--sm" href="${st.recalTarget(pid)}">去象限校准</a>` : html`<a class="n-btn n-btn--sm" href="reviews.html">发起新的盘点后校准</a>`}</div>` : ''}</div></div>` : ''}
-            ${st.recalKept(pid) ? (() => { const k = st.recalKept(pid); return html`<p class="nt-caption">参考位置在「${st.QN[k.refQ]}」，${st.person(k.by).name} ${NT.md(k.at)} 决定保持正式位置：<span class="ink-hand">${k.why}</span></p>`; })() : ''}
-            ${ref.na ? html`<p class="nt-caption">落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分。</p>` : ''}
-          </article>` : ''}
-
-          <article class="n-card"><h3 class="n-section-title">参与的项目</h3>
-            ${projs.length ? html`<ul class="n-members">${projs.map((m) => html`<li class="${m.to ? 'is-left' : ''}"><a class="nt-plink" href="project.html?id=${m.p.id}"><b>${m.p.name}</b></a><span class="n-members__role">${m.role} · ${m.mode}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}</span></li>`)}</ul>` : html`<div class="nt-empty">还没有参与项目。</div>`}
+          ${achg.length ? html`<article class="n-card"><h3 class="n-section-title">活跃度与安排</h3><div id="pachanges">${achg.map((c) => UI.change(c, 'win'))}</div></article>` : ''}
+          <article class="n-card n-facets">
+            <div id="dirwrap">${UI.directionBlock(pid, { compact: true, canWrite: st.can('curate', pid) ? 'mgmt' : '' })}</div>
+            ${canQuad ? html`<section class="n-facet"><h3 class="n-facet__head">能力象限</h3>
+              <dl class="nt-dl"><dt>正式位置</dt><dd>${f ? html`${UI.qBadge(f.q)} <span class="nt-muted">${f.snap.label} 校准 · ${NT.md(f.snap.at)} · ${st.person(f.snap.by).name}确认</span>` : html`<span class="nt-muted">还没有正式校准</span>`}</dd>
+                <dt>参考位置</dt><dd>${ref.na ? html`${UI.na()} <span class="nt-muted">${ref.miss}</span>` : html`<span class="n-badge n-badge--ai">${icon('spark')}${st.QN[ref.q]}</span>${ref.bonus ? html` <span class="n-badge">加分项 ≥ 4</span>` : ''} <span class="nt-muted" title="rubric-v1">按当前评价规则</span>`}</dd></dl>
+              ${st.needsRecal(pid) ? html`<div class="n-notice" style="margin-top:var(--s-3)">${icon('split')}<div><b>可能需要重新校准。</b>冻结后新增的已确认事件让参考位置移到了「${st.QN[ref.q]}」。正式位置不会自动移动。${st.can('calibrate') ? html`<div class="nt-row" style="margin-top:var(--s-2)">${st.recalTarget(pid) ? html`<a class="n-btn n-btn--sm" href="${st.recalTarget(pid)}">去象限校准</a>` : html`<a class="n-btn n-btn--sm" href="reviews.html">发起新的盘点后校准</a>`}</div>` : ''}</div></div>` : ''}
+              ${st.recalKept(pid) ? (() => { const k = st.recalKept(pid); return html`<p class="nt-caption">参考位置在「${st.QN[k.refQ]}」，${st.person(k.by).name} ${NT.md(k.at)} 决定保持正式位置：<span class="ink-hand">${k.why}</span></p>`; })() : ''}
+              ${ref.na ? html`<p class="nt-caption">落位门槛：每条轴至少 2 条来自不同事件的已确认分数，潜力核心三项至少两项有分。</p>` : ''}
+            </section>` : ''}
+            <section class="n-facet"><h3 class="n-facet__head">参与的项目</h3>
+              ${projs.length ? html`<ul class="n-members">${projs.map((m) => html`<li class="${m.to ? 'is-left' : ''}"><a class="nt-plink" href="project.html?id=${m.p.id}"><b>${m.p.name}</b></a><span class="n-members__role">${m.role} · ${m.mode}</span><span class="n-members__when">${NT.md(m.from)}${m.to ? ` – ${NT.md(m.to)}` : ' 起'}</span></li>`)}</ul>` : html`<p class="nt-muted" style="margin:0;font-size:var(--t-sm)">还没有参与项目。</p>`}
+            </section>
+            <div id="ghwrap">${NT.gh.card(pid, { compact: true })}</div>
           </article>
-          <div id="ghwrap">${NT.gh.card(pid)}</div>
           ${mgmt ? correctionsBlock(p) : ''}
         </aside>
       </div>`);
