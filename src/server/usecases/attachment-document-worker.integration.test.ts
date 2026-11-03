@@ -261,7 +261,7 @@ it.each(['txt', 'docx'] as const)(
       .where(eq(fragments.parseVersionId, parses[0].id));
     expect(saved).toHaveLength(2);
     expect(
-      (job.result as { fragmentIds: string[] }).fragmentIds.sort(),
+      (job.result as { fragmentIds: string[] }).fragmentIds.slice().sort(),
     ).toEqual(saved.map((f) => f.id).sort());
     for (const fragment of saved) {
       expect(fragment).toMatchObject({
