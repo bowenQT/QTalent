@@ -6,6 +6,7 @@
   const { html, raw, icon, mount, $, $$ } = NT;
   const pid = NT.param('id') || st.me().id;
   let ver = 'now';
+  const stageOpen = {}; // 时间线各节点的展开状态，重新渲染时保留
   const gone = !st.person(pid);
 
   NT.shell({
@@ -83,7 +84,7 @@
           </article>` : ''}
 
           <article class="n-card" id="timeline">
-            <h3 class="n-section-title">时间线<small class="nt-muted" style="font-weight:400;margin-left:auto">${obsN} 条关键事件 · 按事件真实发生的时间</small></h3>
+            <h3 class="n-section-title">时间线<small class="nt-muted" style="font-weight:400;margin-left:auto">按关键节点 · ${obsN} 条关键事件</small></h3>
             ${timeline(events, changes, verSnap)}
             ${hiddenN ? html`<div class="n-lock" style="margin-top:var(--s-3)">${icon('lock')}${role === 'mentor' ? `另有 ${hiddenN} 条管理观察和受限资料，导师视角已隐藏` : `另有 ${hiddenN} 条资料属于你负责范围以外的项目，已隐藏`}。</div>` : ''}
           </article>
@@ -251,25 +252,85 @@
     });
   }
 
+  // 时间线按人才发展的关键节点分段：XEngineer → 入职 → Landing → 绩效 → 转正 / 晋升。
+  // 发生过但系统里没有记录的节点用演示数据补上并标「演示」；还没到的节点只写计划，不当作已发生
+  function stagesOf(p, mgmt) {
+    const D = NT.addDays, T = NT.TODAY, PG = NT.SEED.PROGRAMS;
+    const xe = PG.find((g) => g.kind === 'XEngineer' && g.people.includes(p.id));
+    if (xe && p.xe) {
+      const x = p.xe, land = PG.find((g) => g.kind === 'Landing' && g.people.includes(p.id));
+      const offer = x.final && !['不建议 offer', '—'].includes(x.final);
+      const hire = !mgmt ? { state: '' } : !offer ? { state: '未发 offer' }
+        : x.accept === '接受' ? { state: land ? `计划 ${NT.md(land.from)} 入职` : '待入职', facts: [['去向', x.dest || '部门待定'], ['offer', x.final]] }
+        : x.accept === '拒绝' ? { state: '未接受 offer', facts: [['offer', x.final]] } : { state: '待沟通去向', facts: [['offer', x.final]] };
+      return [
+        { key: 'xe', name: xe.name, from: xe.from, to: xe.to, status: xe.to < T ? 'done' : 'now', state: xe.to < T ? '已结营' : '进行中',
+          facts: [['课题组', st.orgShort(p.org)], ['导师', p.manager ? st.person(p.manager).name : '—'], ...(mgmt && x.final ? [['结营结论', x.final]] : []), ...(mgmt && x.posFinal ? [['岗位建议', x.posFinal]] : [])] },
+        { key: 'hire', name: '入职', from: D(xe.to, 1), to: land ? D(land.from, -1) : '9999-12-31', span: '', status: 'planned', ...hire },
+        { key: 'land', name: land ? land.name : 'Landing', at: land?.from, end: land?.to, status: 'planned', state: land ? '待开营' : mgmt && offer && x.accept === '接受' ? '部门确定后安排' : '', facts: land ? [['去向', x.dest]] : [] },
+        { key: 'perf', name: '绩效', status: 'planned', state: '入职后从第一个绩效周期开始记录' },
+        { key: 'promo', name: '晋升', status: 'planned', state: '暂无' },
+      ];
+    }
+    // 在职员工：入职、Landing、各绩效周期按入职时间推出来；转正答辩取答辩节点
+    const j = p.joined, h = [...p.id].reduce((n, c) => n + c.charCodeAt(0), 0);
+    const def = PG.find((g) => g.kind === '答辩' && g.people.includes(p.id));
+    const lf = D(j, 7), lt = D(j, 32);
+    const out = [
+      { key: 'hire', name: '入职', at: j, status: 'done', state: '', facts: [['部门', st.orgShort(p.org)], ['岗位', `${p.title} · ${p.level}`]] },
+      { key: 'land', name: 'Landing', from: lf, to: lt, status: lt < T ? 'done' : 'now', state: lt < T ? '已结营' : '进行中', demo: true, facts: [['导师', '方序（演示）'], ['课题', '客户工单分级与值班手册（演示）']] },
+    ];
+    const half = (y, k) => (k ? [`${y}-07-01`, `${y}-12-31`, `${y} 下半年`] : [`${y}-01-01`, `${y}-06-30`, `${y} 上半年`]);
+    for (let y = +j.slice(0, 4); y <= +T.slice(0, 4); y++) [0, 1].forEach((k) => {
+      const [f, t, label] = half(y, k);
+      if (t < lt || f > T) return;
+      const done = t < T;
+      out.push({ key: `perf-${y}-${k}`, name: `${label}绩效`, from: f < lt ? D(lt, 1) : f, to: t, status: done ? 'done' : 'now', state: done ? '已评定' : '进行中', demo: done,
+        facts: done && mgmt ? [['绩效等级', ['B+', 'A', 'B'][(h + y + k) % 3]], ['评定人', '直属上级（演示）']] : [] });
+    });
+    if (def) out.push({ key: 'conv', name: '转正', at: def.from, status: 'done', state: '已答辩，转正结论待确认', facts: [['答辩', def.name]] });
+    out.push({ key: 'promo', name: '晋升', status: 'planned', state: '暂无' });
+    return out;
+  }
+
   function timeline(events, changes, verSnap) {
+    const p = st.person(pid), stages = stagesOf(p, st.can('mgmt', pid));
     const items = [];
     events.forEach((e) => items.push({ date: e.date, e }));
     changes.filter((c) => c.t === 'trend' || c.t === 'quad').forEach((c) => items.push({ date: c.when, c }));
     // 节点结论（答辩）：HR 确认的人工结论，单独一条，不当作关键事件；管理者和 HR 能看
     if (st.can('mgmt', pid)) st.conclusionsOf(pid).forEach((c) => items.push({ date: c.node === 'pg-def:n0' ? '2026-09-02' : c.versions[0].at, nc: c }));
-    const known = items.filter((i) => i.date).sort((a, b) => b.date.localeCompare(a.date));
-    const unknown = items.filter((i) => !i.date);
-    let month = '';
-    const out = [];
-    known.forEach((it) => {
-      const m = it.date.slice(0, 7);
-      const label = it.date < '2026-01-01' ? '更早' : NT.monthLabel(it.date);
-      if (label !== month) { month = label; out.push(html`<li class="n-tl__month">${label}</li>`); }
-      out.push(item(it, verSnap && it.date > verSnap.cutoff));
-      void m;
-    });
-    if (unknown.length) { out.push(html`<li class="n-tl__month">时间未知</li>`); unknown.forEach((it) => out.push(item(it))); }
-    return out.length ? html`<ol class="n-tl">${out}</ol>` : html`<div class="nt-empty">还没有记录。</div>`;
+    // 归属：落在某个节点当天的归这个节点，其次归时间段包含它的节点，都不在就归最近的时间段
+    const ranges = stages.filter((s) => s.from);
+    const gap = (s, d) => (d < s.from ? NT.days(d) - NT.days(s.from) : d > s.to ? NT.days(s.to) - NT.days(d) : 0);
+    const home = (d) => stages.find((s) => s.at === d && !s.from) || ranges.find((s) => d >= s.from && d <= s.to)
+      || ranges.slice().sort((a, b) => Math.abs(gap(a, d)) - Math.abs(gap(b, d)))[0];
+    const bucket = new Map(stages.map((s) => [s.key, []]));
+    const unknown = [];
+    items.forEach((it) => { const s = it.date && home(it.date); if (s) bucket.get(s.key).push(it); else unknown.push(it); });
+    bucket.forEach((l) => l.sort((a, b) => a.date.localeCompare(b.date)));
+    const live = stages.filter((s) => s.status !== 'planned');
+    const dflt = (live.find((s) => s.status === 'now' && bucket.get(s.key).length) || live.filter((s) => bucket.get(s.key).length).pop() || live.pop())?.key;
+    const when = (s) => (s.span != null ? s.span : s.from ? `${NT.md(s.from)} – ${s.to.startsWith('9999') ? '' : NT.md(s.to)}` : s.at ? (s.end ? `${NT.md(s.at)} – ${NT.md(s.end)}` : NT.md(s.at)) : '');
+    const yr = (s) => (s.from || s.at || '').slice(0, 4);
+    return html`<div class="n-stages">${stages.map((s) => {
+      const list = bucket.get(s.key), open = stageOpen[s.key] ?? s.key === dflt, id = `stg-${s.key}`;
+      const body = list.length || s.facts?.length;
+      return html`<section class="n-stage" data-status="${s.status}" data-key="${s.key}">
+        <button class="n-stage__head" type="button" aria-expanded="${String(open && !!body)}" aria-controls="${id}" ${raw(body ? '' : 'disabled')}>
+          <span class="n-stage__dot" aria-hidden="true"></span>
+          <span class="n-stage__name">${s.name}${s.demo ? html` ${UI.demo()}` : ''}</span>
+          <span class="n-stage__when">${yr(s) && yr(s) !== NT.TODAY.slice(0, 4) ? `${yr(s)} · ` : ''}${when(s)}</span>
+          <span class="n-stage__state">${s.state}${list.length ? html`<b>${list.length} 条记录</b>` : ''}</span>
+          ${body ? html`<svg class="n-stage__chev" aria-hidden="true"><use href="#i-chev"/></svg>` : ''}
+        </button>
+        ${body ? html`<div class="n-fold" id="${id}" ${raw(open ? 'data-open' : 'inert')}><div><div class="n-stage__body">
+          ${s.facts?.length ? html`<dl class="n-stage__facts">${s.facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>` : ''}
+          ${list.length ? html`<ol class="n-tl">${list.map((it) => item(it, verSnap && it.date > verSnap.cutoff))}</ol>` : ''}
+        </div></div></div>` : ''}
+      </section>`;
+    })}
+    ${unknown.length ? html`<section class="n-stage" data-status="unknown"><div class="n-stage__head is-static"><span class="n-stage__dot" aria-hidden="true"></span><span class="n-stage__name">时间未知</span><span class="n-stage__state">补上时间后归入对应的节点</span></div><div class="n-stage__body"><ol class="n-tl">${unknown.map((it) => item(it))}</ol></div></section>` : ''}</div>`;
   }
   function item(it, after) {
     const style = after ? raw(' style="opacity:.4" title="这条记在所选档案版本冻结之后"') : '';
@@ -301,9 +362,24 @@
       ${e.kind === 'obs' ? html`<div class="nt-tl-card" hidden>${UI.eventCard(e, { for: pid })}</div>` : ''}
     </div></li>`;
   }
+  function setStage(head, open) {
+    const fold = document.getElementById(head.getAttribute('aria-controls'));
+    head.setAttribute('aria-expanded', String(open));
+    fold.toggleAttribute('data-open', open); fold.inert = !open;
+    stageOpen[head.closest('.n-stage').dataset.key] = open;
+  }
+  // 跳到某条事件前，先展开它所在的节点
+  function revealStage(li) {
+    const head = li?.closest('.n-stage')?.querySelector('.n-stage__head[aria-controls]');
+    if (!head || head.getAttribute('aria-expanded') === 'true') return;
+    setStage(head, true);
+    setTimeout(() => li.scrollIntoView({ behavior: NT.reduced ? 'auto' : 'smooth', block: 'center' }), NT.reduced ? 0 : 340);
+  }
   function wireTimeline(main) {
     const tl = $('#timeline'); if (!tl) return;
     tl.addEventListener('click', async (e) => {
+      const sh = e.target.closest('.n-stage__head[aria-controls]');
+      if (sh) { setStage(sh, sh.getAttribute('aria-expanded') !== 'true'); return; }
       const b = e.target.closest('.nt-tl-open');
       if (b) { const open = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', open); b.closest('.n-tl__body').querySelector('.nt-tl-card').hidden = !open; return; }
       const h = e.target.closest('.nt-hist');
@@ -324,7 +400,7 @@
       }
     });
     // 从能力谱点到某条事件时展开它
-    if (location.hash.startsWith('#ev-')) { const li = document.getElementById(location.hash.slice(1)); li?.querySelector('.nt-tl-open')?.click(); }
+    if (location.hash.startsWith('#ev-')) { const li = document.getElementById(location.hash.slice(1)); revealStage(li); li?.querySelector('.nt-tl-open')?.click(); }
     if (main.dataset.wired) return;
     main.dataset.wired = 1;
     main.addEventListener('click', (e) => {
@@ -337,6 +413,7 @@
       }
       const a = e.target.closest('a[href^="#ev-"]'); if (!a) return;
       const li = document.getElementById(a.getAttribute('href').slice(1));
+      revealStage(li);
       const btn = li?.querySelector('.nt-tl-open');
       if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click();
     });

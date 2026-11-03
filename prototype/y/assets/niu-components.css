@@ -1122,6 +1122,33 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 
 /* 时间线：真实事件时间；未知时间单独列出 */
 .n-tl { list-style: none; margin: 0; padding: 0; }
+.n-stages { position: relative; }
+.n-stages::before { content: ""; position: absolute; left: 7px; top: 16px; bottom: 16px; border-left: 1px solid var(--line); }
+.n-stage { position: relative; }
+.n-stage + .n-stage { border-top: 1px solid var(--line); }
+.n-stage__head { position: relative; display: grid; grid-template-columns: 15px minmax(0, auto) auto minmax(0, 1fr) 16px; align-items: center; gap: var(--s-3); width: 100%; padding: var(--s-3) 0; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.n-stage__head:disabled, .n-stage__head.is-static { cursor: default; }
+.n-stage__head:focus-visible { outline: 2px solid var(--light); outline-offset: 2px; border-radius: var(--r-field); }
+.n-stage__dot { justify-self: center; width: 11px; height: 11px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 3px var(--sheet); }
+.n-stage[data-status="now"] .n-stage__dot { background: var(--sheet); box-shadow: 0 0 0 3px var(--sheet), inset 0 0 0 3px var(--ink); }
+.n-stage[data-status="planned"] .n-stage__dot { background: var(--sheet); box-shadow: 0 0 0 3px var(--sheet), inset 0 0 0 1.5px var(--line-strong); }
+.n-stage[data-status="unknown"] .n-stage__dot { background: repeating-linear-gradient(-45deg, var(--unknown) 0 2px, var(--sheet) 2px 3px); }
+.n-stage__name { font-weight: 600; font-size: var(--t-body); white-space: nowrap; }
+.n-stage[data-status="planned"] .n-stage__name { color: var(--ink-2); font-weight: 500; }
+.n-stage__when { font-size: var(--t-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.n-stage__state { justify-self: end; display: inline-flex; gap: var(--s-3); font-size: var(--t-xs); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.n-stage__state b { font-weight: 500; color: var(--ink-2); }
+.n-stage__chev { width: 14px; height: 14px; color: var(--ink-3); transform: rotate(90deg); transition: transform var(--d-base) var(--ease-out); }
+.n-stage__head[aria-expanded="true"] .n-stage__chev { transform: rotate(-90deg); }
+.n-stage__head:not(:disabled):hover .n-stage__name { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.n-stage__body { padding: 0 0 var(--s-3) calc(15px + var(--s-3)); }
+.n-stage .n-fold > div > .n-stage__body { opacity: 0; transform: translateY(-4px); transition: opacity var(--d-base) var(--ease-out), transform var(--d-base) var(--ease-out); }
+.n-stage .n-fold[data-open] > div > .n-stage__body { opacity: 1; transform: none; }
+.n-stage__facts { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0 0 var(--s-3); }
+.n-stage__facts > div { display: flex; gap: 6px; padding: 3px 10px; border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-xs); }
+.n-stage__facts dt { color: var(--ink-3); }
+.n-stage__facts dd { margin: 0; color: var(--ink); }
+.n-stage__body .n-tl__item:last-child { padding-bottom: var(--s-1); }
 .n-tl__month { padding: var(--s-4) 0 var(--s-2); font-size: var(--t-xs); font-weight: 600; color: var(--ink-3); }
 .n-tl__month:first-child { padding-top: 0; }
 .n-tl__item { position: relative; display: grid; grid-template-columns: 4.2em 18px minmax(0, 1fr); gap: var(--s-2); padding-bottom: var(--s-4); font-size: var(--t-sm); }
