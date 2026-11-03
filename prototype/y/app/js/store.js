@@ -122,7 +122,7 @@
       }
       case 'changes': return pid ? sc === 'full' && role !== 'mentor' : ['ceo', 'hrbp', 'lead'].includes(role);
       case 'record': return pid ? ['full', 'mentor', 'project'].includes(sc) : role !== 'self';
-      // 校准、象限确认、标签收录、留用与落位方案由 HR 确认，管理者只读
+      // 校准、象限确认、标签收录由 HR 确认，管理者只读；留用与落位方案 HR 和管理者都能修改和确认
       case 'calibrate': return role === 'hrbp';
       case 'quadConfirm': return role === 'hrbp';
       case 'findOwner': return ['ceo', 'hrbp', 'lead'].includes(role);
@@ -438,7 +438,7 @@
       if (!store.can('review') && role !== 'lead') return;
       const title = p.kind === 'staffing' ? `项目用人方案 v${p.version}` : `${p.title || '组织调整方案'} v${p.version}`;
       const sub = p.kind === 'staffing' ? `${store.project(p.project)?.name || ''} · ${store.person(p.by).name}起草` : `${store.batch(p.batch).name}`;
-      // 组织调整（留用与落位）方案由 HR 在方案页确认，管理者只读，不进管理者的待办
+      // 留用与落位方案管理者也能在方案页修改和确认，但不进管理者的待办（管理者工作台不处理流程）
       if (role !== 'hrbp' || p.kind !== 'org') return;
       list.push({ kind: 'plan', plan: p.id, badge: '待确认', cls: 'n-badge--seal', title, sub, due: '本人确认', href: `plan.html?id=${p.batch}` });
     });
@@ -653,7 +653,7 @@
     // 已冻结/被替代的版本不能再次确认；盘点结束后不再允许确认同批次方案。
     const batch = plan && S.batches.find((b) => b.id === plan.batch);
     if (!plan || plan.kind !== 'org' || plan.status !== 'draft' || !S.plans.includes(plan)
-      || !store.can('calibrate') || batch?.status === 'confirmed') return null;
+      || !store.can('confirmPlan') || batch?.status === 'confirmed') return null;
     const me = store.me().id;
     S.plans.filter((x) => x.kind === 'org' && x.batch === plan.batch && x.status === 'confirmed' && x !== plan).forEach((x) => { x.status = 'superseded'; });
     Object.assign(plan, { status: 'confirmed', confirmedBy: me, confirmedAt: NT.TODAY });
