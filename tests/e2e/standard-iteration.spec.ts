@@ -1,12 +1,16 @@
 import { test, expect, login } from './fixtures';
-import { seedSelectionDraft } from './standard-iteration-seed';
+import {
+  seededHypothesis,
+  seedSelectionDraft,
+  seedStandardIteration,
+} from './standard-iteration-seed';
 
 /*
- * BOW-920 on the development sample (contract-shaped data, BOW-918/919/921 not on
- * main): 判断对照 → 归因 → 起草 → 保存并预览影响 → 提交 → 确认发布 / 撤销 / 退回.
- * The real routes are checked to say 待接通 and show no sample data.
+ * BOW-920: 判断对照 → 归因 → 起草 → 保存并预览影响 → 提交 → 确认发布 / 撤销 / 退回,
+ * first on the development sample, then on the real routes over the --init batch.
  */
 const sample = '/dev/standard-iteration';
+const batchName = '第六期选拔与结营对照（演示）';
 
 test('HR drafts a revision from an attribution and the manager publishes, undoes and returns it', async ({
   page,
@@ -86,49 +90,99 @@ for (const width of [375, 1366])
     }
   });
 
-test('/rules reads the standard from the database; /judge stays 待接通 until its read is connected', async ({
+test('the third act runs on the real routes: compare, attribute, draft, publish and undo', async ({
   page,
   context,
   referenceApp,
 }) => {
-  await login(context, 'hrbp', referenceApp.baseURL);
-  await page.goto('/judge');
-  await expect(
-    page.getByRole('heading', { name: '判断对照待接通' }),
-  ).toBeVisible();
-  await expect(page).toHaveTitle('判断对照 · Niu-Talent');
-  await page.goto('/rules?r=front&line=xe-select');
-  await expect(
-    page.getByRole('heading', { name: '还没有生效的入营选拔标准' }),
-  ).toBeVisible();
-  await expect(page.locator('body')).not.toContainText(/许致远|第六期判断对照/);
-  await page.goto('/rules');
-  await expect(page).toHaveURL(/\/rules\?r=front&line=xe-select$/);
+  await seedStandardIteration(referenceApp.pool);
 
-  await context.clearCookies();
-  await login(context, 'ceo', referenceApp.baseURL);
-  await page.goto('/rules?r=front&line=xe-select');
-  await expect(
-    page.getByRole('heading', { name: '还没有生效的入营选拔标准' }),
-  ).toBeVisible();
+  await test.step('HR attributes the stored batch and drafts a revision', async () => {
+    await login(context, 'hrbp', referenceApp.baseURL);
+    await page.goto('/judge');
+    await expect(
+      page.getByRole('heading', { level: 1, name: batchName }),
+    ).toBeVisible();
+    await expect(page.getByRole('link', { name: /^许致远/ })).toBeVisible();
+    await expect(page.getByText(seededHypothesis)).toBeVisible();
+    await expect(page.locator('body')).not.toContainText(/准确率|%/);
+    await page.getByRole('button', { name: '采纳并归因' }).click();
+    await page
+      .getByLabel('理由（必填，会署名留档）')
+      .fill('演示：作品评审只看结果，没要求说明本人负责的部分');
+    await page.getByRole('button', { name: '确认归因' }).click();
+    await page.getByRole('button', { name: '起草修订' }).click();
+    const draft = page.getByRole('dialog', { name: '起草入营选拔标准修订？' });
+    await draft.getByLabel('修订理由').fill('演示：补一条个人贡献核验');
+    await draft.getByRole('button', { name: '起草修订' }).click();
+    await expect(page).toHaveURL(/\/rules\?.*draft=/, { timeout: 30_000 });
 
-  await context.clearCookies();
-  await login(context, 'mentor', referenceApp.baseURL);
-  await page.goto('/judge?rater=me');
-  await expect(
-    page.getByRole('heading', { name: '我的判断对照' }),
-  ).toBeVisible();
-  await page.goto('/rules?r=front&line=xe-select');
-  await expect(
-    page.getByRole('heading', { name: '人才评价规则由 HR 和管理者维护' }),
-  ).toBeVisible();
+    await page.getByRole('button', { name: '添加要点' }).click();
+    await page.getByLabel('要点名称').fill('个人贡献核验');
+    await page
+      .getByLabel('要点说明')
+      .fill('组队作品里每位成员说明本人做了哪部分');
+    await page.getByRole('button', { name: '保存', exact: true }).click();
+    await page.getByRole('button', { name: '保存并预览影响' }).click();
+    await expect(page.locator('#impact')).toBeVisible();
+    await page.getByRole('button', { name: '提交管理者确认' }).click();
+    await expect(
+      page.getByText('已提交 xe-select-v2，待管理者确认'),
+    ).toBeVisible();
+    await page.goto('/rules');
+    await expect(page).toHaveURL(/\/rules\?r=front&line=xe-select$/);
+  });
 
-  await context.clearCookies();
-  await login(context, 'admin', referenceApp.baseURL);
-  await page.goto('/judge');
-  await expect(
-    page.getByRole('heading', { name: '这一页属于业务视角' }),
-  ).toBeVisible();
+  await test.step('the manager publishes and undoes it, and sees no names or cases', async () => {
+    await context.clearCookies();
+    await login(context, 'ceo', referenceApp.baseURL);
+    await page.goto('/judge');
+    await expect(page.getByText(batchName).first()).toBeVisible();
+    await expect(page.getByTestId('judge-case')).toHaveCount(0);
+    await expect(page.locator('body')).not.toContainText(
+      /许致远|叶青|苏少卿|准确率|%/,
+    );
+
+    await page.goto('/rules?r=front&line=xe-select');
+    await page.getByRole('button', { name: '确认发布 xe-select-v2' }).click();
+    await page
+      .getByRole('dialog', { name: '确认发布 xe-select-v2？' })
+      .getByRole('button', { name: '确认发布 xe-select-v2' })
+      .click();
+    await expect(page.locator('#seal')).toBeVisible();
+    await page.getByRole('button', { name: '撤销' }).click();
+    await expect(
+      page.getByText('已撤销，xe-select-v2 回到待确认'),
+    ).toBeVisible();
+  });
+
+  await test.step('a mentor reads only their own judgments, with no rate', async () => {
+    await context.clearCookies();
+    await login(context, 'mentor', referenceApp.baseURL);
+    await page.goto('/judge?rater=me');
+    await expect(
+      page.getByRole('heading', { level: 1, name: '我的判断对照' }),
+    ).toBeVisible();
+    // The mentor judged part of the sixth cohort's selection; those cases show.
+    await expect(
+      page.getByRole('heading', { level: 2, name: new RegExp(batchName) }),
+    ).toBeVisible();
+    await expect(page.getByTestId('judge-case').first()).toBeVisible();
+    await expect(page.locator('body')).not.toContainText(/准确率|%/);
+    await page.goto('/rules?r=front&line=xe-select');
+    await expect(
+      page.getByRole('heading', { name: '人才评价规则由 HR 和管理者维护' }),
+    ).toBeVisible();
+  });
+
+  await test.step('an admin keeps to the business-view notice', async () => {
+    await context.clearCookies();
+    await login(context, 'admin', referenceApp.baseURL);
+    await page.goto('/judge');
+    await expect(
+      page.getByRole('heading', { name: '这一页属于业务视角' }),
+    ).toBeVisible();
+  });
 });
 
 test('/rules: HR submits the drafted revision; the manager publishes and may undo within five seconds', async ({

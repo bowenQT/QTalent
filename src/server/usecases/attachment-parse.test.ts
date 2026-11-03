@@ -22,7 +22,12 @@ interface Context {
   enqueues: unknown[];
 }
 const now = () => '2026-10-25T16:00:00.000Z';
-const payload = { jobId: 'parse-job', attempt: 1 };
+const payload = { jobId: 'parse-job', attempt: 1, revision: 1 };
+/** The message a sender would send for the job as it stands now. */
+const current = (f: { state: { record: JobRecord } }) => ({
+  ...payload,
+  revision: f.state.record.revision,
+});
 const options = {
   now,
   limits: { maxBytes: 16384, maxFragments: 100, maxFragmentChars: 1000 },
@@ -107,7 +112,7 @@ describe('attachment parse transaction pipeline', () => {
   it('persists real fragments and sends only trusted refs to845 in the same transaction', async () => {
     const f = fixture();
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'parsed' });
     expect(f.state.record.status).toBe('completed');
     expect(f.state.context.bundles.size).toBe(1);
@@ -142,7 +147,7 @@ describe('attachment parse transaction pipeline', () => {
     const f = fixture();
     vi.mocked(f.ports.loadAuthorizedAttachment).mockResolvedValue(null);
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'forbidden' });
     expect(f.ports.open).not.toHaveBeenCalled();
     expect(f.state.record.status).toBe('queued');
@@ -160,7 +165,7 @@ describe('attachment parse transaction pipeline', () => {
       version: { ...f.binding.version, ...patch.version },
     } as AttachmentBinding);
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'ignored' });
     expect(f.ports.open).not.toHaveBeenCalled();
   });
@@ -170,7 +175,7 @@ describe('attachment parse transaction pipeline', () => {
       .mockResolvedValueOnce(f.binding)
       .mockResolvedValueOnce(null);
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'forbidden' });
     expect(f.state.record).toMatchObject({
       status: 'failed',
@@ -189,7 +194,7 @@ describe('attachment parse transaction pipeline', () => {
         version: { ...f.binding.version, sha256: '0'.repeat(64) },
       });
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'ignored' });
     expect(f.state.record).toMatchObject({
       status: 'failed',
@@ -291,7 +296,7 @@ describe('attachment parse transaction pipeline', () => {
           change === 'revoked' ? null : { ...f.binding, quotaScope: 'changed' },
         );
       expect(
-        await runAttachmentParse(f.store, f.ports, payload, options),
+        await runAttachmentParse(f.store, f.ports, current(f), options),
       ).toEqual({ status: 'cancelled' });
       expect(f.state.record.status).toBe('cancelled');
       expect(f.ports.saveParse).not.toHaveBeenCalled();
@@ -314,7 +319,7 @@ describe('attachment parse transaction pipeline', () => {
           change === 'revoked' ? null : { ...f.binding, quotaScope: 'changed' },
         );
       expect(
-        await runAttachmentParse(f.store, f.ports, payload, options),
+        await runAttachmentParse(f.store, f.ports, current(f), options),
       ).toEqual({ status: 'ignored' });
       expect(f.state.record).toMatchObject({
         status: 'running',
@@ -338,7 +343,7 @@ describe('attachment parse transaction pipeline', () => {
       })();
     });
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'cancelled' });
     expect(f.state.record.status).toBe('cancelled');
     expect(f.state.context.bundles.size).toBe(0);
@@ -352,7 +357,7 @@ describe('attachment parse transaction pipeline', () => {
       now(),
     );
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'cancelled' });
     expect(f.ports.open).not.toHaveBeenCalled();
   });
@@ -362,7 +367,7 @@ describe('attachment parse transaction pipeline', () => {
       const f = fixture();
       f.state.record.status = status;
       expect(
-        await runAttachmentParse(f.store, f.ports, payload, options),
+        await runAttachmentParse(f.store, f.ports, current(f), options),
       ).toEqual({ status: 'ignored' });
       expect(f.ports.open).not.toHaveBeenCalled();
     },
@@ -371,7 +376,12 @@ describe('attachment parse transaction pipeline', () => {
     const stale = fixture();
     stale.state.record.attempt = 2;
     expect(
-      await runAttachmentParse(stale.store, stale.ports, payload, options),
+      await runAttachmentParse(
+        stale.store,
+        stale.ports,
+        current(stale),
+        options,
+      ),
     ).toEqual({ status: 'ignored' });
     const f = fixture();
     vi.mocked(f.ports.open).mockImplementation(async () => {
@@ -381,9 +391,18 @@ describe('attachment parse transaction pipeline', () => {
       })();
     });
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'ignored' });
     expect(f.state.context.bundles.size).toBe(0);
+  });
+  it('ignores a message sent for an older revision of the job', async () => {
+    const f = fixture();
+    f.state.record.revision = 2;
+    expect(
+      await runAttachmentParse(f.store, f.ports, payload, options),
+    ).toEqual({ status: 'ignored' });
+    expect(f.ports.loadAuthorizedAttachment).not.toHaveBeenCalled();
+    expect(f.state.record).toMatchObject({ status: 'queued', revision: 2 });
   });
   it('can safely reclaim running/parsing after a worker crash without duplicate enqueue', async () => {
     const f = fixture();
@@ -396,10 +415,10 @@ describe('attachment parse transaction pipeline', () => {
     };
     f.state.record.revision = 2;
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'parsed' });
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'ignored' });
     expect(f.state.context.enqueues).toHaveLength(1);
   });
@@ -420,9 +439,14 @@ describe('attachment parse transaction pipeline', () => {
         yield Buffer.from('第一段原文。\n\n第二段原文。');
       })();
     });
-    const first = runAttachmentParse(f.store, f.ports, payload, options);
+    const first = runAttachmentParse(f.store, f.ports, current(f), options);
     await opened;
-    const second = await runAttachmentParse(f.store, f.ports, payload, options);
+    const second = await runAttachmentParse(
+      f.store,
+      f.ports,
+      current(f),
+      options,
+    );
     release();
     expect(second).toEqual({ status: 'parsed' });
     expect(await first).toEqual({ status: 'ignored' });
@@ -439,7 +463,7 @@ describe('attachment parse transaction pipeline', () => {
       fragmentIds: [],
     };
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'ignored' });
     expect(f.ports.open).not.toHaveBeenCalled();
   });
@@ -449,7 +473,7 @@ describe('attachment parse transaction pipeline', () => {
       new Error('unavailable'),
     );
     await expect(
-      runAttachmentParse(f.store, f.ports, payload, options),
+      runAttachmentParse(f.store, f.ports, current(f), options),
     ).rejects.toThrow('unavailable');
     expect(f.state.context.bundles.size).toBe(0);
     expect(f.state.context.enqueues).toHaveLength(0);
@@ -459,7 +483,7 @@ describe('attachment parse transaction pipeline', () => {
     const f = fixture();
     vi.mocked(f.ports.saveParse).mockResolvedValue('existing');
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, options),
+      await runAttachmentParse(f.store, f.ports, current(f), options),
     ).toEqual({ status: 'parsed' });
     expect(f.ports.enqueueArrange).not.toHaveBeenCalled();
   });
@@ -468,7 +492,7 @@ describe('attachment parse transaction pipeline', () => {
     f.binding.version.filename = 'document.pdf';
     f.binding.version.mediaType = 'application/pdf';
     expect(
-      await runAttachmentParse(f.store, f.ports, payload, {
+      await runAttachmentParse(f.store, f.ports, current(f), {
         ...options,
         decoders: {},
       }),
@@ -481,6 +505,7 @@ describe('attachment parse transaction pipeline', () => {
     { ...payload, accountId: 'injected' },
     { ...payload, objectKey: 'arbitrary' },
     { ...payload, attempt: 0 },
+    { jobId: payload.jobId, attempt: 1 },
   ])('strictly validates queue payload %#', async (invalid) => {
     const f = fixture();
     await expect(

@@ -11,7 +11,11 @@ import {
   seedNativeCase,
 } from '../../../tests/fixtures/bow-845/native';
 import { dispatched, fixture } from '../../../tests/fixtures/upload-fake';
-import { attachmentParseQueue } from '../jobs/attachment-parse';
+import {
+  attachmentParseMessageId,
+  attachmentParseQueue,
+  sendAttachmentParse,
+} from '../jobs/attachment-parse';
 import { jobSnapshots } from '../jobs/schema';
 import { newJob } from '../jobs/state';
 import { testKodoFor } from '../integrations/kodo/test-kodo';
@@ -111,11 +115,9 @@ async function deliver(
     );
     await tx.insert(jobSnapshots).values(job);
     if (!send) return { jobId: job.jobId };
-    const sent = await boss.send(
-      attachmentParseQueue,
-      { jobId: job.jobId, attempt: job.attempt },
-      { db: fromDrizzle(tx, sql) },
-    );
+    const sent = await sendAttachmentParse(boss, job, {
+      db: fromDrizzle(tx, sql),
+    });
     if (!sent) throw new Error('Attachment parse enqueue was not committed');
     return { jobId: job.jobId };
   });
@@ -202,7 +204,8 @@ async function deliver(
         operationId: randomUUID(),
         expectedRevision: revision,
       }),
-    send: () => boss.send(attachmentParseQueue, { jobId, attempt: 1 }),
+    send: (options: { startAfter?: number } = {}) =>
+      sendAttachmentParse(boss, { jobId, attempt: 1, revision: 1 }, options),
   };
 }
 
@@ -339,7 +342,7 @@ it('discards a parse whose upload was removed while its bytes were read', async 
     await upload.release();
     return storage.openObject(input);
   });
-  await runner.run({ jobId: upload.jobId, attempt: 1 });
+  await runner.run({ jobId: upload.jobId, attempt: 1, revision: 1 });
   const job = await snapshot(upload.jobId);
   expect(job).toMatchObject({ status: 'failed', errorCode: 'input_changed' });
   expect(await parsesOf(upload.jobId)).toEqual([]);
@@ -356,7 +359,7 @@ it('a fresh worker finishes a parse whose runner died after claiming it', async 
   void inProcessWorker(async () => {
     reading();
     return new Promise<never>(() => {});
-  }).run({ jobId: upload.jobId, attempt: 1 });
+  }).run({ jobId: upload.jobId, attempt: 1, revision: 1 });
   await read;
   expect(await snapshot(upload.jobId)).toMatchObject({
     status: 'running',
@@ -373,3 +376,124 @@ it('a fresh worker finishes a parse whose runner died after claiming it', async 
   expect(job.result).toMatchObject({ stage: 'parsed' });
   expect(await parsesOf(upload.jobId)).toHaveLength(1);
 }, 120_000);
+
+/** Moves a job's last change back past every recovery window. */
+async function age(jobId: string) {
+  await connection.db
+    .update(jobSnapshots)
+    .set({ updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() })
+    .where(eq(jobSnapshots.jobId, jobId));
+}
+
+const recovery = () =>
+  inProcessWorker(() => {
+    throw new Error('Recovery never reads bytes');
+  });
+
+it('resends a job left queued without a message, and the worker parses it', async () => {
+  const upload = await deliver('演示材料.pdf', 'application/pdf', await pdf(), {
+    send: false,
+  });
+  await age(upload.jobId);
+  // The worker process scans on its own timer too, so either scan may resend.
+  await recovery().recover();
+  const job = await settled(upload.jobId);
+  expect(job.status).toBe('completed');
+  expect(job.result).toMatchObject({ stage: 'parsed' });
+  expect(await parsesOf(upload.jobId)).toHaveLength(1);
+  // The resend went out for revision 2; the claim took 3, completion 4.
+  expect(
+    await boss.getJobById(
+      attachmentParseQueue,
+      attachmentParseMessageId(upload.jobId, 2),
+    ),
+  ).toMatchObject({ data: { jobId: upload.jobId, revision: 2 } });
+  expect(job.revision).toBe(4);
+}, 90_000);
+
+it('leaves a queued job alone while it is recent or its message still waits', async () => {
+  const recent = await deliver('演示材料.pdf', 'application/pdf', await pdf(), {
+    send: false,
+  });
+  const waiting = await deliver(
+    '演示材料.pdf',
+    'application/pdf',
+    await pdf(),
+    {
+      send: false,
+    },
+  );
+  // A message that is due later stays queued on pg-boss's side.
+  expect(await waiting.send({ startAfter: 3600 })).not.toBeNull();
+  await age(waiting.jobId);
+  await recovery().recover();
+  for (const jobId of [recent.jobId, waiting.jobId]) {
+    expect(await snapshot(jobId)).toMatchObject({
+      status: 'queued',
+      revision: 1,
+    });
+    expect(
+      await boss.getJobById(
+        attachmentParseQueue,
+        attachmentParseMessageId(jobId, 2),
+      ),
+    ).toBeNull();
+  }
+  // A second send of the same revision is refused by the message id.
+  expect(await waiting.send()).toBeNull();
+  expect(await parsesOf(waiting.jobId)).toEqual([]);
+}, 90_000);
+
+it('settles a queued job that keeps losing its message once it reaches the revision bound', async () => {
+  const upload = await deliver('演示材料.pdf', 'application/pdf', await pdf(), {
+    send: false,
+  });
+  await connection.db
+    .update(jobSnapshots)
+    .set({
+      revision: 4,
+      updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    })
+    .where(eq(jobSnapshots.jobId, upload.jobId));
+  await recovery().recover();
+  const job = await settled(upload.jobId);
+  expect(job).toMatchObject({
+    status: 'failed',
+    errorCode: 'processing_failed',
+  });
+  expect(job.result).toMatchObject({
+    stage: 'failed',
+    failureReason: 'processing_failed',
+  });
+  expect(await parsesOf(upload.jobId)).toEqual([]);
+}, 90_000);
+
+it('skips a stale queued job while another transaction holds its row', async () => {
+  const upload = await deliver('演示材料.pdf', 'application/pdf', await pdf(), {
+    send: false,
+  });
+  await age(upload.jobId);
+  await connection.db.transaction(async (tx) => {
+    await tx
+      .select({ jobId: jobSnapshots.jobId })
+      .from(jobSnapshots)
+      .where(eq(jobSnapshots.jobId, upload.jobId))
+      .for('update');
+    await recovery().recover();
+    expect(
+      await boss.getJobById(
+        attachmentParseQueue,
+        attachmentParseMessageId(upload.jobId, 2),
+      ),
+    ).toBeNull();
+    expect(await snapshot(upload.jobId)).toMatchObject({
+      status: 'queued',
+      revision: 1,
+    });
+  });
+  // Once the row is free, the next scan resends it.
+  await recovery().recover();
+  const job = await settled(upload.jobId);
+  expect(job.status).toBe('completed');
+  expect(await parsesOf(upload.jobId)).toHaveLength(1);
+}, 90_000);

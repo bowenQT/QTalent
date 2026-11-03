@@ -122,9 +122,9 @@ function signIn(accountId: string) {
 
 it.each([
   ['admin', { status: 'admin' }],
-  ['manager', { status: 'not_connected', audience: 'manager' }],
-  ['hr', { status: 'not_connected', audience: 'hr' }],
-  ['mentor', { status: 'not_connected', audience: 'rater' }],
+  ['manager', { status: 'empty', audience: 'manager' }],
+  ['hr', { status: 'empty', audience: 'hr' }],
+  ['mentor', { status: 'empty', audience: 'rater' }],
   ['nobody', { status: 'forbidden' }],
 ] as const)(
   'resolves the /judge view of %s from persisted grants',
@@ -142,9 +142,11 @@ it('derives each audience scope from persisted node relations and grants', async
     'mentor',
     clock,
   ).loadCurrentAccess();
-  // Only the mentor's own relation counts; another evaluator's node does not.
+  // Only the mentor's own relation counts: on the cohort node it covers the
+  // cohort's stages, while another evaluator's relation adds nothing.
   expect(rater?.grants).toEqual([
     { personId: 'one', nodeId: 'node-current', ...open },
+    { personId: 'one', nodeId: 'node-other', ...open },
   ]);
   const manager = await comparisonReadPorts(
     db,
