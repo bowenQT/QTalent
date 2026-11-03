@@ -16,9 +16,6 @@ import {
 } from './copy';
 import { rowState, type ImportRow } from './model';
 
-/** Where a review item opens (the review list, prototype Y inbox.html#id). */
-const reviewHref = (itemId: string) => `/inbox#${itemId}`;
-
 export type RowActions = {
   confirm(ok: boolean): void;
   fill(item: string, value: string): void;
@@ -97,28 +94,15 @@ export function ImportRowCard({
       <div className="n-ivrow__meta">
         {row.template.name} · {row.template.scale} ·{' '}
         {monthDay(row.interviewedOn)} 面试 ·{' '}
-        {row.interviewer.status === 'matched' ? (
-          `面试官 ${row.interviewer.name}`
-        ) : (
-          <>
-            面试官「{row.interviewer.observedName}」待核对{' '}
-            <a
-              className="n-link"
-              href={reviewHref(row.interviewer.reviewItemId)}
-            >
-              去核对
-            </a>
-          </>
-        )}
+        {row.interviewer.status === 'matched'
+          ? `面试官 ${row.interviewer.name}`
+          : `面试官「${row.interviewer.observedName}」待核对`}
       </div>
       <ImportScale row={row} />
       {row.scale.map(({ item, selection }) =>
         selection.status === 'unrecognized' ? (
           <div className="n-ivunread" key={item}>
-            <figure
-              className="n-pdfcrop"
-              aria-label={`第 ${selection.page} 页「${item}」一栏的页面图`}
-            >
+            <figure className="n-pdfcrop" aria-label={`「${item}」的可选值`}>
               <figcaption>
                 第 {selection.page} 页 · {item}
               </figcaption>
@@ -139,7 +123,7 @@ export function ImportRowCard({
             <label className="n-field">
               <span className="n-field__label">
                 「{item}」待补录：{unreadReasonText[selection.reason]}
-                ，对照页面图选一个
+                ，从可选值里选一个
               </span>
               <select
                 className="n-input"
@@ -235,22 +219,6 @@ function Actions({
       </button>
     );
   else if (state === 'sent' && row.reviewItemId)
-    acts = (
-      <a
-        className="n-btn n-btn--sm n-btn--ghost"
-        href={reviewHref(row.reviewItemId)}
-      >
-        查看待核对
-      </a>
-    );
-  else if (state === 'verify' && row.interviewer.status === 'pending')
-    acts = (
-      <a
-        className="n-btn n-btn--sm"
-        href={reviewHref(row.interviewer.reviewItemId)}
-      >
-        关联面试官
-      </a>
-    );
+    acts = <span className="nt-muted">已提交，待核对</span>;
   return acts ? <div className="n-ivrow__acts">{acts}</div> : null;
 }

@@ -437,6 +437,8 @@ export function planPublishSelectionRevision(
     currentPublicationId: string | null;
     publicationId: string;
     impact: SelectionImpactFacts;
+    /** Server wall clock: the undo window runs on it even when the business date is fixed. */
+    wallAt: string;
   },
 ) {
   const input = publishSelectionRevisionInputSchema.parse(raw);
@@ -457,7 +459,8 @@ export function planPublishSelectionRevision(
     conflict('影响事实已变化，请由 HR 重新保存预览');
   if (record.content === null || record.revision.humanVersion === null)
     conflict('缺少保存的人工版本');
-  const publishedAt = instant(authority);
+  const effectiveAt = instant(authority);
+  const publishedAt = z.iso.datetime().parse(facts.wallAt);
   const undoUntil = new Date(
     Date.parse(publishedAt) + SELECTION_PUBLICATION_UNDO_WINDOW_MS,
   ).toISOString();
@@ -484,10 +487,10 @@ export function planPublishSelectionRevision(
       category: 'xe_selection',
       versionId: record.revision.versionId,
       provenance: 'published',
-      effectiveFrom: publishedAt,
+      effectiveFrom: effectiveAt,
       effectiveUntil: null,
     },
-    at: publishedAt,
+    at: effectiveAt,
   };
   return {
     record: {
@@ -520,6 +523,8 @@ export function planUndoSelectionPublication(
     currentPublicationId: string | null;
     previous: EffectiveRuleVersion;
     bindingsBefore: SelectionCohortBinding[];
+    /** Server wall clock, compared with the receipt's wall-clock undo window. */
+    wallAt: string;
   },
 ) {
   const input = undoSelectionPublicationInputSchema.parse(raw);
@@ -546,7 +551,7 @@ export function planUndoSelectionPublication(
     boundary: {
       receipt: facts.receipt,
       command: input,
-      requestedAt: now,
+      requestedAt: z.iso.datetime().parse(facts.wallAt),
       currentPublicationId: facts.currentPublicationId,
       currentRevision: record.revision.revision,
     },

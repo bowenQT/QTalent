@@ -737,7 +737,7 @@ export function createSelectionPostgresStore(
         next.revision.publicationId !== receipt.publicationId ||
         next.revision.revision !== loaded.revision.revision + 1 ||
         publication.categorySwitch.activate.versionId !== receipt.versionId ||
-        Date.parse(receipt.publishedAt) !==
+        Date.parse(publication.categorySwitch.activate.effectiveFrom) !==
           Date.parse(publication.categorySwitch.at)
       )
         conflict();
@@ -891,8 +891,8 @@ export function createSelectionPostgresStore(
           selectionPublicationReceiptSchema.parse(stored.receipt),
           transaction.boundary.receipt,
         ) ||
-        Date.parse(transaction.boundary.requestedAt) !==
-          Date.parse(authority(tx).context.now) ||
+        Date.parse(undo.categorySwitch.activate.effectiveFrom) !==
+          Date.parse(undo.categorySwitch.at) ||
         transaction.boundary.currentRevision !==
           currentRecord.revision.revision ||
         transaction.boundary.currentPublicationId !== stored.id
@@ -1124,12 +1124,23 @@ export function createSelectionPostgresStore(
         authorizeSelectionAction(authority(tx), 'manager');
       else if (purpose !== 'hr')
         throw new SelectionPersistenceUnavailableError();
-      const found = await record(tx, draftId);
-      if (found && purpose === 'hr') {
-        for (const cohortId of scope(found))
-          authorizeSelectionAction(authority(tx), 'hr', cohortId);
-        await assertDisclosed(tx, found.revision);
+      let found: SelectionRevisionRecord | null;
+      try {
+        found = await record(tx, draftId);
+        if (found && purpose === 'hr')
+          for (const cohortId of scope(found))
+            authorizeSelectionAction(authority(tx), 'hr', cohortId);
+      } catch (error) {
+        // A draft outside this account's cohorts reads as a missing one, so an
+        // HR of another cohort cannot learn that it exists.
+        if (
+          error instanceof SelectionLifecycleError &&
+          error.status === 'forbidden'
+        )
+          return null;
+        throw error;
       }
+      if (found && purpose === 'hr') await assertDisclosed(tx, found.revision);
       return found;
     },
     async readImpact(tx, current, revision) {
@@ -1542,6 +1553,21 @@ export async function readCurrentSelectionStandard(
     version: current,
     content: selectionStandardContentSchema.parse(content.content),
   };
+}
+
+/** The stored points of one published version. Versions are immutable, so a
+ * superseded version still reads as it was; every bound version has content. */
+export async function readSelectionVersionContent(
+  tx: Transaction,
+  requestedVersionId: string,
+) {
+  const versionId = selectionVersionIdSchema.parse(requestedVersionId);
+  const [content] = await tx
+    .select()
+    .from(selectionVersionContents)
+    .where(eq(selectionVersionContents.versionId, versionId));
+  if (!content) throw new SelectionPersistenceUnavailableError();
+  return selectionStandardContentSchema.parse(content.content);
 }
 
 /** Internal native binding read; caller authorizes the cohort before disclosure. */

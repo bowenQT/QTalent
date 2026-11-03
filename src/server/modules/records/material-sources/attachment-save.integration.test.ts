@@ -190,11 +190,17 @@ async function setup() {
       if (failEnqueue) throw new Error('synthetic failure after enqueue');
     },
   };
-  const run = () =>
-    runAttachmentParse(
+  // Each run is the message a sender would send for the job as it stands.
+  const run = async () => {
+    const { jobId } = dispatched(completed);
+    const [job] = await db
+      .select({ revision: jobSnapshots.revision })
+      .from(jobSnapshots)
+      .where(eq(jobSnapshots.jobId, jobId));
+    return runAttachmentParse(
       createJobStore(db),
       ports,
-      { jobId: dispatched(completed).jobId, attempt: 1 },
+      { jobId, attempt: 1, revision: job!.revision },
       {
         now: () => now,
         limits: {
@@ -205,6 +211,7 @@ async function setup() {
         decoders: { pdf: createMaterialPdfDecoder() },
       },
     );
+  };
   return {
     db,
     record,

@@ -1,15 +1,20 @@
 import { createHash } from 'node:crypto';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ appEnv: 'test' }));
 vi.mock('../env', () => ({
   getEnv: () => ({
     APP_ENV: h.appEnv,
     BETTER_AUTH_URL: 'http://127.0.0.1:3000',
+    DATABASE_URL: 'postgres://test-kodo.test/db',
   }),
 }));
 
-import { createTestKodo, testKodoForServer, testKodoRoute } from './test-kodo';
+import { createTestKodo } from '../integrations/kodo/test-kodo';
+import { testKodoForServer, testKodoRoute } from './test-kodo';
 import { POST, PUT } from '../../app/api/test/kodo/[...path]/route';
 
 const endpoint = 'http://127.0.0.1:3000/api/test/kodo';
@@ -53,14 +58,17 @@ async function upload(
   );
 }
 
+const directory = mkdtempSync(join(tmpdir(), 'test-kodo-'));
+afterAll(() => rmSync(directory, { recursive: true, force: true }));
+
 describe('test Kodo double', () => {
   afterEach(() => {
     h.appEnv = 'test';
     vi.unstubAllEnvs();
   });
 
-  it('stores a v2 multipart upload that stat and open read back', async () => {
-    const kodo = createTestKodo(endpoint);
+  it('stores a v2 multipart upload that another process reads back', async () => {
+    const kodo = createTestKodo(endpoint, directory);
     const grant = kodo.storage.issueUploadGrant({
       objectKey: 'demo/material-1',
       byteLimit: 64,
@@ -89,15 +97,17 @@ describe('test Kodo double', () => {
       key: 'demo/material-1',
       hash: sha(bytes),
     });
+    // A second instance on the same directory stands in for the worker process.
+    const worker = createTestKodo(endpoint, directory);
     await expect(
-      kodo.storage.statObject({ objectKey: 'demo/material-1' }),
+      worker.storage.statObject({ objectKey: 'demo/material-1' }),
     ).resolves.toEqual({
       key: 'demo/material-1',
       byteLength: bytes.length,
       mediaType: 'text/plain',
       etag: sha(bytes),
     });
-    const opened = await kodo.storage.openObject({
+    const opened = await worker.storage.openObject({
       objectKey: 'demo/material-1',
     });
     expect(
@@ -106,7 +116,7 @@ describe('test Kodo double', () => {
   });
 
   it('refuses a wrong token, oversized content and a different media type', async () => {
-    const kodo = createTestKodo(endpoint);
+    const kodo = createTestKodo(endpoint, directory);
     const grant = kodo.storage.issueUploadGrant({
       objectKey: 'demo/material-2',
       byteLimit: 4,

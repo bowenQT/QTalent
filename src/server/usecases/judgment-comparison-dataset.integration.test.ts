@@ -52,6 +52,7 @@ const MANAGER = 'comparison-test-manager';
 const HR = 'comparison-test-hr';
 const RATER = 'comparison-test-rater';
 const OUTSIDER = 'comparison-test-outsider';
+const OUTSIDER_PERSON = 'comparison-test-outsider-person';
 const databaseName = `qtalent_comparison_${randomUUID().replaceAll('-', '')}_test`;
 let admin: Pool | undefined;
 let connection: ReturnType<typeof createDatabase> | undefined;
@@ -211,7 +212,15 @@ beforeAll(async () => {
           })),
         ),
     );
-  await account(OUTSIDER, staff[2], 'mentor');
+  // --init gives every evaluator a judge relation on their own cases, so the
+  // outsider is a mentor who judged nothing in this batch.
+  await db().insert(people).values({
+    id: OUTSIDER_PERSON,
+    name: '旁观导师（演示）',
+    organizationId: 'comparison-test-org',
+    demo: true,
+  });
+  await account(OUTSIDER, OUTSIDER_PERSON, 'mentor');
   data = (await read())!;
 }, 60_000);
 afterAll(async () => {

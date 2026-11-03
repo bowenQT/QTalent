@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { BusinessRole, Grant, Validity } from '../authz';
-import type {
-  EvaluationAuthzContext,
-  EvaluationRelation,
+import {
+  canConfirmOwnNodeScore,
+  canEvaluateNode,
+  canReadNodeTalent,
+  type EvaluationAuthzContext,
+  type EvaluationRelation,
 } from '../authz/evaluation-node';
 import { comparisonAccess } from './judge-access';
 
@@ -185,6 +188,98 @@ describe('comparisonAccess', () => {
       viewerId: rater,
       now,
       grants: [],
+    });
+  });
+
+  describe('through a relation on the cohort node', () => {
+    const cohortNode = 'demo-cohort-node';
+    const other = 'demo-talent-002';
+    const mentoring = (overrides: Partial<EvaluationRelation> = {}) =>
+      relation({
+        id: 'demo-mentoring',
+        evaluationNodeId: cohortNode,
+        kind: 'mentor',
+        ...overrides,
+      });
+    const withCohortNode = (relations: EvaluationRelation[]) =>
+      context({
+        grants: [grant('mentor')],
+        people: [
+          { id: talent, noReview: false },
+          { id: other, noReview: false },
+          { id: rater, noReview: false },
+        ],
+        evaluationNodes: [
+          { id: cohortNode, kind: 'program_cohort', cohortId },
+          { id: selection, kind: 'interview', cohortId },
+          { id: closing, kind: 'defense', cohortId },
+          { id: elsewhere, kind: 'defense', cohortId: 'demo-cohort-b' },
+        ],
+        evaluationNodeSubjects: [
+          { evaluationNodeId: cohortNode, personId: talent },
+          { evaluationNodeId: cohortNode, personId: other },
+          { evaluationNodeId: selection, personId: talent },
+          { evaluationNodeId: closing, personId: talent },
+          { evaluationNodeId: elsewhere, personId: talent },
+          { evaluationNodeId: selection, personId: other },
+          { evaluationNodeId: closing, personId: other },
+        ],
+        evaluationRelations: relations,
+      });
+
+    it('covers the stages of that cohort for the same person, and nothing else', () => {
+      const ctx = withCohortNode([mentoring()]);
+      expect(comparisonAccess(ctx)?.grants).toEqual([
+        { personId: talent, nodeId: cohortNode, ...open },
+        { personId: talent, nodeId: selection, ...open },
+        { personId: talent, nodeId: closing, ...open },
+      ]);
+    });
+
+    it('does not widen the node rules on the stage nodes', () => {
+      const ctx = withCohortNode([mentoring()]);
+      for (const nodeId of [selection, closing]) {
+        for (const kind of [
+          'person',
+          'evaluation',
+          'restricted-evaluation',
+          'confirmed-score',
+        ] as const)
+          expect(
+            canReadNodeTalent(
+              ctx,
+              { evaluationNodeId: nodeId, personId: talent, kind },
+              'person-profile',
+            ),
+          ).toBe(false);
+        expect(canEvaluateNode(ctx, nodeId, talent)).toBe(false);
+        expect(
+          canConfirmOwnNodeScore(ctx, {
+            evaluationNodeId: nodeId,
+            personId: talent,
+            raterId: rater,
+          }),
+        ).toBe(false);
+      }
+    });
+
+    it('ends with the relation', () => {
+      for (const ended of [
+        mentoring({ validTo: '2026-10-15T00:00:00.000Z' }),
+        mentoring({ revokedAt: '2026-10-20T00:00:00.000Z' }),
+        mentoring({ evaluatorId: 'demo-rater-002' }),
+      ])
+        expect(comparisonAccess(withCohortNode([ended]))?.grants).toEqual([]);
+    });
+
+    it("keeps one person's relation off another person's stages", () => {
+      const ctx = withCohortNode([
+        mentoring(),
+        relation({ id: 'demo-direct', evaluationNodeId: selection }),
+      ]);
+      const grants = comparisonAccess(ctx)!.grants;
+      expect(grants.some((g) => g.personId === other)).toBe(false);
+      expect(grants.some((g) => g.nodeId === elsewhere)).toBe(false);
     });
   });
 });

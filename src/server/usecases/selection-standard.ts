@@ -257,6 +257,7 @@ export async function executeSelectionRevision<Tx>(
   accountId: string,
   raw: unknown,
   clock: () => Date = () => new Date(),
+  wallClock: () => Date = () => new Date(),
 ) {
   const parsed = selectionRevisionCommandSchema.safeParse(raw);
   if (!parsed.success)
@@ -277,6 +278,7 @@ export async function executeSelectionRevision<Tx>(
       async (tx) => {
         // Clock and current authorization are loaded AFTER waiting for all locks.
         const now = clock().toISOString();
+        const wallAt = wallClock().toISOString();
         const authority = await ports.loadAuthority(tx, accountId, now);
         verifyAccount(authority, accountId, now);
         authorizeSelectionAction(authority, requiredRole(command));
@@ -356,6 +358,7 @@ export async function executeSelectionRevision<Tx>(
               current: await currentSelection(ports, tx, now),
               currentPublicationId: await ports.readCurrentPublicationId(tx),
               bindingsBefore: await ports.readBindingsForUndo(tx),
+              wallAt,
             },
           );
           record = undo.record;
@@ -424,6 +427,7 @@ export async function executeSelectionRevision<Tx>(
                     await ports.readCurrentPublicationId(tx),
                   publicationId: await ports.allocateId(tx, 'publication'),
                   impact: await ports.readImpact(tx, authority, loaded),
+                  wallAt,
                 },
               );
               record = publication.record;

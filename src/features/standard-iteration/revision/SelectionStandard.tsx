@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import type {
   EffectiveRuleVersion,
+  SelectionCohortBinding,
   SelectionManagerRevision,
   SelectionRevision,
 } from '@/contracts/selection-standard';
@@ -71,21 +72,53 @@ function Header({
   );
 }
 
+/** Which cohorts keep which version, as the prototype writes it under the standard. */
+function bindingText(
+  version: EffectiveRuleVersion,
+  bindings: SelectionCohortBinding[],
+  preparing: { name: string } | null,
+) {
+  const byVersion = new Map<string, string[]>();
+  for (const { cohort, standardVersionId } of bindings)
+    byVersion.set(standardVersionId, [
+      ...(byVersion.get(standardVersionId) ?? []),
+      cohort.name,
+    ]);
+  const parts = [
+    `${monthDay(version.effectiveFrom)} 起生效`,
+    '之后新建期次的默认版本',
+  ];
+  const own = byVersion.get(version.versionId);
+  if (own) parts.push(`${own.join('、')}绑定这一版`);
+  for (const [versionId, names] of byVersion)
+    if (versionId !== version.versionId)
+      parts.push(`${versionId} 已替代，${names.join('、')}保持 ${versionId}`);
+  if (preparing)
+    parts.push(`${preparing.name}还在筹备，建立时绑定当时的默认版本`);
+  return parts.join(' · ');
+}
+
 /** The standard in force, before anyone drafts: revisions start from 判断对照. */
 export function SelectionStandardCurrent({
   version,
   content,
+  bindings,
+  preparing,
   draftHref,
+  back,
 }: {
   version: EffectiveRuleVersion;
   content: SelectionStandardContent;
+  bindings: SelectionCohortBinding[];
+  preparing: { name: string } | null;
   /** HR only: where a revision can be drafted from a confirmed attribution. */
   draftHref: string | null;
+  back: { href: string; label: string } | null;
 }) {
   return (
     <>
       <ShellTitle title={standardName} />
-      <Header back={null} sealed={false} sealTitle="">
+      <Header back={back} sealed={false} sealTitle="">
         {draftHref ? (
           <a className="n-btn n-btn--ink" href={draftHref}>
             <Icon name="pen" />
@@ -105,7 +138,7 @@ export function SelectionStandardCurrent({
         </div>
         <PointList points={content.reviewPoints} />
         <p className="nt-muted" style={{ margin: 'var(--s-2) 0 0' }}>
-          {monthDay(version.effectiveFrom)} 起生效 · 之后新建期次的默认版本
+          {bindingText(version, bindings, preparing)}
         </p>
         {draftHref ? (
           <p className="nt-caption" style={{ margin: 'var(--s-2) 0 0' }}>
