@@ -37,6 +37,13 @@ import type {
 } from '../../../contracts/interview-import';
 import { loadEvaluationContext } from '../evaluation-context';
 import { ForbiddenError } from '../project-context';
+import { readInterviewArchives } from '../../modules/records/interview-import/read';
+import {
+  activeInterviewIdentities,
+  archiveInterviewRow,
+  latestRowArchive,
+  withdrawInterviewRow,
+} from './archive';
 import {
   INTERVIEW_DIMENSION_OPTIONS,
   INTERVIEW_TEMPLATES,
@@ -98,7 +105,13 @@ async function loadBatch(db: DbExecutor, batchId: string) {
     .select()
     .from(interviewImportReviewItems)
     .where(eq(interviewImportReviewItems.batchId, batchId));
-  return { ...batch, candidates, rows, reviewItems };
+  return {
+    ...batch,
+    candidates,
+    rows,
+    reviewItems,
+    archives: await readInterviewArchives(db),
+  };
 }
 
 async function loadEmployments(db: DbExecutor, personIds: string[]) {
@@ -217,6 +230,19 @@ function factsFor(
   const subjects = subjectsFor(row, loaded.candidates, directory);
   const hrCohortId = hrCohortFor(context, loaded.node, subjects);
   const review = reviewOf(row);
+  const archived = latestRowArchive(loaded.archives, row);
+  // An old association is not a fresh confirmation. Only the new current-row HR
+  // confirmation may reuse it, after the original name and directory still agree.
+  const interviewerMatches = directory.people.filter(
+    (person) => shownName(person) === review?.metadata.interviewer?.value,
+  );
+  const confirmedInterviewerId =
+    archived?.archive.withdrawnAt &&
+    row.confirmedForRevision === row.revision &&
+    interviewerMatches.length === 1 &&
+    interviewerMatches[0].id === archived.history.recorderId
+      ? archived.history.recorderId
+      : null;
   return {
     context,
     batchId: row.batchId,
@@ -243,7 +269,7 @@ function factsFor(
     })),
     confirmedCandidateId: row.confirmedCandidateId,
     confirmedForRowRevision: row.confirmedForRevision,
-    confirmedInterviewerId: null,
+    confirmedInterviewerId,
     directory: directory.people.map((p) => ({ id: p.id, name: shownName(p) })),
     employments: employmentRows,
     source: {
@@ -255,7 +281,7 @@ function factsFor(
       sourceCategory: fragment.sourceCategory,
       evaluationKind: fragment.evaluationKind,
     },
-    existing: [],
+    existing: activeInterviewIdentities(loaded.archives),
     rowSnapshot: {
       batchId: row.batchId,
       rowId: row.rowId,
@@ -269,7 +295,20 @@ function factsFor(
       subjectPersonIds: subjects,
       hasHiddenContent: false,
       blockingReviewItemIds: openItems(loaded, row.rowId).map((i) => i.id),
-      import: { state: 'unimported' },
+      import: !archived
+        ? { state: 'unimported' }
+        : archived.archive.withdrawnAt === null
+          ? {
+              state: 'imported',
+              evaluationId: archived.history.id,
+              personId: archived.history.personId!,
+            }
+          : {
+              state: 'withdrawn',
+              previousRevision: archived.archive.importRevision,
+              withdrawalAuditId: archived.archive.withdrawalAuditId!,
+              withdrawnAt: new Date(archived.archive.withdrawnAt).toISOString(),
+            },
     },
     pendingCandidate:
       openItems(loaded, row.rowId).find(
@@ -657,99 +696,163 @@ export async function confirmInterviewImportRow(
   /** `now` is the business clock authorization runs on; `at` stamps what was stored. */
   { now, at }: { now: string; at: string },
 ): Promise<InterviewImportRowResult> {
-  return db.transaction(async (tx) => {
-    const target = await lockVisibleRow(tx, accountId, input, now);
-    if (target.status !== 'locked') return target;
-    const { locked, read, entry } = target;
-    const { context, directory, loaded, employmentRows } = read;
-    if (locked.revision !== input.expectedRevision)
-      return { status: 'conflict', message: CONFLICT };
-    const confirmedNow =
-      locked.confirmedCandidateId !== null &&
-      locked.confirmedForRevision === locked.revision;
-    if (confirmedNow === input.ok)
-      return { status: 'conflict', message: CONFLICT };
-    const proposal = proposalFor(locked, loaded.candidates);
-    if (input.ok && !proposal)
-      return { status: 'conflict', message: '这一行还不知道是谁，不能确认' };
-    const revision = locked.revision + 1;
-    const next: Row = {
-      ...locked,
-      revision,
-      ...(input.ok
-        ? {
-            confirmedCandidateId: proposal!.candidateId,
-            confirmedForRevision: revision,
-            confirmedByAccountId: accountId,
-            confirmedAt: at,
-          }
-        : {
-            confirmedCandidateId: null,
-            confirmedForRevision: null,
-            confirmedByAccountId: null,
-            confirmedAt: null,
-          }),
-    };
-    const nextEntry = { ...entry, row: next };
-    const plan = planInterviewImport(
-      factsFor(
-        context,
-        directory,
-        loaded,
-        nextEntry,
-        employmentRows,
-        accountId,
-      ),
-    );
-    if (
-      input.ok &&
-      plan.status !== 'planned' &&
-      !(plan.status === 'skipped' && plan.reason === 'not_hired')
-    )
-      return {
-        status: 'conflict',
-        message: '这一行还有没处理完的项，处理后再确认',
-      };
-    const decision = decisionOf(plan, next.confirmedCandidateId, at, accountId);
-    const [stored] = await tx
-      .update(interviewImportRows)
-      .set({
-        revision,
-        confirmedCandidateId: next.confirmedCandidateId,
-        confirmedForRevision: next.confirmedForRevision,
-        confirmedByAccountId: next.confirmedByAccountId,
-        confirmedAt: next.confirmedAt,
-        decision,
-        decisionRevision: revision,
-      })
-      .where(
-        and(
-          eq(interviewImportRows.batchId, input.batchId),
-          eq(interviewImportRows.rowId, input.rowId),
-          eq(interviewImportRows.revision, input.expectedRevision),
-        ),
+  return db
+    .transaction(async (tx): Promise<InterviewImportRowResult> => {
+      const target = await lockVisibleRow(tx, accountId, input, now);
+      if (target.status !== 'locked') return target;
+      const { locked, read, entry } = target;
+      const { context, directory, loaded, employmentRows } = read;
+      const archived = latestRowArchive(loaded.archives, locked);
+      const activeArchive =
+        archived?.archive.withdrawnAt === null ? archived : undefined;
+      if (
+        input.ok &&
+        activeArchive &&
+        activeArchive.operation.actorAccountId === accountId &&
+        [locked.revision, locked.revision - 1].includes(input.expectedRevision)
+      ) {
+        return {
+          status: 'ok',
+          row: view(
+            loaded,
+            entry,
+            directory,
+            employmentRows,
+            planInterviewImport(
+              factsFor(
+                context,
+                directory,
+                loaded,
+                entry,
+                employmentRows,
+                accountId,
+              ),
+            ),
+          ),
+          revision: locked.revision,
+        };
+      }
+      if (locked.revision !== input.expectedRevision)
+        return { status: 'conflict', message: CONFLICT };
+      const confirmedNow =
+        locked.confirmedCandidateId !== null &&
+        locked.confirmedForRevision === locked.revision;
+      if (
+        (confirmedNow === input.ok && !(input.ok && !activeArchive)) ||
+        (input.ok && activeArchive)
       )
-      .returning();
-    if (!stored) return { status: 'conflict', message: CONFLICT };
-    await recordInterviewImportOperation(tx, {
-      action: input.ok ? 'confirm' : 'revert',
-      actorAccountId: accountId,
-      at,
-      before: locked,
-      after: stored,
-    });
-    return {
-      status: 'ok',
-      row: view(
-        loaded,
-        { ...entry, row: stored },
-        directory,
-        employmentRows,
+        return { status: 'conflict', message: CONFLICT };
+      const proposal = proposalFor(locked, loaded.candidates);
+      if (input.ok && !proposal)
+        return { status: 'conflict', message: '这一行还不知道是谁，不能确认' };
+      const revision = locked.revision + 1;
+      const next: Row = {
+        ...locked,
+        revision,
+        ...(input.ok
+          ? {
+              confirmedCandidateId: proposal!.candidateId,
+              confirmedForRevision: revision,
+              confirmedByAccountId: accountId,
+              confirmedAt: at,
+            }
+          : {
+              confirmedCandidateId: null,
+              confirmedForRevision: null,
+              confirmedByAccountId: null,
+              confirmedAt: null,
+            }),
+      };
+      if (!input.ok && activeArchive) {
+        await withdrawInterviewRow(tx, accountId, locked, at);
+        loaded.archives = await readInterviewArchives(tx);
+      }
+      const nextEntry = { ...entry, row: next };
+      const plan = planInterviewImport(
+        factsFor(
+          context,
+          directory,
+          loaded,
+          nextEntry,
+          employmentRows,
+          accountId,
+        ),
+      );
+      if (
+        input.ok &&
+        plan.status !== 'planned' &&
+        !(plan.status === 'skipped' && plan.reason === 'not_hired')
+      )
+        return {
+          status: 'conflict',
+          message: '这一行还有没处理完的项，处理后再确认',
+        };
+      const decision = decisionOf(
         plan,
-      ),
-      revision,
-    };
-  });
+        next.confirmedCandidateId,
+        at,
+        accountId,
+      );
+      const [stored] = await tx
+        .update(interviewImportRows)
+        .set({
+          revision,
+          confirmedCandidateId: next.confirmedCandidateId,
+          confirmedForRevision: next.confirmedForRevision,
+          confirmedByAccountId: next.confirmedByAccountId,
+          confirmedAt: next.confirmedAt,
+          decision,
+          decisionRevision: revision,
+        })
+        .where(
+          and(
+            eq(interviewImportRows.batchId, input.batchId),
+            eq(interviewImportRows.rowId, input.rowId),
+            eq(interviewImportRows.revision, input.expectedRevision),
+          ),
+        )
+        .returning();
+      if (!stored)
+        throw new Error('Interview import changed under its row lock');
+      await recordInterviewImportOperation(tx, {
+        action: input.ok ? 'confirm' : 'revert',
+        actorAccountId: accountId,
+        at,
+        before: locked,
+        after: stored,
+      });
+      if (input.ok && plan.status === 'planned')
+        await archiveInterviewRow(tx, stored, plan);
+      return {
+        status: 'ok',
+        row: view(
+          loaded,
+          { ...entry, row: stored },
+          directory,
+          employmentRows,
+          plan,
+        ),
+        revision,
+      };
+    })
+    .catch((error: unknown) => {
+      // The active identity unique index is the concurrent duplicate boundary.
+      // Drizzle wraps PostgreSQL errors; inspect only codes, never raw parameters.
+      let cause = error;
+      for (
+        let depth = 0;
+        depth < 3 && cause && typeof cause === 'object';
+        depth += 1
+      ) {
+        if ('code' in cause && cause.code === '23505')
+          return {
+            status: 'conflict' as const,
+            message: '这条面评已经入档，请刷新后再看',
+          };
+        cause = 'cause' in cause ? cause.cause : null;
+      }
+      throw error;
+    });
 }
 
 /**
@@ -769,6 +872,8 @@ export async function fillInterviewImportRow(
     if (target.status !== 'locked') return target;
     const { locked, read, entry } = target;
     const { context, directory, loaded, employmentRows } = read;
+    if (latestRowArchive(loaded.archives, locked)?.archive.withdrawnAt === null)
+      return { status: 'conflict', message: '这条面评已入档，请先改回再补录' };
     if (locked.revision !== input.expectedRevision)
       return { status: 'conflict', message: CONFLICT };
     const review = reviewOf(locked);

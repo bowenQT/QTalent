@@ -106,6 +106,7 @@ export function fixture(
     fragments: [],
     historical: [],
     historicalParticipants: [],
+    interviewArchives: [],
     anchors: [],
     dimensions: [
       { id: 'prof', name: '专业度', axis: 'prof', core: true },
