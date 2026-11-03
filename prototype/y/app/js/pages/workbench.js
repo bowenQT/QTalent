@@ -109,9 +109,18 @@
   // 待核实线索先看这个人的速览再办
   const peekBtn = (pid) => (pid ? html`<button class="n-btn n-btn--sm n-btn--ghost" type="button" data-peek="p:${pid}">${icon('user')}看速览</button>` : '');
   const todoActs = (t) => (t.kind === 'clue' ? html`<div class="n-todo__acts">${clueSrc(t.clue)}${peekBtn(st.get().watchClues.find((c) => c.id === t.clue)?.person)}<button class="n-btn n-btn--sm" type="button" data-cok="${t.clue}">${icon('check')}核实，进入值得关注</button><button class="n-btn n-btn--sm n-btn--ghost" type="button" data-cno="${t.clue}">不采纳</button></div>` : '');
-  const todoList = (list) => html`<ul class="n-todo">${list.map((t) => html`<li class="${t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}"><span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span><span>${t.title}<small>${t.sub}</small></span><span class="due">${t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
+  // bare：组里每条的标签都一样时不再逐条重复；noDue：到期时间相同时只写在组标题上
+  const todoList = (list, o = {}) => html`<ul class="n-todo${o.bare ? ' is-bare' : ''}">${list.map((t) => html`<li class="${t.kind === 'clue' ? 'has-acts' : ''}"><a href="${t.href}">${o.bare ? '' : html`<span class="n-badge ${t.cls || ''}">${t.icon ? icon(t.icon) : ''}${t.badge}</span>`}<span>${t.title}<small>${t.sub}</small></span><span class="due">${o.noDue ? '' : t.due}</span></a>${todoActs(t)}</li>`)}</ul>`;
   const GROUPS = [['verify', '待核对', ['verify']], ['confirm', '待你确认的建议分', ['confirm']], ['conclusion', '节点结论', ['conclusion']], ['reassign', '待重新分派', ['reassign']], ['takeover', '接手的事', ['takeover']], ['clue', '待核实的关注线索', ['clue']], ['plan', '待确认', ['plan', 'ruleback']], ['rulesug', '规则修订建议', ['rulesug']], ['rulereview', '按新版本复核', ['rulereview']], ['calib', '待复核的评分', ['calib']], ['cover', '待补记录', ['cover']], ['follow', '待回访', ['track', 'talk']]];
-  let openGroup = null, showHandled = false;
+  const TODO_SHOWN = 3;
+  let openGroup = null, showHandled = false, todoMore = {};
+  // 一组待办：标题行写组名、条数和共同的到期时间；默认露出 3 条，其余点开展开
+  const todoGroup = (g, open) => {
+    const o = { bare: new Set(g.list.map((t) => t.badge)).size === 1, noDue: new Set(g.list.map((t) => t.due)).size === 1 };
+    const rest = g.list.slice(TODO_SHOWN), more = !!todoMore[g.k];
+    return html`<div class="n-todogrp"><button class="n-todogrp__head" type="button" data-grp="${g.k}" aria-expanded="${String(open)}" aria-controls="tg-${g.k}">${g.l}<span class="n-count is-quiet">${g.list.length}</span>${o.noDue && g.list[0].due ? html`<small>${g.list[0].due}</small>` : ''}${icon('chev')}</button>
+      <div class="n-fold" id="tg-${g.k}" ${raw(open ? 'data-open' : 'inert')}><div>${todoList(g.list.slice(0, TODO_SHOWN), o)}${rest.length ? html`<div class="n-fold" id="tgm-${g.k}" ${raw(more ? 'data-open' : 'inert')}><div>${todoList(rest, o)}</div></div><button class="n-link n-todogrp__more" type="button" data-more="${g.k}" aria-controls="tgm-${g.k}" aria-expanded="${String(more)}">${more ? '收起' : `再看 ${rest.length} 条`}</button>` : ''}</div></div></div>`;
+  };
   // 已处理的线索：核实的和不采纳的都留痕，不采纳的写出理由，可以改回待核实
   function handledBlock() {
     const list = st.watchHandled(); if (!list.length) return '';
@@ -125,9 +134,10 @@
     if (role !== 'hrbp') return html`<h3 class="n-section-title">待办${todos.length ? html`<span class="n-count">${todos.length}</span>` : ''}</h3>${todos.length ? todoList(todos) : empty}`;
     const groups = GROUPS.map(([k, l, kinds]) => ({ k, l, list: todos.filter((t) => kinds.includes(t.kind)) })).filter((g) => g.list.length);
     if (!groups.length) return html`<h3 class="n-section-title">待办</h3>${empty}${handledBlock()}`;
-    const open = groups.some((g) => g.k === openGroup) ? openGroup : groups[0].k; // 默认展开最紧急的一组：当天要处理的待核对
+    // 默认展开最紧急的一组（当天要处理的待核对）；空字符串表示用户把各组都收起了
+    const open = openGroup === '' ? '' : groups.some((g) => g.k === openGroup) ? openGroup : groups[0].k;
     return html`<h3 class="n-section-title">待办<span class="n-count">${todos.length}</span></h3>
-      ${groups.map((g) => html`<div class="n-todogrp"><button class="n-todogrp__head" type="button" data-grp="${g.k}" aria-expanded="${g.k === open}">${g.l}<span class="n-count is-quiet">${g.list.length}</span>${g.k === open ? '' : html`<small>${g.list[0].title}${g.list.length > 1 ? ' 等' : ''}</small>`}${icon('chev')}</button>${g.k === open ? todoList(g.list) : ''}</div>`)}
+      ${groups.map((g) => todoGroup(g, g.k === open))}
       ${handledBlock()}`;
   }
   // 线索处理失败时说清发生了什么：只由负责这个人的 HR 处理；或这条线索已有新结论
@@ -137,8 +147,17 @@
     const host = $('#todo'); if (!host) return;
     const redraw = () => mount(host, todoBlock(st.role(), st.todos()));
     host.onclick = async (e) => {
+      // 展开收起只切换属性，不重画，高度和透明度按 CSS 过渡
+      const fold = (btn, on) => { btn.setAttribute('aria-expanded', String(on)); const body = $(`#${btn.getAttribute('aria-controls')}`); body.toggleAttribute('data-open', on); body.inert = !on; };
       const g = e.target.closest('[data-grp]');
-      if (g) { openGroup = g.dataset.grp; redraw(); return; }
+      if (g) {
+        const on = g.getAttribute('aria-expanded') !== 'true';
+        $$('[data-grp]', host).forEach((h) => fold(h, h === g && on));
+        openGroup = on ? g.dataset.grp : '';
+        return;
+      }
+      const m = e.target.closest('[data-more]');
+      if (m) { const on = !todoMore[m.dataset.more]; todoMore[m.dataset.more] = on; fold(m, on); m.textContent = on ? '收起' : `再看 ${$(`#${m.getAttribute('aria-controls')}`).querySelectorAll('li').length} 条`; return; }
       if (e.target.closest('#todo-handled')) { showHandled = !showHandled; redraw(); return; }
       const un = e.target.closest('[data-cun]');
       if (un) { if (!st.unverifyClue(un.dataset.cun)) { NT.toast(clueFail(un.dataset.cun)); redraw(); return; } redraw(); NT.toast('已改回待核实，已从「值得关注的人」移出'); return; }

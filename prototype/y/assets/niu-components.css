@@ -961,9 +961,14 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-task { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-sm); }
 .n-task:first-child { border-top: 0; }
 /* 进行中的任务超出部分：按内容高度展开收起，行随展开淡入 */
-.n-tasks__fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--d-base) var(--ease-out); }
-.n-tasks__fold[data-open] { grid-template-rows: 1fr; }
-.n-tasks__fold > div { min-height: 0; overflow: hidden; }
+.n-tasks__fold, .n-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--d-base) var(--ease-out); }
+.n-tasks__fold[data-open], .n-fold[data-open] { grid-template-rows: 1fr; }
+.n-tasks__fold > div, .n-fold > div { min-height: 0; overflow: hidden; }
+.n-fold > div > .n-todo, .n-fold > div > .n-todogrp__more { opacity: 0; transform: translateY(-4px); transition: opacity var(--d-base) var(--ease-out), transform var(--d-base) var(--ease-out); }
+.n-fold[data-open] > div > .n-todo, .n-fold[data-open] > div > .n-todogrp__more { opacity: 1; transform: none; }
+.n-fold .n-fold .n-todo li:first-child { border-top: 1px solid var(--line); }
+.n-todo.is-bare { grid-template-columns: minmax(0, 1fr) auto; }
+.n-todogrp__more { margin: var(--s-1) 0 var(--s-2) var(--s-1); font-size: var(--t-xs); }
 .n-tasks__fold .n-task { opacity: 0; transform: translateY(-4px); transition: opacity var(--d-base) var(--ease-out), transform var(--d-base) var(--ease-out); }
 .n-tasks__fold[data-open] .n-task { opacity: 1; transform: none; }
 .n-tasks__fold .n-task:first-child { border-top: 1px solid var(--line); }
@@ -1391,6 +1396,8 @@ button.n-spectrum__row:hover { background: rgb(36 42 48 / .03); }
 .n-todogrp__head[aria-expanded="true"] > svg { rotate: 90deg; }
 .n-todogrp__head .n-count { margin-left: 0; }
 .n-todogrp__head { white-space: nowrap; } /* 组名不折行，右侧的预览小字按宽度截断 */
+.n-todogrp__head small { margin-left: auto; font-size: var(--t-xs); }
+.n-todogrp__head small + svg { margin-left: var(--s-2); }
 .n-todogrp__head small { min-width: 0; overflow: hidden; font-weight: 400; color: var(--ink-3); text-overflow: ellipsis; white-space: nowrap; }
 .n-todomore { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-field); background: var(--sheet-sunk); font-size: var(--t-xs); color: var(--ink-2); }
 .n-todomore > svg { flex: none; width: 14px; height: 14px; color: var(--ink-3); }
