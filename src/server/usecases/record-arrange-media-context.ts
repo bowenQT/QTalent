@@ -27,7 +27,8 @@ import {
 } from '../../contracts/material-review';
 import { arrangeOperationFingerprint } from '../modules/records/arrange/input-state/bind';
 import type { BatchSnapshot } from '../modules/records/arrange/batch';
-import { canWriteArrange, loadArrangeActor } from './record-arrange-context';
+import { loadArrangeActor } from './record-arrange-context';
+import { canResolveAttachmentSubjects } from './parsed-attachment-authorization';
 import { parseBatchMetadata } from './record-batch-arrange-state';
 import {
   completeTalentSources,
@@ -105,7 +106,7 @@ export async function loadAttachmentMaterial(
     (!requesterAccountId &&
       attribution?.operation &&
       actor.context.account.personId !== attribution.operation.actorPersonId) ||
-    !canWriteArrange(actor, [], null, state.input.evaluationNodeId)
+    !canResolveAttachmentSubjects(actor, [], state.input.evaluationNodeId)
   )
     return null;
   const [parseJob] = await tx
@@ -161,10 +162,9 @@ export async function loadAttachmentMaterial(
     proofs.every((proof) =>
       proof.subjects.every(
         (subject) =>
-          canWriteArrange(
+          canResolveAttachmentSubjects(
             actor,
             [subject.personId],
-            null,
             subject.evaluationNodeId!,
           ) &&
           [proof.kind, ...proof.requiredKinds].every(
@@ -267,10 +267,9 @@ export async function currentAttachmentReviewItems(
           ? {
               candidates: actor.directory.people
                 .filter((person) =>
-                  canWriteArrange(
+                  canResolveAttachmentSubjects(
                     actor,
                     [person.id],
-                    null,
                     state.input.evaluationNodeId!,
                   ),
                 )
@@ -360,10 +359,9 @@ export async function loadAttachmentBatchSnapshot(
     generation.reviewItemId !== (attribution.item?.id ?? null) ||
     generation.reviewOperationId !== (attribution.operation?.id ?? null) ||
     generation.itemRevision !== (attribution.item?.revision ?? null) ||
-    !canWriteArrange(
+    !canResolveAttachmentSubjects(
       actor,
       attribution.personIds,
-      null,
       state.input.evaluationNodeId!,
     ) ||
     attribution.personIds.some(

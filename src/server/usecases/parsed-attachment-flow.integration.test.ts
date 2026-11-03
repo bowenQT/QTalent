@@ -383,6 +383,11 @@ it('enforces current review dependencies after undo/rebind, and blocks undo afte
 }, 45000);
 it('allows a different currently scoped HR to bind, auditing the real actor', async () => {
   const h = await fixture();
+  await h.parse();
+  // An unrelated account is not a resolver merely because the upload exists.
+  expect(await h.bind(h.f.outsiderAccount)).toMatchObject({
+    status: 'not_found',
+  });
   await connection.db.insert(grants).values({
     id: randomUUID(),
     accountId: h.f.outsiderAccount,
@@ -391,7 +396,6 @@ it('allows a different currently scoped HR to bind, auditing the real actor', as
     cohortId: h.f.cohort,
     validFrom: '2026-01-01',
   });
-  await h.parse();
   expect(await h.bind(h.f.outsiderAccount)).toMatchObject({
     status: 'success',
   });
@@ -417,6 +421,11 @@ it('allows a different currently scoped HR to bind, auditing the real actor', as
     readAttachmentArrangeMetadata({ ...job!, result: job!.result ?? null })
       ?.generation.accountId,
   ).toBe(h.f.outsiderAccount);
+  const draft = (await h.drafts())[0]!.draft;
+  await expect(save(draft, h.f.outsiderAccount)).rejects.toMatchObject({
+    status: 'forbidden',
+  });
+  expect((await save(draft, h.f.account)).result.events).toHaveLength(1);
 }, 30000);
 it('does not add the c902 unknown-person gate to another canonical producer', async () => {
   const h = await fixture(true, false);
@@ -528,9 +537,18 @@ it('does not disclose a hidden file review item in another file binding receipt'
   await hidden.parse();
   // Same uploader/batch, but B's captured complete scope includes an object/node
   // outside A's current authorization. The fixture is an explicit native fact.
+  const [hiddenUpload] = await connection.db
+    .select()
+    .from(uploadIntents)
+    .where(eq(uploadIntents.id, hidden.f.row.uploadId));
+  const uploadOperationId = randomUUID();
   await connection.db
     .update(uploadIntents)
-    .set({ accountId: visible.f.account })
+    .set({
+      accountId: visible.f.account,
+      operationId: uploadOperationId,
+      request: { ...hiddenUpload!.request, operationId: uploadOperationId },
+    })
     .where(eq(uploadIntents.id, hidden.f.row.uploadId));
   await connection.db
     .update(uploadCollections)
