@@ -105,8 +105,9 @@ export function createAttachmentParsePolicy<C>(
     enqueue: (context, job, action) => ports.enqueue(context, job, action),
   };
 }
-/** Message id for one job revision: the queue's primary key turns a second
- * send for the same `jobId:revision` into a no-op (`send` returns null). */
+/** Message id for one job revision: while that message row is retained, the
+ * queue's primary key turns a second send for the same `jobId:revision` into a
+ * no-op (`send` returns null). */
 export function attachmentParseMessageId(jobId: string, revision: number) {
   const hex = createHash('sha256')
     .update(`attachment-parse:${jobId}:${revision}`)

@@ -38,10 +38,10 @@ export const attachmentParseLimits: ParseLimits = {
 /** A claimed parse untouched this long has lost its runner: well past the
  * 60 s PDF decode budget plus reading the 64 MiB input. */
 export const attachmentParseLeaseMs = 5 * 60 * 1000;
-/** A queued job untouched this long has no message that will claim it. A
- * message is normally claimed within seconds (pg-boss notifies on send and
- * polls every 2 s); ten minutes also covers a backlog of a few dozen parses
- * ahead of it. A job whose current message is still waiting is never resent. */
+/** A queued job untouched this long is treated as having lost its message;
+ * the worker polls the queue every 2 s, so a deliverable message is normally
+ * claimed well before then. A job whose current message is still waiting is
+ * never resent. */
 export const attachmentParseQueuedMs = 10 * 60 * 1000;
 /** Revision at which recovery settles a job as failed instead of handing it
  * out again, so neither a lost message nor a file that kills its runner loops

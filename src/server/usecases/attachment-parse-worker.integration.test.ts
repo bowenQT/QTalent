@@ -395,7 +395,8 @@ it('resends a job left queued without a message, and the worker parses it', asyn
     send: false,
   });
   await age(upload.jobId);
-  expect(await recovery().recover()).toBeGreaterThanOrEqual(1);
+  // The worker process scans on its own timer too, so either scan may resend.
+  await recovery().recover();
   const job = await settled(upload.jobId);
   expect(job.status).toBe('completed');
   expect(job.result).toMatchObject({ stage: 'parsed' });
@@ -455,7 +456,7 @@ it('settles a queued job that keeps losing its message once it reaches the revis
     })
     .where(eq(jobSnapshots.jobId, upload.jobId));
   await recovery().recover();
-  const job = await snapshot(upload.jobId);
+  const job = await settled(upload.jobId);
   expect(job).toMatchObject({
     status: 'failed',
     errorCode: 'processing_failed',
@@ -465,4 +466,34 @@ it('settles a queued job that keeps losing its message once it reaches the revis
     failureReason: 'processing_failed',
   });
   expect(await parsesOf(upload.jobId)).toEqual([]);
+}, 90_000);
+
+it('skips a stale queued job while another transaction holds its row', async () => {
+  const upload = await deliver('演示材料.pdf', 'application/pdf', await pdf(), {
+    send: false,
+  });
+  await age(upload.jobId);
+  await connection.db.transaction(async (tx) => {
+    await tx
+      .select({ jobId: jobSnapshots.jobId })
+      .from(jobSnapshots)
+      .where(eq(jobSnapshots.jobId, upload.jobId))
+      .for('update');
+    await recovery().recover();
+    expect(
+      await boss.getJobById(
+        attachmentParseQueue,
+        attachmentParseMessageId(upload.jobId, 2),
+      ),
+    ).toBeNull();
+    expect(await snapshot(upload.jobId)).toMatchObject({
+      status: 'queued',
+      revision: 1,
+    });
+  });
+  // Once the row is free, the next scan resends it.
+  await recovery().recover();
+  const job = await settled(upload.jobId);
+  expect(job.status).toBe('completed');
+  expect(await parsesOf(upload.jobId)).toHaveLength(1);
 }, 90_000);

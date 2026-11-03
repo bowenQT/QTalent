@@ -59,18 +59,16 @@ const input = createValidatedAttachmentInput<Transaction>({
 
 ## 任务事务与 845 交接
 
-`runAttachmentParse(jobStore, ports, {jobId,attempt,revision}, options)` 复用已合 #94 的 JobStore/advanceJob。队列 payload 不含 accountId、objectKey、人员或客户端内容。所有投递（首次入队与恢复重投）都经 `sendAttachmentParse`，消息 id 由 `jobId:revision` 决定，同一 revision 的第二次 send 不入队。`registerAttachmentParseJob(boss, run, recover)` 注册 `attachment-parse` 队列与 `attachment-parse-recovery` 定时恢复。
+`runAttachmentParse(jobStore, ports, {jobId,attempt,revision}, options)` 复用已合 #94 的 JobStore/advanceJob。队列 payload 不含 accountId、objectKey、人员或客户端内容。所有投递（首次入队与恢复重投）都经 `sendAttachmentParse`，消息 id 由 `jobId:revision` 决定，消息行保留期间（终态行默认保留 7 天）同一 revision 的第二次 send 不入队。`registerAttachmentParseJob(boss, run, recover)` 注册 `attachment-parse` 队列与 `attachment-parse-recovery` 定时恢复。
 
 1. claim 事务检查当前写权限、完整上传绑定、attempt、消息 revision 与任务当前 revision 一致和可运行阶段，推进 revision。旧 revision 的消息一律忽略。running/partial-parsing 的恢复重投可接管旧 worker；其他阶段、失败、待人工与终态不重跑。
-   恢复按任务状态兜底：超过 10 分钟仍 queued 且当前 revision 的消息不在队列中、或超过 5 分钟租约仍在解析中的任务，在 `FOR UPDATE SKIP LOCKED` 扫描事务内推进 revision 并重投；revision 达到 4 时落 `failed / processing_failed`。
+   恢复按任务状态兜底：超过 10 分钟仍 queued 且当前 revision 的消息不在队列中、或超过 5 分钟租约仍在解析中的任务，在 `FOR UPDATE SKIP LOCKED` 扫描事务内推进 revision 并重投；revision 达到 4 时落 `failed / processing_failed`。恢复扫描每分钟一次，缺 revision 的旧消息在 payload 校验时被拒收，任务仍为 queued，过阈值后由扫描在分钟级内重投，不承诺固定时长。
 2. 只读解析在事务外，不锁着事务调用供应商或模型。读取失败保存安全失败快照；没有隐式无限业务重试。
 3. 完成事务重新授权、核绑定、attempt/revision/cancel fence。`ports.saveParse(tx, binding, bundle)`、`ports.enqueueArrange(tx, request)`、`tx.save(job)` 必须使用同一个事务 context。saveParse 对同 ID 比较完整不可变 bundle，只有 `created` 首次结果排整理，`existing` 不重复入队；冲突和任一写入异常全部回滚。原件和旧任务历史不删除。
    已成功 claim 的当前 attempt/revision 在完成前失去写权限或发现权威绑定变化时，只保存 `failed / input_changed` 任务终态（阶段 failed、source null、fragmentIds 空），不保存解析片段或排整理；返回值仍保留 forbidden/ignored。初始 claim 前的拒绝仍不读字节、不修改任务。旧 revision/attempt 不得写入这一失败；已接受的取消优先确认 cancelled。公开读取和 retry 继续由当前 requester/action 权限与 inputVersion 栅栏判断。
 
 4. 取消只确认 cancelled，不落片段或排整理。公共投影按 job.status 重建 `stage:'cancelled',source:null,fragmentIds:[]`，不透传 #94 保留的旧内部 result。
 5. `enqueueArrange` 只传 `recordCollectionId,mediaId,parseVersionId,originalVersionId,accountId,target,sources:SourceReference[]`。每段有独立真实引用，没有 excerpt、推断 personId 或确认信息。父将该端口接845的可信来源加载/整理任务；845/837负责分类、当前权限过滤、选人、规则与待确认草稿，本卡不另建整理业务。
-
-当前 `saveParse` 和 enqueue 是显式注入端口，**没有原生 PG 存储适配/应用注册**。父确定 parse 元数据的最窄持久所有权后，再由唯一责任方接现有 fragments 和任务/解析关系；需要新 schema 时单独协调，在已合 PR94 之后原生生成迁移。没有手写 SQL 或修改旧迁移。
 
 ## 公共任务策略与父接线
 
@@ -81,12 +79,11 @@ const input = createValidatedAttachmentInput<Transaction>({
 - `visibleSources(tx, requesterAccountId, job)` 复用837/873已分类来源读取，仅返回当前可见的真实引用；必须是任务持久 fragmentIds 与 originalVersionId 的子集。公开 source 取可见列表首项，计数在过滤后计算，隐藏/未分类片段不泄露。
 - `inputVersion` 重载当前输入；`enqueue` 在传入 tx 上用852唯一 producer 原子排 retry/cancel，不能另开连接或创建 singleton。
 - 873 dispatch 在其归档事务内先建立 `newJob({kind:'media',resourceId:uploadId,inputVersion:originalVersionId,...})`，再通过同事务 `sendAttachmentParse` 投递到 `attachment-parse`。该绑定应唯一；解析 worker 按873完成事实再次验证 completed.jobId。
-- 应用入口、JobPolicy registry、worker、852 producer/env 及最终合并由父串行接线。本卡没有新增 HTTP/Action、读取凭据或真实 API 调用。
+- media policy 尚未注册进 JobPolicy registry：注册以及公共 jobs service 对解析任务的读取、重试由接线卡负责；在此之前没有附件解析任务的读取或重试入口。本卡没有新增 HTTP/Action、读取凭据或真实 API 调用。
 
 ## 未完成门禁
 
 - PR112 已于main32d0acb正式合入，最终检查不使用media overlay。此consumer只取已合target和media进度schema；request/grant/completed的recordCollectionId回显、source:null与raw-original读取身份union由相应上传/读取入口消费。worker输入仍按873冻结getter核upload/job/version绑定及当前写权限，不能用目标人员替代稳定记录集合或造片段。
-- 873 getter/845/852应用接线、saveParse原生持久适配及本卡写入端口的真实PG原子验收仍Pending。完整工程真实PG统一覆盖若通过，也只证明实际执行的集成范围，不能把本卡端口fake说成真实持久链路通过。
 - 精确命令、受检head与CI/远审终态记录于PR189；卡和issue保持In Progress/open。独立能力满足自测门禁后按授权转Ready，最终合并由父负责；代码回退保留原件、用户编辑与已有解析事实。
 
 ## BOW-926 页面文本输入（独立生产续作）
