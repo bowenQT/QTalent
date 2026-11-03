@@ -43,27 +43,32 @@
           <p class="nt-caption">按时间列出已确认的变化。</p>
         </article>` : '';
       const composer = html`
-        <div class="n-composer" id="composer" style="margin-bottom:var(--s-2)">
+        <section class="n-cmd" id="upload" aria-label="输入框">
+        <div class="n-cmd__box">
+        <div class="n-composer" id="composer">
           <span class="nt-ip" data-ip="rest" data-size="36" id="composer-ip"></span>
-          <textarea class="n-composer__field" rows="2" id="composer-field" aria-label="描述你要做的事" placeholder="${role === 'mentor' ? '按情境、行为、影响说一件学员做的事：在什么情况下、做了什么、带来什么影响' : '说一件事，或描述一个项目要找谁。输入 / 查看命令'}"></textarea>
+          <textarea class="n-composer__field" rows="2" id="composer-field" aria-label="描述你要做的事" placeholder="${role === 'mentor' ? '按情境、行为、影响说一件学员做的事：在什么情况下、做了什么、带来什么影响' : '说一件事，或描述一个项目要找谁；文件可以直接拖进来。输入 / 查看命令'}"></textarea>
           <div class="n-composer__bar">
-            <a class="n-btn n-btn--ghost n-btn--icon" href="#upload" aria-label="上传材料">${icon('clip')}</a>
+            <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="drop" aria-label="添加文件" title="添加文件：${UI.ATT_TYPES}，可以一次拖入多个">${icon('clip')}</button>
             <button class="n-btn n-btn--ghost n-btn--icon" type="button" id="composer-mic" aria-label="语音输入" title="语音输入（演示）" aria-pressed="false">${icon('mic')}</button>
             <span class="spacer"></span><span class="n-composer__hint">⌘ ↵ 发送</span>
             <button class="n-btn n-btn--ink n-btn--icon" type="button" id="composer-send" aria-label="发送">${icon('up')}</button>
           </div>
         </div>
-        <div class="n-slash" id="slash" role="listbox" aria-label="命令" hidden>
-          ${[['note', '记一件事', '/记', 'record.html'], st.can('findOwner') && ['folder', '为项目找人', '/找', 'staffing.html?new=1'], st.can('calibrate') && ['eye', '发起盘点', '/盘', 'reviews.html#new'], st.canOpenMinutes('w8') && ['wave', '打开会议人才纪要', '/录', 'record.html?m=w8']].filter(Boolean).map(([ic, l, k, h], i) => html`<a class="n-slash__item" role="option" aria-selected="${i === 0}" href="${h}" data-label="${l}" data-key="${k.slice(1)}">${icon(ic, 16)}${l}<kbd>${k}</kbd></a>`)}
+        <!-- 命令和示例在输入框聚焦且还没输入、或输入 / 时出现；/ 之后的字只筛命令 -->
+        <div class="n-slash is-pop" id="slash" role="listbox" aria-label="命令和示例" hidden>
+          <span class="n-slash__label" data-group="cmd">命令</span>
+          ${[['note', '记一件事', '/记', 'record.html'], st.can('findOwner') && ['folder', '为项目找人', '/找', 'staffing.html?new=1'], st.can('calibrate') && ['eye', '发起盘点', '/盘', 'reviews.html#new'], st.canOpenMinutes('w8') && ['wave', '打开会议人才纪要', '/录', 'record.html?m=w8']].filter(Boolean).map(([ic, l, k, h]) => html`<a class="n-slash__item" role="option" aria-selected="false" href="${h}" data-group="cmd" data-label="${l}" data-key="${k.slice(1)}">${icon(ic, 16)}${l}<kbd>${k}</kbd></a>`)}
+          <span class="n-slash__label" data-group="say">试试这样说</span>
+          ${(SUGGEST[role] || []).map((x) => html`<button class="n-slash__item" type="button" role="option" aria-selected="false" data-group="say" data-say="${x}">${icon('quote', 16)}<span>${x}</span></button>`)}
         </div>
-        <div class="n-asks" style="margin:var(--s-2) 0 var(--s-6)">${(SUGGEST[role] || []).map((s) => html`<button class="n-ask" type="button" data-say="${s}">${s}</button>`)}</div>`;
-      // 实时录音入口：HR 和导师（桌面录音页 recording.html）
-      const recStart = html`<div class="nt-recstart"><a class="n-btn n-btn--sm n-btn--ink" href="recording.html">${icon('mic')}开始录音</a><span class="nt-muted">多人会议或观察速记</span></div>`;
+        </div>
+        <ul class="n-files" id="files"></ul>
+        </section>`;
       const head = html`<header class="nt-head"><div><h1>${greet(me)}</h1><p>${TODAY_LINE()} · ${role === 'mentor' ? 'XEngineer 第六期已结营 · W8 对人复盘今天截止' : `XEngineer 第六期结营盘点进行中 · 证据截至 ${NT.md(NT.TODAY)}`}</p></div>${exportBtn()}</header>${exportHost()}`;
-      // 导师：进行中的任务和上传材料收进「材料与任务」，默认折叠
-      const fold = html`<details class="n-card nt-fold" id="fold" ${raw(location.hash === '#upload' ? 'open' : '')}><summary><h3 class="n-section-title">材料与任务</h3><span class="nt-muted">${st.visibleTasks().filter((t) => t.state !== 'done').length} 个在处理</span>${icon('chev')}</summary>
-          <div id="tasks"></div>
-          <div id="upload" style="margin-top:var(--s-4)">${recStart}<button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>${UI.ATT_TYPES}，可以一次拖入多个 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button><ul class="n-files" id="files"></ul></div></details>`;
+      // 导师：进行中的任务默认折叠
+      const fold = html`<details class="n-card nt-fold" id="fold"><summary><h3 class="n-section-title">进行中的任务</h3><span class="nt-muted">${st.visibleTasks().filter((t) => t.state !== 'done').length} 个在处理</span>${icon('chev')}</summary>
+          <div id="tasks"></div></details>`;
       if (role === 'mentor') {
         mount(main, html`${head}${composer}
           <div class="nt-ceo">
@@ -71,7 +76,6 @@
             <div class="nt-grid"><article class="n-card n-recos" id="recos" aria-labelledby="recos-h"></article>${fold}</div>
           </div>`);
         wireComposer(role); wireTodos(); renderTasks(); wireUpload();
-        $('a[href="#upload"]', main)?.addEventListener('click', () => { $('#fold').open = true; });
         drawMentor(); wireMentor();
         UI.peek.changed = drawMentor;
         return;
@@ -84,11 +88,6 @@
           <div class="nt-grid">
             ${judgeCard()}
             <article class="n-card"><h3 class="n-section-title">进行中的任务</h3><div id="tasks"></div></article>
-            <article class="n-card" id="upload"><h3 class="n-section-title">上传材料</h3>
-              ${recStart}
-              <button class="n-drop" type="button" id="drop">${icon('upload')}<b>拖入文件，或点这里选择</b><small>${UI.ATT_TYPES}，可以一次拖入多个 · 解析结果写明能定位到段落、页、单元格还是时间点</small></button>
-              <ul class="n-files" id="files"></ul>
-            </article>
           </div>
         </div>`);
       wireComposer(role);
@@ -205,32 +204,46 @@
       const inv = /盘点/.test(q) && st.can('review');
       setTimeout(() => { location.href = inv ? 'reviews.html' : NT.link(find ? 'staffing.html' : 'record.html', find ? { new: 1, q } : { q }); }, NT.reduced ? 0 : 450);
     };
-    // 斜杠命令：按 / 之后输入的字过滤（命令名或快捷字），第一条为选中项
+    // 命令与示例：聚焦且空着时列出全部；输入 / 后按之后的字过滤命令（命令名或快捷字），第一条为选中项，示例收起
     const items = slash ? $$('.n-slash__item', slash) : [];
     const shown = () => items.filter((x) => !x.hidden);
     const drawSlash = () => {
       if (!slash) return;
-      const v = field.value;
-      if (!v.startsWith('/')) { slash.hidden = true; return; }
-      const q = v.slice(1).trim();
-      items.forEach((x) => { x.hidden = !!q && !x.dataset.key.includes(q) && !x.dataset.label.includes(q); x.setAttribute('aria-selected', 'false'); });
+      const v = field.value, cmd = v.startsWith('/');
+      if (document.activeElement !== field || (v && !cmd)) { slash.hidden = true; return; }
+      const q = cmd ? v.slice(1).trim() : '';
+      items.forEach((x) => {
+        x.hidden = x.dataset.group === 'say' ? cmd : !!q && !x.dataset.key.includes(q) && !x.dataset.label.includes(q);
+        x.setAttribute('aria-selected', 'false');
+      });
+      $$('.n-slash__label', slash).forEach((l) => { l.hidden = !items.some((x) => x.dataset.group === l.dataset.group && !x.hidden); });
       const list = shown();
-      list[0]?.setAttribute('aria-selected', 'true');
+      if (cmd) list[0]?.setAttribute('aria-selected', 'true');
       slash.hidden = !list.length;
     };
+    const pick = (x) => {
+      if (x.dataset.say) { field.value = x.dataset.say; slash.hidden = true; fit(); field.focus(); NT.ipState(ipEl, 'listening'); return; }
+      location.href = x.getAttribute('href');
+    };
+    if (slash) {
+      field.addEventListener('focus', drawSlash);
+      field.addEventListener('blur', () => { slash.hidden = true; });
+      slash.addEventListener('mousedown', (e) => e.preventDefault()); // 点选项时输入框不失焦
+    }
     const sync = () => { drawSlash(); fit(); NT.ipState(ipEl, field.value ? 'listening' : 'rest'); };
     field.addEventListener('input', sync);
     field.addEventListener('keydown', (e) => {
       const composing = e.isComposing || e.keyCode === 229; // 输入法组字时的回车是选词
       const open = slash && !slash.hidden;
       if (e.key === 'Enter' && !composing) {
-        if (open) { e.preventDefault(); const cur = shown().find((x) => x.getAttribute('aria-selected') === 'true') || shown()[0]; if (cur) location.href = cur.getAttribute('href'); return; }
+        const cur = open && shown().find((x) => x.getAttribute('aria-selected') === 'true');
+        if (cur) { e.preventDefault(); pick(cur); return; }
         if (e.metaKey || e.ctrlKey || (hero && !e.shiftKey)) { e.preventDefault(); go(); return; }
       }
       if (open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
         e.preventDefault();
         const list = shown(), i = list.findIndex((x) => x.getAttribute('aria-selected') === 'true');
-        const n = (i + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length;
+        const n = i < 0 ? (e.key === 'ArrowDown' ? 0 : list.length - 1) : (i + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length;
         items.forEach((x) => x.setAttribute('aria-selected', 'false'));
         list[n].setAttribute('aria-selected', 'true');
       }
@@ -255,7 +268,7 @@
         field.focus();
       });
     });
-    $$('[data-say]').forEach((b) => b.addEventListener('click', () => { field.value = b.dataset.say; fit(); field.focus(); NT.ipState(ipEl, 'listening'); }));
+    $$('[data-say]').forEach((b) => b.addEventListener('click', () => { field.value = b.dataset.say; if (slash) slash.hidden = true; fit(); field.focus(); NT.ipState(ipEl, 'listening'); }));
     fit();
   }
 
@@ -356,11 +369,15 @@
     const follow = (d) => { draw(d); renderTasks(); watch(d); };
     // 刷新或离开后回到工作台：之前投递、还没处理完的批次接着推进
     if (st.drops().some(busy)) watch(null);
+    // 回形针选文件；文件也可以直接拖到输入框上
+    const box = $('#composer');
     $('#drop').addEventListener('click', () => follow(st.addDemoDrop()));
-    ['dragover', 'dragenter'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.add('is-over'); }));
-    ['dragleave', 'drop'].forEach((t) => $('#drop').addEventListener(t, (e) => { e.preventDefault(); e.currentTarget.classList.remove('is-over'); }));
+    ['dragover', 'dragenter'].forEach((t) => box.addEventListener(t, (e) => { e.preventDefault(); box.classList.add('is-over'); }));
+    box.addEventListener('dragleave', (e) => { if (!box.contains(e.relatedTarget)) box.classList.remove('is-over'); });
     // 一次可以拖入多个；格式与「记录关键事件」的附件同一口径（v1.5 3.34）
-    $('#drop').addEventListener('drop', (e) => {
+    box.addEventListener('drop', (e) => {
+      e.preventDefault();
+      box.classList.remove('is-over');
       const list = [...e.dataTransfer.files];
       if (list.length > UI.ATT_MAX) NT.toast(`已加入前 ${UI.ATT_MAX} 个文件，其余 ${list.length - UI.ATT_MAX} 个请再选一次`);
       follow(st.addFilesDrop(list.slice(0, UI.ATT_MAX).map((f) => ({ name: f.name, err: UI.attachCheck(f), kind: UI.attachKind(f.name) }))));

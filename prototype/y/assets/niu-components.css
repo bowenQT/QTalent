@@ -175,6 +175,20 @@ a.n-btn { text-decoration: none; }
 .n-slash__item:focus-visible { box-shadow: var(--focus); }
 .n-slash__item kbd { margin-left: auto; font: inherit; font-size: var(--t-xs); color: var(--ink-3); }
 .n-slash__item small { color: var(--ink-3); font-size: var(--t-xs); }
+/* 工作台输入框：命令和示例浮在输入框下方，与管理者找人框的示例浮层同一做法 */
+.n-cmd { margin-bottom: var(--s-6); }
+.n-cmd__box { position: relative; }
+.n-cmd .n-files:empty { display: none; }
+.n-composer { transition: box-shadow var(--d-quick), background var(--d-quick); }
+.n-composer.is-over { background: var(--light-soft); box-shadow: var(--e-2), 0 0 0 2px var(--light); }
+.n-slash.is-pop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; display: flex; flex-direction: column; max-width: none; margin: 0; padding: var(--s-3); border: 1px solid var(--line); background: var(--sheet); box-shadow: var(--e-3); animation: n-pop-in var(--d-quick) ease-out; }
+.n-slash.is-pop[hidden] { display: none; }
+.n-slash__label { padding: 0 var(--s-2) var(--s-1); font-size: var(--t-xs); color: var(--ink-3); }
+.n-slash__item + .n-slash__label { margin-top: var(--s-2); }
+.n-slash.is-pop .n-slash__item { padding: 7px var(--s-2); }
+button.n-slash__item { width: 100%; border: 0; background: none; font: inherit; font-size: var(--t-sm); text-align: left; cursor: pointer; }
+.n-slash__item > svg { flex: none; color: var(--ink-3); }
+@media (prefers-reduced-motion: reduce) { .n-slash.is-pop { animation: none; } }
 
 /* ── Agent 进度轨迹 ────────────────────────── */
 .n-trail { font-size: var(--t-sm); color: var(--ink-2); }
