@@ -9,6 +9,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { Pool } from 'pg';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -19,6 +20,7 @@ import { createDatabase, getDatabase } from '@/server/db/client';
 import { importDemo } from '@/server/db/import';
 import { mapPrototypeSeed, readPrototypeSeed } from '@/server/db/seed';
 import {
+  interviewImportArchives,
   interviewImportBatches,
   interviewImportCandidates,
   interviewImportOperations,
@@ -300,6 +302,20 @@ it('goes from /import through HR confirmation to the stored import decision', as
       decidedByAccountId: 'demo-hrbp',
     },
   });
+  const [archive] = await db()
+    .select()
+    .from(interviewImportArchives)
+    .where(
+      and(
+        eq(interviewImportArchives.batchId, batchId),
+        eq(interviewImportArchives.rowId, 'campus-1'),
+      ),
+    );
+  expect(archive).toMatchObject({
+    importRevision: 2,
+    withdrawnAt: null,
+    withdrawalAuditId: null,
+  });
   // The position code stays unknown: confirmation names the record, fills in nothing.
   expect(JSON.stringify(row.parsed)).toContain('"positionNumber":null');
 
@@ -312,7 +328,8 @@ it('goes from /import through HR confirmation to the stored import decision', as
   expect((await seed()).status).toBe('unchanged');
   expect((await stored('campus-1')).decision?.status).toBe('planned');
 
-  // Taking it back is stored too, as a new revision.
+  // Taking back a real archive stores a withdrawal. The old confirmation is stale;
+  // this is not an unknown candidate waiting to be identified.
   fireEvent.click(screen.getByRole('button', { name: '改回' }));
   await waitFor(() =>
     expect(screen.queryByText('已确认是谷嘉树（演示）')).toBeNull(),
@@ -323,12 +340,32 @@ it('goes from /import through HR confirmation to the stored import decision', as
     confirmedForRevision: null,
     decisionRevision: 3,
     decision: {
-      status: 'needs_review',
-      reviewItemKind: 'unknown_interview_candidate',
+      status: 'not_ready',
+      reason: 'candidate_confirmation_stale',
     },
   });
 
-  // Both changes stay in the row's history, each with its own audit event.
+  const [withdrawn] = await db()
+    .select()
+    .from(interviewImportArchives)
+    .where(eq(interviewImportArchives.evaluationId, archive.evaluationId));
+  expect(withdrawn).toMatchObject({
+    evaluationId: archive.evaluationId,
+    importRevision: 2,
+    withdrawnAt: expect.any(String),
+    withdrawalAuditId: expect.any(String),
+  });
+  const [withdrawalAudit] = await db()
+    .select()
+    .from(auditEvents)
+    .where(eq(auditEvents.id, withdrawn.withdrawalAuditId!));
+  expect(withdrawalAudit).toMatchObject({
+    actorId: 'demo-hrbp',
+    action: 'interview_import.archive.withdraw',
+    resourceId: archive.evaluationId,
+  });
+
+  // Both row changes stay in the row's history, each with its own audit event.
   const history = await db()
     .select()
     .from(interviewImportOperations)
@@ -360,7 +397,13 @@ it('goes from /import through HR confirmation to the stored import decision', as
       fromRevision: 2,
       toRevision: 3,
       before: { confirmation: { candidateId: 'demo-candidate-01' } },
-      after: { confirmation: null, decision: { status: 'needs_review' } },
+      after: {
+        confirmation: null,
+        decision: {
+          status: 'not_ready',
+          reason: 'candidate_confirmation_stale',
+        },
+      },
     },
   ]);
   const audits = await db()
@@ -514,8 +557,11 @@ it("takes HR's entry for an unread score beside the parsed review, then plans th
 });
 
 it('sends a row nobody in the directory matches to 待核对 once, with its audit', async () => {
+  // This row has never been archived. The campus row above was withdrawn, so its
+  // earlier confirmation cannot be recycled as a new unknown-candidate review.
+  const rowId = 'professional-1';
   // Test-only fact in this isolated database: the hired record loses its directory
-  // person, so every row waits to be identified. The demo batch never gets here.
+  // person, so this unarchived row waits to be identified. The demo batch never gets here.
   await db()
     .update(interviewImportCandidates)
     .set({ personId: null })
@@ -525,9 +571,29 @@ it('sends a row nobody in the directory matches to 待核对 once, with its audi
         eq(interviewImportCandidates.candidateId, 'demo-candidate-01'),
       ),
     );
-  const before = await stored('campus-1');
+  const withdrawn = await stored('campus-1');
+  const withdrawnHistory = await historyOf('campus-1');
+  expect(
+    await sendInterviewImportRowToReviewAction({
+      batchId,
+      rowId: 'campus-1',
+      expectedRevision: withdrawn.revision,
+    }),
+  ).toMatchObject({ status: 'conflict' });
+  expect(await stored('campus-1')).toEqual(withdrawn);
+  expect(await historyOf('campus-1')).toEqual(withdrawnHistory);
+  expect(
+    await db()
+      .select()
+      .from(interviewImportReviewItems)
+      .where(eq(interviewImportReviewItems.batchId, batchId)),
+  ).toHaveLength(0);
+
+  const before = await stored(rowId);
   await openPage();
-  fireEvent.click(screen.getAllByRole('button', { name: '放进待核对' })[0]);
+  const card = document.getElementById(`iv-${rowId}`);
+  if (!card) throw new Error(`Missing import row ${rowId}`);
+  fireEvent.click(within(card).getByRole('button', { name: '放进待核对' }));
   await waitFor(() =>
     expect(screen.getAllByText('已放进待核对').length).toBeGreaterThan(0),
   );
@@ -537,14 +603,14 @@ it('sends a row nobody in the directory matches to 待核对 once, with its audi
     .where(eq(interviewImportReviewItems.batchId, batchId));
   expect(items).toHaveLength(1);
   expect(items[0]).toMatchObject({
-    rowId: 'campus-1',
+    rowId,
     kind: 'unknown_interview_candidate',
     state: 'pending',
     revision: 1,
     createdByAccountId: 'demo-hrbp',
     question: {
       kind: 'unknown_interview_candidate',
-      importRowId: 'campus-1',
+      importRowId: rowId,
       observedName: '谷嘉树（演示）',
       candidates: [],
     },
@@ -558,7 +624,7 @@ it('sends a row nobody in the directory matches to 待核对 once, with its audi
     action: 'interview_import.review_item.create',
     resourceId: items[0].id,
   });
-  expect(await stored('campus-1')).toMatchObject({
+  expect(await stored(rowId)).toMatchObject({
     revision: before.revision + 1,
     decision: {
       status: 'needs_review',
@@ -570,7 +636,7 @@ it('sends a row nobody in the directory matches to 待核对 once, with its audi
   expect(
     await sendInterviewImportRowToReviewAction({
       batchId,
-      rowId: 'campus-1',
+      rowId,
       expectedRevision: before.revision,
     }),
   ).toMatchObject({ status: 'ok', revision: before.revision + 1 });
@@ -581,7 +647,7 @@ it('sends a row nobody in the directory matches to 待核对 once, with its audi
       .where(eq(interviewImportReviewItems.batchId, batchId)),
   ).toHaveLength(1);
 
-  expect((await historyOf('campus-1')).at(-1)).toMatchObject({
+  expect((await historyOf(rowId)).at(-1)).toMatchObject({
     action: 'send_to_review',
     auditAction: 'interview_import.row.send_to_review',
     actorAccountId: 'demo-hrbp',
