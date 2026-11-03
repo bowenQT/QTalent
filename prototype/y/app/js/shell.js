@@ -140,6 +140,7 @@
         <nav class="nt-nav">${items.filter((n) => !n.group).map(navItem)}${groups.map((g) => html`<div class="nt-nav__grp" role="group" aria-label="${g}"><span class="nt-nav__h" aria-hidden="true">${g}</span>${items.filter((n) => n.group === g).map(navItem)}</div>`)}</nav>
         ${recent.length ? html`<div class="n-shell__recent nt-recent">最近${recent.map(([t, h]) => html`<a href="${h}">${t}</a>`)}</div>` : ''}
         <div class="nt-side__foot">
+          ${['ceo', 'hrbp', 'mentor'].includes(role) ? html`<a href="index.html?tour=1">${icon('spark')}<span class="nt-nav__label">新手引导</span></a>` : ''}
           <a href="../../index.html">${icon('book')}<span class="nt-nav__label">评审导览</span></a>
           ${role === 'admin' ? '' : html`<a href="../m/index.html">${icon('phone')}<span class="nt-nav__label">手机版</span></a>`}
           <button class="nt-side__toggle" type="button" id="nt-side-toggle" aria-controls="nt-side">${icon('sidebar')}<span class="nt-nav__label">收起导航</span></button>

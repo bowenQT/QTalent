@@ -2413,3 +2413,35 @@ button.n-todomore { width: 100%; border: 0; font: inherit; font-size: var(--t-xs
 .n-follow__head > svg { color: var(--ink-3); }
 .n-follow__head .n-count { margin-left: 2px; }
 .n-follow__lock { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--t-xs); font-weight: 400; color: var(--ink-3); }
+
+/* ── 新手引导：小犇带着聚光走过几处关键位置，每处一句话 ── */
+.n-onb { position: fixed; inset: 0; z-index: 100; pointer-events: none; opacity: 0; transition: opacity var(--d-quick) var(--ease-out); }
+.n-onb.is-on { opacity: 1; }
+.n-onb__veil { position: absolute; inset: 0; pointer-events: auto; }
+.n-onb__spot { position: absolute; border-radius: var(--r-card); box-shadow: 0 0 0 2px rgb(255 255 255 / .9), 0 0 0 9999px rgb(36 42 48 / .46); transition: left var(--d-base) var(--ease-out), top var(--d-base) var(--ease-out), width var(--d-base) var(--ease-out), height var(--d-base) var(--ease-out); }
+.n-onb.is-land .n-onb__spot { box-shadow: 0 0 0 2px rgb(255 255 255 / .9), 0 0 0 9999px rgb(36 42 48 / .28); }
+.n-onb__ip { position: absolute; left: 0; top: 0; width: 56px; height: 56px; transform-origin: 0 0; filter: drop-shadow(0 8px 14px rgb(36 42 48 / .28)); will-change: transform; }
+.n-onb__ip .nt-ip { transition: transform var(--d-quick) var(--ease-out); }
+.n-onb__ip.is-land .nt-ip { animation: n-onb-land 420ms var(--ease-out); }
+.n-onb__ip.is-home { opacity: 0; transition: opacity 180ms ease-out; }
+.n-onb__trail { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--foil-edge); background-size: 400% 100%; opacity: 0; animation: n-onb-trail 760ms ease-out forwards; }
+.n-onb__bubble { position: absolute; width: min(340px, calc(100vw - 32px)); padding: var(--s-3) var(--s-4); border: 1px solid transparent; border-radius: var(--r-card); background: linear-gradient(var(--sheet), var(--sheet)) padding-box, var(--foil-edge) border-box; box-shadow: var(--e-3); pointer-events: auto; opacity: 0; transform: translateY(6px); transition: opacity var(--d-quick) var(--ease-out), transform var(--d-quick) var(--ease-out); outline: none; }
+.n-onb__bubble.is-in { opacity: 1; transform: none; }
+.n-onb__text { margin: 0; font-size: var(--t-md, 15px); line-height: 1.65; color: var(--ink-2); }
+.n-onb__text b { color: var(--ink); font-weight: 600; }
+.n-onb__bar { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-3); }
+.n-onb__bar .spacer { flex: 1; }
+.n-onb__acts { display: flex; gap: var(--s-2); }
+.n-onb__dots { display: flex; gap: 5px; }
+.n-onb__dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); transition: width var(--d-quick) var(--ease-out), background var(--d-quick); }
+.n-onb__dots i.is-on { width: 16px; border-radius: 3px; background: var(--light); }
+.n-onb__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#composer-send.is-onb-pulse { animation: n-onb-pulse 1.4s ease-out 3; }
+@keyframes n-onb-land { 0% { transform: scale(1, 1); } 35% { transform: scale(1.12, .9); } 70% { transform: scale(.96, 1.04); } 100% { transform: none; } }
+@keyframes n-onb-trail { 0% { opacity: .9; scale: 1; background-position: 0 0; } 100% { opacity: 0; scale: .3; background-position: 100% 0; } }
+@keyframes n-onb-pulse { 0% { box-shadow: 0 0 0 0 rgb(61 99 133 / .45); } 100% { box-shadow: 0 0 0 12px rgb(61 99 133 / 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .n-onb__spot, .n-onb__bubble, .n-onb__dots i { transition: none; }
+  .n-onb__ip.is-land .nt-ip, .n-onb__trail, #composer-send.is-onb-pulse { animation: none; }
+  #composer-send.is-onb-pulse { box-shadow: 0 0 0 3px rgb(61 99 133 / .35); }
+}

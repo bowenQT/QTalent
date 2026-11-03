@@ -89,6 +89,7 @@
         wireComposer(role); wireTodos(); renderTasks(); wireUpload();
         drawMentor(); wireMentor();
         UI.peek.changed = drawMentor;
+        NT.onboard.auto(role);
         return;
       }
       mount(main, html`
@@ -117,6 +118,7 @@
         $('#chg-base').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; base = b.dataset.b; $$('#chg-base button').forEach((x) => x.setAttribute('aria-pressed', x === b)); renderChanges(); });
         $('#chg-filter').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; type = b.dataset.t; $$('#chg-filter button').forEach((x) => x.setAttribute('aria-pressed', x === b)); renderChanges(); });
       }
+      NT.onboard.auto(role);
     },
   });
 
@@ -464,6 +466,7 @@
     wireWatch();
     wireFollows();
     UI.peek.changed = drawCeo;
+    NT.onboard.auto('ceo', { say: SUGGEST.ceo[0] });
   }
   // 批量导出已确认内容（BOW-912 口径）：只导当前视角范围内、已确认的事件分；表头写明导出时间、导出人、口径和范围；
   // 导出成功或失败都记审计。演示：?export=fail 看生成失败

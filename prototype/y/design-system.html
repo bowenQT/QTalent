@@ -149,6 +149,10 @@
   .ip-table-wrap .state-table th:first-child, .ip-table-wrap .state-table td:first-child { padding-left: var(--s-5); }
   .ip-inuse { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s-4); margin-top: var(--s-4); }
   .ip-inuse > div { padding: var(--s-4); border-radius: var(--r-card); background: var(--sheet); box-shadow: var(--e-1); font-size: var(--t-sm); }
+  .ds-onb { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; margin-top: var(--s-4); padding: var(--s-6) var(--s-5); border-radius: var(--r-card); background: rgb(36 42 48 / .46); }
+  .ds-onb__spot { position: relative; width: min(520px, 100%); padding: var(--s-4) var(--s-4) var(--s-4) var(--s-6); border-radius: var(--r-card); background: var(--sheet); box-shadow: 0 0 0 2px rgb(255 255 255 / .9); font-size: var(--t-sm); color: var(--ink-2); box-sizing: border-box; }
+  .ds-onb__spot .nt-ip { position: absolute; left: -22px; top: -26px; filter: drop-shadow(0 8px 14px rgb(36 42 48 / .28)); }
+  .ds-onb__bubble { position: static; }
   .ip-inuse .label { font-size: var(--t-xs); color: var(--ink-3); margin-bottom: var(--s-3); }
 
   /* 手机录音面板示意 */
@@ -2470,8 +2474,18 @@
       </div>
 
       <h3 class="ds-sub">出现在哪里</h3>
-      <p>只在四处出现：输入框左侧、处理状态、空状态，以及能力象限里给出参考位置。它不坐在结论、分数和人员卡旁边，也不代替错误说明的文字。</p>
+      <p>只在五处出现：输入框左侧、处理状态、空状态、能力象限里给出参考位置，以及新手引导。它不坐在结论、分数和人员卡旁边，也不代替错误说明的文字。</p>
       <div class="ip-inuse" id="ip-inuse"></div>
+
+      <h3 class="ds-sub">新手引导</h3>
+      <p>每个视角第一次打开工作台时出现一次，侧栏「新手引导」可以重看。小犇从输入框里飞出来，带着聚光停在三到四处，每处一句话；最后飞回输入框，替你写好一段示例，发出去后在结果旁边再说一句。Esc 随时退出，← → 切换；减少动态效果时不飞行，直接淡入。</p>
+      <div class="ds-onb">
+        <div class="ds-onb__spot"><span class="nt-ip" id="ip-onb"></span><span class="ds-onb__field">孟逸尘今天碰上需求临时变更，组里的任务一下乱了……</span></div>
+        <div class="n-onb__bubble is-in ds-onb__bubble">
+          <p class="n-onb__text">学员做了件事？<b>说一句就行</b>，我整理成一条带原话出处的记录。</p>
+          <div class="n-onb__bar"><span class="n-onb__dots" aria-hidden="true"><i class="is-on"></i><i></i><i></i><i></i></span><span class="spacer"></span><span class="n-onb__acts"><button class="n-btn n-btn--sm n-btn--ghost" type="button">跳过</button><button class="n-btn n-btn--sm n-btn--ink" type="button">下一步</button></span></div>
+        </div>
+      </div>
     </section>
 
   </main>
@@ -3155,6 +3169,7 @@
   show(current);
 
   NiuIP.mount($('#ip-anat'), { state: 'rest', size: 200 });
+  NiuIP.mount($('#ip-onb'), { state: 'listening', size: 56 });
 
   [[120, '展示'], [56, '空状态'], [36, '输入框、处理状态'], [24, '行内状态'], [16, '最小尺寸']].forEach(([px, use]) => {
     const f = document.createElement('figure');
